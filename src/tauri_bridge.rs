@@ -294,6 +294,35 @@ pub async fn workbench_drop_sessions(prefix: String) -> Result<u32, String> {
     invoke_typed("workbench_drop_sessions", A { prefix }).await
 }
 
+pub async fn agent_session_exists(
+    agent: String,
+    cwd: String,
+    session_id: String,
+) -> Result<bool, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Probe {
+        agent: String,
+        cwd: String,
+        session_id: String,
+    }
+    #[derive(Serialize)]
+    struct Args {
+        probe: Probe,
+    }
+    invoke_typed(
+        "agent_session_exists",
+        Args {
+            probe: Probe {
+                agent,
+                cwd,
+                session_id,
+            },
+        },
+    )
+    .await
+}
+
 pub async fn git_branch(cwd: String) -> Result<Option<String>, String> {
     #[derive(Serialize)]
     struct Args {

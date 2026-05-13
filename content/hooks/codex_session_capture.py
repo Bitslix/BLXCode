@@ -67,20 +67,45 @@ def _load_existing(path: str) -> dict:
     return {"version": 1, "terminals": {}}
 
 
+def _diag_log(sessions_path: str, line: str) -> None:
+    try:
+        log_path = os.path.join(os.path.dirname(sessions_path) or ".", "sessions.log")
+        os.makedirs(os.path.dirname(log_path) or ".", exist_ok=True)
+        with open(log_path, "a", encoding="utf-8") as fh:
+            fh.write(
+                time.strftime("%Y-%m-%dT%H:%M:%SZ ", time.gmtime()) + line + "\n"
+            )
+    except OSError:
+        pass
+
+
 def main() -> int:
     terminal_key = os.environ.get("BLX_TERMINAL_KEY", "").strip()
     sessions_path = os.environ.get("BLX_SESSIONS_PATH", "").strip()
+    diag_path = sessions_path or os.path.expanduser("~/.cache/blxcode-sessions.log")
     if not terminal_key or not sessions_path:
+        _diag_log(
+            diag_path,
+            f"codex SKIP missing_env terminal_key={bool(terminal_key)} sessions_path={bool(sessions_path)}",
+        )
         return 0
 
     payload = _read_payload()
     session_id = payload.get("session_id")
     if not isinstance(session_id, str) or not session_id.strip():
+        _diag_log(
+            sessions_path,
+            f"codex SKIP no_session_id key={terminal_key} payload_keys={list(payload.keys())}",
+        )
         return 0
 
     cwd = payload.get("cwd") if isinstance(payload.get("cwd"), str) else os.getcwd()
     source = payload.get("source") if isinstance(payload.get("source"), str) else "startup"
 
+    _diag_log(
+        sessions_path,
+        f"codex WRITE key={terminal_key} session_id={session_id.strip()} source={source}",
+    )
     state = _load_existing(sessions_path)
     if "terminals" not in state or not isinstance(state["terminals"], dict):
         state["terminals"] = {}

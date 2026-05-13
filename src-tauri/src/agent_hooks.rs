@@ -108,12 +108,14 @@ fn write_json_pretty(path: &Path, value: &serde_json::Value) -> Result<(), Strin
     fs::write(path, body).map_err(|e| format!("write {}: {e}", path.display()))
 }
 
-/// Returns true if `<settings>.hooks.<event>` already contains an entry
-/// tagged with our marker (or referencing the script path directly).
+/// Returns true if `<settings>.hooks.<event>` already references our
+/// hook script. We match strictly by path/script-filename so the
+/// settings entry stays schema-clean — Claude/Codex reject unknown
+/// fields at the entry level in some versions, which silently disables
+/// the whole hook.
 fn hook_already_installed(
     settings: &serde_json::Value,
     event: &str,
-    marker: &str,
     script_path: &Path,
 ) -> bool {
     let Some(arr) = settings
@@ -124,39 +126,37 @@ fn hook_already_installed(
         return false;
     };
     let needle = script_path.to_string_lossy();
+    let filename = script_path
+        .file_name()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
     arr.iter().any(|group| {
-        if group
-            .get("_blxcode_marker")
-            .and_then(|v| v.as_str())
-            .map(|s| s == marker)
-            .unwrap_or(false)
-        {
-            return true;
-        }
         let Some(inner) = group.get("hooks").and_then(|v| v.as_array()) else {
             return false;
         };
         inner.iter().any(|h| {
             h.get("command")
                 .and_then(|v| v.as_str())
-                .map(|c| c.contains(needle.as_ref()) || c.contains(marker))
+                .map(|c| c.contains(needle.as_ref()) || (!filename.is_empty() && c.contains(&filename)))
                 .unwrap_or(false)
         })
     })
 }
 
-/// Idempotent: add one hook entry under `.hooks.<event>` tagged with
-/// `marker`. Returns `true` if a write happened, `false` if already
-/// installed.
+/// Idempotent: add one hook entry under `.hooks.<event>` pointing at
+/// `script_path`. The marker argument is no longer written into the
+/// settings file — we keep it in the function signature only so the
+/// uninstall path can still strip legacy `_blxcode_marker` entries from
+/// older installs.
 fn patch_settings(
     settings_path: &Path,
     event: &str,
     matcher: &str,
-    marker: &str,
+    _legacy_marker: &str,
     script_path: &Path,
 ) -> Result<bool, String> {
     let mut settings = read_json_or_empty(settings_path)?;
-    if hook_already_installed(&settings, event, marker, script_path) {
+    if hook_already_installed(&settings, event, script_path) {
         return Ok(false);
     }
     let new_entry = serde_json::json!({
@@ -165,7 +165,6 @@ fn patch_settings(
             "type": "command",
             "command": build_hook_command(script_path),
         }],
-        "_blxcode_marker": marker,
     });
     let root = settings
         .as_object_mut()
@@ -368,12 +367,12 @@ pub fn agent_hooks_status(app: AppHandle) -> Result<AgentHooksReport, String> {
 
     let claude_installed = read_json_or_empty(&claude_cfg)
         .map(|v| {
-            hook_already_installed(&v, "UserPromptSubmit", CLAUDE_TITLE_MARKER, &claude_title)
-                && hook_already_installed(&v, "SessionStart", CLAUDE_CAPTURE_MARKER, &claude_capture)
+            hook_already_installed(&v, "UserPromptSubmit", &claude_title)
+                && hook_already_installed(&v, "SessionStart", &claude_capture)
         })
         .unwrap_or(false);
     let codex_installed = read_json_or_empty(&codex_cfg)
-        .map(|v| hook_already_installed(&v, "SessionStart", CODEX_CAPTURE_MARKER, &codex_capture))
+        .map(|v| hook_already_installed(&v, "SessionStart", &codex_capture))
         .unwrap_or(false);
 
     let entries = vec![

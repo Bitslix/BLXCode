@@ -10,6 +10,7 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use serde::Deserialize;
 use tauri::{AppHandle, Manager};
 
 const STATE_FILE: &str = "workbench.json";
@@ -98,6 +99,82 @@ pub fn workbench_load_sessions(app: AppHandle) -> Result<Option<String>, String>
 ///
 /// Missing file is a no-op; a corrupt file is rewritten as empty rather
 /// than crashing the close flow.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSessionProbe {
+    pub agent: String,
+    pub cwd: String,
+    pub session_id: String,
+}
+
+/// Validate that the on-disk transcript for an `(agent, cwd, session_id)`
+/// triple actually exists. Used by the frontend before issuing `--resume`
+/// to avoid the "No conversation found with session ID …" error path
+/// when the captured id belongs to a session that never had any turns
+/// (Claude/Codex only persist the JSONL once at least one message is
+/// committed).
+#[tauri::command]
+pub fn agent_session_exists(app: AppHandle, probe: AgentSessionProbe) -> bool {
+    let Ok(home) = app.path().home_dir() else {
+        return false;
+    };
+    let id = probe.session_id.trim();
+    if id.is_empty() {
+        return false;
+    }
+    match probe.agent.as_str() {
+        "claude" => claude_session_path(&home, &probe.cwd, id).is_file(),
+        "codex" => codex_session_present(&home, id),
+        _ => false,
+    }
+}
+
+/// `~/.claude/projects/<cwd-with-slashes-replaced-by-dashes>/<id>.jsonl`.
+/// Mirrors the directory layout Claude Code uses; replicating this here
+/// is fragile but cheaper than spawning the CLI just to verify a session.
+fn claude_session_path(home: &Path, cwd: &str, session_id: &str) -> PathBuf {
+    let encoded = cwd.trim_end_matches('/').replace('/', "-");
+    home.join(".claude")
+        .join("projects")
+        .join(encoded)
+        .join(format!("{session_id}.jsonl"))
+}
+
+/// Codex stores transcripts under
+/// `~/.codex/sessions/<year>/<month>/<day>/rollout-<timestamp>-<id>.jsonl`,
+/// so a precise path is not derivable from `session_id` alone. Walk the
+/// tree until we find a file whose name contains the id. Depth is capped
+/// to avoid pathological traversal.
+fn codex_session_present(home: &Path, session_id: &str) -> bool {
+    let root = home.join(".codex").join("sessions");
+    if !root.is_dir() {
+        return false;
+    }
+    let mut stack: Vec<(PathBuf, u32)> = vec![(root, 0)];
+    while let Some((dir, depth)) = stack.pop() {
+        if depth > 5 {
+            continue;
+        }
+        let Ok(entries) = fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let p = entry.path();
+            let Ok(ft) = entry.file_type() else { continue };
+            if ft.is_dir() {
+                stack.push((p, depth + 1));
+            } else if ft.is_file() {
+                if let Some(name) = p.file_name().and_then(|s| s.to_str()) {
+                    if name.contains(session_id) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
 #[tauri::command]
 pub fn workbench_drop_sessions(app: AppHandle, prefix: String) -> Result<u32, String> {
     if prefix.is_empty() {

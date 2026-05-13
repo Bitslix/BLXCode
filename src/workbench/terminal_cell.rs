@@ -1,8 +1,9 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    git_branch, is_tauri_shell, pty_drain, pty_kill, pty_resize, pty_spawn_with_env, pty_write,
-    workbench_load_sessions, workbench_sessions_path,
+    agent_session_exists, git_branch, is_tauri_shell, pty_drain, pty_kill, pty_resize,
+    pty_spawn_with_env, pty_write, workbench_drop_sessions, workbench_load_sessions,
+    workbench_sessions_path,
 };
 use crate::workbench::terminal_glue::{
     terminal_api_ready, terminal_create, terminal_dispose, terminal_fit,
@@ -208,7 +209,7 @@ pub fn WorkspaceTerminalCell(
                                 let slug = agent_slug.trim().to_string();
                                 if !slug.is_empty() {
                                     let resume_id =
-                                        lookup_resume_session(&terminal_key, &slug).await;
+                                        lookup_resume_session(&terminal_key, &slug, &cwd).await;
                                     for _ in 0..30u8 {
                                         if initial_pty_output_seen.load(Ordering::Relaxed) {
                                             break;
@@ -490,19 +491,99 @@ pub fn WorkspaceTerminalCell(
 /// Consult `sessions.json` for a prior session id matching this terminal
 /// slot. Returns `None` on any error / mismatch / missing entry — the
 /// caller falls back to a fresh launch.
-async fn lookup_resume_session(terminal_key: &str, agent_slug: &str) -> Option<String> {
-    let raw = workbench_load_sessions().await.ok().flatten()?;
-    let parsed: serde_json::Value = serde_json::from_str(&raw).ok()?;
-    let entry = parsed.get("terminals")?.get(terminal_key)?;
-    let stored_agent = entry.get("agent")?.as_str()?;
+///
+/// Stale entries (a captured session_id whose on-disk transcript no
+/// longer exists, e.g. an empty session that Claude never wrote) are
+/// dropped from `sessions.json` so we stop trying to resume them on
+/// every restart.
+async fn lookup_resume_session(
+    terminal_key: &str,
+    agent_slug: &str,
+    cwd: &str,
+) -> Option<String> {
+    let raw = match workbench_load_sessions().await {
+        Ok(Some(s)) => s,
+        Ok(None) => {
+            web_sys::console::log_1(
+                &format!("[blxcode resume] {terminal_key}: no sessions.json").into(),
+            );
+            return None;
+        }
+        Err(e) => {
+            web_sys::console::log_1(
+                &format!("[blxcode resume] {terminal_key}: load err {e}").into(),
+            );
+            return None;
+        }
+    };
+    let parsed: serde_json::Value = match serde_json::from_str(&raw) {
+        Ok(v) => v,
+        Err(e) => {
+            web_sys::console::log_1(
+                &format!("[blxcode resume] {terminal_key}: parse err {e}").into(),
+            );
+            return None;
+        }
+    };
+    let Some(entry) = parsed.get("terminals").and_then(|t| t.get(terminal_key)) else {
+        let keys: Vec<String> = parsed
+            .get("terminals")
+            .and_then(|t| t.as_object())
+            .map(|m| m.keys().cloned().collect())
+            .unwrap_or_default();
+        web_sys::console::log_1(
+            &format!(
+                "[blxcode resume] {terminal_key}: no entry; have {keys:?}"
+            )
+            .into(),
+        );
+        return None;
+    };
+    let stored_agent = entry.get("agent").and_then(|v| v.as_str()).unwrap_or("");
     if stored_agent != agent_slug {
+        web_sys::console::log_1(
+            &format!(
+                "[blxcode resume] {terminal_key}: agent mismatch stored={stored_agent} slot={agent_slug}"
+            )
+            .into(),
+        );
         return None;
     }
-    let id = entry.get("session_id")?.as_str()?.trim();
-    if id.is_empty() {
-        None
-    } else {
-        Some(id.to_string())
+    let id = entry
+        .get("session_id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())?;
+
+    // Validate against on-disk transcript. Captured-but-never-used
+    // sessions don't have a JSONL file, so `claude --resume <id>` would
+    // bail with "No conversation found with session ID …". Drop those.
+    match agent_session_exists(agent_slug.to_string(), cwd.to_string(), id.clone()).await {
+        Ok(true) => {
+            web_sys::console::log_1(
+                &format!("[blxcode resume] {terminal_key}: resume_id={id} (validated)").into(),
+            );
+            Some(id)
+        }
+        Ok(false) => {
+            web_sys::console::log_1(
+                &format!(
+                    "[blxcode resume] {terminal_key}: session {id} has no transcript on disk — dropping"
+                )
+                .into(),
+            );
+            let key = terminal_key.to_string();
+            leptos::task::spawn_local(async move {
+                let _ = workbench_drop_sessions(key).await;
+            });
+            None
+        }
+        Err(e) => {
+            web_sys::console::log_1(
+                &format!("[blxcode resume] {terminal_key}: validate err {e}").into(),
+            );
+            None
+        }
     }
 }
 

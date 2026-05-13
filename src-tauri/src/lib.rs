@@ -12,8 +12,8 @@ use browser_host::BrowserHost;
 use commands::*;
 use pty_host::PtyManager;
 use workbench_state::{
-    workbench_drop_sessions, workbench_load_sessions, workbench_load_state, workbench_save_state,
-    workbench_sessions_path,
+    agent_session_exists, workbench_drop_sessions, workbench_load_sessions, workbench_load_state,
+    workbench_save_state, workbench_sessions_path,
 };
 use tauri_plugin_opener::OpenerExt;
 
@@ -66,6 +66,7 @@ pub fn run() {
             workbench_sessions_path,
             workbench_load_sessions,
             workbench_drop_sessions,
+            agent_session_exists,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
