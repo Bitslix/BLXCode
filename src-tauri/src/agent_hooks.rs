@@ -13,10 +13,10 @@ const CODEX_HOOK_NAME: &str = "codex_title.py";
 const CLAUDE_HOOK_MARKER: &str = "blxcode:claude-title";
 
 /// Python interpreter the installed Claude hook command should invoke.
-/// On Windows `python` is the canonical launcher; on Unix Claude users
-/// will have `python3` (the `python` symlink is no longer universal).
+/// On Windows we use the `py` launcher (stable path `C:\Windows\py.exe`,
+/// survives Python version upgrades); on Unix `python3` is canonical.
 #[cfg(target_os = "windows")]
-const PYTHON_BIN: &str = "python";
+const PYTHON_BIN: &str = "py -3";
 #[cfg(not(target_os = "windows"))]
 const PYTHON_BIN: &str = "python3";
 
