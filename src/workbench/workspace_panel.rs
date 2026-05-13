@@ -338,9 +338,24 @@ fn TerminalSlotSurface(
     on_full_size: Callback<(), ()>,
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
-    let pane_ids = RwSignal::new(vec![slot_id.saturating_mul(1000).saturating_add(1)]);
-    let next_pane_id = RwSignal::new(slot_id.saturating_mul(1000).saturating_add(2));
-    let split_axis = RwSignal::new(TerminalSplitAxis::Vertical);
+    // Hydrate split layout from persisted workspace state so a restart
+    // preserves the user's exact pane grid.
+    let persisted = wb.slot_panes(workspace_id, slot_id);
+    let pane_ids = RwSignal::new(persisted.pane_ids);
+    let next_pane_id = RwSignal::new(persisted.next_pane_id);
+    let split_axis = RwSignal::new(persisted.axis);
+
+    // Push every change back into the workspace so the workbench
+    // auto-save effect can persist it. set_slot_panes deduplicates so
+    // unchanged ticks don't trigger spurious saves.
+    Effect::new(move |_| {
+        let snapshot = crate::workbench::state::SlotPaneState {
+            axis: split_axis.get(),
+            pane_ids: pane_ids.get(),
+            next_pane_id: next_pane_id.get(),
+        };
+        wb.set_slot_panes(workspace_id, slot_id, snapshot);
+    });
 
     view! {
         <div

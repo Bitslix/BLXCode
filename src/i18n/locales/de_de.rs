@@ -107,6 +107,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgReadBuiltin => {
             "„READ:relative/pfad.txt“ löst eingebaute Lesehilfen aus."
         }
+        I18nKey::AgHooksHeading => "Terminal-Hooks",
+        I18nKey::AgHooksDesc => {
+            "Installiert Titel- und Session-Capture-Hooks für Claude und Codex. Damit folgt der Tab-Titel dem aktuellen Prompt und Agent-Sessions lassen sich nach einem Neustart fortsetzen."
+        }
+        I18nKey::AgHooksInstall => "Hooks installieren",
+        I18nKey::AgHooksUninstall => "Deinstallieren",
+        I18nKey::AgHooksStatusInstalled => "installiert",
+        I18nKey::AgHooksStatusMissing => "nicht installiert",
+        I18nKey::AgHooksStatusUnknown => "unbekannt",
+        I18nKey::AgHooksBusy => "Wird ausgeführt…",
         I18nKey::HarnessLoading => "Laden …",
 
         I18nKey::AuthGateChecking => "Sitzung wird geprüft…",

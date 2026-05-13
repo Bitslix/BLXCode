@@ -8,7 +8,10 @@ use super::state::{
 use crate::config::{EULA_STORAGE_KEY, HARNESS_BROWSER_DEFAULT_URL};
 use crate::i18n::{lookup, I18nKey, Locale};
 use crate::service::I18nService;
-use crate::tauri_bridge::agent_provider_status;
+use crate::tauri_bridge::{
+    agent_hooks_status, agent_provider_status, install_agent_hooks, is_tauri_shell,
+    uninstall_agent_hooks, AgentHooksReport,
+};
 use gloo_timers::future::TimeoutFuture;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
@@ -536,6 +539,7 @@ fn SettingsChrome(
                                     </div>
                                     <HarnessProviderPreview />
                                     <small class="harness-muted">{move || i18n.tr(I18nKey::AgReadBuiltin)()}</small>
+                                    <AgentHooksPanel />
                                 </article>
                             }.into_any(),
                         }}
@@ -588,6 +592,133 @@ fn HarnessProviderPreview() -> impl IntoView {
                 t
             }
         }}</pre>
+    }
+}
+
+#[component]
+fn AgentHooksPanel() -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let report: RwSignal<Option<AgentHooksReport>> = RwSignal::new(None);
+    let busy = RwSignal::new(false);
+    let error: RwSignal<Option<String>> = RwSignal::new(None);
+
+    let refresh = move || {
+        if !is_tauri_shell() {
+            return;
+        }
+        leptos::task::spawn_local(async move {
+            match agent_hooks_status().await {
+                Ok(r) => {
+                    report.set(Some(r));
+                    error.set(None);
+                }
+                Err(e) => error.set(Some(e)),
+            }
+        });
+    };
+
+    Effect::new(move |_| refresh());
+
+    let on_install = move |_| {
+        if busy.get_untracked() || !is_tauri_shell() {
+            return;
+        }
+        busy.set(true);
+        error.set(None);
+        leptos::task::spawn_local(async move {
+            match install_agent_hooks().await {
+                Ok(r) => report.set(Some(r)),
+                Err(e) => error.set(Some(e)),
+            }
+            busy.set(false);
+        });
+    };
+
+    let on_uninstall = move |_| {
+        if busy.get_untracked() || !is_tauri_shell() {
+            return;
+        }
+        busy.set(true);
+        error.set(None);
+        leptos::task::spawn_local(async move {
+            match uninstall_agent_hooks().await {
+                Ok(r) => report.set(Some(r)),
+                Err(e) => error.set(Some(e)),
+            }
+            busy.set(false);
+        });
+    };
+
+    view! {
+        <section class="harness-hooks">
+            <h4>{move || i18n.tr(I18nKey::AgHooksHeading)()}</h4>
+            <p class="harness-muted">{move || i18n.tr(I18nKey::AgHooksDesc)()}</p>
+            <ul class="harness-hooks__list">
+                {move || {
+                    let rendered = report.get();
+                    let installed_label = i18n.tr(I18nKey::AgHooksStatusInstalled)().to_string();
+                    let missing_label = i18n.tr(I18nKey::AgHooksStatusMissing)().to_string();
+                    let unknown_label = i18n.tr(I18nKey::AgHooksStatusUnknown)().to_string();
+                    match rendered {
+                        Some(r) if !r.entries.is_empty() => r
+                            .entries
+                            .into_iter()
+                            .map(|entry| {
+                                let status = if entry.installed {
+                                    installed_label.clone()
+                                } else {
+                                    missing_label.clone()
+                                };
+                                let note = entry.note.unwrap_or_default();
+                                let has_note = !note.is_empty();
+                                view! {
+                                    <li class="harness-hooks__item">
+                                        <strong>{entry.agent}</strong>
+                                        <span class="harness-muted">{format!(" — {status}")}</span>
+                                        <Show when=move || has_note>
+                                            <small class="harness-muted">{note.clone()}</small>
+                                        </Show>
+                                    </li>
+                                }
+                                .into_any()
+                            })
+                            .collect::<Vec<_>>()
+                            .into_any(),
+                        _ => view! {
+                            <li class="harness-hooks__item harness-muted">{unknown_label}</li>
+                        }
+                        .into_any(),
+                    }
+                }}
+            </ul>
+            <div class="harness-row-gap">
+                <button
+                    type="button"
+                    class="workbench-mini-btn workbench-mini-btn--primary"
+                    prop:disabled=move || busy.get() || !is_tauri_shell()
+                    on:click=on_install
+                >
+                    {move || {
+                        if busy.get() {
+                            i18n.tr(I18nKey::AgHooksBusy)().to_string()
+                        } else {
+                            i18n.tr(I18nKey::AgHooksInstall)().to_string()
+                        }
+                    }}
+                </button>
+                <button
+                    type="button"
+                    class="workbench-mini-btn"
+                    prop:disabled=move || busy.get() || !is_tauri_shell()
+                    on:click=on_uninstall
+                >
+                    {move || i18n.tr(I18nKey::AgHooksUninstall)()}
+                </button>
+            </div>
+            <Show when=move || error.get().is_some()>
+                <p class="harness-muted">{move || error.get().unwrap_or_default()}</p>
+            </Show>
+        </section>
     }
 }
 

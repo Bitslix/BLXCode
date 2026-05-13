@@ -107,6 +107,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgReadBuiltin => {
             "READ:relative/path.txt triggers built-in read helpers."
         }
+        I18nKey::AgHooksHeading => "Terminal hooks",
+        I18nKey::AgHooksDesc => {
+            "Install title + session-capture hooks for Claude and Codex so terminal tabs follow the active prompt and agent sessions can be resumed after restart."
+        }
+        I18nKey::AgHooksInstall => "Install hooks",
+        I18nKey::AgHooksUninstall => "Uninstall",
+        I18nKey::AgHooksStatusInstalled => "installed",
+        I18nKey::AgHooksStatusMissing => "not installed",
+        I18nKey::AgHooksStatusUnknown => "unknown",
+        I18nKey::AgHooksBusy => "Working…",
         I18nKey::HarnessLoading => "Loading …",
 
         I18nKey::AuthGateChecking => "Checking session…",

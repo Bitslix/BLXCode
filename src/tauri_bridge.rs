@@ -237,7 +237,7 @@ pub async fn pty_drain(session_id: u64, max_bytes: usize) -> Result<String, Stri
     .await
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentHookEntry {
     pub agent: String,
@@ -247,7 +247,7 @@ pub struct AgentHookEntry {
     pub note: Option<String>,
 }
 
-#[derive(Debug, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentHooksReport {
     pub hooks_dir: String,
@@ -284,6 +284,14 @@ pub async fn workbench_sessions_path() -> Result<String, String> {
 
 pub async fn workbench_load_sessions() -> Result<Option<String>, String> {
     invoke_typed("workbench_load_sessions", serde_json::json!({})).await
+}
+
+pub async fn workbench_drop_sessions(prefix: String) -> Result<u32, String> {
+    #[derive(Serialize)]
+    struct A {
+        prefix: String,
+    }
+    invoke_typed("workbench_drop_sessions", A { prefix }).await
 }
 
 pub async fn git_branch(cwd: String) -> Result<Option<String>, String> {

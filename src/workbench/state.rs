@@ -1,7 +1,9 @@
 use crate::config::{
     HARNESS_BROWSER_DEFAULT_URL, HARNESS_BROWSER_URL_KEY, HARNESS_WORKSPACE_ROOT_KEY,
 };
+use crate::tauri_bridge::{is_tauri_shell, workbench_drop_sessions};
 use leptos::prelude::*;
+use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
 
 /// Bumped when the on-disk schema changes incompatibly. Snapshots with an
@@ -26,6 +28,34 @@ pub struct WorkspaceEntry {
     pub slot_ids: Vec<u64>,
     /// One label/slug per terminal slot (e.g. `"claude"` or empty after skip).
     pub slot_agent_labels: Vec<String>,
+    /// Split-pane state per slot, parallel-indexed to `slot_ids`. Missing
+    /// entries (older snapshots, freshly-created slots) fall back to a
+    /// single un-split pane via [`SlotPaneState::default_for_slot`].
+    #[serde(default)]
+    pub slot_pane_states: Vec<SlotPaneState>,
+}
+
+/// Per-slot terminal split state — survives a restart so the grid of
+/// panes inside each slot is restored exactly as the user left it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SlotPaneState {
+    pub axis: TerminalSplitAxis,
+    pub pane_ids: Vec<u64>,
+    pub next_pane_id: u64,
+}
+
+impl SlotPaneState {
+    /// Default for a newly-created slot: one pane, vertical split axis,
+    /// pane id derived from `slot_id` so it stays stable across restarts.
+    #[must_use]
+    pub fn default_for_slot(slot_id: u64) -> Self {
+        let first = slot_id.saturating_mul(1000).saturating_add(1);
+        Self {
+            axis: TerminalSplitAxis::Vertical,
+            pane_ids: vec![first],
+            next_pane_id: first.saturating_add(1),
+        }
+    }
 }
 
 impl WorkspaceEntry {
@@ -41,6 +71,7 @@ impl WorkspaceEntry {
             next_terminal_id: 1,
             slot_ids: Vec::new(),
             slot_agent_labels: Vec::new(),
+            slot_pane_states: Vec::new(),
         }
     }
 
@@ -75,7 +106,7 @@ impl WorkspaceEntry {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TerminalSplitAxis {
     Vertical,
     Horizontal,
@@ -362,6 +393,7 @@ impl WorkbenchService {
                 self.active_id.set(next);
             }
         });
+        drop_sessions_for_prefix(format!("{id}:"));
     }
 
     pub fn close_terminal(&self, workspace_id: u64, terminal_id: u64) {
@@ -377,8 +409,12 @@ impl WorkbenchService {
             };
             workspace.slot_ids.remove(index);
             workspace.slot_agent_labels.remove(index);
+            if index < workspace.slot_pane_states.len() {
+                workspace.slot_pane_states.remove(index);
+            }
             workspace.set_count_and_dims(workspace.slot_agent_labels.len() as u8);
         });
+        drop_sessions_for_prefix(format!("{workspace_id}:{terminal_id}:"));
     }
 
     #[must_use]
@@ -685,6 +721,12 @@ impl WorkbenchService {
             fleet_counts_to_slot_labels(n, &draft.agent_counts)
         };
 
+        let slot_ids: Vec<u64> = (1..=n as u64).collect();
+        let slot_pane_states = slot_ids
+            .iter()
+            .copied()
+            .map(SlotPaneState::default_for_slot)
+            .collect();
         let entry = WorkspaceEntry {
             id,
             title,
@@ -694,7 +736,8 @@ impl WorkbenchService {
             grid_cols: gc,
             slot_agent_labels,
             next_terminal_id: n as u64 + 1,
-            slot_ids: (1..=n as u64).collect(),
+            slot_ids,
+            slot_pane_states,
         };
 
         self.workspaces.update(|v| v.push(entry));
@@ -714,6 +757,52 @@ impl WorkbenchService {
             if d.nav_log.len() > 80 {
                 let excess = d.nav_log.len() - 80;
                 d.nav_log.drain(0..excess);
+            }
+        });
+    }
+
+    /// Look up the persisted pane state for a slot. Returns
+    /// [`SlotPaneState::default_for_slot`] when nothing has been stored
+    /// yet (fresh workspace, snapshot from before Phase 2.3).
+    #[must_use]
+    pub fn slot_panes(&self, workspace_id: u64, slot_id: u64) -> SlotPaneState {
+        self.workspaces.with(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .and_then(|w| {
+                    w.slot_ids
+                        .iter()
+                        .position(|id| *id == slot_id)
+                        .and_then(|idx| w.slot_pane_states.get(idx).cloned())
+                })
+                .unwrap_or_else(|| SlotPaneState::default_for_slot(slot_id))
+        })
+    }
+
+    /// Persist a slot's current split-pane layout back into the workspace
+    /// entry. Quietly no-ops if the workspace or slot has vanished
+    /// (e.g. closed mid-write).
+    pub fn set_slot_panes(&self, workspace_id: u64, slot_id: u64, state: SlotPaneState) {
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            let Some(idx) = workspace.slot_ids.iter().position(|id| *id == slot_id) else {
+                return;
+            };
+            // Keep parallel arrays aligned even on snapshots created before
+            // this field existed.
+            while workspace.slot_pane_states.len() < workspace.slot_ids.len() {
+                let sid = workspace.slot_ids[workspace.slot_pane_states.len()];
+                workspace
+                    .slot_pane_states
+                    .push(SlotPaneState::default_for_slot(sid));
+            }
+            if let Some(slot) = workspace.slot_pane_states.get_mut(idx) {
+                if *slot != state {
+                    *slot = state;
+                }
             }
         });
     }
@@ -810,6 +899,18 @@ pub struct WorkbenchSnapshot {
     pub embedded_browser_tabs: Vec<EmbeddedBrowserTab>,
     pub embedded_browser_active_id: u64,
     pub embedded_browser_next_id: u64,
+}
+
+/// Fire-and-forget cleanup of `sessions.json` entries whose key starts
+/// with `prefix`. Called from close handlers; failures are swallowed so
+/// a missing or transient IPC error never blocks the UI.
+fn drop_sessions_for_prefix(prefix: String) {
+    if prefix.is_empty() || !is_tauri_shell() {
+        return;
+    }
+    spawn_local(async move {
+        let _ = workbench_drop_sessions(prefix).await;
+    });
 }
 
 /// Last meaningful path segment, used to auto-name a workspace from its
