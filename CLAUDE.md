@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Project Rules
+
+Always read and follow every rule in `.agents/rules/` before making changes. Each file in that directory is a binding rule for work in this repo.
+
 ## Project Overview
 
 **blxcode** is a Tauri 2 + Leptos 0.7 desktop application. The frontend is a Leptos CSR (client-side rendered) WASM app built with Trunk; the backend is a Tauri 2 Rust process.

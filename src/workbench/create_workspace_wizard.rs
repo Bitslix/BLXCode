@@ -107,7 +107,7 @@ pub fn CreateWorkspaceWizardHost() -> impl IntoView {
                                         on:input=move |ev| {
                                             cwd_err.set(false);
                                             let v = input_value(&ev);
-                                            draft.update(|d| d.cwd_display = v);
+                                            wb.set_wizard_cwd(v);
                                         }
                                     />
                                     <button

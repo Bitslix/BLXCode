@@ -714,7 +714,32 @@ impl WorkbenchService {
 
     pub fn set_wizard_cwd(&self, path: String) {
         self.create_wizard_draft.update(|d| {
+            if d.name_input.trim().is_empty() {
+                if let Some(name) = derive_workspace_name(&path) {
+                    d.name_input = name;
+                }
+            }
             d.cwd_display = path;
         });
     }
+}
+
+/// Last meaningful path segment, used to auto-name a workspace from its
+/// working directory. Handles both `/` and `\` separators, skips trailing
+/// slashes, and rejects pathological inputs (root, empty, dots).
+#[must_use]
+pub fn derive_workspace_name(path: &str) -> Option<String> {
+    let trimmed = path.trim().trim_end_matches(['/', '\\']);
+    if trimmed.is_empty() {
+        return None;
+    }
+    let last = trimmed
+        .rsplit(|c| c == '/' || c == '\\')
+        .next()
+        .unwrap_or("")
+        .trim();
+    if last.is_empty() || last == "." || last == ".." {
+        return None;
+    }
+    Some(last.to_string())
 }
