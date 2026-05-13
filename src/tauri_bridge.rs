@@ -250,6 +250,18 @@ pub async fn uninstall_agent_hooks() -> Result<AgentHooksReport, String> {
     invoke_typed("uninstall_agent_hooks", serde_json::json!({})).await
 }
 
+pub async fn workbench_save_state(json: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct A {
+        json: String,
+    }
+    invoke_unit_js("workbench_save_state", args_value(A { json })?).await
+}
+
+pub async fn workbench_load_state() -> Result<Option<String>, String> {
+    invoke_typed("workbench_load_state", serde_json::json!({})).await
+}
+
 pub async fn git_branch(cwd: String) -> Result<Option<String>, String> {
     #[derive(Serialize)]
     struct Args {

@@ -4,12 +4,14 @@ mod browser_host;
 mod commands;
 mod git_info;
 mod pty_host;
+mod workbench_state;
 
 use agent::AgentEngineState;
 use agent_hooks::{agent_hooks_status, install_agent_hooks, uninstall_agent_hooks};
 use browser_host::BrowserHost;
 use commands::*;
 use pty_host::PtyManager;
+use workbench_state::{workbench_load_state, workbench_save_state};
 use tauri_plugin_opener::OpenerExt;
 
 #[tauri::command]
@@ -56,6 +58,8 @@ pub fn run() {
             install_agent_hooks,
             agent_hooks_status,
             uninstall_agent_hooks,
+            workbench_save_state,
+            workbench_load_state,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

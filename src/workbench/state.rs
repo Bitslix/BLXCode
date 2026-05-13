@@ -2,13 +2,19 @@ use crate::config::{
     HARNESS_BROWSER_DEFAULT_URL, HARNESS_BROWSER_URL_KEY, HARNESS_WORKSPACE_ROOT_KEY,
 };
 use leptos::prelude::*;
+use serde::{Deserialize, Serialize};
+
+/// Bumped when the on-disk schema changes incompatibly. Snapshots with an
+/// unknown version are ignored on load (we fall back to defaults rather
+/// than crashing).
+pub const WORKBENCH_SNAPSHOT_VERSION: u32 = 1;
 
 /// Static agent rows in the fleet step (display order).
 pub const WORKSPACE_FLEET_AGENT_SLUGS: [&str; 5] =
     ["claude", "codex", "gemini", "opencode", "cursor"];
 
 /// One workspace open in the sidebar; shared across center and right panel via [`WorkbenchService`].
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkspaceEntry {
     pub id: u64,
     pub title: String,
@@ -129,7 +135,7 @@ pub fn fleet_counts_to_slot_labels(n: usize, counts: &[u8; 5]) -> Vec<String> {
 }
 
 /// Rechtes Panel (Pi-inspirierte Harness-Ansicht): Agent-Stream vs. eingebetteter Browser.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RightPanelTab {
     Agent,
     Browser,
@@ -247,7 +253,7 @@ fn write_local_storage(key: &str, value: &str) {
 }
 
 /// Ein „Blatt“ innerhalb des eingebetteten Browsers (rechtes Panel), mit eigener URL.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EmbeddedBrowserTab {
     pub id: u64,
     pub url: String,
@@ -722,6 +728,88 @@ impl WorkbenchService {
             d.cwd_display = path;
         });
     }
+
+    /// Serialisable snapshot of every workbench bit that should survive a
+    /// restart. Transient state (wizard draft, command palette, embedded
+    /// browser surface kind) is intentionally excluded.
+    #[must_use]
+    pub fn snapshot(&self) -> WorkbenchSnapshot {
+        WorkbenchSnapshot {
+            version: WORKBENCH_SNAPSHOT_VERSION,
+            workspaces: self.workspaces.get_untracked(),
+            active_id: self.active_id.get_untracked(),
+            workspace_next_id: self.workspace_next_id.get_untracked(),
+            sidebar_collapsed: self.sidebar_collapsed.get_untracked(),
+            right_collapsed: self.right_collapsed.get_untracked(),
+            right_width_px: self.right_width_px.get_untracked(),
+            right_tab: self.right_tab.get_untracked(),
+            embedded_browser_tabs: self.embedded_browser_tabs.get_untracked(),
+            embedded_browser_active_id: self.embedded_browser_active_id.get_untracked(),
+            embedded_browser_next_id: self.embedded_browser_next_id.get_untracked(),
+        }
+    }
+
+    /// Apply a previously persisted snapshot. Mismatched / future versions
+    /// are rejected silently so a stale file never breaks startup.
+    pub fn hydrate(&self, snap: WorkbenchSnapshot) {
+        if snap.version != WORKBENCH_SNAPSHOT_VERSION {
+            return;
+        }
+        // Workspace list + selection
+        self.workspaces.set(snap.workspaces);
+        self.active_id.set(snap.active_id);
+        self.workspace_next_id
+            .set(snap.workspace_next_id.max(1));
+
+        // Panel chrome
+        self.sidebar_collapsed.set(snap.sidebar_collapsed);
+        self.right_collapsed.set(snap.right_collapsed);
+        if snap.right_width_px.is_finite() && snap.right_width_px > 120.0 {
+            self.right_width_px.set(snap.right_width_px);
+        }
+        self.right_tab.set(snap.right_tab);
+
+        // Embedded browser — keep at least one tab to match `new()` invariant.
+        if !snap.embedded_browser_tabs.is_empty() {
+            let tabs = snap.embedded_browser_tabs;
+            let aid = if tabs.iter().any(|t| t.id == snap.embedded_browser_active_id) {
+                snap.embedded_browser_active_id
+            } else {
+                tabs[0].id
+            };
+            let next = snap
+                .embedded_browser_next_id
+                .max(tabs.iter().map(|t| t.id).max().unwrap_or(0) + 1);
+            let active_url = tabs
+                .iter()
+                .find(|t| t.id == aid)
+                .map(|t| t.url.clone())
+                .unwrap_or_default();
+            self.embedded_browser_tabs.set(tabs);
+            self.embedded_browser_active_id.set(aid);
+            self.embedded_browser_next_id.set(next);
+            if !active_url.is_empty() {
+                self.browser_url.set(active_url);
+            }
+        }
+    }
+}
+
+/// On-disk schema for the workbench layout. Versioned via
+/// [`WORKBENCH_SNAPSHOT_VERSION`].
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct WorkbenchSnapshot {
+    pub version: u32,
+    pub workspaces: Vec<WorkspaceEntry>,
+    pub active_id: Option<u64>,
+    pub workspace_next_id: u64,
+    pub sidebar_collapsed: bool,
+    pub right_collapsed: bool,
+    pub right_width_px: f64,
+    pub right_tab: RightPanelTab,
+    pub embedded_browser_tabs: Vec<EmbeddedBrowserTab>,
+    pub embedded_browser_active_id: u64,
+    pub embedded_browser_next_id: u64,
 }
 
 /// Last meaningful path segment, used to auto-name a workspace from its
