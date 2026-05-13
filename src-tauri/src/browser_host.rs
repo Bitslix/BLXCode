@@ -10,11 +10,9 @@ use url::Url;
 const LABEL: &str = "embedded-browser";
 pub const DEFAULT_HOME_URL: &str = "https://bitslix.com";
 
-/// Child-WebViews mit SPA-gestützten Bounds funktionieren zuverlässig nur dort, wo das
-/// Tauri-/Wry-Backend eine echte Unter-WebView einpasst (nicht unter Linux GTK ohne GtkFixed-X11-Inset).
 #[must_use]
 pub fn native_child_inset_supported() -> bool {
-    cfg!(any(target_os = "windows", target_os = "macos"))
+    true
 }
 
 #[must_use]
@@ -30,6 +28,7 @@ pub fn browser_embedding_kind_str() -> &'static str {
 pub struct BrowserHost {
     /// Whether `add_child` completed at least once.
     lock: Mutex<()>,
+    last_url: Mutex<Option<String>>,
 }
 
 impl BrowserHost {
@@ -40,11 +39,16 @@ impl BrowserHost {
         navigate_to: Option<&str>,
     ) -> Result<(), String> {
         let _guard = self.lock.lock().map_err(|_| "browser lock poisoned")?;
+        let mut last_url = self
+            .last_url
+            .lock()
+            .map_err(|_| "browser last_url lock poisoned")?;
 
         if !native_child_inset_supported() {
             if let Some(wv) = app.get_webview(LABEL) {
                 let _ = wv.close();
             }
+            *last_url = None;
             return Ok(());
         }
 
@@ -68,6 +72,7 @@ impl BrowserHost {
                     LogicalSize::new(rect.w.max(2.), rect.h.max(2.)),
                 )
                 .map_err(|e| format!("webview add_child: {e}"))?;
+            *last_url = Some(start.to_string());
         }
 
         let wv = app
@@ -79,9 +84,14 @@ impl BrowserHost {
         wv.set_size(LogicalSize::new(rect.w.max(2.), rect.h.max(2.)))
             .map_err(|e| e.to_string())?;
 
-        if let Some(nav) = navigate_to.filter(|s| !s.is_empty()) {
+        if let Some(nav) = navigate_to
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .filter(|s| last_url.as_deref() != Some(*s))
+        {
             let pu = Url::parse(nav).map_err(|e| format!("{e}"))?;
             wv.navigate(pu).map_err(|e| e.to_string())?;
+            *last_url = Some(nav.to_string());
         }
 
         if rect.visible && rect.w >= 8. && rect.h >= 8. {
@@ -94,9 +104,6 @@ impl BrowserHost {
     }
 
     pub fn eval_embedded(&self, app: &AppHandle, js: impl Into<String>) -> Result<(), String> {
-        if !native_child_inset_supported() {
-            return Ok(());
-        }
         let wv = app
             .get_webview(LABEL)
             .ok_or_else(|| "Browser-Webview noch nicht erstellt.".to_string())?;
@@ -104,13 +111,16 @@ impl BrowserHost {
     }
 
     pub fn navigate(&self, app: &AppHandle, url: &str) -> Result<(), String> {
-        if !native_child_inset_supported() {
-            return Ok(());
-        }
         let Some(wv) = app.get_webview(LABEL) else {
             return Err("Browser-Webview noch nicht angelegt (Tab öffnen).".into());
         };
-        let u = Url::parse(url.trim()).map_err(|e| format!("{e}"))?;
+        let trimmed = url.trim();
+        let u = Url::parse(trimmed).map_err(|e| format!("{e}"))?;
         wv.navigate(u).map_err(|e| e.to_string())
+            .map(|_| {
+                if let Ok(mut last_url) = self.last_url.lock() {
+                    *last_url = Some(trimmed.to_string());
+                }
+            })
     }
 }

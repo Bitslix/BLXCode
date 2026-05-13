@@ -283,6 +283,17 @@ fn write_local_storage(key: &str, value: &str) {
     }
 }
 
+fn normalize_browser_url(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    if trimmed.contains("://") {
+        return trimmed.to_string();
+    }
+    format!("https://{trimmed}")
+}
+
 /// Ein „Blatt“ innerhalb des eingebetteten Browsers (rechtes Panel), mit eigener URL.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EmbeddedBrowserTab {
@@ -459,17 +470,17 @@ impl WorkbenchService {
     }
 
     pub fn persist_browser_url_from_input(&self, url: String) {
-        let trimmed = url.trim().to_string();
-        if !trimmed.is_empty() {
-            write_local_storage(HARNESS_BROWSER_URL_KEY, &trimmed);
+        let normalized = normalize_browser_url(&url);
+        if !normalized.is_empty() {
+            write_local_storage(HARNESS_BROWSER_URL_KEY, &normalized);
         }
         let aid = self.embedded_browser_active_id.get_untracked();
         self.embedded_browser_tabs.update(|tabs| {
             if let Some(t) = tabs.iter_mut().find(|t| t.id == aid) {
-                t.url.clone_from(&trimmed);
+                t.url.clone_from(&normalized);
             }
         });
-        self.browser_url.set(trimmed);
+        self.browser_url.set(normalized);
     }
 
     #[must_use]

@@ -3,7 +3,7 @@ use crate::agent_wire::BrowserBoundsPayload;
 use crate::config::NEW_TAB_BROWSER_SHORTLINKS;
 use crate::i18n::{lookup, I18nKey, Locale};
 use crate::service::I18nService;
-use crate::tauri_bridge::browser_navigate;
+use crate::tauri_bridge::{browser_navigate, open_external_url};
 use gloo_timers::future::TimeoutFuture;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
@@ -60,6 +60,18 @@ fn embed_is_native(surface: BrowserEmbedSurface) -> bool {
 /// Bounds-Sync zwischen Layout und nativer Child-Webview.
 pub async fn sync_embedded_browser_layer(wb: WorkbenchService, surface: BrowserEmbedSurface) {
     if !embed_is_native(surface) {
+        // Falls zuvor native Child-Webview aktiv war, explizit verstecken/abbauen.
+        let _ = crate::tauri_bridge::browser_sync_bounds(
+            BrowserBoundsPayload {
+                x: 0.0,
+                y: 0.0,
+                w: 0.0,
+                h: 0.0,
+                visible: false,
+            },
+            None,
+        )
+        .await;
         return;
     }
 
@@ -81,7 +93,9 @@ pub async fn sync_embedded_browser_layer(wb: WorkbenchService, surface: BrowserE
         return;
     }
 
-    let url_empty = wb.browser_url().get_untracked().trim().is_empty();
+    let current_url = wb.browser_url().get_untracked();
+    let navigate_to = current_url.trim().to_string();
+    let url_empty = navigate_to.is_empty();
 
     let mut payload = resolve_host_bounds().unwrap_or(BrowserBoundsPayload {
         x: 0.0,
@@ -94,7 +108,11 @@ pub async fn sync_embedded_browser_layer(wb: WorkbenchService, surface: BrowserE
         payload.visible = false;
     }
 
-    let _ = crate::tauri_bridge::browser_sync_bounds(payload, None).await;
+    let _ = crate::tauri_bridge::browser_sync_bounds(
+        payload,
+        if url_empty { None } else { Some(navigate_to.as_str()) },
+    )
+    .await;
 }
 
 fn try_reload_embedded_iframe() {
@@ -215,10 +233,12 @@ pub fn BrowserTabDock() -> impl IntoView {
     let surface = expect_context::<BrowserEmbedSurface>();
     let i18n = expect_context::<I18nService>();
     let draft_url = RwSignal::new(wb.browser_url().get_untracked());
+    let iframe_failed = RwSignal::new(false);
 
     Effect::new(move |_| {
         let u = wb.browser_url().get();
         draft_url.set(u);
+        iframe_failed.set(false);
     });
 
     view! {
@@ -421,12 +441,46 @@ pub fn BrowserTabDock() -> impl IntoView {
                             when=move || !wb.browser_url().get().trim().is_empty()
                             fallback=move || view! { <BrowserNewTabPane wb surface /> }.into_any()
                         >
-                            <iframe
-                                id=IFRAME_EMBED_ID
-                                class="workbench-browser-iframe"
-                                title=move || i18n.tr(I18nKey::BrFrameTitle)()
-                                prop:src=move || wb.browser_url().get()
-                            ></iframe>
+                            <div class="workbench-browser-frame-area">
+                                <Show
+                                    when=move || !iframe_failed.get()
+                                    fallback=move || {
+                                        let url = wb.browser_url().get_untracked();
+                                        view! {
+                                            <div class="workbench-browser-new-tab">
+                                                <p class="workbench-browser-new-tab-hint">
+                                                    "This page blocks iframe embedding in the app."
+                                                </p>
+                                                <button
+                                                    type="button"
+                                                    class="workbench-mini-btn workbench-mini-btn--primary"
+                                                    on:click=move |_| {
+                                                        let target = url.clone();
+                                                        if target.trim().is_empty() {
+                                                            return;
+                                                        }
+                                                        spawn_local(async move {
+                                                            let _ = open_external_url(target.trim()).await;
+                                                        });
+                                                    }
+                                                >
+                                                    "Open In Browser"
+                                                </button>
+                                            </div>
+                                        }
+                                            .into_any()
+                                    }
+                                >
+                                    <iframe
+                                        id=IFRAME_EMBED_ID
+                                        class="workbench-browser-iframe"
+                                        title=move || i18n.tr(I18nKey::BrFrameTitle)()
+                                        prop:src=move || wb.browser_url().get()
+                                        on:load=move |_| iframe_failed.set(false)
+                                        on:error=move |_| iframe_failed.set(true)
+                                    ></iframe>
+                                </Show>
+                            </div>
                         </Show>
                     </div>
                 }
