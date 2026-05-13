@@ -165,6 +165,9 @@ pub fn RightPanel() -> impl IntoView {
                     on:mousedown=on_splitter_down
                 >
                 </div>
+                <Show when=move || resizing.get()>
+                    <div class="workbench-resize-shield" aria-hidden="true"></div>
+                </Show>
                 <aside class="workbench-right" style:width=move || width_style.get()>
                     <header class="workbench-right__header">
                         <div class="workbench-right__toolbar">

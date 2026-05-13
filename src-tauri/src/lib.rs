@@ -1,6 +1,7 @@
 mod agent;
 mod browser_host;
 mod commands;
+mod git_info;
 mod pty_host;
 
 use agent::AgentEngineState;
@@ -49,6 +50,7 @@ pub fn run() {
             pty_resize,
             pty_kill,
             pty_drain,
+            git_branch,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

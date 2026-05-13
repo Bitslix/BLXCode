@@ -117,3 +117,8 @@ pub fn pty_drain(
 ) -> Result<String, String> {
     manager.drain_output(session_id, max_bytes)
 }
+
+#[tauri::command]
+pub fn git_branch(cwd: String) -> Option<String> {
+    crate::git_info::current_branch(std::path::Path::new(&cwd))
+}

@@ -221,6 +221,14 @@ pub async fn pty_drain(session_id: u64, max_bytes: usize) -> Result<String, Stri
     .await
 }
 
+pub async fn git_branch(cwd: String) -> Result<Option<String>, String> {
+    #[derive(Serialize)]
+    struct Args {
+        cwd: String,
+    }
+    invoke_typed("git_branch", Args { cwd }).await
+}
+
 pub async fn pty_kill(session_id: u64) -> Result<(), String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]

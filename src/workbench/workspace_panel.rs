@@ -370,7 +370,6 @@ fn TerminalSlotSurface(
                         } else {
                             format!("Mock Terminal {}.{}", index + 1, pane_index + 1)
                         };
-                        let git_branch = "main".to_string();
 
                         let on_split_vertical = Callback::new(move |()| {
                             split_axis.set(TerminalSplitAxis::Vertical);
@@ -394,7 +393,6 @@ fn TerminalSlotSurface(
                                 grid_index=index
                                 agent_slug=agent_slug.clone()
                                 title=title
-                                git_branch=git_branch
                                 is_full_size=is_full_size
                                 on_full_size=on_full_size
                                 on_split_vertical=on_split_vertical

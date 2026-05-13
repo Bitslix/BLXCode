@@ -1,6 +1,8 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::tauri_bridge::{is_tauri_shell, pty_drain, pty_kill, pty_resize, pty_spawn, pty_write};
+use crate::tauri_bridge::{
+    git_branch, is_tauri_shell, pty_drain, pty_kill, pty_resize, pty_spawn, pty_write,
+};
 use crate::workbench::terminal_glue::{
     terminal_api_ready, terminal_create, terminal_dispose, terminal_fit,
     terminal_set_stdin_enabled, terminal_show_fallback, terminal_size_from_js, terminal_write_b64,
@@ -31,7 +33,6 @@ pub fn WorkspaceTerminalCell(
     grid_index: usize,
     agent_slug: String,
     title: String,
-    git_branch: String,
     is_full_size: Signal<bool>,
     on_full_size: Callback<(), ()>,
     on_split_vertical: Callback<(), ()>,
@@ -44,6 +45,16 @@ pub fn WorkspaceTerminalCell(
     let node_ref = NodeRef::<html::Div>::new();
     let state: Arc<Mutex<CellState>> = Arc::new(Mutex::new(CellState::default()));
     let initial_pty_output_seen = Arc::new(AtomicBool::new(false));
+    let branch = RwSignal::new(None::<String>);
+
+    if is_tauri_shell() {
+        let cwd_for_branch = cwd.clone();
+        leptos::task::spawn_local(async move {
+            if let Ok(Some(name)) = git_branch(cwd_for_branch).await {
+                branch.set(Some(name));
+            }
+        });
+    }
 
     let agent_slug_memo = agent_slug.clone();
     let agent_label = Memo::new({
@@ -351,10 +362,12 @@ pub fn WorkspaceTerminalCell(
         >
             <div class="ws-term-cell__head">
                 <span class="ws-term-cell__title">{title}</span>
-                <span class="ws-term-cell__branch">
-                    <LxIcon icon=icondata::LuGitBranch width="0.72rem" height="0.72rem" />
-                    <span>{git_branch}</span>
-                </span>
+                <Show when=move || branch.with(|b| b.is_some())>
+                    <span class="ws-term-cell__branch">
+                        <LxIcon icon=icondata::LuGitBranch width="0.72rem" height="0.72rem" />
+                        <span>{move || branch.get().unwrap_or_default()}</span>
+                    </span>
+                </Show>
                 <Show when=move || !agent_label.get().is_empty()>
                     <span class="ws-term-cell__badge">{move || agent_label.get()}</span>
                 </Show>
