@@ -1,0 +1,414 @@
+use crate::i18n::I18nKey;
+use crate::service::I18nService;
+use crate::tauri_bridge::{is_tauri_shell, pty_drain, pty_kill, pty_resize, pty_spawn, pty_write};
+use crate::workbench::terminal_glue::{
+    terminal_api_ready, terminal_create, terminal_dispose, terminal_fit,
+    terminal_set_stdin_enabled, terminal_show_fallback, terminal_size_from_js, terminal_write_b64,
+};
+use gloo_timers::future::TimeoutFuture;
+use leptos::callback::{Callable, Callback};
+use leptos::html;
+use leptos::prelude::*;
+use leptos_icons::Icon as LxIcon;
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
+use wasm_bindgen::JsCast;
+use web_sys::HtmlElement;
+
+#[derive(Clone, Default)]
+struct CellState {
+    started: bool,
+    disposed: bool,
+    term_id: Option<f64>,
+    pty_session: Option<u64>,
+}
+
+#[component]
+pub fn WorkspaceTerminalCell(
+    cwd: String,
+    grid_index: usize,
+    agent_slug: String,
+    title: String,
+    git_branch: String,
+    is_full_size: Signal<bool>,
+    on_full_size: Callback<(), ()>,
+    on_split_vertical: Callback<(), ()>,
+    on_split_horizontal: Callback<(), ()>,
+    on_close: Callback<(), ()>,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let load_failed = RwSignal::new(false);
+    let active = RwSignal::new(false);
+    let node_ref = NodeRef::<html::Div>::new();
+    let state: Arc<Mutex<CellState>> = Arc::new(Mutex::new(CellState::default()));
+    let initial_pty_output_seen = Arc::new(AtomicBool::new(false));
+
+    let agent_slug_memo = agent_slug.clone();
+    let agent_label = Memo::new({
+        let i18n = i18n;
+        move |_| {
+            let _track = i18n.locale().get();
+            let s = agent_slug_memo.trim();
+            if s.is_empty() {
+                return String::new();
+            }
+            match s {
+                "claude" => i18n.tr(I18nKey::WzAgentClaude)().to_string(),
+                "codex" => i18n.tr(I18nKey::WzAgentCodex)().to_string(),
+                "gemini" => i18n.tr(I18nKey::WzAgentGemini)().to_string(),
+                "opencode" => i18n.tr(I18nKey::WzAgentOpencode)().to_string(),
+                "cursor" => i18n.tr(I18nKey::WzAgentCursor)().to_string(),
+                _ => s.to_string(),
+            }
+        }
+    });
+
+    Effect::new({
+        let cwd = cwd.clone();
+        let agent_slug = agent_slug.clone();
+        let i18n = i18n.clone();
+        let state = state.clone();
+        let node_ref = node_ref.clone();
+        let load_failed = load_failed.clone();
+        let initial_pty_output_seen = initial_pty_output_seen.clone();
+        move |_| {
+            let Some(el) = node_ref.get() else {
+                return;
+            };
+            let Ok(container) = el.dyn_into::<HtmlElement>() else {
+                return;
+            };
+            {
+                let mut s = state.lock().expect("cell state");
+                if s.started {
+                    return;
+                }
+                s.started = true;
+            }
+
+            leptos::task::spawn_local({
+                let cwd = cwd.clone();
+                let agent_slug = agent_slug.clone();
+                let i18n = i18n.clone();
+                let state = state.clone();
+                let load_failed = load_failed.clone();
+                let initial_pty_output_seen = initial_pty_output_seen.clone();
+                async move {
+                    // Wait for xterm.js to load (up to 6 s)
+                    for _ in 0..120u32 {
+                        if terminal_api_ready() {
+                            break;
+                        }
+                        TimeoutFuture::new(50).await;
+                    }
+                    if !terminal_api_ready() {
+                        load_failed.set(true);
+                        return;
+                    }
+                    let tid = match terminal_create(&container) {
+                        Ok(v) => v,
+                        Err(_) => {
+                            load_failed.set(true);
+                            return;
+                        }
+                    };
+                    state.lock().expect("cell").term_id = Some(tid);
+
+                    // Allow one browser frame so CSS layout is settled before fit()
+                    TimeoutFuture::new(50).await;
+                    let initial_size = terminal_fit(tid);
+
+                    let pty_sid = if is_tauri_shell() {
+                        match pty_spawn(cwd.clone()).await {
+                            Ok(sid) => {
+                                terminal_set_stdin_enabled(tid, true);
+                                state.lock().expect("cell").pty_session = Some(sid);
+                                if let Some(size) = initial_size {
+                                    let _ = pty_resize(sid, size.rows, size.cols).await;
+                                }
+
+                                let state2 = state.clone();
+                                let i18n2 = i18n.clone();
+                                let initial_pty_output_seen2 = initial_pty_output_seen.clone();
+                                leptos::task::spawn_local(async move {
+                                    loop {
+                                        TimeoutFuture::new(35).await;
+                                        if state2.lock().expect("cell").disposed {
+                                            break;
+                                        }
+                                        match pty_drain(sid, 65536).await {
+                                            Ok(b64) if !b64.is_empty() => {
+                                                initial_pty_output_seen2
+                                                    .store(true, Ordering::Relaxed);
+                                                if let Some(t) =
+                                                    state2.lock().expect("cell").term_id
+                                                {
+                                                    terminal_write_b64(t, &b64);
+                                                }
+                                            }
+                                            Ok(_) => {}
+                                            Err(err) => {
+                                                if let Some(t) =
+                                                    state2.lock().expect("cell").term_id
+                                                {
+                                                    let msg = format!(
+                                                        "{}\n{}",
+                                                        i18n2.tr(I18nKey::WsPtySpawnFailed)(),
+                                                        err
+                                                    );
+                                                    terminal_show_fallback(t, &msg);
+                                                }
+                                                break;
+                                            }
+                                        }
+                                    }
+                                });
+
+                                // Auto-launch agent command after shell init
+                                let slug = agent_slug.trim().to_string();
+                                if !slug.is_empty() {
+                                    for _ in 0..30u8 {
+                                        if initial_pty_output_seen.load(Ordering::Relaxed) {
+                                            break;
+                                        }
+                                        TimeoutFuture::new(25).await;
+                                    }
+                                    TimeoutFuture::new(50).await;
+                                    let cmd = format!("{slug}\r");
+                                    use base64::Engine;
+                                    let b64 = base64::engine::general_purpose::STANDARD
+                                        .encode(cmd.as_bytes());
+                                    let _ = pty_write(sid, b64).await;
+                                }
+                                Some(sid)
+                            }
+                            Err(err) => {
+                                let msg = format!(
+                                    "{}\n{}\n{}",
+                                    i18n.tr(I18nKey::WsPtySpawnFailed)(),
+                                    i18n.tr(I18nKey::WsPtyNoDesktop)(),
+                                    err
+                                );
+                                terminal_show_fallback(tid, &msg);
+                                None
+                            }
+                        }
+                    } else {
+                        terminal_show_fallback(tid, i18n.tr(I18nKey::WsPtyNoDesktop)());
+                        None
+                    };
+                    if pty_sid.is_none() {
+                        state.lock().expect("cell").pty_session = None;
+                    }
+                }
+            });
+        }
+    });
+
+    // Bug fix: create handles BEFORE on_cleanup, then move them INTO the cleanup closure
+    // so they live for the full component lifetime (not dropped at end of component fn).
+    let pty_input_handle =
+        leptos::leptos_dom::helpers::window_event_listener_untyped("blxcode-pty-input", {
+            let state = state.clone();
+            let i18n = i18n.clone();
+            move |ev| {
+                let (term_id, sid) = {
+                    let st = state.lock().expect("cell");
+                    (st.term_id, st.pty_session)
+                };
+                let Some(term_id) = term_id else {
+                    return;
+                };
+                let Some(sid) = sid else {
+                    return;
+                };
+                let Some(ce) = ev.dyn_ref::<web_sys::CustomEvent>() else {
+                    return;
+                };
+                let detail = ce.detail();
+                let term_js =
+                    js_sys::Reflect::get(&detail, &wasm_bindgen::JsValue::from_str("termId"))
+                        .ok()
+                        .and_then(|v| v.as_f64());
+                if term_js != Some(term_id) {
+                    return;
+                }
+                let data = js_sys::Reflect::get(&detail, &wasm_bindgen::JsValue::from_str("data"))
+                    .ok()
+                    .and_then(|v| v.as_string())
+                    .unwrap_or_default();
+                if data.is_empty() {
+                    return;
+                }
+                leptos::task::spawn_local({
+                    let data = data.into_bytes();
+                    let i18n = i18n.clone();
+                    let state = state.clone();
+                    async move {
+                        use base64::Engine;
+                        let b64 = base64::engine::general_purpose::STANDARD.encode(data);
+                        if let Err(err) = pty_write(sid, b64).await {
+                            if let Some(t) = state.lock().expect("cell").term_id {
+                                let msg =
+                                    format!("{}\n{}", i18n.tr(I18nKey::WsPtySpawnFailed)(), err);
+                                terminal_show_fallback(t, &msg);
+                            }
+                        }
+                    }
+                });
+            }
+        });
+
+    let pty_resize_handle =
+        leptos::leptos_dom::helpers::window_event_listener_untyped("blxcode-pty-resize", {
+            let state = state.clone();
+            move |ev| {
+                let (term_id, sid) = {
+                    let st = state.lock().expect("cell");
+                    (st.term_id, st.pty_session)
+                };
+                let Some(term_id) = term_id else {
+                    return;
+                };
+                let Some(sid) = sid else {
+                    return;
+                };
+                let Some(ce) = ev.dyn_ref::<web_sys::CustomEvent>() else {
+                    return;
+                };
+                let detail = ce.detail();
+                let term_js =
+                    js_sys::Reflect::get(&detail, &wasm_bindgen::JsValue::from_str("termId"))
+                        .ok()
+                        .and_then(|v| v.as_f64());
+                if term_js != Some(term_id) {
+                    return;
+                }
+                if let Some(size) = terminal_size_from_js(&detail) {
+                    leptos::task::spawn_local(async move {
+                        let _ = pty_resize(sid, size.rows, size.cols).await;
+                    });
+                }
+            }
+        });
+
+    let resize_handle = leptos::leptos_dom::helpers::window_event_listener_untyped("resize", {
+        let state = state.clone();
+        move |_| {
+            let term_id = state.lock().expect("cell").term_id;
+            let sid = state.lock().expect("cell").pty_session;
+            if let (Some(t), Some(sid)) = (term_id, sid) {
+                if let Some(size) = terminal_fit(t) {
+                    leptos::task::spawn_local(async move {
+                        let _ = pty_resize(sid, size.rows, size.cols).await;
+                    });
+                }
+            }
+        }
+    });
+
+    on_cleanup({
+        let state = state.clone();
+        // Move handles into cleanup so they live until component unmount
+        move || {
+            drop(pty_input_handle);
+            drop(pty_resize_handle);
+            drop(resize_handle);
+            if let Ok(mut st) = state.lock() {
+                st.disposed = true;
+            }
+            let (t, sid) = {
+                let st = state.lock().expect("cell");
+                (st.term_id, st.pty_session)
+            };
+            if let Some(t) = t {
+                terminal_dispose(t);
+            }
+            if let Some(sid) = sid {
+                leptos::task::spawn_local(async move {
+                    let _ = pty_kill(sid).await;
+                });
+            }
+        }
+    });
+
+    view! {
+        <div
+            class=move || {
+                let mut class = String::from("ws-term-cell");
+                if active.get() {
+                    class.push_str(" ws-term-cell--active");
+                }
+                class
+            }
+            role="region"
+            aria-label=move || format!("{} {}", i18n.tr(I18nKey::WsTermSlot)(), grid_index + 1)
+            on:mousedown=move |_| active.set(true)
+            on:focusin=move |_| active.set(true)
+            on:focusout=move |_| active.set(false)
+        >
+            <div class="ws-term-cell__head">
+                <span class="ws-term-cell__title">{title}</span>
+                <span class="ws-term-cell__branch">
+                    <LxIcon icon=icondata::LuGitBranch width="0.72rem" height="0.72rem" />
+                    <span>{git_branch}</span>
+                </span>
+                <Show when=move || !agent_label.get().is_empty()>
+                    <span class="ws-term-cell__badge">{move || agent_label.get()}</span>
+                </Show>
+                <button
+                    type="button"
+                    class="ws-term-cell__tool"
+                    title=move || {
+                        if is_full_size.get() { "Restore size" } else { "Full size" }
+                    }
+                    aria-label=move || {
+                        if is_full_size.get() { "Restore terminal size" } else { "Full size terminal" }
+                    }
+                    on:click=move |_| on_full_size.run(())
+                >
+                    {move || {
+                        if is_full_size.get() {
+                            view! { <LxIcon icon=icondata::LuMinimize2 width="0.78rem" height="0.78rem" /> }.into_any()
+                        } else {
+                            view! { <LxIcon icon=icondata::LuMaximize2 width="0.78rem" height="0.78rem" /> }.into_any()
+                        }
+                    }}
+                </button>
+                <button
+                    type="button"
+                    class="ws-term-cell__tool"
+                    title="Split vertical"
+                    aria-label="Split terminal vertical"
+                    on:click=move |_| on_split_vertical.run(())
+                >
+                    <LxIcon icon=icondata::LuPanelRight width="0.82rem" height="0.82rem" />
+                </button>
+                <button
+                    type="button"
+                    class="ws-term-cell__tool"
+                    title="Split horizontal"
+                    aria-label="Split terminal horizontal"
+                    on:click=move |_| on_split_horizontal.run(())
+                >
+                    <LxIcon icon=icondata::LuPanelBottom width="0.82rem" height="0.82rem" />
+                </button>
+                <button
+                    type="button"
+                    class="ws-term-cell__tool ws-term-cell__tool--danger"
+                    title="Close"
+                    aria-label="Close terminal"
+                    on:click=move |_| on_close.run(())
+                >
+                    <LxIcon icon=icondata::LuX width="0.86rem" height="0.86rem" />
+                </button>
+            </div>
+            <Show when=move || load_failed.get()>
+                <p class="ws-term-cell__boot-fail">{move || i18n.tr(I18nKey::WsTermBootstrapFailed)()}</p>
+            </Show>
+            <div class="ws-term-cell__xterm" node_ref=node_ref></div>
+        </div>
+    }
+}

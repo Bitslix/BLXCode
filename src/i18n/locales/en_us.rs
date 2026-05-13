@@ -1,0 +1,191 @@
+use crate::i18n::I18nKey;
+
+#[must_use]
+pub fn msg(key: I18nKey) -> &'static str {
+    match key {
+        I18nKey::Decline => "Decline",
+        I18nKey::Accept => "Accept",
+        I18nKey::BtnClose => "Close",
+        I18nKey::BtnApply => "Apply",
+        I18nKey::BtnSave => "Save",
+
+        I18nKey::WsAria => "Workspace",
+        I18nKey::WsEmptyTitle => "No workspace open",
+        I18nKey::WsEmptyLead => "Pick a workspace in the sidebar, or continue with files later.",
+        I18nKey::WsEmptyNote => {
+            "Command palette is enabled (Ctrl+Shift+P); more integrations coming."
+        }
+        I18nKey::WsKwCmdPalette => "Command palette",
+        I18nKey::WsKwQuickOpen => "Quick open",
+        I18nKey::WsKwSidePanel => "Side panel",
+        I18nKey::WsKwAgent => "Agent",
+        I18nKey::WsKwBrowser => "Browser",
+        I18nKey::WsKwMemory => "Memory",
+        I18nKey::WsKwTerminal => "Terminal",
+
+        I18nKey::SbAria => "Workspaces",
+        I18nKey::SbExpand => "Show sidebar",
+        I18nKey::SbCollapse => "Hide sidebar",
+        I18nKey::SbHeading => "Workspaces",
+
+        I18nKey::RpRailAria => "Right panel",
+        I18nKey::RpExpand => "Show right panel",
+        I18nKey::RpCollapse => "Hide right panel",
+        I18nKey::RpSplitterAria => "Right panel width",
+        I18nKey::RpTabsAria => "Right pane",
+        I18nKey::TabAgent => "Agent",
+        I18nKey::TabBrowser => "Browser",
+        I18nKey::TabMemory => "Memory",
+
+        I18nKey::AgAriaPane => "Agent harness",
+        I18nKey::AgSandbox => "Tool sandbox ",
+        I18nKey::AgNoPath => "(no path)",
+        I18nKey::AgScopedReadHint => {
+            "Use READ:relative/path for scoped read access."
+        }
+        I18nKey::AgPromptPh => "Describe a goal or READ:README.md …",
+        I18nKey::AgSend => "Send",
+        I18nKey::AgCancel => "Cancel",
+        I18nKey::AgErrNeedPrompt => "Please enter a prompt.",
+        I18nKey::AgYou => "You",
+        I18nKey::AgAssistant => "Agent",
+        I18nKey::AgErrColon => "Error:",
+
+        I18nKey::BrToolbarAria => "Embedded browser",
+        I18nKey::BrBack => "Back",
+        I18nKey::BrFwd => "Forward",
+        I18nKey::BrReload => "Reload",
+        I18nKey::BrGo => "Go",
+        I18nKey::BrTabsAria => "Browser tabs",
+        I18nKey::BrNewTab => "New tab",
+        I18nKey::BrNewTabBtnAria => "New tab",
+        I18nKey::BrCloseTab => "Close tab",
+        I18nKey::BrPreparing => "Preparing browser…",
+        I18nKey::BrNativeAria => "Native browser",
+        I18nKey::BrFrameTitle => "Embedded browser",
+        I18nKey::BrNewHint => "Enter an address above, then press Enter or Go.",
+        I18nKey::BrShortcutsHeading => "Shortcuts",
+
+        I18nKey::PlFilterPh => "Filter commands …",
+        I18nKey::PlHint => "Escape closes • Arrow keys • Enter",
+        I18nKey::PlNoHits => "No matches",
+
+        I18nKey::CmdSetTitle => "Harness settings",
+        I18nKey::CmdSetSub => {
+            "Categorized UI (General, Layout, Language, Agent)"
+        }
+        I18nKey::CmdRtpTitle => "Toggle right panel",
+        I18nKey::CmdRtpSub => "Show/hide inspector column",
+        I18nKey::CmdAgentTitle => "Right tab: Agent",
+        I18nKey::CmdAgentSub => "Chat / composer harness",
+        I18nKey::CmdBrowseTitle => "Right tab: Browser",
+        I18nKey::CmdBrowseSub => "Sync embedded webview",
+        I18nKey::CmdMemoryTitle => "Right tab: Memory",
+        I18nKey::CmdMemorySub => "Reserved panel",
+
+        I18nKey::HsCloseSettingsAria => "Close settings",
+        I18nKey::HsTitle => "Harness settings",
+        I18nKey::HsAriaCats => "Categories",
+        I18nKey::HsCatGeneral => "General",
+        I18nKey::HsCatLayout => "Layout",
+        I18nKey::HsCatLanguage => "Language",
+        I18nKey::HsCatAgent => "Agent",
+        I18nKey::GenHeading => "General",
+        I18nKey::GenApiNote => {
+            "API keys live only in the desktop host (env `BLX_ANTHROPIC_API_KEY`), never in browser storage."
+        }
+        I18nKey::GenEulaStatus => "EULA status",
+        I18nKey::GenMoreSoon => "More general controls will follow.",
+        I18nKey::LayHeading => "Layout",
+        I18nKey::LayBrowserUrl => "Default embedded browser URL",
+        I18nKey::LayDefaultIntro => "Preset:",
+        I18nKey::LangHeading => "Language",
+        I18nKey::LangUiLang => "UI language",
+        I18nKey::AgHeading => "Agent",
+        I18nKey::AgWsRootLabel => "Workspace / sandbox root",
+        I18nKey::AgWsPlaceholder => "/abs/path/to/repo",
+        I18nKey::AgReadBuiltin => {
+            "READ:relative/path.txt triggers built-in read helpers."
+        }
+        I18nKey::HarnessLoading => "Loading …",
+
+        I18nKey::AuthGateChecking => "Checking session…",
+        I18nKey::AuthLoginHeading => "Sign in",
+        I18nKey::AuthTabEmail => "Email",
+        I18nKey::AuthTabDevice => "Another device",
+        I18nKey::AuthEmailLabel => "Email",
+        I18nKey::AuthPasswordLabel => "Password",
+        I18nKey::AuthSubmit => "Sign in",
+        I18nKey::AuthDeviceIntro => {
+            "Request a device code, open the link in your browser and approve there — this app waits automatically."
+        },
+        I18nKey::AuthDeviceStart => "Request code",
+        I18nKey::AuthDeviceCode => "Your code",
+        I18nKey::AuthDeviceCopyAria => "Copy code to clipboard",
+        I18nKey::AuthDeviceCopied => "Copied",
+
+        I18nKey::AuthOpenVerify => "Open verification in browser",
+        I18nKey::AuthPolling => "Waiting for approval…",
+        I18nKey::AuthFail => "Sign-in failed.",
+        I18nKey::SbSignOut => "Sign out",
+        I18nKey::SbUserMenuAria => "Open account menu",
+        I18nKey::SbAccount => "Account",
+
+        I18nKey::SbAddWorkspaceAria => "Create new workspace",
+        I18nKey::WzTitle => "Create workspace",
+        I18nKey::WzSubLayout => "Choose layout and working directory.",
+        I18nKey::WzSubFleet => "Assign agents for {n} terminals.",
+        I18nKey::WzTemplatesHeading => "Layout presets",
+        I18nKey::WzNameLabel => "Name (optional)",
+        I18nKey::WzNamePh => "e.g. backend refactor",
+        I18nKey::WzCwdLabel => "Working directory",
+        I18nKey::WzNavPh => "cd …",
+        I18nKey::WzGo => "Go",
+        I18nKey::WzNavHint => "Only `cd`, `cd ..`, `cd /abs` or relative `cd` — in the browser build paths are not verified against the real filesystem.",
+        I18nKey::WzCdErr => "Only cd commands are supported.",
+        I18nKey::WzCwdEmpty => "Please set a working directory.",
+        I18nKey::WzNext => "Next",
+        I18nKey::WzBack => "Back",
+        I18nKey::WzCancel => "Cancel",
+        I18nKey::WzSkipAgents => "Skip agents",
+        I18nKey::WzLaunch => "Launch workspace",
+        I18nKey::WzPresetSingle => "1 terminal",
+        I18nKey::WzPreset2 => "2 terminals",
+        I18nKey::WzPreset4 => "4 terminals",
+        I18nKey::WzPreset6 => "6 terminals",
+        I18nKey::WzPreset8 => "8 terminals",
+        I18nKey::WzPreset10 => "10 terminals",
+        I18nKey::WzPreset12 => "12 terminals",
+        I18nKey::WzPreset14 => "14 terminals",
+        I18nKey::WzPreset16 => "16 terminals",
+        I18nKey::WzFleetTitle => "AI agent fleet",
+        I18nKey::WzFleetUtil => "Utilization",
+        I18nKey::WzFleetNoAgents => "No agents selected",
+        I18nKey::WzFleetOptimal => "All slots assigned",
+        I18nKey::WzFleetSumWrong => "Counts must sum to exactly {n}.",
+        I18nKey::WzFleetSelectAll => "Select all",
+        I18nKey::WzFleetOneEach => "One each",
+        I18nKey::WzFillEvenly => "Fill evenly",
+        I18nKey::WzFleetClear => "Clear",
+        I18nKey::WzFleetAll => "All {n}",
+        I18nKey::WzAgentClaude => "Claude",
+        I18nKey::WzAgentSubClaude => "anthropic",
+        I18nKey::WzAgentCodex => "Codex",
+        I18nKey::WzAgentSubCodex => "openai",
+        I18nKey::WzAgentGemini => "Gemini",
+        I18nKey::WzAgentSubGemini => "google",
+        I18nKey::WzAgentOpencode => "OpenCode",
+        I18nKey::WzAgentSubOpencode => "opencode",
+        I18nKey::WzAgentCursor => "Cursor",
+        I18nKey::WzAgentSubCursor => "cursor",
+        I18nKey::WsPtyNoDesktop => "Interactive shell is only available in the desktop (Tauri) app. No native PTY in this build.",
+        I18nKey::WsPtySpawnFailed => "Could not start the terminal session.",
+        I18nKey::WsTermSlot => "Terminal",
+        I18nKey::WsTermBootstrapFailed => {
+            "Terminal UI failed to load. Check the browser console; the bootstrap script or xterm CDN may be blocked."
+        }
+
+        I18nKey::EulaAccepted => "Accepted",
+        I18nKey::EulaUnknown => "Unknown",
+    }
+}

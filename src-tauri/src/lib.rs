@@ -1,0 +1,55 @@
+mod agent;
+mod browser_host;
+mod commands;
+mod pty_host;
+
+use agent::AgentEngineState;
+use browser_host::BrowserHost;
+use commands::*;
+use pty_host::PtyManager;
+use tauri_plugin_opener::OpenerExt;
+
+#[tauri::command]
+fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn greet(name: &str) -> String {
+    format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+#[tauri::command]
+fn exit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .manage(AgentEngineState::new())
+        .manage(BrowserHost::default())
+        .manage(PtyManager::default())
+        .invoke_handler(tauri::generate_handler![
+            open_external_url,
+            greet,
+            exit_app,
+            agent_submit_turn,
+            agent_poll_events,
+            agent_abort,
+            agent_provider_status,
+            browser_sync_bounds,
+            browser_navigate,
+            browser_run_js,
+            browser_embedding_kind,
+            path_nav_exec_cmd,
+            pty_spawn,
+            pty_write,
+            pty_resize,
+            pty_kill,
+            pty_drain,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
