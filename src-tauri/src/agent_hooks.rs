@@ -1,28 +1,36 @@
-//! Install / inspect / uninstall blxcode's terminal-title hooks for
-//! external agent CLIs (Claude Code, Codex). The hooks ship as resources
-//! (see `tauri.conf.json` -> `bundle.resources`); the installer copies
-//! them into the user's config dir and wires them into each agent's
-//! settings file when possible.
+//! Install / inspect / uninstall blxcode's external-agent hooks
+//! (Claude Code + Codex). Two kinds of hooks ship today:
+//!
+//! - **Title hooks** (`*_title.py`) — UserPromptSubmit; rewrite the
+//!   terminal tab title from the current prompt.
+//! - **Session-capture hooks** (`*_session_capture.py`) — SessionStart;
+//!   record `terminal_key -> session_id` in `sessions.json` so blxcode
+//!   can later issue `claude --resume <id>` / `codex resume <id>` for
+//!   that exact slot.
+//!
+//! Scripts are bundled as Tauri resources (`tauri.conf.json` ->
+//! `bundle.resources`). On install we copy them to
+//! `app_config_dir/hooks/` and patch the agent's settings file
+//! (`~/.claude/settings.json`, `~/.codex/hooks.json`) idempotently.
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
-const CLAUDE_HOOK_NAME: &str = "claude_title.py";
-const CODEX_HOOK_NAME: &str = "codex_title.py";
-const CLAUDE_HOOK_MARKER: &str = "blxcode:claude-title";
+const CLAUDE_TITLE_SCRIPT: &str = "claude_title.py";
+const CODEX_TITLE_SCRIPT: &str = "codex_title.py";
+const CLAUDE_CAPTURE_SCRIPT: &str = "claude_session_capture.py";
+const CODEX_CAPTURE_SCRIPT: &str = "codex_session_capture.py";
 
-/// Python interpreter the installed Claude hook command should invoke.
-/// On Windows we use the `py` launcher (stable path `C:\Windows\py.exe`,
-/// survives Python version upgrades); on Unix `python3` is canonical.
+const CLAUDE_TITLE_MARKER: &str = "blxcode:claude-title";
+const CLAUDE_CAPTURE_MARKER: &str = "blxcode:claude-session-capture";
+const CODEX_CAPTURE_MARKER: &str = "blxcode:codex-session-capture";
+
 #[cfg(target_os = "windows")]
 const PYTHON_BIN: &str = "py -3";
 #[cfg(not(target_os = "windows"))]
 const PYTHON_BIN: &str = "python3";
 
-/// Build the shell command Claude executes for the UserPromptSubmit hook.
-/// Quoting handles paths with spaces on every supported shell (sh on
-/// Unix, cmd.exe on Windows).
 fn build_hook_command(script_path: &Path) -> String {
     format!("{PYTHON_BIN} \"{}\"", script_path.display())
 }
@@ -72,7 +80,8 @@ fn ensure_dir(p: &Path) -> Result<(), String> {
 fn copy_script(app: &AppHandle, name: &str, dest_dir: &Path) -> Result<PathBuf, String> {
     let src = resource_script(app, name)?;
     let dest = dest_dir.join(name);
-    fs::copy(&src, &dest).map_err(|e| format!("copy {} -> {}: {e}", src.display(), dest.display()))?;
+    fs::copy(&src, &dest)
+        .map_err(|e| format!("copy {} -> {}: {e}", src.display(), dest.display()))?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -99,91 +108,116 @@ fn write_json_pretty(path: &Path, value: &serde_json::Value) -> Result<(), Strin
     fs::write(path, body).map_err(|e| format!("write {}: {e}", path.display()))
 }
 
-/// Returns true if `~/.claude/settings.json` already references our hook script.
-fn claude_hook_installed(settings: &serde_json::Value, script_path: &Path) -> bool {
+/// Returns true if `<settings>.hooks.<event>` already contains an entry
+/// tagged with our marker (or referencing the script path directly).
+fn hook_already_installed(
+    settings: &serde_json::Value,
+    event: &str,
+    marker: &str,
+    script_path: &Path,
+) -> bool {
     let Some(arr) = settings
         .get("hooks")
-        .and_then(|h| h.get("UserPromptSubmit"))
+        .and_then(|h| h.get(event))
         .and_then(|v| v.as_array())
     else {
         return false;
     };
     let needle = script_path.to_string_lossy();
     arr.iter().any(|group| {
+        if group
+            .get("_blxcode_marker")
+            .and_then(|v| v.as_str())
+            .map(|s| s == marker)
+            .unwrap_or(false)
+        {
+            return true;
+        }
         let Some(inner) = group.get("hooks").and_then(|v| v.as_array()) else {
             return false;
         };
         inner.iter().any(|h| {
             h.get("command")
                 .and_then(|v| v.as_str())
-                .map(|c| c.contains(needle.as_ref()) || c.contains(CLAUDE_HOOK_MARKER))
+                .map(|c| c.contains(needle.as_ref()) || c.contains(marker))
                 .unwrap_or(false)
         })
     })
 }
 
-fn install_claude_entry(home: &Path, script_path: &Path) -> Result<(PathBuf, bool, Option<String>), String> {
-    let settings_path = home.join(".claude").join("settings.json");
-    let mut settings = read_json_or_empty(&settings_path)?;
-    if claude_hook_installed(&settings, script_path) {
-        return Ok((settings_path, true, Some("already installed".into())));
+/// Idempotent: add one hook entry under `.hooks.<event>` tagged with
+/// `marker`. Returns `true` if a write happened, `false` if already
+/// installed.
+fn patch_settings(
+    settings_path: &Path,
+    event: &str,
+    matcher: &str,
+    marker: &str,
+    script_path: &Path,
+) -> Result<bool, String> {
+    let mut settings = read_json_or_empty(settings_path)?;
+    if hook_already_installed(&settings, event, marker, script_path) {
+        return Ok(false);
     }
     let new_entry = serde_json::json!({
-        "matcher": "",
+        "matcher": matcher,
         "hooks": [{
             "type": "command",
             "command": build_hook_command(script_path),
         }],
-        "_blxcode_marker": CLAUDE_HOOK_MARKER,
+        "_blxcode_marker": marker,
     });
-
-    let root = settings.as_object_mut().ok_or_else(|| {
-        format!(
-            "{} is not a JSON object",
-            settings_path.display()
-        )
-    })?;
+    let root = settings
+        .as_object_mut()
+        .ok_or_else(|| format!("{} is not a JSON object", settings_path.display()))?;
     let hooks = root
         .entry("hooks".to_string())
         .or_insert_with(|| serde_json::json!({}));
-    let hooks_obj = hooks.as_object_mut().ok_or_else(|| {
-        format!("{}: .hooks is not an object", settings_path.display())
-    })?;
+    let hooks_obj = hooks
+        .as_object_mut()
+        .ok_or_else(|| format!("{}: .hooks is not an object", settings_path.display()))?;
     let arr = hooks_obj
-        .entry("UserPromptSubmit".to_string())
+        .entry(event.to_string())
         .or_insert_with(|| serde_json::json!([]));
     let arr_vec = arr.as_array_mut().ok_or_else(|| {
         format!(
-            "{}: .hooks.UserPromptSubmit is not an array",
-            settings_path.display()
+            "{}: .hooks.{} is not an array",
+            settings_path.display(),
+            event
         )
     })?;
     arr_vec.push(new_entry);
-
-    write_json_pretty(&settings_path, &settings)?;
-    Ok((settings_path, true, None))
+    write_json_pretty(settings_path, &settings)?;
+    Ok(true)
 }
 
-fn uninstall_claude_entry(home: &Path) -> Result<(PathBuf, bool, Option<String>), String> {
-    let settings_path = home.join(".claude").join("settings.json");
+/// Remove every entry under `.hooks.<event>` carrying our marker (or a
+/// command string mentioning the script filename / marker). Returns
+/// `true` if anything was removed.
+fn unpatch_settings(
+    settings_path: &Path,
+    event: &str,
+    marker: &str,
+    script_name: &str,
+) -> Result<bool, String> {
     if !settings_path.exists() {
-        return Ok((settings_path, false, Some("settings.json not found".into())));
+        return Ok(false);
     }
-    let mut settings = read_json_or_empty(&settings_path)?;
+    let mut settings = read_json_or_empty(settings_path)?;
     let removed = {
         let Some(arr) = settings
             .get_mut("hooks")
-            .and_then(|h| h.get_mut("UserPromptSubmit"))
+            .and_then(|h| h.get_mut(event))
             .and_then(|v| v.as_array_mut())
         else {
-            return Ok((settings_path, false, Some("no hooks entry".into())));
+            return Ok(false);
         };
         let before = arr.len();
         arr.retain(|group| {
             if group
                 .get("_blxcode_marker")
                 .and_then(|v| v.as_str())
-                .map(|s| s == CLAUDE_HOOK_MARKER)
+                .map(|s| s == marker)
                 .unwrap_or(false)
             {
                 return false;
@@ -194,16 +228,115 @@ fn uninstall_claude_entry(home: &Path) -> Result<(PathBuf, bool, Option<String>)
             !inner.iter().any(|h| {
                 h.get("command")
                     .and_then(|v| v.as_str())
-                    .map(|c| c.contains(CLAUDE_HOOK_NAME) || c.contains(CLAUDE_HOOK_MARKER))
+                    .map(|c| c.contains(script_name) || c.contains(marker))
                     .unwrap_or(false)
             })
         });
         before != arr.len()
     };
     if removed {
-        write_json_pretty(&settings_path, &settings)?;
+        write_json_pretty(settings_path, &settings)?;
     }
-    Ok((settings_path, !removed, None))
+    Ok(removed)
+}
+
+fn claude_settings_path(home: &Path) -> PathBuf {
+    home.join(".claude").join("settings.json")
+}
+
+fn codex_hooks_path(home: &Path) -> PathBuf {
+    home.join(".codex").join("hooks.json")
+}
+
+/// Aggregate: title + session-capture for Claude.
+fn install_claude(home: &Path, hooks_dir: &Path, app: &AppHandle) -> AgentHookEntry {
+    let settings = claude_settings_path(home);
+    let mut notes: Vec<String> = Vec::new();
+    let mut last_script: Option<PathBuf> = None;
+
+    for (script, event, matcher, marker) in [
+        (CLAUDE_TITLE_SCRIPT, "UserPromptSubmit", "", CLAUDE_TITLE_MARKER),
+        (
+            CLAUDE_CAPTURE_SCRIPT,
+            "SessionStart",
+            "startup|resume|clear",
+            CLAUDE_CAPTURE_MARKER,
+        ),
+    ] {
+        match copy_script(app, script, hooks_dir) {
+            Ok(path) => {
+                last_script = Some(path.clone());
+                match patch_settings(&settings, event, matcher, marker, &path) {
+                    Ok(true) => notes.push(format!("{event} hook installed")),
+                    Ok(false) => notes.push(format!("{event} hook already installed")),
+                    Err(e) => notes.push(format!("{event} patch failed: {e}")),
+                }
+            }
+            Err(e) => notes.push(format!("{script}: {e}")),
+        }
+    }
+
+    AgentHookEntry {
+        agent: "claude".into(),
+        script_path: last_script.map(|p| p.to_string_lossy().into_owned()),
+        config_path: Some(settings.to_string_lossy().into_owned()),
+        installed: true,
+        note: Some(notes.join("; ")),
+    }
+}
+
+/// Aggregate: title (best-effort) + session-capture for Codex.
+fn install_codex(home: &Path, hooks_dir: &Path, app: &AppHandle) -> AgentHookEntry {
+    let cfg = codex_hooks_path(home);
+    let mut notes: Vec<String> = Vec::new();
+    let mut last_script: Option<PathBuf> = None;
+
+    // Title hook for Codex: we ship the script but its wiring depends on
+    // Codex's still-evolving UserPromptSubmit support. Best-effort patch;
+    // failures are reported, not fatal.
+    if let Ok(path) = copy_script(app, CODEX_TITLE_SCRIPT, hooks_dir) {
+        last_script = Some(path.clone());
+        // Same marker scheme; Codex hook config follows the Claude shape.
+        match patch_settings(
+            &cfg,
+            "UserPromptSubmit",
+            "",
+            "blxcode:codex-title",
+            &path,
+        ) {
+            Ok(true) => notes.push("UserPromptSubmit hook installed".into()),
+            Ok(false) => notes.push("UserPromptSubmit hook already installed".into()),
+            Err(e) => notes.push(format!("UserPromptSubmit best-effort: {e}")),
+        }
+    } else {
+        notes.push("codex_title.py copy failed".into());
+    }
+
+    match copy_script(app, CODEX_CAPTURE_SCRIPT, hooks_dir) {
+        Ok(path) => {
+            last_script = Some(path.clone());
+            match patch_settings(
+                &cfg,
+                "SessionStart",
+                "startup|resume|clear",
+                CODEX_CAPTURE_MARKER,
+                &path,
+            ) {
+                Ok(true) => notes.push("SessionStart hook installed".into()),
+                Ok(false) => notes.push("SessionStart hook already installed".into()),
+                Err(e) => notes.push(format!("SessionStart patch failed: {e}")),
+            }
+        }
+        Err(e) => notes.push(format!("codex_session_capture.py: {e}")),
+    }
+
+    AgentHookEntry {
+        agent: "codex".into(),
+        script_path: last_script.map(|p| p.to_string_lossy().into_owned()),
+        config_path: Some(cfg.to_string_lossy().into_owned()),
+        installed: true,
+        note: Some(notes.join("; ")),
+    }
 }
 
 #[tauri::command]
@@ -212,56 +345,7 @@ pub fn install_agent_hooks(app: AppHandle) -> Result<AgentHooksReport, String> {
     let dir = hooks_dir(&app)?;
     ensure_dir(&dir)?;
 
-    let mut entries: Vec<AgentHookEntry> = Vec::new();
-
-    // Claude
-    match copy_script(&app, CLAUDE_HOOK_NAME, &dir) {
-        Ok(script_path) => match install_claude_entry(&home, &script_path) {
-            Ok((cfg, _installed, note)) => entries.push(AgentHookEntry {
-                agent: "claude".into(),
-                script_path: Some(script_path.to_string_lossy().into_owned()),
-                config_path: Some(cfg.to_string_lossy().into_owned()),
-                installed: true,
-                note,
-            }),
-            Err(e) => entries.push(AgentHookEntry {
-                agent: "claude".into(),
-                script_path: Some(script_path.to_string_lossy().into_owned()),
-                config_path: None,
-                installed: false,
-                note: Some(e),
-            }),
-        },
-        Err(e) => entries.push(AgentHookEntry {
-            agent: "claude".into(),
-            script_path: None,
-            config_path: None,
-            installed: false,
-            note: Some(e),
-        }),
-    }
-
-    // Codex — script-only. Codex's hook schema is not stable enough to patch
-    // automatically; ship the script and surface its path so the user (or a
-    // future UI step) can wire it into their codex config.
-    match copy_script(&app, CODEX_HOOK_NAME, &dir) {
-        Ok(script_path) => entries.push(AgentHookEntry {
-            agent: "codex".into(),
-            script_path: Some(script_path.to_string_lossy().into_owned()),
-            config_path: None,
-            installed: false,
-            note: Some(
-                "script installed; wire into ~/.codex/ hook config manually".into(),
-            ),
-        }),
-        Err(e) => entries.push(AgentHookEntry {
-            agent: "codex".into(),
-            script_path: None,
-            config_path: None,
-            installed: false,
-            note: Some(e),
-        }),
-    }
+    let entries = vec![install_claude(&home, &dir, &app), install_codex(&home, &dir, &app)];
 
     Ok(AgentHooksReport {
         hooks_dir: dir.to_string_lossy().into_owned(),
@@ -274,31 +358,49 @@ pub fn agent_hooks_status(app: AppHandle) -> Result<AgentHooksReport, String> {
     let home = home_dir(&app)?;
     let dir = hooks_dir(&app)?;
 
-    let claude_script = dir.join(CLAUDE_HOOK_NAME);
-    let codex_script = dir.join(CODEX_HOOK_NAME);
+    let claude_title = dir.join(CLAUDE_TITLE_SCRIPT);
+    let claude_capture = dir.join(CLAUDE_CAPTURE_SCRIPT);
+    let codex_title = dir.join(CODEX_TITLE_SCRIPT);
+    let codex_capture = dir.join(CODEX_CAPTURE_SCRIPT);
 
-    let claude_settings_path = home.join(".claude").join("settings.json");
-    let claude_installed = read_json_or_empty(&claude_settings_path)
-        .map(|v| claude_hook_installed(&v, &claude_script))
+    let claude_cfg = claude_settings_path(&home);
+    let codex_cfg = codex_hooks_path(&home);
+
+    let claude_installed = read_json_or_empty(&claude_cfg)
+        .map(|v| {
+            hook_already_installed(&v, "UserPromptSubmit", CLAUDE_TITLE_MARKER, &claude_title)
+                && hook_already_installed(&v, "SessionStart", CLAUDE_CAPTURE_MARKER, &claude_capture)
+        })
+        .unwrap_or(false);
+    let codex_installed = read_json_or_empty(&codex_cfg)
+        .map(|v| hook_already_installed(&v, "SessionStart", CODEX_CAPTURE_MARKER, &codex_capture))
         .unwrap_or(false);
 
     let entries = vec![
         AgentHookEntry {
             agent: "claude".into(),
-            script_path: claude_script.exists().then(|| claude_script.to_string_lossy().into_owned()),
-            config_path: claude_settings_path.exists()
-                .then(|| claude_settings_path.to_string_lossy().into_owned()),
+            script_path: claude_capture
+                .exists()
+                .then(|| claude_capture.to_string_lossy().into_owned()),
+            config_path: claude_cfg
+                .exists()
+                .then(|| claude_cfg.to_string_lossy().into_owned()),
             installed: claude_installed,
             note: None,
         },
         AgentHookEntry {
             agent: "codex".into(),
-            script_path: codex_script.exists().then(|| codex_script.to_string_lossy().into_owned()),
-            config_path: None,
-            installed: false,
-            note: Some("manual wiring required".into()),
+            script_path: codex_capture
+                .exists()
+                .then(|| codex_capture.to_string_lossy().into_owned()),
+            config_path: codex_cfg
+                .exists()
+                .then(|| codex_cfg.to_string_lossy().into_owned()),
+            installed: codex_installed,
+            note: None,
         },
     ];
+    let _ = (codex_title, claude_title); // silence unused on some cfgs
 
     Ok(AgentHooksReport {
         hooks_dir: dir.to_string_lossy().into_owned(),
@@ -310,37 +412,63 @@ pub fn agent_hooks_status(app: AppHandle) -> Result<AgentHooksReport, String> {
 pub fn uninstall_agent_hooks(app: AppHandle) -> Result<AgentHooksReport, String> {
     let home = home_dir(&app)?;
     let dir = hooks_dir(&app)?;
+    let claude_cfg = claude_settings_path(&home);
+    let codex_cfg = codex_hooks_path(&home);
 
-    let mut entries: Vec<AgentHookEntry> = Vec::new();
+    let _ = unpatch_settings(
+        &claude_cfg,
+        "UserPromptSubmit",
+        CLAUDE_TITLE_MARKER,
+        CLAUDE_TITLE_SCRIPT,
+    );
+    let _ = unpatch_settings(
+        &claude_cfg,
+        "SessionStart",
+        CLAUDE_CAPTURE_MARKER,
+        CLAUDE_CAPTURE_SCRIPT,
+    );
+    let _ = unpatch_settings(
+        &codex_cfg,
+        "UserPromptSubmit",
+        "blxcode:codex-title",
+        CODEX_TITLE_SCRIPT,
+    );
+    let _ = unpatch_settings(
+        &codex_cfg,
+        "SessionStart",
+        CODEX_CAPTURE_MARKER,
+        CODEX_CAPTURE_SCRIPT,
+    );
 
-    let (cfg, still_installed, note) = uninstall_claude_entry(&home)
-        .unwrap_or_else(|e| (home.join(".claude/settings.json"), false, Some(e)));
-    entries.push(AgentHookEntry {
-        agent: "claude".into(),
-        script_path: None,
-        config_path: Some(cfg.to_string_lossy().into_owned()),
-        installed: still_installed,
-        note,
-    });
-
-    let claude_script = dir.join(CLAUDE_HOOK_NAME);
-    if claude_script.exists() {
-        let _ = fs::remove_file(&claude_script);
+    for name in [
+        CLAUDE_TITLE_SCRIPT,
+        CLAUDE_CAPTURE_SCRIPT,
+        CODEX_TITLE_SCRIPT,
+        CODEX_CAPTURE_SCRIPT,
+    ] {
+        let p = dir.join(name);
+        if p.exists() {
+            let _ = fs::remove_file(p);
+        }
     }
-    let codex_script = dir.join(CODEX_HOOK_NAME);
-    if codex_script.exists() {
-        let _ = fs::remove_file(&codex_script);
-    }
-    entries.push(AgentHookEntry {
-        agent: "codex".into(),
-        script_path: None,
-        config_path: None,
-        installed: false,
-        note: Some("script removed".into()),
-    });
 
     Ok(AgentHooksReport {
         hooks_dir: dir.to_string_lossy().into_owned(),
-        entries,
+        entries: vec![
+            AgentHookEntry {
+                agent: "claude".into(),
+                script_path: None,
+                config_path: Some(claude_cfg.to_string_lossy().into_owned()),
+                installed: false,
+                note: Some("hooks removed".into()),
+            },
+            AgentHookEntry {
+                agent: "codex".into(),
+                script_path: None,
+                config_path: Some(codex_cfg.to_string_lossy().into_owned()),
+                installed: false,
+                note: Some("hooks removed".into()),
+            },
+        ],
     })
 }

@@ -387,12 +387,14 @@ fn TerminalSlotSurface(
                             }
                         });
 
+                        let terminal_key = format!("{workspace_id}:{slot_id}:{pane_id}");
                         view! {
                             <WorkspaceTerminalCell
                                 cwd=cwd.clone()
                                 grid_index=index
                                 agent_slug=agent_slug.clone()
                                 title=title
+                                terminal_key=terminal_key
                                 is_full_size=is_full_size
                                 on_full_size=on_full_size
                                 on_split_vertical=on_split_vertical

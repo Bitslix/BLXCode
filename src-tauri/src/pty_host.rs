@@ -43,7 +43,11 @@ impl Default for PtyManager {
 }
 
 impl PtyManager {
-    pub fn spawn_session(&self, cwd: String) -> Result<u64, String> {
+    pub fn spawn_session(
+        &self,
+        cwd: String,
+        extra_env: Vec<(String, String)>,
+    ) -> Result<u64, String> {
         let cwd = PathBuf::from(cwd.trim());
         if cwd.as_os_str().is_empty() {
             return Err("cwd empty".into());
@@ -67,6 +71,12 @@ impl PtyManager {
         cmd.cwd(&cwd);
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
+        for (k, v) in extra_env {
+            if k.is_empty() {
+                continue;
+            }
+            cmd.env(k, v);
+        }
 
         let child = pair
             .slave

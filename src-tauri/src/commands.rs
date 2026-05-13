@@ -77,8 +77,12 @@ pub fn path_nav_exec_cmd(base: String, line: String) -> Result<PathNavResult, St
 }
 
 #[tauri::command]
-pub fn pty_spawn(manager: State<'_, PtyManager>, cwd: String) -> Result<u64, String> {
-    manager.spawn_session(cwd)
+pub fn pty_spawn(
+    manager: State<'_, PtyManager>,
+    cwd: String,
+    env: Option<Vec<(String, String)>>,
+) -> Result<u64, String> {
+    manager.spawn_session(cwd, env.unwrap_or_default())
 }
 
 #[tauri::command]

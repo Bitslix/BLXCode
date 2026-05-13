@@ -13,6 +13,7 @@ use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
 const STATE_FILE: &str = "workbench.json";
+const SESSIONS_FILE: &str = "sessions.json";
 
 fn state_path(app: &AppHandle) -> Result<PathBuf, String> {
     let base = app
@@ -20,6 +21,14 @@ fn state_path(app: &AppHandle) -> Result<PathBuf, String> {
         .app_config_dir()
         .map_err(|e| format!("app config dir unavailable: {e}"))?;
     Ok(base.join(STATE_FILE))
+}
+
+fn sessions_path_impl(app: &AppHandle) -> Result<PathBuf, String> {
+    let base = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("app config dir unavailable: {e}"))?;
+    Ok(base.join(SESSIONS_FILE))
 }
 
 fn ensure_dir(path: &Path) -> Result<(), String> {
@@ -52,6 +61,28 @@ pub fn workbench_save_state(app: AppHandle, json: String) -> Result<(), String> 
 #[tauri::command]
 pub fn workbench_load_state(app: AppHandle) -> Result<Option<String>, String> {
     let target = state_path(&app)?;
+    match fs::read_to_string(&target) {
+        Ok(s) if s.trim().is_empty() => Ok(None),
+        Ok(s) => Ok(Some(s)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("read {}: {e}", target.display())),
+    }
+}
+
+/// Returns the absolute path the SessionStart hook scripts write to. We
+/// expose this so the frontend can pass it as an env var when spawning
+/// PTYs, instead of mirroring Tauri's path logic in Python.
+#[tauri::command]
+pub fn workbench_sessions_path(app: AppHandle) -> Result<String, String> {
+    Ok(sessions_path_impl(&app)?.to_string_lossy().into_owned())
+}
+
+/// Read the SessionStart-hook output (terminal_key → agent/session_id
+/// mapping). The frontend consults this before auto-launching an agent
+/// CLI to decide between `<agent>` and `<agent> --resume <id>`.
+#[tauri::command]
+pub fn workbench_load_sessions(app: AppHandle) -> Result<Option<String>, String> {
+    let target = sessions_path_impl(&app)?;
     match fs::read_to_string(&target) {
         Ok(s) if s.trim().is_empty() => Ok(None),
         Ok(s) => Ok(Some(s)),

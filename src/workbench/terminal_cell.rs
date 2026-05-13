@@ -1,7 +1,8 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    git_branch, is_tauri_shell, pty_drain, pty_kill, pty_resize, pty_spawn, pty_write,
+    git_branch, is_tauri_shell, pty_drain, pty_kill, pty_resize, pty_spawn_with_env, pty_write,
+    workbench_load_sessions, workbench_sessions_path,
 };
 use crate::workbench::terminal_glue::{
     terminal_api_ready, terminal_create, terminal_dispose, terminal_fit,
@@ -33,6 +34,11 @@ pub fn WorkspaceTerminalCell(
     grid_index: usize,
     agent_slug: String,
     title: String,
+    /// Stable identifier of this terminal slot across restarts. Used as
+    /// the lookup key into `sessions.json` (populated by the agent
+    /// SessionStart hooks) so we can resume the precise prior agent
+    /// session for this cell.
+    terminal_key: String,
     is_full_size: Signal<bool>,
     on_full_size: Callback<(), ()>,
     on_split_vertical: Callback<(), ()>,
@@ -86,6 +92,7 @@ pub fn WorkspaceTerminalCell(
         let node_ref = node_ref.clone();
         let load_failed = load_failed.clone();
         let initial_pty_output_seen = initial_pty_output_seen.clone();
+        let terminal_key = terminal_key.clone();
         move |_| {
             let Some(el) = node_ref.get() else {
                 return;
@@ -108,6 +115,7 @@ pub fn WorkspaceTerminalCell(
                 let state = state.clone();
                 let load_failed = load_failed.clone();
                 let initial_pty_output_seen = initial_pty_output_seen.clone();
+                let terminal_key = terminal_key.clone();
                 async move {
                     // Wait for xterm.js to load (up to 6 s)
                     for _ in 0..120u32 {
@@ -134,7 +142,20 @@ pub fn WorkspaceTerminalCell(
                     let initial_size = terminal_fit(tid);
 
                     let pty_sid = if is_tauri_shell() {
-                        match pty_spawn(cwd.clone()).await {
+                        // Phase 2 resume plumbing: inject env so the agent's
+                        // SessionStart hook can record session_id -> this
+                        // terminal slot. The sessions.json path is also
+                        // exposed via env (cross-platform path discovery).
+                        let sessions_path = workbench_sessions_path().await.ok();
+                        let mut env: Vec<(String, String)> = Vec::new();
+                        env.push(("BLX_TERMINAL_KEY".into(), terminal_key.clone()));
+                        if !agent_slug.trim().is_empty() {
+                            env.push(("BLX_AGENT_SLUG".into(), agent_slug.trim().into()));
+                        }
+                        if let Some(p) = sessions_path.as_ref() {
+                            env.push(("BLX_SESSIONS_PATH".into(), p.clone()));
+                        }
+                        match pty_spawn_with_env(cwd.clone(), env).await {
                             Ok(sid) => {
                                 terminal_set_stdin_enabled(tid, true);
                                 state.lock().expect("cell").pty_session = Some(sid);
@@ -179,9 +200,15 @@ pub fn WorkspaceTerminalCell(
                                     }
                                 });
 
-                                // Auto-launch agent command after shell init
+                                // Auto-launch agent command after shell init.
+                                // If sessions.json (written by the SessionStart
+                                // hook on a previous run) has a session_id for
+                                // this terminal_key, resume it; otherwise start
+                                // a fresh session.
                                 let slug = agent_slug.trim().to_string();
                                 if !slug.is_empty() {
+                                    let resume_id =
+                                        lookup_resume_session(&terminal_key, &slug).await;
                                     for _ in 0..30u8 {
                                         if initial_pty_output_seen.load(Ordering::Relaxed) {
                                             break;
@@ -189,7 +216,7 @@ pub fn WorkspaceTerminalCell(
                                         TimeoutFuture::new(25).await;
                                     }
                                     TimeoutFuture::new(50).await;
-                                    let cmd = format!("{slug}\r");
+                                    let cmd = build_launch_command(&slug, resume_id.as_deref());
                                     use base64::Engine;
                                     let b64 = base64::engine::general_purpose::STANDARD
                                         .encode(cmd.as_bytes());
@@ -457,5 +484,35 @@ pub fn WorkspaceTerminalCell(
             </Show>
             <div class="ws-term-cell__xterm" node_ref=node_ref></div>
         </div>
+    }
+}
+
+/// Consult `sessions.json` for a prior session id matching this terminal
+/// slot. Returns `None` on any error / mismatch / missing entry — the
+/// caller falls back to a fresh launch.
+async fn lookup_resume_session(terminal_key: &str, agent_slug: &str) -> Option<String> {
+    let raw = workbench_load_sessions().await.ok().flatten()?;
+    let parsed: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let entry = parsed.get("terminals")?.get(terminal_key)?;
+    let stored_agent = entry.get("agent")?.as_str()?;
+    if stored_agent != agent_slug {
+        return None;
+    }
+    let id = entry.get("session_id")?.as_str()?.trim();
+    if id.is_empty() {
+        None
+    } else {
+        Some(id.to_string())
+    }
+}
+
+/// Format the shell command that auto-launches the agent CLI. With a
+/// resume id we use the CLI's resume syntax (Claude: `--resume <id>`,
+/// Codex: `resume <id>`); without one we just run the binary.
+fn build_launch_command(slug: &str, resume_id: Option<&str>) -> String {
+    match (slug, resume_id) {
+        ("claude", Some(id)) => format!("claude --resume {id}\r"),
+        ("codex", Some(id)) => format!("codex resume {id}\r"),
+        (other, _) => format!("{other}\r"),
     }
 }

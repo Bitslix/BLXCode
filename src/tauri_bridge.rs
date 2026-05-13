@@ -159,10 +159,26 @@ pub async fn path_nav_invoke(base: String, line: String) -> Result<PathNavResult
 #[derive(Serialize)]
 struct PtySpawnArgs {
     cwd: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    env: Vec<(String, String)>,
 }
 
 pub async fn pty_spawn(cwd: String) -> Result<u64, String> {
-    invoke_typed("pty_spawn", PtySpawnArgs { cwd }).await
+    invoke_typed(
+        "pty_spawn",
+        PtySpawnArgs {
+            cwd,
+            env: Vec::new(),
+        },
+    )
+    .await
+}
+
+pub async fn pty_spawn_with_env(
+    cwd: String,
+    env: Vec<(String, String)>,
+) -> Result<u64, String> {
+    invoke_typed("pty_spawn", PtySpawnArgs { cwd, env }).await
 }
 
 #[derive(Serialize)]
@@ -260,6 +276,14 @@ pub async fn workbench_save_state(json: String) -> Result<(), String> {
 
 pub async fn workbench_load_state() -> Result<Option<String>, String> {
     invoke_typed("workbench_load_state", serde_json::json!({})).await
+}
+
+pub async fn workbench_sessions_path() -> Result<String, String> {
+    invoke_typed("workbench_sessions_path", serde_json::json!({})).await
+}
+
+pub async fn workbench_load_sessions() -> Result<Option<String>, String> {
+    invoke_typed("workbench_load_sessions", serde_json::json!({})).await
 }
 
 pub async fn git_branch(cwd: String) -> Result<Option<String>, String> {

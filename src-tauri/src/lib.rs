@@ -11,7 +11,9 @@ use agent_hooks::{agent_hooks_status, install_agent_hooks, uninstall_agent_hooks
 use browser_host::BrowserHost;
 use commands::*;
 use pty_host::PtyManager;
-use workbench_state::{workbench_load_state, workbench_save_state};
+use workbench_state::{
+    workbench_load_sessions, workbench_load_state, workbench_save_state, workbench_sessions_path,
+};
 use tauri_plugin_opener::OpenerExt;
 
 #[tauri::command]
@@ -60,6 +62,8 @@ pub fn run() {
             uninstall_agent_hooks,
             workbench_save_state,
             workbench_load_state,
+            workbench_sessions_path,
+            workbench_load_sessions,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
