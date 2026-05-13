@@ -80,6 +80,13 @@ window.__blxcodeTerminal = {
         }),
       );
     });
+    term.onTitleChange((title) => {
+      window.dispatchEvent(
+        new CustomEvent("blxcode-pty-title", {
+          detail: { termId: id, title: String(title || "") },
+        }),
+      );
+    });
     instances.set(id, rec);
     rec.resizeObserver = new ResizeObserver(() => {
       const size = fitTerminal(rec);

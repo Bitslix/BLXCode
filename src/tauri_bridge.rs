@@ -221,6 +221,35 @@ pub async fn pty_drain(session_id: u64, max_bytes: usize) -> Result<String, Stri
     .await
 }
 
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentHookEntry {
+    pub agent: String,
+    pub script_path: Option<String>,
+    pub config_path: Option<String>,
+    pub installed: bool,
+    pub note: Option<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentHooksReport {
+    pub hooks_dir: String,
+    pub entries: Vec<AgentHookEntry>,
+}
+
+pub async fn install_agent_hooks() -> Result<AgentHooksReport, String> {
+    invoke_typed("install_agent_hooks", serde_json::json!({})).await
+}
+
+pub async fn agent_hooks_status() -> Result<AgentHooksReport, String> {
+    invoke_typed("agent_hooks_status", serde_json::json!({})).await
+}
+
+pub async fn uninstall_agent_hooks() -> Result<AgentHooksReport, String> {
+    invoke_typed("uninstall_agent_hooks", serde_json::json!({})).await
+}
+
 pub async fn git_branch(cwd: String) -> Result<Option<String>, String> {
     #[derive(Serialize)]
     struct Args {

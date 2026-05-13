@@ -1,10 +1,12 @@
 mod agent;
+mod agent_hooks;
 mod browser_host;
 mod commands;
 mod git_info;
 mod pty_host;
 
 use agent::AgentEngineState;
+use agent_hooks::{agent_hooks_status, install_agent_hooks, uninstall_agent_hooks};
 use browser_host::BrowserHost;
 use commands::*;
 use pty_host::PtyManager;
@@ -51,6 +53,9 @@ pub fn run() {
             pty_kill,
             pty_drain,
             git_branch,
+            install_agent_hooks,
+            agent_hooks_status,
+            uninstall_agent_hooks,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

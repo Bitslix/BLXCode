@@ -46,6 +46,8 @@ pub fn WorkspaceTerminalCell(
     let state: Arc<Mutex<CellState>> = Arc::new(Mutex::new(CellState::default()));
     let initial_pty_output_seen = Arc::new(AtomicBool::new(false));
     let branch = RwSignal::new(None::<String>);
+    let initial_title = title.clone();
+    let dynamic_title = RwSignal::new(initial_title);
 
     if is_tauri_shell() {
         let cwd_for_branch = cwd.clone();
@@ -272,6 +274,37 @@ pub fn WorkspaceTerminalCell(
             }
         });
 
+    let pty_title_handle =
+        leptos::leptos_dom::helpers::window_event_listener_untyped("blxcode-pty-title", {
+            let state = state.clone();
+            move |ev| {
+                let term_id = state.lock().expect("cell").term_id;
+                let Some(term_id) = term_id else {
+                    return;
+                };
+                let Some(ce) = ev.dyn_ref::<web_sys::CustomEvent>() else {
+                    return;
+                };
+                let detail = ce.detail();
+                let term_js =
+                    js_sys::Reflect::get(&detail, &wasm_bindgen::JsValue::from_str("termId"))
+                        .ok()
+                        .and_then(|v| v.as_f64());
+                if term_js != Some(term_id) {
+                    return;
+                }
+                let new_title =
+                    js_sys::Reflect::get(&detail, &wasm_bindgen::JsValue::from_str("title"))
+                        .ok()
+                        .and_then(|v| v.as_string())
+                        .unwrap_or_default();
+                let trimmed = new_title.trim();
+                if !trimmed.is_empty() {
+                    dynamic_title.set(trimmed.to_string());
+                }
+            }
+        });
+
     let pty_resize_handle =
         leptos::leptos_dom::helpers::window_event_listener_untyped("blxcode-pty-resize", {
             let state = state.clone();
@@ -325,6 +358,7 @@ pub fn WorkspaceTerminalCell(
         // Move handles into cleanup so they live until component unmount
         move || {
             drop(pty_input_handle);
+            drop(pty_title_handle);
             drop(pty_resize_handle);
             drop(resize_handle);
             if let Ok(mut st) = state.lock() {
@@ -361,7 +395,7 @@ pub fn WorkspaceTerminalCell(
             on:focusout=move |_| active.set(false)
         >
             <div class="ws-term-cell__head">
-                <span class="ws-term-cell__title">{title}</span>
+                <span class="ws-term-cell__title">{move || dynamic_title.get()}</span>
                 <Show when=move || branch.with(|b| b.is_some())>
                     <span class="ws-term-cell__branch">
                         <LxIcon icon=icondata::LuGitBranch width="0.72rem" height="0.72rem" />
