@@ -2,6 +2,7 @@ mod protocol;
 mod state;
 pub mod tools;
 
+mod openrouter;
 mod orchestrator;
 mod provider;
 mod session_orchestrator;

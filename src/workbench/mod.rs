@@ -23,7 +23,8 @@ pub use state::{
 pub use workspace_panel::WorkspacePanel;
 
 use crate::tauri_bridge::{
-    browser_embedding_kind, is_tauri_shell, workbench_load_state, workbench_save_state,
+    browser_embedding_kind, harness_ensure_default_sandbox, is_tauri_shell, workbench_load_state,
+    workbench_save_state,
 };
 use gloo_timers::future::TimeoutFuture;
 use harness_ui::HarnessHost;
@@ -58,6 +59,14 @@ pub fn WorkbenchShell() -> impl IntoView {
             if let Ok(Some(json)) = workbench_load_state().await {
                 if let Ok(snap) = serde_json::from_str::<WorkbenchSnapshot>(&json) {
                     wb.hydrate(snap);
+                }
+            }
+            // Guarantee a non-empty workspace sandbox root after hydrate.
+            // Falls back to {app_data}/sandbox so the agent always has a
+            // writable scope even before the user creates a workspace.
+            if wb.harness_workspace_root().get_untracked().trim().is_empty() {
+                if let Ok(path) = harness_ensure_default_sandbox().await {
+                    wb.persist_harness_workspace_root(path);
                 }
             }
             hydrated.set(true);

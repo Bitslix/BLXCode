@@ -22,6 +22,8 @@ pub enum AgentEvent {
     ToolCall {
         tool: String,
         #[serde(default)]
+        call_id: Option<String>,
+        #[serde(default)]
         args: Option<Value>,
     },
     #[serde(rename = "tool_result")]

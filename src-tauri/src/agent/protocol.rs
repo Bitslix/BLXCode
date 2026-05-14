@@ -21,6 +21,11 @@ pub enum AgentEvent {
     #[serde(rename = "tool_call")]
     ToolCall {
         tool: String,
+        /// Provider-issued call id. Required for client-side tools so the
+        /// UI can route results back via `agent_submit_tool_result`.
+        /// Optional for legacy / mock events.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        call_id: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         args: Option<serde_json::Value>,
     },

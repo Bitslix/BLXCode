@@ -2,7 +2,10 @@
 use crate::agent_wire::{AgentEvent, UserTurn};
 use crate::i18n::{lookup, I18nKey, Locale};
 use crate::service::I18nService;
-use crate::tauri_bridge::{agent_abort, agent_drain_turn, agent_submit_turn};
+use crate::tauri_bridge::{
+    agent_abort, agent_drain_turn, agent_settings_get, agent_submit_tool_result, agent_submit_turn,
+    is_tauri_shell,
+};
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
@@ -14,12 +17,24 @@ pub fn AgentPanelDock() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
 
     let draft = RwSignal::new(String::new());
+    let user_prompt = RwSignal::new(String::new());
     let transcript = RwSignal::new(String::new());
-    let activity = RwSignal::new(Vec::<String>::new());
+    let activity = RwSignal::new(Vec::<ToolActivity>::new());
     let busy = RwSignal::new(false);
     let status_line = RwSignal::new(Option::<String>::None);
     let ptt_active = RwSignal::new(false);
     let tasks_open = RwSignal::new(true);
+    let model_label = RwSignal::new(String::new());
+
+    // Load the configured provider/model once for the status badge so the
+    // user can verify their harness settings are actually being applied.
+    if is_tauri_shell() {
+        leptos::task::spawn_local(async move {
+            if let Ok(view) = agent_settings_get().await {
+                model_label.set(format!("{}/{}", view.provider.as_str(), view.model_id));
+            }
+        });
+    }
 
     view! {
         <section class="workbench-agent-pane" aria-label=move || i18n.tr(I18nKey::AgAriaPane)()>
@@ -45,8 +60,13 @@ pub fn AgentPanelDock() -> impl IntoView {
                 </button>
                 <div class="agent-hero__meta">
                     <p class="agent-hero__eyebrow">"BLXCode Agent"</p>
-                    <h2>"Standby"</h2>
-                    <p>{move || if ptt_active.get() { "Listening mock" } else { "Tap or hold to activate" }}</p>
+                    <h2>{move || if busy.get() { "Running" } else { "Standby" }}</h2>
+                    <p>
+                        {move || {
+                            let m = model_label.get();
+                            if m.is_empty() { "Configure a provider in harness settings".to_string() } else { m }
+                        }}
+                    </p>
                 </div>
             </header>
 
@@ -116,38 +136,55 @@ pub fn AgentPanelDock() -> impl IntoView {
                     <span>{move || if activity.get().is_empty() { "Ready" } else { "Tools" }}</span>
                 </div>
                 <Show
-                    when=move || !transcript.get().trim().is_empty()
+                    when=move || !user_prompt.get().trim().is_empty() || !transcript.get().trim().is_empty()
                     fallback=move || view! {
                         <div class="agent-chat-line agent-chat-line--agent">
                             <span class="agent-chat-index">"01"</span>
                             <div class="agent-chat-body">
                                 <strong>"BLXCode"</strong>
-                                <p>"Ready. Tell me what to plan, run, or investigate in this workspace."</p>
-                            </div>
-                        </div>
-                        <div class="agent-chat-line agent-chat-line--user">
-                            <span class="agent-chat-index">"02"</span>
-                            <div class="agent-chat-body">
-                                <strong>"You"</strong>
-                                <p>"Try: help me wire up the auth refactor, list bugs, or prepare a run plan."</p>
+                                <p>
+                                    {move || {
+                                        let m = model_label.get();
+                                        if m.is_empty() {
+                                            "Hi — I'm the BLXCode agent. Configure a provider and model in the harness settings, then send a prompt to get started.".to_string()
+                                        } else {
+                                            format!(
+                                                "Hi — I'm the BLXCode agent running {m}. I can read files, search workspace memory, and open terminals for you. Send a prompt to get started."
+                                            )
+                                        }
+                                    }}
+                                </p>
                             </div>
                         </div>
                     }
                 >
-                    <div class="agent-chat-line agent-chat-line--agent">
-                        <span class="agent-chat-index">"01"</span>
-                        <div class="agent-chat-body">
-                            <strong>"Session"</strong>
-                            <pre class="workbench-agent-transcript">{move || transcript.get()}</pre>
+                    <Show when=move || !user_prompt.get().trim().is_empty()>
+                        <div class="agent-chat-line agent-chat-line--user">
+                            <span class="agent-chat-index">"01"</span>
+                            <div class="agent-chat-body">
+                                <strong>{move || i18n.tr(I18nKey::AgYou)()}</strong>
+                                <pre class="workbench-agent-transcript">{move || user_prompt.get()}</pre>
+                            </div>
                         </div>
-                    </div>
+                    </Show>
+                    <Show when=move || !transcript.get().trim().is_empty()>
+                        <div class="agent-chat-line agent-chat-line--agent">
+                            <span class="agent-chat-index">"02"</span>
+                            <div class="agent-chat-body">
+                                <strong>{move || i18n.tr(I18nKey::AgAssistant)()}</strong>
+                                <pre class="workbench-agent-transcript">{move || transcript.get()}</pre>
+                            </div>
+                        </div>
+                    </Show>
                 </Show>
                 <Show when=move || !activity.get().is_empty()>
-                    {move || {
-                        activity.get().into_iter().map(|ln|
-                            view! { <div class="workbench-agent-row">{ln}</div> }
-                        ).collect_view()
-                    }}
+                    <ul class="agent-tool-list" aria-label="Tool activity">
+                        {move || {
+                            activity.get().into_iter().enumerate().map(|(idx, a)| {
+                                view! { <ToolActivityRow idx=idx entry=a /> }
+                            }).collect_view()
+                        }}
+                    </ul>
                 </Show>
             </article>
 
@@ -155,7 +192,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                 class="agent-compose"
                 on:submit=move |ev| {
                     ev.prevent_default();
-                    submit_turn(wb, i18n, draft, busy, status_line, transcript, activity);
+                    submit_turn(wb, i18n, draft, busy, status_line, user_prompt, transcript, activity);
                 }
             >
                 <textarea
@@ -170,7 +207,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                     on:keydown=move |ev| {
                         if ev.key() == "Enter" && (ev.ctrl_key() || ev.meta_key()) {
                             ev.prevent_default();
-                            submit_turn(wb, i18n, draft, busy, status_line, transcript, activity);
+                            submit_turn(wb, i18n, draft, busy, status_line, user_prompt, transcript, activity);
                         }
                     }
                 />
@@ -204,6 +241,30 @@ pub fn AgentPanelDock() -> impl IntoView {
     }
 }
 
+/// Resolves the effective sandbox root for an agent turn:
+/// 1. cwd of the active workspace (real repo), if any and non-empty,
+/// 2. otherwise the persisted harness workspace root.
+///
+/// In Phase A the harness root is itself bootstrapped to `{app_data}/sandbox`
+/// at shell mount, so this returns `None` only in pathological cases.
+fn resolve_effective_workspace_root(wb: &WorkbenchService) -> Option<String> {
+    let active = wb.active_id().get_untracked();
+    if let Some(id) = active {
+        let cwd = wb
+            .workspaces()
+            .with_untracked(|list| list.iter().find(|w| w.id == id).map(|w| w.cwd.clone()));
+        if let Some(cwd) = cwd {
+            let t = cwd.trim();
+            if !t.is_empty() {
+                return Some(t.to_owned());
+            }
+        }
+    }
+    let fallback = wb.harness_workspace_root().get_untracked();
+    let t = fallback.trim();
+    (!t.is_empty()).then(|| t.to_owned())
+}
+
 fn textarea_value_from(ev: web_sys::Event, draft: RwSignal<String>) {
     if let Some(t) = ev.target() {
         if let Ok(ta) = t.dyn_into::<web_sys::HtmlTextAreaElement>() {
@@ -219,8 +280,9 @@ fn submit_turn(
     draft: RwSignal<String>,
     busy: RwSignal<bool>,
     status_line: RwSignal<Option<String>>,
+    user_prompt: RwSignal<String>,
     transcript: RwSignal<String>,
-    activity: RwSignal<Vec<String>>,
+    activity: RwSignal<Vec<ToolActivity>>,
 ) {
     if busy.get_untracked() {
         return;
@@ -234,15 +296,10 @@ fn submit_turn(
         return;
     }
 
-    let workspace_root_raw = wb.harness_workspace_root().get_untracked();
-    let workspace_root = {
-        let t = workspace_root_raw.trim().to_owned();
-        (!t.is_empty()).then_some(t)
-    };
+    let workspace_root = resolve_effective_workspace_root(&wb);
 
-    let you = lookup(loc, I18nKey::AgYou);
-    let assistant = lookup(loc, I18nKey::AgAssistant);
-    transcript.set(format!("**{you}:** {prompt}\n\n**{assistant}:** "));
+    user_prompt.set(prompt.clone());
+    transcript.set(String::new());
     activity.set(Vec::new());
     status_line.set(None);
     busy.set(true);
@@ -266,11 +323,15 @@ fn submit_turn(
         }
 
         let i18n_d = i18n;
+        let wb_d = wb;
         if let Err(msg) = agent_drain_turn(move |batch| {
             let loc_now = i18n_d.locale().get_untracked();
-            for ev in batch {
-                apply_agent_event(&ev, transcript_sig, activity_sig, loc_now);
+            for ev in &batch {
+                apply_agent_event(ev, transcript_sig, activity_sig, loc_now);
+                maybe_handle_client_tool(ev, wb_d);
             }
+            // The borrow of `batch` ends here; the closure returns ().
+            let _ = batch;
         })
         .await
         {
@@ -280,32 +341,228 @@ fn submit_turn(
     });
 }
 
+/// Routes UI-side (`runs_on: Client`) tool calls to the workbench and posts
+/// their result back into the active turn. Server-side calls are ignored
+/// here because the orchestrator handles them in-process.
+fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
+    let AgentEvent::ToolCall {
+        tool,
+        call_id: Some(call_id),
+        args,
+    } = ev
+    else {
+        return;
+    };
+    if tool != "harness.open_terminal" {
+        return;
+    }
+    let call_id = call_id.clone();
+    let agent_slug = args
+        .as_ref()
+        .and_then(|v| v.get("agentSlug"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_owned());
+
+    let active = wb.active_id().get_untracked();
+    let outcome = match active {
+        Some(workspace_id) => match wb.append_terminal_slot(workspace_id, agent_slug.clone()) {
+            Ok(slot_id) => (
+                true,
+                format!(
+                    "opened terminal slot {slot_id}{}",
+                    agent_slug
+                        .as_ref()
+                        .map(|s| format!(" with agent={s}"))
+                        .unwrap_or_default()
+                ),
+            ),
+            Err(e) => (false, e),
+        },
+        None => (false, "no active workspace".to_owned()),
+    };
+
+    leptos::task::spawn_local(async move {
+        let _ = agent_submit_tool_result(call_id, outcome.0, Some(outcome.1), None).await;
+    });
+}
+
 fn apply_agent_event(
     ev: &AgentEvent,
     transcript: RwSignal<String>,
-    activity: RwSignal<Vec<String>>,
+    activity: RwSignal<Vec<ToolActivity>>,
     loc: Locale,
 ) {
     match ev {
         AgentEvent::AssistantDelta { delta } => transcript.update(|t| t.push_str(delta)),
-        AgentEvent::ToolCall { tool, args } => activity.update(|lines| {
-            let extra = args
-                .as_ref()
-                .and_then(|a| serde_json::to_string(a).ok())
-                .filter(|s| !s.is_empty())
-                .map(|s| format!(" [{s}]"))
-                .unwrap_or_default();
-            lines.push(format!("Tool: {tool}{extra}"));
-        }),
+        AgentEvent::ToolCall { tool, args, .. } => {
+            let entry = ToolActivity::from_call(tool, args.as_ref());
+            activity.update(|rows| rows.push(entry));
+        }
         AgentEvent::ToolResult { tool, ok, message } => {
-            let hint = message.as_deref().unwrap_or("—");
-            let tag = if *ok { "ok" } else { "fail" };
-            activity.update(|lines| lines.push(format!("{tag} {tool}: {hint}")));
+            activity.update(|rows| {
+                // Match the most recent pending entry for this tool name.
+                let slot = rows
+                    .iter_mut()
+                    .rev()
+                    .find(|r| r.tool == *tool && r.status == ActivityStatus::Pending);
+                if let Some(row) = slot {
+                    row.status = if *ok {
+                        ActivityStatus::Ok
+                    } else {
+                        ActivityStatus::Fail
+                    };
+                    row.detail = message.clone().filter(|m| !m.is_empty());
+                } else {
+                    // No matching pending row — synthesise one so the result
+                    // isn't silently dropped (e.g. mock orchestrator path).
+                    rows.push(ToolActivity {
+                        tool: tool.clone(),
+                        label: friendly_label(tool).to_owned(),
+                        args_summary: String::new(),
+                        status: if *ok {
+                            ActivityStatus::Ok
+                        } else {
+                            ActivityStatus::Fail
+                        },
+                        detail: message.clone().filter(|m| !m.is_empty()),
+                    });
+                }
+            });
         }
         AgentEvent::Done => {}
         AgentEvent::Error { message } => {
             let prefix = lookup(loc, I18nKey::AgErrColon);
             transcript.update(|t| t.push_str(&format!("\n{prefix} {message}\n")));
         }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ActivityStatus {
+    Pending,
+    Ok,
+    Fail,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct ToolActivity {
+    tool: String,
+    label: String,
+    args_summary: String,
+    status: ActivityStatus,
+    detail: Option<String>,
+}
+
+impl ToolActivity {
+    fn from_call(tool: &str, args: Option<&serde_json::Value>) -> Self {
+        Self {
+            tool: tool.to_owned(),
+            label: friendly_label(tool).to_owned(),
+            args_summary: summarize_args(tool, args),
+            status: ActivityStatus::Pending,
+            detail: None,
+        }
+    }
+}
+
+/// Maps raw tool ids onto short, user-readable labels. Unknown tools fall
+/// back to the bare id so we never lose information.
+fn friendly_label(tool: &str) -> &str {
+    match tool {
+        "read_workspace_file" => "Read file",
+        "memory_list" => "List memory notes",
+        "memory_read" => "Read memory note",
+        "memory_search" => "Search memory",
+        "memory_create" => "Create memory note",
+        "memory_write" => "Update memory note",
+        "harness.open_terminal" => "Open terminal",
+        other => other,
+    }
+}
+
+/// Pulls the *interesting* field out of a tool-call args blob — path,
+/// query, agent slug — so the row stays a one-liner.
+fn summarize_args(tool: &str, args: Option<&serde_json::Value>) -> String {
+    let Some(args) = args else {
+        return String::new();
+    };
+    let pick = match tool {
+        "read_workspace_file" | "memory_read" | "memory_create" | "memory_write" => Some("path"),
+        "memory_search" => Some("query"),
+        "harness.open_terminal" => Some("agentSlug"),
+        _ => None,
+    };
+    if let Some(key) = pick {
+        if let Some(v) = args.get(key).and_then(|v| v.as_str()) {
+            return v.to_owned();
+        }
+    }
+    String::new()
+}
+
+fn tool_icon(tool: &str) -> icondata::Icon {
+    match tool {
+        "read_workspace_file" => icondata::LuFileText,
+        "memory_list" => icondata::LuList,
+        "memory_read" => icondata::LuBookOpen,
+        "memory_search" => icondata::LuSearch,
+        "memory_create" => icondata::LuFilePlus,
+        "memory_write" => icondata::LuFileEdit,
+        "harness.open_terminal" => icondata::LuTerminal,
+        _ => icondata::LuWrench,
+    }
+}
+
+#[component]
+fn ToolActivityRow(idx: usize, entry: ToolActivity) -> impl IntoView {
+    let status_class = match entry.status {
+        ActivityStatus::Pending => "agent-tool-row--pending",
+        ActivityStatus::Ok => "agent-tool-row--ok",
+        ActivityStatus::Fail => "agent-tool-row--fail",
+    };
+    let status_icon = match entry.status {
+        ActivityStatus::Pending => icondata::LuLoader,
+        ActivityStatus::Ok => icondata::LuCheck,
+        ActivityStatus::Fail => icondata::LuAlertTriangle,
+    };
+    let detail_open = RwSignal::new(false);
+    let has_detail = entry.detail.as_ref().is_some_and(|s| !s.is_empty());
+    let detail_text = entry.detail.clone().unwrap_or_default();
+    let label = entry.label.clone();
+    let summary = entry.args_summary.clone();
+    let tool_name_for_title = entry.tool.clone();
+    let _ = idx;
+
+    view! {
+        <li class=format!("agent-tool-row {status_class}") title=tool_name_for_title>
+            <button
+                type="button"
+                class="agent-tool-row__head"
+                aria-expanded=move || detail_open.get().to_string()
+                prop:disabled=move || !has_detail
+                on:click=move |_| {
+                    if has_detail {
+                        detail_open.update(|o| *o = !*o);
+                    }
+                }
+            >
+                <span class="agent-tool-row__icon" aria-hidden="true">
+                    <LxIcon icon=tool_icon(&entry.tool) width="0.95rem" height="0.95rem" />
+                </span>
+                <span class="agent-tool-row__label">{label}</span>
+                <Show when={
+                    let s = summary.clone();
+                    move || !s.is_empty()
+                }>
+                    <span class="agent-tool-row__arg">{summary.clone()}</span>
+                </Show>
+                <span class="agent-tool-row__status" aria-hidden="true">
+                    <LxIcon icon=status_icon width="0.85rem" height="0.85rem" />
+                </span>
+            </button>
+            <Show when=move || has_detail && detail_open.get()>
+                <pre class="agent-tool-row__detail">{detail_text.clone()}</pre>
+            </Show>
+        </li>
     }
 }

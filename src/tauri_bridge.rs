@@ -62,7 +62,11 @@ pub async fn invoke_typed<T: DeserializeOwned>(
 }
 
 pub async fn agent_submit_turn(turn: UserTurn) -> Result<(), String> {
-    invoke_unit_js("agent_submit_turn", args_value(turn)?).await
+    #[derive(Serialize)]
+    struct Args {
+        turn: UserTurn,
+    }
+    invoke_unit_js("agent_submit_turn", args_value(Args { turn })?).await
 }
 
 pub async fn agent_poll_events(max: usize) -> Result<Vec<AgentEvent>, String> {
@@ -75,6 +79,49 @@ pub async fn agent_poll_events(max: usize) -> Result<Vec<AgentEvent>, String> {
 
 pub async fn agent_abort() -> Result<(), String> {
     invoke_unit_js("agent_abort", JsValue::UNDEFINED).await
+}
+
+/// Idempotently creates `{app_data}/sandbox` and returns its absolute path.
+/// Used as the always-available workspace root fallback in Phase A.
+pub async fn harness_ensure_default_sandbox() -> Result<String, String> {
+    invoke_typed("harness_ensure_default_sandbox", serde_json::json!({})).await
+}
+
+/// Submits the result of a client-side tool back into the running turn.
+/// `call_id` must match the id of the most recent matching `ToolCall`
+/// event drained from the agent queue.
+pub async fn agent_submit_tool_result(
+    call_id: String,
+    ok: bool,
+    message: Option<String>,
+    data: Option<serde_json::Value>,
+) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Payload {
+        call_id: String,
+        ok: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        message: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        data: Option<serde_json::Value>,
+    }
+    #[derive(Serialize)]
+    struct Args {
+        payload: Payload,
+    }
+    invoke_unit_js(
+        "agent_submit_tool_result",
+        args_value(Args {
+            payload: Payload {
+                call_id,
+                ok,
+                message,
+                data,
+            },
+        })?,
+    )
+    .await
 }
 
 pub async fn browser_sync_bounds(

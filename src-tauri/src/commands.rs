@@ -4,14 +4,15 @@ use crate::browser_host::BrowserHost;
 use crate::pty_host::{path_nav_exec, PathNavResult, PtyManager};
 use serde::Deserialize;
 use std::sync::Arc;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 #[tauri::command]
 pub fn agent_submit_turn(
+    app: AppHandle,
     turn: UserTurn,
     agent: State<'_, Arc<AgentEngineState>>,
 ) -> Result<(), String> {
-    dispatch_user_turn(&agent, turn)
+    dispatch_user_turn(&app, &agent, turn)
 }
 
 #[tauri::command]
@@ -27,6 +28,40 @@ pub fn agent_abort(agent: State<'_, Arc<AgentEngineState>>) {
 #[tauri::command]
 pub fn agent_provider_status() -> serde_json::Value {
     provider_status_json()
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolResultPayload {
+    pub call_id: String,
+    pub ok: bool,
+    #[serde(default)]
+    pub message: Option<String>,
+    #[serde(default)]
+    pub data: Option<serde_json::Value>,
+}
+
+#[tauri::command]
+pub fn agent_submit_tool_result(
+    payload: ToolResultPayload,
+    agent: State<'_, Arc<AgentEngineState>>,
+) -> Result<(), String> {
+    agent.deliver_client_tool_result(&payload.call_id, payload.ok, payload.message, payload.data)
+}
+
+/// Returns (and idempotently creates) the default sandbox directory under
+/// the app data dir. Used as a guaranteed-non-empty fallback workspace
+/// root so the agent always has a writable scope to play in.
+#[tauri::command]
+pub fn harness_ensure_default_sandbox(app: AppHandle) -> Result<String, String> {
+    let base = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| format!("app data dir unavailable: {e}"))?;
+    let sandbox = base.join("sandbox");
+    std::fs::create_dir_all(&sandbox)
+        .map_err(|e| format!("create sandbox {}: {e}", sandbox.display()))?;
+    Ok(sandbox.to_string_lossy().into_owned())
 }
 
 #[derive(Debug, Deserialize)]

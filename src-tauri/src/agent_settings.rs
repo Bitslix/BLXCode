@@ -163,6 +163,17 @@ fn ensure_private_dir(path: &Path) -> Result<(), String> {
     ensure_dir(path)
 }
 
+pub(crate) fn load_settings_pub(app: &AppHandle) -> Result<AgentProviderSettings, String> {
+    load_settings(app)
+}
+
+pub(crate) fn provider_key_pub(
+    app: &AppHandle,
+    provider: AgentProviderKind,
+) -> Result<String, String> {
+    provider_key(app, provider)
+}
+
 fn load_settings(app: &AppHandle) -> Result<AgentProviderSettings, String> {
     let path = settings_path(app)?;
     match fs::read_to_string(&path) {

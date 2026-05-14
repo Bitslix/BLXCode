@@ -46,6 +46,7 @@ async fn run_mock_turn_inner(state: Arc<AgentEngineState>, prompt: String, root:
         }
         state.push(AgentEvent::ToolCall {
             tool: "read_workspace_file".into(),
+            call_id: None,
             args: Some(json!({ "relativePath": rel })),
         });
         tokio::time::sleep(tokio::time::Duration::from_millis(120)).await;

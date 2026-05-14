@@ -408,6 +408,70 @@ impl WorkbenchService {
         drop_sessions_for_prefix(format!("{id}:"));
     }
 
+    /// Appends a new terminal slot to a workspace, optionally pre-labelled
+    /// with a CLI-agent slug. Snaps `terminal_count` to the next supported
+    /// preset (`[1,2,4,6,8,9,12,16]`) so `grid_dims_for_count` stays valid;
+    /// the gap between the previous count and the new preset is filled
+    /// with empty placeholder slots to keep the slot arrays aligned.
+    /// Returns the new slot id, or an error string if the workspace is
+    /// full / not found.
+    pub fn append_terminal_slot(
+        &self,
+        workspace_id: u64,
+        agent_slug: Option<String>,
+    ) -> Result<u64, String> {
+        let mut new_id: Option<u64> = None;
+        let mut err: Option<String> = None;
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                err = Some("workspace not found".into());
+                return;
+            };
+            if workspace.terminal_count >= 16 {
+                err = Some("workspace already at maximum slot count (16)".into());
+                return;
+            }
+            let target = next_preset_above(workspace.terminal_count);
+            // Mint the agent slot first so it gets a stable id, then pad
+            // with empties up to the new preset count.
+            let mut new_slot_id = workspace.next_terminal_id.max(1);
+            while workspace
+                .slot_ids
+                .iter()
+                .any(|id| *id == new_slot_id)
+            {
+                new_slot_id += 1;
+            }
+            let agent_label = agent_slug.clone().unwrap_or_default();
+            workspace.slot_ids.push(new_slot_id);
+            workspace.slot_agent_labels.push(agent_label);
+            workspace
+                .slot_pane_states
+                .push(SlotPaneState::default_for_slot(new_slot_id));
+            workspace.next_terminal_id = new_slot_id + 1;
+
+            // Fill remaining slots up to the target preset with empties.
+            while workspace.slot_ids.len() < target as usize {
+                let mut pad_id = workspace.next_terminal_id.max(1);
+                while workspace.slot_ids.iter().any(|id| *id == pad_id) {
+                    pad_id += 1;
+                }
+                workspace.slot_ids.push(pad_id);
+                workspace.slot_agent_labels.push(String::new());
+                workspace
+                    .slot_pane_states
+                    .push(SlotPaneState::default_for_slot(pad_id));
+                workspace.next_terminal_id = pad_id + 1;
+            }
+            workspace.set_count_and_dims(target);
+            new_id = Some(new_slot_id);
+        });
+        if let Some(e) = err {
+            return Err(e);
+        }
+        new_id.ok_or_else(|| "failed to append slot".into())
+    }
+
     pub fn close_terminal(&self, workspace_id: u64, terminal_id: u64) {
         self.workspaces.update(|workspaces| {
             let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
@@ -1000,6 +1064,20 @@ fn drop_sessions_for_prefix(prefix: String) {
     spawn_local(async move {
         let _ = workbench_drop_sessions(prefix).await;
     });
+}
+
+/// Smallest preset in `[1,2,4,6,8,9,12,16]` strictly greater than `current`.
+/// `grid_dims_for_count` is hardcoded for these counts, so any other value
+/// would land in the fallback heuristic — we prefer to keep parity with
+/// the wizard presets.
+fn next_preset_above(current: u8) -> u8 {
+    const PRESETS: [u8; 8] = [1, 2, 4, 6, 8, 9, 12, 16];
+    for &p in &PRESETS {
+        if p > current {
+            return p;
+        }
+    }
+    16
 }
 
 /// Last meaningful path segment, used to auto-name a workspace from its

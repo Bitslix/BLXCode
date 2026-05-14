@@ -1,6 +1,12 @@
-//! Read-only file access scoped to workspace root.
+//! Tool registry + sandboxed read-only file access.
+//!
+//! Each tool advertises a JSON schema and a server/client execution kind.
+//! The orchestrator renders the registry for the provider, then dispatches
+//! incoming tool calls back through here.
 
+use crate::memory;
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -22,6 +28,10 @@ impl WorkspaceRootGuard {
 
     pub fn contains(&self, abs: &Path) -> bool {
         abs.strip_prefix(&self.path).is_ok() || abs == self.path
+    }
+
+    pub fn as_str(&self) -> String {
+        self.path.to_string_lossy().into_owned()
     }
 }
 
@@ -71,4 +81,371 @@ impl RelativePath {
         }
         Some(PathBuf::from(trimmed))
     }
+}
+
+// ---------------------------------------------------------------------
+// Tool registry
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ToolSite {
+    /// Executed in-process by the orchestrator.
+    Server,
+    /// Executed by the UI; the orchestrator emits `ToolCall` and awaits
+    /// `agent_submit_tool_result`.
+    Client,
+}
+
+pub struct ToolDef {
+    pub name: &'static str,
+    pub description: &'static str,
+    pub parameters: Value,
+    pub site: ToolSite,
+}
+
+/// Output of an in-process server-tool execution.
+pub struct ToolOutcome {
+    pub ok: bool,
+    /// Text payload sent both to the user-facing `ToolResult` event and
+    /// (verbatim) back into the LLM as the tool-message content.
+    pub content: String,
+}
+
+pub fn registry() -> Vec<ToolDef> {
+    vec![
+        ToolDef {
+            name: "read_workspace_file",
+            description: "Read a UTF-8 text file under the workspace root. Path is relative to the workspace; absolute paths and `..` are rejected.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string", "description": "Relative path within the workspace." }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "memory_list",
+            description: "List Markdown notes under <workspace>/.blxcode/memory/. Returns at most 200 entries (path, name, size).",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "memory_read",
+            description: "Read a Markdown note under <workspace>/.blxcode/memory/. Path is relative to that root and must end in .md.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "memory_create",
+            description: "Create a new Markdown note under <workspace>/.blxcode/memory/. Path is relative, must end in .md, must not exist. Content is capped at 32 KiB per call.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" },
+                    "content": { "type": "string" }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "memory_write",
+            description: "Overwrite an existing Markdown note under <workspace>/.blxcode/memory/. Path is relative, must end in .md. Content is capped at 32 KiB per call.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" },
+                    "content": { "type": "string" }
+                },
+                "required": ["path", "content"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "memory_search",
+            description: "Full-text search across <workspace>/.blxcode/memory/. Returns up to 50 hits (path, line, snippet).",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "query": { "type": "string" }
+                },
+                "required": ["query"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "harness.open_terminal",
+            description: "Open a new terminal slot in the active workspace. Optionally launches a CLI agent (`claude`, `codex`, `gemini`, `opencode`, `cursor`). When omitted, a plain shell is used.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "agentSlug": {
+                        "type": "string",
+                        "enum": ["claude", "codex", "gemini", "opencode", "cursor"],
+                        "description": "CLI agent to auto-launch in the new slot."
+                    }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+    ]
+}
+
+/// Find a tool definition by name. Tool names from the model are matched
+/// case-sensitively to keep parity with the schema we sent.
+pub fn find(name: &str) -> Option<&'static ToolDef> {
+    // SAFETY: the registry is built fresh each call but returned slots live for
+    // the duration of this lookup only. We Box::leak a single instance so the
+    // 'static lifetime is honoured at zero risk (small one-time leak).
+    static INIT: std::sync::OnceLock<Vec<ToolDef>> = std::sync::OnceLock::new();
+    let reg = INIT.get_or_init(registry);
+    reg.iter().find(|t| t.name == name)
+}
+
+/// Render every tool in the registry as an OpenAI Chat Completions `tools[]` entry.
+pub fn render_for_openai() -> Value {
+    let reg = registry();
+    let items: Vec<Value> = reg
+        .into_iter()
+        .map(|t| {
+            json!({
+                "type": "function",
+                "function": {
+                    "name": t.name,
+                    "description": t.description,
+                    "parameters": t.parameters,
+                }
+            })
+        })
+        .collect();
+    Value::Array(items)
+}
+
+/// Execute a server-tool synchronously. Returns the textual `content`
+/// that should both be reported to the UI and fed back to the LLM.
+pub fn execute_server_tool(
+    name: &str,
+    args: &Value,
+    root: Option<&WorkspaceRootGuard>,
+) -> ToolOutcome {
+    match name {
+        "read_workspace_file" => tool_read_workspace_file(args, root),
+        "memory_list" => tool_memory_list(root),
+        "memory_read" => tool_memory_read(args, root),
+        "memory_search" => tool_memory_search(args, root),
+        "memory_create" => tool_memory_create(args, root),
+        "memory_write" => tool_memory_write(args, root),
+        other => ToolOutcome {
+            ok: false,
+            content: format!("unknown server tool: {other}"),
+        },
+    }
+}
+
+fn workspace_string(root: Option<&WorkspaceRootGuard>) -> Result<String, ToolOutcome> {
+    root.map(|g| g.as_str()).ok_or(ToolOutcome {
+        ok: false,
+        content: "no workspace configured".into(),
+    })
+}
+
+fn tool_read_workspace_file(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(path) = args.get("path").and_then(|v| v.as_str()) else {
+        return ToolOutcome {
+            ok: false,
+            content: "missing path".into(),
+        };
+    };
+    match ScopedReadOps::read_text(root, path) {
+        Ok(text) => {
+            let trimmed = truncate_chars(&text, 4000);
+            ToolOutcome {
+                ok: true,
+                content: trimmed,
+            }
+        }
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e.to_string(),
+        },
+    }
+}
+
+fn tool_memory_list(root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match memory::memory_list(ws) {
+        Ok(mut notes) => {
+            notes.truncate(200);
+            let body = serde_json::to_string(&notes).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
+            ToolOutcome {
+                ok: true,
+                content: body,
+            }
+        }
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e,
+        },
+    }
+}
+
+fn tool_memory_read(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(path) = args.get("path").and_then(|v| v.as_str()) else {
+        return ToolOutcome {
+            ok: false,
+            content: "missing path".into(),
+        };
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match memory::memory_read(ws, path.to_owned()) {
+        Ok(note) => {
+            let body = truncate_chars(&note.content, 4000);
+            ToolOutcome {
+                ok: true,
+                content: body,
+            }
+        }
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e,
+        },
+    }
+}
+
+fn tool_memory_search(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(query) = args.get("query").and_then(|v| v.as_str()) else {
+        return ToolOutcome {
+            ok: false,
+            content: "missing query".into(),
+        };
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match memory::memory_search(ws, query.to_owned()) {
+        Ok(mut hits) => {
+            hits.truncate(50);
+            let body = serde_json::to_string(&hits).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
+            ToolOutcome {
+                ok: true,
+                content: body,
+            }
+        }
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e,
+        },
+    }
+}
+
+const MEMORY_WRITE_MAX_BYTES: usize = 32 * 1024;
+
+fn tool_memory_create(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(path) = args.get("path").and_then(|v| v.as_str()) else {
+        return ToolOutcome {
+            ok: false,
+            content: "missing path".into(),
+        };
+    };
+    let content = args
+        .get("content")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_owned();
+    if content.len() > MEMORY_WRITE_MAX_BYTES {
+        return ToolOutcome {
+            ok: false,
+            content: format!(
+                "content exceeds {MEMORY_WRITE_MAX_BYTES} byte limit ({} bytes)",
+                content.len()
+            ),
+        };
+    }
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match memory::memory_create(ws, path.to_owned(), Some(content)) {
+        Ok(meta) => {
+            let body = serde_json::to_string(&meta).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
+            ToolOutcome {
+                ok: true,
+                content: body,
+            }
+        }
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e,
+        },
+    }
+}
+
+fn tool_memory_write(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(path) = args.get("path").and_then(|v| v.as_str()) else {
+        return ToolOutcome {
+            ok: false,
+            content: "missing path".into(),
+        };
+    };
+    let Some(content) = args.get("content").and_then(|v| v.as_str()) else {
+        return ToolOutcome {
+            ok: false,
+            content: "missing content".into(),
+        };
+    };
+    if content.len() > MEMORY_WRITE_MAX_BYTES {
+        return ToolOutcome {
+            ok: false,
+            content: format!(
+                "content exceeds {MEMORY_WRITE_MAX_BYTES} byte limit ({} bytes)",
+                content.len()
+            ),
+        };
+    }
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match memory::memory_write(ws, path.to_owned(), content.to_owned()) {
+        Ok(note) => ToolOutcome {
+            ok: true,
+            content: format!("wrote {} ({} bytes)", note.path, note.content.len()),
+        },
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e,
+        },
+    }
+}
+
+fn truncate_chars(s: &str, max: usize) -> String {
+    if s.chars().count() <= max {
+        return s.to_string();
+    }
+    let cut: String = s.chars().take(max).collect();
+    format!("{cut}… (truncated)")
 }

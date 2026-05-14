@@ -1,14 +1,26 @@
 use crate::agent::protocol::AgentEvent;
 use serde_json::Value;
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use tokio::sync::oneshot;
+
+/// Result emitted by a UI-side tool back into the running turn.
+#[derive(Clone, Debug)]
+pub struct ClientToolResult {
+    pub ok: bool,
+    pub message: Option<String>,
+    pub data: Option<Value>,
+}
 
 #[derive(Debug)]
 pub struct AgentEngineState {
     events: Mutex<VecDeque<AgentEvent>>,
     busy: AtomicBool,
     cancel: AtomicBool,
+    /// Senders keyed by tool-call id; the agent loop awaits the matching
+    /// `oneshot` after emitting a client-side `ToolCall`.
+    pending_client_tools: Mutex<HashMap<String, oneshot::Sender<ClientToolResult>>>,
 }
 
 impl AgentEngineState {
@@ -17,6 +29,7 @@ impl AgentEngineState {
             events: Mutex::new(VecDeque::new()),
             busy: AtomicBool::new(false),
             cancel: AtomicBool::new(false),
+            pending_client_tools: Mutex::new(HashMap::new()),
         })
     }
 
@@ -55,6 +68,12 @@ impl AgentEngineState {
 
     pub fn request_cancel(&self) {
         self.cancel.store(true, Ordering::SeqCst);
+        // Drop all pending oneshots so any awaiting loop unblocks.
+        let mut map = self
+            .pending_client_tools
+            .lock()
+            .expect("pending tools lock poisoned");
+        map.clear();
     }
 
     #[must_use]
@@ -64,6 +83,38 @@ impl AgentEngineState {
 
     pub fn clear_cancel(&self) {
         self.cancel.store(false, Ordering::SeqCst);
+    }
+
+    /// Register a `oneshot::Sender` keyed by `call_id`; the agent loop
+    /// awaits the receiver while the UI executes the tool.
+    pub fn register_client_tool(&self, call_id: String, tx: oneshot::Sender<ClientToolResult>) {
+        let mut map = self
+            .pending_client_tools
+            .lock()
+            .expect("pending tools lock poisoned");
+        map.insert(call_id, tx);
+    }
+
+    /// Frontend → backend bridge for `agent_submit_tool_result`. Returns
+    /// `Err` when no matching pending call exists (turn already ended,
+    /// duplicate submit, etc.).
+    pub fn deliver_client_tool_result(
+        &self,
+        call_id: &str,
+        ok: bool,
+        message: Option<String>,
+        data: Option<Value>,
+    ) -> Result<(), String> {
+        let tx_opt = {
+            let mut map = self
+                .pending_client_tools
+                .lock()
+                .expect("pending tools lock poisoned");
+            map.remove(call_id)
+        };
+        let tx = tx_opt.ok_or_else(|| format!("no pending tool call {call_id}"))?;
+        tx.send(ClientToolResult { ok, message, data })
+            .map_err(|_| "tool result receiver dropped".to_owned())
     }
 }
 
