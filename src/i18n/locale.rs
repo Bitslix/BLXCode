@@ -6,6 +6,7 @@ pub enum Locale {
     DeDe,
     EsEs,
     FrFr,
+    HuHu,
     ItIt,
     JaJp,
     KoKr,
@@ -25,6 +26,7 @@ impl Locale {
             Self::EnUs => "en-US",
             Self::EsEs => "es-ES",
             Self::FrFr => "fr-FR",
+            Self::HuHu => "hu-HU",
             Self::ItIt => "it-IT",
             Self::JaJp => "ja-JP",
             Self::KoKr => "ko-KR",
@@ -46,6 +48,7 @@ impl Locale {
             "en-us" | "en-gb" | "en" => Some(Self::EnUs),
             "es-es" | "es-mx" | "es-419" | "es" => Some(Self::EsEs),
             "fr-fr" | "fr-ca" | "fr" => Some(Self::FrFr),
+            "hu-hu" | "hu" => Some(Self::HuHu),
             "it-it" | "it" => Some(Self::ItIt),
             "ja-jp" | "ja" => Some(Self::JaJp),
             "ko-kr" | "ko" => Some(Self::KoKr),
@@ -88,6 +91,9 @@ impl Locale {
         if lower.starts_with("fr") {
             return Self::FrFr;
         }
+        if lower.starts_with("hu") {
+            return Self::HuHu;
+        }
         if lower.starts_with("it") {
             return Self::ItIt;
         }
@@ -122,6 +128,7 @@ pub const APP_LOCALES: &[(Locale, &str)] = &[
     (Locale::EnUs, "English"),
     (Locale::EsEs, "Español"),
     (Locale::FrFr, "Français"),
+    (Locale::HuHu, "Magyar"),
     (Locale::ItIt, "Italiano"),
     (Locale::JaJp, "日本語"),
     (Locale::KoKr, "한국어"),
@@ -160,6 +167,12 @@ mod tests {
             Locale::infer_from_browser_lang("zh-XX-unknown"),
             Locale::EnUs
         );
+    }
+
+    #[test]
+    fn parse_bcp47_hungarian() {
+        assert_eq!(Locale::parse_bcp47("hu-HU"), Some(Locale::HuHu));
+        assert_eq!(Locale::parse_bcp47("hu"), Some(Locale::HuHu));
     }
 
     #[test]

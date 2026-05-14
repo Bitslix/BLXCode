@@ -21,6 +21,7 @@ EN_US = ROOT / "src/i18n/locales/en_us.rs"
 TARGETS: list[tuple[str, str, str]] = [
     ("es_es.rs", "es", "es-ES"),
     ("fr_fr.rs", "fr", "fr-FR"),
+    ("hu_hu.rs", "hu", "hu-HU"),
     ("pt_br.rs", "pt", "pt-BR"),
     ("it_it.rs", "it", "it-IT"),
     ("pl_pl.rs", "pl", "pl-PL"),

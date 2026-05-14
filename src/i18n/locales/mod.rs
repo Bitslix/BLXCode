@@ -2,6 +2,7 @@ pub mod de_de;
 pub mod en_us;
 pub mod es_es;
 pub mod fr_fr;
+pub mod hu_hu;
 pub mod it_it;
 pub mod ja_jp;
 pub mod ko_kr;

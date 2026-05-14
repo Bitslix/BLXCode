@@ -2,7 +2,8 @@
 target = "./index.html"
 
 [watch]
-ignore = ["./src-tauri"]
+# Avoid rebuild loops with Tauri (`cargo tauri dev` touches `target/`, Trunk writes `dist/`).
+ignore = ["./src-tauri", "./dist", "./target"]
 
 [serve]
 port = 1420

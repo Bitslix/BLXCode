@@ -22,6 +22,10 @@ pub fn markdown_source(locale: Locale) -> &'static str {
             env!("CARGO_MANIFEST_DIR"),
             "/content/eula/fr-FR.md"
         )),
+        Locale::HuHu => include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/content/eula/hu-HU.md"
+        )),
         Locale::ItIt => include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
             "/content/eula/it-IT.md"

@@ -1,7 +1,7 @@
 use crate::i18n::keys::I18nKey;
 use crate::i18n::locale::Locale;
 use crate::i18n::locales::{
-    de_de, en_us, es_es, fr_fr, it_it, ja_jp, ko_kr, pl_pl, pt_br, ru_ru, zh_cn, zh_tw,
+    de_de, en_us, es_es, fr_fr, hu_hu, it_it, ja_jp, ko_kr, pl_pl, pt_br, ru_ru, zh_cn, zh_tw,
 };
 
 /// Resolves a static string for the given locale and key.
@@ -12,6 +12,7 @@ pub fn lookup(locale: Locale, key: I18nKey) -> &'static str {
         Locale::EnUs => en_us::msg(key),
         Locale::EsEs => es_es::msg(key),
         Locale::FrFr => fr_fr::msg(key),
+        Locale::HuHu => hu_hu::msg(key),
         Locale::ItIt => it_it::msg(key),
         Locale::JaJp => ja_jp::msg(key),
         Locale::KoKr => ko_kr::msg(key),
