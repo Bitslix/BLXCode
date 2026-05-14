@@ -17,9 +17,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
 
     let draft = RwSignal::new(String::new());
-    let user_prompt = RwSignal::new(String::new());
-    let transcript = RwSignal::new(String::new());
-    let activity = RwSignal::new(Vec::<ToolActivity>::new());
+    let timeline = RwSignal::new(Vec::<TimelineItem>::new());
     let busy = RwSignal::new(false);
     let status_line = RwSignal::new(Option::<String>::None);
     let ptt_active = RwSignal::new(false);
@@ -133,10 +131,10 @@ pub fn AgentPanelDock() -> impl IntoView {
             <article class="workbench-agent-scroll" aria-live="polite" aria-label="Agent chat log">
                 <div class="agent-section__head">
                     <h3>"Chat log"</h3>
-                    <span>{move || if activity.get().is_empty() { "Ready" } else { "Tools" }}</span>
+                    <span>{move || if timeline.get().is_empty() { "Ready" } else { "Live" }}</span>
                 </div>
                 <Show
-                    when=move || !user_prompt.get().trim().is_empty() || !transcript.get().trim().is_empty()
+                    when=move || !timeline.get().is_empty()
                     fallback=move || view! {
                         <div class="agent-chat-line agent-chat-line--agent">
                             <span class="agent-chat-index">"01"</span>
@@ -158,33 +156,13 @@ pub fn AgentPanelDock() -> impl IntoView {
                         </div>
                     }
                 >
-                    <Show when=move || !user_prompt.get().trim().is_empty()>
-                        <div class="agent-chat-line agent-chat-line--user">
-                            <span class="agent-chat-index">"01"</span>
-                            <div class="agent-chat-body">
-                                <strong>{move || i18n.tr(I18nKey::AgYou)()}</strong>
-                                <pre class="workbench-agent-transcript">{move || user_prompt.get()}</pre>
-                            </div>
-                        </div>
-                    </Show>
-                    <Show when=move || !transcript.get().trim().is_empty()>
-                        <div class="agent-chat-line agent-chat-line--agent">
-                            <span class="agent-chat-index">"02"</span>
-                            <div class="agent-chat-body">
-                                <strong>{move || i18n.tr(I18nKey::AgAssistant)()}</strong>
-                                <pre class="workbench-agent-transcript">{move || transcript.get()}</pre>
-                            </div>
-                        </div>
-                    </Show>
-                </Show>
-                <Show when=move || !activity.get().is_empty()>
-                    <ul class="agent-tool-list" aria-label="Tool activity">
+                    <ol class="agent-chat-list" aria-label="Agent activity timeline">
                         {move || {
-                            activity.get().into_iter().enumerate().map(|(idx, a)| {
-                                view! { <ToolActivityRow idx=idx entry=a /> }
+                            timeline.get().into_iter().enumerate().map(|(idx, entry)| {
+                                view! { <TimelineRow idx=idx entry=entry i18n=i18n /> }
                             }).collect_view()
                         }}
-                    </ul>
+                    </ol>
                 </Show>
             </article>
 
@@ -192,7 +170,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                 class="agent-compose"
                 on:submit=move |ev| {
                     ev.prevent_default();
-                    submit_turn(wb, i18n, draft, busy, status_line, user_prompt, transcript, activity);
+                    submit_turn(wb, i18n, draft, busy, status_line, timeline);
                 }
             >
                 <input
@@ -207,7 +185,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                     on:keydown=move |ev| {
                         if ev.key() == "Enter" && !ev.shift_key() && !ev.ctrl_key() && !ev.meta_key() {
                             ev.prevent_default();
-                            submit_turn(wb, i18n, draft, busy, status_line, user_prompt, transcript, activity);
+                            submit_turn(wb, i18n, draft, busy, status_line, timeline);
                         }
                     }
                 />
@@ -280,9 +258,7 @@ fn submit_turn(
     draft: RwSignal<String>,
     busy: RwSignal<bool>,
     status_line: RwSignal<Option<String>>,
-    user_prompt: RwSignal<String>,
-    transcript: RwSignal<String>,
-    activity: RwSignal<Vec<ToolActivity>>,
+    timeline: RwSignal<Vec<TimelineItem>>,
 ) {
     if busy.get_untracked() {
         return;
@@ -298,9 +274,9 @@ fn submit_turn(
 
     let workspace_root = resolve_effective_workspace_root(&wb);
 
-    user_prompt.set(prompt.clone());
-    transcript.set(String::new());
-    activity.set(Vec::new());
+    timeline.set(vec![TimelineItem::User {
+        text: prompt.clone(),
+    }]);
     status_line.set(None);
     busy.set(true);
     draft.set(String::new());
@@ -312,8 +288,7 @@ fn submit_turn(
 
     let busy_sig = busy;
     let status_sig = status_line;
-    let transcript_sig = transcript;
-    let activity_sig = activity;
+    let timeline_sig = timeline;
 
     leptos::task::spawn_local(async move {
         if let Err(msg) = agent_submit_turn(turn).await {
@@ -327,7 +302,7 @@ fn submit_turn(
         if let Err(msg) = agent_drain_turn(move |batch| {
             let loc_now = i18n_d.locale().get_untracked();
             for ev in &batch {
-                apply_agent_event(ev, transcript_sig, activity_sig, loc_now);
+                apply_agent_event(ev, timeline_sig, loc_now);
                 maybe_handle_client_tool(ev, wb_d);
             }
             // The borrow of `batch` ends here; the closure returns ().
@@ -369,11 +344,7 @@ fn submit_async(call_id: String, ok: bool, message: String, data: Option<serde_j
     });
 }
 
-fn handle_open_terminal(
-    call_id: String,
-    args: Option<serde_json::Value>,
-    wb: WorkbenchService,
-) {
+fn handle_open_terminal(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
     let agent_slug = args
         .as_ref()
         .and_then(|v| v.get("agentSlug"))
@@ -425,14 +396,12 @@ fn resolve_target_session(
     // Find slot_id → agent_slug map from workspace.
     let label_for_slot = |slot_id: u64| -> Option<String> {
         wb.workspaces().with_untracked(|ws| {
-            ws.iter()
-                .find(|w| w.id == workspace_id)
-                .and_then(|w| {
-                    w.slot_ids
-                        .iter()
-                        .position(|id| *id == slot_id)
-                        .and_then(|idx| w.slot_agent_labels.get(idx).cloned())
-                })
+            ws.iter().find(|w| w.id == workspace_id).and_then(|w| {
+                w.slot_ids
+                    .iter()
+                    .position(|id| *id == slot_id)
+                    .and_then(|idx| w.slot_agent_labels.get(idx).cloned())
+            })
         })
     };
 
@@ -472,11 +441,7 @@ fn handle_list_terminals(call_id: String, wb: WorkbenchService) {
             .iter()
             .enumerate()
             .map(|(idx, slot_id)| {
-                let agent = w
-                    .slot_agent_labels
-                    .get(idx)
-                    .cloned()
-                    .unwrap_or_default();
+                let agent = w.slot_agent_labels.get(idx).cloned().unwrap_or_default();
                 let running = running.iter().any(|(s, _, _)| *s == *slot_id);
                 serde_json::json!({
                     "slotId": slot_id,
@@ -577,25 +542,29 @@ fn handle_read_output(call_id: String, args: Option<serde_json::Value>, wb: Work
     });
 }
 
-fn apply_agent_event(
-    ev: &AgentEvent,
-    transcript: RwSignal<String>,
-    activity: RwSignal<Vec<ToolActivity>>,
-    loc: Locale,
-) {
+fn apply_agent_event(ev: &AgentEvent, timeline: RwSignal<Vec<TimelineItem>>, loc: Locale) {
     match ev {
-        AgentEvent::AssistantDelta { delta } => transcript.update(|t| t.push_str(delta)),
+        AgentEvent::AssistantDelta { delta } => timeline.update(|rows| match rows.last_mut() {
+            Some(TimelineItem::Assistant { text }) => text.push_str(delta),
+            _ => rows.push(TimelineItem::Assistant {
+                text: delta.clone(),
+            }),
+        }),
         AgentEvent::ToolCall { tool, args, .. } => {
             let entry = ToolActivity::from_call(tool, args.as_ref());
-            activity.update(|rows| rows.push(entry));
+            timeline.update(|rows| rows.push(TimelineItem::Tool(entry)));
         }
         AgentEvent::ToolResult { tool, ok, message } => {
-            activity.update(|rows| {
+            timeline.update(|rows| {
                 // Match the most recent pending entry for this tool name.
-                let slot = rows
-                    .iter_mut()
-                    .rev()
-                    .find(|r| r.tool == *tool && r.status == ActivityStatus::Pending);
+                let slot = rows.iter_mut().rev().find_map(|entry| match entry {
+                    TimelineItem::Tool(row)
+                        if row.tool == *tool && row.status == ActivityStatus::Pending =>
+                    {
+                        Some(row)
+                    }
+                    _ => None,
+                });
                 if let Some(row) = slot {
                     row.status = if *ok {
                         ActivityStatus::Ok
@@ -606,7 +575,7 @@ fn apply_agent_event(
                 } else {
                     // No matching pending row — synthesise one so the result
                     // isn't silently dropped (e.g. mock orchestrator path).
-                    rows.push(ToolActivity {
+                    rows.push(TimelineItem::Tool(ToolActivity {
                         tool: tool.clone(),
                         label: friendly_label(tool).to_owned(),
                         args_summary: String::new(),
@@ -616,16 +585,35 @@ fn apply_agent_event(
                             ActivityStatus::Fail
                         },
                         detail: message.clone().filter(|m| !m.is_empty()),
-                    });
+                    }));
                 }
             });
         }
         AgentEvent::Done => {}
         AgentEvent::Error { message } => {
             let prefix = lookup(loc, I18nKey::AgErrColon);
-            transcript.update(|t| t.push_str(&format!("\n{prefix} {message}\n")));
+            let line = format!("{prefix} {message}");
+            timeline.update(|rows| match rows.last_mut() {
+                Some(TimelineItem::Assistant { text }) => {
+                    if !text.is_empty() && !text.ends_with('\n') {
+                        text.push('\n');
+                    }
+                    text.push_str(&line);
+                    text.push('\n');
+                }
+                _ => rows.push(TimelineItem::Assistant {
+                    text: format!("{line}\n"),
+                }),
+            });
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum TimelineItem {
+    User { text: String },
+    Assistant { text: String },
+    Tool(ToolActivity),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -705,14 +693,45 @@ fn tool_icon(tool: &str) -> icondata::Icon {
         "memory_write" => icondata::LuFileEdit,
         "harness.open_terminal" => icondata::LuTerminal,
         "harness.list_terminals" => icondata::LuLayoutGrid,
-        "harness.send_terminal_keys" => icondata::LuSendHorizontal,
-        "harness.read_terminal_output" => icondata::LuScanText,
+        "harness.send_terminal_keys" => icondata::LuSendHorizonal,
+        "harness.read_terminal_output" => icondata::LuWrapText,
         _ => icondata::LuWrench,
     }
 }
 
 #[component]
-fn ToolActivityRow(idx: usize, entry: ToolActivity) -> impl IntoView {
+fn TimelineRow(idx: usize, entry: TimelineItem, i18n: I18nService) -> impl IntoView {
+    let line_no = format!("{:02}", idx + 1);
+    match entry {
+        TimelineItem::User { text } => view! {
+            <li class="agent-chat-line agent-chat-line--user">
+                <span class="agent-chat-index">{line_no.clone()}</span>
+                <div class="agent-chat-body">
+                    <strong>{move || i18n.tr(I18nKey::AgYou)()}</strong>
+                    <pre class="workbench-agent-transcript">{text}</pre>
+                </div>
+            </li>
+        }
+        .into_any(),
+        TimelineItem::Assistant { text } => view! {
+            <li class="agent-chat-line agent-chat-line--agent">
+                <span class="agent-chat-index">{line_no.clone()}</span>
+                <div class="agent-chat-body">
+                    <strong>{move || i18n.tr(I18nKey::AgAssistant)()}</strong>
+                    <pre class="workbench-agent-transcript">{text}</pre>
+                </div>
+            </li>
+        }
+        .into_any(),
+        TimelineItem::Tool(entry) => view! {
+            <ToolActivityRow idx=idx line_no=line_no entry=entry />
+        }
+        .into_any(),
+    }
+}
+
+#[component]
+fn ToolActivityRow(idx: usize, line_no: String, entry: ToolActivity) -> impl IntoView {
     let status_class = match entry.status {
         ActivityStatus::Pending => "agent-tool-row--pending",
         ActivityStatus::Ok => "agent-tool-row--ok",
@@ -732,35 +751,41 @@ fn ToolActivityRow(idx: usize, entry: ToolActivity) -> impl IntoView {
     let _ = idx;
 
     view! {
-        <li class=format!("agent-tool-row {status_class}") title=tool_name_for_title>
-            <button
-                type="button"
-                class="agent-tool-row__head"
-                aria-expanded=move || detail_open.get().to_string()
-                prop:disabled=move || !has_detail
-                on:click=move |_| {
-                    if has_detail {
-                        detail_open.update(|o| *o = !*o);
-                    }
-                }
-            >
-                <span class="agent-tool-row__icon" aria-hidden="true">
-                    <LxIcon icon=tool_icon(&entry.tool) width="0.95rem" height="0.95rem" />
-                </span>
-                <span class="agent-tool-row__label">{label}</span>
-                <Show when={
-                    let s = summary.clone();
-                    move || !s.is_empty()
-                }>
-                    <span class="agent-tool-row__arg">{summary.clone()}</span>
-                </Show>
-                <span class="agent-tool-row__status" aria-hidden="true">
-                    <LxIcon icon=status_icon width="0.85rem" height="0.85rem" />
-                </span>
-            </button>
-            <Show when=move || has_detail && detail_open.get()>
-                <pre class="agent-tool-row__detail">{detail_text.clone()}</pre>
-            </Show>
+        <li class="agent-chat-line agent-chat-line--tool">
+            <span class="agent-chat-index">{line_no}</span>
+            <div class="agent-chat-body">
+                <strong>"Tool"</strong>
+                <div class=format!("agent-tool-row {status_class}") title=tool_name_for_title>
+                    <button
+                        type="button"
+                        class="agent-tool-row__head"
+                        aria-expanded=move || detail_open.get().to_string()
+                        prop:disabled=move || !has_detail
+                        on:click=move |_| {
+                            if has_detail {
+                                detail_open.update(|o| *o = !*o);
+                            }
+                        }
+                    >
+                        <span class="agent-tool-row__icon" aria-hidden="true">
+                            <LxIcon icon=tool_icon(&entry.tool) width="0.82rem" height="0.82rem" />
+                        </span>
+                        <span class="agent-tool-row__label">{label}</span>
+                        <Show when={
+                            let s = summary.clone();
+                            move || !s.is_empty()
+                        }>
+                            <span class="agent-tool-row__arg">{summary.clone()}</span>
+                        </Show>
+                        <span class="agent-tool-row__status" aria-hidden="true">
+                            <LxIcon icon=status_icon width="0.78rem" height="0.78rem" />
+                        </span>
+                    </button>
+                    <Show when=move || has_detail && detail_open.get()>
+                        <pre class="agent-tool-row__detail">{detail_text.clone()}</pre>
+                    </Show>
+                </div>
+            </div>
         </li>
     }
 }

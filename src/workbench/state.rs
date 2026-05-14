@@ -476,11 +476,7 @@ impl WorkbenchService {
             // Mint the agent slot first so it gets a stable id, then pad
             // with empties up to the new preset count.
             let mut new_slot_id = workspace.next_terminal_id.max(1);
-            while workspace
-                .slot_ids
-                .iter()
-                .any(|id| *id == new_slot_id)
-            {
+            while workspace.slot_ids.iter().any(|id| *id == new_slot_id) {
                 new_slot_id += 1;
             }
             let agent_label = agent_slug.clone().unwrap_or_default();

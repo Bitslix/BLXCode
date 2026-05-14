@@ -342,7 +342,8 @@ pub async fn run_chat_turn(
                 return;
             }
             let args_val: Value = serde_json::from_str(&call.arguments).unwrap_or(json!({}));
-            let outcome = dispatch_tool(&state, &call.id, &call.name, &args_val, root_guard.as_ref()).await;
+            let outcome =
+                dispatch_tool(&state, &call.id, &call.name, &args_val, root_guard.as_ref()).await;
 
             state.push(AgentEvent::ToolResult {
                 tool: call.name.clone(),

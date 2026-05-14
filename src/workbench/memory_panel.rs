@@ -16,7 +16,6 @@ use web_sys::HtmlInputElement;
 
 const SAVE_DEBOUNCE_MS: u32 = 600;
 
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum MemoryView {
     Files,
@@ -188,7 +187,6 @@ fn refresh_graph(state: MemoryState, ws: String) {
         }
     });
 }
-
 
 fn input_value(ev: web_sys::Event) -> Option<String> {
     let t = ev.target()?;
@@ -669,7 +667,9 @@ fn MemoryGraphView(state: MemoryState) -> impl IntoView {
             if state.view.get() != MemoryView::Graph {
                 return;
             }
-            let Some(ws) = state.workspace_cwd.get() else { return };
+            let Some(ws) = state.workspace_cwd.get() else {
+                return;
+            };
             refresh_graph(state.clone(), ws);
         }
     });
@@ -824,7 +824,9 @@ fn force_layout(g: &GraphData, w: f32, h: f32, iters: u32) -> HashMap<String, (f
         }
         // apply with cooling and bounds
         for i in 0..n {
-            let d = (disp[i].0 * disp[i].0 + disp[i].1 * disp[i].1).sqrt().max(0.001);
+            let d = (disp[i].0 * disp[i].0 + disp[i].1 * disp[i].1)
+                .sqrt()
+                .max(0.001);
             let limit = t.min(d);
             pos[i].0 += disp[i].0 / d * limit;
             pos[i].1 += disp[i].1 / d * limit;
@@ -857,7 +859,9 @@ fn MemorySearchView(state: MemoryState) -> impl IntoView {
                 if debounce_token.get_untracked() != token {
                     return;
                 }
-                let Some(ws) = s.workspace_cwd.get_untracked() else { return };
+                let Some(ws) = s.workspace_cwd.get_untracked() else {
+                    return;
+                };
                 if v.trim().is_empty() {
                     s.search_results.set(Vec::new());
                     return;
@@ -917,4 +921,3 @@ fn MemorySearchView(state: MemoryState) -> impl IntoView {
         </div>
     }
 }
-

@@ -64,7 +64,12 @@ pub fn WorkbenchShell() -> impl IntoView {
             // Guarantee a non-empty workspace sandbox root after hydrate.
             // Falls back to {app_data}/sandbox so the agent always has a
             // writable scope even before the user creates a workspace.
-            if wb.harness_workspace_root().get_untracked().trim().is_empty() {
+            if wb
+                .harness_workspace_root()
+                .get_untracked()
+                .trim()
+                .is_empty()
+            {
                 if let Ok(path) = harness_ensure_default_sandbox().await {
                     wb.persist_harness_workspace_root(path);
                 }

@@ -1,7 +1,9 @@
 //! Right inspector column: collapsible (default closed); width via splitter when open.
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::workbench::{AgentPanelDock, BrowserTabDock, MemoryPanel, RightPanelTab, WorkbenchService};
+use crate::workbench::{
+    AgentPanelDock, BrowserTabDock, MemoryPanel, RightPanelTab, WorkbenchService,
+};
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;

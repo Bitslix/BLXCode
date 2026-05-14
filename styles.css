@@ -1555,6 +1555,12 @@ body {
   background: transparent;
 }
 
+.agent-chat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
 .agent-tool-list {
   list-style: none;
   margin: 0.4rem 0 0;
@@ -1565,6 +1571,8 @@ body {
 }
 
 .agent-tool-row {
+  display: inline-block;
+  max-width: 100%;
   border-radius: 0.5rem;
   border: 1px solid rgba(255, 255, 255, 0.06);
   background: rgba(255, 255, 255, 0.025);
@@ -1589,11 +1597,11 @@ body {
 }
 
 .agent-tool-row__head {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.55rem;
-  width: 100%;
-  padding: 0.42rem 0.6rem;
+  gap: 0.42rem;
+  max-width: 100%;
+  padding: 0.26rem 0.46rem;
   background: transparent;
   border: 0;
   color: inherit;
@@ -1610,9 +1618,9 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1.25rem;
-  height: 1.25rem;
-  border-radius: 0.35rem;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 0.28rem;
   background: rgba(255, 255, 255, 0.05);
   color: var(--syntax-type, #8fd9c4);
   flex: 0 0 auto;
@@ -1624,7 +1632,7 @@ body {
 }
 
 .agent-tool-row__label {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 600;
   color: rgba(241, 242, 245, 0.92);
   flex: 0 0 auto;
@@ -1632,10 +1640,11 @@ body {
 
 .agent-tool-row__arg {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.66rem;
   color: var(--text-faint, rgba(241, 242, 245, 0.55));
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-width: 0;
+  max-width: min(22rem, 52vw);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1650,7 +1659,6 @@ body {
   border-radius: 999px;
   color: var(--syntax-type, #8fd9c4);
   flex: 0 0 auto;
-  margin-left: auto;
 }
 
 .agent-tool-row--pending .agent-tool-row__status {
@@ -1664,14 +1672,13 @@ body {
 
 .agent-tool-row__detail {
   margin: 0;
-  padding: 0.45rem 0.7rem 0.6rem 2.4rem;
+  padding: 0 0.52rem 0.48rem 1.9rem;
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.66rem;
   line-height: 1.5;
   color: rgba(241, 242, 245, 0.72);
   white-space: pre-wrap;
   word-break: break-word;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 @keyframes agent-tool-spin {
@@ -1749,6 +1756,19 @@ body {
 
 .agent-chat-line--user .agent-chat-body::before {
   background: var(--accent-cool);
+}
+
+.agent-chat-line--tool strong {
+  color: rgba(99, 230, 190, 0.88);
+}
+
+.agent-chat-line--tool .agent-chat-body {
+  border-left-color: rgba(99, 230, 190, 0.22);
+}
+
+.agent-chat-line--tool .agent-chat-body::before {
+  background: #63e6be;
+  box-shadow: 0 0 0 3px rgba(99, 230, 190, 0.12);
 }
 
 .agent-compose {

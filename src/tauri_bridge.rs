@@ -856,7 +856,6 @@ pub async fn memory_install_pointers(
     .await
 }
 
-
 pub async fn git_branch(cwd: String) -> Result<Option<String>, String> {
     #[derive(Serialize)]
     struct Args {

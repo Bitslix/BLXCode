@@ -94,7 +94,8 @@ impl PtyManager {
 
         let queue: Arc<Mutex<VecDeque<Vec<u8>>>> = Arc::new(Mutex::new(VecDeque::new()));
         let q_reader = Arc::clone(&queue);
-        let tail: Arc<Mutex<VecDeque<u8>>> = Arc::new(Mutex::new(VecDeque::with_capacity(TAIL_CAP_BYTES)));
+        let tail: Arc<Mutex<VecDeque<u8>>> =
+            Arc::new(Mutex::new(VecDeque::with_capacity(TAIL_CAP_BYTES)));
         let tail_reader = Arc::clone(&tail);
 
         let id = {

@@ -336,7 +336,8 @@ fn tool_memory_list(root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
     match memory::memory_list(ws) {
         Ok(mut notes) => {
             notes.truncate(200);
-            let body = serde_json::to_string(&notes).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
+            let body =
+                serde_json::to_string(&notes).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
             ToolOutcome {
                 ok: true,
                 content: body,
@@ -389,7 +390,8 @@ fn tool_memory_search(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOu
     match memory::memory_search(ws, query.to_owned()) {
         Ok(mut hits) => {
             hits.truncate(50);
-            let body = serde_json::to_string(&hits).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
+            let body =
+                serde_json::to_string(&hits).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
             ToolOutcome {
                 ok: true,
                 content: body,
@@ -431,7 +433,8 @@ fn tool_memory_create(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOu
     };
     match memory::memory_create(ws, path.to_owned(), Some(content)) {
         Ok(meta) => {
-            let body = serde_json::to_string(&meta).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
+            let body =
+                serde_json::to_string(&meta).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
             ToolOutcome {
                 ok: true,
                 content: body,
