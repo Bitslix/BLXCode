@@ -765,6 +765,7 @@ fn MemoryGraphView(state: MemoryState) -> impl IntoView {
     let last_pos = RwSignal::new((0.0_f32, 0.0_f32));
     let user_interacted = RwSignal::new(false);
     let last_node_set: RwSignal<Vec<String>> = RwSignal::new(Vec::new());
+    let hovered: RwSignal<Option<String>> = RwSignal::new(None);
 
     Effect::new({
         let state = state.clone();
@@ -919,72 +920,123 @@ fn MemoryGraphView(state: MemoryState) -> impl IntoView {
                 >
                     // edges
                     <g class="workbench-memory-graph__edges">
-                        <For
-                            each={
-                                let s = state.clone();
-                                move || s.graph.get().map(|g| g.edges).unwrap_or_default()
+                        {
+                            let s = state.clone();
+                            move || {
+                                let pos = layout.get();
+                                let edges = s.graph.get().map(|g| g.edges).unwrap_or_default();
+                                let hov = hovered.get();
+                                edges.into_iter().filter_map(|e| {
+                                    let (x1, y1) = *pos.get(&e.source)?;
+                                    let (x2, y2) = *pos.get(&e.target)?;
+                                    let incident = match hov.as_deref() {
+                                        Some(h) => e.source == h || e.target == h,
+                                        None => true,
+                                    };
+                                    let (stroke, width) = if hov.is_none() {
+                                        ("rgba(255,255,255,0.18)", "1")
+                                    } else if incident {
+                                        ("rgba(180,210,255,0.85)", "1.6")
+                                    } else {
+                                        ("rgba(255,255,255,0.04)", "1")
+                                    };
+                                    Some(view! {
+                                        <line
+                                            x1=x1.to_string()
+                                            y1=y1.to_string()
+                                            x2=x2.to_string()
+                                            y2=y2.to_string()
+                                            stroke=stroke
+                                            stroke-width=width
+                                        />
+                                    })
+                                }).collect::<Vec<_>>()
                             }
-                            key=|e| format!("{}->{}", e.source, e.target)
-                            children=move |e| {
-                                let src1 = e.source.clone();
-                                let src2 = e.source.clone();
-                                let tgt1 = e.target.clone();
-                                let tgt2 = e.target.clone();
-                                let x1 = move || layout.get().get(&src1).map(|p| p.0).unwrap_or(-9999.0).to_string();
-                                let y1 = move || layout.get().get(&src2).map(|p| p.1).unwrap_or(-9999.0).to_string();
-                                let x2 = move || layout.get().get(&tgt1).map(|p| p.0).unwrap_or(-9999.0).to_string();
-                                let y2 = move || layout.get().get(&tgt2).map(|p| p.1).unwrap_or(-9999.0).to_string();
-                                view! {
-                                    <line
-                                        x1=x1
-                                        y1=y1
-                                        x2=x2
-                                        y2=y2
-                                        stroke="rgba(255,255,255,0.18)"
-                                        stroke-width="1"
-                                    />
-                                }
-                            }
-                        />
+                        }
                     </g>
                     // nodes
                     <g class="workbench-memory-graph__nodes">
-                        <For
-                            each={
-                                let s = state.clone();
-                                move || s.graph.get().map(|g| g.nodes).unwrap_or_default()
-                            }
-                            key=|n| n.id.clone()
-                            children={
-                                let state = state.clone();
-                                move |n| {
-                                    let s = state.clone();
+                        {
+                            let s = state.clone();
+                            move || {
+                                let pos = layout.get();
+                                let graph = s.graph.get();
+                                let nodes = graph.as_ref().map(|g| g.nodes.clone()).unwrap_or_default();
+                                let edges = graph.as_ref().map(|g| g.edges.clone()).unwrap_or_default();
+                                let degrees = compute_degrees(&nodes, &edges);
+                                let neighbors = compute_neighbors(&edges);
+                                let hov = hovered.get();
+                                let (_, _, vw, vh) = viewbox.get();
+                                // Hide labels when zoomed far out (each pixel covers many viewBox units).
+                                let zoom_scale = (vw * vh).sqrt();
+                                let show_labels = zoom_scale < 900.0;
+                                nodes.into_iter().filter_map(|n| {
+                                    let (x, y) = *pos.get(&n.id)?;
+                                    let deg = degrees.get(&n.id).copied().unwrap_or(0);
+                                    let radius = 4.0_f32 + (deg as f32).sqrt() * 2.5;
+                                    let (focus_state, is_hovered) = match hov.as_deref() {
+                                        Some(h) if h == n.id => (NodeFocus::Hovered, true),
+                                        Some(h) => {
+                                            let near = neighbors.get(h).map(|set| set.contains(&n.id)).unwrap_or(false);
+                                            (if near { NodeFocus::Neighbor } else { NodeFocus::Dim }, false)
+                                        }
+                                        None => (NodeFocus::Normal, false),
+                                    };
+                                    let base_fill = cluster_color(&n.tags, n.orphan);
+                                    let fill = match focus_state {
+                                        NodeFocus::Dim => fade_color(&base_fill, 0.18),
+                                        _ => base_fill,
+                                    };
+                                    let stroke = match focus_state {
+                                        NodeFocus::Hovered => "rgba(255,255,255,0.95)",
+                                        NodeFocus::Neighbor => "rgba(255,255,255,0.6)",
+                                        NodeFocus::Dim => "rgba(255,255,255,0.08)",
+                                        NodeFocus::Normal => "rgba(255,255,255,0.4)",
+                                    };
+                                    let stroke_width = if matches!(focus_state, NodeFocus::Hovered) { "1.4" } else { "0.5" };
+                                    let label_opacity = match focus_state {
+                                        NodeFocus::Hovered => 1.0_f32,
+                                        NodeFocus::Neighbor => 0.95,
+                                        NodeFocus::Dim => 0.0,
+                                        NodeFocus::Normal => if show_labels { 0.9 } else { 0.0 },
+                                    };
+                                    let label_force_visible = is_hovered;
+                                    let s_click = s.clone();
                                     let id_for_click = n.id.clone();
-                                    let id_cx = n.id.clone();
-                                    let id_cy = n.id.clone();
-                                    let id_tx = n.id.clone();
-                                    let id_ty = n.id.clone();
+                                    let id_for_enter = n.id.clone();
                                     let label = n.label.clone();
-                                    let fill = if n.orphan { "rgba(180,180,200,0.35)" } else { "rgba(120,170,255,0.85)" };
-                                    let cx = move || layout.get().get(&id_cx).map(|p| p.0).unwrap_or(-9999.0).to_string();
-                                    let cy = move || layout.get().get(&id_cy).map(|p| p.1).unwrap_or(-9999.0).to_string();
-                                    let tx = move || (layout.get().get(&id_tx).map(|p| p.0).unwrap_or(-9999.0) + 8.0).to_string();
-                                    let ty = move || (layout.get().get(&id_ty).map(|p| p.1).unwrap_or(-9999.0) + 3.0).to_string();
-                                    view! {
+                                    Some(view! {
                                         <g class="workbench-memory-graph__node"
                                             on:click=move |_| {
-                                                let Some(ws) = s.workspace_cwd.get_untracked() else { return };
-                                                load_note(s.clone(), ws, id_for_click.clone());
-                                                s.view.set(MemoryView::Files);
+                                                let Some(ws) = s_click.workspace_cwd.get_untracked() else { return };
+                                                load_note(s_click.clone(), ws, id_for_click.clone());
+                                                s_click.view.set(MemoryView::Files);
                                             }
+                                            on:mouseenter=move |_| hovered.set(Some(id_for_enter.clone()))
+                                            on:mouseleave=move |_| hovered.set(None)
                                         >
-                                            <circle cx=cx cy=cy r="6" fill=fill stroke="rgba(255,255,255,0.4)" stroke-width="0.5" />
-                                            <text x=tx y=ty font-size="9" fill="rgba(238,239,245,0.9)">{label}</text>
+                                            <circle
+                                                cx=x.to_string()
+                                                cy=y.to_string()
+                                                r=radius.to_string()
+                                                fill=fill
+                                                stroke=stroke
+                                                stroke-width=stroke_width
+                                            />
+                                            {(label_opacity > 0.0 || label_force_visible).then(|| view! {
+                                                <text
+                                                    x=(x + radius + 3.0).to_string()
+                                                    y=(y + 3.0).to_string()
+                                                    font-size="9"
+                                                    fill="rgba(238,239,245,0.95)"
+                                                    opacity=label_opacity.to_string()
+                                                >{label}</text>
+                                            })}
                                         </g>
-                                    }
-                                }
+                                    })
+                                }).collect::<Vec<_>>()
                             }
-                        />
+                        }
                     </g>
                 </svg>
                 <p class="workbench-memory-graph__legend">
@@ -993,6 +1045,71 @@ fn MemoryGraphView(state: MemoryState) -> impl IntoView {
             </Show>
         </div>
     }
+}
+
+#[derive(Clone, Copy)]
+enum NodeFocus { Normal, Hovered, Neighbor, Dim }
+
+fn compute_degrees(
+    nodes: &[crate::tauri_bridge::GraphNode],
+    edges: &[crate::tauri_bridge::GraphEdge],
+) -> HashMap<String, u32> {
+    let mut d: HashMap<String, u32> = nodes.iter().map(|n| (n.id.clone(), 0)).collect();
+    for e in edges {
+        if let Some(v) = d.get_mut(&e.source) { *v += 1; }
+        if let Some(v) = d.get_mut(&e.target) { *v += 1; }
+    }
+    d
+}
+
+fn compute_neighbors(
+    edges: &[crate::tauri_bridge::GraphEdge],
+) -> HashMap<String, std::collections::HashSet<String>> {
+    let mut m: HashMap<String, std::collections::HashSet<String>> = HashMap::new();
+    for e in edges {
+        m.entry(e.source.clone()).or_default().insert(e.target.clone());
+        m.entry(e.target.clone()).or_default().insert(e.source.clone());
+    }
+    m
+}
+
+/// Stable hash → hue color for cluster grouping by first tag.
+/// Orphans get a neutral grey. Notes without tags fall back to a hash of the id (group by basename prefix).
+fn cluster_color(tags: &[String], orphan: bool) -> String {
+    if orphan {
+        return "rgba(170,170,185,0.55)".to_string();
+    }
+    let key = tags.first().cloned();
+    let hue = match key {
+        Some(t) => stable_hue(&t),
+        None => 215.0, // default blue when untagged
+    };
+    format!("hsla({:.0}, 70%, 64%, 0.9)", hue)
+}
+
+fn stable_hue(s: &str) -> f32 {
+    // FNV-1a 32-bit
+    let mut h: u32 = 0x811c9dc5;
+    for b in s.as_bytes() {
+        h ^= *b as u32;
+        h = h.wrapping_mul(0x01000193);
+    }
+    (h % 360) as f32
+}
+
+fn fade_color(css: &str, alpha: f32) -> String {
+    // Replace last alpha component in hsla(...) / rgba(...). Falls back to wrapping in <g opacity> via re-emit.
+    if let Some(open) = css.find('(') {
+        if let Some(close) = css.rfind(')') {
+            let inner = &css[open + 1..close];
+            let parts: Vec<&str> = inner.split(',').map(|p| p.trim()).collect();
+            if parts.len() == 4 {
+                let prefix = &css[..open + 1];
+                return format!("{}{}, {}, {}, {:.3})", prefix, parts[0], parts[1], parts[2], alpha);
+            }
+        }
+    }
+    css.to_string()
 }
 
 /// Simple force-directed layout. O(n²) per iteration; fine for <500 nodes.
