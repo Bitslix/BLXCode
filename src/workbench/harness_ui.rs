@@ -35,6 +35,7 @@ struct PaletteRow {
     title: I18nKey,
     subtitle: I18nKey,
     action: PaletteAction,
+    icon: icondata::Icon,
 }
 
 const PALETTE_ROWS: &[PaletteRow] = &[
@@ -42,26 +43,31 @@ const PALETTE_ROWS: &[PaletteRow] = &[
         title: I18nKey::CmdSetTitle,
         subtitle: I18nKey::CmdSetSub,
         action: PaletteAction::OpenSettings,
+        icon: icondata::LuSettings2,
     },
     PaletteRow {
         title: I18nKey::CmdRtpTitle,
         subtitle: I18nKey::CmdRtpSub,
         action: PaletteAction::ToggleRightPanel,
+        icon: icondata::LuPanelRight,
     },
     PaletteRow {
         title: I18nKey::CmdAgentTitle,
         subtitle: I18nKey::CmdAgentSub,
         action: PaletteAction::AgentTab,
+        icon: icondata::LuSparkles,
     },
     PaletteRow {
         title: I18nKey::CmdBrowseTitle,
         subtitle: I18nKey::CmdBrowseSub,
         action: PaletteAction::BrowserTab,
+        icon: icondata::LuGlobe,
     },
     PaletteRow {
         title: I18nKey::CmdMemoryTitle,
         subtitle: I18nKey::CmdMemorySub,
         action: PaletteAction::MemoryTab,
+        icon: icondata::LuLayers,
     },
 ];
 
@@ -189,19 +195,24 @@ fn PaletteChrome(
     view! {
         <div class="harness-overlay harness-overlay--modal" role="presentation">
             <div class="harness-sheet harness-sheet--palette" role="dialog" aria-modal="true">
-                <input
-                    class="workbench-plain-input harness-filter"
-                    id="harness-palette-filter"
-                    placeholder=move || i18n.tr(I18nKey::PlFilterPh)()
-                    type="text"
-                    autocomplete="off"
-                    spellcheck="false"
-                    prop:value=move || ui.palette_query().get()
-                    on:input=move |ev| palette_input(ev, ui)
-                    on:keydown=move |ev: web_sys::KeyboardEvent| {
-                        palette_key_nav(ev, ui, wb, embed, i18n);
-                    }
-                />
+                <div class="harness-palette-filter-wrap">
+                    <span class="harness-palette-filter__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuSearch width="0.92rem" height="0.92rem" />
+                    </span>
+                    <input
+                        class="workbench-plain-input harness-filter harness-filter--with-icon"
+                        id="harness-palette-filter"
+                        placeholder=move || i18n.tr(I18nKey::PlFilterPh)()
+                        type="text"
+                        autocomplete="off"
+                        spellcheck="false"
+                        prop:value=move || ui.palette_query().get()
+                        on:input=move |ev| palette_input(ev, ui)
+                        on:keydown=move |ev: web_sys::KeyboardEvent| {
+                            palette_key_nav(ev, ui, wb, embed, i18n);
+                        }
+                    />
+                </div>
 
                 <ul class="harness-cmd-list" role="listbox">
                     <PaletteList ui=ui wb=wb embed=embed i18n=i18n />
@@ -291,8 +302,13 @@ fn PaletteList(
                                 class:harness-cmd-btn--active=move || palette_sel.get() == rank
                                 on:click=move |_| palette_run(ui, wb, embed, meta.action)
                             >
-                                <span class="harness-cmd-title">{move || i18n.tr(meta.title)()}</span>
-                                <span class="harness-cmd-sub">{move || i18n.tr(meta.subtitle)()}</span>
+                                <span class="harness-cmd-btn__icon" aria-hidden="true">
+                                    <LxIcon icon=meta.icon width="1rem" height="1rem" />
+                                </span>
+                                <span class="harness-cmd-btn__text">
+                                    <span class="harness-cmd-title">{move || i18n.tr(meta.title)()}</span>
+                                    <span class="harness-cmd-sub">{move || i18n.tr(meta.subtitle)()}</span>
+                                </span>
                             </button>
                         </li>
                     }
@@ -445,6 +461,14 @@ fn settings_focusables(section: &web_sys::HtmlElement) -> Vec<web_sys::HtmlEleme
     out
 }
 
+fn harness_settings_cat_icon(cat: HarnessSettingsCategory) -> icondata::Icon {
+    match cat {
+        HarnessSettingsCategory::App => icondata::LuLayoutDashboard,
+        HarnessSettingsCategory::Workspace => icondata::LuFolderOpen,
+        HarnessSettingsCategory::AgentProvider => icondata::LuCpu,
+    }
+}
+
 fn trap_settings_tab(section_ref: NodeRef<html::Section>, ev: web_sys::KeyboardEvent) {
     let key = ev.key();
     if key != "Tab" {
@@ -524,9 +548,17 @@ fn SettingsChrome(
                 }
             >
                 <header class="harness-settings-head">
-                    <h2 class="harness-settings-title">{move || i18n.tr(I18nKey::HsTitle)()}</h2>
-                    <button type="button" class="workbench-mini-btn" on:click=move |_| ui.close_settings()>
-                        {move || i18n.tr(I18nKey::BtnClose)()}
+                    <h2 class="harness-settings-title">
+                        <span class="harness-settings-title__icon" aria-hidden="true">
+                            <LxIcon icon=icondata::LuSettings2 width="1.05rem" height="1.05rem" />
+                        </span>
+                        <span class="harness-settings-title__text">{move || i18n.tr(I18nKey::HsTitle)()}</span>
+                    </h2>
+                    <button type="button" class="workbench-mini-btn harness-settings-close" on:click=move |_| ui.close_settings()>
+                        <span class="harness-btn-inline">
+                            <LxIcon icon=icondata::LuX width="0.82rem" height="0.82rem" />
+                            <span>{move || i18n.tr(I18nKey::BtnClose)()}</span>
+                        </span>
                     </button>
                 </header>
                 <div class="harness-settings-grid">
@@ -562,6 +594,7 @@ fn HarnessCatBtn(
     label: I18nKey,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let icon = harness_settings_cat_icon(cat);
     view! {
         <button
             type="button"
@@ -571,7 +604,10 @@ fn HarnessCatBtn(
                 move |_| ui.settings_category().set(cat)
             }
         >
-            {move || i18n.tr(label)()}
+            <span class="harness-cat-btn__icon" aria-hidden="true">
+                <LxIcon icon=icon width="0.92rem" height="0.92rem" />
+            </span>
+            <span class="harness-cat-btn__label">{move || i18n.tr(label)()}</span>
         </button>
     }
 }
@@ -737,9 +773,19 @@ fn AppSettingsPane() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     view! {
         <article class="harness-pane">
-            <h3>{move || i18n.tr(I18nKey::AppHeading)()}</h3>
+            <h3 class="harness-pane-title">
+                <span class="harness-pane-title__icon" aria-hidden="true">
+                    <LxIcon icon=icondata::LuLayoutDashboard width="1.02rem" height="1.02rem" />
+                </span>
+                <span class="harness-pane-title__text">{move || i18n.tr(I18nKey::AppHeading)()}</span>
+            </h3>
             <label class="harness-stack">
-                <span>{move || i18n.tr(I18nKey::GenEulaStatus)()}</span>
+                <span class="harness-field-label">
+                    <span class="harness-field-label__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuScale width="0.82rem" height="0.82rem" />
+                    </span>
+                    <span class="harness-field-label__text">{move || i18n.tr(I18nKey::GenEulaStatus)()}</span>
+                </span>
                 <input
                     class="workbench-plain-input"
                     type="text"
@@ -748,7 +794,12 @@ fn AppSettingsPane() -> impl IntoView {
                 />
             </label>
             <label class="harness-stack">
-                <span>{move || i18n.tr(I18nKey::AppLanguage)()}</span>
+                <span class="harness-field-label">
+                    <span class="harness-field-label__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuLanguages width="0.82rem" height="0.82rem" />
+                    </span>
+                    <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AppLanguage)()}</span>
+                </span>
                 <LocalePicker />
             </label>
             <section class="harness-subpane">
@@ -767,9 +818,19 @@ fn WorkspaceSettingsPane(
     let i18n = expect_context::<I18nService>();
     view! {
         <article class="harness-pane">
-            <h3>{move || i18n.tr(I18nKey::WsHeading)()}</h3>
+            <h3 class="harness-pane-title">
+                <span class="harness-pane-title__icon" aria-hidden="true">
+                    <LxIcon icon=icondata::LuFolderOpen width="1.02rem" height="1.02rem" />
+                </span>
+                <span class="harness-pane-title__text">{move || i18n.tr(I18nKey::WsHeading)()}</span>
+            </h3>
             <label class="harness-stack">
-                <span>{move || i18n.tr(I18nKey::WsRootLabel)()}</span>
+                <span class="harness-field-label">
+                    <span class="harness-field-label__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuFolderTree width="0.82rem" height="0.82rem" />
+                    </span>
+                    <span class="harness-field-label__text">{move || i18n.tr(I18nKey::WsRootLabel)()}</span>
+                </span>
                 <textarea
                     class="workbench-plain-textarea"
                     rows="3"
@@ -797,11 +858,19 @@ fn WorkspaceSettingsPane(
                         });
                     }
                 >
-                    {move || i18n.tr(I18nKey::BtnSave)()}
+                    <span class="harness-btn-inline">
+                        <LxIcon icon=icondata::LuSave width="0.78rem" height="0.78rem" />
+                        <span>{move || i18n.tr(I18nKey::BtnSave)()}</span>
+                    </span>
                 </button>
             </div>
             <label class="harness-stack">
-                <span>{move || i18n.tr(I18nKey::LayBrowserUrl)()}</span>
+                <span class="harness-field-label">
+                    <span class="harness-field-label__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuGlobe width="0.82rem" height="0.82rem" />
+                    </span>
+                    <span class="harness-field-label__text">{move || i18n.tr(I18nKey::LayBrowserUrl)()}</span>
+                </span>
                 <input
                     class="workbench-plain-input"
                     type="url"
@@ -819,7 +888,10 @@ fn WorkspaceSettingsPane(
                     class="workbench-mini-btn workbench-mini-btn--primary"
                     on:click=move |_| persist_browser_defaults(wb, ui, embed)
                 >
-                    {move || i18n.tr(I18nKey::BtnApply)()}
+                    <span class="harness-btn-inline">
+                        <LxIcon icon=icondata::LuCheck width="0.78rem" height="0.78rem" />
+                        <span>{move || i18n.tr(I18nKey::BtnApply)()}</span>
+                    </span>
                 </button>
                 <small class="harness-muted">
                     {move || format!("{} {}", i18n.tr(I18nKey::WsBrowserDefault)(), HARNESS_BROWSER_DEFAULT_URL)}
@@ -1155,10 +1227,20 @@ fn AgentProviderPane() -> impl IntoView {
 
     view! {
         <article class="harness-pane">
-            <h3>{move || i18n.tr(I18nKey::AgProviderHeading)()}</h3>
+            <h3 class="harness-pane-title">
+                <span class="harness-pane-title__icon" aria-hidden="true">
+                    <LxIcon icon=icondata::LuCpu width="1.02rem" height="1.02rem" />
+                </span>
+                <span class="harness-pane-title__text">{move || i18n.tr(I18nKey::AgProviderHeading)()}</span>
+            </h3>
             <div class="harness-provider-grid">
                 <div class="harness-stack">
-                    <span>{move || i18n.tr(I18nKey::AgProviderField)()}</span>
+                    <span class="harness-field-label">
+                        <span class="harness-field-label__icon" aria-hidden="true">
+                            <LxIcon icon=icondata::LuPlug width="0.82rem" height="0.82rem" />
+                        </span>
+                        <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgProviderField)()}</span>
+                    </span>
                     <ProviderPicker
                         selected_provider=selected_provider
                         settings=settings
@@ -1168,7 +1250,12 @@ fn AgentProviderPane() -> impl IntoView {
                 </div>
 
                 <label class="harness-stack">
-                    <span>{move || i18n.tr(I18nKey::AgThinkingField)()}</span>
+                    <span class="harness-field-label">
+                        <span class="harness-field-label__icon" aria-hidden="true">
+                            <LxIcon icon=icondata::LuGauge width="0.82rem" height="0.82rem" />
+                        </span>
+                        <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgThinkingField)()}</span>
+                    </span>
                     <select
                         class="workbench-plain-input"
                         prop:value=move || format!("{:?}", thinking_level.get()).to_ascii_lowercase()
@@ -1199,7 +1286,12 @@ fn AgentProviderPane() -> impl IntoView {
             </div>
 
             <label class="harness-stack">
-                <span>{move || i18n.tr(I18nKey::AgModelField)()}</span>
+                <span class="harness-field-label">
+                    <span class="harness-field-label__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuPackage2 width="0.82rem" height="0.82rem" />
+                    </span>
+                    <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgModelField)()}</span>
+                </span>
                 <input
                     class="workbench-plain-input"
                     type="text"
@@ -1229,11 +1321,14 @@ fn AgentProviderPane() -> impl IntoView {
                     prop:disabled=move || loading_models.get() || !is_tauri_shell()
                     on:click=move |_| refresh_models(selected_provider.get_untracked())
                 >
-                    {move || if loading_models.get() {
-                        i18n.tr(I18nKey::AgModelsLoading)().to_string()
-                    } else {
-                        i18n.tr(I18nKey::AgModelsRefresh)().to_string()
-                    }}
+                    <span class="harness-btn-inline">
+                        <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
+                        <span>{move || if loading_models.get() {
+                            i18n.tr(I18nKey::AgModelsLoading)().to_string()
+                        } else {
+                            i18n.tr(I18nKey::AgModelsRefresh)().to_string()
+                        }}</span>
+                    </span>
                 </button>
                 <small class="harness-muted">
                     {move || match models_source.get().as_str() {
@@ -1251,7 +1346,14 @@ fn AgentProviderPane() -> impl IntoView {
 
             <section class="harness-subpane">
                 <div class="harness-row-gap harness-row-gap--space">
-                    <h4>{move || format!("{} {}", i18n.tr(I18nKey::AgApiKeyField)(), provider_label(&i18n, selected_provider.get()))}</h4>
+                    <h4 class="harness-pane-subhead">
+                        <span class="harness-pane-subhead__icon" aria-hidden="true">
+                            <LxIcon icon=icondata::LuKeyRound width="0.9rem" height="0.9rem" />
+                        </span>
+                        <span class="harness-pane-subhead__text">
+                            {move || format!("{} {}", i18n.tr(I18nKey::AgApiKeyField)(), provider_label(&i18n, selected_provider.get()))}
+                        </span>
+                    </h4>
                     <small class="harness-muted">
                         {move || {
                             settings
@@ -1323,7 +1425,10 @@ fn AgentProviderPane() -> impl IntoView {
                             });
                         }
                     >
-                        {move || i18n.tr(I18nKey::AgApiKeySet)()}
+                        <span class="harness-btn-inline">
+                            <LxIcon icon=icondata::LuCheck width="0.78rem" height="0.78rem" />
+                            <span>{move || i18n.tr(I18nKey::AgApiKeySet)()}</span>
+                        </span>
                     </button>
                     <button
                         type="button"
@@ -1349,7 +1454,10 @@ fn AgentProviderPane() -> impl IntoView {
                             });
                         }
                     >
-                        {move || i18n.tr(I18nKey::AgApiKeyDelete)()}
+                        <span class="harness-btn-inline">
+                            <LxIcon icon=icondata::LuTrash2 width="0.78rem" height="0.78rem" />
+                            <span>{move || i18n.tr(I18nKey::AgApiKeyDelete)()}</span>
+                        </span>
                     </button>
                 </div>
             </section>
@@ -1377,7 +1485,10 @@ fn AgentProviderPane() -> impl IntoView {
                         });
                     }
                 >
-                    {move || i18n.tr(I18nKey::AgSaveProvider)()}
+                    <span class="harness-btn-inline">
+                        <LxIcon icon=icondata::LuSave width="0.78rem" height="0.78rem" />
+                        <span>{move || i18n.tr(I18nKey::AgSaveProvider)()}</span>
+                    </span>
                 </button>
             </div>
 
@@ -1447,7 +1558,12 @@ fn AgentHooksPanel() -> impl IntoView {
 
     view! {
         <section class="harness-hooks">
-            <h4>{move || i18n.tr(I18nKey::AgHooksHeading)()}</h4>
+            <h4 class="harness-pane-subhead">
+                <span class="harness-pane-subhead__icon" aria-hidden="true">
+                    <LxIcon icon=icondata::LuTerminal width="0.9rem" height="0.9rem" />
+                </span>
+                <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::AgHooksHeading)()}</span>
+            </h4>
             <p class="harness-muted">{move || i18n.tr(I18nKey::AgHooksDesc)()}</p>
             <ul class="harness-hooks__list" role="list">
                 {move || {
@@ -1525,13 +1641,16 @@ fn AgentHooksPanel() -> impl IntoView {
                     prop:disabled=move || busy.get() || !is_tauri_shell()
                     on:click=on_install
                 >
-                    {move || {
-                        if busy.get() {
-                            i18n.tr(I18nKey::AgHooksBusy)().to_string()
-                        } else {
-                            i18n.tr(I18nKey::AgHooksInstall)().to_string()
-                        }
-                    }}
+                    <span class="harness-btn-inline">
+                        <LxIcon icon=icondata::LuDownload width="0.78rem" height="0.78rem" />
+                        <span>{move || {
+                            if busy.get() {
+                                i18n.tr(I18nKey::AgHooksBusy)().to_string()
+                            } else {
+                                i18n.tr(I18nKey::AgHooksInstall)().to_string()
+                            }
+                        }}</span>
+                    </span>
                 </button>
                 <button
                     type="button"
@@ -1539,7 +1658,10 @@ fn AgentHooksPanel() -> impl IntoView {
                     prop:disabled=move || busy.get() || !is_tauri_shell()
                     on:click=on_uninstall
                 >
-                    {move || i18n.tr(I18nKey::AgHooksUninstall)()}
+                    <span class="harness-btn-inline">
+                        <LxIcon icon=icondata::LuTrash2 width="0.78rem" height="0.78rem" />
+                        <span>{move || i18n.tr(I18nKey::AgHooksUninstall)()}</span>
+                    </span>
                 </button>
             </div>
             <Show when=move || error.get().is_some()>

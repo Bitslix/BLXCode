@@ -1907,7 +1907,28 @@ body {
 
 .harness-filter {
   width: 100%;
+  margin-bottom: 0;
+}
+
+.harness-palette-filter-wrap {
+  position: relative;
   margin-bottom: 0.45rem;
+}
+
+.harness-palette-filter__icon {
+  position: absolute;
+  left: 0.55rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  pointer-events: none;
+  opacity: 0.82;
+}
+
+.harness-filter--with-icon {
+  padding-left: 2rem;
 }
 
 .harness-cmd-list {
@@ -1926,6 +1947,31 @@ body {
   text-align: left;
   cursor: pointer;
   background: transparent;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+
+.harness-cmd-btn__icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  margin-top: 0.05rem;
+  color: var(--accent);
+  opacity: 0.88;
+}
+
+.harness-cmd-btn__text {
+  min-width: 0;
+  flex: 1;
+}
+
+.harness-cmd-btn:hover .harness-cmd-btn__icon {
+  opacity: 1;
+}
+
+.harness-cmd-btn--active .harness-cmd-btn__icon {
+  opacity: 1;
 }
 
 .harness-cmd-btn:hover {
@@ -1980,11 +2026,43 @@ body {
   margin: 0;
   font-size: 1rem;
   font-family: var(--font-mono);
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.harness-settings-title__icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+
+.harness-settings-title__text {
+  min-width: 0;
+}
+
+.harness-settings-close {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.harness-btn-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+}
+
+.harness-btn-inline svg {
+  flex-shrink: 0;
+  opacity: 0.92;
 }
 
 .harness-settings-grid {
   display: grid;
-  grid-template-columns: 10rem minmax(0, 1fr);
+  grid-template-columns: 11.5rem minmax(0, 1fr);
   gap: 0;
   min-height: 14rem;
 }
@@ -2007,6 +2085,27 @@ body {
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  width: 100%;
+}
+
+.harness-cat-btn__icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  opacity: 0.88;
+}
+
+.harness-cat-btn__label {
+  min-width: 0;
+}
+
+.harness-cat-active .harness-cat-btn__icon {
+  color: var(--accent);
+  opacity: 1;
 }
 
 .harness-cat-btn:hover {
@@ -2025,16 +2124,68 @@ body {
   overflow: auto;
 }
 
-.harness-pane h3 {
+.harness-pane-title {
   margin: 0 0 0.45rem;
   font-family: var(--font-mono);
   font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-width: 0;
 }
 
-.harness-pane h4 {
+.harness-pane-title__icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+}
+
+.harness-pane-title__text {
+  min-width: 0;
+}
+
+.harness-pane-subhead {
   margin: 0;
   font-family: var(--font-mono);
   font-size: 0.78rem;
+  display: flex;
+  align-items: center;
+  gap: 0.38rem;
+  min-width: 0;
+}
+
+.harness-pane-subhead__icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  opacity: 0.95;
+}
+
+.harness-pane-subhead__text {
+  min-width: 0;
+}
+
+.harness-field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.harness-field-label__icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  color: var(--accent);
+  opacity: 0.85;
+}
+
+.harness-field-label__text {
+  min-width: 0;
 }
 
 .harness-pane p {
