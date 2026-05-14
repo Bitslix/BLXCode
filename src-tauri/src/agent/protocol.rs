@@ -1,4 +1,5 @@
 //! JSON-serialisierbare Events zwischen Agent-Engine (Tauri) und Harness (Webview).
+use crate::tasks::TaskSnapshot;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -36,6 +37,8 @@ pub enum AgentEvent {
         #[serde(skip_serializing_if = "Option::is_none")]
         message: Option<String>,
     },
+    #[serde(rename = "task_snapshot")]
+    TaskSnapshot { snapshot: TaskSnapshot },
     #[serde(rename = "done")]
     Done,
     #[serde(rename = "error")]

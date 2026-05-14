@@ -6,6 +6,7 @@ mod commands;
 mod git_info;
 mod memory;
 mod pty_host;
+mod tasks;
 mod workbench_state;
 
 use agent::AgentEngineState;
@@ -103,6 +104,12 @@ pub fn run() {
             memory::memory_install_pointers,
             memory::memory_uninstall_pointers,
             memory::memory_pointer_status,
+            tasks::tasks_list,
+            tasks::tasks_get,
+            tasks::tasks_create,
+            tasks::tasks_update,
+            tasks::tasks_delete,
+            tasks::tasks_reorder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

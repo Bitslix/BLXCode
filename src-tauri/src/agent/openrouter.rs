@@ -15,6 +15,7 @@ use crate::agent::protocol::AgentEvent;
 use crate::agent::state::{AgentEngineState, ClientToolResult};
 use crate::agent::tools::{self, ToolSite, WorkspaceRootGuard};
 use crate::agent_settings::{AgentProviderKind, AgentProviderSettings, ThinkingLevel};
+use crate::tasks;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -71,6 +72,20 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
          - `memory_write {{ path, content }}` — overwrite an *existing* \
            note. Same path/size rules.\n\
          \n\
+         ## Task tracking (server-side; lives at `<workspace>/.blxcode/tasks/`)\n\
+         Use tasks to track multi-step work in this workspace. Prefer this \
+         over ad-hoc prose plans when the user asks for a complex task.\n\
+         - `task_list {{ status?, includeCompleted? }}` — list tracked tasks \
+           as a stable JSON snapshot sorted by position.\n\
+         - `task_get {{ id }}` — read one task.\n\
+         - `task_create {{ title, description?, status?, parentId?, notes? }}` \
+           — create a task. Use this when complex work needs structure.\n\
+         - `task_update {{ id, title?, description?, status?, parentId?, notes? }}` \
+           — update one task. Use this as you make progress.\n\
+         - `task_delete {{ id }}` — remove a task if it is obsolete.\n\
+         - `task_reorder {{ orderedIds }}` — rewrite task ordering using the \
+           full list of ids.\n\
+         \n\
          Notes can use Obsidian-style `[[wikilinks]]` and `#tags` — both are \
          indexed by the harness graph view.\n\
          \n\
@@ -118,6 +133,16 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
          # Behaviour\n\
          - Call tools eagerly when they would answer the user's question \
            more reliably than reasoning alone.\n\
+         - For complex work (multiple steps, file/tool chains, delegation, \
+           or longer-running implementation), inspect existing tasks early \
+           with `task_list` and keep the task list up to date as you work.\n\
+         - When no suitable task exists for complex work, create one or more \
+           tasks with `task_create` before or while executing the plan.\n\
+         - Update task state promptly with `task_update`, especially when a \
+           task becomes `in_progress`, `blocked`, or `completed`.\n\
+         - Do not create throwaway tasks for trivial one-step answers.\n\
+         - Reuse and update existing relevant tasks instead of duplicating them \
+           when the user expands or redirects ongoing work.\n\
          - After a `read_workspace_file` or `memory_read`, cite the path \
            you read so the user can verify.\n\
          - Tool arguments must satisfy each tool's JSON Schema exactly. \
@@ -352,6 +377,10 @@ pub async fn run_chat_turn(
             let outcome =
                 dispatch_tool(&state, &call.id, &call.name, &args_val, root_guard.as_ref()).await;
 
+            if outcome.ok && call.name.starts_with("task_") {
+                maybe_emit_task_snapshot(&state, root_guard.as_ref());
+            }
+
             state.push(AgentEvent::ToolResult {
                 tool: call.name.clone(),
                 ok: outcome.ok,
@@ -375,6 +404,15 @@ pub async fn run_chat_turn(
 
     state.push(AgentEvent::Done);
     state.set_busy(false);
+}
+
+fn maybe_emit_task_snapshot(state: &Arc<AgentEngineState>, root: Option<&WorkspaceRootGuard>) {
+    let Some(root) = root else {
+        return;
+    };
+    if let Ok(snapshot) = tasks::tasks_snapshot(&root.as_str()) {
+        state.push(AgentEvent::TaskSnapshot { snapshot });
+    }
 }
 
 fn emit_aborted(state: &Arc<AgentEngineState>) {

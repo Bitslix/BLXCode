@@ -5,6 +5,9 @@
 //! incoming tool calls back through here.
 
 use crate::memory;
+use crate::tasks::{
+    self, TaskCreateInput, TaskReorderInput, TaskSnapshot, TaskStatus, TaskUpdatePatch,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::fs;
@@ -190,6 +193,115 @@ pub fn registry() -> Vec<ToolDef> {
             site: ToolSite::Server,
         },
         ToolDef {
+            name: "task_list",
+            description: "List tracked tasks under <workspace>/.blxcode/tasks/. Returns a stable JSON snapshot sorted by task position. Optional filters: `status` and `includeCompleted`.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": ["pending", "in_progress", "blocked", "completed", "cancelled"]
+                    },
+                    "includeCompleted": { "type": "boolean", "default": true }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "task_get",
+            description: "Read one tracked task by id from <workspace>/.blxcode/tasks/.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string" }
+                },
+                "required": ["id"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "task_create",
+            description: "Create a new tracked task under <workspace>/.blxcode/tasks/.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "title": { "type": "string" },
+                    "description": { "type": "string" },
+                    "status": {
+                        "type": "string",
+                        "enum": ["pending", "in_progress", "blocked", "completed", "cancelled"]
+                    },
+                    "parentId": { "type": "string" },
+                    "notes": { "type": "string" }
+                },
+                "required": ["title"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "task_update",
+            description: "Update fields on an existing tracked task. Omitted fields stay unchanged.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string" },
+                    "title": { "type": "string" },
+                    "description": { "type": "string" },
+                    "status": {
+                        "type": "string",
+                        "enum": ["pending", "in_progress", "blocked", "completed", "cancelled"]
+                    },
+                    "parentId": {
+                        "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                        ]
+                    },
+                    "notes": {
+                        "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                        ]
+                    }
+                },
+                "required": ["id"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "task_delete",
+            description: "Delete a tracked task by id. Returns the post-delete task snapshot.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string" }
+                },
+                "required": ["id"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "task_reorder",
+            description: "Rewrite task ordering using a complete list of task ids.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "orderedIds": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                    }
+                },
+                "required": ["orderedIds"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
             name: "harness.create_workspace",
             description: "Create and select a new workspace in the workbench. Defaults `cwd` to the active workspace cwd or the configured harness workspace root. `agentSlugs` maps one label per terminal slot and may contain `claude`, `codex`, `gemini`, `opencode`, `cursor`, or empty strings.",
             parameters: json!({
@@ -314,6 +426,12 @@ pub fn execute_server_tool(
         "memory_search" => tool_memory_search(args, root),
         "memory_create" => tool_memory_create(args, root),
         "memory_write" => tool_memory_write(args, root),
+        "task_list" => tool_task_list(args, root),
+        "task_get" => tool_task_get(args, root),
+        "task_create" => tool_task_create(args, root),
+        "task_update" => tool_task_update(args, root),
+        "task_delete" => tool_task_delete(args, root),
+        "task_reorder" => tool_task_reorder(args, root),
         other => ToolOutcome {
             ok: false,
             content: format!("unknown server tool: {other}"),
@@ -499,6 +617,296 @@ fn tool_memory_write(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOut
         Ok(note) => ToolOutcome {
             ok: true,
             content: format!("wrote {} ({} bytes)", note.path, note.content.len()),
+        },
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e,
+        },
+    }
+}
+
+fn parse_task_status(raw: Option<&str>) -> Result<Option<TaskStatus>, String> {
+    match raw {
+        None => Ok(None),
+        Some("pending") => Ok(Some(TaskStatus::Pending)),
+        Some("in_progress") => Ok(Some(TaskStatus::InProgress)),
+        Some("blocked") => Ok(Some(TaskStatus::Blocked)),
+        Some("completed") => Ok(Some(TaskStatus::Completed)),
+        Some("cancelled") => Ok(Some(TaskStatus::Cancelled)),
+        Some(other) => Err(format!("invalid task status: {other}")),
+    }
+}
+
+fn task_snapshot_json(snapshot: &TaskSnapshot) -> Result<String, String> {
+    serde_json::to_string(snapshot).map_err(|e| format!("serialize task snapshot: {e}"))
+}
+
+fn task_json<T: Serialize>(value: &T, what: &str) -> Result<String, String> {
+    serde_json::to_string(value).map_err(|e| format!("serialize {what}: {e}"))
+}
+
+fn filter_snapshot(
+    mut snapshot: TaskSnapshot,
+    status_filter: Option<TaskStatus>,
+    include_completed: bool,
+) -> TaskSnapshot {
+    snapshot.tasks.retain(|task| {
+        let status_ok = status_filter
+            .as_ref()
+            .is_none_or(|wanted| task.status == *wanted);
+        let completed_ok = include_completed || !matches!(task.status, TaskStatus::Completed);
+        status_ok && completed_ok
+    });
+    if snapshot
+        .active_task_id
+        .as_ref()
+        .is_some_and(|id| !snapshot.tasks.iter().any(|task| &task.id == id))
+    {
+        snapshot.active_task_id = None;
+    }
+    snapshot
+}
+
+fn tool_task_list(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    let status_filter = match parse_task_status(args.get("status").and_then(|v| v.as_str())) {
+        Ok(v) => v,
+        Err(e) => {
+            return ToolOutcome {
+                ok: false,
+                content: e,
+            };
+        }
+    };
+    let include_completed = args
+        .get("includeCompleted")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    match tasks::tasks_snapshot(&ws) {
+        Ok(snapshot) => {
+            match task_snapshot_json(&filter_snapshot(snapshot, status_filter, include_completed)) {
+                Ok(body) => ToolOutcome {
+                    ok: true,
+                    content: body,
+                },
+                Err(e) => ToolOutcome {
+                    ok: false,
+                    content: e,
+                },
+            }
+        }
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e,
+        },
+    }
+}
+
+fn tool_task_get(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(id) = args.get("id").and_then(|v| v.as_str()) else {
+        return ToolOutcome {
+            ok: false,
+            content: "missing id".into(),
+        };
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match tasks::tasks_get_inner(&ws, id) {
+        Ok(task) => match task_json(&task, "task") {
+            Ok(body) => ToolOutcome {
+                ok: true,
+                content: body,
+            },
+            Err(e) => ToolOutcome {
+                ok: false,
+                content: e,
+            },
+        },
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e,
+        },
+    }
+}
+
+fn tool_task_create(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(title) = args.get("title").and_then(|v| v.as_str()) else {
+        return ToolOutcome {
+            ok: false,
+            content: "missing title".into(),
+        };
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    let status = match parse_task_status(args.get("status").and_then(|v| v.as_str())) {
+        Ok(v) => v,
+        Err(e) => {
+            return ToolOutcome {
+                ok: false,
+                content: e,
+            };
+        }
+    };
+    let input = TaskCreateInput {
+        title: title.to_owned(),
+        description: args
+            .get("description")
+            .and_then(|v| v.as_str())
+            .map(ToOwned::to_owned),
+        status,
+        parent_id: args
+            .get("parentId")
+            .and_then(|v| v.as_str())
+            .map(ToOwned::to_owned),
+        notes: args
+            .get("notes")
+            .and_then(|v| v.as_str())
+            .map(ToOwned::to_owned),
+    };
+    match tasks::tasks_create_inner(&ws, input) {
+        Ok(task) => match task_json(&task, "task") {
+            Ok(body) => ToolOutcome {
+                ok: true,
+                content: body,
+            },
+            Err(e) => ToolOutcome {
+                ok: false,
+                content: e,
+            },
+        },
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e,
+        },
+    }
+}
+
+fn tool_task_update(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(id) = args.get("id").and_then(|v| v.as_str()) else {
+        return ToolOutcome {
+            ok: false,
+            content: "missing id".into(),
+        };
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    let status = match parse_task_status(args.get("status").and_then(|v| v.as_str())) {
+        Ok(v) => v,
+        Err(e) => {
+            return ToolOutcome {
+                ok: false,
+                content: e,
+            };
+        }
+    };
+    let patch = TaskUpdatePatch {
+        title: args
+            .get("title")
+            .and_then(|v| v.as_str())
+            .map(ToOwned::to_owned),
+        description: args
+            .get("description")
+            .and_then(|v| v.as_str())
+            .map(ToOwned::to_owned),
+        status,
+        parent_id: args.get("parentId").map(|v| {
+            if v.is_null() {
+                None
+            } else {
+                v.as_str().map(ToOwned::to_owned)
+            }
+        }),
+        notes: args.get("notes").map(|v| {
+            if v.is_null() {
+                None
+            } else {
+                v.as_str().map(ToOwned::to_owned)
+            }
+        }),
+    };
+    match tasks::tasks_update_inner(&ws, id, patch) {
+        Ok(task) => match task_json(&task, "task") {
+            Ok(body) => ToolOutcome {
+                ok: true,
+                content: body,
+            },
+            Err(e) => ToolOutcome {
+                ok: false,
+                content: e,
+            },
+        },
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e,
+        },
+    }
+}
+
+fn tool_task_delete(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(id) = args.get("id").and_then(|v| v.as_str()) else {
+        return ToolOutcome {
+            ok: false,
+            content: "missing id".into(),
+        };
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match tasks::tasks_delete_inner(&ws, id) {
+        Ok(snapshot) => match task_snapshot_json(&snapshot) {
+            Ok(body) => ToolOutcome {
+                ok: true,
+                content: body,
+            },
+            Err(e) => ToolOutcome {
+                ok: false,
+                content: e,
+            },
+        },
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e,
+        },
+    }
+}
+
+fn tool_task_reorder(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(ordered_ids) = args.get("orderedIds").and_then(|v| v.as_array()) else {
+        return ToolOutcome {
+            ok: false,
+            content: "missing orderedIds".into(),
+        };
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    let input = TaskReorderInput {
+        ordered_ids: ordered_ids
+            .iter()
+            .filter_map(|v| v.as_str().map(ToOwned::to_owned))
+            .collect(),
+    };
+    match tasks::tasks_reorder_inner(&ws, input) {
+        Ok(snapshot) => match task_snapshot_json(&snapshot) {
+            Ok(body) => ToolOutcome {
+                ok: true,
+                content: body,
+            },
+            Err(e) => ToolOutcome {
+                ok: false,
+                content: e,
+            },
         },
         Err(e) => ToolOutcome {
             ok: false,

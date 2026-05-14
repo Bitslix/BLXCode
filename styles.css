@@ -1419,8 +1419,23 @@ body {
   border-radius: 4px;
 }
 
+.agent-task--empty {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .agent-task--active {
   background: rgba(88, 166, 255, 0.08);
+}
+
+.agent-task__body {
+  min-width: 0;
+}
+
+.agent-task__topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .agent-task__mark {
@@ -1452,6 +1467,44 @@ body {
   font-size: 0.68rem;
   line-height: 1.35;
   overflow-wrap: anywhere;
+}
+
+.agent-task__status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.08rem 0.34rem;
+  border-radius: 999px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.agent-task__status--pending {
+  color: #d1d5db;
+  background: rgba(148, 163, 184, 0.14);
+}
+
+.agent-task__status--in-progress {
+  color: #8bc4ff;
+  background: rgba(88, 166, 255, 0.16);
+}
+
+.agent-task__status--blocked {
+  color: #fbbf24;
+  background: rgba(245, 158, 11, 0.16);
+}
+
+.agent-task__status--completed {
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.16);
+}
+
+.agent-task__status--cancelled {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.14);
 }
 
 .workbench-agent-input {

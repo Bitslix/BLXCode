@@ -9,6 +9,38 @@ pub struct UserTurn {
     pub workspace_root: Option<String>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskStatus {
+    Pending,
+    InProgress,
+    Blocked,
+    Completed,
+    Cancelled,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentTask {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    pub status: TaskStatus,
+    pub position: u32,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub completed_at: Option<i64>,
+    pub parent_id: Option<String>,
+    pub notes: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskSnapshot {
+    pub tasks: Vec<AgentTask>,
+    pub active_task_id: Option<String>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(
     tag = "type",
@@ -33,6 +65,8 @@ pub enum AgentEvent {
         #[serde(default)]
         message: Option<String>,
     },
+    #[serde(rename = "task_snapshot")]
+    TaskSnapshot { snapshot: TaskSnapshot },
     #[serde(rename = "done")]
     Done,
     #[serde(rename = "error")]

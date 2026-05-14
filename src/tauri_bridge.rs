@@ -1,5 +1,5 @@
 //! Typisierte Aufrufe von Tauri `invoke` (vgl. `quit.rs`).
-use crate::agent_wire::{AgentEvent, BrowserBoundsPayload, UserTurn};
+use crate::agent_wire::{AgentEvent, BrowserBoundsPayload, TaskSnapshot, UserTurn};
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Reflect;
 use serde::de::DeserializeOwned;
@@ -122,6 +122,15 @@ pub async fn agent_submit_tool_result(
         })?,
     )
     .await
+}
+
+pub async fn tasks_list(workspace_cwd: String) -> Result<TaskSnapshot, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        workspace_cwd: String,
+    }
+    invoke_typed("tasks_list", Args { workspace_cwd }).await
 }
 
 pub async fn browser_sync_bounds(
