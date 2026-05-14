@@ -368,6 +368,241 @@ pub async fn agent_session_exists(
     .await
 }
 
+// ---------------------------------------------------------------------
+// Memory (workspace-scoped Markdown notes, Obsidian-style)
+
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteMeta {
+    pub path: String,
+    pub name: String,
+    pub size: u64,
+    pub modified: i64,
+    pub is_template: bool,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NoteContent {
+    pub path: String,
+    pub content: String,
+    pub modified: i64,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphNode {
+    pub id: String,
+    pub label: String,
+    pub tags: Vec<String>,
+    pub orphan: bool,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphEdge {
+    pub source: String,
+    pub target: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GraphData {
+    pub nodes: Vec<GraphNode>,
+    pub edges: Vec<GraphEdge>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchHit {
+    pub path: String,
+    pub line: u32,
+    pub snippet: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PointerResult {
+    pub agent: String,
+    pub path: String,
+    pub installed: bool,
+    pub note: Option<String>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RenameReport {
+    pub old_path: String,
+    pub new_path: String,
+    pub link_rewrites: u32,
+    pub files_changed: u32,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WsArg<'a> {
+    workspace_cwd: &'a str,
+}
+
+pub async fn memory_root(ws: &str) -> Result<String, String> {
+    invoke_typed("memory_root", WsArg { workspace_cwd: ws }).await
+}
+
+pub async fn memory_list(ws: &str) -> Result<Vec<NoteMeta>, String> {
+    invoke_typed("memory_list", WsArg { workspace_cwd: ws }).await
+}
+
+pub async fn memory_read(ws: &str, path: &str) -> Result<NoteContent, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        path: &'a str,
+    }
+    invoke_typed("memory_read", A { workspace_cwd: ws, path }).await
+}
+
+pub async fn memory_write(
+    ws: &str,
+    path: &str,
+    content: &str,
+) -> Result<NoteContent, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        path: &'a str,
+        content: &'a str,
+    }
+    invoke_typed(
+        "memory_write",
+        A {
+            workspace_cwd: ws,
+            path,
+            content,
+        },
+    )
+    .await
+}
+
+pub async fn memory_create(
+    ws: &str,
+    path: &str,
+    content: Option<&str>,
+) -> Result<NoteMeta, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        path: &'a str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        content: Option<&'a str>,
+    }
+    invoke_typed(
+        "memory_create",
+        A {
+            workspace_cwd: ws,
+            path,
+            content,
+        },
+    )
+    .await
+}
+
+pub async fn memory_delete(ws: &str, path: &str) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        path: &'a str,
+    }
+    invoke_unit_js(
+        "memory_delete",
+        args_value(A { workspace_cwd: ws, path })?,
+    )
+    .await
+}
+
+pub async fn memory_rename(
+    ws: &str,
+    old_path: &str,
+    new_path: &str,
+    rewrite_links: bool,
+) -> Result<RenameReport, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        old_path: &'a str,
+        new_path: &'a str,
+        rewrite_links: bool,
+    }
+    invoke_typed(
+        "memory_rename",
+        A {
+            workspace_cwd: ws,
+            old_path,
+            new_path,
+            rewrite_links,
+        },
+    )
+    .await
+}
+
+pub async fn memory_graph(ws: &str) -> Result<GraphData, String> {
+    invoke_typed("memory_graph", WsArg { workspace_cwd: ws }).await
+}
+
+pub async fn memory_backlinks(ws: &str, path: &str) -> Result<Vec<String>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        path: &'a str,
+    }
+    invoke_typed("memory_backlinks", A { workspace_cwd: ws, path }).await
+}
+
+pub async fn memory_search(ws: &str, query: &str) -> Result<Vec<SearchHit>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        query: &'a str,
+    }
+    invoke_typed("memory_search", A { workspace_cwd: ws, query }).await
+}
+
+pub async fn memory_install_pointers(
+    ws: &str,
+    agents: Vec<String>,
+) -> Result<Vec<PointerResult>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        agents: Vec<String>,
+    }
+    invoke_typed("memory_install_pointers", A { workspace_cwd: ws, agents }).await
+}
+
+pub async fn memory_uninstall_pointers(
+    ws: &str,
+    agents: Vec<String>,
+) -> Result<Vec<PointerResult>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        agents: Vec<String>,
+    }
+    invoke_typed("memory_uninstall_pointers", A { workspace_cwd: ws, agents }).await
+}
+
+pub async fn memory_pointer_status(ws: &str) -> Result<Vec<PointerResult>, String> {
+    invoke_typed("memory_pointer_status", WsArg { workspace_cwd: ws }).await
+}
+
 pub async fn git_branch(cwd: String) -> Result<Option<String>, String> {
     #[derive(Serialize)]
     struct Args {

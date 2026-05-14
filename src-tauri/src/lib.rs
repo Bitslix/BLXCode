@@ -3,6 +3,7 @@ mod agent_hooks;
 mod browser_host;
 mod commands;
 mod git_info;
+mod memory;
 mod pty_host;
 mod workbench_state;
 
@@ -72,6 +73,21 @@ pub fn run() {
             workbench_load_sessions,
             workbench_drop_sessions,
             agent_session_exists,
+            memory::memory_root,
+            memory::memory_list,
+            memory::memory_read,
+            memory::memory_write,
+            memory::memory_create,
+            memory::memory_delete,
+            memory::memory_rename,
+            memory::memory_graph,
+            memory::memory_backlinks,
+            memory::memory_search,
+            memory::memory_export,
+            memory::memory_import,
+            memory::memory_install_pointers,
+            memory::memory_uninstall_pointers,
+            memory::memory_pointer_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
