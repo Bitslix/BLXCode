@@ -11,9 +11,11 @@ pub fn msg(key: I18nKey) -> &'static str {
 
         I18nKey::WsAria => "Workspace",
         I18nKey::WsEmptyTitle => "No workspace open",
-        I18nKey::WsEmptyLead => "Pick a workspace in the sidebar, or continue with files later.",
+        I18nKey::WsEmptyLead => {
+            "Pick a workspace in the sidebar, or reopen a recent workspace from the list below."
+        }
         I18nKey::WsEmptyNote => {
-            "Command palette is enabled (Ctrl+Shift+P); more integrations coming."
+            "Open the right panel for the agent, workspace memory, and the embedded browser."
         }
         I18nKey::WsKwCmdPalette => "Command palette",
         I18nKey::WsKwQuickOpen => "Quick open",

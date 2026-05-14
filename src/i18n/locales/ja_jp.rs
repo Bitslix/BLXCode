@@ -10,8 +10,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::BtnSave => "保存",
         I18nKey::WsAria => "ワークスペース",
         I18nKey::WsEmptyTitle => "開いているワークスペースがありません",
-        I18nKey::WsEmptyLead => "サイドバーでワークスペースを選択するか、後でファイルを続行します。",
-        I18nKey::WsEmptyNote => "コマンド パレットが有効になります (Ctrl+Shift+P)。さらに多くの統合が予定されています。",
+        I18nKey::WsEmptyLead => {
+            "サイドバーでワークスペースを選ぶか、下の一覧から最近使ったワークスペースを再度開いてください。"
+        }
+        I18nKey::WsEmptyNote => {
+            "右パネルでエージェント・ワークスペースの記憶・埋め込みブラウザを開けます。"
+        }
         I18nKey::WsKwCmdPalette => "コマンドパレット",
         I18nKey::WsKwQuickOpen => "クイックオープン",
         I18nKey::WsKwSidePanel => "サイドパネル",
@@ -87,10 +91,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgChatHeading => "チャットログ",
         I18nKey::AgBadgeReady => "準備完了",
         I18nKey::AgBadgeLive => "ライブ",
-        I18nKey::AgWelcomeBody => {
-            "こんにちは。BLXCodeエージェントです。ファイルの閲覧、ワークスペースタスクの管理、ワークスペースメモリの検索、ターミナルの起動ができます。プロンプトを送信して始めてください。"
-        },
-
+        I18nKey::AgWelcomeBody => "こんにちは。BLXCodeエージェントです。ファイルの閲覧、ワークスペースタスクの管理、ワークスペースメモリの検索、ターミナルの起動ができます。プロンプトを送信して始めてください。",
         I18nKey::BrToolbarAria => "組み込みブラウザ",
         I18nKey::BrBack => "戻る",
         I18nKey::BrFwd => "フォワード",
@@ -196,7 +197,6 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbRenameSubmit => "名前を変更",
         I18nKey::SbRenameMenu => "ワークスペースの名前を変更",
         I18nKey::SbCloseWorkspaceMenu => "ワークスペースを閉じる",
-
         I18nKey::SbAddWorkspaceAria => "新しいワークスペースを作成する",
         I18nKey::WzTitle => "ワークスペースの作成",
         I18nKey::WzSubLayout => "レイアウトと作業ディレクトリを選択します。",
@@ -211,13 +211,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzCdErr => "cd コマンドのみがサポートされています。",
         I18nKey::WzWizardAria => "ワークスペースのセットアップ",
         I18nKey::WzWizardStepsAria => "手順",
-        I18nKey::WzCwdExamplePh => "/Users/you/projects",
+        I18nKey::WzCwdExamplePh => "/ユーザー/あなた/プロジェクト",
         I18nKey::WzNavParentAria => "親フォルダへ移動",
         I18nKey::WzNavParentTitle => "上の階層へ",
         I18nKey::WzNewFolderAria => "新しいフォルダを作成",
         I18nKey::WzNewFolderTitle => "新しいフォルダ",
         I18nKey::WzShowHiddenTitle => "ドット付きの非表示ファイルを表示",
-        I18nKey::WzDotHiddenLabel => ".hidden",
+        I18nKey::WzDotHiddenLabel => "。隠れた",
         I18nKey::WzFolderNamePh => "フォルダ名",
         I18nKey::WzFolderCreate => "作成",
         I18nKey::WzCwdListEmpty => "— 空 —",
@@ -264,8 +264,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermCloseAria => "ターミナルを閉じる",
         I18nKey::WsTermFullSize => "ターミナルを最大化",
         I18nKey::WsTermRestoreSize => "ターミナルサイズを戻す",
-        I18nKey::WsTermPaneTitleSingle => "{role} · {term} {n}",
-        I18nKey::WsTermPaneTitleMulti => "{role} · {term} {slot}.{pane}",
+        I18nKey::WsTermPaneTitleSingle => "{役割} · {用語} {n}",
+        I18nKey::WsTermPaneTitleMulti => "{役割} · {用語} {スロット}.{ペイン}",
         I18nKey::WsTermBootstrapFailed => "ターミナル UI のロードに失敗しました。ブラウザコンソールを確認してください。ブートストラップ スクリプトまたは xterm CDN がブロックされる可能性があります。",
         I18nKey::EulaAccepted => "承認されました",
         I18nKey::EulaUnknown => "未知",

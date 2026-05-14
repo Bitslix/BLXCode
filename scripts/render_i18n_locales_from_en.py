@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate src/i18n/locales/{es_es,fr_fr,...}.rs from en_us.rs using deep-translator.
+"""Regenerate src/i18n/locales/{de_de,es_es,fr_fr,...}.rs from en_us.rs using deep-translator.
 
 Requires: pip install deep-translator (use a venv).
 
@@ -31,6 +31,7 @@ EN_US = ROOT / "src/i18n/locales/en_us.rs"
 LOCALES_DIR = ROOT / "src/i18n/locales"
 
 TARGETS: list[tuple[str, str, str]] = [
+    ("de_de.rs", "de", "de-DE"),
     ("es_es.rs", "es", "es-ES"),
     ("fr_fr.rs", "fr", "fr-FR"),
     ("hu_hu.rs", "hu", "hu-HU"),

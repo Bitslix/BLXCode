@@ -10,8 +10,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::BtnSave => "Megtakarítás",
         I18nKey::WsAria => "Munkaterület",
         I18nKey::WsEmptyTitle => "Nincs nyitva munkaterület",
-        I18nKey::WsEmptyLead => "Válasszon egy munkaterületet az oldalsávon, vagy folytassa a fájlokkal később.",
-        I18nKey::WsEmptyNote => "A parancspaletta engedélyezve van (Ctrl+Shift+P); további integrációk jönnek.",
+        I18nKey::WsEmptyLead => {
+            "Válasszon munkaterületet az oldalsávon, vagy nyisson meg egy korábbit az alábbi listáról."
+        }
+        I18nKey::WsEmptyNote => {
+            "Nyissa meg a jobb oldali panelt az ügynökhöz, a munkaterület-memóriához és a beágyazott böngészőhöz."
+        }
         I18nKey::WsKwCmdPalette => "Parancs paletta",
         I18nKey::WsKwQuickOpen => "Gyors nyitás",
         I18nKey::WsKwSidePanel => "Oldalsó panel",

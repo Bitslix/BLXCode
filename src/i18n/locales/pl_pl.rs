@@ -10,8 +10,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::BtnSave => "Zapisz",
         I18nKey::WsAria => "Obszar roboczy",
         I18nKey::WsEmptyTitle => "Brak otwartego obszaru roboczego",
-        I18nKey::WsEmptyLead => "Wybierz obszar roboczy na pasku bocznym lub kontynuuj pracę z plikami później.",
-        I18nKey::WsEmptyNote => "Paleta poleceń jest włączona (Ctrl+Shift+P); nadchodzą kolejne integracje.",
+        I18nKey::WsEmptyLead => {
+            "Wybierz obszar roboczy na pasku bocznym lub otwórz ponownie ostatni z listy poniżej."
+        }
+        I18nKey::WsEmptyNote => {
+            "Otwórz prawy panel, by korzystać z agenta, pamięci obszaru roboczego i wbudowanej przeglądarki."
+        }
         I18nKey::WsKwCmdPalette => "Paleta poleceń",
         I18nKey::WsKwQuickOpen => "Szybkie otwieranie",
         I18nKey::WsKwSidePanel => "Panel boczny",

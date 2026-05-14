@@ -8,12 +8,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::BtnClose => "Schließen",
         I18nKey::BtnApply => "Übernehmen",
         I18nKey::BtnSave => "Speichern",
-
-        I18nKey::WsAria => "Workspace",
+        I18nKey::WsAria => "Arbeitsplatz",
         I18nKey::WsEmptyTitle => "Kein Workspace geöffnet",
-        I18nKey::WsEmptyLead => "Wähle links einen Workspace oder starte später mit Dateien.",
+        I18nKey::WsEmptyLead => {
+            "Wähle links einen Workspace, oder öffne unten einen zuletzt genutzten Workspace wieder."
+        }
         I18nKey::WsEmptyNote => {
-            "Befehlspalette ist aktiv (Ctrl+Shift+P); weitere Anbindungen folgen."
+            "Im rechten Panel liegen Agent, Workspace-Speicher und eingebetteter Browser."
         }
         I18nKey::WsKwCmdPalette => "Befehlspalette",
         I18nKey::WsKwQuickOpen => "Schnell öffnen",
@@ -24,7 +25,6 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsKwTerminal => "Terminal",
         I18nKey::WsResizeTermCols => "Terminal-Spaltenbreite anpassen",
         I18nKey::WsResizeTermRows => "Terminal-Zeilenhöhe anpassen",
-
         I18nKey::QkTitle => "Schnell öffnen",
         I18nKey::QkFilterPh => "Zuletzt durchsuchen oder Pfad eingeben…",
         I18nKey::QkHint => "↑↓ wählen · Enter öffnet · Esc schließt",
@@ -36,12 +36,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::QkNewWorkspace => "Neuer Workspace-Assistent…",
         I18nKey::CmdQkTitle => "Workspace schnell öffnen…",
         I18nKey::CmdQkSub => "Ordner oder zuletzt genutzten Workspace öffnen",
-
-        I18nKey::SbAria => "Workspaces",
+        I18nKey::SbAria => "Arbeitsbereiche",
         I18nKey::SbExpand => "Sidebar einblenden",
         I18nKey::SbCollapse => "Sidebar ausblenden",
-        I18nKey::SbHeading => "Workspaces",
-
+        I18nKey::SbHeading => "Arbeitsbereiche",
         I18nKey::RpRailAria => "Rechtes Panel",
         I18nKey::RpExpand => "Rechtes Panel einblenden",
         I18nKey::RpCollapse => "Rechtes Panel ausblenden",
@@ -55,32 +53,29 @@ pub fn msg(key: I18nKey) -> &'static str {
             "Das Gedächtnis ist an einen Workspace gebunden. Wähle links einen aus oder erstelle einen neuen Workspace."
         }
         I18nKey::MemEmptyCreate => "+ Workspace erstellen",
-        I18nKey::MemTabFiles => "Files",
+        I18nKey::MemTabFiles => "Dateien",
         I18nKey::MemTabGraph => "Graph",
-        I18nKey::MemTabSearch => "Search",
-        I18nKey::MemNewNote => "New note",
-        I18nKey::MemNewNotePh => "note title…",
-        I18nKey::MemRename => "Rename",
-        I18nKey::MemDelete => "Delete",
-        I18nKey::MemSave => "Save",
-        I18nKey::MemCancel => "Cancel",
-        I18nKey::MemSelectNote => "Select a note to view it.",
-        I18nKey::MemDirty => "● unsaved",
-        I18nKey::MemEdit => "Edit",
-        I18nKey::MemPreview => "Preview",
+        I18nKey::MemTabSearch => "Suchen",
+        I18nKey::MemNewNote => "Neuer Hinweis",
+        I18nKey::MemNewNotePh => "Titel notieren…",
+        I18nKey::MemRename => "Umbenennen",
+        I18nKey::MemDelete => "Löschen",
+        I18nKey::MemSave => "Speichern",
+        I18nKey::MemCancel => "Stornieren",
+        I18nKey::MemSelectNote => "Wählen Sie eine Notiz aus, um sie anzuzeigen.",
+        I18nKey::MemDirty => "● nicht gespeichert",
+        I18nKey::MemEdit => "Bearbeiten",
+        I18nKey::MemPreview => "Vorschau",
         I18nKey::MemBacklinks => "Backlinks",
-        I18nKey::MemGraphEmpty => "No notes yet — create one in Files.",
-        I18nKey::MemGraphLegend => "Nodes = notes · edges = [[wiki links]]",
-        I18nKey::MemSearchPh => "Search notes…",
+        I18nKey::MemGraphEmpty => "Noch keine Notizen – erstellen Sie eine in „Dateien“.",
+        I18nKey::MemGraphLegend => "Knoten = Notizen · Kanten = [[Wiki-Links]]",
+        I18nKey::MemSearchPh => "Notizen durchsuchen…",
         I18nKey::MemFilesExpand => "Dateiliste einblenden",
         I18nKey::MemFilesCollapse => "Dateiliste ausblenden",
-
         I18nKey::AgAriaPane => "Agent Harness",
         I18nKey::AgSandbox => "Tool-Sandbox ",
         I18nKey::AgNoPath => "(kein Pfad)",
-        I18nKey::AgScopedReadHint => {
-            "Nutze „READ:relativer/pfad“ für scoped Lesezugriff."
-        }
+        I18nKey::AgScopedReadHint => "Nutze „READ:relativer/pfad“ für scoped Lesezugriff.",
         I18nKey::AgPromptPh => "Ziel formulieren oder READ:README.md …",
         I18nKey::AgSend => "Senden",
         I18nKey::AgCancel => "Abbrechen",
@@ -100,8 +95,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgBadgeLive => "Live",
         I18nKey::AgWelcomeBody => {
             "Hallo — ich bin der BLXCode-Agent. Ich kann Dateien lesen, Workspace-Aufgaben verwalten, Workspace-Gedächtnis durchsuchen und Terminals öffnen. Schreib einen Prompt, um loszulegen."
-        },
-
+        }
         I18nKey::BrToolbarAria => "Eingebetteter Browser",
         I18nKey::BrBack => "Zurück",
         I18nKey::BrFwd => "Weiter",
@@ -116,15 +110,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::BrFrameTitle => "Eingebetteter Browser",
         I18nKey::BrNewHint => "Adresse oben eingeben, Enter oder „Los“.",
         I18nKey::BrShortcutsHeading => "Schnellwahl",
-
         I18nKey::PlFilterPh => "Kommando filtern …",
         I18nKey::PlHint => "Escape schließt • Pfeiltasten • Enter",
         I18nKey::PlNoHits => "Keine Treffer",
-
         I18nKey::CmdSetTitle => "BLXCode-Einstellungen",
-        I18nKey::CmdSetSub => {
-            "App, Workspace und Agent-Provider verwalten"
-        }
+        I18nKey::CmdSetSub => "App, Workspace und Agent-Provider verwalten",
         I18nKey::CmdRtpTitle => "Rechtes Panel ein-/ausblenden",
         I18nKey::CmdRtpSub => "Inspector-Spalte umschalten",
         I18nKey::CmdAgentTitle => "Rechter Reiter: Agent",
@@ -133,26 +123,25 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CmdBrowseSub => "Eingebettete Webview synchronisieren",
         I18nKey::CmdMemoryTitle => "Rechter Reiter: Gedächtnis",
         I18nKey::CmdMemorySub => "Reservierter Bereich",
-
         I18nKey::HsCloseSettingsAria => "Einstellungen schließen",
         I18nKey::HsTitle => "BLXCode-Einstellungen",
         I18nKey::HsAriaCats => "Kategorien",
         I18nKey::HsCatApp => "App",
-        I18nKey::HsCatWorkspace => "Workspace",
+        I18nKey::HsCatWorkspace => "Arbeitsplatz",
         I18nKey::HsCatProvider => "Agent-Provider",
         I18nKey::AppHeading => "App",
         I18nKey::GenEulaStatus => "EULA-Status",
         I18nKey::AppLanguage => "UI-Sprache",
         I18nKey::AppHooksHeading => "Terminal-Hooks",
-        I18nKey::WsHeading => "Workspace",
+        I18nKey::WsHeading => "Arbeitsplatz",
         I18nKey::LayBrowserUrl => "Standard-URL des eingebetteten Browsers",
         I18nKey::WsBrowserDefault => "Voreinstellung:",
         I18nKey::WsRootLabel => "Workspace-/Sandbox-Stamm",
         I18nKey::WsRootPlaceholder => "/abs/path/zum/repo",
-        I18nKey::AgProviderHeading => "BLXCode Agent Provider",
-        I18nKey::AgProviderField => "Provider",
+        I18nKey::AgProviderHeading => "BLXCode-Agent-Anbieter",
+        I18nKey::AgProviderField => "Anbieter",
         I18nKey::AgProviderOpenrouter => "OpenRouter",
-        I18nKey::AgProviderAnthropic => "Anthropic",
+        I18nKey::AgProviderAnthropic => "Anthropisch",
         I18nKey::AgProviderOpenai => "OpenAI",
         I18nKey::AgModelField => "Modell",
         I18nKey::AgModelCustomField => "Eigene Model-ID",
@@ -188,7 +177,6 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgHooksStatusUnknown => "unbekannt",
         I18nKey::AgHooksBusy => "Wird ausgeführt…",
         I18nKey::BlxLoading => "Laden …",
-
         I18nKey::AuthGateChecking => "Sitzung wird geprüft…",
         I18nKey::AuthLoginHeading => "Anmelden",
         I18nKey::AuthTabEmail => "E-Mail",
@@ -198,12 +186,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AuthSubmit => "Anmelden",
         I18nKey::AuthDeviceIntro => {
             "Fordere einen Gerätecode an, öffne den Link im Browser und bestätige dort — die App wartet automatisch."
-        },
+        }
         I18nKey::AuthDeviceStart => "Code anfordern",
         I18nKey::AuthDeviceCode => "Dein Code",
         I18nKey::AuthDeviceCopyAria => "Code in Zwischenablage kopieren",
         I18nKey::AuthDeviceCopied => "Kopiert",
-
         I18nKey::AuthOpenVerify => "Verifikation im Browser öffnen",
         I18nKey::AuthPolling => "Warte auf Bestätigung …",
         I18nKey::AuthFail => "Anmeldung fehlgeschlagen.",
@@ -216,7 +203,6 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbRenameSubmit => "Umbenennen",
         I18nKey::SbRenameMenu => "Workspace umbenennen",
         I18nKey::SbCloseWorkspaceMenu => "Workspace schließen",
-
         I18nKey::SbAddWorkspaceAria => "Neuen Workspace anlegen",
         I18nKey::WzTitle => "Workspace anlegen",
         I18nKey::WzSubLayout => "Layout und Arbeitsverzeichnis wählen.",
@@ -225,19 +211,19 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzNameLabel => "Name (optional)",
         I18nKey::WzNamePh => "z. B. Backend-Refactor",
         I18nKey::WzCwdLabel => "Arbeitsverzeichnis",
-        I18nKey::WzNavPh => "cd …",
+        I18nKey::WzNavPh => "CD …",
         I18nKey::WzGo => "Los",
         I18nKey::WzNavHint => "Nur `cd`, `cd ..`, `cd /abs` oder `cd rel` — im Browser ohne echtes Dateisystem nur Pfadeingabe.",
         I18nKey::WzCdErr => "Nur cd-Befehle werden unterstützt.",
         I18nKey::WzWizardAria => "Workspace-Einrichtung",
         I18nKey::WzWizardStepsAria => "Schritte",
-        I18nKey::WzCwdExamplePh => "/Users/you/projects",
+        I18nKey::WzCwdExamplePh => "/Benutzer/Sie/Projekte",
         I18nKey::WzNavParentAria => "Zum übergeordneten Ordner",
         I18nKey::WzNavParentTitle => "Eine Ebene nach oben",
         I18nKey::WzNewFolderAria => "Neuen Ordner anlegen",
         I18nKey::WzNewFolderTitle => "Neuer Ordner",
         I18nKey::WzShowHiddenTitle => "Dateien mit Punkt am Namen anzeigen",
-        I18nKey::WzDotHiddenLabel => ".hidden",
+        I18nKey::WzDotHiddenLabel => ".versteckt",
         I18nKey::WzFolderNamePh => "Ordnername",
         I18nKey::WzFolderCreate => "Anlegen",
         I18nKey::WzCwdListEmpty => "— leer —",
@@ -267,15 +253,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzFleetClear => "Leeren",
         I18nKey::WzFleetAll => "Alle {n}",
         I18nKey::WzAgentClaude => "Claude",
-        I18nKey::WzAgentSubClaude => "anthropic",
-        I18nKey::WzAgentCodex => "Codex",
+        I18nKey::WzAgentSubClaude => "anthropisch",
+        I18nKey::WzAgentCodex => "Kodex",
         I18nKey::WzAgentSubCodex => "openai",
-        I18nKey::WzAgentGemini => "Gemini",
-        I18nKey::WzAgentSubGemini => "google",
+        I18nKey::WzAgentGemini => "Zwillinge",
+        I18nKey::WzAgentSubGemini => "Google",
         I18nKey::WzAgentOpencode => "OpenCode",
-        I18nKey::WzAgentSubOpencode => "opencode",
+        I18nKey::WzAgentSubOpencode => "Opencode",
         I18nKey::WzAgentCursor => "Cursor",
-        I18nKey::WzAgentSubCursor => "cursor",
+        I18nKey::WzAgentSubCursor => "Cursor",
         I18nKey::WsPtyNoDesktop => "Interaktive Shell nur in der Desktop-App (Tauri). Hier ist kein natives PTY verfügbar.",
         I18nKey::WsPtySpawnFailed => "Terminal konnte nicht gestartet werden.",
         I18nKey::WsTermSlot => "Terminal",
@@ -284,12 +270,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermCloseAria => "Terminal schließen",
         I18nKey::WsTermFullSize => "Terminal maximieren",
         I18nKey::WsTermRestoreSize => "Terminalgröße wiederherstellen",
-        I18nKey::WsTermPaneTitleSingle => "{role} · {term} {n}",
+        I18nKey::WsTermPaneTitleSingle => "{Rolle} · {Begriff} {n}",
         I18nKey::WsTermPaneTitleMulti => "{role} · {term} {slot}.{pane}",
         I18nKey::WsTermBootstrapFailed => {
             "Terminal-Oberfläche konnte nicht geladen werden. Siehe Konsole; Bootstrap-Skript oder xterm-CDN könnte blockiert sein."
         }
-
         I18nKey::EulaAccepted => "Akzeptiert",
         I18nKey::EulaUnknown => "Unbekannt",
     }

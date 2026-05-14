@@ -848,11 +848,27 @@ body {
 }
 
 .workbench-empty-editor__lead {
-  margin: 0 0 0.55rem;
+  margin: 0;
   font-size: 0.98rem;
   color: rgba(238, 239, 245, 0.9);
   line-height: 1.45;
   text-align: center;
+}
+
+.workbench-empty-editor__logo-wrap {
+  margin: clamp(1rem, 3vh, 1.65rem) 0 clamp(1.1rem, 3.2vh, 1.75rem);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.workbench-empty-editor__logo {
+  width: min(11rem, 52vw);
+  max-height: min(11rem, 28vh);
+  height: auto;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 10px 28px rgba(0, 0, 0, 0.45));
 }
 
 .workbench-empty-editor__note {

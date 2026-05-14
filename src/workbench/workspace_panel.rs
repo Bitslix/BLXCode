@@ -323,6 +323,16 @@ fn WorkspaceEmptyState() -> impl IntoView {
     view! {
         <div class="workbench-empty-editor">
             <p class="workbench-empty-editor__lead">{move || i18n.tr(I18nKey::WsEmptyLead)()}</p>
+            <div class="workbench-empty-editor__logo-wrap" aria-hidden="true">
+                <img
+                    class="workbench-empty-editor__logo"
+                    src="/public/blxcode.png"
+                    alt=""
+                    width="192"
+                    height="192"
+                    decoding="async"
+                />
+            </div>
             <p class="workbench-empty-editor__note">{move || i18n.tr(I18nKey::WsEmptyNote)()}</p>
             <p class="harness-quickopen-section workbench-empty-recent-heading">
                 {move || i18n.tr(I18nKey::QkRecentHeading)()}

@@ -107,6 +107,8 @@ pub fn HarnessHost() -> impl IntoView {
                 || ui.quick_open_open().get_untracked();
             let ctrl_or_meta = ke.ctrl_key() || ke.meta_key();
             let key = ke.key();
+            // Physical key (US QWERTY position); helps when `key` is a dead key / layout symbol.
+            let code = ke.code();
 
             if ctrl_or_meta && ke.shift_key() {
                 match key.as_str() {
@@ -135,16 +137,18 @@ pub fn HarnessHost() -> impl IntoView {
             }
 
             if ctrl_or_meta && !ke.shift_key() && !blocked {
-                match key.as_str() {
-                    "`" | "Backquote" => {
-                        ke.prevent_default();
-                        if wb.right_collapsed().get_untracked() {
-                            wb.toggle_right_panel();
-                        }
-                        wb.set_right_tab(RightPanelTab::Agent);
-                        defer_browser_bounds(wb, embed);
-                        return;
+                let open_agent_tab = matches!(key.as_str(), "`" | "Backquote")
+                    || code.as_str() == "Backquote";
+                if open_agent_tab {
+                    ke.prevent_default();
+                    if wb.right_collapsed().get_untracked() {
+                        wb.toggle_right_panel();
                     }
+                    wb.set_right_tab(RightPanelTab::Agent);
+                    defer_browser_bounds(wb, embed);
+                    return;
+                }
+                match key.as_str() {
                     "p" | "P" => {
                         ke.prevent_default();
                         wb.toggle_right_panel();

@@ -10,8 +10,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::BtnSave => "구하다",
         I18nKey::WsAria => "작업공간",
         I18nKey::WsEmptyTitle => "열려 있는 작업공간이 없습니다.",
-        I18nKey::WsEmptyLead => "사이드바에서 작업 공간을 선택하거나 나중에 파일 작업을 계속하세요.",
-        I18nKey::WsEmptyNote => "명령 팔레트가 활성화됩니다(Ctrl+Shift+P). 더 많은 통합이 예정되어 있습니다.",
+        I18nKey::WsEmptyLead => {
+            "사이드바에서 작업 공간을 선택하거나 아래 목록에서 최근 작업 공간을 다시 엽니다."
+        }
+        I18nKey::WsEmptyNote => {
+            "오른쪽 패널에서 에이전트, 작업 공간 메모리 및 내장 브라우저를 사용하세요."
+        }
         I18nKey::WsKwCmdPalette => "명령 팔레트",
         I18nKey::WsKwQuickOpen => "빠른 오픈",
         I18nKey::WsKwSidePanel => "측면 패널",
@@ -87,10 +91,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgChatHeading => "채팅 기록",
         I18nKey::AgBadgeReady => "준비됨",
         I18nKey::AgBadgeLive => "실시간",
-        I18nKey::AgWelcomeBody => {
-            "안녕하세요. BLXCode 에이전트입니다. 파일 읽기, 작업공간 작업 관리, 작업공간 메모리 검색, 터미널 열기를 도와드립니다. 프롬프트를 보내 시작하세요."
-        },
-
+        I18nKey::AgWelcomeBody => "안녕하세요. BLXCode 에이전트입니다. 파일 읽기, 작업공간 작업 관리, 작업공간 메모리 검색, 터미널 열기를 도와드립니다. 프롬프트를 보내 시작하세요.",
         I18nKey::BrToolbarAria => "내장된 브라우저",
         I18nKey::BrBack => "뒤쪽에",
         I18nKey::BrFwd => "앞으로",
@@ -194,7 +195,6 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbRenameSubmit => "이름 바꾸기",
         I18nKey::SbRenameMenu => "작업공간 이름 바꾸기",
         I18nKey::SbCloseWorkspaceMenu => "작업공간 닫기",
-
         I18nKey::SbAddWorkspaceAria => "새 작업공간 만들기",
         I18nKey::WzTitle => "작업공간 만들기",
         I18nKey::WzSubLayout => "레이아웃과 작업 디렉터리를 선택합니다.",
@@ -209,13 +209,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzCdErr => "cd 명령만 지원됩니다.",
         I18nKey::WzWizardAria => "작업공간 설정",
         I18nKey::WzWizardStepsAria => "단계",
-        I18nKey::WzCwdExamplePh => "/Users/you/projects",
+        I18nKey::WzCwdExamplePh => "/사용자/당신/프로젝트",
         I18nKey::WzNavParentAria => "상위 폴더로 이동",
         I18nKey::WzNavParentTitle => "한 단계 위로",
         I18nKey::WzNewFolderAria => "새 폴더 만들기",
         I18nKey::WzNewFolderTitle => "새 폴더",
         I18nKey::WzShowHiddenTitle => "숨김(점으로 시작) 파일 표시",
-        I18nKey::WzDotHiddenLabel => ".hidden",
+        I18nKey::WzDotHiddenLabel => ".숨겨진",
         I18nKey::WzFolderNamePh => "폴더 이름",
         I18nKey::WzFolderCreate => "만들기",
         I18nKey::WzCwdListEmpty => "— 비어 있음 —",
@@ -262,8 +262,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermCloseAria => "터미널 닫기",
         I18nKey::WsTermFullSize => "터미널 전체 크기",
         I18nKey::WsTermRestoreSize => "터미널 크기 복원",
-        I18nKey::WsTermPaneTitleSingle => "{role} · {term} {n}",
-        I18nKey::WsTermPaneTitleMulti => "{role} · {term} {slot}.{pane}",
+        I18nKey::WsTermPaneTitleSingle => "{역할} · {용어} {n}",
+        I18nKey::WsTermPaneTitleMulti => "{역할} · {용어} {슬롯}.{창}",
         I18nKey::WsTermBootstrapFailed => "터미널 UI를 로드하지 못했습니다. 브라우저 콘솔을 확인하세요. 부트스트랩 스크립트 또는 xterm CDN이 차단되었을 수 있습니다.",
         I18nKey::EulaAccepted => "수락됨",
         I18nKey::EulaUnknown => "알려지지 않은",

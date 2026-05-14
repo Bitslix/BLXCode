@@ -10,8 +10,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::BtnSave => "Guardar",
         I18nKey::WsAria => "Espacio de trabajo",
         I18nKey::WsEmptyTitle => "No hay espacio de trabajo abierto",
-        I18nKey::WsEmptyLead => "Elija un espacio de trabajo en la barra lateral o continúe con los archivos más tarde.",
-        I18nKey::WsEmptyNote => "La paleta de comandos está habilitada (Ctrl+Shift+P); Más integraciones por venir.",
+        I18nKey::WsEmptyLead => {
+            "Elija un espacio de trabajo en la barra lateral o vuelva a abrir uno reciente en la lista inferior."
+        }
+        I18nKey::WsEmptyNote => {
+            "Abra el panel derecho para el agente, la memoria del espacio de trabajo y el navegador integrado."
+        }
         I18nKey::WsKwCmdPalette => "paleta de comandos",
         I18nKey::WsKwQuickOpen => "apertura rápida",
         I18nKey::WsKwSidePanel => "Panel lateral",
