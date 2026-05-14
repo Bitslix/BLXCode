@@ -128,6 +128,14 @@ pub async fn browser_embedding_kind() -> Result<String, String> {
     invoke_typed("browser_embedding_kind", Empty {}).await
 }
 
+pub async fn browser_check_iframable(url: &str) -> Result<bool, String> {
+    #[derive(Serialize)]
+    struct U<'a> {
+        url: &'a str,
+    }
+    invoke_typed("browser_check_iframable", U { url }).await
+}
+
 pub async fn agent_provider_status() -> Result<serde_json::Value, String> {
     #[derive(Serialize)]
     struct Empty {}
@@ -161,17 +169,6 @@ struct PtySpawnArgs {
     cwd: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     env: Vec<(String, String)>,
-}
-
-pub async fn pty_spawn(cwd: String) -> Result<u64, String> {
-    invoke_typed(
-        "pty_spawn",
-        PtySpawnArgs {
-            cwd,
-            env: Vec::new(),
-        },
-    )
-    .await
 }
 
 pub async fn pty_spawn_with_env(

@@ -10,10 +10,11 @@ use url::Url;
 const LABEL: &str = "embedded-browser";
 pub const DEFAULT_HOME_URL: &str = "https://bitslix.com";
 
-/// Native child webviews with SPA-driven bounds only work reliably on
-/// platforms where Tauri/wry properly insets a sub-webview (Windows, macOS).
-/// On Linux GTK the coordinate system and clipping differ; the iframe
-/// fallback is used instead.
+/// Child-WebViews mit SPA-gestützten Bounds funktionieren zuverlässig nur dort,
+/// wo das Tauri-/wry-Backend eine echte Unter-WebView einpasst (Windows: HWND-Child,
+/// macOS: NSView addSubview). Auf Linux/GTK fügt `add_child` die Webview als
+/// neues Kind in den `GtkBox`-Container des Fensters ein — `set_position`/`set_size`
+/// werden dort ignoriert. Deshalb fällt Linux auf `<iframe>` zurück.
 #[must_use]
 pub fn native_child_inset_supported() -> bool {
     cfg!(any(target_os = "windows", target_os = "macos"))

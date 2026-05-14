@@ -245,8 +245,21 @@ pub fn BrowserTabDock() -> impl IntoView {
 
     Effect::new(move |_| {
         let u = wb.browser_url().get();
+        let trimmed = u.trim().to_string();
         draft_url.set(u);
         iframe_failed.set(false);
+
+        // Iframes feuern bei `X-Frame-Options: DENY` / CSP `frame-ancestors`-Blocks
+        // KEIN `error`-Event — der Browser zeigt einfach leer. Wir prüfen die
+        // Header proaktiv und setzen `iframe_failed` selbst, damit der Fallback
+        // mit "Open In Browser" sichtbar wird.
+        if !trimmed.is_empty() && !embed_is_native(surface) {
+            spawn_local(async move {
+                if let Ok(false) = crate::tauri_bridge::browser_check_iframable(&trimmed).await {
+                    iframe_failed.set(true);
+                }
+            });
+        }
     });
 
     view! {
