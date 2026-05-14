@@ -147,14 +147,23 @@ pub fn Sidebar() -> impl IntoView {
                         key=|ws| ws.id
                         children=move |entry| {
                             let id = entry.id;
-                            let title = entry.title;
-                            let icon_label = workspace_icon_label(&title, id);
-                            let title_ctx = title.clone();
+                            let title_signal = Memo::new(move |_| {
+                                workspaces.with(|list| {
+                                    list.iter()
+                                        .find(|w| w.id == id)
+                                        .map(|w| w.title.clone())
+                                        .unwrap_or_else(|| format!("Workspace {id}"))
+                                })
+                            });
+                            let title_str = move || title_signal.get();
+                            let icon_label = move || {
+                                workspace_icon_label(&title_signal.get(), id)
+                            };
                             view! {
                                 <li class="workbench-sidebar__item">
                                     <button
                                         type="button"
-                                        title=title.clone()
+                                        title=title_str
                                         class=move || {
                                             let mut c =
                                                 String::from("workbench-sidebar__row");
@@ -168,25 +177,25 @@ pub fn Sidebar() -> impl IntoView {
                                             ev.prevent_default();
                                             context_menu.set(Some(WorkspaceContextMenu {
                                                 workspace_id: id,
-                                                title: title_ctx.clone(),
+                                                title: title_signal.get(),
                                                 x: ev.client_x(),
                                                 y: ev.client_y(),
                                             }));
                                         }
                                     >
                                         <span class="workbench-sidebar__icon" aria-hidden="true">
-                                            {icon_label.clone()}
+                                            {icon_label}
                                         </span>
                                         <span class="workbench-sidebar__label">
                                             <span class="workbench-sidebar__bullet">"▸ "</span>
-                                            {title.clone()}
+                                            {move || title_signal.get()}
                                         </span>
                                     </button>
                                     <button
                                         type="button"
                                         class="workbench-sidebar__close"
-                                        title=format!("Close {title}")
-                                        aria-label=format!("Close {title}")
+                                        title=move || format!("Close {}", title_signal.get())
+                                        aria-label=move || format!("Close {}", title_signal.get())
                                         on:click=move |ev| {
                                             ev.stop_propagation();
                                             wb.close_workspace(id);
