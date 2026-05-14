@@ -139,6 +139,7 @@ fn load_note(state: MemoryState, ws: String, path: String) {
             Ok(NoteContent { content, .. }) => {
                 state.editor_content.set(content);
                 state.editor_dirty.set(false);
+                state.show_preview.set(true);
                 state.active_path.set(Some(path.clone()));
                 state.error.set(None);
                 // backlinks for this note
@@ -541,12 +542,6 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                     }
                 >
                     <header class="workbench-memory-editor__toolbar">
-                        <span class="workbench-memory-editor__path">
-                            {
-                                let s = state.clone();
-                                move || s.active_path.get().unwrap_or_default()
-                            }
-                        </span>
                         <span class="workbench-memory-editor__flag" aria-live="polite">
                             {
                                 let s = state.clone();
@@ -557,16 +552,32 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                         <button
                             type="button"
                             class="workbench-memory-editor__preview-btn"
+                            aria-label={
+                                let s = state.clone();
+                                let i = i18n.clone();
+                                move || if s.show_preview.get() { i.tr(I18nKey::MemEdit)() } else { i.tr(I18nKey::MemPreview)() }
+                            }
+                            title={
+                                let s = state.clone();
+                                let i = i18n.clone();
+                                move || if s.show_preview.get() { i.tr(I18nKey::MemEdit)() } else { i.tr(I18nKey::MemPreview)() }
+                            }
                             on:click={
                                 let s = state.clone();
                                 move |_| s.show_preview.update(|v| *v = !*v)
                             }
                         >
-                            {
-                                let s = state.clone();
-                                let i = i18n.clone();
-                                move || if s.show_preview.get() { i.tr(I18nKey::MemEdit)() } else { i.tr(I18nKey::MemPreview)() }
-                            }
+                            <Show
+                                when={
+                                    let s = state.clone();
+                                    move || s.show_preview.get()
+                                }
+                                fallback=move || view! {
+                                    <LxIcon icon=icondata::LuEye width="0.8rem" height="0.8rem" />
+                                }
+                            >
+                                <LxIcon icon=icondata::LuPencil width="0.8rem" height="0.8rem" />
+                            </Show>
                         </button>
                     </header>
                     <Show

@@ -4262,7 +4262,7 @@ button {
 .workbench-memory-files {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(180px, 38%) 1fr;
+  grid-template-columns: minmax(13rem, 15.5rem) minmax(0, 1fr);
   min-height: 0;
 }
 .workbench-memory-files__tree {
@@ -4469,6 +4469,8 @@ button {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  justify-content: flex-end;
+  padding: 0.35rem 0.55rem 0 0.55rem;
 }
 .workbench-memory-editor__backlinks {
   border-top: 1px solid rgba(255, 255, 255, 0.06);

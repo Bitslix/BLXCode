@@ -733,10 +733,9 @@ pub fn memory_import(workspace_cwd: String, src_dir: String) -> Result<u32, Stri
 // ---------------------------------------------------------------------
 // Phase 4: agent pointer files.
 //
-// Each supported agent CLI has its own "memory" convention. We write a
-// short pointer file at the workspace root that tells the agent where
-// blxcode's notes live, and lists the current top-level notes so the
-// agent can include them in its context.
+// Each supported agent CLI has its own "memory" convention. blxcode can
+// manage a short pointer block inside those files, but must never create
+// them implicitly or modify unrelated user-owned content.
 //
 //   claude    -> CLAUDE.md
 //   codex     -> AGENTS.md
@@ -871,19 +870,43 @@ pub fn memory_install_pointers(
             results.push(PointerResult {
                 agent,
                 path: path.to_string_lossy().into_owned(),
-                installed: true,
-                note: Some("shared file already updated".into()),
+                installed: false,
+                note: Some("shared file already handled".into()),
             });
+            continue;
+        }
+        if !path.exists() {
+            results.push(PointerResult {
+                agent,
+                path: path.to_string_lossy().into_owned(),
+                installed: false,
+                note: Some(
+                    "skipped: file absent; blxcode does not auto-create root pointer files".into(),
+                ),
+            });
+            written_files.insert(fname.to_owned());
             continue;
         }
         let cursor_style = agent == "cursor";
         let body = pointer_body(&ws, &notes, cursor_style);
-        let existing = fs::read_to_string(&path).unwrap_or_default();
         let (begin, end) = if cursor_style {
             (POINTER_BEGIN_CURSOR, POINTER_END_CURSOR)
         } else {
             (POINTER_BEGIN, POINTER_END)
         };
+        let existing = fs::read_to_string(&path).unwrap_or_default();
+        if !existing.contains(begin) {
+            results.push(PointerResult {
+                agent,
+                path: path.to_string_lossy().into_owned(),
+                installed: false,
+                note: Some(
+                    "skipped: existing file is user-owned and has no blxcode managed block".into(),
+                ),
+            });
+            written_files.insert(fname.to_owned());
+            continue;
+        }
         let updated = splice_block(&existing, begin, end, &body);
         match fs::write(&path, updated.as_bytes()) {
             Ok(()) => {
@@ -1034,5 +1057,52 @@ mod tests {
         assert!(tags.contains(&"foo".to_owned()));
         assert!(tags.contains(&"bar-baz".to_owned()));
         assert!(!tags.iter().any(|t| t == "Heading"));
+    }
+
+    #[test]
+    fn install_pointers_does_not_create_missing_root_files() {
+        let ws = std::env::temp_dir().join(format!(
+            "blxcode_memtest_no_create_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&ws).unwrap();
+
+        let out = memory_install_pointers(
+            ws.to_string_lossy().into_owned(),
+            vec!["claude".into(), "codex".into()],
+        )
+        .unwrap();
+
+        assert!(!ws.join("CLAUDE.md").exists());
+        assert!(!ws.join("AGENTS.md").exists());
+        assert!(out.iter().all(|r| !r.installed));
+    }
+
+    #[test]
+    fn install_pointers_does_not_touch_unmanaged_existing_files() {
+        let ws = std::env::temp_dir().join(format!(
+            "blxcode_memtest_unmanaged_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        fs::create_dir_all(&ws).unwrap();
+        let agents = ws.join("AGENTS.md");
+        fs::write(&agents, "# user content\n").unwrap();
+
+        let before = fs::read_to_string(&agents).unwrap();
+        let out = memory_install_pointers(ws.to_string_lossy().into_owned(), vec!["codex".into()])
+            .unwrap();
+        let after = fs::read_to_string(&agents).unwrap();
+
+        assert_eq!(before, after);
+        assert_eq!(out.len(), 1);
+        assert!(!out[0].installed);
     }
 }

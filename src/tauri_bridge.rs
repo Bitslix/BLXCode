@@ -836,6 +836,7 @@ pub async fn memory_search(ws: &str, query: &str) -> Result<Vec<SearchHit>, Stri
     .await
 }
 
+#[allow(dead_code)]
 pub async fn memory_install_pointers(
     ws: &str,
     agents: Vec<String>,
