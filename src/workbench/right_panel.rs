@@ -223,7 +223,7 @@ pub fn RightPanel() -> impl IntoView {
                         </div>
                     </div>
                 </header>
-                <div class="workbench-right__body">
+                <div id="blx-right-panel-body" class="workbench-right__body">
                     <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Agent>
                         <AgentPanelDock />
                     </div>

@@ -10,9 +10,13 @@ use url::Url;
 const LABEL: &str = "embedded-browser";
 pub const DEFAULT_HOME_URL: &str = "https://bitslix.com";
 
+/// Native child webviews with SPA-driven bounds only work reliably on
+/// platforms where Tauri/wry properly insets a sub-webview (Windows, macOS).
+/// On Linux GTK the coordinate system and clipping differ; the iframe
+/// fallback is used instead.
 #[must_use]
 pub fn native_child_inset_supported() -> bool {
-    true
+    cfg!(any(target_os = "windows", target_os = "macos"))
 }
 
 #[must_use]

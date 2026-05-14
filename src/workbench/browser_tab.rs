@@ -13,6 +13,7 @@ use wasm_bindgen::JsCast;
 use crate::workbench::{BrowserEmbedSurface, RightPanelTab, WorkbenchService};
 
 pub const EMBEDDED_BROWSER_HOST_ID: &str = "blx-embedded-browser-host";
+const RIGHT_PANEL_BODY_ID: &str = "blx-right-panel-body";
 const IFRAME_EMBED_ID: &str = "workbench-browser-iframe";
 
 fn tab_strip_label(url: &str, loc: Locale) -> String {
@@ -39,18 +40,25 @@ async fn navigate_current_url(wb: WorkbenchService) {
 fn resolve_host_bounds() -> Option<BrowserBoundsPayload> {
     let win = web_sys::window()?;
     let doc = win.document()?;
+
+    // Use the panel body as authoritative clip rect — guards against any CSS
+    // overflow that would cause the host element to report bounds outside the
+    // right panel (e.g. full-viewport width on Linux/Wayland).
+    let panel = doc.get_element_by_id(RIGHT_PANEL_BODY_ID)?;
+    let pr = panel.get_bounding_client_rect();
+
     let el = doc.get_element_by_id(EMBEDDED_BROWSER_HOST_ID)?;
-    let rect = el.get_bounding_client_rect();
-    let w = rect.width();
-    let h = rect.height();
+    let r = el.get_bounding_client_rect();
+
+    let x = r.left().max(pr.left());
+    let y = r.top().max(pr.top());
+    let right = r.right().min(pr.right());
+    let bottom = r.bottom().min(pr.bottom());
+    let w = (right - x).max(0.);
+    let h = (bottom - y).max(0.);
+
     let visible = w >= 8.0 && h >= 8.0;
-    Some(BrowserBoundsPayload {
-        x: rect.left(),
-        y: rect.top(),
-        w,
-        h,
-        visible,
-    })
+    Some(BrowserBoundsPayload { x, y, w, h, visible })
 }
 
 fn embed_is_native(surface: BrowserEmbedSurface) -> bool {

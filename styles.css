@@ -941,6 +941,8 @@ body {
 
 .workbench-right {
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   background: var(--bg-raised);
   box-sizing: border-box;
   display: flex;
@@ -974,6 +976,7 @@ body {
 .workbench-right-tab-panel {
   flex: 1;
   min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -1179,6 +1182,7 @@ body {
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
   gap: 0;
   padding: 0;
   box-sizing: border-box;
