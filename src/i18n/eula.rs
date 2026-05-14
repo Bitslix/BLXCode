@@ -14,6 +14,46 @@ pub fn markdown_source(locale: Locale) -> &'static str {
             env!("CARGO_MANIFEST_DIR"),
             "/content/eula/en-US.md"
         )),
+        Locale::EsEs => include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/content/eula/es-ES.md"
+        )),
+        Locale::FrFr => include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/content/eula/fr-FR.md"
+        )),
+        Locale::ItIt => include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/content/eula/it-IT.md"
+        )),
+        Locale::JaJp => include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/content/eula/ja-JP.md"
+        )),
+        Locale::KoKr => include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/content/eula/ko-KR.md"
+        )),
+        Locale::PlPl => include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/content/eula/pl-PL.md"
+        )),
+        Locale::PtBr => include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/content/eula/pt-BR.md"
+        )),
+        Locale::RuRu => include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/content/eula/ru-RU.md"
+        )),
+        Locale::ZhCn => include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/content/eula/zh-CN.md"
+        )),
+        Locale::ZhTw => include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/content/eula/zh-TW.md"
+        )),
     }
 }
 

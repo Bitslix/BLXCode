@@ -7,7 +7,7 @@ mod resolve;
 
 pub use eula::localized_eula_html;
 pub use keys::I18nKey;
-pub use locale::Locale;
+pub use locale::{Locale, APP_LOCALES};
 pub use resolve::lookup;
 
 use crate::config::I18N_LOCALE_STORAGE_KEY;

@@ -6,7 +6,7 @@ use super::state::{
     BrowserEmbedSurface, HarnessSettingsCategory, HarnessUiService, RightPanelTab, WorkbenchService,
 };
 use crate::config::{EULA_STORAGE_KEY, HARNESS_BROWSER_DEFAULT_URL};
-use crate::i18n::{lookup, I18nKey, Locale};
+use crate::i18n::{lookup, I18nKey, Locale, APP_LOCALES};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_api_key_delete, agent_api_key_set, agent_hooks_status, agent_provider_models,
@@ -603,8 +603,20 @@ fn AppSettingsPane() -> impl IntoView {
                         }
                     }
                 >
-                    <option value="de-DE" prop:selected=move || i18n.locale().get() == Locale::DeDe>"Deutsch"</option>
-                    <option value="en-US" prop:selected=move || i18n.locale().get() == Locale::EnUs>"English"</option>
+                    <For
+                        each={move || APP_LOCALES.iter().copied().collect::<Vec<_>>()}
+                        key=|&(loc, _)| loc
+                        children={move |(loc, label)| {
+                            view! {
+                                <option
+                                    value=loc.as_str()
+                                    prop:selected=move || i18n.locale().get() == loc
+                                >
+                                    {label}
+                                </option>
+                            }
+                        }}
+                    />
                 </select>
             </label>
             <section class="harness-subpane">
