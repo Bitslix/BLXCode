@@ -20,8 +20,9 @@ use commands::*;
 use pty_host::PtyManager;
 use tauri_plugin_opener::OpenerExt;
 use workbench_state::{
-    agent_session_exists, workbench_drop_sessions, workbench_load_sessions, workbench_load_state,
-    workbench_save_state, workbench_sessions_path,
+    agent_session_exists, workbench_drop_sessions, workbench_extract_sessions_prefix,
+    workbench_load_sessions, workbench_load_state, workbench_merge_sessions_workspace,
+    workbench_save_state, workbench_sessions_path, WorkbenchSessionsFileLock,
 };
 
 #[tauri::command]
@@ -48,6 +49,7 @@ pub fn run() {
         .manage(AgentEngineState::new())
         .manage(BrowserHost::default())
         .manage(PtyManager::default())
+        .manage(WorkbenchSessionsFileLock::default())
         .invoke_handler(tauri::generate_handler![
             open_external_url,
             greet,
@@ -88,6 +90,8 @@ pub fn run() {
             workbench_sessions_path,
             workbench_load_sessions,
             workbench_drop_sessions,
+            workbench_extract_sessions_prefix,
+            workbench_merge_sessions_workspace,
             agent_session_exists,
             memory::memory_root,
             memory::memory_list,

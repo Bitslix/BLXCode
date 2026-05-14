@@ -1,9 +1,13 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
+use crate::workbench::browser_tab::sync_embedded_browser_layer;
 use crate::workbench::create_workspace_wizard::WorkspaceConfigurator;
-use crate::workbench::state::{TerminalSplitAxis, WorkspaceEntry};
+use crate::workbench::state::{
+    BrowserEmbedSurface, HarnessUiService, RightPanelTab, TerminalSplitAxis, WorkspaceEntry,
+};
 use crate::workbench::terminal_cell::WorkspaceTerminalCell;
 use crate::workbench::WorkbenchService;
+use gloo_timers::future::TimeoutFuture;
 use leptos::callback::Callback;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
@@ -296,23 +300,151 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
 
 #[component]
 fn WorkspaceEmptyState() -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+    let ui = expect_context::<HarnessUiService>();
+    let embed = expect_context::<BrowserEmbedSurface>();
     let i18n = expect_context::<I18nService>();
+
+    let reveal_agent = Callback::new(move |()| {
+        if wb.right_collapsed().get_untracked() {
+            wb.toggle_right_panel();
+        }
+        wb.set_right_tab(RightPanelTab::Agent);
+        let wb_c = wb;
+        let embed_c = embed;
+        leptos::task::spawn_local(async move {
+            TimeoutFuture::new(48).await;
+            let _ = sync_embedded_browser_layer(wb_c, embed_c).await;
+        });
+    });
+
     view! {
         <div class="workbench-empty-editor">
             <p class="workbench-empty-editor__lead">{move || i18n.tr(I18nKey::WsEmptyLead)()}</p>
             <p class="workbench-empty-editor__note">{move || i18n.tr(I18nKey::WsEmptyNote)()}</p>
             <ul class="workbench-shortcut-list">
-                <ShortcutRow icon=icondata::LuFolderSearch label=I18nKey::WsKwQuickOpen keys=vec!["Ctrl", "O"] />
-                <ShortcutRow icon=icondata::LuPanelRight label=I18nKey::WsKwSidePanel keys=vec!["Ctrl", "P"] />
+                <ShortcutActionRow
+                    icon=icondata::LuFolderSearch
+                    label=I18nKey::WsKwQuickOpen
+                    keys=vec!["Ctrl", "O"]
+                    on_activate=Callback::new({
+                        let ui = ui;
+                        move |()| ui.open_quick_open()
+                    })
+                />
+                <ShortcutActionRow
+                    icon=icondata::LuPanelRight
+                    label=I18nKey::WsKwSidePanel
+                    keys=vec!["Ctrl", "P"]
+                    on_activate=Callback::new({
+                        let wb = wb;
+                        move |()| wb.toggle_sidebar()
+                    })
+                />
                 <li class="workbench-shortcut-row workbench-shortcut-row--spacer" aria-hidden="true"></li>
-                <ShortcutRow icon=icondata::LuSparkles label=I18nKey::WsKwAgent keys=vec!["Ctrl", "Shift", "A"] />
-                <ShortcutRow icon=icondata::LuGlobe label=I18nKey::WsKwBrowser keys=vec!["Ctrl", "Shift", "B"] />
-                <ShortcutRow icon=icondata::LuLayers label=I18nKey::WsKwMemory keys=vec!["Ctrl", "Shift", "M"] />
+                <ShortcutActionRow
+                    icon=icondata::LuSparkles
+                    label=I18nKey::WsKwAgent
+                    keys=vec!["Ctrl", "Shift", "A"]
+                    on_activate=reveal_agent
+                />
+                <ShortcutActionRow
+                    icon=icondata::LuGlobe
+                    label=I18nKey::WsKwBrowser
+                    keys=vec!["Ctrl", "Shift", "B"]
+                    on_activate=Callback::new({
+                        let wb = wb;
+                        let embed = embed;
+                        move |()| {
+                            if wb.right_collapsed().get_untracked() {
+                                wb.toggle_right_panel();
+                            }
+                            wb.set_right_tab(RightPanelTab::Browser);
+                            let wb_c = wb;
+                            let embed_c = embed;
+                            leptos::task::spawn_local(async move {
+                                TimeoutFuture::new(48).await;
+                                let _ = sync_embedded_browser_layer(wb_c, embed_c).await;
+                            });
+                        }
+                    })
+                />
+                <ShortcutActionRow
+                    icon=icondata::LuLayers
+                    label=I18nKey::WsKwMemory
+                    keys=vec!["Ctrl", "Shift", "M"]
+                    on_activate=Callback::new({
+                        let wb = wb;
+                        let embed = embed;
+                        move |()| {
+                            if wb.right_collapsed().get_untracked() {
+                                wb.toggle_right_panel();
+                            }
+                            wb.set_right_tab(RightPanelTab::Memory);
+                            let wb_c = wb;
+                            let embed_c = embed;
+                            leptos::task::spawn_local(async move {
+                                TimeoutFuture::new(48).await;
+                                let _ = sync_embedded_browser_layer(wb_c, embed_c).await;
+                            });
+                        }
+                    })
+                />
                 <li class="workbench-shortcut-row workbench-shortcut-row--spacer" aria-hidden="true"></li>
-                <ShortcutRow icon=icondata::LuTerminal label=I18nKey::WsKwTerminal keys=vec!["Ctrl", "`"] />
-                <ShortcutRow icon=icondata::LuCommand label=I18nKey::WsKwCmdPalette keys=vec!["Ctrl", "Shift", "P"] />
+                <ShortcutActionRow
+                    icon=icondata::LuTerminal
+                    label=I18nKey::WsKwTerminal
+                    keys=vec!["Ctrl", "`"]
+                    on_activate=reveal_agent
+                />
+                <ShortcutActionRow
+                    icon=icondata::LuCommand
+                    label=I18nKey::WsKwCmdPalette
+                    keys=vec!["Ctrl", "Shift", "P"]
+                    on_activate=Callback::new({
+                        let ui = ui;
+                        move |()| ui.toggle_command_palette()
+                    })
+                />
             </ul>
         </div>
+    }
+}
+
+#[component]
+fn ShortcutActionRow(
+    icon: icondata::Icon,
+    label: I18nKey,
+    keys: Vec<&'static str>,
+    on_activate: Callback<(), ()>,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    view! {
+        <li class="workbench-shortcut-li">
+            <button
+                type="button"
+                class="workbench-shortcut-row workbench-shortcut-row--action"
+                on:click=move |_| on_activate.run(())
+            >
+                <span class="workbench-shortcut-row__lead">
+                    <span class="workbench-shortcut-row__icon-wrap" aria-hidden="true">
+                        <LxIcon icon=icon width="0.9rem" height="0.9rem" />
+                    </span>
+                    <span class="workbench-shortcut-row__label">{move || i18n.tr(label)()}</span>
+                </span>
+                <span class="workbench-shortcut-row__keys">
+                    {keys.into_iter()
+                        .enumerate()
+                        .map(|(i, key)| view! {
+                            <Show when=move || { i > 0 }>
+                                <span class="workbench-kbd-gap">"+"</span>
+                            </Show>
+                            <kbd class="workbench-kbd">{key}</kbd>
+                        })
+                        .collect_view()}
+                </span>
+            </button>
+        </li>
     }
 }
 
@@ -490,32 +622,6 @@ fn terminal_slots(workspace: &WorkspaceEntry) -> Vec<TerminalRenderSlot> {
                 .unwrap_or_default(),
         })
         .collect()
-}
-
-#[component]
-fn ShortcutRow(icon: icondata::Icon, label: I18nKey, keys: Vec<&'static str>) -> impl IntoView {
-    let i18n = expect_context::<I18nService>();
-    view! {
-        <li class="workbench-shortcut-row">
-            <span class="workbench-shortcut-row__lead">
-                <span class="workbench-shortcut-row__icon-wrap" aria-hidden="true">
-                    <LxIcon icon=icon width="0.9rem" height="0.9rem" />
-                </span>
-                <span class="workbench-shortcut-row__label">{move || i18n.tr(label)()}</span>
-            </span>
-            <span class="workbench-shortcut-row__keys">
-                {keys.into_iter()
-                    .enumerate()
-                    .map(|(i, key)| view! {
-                        <Show when=move || { i > 0 }>
-                            <span class="workbench-kbd-gap">"+"</span>
-                        </Show>
-                        <kbd class="workbench-kbd">{key}</kbd>
-                    })
-                    .collect_view()}
-            </span>
-        </li>
-    }
 }
 
 fn fr_template(values: &[f64]) -> String {

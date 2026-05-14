@@ -3,7 +3,8 @@
 //! Shortcut ist im Haupt-Webview gebunden ([`HarnessHost`]).
 use super::browser_tab::sync_embedded_browser_layer;
 use super::state::{
-    BrowserEmbedSurface, HarnessSettingsCategory, HarnessUiService, RightPanelTab, WorkbenchService,
+    BrowserEmbedSurface, HarnessSettingsCategory, HarnessUiService, RecentWorkspaceItem,
+    RightPanelTab, WorkbenchService,
 };
 use crate::config::{EULA_STORAGE_KEY, HARNESS_BROWSER_DEFAULT_URL};
 use crate::i18n::{lookup, I18nKey, Locale, APP_LOCALES};
@@ -23,6 +24,7 @@ use wasm_bindgen::JsCast;
 
 #[derive(Clone, Copy)]
 enum PaletteAction {
+    OpenQuickOpen,
     OpenSettings,
     ToggleRightPanel,
     AgentTab,
@@ -39,6 +41,12 @@ struct PaletteRow {
 }
 
 const PALETTE_ROWS: &[PaletteRow] = &[
+    PaletteRow {
+        title: I18nKey::CmdQkTitle,
+        subtitle: I18nKey::CmdQkSub,
+        action: PaletteAction::OpenQuickOpen,
+        icon: icondata::LuFolderSearch,
+    },
     PaletteRow {
         title: I18nKey::CmdSetTitle,
         subtitle: I18nKey::CmdSetSub,
@@ -93,7 +101,9 @@ pub fn HarnessHost() -> impl IntoView {
                 return;
             };
 
-            let blocked = ui.palette_open().get_untracked() || ui.settings_open().get_untracked();
+            let blocked = ui.palette_open().get_untracked()
+                || ui.settings_open().get_untracked()
+                || ui.quick_open_open().get_untracked();
             let ctrl_or_meta = ke.ctrl_key() || ke.meta_key();
             let key = ke.key();
 
@@ -125,6 +135,15 @@ pub fn HarnessHost() -> impl IntoView {
 
             if ctrl_or_meta && !ke.shift_key() && !blocked {
                 match key.as_str() {
+                    "`" | "Backquote" => {
+                        ke.prevent_default();
+                        if wb.right_collapsed().get_untracked() {
+                            wb.toggle_right_panel();
+                        }
+                        wb.set_right_tab(RightPanelTab::Agent);
+                        defer_browser_bounds(wb, embed);
+                        return;
+                    }
                     "p" | "P" => {
                         ke.prevent_default();
                         wb.toggle_right_panel();
@@ -133,7 +152,7 @@ pub fn HarnessHost() -> impl IntoView {
                     }
                     "o" | "O" => {
                         ke.prevent_default();
-                        ui.open_command_palette();
+                        ui.toggle_quick_open();
                         return;
                     }
                     _ => {}
@@ -144,6 +163,7 @@ pub fn HarnessHost() -> impl IntoView {
                 ke.prevent_default();
                 ui.close_command_palette();
                 ui.close_settings();
+                ui.close_quick_open();
             }
         });
 
@@ -151,6 +171,9 @@ pub fn HarnessHost() -> impl IntoView {
     });
 
     view! {
+        <Show when=move || ui.quick_open_open().get()>
+            <QuickOpenChrome ui=ui wb=wb embed=embed />
+        </Show>
         <Show when=move || ui.palette_open().get()>
             <PaletteChrome ui=ui wb=wb embed=embed />
         </Show>
@@ -231,6 +254,244 @@ fn PaletteChrome(
             ></button>
 
         </div>
+    }
+}
+
+#[component]
+fn QuickOpenChrome(
+    ui: HarnessUiService,
+    wb: WorkbenchService,
+    embed: BrowserEmbedSurface,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let path_buf = RwSignal::new(String::new());
+
+    let ranked = Memo::new(move |_| {
+        let q = ui.quick_open_query().get().trim().to_ascii_lowercase();
+        wb.recent_workspaces().with(|list| {
+            list.iter()
+                .enumerate()
+                .filter(|(_, it)| {
+                    q.is_empty()
+                        || it.workspace.title.to_ascii_lowercase().contains(&q)
+                        || it.workspace.cwd.to_ascii_lowercase().contains(&q)
+                })
+                .map(|(i, it)| (i, it.clone()))
+                .collect::<Vec<_>>()
+        })
+    });
+
+    Effect::new(move |_| {
+        let _ = i18n.locale().get();
+        ui.quick_open_selection().set(0);
+    });
+
+    Effect::new(move |_| {
+        leptos::task::spawn_local(async {
+            TimeoutFuture::new(32).await;
+            let Some(w) = web_sys::window() else {
+                return;
+            };
+            let Some(doc) = w.document() else {
+                return;
+            };
+            let Some(el) = doc.get_element_by_id("harness-quickopen-filter") else {
+                return;
+            };
+            let Ok(inp) = el.dyn_into::<web_sys::HtmlInputElement>() else {
+                return;
+            };
+            let _ = inp.focus();
+        });
+    });
+
+    view! {
+        <div class="harness-overlay harness-overlay--modal" role="presentation">
+            <div
+                class="harness-sheet harness-sheet--palette harness-sheet--quickopen"
+                role="dialog"
+                aria-modal="true"
+            >
+                <h2 class="harness-quickopen-title">{move || i18n.tr(I18nKey::QkTitle)()}</h2>
+                <div class="harness-palette-filter-wrap">
+                    <span class="harness-palette-filter__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuSearch width="0.92rem" height="0.92rem" />
+                    </span>
+                    <input
+                        class="workbench-plain-input harness-filter harness-filter--with-icon"
+                        id="harness-quickopen-filter"
+                        placeholder=move || i18n.tr(I18nKey::QkFilterPh)()
+                        type="text"
+                        autocomplete="off"
+                        spellcheck="false"
+                        prop:value=move || ui.quick_open_query().get()
+                        on:input=move |ev| quick_open_filter_input(ev, ui)
+                        on:keydown=move |ev: web_sys::KeyboardEvent| {
+                            quick_open_key_nav(ev, ui, wb, embed, ranked);
+                        }
+                    />
+                </div>
+
+                <p class="harness-quickopen-section">{move || i18n.tr(I18nKey::QkRecentHeading)()}</p>
+                <ul class="harness-cmd-list" role="listbox">
+                    {move || {
+                        let rows = ranked.get();
+                        if rows.is_empty() {
+                            return view! {
+                                <li class="harness-muted">{move || i18n.tr(I18nKey::QkEmptyRecent)()}</li>
+                            }
+                            .into_any();
+                        }
+                        rows.into_iter()
+                            .enumerate()
+                            .map(|(rank, (orig_idx, item))| {
+                                let title = item.workspace.title.clone();
+                                let cwd = item.workspace.cwd.clone();
+                                let sel = ui.quick_open_selection();
+                                view! {
+                                    <li class="harness-cmd-li">
+                                        <button
+                                            type="button"
+                                            class="harness-cmd-btn"
+                                            class:harness-cmd-btn--active=move || sel.get() == rank
+                                            on:click=move |_| {
+                                                wb.reopen_recent_workspace(orig_idx);
+                                                ui.close_quick_open();
+                                                defer_browser_bounds(wb, embed);
+                                            }
+                                        >
+                                            <span class="harness-cmd-btn__icon" aria-hidden="true">
+                                                <LxIcon icon=icondata::LuFolder width="1rem" height="1rem" />
+                                            </span>
+                                            <span class="harness-cmd-btn__text">
+                                                <span class="harness-cmd-title">{title}</span>
+                                                <span class="harness-cmd-sub">{cwd}</span>
+                                            </span>
+                                        </button>
+                                    </li>
+                                }
+                            })
+                            .collect_view()
+                            .into_any()
+                    }}
+                </ul>
+
+                <div class="harness-quickopen-path">
+                    <input
+                        class="workbench-plain-input harness-filter"
+                        type="text"
+                        spellcheck="false"
+                        placeholder=move || i18n.tr(I18nKey::QkPathPh)()
+                        prop:value=move || path_buf.get()
+                        on:input=move |ev| {
+                            if let Some(s) = input_str(&ev) {
+                                path_buf.set(s);
+                            }
+                        }
+                        on:keydown=move |ev: web_sys::KeyboardEvent| {
+                            if ev.key() == "Enter" {
+                                ev.prevent_default();
+                                let p = path_buf.get_untracked();
+                                if wb.open_workspace_from_path_quick(p).is_ok() {
+                                    path_buf.set(String::new());
+                                    ui.close_quick_open();
+                                    defer_browser_bounds(wb, embed);
+                                }
+                            }
+                        }
+                    />
+                    <button
+                        type="button"
+                        class="harness-quickopen-path__btn"
+                        on:click=move |_| {
+                            let p = path_buf.get_untracked();
+                            if wb.open_workspace_from_path_quick(p).is_ok() {
+                                path_buf.set(String::new());
+                                ui.close_quick_open();
+                                defer_browser_bounds(wb, embed);
+                            }
+                        }
+                    >
+                        {move || i18n.tr(I18nKey::QkPathOpen)()}
+                    </button>
+                </div>
+
+                <button
+                    type="button"
+                    class="harness-quickopen-wizard"
+                    on:click=move |_| {
+                        let _ = wb.start_inline_configure();
+                        ui.close_quick_open();
+                    }
+                >
+                    {move || i18n.tr(I18nKey::QkNewWorkspace)()}
+                </button>
+
+                <p class="harness-sheet-hint">{move || i18n.tr(I18nKey::QkHint)()}</p>
+            </div>
+            <button
+                type="button"
+                class="harness-scrim"
+                tabindex="-1"
+                aria-label=move || i18n.tr(I18nKey::BtnClose)()
+                on:click=move |_| ui.close_quick_open()
+            ></button>
+        </div>
+    }
+}
+
+fn quick_open_filter_input(ev: web_sys::Event, ui: HarnessUiService) {
+    if let Some(s) = input_str(&ev) {
+        ui.quick_open_query().set(s);
+    }
+    ui.quick_open_selection().set(0);
+}
+
+fn quick_open_key_nav(
+    ev: web_sys::KeyboardEvent,
+    ui: HarnessUiService,
+    wb: WorkbenchService,
+    embed: BrowserEmbedSurface,
+    ranked: Memo<Vec<(usize, RecentWorkspaceItem)>>,
+) {
+    let rows = ranked.get_untracked();
+    let n = rows.len();
+    match ev.key().as_str() {
+        "ArrowDown" => {
+            ev.prevent_default();
+            if n == 0 {
+                return;
+            }
+            let next = (ui.quick_open_selection().get_untracked().saturating_add(1)).min(n - 1);
+            ui.quick_open_selection().set(next);
+        }
+        "ArrowUp" => {
+            ev.prevent_default();
+            if n == 0 {
+                return;
+            }
+            let sel = ui.quick_open_selection().get_untracked().saturating_sub(1);
+            ui.quick_open_selection().set(sel);
+        }
+        "Enter" => {
+            ev.prevent_default();
+            if n > 0 {
+                let sel = ui.quick_open_selection().get_untracked().min(n - 1);
+                if let Some((orig_idx, _)) = rows.get(sel) {
+                    wb.reopen_recent_workspace(*orig_idx);
+                    ui.close_quick_open();
+                    defer_browser_bounds(wb, embed);
+                }
+                return;
+            }
+            let p = ui.quick_open_query().get_untracked().trim().to_string();
+            if !p.is_empty() && wb.open_workspace_from_path_quick(p).is_ok() {
+                ui.quick_open_query().set(String::new());
+                ui.close_quick_open();
+                defer_browser_bounds(wb, embed);
+            }
+        }
+        _ => {}
     }
 }
 
@@ -385,6 +646,10 @@ fn palette_run(
     action: PaletteAction,
 ) {
     match action {
+        PaletteAction::OpenQuickOpen => {
+            ui.close_command_palette();
+            ui.open_quick_open();
+        }
         PaletteAction::OpenSettings => {
             ui.open_settings(HarnessSettingsCategory::App);
         }

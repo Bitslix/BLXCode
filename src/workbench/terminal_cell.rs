@@ -589,19 +589,33 @@ async fn lookup_resume_session(terminal_key: &str, agent_slug: &str, cwd: &str) 
     }
 }
 
+/// Single-quote for POSIX shells: `'` → `'"'"''`.
+fn shell_single_quoted_arg(raw: &str) -> Option<String> {
+    let t = raw.trim();
+    if t.is_empty() || t.len() > 8192 || t.chars().any(|c| c.is_control()) {
+        return None;
+    }
+    Some(format!("'{}'", t.replace('\'', "'\"'\"'")))
+}
+
 /// Format the shell command that auto-launches the agent CLI. With a
 /// resume id we use the CLI's resume syntax (Claude: `--resume <id>`,
 /// Codex: `resume <id>`); without one we just run the binary.
 fn build_launch_command(slug: &str, resume_id: Option<&str>) -> String {
-    match (slug, resume_id) {
-        ("claude", Some(id)) => format!("claude --resume {id}\r"),
-        ("codex", Some(id)) => format!("codex resume {id}\r"),
-        ("gemini", Some(id)) => format!("gemini --resume {id}\r"),
-        ("opencode", Some(id)) => format!("opencode --session {id}\r"),
-        // Cursor ships as the `cursor-agent` binary; `--resume <chatId>`
-        // re-attaches the prior conversation.
-        ("cursor", Some(id)) => format!("cursor-agent --resume {id}\r"),
-        ("cursor", None) => "cursor-agent\r".to_string(),
-        (other, _) => format!("{other}\r"),
+    if let Some(raw) = resume_id {
+        if let Some(a) = shell_single_quoted_arg(raw) {
+            return match slug {
+                "claude" => format!("claude --resume {a}\r"),
+                "codex" => format!("codex resume {a}\r"),
+                "gemini" => format!("gemini --resume {a}\r"),
+                "opencode" => format!("opencode --session {a}\r"),
+                "cursor" => format!("cursor-agent --resume {a}\r"),
+                other => format!("{other}\r"),
+            };
+        }
+    }
+    match slug {
+        "cursor" => "cursor-agent\r".to_string(),
+        other => format!("{other}\r"),
     }
 }

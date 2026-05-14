@@ -50,20 +50,25 @@ pub fn WorkbenchShell() -> impl IntoView {
 
     // Hydrate from persisted snapshot before auto-save kicks in.
     let hydrated = RwSignal::new(false);
+    let persistence_enabled = RwSignal::new(!is_tauri_shell());
     Effect::new(move |_| {
         if !is_tauri_shell() {
             hydrated.set(true);
+            persistence_enabled.set(true);
             return;
         }
         spawn_local(async move {
-            if let Ok(Some(json)) = workbench_load_state().await {
-                if let Ok(snap) = serde_json::from_str::<WorkbenchSnapshot>(&json) {
-                    wb.hydrate(snap);
-                }
+            let mut allow_save = true;
+            match workbench_load_state().await {
+                Err(_) => allow_save = false,
+                Ok(None) => {}
+                Ok(Some(json)) => match serde_json::from_str::<WorkbenchSnapshot>(&json) {
+                    Err(_) => allow_save = false,
+                    Ok(snap) => {
+                        allow_save = wb.hydrate(snap);
+                    }
+                },
             }
-            // Guarantee a non-empty workspace sandbox root after hydrate.
-            // Falls back to {app_data}/sandbox so the agent always has a
-            // writable scope even before the user creates a workspace.
             if wb
                 .harness_workspace_root()
                 .get_untracked()
@@ -74,6 +79,7 @@ pub fn WorkbenchShell() -> impl IntoView {
                     wb.persist_harness_workspace_root(path);
                 }
             }
+            persistence_enabled.set(allow_save);
             hydrated.set(true);
         });
     });
@@ -85,6 +91,7 @@ pub fn WorkbenchShell() -> impl IntoView {
         // Subscribe to every persisted signal.
         let _ = wb.workspaces().get();
         let _ = wb.active_id().get();
+        let _ = wb.recent_workspaces().get();
         let _ = wb.sidebar_collapsed().get();
         let _ = wb.right_collapsed().get();
         let _ = wb.right_width_px().get();
@@ -92,7 +99,7 @@ pub fn WorkbenchShell() -> impl IntoView {
         let _ = wb.embedded_browser_tabs().get();
         let _ = wb.embedded_browser_active_id().get();
 
-        if !hydrated.get() || !is_tauri_shell() {
+        if !hydrated.get() || !is_tauri_shell() || !persistence_enabled.get() {
             return;
         }
         let token = save_token.fetch_add(1, Ordering::Relaxed) + 1;
@@ -113,7 +120,7 @@ pub fn WorkbenchShell() -> impl IntoView {
     // may not fire if the OS terminates the process first.
     let beforeunload_handle =
         leptos::leptos_dom::helpers::window_event_listener_untyped("beforeunload", move |_| {
-            if !hydrated.get_untracked() || !is_tauri_shell() {
+            if !hydrated.get_untracked() || !is_tauri_shell() || !persistence_enabled.get_untracked() {
                 return;
             }
             let snap = wb.snapshot();

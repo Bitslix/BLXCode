@@ -1,7 +1,10 @@
 use crate::config::{
     HARNESS_BROWSER_DEFAULT_URL, HARNESS_BROWSER_URL_KEY, HARNESS_WORKSPACE_ROOT_KEY,
 };
-use crate::tauri_bridge::{is_tauri_shell, workbench_drop_sessions};
+use crate::tauri_bridge::{
+    is_tauri_shell, workbench_drop_sessions, workbench_extract_sessions_prefix,
+    workbench_merge_sessions_workspace,
+};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
@@ -191,6 +194,23 @@ pub fn fleet_counts_to_slot_labels(n: usize, counts: &[u8; 5]) -> Vec<String> {
     out
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecentWorkspaceItem {
+    pub workspace: WorkspaceEntry,
+    /// JSON object string: map of terminal_key → SessionStart payload.
+    #[serde(default)]
+    pub sessions_terminals_json: String,
+}
+
+impl Default for RecentWorkspaceItem {
+    fn default() -> Self {
+        Self {
+            workspace: WorkspaceEntry::empty_surface(0),
+            sessions_terminals_json: "{}".into(),
+        }
+    }
+}
+
 /// Rechtes Panel (Pi-inspirierte Harness-Ansicht): Agent-Stream vs. eingebetteter Browser.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RightPanelTab {
@@ -211,8 +231,11 @@ pub enum HarnessSettingsCategory {
 pub struct HarnessUiService {
     palette_open: RwSignal<bool>,
     settings_open: RwSignal<bool>,
+    quick_open_open: RwSignal<bool>,
     palette_query: RwSignal<String>,
     palette_selection: RwSignal<usize>,
+    quick_open_query: RwSignal<String>,
+    quick_open_selection: RwSignal<usize>,
     settings_category: RwSignal<HarnessSettingsCategory>,
 }
 
@@ -222,8 +245,11 @@ impl HarnessUiService {
         Self {
             palette_open: RwSignal::new(false),
             settings_open: RwSignal::new(false),
+            quick_open_open: RwSignal::new(false),
             palette_query: RwSignal::new(String::new()),
             palette_selection: RwSignal::new(0),
+            quick_open_query: RwSignal::new(String::new()),
+            quick_open_selection: RwSignal::new(0),
             settings_category: RwSignal::new(HarnessSettingsCategory::App),
         }
     }
@@ -236,6 +262,21 @@ impl HarnessUiService {
     #[must_use]
     pub fn settings_open(&self) -> RwSignal<bool> {
         self.settings_open
+    }
+
+    #[must_use]
+    pub fn quick_open_open(&self) -> RwSignal<bool> {
+        self.quick_open_open
+    }
+
+    #[must_use]
+    pub fn quick_open_query(&self) -> RwSignal<String> {
+        self.quick_open_query
+    }
+
+    #[must_use]
+    pub fn quick_open_selection(&self) -> RwSignal<usize> {
+        self.quick_open_selection
     }
 
     #[must_use]
@@ -254,6 +295,7 @@ impl HarnessUiService {
     }
 
     pub fn open_command_palette(&self) {
+        self.close_quick_open();
         self.palette_query.set(String::new());
         self.palette_selection.set(0);
         self.palette_open.set(true);
@@ -272,9 +314,31 @@ impl HarnessUiService {
         }
     }
 
+    pub fn open_quick_open(&self) {
+        self.close_command_palette();
+        self.close_settings();
+        self.quick_open_query.set(String::new());
+        self.quick_open_selection.set(0);
+        self.quick_open_open.set(true);
+    }
+
+    pub fn close_quick_open(&self) {
+        self.quick_open_open.set(false);
+    }
+
+    pub fn toggle_quick_open(&self) {
+        let next = !self.quick_open_open.get_untracked();
+        if next {
+            self.open_quick_open();
+        } else {
+            self.close_quick_open();
+        }
+    }
+
     pub fn open_settings(&self, cat: HarnessSettingsCategory) {
         self.settings_category.set(cat);
         self.close_command_palette();
+        self.close_quick_open();
         self.settings_open.set(true);
     }
 
@@ -335,6 +399,7 @@ pub struct BrowserEmbedSurface(pub RwSignal<Option<String>>);
 pub struct WorkbenchService {
     workspaces: RwSignal<Vec<WorkspaceEntry>>,
     active_id: RwSignal<Option<u64>>,
+    recent_workspaces: RwSignal<Vec<RecentWorkspaceItem>>,
     sidebar_collapsed: RwSignal<bool>,
     right_collapsed: RwSignal<bool>,
     right_width_px: RwSignal<f64>,
@@ -375,6 +440,7 @@ impl WorkbenchService {
         Self {
             workspaces: RwSignal::new(Vec::new()),
             active_id: RwSignal::new(None),
+            recent_workspaces: RwSignal::new(Vec::new()),
             sidebar_collapsed: RwSignal::new(false),
             right_collapsed: RwSignal::new(false),
             right_width_px: RwSignal::new(420.0),
@@ -437,6 +503,11 @@ impl WorkbenchService {
     #[must_use]
     pub fn active_id(&self) -> RwSignal<Option<u64>> {
         self.active_id
+    }
+
+    #[must_use]
+    pub fn recent_workspaces(&self) -> RwSignal<Vec<RecentWorkspaceItem>> {
+        self.recent_workspaces
     }
 
     pub fn select_workspace(&self, id: u64) {
@@ -524,7 +595,44 @@ impl WorkbenchService {
         Ok(id)
     }
 
-    pub fn close_workspace(&self, id: u64) {
+    fn normalize_cwd_key(path: &str) -> String {
+        path.trim().trim_end_matches(['/', '\\']).to_string()
+    }
+
+    /// Opens a workspace from an absolute directory path (Quick Open).
+    pub fn open_workspace_from_path_quick(&self, cwd: String) -> Result<u64, String> {
+        let cwd = Self::normalize_cwd_key(&cwd);
+        if cwd.is_empty() {
+            return Err("path empty".into());
+        }
+        let title = derive_workspace_name(&cwd).unwrap_or_else(|| "Workspace".into());
+        self.create_workspace(Some(title), Some(cwd), 1, vec![])
+    }
+
+    fn push_recent_workspace_internal(
+        &self,
+        workspace: WorkspaceEntry,
+        sessions_terminals_json: String,
+    ) {
+        let key = Self::normalize_cwd_key(&workspace.cwd);
+        self.recent_workspaces.update(|list| {
+            list.retain(|item| Self::normalize_cwd_key(&item.workspace.cwd) != key);
+            list.insert(
+                0,
+                RecentWorkspaceItem {
+                    workspace,
+                    sessions_terminals_json,
+                },
+            );
+            const MAX: usize = 10;
+            if list.len() > MAX {
+                list.truncate(MAX);
+            }
+        });
+    }
+
+    fn finalize_workspace_close(&self, id: u64, entry: WorkspaceEntry, sessions_json: String) {
+        self.push_recent_workspace_internal(entry, sessions_json);
         self.workspaces.update(|workspaces| {
             let Some(index) = workspaces.iter().position(|w| w.id == id) else {
                 return;
@@ -538,7 +646,66 @@ impl WorkbenchService {
                 self.active_id.set(next);
             }
         });
-        drop_sessions_for_prefix(format!("{id}:"));
+    }
+
+    pub fn close_workspace(&self, id: u64) {
+        let entry = self
+            .workspaces
+            .with_untracked(|w| w.iter().find(|x| x.id == id).cloned());
+        let Some(entry) = entry else {
+            return;
+        };
+        if !is_tauri_shell() {
+            self.finalize_workspace_close(id, entry, "{}".into());
+            return;
+        }
+        let me = *self;
+        spawn_local(async move {
+            let blob = match workbench_extract_sessions_prefix(format!("{id}:")).await {
+                Ok(s) => s,
+                Err(e) => {
+                    leptos::logging::warn!("workbench_extract_sessions_prefix: {e}");
+                    "{}".into()
+                }
+            };
+            me.finalize_workspace_close(id, entry, blob);
+        });
+    }
+
+    /// Restores a workspace from the recent list and rewrites session keys.
+    pub fn reopen_recent_workspace(&self, index: usize) {
+        let item = self
+            .recent_workspaces
+            .with_untracked(|r| r.get(index).cloned());
+        let Some(mut item) = item else {
+            return;
+        };
+        let old_id = item.workspace.id;
+        self.recent_workspaces.update(|r| {
+            if index < r.len() {
+                r.remove(index);
+            }
+        });
+        let new_id = self.workspace_next_id.get_untracked();
+        self.workspace_next_id.set(new_id + 1);
+        item.workspace.id = new_id;
+        let sessions_json = item.sessions_terminals_json.clone();
+        self.workspaces.update(|v| v.push(item.workspace));
+        self.active_id.set(Some(new_id));
+        if !is_tauri_shell() {
+            return;
+        }
+        let trimmed = sessions_json.trim();
+        if trimmed.is_empty() || trimmed == "{}" {
+            return;
+        }
+        spawn_local(async move {
+            if let Err(e) =
+                workbench_merge_sessions_workspace(old_id, new_id, sessions_json).await
+            {
+                leptos::logging::warn!("workbench_merge_sessions_workspace: {e}");
+            }
+        });
     }
 
     /// Appends a new terminal slot to a workspace, optionally pre-labelled
@@ -726,8 +893,9 @@ impl WorkbenchService {
 
         let active = self.embedded_browser_active_id.get_untracked();
         if active == tab_id {
-            let pick = tabs.first().expect("tabs non-empty").id;
-            self.select_embedded_browser_tab(pick);
+            if let Some(pick) = tabs.first().map(|t| t.id) {
+                self.select_embedded_browser_tab(pick);
+            }
         }
     }
 
@@ -1070,6 +1238,7 @@ impl WorkbenchService {
             right_collapsed: self.right_collapsed.get_untracked(),
             right_width_px: self.right_width_px.get_untracked(),
             right_tab: self.right_tab.get_untracked(),
+            recent_workspaces: self.recent_workspaces.get_untracked(),
             // Browser tabs are session-scoped — never persisted.
             embedded_browser_tabs: Vec::new(),
             embedded_browser_active_id: 0,
@@ -1079,9 +1248,12 @@ impl WorkbenchService {
 
     /// Apply a previously persisted snapshot. Mismatched / future versions
     /// are rejected silently so a stale file never breaks startup.
-    pub fn hydrate(&self, snap: WorkbenchSnapshot) {
+    ///
+    /// Returns `true` when the snapshot version matched and state was
+    /// applied. Callers must not enable disk persistence when this is false.
+    pub fn hydrate(&self, snap: WorkbenchSnapshot) -> bool {
         if snap.version != WORKBENCH_SNAPSHOT_VERSION {
-            return;
+            return false;
         }
         // Workspace list + selection. Re-seed inline drafts for any
         // workspace persisted in configuring state — drafts are transient
@@ -1100,17 +1272,23 @@ impl WorkbenchService {
                 }
             }
         });
-        // If the persisted state has no workspaces left, restart numbering
-        // from 1 — otherwise the next "+" would say "Workspace 7" after a
-        // clean app with nothing in it.
         let next_id = if snap.workspaces.is_empty() {
             1
         } else {
-            snap.workspace_next_id.max(1)
+            let max_id = snap
+                .workspaces
+                .iter()
+                .map(|w| w.id)
+                .max()
+                .unwrap_or(0);
+            snap.workspace_next_id
+                .max(1)
+                .max(max_id.saturating_add(1))
         };
         self.workspaces.set(snap.workspaces);
         self.active_id.set(snap.active_id);
         self.workspace_next_id.set(next_id);
+        self.recent_workspaces.set(snap.recent_workspaces);
 
         // Panel chrome
         self.sidebar_collapsed.set(snap.sidebar_collapsed);
@@ -1125,6 +1303,7 @@ impl WorkbenchService {
         let _ = snap.embedded_browser_tabs;
         let _ = snap.embedded_browser_active_id;
         let _ = snap.embedded_browser_next_id;
+        true
     }
 }
 
@@ -1140,6 +1319,8 @@ pub struct WorkbenchSnapshot {
     pub right_collapsed: bool,
     pub right_width_px: f64,
     pub right_tab: RightPanelTab,
+    #[serde(default)]
+    pub recent_workspaces: Vec<RecentWorkspaceItem>,
     pub embedded_browser_tabs: Vec<EmbeddedBrowserTab>,
     pub embedded_browser_active_id: u64,
     pub embedded_browser_next_id: u64,

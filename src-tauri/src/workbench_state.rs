@@ -6,15 +6,33 @@
 //! (`~/.config/<id>/`, `~/Library/Application Support/<id>/`,
 //! `%APPDATA%\<id>\`). Writes are atomic (temp + rename) so a crash mid-
 //! flush never leaves a half-written file.
+//!
+//! All read-modify-write on [`SESSIONS_FILE`] from this process must hold
+//! [`WorkbenchSessionsFileLock`] (via [`tauri::State`]) so concurrent
+//! `invoke` calls cannot interleave and corrupt JSON.
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::Deserialize;
+use serde_json::{json, Map, Value};
 use tauri::{AppHandle, Manager};
 
 const STATE_FILE: &str = "workbench.json";
 const SESSIONS_FILE: &str = "sessions.json";
+
+/// Serialises every `sessions.json` load / update from this process so
+/// overlapping Tauri commands cannot clobber each other's read-modify-write.
+pub struct WorkbenchSessionsFileLock(pub Mutex<()>);
+
+impl Default for WorkbenchSessionsFileLock {
+    fn default() -> Self {
+        Self(Mutex::new(()))
+    }
+}
 
 fn state_path(app: &AppHandle) -> Result<PathBuf, String> {
     let base = app
@@ -34,6 +52,90 @@ fn sessions_path_impl(app: &AppHandle) -> Result<PathBuf, String> {
 
 fn ensure_dir(path: &Path) -> Result<(), String> {
     fs::create_dir_all(path).map_err(|e| format!("mkdir {}: {e}", path.display()))
+}
+
+/// Session ids stored in `sessions.json` must not contain path separators
+/// or control characters so they cannot escape into filesystem paths or
+/// shell injection when resumed.
+fn is_safe_storage_session_id(id: &str) -> bool {
+    let id = id.trim();
+    if id.is_empty() || id.len() > 512 {
+        return false;
+    }
+    if id.contains('/') || id.contains('\\') || id.contains("..") {
+        return false;
+    }
+    !id.chars().any(|c| c.is_control())
+}
+
+fn validate_terminal_entry(v: &Value) -> bool {
+    let Some(obj) = v.as_object() else {
+        return false;
+    };
+    let agent = obj
+        .get("agent")
+        .and_then(|x| x.as_str())
+        .unwrap_or("")
+        .trim();
+    let cwd = obj.get("cwd").and_then(|x| x.as_str()).unwrap_or("");
+    let session_id = obj.get("session_id").and_then(|x| x.as_str()).unwrap_or("");
+    if !is_safe_storage_session_id(session_id) {
+        return false;
+    }
+    if cwd.len() > 8192 || cwd.chars().any(|c| c.is_control()) {
+        return false;
+    }
+    matches!(
+        agent,
+        "" | "claude" | "codex" | "gemini" | "opencode" | "cursor"
+    )
+}
+
+fn atomic_write_json(path: &Path, value: &Value) -> Result<(), String> {
+    let tmp = path.with_extension("json.tmp");
+    let body =
+        serde_json::to_string_pretty(value).map_err(|e| format!("serialize sessions: {e}"))?;
+    if let Some(parent) = path.parent() {
+        ensure_dir(parent)?;
+    }
+    {
+        let mut f = fs::File::create(&tmp).map_err(|e| format!("create {}: {e}", tmp.display()))?;
+        f.write_all(body.as_bytes())
+            .map_err(|e| format!("write {}: {e}", tmp.display()))?;
+        f.sync_all().ok();
+    }
+    fs::rename(&tmp, path)
+        .map_err(|e| format!("rename {} -> {}: {e}", tmp.display(), path.display()))?;
+    Ok(())
+}
+
+/// If `sessions.json` is corrupt, back it up and replace with an empty shell.
+fn recover_corrupt_sessions(target: &Path) -> Result<(), String> {
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let bak = target.with_file_name(format!("sessions.json.corrupt-{stamp}.bak"));
+    let _ = fs::copy(target, &bak);
+    atomic_write_json(target, &json!({ "terminals": {} }))
+}
+
+fn load_sessions_document(target: &Path) -> Result<Value, String> {
+    let raw = match fs::read_to_string(target) {
+        Ok(s) if s.trim().is_empty() => return Ok(json!({ "terminals": {} })),
+        Ok(s) => s,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(json!({ "terminals": {} }));
+        }
+        Err(e) => return Err(format!("read {}: {e}", target.display())),
+    };
+    match serde_json::from_str::<Value>(&raw) {
+        Ok(v) => Ok(v),
+        Err(_) => {
+            recover_corrupt_sessions(target)?;
+            Ok(json!({ "terminals": {} }))
+        }
+    }
 }
 
 #[tauri::command]
@@ -81,13 +183,30 @@ pub fn workbench_sessions_path(app: AppHandle) -> Result<String, String> {
 /// mapping). The frontend consults this before auto-launching an agent
 /// CLI to decide between `<agent>` and `<agent> --resume <id>`.
 #[tauri::command]
-pub fn workbench_load_sessions(app: AppHandle) -> Result<Option<String>, String> {
+pub fn workbench_load_sessions(
+    app: AppHandle,
+    lock: tauri::State<'_, WorkbenchSessionsFileLock>,
+) -> Result<Option<String>, String> {
+    let _guard = lock
+        .0
+        .lock()
+        .map_err(|e| format!("sessions file lock poisoned: {e}"))?;
     let target = sessions_path_impl(&app)?;
     match fs::read_to_string(&target) {
-        Ok(s) if s.trim().is_empty() => Ok(None),
-        Ok(s) => Ok(Some(s)),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(format!("read {}: {e}", target.display())),
+        Ok(s) if s.trim().is_empty() => Ok(None),
+        Ok(s) => {
+            let doc: Value = match serde_json::from_str(&s) {
+                Ok(v) => v,
+                Err(_) => {
+                    recover_corrupt_sessions(&target)?;
+                    json!({ "terminals": {} })
+                }
+            };
+            let body = serde_json::to_string(&doc).map_err(|e| format!("serialize: {e}"))?;
+            Ok(Some(body))
+        }
     }
 }
 
@@ -95,9 +214,6 @@ pub fn workbench_load_sessions(app: AppHandle) -> Result<Option<String>, String>
 /// when a workspace or terminal slot is closed in the UI, to keep
 /// `sessions.json` from accumulating stale references that point at
 /// agent sessions no slot will ever resume.
-///
-/// Missing file is a no-op; a corrupt file is rewritten as empty rather
-/// than crashing the close flow.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentSessionProbe {
@@ -118,25 +234,19 @@ pub fn agent_session_exists(app: AppHandle, probe: AgentSessionProbe) -> bool {
         return false;
     };
     let id = probe.session_id.trim();
-    if id.is_empty() {
+    if id.is_empty() || !is_safe_storage_session_id(id) {
         return false;
     }
     match probe.agent.as_str() {
         "claude" => claude_session_path(&home, &probe.cwd, id).is_file(),
         "codex" => codex_session_present(&home, id),
         "gemini" => gemini_session_present(&home, id),
-        // OpenCode and Cursor don't expose a stable, documented
-        // transcript layout we can probe from the outside. Be permissive:
-        // let the CLI tell the user if the id is gone, rather than
-        // silently dropping every resume.
         "opencode" | "cursor" => true,
         _ => false,
     }
 }
 
 /// `~/.claude/projects/<cwd-with-slashes-replaced-by-dashes>/<id>.jsonl`.
-/// Mirrors the directory layout Claude Code uses; replicating this here
-/// is fragile but cheaper than spawning the CLI just to verify a session.
 fn claude_session_path(home: &Path, cwd: &str, session_id: &str) -> PathBuf {
     let encoded = cwd.trim_end_matches('/').replace('/', "-");
     home.join(".claude")
@@ -145,9 +255,6 @@ fn claude_session_path(home: &Path, cwd: &str, session_id: &str) -> PathBuf {
         .join(format!("{session_id}.jsonl"))
 }
 
-/// Gemini's per-session transcript lives at
-/// `~/.gemini/sessions/<session_id>/transcript.json` (matches the path
-/// the SessionStart hook payload reports).
 fn gemini_session_present(home: &Path, session_id: &str) -> bool {
     home.join(".gemini")
         .join("sessions")
@@ -156,11 +263,6 @@ fn gemini_session_present(home: &Path, session_id: &str) -> bool {
         .is_file()
 }
 
-/// Codex stores transcripts under
-/// `~/.codex/sessions/<year>/<month>/<day>/rollout-<timestamp>-<id>.jsonl`,
-/// so a precise path is not derivable from `session_id` alone. Walk the
-/// tree until we find a file whose name contains the id. Depth is capped
-/// to avoid pathological traversal.
 fn codex_session_present(home: &Path, session_id: &str) -> bool {
     let root = home.join(".codex").join("sessions");
     if !root.is_dir() {
@@ -192,25 +294,24 @@ fn codex_session_present(home: &Path, session_id: &str) -> bool {
 }
 
 #[tauri::command]
-pub fn workbench_drop_sessions(app: AppHandle, prefix: String) -> Result<u32, String> {
+pub fn workbench_drop_sessions(
+    app: AppHandle,
+    prefix: String,
+    lock: tauri::State<'_, WorkbenchSessionsFileLock>,
+) -> Result<u32, String> {
+    let _guard = lock
+        .0
+        .lock()
+        .map_err(|e| format!("sessions file lock poisoned: {e}"))?;
     if prefix.is_empty() {
         return Ok(0);
     }
     let target = sessions_path_impl(&app)?;
-    let raw = match fs::read_to_string(&target) {
-        Ok(s) if s.trim().is_empty() => return Ok(0),
-        Ok(s) => s,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(0),
-        Err(e) => return Err(format!("read {}: {e}", target.display())),
-    };
-
-    let mut state: serde_json::Value = match serde_json::from_str(&raw) {
-        Ok(v) => v,
-        Err(_) => return Ok(0), // corrupt; nothing to remove
-    };
+    let mut state = load_sessions_document(&target)?;
     let removed = {
         let Some(terminals) = state.get_mut("terminals").and_then(|t| t.as_object_mut()) else {
-            return Ok(0);
+            state["terminals"] = json!({});
+            return atomic_write_json(&target, &state).map(|()| 0);
         };
         let before = terminals.len();
         terminals.retain(|k, _| !k.starts_with(&prefix));
@@ -219,17 +320,90 @@ pub fn workbench_drop_sessions(app: AppHandle, prefix: String) -> Result<u32, St
     if removed == 0 {
         return Ok(0);
     }
-
-    let tmp = target.with_extension("json.tmp");
-    let body =
-        serde_json::to_string_pretty(&state).map_err(|e| format!("serialize sessions: {e}"))?;
-    {
-        let mut f = fs::File::create(&tmp).map_err(|e| format!("create {}: {e}", tmp.display()))?;
-        f.write_all(body.as_bytes())
-            .map_err(|e| format!("write {}: {e}", tmp.display()))?;
-        f.sync_all().ok();
-    }
-    fs::rename(&tmp, &target)
-        .map_err(|e| format!("rename {} -> {}: {e}", tmp.display(), target.display()))?;
+    atomic_write_json(&target, &state)?;
     Ok(removed)
+}
+
+/// Returns a JSON object string `{"<terminalKey>": {...}, ...}` for every
+/// `terminals` entry whose key starts with `prefix`, and removes those keys
+/// from `sessions.json` in the same locked operation.
+#[tauri::command]
+pub fn workbench_extract_sessions_prefix(
+    app: AppHandle,
+    prefix: String,
+    lock: tauri::State<'_, WorkbenchSessionsFileLock>,
+) -> Result<String, String> {
+    let _guard = lock
+        .0
+        .lock()
+        .map_err(|e| format!("sessions file lock poisoned: {e}"))?;
+    if prefix.is_empty() {
+        return Ok("{}".into());
+    }
+    let target = sessions_path_impl(&app)?;
+    let mut state = load_sessions_document(&target)?;
+    let mut extracted = Map::new();
+    if let Some(terminals) = state.get_mut("terminals").and_then(|t| t.as_object_mut()) {
+        let keys: Vec<String> = terminals
+            .keys()
+            .filter(|k| k.starts_with(&prefix))
+            .cloned()
+            .collect();
+        for k in keys {
+            if let Some(v) = terminals.remove(&k) {
+                if validate_terminal_entry(&v) {
+                    extracted.insert(k, v);
+                }
+            }
+        }
+    }
+    atomic_write_json(&target, &state)?;
+    let out = Value::Object(extracted);
+    serde_json::to_string(&out).map_err(|e| e.to_string())
+}
+
+/// Merges validated terminal entries from `terminals_json` into
+/// `sessions.json`, rewriting each key's leading `old_workspace_id:` to
+/// `new_workspace_id:`.
+#[tauri::command]
+pub fn workbench_merge_sessions_workspace(
+    app: AppHandle,
+    old_workspace_id: u64,
+    new_workspace_id: u64,
+    terminals_json: String,
+    lock: tauri::State<'_, WorkbenchSessionsFileLock>,
+) -> Result<(), String> {
+    let _guard = lock
+        .0
+        .lock()
+        .map_err(|e| format!("sessions file lock poisoned: {e}"))?;
+    let parsed: Value = serde_json::from_str(terminals_json.trim())
+        .map_err(|e| format!("merge terminals_json: {e}"))?;
+    let Some(map) = parsed.as_object() else {
+        return Err("terminals_json must be a JSON object".into());
+    };
+    let old_prefix = format!("{old_workspace_id}:");
+    let new_prefix = format!("{new_workspace_id}:");
+    let mut to_merge: BTreeMap<String, Value> = BTreeMap::new();
+    for (k, v) in map {
+        if !k.starts_with(&old_prefix) {
+            continue;
+        }
+        if !validate_terminal_entry(v) {
+            continue;
+        }
+        let suffix = k.strip_prefix(&old_prefix).unwrap_or("");
+        let new_key = format!("{new_prefix}{suffix}");
+        to_merge.insert(new_key, v.clone());
+    }
+    let target = sessions_path_impl(&app)?;
+    let mut state = load_sessions_document(&target)?;
+    let terminals = state
+        .get_mut("terminals")
+        .and_then(|t| t.as_object_mut())
+        .ok_or_else(|| "sessions.json missing terminals object".to_string())?;
+    for (k, v) in to_merge {
+        terminals.insert(k, v);
+    }
+    atomic_write_json(&target, &state)
 }

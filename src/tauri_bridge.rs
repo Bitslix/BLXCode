@@ -587,6 +587,37 @@ pub async fn workbench_drop_sessions(prefix: String) -> Result<u32, String> {
     invoke_typed("workbench_drop_sessions", A { prefix }).await
 }
 
+pub async fn workbench_extract_sessions_prefix(prefix: String) -> Result<String, String> {
+    #[derive(Serialize)]
+    struct A {
+        prefix: String,
+    }
+    invoke_typed("workbench_extract_sessions_prefix", A { prefix }).await
+}
+
+pub async fn workbench_merge_sessions_workspace(
+    old_workspace_id: u64,
+    new_workspace_id: u64,
+    terminals_json: String,
+) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        old_workspace_id: u64,
+        new_workspace_id: u64,
+        terminals_json: String,
+    }
+    invoke_unit_js(
+        "workbench_merge_sessions_workspace",
+        args_value(A {
+            old_workspace_id,
+            new_workspace_id,
+            terminals_json,
+        })?,
+    )
+    .await
+}
+
 pub async fn agent_session_exists(
     agent: String,
     cwd: String,

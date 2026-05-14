@@ -865,6 +865,103 @@ body {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 
+.workbench-shortcut-li {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+button.workbench-shortcut-row--action {
+  width: 100%;
+  margin: 0;
+  padding: 0.35rem 0.45rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+button.workbench-shortcut-row--action:hover,
+button.workbench-shortcut-row--action:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+  outline: none;
+}
+
+button.workbench-shortcut-row--action:focus-visible {
+  box-shadow: 0 0 0 2px rgba(120, 160, 255, 0.35);
+}
+
+.harness-sheet--quickopen {
+  max-width: min(96vw, 32rem);
+}
+
+.harness-quickopen-title {
+  margin: 0 0 0.65rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: rgba(238, 239, 245, 0.95);
+}
+
+.harness-quickopen-section {
+  margin: 0.75rem 0 0.35rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(190, 194, 208, 0.65);
+}
+
+.harness-quickopen-path {
+  display: flex;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+  align-items: stretch;
+}
+
+.harness-quickopen-path .harness-filter {
+  flex: 1;
+  min-width: 0;
+}
+
+.harness-quickopen-path__btn {
+  flex-shrink: 0;
+  padding: 0 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  background: rgba(36, 40, 52, 0.9);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.harness-quickopen-path__btn:hover {
+  background: rgba(50, 56, 72, 0.95);
+}
+
+.harness-quickopen-wizard {
+  margin-top: 0.55rem;
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border-radius: 6px;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  background: transparent;
+  color: rgba(218, 221, 232, 0.88);
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.harness-quickopen-wizard:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .workbench-shortcut-row--spacer {
   min-height: 0.35rem;
   pointer-events: none;
