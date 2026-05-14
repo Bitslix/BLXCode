@@ -117,8 +117,6 @@ pub enum TerminalSplitAxis {
 pub struct CreateWorkspaceDraft {
     pub name_input: String,
     pub cwd_display: String,
-    pub nav_line: String,
-    pub nav_log: Vec<String>,
     pub terminal_count: u8,
     pub grid_rows: u8,
     pub grid_cols: u8,
@@ -132,8 +130,6 @@ impl Default for CreateWorkspaceDraft {
         Self {
             name_input: String::new(),
             cwd_display: String::new(),
-            nav_line: String::new(),
-            nav_log: Vec::new(),
             terminal_count: 1,
             grid_rows: r,
             grid_cols: c,
@@ -572,8 +568,6 @@ impl WorkbenchService {
         let root = self.harness_workspace_root.get_untracked();
         let mut d = CreateWorkspaceDraft::default();
         d.cwd_display = root;
-        d.nav_log.clear();
-        d.nav_line.clear();
         d.name_input.clear();
         d.agents_skipped = false;
         d.agent_counts = [0; 5];
@@ -762,15 +756,6 @@ impl WorkbenchService {
         self.create_wizard_step.set(0);
     }
 
-    pub fn append_nav_log(&self, line: String) {
-        self.create_wizard_draft.update(|d| {
-            d.nav_log.push(line);
-            if d.nav_log.len() > 80 {
-                let excess = d.nav_log.len() - 80;
-                d.nav_log.drain(0..excess);
-            }
-        });
-    }
 
     /// Look up the persisted pane state for a slot. Returns
     /// [`SlotPaneState::default_for_slot`] when nothing has been stored

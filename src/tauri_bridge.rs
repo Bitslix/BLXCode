@@ -182,6 +182,27 @@ pub async fn path_nav_invoke(base: String, line: String) -> Result<PathNavResult
     invoke_typed("path_nav_exec_cmd", PathNavArgs { base, line }).await
 }
 
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirEntryBrief {
+    pub name: String,
+    pub hidden: bool,
+}
+
+pub async fn list_directory(path: String) -> Result<Vec<DirEntryBrief>, String> {
+    #[derive(Serialize)]
+    struct A {
+        path: String,
+    }
+    invoke_typed("list_directory", A { path }).await
+}
+
+pub async fn default_cwd() -> Result<String, String> {
+    #[derive(Serialize)]
+    struct Empty {}
+    invoke_typed("default_cwd", Empty {}).await
+}
+
 #[derive(Serialize)]
 struct PtySpawnArgs {
     cwd: String,

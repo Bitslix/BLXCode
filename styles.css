@@ -2324,56 +2324,106 @@ button {
   width: 100%;
 }
 
-.wz-cwd-row {
-  display: flex;
-  gap: 0.35rem;
-}
-
-.wz-go {
-  flex-shrink: 0;
-}
-
-.wz-nav-row {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin-top: 0.45rem;
-}
-
-.wz-prompt {
-  font-family: ui-monospace, monospace;
-  font-size: 0.78rem;
-  color: var(--text-faint);
-  flex-shrink: 0;
-}
-
-.wz-nav-input {
-  flex: 1;
-}
-
-.wz-hint {
-  margin: 0.35rem 0 0;
-  font-size: 0.68rem;
-  color: var(--text-faint);
-  line-height: 1.35;
-}
-
 .wz-error {
   margin: 0.35rem 0 0;
   font-size: 0.78rem;
   color: #e57373;
 }
 
-.wz-log {
-  margin: 0.5rem 0 0;
-  padding: 0.45rem;
-  max-height: 7rem;
-  overflow: auto;
-  font-size: 0.72rem;
-  background: rgba(0, 0, 0, 0.35);
+/* --- Virtual directory browser (cwd input dropdown) --- */
+.wz-cwd-wrap {
+  position: relative;
+}
+
+/* `position: fixed` damit das Popup nicht vom `overflow: auto` der Sheet
+   abgeschnitten wird. top/left/width werden vom Wizard zur Laufzeit aus
+   dem Input-Rect gesetzt. */
+.wz-cwd-browser {
+  position: fixed;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  max-height: 18rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
-  border: 1px solid var(--border);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.wz-cwd-browser__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.45rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel-header);
+}
+
+.wz-cwd-browser__path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
   color: var(--text-muted);
+}
+
+.wz-cwd-browser__hidden {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  user-select: none;
+  cursor: pointer;
+}
+
+.wz-cwd-browser__list {
+  list-style: none;
+  margin: 0;
+  padding: 0.2rem 0;
+  overflow: auto;
+  min-height: 0;
+}
+
+.wz-cwd-browser__list li {
+  margin: 0;
+  padding: 0;
+}
+
+.wz-cwd-browser__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  padding: 0.32rem 0.7rem;
+  cursor: pointer;
+}
+
+.wz-cwd-browser__item:hover,
+.wz-cwd-browser__item:focus-visible {
+  background: var(--accent-soft);
+  color: var(--text);
+  outline: none;
+}
+
+.wz-cwd-browser__item--hidden {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.wz-cwd-browser__empty {
+  padding: 0.6rem 0.7rem;
+  font-size: 0.74rem;
+  color: var(--text-faint);
+  font-style: italic;
 }
 
 .wz-templates-title {

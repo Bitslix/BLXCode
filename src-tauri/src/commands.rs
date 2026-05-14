@@ -153,6 +153,59 @@ pub fn path_nav_exec_cmd(base: String, line: String) -> Result<PathNavResult, St
     path_nav_exec(base, line)
 }
 
+/// Sinnvoller Start-Pfad fürs Verzeichnis-Picker-UI: bevorzugt `$HOME`,
+/// fällt auf das Prozess-Arbeitsverzeichnis zurück.
+#[tauri::command]
+pub fn default_cwd() -> Result<String, String> {
+    if let Some(home) = std::env::var_os("HOME") {
+        let s = home.to_string_lossy().into_owned();
+        if !s.is_empty() {
+            return Ok(s);
+        }
+    }
+    if let Some(userprofile) = std::env::var_os("USERPROFILE") {
+        let s = userprofile.to_string_lossy().into_owned();
+        if !s.is_empty() {
+            return Ok(s);
+        }
+    }
+    std::env::current_dir()
+        .map(|p| p.to_string_lossy().into_owned())
+        .map_err(|e| e.to_string())
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirEntryBrief {
+    pub name: String,
+    pub hidden: bool,
+}
+
+/// Listet alle Unterverzeichnisse von `path` (alphabetisch). Hidden-Flag ist
+/// gesetzt für Einträge, die mit `.` beginnen, damit das UI sie ausblenden oder
+/// dimmen kann. Files werden ignoriert — dies ist ein Verzeichnis-Browser.
+#[tauri::command]
+pub fn list_directory(path: String) -> Result<Vec<DirEntryBrief>, String> {
+    let trimmed = path.trim();
+    let p = if trimmed.is_empty() {
+        std::env::current_dir().map_err(|e| e.to_string())?
+    } else {
+        std::path::PathBuf::from(trimmed)
+    };
+    let read = std::fs::read_dir(&p).map_err(|e| e.to_string())?;
+    let mut out: Vec<DirEntryBrief> = read
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().into_owned();
+            let hidden = name.starts_with('.');
+            Some(DirEntryBrief { name, hidden })
+        })
+        .collect();
+    out.sort_by(|a, b| a.name.to_ascii_lowercase().cmp(&b.name.to_ascii_lowercase()));
+    Ok(out)
+}
+
 #[tauri::command]
 pub fn pty_spawn(
     manager: State<'_, PtyManager>,

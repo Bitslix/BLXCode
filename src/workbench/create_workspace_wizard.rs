@@ -1,9 +1,11 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::tauri_bridge::{is_tauri_shell, path_nav_invoke, PathNavResult};
+use crate::tauri_bridge::{
+    default_cwd, is_tauri_shell, list_directory, path_nav_invoke, DirEntryBrief, PathNavResult,
+};
 use crate::workbench::path_nav::path_nav_wasm_string;
 use crate::workbench::state::{CreateWorkspaceDraft, WorkbenchService};
-use leptos::callback::Callback;
+use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use wasm_bindgen::JsCast;
@@ -20,6 +22,30 @@ const PRESETS: &[(u8, I18nKey)] = &[
     (16, I18nKey::WzPreset16),
 ];
 
+fn looks_like_cd(s: &str) -> bool {
+    let t = s.trim();
+    let lower = t.to_ascii_lowercase();
+    lower == "cd" || lower.starts_with("cd ")
+}
+
+/// Pfad + Name → neuer Pfad. Behandelt trailing-slash, leeren Base, etc.
+fn join_path(base: &str, name: &str) -> String {
+    let b = base.trim();
+    if b.is_empty() {
+        return format!("/{name}");
+    }
+    if b.ends_with('/') {
+        format!("{b}{name}")
+    } else {
+        format!("{b}/{name}")
+    }
+}
+
+fn parent_of(path: &str) -> Option<String> {
+    let p = std::path::Path::new(path.trim());
+    p.parent().map(|x| x.to_string_lossy().into_owned())
+}
+
 #[component]
 pub fn CreateWorkspaceWizardHost() -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
@@ -29,36 +55,131 @@ pub fn CreateWorkspaceWizardHost() -> impl IntoView {
     let draft = wb.create_wizard_draft();
     let cwd_err = RwSignal::new(false);
 
-    let apply_nav = Callback::new({
-        let wb = wb;
-        let i18n = i18n.clone();
-        move |()| {
-            cwd_err.set(false);
-            let line = draft.get_untracked().nav_line.clone();
-            let base = draft.get_untracked().cwd_display.clone();
-            spawn_local(async move {
-                let r: Result<PathNavResult, String> = if is_tauri_shell() {
-                    path_nav_invoke(base, line.clone()).await
-                } else {
-                    path_nav_wasm_string(&base, &line).map(|(cwd, log_line)| PathNavResult {
-                        cwd,
-                        log_line,
-                    })
-                };
-                match r {
-                    Ok(res) => {
-                        wb.set_wizard_cwd(res.cwd.clone());
-                        wb.append_nav_log(res.log_line);
-                        draft.update(|d| {
-                            d.nav_line.clear();
-                        });
-                    }
-                    Err(e) => {
-                        wb.append_nav_log(format!("{}: {e}", i18n.tr(I18nKey::WzCdErr)()));
-                    }
-                }
-            });
+    // Directory-Browser-Popup
+    let browser_open = RwSignal::new(false);
+    let dir_entries: RwSignal<Vec<DirEntryBrief>> = RwSignal::new(Vec::new());
+    let dir_err: RwSignal<String> = RwSignal::new(String::new());
+    let show_hidden = RwSignal::new(false);
+    // (top, left, width) in viewport-px für `position: fixed`-Popup,
+    // damit es nicht vom `overflow: auto` der Dialog-Sheet abgeschnitten wird.
+    let popup_rect: RwSignal<(f64, f64, f64)> = RwSignal::new((0.0, 0.0, 0.0));
+
+    // Beim Öffnen des Wizards einen sinnvollen Start-cwd aus dem Backend holen,
+    // wenn das Feld leer ist (kein gespeicherter Workspace-Root vorhanden).
+    Effect::new(move |_| {
+        if !open.get() {
+            return;
         }
+        if !draft.get_untracked().cwd_display.trim().is_empty() {
+            return;
+        }
+        if !is_tauri_shell() {
+            return;
+        }
+        spawn_local(async move {
+            if let Ok(p) = default_cwd().await {
+                if !p.trim().is_empty() {
+                    wb.set_wizard_cwd(p);
+                }
+            }
+        });
+    });
+
+    fn measure_input_rect(popup_rect: RwSignal<(f64, f64, f64)>) {
+        let Some(doc) = web_sys::window().and_then(|w| w.document()) else { return; };
+        let Some(wrap) = doc.get_element_by_id("wz-cwd-wrap") else { return; };
+        let Some(input) = wrap
+            .query_selector("input")
+            .ok()
+            .flatten()
+        else {
+            return;
+        };
+        let r = input.get_bounding_client_rect();
+        popup_rect.set((r.bottom() + 4.0, r.left(), r.width()));
+    }
+
+    // Wenn die cwd-Eingabe wie ein `cd ...`-Befehl aussieht, Enter resolved
+    // gegen den Workspace-Root und ersetzt das Feld durch den absoluten Pfad.
+    let submit_cwd = move || {
+        cwd_err.set(false);
+        let value = draft.get_untracked().cwd_display.clone();
+        let trimmed = value.trim().to_string();
+        if !looks_like_cd(&trimmed) {
+            return;
+        }
+        let base = wb.harness_workspace_root().get_untracked();
+        spawn_local(async move {
+            let r: Result<PathNavResult, String> = if is_tauri_shell() {
+                path_nav_invoke(base.clone(), trimmed.clone()).await
+            } else {
+                path_nav_wasm_string(&base, &trimmed).map(|(cwd, log_line)| PathNavResult {
+                    cwd,
+                    log_line,
+                })
+            };
+            if let Ok(res) = r {
+                wb.set_wizard_cwd(res.cwd);
+            }
+        });
+    };
+
+    // Listing-Refresh bei jeder Änderung von cwd_display (sofern Pfad und Popup offen).
+    Effect::new(move |_| {
+        let _open = browser_open.get();
+        let val = draft.get().cwd_display.trim().to_string();
+        if !is_tauri_shell() || !browser_open.get_untracked() {
+            return;
+        }
+        if val.is_empty() || looks_like_cd(&val) {
+            return;
+        }
+        spawn_local(async move {
+            match list_directory(val).await {
+                Ok(entries) => {
+                    dir_entries.set(entries);
+                    dir_err.set(String::new());
+                }
+                Err(e) => {
+                    dir_entries.set(Vec::new());
+                    dir_err.set(e);
+                }
+            }
+        });
+    });
+
+    // Click-outside schließt den Browser. Popup hat eigene ID, weil es per
+    // `position: fixed` nicht mehr im wrap-Subtree des Wrappers liegt
+    // (Browsers betrachten die Containment-Beziehung im Layout-Tree, aber für
+    // `Node::contains` zählt der DOM-Tree — und der popup hängt nach wie vor
+    // unter `#wz-cwd-wrap`. Also weiter wrap.contains checken).
+    Effect::new(move |_| {
+        if !browser_open.get() {
+            return;
+        }
+        // Position initial messen.
+        measure_input_rect(popup_rect);
+
+        let h_down = window_event_listener_untyped("mousedown", move |ev| {
+            let Some(target) = ev.target() else { return; };
+            let Ok(node) = target.dyn_into::<web_sys::Node>() else { return; };
+            let Some(doc) = web_sys::window().and_then(|w| w.document()) else { return; };
+            let Some(wrap) = doc.get_element_by_id("wz-cwd-wrap") else { return; };
+            if !wrap.contains(Some(&node)) {
+                browser_open.set(false);
+            }
+        });
+        let h_resize = window_event_listener_untyped("resize", move |_| {
+            measure_input_rect(popup_rect);
+        });
+        let h_scroll = window_event_listener_untyped("scroll", move |_| {
+            measure_input_rect(popup_rect);
+        });
+        on_cleanup(move || {
+            h_down.remove();
+            h_resize.remove();
+            h_scroll.remove();
+        });
     });
 
     view! {
@@ -99,48 +220,115 @@ pub fn CreateWorkspaceWizardHost() -> impl IntoView {
                                     }
                                 />
                                 <label class="wz-label">{move || i18n.tr(I18nKey::WzCwdLabel)()}</label>
-                                <div class="wz-cwd-row">
+                                <div id="wz-cwd-wrap" class="wz-cwd-wrap">
                                     <input
                                         class="workbench-plain-input wz-input"
                                         type="text"
                                         prop:value=move || draft.get().cwd_display.clone()
+                                        on:focus=move |_| browser_open.set(true)
                                         on:input=move |ev| {
                                             cwd_err.set(false);
                                             let v = input_value(&ev);
                                             wb.set_wizard_cwd(v);
                                         }
-                                    />
-                                    <button
-                                        type="button"
-                                        class="eula-btn eula-btn--primary wz-go"
-                                        on:click=move |_| apply_nav.run(())
-                                    >
-                                        {move || i18n.tr(I18nKey::WzGo)()}
-                                    </button>
-                                </div>
-                                <div class="wz-nav-row">
-                                    <span class="wz-prompt">{"\u{003e}_$"}</span>
-                                    <input
-                                        class="workbench-plain-input wz-input wz-nav-input"
-                                        type="text"
-                                        prop:value=move || draft.get().nav_line.clone()
-                                        placeholder=move || i18n.tr(I18nKey::WzNavPh)()
-                                        on:input=move |ev| {
-                                            let v = input_value(&ev);
-                                            draft.update(|d| d.nav_line = v);
-                                        }
                                         on:keydown=move |ev: web_sys::KeyboardEvent| {
-                                            if ev.key() == "Enter" {
-                                                apply_nav.run(());
+                                            let key = ev.key();
+                                            if key == "Enter" {
+                                                ev.prevent_default();
+                                                submit_cwd();
+                                            } else if key == "Escape" {
+                                                browser_open.set(false);
                                             }
                                         }
                                     />
+                                    <Show when=move || browser_open.get()>
+                                        <div
+                                            class="wz-cwd-browser"
+                                            role="listbox"
+                                            style:top=move || format!("{}px", popup_rect.get().0)
+                                            style:left=move || format!("{}px", popup_rect.get().1)
+                                            style:width=move || format!("{}px", popup_rect.get().2)
+                                        >
+                                            <div class="wz-cwd-browser__toolbar">
+                                                <button
+                                                    type="button"
+                                                    class="workbench-mini-btn"
+                                                    on:mousedown=move |ev| {
+                                                        ev.prevent_default();
+                                                        let cur = draft.get_untracked().cwd_display;
+                                                        if let Some(parent) = parent_of(&cur) {
+                                                            wb.set_wizard_cwd(parent);
+                                                        }
+                                                    }
+                                                    aria-label="parent"
+                                                >
+                                                    "↑ .."
+                                                </button>
+                                                <span class="wz-cwd-browser__path">
+                                                    {move || draft.get().cwd_display.clone()}
+                                                </span>
+                                                <label class="wz-cwd-browser__hidden">
+                                                    <input
+                                                        type="checkbox"
+                                                        prop:checked=move || show_hidden.get()
+                                                        on:change=move |ev| {
+                                                            let el = ev.target()
+                                                                .and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok());
+                                                            show_hidden.set(el.map(|e| e.checked()).unwrap_or(false));
+                                                        }
+                                                    />
+                                                    " .hidden"
+                                                </label>
+                                            </div>
+                                            <ul class="wz-cwd-browser__list">
+                                                {move || {
+                                                    let entries = dir_entries.get();
+                                                    let show_h = show_hidden.get();
+                                                    let visible: Vec<DirEntryBrief> = entries
+                                                        .into_iter()
+                                                        .filter(|e| show_h || !e.hidden)
+                                                        .collect();
+                                                    if visible.is_empty() {
+                                                        let msg = dir_err.get();
+                                                        return view! {
+                                                            <li class="wz-cwd-browser__empty">
+                                                                {if msg.is_empty() { "— empty —".to_string() } else { msg }}
+                                                            </li>
+                                                        }.into_any();
+                                                    }
+                                                    visible.into_iter().map(|e| {
+                                                        let name = e.name.clone();
+                                                        let label = e.name.clone();
+                                                        let hidden = e.hidden;
+                                                        view! {
+                                                            <li>
+                                                                <button
+                                                                    type="button"
+                                                                    class=move || {
+                                                                        let mut c = String::from("wz-cwd-browser__item");
+                                                                        if hidden { c.push_str(" wz-cwd-browser__item--hidden"); }
+                                                                        c
+                                                                    }
+                                                                    on:mousedown=move |ev| {
+                                                                        // mousedown statt click damit blur des inputs uns nicht abwürgt
+                                                                        ev.prevent_default();
+                                                                        let cur = draft.get_untracked().cwd_display;
+                                                                        wb.set_wizard_cwd(join_path(&cur, &name));
+                                                                    }
+                                                                >
+                                                                    {label}
+                                                                </button>
+                                                            </li>
+                                                        }
+                                                    }).collect_view().into_any()
+                                                }}
+                                            </ul>
+                                        </div>
+                                    </Show>
                                 </div>
-                                <p class="wz-hint">{move || i18n.tr(I18nKey::WzNavHint)()}</p>
                                 <Show when=move || cwd_err.get()>
                                     <p class="wz-error">{move || i18n.tr(I18nKey::WzCwdEmpty)()}</p>
                                 </Show>
-                                <pre class="wz-log">{move || draft.get().nav_log.join("\n")}</pre>
                             </div>
                             <div class="wz-layout__right">
                                 <p class="wz-templates-title">{move || i18n.tr(I18nKey::WzTemplatesHeading)()}</p>
@@ -167,18 +355,6 @@ pub fn CreateWorkspaceWizardHost() -> impl IntoView {
                                         })
                                         .collect_view()}
                                 </div>
-                                <label class="wz-label">"1–16"</label>
-                                <input
-                                    class="workbench-plain-input wz-input"
-                                    type="number"
-                                    min="1"
-                                    max="16"
-                                    prop:value=move || draft.get().terminal_count.to_string()
-                                    on:change=move |ev| {
-                                        let v = input_value(&ev).parse::<u8>().unwrap_or(1).clamp(1, 16);
-                                        wb.wizard_set_terminal_layout(v);
-                                    }
-                                />
                             </div>
                         </div>
                     </Show>

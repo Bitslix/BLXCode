@@ -54,6 +54,8 @@ pub fn run() {
             browser_check_iframable,
             browser_close_tab,
             path_nav_exec_cmd,
+            list_directory,
+            default_cwd,
             pty_spawn,
             pty_write,
             pty_resize,
