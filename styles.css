@@ -303,6 +303,22 @@ body {
   position: relative;
 }
 
+.workbench-sidebar__item[draggable="true"] .workbench-sidebar__row {
+  cursor: grab;
+}
+
+.workbench-sidebar__item[draggable="true"]:active .workbench-sidebar__row {
+  cursor: grabbing;
+}
+
+.workbench-sidebar__item--drag-source .workbench-sidebar__row {
+  opacity: 0.45;
+}
+
+.workbench-sidebar__item--drag-over:not(.workbench-sidebar__item--drag-source) {
+  box-shadow: inset 0 2px 0 0 var(--accent);
+}
+
 .workbench-sidebar__row {
   display: flex;
   align-items: center;

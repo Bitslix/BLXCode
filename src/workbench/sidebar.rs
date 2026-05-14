@@ -6,7 +6,7 @@ use leptos::callback::Callable;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::HtmlInputElement;
+use web_sys::{DragEvent, HtmlInputElement};
 
 fn initials_for(profile: Option<&AuthUserBrief>) -> String {
     let Some(b) = profile else {
@@ -65,6 +65,8 @@ pub fn Sidebar() -> impl IntoView {
     let context_menu = RwSignal::new(None::<WorkspaceContextMenu>);
     let rename_dialog = RwSignal::new(None::<RenameWorkspaceDialog>);
     let rename_input = RwSignal::new(String::new());
+    let drag_from = RwSignal::new(None::<usize>);
+    let drag_over = RwSignal::new(None::<usize>);
 
     let close_menu_click = window_event_listener_untyped("click", move |_| {
         context_menu.set(None);
@@ -143,9 +145,15 @@ pub fn Sidebar() -> impl IntoView {
             <nav class="workbench-sidebar__nav">
                 <ul id="workbench-workspace-list" class="workbench-sidebar__list">
                     <For
-                        each=move || workspaces.get()
-                        key=|ws| ws.id
-                        children=move |entry| {
+                        each=move || {
+                            workspaces
+                                .get()
+                                .into_iter()
+                                .enumerate()
+                                .collect::<Vec<_>>()
+                        }
+                        key=|(_, ws)| ws.id
+                        children=move |(idx, entry)| {
                             let id = entry.id;
                             let title_signal = Memo::new(move |_| {
                                 workspaces.with(|list| {
@@ -160,7 +168,62 @@ pub fn Sidebar() -> impl IntoView {
                                 workspace_icon_label(&title_signal.get(), id)
                             };
                             view! {
-                                <li class="workbench-sidebar__item">
+                                <li
+                                    class=move || {
+                                        let mut c = String::from("workbench-sidebar__item");
+                                        if drag_from.get() == Some(idx) {
+                                            c.push_str(" workbench-sidebar__item--drag-source");
+                                        }
+                                        if drag_over.get() == Some(idx)
+                                            && drag_from.get() != Some(idx)
+                                        {
+                                            c.push_str(" workbench-sidebar__item--drag-over");
+                                        }
+                                        c
+                                    }
+                                    prop:draggable=move || !collapsed.get()
+                                    on:dragstart=move |ev| {
+                                        if collapsed.get_untracked() {
+                                            return;
+                                        }
+                                        drag_from.set(Some(idx));
+                                        drag_over.set(None);
+                                        if let Some(de) = ev.dyn_ref::<DragEvent>() {
+                                            if let Some(dt) = de.data_transfer() {
+                                                let _ = dt.set_data("text/plain", &id.to_string());
+                                                let _ = dt.set_effect_allowed("move");
+                                            }
+                                        }
+                                    }
+                                    on:dragover=move |ev| {
+                                        if collapsed.get_untracked() || drag_from.get_untracked().is_none()
+                                        {
+                                            return;
+                                        }
+                                        ev.prevent_default();
+                                        if let Some(de) = ev.dyn_ref::<DragEvent>() {
+                                            if let Some(dt) = de.data_transfer() {
+                                                let _ = dt.set_drop_effect("move");
+                                            }
+                                        }
+                                        drag_over.set(Some(idx));
+                                    }
+                                    on:drop=move |ev| {
+                                        ev.prevent_default();
+                                        if collapsed.get_untracked() {
+                                            return;
+                                        }
+                                        if let Some(from) = drag_from.get_untracked() {
+                                            wb.reorder_workspaces(from, idx);
+                                        }
+                                        drag_from.set(None);
+                                        drag_over.set(None);
+                                    }
+                                    on:dragend=move |_| {
+                                        drag_from.set(None);
+                                        drag_over.set(None);
+                                    }
+                                >
                                     <button
                                         type="button"
                                         title=title_str
@@ -194,6 +257,7 @@ pub fn Sidebar() -> impl IntoView {
                                     <button
                                         type="button"
                                         class="workbench-sidebar__close"
+                                        prop:draggable=false
                                         title=move || format!("Close {}", title_signal.get())
                                         aria-label=move || format!("Close {}", title_signal.get())
                                         on:click=move |ev| {

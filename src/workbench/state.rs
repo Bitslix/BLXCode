@@ -544,6 +544,23 @@ impl WorkbenchService {
         });
     }
 
+    /// Moves the workspace at `from_index` to `to_index` (indices in the
+    /// list **before** the move). Order is persisted with the workbench snapshot.
+    pub fn reorder_workspaces(&self, from_index: usize, to_index: usize) {
+        if from_index == to_index {
+            return;
+        }
+        self.workspaces.update(|ws| {
+            let n = ws.len();
+            if from_index >= n || to_index >= n {
+                return;
+            }
+            let item = ws.remove(from_index);
+            let insert_at = to_index.min(ws.len());
+            ws.insert(insert_at, item);
+        });
+    }
+
     pub fn create_workspace(
         &self,
         title: Option<String>,
