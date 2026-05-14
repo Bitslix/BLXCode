@@ -36,6 +36,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TabAgent => "Agent",
         I18nKey::TabBrowser => "Browser",
         I18nKey::TabMemory => "Memory",
+        I18nKey::MemEmptyTitle => "No active workspace",
+        I18nKey::MemEmptyLead => {
+            "Memory is scoped to a workspace. Select one in the sidebar, or create a new workspace to get started."
+        }
+        I18nKey::MemEmptyCreate => "+ Create workspace",
 
         I18nKey::AgAriaPane => "Agent harness",
         I18nKey::AgSandbox => "Tool sandbox ",

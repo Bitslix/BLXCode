@@ -11,6 +11,47 @@ const RIGHT_PANEL_MIN_PX: f64 = 160.0;
 const WORKSPACE_MIN_PX: f64 = 240.0;
 
 #[component]
+fn MemoryTabDock() -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+    let i18n = expect_context::<I18nService>();
+
+    let has_active_workspace = Memo::new(move |_| {
+        let Some(id) = wb.active_id().get() else {
+            return false;
+        };
+        wb.workspaces()
+            .with(|list| list.iter().any(|w| w.id == id && !w.configuring))
+    });
+
+    view! {
+        <div class="workbench-right-memory" role="region">
+            <Show
+                when=move || has_active_workspace.get()
+                fallback=move || view! {
+                    <div class="workbench-right-memory__empty">
+                        <p class="workbench-right-memory__empty-title">
+                            {move || i18n.tr(I18nKey::MemEmptyTitle)()}
+                        </p>
+                        <p class="workbench-right-memory__empty-lead">
+                            {move || i18n.tr(I18nKey::MemEmptyLead)()}
+                        </p>
+                        <button
+                            type="button"
+                            class="workbench-right-memory__create-btn"
+                            on:click=move |_| { let _ = wb.start_inline_configure(); }
+                        >
+                            {move || i18n.tr(I18nKey::MemEmptyCreate)()}
+                        </button>
+                    </div>
+                }
+            >
+                <div class="workbench-right-memory__placeholder" aria-hidden="true"></div>
+            </Show>
+        </div>
+    }
+}
+
+#[component]
 pub fn RightPanel() -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
@@ -236,7 +277,7 @@ pub fn RightPanel() -> impl IntoView {
                         <BrowserTabDock />
                     </div>
                     <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Memory>
-                        <div class="workbench-right-memory" role="region"></div>
+                        <MemoryTabDock />
                     </div>
                 </div>
             </aside>

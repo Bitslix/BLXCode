@@ -32,6 +32,9 @@ pub enum I18nKey {
     TabAgent,
     TabBrowser,
     TabMemory,
+    MemEmptyTitle,
+    MemEmptyLead,
+    MemEmptyCreate,
 
     AgAriaPane,
     AgSandbox,

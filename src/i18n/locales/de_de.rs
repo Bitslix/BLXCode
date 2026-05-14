@@ -36,6 +36,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TabAgent => "Agent",
         I18nKey::TabBrowser => "Browser",
         I18nKey::TabMemory => "Gedächtnis",
+        I18nKey::MemEmptyTitle => "Kein aktiver Workspace",
+        I18nKey::MemEmptyLead => {
+            "Das Gedächtnis ist an einen Workspace gebunden. Wähle links einen aus oder erstelle einen neuen Workspace."
+        }
+        I18nKey::MemEmptyCreate => "+ Workspace erstellen",
 
         I18nKey::AgAriaPane => "Agent Harness",
         I18nKey::AgSandbox => "Tool-Sandbox ",
