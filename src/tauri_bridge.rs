@@ -202,6 +202,7 @@ pub struct ProviderModelEntry {
 pub struct ProviderKeyStatus {
     pub provider: AgentProviderKind,
     pub configured: bool,
+    pub masked_value: Option<String>,
 }
 
 #[derive(Clone, Debug, serde::Deserialize)]

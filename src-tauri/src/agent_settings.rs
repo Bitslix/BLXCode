@@ -3,8 +3,11 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
+#[cfg(unix)]
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 
 const SETTINGS_FILE: &str = "agent_provider_settings.json";
+const SECRETS_DIR: &str = "secrets";
 const KEYRING_SERVICE: &str = "BLXCode";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -80,6 +83,8 @@ impl Default for AgentProviderSettings {
 pub struct ProviderKeyStatus {
     pub provider: AgentProviderKind,
     pub configured: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub masked_value: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -130,8 +135,32 @@ fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(base.join(SETTINGS_FILE))
 }
 
+fn secrets_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let base = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("app config dir unavailable: {e}"))?;
+    Ok(base.join(SECRETS_DIR))
+}
+
+fn fallback_secret_path(app: &AppHandle, provider: AgentProviderKind) -> Result<PathBuf, String> {
+    Ok(secrets_dir(app)?.join(format!("{}.secret", provider.as_str())))
+}
+
 fn ensure_dir(path: &Path) -> Result<(), String> {
     fs::create_dir_all(path).map_err(|e| format!("mkdir {}: {e}", path.display()))
+}
+
+#[cfg(unix)]
+fn ensure_private_dir(path: &Path) -> Result<(), String> {
+    ensure_dir(path)?;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o700))
+        .map_err(|e| format!("chmod 700 {}: {e}", path.display()))
+}
+
+#[cfg(not(unix))]
+fn ensure_private_dir(path: &Path) -> Result<(), String> {
+    ensure_dir(path)
 }
 
 fn load_settings(app: &AppHandle) -> Result<AgentProviderSettings, String> {
@@ -169,20 +198,87 @@ fn keyring_entry(provider: AgentProviderKind) -> Result<keyring::Entry, String> 
         .map_err(|e| format!("keyring init {}: {e}", provider.as_str()))
 }
 
-fn key_is_configured(provider: AgentProviderKind) -> Result<bool, String> {
+fn read_fallback_secret(
+    app: &AppHandle,
+    provider: AgentProviderKind,
+) -> Result<Option<String>, String> {
+    let path = fallback_secret_path(app, provider)?;
+    match fs::read_to_string(&path) {
+        Ok(raw) => Ok(mask_secret(&raw).map(|_| raw.trim().to_string()).filter(|s| !s.is_empty())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("read fallback {}: {e}", path.display())),
+    }
+}
+
+fn write_fallback_secret(
+    app: &AppHandle,
+    provider: AgentProviderKind,
+    secret: &str,
+) -> Result<(), String> {
+    let dir = secrets_dir(app)?;
+    ensure_private_dir(&dir)?;
+    let path = fallback_secret_path(app, provider)?;
+    #[cfg(unix)]
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .mode(0o600)
+        .open(&path)
+        .map_err(|e| format!("create fallback {}: {e}", path.display()))?;
+    #[cfg(not(unix))]
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .open(&path)
+        .map_err(|e| format!("create fallback {}: {e}", path.display()))?;
+    file.write_all(secret.as_bytes())
+        .map_err(|e| format!("write fallback {}: {e}", path.display()))?;
+    file.sync_all().ok();
+    #[cfg(unix)]
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o600))
+        .map_err(|e| format!("chmod 600 {}: {e}", path.display()))?;
+    Ok(())
+}
+
+fn delete_fallback_secret(app: &AppHandle, provider: AgentProviderKind) -> Result<(), String> {
+    let path = fallback_secret_path(app, provider)?;
+    match fs::remove_file(&path) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("delete fallback {}: {e}", path.display())),
+    }
+}
+
+fn key_masked_value(app: &AppHandle, provider: AgentProviderKind) -> Result<Option<String>, String> {
     let entry = keyring_entry(provider)?;
     match entry.get_password() {
-        Ok(secret) => Ok(!secret.trim().is_empty()),
-        Err(keyring::Error::NoEntry) => Ok(false),
+        Ok(secret) => Ok(mask_secret(&secret)),
+        Err(keyring::Error::NoEntry) => Ok(read_fallback_secret(app, provider)?
+            .and_then(|secret| mask_secret(&secret))),
+        Err(_) if cfg!(target_os = "linux") => Ok(read_fallback_secret(app, provider)?
+            .and_then(|secret| mask_secret(&secret))),
         Err(e) => Err(format!("keyring get {}: {e}", provider.as_str())),
     }
 }
 
-fn provider_key(provider: AgentProviderKind) -> Result<String, String> {
+fn key_is_configured(app: &AppHandle, provider: AgentProviderKind) -> Result<bool, String> {
+    Ok(key_masked_value(app, provider)?.is_some())
+}
+
+fn provider_key(app: &AppHandle, provider: AgentProviderKind) -> Result<String, String> {
     let entry = keyring_entry(provider)?;
-    entry
-        .get_password()
-        .map_err(|e| format!("keyring get {}: {e}", provider.as_str()))
+    match entry.get_password() {
+        Ok(secret) if !secret.trim().is_empty() => Ok(secret),
+        Ok(_) => read_fallback_secret(app, provider)?
+            .ok_or_else(|| format!("keyring get {}: empty secret", provider.as_str())),
+        Err(keyring::Error::NoEntry) => read_fallback_secret(app, provider)?
+            .ok_or_else(|| format!("keyring get {}: no stored secret", provider.as_str())),
+        Err(_) if cfg!(target_os = "linux") => read_fallback_secret(app, provider)?
+            .ok_or_else(|| format!("keyring get {}: no stored secret", provider.as_str())),
+        Err(e) => Err(format!("keyring get {}: {e}", provider.as_str())),
+    }
 }
 
 fn curated_models(provider: AgentProviderKind) -> Vec<ProviderModelEntry> {
@@ -254,7 +350,10 @@ fn set_cache_for_provider(
     }
 }
 
-fn settings_view(settings: AgentProviderSettings) -> Result<AgentProviderSettingsView, String> {
+fn settings_view(
+    app: &AppHandle,
+    settings: AgentProviderSettings,
+) -> Result<AgentProviderSettingsView, String> {
     let key_statuses = [
         AgentProviderKind::Openrouter,
         AgentProviderKind::Anthropic,
@@ -262,9 +361,11 @@ fn settings_view(settings: AgentProviderSettings) -> Result<AgentProviderSetting
     ]
     .into_iter()
     .map(|provider| {
+        let masked_value = key_masked_value(app, provider)?;
         Ok(ProviderKeyStatus {
             provider,
-            configured: key_is_configured(provider)?,
+            configured: masked_value.is_some(),
+            masked_value,
         })
     })
     .collect::<Result<Vec<_>, String>>()?;
@@ -273,6 +374,17 @@ fn settings_view(settings: AgentProviderSettings) -> Result<AgentProviderSetting
         settings,
         key_statuses,
     })
+}
+
+fn provider_configured_in_view(
+    view: &AgentProviderSettingsView,
+    provider: AgentProviderKind,
+) -> bool {
+    view.key_statuses
+        .iter()
+        .find(|status| status.provider == provider)
+        .map(|status| status.configured)
+        .unwrap_or(false)
 }
 
 #[derive(Deserialize)]
@@ -311,7 +423,10 @@ struct AnthropicModel {
     display_name: Option<String>,
 }
 
-async fn fetch_models_live(provider: AgentProviderKind) -> Result<Vec<ProviderModelEntry>, String> {
+async fn fetch_models_live(
+    app: &AppHandle,
+    provider: AgentProviderKind,
+) -> Result<Vec<ProviderModelEntry>, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(8))
         .build()
@@ -342,7 +457,7 @@ async fn fetch_models_live(provider: AgentProviderKind) -> Result<Vec<ProviderMo
             Ok(items)
         }
         AgentProviderKind::Openai => {
-            let key = provider_key(provider)?;
+            let key = provider_key(app, provider)?;
             let res = client
                 .get("https://api.openai.com/v1/models")
                 .bearer_auth(key)
@@ -368,7 +483,7 @@ async fn fetch_models_live(provider: AgentProviderKind) -> Result<Vec<ProviderMo
             Ok(items)
         }
         AgentProviderKind::Anthropic => {
-            let key = provider_key(provider)?;
+            let key = provider_key(app, provider)?;
             let res = client
                 .get("https://api.anthropic.com/v1/models")
                 .header("x-api-key", key)
@@ -398,7 +513,7 @@ async fn fetch_models_live(provider: AgentProviderKind) -> Result<Vec<ProviderMo
 
 #[tauri::command]
 pub fn agent_settings_get(app: AppHandle) -> Result<AgentProviderSettingsView, String> {
-    settings_view(load_settings(&app)?)
+    settings_view(&app, load_settings(&app)?)
 }
 
 #[tauri::command]
@@ -411,7 +526,7 @@ pub fn agent_settings_save(
     settings.model_id = patch.model_id.trim().to_string();
     settings.thinking_level = patch.thinking_level;
     save_settings(&app, &settings)?;
-    settings_view(settings)
+    settings_view(&app, settings)
 }
 
 #[tauri::command]
@@ -421,10 +536,66 @@ pub fn agent_api_key_set(app: AppHandle, payload: ProviderKeyPayload) -> Result<
         return Err("API key must not be empty".into());
     }
     let entry = keyring_entry(payload.provider)?;
-    entry
-        .set_password(trimmed)
-        .map_err(|e| format!("keyring set {}: {e}", payload.provider.as_str()))?;
-    settings_view(load_settings(&app)?)
+    let keyring_write = entry.set_password(trimmed);
+    match keyring_write {
+        Ok(()) => {}
+        Err(_e) if cfg!(target_os = "linux") => {
+            write_fallback_secret(&app, payload.provider, trimmed)?;
+            let view = settings_view(&app, load_settings(&app)?)?;
+            if !provider_configured_in_view(&view, payload.provider) {
+                return Err(format!(
+                    "linux fallback verify {}: fallback secret was written, but a fresh lookup still reports no stored secret",
+                    payload.provider.as_str()
+                ));
+            }
+            return Ok(view);
+        }
+        Err(e) => return Err(format!("keyring set {}: {e}", payload.provider.as_str())),
+    }
+    match entry.get_password() {
+        Ok(saved) if saved.trim().is_empty() => {
+            if cfg!(target_os = "linux") {
+                write_fallback_secret(&app, payload.provider, trimmed)?;
+            } else {
+                return Err(format!(
+                    "keyring verify {}: secret was written, but readback returned an empty value",
+                    payload.provider.as_str()
+                ));
+            }
+        }
+        Ok(_) => {}
+        Err(e) => {
+            if cfg!(target_os = "linux") {
+                write_fallback_secret(&app, payload.provider, trimmed)?;
+            } else {
+                return Err(format!(
+                    "keyring verify {}: readback failed after write: {e}",
+                    payload.provider.as_str()
+                ));
+            }
+        }
+    }
+    let view = settings_view(&app, load_settings(&app)?)?;
+    if !provider_configured_in_view(&view, payload.provider) {
+        if cfg!(target_os = "linux") {
+            write_fallback_secret(&app, payload.provider, trimmed)?;
+            let view = settings_view(&app, load_settings(&app)?)?;
+            if !provider_configured_in_view(&view, payload.provider) {
+                return Err(format!(
+                    "linux fallback verify {}: fallback secret was written, but a fresh lookup still reports no stored secret",
+                    payload.provider.as_str()
+                ));
+            }
+            return Ok(view);
+        } else {
+            return Err(format!(
+                "keyring verify {}: readback succeeded on the immediate handle, but a fresh lookup still reports no stored secret",
+                payload.provider.as_str()
+            ));
+        }
+    }
+    let _ = delete_fallback_secret(&app, payload.provider);
+    Ok(view)
 }
 
 #[tauri::command]
@@ -432,9 +603,36 @@ pub fn agent_api_key_delete(app: AppHandle, payload: ProviderRef) -> Result<Agen
     let entry = keyring_entry(payload.provider)?;
     match entry.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => {}
+        Err(_) if cfg!(target_os = "linux") => {}
         Err(e) => return Err(format!("keyring delete {}: {e}", payload.provider.as_str())),
     }
-    settings_view(load_settings(&app)?)
+    delete_fallback_secret(&app, payload.provider)?;
+    match entry.get_password() {
+        Ok(_) => {
+            if !cfg!(target_os = "linux") {
+                return Err(format!(
+                    "keyring verify {}: secret still present after delete",
+                    payload.provider.as_str()
+                ));
+            }
+        }
+        Err(keyring::Error::NoEntry) => {}
+        Err(_) if cfg!(target_os = "linux") => {}
+        Err(e) => {
+            return Err(format!(
+                "keyring verify {}: readback after delete failed unexpectedly: {e}",
+                payload.provider.as_str()
+            ));
+        }
+    }
+    let view = settings_view(&app, load_settings(&app)?)?;
+    if provider_configured_in_view(&view, payload.provider) {
+        return Err(format!(
+            "keyring verify {}: delete returned successfully, but a fresh lookup still reports a stored secret",
+            payload.provider.as_str()
+        ));
+    }
+    Ok(view)
 }
 
 #[tauri::command]
@@ -445,7 +643,7 @@ pub async fn agent_provider_models(
     let provider = payload.provider;
     let mut settings = load_settings(&app)?;
 
-    match fetch_models_live(provider).await {
+    match fetch_models_live(&app, provider).await {
         Ok(entries) if !entries.is_empty() => {
             set_cache_for_provider(&mut settings, provider, entries.clone());
             save_settings(&app, &settings)?;
@@ -504,7 +702,7 @@ pub fn provider_status_json() -> serde_json::Value {
     .map(|provider| {
         serde_json::json!({
             "provider": provider.as_str(),
-            "configured": key_is_configured(provider).unwrap_or(false),
+            "configured": false,
         })
     })
     .collect::<Vec<_>>();
@@ -514,4 +712,24 @@ pub fn provider_status_json() -> serde_json::Value {
         "defaultProvider": AgentProviderKind::Openrouter.as_str(),
         "keyStatuses": key_statuses,
     })
+}
+
+fn mask_secret(secret: &str) -> Option<String> {
+    let trimmed = secret.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let suffix: String = trimmed
+        .chars()
+        .rev()
+        .take(4)
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect();
+    if suffix.is_empty() {
+        Some("********".into())
+    } else {
+        Some(format!("********{}", suffix))
+    }
 }

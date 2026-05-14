@@ -15,7 +15,9 @@ use crate::tauri_bridge::{
     ProviderModelEntry, ProviderModelsResponse, ThinkingLevel,
 };
 use gloo_timers::future::TimeoutFuture;
+use leptos::html;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
+use leptos_icons::Icon as LxIcon;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 
@@ -408,6 +410,80 @@ fn defer_browser_bounds(wb: WorkbenchService, embed: BrowserEmbedSurface) {
     });
 }
 
+fn focus_first_settings_control(section_ref: NodeRef<html::Section>) {
+    leptos::task::spawn_local(async move {
+        TimeoutFuture::new(24).await;
+        let Some(section) = section_ref.get() else {
+            return;
+        };
+        let selector = "button:not([disabled]):not([tabindex='-1']), input:not([disabled]), select:not([disabled]), textarea:not([disabled])";
+        let Ok(Some(node)) = section.query_selector(selector) else {
+            return;
+        };
+        let Ok(el) = node.dyn_into::<web_sys::HtmlElement>() else {
+            return;
+        };
+        let _ = el.focus();
+    });
+}
+
+fn settings_focusables(section: &web_sys::HtmlElement) -> Vec<web_sys::HtmlElement> {
+    let selector = "button:not([disabled]):not([tabindex='-1']), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [role='option']:not([disabled])";
+    let Ok(list) = section.query_selector_all(selector) else {
+        return Vec::new();
+    };
+    let mut out = Vec::new();
+    let len = list.length();
+    for idx in 0..len {
+        let Some(node) = list.item(idx) else {
+            continue;
+        };
+        if let Ok(el) = node.dyn_into::<web_sys::HtmlElement>() {
+            out.push(el);
+        }
+    }
+    out
+}
+
+fn trap_settings_tab(section_ref: NodeRef<html::Section>, ev: web_sys::KeyboardEvent) {
+    let key = ev.key();
+    if key != "Tab" {
+        return;
+    }
+    let Some(section) = section_ref.get() else {
+        return;
+    };
+    let section: web_sys::HtmlElement = section.into();
+    let focusables = settings_focusables(&section);
+    if focusables.is_empty() {
+        return;
+    }
+    let Some(active) = web_sys::window()
+        .and_then(|w| w.document())
+        .and_then(|doc| doc.active_element())
+        .and_then(|el| el.dyn_into::<web_sys::HtmlElement>().ok())
+    else {
+        return;
+    };
+    let current_idx = focusables
+        .iter()
+        .position(|el| el.is_same_node(Some(&active)))
+        .unwrap_or(0);
+    let next_idx = if ev.shift_key() {
+        if current_idx == 0 {
+            focusables.len().saturating_sub(1)
+        } else {
+            current_idx - 1
+        }
+    } else if current_idx + 1 >= focusables.len() {
+        0
+    } else {
+        current_idx + 1
+    };
+    ev.prevent_default();
+    let _ = focusables[next_idx].focus();
+}
+
 #[component]
 fn SettingsChrome(
     ui: HarnessUiService,
@@ -415,17 +491,38 @@ fn SettingsChrome(
     embed: BrowserEmbedSurface,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let section_ref = NodeRef::<html::Section>::new();
+
+    Effect::new(move |_| {
+        if ui.settings_open().get() {
+            focus_first_settings_control(section_ref);
+        }
+    });
 
     view! {
         <div class="harness-overlay harness-overlay--modal" role="presentation">
             <button
                 type="button"
                 class="harness-scrim"
+                tabindex="-1"
                 aria-label=move || i18n.tr(I18nKey::HsCloseSettingsAria)()
                 on:click=move |_| ui.close_settings()
             ></button>
 
-            <section class="harness-sheet harness-sheet--settings" role="dialog" aria-modal="true">
+            <section
+                class="harness-sheet harness-sheet--settings"
+                role="dialog"
+                aria-modal="true"
+                node_ref=section_ref
+                on:keydown=move |ev: web_sys::KeyboardEvent| {
+                    if ev.key() == "Escape" {
+                        ev.prevent_default();
+                        ui.close_settings();
+                        return;
+                    }
+                    trap_settings_tab(section_ref, ev);
+                }
+            >
                 <header class="harness-settings-head">
                     <h2 class="harness-settings-title">{move || i18n.tr(I18nKey::HsTitle)()}</h2>
                     <button type="button" class="workbench-mini-btn" on:click=move |_| ui.close_settings()>
@@ -498,7 +595,6 @@ fn AppSettingsPane() -> impl IntoView {
                 <span>{move || i18n.tr(I18nKey::AppLanguage)()}</span>
                 <select
                     class="workbench-plain-input"
-                    prop:value=move || i18n.locale().get().as_str().to_owned()
                     on:change=move |ev| {
                         if let Some(tag) = select_str(&ev) {
                             if let Some(loc) = Locale::parse_bcp47(&tag) {
@@ -507,12 +603,11 @@ fn AppSettingsPane() -> impl IntoView {
                         }
                     }
                 >
-                    <option value="de-DE">"Deutsch"</option>
-                    <option value="en-US">"English"</option>
+                    <option value="de-DE" prop:selected=move || i18n.locale().get() == Locale::DeDe>"Deutsch"</option>
+                    <option value="en-US" prop:selected=move || i18n.locale().get() == Locale::EnUs>"English"</option>
                 </select>
             </label>
             <section class="harness-subpane">
-                <h4>{move || i18n.tr(I18nKey::AppHooksHeading)()}</h4>
                 <AgentHooksPanel />
             </section>
         </article>
@@ -599,6 +694,14 @@ fn provider_label(i18n: &I18nService, provider: AgentProviderKind) -> String {
     i18n.tr(key)().to_string()
 }
 
+fn provider_icon_url(provider: AgentProviderKind) -> &'static str {
+    match provider {
+        AgentProviderKind::Openrouter => "https://cdn.jsdelivr.net/npm/simple-icons/icons/openrouter.svg",
+        AgentProviderKind::Anthropic => "https://cdn.jsdelivr.net/npm/simple-icons/icons/anthropic.svg",
+        AgentProviderKind::Openai => "https://cdn.jsdelivr.net/npm/simple-icons/icons/openai.svg",
+    }
+}
+
 fn thinking_levels() -> [ThinkingLevel; 5] {
     [
         ThinkingLevel::Off,
@@ -631,11 +734,200 @@ fn provider_key_configured(
         .unwrap_or(false)
 }
 
+fn provider_key_mask(
+    view: &AgentProviderSettingsView,
+    provider: AgentProviderKind,
+) -> Option<String> {
+    view.key_statuses
+        .iter()
+        .find(|status| status.provider == provider)
+        .and_then(|status| status.masked_value.clone())
+}
+
+fn provider_key_status_text(
+    i18n: &I18nService,
+    view: &AgentProviderSettingsView,
+    provider: AgentProviderKind,
+) -> String {
+    if provider_key_configured(view, provider) {
+        if let Some(mask) = provider_key_mask(view, provider) {
+            format!("{} ({mask})", i18n.tr(I18nKey::AgApiKeyConfigured)())
+        } else {
+            i18n.tr(I18nKey::AgApiKeyConfigured)().to_string()
+        }
+    } else {
+        i18n.tr(I18nKey::AgApiKeyMissing)().to_string()
+    }
+}
+
 fn provider_cache(view: &AgentProviderSettingsView, provider: AgentProviderKind) -> Vec<ProviderModelEntry> {
     match provider {
         AgentProviderKind::Openrouter => view.model_cache_openrouter.clone(),
         AgentProviderKind::Anthropic => view.model_cache_anthropic.clone(),
         AgentProviderKind::Openai => view.model_cache_openai.clone(),
+    }
+}
+
+fn hook_brand_icon(agent: &str) -> Option<&'static str> {
+    match agent {
+        "claude" => Some("https://cdn.jsdelivr.net/npm/simple-icons/icons/anthropic.svg"),
+        "codex" => Some("https://cdn.jsdelivr.net/npm/simple-icons/icons/openai.svg"),
+        "gemini" => Some("https://cdn.jsdelivr.net/npm/simple-icons/icons/googlegemini.svg"),
+        "cursor" => Some("https://cdn.jsdelivr.net/npm/simple-icons/icons/cursor.svg"),
+        _ => None,
+    }
+}
+
+fn focus_provider_option(provider: AgentProviderKind) {
+    let id = format!("provider-option-{}", provider.as_str());
+    let Some(doc) = web_sys::window().and_then(|w| w.document()) else {
+        return;
+    };
+    let Some(el) = doc.get_element_by_id(&id) else {
+        return;
+    };
+    let Ok(button) = el.dyn_into::<web_sys::HtmlElement>() else {
+        return;
+    };
+    let _ = button.focus();
+}
+
+fn next_provider(provider: AgentProviderKind) -> AgentProviderKind {
+    match provider {
+        AgentProviderKind::Openrouter => AgentProviderKind::Anthropic,
+        AgentProviderKind::Anthropic => AgentProviderKind::Openai,
+        AgentProviderKind::Openai => AgentProviderKind::Openrouter,
+    }
+}
+
+fn prev_provider(provider: AgentProviderKind) -> AgentProviderKind {
+    match provider {
+        AgentProviderKind::Openrouter => AgentProviderKind::Openai,
+        AgentProviderKind::Anthropic => AgentProviderKind::Openrouter,
+        AgentProviderKind::Openai => AgentProviderKind::Anthropic,
+    }
+}
+
+#[component]
+fn ProviderPicker(
+    selected_provider: RwSignal<AgentProviderKind>,
+    settings: RwSignal<Option<AgentProviderSettingsView>>,
+    model_entries: RwSignal<Vec<ProviderModelEntry>>,
+    provider_refresh_request: RwSignal<Option<AgentProviderKind>>,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let open = RwSignal::new(false);
+
+    let choose = move |provider: AgentProviderKind| {
+        selected_provider.set(provider);
+        if let Some(view) = settings.get_untracked() {
+            model_entries.set(provider_cache(&view, provider));
+        }
+        open.set(false);
+        provider_refresh_request.set(Some(provider));
+    };
+
+    view! {
+        <div class="harness-provider-picker">
+            <button
+                type="button"
+                class="harness-provider-trigger"
+                aria-haspopup="listbox"
+                aria-expanded=move || if open.get() { "true" } else { "false" }
+                on:click=move |_| {
+                    let next = !open.get_untracked();
+                    open.set(next);
+                    if next {
+                        let provider = selected_provider.get_untracked();
+                        leptos::task::spawn_local(async move {
+                            TimeoutFuture::new(0).await;
+                            focus_provider_option(provider);
+                        });
+                    }
+                }
+                on:keydown=move |ev: web_sys::KeyboardEvent| {
+                    match ev.key().as_str() {
+                        "ArrowDown" | "Enter" | " " => {
+                            ev.prevent_default();
+                            open.set(true);
+                            let provider = selected_provider.get_untracked();
+                            leptos::task::spawn_local(async move {
+                                TimeoutFuture::new(0).await;
+                                focus_provider_option(provider);
+                            });
+                        }
+                        "ArrowUp" => {
+                            ev.prevent_default();
+                            open.set(true);
+                            let provider = prev_provider(selected_provider.get_untracked());
+                            leptos::task::spawn_local(async move {
+                                TimeoutFuture::new(0).await;
+                                focus_provider_option(provider);
+                            });
+                        }
+                        "Escape" => open.set(false),
+                        _ => {}
+                    }
+                }
+            >
+                <span class="harness-provider-trigger__main">
+                    <span class="harness-provider-trigger__brand">
+                        <img class="harness-provider-trigger__img" src=move || provider_icon_url(selected_provider.get()) alt="" />
+                    </span>
+                    <span>{move || provider_label(&i18n, selected_provider.get())}</span>
+                </span>
+                <span class="harness-provider-trigger__caret">"▾"</span>
+            </button>
+
+            <Show when=move || open.get()>
+                <div class="harness-provider-menu" role="listbox">
+                    {move || {
+                        [AgentProviderKind::Openrouter, AgentProviderKind::Anthropic, AgentProviderKind::Openai]
+                            .into_iter()
+                            .map(|provider| {
+                                view! {
+                                    <button
+                                        id=format!("provider-option-{}", provider.as_str())
+                                        type="button"
+                                        role="option"
+                                        class="harness-provider-option"
+                                        class:harness-provider-option--active=move || selected_provider.get() == provider
+                                        aria-selected=move || if selected_provider.get() == provider { "true" } else { "false" }
+                                        on:click=move |_| choose(provider)
+                                        on:keydown=move |ev: web_sys::KeyboardEvent| {
+                                            match ev.key().as_str() {
+                                                "ArrowDown" => {
+                                                    ev.prevent_default();
+                                                    focus_provider_option(next_provider(provider));
+                                                }
+                                                "ArrowUp" => {
+                                                    ev.prevent_default();
+                                                    focus_provider_option(prev_provider(provider));
+                                                }
+                                                "Enter" | " " => {
+                                                    ev.prevent_default();
+                                                    choose(provider);
+                                                }
+                                                "Escape" => {
+                                                    ev.prevent_default();
+                                                    open.set(false);
+                                                }
+                                                _ => {}
+                                            }
+                                        }
+                                    >
+                                        <span class="harness-provider-option__brand">
+                                            <img class="harness-provider-option__img" src=provider_icon_url(provider) alt="" />
+                                        </span>
+                                        <span>{provider_label(&i18n, provider)}</span>
+                                    </button>
+                                }
+                            })
+                            .collect_view()
+                    }}
+                </div>
+            </Show>
+        </div>
     }
 }
 
@@ -654,6 +946,7 @@ fn AgentProviderPane() -> impl IntoView {
     let loading_models = RwSignal::new(false);
     let status_msg: RwSignal<Option<String>> = RwSignal::new(None);
     let error_msg: RwSignal<Option<String>> = RwSignal::new(None);
+    let provider_refresh_request: RwSignal<Option<AgentProviderKind>> = RwSignal::new(None);
 
     let apply_settings = move |view: AgentProviderSettingsView| {
         selected_provider.set(view.provider);
@@ -708,35 +1001,27 @@ fn AgentProviderPane() -> impl IntoView {
         });
     };
 
+    Effect::new(move |_| {
+        let Some(provider) = provider_refresh_request.get() else {
+            return;
+        };
+        provider_refresh_request.set(None);
+        refresh_models(provider);
+    });
+
     view! {
         <article class="harness-pane">
             <h3>{move || i18n.tr(I18nKey::AgProviderHeading)()}</h3>
             <div class="harness-provider-grid">
-                <label class="harness-stack">
+                <div class="harness-stack">
                     <span>{move || i18n.tr(I18nKey::AgProviderField)()}</span>
-                    <select
-                        class="workbench-plain-input"
-                        prop:value=move || selected_provider.get().as_str().to_string()
-                        on:change=move |ev| {
-                            if let Some(value) = select_str(&ev) {
-                                let provider = match value.as_str() {
-                                    "anthropic" => AgentProviderKind::Anthropic,
-                                    "openai" => AgentProviderKind::Openai,
-                                    _ => AgentProviderKind::Openrouter,
-                                };
-                                selected_provider.set(provider);
-                                if let Some(view) = settings.get_untracked() {
-                                    model_entries.set(provider_cache(&view, provider));
-                                }
-                                refresh_models(provider);
-                            }
-                        }
-                    >
-                        <option value="openrouter">{move || i18n.tr(I18nKey::AgProviderOpenrouter)()}</option>
-                        <option value="anthropic">{move || i18n.tr(I18nKey::AgProviderAnthropic)()}</option>
-                        <option value="openai">{move || i18n.tr(I18nKey::AgProviderOpenai)()}</option>
-                    </select>
-                </label>
+                    <ProviderPicker
+                        selected_provider=selected_provider
+                        settings=settings
+                        model_entries=model_entries
+                        provider_refresh_request=provider_refresh_request
+                    />
+                </div>
 
                 <label class="harness-stack">
                     <span>{move || i18n.tr(I18nKey::AgThinkingField)()}</span>
@@ -825,15 +1110,10 @@ fn AgentProviderPane() -> impl IntoView {
                     <h4>{move || format!("{} {}", i18n.tr(I18nKey::AgApiKeyField)(), provider_label(&i18n, selected_provider.get()))}</h4>
                     <small class="harness-muted">
                         {move || {
-                            let configured = settings
+                            settings
                                 .get()
-                                .map(|view| provider_key_configured(&view, selected_provider.get()))
-                                .unwrap_or(false);
-                            if configured {
-                                i18n.tr(I18nKey::AgApiKeyConfigured)().to_string()
-                            } else {
-                                i18n.tr(I18nKey::AgApiKeyMissing)().to_string()
-                            }
+                                .map(|view| provider_key_status_text(&i18n, &view, selected_provider.get()))
+                                .unwrap_or_else(|| i18n.tr(I18nKey::AgApiKeyMissing)().to_string())
                         }}
                     </small>
                 </div>
@@ -843,6 +1123,12 @@ fn AgentProviderPane() -> impl IntoView {
                         class="workbench-plain-input"
                         type="password"
                         autocomplete="off"
+                        placeholder=move || {
+                            settings
+                                .get()
+                                .and_then(|view| provider_key_mask(&view, selected_provider.get()))
+                                .unwrap_or_default()
+                        }
                         prop:value=move || api_key_input.get()
                         on:input=move |ev| {
                             if let Some(value) = input_str(&ev) {
@@ -860,6 +1146,7 @@ fn AgentProviderPane() -> impl IntoView {
                             let provider = selected_provider.get_untracked();
                             let api_key = api_key_input.get_untracked();
                             if api_key.trim().is_empty() {
+                                status_msg.set(None);
                                 error_msg.set(Some("API key is empty".into()));
                                 return;
                             }
@@ -868,12 +1155,25 @@ fn AgentProviderPane() -> impl IntoView {
                             leptos::task::spawn_local(async move {
                                 match agent_api_key_set(provider, api_key).await {
                                     Ok(view) => {
+                                        if !provider_key_configured(&view, provider) {
+                                            status_msg.set(None);
+                                            error_msg.set(Some(format!(
+                                                "API-Key speichern fehlgeschlagen: provider state for {} is still missing after save",
+                                                provider.as_str()
+                                            )));
+                                            busy.set(false);
+                                            return;
+                                        }
                                         api_key_input.set(String::new());
                                         status_msg.set(Some(i18n.tr(I18nKey::AgSaveProviderDone)().to_string()));
+                                        error_msg.set(None);
                                         apply_settings(view);
                                         refresh_models(provider);
                                     }
-                                    Err(err) => error_msg.set(Some(err)),
+                                    Err(err) => {
+                                        status_msg.set(None);
+                                        error_msg.set(Some(format!("API-Key speichern fehlgeschlagen: {err}")));
+                                    }
                                 }
                                 busy.set(false);
                             });
@@ -893,9 +1193,13 @@ fn AgentProviderPane() -> impl IntoView {
                                 match agent_api_key_delete(provider).await {
                                     Ok(view) => {
                                         status_msg.set(None);
+                                        error_msg.set(None);
                                         apply_settings(view);
                                     }
-                                    Err(err) => error_msg.set(Some(err)),
+                                    Err(err) => {
+                                        status_msg.set(None);
+                                        error_msg.set(Some(format!("API-Key löschen fehlgeschlagen: {err}")));
+                                    }
                                 }
                                 busy.set(false);
                             });
@@ -937,7 +1241,7 @@ fn AgentProviderPane() -> impl IntoView {
                 <p class="harness-muted">{move || status_msg.get().unwrap_or_default()}</p>
             </Show>
             <Show when=move || error_msg.get().is_some()>
-                <p class="harness-muted">{move || error_msg.get().unwrap_or_default()}</p>
+                <p class="harness-error-text">{move || error_msg.get().unwrap_or_default()}</p>
             </Show>
         </article>
     }
@@ -1001,7 +1305,7 @@ fn AgentHooksPanel() -> impl IntoView {
         <section class="harness-hooks">
             <h4>{move || i18n.tr(I18nKey::AgHooksHeading)()}</h4>
             <p class="harness-muted">{move || i18n.tr(I18nKey::AgHooksDesc)()}</p>
-            <ul class="harness-hooks__list">
+            <ul class="harness-hooks__list" role="list">
                 {move || {
                     let rendered = report.get();
                     let installed_label = i18n.tr(I18nKey::AgHooksStatusInstalled)().to_string();
@@ -1019,13 +1323,44 @@ fn AgentHooksPanel() -> impl IntoView {
                                 };
                                 let note = entry.note.unwrap_or_default();
                                 let has_note = !note.is_empty();
+                                let icon_url = hook_brand_icon(&entry.agent);
                                 view! {
                                     <li class="harness-hooks__item">
-                                        <strong>{entry.agent}</strong>
-                                        <span class="harness-muted">{format!(" — {status}")}</span>
-                                        <Show when=move || has_note>
-                                            <small class="harness-muted">{note.clone()}</small>
-                                        </Show>
+                                        <div class="harness-hooks__main">
+                                            <span class="harness-hooks__brand">
+                                                <Show
+                                                    when=move || icon_url.is_some()
+                                                    fallback=move || view! {
+                                                        <span class="harness-hooks__fallback">
+                                                            <LxIcon icon=icondata::LuTerminal width="0.9rem" height="0.9rem" />
+                                                        </span>
+                                                    }
+                                                >
+                                                    <img
+                                                        class="harness-hooks__img"
+                                                        src=move || icon_url.unwrap_or("")
+                                                        alt=""
+                                                    />
+                                                </Show>
+                                            </span>
+                                            <div class="harness-hooks__copy">
+                                                <strong class="harness-hooks__name">{entry.agent}</strong>
+                                                <Show when=move || has_note>
+                                                    <small class="harness-muted">{note.clone()}</small>
+                                                </Show>
+                                            </div>
+                                        </div>
+                                        <span
+                                            class="harness-hooks__status"
+                                            class:harness-hooks__status--ok=entry.installed
+                                        >
+                                            <LxIcon
+                                                icon=if entry.installed { icondata::LuCheck } else { icondata::LuX }
+                                                width="0.82rem"
+                                                height="0.82rem"
+                                            />
+                                            <span>{status}</span>
+                                        </span>
                                     </li>
                                 }
                                 .into_any()

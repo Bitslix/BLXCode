@@ -198,6 +198,18 @@ pub fn Sidebar() -> impl IntoView {
                         }
                     />
                 </ul>
+                <Show when=move || collapsed.get()>
+                    <div class="workbench-sidebar__collapsed-actions">
+                        <button
+                            type="button"
+                            class="workbench-sidebar__collapsed-add"
+                            aria-label=move || i18n.tr(I18nKey::SbAddWorkspaceAria)()
+                            on:click=move |_| { let _ = wb.start_inline_configure(); }
+                        >
+                            "+"
+                        </button>
+                    </div>
+                </Show>
             </nav>
 
             <div class="workbench-sidebar__footer">
