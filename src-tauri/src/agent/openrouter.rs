@@ -104,10 +104,12 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
            If `cwd` is omitted, the harness defaults to the active \
            workspace cwd or the configured harness root.\n\
          - `harness.open_terminal {{ agentSlug? }}` — open a new terminal \
-           slot in the active workspace. `agentSlug` is one of `claude`, \
-           `codex`, `gemini`, `opencode`, `cursor` and auto-launches that \
-           CLI with the project's resume id. Omit `agentSlug` for a plain \
-           shell. Fails if the workspace is at the 16-slot maximum.\n\
+           slot in the active workspace. **Default form: call with no \
+           arguments (`{{}}`) for a plain shell.** Only pass `agentSlug` \
+           when the user explicitly names one of `claude`, `codex`, \
+           `gemini`, `opencode`, `cursor`. Do not deliberate about the \
+           schema; if the user asks for \"a terminal\" without naming a \
+           CLI, call it with `{{}}` immediately. Fails at the 16-slot max.\n\
          \n\
          ## Driving other CLI agents (client-side)\n\
          The workspace can host live `claude`/`codex`/`gemini`/`opencode`/\

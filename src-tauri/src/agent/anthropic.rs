@@ -27,6 +27,17 @@ const ANTHROPIC_VERSION: &str = "2023-06-01";
 const MAX_ROUNDS: u32 = 12;
 const DEFAULT_MAX_TOKENS: u64 = 8192;
 
+/// Anthropic restricts tool names to `^[a-zA-Z0-9_-]{1,64}$` — no dots.
+/// Our harness tools use dotted names (`harness.open_terminal`), so we
+/// translate `.` ↔ `__` at the API boundary.
+fn to_anthropic_name(name: &str) -> String {
+    name.replace('.', "__")
+}
+
+fn from_anthropic_name(name: &str) -> String {
+    name.replace("__", ".")
+}
+
 fn thinking_budget(level: ThinkingLevel) -> Option<u64> {
     match level {
         ThinkingLevel::Off => None,
@@ -103,7 +114,15 @@ pub async fn run_chat_turn(
         "content": [{ "type": "text", "text": prompt }],
     }));
 
-    let tools_json = tools::render_for_anthropic();
+    let mut tools_json = tools::render_for_anthropic();
+    if let Some(arr) = tools_json.as_array_mut() {
+        for entry in arr {
+            if let Some(name) = entry.get("name").and_then(|v| v.as_str()) {
+                let safe = to_anthropic_name(name);
+                entry["name"] = Value::String(safe);
+            }
+        }
+    }
     let thinking_cfg = thinking_budget(settings.thinking_level).map(|budget| {
         json!({ "type": "enabled", "budget_tokens": budget })
     });
@@ -173,7 +192,8 @@ pub async fn run_chat_turn(
             assistant_blocks.push(json!({
                 "type": "tool_use",
                 "id": call.id,
-                "name": call.name,
+                // Echo the dot-free form Anthropic accepts.
+                "name": to_anthropic_name(&call.name),
                 "input": input,
             }));
         }
@@ -455,7 +475,9 @@ async fn run_one_round(
                     BlockStart::ToolUse { id, name } => {
                         slot.kind = BlockKind::Tool;
                         slot.tool_id = id;
-                        slot.tool_name = name;
+                        // Translate back from the dot-free form we sent on the
+                        // tools list so internal dispatch finds the real tool.
+                        slot.tool_name = from_anthropic_name(&name);
                         // First non-thinking, non-text block closes the
                         // thinking phase as far as the UI is concerned.
                         if thinking_active && !thinking_closed {

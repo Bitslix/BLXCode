@@ -411,6 +411,20 @@ fn TerminalSlotSurface(
                                 wb.close_terminal(workspace_id, slot_id);
                             }
                         });
+                        // Hide the X when this cell cannot actually be removed:
+                        // single pane in the only remaining terminal slot.
+                        let workspaces_sig = wb.workspaces();
+                        let can_close = Signal::derive(move || {
+                            if pane_ids.with(|ids| ids.len() > 1) {
+                                return true;
+                            }
+                            workspaces_sig.with(|ws| {
+                                ws.iter()
+                                    .find(|w| w.id == workspace_id)
+                                    .map(|w| w.terminal_count > 1)
+                                    .unwrap_or(false)
+                            })
+                        });
 
                         let terminal_key = format!("{workspace_id}:{slot_id}:{pane_id}");
                         view! {
@@ -425,6 +439,7 @@ fn TerminalSlotSurface(
                                 on_split_vertical=on_split_vertical
                                 on_split_horizontal=on_split_horizontal
                                 on_close=on_close
+                                can_close=can_close
                             />
                         }
                     }

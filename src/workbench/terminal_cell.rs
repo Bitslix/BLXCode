@@ -45,6 +45,9 @@ pub fn WorkspaceTerminalCell(
     on_split_vertical: Callback<(), ()>,
     on_split_horizontal: Callback<(), ()>,
     on_close: Callback<(), ()>,
+    /// Hides the close (`×`) button when removing this cell is a no-op
+    /// (e.g. last remaining terminal in the workspace with a single pane).
+    can_close: Signal<bool>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let wb = expect_context::<crate::workbench::state::WorkbenchService>();
@@ -474,15 +477,17 @@ pub fn WorkspaceTerminalCell(
                 >
                     <LxIcon icon=icondata::LuPanelBottom width="0.82rem" height="0.82rem" />
                 </button>
-                <button
-                    type="button"
-                    class="ws-term-cell__tool ws-term-cell__tool--danger"
-                    title="Close"
-                    aria-label="Close terminal"
-                    on:click=move |_| on_close.run(())
-                >
-                    <LxIcon icon=icondata::LuX width="0.86rem" height="0.86rem" />
-                </button>
+                <Show when=move || can_close.get()>
+                    <button
+                        type="button"
+                        class="ws-term-cell__tool ws-term-cell__tool--danger"
+                        title="Close"
+                        aria-label="Close terminal"
+                        on:click=move |_| on_close.run(())
+                    >
+                        <LxIcon icon=icondata::LuX width="0.86rem" height="0.86rem" />
+                    </button>
+                </Show>
             </div>
             <Show when=move || load_failed.get()>
                 <p class="ws-term-cell__boot-fail">{move || i18n.tr(I18nKey::WsTermBootstrapFailed)()}</p>

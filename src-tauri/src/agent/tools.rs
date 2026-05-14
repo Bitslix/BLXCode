@@ -419,16 +419,17 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "harness.open_terminal",
-            description: "Open a new terminal slot in the active workspace. Optionally launches a CLI agent (`claude`, `codex`, `gemini`, `opencode`, `cursor`). When omitted, a plain shell is used.",
+            description: "Open a new terminal slot in the active workspace. Call with no arguments (`{}`) for a plain shell — this is the default and correct form when the user does not name a CLI agent. Only set `agentSlug` when the user explicitly asks for one of: `claude`, `codex`, `gemini`, `opencode`, `cursor`.",
             parameters: json!({
                 "type": "object",
                 "properties": {
                     "agentSlug": {
                         "type": "string",
                         "enum": ["claude", "codex", "gemini", "opencode", "cursor"],
-                        "description": "CLI agent to auto-launch in the new slot."
+                        "description": "OPTIONAL. Only include when the user explicitly names a CLI agent. Omit the entire property otherwise."
                     }
                 },
+                "required": [],
                 "additionalProperties": false
             }),
             site: ToolSite::Client,
