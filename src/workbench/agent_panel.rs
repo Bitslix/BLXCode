@@ -19,81 +19,86 @@ pub fn AgentPanelDock() -> impl IntoView {
     let busy = RwSignal::new(false);
     let status_line = RwSignal::new(Option::<String>::None);
     let ptt_active = RwSignal::new(false);
+    let tasks_open = RwSignal::new(true);
 
     view! {
         <section class="workbench-agent-pane" aria-label=move || i18n.tr(I18nKey::AgAriaPane)()>
             <header class="agent-hero">
-                <div class="agent-hero__orb" aria-hidden="true">
+                <button
+                    type="button"
+                    class="agent-hero__orb"
+                    class:agent-hero__orb--active=move || ptt_active.get()
+                    aria-pressed=move || ptt_active.get().to_string()
+                    aria-label="Talk to BLXCode Agent"
+                    on:mousedown=move |_| ptt_active.set(true)
+                    on:mouseup=move |_| ptt_active.set(false)
+                    on:mouseleave=move |_| ptt_active.set(false)
+                    on:keydown=move |ev| {
+                        if ev.key() == " " || ev.key() == "Enter" {
+                            ev.prevent_default();
+                            ptt_active.set(true);
+                        }
+                    }
+                    on:keyup=move |_| ptt_active.set(false)
+                >
                     <span class="agent-hero__logo">"B"</span>
-                </div>
+                </button>
                 <div class="agent-hero__meta">
-                    <p class="agent-hero__eyebrow">"Bridge agent"</p>
+                    <p class="agent-hero__eyebrow">"BLXCode Agent"</p>
                     <h2>"Standby"</h2>
                     <p>{move || if ptt_active.get() { "Listening mock" } else { "Tap or hold to activate" }}</p>
                 </div>
             </header>
 
-            <button
-                type="button"
-                class="agent-ptt"
-                class:agent-ptt--active=move || ptt_active.get()
-                aria-pressed=move || ptt_active.get().to_string()
-                on:mousedown=move |_| ptt_active.set(true)
-                on:mouseup=move |_| ptt_active.set(false)
-                on:mouseleave=move |_| ptt_active.set(false)
-                on:keydown=move |ev| {
-                    if ev.key() == " " || ev.key() == "Enter" {
-                        ev.prevent_default();
-                        ptt_active.set(true);
-                    }
-                }
-                on:keyup=move |_| ptt_active.set(false)
-            >
-                <span class="agent-ptt__ring" aria-hidden="true">
-                    <LxIcon icon=icondata::LuSparkles width="1.1rem" height="1.1rem" />
-                </span>
-                <span class="agent-ptt__copy">
-                    <strong>{move || if ptt_active.get() { "Listening..." } else { "Push to talk" }}</strong>
-                    <small>"Voice capture is mocked for now"</small>
-                </span>
-            </button>
-
             <section class="agent-section agent-section--tasks" aria-labelledby="agent-tasks-title">
-                <div class="agent-section__head">
+                <button
+                    type="button"
+                    class="agent-section__head agent-section__head--toggle"
+                    aria-expanded=move || tasks_open.get().to_string()
+                    aria-controls="agent-task-list"
+                    on:click=move |_| tasks_open.update(|open| *open = !*open)
+                >
                     <h3 id="agent-tasks-title">"Tasks"</h3>
-                    <span>{move || if busy.get() { "Running" } else { "Idle" }}</span>
-                </div>
-                <ol class="agent-task-list">
-                    <li class="agent-task agent-task--active">
-                        <span class="agent-task__mark" aria-hidden="true"></span>
-                        <div>
-                            <strong>"Wait for next instruction"</strong>
-                            <small>"The agent will turn new prompts into tracked work."</small>
-                        </div>
-                    </li>
-                    <li class="agent-task">
-                        <span class="agent-task__mark" aria-hidden="true"></span>
-                        <div>
-                            <strong>"Inspect active workspace"</strong>
-                            <small>{move || {
-                                let raw = wb.harness_workspace_root().get();
-                                let t = raw.trim();
-                                if t.is_empty() {
-                                    lookup(i18n.locale().get(), I18nKey::AgNoPath).to_owned()
-                                } else {
-                                    t.to_string()
-                                }
-                            }}</small>
-                        </div>
-                    </li>
-                    <li class="agent-task">
-                        <span class="agent-task__mark" aria-hidden="true"></span>
-                        <div>
-                            <strong>"Report execution details"</strong>
-                            <small>{move || i18n.tr(I18nKey::AgScopedReadHint)()}</small>
-                        </div>
-                    </li>
-                </ol>
+                    <span>
+                        {move || if busy.get() { "Running" } else { "Idle" }}
+                        <span class="agent-section__chev" aria-hidden="true">
+                            {move || if tasks_open.get() { "⌃" } else { "⌄" }}
+                        </span>
+                    </span>
+                </button>
+                <Show when=move || tasks_open.get()>
+                    <ol id="agent-task-list" class="agent-task-list">
+                        <li class="agent-task agent-task--active">
+                            <span class="agent-task__mark" aria-hidden="true"></span>
+                            <div>
+                                <strong>"Wait for next instruction"</strong>
+                                <small>"The agent will turn new prompts into tracked work."</small>
+                            </div>
+                        </li>
+                        <li class="agent-task">
+                            <span class="agent-task__mark" aria-hidden="true"></span>
+                            <div>
+                                <strong>"Inspect active workspace"</strong>
+                                <small>{move || {
+                                    let raw = wb.harness_workspace_root().get();
+                                    let t = raw.trim();
+                                    if t.is_empty() {
+                                        lookup(i18n.locale().get(), I18nKey::AgNoPath).to_owned()
+                                    } else {
+                                        t.to_string()
+                                    }
+                                }}</small>
+                            </div>
+                        </li>
+                        <li class="agent-task">
+                            <span class="agent-task__mark" aria-hidden="true"></span>
+                            <div>
+                                <strong>"Report execution details"</strong>
+                                <small>{move || i18n.tr(I18nKey::AgScopedReadHint)()}</small>
+                            </div>
+                        </li>
+                    </ol>
+                </Show>
             </section>
 
             <Show when=move || status_line.get().is_some()>
@@ -105,7 +110,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                 }}
             </Show>
 
-            <article class="workbench-agent-scroll agent-section" aria-live="polite" aria-label="Agent chat log">
+            <article class="workbench-agent-scroll" aria-live="polite" aria-label="Agent chat log">
                 <div class="agent-section__head">
                     <h3>"Chat log"</h3>
                     <span>{move || if activity.get().is_empty() { "Ready" } else { "Tools" }}</span>
@@ -114,16 +119,28 @@ pub fn AgentPanelDock() -> impl IntoView {
                     when=move || !transcript.get().trim().is_empty()
                     fallback=move || view! {
                         <div class="agent-chat-line agent-chat-line--agent">
-                            <strong>"Bridge"</strong>
-                            <p>"Ready. Tell me what to plan, run, or investigate in this workspace."</p>
+                            <span class="agent-chat-index">"01"</span>
+                            <div class="agent-chat-body">
+                                <strong>"BLXCode"</strong>
+                                <p>"Ready. Tell me what to plan, run, or investigate in this workspace."</p>
+                            </div>
                         </div>
                         <div class="agent-chat-line agent-chat-line--user">
-                            <strong>"You"</strong>
-                            <p>"Try: help me wire up the auth refactor, list bugs, or prepare a run plan."</p>
+                            <span class="agent-chat-index">"02"</span>
+                            <div class="agent-chat-body">
+                                <strong>"You"</strong>
+                                <p>"Try: help me wire up the auth refactor, list bugs, or prepare a run plan."</p>
+                            </div>
                         </div>
                     }
                 >
-                    <pre class="workbench-agent-transcript">{move || transcript.get()}</pre>
+                    <div class="agent-chat-line agent-chat-line--agent">
+                        <span class="agent-chat-index">"01"</span>
+                        <div class="agent-chat-body">
+                            <strong>"Session"</strong>
+                            <pre class="workbench-agent-transcript">{move || transcript.get()}</pre>
+                        </div>
+                    </div>
                 </Show>
                 <Show when=move || !activity.get().is_empty()>
                     {move || {
