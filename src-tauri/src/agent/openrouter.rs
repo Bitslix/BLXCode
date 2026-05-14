@@ -83,6 +83,31 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
            CLI with the project's resume id. Omit `agentSlug` for a plain \
            shell. Fails if the workspace is at the 16-slot maximum.\n\
          \n\
+         ## Driving other CLI agents (client-side)\n\
+         The workspace can host live `claude`/`codex`/`gemini`/`opencode`/\
+         `cursor` sessions in its terminal slots. You can inspect them and \
+         pilot them via:\n\
+         - `harness.list_terminals` — returns `[{{ slotId, agentSlug, running }}]` \
+           for the active workspace. Always call this first when you intend \
+           to interact with another agent so you know which slots exist.\n\
+         - `harness.send_terminal_keys {{ slotId? | agentSlug?, text, submit? }}` — \
+           type `text` into a slot's PTY. Set `submit:true` to append a \
+           newline so the command/prompt is executed. Address by `slotId` \
+           when possible (unique); `agentSlug` picks the first matching \
+           slot. Use this to ask a running CLI agent for status (`/status`, \
+           `claude status`), to delegate work to it (paste a prompt + \
+           submit), or to drive plain shells.\n\
+         - `harness.read_terminal_output {{ slotId? | agentSlug?, maxBytes? }}` — \
+           non-destructively read the last bytes from the slot's rolling \
+           tail buffer (cap 64 KiB). Use this AFTER `send_terminal_keys` \
+           to observe the response. Note: output contains ANSI escapes; \
+           focus on the readable text. The user's terminal view is not \
+           disturbed by this call.\n\
+         \n\
+         When delegating: prefer to send a clearly-marked single prompt, \
+         then wait briefly before reading — long-running tasks may need \
+         multiple read passes to capture the full reply.\n\
+         \n\
          # Behaviour\n\
          - Call tools eagerly when they would answer the user's question \
            more reliably than reasoning alone.\n\

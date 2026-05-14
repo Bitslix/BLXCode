@@ -315,6 +315,15 @@ pub fn pty_drain(
 }
 
 #[tauri::command]
+pub fn pty_peek_output(
+    manager: State<'_, PtyManager>,
+    session_id: u64,
+    max_bytes: usize,
+) -> Result<String, String> {
+    manager.peek_tail(session_id, max_bytes)
+}
+
+#[tauri::command]
 pub fn git_branch(cwd: String) -> Option<String> {
     crate::git_info::current_branch(std::path::Path::new(&cwd))
 }

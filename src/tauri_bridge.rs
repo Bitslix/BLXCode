@@ -506,6 +506,19 @@ pub async fn pty_drain(session_id: u64, max_bytes: usize) -> Result<String, Stri
     .await
 }
 
+/// Non-destructive read of the last `max_bytes` bytes of a PTY session's
+/// output. Safe to call concurrently with the terminal's own drain.
+pub async fn pty_peek_output(session_id: u64, max_bytes: usize) -> Result<String, String> {
+    invoke_typed(
+        "pty_peek_output",
+        PtyDrainArgs {
+            session_id,
+            max_bytes,
+        },
+    )
+    .await
+}
+
 #[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]

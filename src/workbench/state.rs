@@ -329,6 +329,11 @@ pub struct WorkbenchService {
     /// Step indicator for the inline configurator (0 = layout, 1 = fleet).
     /// Per-workspace, keyed alongside `workspace_drafts`.
     workspace_config_steps: RwSignal<HashMap<u64, u8>>,
+    /// Live registry of PTY session ids keyed by `"{workspace_id}:{slot_id}:{pane_id}"`.
+    /// Each `TerminalCell` registers on spawn and clears on close so the
+    /// agent can address terminals by slot via the harness tools without
+    /// reaching into per-cell local state.
+    pty_sessions: RwSignal<HashMap<String, u64>>,
 }
 
 impl WorkbenchService {
@@ -362,7 +367,43 @@ impl WorkbenchService {
             workspace_next_id: RwSignal::new(1),
             workspace_drafts: RwSignal::new(HashMap::new()),
             workspace_config_steps: RwSignal::new(HashMap::new()),
+            pty_sessions: RwSignal::new(HashMap::new()),
         }
+    }
+
+    /// Register a live PTY session for a terminal cell. `terminal_key` is
+    /// the same `"{ws}:{slot}:{pane}"` shape used by the cell.
+    pub fn register_pty_session(&self, terminal_key: String, session_id: u64) {
+        self.pty_sessions.update(|m| {
+            m.insert(terminal_key, session_id);
+        });
+    }
+
+    pub fn unregister_pty_session(&self, terminal_key: &str) {
+        self.pty_sessions.update(|m| {
+            m.remove(terminal_key);
+        });
+    }
+
+    /// Snapshot of all PTY sessions belonging to one workspace, keyed by
+    /// `(slot_id, pane_id)`. The pane component is parsed from the key.
+    #[must_use]
+    pub fn pty_sessions_for_workspace(&self, workspace_id: u64) -> Vec<(u64, u64, u64)> {
+        self.pty_sessions.with_untracked(|m| {
+            m.iter()
+                .filter_map(|(key, sid)| {
+                    let mut it = key.split(':');
+                    let ws: u64 = it.next()?.parse().ok()?;
+                    let slot: u64 = it.next()?.parse().ok()?;
+                    let pane: u64 = it.next()?.parse().ok()?;
+                    if ws == workspace_id {
+                        Some((slot, pane, *sid))
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        })
     }
 
     #[must_use]

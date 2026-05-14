@@ -47,6 +47,7 @@ pub fn WorkspaceTerminalCell(
     on_close: Callback<(), ()>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let wb = expect_context::<crate::workbench::state::WorkbenchService>();
     let load_failed = RwSignal::new(false);
     let active = RwSignal::new(false);
     let node_ref = NodeRef::<html::Div>::new();
@@ -160,6 +161,7 @@ pub fn WorkspaceTerminalCell(
                             Ok(sid) => {
                                 terminal_set_stdin_enabled(tid, true);
                                 state.lock().expect("cell").pty_session = Some(sid);
+                                wb.register_pty_session(terminal_key.clone(), sid);
                                 if let Some(size) = initial_size {
                                     let _ = pty_resize(sid, size.rows, size.cols).await;
                                 }
@@ -383,6 +385,7 @@ pub fn WorkspaceTerminalCell(
 
     on_cleanup({
         let state = state.clone();
+        let terminal_key_cleanup = terminal_key.clone();
         // Move handles into cleanup so they live until component unmount
         move || {
             drop(pty_input_handle);
@@ -396,6 +399,7 @@ pub fn WorkspaceTerminalCell(
                 let st = state.lock().expect("cell");
                 (st.term_id, st.pty_session)
             };
+            wb.unregister_pty_session(&terminal_key_cleanup);
             if let Some(t) = t {
                 terminal_dispose(t);
             }

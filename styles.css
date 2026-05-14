@@ -1468,6 +1468,16 @@ body {
   box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.08);
 }
 
+.workbench-agent-input--single {
+  min-height: 2.25rem;
+  max-height: 2.25rem;
+  height: 2.25rem;
+  resize: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .workbench-agent-actions {
   display: flex;
   flex-wrap: wrap;

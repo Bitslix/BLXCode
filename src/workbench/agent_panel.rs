@@ -4,7 +4,7 @@ use crate::i18n::{lookup, I18nKey, Locale};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_abort, agent_drain_turn, agent_settings_get, agent_submit_tool_result, agent_submit_turn,
-    is_tauri_shell,
+    is_tauri_shell, pty_peek_output, pty_write,
 };
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
@@ -195,17 +195,17 @@ pub fn AgentPanelDock() -> impl IntoView {
                     submit_turn(wb, i18n, draft, busy, status_line, user_prompt, transcript, activity);
                 }
             >
-                <textarea
-                    class="workbench-agent-input"
+                <input
+                    type="text"
+                    class="workbench-agent-input workbench-agent-input--single"
                     placeholder=move || i18n.tr(I18nKey::AgPromptPh)()
-                    rows="2"
                     prop:value=move || draft.get()
                     prop:disabled=move || busy.get()
                     on:input=move |ev| {
-                        textarea_value_from(ev, draft);
+                        input_value_from(ev, draft);
                     }
                     on:keydown=move |ev| {
-                        if ev.key() == "Enter" && (ev.ctrl_key() || ev.meta_key()) {
+                        if ev.key() == "Enter" && !ev.shift_key() && !ev.ctrl_key() && !ev.meta_key() {
                             ev.prevent_default();
                             submit_turn(wb, i18n, draft, busy, status_line, user_prompt, transcript, activity);
                         }
@@ -265,10 +265,10 @@ fn resolve_effective_workspace_root(wb: &WorkbenchService) -> Option<String> {
     (!t.is_empty()).then(|| t.to_owned())
 }
 
-fn textarea_value_from(ev: web_sys::Event, draft: RwSignal<String>) {
+fn input_value_from(ev: web_sys::Event, draft: RwSignal<String>) {
     if let Some(t) = ev.target() {
-        if let Ok(ta) = t.dyn_into::<web_sys::HtmlTextAreaElement>() {
-            draft.set(ta.value());
+        if let Ok(inp) = t.dyn_into::<web_sys::HtmlInputElement>() {
+            draft.set(inp.value());
         }
     }
 }
@@ -353,18 +353,34 @@ fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
     else {
         return;
     };
-    if tool != "harness.open_terminal" {
-        return;
-    }
     let call_id = call_id.clone();
+    match tool.as_str() {
+        "harness.open_terminal" => handle_open_terminal(call_id, args.clone(), wb),
+        "harness.list_terminals" => handle_list_terminals(call_id, wb),
+        "harness.send_terminal_keys" => handle_send_keys(call_id, args.clone(), wb),
+        "harness.read_terminal_output" => handle_read_output(call_id, args.clone(), wb),
+        _ => {}
+    }
+}
+
+fn submit_async(call_id: String, ok: bool, message: String, data: Option<serde_json::Value>) {
+    leptos::task::spawn_local(async move {
+        let _ = agent_submit_tool_result(call_id, ok, Some(message), data).await;
+    });
+}
+
+fn handle_open_terminal(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
     let agent_slug = args
         .as_ref()
         .and_then(|v| v.get("agentSlug"))
         .and_then(|v| v.as_str())
         .map(|s| s.to_owned());
-
     let active = wb.active_id().get_untracked();
-    let outcome = match active {
+    let (ok, msg) = match active {
         Some(workspace_id) => match wb.append_terminal_slot(workspace_id, agent_slug.clone()) {
             Ok(slot_id) => (
                 true,
@@ -380,9 +396,184 @@ fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
         },
         None => (false, "no active workspace".to_owned()),
     };
+    submit_async(call_id, ok, msg, None);
+}
 
+/// Resolves a terminal-targeting arg-blob to one specific PTY session id.
+/// Prefers `slotId`, falls back to `agentSlug` (first match), then to the
+/// first running PTY for the workspace.
+fn resolve_target_session(
+    wb: &WorkbenchService,
+    workspace_id: u64,
+    args: &Option<serde_json::Value>,
+) -> Result<(u64, u64), String> {
+    let slot_filter = args
+        .as_ref()
+        .and_then(|v| v.get("slotId"))
+        .and_then(|v| v.as_u64());
+    let agent_slug = args
+        .as_ref()
+        .and_then(|v| v.get("agentSlug"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_owned());
+
+    let entries = wb.pty_sessions_for_workspace(workspace_id);
+    if entries.is_empty() {
+        return Err("no running terminal sessions in this workspace".into());
+    }
+
+    // Find slot_id → agent_slug map from workspace.
+    let label_for_slot = |slot_id: u64| -> Option<String> {
+        wb.workspaces().with_untracked(|ws| {
+            ws.iter()
+                .find(|w| w.id == workspace_id)
+                .and_then(|w| {
+                    w.slot_ids
+                        .iter()
+                        .position(|id| *id == slot_id)
+                        .and_then(|idx| w.slot_agent_labels.get(idx).cloned())
+                })
+        })
+    };
+
+    if let Some(slot) = slot_filter {
+        if let Some((sid, pane)) = entries
+            .iter()
+            .find(|(s, _, _)| *s == slot)
+            .map(|(_, p, sid)| (*sid, *p))
+        {
+            return Ok((sid, pane));
+        }
+        return Err(format!("slot {slot} not running"));
+    }
+    if let Some(slug) = agent_slug {
+        for (slot, pane, sid) in &entries {
+            if label_for_slot(*slot).as_deref() == Some(slug.as_str()) {
+                return Ok((*sid, *pane));
+            }
+        }
+        return Err(format!("no running slot with agent={slug}"));
+    }
+    let (_, pane, sid) = entries[0];
+    Ok((sid, pane))
+}
+
+fn handle_list_terminals(call_id: String, wb: WorkbenchService) {
+    let Some(workspace_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    let running = wb.pty_sessions_for_workspace(workspace_id);
+    let entries = wb.workspaces().with_untracked(|ws| {
+        let Some(w) = ws.iter().find(|w| w.id == workspace_id) else {
+            return Vec::new();
+        };
+        w.slot_ids
+            .iter()
+            .enumerate()
+            .map(|(idx, slot_id)| {
+                let agent = w
+                    .slot_agent_labels
+                    .get(idx)
+                    .cloned()
+                    .unwrap_or_default();
+                let running = running.iter().any(|(s, _, _)| *s == *slot_id);
+                serde_json::json!({
+                    "slotId": slot_id,
+                    "agentSlug": agent,
+                    "running": running,
+                })
+            })
+            .collect::<Vec<_>>()
+    });
+    let body = serde_json::Value::Array(entries.clone());
+    let summary = format!("{} slot(s) listed", entries.len());
+    submit_async(call_id, true, summary, Some(body));
+}
+
+fn handle_send_keys(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    let Some(workspace_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    let text = args
+        .as_ref()
+        .and_then(|v| v.get("text"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_owned());
+    let Some(text) = text else {
+        submit_async(call_id, false, "missing text".into(), None);
+        return;
+    };
+    let submit = args
+        .as_ref()
+        .and_then(|v| v.get("submit"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let (sid, _pane) = match resolve_target_session(&wb, workspace_id, &args) {
+        Ok(t) => t,
+        Err(e) => {
+            submit_async(call_id, false, e, None);
+            return;
+        }
+    };
+    let mut payload = text.clone();
+    if submit {
+        payload.push('\r');
+    }
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(payload.as_bytes());
     leptos::task::spawn_local(async move {
-        let _ = agent_submit_tool_result(call_id, outcome.0, Some(outcome.1), None).await;
+        match pty_write(sid, b64).await {
+            Ok(()) => {
+                let msg = format!(
+                    "wrote {} byte(s) to session {sid}{}",
+                    text.len(),
+                    if submit { " (submitted)" } else { "" }
+                );
+                let _ = agent_submit_tool_result(call_id, true, Some(msg), None).await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn handle_read_output(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    let Some(workspace_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    let max_bytes = args
+        .as_ref()
+        .and_then(|v| v.get("maxBytes"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(4096)
+        .min(65536) as usize;
+    let (sid, _pane) = match resolve_target_session(&wb, workspace_id, &args) {
+        Ok(t) => t,
+        Err(e) => {
+            submit_async(call_id, false, e, None);
+            return;
+        }
+    };
+    leptos::task::spawn_local(async move {
+        match pty_peek_output(sid, max_bytes).await {
+            Ok(text) => {
+                let len = text.len();
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some(text),
+                    Some(serde_json::json!({ "bytes": len, "sessionId": sid })),
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
     });
 }
 
@@ -476,6 +667,9 @@ fn friendly_label(tool: &str) -> &str {
         "memory_create" => "Create memory note",
         "memory_write" => "Update memory note",
         "harness.open_terminal" => "Open terminal",
+        "harness.list_terminals" => "List terminals",
+        "harness.send_terminal_keys" => "Send keys to terminal",
+        "harness.read_terminal_output" => "Read terminal output",
         other => other,
     }
 }
@@ -490,6 +684,7 @@ fn summarize_args(tool: &str, args: Option<&serde_json::Value>) -> String {
         "read_workspace_file" | "memory_read" | "memory_create" | "memory_write" => Some("path"),
         "memory_search" => Some("query"),
         "harness.open_terminal" => Some("agentSlug"),
+        "harness.send_terminal_keys" => Some("text"),
         _ => None,
     };
     if let Some(key) = pick {
@@ -509,6 +704,9 @@ fn tool_icon(tool: &str) -> icondata::Icon {
         "memory_create" => icondata::LuFilePlus,
         "memory_write" => icondata::LuFileEdit,
         "harness.open_terminal" => icondata::LuTerminal,
+        "harness.list_terminals" => icondata::LuLayoutGrid,
+        "harness.send_terminal_keys" => icondata::LuSendHorizontal,
+        "harness.read_terminal_output" => icondata::LuScanText,
         _ => icondata::LuWrench,
     }
 }

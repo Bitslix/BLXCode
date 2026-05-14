@@ -190,6 +190,46 @@ pub fn registry() -> Vec<ToolDef> {
             site: ToolSite::Server,
         },
         ToolDef {
+            name: "harness.list_terminals",
+            description: "List terminal slots in the active workspace. Each entry has `slotId`, `agentSlug` (one of claude/codex/gemini/opencode/cursor or empty for plain shell), and `running` (whether a PTY session is currently attached). Use this before targeting a slot.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.send_terminal_keys",
+            description: "Send keystrokes to a terminal slot in the active workspace. Address the slot by either `slotId` (preferred — get it from `harness.list_terminals`) or `agentSlug` (first slot matching that CLI agent). Set `submit:true` to append a newline so the command is executed. Use this to drive a running `claude`/`codex`/`gemini`/`opencode`/`cursor` CLI: ask it questions, send `/status`, paste prompts, etc.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "slotId":    { "type": "integer", "minimum": 1 },
+                    "agentSlug": { "type": "string", "enum": ["claude", "codex", "gemini", "opencode", "cursor"] },
+                    "text":      { "type": "string", "description": "Raw text to type into the terminal." },
+                    "submit":    { "type": "boolean", "description": "Append a carriage return after the text. Default false." }
+                },
+                "required": ["text"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.read_terminal_output",
+            description: "Read recent output from a terminal slot non-destructively (does not steal bytes from the user's view). Returns the last `maxBytes` of the slot's rolling tail buffer (cap 64 KiB). Use this AFTER `harness.send_terminal_keys` to see how the CLI agent responded.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "slotId":    { "type": "integer", "minimum": 1 },
+                    "agentSlug": { "type": "string", "enum": ["claude", "codex", "gemini", "opencode", "cursor"] },
+                    "maxBytes":  { "type": "integer", "minimum": 1, "maximum": 65536, "default": 4096 }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
             name: "harness.open_terminal",
             description: "Open a new terminal slot in the active workspace. Optionally launches a CLI agent (`claude`, `codex`, `gemini`, `opencode`, `cursor`). When omitted, a plain shell is used.",
             parameters: json!({

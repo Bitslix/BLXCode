@@ -77,6 +77,7 @@ pub fn run() {
             pty_resize,
             pty_kill,
             pty_drain,
+            pty_peek_output,
             git_branch,
             install_agent_hooks,
             agent_hooks_status,

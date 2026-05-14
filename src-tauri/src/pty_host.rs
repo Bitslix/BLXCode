@@ -29,7 +29,13 @@ struct PtySession {
     child: Mutex<Box<dyn portable_pty::Child + Send + Sync>>,
     writer: Mutex<Box<dyn Write + Send>>,
     queue: Arc<Mutex<VecDeque<Vec<u8>>>>,
+    /// Non-destructive rolling tail of recent output. Filled in parallel
+    /// with `queue` by the reader thread so the agent can `peek` without
+    /// stealing bytes from the live terminal view.
+    tail: Arc<Mutex<VecDeque<u8>>>,
 }
+
+const TAIL_CAP_BYTES: usize = 64 * 1024;
 
 impl Default for PtyManager {
     fn default() -> Self {
@@ -88,6 +94,8 @@ impl PtyManager {
 
         let queue: Arc<Mutex<VecDeque<Vec<u8>>>> = Arc::new(Mutex::new(VecDeque::new()));
         let q_reader = Arc::clone(&queue);
+        let tail: Arc<Mutex<VecDeque<u8>>> = Arc::new(Mutex::new(VecDeque::with_capacity(TAIL_CAP_BYTES)));
+        let tail_reader = Arc::clone(&tail);
 
         let id = {
             let mut g = self.inner.lock().map_err(|_| "pty lock")?;
@@ -100,6 +108,7 @@ impl PtyManager {
                     child: Mutex::new(child),
                     writer: Mutex::new(writer),
                     queue: Arc::clone(&queue),
+                    tail: Arc::clone(&tail),
                 },
             );
             id
@@ -113,6 +122,14 @@ impl PtyManager {
                     Ok(0) => break,
                     Ok(n) => {
                         let chunk = buf[..n].to_vec();
+                        if let Ok(mut t) = tail_reader.lock() {
+                            for &b in &chunk {
+                                if t.len() == TAIL_CAP_BYTES {
+                                    t.pop_front();
+                                }
+                                t.push_back(b);
+                            }
+                        }
                         if let Ok(mut q) = q_reader.lock() {
                             q.push_back(chunk);
                             const MAX_QUEUED: usize = 256;
@@ -184,6 +201,28 @@ impl PtyManager {
             }
         }
         Ok(base64::engine::general_purpose::STANDARD.encode(out))
+    }
+
+    /// Non-destructive read of the last `max_bytes` bytes of output as
+    /// UTF-8 (lossy). Does NOT consume the live `queue` that the terminal
+    /// view drains, so agent and human can read in parallel.
+    pub fn peek_tail(&self, session_id: u64, max_bytes: usize) -> Result<String, String> {
+        let g = self.inner.lock().map_err(|_| "pty lock")?;
+        let s = g
+            .sessions
+            .get(&session_id)
+            .ok_or_else(|| "unknown session".to_string())?;
+        let cap = max_bytes.max(1).min(TAIL_CAP_BYTES);
+        let t = s.tail.lock().map_err(|_| "tail lock")?;
+        let len = t.len();
+        let start = len.saturating_sub(cap);
+        let mut out: Vec<u8> = Vec::with_capacity(len - start);
+        for (i, b) in t.iter().enumerate() {
+            if i >= start {
+                out.push(*b);
+            }
+        }
+        Ok(String::from_utf8_lossy(&out).into_owned())
     }
 
     pub fn kill(&self, session_id: u64) -> Result<(), String> {
