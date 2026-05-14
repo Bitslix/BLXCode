@@ -1604,6 +1604,94 @@ body {
   color: rgba(241, 242, 245, 0.9);
 }
 
+.workbench-agent-markdown {
+  color: rgba(241, 242, 245, 0.9);
+  font-size: 0.76rem;
+  line-height: 1.62;
+  overflow-wrap: anywhere;
+}
+
+.workbench-agent-markdown > :first-child {
+  margin-top: 0;
+}
+
+.workbench-agent-markdown > :last-child {
+  margin-bottom: 0;
+}
+
+.workbench-agent-markdown p,
+.workbench-agent-markdown ul,
+.workbench-agent-markdown ol,
+.workbench-agent-markdown pre,
+.workbench-agent-markdown blockquote,
+.workbench-agent-markdown table {
+  margin: 0.35rem 0;
+}
+
+.workbench-agent-markdown ul,
+.workbench-agent-markdown ol {
+  padding-left: 1.2rem;
+}
+
+.workbench-agent-markdown li + li {
+  margin-top: 0.15rem;
+}
+
+.workbench-agent-markdown code {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.28rem;
+  padding: 0.08rem 0.24rem;
+}
+
+.workbench-agent-markdown pre {
+  overflow: auto;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.42rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.workbench-agent-markdown pre code {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+}
+
+.workbench-agent-markdown blockquote {
+  margin-left: 0;
+  padding-left: 0.7rem;
+  border-left: 2px solid rgba(88, 166, 255, 0.35);
+  color: rgba(241, 242, 245, 0.72);
+}
+
+.workbench-agent-markdown a {
+  color: #8bc4ff;
+}
+
+.workbench-agent-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+}
+
+.workbench-agent-markdown th,
+.workbench-agent-markdown td {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0.34rem 0.42rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.workbench-agent-markdown th {
+  color: rgba(241, 242, 245, 0.96);
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .workbench-agent-row {
   font-family: var(--font-mono);
   font-size: 0.7rem;

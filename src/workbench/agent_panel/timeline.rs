@@ -3,6 +3,7 @@ use crate::i18n::{lookup, I18nKey, Locale};
 use crate::service::I18nService;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
+use pulldown_cmark::{html, Options, Parser};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum TimelineItem {
@@ -99,6 +100,12 @@ pub fn apply_agent_event(
             task_snapshot.set(snapshot.clone());
         }
         AgentEvent::Done => timeline.update(|rows| {
+            if let Some(message) = synthesize_completion_message(rows) {
+                rows.push(TimelineItem::Assistant {
+                    text: format!("{message}\n"),
+                });
+                return;
+            }
             let fallback = match rows.last() {
                 Some(TimelineItem::Tool(tool)) if tool.status == ActivityStatus::Fail => tool
                     .detail
@@ -131,6 +138,61 @@ pub fn apply_agent_event(
             });
         }
     }
+}
+
+fn synthesize_completion_message(rows: &[TimelineItem]) -> Option<String> {
+    let last_user_idx = rows
+        .iter()
+        .rposition(|entry| matches!(entry, TimelineItem::User { .. }))?;
+
+    let has_assistant_after_user = rows[last_user_idx + 1..]
+        .iter()
+        .any(|entry| matches!(entry, TimelineItem::Assistant { text } if !text.trim().is_empty()));
+    if has_assistant_after_user {
+        return None;
+    }
+
+    let tool_rows: Vec<&ToolActivity> = rows[last_user_idx + 1..]
+        .iter()
+        .filter_map(|entry| match entry {
+            TimelineItem::Tool(tool) => Some(tool),
+            _ => None,
+        })
+        .collect();
+    if tool_rows.is_empty() {
+        return Some("The model completed the turn without emitting visible text.".to_string());
+    }
+
+    let failed = tool_rows
+        .iter()
+        .filter(|tool| matches!(tool.status, ActivityStatus::Fail))
+        .count();
+    let succeeded = tool_rows
+        .iter()
+        .filter(|tool| matches!(tool.status, ActivityStatus::Ok))
+        .count();
+
+    let mut message = format!(
+        "The model finished after {count} tool call(s) but did not emit a visible reply.",
+        count = tool_rows.len()
+    );
+    if succeeded > 0 || failed > 0 {
+        message.push_str(&format!(" {succeeded} succeeded, {failed} failed.",));
+    }
+    message.push_str(" Expand the tool group above for the raw results.");
+    Some(message)
+}
+
+fn render_markdown(src: &str) -> String {
+    let mut opts = Options::empty();
+    opts.insert(Options::ENABLE_TABLES);
+    opts.insert(Options::ENABLE_STRIKETHROUGH);
+    opts.insert(Options::ENABLE_TASKLISTS);
+    opts.insert(Options::ENABLE_FOOTNOTES);
+    let parser = Parser::new_ext(src, opts);
+    let mut html_out = String::with_capacity(src.len() * 2);
+    html::push_html(&mut html_out, parser);
+    html_out
 }
 
 pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
@@ -167,6 +229,7 @@ pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
 fn friendly_label(tool: &str) -> &str {
     match tool {
         "harness.create_workspace" => "Create workspace",
+        "list_workspace_files" => "List files",
         "read_workspace_file" => "Read file",
         "memory_list" => "List memory notes",
         "memory_read" => "Read memory note",
@@ -193,6 +256,7 @@ fn summarize_args(tool: &str, args: Option<&serde_json::Value>) -> String {
     };
     let pick = match tool {
         "harness.create_workspace" => Some("title"),
+        "list_workspace_files" => Some("path"),
         "read_workspace_file" | "memory_read" | "memory_create" | "memory_write" => Some("path"),
         "memory_search" => Some("query"),
         "task_get" | "task_update" | "task_delete" => Some("id"),
@@ -217,6 +281,7 @@ fn summarize_args(tool: &str, args: Option<&serde_json::Value>) -> String {
 fn tool_icon(tool: &str) -> icondata::Icon {
     match tool {
         "harness.create_workspace" => icondata::LuLayoutGrid,
+        "list_workspace_files" => icondata::LuFolderTree,
         "read_workspace_file" => icondata::LuFileText,
         "memory_list" => icondata::LuList,
         "memory_read" => icondata::LuBookOpen,
@@ -256,7 +321,7 @@ pub fn TimelineRow(idx: usize, entry: DisplayTimelineItem, i18n: I18nService) ->
                 <span class="agent-chat-index">{line_no.clone()}</span>
                 <div class="agent-chat-body">
                     <strong>{move || i18n.tr(I18nKey::AgAssistant)()}</strong>
-                    <pre class="workbench-agent-transcript">{text}</pre>
+                    <div class="workbench-agent-markdown" inner_html=render_markdown(&text)></div>
                 </div>
             </li>
         }

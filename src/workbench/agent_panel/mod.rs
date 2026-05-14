@@ -16,6 +16,7 @@ use crate::workbench::agent_panel::timeline::{
     apply_agent_event, compact_timeline, TimelineItem, TimelineRow,
 };
 use crate::workbench::WorkbenchService;
+use leptos::html;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
@@ -32,6 +33,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     let ptt_active = RwSignal::new(false);
     let tasks_open = RwSignal::new(true);
     let model_label = RwSignal::new(String::new());
+    let chat_scroll_ref = NodeRef::<html::Article>::new();
     let task_snapshot = RwSignal::new(TaskSnapshot {
         tasks: Vec::new(),
         active_task_id: None,
@@ -74,6 +76,13 @@ pub fn AgentPanelDock() -> impl IntoView {
             let _ = active;
             task_snapshot_sig.set(next);
         });
+    });
+
+    Effect::new(move |_| {
+        let _ = timeline.get().len();
+        if let Some(article) = chat_scroll_ref.get() {
+            article.set_scroll_top(article.scroll_height());
+        }
     });
 
     view! {
@@ -121,7 +130,12 @@ pub fn AgentPanelDock() -> impl IntoView {
                 }}
             </Show>
 
-            <article class="workbench-agent-scroll" aria-live="polite" aria-label="Agent chat log">
+            <article
+                node_ref=chat_scroll_ref
+                class="workbench-agent-scroll"
+                aria-live="polite"
+                aria-label="Agent chat log"
+            >
                 <div class="agent-section__head">
                     <h3>"Chat log"</h3>
                     <span>{move || if timeline.get().is_empty() { "Ready" } else { "Live" }}</span>

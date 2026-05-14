@@ -41,6 +41,13 @@ impl WorkspaceRootGuard {
 #[derive(Clone, Copy, Debug)]
 pub struct ScopedReadOps;
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceEntryMeta {
+    pub path: String,
+    pub kind: String,
+}
+
 #[derive(Clone, Debug, thiserror::Error)]
 pub enum ReadToolError {
     #[error("no workspace configured")]
@@ -68,6 +75,39 @@ impl ScopedReadOps {
             .ok_or(ReadToolError::PathEscape)?;
 
         fs::read_to_string(&full).map_err(|e| ReadToolError::Io(e.to_string()))
+    }
+
+    pub fn list_entries(
+        root: Option<&WorkspaceRootGuard>,
+        relative: Option<&str>,
+        recursive: bool,
+        max_entries: usize,
+    ) -> Result<Vec<WorkspaceEntryMeta>, ReadToolError> {
+        let guard = root.ok_or(ReadToolError::NoWorkspace)?;
+        let base = match relative {
+            None | Some("") => guard.path.clone(),
+            Some(rel) => {
+                let rel = RelativePath::normalize(rel).ok_or(ReadToolError::InvalidPath)?;
+                let full = guard.path.join(&rel);
+                guard
+                    .contains(&full)
+                    .then_some(())
+                    .ok_or(ReadToolError::PathEscape)?;
+                full
+            }
+        };
+
+        let meta = fs::metadata(&base).map_err(|e| ReadToolError::Io(e.to_string()))?;
+        if !meta.is_dir() {
+            return Err(ReadToolError::Io(format!(
+                "path is not a directory: {}",
+                base.display()
+            )));
+        }
+
+        let mut out = Vec::new();
+        collect_entries(&guard.path, &base, recursive, max_entries.max(1), &mut out)?;
+        Ok(out)
     }
 }
 
@@ -124,6 +164,20 @@ pub fn registry() -> Vec<ToolDef> {
                     "path": { "type": "string", "description": "Relative path within the workspace." }
                 },
                 "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "list_workspace_files",
+            description: "List files and directories under the workspace root or a relative subdirectory. Use this before `read_workspace_file` when you are not sure of the exact path or when exploring the codebase structure.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string", "description": "Optional relative directory within the workspace. Defaults to the workspace root." },
+                    "recursive": { "type": "boolean", "default": false },
+                    "maxEntries": { "type": "integer", "minimum": 1, "maximum": 500, "default": 100 }
+                },
                 "additionalProperties": false
             }),
             site: ToolSite::Server,
@@ -421,6 +475,7 @@ pub fn execute_server_tool(
 ) -> ToolOutcome {
     match name {
         "read_workspace_file" => tool_read_workspace_file(args, root),
+        "list_workspace_files" => tool_list_workspace_files(args, root),
         "memory_list" => tool_memory_list(root),
         "memory_read" => tool_memory_read(args, root),
         "memory_search" => tool_memory_search(args, root),
@@ -461,6 +516,35 @@ fn tool_read_workspace_file(args: &Value, root: Option<&WorkspaceRootGuard>) -> 
                 content: trimmed,
             }
         }
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e.to_string(),
+        },
+    }
+}
+
+fn tool_list_workspace_files(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let path = args.get("path").and_then(|v| v.as_str());
+    let recursive = args
+        .get("recursive")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let max_entries = args
+        .get("maxEntries")
+        .and_then(|v| v.as_u64())
+        .unwrap_or(100)
+        .clamp(1, 500) as usize;
+    match ScopedReadOps::list_entries(root, path, recursive, max_entries) {
+        Ok(entries) => match serde_json::to_string(&entries) {
+            Ok(body) => ToolOutcome {
+                ok: true,
+                content: body,
+            },
+            Err(e) => ToolOutcome {
+                ok: false,
+                content: format!("serialize workspace listing: {e}"),
+            },
+        },
         Err(e) => ToolOutcome {
             ok: false,
             content: e.to_string(),
@@ -921,4 +1005,46 @@ fn truncate_chars(s: &str, max: usize) -> String {
     }
     let cut: String = s.chars().take(max).collect();
     format!("{cut}… (truncated)")
+}
+
+fn collect_entries(
+    workspace_root: &Path,
+    dir: &Path,
+    recursive: bool,
+    max_entries: usize,
+    out: &mut Vec<WorkspaceEntryMeta>,
+) -> Result<(), ReadToolError> {
+    let read = fs::read_dir(dir).map_err(|e| ReadToolError::Io(e.to_string()))?;
+    let mut entries: Vec<_> = read
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| ReadToolError::Io(e.to_string()))?;
+    entries.sort_by_key(|entry| entry.path());
+
+    for entry in entries {
+        if out.len() >= max_entries {
+            break;
+        }
+        let path = entry.path();
+        let rel = path
+            .strip_prefix(workspace_root)
+            .map_err(|_| ReadToolError::PathEscape)?
+            .to_string_lossy()
+            .replace('\\', "/");
+        let file_type = entry
+            .file_type()
+            .map_err(|e| ReadToolError::Io(e.to_string()))?;
+        let kind = if file_type.is_dir() {
+            "directory"
+        } else {
+            "file"
+        };
+        out.push(WorkspaceEntryMeta {
+            path: rel.clone(),
+            kind: kind.to_string(),
+        });
+        if recursive && file_type.is_dir() && out.len() < max_entries {
+            collect_entries(workspace_root, &path, recursive, max_entries, out)?;
+        }
+    }
+    Ok(())
 }

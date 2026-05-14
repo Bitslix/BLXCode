@@ -52,6 +52,10 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
          to this request as `tools[]`). Prefer tools over guessing.\n\
          \n\
          ## File access (server-side, executed in-process)\n\
+         - `list_workspace_files {{ path?, recursive?, maxEntries? }}` — list \
+           files and directories under the workspace root or a relative \
+           subdirectory. Use this before reading files when you are exploring \
+           the project structure or are unsure of the exact path.\n\
          - `read_workspace_file {{ path }}` — read a UTF-8 text file under \
            the workspace root. Output is truncated at 4000 chars. Use this \
            whenever the user references a file in the project.\n\
@@ -133,6 +137,15 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
          # Behaviour\n\
          - Call tools eagerly when they would answer the user's question \
            more reliably than reasoning alone.\n\
+         - For codebase understanding, workspace understanding, repository \
+           exploration, or project-summary prompts, start by checking both \
+           `memory_list` and `task_list`.\n\
+         - If memory notes or tracked tasks suggest relevant context, read the \
+           relevant notes or tasks before exploring files.\n\
+         - When you need to inspect the filesystem and do not already know the \
+           exact file path, use `list_workspace_files` first. Do not guess \
+           directory names or try to `read_workspace_file` on paths that may be \
+           directories.\n\
          - For complex work (multiple steps, file/tool chains, delegation, \
            or longer-running implementation), inspect existing tasks early \
            with `task_list` and keep the task list up to date as you work.\n\
@@ -143,6 +156,13 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
          - Do not create throwaway tasks for trivial one-step answers.\n\
          - Reuse and update existing relevant tasks instead of duplicating them \
            when the user expands or redirects ongoing work.\n\
+         - You may use as many tool calls as needed during a turn without \
+           replying between them.\n\
+         - Before finishing the turn, you MUST always send one visible final \
+           assistant reply to the user that answers the user's prompt using the \
+           tool results. Never end the turn with tool calls only.\n\
+         - The final reply can be brief, but it must state the result for the \
+           user's request rather than assuming the tool output alone is enough.\n\
          - After a `read_workspace_file` or `memory_read`, cite the path \
            you read so the user can verify.\n\
          - Tool arguments must satisfy each tool's JSON Schema exactly. \
