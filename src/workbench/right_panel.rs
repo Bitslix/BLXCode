@@ -1,7 +1,7 @@
 //! Right inspector column: collapsible (default closed); width via splitter when open.
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::workbench::{AgentPanelDock, BrowserTabDock, RightPanelTab, WorkbenchService};
+use crate::workbench::{AgentPanelDock, BrowserTabDock, MemoryPanel, RightPanelTab, WorkbenchService};
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
@@ -12,41 +12,9 @@ const WORKSPACE_MIN_PX: f64 = 240.0;
 
 #[component]
 fn MemoryTabDock() -> impl IntoView {
-    let wb = expect_context::<WorkbenchService>();
-    let i18n = expect_context::<I18nService>();
-
-    let has_active_workspace = Memo::new(move |_| {
-        let Some(id) = wb.active_id().get() else {
-            return false;
-        };
-        wb.workspaces()
-            .with(|list| list.iter().any(|w| w.id == id && !w.configuring))
-    });
-
     view! {
         <div class="workbench-right-memory" role="region">
-            <Show
-                when=move || has_active_workspace.get()
-                fallback=move || view! {
-                    <div class="workbench-right-memory__empty">
-                        <p class="workbench-right-memory__empty-title">
-                            {move || i18n.tr(I18nKey::MemEmptyTitle)()}
-                        </p>
-                        <p class="workbench-right-memory__empty-lead">
-                            {move || i18n.tr(I18nKey::MemEmptyLead)()}
-                        </p>
-                        <button
-                            type="button"
-                            class="workbench-right-memory__create-btn"
-                            on:click=move |_| { let _ = wb.start_inline_configure(); }
-                        >
-                            {move || i18n.tr(I18nKey::MemEmptyCreate)()}
-                        </button>
-                    </div>
-                }
-            >
-                <div class="workbench-right-memory__placeholder" aria-hidden="true"></div>
-            </Show>
+            <MemoryPanel />
         </div>
     }
 }

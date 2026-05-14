@@ -1,7 +1,7 @@
 use crate::config::{
     HARNESS_BROWSER_DEFAULT_URL, HARNESS_BROWSER_URL_KEY, HARNESS_WORKSPACE_ROOT_KEY,
 };
-use crate::tauri_bridge::{is_tauri_shell, workbench_drop_sessions};
+use crate::tauri_bridge::{self, is_tauri_shell, workbench_drop_sessions};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
@@ -559,6 +559,7 @@ impl WorkbenchService {
         self.workspace_drafts
     }
 
+    #[allow(dead_code)]
     #[must_use]
     pub fn workspace_config_step(&self, id: u64) -> u8 {
         self.workspace_config_steps
@@ -752,6 +753,23 @@ impl WorkbenchService {
         if cwd.is_empty() {
             return;
         }
+        // Idempotent backend call: writes pointer files (CLAUDE.md,
+        // AGENTS.md, GEMINI.md, .cursorrules, opencode.md) only if
+        // missing, so coding agents pick up `.blxcode/memory/` on first
+        // session without any UI install step.
+        if is_tauri_shell() {
+            let ws_cwd = cwd.clone();
+            spawn_local(async move {
+                let agents = vec![
+                    "claude".into(),
+                    "codex".into(),
+                    "gemini".into(),
+                    "cursor".into(),
+                    "opencode".into(),
+                ];
+                let _ = tauri_bridge::memory_install_pointers(&ws_cwd, agents).await;
+            });
+        }
         let n = draft.terminal_count as usize;
         let (gr, gc) = (draft.grid_rows, draft.grid_cols);
 
@@ -914,6 +932,27 @@ impl WorkbenchService {
         } else {
             snap.workspace_next_id.max(1)
         };
+        // Backfill memory pointer files for any persisted workspace that
+        // predates this feature. Idempotent backend call; missing pointers
+        // are written, existing ones left alone.
+        if is_tauri_shell() {
+            for ws in &snap.workspaces {
+                if ws.configuring || ws.cwd.trim().is_empty() {
+                    continue;
+                }
+                let cwd = ws.cwd.clone();
+                spawn_local(async move {
+                    let agents = vec![
+                        "claude".into(),
+                        "codex".into(),
+                        "gemini".into(),
+                        "cursor".into(),
+                        "opencode".into(),
+                    ];
+                    let _ = tauri_bridge::memory_install_pointers(&cwd, agents).await;
+                });
+            }
+        }
         self.workspaces.set(snap.workspaces);
         self.active_id.set(snap.active_id);
         self.workspace_next_id.set(next_id);

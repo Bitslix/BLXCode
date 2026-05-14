@@ -3,9 +3,7 @@
 //! design discussed for blxcode's Obsidian-style memory feature.
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::tauri_bridge::{
-    self, GraphData, NoteContent, NoteMeta, PointerResult, SearchHit,
-};
+use crate::tauri_bridge::{self, GraphData, NoteContent, NoteMeta, SearchHit};
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
@@ -13,30 +11,20 @@ use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
 use pulldown_cmark::{html, Options, Parser};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Arc;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlInputElement;
 
 const SAVE_DEBOUNCE_MS: u32 = 600;
 
-const AGENT_KEYS: [(&str, &str); 5] = [
-    ("claude", "Claude"),
-    ("codex", "Codex"),
-    ("gemini", "Gemini"),
-    ("cursor", "Cursor"),
-    ("opencode", "OpenCode"),
-];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum MemoryView {
     Files,
     Graph,
     Search,
-    Agents,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct MemoryState {
     workspace_cwd: RwSignal<Option<String>>,
     notes: RwSignal<Vec<NoteMeta>>,
@@ -47,12 +35,10 @@ struct MemoryState {
     backlinks: RwSignal<Vec<String>>,
     view: RwSignal<MemoryView>,
     error: RwSignal<Option<String>>,
-    save_token: Arc<AtomicU32>,
+    save_token: RwSignal<u32>,
     graph: RwSignal<Option<GraphData>>,
     search_query: RwSignal<String>,
     search_results: RwSignal<Vec<SearchHit>>,
-    pointer_status: RwSignal<Vec<PointerResult>>,
-    busy: RwSignal<bool>,
 }
 
 impl MemoryState {
@@ -67,12 +53,10 @@ impl MemoryState {
             backlinks: RwSignal::new(Vec::new()),
             view: RwSignal::new(MemoryView::Files),
             error: RwSignal::new(None),
-            save_token: Arc::new(AtomicU32::new(0)),
+            save_token: RwSignal::new(0),
             graph: RwSignal::new(None),
             search_query: RwSignal::new(String::new()),
             search_results: RwSignal::new(Vec::new()),
-            pointer_status: RwSignal::new(Vec::new()),
-            busy: RwSignal::new(false),
         }
     }
 }
@@ -81,8 +65,9 @@ fn current_workspace_cwd(wb: WorkbenchService) -> Option<String> {
     let id = wb.active_id().get()?;
     wb.workspaces().with(|list| {
         list.iter()
-            .find(|w| w.id == id && !w.configuring)
+            .find(|w| w.id == id)
             .map(|w| w.cwd.clone())
+            .filter(|cwd| !cwd.trim().is_empty())
     })
 }
 
@@ -173,14 +158,15 @@ fn load_note(state: MemoryState, ws: String, path: String) {
 }
 
 fn schedule_save(state: MemoryState, ws: String) {
-    let token = state.save_token.fetch_add(1, Ordering::Relaxed) + 1;
-    let save_token = state.save_token.clone();
+    let token = state.save_token.get_untracked() + 1;
+    state.save_token.set(token);
+    let save_token = state.save_token;
     let path = state.active_path.get_untracked();
     let Some(path) = path else { return };
     let content = state.editor_content.get_untracked();
     spawn_local(async move {
         TimeoutFuture::new(SAVE_DEBOUNCE_MS).await;
-        if save_token.load(Ordering::Relaxed) != token {
+        if save_token.get_untracked() != token {
             return;
         }
         match tauri_bridge::memory_write(&ws, &path, &content).await {
@@ -203,13 +189,6 @@ fn refresh_graph(state: MemoryState, ws: String) {
     });
 }
 
-fn refresh_pointer_status(state: MemoryState, ws: String) {
-    spawn_local(async move {
-        if let Ok(s) = tauri_bridge::memory_pointer_status(&ws).await {
-            state.pointer_status.set(s);
-        }
-    });
-}
 
 fn input_value(ev: web_sys::Event) -> Option<String> {
     let t = ev.target()?;
@@ -224,21 +203,20 @@ pub fn MemoryPanel() -> impl IntoView {
     let state = MemoryState::new();
 
     // Track active workspace cwd; reload notes when it changes.
+    let eff_state = state.clone();
     Effect::new(move |_| {
         let cwd = current_workspace_cwd(wb);
-        let prev = state.workspace_cwd.get_untracked();
+        let prev = eff_state.workspace_cwd.get_untracked();
         if cwd != prev {
-            state.workspace_cwd.set(cwd.clone());
-            state.active_path.set(None);
-            state.editor_content.set(String::new());
-            state.editor_dirty.set(false);
-            state.backlinks.set(Vec::new());
-            state.graph.set(None);
-            state.notes.set(Vec::new());
-            state.pointer_status.set(Vec::new());
+            eff_state.workspace_cwd.set(cwd.clone());
+            eff_state.active_path.set(None);
+            eff_state.editor_content.set(String::new());
+            eff_state.editor_dirty.set(false);
+            eff_state.backlinks.set(Vec::new());
+            eff_state.graph.set(None);
+            eff_state.notes.set(Vec::new());
             if let Some(ws) = cwd {
-                load_notes(state.clone(), ws.clone());
-                refresh_pointer_status(state.clone(), ws);
+                load_notes(eff_state.clone(), ws);
             }
         }
     });
@@ -249,7 +227,6 @@ pub fn MemoryPanel() -> impl IntoView {
                 <MemoryTabBtn label=I18nKey::MemTabFiles state=state.clone() target=MemoryView::Files icon=icondata::LuFiles />
                 <MemoryTabBtn label=I18nKey::MemTabGraph state=state.clone() target=MemoryView::Graph icon=icondata::LuNetwork />
                 <MemoryTabBtn label=I18nKey::MemTabSearch state=state.clone() target=MemoryView::Search icon=icondata::LuSearch />
-                <MemoryTabBtn label=I18nKey::MemTabAgents state=state.clone() target=MemoryView::Agents icon=icondata::LuPlug />
             </header>
 
             <Show when={
@@ -295,17 +272,20 @@ pub fn MemoryPanel() -> impl IntoView {
                 }>
                     <MemorySearchView state=state.clone() />
                 </Show>
-                <Show when={
-                    let s = state.clone();
-                    move || s.view.get() == MemoryView::Agents
-                }>
-                    <MemoryAgentsView state=state.clone() />
-                </Show>
             </div>
-            // hidden i18n consumer so unused-import warnings don't trip on stub locales
-            <span class="workbench-memory__hidden-i18n" aria-hidden="true">
-                {move || i18n.tr(I18nKey::MemEmptyTitle)()}
-            </span>
+            <Show when={
+                let s = state.clone();
+                move || s.workspace_cwd.get().is_none()
+            }>
+                <div class="workbench-memory__placeholder">
+                    <p class="workbench-memory__placeholder-title">
+                        {move || i18n.tr(I18nKey::MemEmptyTitle)()}
+                    </p>
+                    <p class="workbench-memory__placeholder-lead">
+                        {move || i18n.tr(I18nKey::MemEmptyLead)()}
+                    </p>
+                </div>
+            </Show>
         </div>
     }
 }
@@ -412,7 +392,10 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                                         }
                                     >
                                         <Show
-                                            when=move || renaming.get().as_deref() == Some(path_for_ren.as_str())
+                                            when={
+                                                let p = path_for_ren.clone();
+                                                move || renaming.get().as_deref() == Some(p.as_str())
+                                            }
                                             fallback={
                                                 let s = s.clone();
                                                 let label = label.clone();
@@ -570,7 +553,7 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                             {
                                 let s = state.clone();
                                 let i = i18n.clone();
-                                move || if s.editor_dirty.get() { i.tr(I18nKey::MemDirty)() } else { String::new() }
+                                move || if s.editor_dirty.get() { i.tr(I18nKey::MemDirty)().to_string() } else { String::new() }
                             }
                         </span>
                         <button
@@ -860,20 +843,18 @@ fn force_layout(g: &GraphData, w: f32, h: f32, iters: u32) -> HashMap<String, (f
 #[component]
 fn MemorySearchView(state: MemoryState) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
-    let debounce_token: Arc<AtomicU32> = Arc::new(AtomicU32::new(0));
+    let debounce_token: RwSignal<u32> = RwSignal::new(0);
 
     let on_input = {
-        let state = state.clone();
-        let debounce_token = debounce_token.clone();
         move |ev: web_sys::Event| {
             let v = input_value(ev).unwrap_or_default();
             state.search_query.set(v.clone());
-            let token = debounce_token.fetch_add(1, Ordering::Relaxed) + 1;
-            let s = state.clone();
-            let dt = debounce_token.clone();
+            let token = debounce_token.get_untracked() + 1;
+            debounce_token.set(token);
+            let s = state;
             spawn_local(async move {
                 TimeoutFuture::new(200).await;
-                if dt.load(Ordering::Relaxed) != token {
+                if debounce_token.get_untracked() != token {
                     return;
                 }
                 let Some(ws) = s.workspace_cwd.get_untracked() else { return };
@@ -937,80 +918,3 @@ fn MemorySearchView(state: MemoryState) -> impl IntoView {
     }
 }
 
-#[component]
-fn MemoryAgentsView(state: MemoryState) -> impl IntoView {
-    let i18n = expect_context::<I18nService>();
-
-    view! {
-        <div class="workbench-memory-agents">
-            <p class="workbench-memory-agents__lead">
-                {move || i18n.tr(I18nKey::MemAgentsLead)()}
-            </p>
-            <ul class="workbench-memory-agents__list">
-                {AGENT_KEYS.iter().map(|(key, label)| {
-                    let key = (*key).to_string();
-                    let label = (*label).to_string();
-                    let state = state.clone();
-                    let key_for_status = key.clone();
-                    let key_for_install = key.clone();
-                    let key_for_uninstall = key.clone();
-                    let i18n_install = i18n.clone();
-                    let i18n_uninstall = i18n.clone();
-                    let s_install = state.clone();
-                    let s_uninstall = state.clone();
-                    let s_status = state.clone();
-                    view! {
-                        <li class="workbench-memory-agents__item">
-                            <span class="workbench-memory-agents__name">{label}</span>
-                            <span class="workbench-memory-agents__status">
-                                {move || {
-                                    let installed = s_status.pointer_status.get().iter()
-                                        .find(|p| p.agent == key_for_status)
-                                        .map(|p| p.installed)
-                                        .unwrap_or(false);
-                                    if installed { i18n.tr(I18nKey::MemAgentsInstalled)() } else { i18n.tr(I18nKey::MemAgentsMissing)() }
-                                }}
-                            </span>
-                            <button
-                                type="button"
-                                class="workbench-memory-agents__btn"
-                                on:click=move |_| {
-                                    let Some(ws) = s_install.workspace_cwd.get_untracked() else { return };
-                                    let s2 = s_install.clone();
-                                    let agents = vec![key_for_install.clone()];
-                                    s_install.busy.set(true);
-                                    spawn_local(async move {
-                                        match tauri_bridge::memory_install_pointers(&ws, agents).await {
-                                            Ok(_) => refresh_pointer_status(s2.clone(), ws),
-                                            Err(e) => s2.error.set(Some(e)),
-                                        }
-                                        s2.busy.set(false);
-                                    });
-                                }
-                            >
-                                {move || i18n_install.tr(I18nKey::MemAgentsInstall)()}
-                            </button>
-                            <button
-                                type="button"
-                                class="workbench-memory-agents__btn workbench-memory-agents__btn--ghost"
-                                on:click=move |_| {
-                                    let Some(ws) = s_uninstall.workspace_cwd.get_untracked() else { return };
-                                    let s2 = s_uninstall.clone();
-                                    let agents = vec![key_for_uninstall.clone()];
-                                    spawn_local(async move {
-                                        match tauri_bridge::memory_uninstall_pointers(&ws, agents).await {
-                                            Ok(_) => refresh_pointer_status(s2.clone(), ws),
-                                            Err(e) => s2.error.set(Some(e)),
-                                        }
-                                    });
-                                }
-                            >
-                                {move || i18n_uninstall.tr(I18nKey::MemAgentsUninstall)()}
-                            </button>
-                        </li>
-                    }
-                }).collect_view()}
-            </ul>
-        </div>
-    }
-}

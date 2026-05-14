@@ -41,6 +41,23 @@ pub fn msg(key: I18nKey) -> &'static str {
             "Memory is scoped to a workspace. Select one in the sidebar, or create a new workspace to get started."
         }
         I18nKey::MemEmptyCreate => "+ Create workspace",
+        I18nKey::MemTabFiles => "Files",
+        I18nKey::MemTabGraph => "Graph",
+        I18nKey::MemTabSearch => "Search",
+        I18nKey::MemNewNote => "New note",
+        I18nKey::MemNewNotePh => "note title…",
+        I18nKey::MemRename => "Rename",
+        I18nKey::MemDelete => "Delete",
+        I18nKey::MemSave => "Save",
+        I18nKey::MemCancel => "Cancel",
+        I18nKey::MemSelectNote => "Select a note to view it.",
+        I18nKey::MemDirty => "● unsaved",
+        I18nKey::MemEdit => "Edit",
+        I18nKey::MemPreview => "Preview",
+        I18nKey::MemBacklinks => "Backlinks",
+        I18nKey::MemGraphEmpty => "No notes yet — create one in Files.",
+        I18nKey::MemGraphLegend => "Nodes = notes · edges = [[wiki links]]",
+        I18nKey::MemSearchPh => "Search notes…",
 
         I18nKey::AgAriaPane => "Agent harness",
         I18nKey::AgSandbox => "Tool sandbox ",

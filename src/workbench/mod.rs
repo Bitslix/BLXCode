@@ -3,6 +3,7 @@ mod agent_panel;
 mod browser_tab;
 mod create_workspace_wizard;
 mod harness_ui;
+mod memory_panel;
 mod path_nav;
 mod right_panel;
 mod sidebar;
@@ -13,7 +14,7 @@ mod workspace_panel;
 
 pub use agent_panel::AgentPanelDock;
 pub use browser_tab::{BrowserTabDock, EmbeddedBrowserGlue};
-pub use create_workspace_wizard::WorkspaceConfigurator;
+pub use memory_panel::MemoryPanel;
 pub use right_panel::RightPanel;
 pub use sidebar::Sidebar;
 pub use state::{

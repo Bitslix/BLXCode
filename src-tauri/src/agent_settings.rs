@@ -269,6 +269,7 @@ fn key_masked_value(
     }
 }
 
+#[allow(dead_code)]
 fn key_is_configured(app: &AppHandle, provider: AgentProviderKind) -> Result<bool, String> {
     Ok(key_masked_value(app, provider)?.is_some())
 }

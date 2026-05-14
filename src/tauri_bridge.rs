@@ -154,6 +154,7 @@ pub async fn browser_check_iframable(url: &str) -> Result<bool, String> {
     invoke_typed("browser_check_iframable", U { url }).await
 }
 
+#[allow(dead_code)]
 pub async fn agent_provider_status() -> Result<serde_json::Value, String> {
     #[derive(Serialize)]
     struct Empty {}
@@ -189,6 +190,7 @@ pub enum ThinkingLevel {
     Max,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderModelEntry {
@@ -217,6 +219,7 @@ pub struct AgentProviderSettingsView {
     pub key_statuses: Vec<ProviderKeyStatus>,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderModelsResponse {
@@ -341,6 +344,7 @@ pub async fn exit_app_ipc() -> Result<(), String> {
     invoke_unit_js("exit_app", JsValue::UNDEFINED).await
 }
 
+#[allow(dead_code)]
 #[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PathNavResult {
@@ -455,6 +459,7 @@ pub async fn pty_drain(session_id: u64, max_bytes: usize) -> Result<String, Stri
     .await
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentHookEntry {
@@ -465,6 +470,7 @@ pub struct AgentHookEntry {
     pub note: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentHooksReport {
@@ -544,6 +550,7 @@ pub async fn agent_session_exists(
 // ---------------------------------------------------------------------
 // Memory (workspace-scoped Markdown notes, Obsidian-style)
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteMeta {
@@ -554,6 +561,7 @@ pub struct NoteMeta {
     pub is_template: bool,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteContent {
@@ -562,6 +570,7 @@ pub struct NoteContent {
     pub modified: i64,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphNode {
@@ -571,6 +580,7 @@ pub struct GraphNode {
     pub orphan: bool,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphEdge {
@@ -578,6 +588,7 @@ pub struct GraphEdge {
     pub target: String,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphData {
@@ -585,6 +596,7 @@ pub struct GraphData {
     pub edges: Vec<GraphEdge>,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchHit {
@@ -593,6 +605,7 @@ pub struct SearchHit {
     pub snippet: String,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PointerResult {
@@ -602,6 +615,7 @@ pub struct PointerResult {
     pub note: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RenameReport {
@@ -615,10 +629,6 @@ pub struct RenameReport {
 #[serde(rename_all = "camelCase")]
 struct WsArg<'a> {
     workspace_cwd: &'a str,
-}
-
-pub async fn memory_root(ws: &str) -> Result<String, String> {
-    invoke_typed("memory_root", WsArg { workspace_cwd: ws }).await
 }
 
 pub async fn memory_list(ws: &str) -> Result<Vec<NoteMeta>, String> {
@@ -786,29 +796,6 @@ pub async fn memory_install_pointers(
     .await
 }
 
-pub async fn memory_uninstall_pointers(
-    ws: &str,
-    agents: Vec<String>,
-) -> Result<Vec<PointerResult>, String> {
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct A<'a> {
-        workspace_cwd: &'a str,
-        agents: Vec<String>,
-    }
-    invoke_typed(
-        "memory_uninstall_pointers",
-        A {
-            workspace_cwd: ws,
-            agents,
-        },
-    )
-    .await
-}
-
-pub async fn memory_pointer_status(ws: &str) -> Result<Vec<PointerResult>, String> {
-    invoke_typed("memory_pointer_status", WsArg { workspace_cwd: ws }).await
-}
 
 pub async fn git_branch(cwd: String) -> Result<Option<String>, String> {
     #[derive(Serialize)]

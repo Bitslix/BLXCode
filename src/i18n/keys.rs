@@ -1,4 +1,9 @@
 /// Typed message keys für statische Übersetzungstabellen (Workbench, Harness, Agent, Browser …).
+///
+/// Some variants are translated in every locale table but not yet bound to a
+/// rendering site (planned features, partially-shipped flows). They stay in
+/// the enum so locale tables remain exhaustive at compile time.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum I18nKey {
     Decline,
@@ -35,6 +40,23 @@ pub enum I18nKey {
     MemEmptyTitle,
     MemEmptyLead,
     MemEmptyCreate,
+    MemTabFiles,
+    MemTabGraph,
+    MemTabSearch,
+    MemNewNote,
+    MemNewNotePh,
+    MemRename,
+    MemDelete,
+    MemSave,
+    MemCancel,
+    MemSelectNote,
+    MemDirty,
+    MemEdit,
+    MemPreview,
+    MemBacklinks,
+    MemGraphEmpty,
+    MemGraphLegend,
+    MemSearchPh,
 
     AgAriaPane,
     AgSandbox,
