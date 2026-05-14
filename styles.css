@@ -4941,6 +4941,29 @@ button {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 6px;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+}
+.workbench-memory-graph__svg:active {
+  cursor: grabbing;
+}
+.workbench-memory-graph__toolbar {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0 0 0.4rem 0;
+}
+.workbench-memory-graph__btn {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(238, 239, 245, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+.workbench-memory-graph__btn:hover {
+  background: rgba(255, 255, 255, 0.08);
 }
 .workbench-memory-graph__empty {
   flex: 1;

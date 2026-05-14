@@ -760,6 +760,11 @@ fn note_badge_text(name: &str) -> String {
 fn MemoryGraphView(state: MemoryState) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let layout = RwSignal::new(HashMap::<String, (f32, f32)>::new());
+    let viewbox = RwSignal::new((0.0_f32, 0.0_f32, 400.0_f32, 320.0_f32));
+    let panning = RwSignal::new(false);
+    let last_pos = RwSignal::new((0.0_f32, 0.0_f32));
+    let user_interacted = RwSignal::new(false);
+    let last_node_set: RwSignal<Vec<String>> = RwSignal::new(Vec::new());
 
     Effect::new({
         let state = state.clone();
@@ -774,13 +779,112 @@ fn MemoryGraphView(state: MemoryState) -> impl IntoView {
         }
     });
 
+    let fit_viewbox = move |pos: &HashMap<String, (f32, f32)>| {
+        if pos.is_empty() {
+            viewbox.set((0.0, 0.0, 400.0, 320.0));
+            return;
+        }
+        let (mut minx, mut miny, mut maxx, mut maxy) =
+            (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
+        for &(x, y) in pos.values() {
+            minx = minx.min(x);
+            maxx = maxx.max(x);
+            miny = miny.min(y);
+            maxy = maxy.max(y);
+        }
+        let pad = 60.0;
+        let vw = (maxx - minx + pad * 2.0).max(120.0);
+        let vh = (maxy - miny + pad * 2.0).max(120.0);
+        viewbox.set((minx - pad, miny - pad, vw, vh));
+    };
+
     Effect::new({
         let state = state.clone();
         move |_| {
             let Some(g) = state.graph.get() else { return };
-            layout.set(force_layout(&g, 400.0, 320.0, 180));
+            let pos = force_layout(&g, 400.0, 320.0, 180);
+
+            let mut ids: Vec<String> = g.nodes.iter().map(|n| n.id.clone()).collect();
+            ids.sort();
+            let prev = last_node_set.get_untracked();
+            let node_set_changed = prev != ids;
+            if node_set_changed {
+                last_node_set.set(ids);
+            }
+
+            if !user_interacted.get_untracked() || node_set_changed {
+                fit_viewbox(&pos);
+                if node_set_changed {
+                    user_interacted.set(false);
+                }
+            }
+            layout.set(pos);
         }
     });
+
+    let reset_view = move |_| {
+        let pos = layout.get_untracked();
+        fit_viewbox(&pos);
+        user_interacted.set(false);
+    };
+
+    let on_wheel = move |ev: web_sys::WheelEvent| {
+        ev.prevent_default();
+        let Some(t) = ev.current_target() else { return };
+        let Ok(svg) = t.dyn_into::<web_sys::Element>() else { return };
+        let rect = svg.get_bounding_client_rect();
+        let w = rect.width() as f32;
+        let h = rect.height() as f32;
+        if w <= 0.0 || h <= 0.0 {
+            return;
+        }
+        let mx = ev.client_x() as f32 - rect.left() as f32;
+        let my = ev.client_y() as f32 - rect.top() as f32;
+        let (vx, vy, vw, vh) = viewbox.get_untracked();
+        let sx = vx + (mx / w) * vw;
+        let sy = vy + (my / h) * vh;
+        let factor = if ev.delta_y() > 0.0 { 1.15 } else { 1.0 / 1.15 };
+        let new_vw = (vw * factor).clamp(20.0, 8000.0);
+        let new_vh = (vh * factor).clamp(20.0, 8000.0);
+        let new_vx = sx - (mx / w) * new_vw;
+        let new_vy = sy - (my / h) * new_vh;
+        viewbox.set((new_vx, new_vy, new_vw, new_vh));
+        user_interacted.set(true);
+    };
+
+    let on_mousedown = move |ev: web_sys::MouseEvent| {
+        panning.set(true);
+        last_pos.set((ev.client_x() as f32, ev.client_y() as f32));
+    };
+    let on_mousemove = move |ev: web_sys::MouseEvent| {
+        if !panning.get_untracked() {
+            return;
+        }
+        let (lx, ly) = last_pos.get_untracked();
+        let dx = ev.client_x() as f32 - lx;
+        let dy = ev.client_y() as f32 - ly;
+        last_pos.set((ev.client_x() as f32, ev.client_y() as f32));
+        let Some(t) = ev.current_target() else { return };
+        let Ok(svg) = t.dyn_into::<web_sys::Element>() else { return };
+        let rect = svg.get_bounding_client_rect();
+        let w = rect.width() as f32;
+        let h = rect.height() as f32;
+        if w <= 0.0 || h <= 0.0 {
+            return;
+        }
+        let (vx, vy, vw, vh) = viewbox.get_untracked();
+        viewbox.set((vx - dx * (vw / w), vy - dy * (vh / h), vw, vh));
+        if dx.abs() + dy.abs() > 0.0 {
+            user_interacted.set(true);
+        }
+    };
+    let on_mouseup = move |_: web_sys::MouseEvent| panning.set(false);
+    let on_mouseleave = move |_: web_sys::MouseEvent| panning.set(false);
+
+    let viewbox_str = move || {
+        let (x, y, w, h) = viewbox.get();
+        format!("{} {} {} {}", x, y, w, h)
+    };
 
     view! {
         <div class="workbench-memory-graph">
@@ -796,7 +900,23 @@ fn MemoryGraphView(state: MemoryState) -> impl IntoView {
                     }
                 }
             >
-                <svg class="workbench-memory-graph__svg" viewBox="0 0 400 320" xmlns="http://www.w3.org/2000/svg">
+                <div class="workbench-memory-graph__toolbar">
+                    <button
+                        class="workbench-memory-graph__btn"
+                        on:click=reset_view
+                        title="Reset view"
+                    >"Reset"</button>
+                </div>
+                <svg
+                    class="workbench-memory-graph__svg"
+                    viewBox=viewbox_str
+                    xmlns="http://www.w3.org/2000/svg"
+                    on:wheel=on_wheel
+                    on:mousedown=on_mousedown
+                    on:mousemove=on_mousemove
+                    on:mouseup=on_mouseup
+                    on:mouseleave=on_mouseleave
+                >
                     // edges
                     <g class="workbench-memory-graph__edges">
                         <For
@@ -806,21 +926,23 @@ fn MemoryGraphView(state: MemoryState) -> impl IntoView {
                             }
                             key=|e| format!("{}->{}", e.source, e.target)
                             children=move |e| {
-                                let pos = layout.get();
-                                let src = pos.get(&e.source).copied();
-                                let tgt = pos.get(&e.target).copied();
-                                match (src, tgt) {
-                                    (Some((x1, y1)), Some((x2, y2))) => view! {
-                                        <line
-                                            x1=x1.to_string()
-                                            y1=y1.to_string()
-                                            x2=x2.to_string()
-                                            y2=y2.to_string()
-                                            stroke="rgba(255,255,255,0.18)"
-                                            stroke-width="1"
-                                        />
-                                    }.into_any(),
-                                    _ => view! { <g /> }.into_any(),
+                                let src1 = e.source.clone();
+                                let src2 = e.source.clone();
+                                let tgt1 = e.target.clone();
+                                let tgt2 = e.target.clone();
+                                let x1 = move || layout.get().get(&src1).map(|p| p.0).unwrap_or(-9999.0).to_string();
+                                let y1 = move || layout.get().get(&src2).map(|p| p.1).unwrap_or(-9999.0).to_string();
+                                let x2 = move || layout.get().get(&tgt1).map(|p| p.0).unwrap_or(-9999.0).to_string();
+                                let y2 = move || layout.get().get(&tgt2).map(|p| p.1).unwrap_or(-9999.0).to_string();
+                                view! {
+                                    <line
+                                        x1=x1
+                                        y1=y1
+                                        x2=x2
+                                        y2=y2
+                                        stroke="rgba(255,255,255,0.18)"
+                                        stroke-width="1"
+                                    />
                                 }
                             }
                         />
@@ -836,11 +958,18 @@ fn MemoryGraphView(state: MemoryState) -> impl IntoView {
                             children={
                                 let state = state.clone();
                                 move |n| {
-                                    let pos = layout.get();
-                                    let (x, y) = pos.get(&n.id).copied().unwrap_or((200.0, 160.0));
                                     let s = state.clone();
                                     let id_for_click = n.id.clone();
+                                    let id_cx = n.id.clone();
+                                    let id_cy = n.id.clone();
+                                    let id_tx = n.id.clone();
+                                    let id_ty = n.id.clone();
+                                    let label = n.label.clone();
                                     let fill = if n.orphan { "rgba(180,180,200,0.35)" } else { "rgba(120,170,255,0.85)" };
+                                    let cx = move || layout.get().get(&id_cx).map(|p| p.0).unwrap_or(-9999.0).to_string();
+                                    let cy = move || layout.get().get(&id_cy).map(|p| p.1).unwrap_or(-9999.0).to_string();
+                                    let tx = move || (layout.get().get(&id_tx).map(|p| p.0).unwrap_or(-9999.0) + 8.0).to_string();
+                                    let ty = move || (layout.get().get(&id_ty).map(|p| p.1).unwrap_or(-9999.0) + 3.0).to_string();
                                     view! {
                                         <g class="workbench-memory-graph__node"
                                             on:click=move |_| {
@@ -849,8 +978,8 @@ fn MemoryGraphView(state: MemoryState) -> impl IntoView {
                                                 s.view.set(MemoryView::Files);
                                             }
                                         >
-                                            <circle cx=x.to_string() cy=y.to_string() r="6" fill=fill stroke="rgba(255,255,255,0.4)" stroke-width="0.5" />
-                                            <text x=(x + 8.0).to_string() y=(y + 3.0).to_string() font-size="9" fill="rgba(238,239,245,0.9)">{n.label}</text>
+                                            <circle cx=cx cy=cy r="6" fill=fill stroke="rgba(255,255,255,0.4)" stroke-width="0.5" />
+                                            <text x=tx y=ty font-size="9" fill="rgba(238,239,245,0.9)">{label}</text>
                                         </g>
                                     }
                                 }
