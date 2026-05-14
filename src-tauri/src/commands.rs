@@ -1,4 +1,5 @@
-use crate::agent::{dispatch_user_turn, AgentEngineState, AgentEvent, ProviderEnv, UserTurn};
+use crate::agent::{dispatch_user_turn, AgentEngineState, AgentEvent, UserTurn};
+use crate::agent_settings::provider_status_json;
 use crate::browser_host::BrowserHost;
 use crate::pty_host::{path_nav_exec, PathNavResult, PtyManager};
 use serde::Deserialize;
@@ -25,7 +26,7 @@ pub fn agent_abort(agent: State<'_, Arc<AgentEngineState>>) {
 
 #[tauri::command]
 pub fn agent_provider_status() -> serde_json::Value {
-    ProviderEnv::from_environment().status_json()
+    provider_status_json()
 }
 
 #[derive(Debug, Deserialize)]

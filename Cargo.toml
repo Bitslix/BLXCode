@@ -30,6 +30,8 @@ web-sys = { version = "0.3", features = [
     "HtmlDivElement",
     "HtmlInputElement",
     "HtmlIFrameElement",
+    "HtmlSelectElement",
+    "HtmlTextAreaElement",
     "MouseEvent",
     "Navigator",
     "Clipboard",

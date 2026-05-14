@@ -75,46 +75,65 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlHint => "Escape schließt • Pfeiltasten • Enter",
         I18nKey::PlNoHits => "Keine Treffer",
 
-        I18nKey::CmdSetTitle => "Harness-Einstellungen",
+        I18nKey::CmdSetTitle => "BLXCode-Einstellungen",
         I18nKey::CmdSetSub => {
-            "Kategorisierte UI (Allgemein, Layout, Sprache, Agent)"
+            "App, Workspace und Agent-Provider verwalten"
         }
         I18nKey::CmdRtpTitle => "Rechtes Panel ein-/ausblenden",
         I18nKey::CmdRtpSub => "Inspector-Spalte umschalten",
         I18nKey::CmdAgentTitle => "Rechter Reiter: Agent",
-        I18nKey::CmdAgentSub => "Chat / Composer Harness",
+        I18nKey::CmdAgentSub => "Chat / Composer",
         I18nKey::CmdBrowseTitle => "Rechter Reiter: Browser",
         I18nKey::CmdBrowseSub => "Eingebettete Webview synchronisieren",
         I18nKey::CmdMemoryTitle => "Rechter Reiter: Gedächtnis",
         I18nKey::CmdMemorySub => "Reservierter Bereich",
 
         I18nKey::HsCloseSettingsAria => "Einstellungen schließen",
-        I18nKey::HsTitle => "Harness-Einstellungen",
+        I18nKey::HsTitle => "BLXCode-Einstellungen",
         I18nKey::HsAriaCats => "Kategorien",
-        I18nKey::HsCatGeneral => "Allgemein",
-        I18nKey::HsCatLayout => "Layout",
-        I18nKey::HsCatLanguage => "Sprache",
-        I18nKey::HsCatAgent => "Agent",
-        I18nKey::GenHeading => "Allgemein",
-        I18nKey::GenApiNote => {
-            "API-Schlüssel liegen nur im Desktop-Host (Umgebungsvariable `BLX_ANTHROPIC_API_KEY`), nie im Browser-Storage."
-        }
+        I18nKey::HsCatApp => "App",
+        I18nKey::HsCatWorkspace => "Workspace",
+        I18nKey::HsCatProvider => "Agent-Provider",
+        I18nKey::AppHeading => "App",
         I18nKey::GenEulaStatus => "EULA-Status",
-        I18nKey::GenMoreSoon => "Weitere Allgemeine Regler folgen später.",
-        I18nKey::LayHeading => "Layout",
+        I18nKey::AppLanguage => "UI-Sprache",
+        I18nKey::AppHooksHeading => "Terminal-Hooks",
+        I18nKey::WsHeading => "Workspace",
         I18nKey::LayBrowserUrl => "Standard-URL des eingebetteten Browsers",
-        I18nKey::LayDefaultIntro => "Voreinstellung:",
-        I18nKey::LangHeading => "Sprache",
-        I18nKey::LangUiLang => "UI-Sprache",
-        I18nKey::AgHeading => "Agent",
-        I18nKey::AgWsRootLabel => "Workspace-/Sandbox-Stamm",
-        I18nKey::AgWsPlaceholder => "/abs/path/zum/repo",
-        I18nKey::AgReadBuiltin => {
-            "„READ:relative/pfad.txt“ löst eingebaute Lesehilfen aus."
-        }
+        I18nKey::WsBrowserDefault => "Voreinstellung:",
+        I18nKey::WsRootLabel => "Workspace-/Sandbox-Stamm",
+        I18nKey::WsRootPlaceholder => "/abs/path/zum/repo",
+        I18nKey::AgProviderHeading => "BLXCode Agent Provider",
+        I18nKey::AgProviderField => "Provider",
+        I18nKey::AgProviderOpenrouter => "OpenRouter",
+        I18nKey::AgProviderAnthropic => "Anthropic",
+        I18nKey::AgProviderOpenai => "OpenAI",
+        I18nKey::AgModelField => "Modell",
+        I18nKey::AgModelCustomField => "Eigene Model-ID",
+        I18nKey::AgThinkingField => "Thinking-Level",
+        I18nKey::AgThinkingOff => "Aus",
+        I18nKey::AgThinkingLow => "Niedrig",
+        I18nKey::AgThinkingMedium => "Mittel",
+        I18nKey::AgThinkingHigh => "Hoch",
+        I18nKey::AgThinkingMax => "Max",
+        I18nKey::AgApiKeyField => "API-Key",
+        I18nKey::AgApiKeyHint => "Secrets werden im OS-Keychain gespeichert, nie im Browser.",
+        I18nKey::AgApiKeySet => "API-Key speichern",
+        I18nKey::AgApiKeyDelete => "API-Key löschen",
+        I18nKey::AgApiKeyConfigured => "gesetzt",
+        I18nKey::AgApiKeyMissing => "fehlt",
+        I18nKey::AgModelsRefresh => "Modelle laden",
+        I18nKey::AgModelsLoading => "Modelle werden geladen…",
+        I18nKey::AgModelsSourceLive => "Quelle: Live",
+        I18nKey::AgModelsSourceCache => "Quelle: Cache",
+        I18nKey::AgModelsSourceCurated => "Quelle: Kuratiert",
+        I18nKey::AgModelsFallback => "Fallback aktiv",
+        I18nKey::AgModelsUnavailable => "Keine Modelle verfügbar",
+        I18nKey::AgSaveProvider => "Provider-Einstellungen speichern",
+        I18nKey::AgSaveProviderDone => "Provider-Einstellungen gespeichert",
         I18nKey::AgHooksHeading => "Terminal-Hooks",
         I18nKey::AgHooksDesc => {
-            "Installiert Titel- und Session-Capture-Hooks für Claude und Codex. Damit folgt der Tab-Titel dem aktuellen Prompt und Agent-Sessions lassen sich nach einem Neustart fortsetzen."
+            "Installiert Titel- und Session-Capture-Hooks für unterstützte Agent-CLIs. Damit folgen Tab-Titel dem aktuellen Prompt und Sessions lassen sich nach einem Neustart fortsetzen."
         }
         I18nKey::AgHooksInstall => "Hooks installieren",
         I18nKey::AgHooksUninstall => "Deinstallieren",
@@ -122,7 +141,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgHooksStatusMissing => "nicht installiert",
         I18nKey::AgHooksStatusUnknown => "unbekannt",
         I18nKey::AgHooksBusy => "Wird ausgeführt…",
-        I18nKey::HarnessLoading => "Laden …",
+        I18nKey::BlxLoading => "Laden …",
 
         I18nKey::AuthGateChecking => "Sitzung wird geprüft…",
         I18nKey::AuthLoginHeading => "Anmelden",

@@ -9,4 +9,4 @@ mod session_orchestrator;
 pub use orchestrator::spawn_mock_turn;
 pub use protocol::{AgentEvent, UserTurn};
 pub use session_orchestrator::dispatch_user_turn;
-pub use state::{AgentEngineState, ProviderEnv};
+pub use state::AgentEngineState;

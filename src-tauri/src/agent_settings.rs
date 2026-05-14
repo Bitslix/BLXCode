@@ -1,0 +1,517 @@
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use tauri::{AppHandle, Manager};
+
+const SETTINGS_FILE: &str = "agent_provider_settings.json";
+const KEYRING_SERVICE: &str = "BLXCode";
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AgentProviderKind {
+    Openrouter,
+    Anthropic,
+    Openai,
+}
+
+impl AgentProviderKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Openrouter => "openrouter",
+            Self::Anthropic => "anthropic",
+            Self::Openai => "openai",
+        }
+    }
+
+    fn keyring_account(self) -> String {
+        format!("agent:{}", self.as_str())
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ThinkingLevel {
+    Off,
+    Low,
+    Medium,
+    High,
+    Max,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderModelEntry {
+    pub id: String,
+    pub label: String,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentProviderSettings {
+    pub provider: AgentProviderKind,
+    pub model_id: String,
+    pub thinking_level: ThinkingLevel,
+    #[serde(default)]
+    pub model_cache_openrouter: Vec<ProviderModelEntry>,
+    #[serde(default)]
+    pub model_cache_anthropic: Vec<ProviderModelEntry>,
+    #[serde(default)]
+    pub model_cache_openai: Vec<ProviderModelEntry>,
+}
+
+impl Default for AgentProviderSettings {
+    fn default() -> Self {
+        Self {
+            provider: AgentProviderKind::Openrouter,
+            model_id: "openai/gpt-5".into(),
+            thinking_level: ThinkingLevel::Medium,
+            model_cache_openrouter: curated_models(AgentProviderKind::Openrouter),
+            model_cache_anthropic: curated_models(AgentProviderKind::Anthropic),
+            model_cache_openai: curated_models(AgentProviderKind::Openai),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderKeyStatus {
+    pub provider: AgentProviderKind,
+    pub configured: bool,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentProviderSettingsView {
+    #[serde(flatten)]
+    pub settings: AgentProviderSettings,
+    pub key_statuses: Vec<ProviderKeyStatus>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderModelsResponse {
+    pub provider: AgentProviderKind,
+    pub entries: Vec<ProviderModelEntry>,
+    pub source: String,
+    pub used_fallback: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentProviderSettingsPatch {
+    pub provider: AgentProviderKind,
+    pub model_id: String,
+    pub thinking_level: ThinkingLevel,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderKeyPayload {
+    pub provider: AgentProviderKind,
+    pub api_key: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderRef {
+    pub provider: AgentProviderKind,
+}
+
+fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let base = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("app config dir unavailable: {e}"))?;
+    Ok(base.join(SETTINGS_FILE))
+}
+
+fn ensure_dir(path: &Path) -> Result<(), String> {
+    fs::create_dir_all(path).map_err(|e| format!("mkdir {}: {e}", path.display()))
+}
+
+fn load_settings(app: &AppHandle) -> Result<AgentProviderSettings, String> {
+    let path = settings_path(app)?;
+    match fs::read_to_string(&path) {
+        Ok(raw) if raw.trim().is_empty() => Ok(AgentProviderSettings::default()),
+        Ok(raw) => serde_json::from_str(&raw).map_err(|e| format!("parse {}: {e}", path.display())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(AgentProviderSettings::default()),
+        Err(e) => Err(format!("read {}: {e}", path.display())),
+    }
+}
+
+fn save_settings(app: &AppHandle, settings: &AgentProviderSettings) -> Result<(), String> {
+    let path = settings_path(app)?;
+    if let Some(parent) = path.parent() {
+        ensure_dir(parent)?;
+    }
+    let tmp = path.with_extension("json.tmp");
+    let body = serde_json::to_string_pretty(settings)
+        .map_err(|e| format!("serialize {}: {e}", path.display()))?;
+    {
+        let mut f =
+            fs::File::create(&tmp).map_err(|e| format!("create {}: {e}", tmp.display()))?;
+        f.write_all(body.as_bytes())
+            .map_err(|e| format!("write {}: {e}", tmp.display()))?;
+        f.sync_all().ok();
+    }
+    fs::rename(&tmp, &path)
+        .map_err(|e| format!("rename {} -> {}: {e}", tmp.display(), path.display()))?;
+    Ok(())
+}
+
+fn keyring_entry(provider: AgentProviderKind) -> Result<keyring::Entry, String> {
+    keyring::Entry::new(KEYRING_SERVICE, &provider.keyring_account())
+        .map_err(|e| format!("keyring init {}: {e}", provider.as_str()))
+}
+
+fn key_is_configured(provider: AgentProviderKind) -> Result<bool, String> {
+    let entry = keyring_entry(provider)?;
+    match entry.get_password() {
+        Ok(secret) => Ok(!secret.trim().is_empty()),
+        Err(keyring::Error::NoEntry) => Ok(false),
+        Err(e) => Err(format!("keyring get {}: {e}", provider.as_str())),
+    }
+}
+
+fn provider_key(provider: AgentProviderKind) -> Result<String, String> {
+    let entry = keyring_entry(provider)?;
+    entry
+        .get_password()
+        .map_err(|e| format!("keyring get {}: {e}", provider.as_str()))
+}
+
+fn curated_models(provider: AgentProviderKind) -> Vec<ProviderModelEntry> {
+    match provider {
+        AgentProviderKind::Openrouter => vec![
+            ProviderModelEntry {
+                id: "openai/gpt-5".into(),
+                label: "GPT-5".into(),
+                description: Some("Default via OpenRouter".into()),
+            },
+            ProviderModelEntry {
+                id: "anthropic/claude-sonnet-4.5".into(),
+                label: "Claude Sonnet 4.5".into(),
+                description: Some("Anthropic via OpenRouter".into()),
+            },
+            ProviderModelEntry {
+                id: "google/gemini-2.5-pro".into(),
+                label: "Gemini 2.5 Pro".into(),
+                description: Some("Google via OpenRouter".into()),
+            },
+        ],
+        AgentProviderKind::Anthropic => vec![
+            ProviderModelEntry {
+                id: "claude-sonnet-4-5".into(),
+                label: "Claude Sonnet 4.5".into(),
+                description: Some("Balanced model".into()),
+            },
+            ProviderModelEntry {
+                id: "claude-opus-4-1".into(),
+                label: "Claude Opus 4.1".into(),
+                description: Some("Highest capability".into()),
+            },
+        ],
+        AgentProviderKind::Openai => vec![
+            ProviderModelEntry {
+                id: "gpt-5".into(),
+                label: "GPT-5".into(),
+                description: Some("Reasoning flagship".into()),
+            },
+            ProviderModelEntry {
+                id: "gpt-5-mini".into(),
+                label: "GPT-5 Mini".into(),
+                description: Some("Faster/cost-lean variant".into()),
+            },
+        ],
+    }
+}
+
+fn cache_for_provider(
+    settings: &AgentProviderSettings,
+    provider: AgentProviderKind,
+) -> Vec<ProviderModelEntry> {
+    match provider {
+        AgentProviderKind::Openrouter => settings.model_cache_openrouter.clone(),
+        AgentProviderKind::Anthropic => settings.model_cache_anthropic.clone(),
+        AgentProviderKind::Openai => settings.model_cache_openai.clone(),
+    }
+}
+
+fn set_cache_for_provider(
+    settings: &mut AgentProviderSettings,
+    provider: AgentProviderKind,
+    entries: Vec<ProviderModelEntry>,
+) {
+    match provider {
+        AgentProviderKind::Openrouter => settings.model_cache_openrouter = entries,
+        AgentProviderKind::Anthropic => settings.model_cache_anthropic = entries,
+        AgentProviderKind::Openai => settings.model_cache_openai = entries,
+    }
+}
+
+fn settings_view(settings: AgentProviderSettings) -> Result<AgentProviderSettingsView, String> {
+    let key_statuses = [
+        AgentProviderKind::Openrouter,
+        AgentProviderKind::Anthropic,
+        AgentProviderKind::Openai,
+    ]
+    .into_iter()
+    .map(|provider| {
+        Ok(ProviderKeyStatus {
+            provider,
+            configured: key_is_configured(provider)?,
+        })
+    })
+    .collect::<Result<Vec<_>, String>>()?;
+
+    Ok(AgentProviderSettingsView {
+        settings,
+        key_statuses,
+    })
+}
+
+#[derive(Deserialize)]
+struct OpenrouterModelsEnvelope {
+    data: Vec<OpenrouterModel>,
+}
+
+#[derive(Deserialize)]
+struct OpenrouterModel {
+    id: String,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct OpenaiModelsEnvelope {
+    data: Vec<OpenaiModel>,
+}
+
+#[derive(Deserialize)]
+struct OpenaiModel {
+    id: String,
+}
+
+#[derive(Deserialize)]
+struct AnthropicModelsEnvelope {
+    data: Vec<AnthropicModel>,
+}
+
+#[derive(Deserialize)]
+struct AnthropicModel {
+    id: String,
+    #[serde(default)]
+    display_name: Option<String>,
+}
+
+async fn fetch_models_live(provider: AgentProviderKind) -> Result<Vec<ProviderModelEntry>, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .build()
+        .map_err(|e| format!("http client: {e}"))?;
+
+    match provider {
+        AgentProviderKind::Openrouter => {
+            let res = client
+                .get("https://openrouter.ai/api/v1/models")
+                .send()
+                .await
+                .map_err(|e| format!("openrouter models: {e}"))?;
+            let res = res
+                .error_for_status()
+                .map_err(|e| format!("openrouter models: {e}"))?;
+            let body: OpenrouterModelsEnvelope =
+                res.json().await.map_err(|e| format!("openrouter parse: {e}"))?;
+            let mut items = body
+                .data
+                .into_iter()
+                .map(|entry| ProviderModelEntry {
+                    label: entry.name.clone().unwrap_or_else(|| entry.id.clone()),
+                    id: entry.id,
+                    description: entry.description,
+                })
+                .collect::<Vec<_>>();
+            items.sort_by(|a, b| a.label.cmp(&b.label));
+            Ok(items)
+        }
+        AgentProviderKind::Openai => {
+            let key = provider_key(provider)?;
+            let res = client
+                .get("https://api.openai.com/v1/models")
+                .bearer_auth(key)
+                .send()
+                .await
+                .map_err(|e| format!("openai models: {e}"))?;
+            let res = res
+                .error_for_status()
+                .map_err(|e| format!("openai models: {e}"))?;
+            let body: OpenaiModelsEnvelope =
+                res.json().await.map_err(|e| format!("openai parse: {e}"))?;
+            let mut items = body
+                .data
+                .into_iter()
+                .filter(|entry| entry.id.starts_with("gpt-") || entry.id.contains("o"))
+                .map(|entry| ProviderModelEntry {
+                    label: entry.id.clone(),
+                    id: entry.id,
+                    description: None,
+                })
+                .collect::<Vec<_>>();
+            items.sort_by(|a, b| a.label.cmp(&b.label));
+            Ok(items)
+        }
+        AgentProviderKind::Anthropic => {
+            let key = provider_key(provider)?;
+            let res = client
+                .get("https://api.anthropic.com/v1/models")
+                .header("x-api-key", key)
+                .header("anthropic-version", "2023-06-01")
+                .send()
+                .await
+                .map_err(|e| format!("anthropic models: {e}"))?;
+            let res = res
+                .error_for_status()
+                .map_err(|e| format!("anthropic models: {e}"))?;
+            let body: AnthropicModelsEnvelope =
+                res.json().await.map_err(|e| format!("anthropic parse: {e}"))?;
+            let mut items = body
+                .data
+                .into_iter()
+                .map(|entry| ProviderModelEntry {
+                    label: entry.display_name.clone().unwrap_or_else(|| entry.id.clone()),
+                    id: entry.id,
+                    description: None,
+                })
+                .collect::<Vec<_>>();
+            items.sort_by(|a, b| a.label.cmp(&b.label));
+            Ok(items)
+        }
+    }
+}
+
+#[tauri::command]
+pub fn agent_settings_get(app: AppHandle) -> Result<AgentProviderSettingsView, String> {
+    settings_view(load_settings(&app)?)
+}
+
+#[tauri::command]
+pub fn agent_settings_save(
+    app: AppHandle,
+    patch: AgentProviderSettingsPatch,
+) -> Result<AgentProviderSettingsView, String> {
+    let mut settings = load_settings(&app)?;
+    settings.provider = patch.provider;
+    settings.model_id = patch.model_id.trim().to_string();
+    settings.thinking_level = patch.thinking_level;
+    save_settings(&app, &settings)?;
+    settings_view(settings)
+}
+
+#[tauri::command]
+pub fn agent_api_key_set(app: AppHandle, payload: ProviderKeyPayload) -> Result<AgentProviderSettingsView, String> {
+    let trimmed = payload.api_key.trim();
+    if trimmed.is_empty() {
+        return Err("API key must not be empty".into());
+    }
+    let entry = keyring_entry(payload.provider)?;
+    entry
+        .set_password(trimmed)
+        .map_err(|e| format!("keyring set {}: {e}", payload.provider.as_str()))?;
+    settings_view(load_settings(&app)?)
+}
+
+#[tauri::command]
+pub fn agent_api_key_delete(app: AppHandle, payload: ProviderRef) -> Result<AgentProviderSettingsView, String> {
+    let entry = keyring_entry(payload.provider)?;
+    match entry.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => {}
+        Err(e) => return Err(format!("keyring delete {}: {e}", payload.provider.as_str())),
+    }
+    settings_view(load_settings(&app)?)
+}
+
+#[tauri::command]
+pub async fn agent_provider_models(
+    app: AppHandle,
+    payload: ProviderRef,
+) -> Result<ProviderModelsResponse, String> {
+    let provider = payload.provider;
+    let mut settings = load_settings(&app)?;
+
+    match fetch_models_live(provider).await {
+        Ok(entries) if !entries.is_empty() => {
+            set_cache_for_provider(&mut settings, provider, entries.clone());
+            save_settings(&app, &settings)?;
+            Ok(ProviderModelsResponse {
+                provider,
+                entries,
+                source: "live".into(),
+                used_fallback: false,
+                message: None,
+            })
+        }
+        Ok(_) => {
+            let cached = cache_for_provider(&settings, provider);
+            let entries = if cached.is_empty() {
+                curated_models(provider)
+            } else {
+                cached
+            };
+            Ok(ProviderModelsResponse {
+                provider,
+                entries,
+                source: "fallback".into(),
+                used_fallback: true,
+                message: Some("Provider returned an empty model list.".into()),
+            })
+        }
+        Err(err) => {
+            let cached = cache_for_provider(&settings, provider);
+            let entries = if cached.is_empty() {
+                curated_models(provider)
+            } else {
+                cached
+            };
+            Ok(ProviderModelsResponse {
+                provider,
+                entries,
+                source: if cache_for_provider(&settings, provider).is_empty() {
+                    "curated".into()
+                } else {
+                    "cache".into()
+                },
+                used_fallback: true,
+                message: Some(err),
+            })
+        }
+    }
+}
+
+pub fn provider_status_json() -> serde_json::Value {
+    let key_statuses = [
+        AgentProviderKind::Openrouter,
+        AgentProviderKind::Anthropic,
+        AgentProviderKind::Openai,
+    ]
+    .into_iter()
+    .map(|provider| {
+        serde_json::json!({
+            "provider": provider.as_str(),
+            "configured": key_is_configured(provider).unwrap_or(false),
+        })
+    })
+    .collect::<Vec<_>>();
+
+    serde_json::json!({
+        "phase": "mock_engine",
+        "defaultProvider": AgentProviderKind::Openrouter.as_str(),
+        "keyStatuses": key_statuses,
+    })
+}

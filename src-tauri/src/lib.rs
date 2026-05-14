@@ -1,5 +1,6 @@
 mod agent;
 mod agent_hooks;
+mod agent_settings;
 mod browser_host;
 mod commands;
 mod git_info;
@@ -9,6 +10,10 @@ mod workbench_state;
 
 use agent::AgentEngineState;
 use agent_hooks::{agent_hooks_status, install_agent_hooks, uninstall_agent_hooks};
+use agent_settings::{
+    agent_api_key_delete, agent_api_key_set, agent_provider_models, agent_settings_get,
+    agent_settings_save,
+};
 use browser_host::BrowserHost;
 use commands::*;
 use pty_host::PtyManager;
@@ -48,6 +53,11 @@ pub fn run() {
             agent_poll_events,
             agent_abort,
             agent_provider_status,
+            agent_settings_get,
+            agent_settings_save,
+            agent_api_key_set,
+            agent_api_key_delete,
+            agent_provider_models,
             browser_sync_bounds,
             browser_navigate,
             browser_run_js,

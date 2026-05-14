@@ -75,46 +75,65 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlHint => "Escape closes • Arrow keys • Enter",
         I18nKey::PlNoHits => "No matches",
 
-        I18nKey::CmdSetTitle => "Harness settings",
+        I18nKey::CmdSetTitle => "BLXCode settings",
         I18nKey::CmdSetSub => {
-            "Categorized UI (General, Layout, Language, Agent)"
+            "Manage app, workspace, and agent provider"
         }
         I18nKey::CmdRtpTitle => "Toggle right panel",
         I18nKey::CmdRtpSub => "Show/hide inspector column",
         I18nKey::CmdAgentTitle => "Right tab: Agent",
-        I18nKey::CmdAgentSub => "Chat / composer harness",
+        I18nKey::CmdAgentSub => "Chat / composer",
         I18nKey::CmdBrowseTitle => "Right tab: Browser",
         I18nKey::CmdBrowseSub => "Sync embedded webview",
         I18nKey::CmdMemoryTitle => "Right tab: Memory",
         I18nKey::CmdMemorySub => "Reserved panel",
 
         I18nKey::HsCloseSettingsAria => "Close settings",
-        I18nKey::HsTitle => "Harness settings",
+        I18nKey::HsTitle => "BLXCode settings",
         I18nKey::HsAriaCats => "Categories",
-        I18nKey::HsCatGeneral => "General",
-        I18nKey::HsCatLayout => "Layout",
-        I18nKey::HsCatLanguage => "Language",
-        I18nKey::HsCatAgent => "Agent",
-        I18nKey::GenHeading => "General",
-        I18nKey::GenApiNote => {
-            "API keys live only in the desktop host (env `BLX_ANTHROPIC_API_KEY`), never in browser storage."
-        }
+        I18nKey::HsCatApp => "App",
+        I18nKey::HsCatWorkspace => "Workspace",
+        I18nKey::HsCatProvider => "Agent Provider",
+        I18nKey::AppHeading => "App",
         I18nKey::GenEulaStatus => "EULA status",
-        I18nKey::GenMoreSoon => "More general controls will follow.",
-        I18nKey::LayHeading => "Layout",
+        I18nKey::AppLanguage => "UI language",
+        I18nKey::AppHooksHeading => "Terminal hooks",
+        I18nKey::WsHeading => "Workspace",
         I18nKey::LayBrowserUrl => "Default embedded browser URL",
-        I18nKey::LayDefaultIntro => "Preset:",
-        I18nKey::LangHeading => "Language",
-        I18nKey::LangUiLang => "UI language",
-        I18nKey::AgHeading => "Agent",
-        I18nKey::AgWsRootLabel => "Workspace / sandbox root",
-        I18nKey::AgWsPlaceholder => "/abs/path/to/repo",
-        I18nKey::AgReadBuiltin => {
-            "READ:relative/path.txt triggers built-in read helpers."
-        }
+        I18nKey::WsBrowserDefault => "Preset:",
+        I18nKey::WsRootLabel => "Workspace / sandbox root",
+        I18nKey::WsRootPlaceholder => "/abs/path/to/repo",
+        I18nKey::AgProviderHeading => "BLXCode Agent Provider",
+        I18nKey::AgProviderField => "Provider",
+        I18nKey::AgProviderOpenrouter => "OpenRouter",
+        I18nKey::AgProviderAnthropic => "Anthropic",
+        I18nKey::AgProviderOpenai => "OpenAI",
+        I18nKey::AgModelField => "Model",
+        I18nKey::AgModelCustomField => "Custom model ID",
+        I18nKey::AgThinkingField => "Thinking level",
+        I18nKey::AgThinkingOff => "Off",
+        I18nKey::AgThinkingLow => "Low",
+        I18nKey::AgThinkingMedium => "Medium",
+        I18nKey::AgThinkingHigh => "High",
+        I18nKey::AgThinkingMax => "Max",
+        I18nKey::AgApiKeyField => "API key",
+        I18nKey::AgApiKeyHint => "Secrets are stored in the OS keychain, never in browser storage.",
+        I18nKey::AgApiKeySet => "Save API key",
+        I18nKey::AgApiKeyDelete => "Delete API key",
+        I18nKey::AgApiKeyConfigured => "configured",
+        I18nKey::AgApiKeyMissing => "missing",
+        I18nKey::AgModelsRefresh => "Refresh models",
+        I18nKey::AgModelsLoading => "Loading models…",
+        I18nKey::AgModelsSourceLive => "Source: live",
+        I18nKey::AgModelsSourceCache => "Source: cache",
+        I18nKey::AgModelsSourceCurated => "Source: curated",
+        I18nKey::AgModelsFallback => "Fallback in use",
+        I18nKey::AgModelsUnavailable => "No models available",
+        I18nKey::AgSaveProvider => "Save provider settings",
+        I18nKey::AgSaveProviderDone => "Provider settings saved",
         I18nKey::AgHooksHeading => "Terminal hooks",
         I18nKey::AgHooksDesc => {
-            "Install title + session-capture hooks for Claude and Codex so terminal tabs follow the active prompt and agent sessions can be resumed after restart."
+            "Install title and session-capture hooks for supported agent CLIs so terminal tabs follow the active prompt and sessions can be resumed after restart."
         }
         I18nKey::AgHooksInstall => "Install hooks",
         I18nKey::AgHooksUninstall => "Uninstall",
@@ -122,7 +141,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgHooksStatusMissing => "not installed",
         I18nKey::AgHooksStatusUnknown => "unknown",
         I18nKey::AgHooksBusy => "Working…",
-        I18nKey::HarnessLoading => "Loading …",
+        I18nKey::BlxLoading => "Loading …",
 
         I18nKey::AuthGateChecking => "Checking session…",
         I18nKey::AuthLoginHeading => "Sign in",

@@ -9,8 +9,10 @@ use crate::config::{EULA_STORAGE_KEY, HARNESS_BROWSER_DEFAULT_URL};
 use crate::i18n::{lookup, I18nKey, Locale};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_hooks_status, agent_provider_status, install_agent_hooks, is_tauri_shell,
-    uninstall_agent_hooks, AgentHooksReport,
+    agent_api_key_delete, agent_api_key_set, agent_hooks_status, agent_provider_models,
+    agent_settings_get, agent_settings_save, install_agent_hooks, is_tauri_shell,
+    uninstall_agent_hooks, AgentHooksReport, AgentProviderKind, AgentProviderSettingsView,
+    ProviderModelEntry, ProviderModelsResponse, ThinkingLevel,
 };
 use gloo_timers::future::TimeoutFuture;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
@@ -233,6 +235,20 @@ fn input_str(ev: &web_sys::Event) -> Option<String> {
         .map(|i| i.value())
 }
 
+fn textarea_str(ev: &web_sys::Event) -> Option<String> {
+    ev.target()?
+        .dyn_into::<web_sys::HtmlTextAreaElement>()
+        .ok()
+        .map(|i| i.value())
+}
+
+fn select_str(ev: &web_sys::Event) -> Option<String> {
+    ev.target()?
+        .dyn_into::<web_sys::HtmlSelectElement>()
+        .ok()
+        .map(|i| i.value())
+}
+
 #[component]
 fn PaletteList(
     ui: HarnessUiService,
@@ -352,7 +368,7 @@ fn palette_run(
 ) {
     match action {
         PaletteAction::OpenSettings => {
-            ui.open_settings(HarnessSettingsCategory::General);
+            ui.open_settings(HarnessSettingsCategory::App);
         }
         PaletteAction::ToggleRightPanel => {
             wb.toggle_right_panel();
@@ -418,129 +434,21 @@ fn SettingsChrome(
                 </header>
                 <div class="harness-settings-grid">
                     <nav class="harness-settings-cats" aria-label=move || i18n.tr(I18nKey::HsAriaCats)()>
-                        <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::General label=I18nKey::HsCatGeneral />
-                        <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Layout label=I18nKey::HsCatLayout />
-                        <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Language label=I18nKey::HsCatLanguage />
-                        <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Agent label=I18nKey::HsCatAgent />
+                        <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::App label=I18nKey::HsCatApp />
+                        <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Workspace label=I18nKey::HsCatWorkspace />
+                        <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::AgentProvider label=I18nKey::HsCatProvider />
                     </nav>
 
                     <div class="harness-settings-detail">
                         {move || match ui.settings_category().get() {
-                            HarnessSettingsCategory::General => view! {
-                                <article class="harness-pane">
-                                    <h3>{move || i18n.tr(I18nKey::GenHeading)()}</h3>
-                                    <p>{move || i18n.tr(I18nKey::GenApiNote)()}</p>
-                                    <label class="harness-stack">
-                                        <span>{move || i18n.tr(I18nKey::GenEulaStatus)()}</span>
-                                        <input
-                                            class="workbench-plain-input"
-                                            type="text"
-                                            prop:readonly=true
-                                            prop:value=move || eula_preview(i18n.locale().get())
-                                        />
-                                    </label>
-                                    <small class="harness-muted">{move || i18n.tr(I18nKey::GenMoreSoon)()}</small>
-                                </article>
-                            }
-                            .into_any(),
-                            HarnessSettingsCategory::Layout => view! {
-                                <article class="harness-pane">
-                                    <h3>{move || i18n.tr(I18nKey::LayHeading)()}</h3>
-                                    <label class="harness-stack">
-                                        <span>{move || i18n.tr(I18nKey::LayBrowserUrl)()}</span>
-                                        <input
-                                            class="workbench-plain-input"
-                                            type="url"
-                                            prop:value=move || wb.browser_url().get()
-                                            on:input=move |ev| {
-                                              if let Some(txt) = input_str(&ev) {
-                                                  wb.set_browser_url_text(txt);
-                                              }
-                                            }
-                                        />
-                                    </label>
-                                    <div class="harness-row-gap">
-                                        <button
-                                          type="button"
-                                          class="workbench-mini-btn workbench-mini-btn--primary"
-                                          on:click=move |_| persist_browser_defaults(wb, ui, embed)
-                                        >
-                                          {move || i18n.tr(I18nKey::BtnApply)()}
-                                        </button>
-                                        <small class="harness-muted">
-                                          {move || format!("{} {}", i18n.tr(I18nKey::LayDefaultIntro)(), HARNESS_BROWSER_DEFAULT_URL)}
-                                        </small>
-                                    </div>
-                                </article>
-                            }
-                            .into_any(),
-                            HarnessSettingsCategory::Language => view! {
-                                <article class="harness-pane">
-                                    <h3>{move || i18n.tr(I18nKey::LangHeading)()}</h3>
-                                    <label class="harness-stack">
-                                        <span>{move || i18n.tr(I18nKey::LangUiLang)()}</span>
-                                        <select
-                                          class="workbench-plain-input"
-                                          prop:value=move || i18n.locale().get().as_str().to_owned()
-                                          on:change=move |ev| {
-                                             if let Some(tag) =
-                                               ev.target()
-                                                 .and_then(|t| t.dyn_into::<web_sys::HtmlSelectElement>().ok())
-                                                   .map(|s| s.value())
-                                             {
-                                                if let Some(loc)=Locale::parse_bcp47(&tag) {
-                                                    i18n.set_locale(loc);
-                                                }
-                                             }
-                                          }
-                                        >
-                                            <option value="de-DE">"Deutsch"</option>
-                                            <option value="en-US">"English"</option>
-                                        </select>
-                                    </label>
-                                </article>
-                            }
-                            .into_any(),
-                            HarnessSettingsCategory::Agent => view! {
-                                <article class="harness-pane">
-                                    <h3>{move || i18n.tr(I18nKey::AgHeading)()}</h3>
-                                    <label class="harness-stack">
-                                        <span>{move || i18n.tr(I18nKey::AgWsRootLabel)()}</span>
-                                        <textarea
-                                            class="workbench-plain-textarea"
-                                            rows="3"
-                                            placeholder=move || i18n.tr(I18nKey::AgWsPlaceholder)()
-                                            prop:value=move || wb.harness_workspace_root().get()
-                                            on:input=move |ev| {
-                                                if let Some(ta)=ev.target()
-                                                    .and_then(|t|t.dyn_into::<web_sys::HtmlTextAreaElement>().ok()){
-                                                    wb.set_harness_workspace_root_text(ta.value());
-                                                }
-                                            }
-                                        ></textarea>
-                                    </label>
-                                    <div class="harness-row-gap">
-                                      <button
-                                        type="button"
-                                        class="workbench-mini-btn workbench-mini-btn--primary"
-                                        on:click=move |_| {
-                                            let trimmed = wb.harness_workspace_root().get_untracked().trim().to_owned();
-                                            wb.persist_harness_workspace_root(trimmed);
-                                            let w = wb;
-                                            let surf = embed;
-                                            leptos::task::spawn_local(async move {
-                                                TimeoutFuture::new(8).await;
-                                                sync_embedded_browser_layer(w, surf).await;
-                                            });
-                                        }
-                                      >
-                                        {move || i18n.tr(I18nKey::BtnSave)()}
-                                      </button>
-                                    </div>
-                                    <HarnessProviderPreview />
-                                    <small class="harness-muted">{move || i18n.tr(I18nKey::AgReadBuiltin)()}</small>
-                                    <AgentHooksPanel />
-                                </article>
+                            HarnessSettingsCategory::App => view! {
+                                <AppSettingsPane />
+                            }.into_any(),
+                            HarnessSettingsCategory::Workspace => view! {
+                                <WorkspaceSettingsPane ui=ui wb=wb embed=embed />
+                            }.into_any(),
+                            HarnessSettingsCategory::AgentProvider => view! {
+                                <AgentProviderPane />
                             }.into_any(),
                         }}
                     </div>
@@ -572,26 +480,466 @@ fn HarnessCatBtn(
 }
 
 #[component]
-fn HarnessProviderPreview() -> impl IntoView {
+fn AppSettingsPane() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
-    let body = RwSignal::new(String::new());
+    view! {
+        <article class="harness-pane">
+            <h3>{move || i18n.tr(I18nKey::AppHeading)()}</h3>
+            <label class="harness-stack">
+                <span>{move || i18n.tr(I18nKey::GenEulaStatus)()}</span>
+                <input
+                    class="workbench-plain-input"
+                    type="text"
+                    prop:readonly=true
+                    prop:value=move || eula_preview(i18n.locale().get())
+                />
+            </label>
+            <label class="harness-stack">
+                <span>{move || i18n.tr(I18nKey::AppLanguage)()}</span>
+                <select
+                    class="workbench-plain-input"
+                    prop:value=move || i18n.locale().get().as_str().to_owned()
+                    on:change=move |ev| {
+                        if let Some(tag) = select_str(&ev) {
+                            if let Some(loc) = Locale::parse_bcp47(&tag) {
+                                i18n.set_locale(loc);
+                            }
+                        }
+                    }
+                >
+                    <option value="de-DE">"Deutsch"</option>
+                    <option value="en-US">"English"</option>
+                </select>
+            </label>
+            <section class="harness-subpane">
+                <h4>{move || i18n.tr(I18nKey::AppHooksHeading)()}</h4>
+                <AgentHooksPanel />
+            </section>
+        </article>
+    }
+}
+
+#[component]
+fn WorkspaceSettingsPane(
+    ui: HarnessUiService,
+    wb: WorkbenchService,
+    embed: BrowserEmbedSurface,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    view! {
+        <article class="harness-pane">
+            <h3>{move || i18n.tr(I18nKey::WsHeading)()}</h3>
+            <label class="harness-stack">
+                <span>{move || i18n.tr(I18nKey::WsRootLabel)()}</span>
+                <textarea
+                    class="workbench-plain-textarea"
+                    rows="3"
+                    placeholder=move || i18n.tr(I18nKey::WsRootPlaceholder)()
+                    prop:value=move || wb.harness_workspace_root().get()
+                    on:input=move |ev| {
+                        if let Some(txt) = textarea_str(&ev) {
+                            wb.set_harness_workspace_root_text(txt);
+                        }
+                    }
+                ></textarea>
+            </label>
+            <div class="harness-row-gap">
+                <button
+                    type="button"
+                    class="workbench-mini-btn workbench-mini-btn--primary"
+                    on:click=move |_| {
+                        let trimmed = wb.harness_workspace_root().get_untracked().trim().to_owned();
+                        wb.persist_harness_workspace_root(trimmed);
+                        let w = wb;
+                        let surf = embed;
+                        leptos::task::spawn_local(async move {
+                            TimeoutFuture::new(8).await;
+                            sync_embedded_browser_layer(w, surf).await;
+                        });
+                    }
+                >
+                    {move || i18n.tr(I18nKey::BtnSave)()}
+                </button>
+            </div>
+            <label class="harness-stack">
+                <span>{move || i18n.tr(I18nKey::LayBrowserUrl)()}</span>
+                <input
+                    class="workbench-plain-input"
+                    type="url"
+                    prop:value=move || wb.browser_url().get()
+                    on:input=move |ev| {
+                        if let Some(txt) = input_str(&ev) {
+                            wb.set_browser_url_text(txt);
+                        }
+                    }
+                />
+            </label>
+            <div class="harness-row-gap">
+                <button
+                    type="button"
+                    class="workbench-mini-btn workbench-mini-btn--primary"
+                    on:click=move |_| persist_browser_defaults(wb, ui, embed)
+                >
+                    {move || i18n.tr(I18nKey::BtnApply)()}
+                </button>
+                <small class="harness-muted">
+                    {move || format!("{} {}", i18n.tr(I18nKey::WsBrowserDefault)(), HARNESS_BROWSER_DEFAULT_URL)}
+                </small>
+            </div>
+        </article>
+    }
+}
+
+fn provider_label(i18n: &I18nService, provider: AgentProviderKind) -> String {
+    let key = match provider {
+        AgentProviderKind::Openrouter => I18nKey::AgProviderOpenrouter,
+        AgentProviderKind::Anthropic => I18nKey::AgProviderAnthropic,
+        AgentProviderKind::Openai => I18nKey::AgProviderOpenai,
+    };
+    i18n.tr(key)().to_string()
+}
+
+fn thinking_levels() -> [ThinkingLevel; 5] {
+    [
+        ThinkingLevel::Off,
+        ThinkingLevel::Low,
+        ThinkingLevel::Medium,
+        ThinkingLevel::High,
+        ThinkingLevel::Max,
+    ]
+}
+
+fn thinking_label(i18n: &I18nService, level: ThinkingLevel) -> String {
+    let key = match level {
+        ThinkingLevel::Off => I18nKey::AgThinkingOff,
+        ThinkingLevel::Low => I18nKey::AgThinkingLow,
+        ThinkingLevel::Medium => I18nKey::AgThinkingMedium,
+        ThinkingLevel::High => I18nKey::AgThinkingHigh,
+        ThinkingLevel::Max => I18nKey::AgThinkingMax,
+    };
+    i18n.tr(key)().to_string()
+}
+
+fn provider_key_configured(
+    view: &AgentProviderSettingsView,
+    provider: AgentProviderKind,
+) -> bool {
+    view.key_statuses
+        .iter()
+        .find(|status| status.provider == provider)
+        .map(|status| status.configured)
+        .unwrap_or(false)
+}
+
+fn provider_cache(view: &AgentProviderSettingsView, provider: AgentProviderKind) -> Vec<ProviderModelEntry> {
+    match provider {
+        AgentProviderKind::Openrouter => view.model_cache_openrouter.clone(),
+        AgentProviderKind::Anthropic => view.model_cache_anthropic.clone(),
+        AgentProviderKind::Openai => view.model_cache_openai.clone(),
+    }
+}
+
+#[component]
+fn AgentProviderPane() -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let settings: RwSignal<Option<AgentProviderSettingsView>> = RwSignal::new(None);
+    let selected_provider = RwSignal::new(AgentProviderKind::Openrouter);
+    let custom_model = RwSignal::new(String::new());
+    let thinking_level = RwSignal::new(ThinkingLevel::Medium);
+    let api_key_input = RwSignal::new(String::new());
+    let model_entries: RwSignal<Vec<ProviderModelEntry>> = RwSignal::new(Vec::new());
+    let models_source = RwSignal::new(String::new());
+    let models_message: RwSignal<Option<String>> = RwSignal::new(None);
+    let busy = RwSignal::new(false);
+    let loading_models = RwSignal::new(false);
+    let status_msg: RwSignal<Option<String>> = RwSignal::new(None);
+    let error_msg: RwSignal<Option<String>> = RwSignal::new(None);
+
+    let apply_settings = move |view: AgentProviderSettingsView| {
+        selected_provider.set(view.provider);
+        custom_model.set(view.model_id.clone());
+        thinking_level.set(view.thinking_level);
+        model_entries.set(provider_cache(&view, view.provider));
+        settings.set(Some(view));
+    };
+
     Effect::new(move |_| {
+        if !is_tauri_shell() {
+            return;
+        }
         leptos::task::spawn_local(async move {
-            body.set(match agent_provider_status().await {
-                Ok(v) => serde_json::to_string_pretty(&v).unwrap_or_else(|_| v.to_string()),
-                Err(e) => format!("IPC: {e}"),
-            });
+            match agent_settings_get().await {
+                Ok(view) => {
+                    error_msg.set(None);
+                    status_msg.set(None);
+                    apply_settings(view);
+                }
+                Err(err) => error_msg.set(Some(err)),
+            }
         });
     });
-    view! {
-        <pre class="workbench-plain-pre">{move || {
-            let t = body.get();
-            if t.is_empty() {
-                i18n.tr(I18nKey::HarnessLoading)().into()
-            } else {
-                t
+
+    let refresh_models = move |provider: AgentProviderKind| {
+        loading_models.set(true);
+        models_message.set(None);
+        error_msg.set(None);
+        leptos::task::spawn_local(async move {
+            match agent_provider_models(provider).await {
+                Ok(ProviderModelsResponse {
+                    provider: _,
+                    entries,
+                    source,
+                    used_fallback,
+                    message,
+                }) => {
+                    model_entries.set(entries);
+                    models_source.set(source);
+                    models_message.set(message.or_else(|| {
+                        if used_fallback {
+                            Some(i18n.tr(I18nKey::AgModelsFallback)().to_string())
+                        } else {
+                            None
+                        }
+                    }));
+                }
+                Err(err) => error_msg.set(Some(err)),
             }
-        }}</pre>
+            loading_models.set(false);
+        });
+    };
+
+    view! {
+        <article class="harness-pane">
+            <h3>{move || i18n.tr(I18nKey::AgProviderHeading)()}</h3>
+            <div class="harness-provider-grid">
+                <label class="harness-stack">
+                    <span>{move || i18n.tr(I18nKey::AgProviderField)()}</span>
+                    <select
+                        class="workbench-plain-input"
+                        prop:value=move || selected_provider.get().as_str().to_string()
+                        on:change=move |ev| {
+                            if let Some(value) = select_str(&ev) {
+                                let provider = match value.as_str() {
+                                    "anthropic" => AgentProviderKind::Anthropic,
+                                    "openai" => AgentProviderKind::Openai,
+                                    _ => AgentProviderKind::Openrouter,
+                                };
+                                selected_provider.set(provider);
+                                if let Some(view) = settings.get_untracked() {
+                                    model_entries.set(provider_cache(&view, provider));
+                                }
+                                refresh_models(provider);
+                            }
+                        }
+                    >
+                        <option value="openrouter">{move || i18n.tr(I18nKey::AgProviderOpenrouter)()}</option>
+                        <option value="anthropic">{move || i18n.tr(I18nKey::AgProviderAnthropic)()}</option>
+                        <option value="openai">{move || i18n.tr(I18nKey::AgProviderOpenai)()}</option>
+                    </select>
+                </label>
+
+                <label class="harness-stack">
+                    <span>{move || i18n.tr(I18nKey::AgThinkingField)()}</span>
+                    <select
+                        class="workbench-plain-input"
+                        prop:value=move || format!("{:?}", thinking_level.get()).to_ascii_lowercase()
+                        on:change=move |ev| {
+                            if let Some(value) = select_str(&ev) {
+                                let level = match value.as_str() {
+                                    "off" => ThinkingLevel::Off,
+                                    "low" => ThinkingLevel::Low,
+                                    "high" => ThinkingLevel::High,
+                                    "max" => ThinkingLevel::Max,
+                                    _ => ThinkingLevel::Medium,
+                                };
+                                thinking_level.set(level);
+                            }
+                        }
+                    >
+                        {move || {
+                            thinking_levels()
+                                .into_iter()
+                                .map(|level| {
+                                    let value = format!("{:?}", level).to_ascii_lowercase();
+                                    view! { <option value=value>{thinking_label(&i18n, level)}</option> }
+                                })
+                                .collect_view()
+                        }}
+                    </select>
+                </label>
+            </div>
+
+            <label class="harness-stack">
+                <span>{move || i18n.tr(I18nKey::AgModelField)()}</span>
+                <input
+                    class="workbench-plain-input"
+                    type="text"
+                    list="blxcode-agent-models"
+                    prop:value=move || custom_model.get()
+                    on:input=move |ev| {
+                        if let Some(value) = input_str(&ev) {
+                            custom_model.set(value);
+                        }
+                    }
+                />
+                <datalist id="blxcode-agent-models">
+                    {move || {
+                        model_entries
+                            .get()
+                            .into_iter()
+                            .map(|entry| view! { <option value=entry.id.clone()></option> })
+                            .collect_view()
+                    }}
+                </datalist>
+            </label>
+
+            <div class="harness-row-gap">
+                <button
+                    type="button"
+                    class="workbench-mini-btn"
+                    prop:disabled=move || loading_models.get() || !is_tauri_shell()
+                    on:click=move |_| refresh_models(selected_provider.get_untracked())
+                >
+                    {move || if loading_models.get() {
+                        i18n.tr(I18nKey::AgModelsLoading)().to_string()
+                    } else {
+                        i18n.tr(I18nKey::AgModelsRefresh)().to_string()
+                    }}
+                </button>
+                <small class="harness-muted">
+                    {move || match models_source.get().as_str() {
+                        "live" => i18n.tr(I18nKey::AgModelsSourceLive)().to_string(),
+                        "cache" => i18n.tr(I18nKey::AgModelsSourceCache)().to_string(),
+                        "curated" | "fallback" => i18n.tr(I18nKey::AgModelsSourceCurated)().to_string(),
+                        _ => String::new(),
+                    }}
+                </small>
+            </div>
+
+            <Show when=move || models_message.get().is_some()>
+                <p class="harness-muted">{move || models_message.get().unwrap_or_default()}</p>
+            </Show>
+
+            <section class="harness-subpane">
+                <div class="harness-row-gap harness-row-gap--space">
+                    <h4>{move || format!("{} {}", i18n.tr(I18nKey::AgApiKeyField)(), provider_label(&i18n, selected_provider.get()))}</h4>
+                    <small class="harness-muted">
+                        {move || {
+                            let configured = settings
+                                .get()
+                                .map(|view| provider_key_configured(&view, selected_provider.get()))
+                                .unwrap_or(false);
+                            if configured {
+                                i18n.tr(I18nKey::AgApiKeyConfigured)().to_string()
+                            } else {
+                                i18n.tr(I18nKey::AgApiKeyMissing)().to_string()
+                            }
+                        }}
+                    </small>
+                </div>
+                <p class="harness-muted">{move || i18n.tr(I18nKey::AgApiKeyHint)()}</p>
+                <label class="harness-stack">
+                    <input
+                        class="workbench-plain-input"
+                        type="password"
+                        autocomplete="off"
+                        prop:value=move || api_key_input.get()
+                        on:input=move |ev| {
+                            if let Some(value) = input_str(&ev) {
+                                api_key_input.set(value);
+                            }
+                        }
+                    />
+                </label>
+                <div class="harness-row-gap">
+                    <button
+                        type="button"
+                        class="workbench-mini-btn workbench-mini-btn--primary"
+                        prop:disabled=move || busy.get() || !is_tauri_shell()
+                        on:click=move |_| {
+                            let provider = selected_provider.get_untracked();
+                            let api_key = api_key_input.get_untracked();
+                            if api_key.trim().is_empty() {
+                                error_msg.set(Some("API key is empty".into()));
+                                return;
+                            }
+                            busy.set(true);
+                            error_msg.set(None);
+                            leptos::task::spawn_local(async move {
+                                match agent_api_key_set(provider, api_key).await {
+                                    Ok(view) => {
+                                        api_key_input.set(String::new());
+                                        status_msg.set(Some(i18n.tr(I18nKey::AgSaveProviderDone)().to_string()));
+                                        apply_settings(view);
+                                        refresh_models(provider);
+                                    }
+                                    Err(err) => error_msg.set(Some(err)),
+                                }
+                                busy.set(false);
+                            });
+                        }
+                    >
+                        {move || i18n.tr(I18nKey::AgApiKeySet)()}
+                    </button>
+                    <button
+                        type="button"
+                        class="workbench-mini-btn"
+                        prop:disabled=move || busy.get() || !is_tauri_shell()
+                        on:click=move |_| {
+                            let provider = selected_provider.get_untracked();
+                            busy.set(true);
+                            error_msg.set(None);
+                            leptos::task::spawn_local(async move {
+                                match agent_api_key_delete(provider).await {
+                                    Ok(view) => {
+                                        status_msg.set(None);
+                                        apply_settings(view);
+                                    }
+                                    Err(err) => error_msg.set(Some(err)),
+                                }
+                                busy.set(false);
+                            });
+                        }
+                    >
+                        {move || i18n.tr(I18nKey::AgApiKeyDelete)()}
+                    </button>
+                </div>
+            </section>
+
+            <div class="harness-row-gap">
+                <button
+                    type="button"
+                    class="workbench-mini-btn workbench-mini-btn--primary"
+                    prop:disabled=move || busy.get() || !is_tauri_shell()
+                    on:click=move |_| {
+                        let provider = selected_provider.get_untracked();
+                        let model_id = custom_model.get_untracked();
+                        let level = thinking_level.get_untracked();
+                        busy.set(true);
+                        error_msg.set(None);
+                        leptos::task::spawn_local(async move {
+                            match agent_settings_save(provider, model_id, level).await {
+                                Ok(view) => {
+                                    status_msg.set(Some(i18n.tr(I18nKey::AgSaveProviderDone)().to_string()));
+                                    apply_settings(view);
+                                }
+                                Err(err) => error_msg.set(Some(err)),
+                            }
+                            busy.set(false);
+                        });
+                    }
+                >
+                    {move || i18n.tr(I18nKey::AgSaveProvider)()}
+                </button>
+            </div>
+
+            <Show when=move || status_msg.get().is_some()>
+                <p class="harness-muted">{move || status_msg.get().unwrap_or_default()}</p>
+            </Show>
+            <Show when=move || error_msg.get().is_some()>
+                <p class="harness-muted">{move || error_msg.get().unwrap_or_default()}</p>
+            </Show>
+        </article>
     }
 }
 

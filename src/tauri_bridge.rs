@@ -161,6 +161,181 @@ pub async fn agent_provider_status() -> Result<serde_json::Value, String> {
     invoke_typed("agent_provider_status", Empty {}).await
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AgentProviderKind {
+    Openrouter,
+    Anthropic,
+    Openai,
+}
+
+impl AgentProviderKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Openrouter => "openrouter",
+            Self::Anthropic => "anthropic",
+            Self::Openai => "openai",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ThinkingLevel {
+    Off,
+    Low,
+    Medium,
+    High,
+    Max,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderModelEntry {
+    pub id: String,
+    pub label: String,
+    pub description: Option<String>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderKeyStatus {
+    pub provider: AgentProviderKind,
+    pub configured: bool,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentProviderSettingsView {
+    pub provider: AgentProviderKind,
+    pub model_id: String,
+    pub thinking_level: ThinkingLevel,
+    pub model_cache_openrouter: Vec<ProviderModelEntry>,
+    pub model_cache_anthropic: Vec<ProviderModelEntry>,
+    pub model_cache_openai: Vec<ProviderModelEntry>,
+    pub key_statuses: Vec<ProviderKeyStatus>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderModelsResponse {
+    pub provider: AgentProviderKind,
+    pub entries: Vec<ProviderModelEntry>,
+    pub source: String,
+    pub used_fallback: bool,
+    pub message: Option<String>,
+}
+
+pub async fn agent_settings_get() -> Result<AgentProviderSettingsView, String> {
+    invoke_typed("agent_settings_get", serde_json::json!({})).await
+}
+
+pub async fn agent_settings_save(
+    provider: AgentProviderKind,
+    model_id: String,
+    thinking_level: ThinkingLevel,
+) -> Result<AgentProviderSettingsView, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        patch: Patch,
+    }
+
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Patch {
+        provider: AgentProviderKind,
+        model_id: String,
+        thinking_level: ThinkingLevel,
+    }
+
+    invoke_typed(
+        "agent_settings_save",
+        Args {
+            patch: Patch {
+                provider,
+                model_id,
+                thinking_level,
+            },
+        },
+    )
+    .await
+}
+
+pub async fn agent_api_key_set(
+    provider: AgentProviderKind,
+    api_key: String,
+) -> Result<AgentProviderSettingsView, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        payload: Payload,
+    }
+
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Payload {
+        provider: AgentProviderKind,
+        api_key: String,
+    }
+
+    invoke_typed(
+        "agent_api_key_set",
+        Args {
+            payload: Payload { provider, api_key },
+        },
+    )
+    .await
+}
+
+pub async fn agent_api_key_delete(
+    provider: AgentProviderKind,
+) -> Result<AgentProviderSettingsView, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        payload: Payload,
+    }
+
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Payload {
+        provider: AgentProviderKind,
+    }
+
+    invoke_typed(
+        "agent_api_key_delete",
+        Args {
+            payload: Payload { provider },
+        },
+    )
+    .await
+}
+
+pub async fn agent_provider_models(
+    provider: AgentProviderKind,
+) -> Result<ProviderModelsResponse, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        payload: Payload,
+    }
+
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Payload {
+        provider: AgentProviderKind,
+    }
+
+    invoke_typed(
+        "agent_provider_models",
+        Args {
+            payload: Payload { provider },
+        },
+    )
+    .await
+}
+
 pub async fn exit_app_ipc() -> Result<(), String> {
     invoke_unit_js("exit_app", JsValue::UNDEFINED).await
 }

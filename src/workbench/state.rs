@@ -179,10 +179,9 @@ pub enum RightPanelTab {
 /// Kategorien in den Harness-Einstellungen (Befehlspalette).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum HarnessSettingsCategory {
-    General,
-    Layout,
-    Language,
-    Agent,
+    App,
+    Workspace,
+    AgentProvider,
 }
 
 #[derive(Clone, Copy)]
@@ -202,7 +201,7 @@ impl HarnessUiService {
             settings_open: RwSignal::new(false),
             palette_query: RwSignal::new(String::new()),
             palette_selection: RwSignal::new(0),
-            settings_category: RwSignal::new(HarnessSettingsCategory::General),
+            settings_category: RwSignal::new(HarnessSettingsCategory::App),
         }
     }
 
