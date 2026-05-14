@@ -767,6 +767,21 @@ fn MemoryGraphView(state: MemoryState) -> impl IntoView {
     let last_node_set: RwSignal<Vec<String>> = RwSignal::new(Vec::new());
     let hovered: RwSignal<Option<String>> = RwSignal::new(None);
 
+    // Bundled edge polylines — recomputed only when graph or layout changes, not on hover.
+    let bundles_memo = {
+        let state = state.clone();
+        Memo::new(move |_| {
+            let pos = layout.get();
+            let g = state.graph.get();
+            let nodes = g.as_ref().map(|g| g.nodes.clone()).unwrap_or_default();
+            let edges = g.as_ref().map(|g| g.edges.clone()).unwrap_or_default();
+            if pos.is_empty() || edges.is_empty() {
+                return Vec::<Vec<(f32, f32)>>::new();
+            }
+            bundle_edges(&nodes, &edges, &pos)
+        })
+    };
+
     Effect::new({
         let state = state.clone();
         move |_| {
@@ -918,17 +933,18 @@ fn MemoryGraphView(state: MemoryState) -> impl IntoView {
                     on:mouseup=on_mouseup
                     on:mouseleave=on_mouseleave
                 >
-                    // edges
-                    <g class="workbench-memory-graph__edges">
+                    // edges (bundled via FDEB)
+                    <g class="workbench-memory-graph__edges" fill="none">
                         {
                             let s = state.clone();
                             move || {
-                                let pos = layout.get();
-                                let edges = s.graph.get().map(|g| g.edges).unwrap_or_default();
+                                let graph = s.graph.get();
+                                let edges = graph.as_ref().map(|g| g.edges.clone()).unwrap_or_default();
                                 let hov = hovered.get();
-                                edges.into_iter().filter_map(|e| {
-                                    let (x1, y1) = *pos.get(&e.source)?;
-                                    let (x2, y2) = *pos.get(&e.target)?;
+                                let bundles = bundles_memo.get();
+                                edges.into_iter().enumerate().filter_map(|(i, e)| {
+                                    let poly = bundles.get(i)?;
+                                    if poly.len() < 2 { return None; }
                                     let incident = match hov.as_deref() {
                                         Some(h) => e.source == h || e.target == h,
                                         None => true,
@@ -940,14 +956,22 @@ fn MemoryGraphView(state: MemoryState) -> impl IntoView {
                                     } else {
                                         ("rgba(255,255,255,0.04)", "1")
                                     };
+                                    let mut d = String::with_capacity(poly.len() * 12);
+                                    for (idx, &(x, y)) in poly.iter().enumerate() {
+                                        if idx == 0 {
+                                            d.push_str(&format!("M {} {}", x, y));
+                                        } else {
+                                            d.push_str(&format!(" L {} {}", x, y));
+                                        }
+                                    }
                                     Some(view! {
-                                        <line
-                                            x1=x1.to_string()
-                                            y1=y1.to_string()
-                                            x2=x2.to_string()
-                                            y2=y2.to_string()
+                                        <path
+                                            d=d
                                             stroke=stroke
                                             stroke-width=width
+                                            fill="none"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
                                         />
                                     })
                                 }).collect::<Vec<_>>()
@@ -1112,13 +1136,13 @@ fn fade_color(css: &str, alpha: f32) -> String {
     css.to_string()
 }
 
-/// Simple force-directed layout. O(n²) per iteration; fine for <500 nodes.
+/// Force-directed layout. Uses Barnes-Hut (θ-approximation) for repulsion → O(n log n) per iter.
+/// Falls back to direct O(n²) for n < 64 where the tree overhead isn't worth it.
 fn force_layout(g: &GraphData, w: f32, h: f32, iters: u32) -> HashMap<String, (f32, f32)> {
     let n = g.nodes.len();
     if n == 0 {
         return HashMap::new();
     }
-    // initial: circle
     let mut pos: Vec<(f32, f32)> = (0..n)
         .map(|i| {
             let a = (i as f32) / (n.max(1) as f32) * std::f32::consts::TAU;
@@ -1138,24 +1162,31 @@ fn force_layout(g: &GraphData, w: f32, h: f32, iters: u32) -> HashMap<String, (f
         .filter_map(|e| Some((*idx.get(e.source.as_str())?, *idx.get(e.target.as_str())?)))
         .collect();
     let k = (w * h / (n as f32 + 1.0)).sqrt().max(20.0);
+    let theta = 0.9_f32;
+    let use_bh = n >= 64;
     let mut t = w.min(h) * 0.1;
     for _ in 0..iters {
         let mut disp = vec![(0.0_f32, 0.0_f32); n];
-        // repulsion
-        for i in 0..n {
-            for j in 0..n {
-                if i == j {
-                    continue;
+        if use_bh {
+            let tree = QuadTree::build(&pos, w, h);
+            for i in 0..n {
+                let (fx, fy) = tree.repulsion(pos[i], k, theta);
+                disp[i].0 += fx;
+                disp[i].1 += fy;
+            }
+        } else {
+            for i in 0..n {
+                for j in 0..n {
+                    if i == j { continue; }
+                    let dx = pos[i].0 - pos[j].0;
+                    let dy = pos[i].1 - pos[j].1;
+                    let dist = (dx * dx + dy * dy).sqrt().max(0.5);
+                    let force = k * k / dist;
+                    disp[i].0 += dx / dist * force;
+                    disp[i].1 += dy / dist * force;
                 }
-                let dx = pos[i].0 - pos[j].0;
-                let dy = pos[i].1 - pos[j].1;
-                let dist = (dx * dx + dy * dy).sqrt().max(0.5);
-                let force = k * k / dist;
-                disp[i].0 += dx / dist * force;
-                disp[i].1 += dy / dist * force;
             }
         }
-        // attraction along edges
         for &(a, b) in &edges {
             let dx = pos[a].0 - pos[b].0;
             let dy = pos[a].1 - pos[b].1;
@@ -1168,7 +1199,6 @@ fn force_layout(g: &GraphData, w: f32, h: f32, iters: u32) -> HashMap<String, (f
             disp[b].0 += ux;
             disp[b].1 += uy;
         }
-        // apply with cooling and bounds
         for i in 0..n {
             let d = (disp[i].0 * disp[i].0 + disp[i].1 * disp[i].1)
                 .sqrt()
@@ -1186,6 +1216,228 @@ fn force_layout(g: &GraphData, w: f32, h: f32, iters: u32) -> HashMap<String, (f
         .enumerate()
         .map(|(i, n)| (n.id.clone(), pos[i]))
         .collect()
+}
+
+/// Barnes-Hut quadtree. Each internal node stores center of mass + total mass of its subtree.
+/// During repulsion traversal a subtree is treated as a single point when (size / distance) < θ.
+struct QuadTree {
+    minx: f32, miny: f32, size: f32,
+    com: (f32, f32),
+    mass: u32,
+    children: Option<Box<[Option<QuadTree>; 4]>>,
+    leaf: Option<(f32, f32)>,
+}
+
+impl QuadTree {
+    fn build(points: &[(f32, f32)], w: f32, h: f32) -> Self {
+        let size = w.max(h).max(1.0);
+        let mut root = QuadTree {
+            minx: 0.0, miny: 0.0, size,
+            com: (0.0, 0.0), mass: 0, children: None, leaf: None,
+        };
+        for &p in points { root.insert(p, 24); }
+        root
+    }
+
+    fn quadrant(&self, p: (f32, f32)) -> usize {
+        let cx = self.minx + self.size * 0.5;
+        let cy = self.miny + self.size * 0.5;
+        let right = p.0 >= cx;
+        let bottom = p.1 >= cy;
+        match (right, bottom) {
+            (false, false) => 0,
+            (true, false) => 1,
+            (false, true) => 2,
+            (true, true) => 3,
+        }
+    }
+
+    fn child_bounds(&self, q: usize) -> (f32, f32, f32) {
+        let half = self.size * 0.5;
+        let (dx, dy) = match q { 0 => (0.0, 0.0), 1 => (half, 0.0), 2 => (0.0, half), _ => (half, half) };
+        (self.minx + dx, self.miny + dy, half)
+    }
+
+    fn insert(&mut self, p: (f32, f32), depth: u32) {
+        // accumulate center of mass + count
+        let m = self.mass as f32;
+        self.com.0 = (self.com.0 * m + p.0) / (m + 1.0);
+        self.com.1 = (self.com.1 * m + p.1) / (m + 1.0);
+        self.mass += 1;
+
+        if self.children.is_none() && self.leaf.is_none() {
+            self.leaf = Some(p);
+            return;
+        }
+        if depth == 0 {
+            return; // collapse: very deep, treat as multi-point bucket via COM
+        }
+        if self.children.is_none() {
+            // split existing leaf
+            let existing = self.leaf.take().unwrap();
+            self.children = Some(Box::new([None, None, None, None]));
+            self.push_into_child(existing, depth - 1);
+        }
+        self.push_into_child(p, depth - 1);
+    }
+
+    fn push_into_child(&mut self, p: (f32, f32), depth: u32) {
+        let q = self.quadrant(p);
+        let (cx, cy, csize) = self.child_bounds(q);
+        let children = self.children.as_mut().unwrap();
+        if children[q].is_none() {
+            children[q] = Some(QuadTree {
+                minx: cx, miny: cy, size: csize,
+                com: (0.0, 0.0), mass: 0, children: None, leaf: None,
+            });
+        }
+        children[q].as_mut().unwrap().insert(p, depth);
+    }
+
+    fn repulsion(&self, p: (f32, f32), k: f32, theta: f32) -> (f32, f32) {
+        if self.mass == 0 { return (0.0, 0.0); }
+        let dx = p.0 - self.com.0;
+        let dy = p.1 - self.com.1;
+        let dist2 = dx * dx + dy * dy;
+        if let Some(leaf) = self.leaf {
+            // single point — skip self
+            if (leaf.0 - p.0).abs() < 0.001 && (leaf.1 - p.1).abs() < 0.001 {
+                return (0.0, 0.0);
+            }
+            let dist = dist2.sqrt().max(0.5);
+            let f = k * k / dist * self.mass as f32;
+            return (dx / dist * f, dy / dist * f);
+        }
+        let dist = dist2.sqrt().max(0.5);
+        if self.size / dist < theta {
+            let f = k * k / dist * self.mass as f32;
+            return (dx / dist * f, dy / dist * f);
+        }
+        let mut fx = 0.0; let mut fy = 0.0;
+        if let Some(children) = &self.children {
+            for c in children.iter().flatten() {
+                let (cfx, cfy) = c.repulsion(p, k, theta);
+                fx += cfx; fy += cfy;
+            }
+        }
+        (fx, fy)
+    }
+}
+
+/// Force-Directed Edge Bundling (Holten & van Wijk 2009, simplified).
+/// Returns one polyline per edge as Vec<(x,y)> with `P+2` points (endpoints + P subdivisions).
+fn bundle_edges(
+    nodes: &[crate::tauri_bridge::GraphNode],
+    edges: &[crate::tauri_bridge::GraphEdge],
+    pos: &HashMap<String, (f32, f32)>,
+) -> Vec<Vec<(f32, f32)>> {
+    let m = edges.len();
+    if m == 0 { return Vec::new(); }
+    let _ = nodes;
+
+    // Endpoints
+    let endpoints: Vec<((f32, f32), (f32, f32))> = edges.iter()
+        .filter_map(|e| Some((*pos.get(&e.source)?, *pos.get(&e.target)?)))
+        .collect();
+    if endpoints.len() != m { return Vec::new(); }
+
+    // Edge length (used in compatibility)
+    let lengths: Vec<f32> = endpoints.iter()
+        .map(|(a, b)| ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt().max(1.0))
+        .collect();
+
+    // Precompute pairwise compatibility (only above threshold matters; we keep dense for simplicity).
+    let compat_thresh = 0.25_f32;
+    let mut compat: Vec<Vec<(usize, f32)>> = vec![Vec::new(); m];
+    for i in 0..m {
+        for j in (i + 1)..m {
+            let c = edge_compat(endpoints[i], lengths[i], endpoints[j], lengths[j]);
+            if c >= compat_thresh {
+                compat[i].push((j, c));
+                compat[j].push((i, c));
+            }
+        }
+    }
+
+    // Hierarchical cycles: increase subdivisions, decrease stiffness per cycle.
+    let cycles = 5;
+    let mut p_count: usize = 1;
+    let mut k_spring: f32 = 0.1;
+    let mut iters: usize = 50;
+    // Initial subdivisions = midpoints
+    let mut polys: Vec<Vec<(f32, f32)>> = endpoints.iter().map(|(a, b)| {
+        let mid = ((a.0 + b.0) * 0.5, (a.1 + b.1) * 0.5);
+        vec![*a, mid, *b]
+    }).collect();
+
+    for _ in 0..cycles {
+        // Refine: double subdivisions
+        p_count = (p_count * 2).max(2);
+        polys = polys.into_iter().enumerate().map(|(i, _)| {
+            let (a, b) = endpoints[i];
+            resample(a, b, p_count)
+        }).collect();
+        // For each iter, compute forces on internal subdivision points
+        for _ in 0..iters {
+            let snapshot = polys.clone();
+            for e_i in 0..m {
+                let seg_len = lengths[e_i] / (p_count as f32 + 1.0);
+                let kp = k_spring / seg_len.max(0.5);
+                let inner = snapshot[e_i].len();
+                let mut new_poly = polys[e_i].clone();
+                for s in 1..(inner - 1) {
+                    let p = snapshot[e_i][s];
+                    let prev = snapshot[e_i][s - 1];
+                    let next = snapshot[e_i][s + 1];
+                    let mut fx = kp * ((prev.0 - p.0) + (next.0 - p.0));
+                    let mut fy = kp * ((prev.1 - p.1) + (next.1 - p.1));
+                    for &(j, c) in &compat[e_i] {
+                        let q = snapshot[j][s];
+                        let dx = q.0 - p.0;
+                        let dy = q.1 - p.1;
+                        let d2 = dx * dx + dy * dy;
+                        if d2 < 0.0001 { continue; }
+                        let inv = 1.0 / d2.sqrt();
+                        fx += c * dx * inv;
+                        fy += c * dy * inv;
+                    }
+                    let step = 0.4_f32;
+                    new_poly[s] = (p.0 + fx * step, p.1 + fy * step);
+                }
+                polys[e_i] = new_poly;
+            }
+        }
+        // Annealing
+        k_spring *= 0.7;
+        iters = (iters as f32 * 0.66) as usize;
+        iters = iters.max(8);
+    }
+    polys
+}
+
+fn resample(a: (f32, f32), b: (f32, f32), p: usize) -> Vec<(f32, f32)> {
+    let mut out = Vec::with_capacity(p + 2);
+    out.push(a);
+    for i in 1..=p {
+        let t = i as f32 / (p as f32 + 1.0);
+        out.push((a.0 + (b.0 - a.0) * t, a.1 + (b.1 - a.1) * t));
+    }
+    out.push(b);
+    out
+}
+
+fn edge_compat(e1: ((f32, f32), (f32, f32)), l1: f32, e2: ((f32, f32), (f32, f32)), l2: f32) -> f32 {
+    let v1 = (e1.1.0 - e1.0.0, e1.1.1 - e1.0.1);
+    let v2 = (e2.1.0 - e2.0.0, e2.1.1 - e2.0.1);
+    let dot = v1.0 * v2.0 + v1.1 * v2.1;
+    let angle = (dot / (l1 * l2)).abs();
+    let lavg = (l1 + l2) * 0.5;
+    let scale = 2.0 / (lavg / l1.min(l2) + l1.max(l2) / lavg);
+    let m1 = ((e1.0.0 + e1.1.0) * 0.5, (e1.0.1 + e1.1.1) * 0.5);
+    let m2 = ((e2.0.0 + e2.1.0) * 0.5, (e2.0.1 + e2.1.1) * 0.5);
+    let mdist = ((m1.0 - m2.0).powi(2) + (m1.1 - m2.1).powi(2)).sqrt();
+    let pos_comp = lavg / (lavg + mdist);
+    angle * scale * pos_comp
 }
 
 #[component]
