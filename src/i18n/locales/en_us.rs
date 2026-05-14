@@ -23,6 +23,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsKwMemory => "Memory",
         I18nKey::WsKwTerminal => "Terminal",
 
+        I18nKey::QkTitle => "Quick open",
+        I18nKey::QkFilterPh => "Search recent workspaces or enter a path…",
+        I18nKey::QkHint => "↑↓ to select · Enter to open · Esc to close",
+        I18nKey::QkRecentHeading => "Recent",
+        I18nKey::QkEmptyRecent => "No recent workspaces yet.",
+        I18nKey::QkPathPh => "/absolute/path/to/project",
+        I18nKey::QkPathOpen => "Open path",
+        I18nKey::QkNewWorkspace => "New workspace wizard…",
+        I18nKey::CmdQkTitle => "Quick open workspace…",
+        I18nKey::CmdQkSub => "Jump to folder or recent workspace",
+
         I18nKey::SbAria => "Workspaces",
         I18nKey::SbExpand => "Show sidebar",
         I18nKey::SbCollapse => "Hide sidebar",
