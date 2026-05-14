@@ -176,7 +176,7 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                     let rows = if full { "minmax(0,1fr)".to_string() } else { fr_template(&row_fr.get()) };
                     let cols = if full { "minmax(0,1fr)".to_string() } else { fr_template(&col_fr.get()) };
                     format!(
-                        "display:grid;grid-template-rows:{rows};grid-template-columns:{cols};gap:4px;flex:1;min-height:0;"
+                        "display:grid;grid-template-rows:{rows};grid-template-columns:{cols};gap:4px;"
                     )
                 }
             >
