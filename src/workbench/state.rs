@@ -5,6 +5,7 @@ use crate::tauri_bridge::{is_tauri_shell, workbench_drop_sessions};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Bumped when the on-disk schema changes incompatibly. Snapshots with an
 /// unknown version are ignored on load (we fall back to defaults rather
@@ -33,6 +34,12 @@ pub struct WorkspaceEntry {
     /// single un-split pane via [`SlotPaneState::default_for_slot`].
     #[serde(default)]
     pub slot_pane_states: Vec<SlotPaneState>,
+    /// True while the workspace is in inline-configuration mode (the
+    /// configurator UI is shown instead of the terminal grid). Newly
+    /// created workspaces start in this state; committing the
+    /// configuration flips it to `false`.
+    #[serde(default)]
+    pub configuring: bool,
 }
 
 /// Per-slot terminal split state — survives a restart so the grid of
@@ -72,6 +79,7 @@ impl WorkspaceEntry {
             slot_ids: Vec::new(),
             slot_agent_labels: Vec::new(),
             slot_pane_states: Vec::new(),
+            configuring: false,
         }
     }
 
@@ -83,9 +91,8 @@ impl WorkspaceEntry {
             4 => (2, 2),
             6 => (2, 3),
             8 => (2, 4),
-            10 => (2, 5),
+            9 => (3, 3),
             12 => (3, 4),
-            14 => (2, 7),
             16 => (4, 4),
             _ => Self::grid_heuristic(n),
         }
@@ -317,9 +324,12 @@ pub struct WorkbenchService {
     embedded_browser_next_id: RwSignal<u64>,
     harness_workspace_root: RwSignal<String>,
     workspace_next_id: RwSignal<u64>,
-    create_wizard_open: RwSignal<bool>,
-    create_wizard_step: RwSignal<u8>,
-    create_wizard_draft: RwSignal<CreateWorkspaceDraft>,
+    /// Drafts for workspaces currently in inline-configuration mode,
+    /// keyed by workspace id. Entries are removed on commit or cancel.
+    workspace_drafts: RwSignal<HashMap<u64, CreateWorkspaceDraft>>,
+    /// Step indicator for the inline configurator (0 = layout, 1 = fleet).
+    /// Per-workspace, keyed alongside `workspace_drafts`.
+    workspace_config_steps: RwSignal<HashMap<u64, u8>>,
 }
 
 impl WorkbenchService {
@@ -335,9 +345,6 @@ impl WorkbenchService {
 
         let first_tab_id = 1_u64;
 
-        let mut draft = CreateWorkspaceDraft::default();
-        draft.cwd_display.clone_from(&harness_workspace_root);
-
         Self {
             workspaces: RwSignal::new(Vec::new()),
             active_id: RwSignal::new(None),
@@ -352,11 +359,10 @@ impl WorkbenchService {
             }]),
             embedded_browser_active_id: RwSignal::new(first_tab_id),
             embedded_browser_next_id: RwSignal::new(first_tab_id + 1),
-            harness_workspace_root: RwSignal::new(harness_workspace_root.clone()),
+            harness_workspace_root: RwSignal::new(harness_workspace_root),
             workspace_next_id: RwSignal::new(1),
-            create_wizard_open: RwSignal::new(false),
-            create_wizard_step: RwSignal::new(0),
-            create_wizard_draft: RwSignal::new(draft),
+            workspace_drafts: RwSignal::new(HashMap::new()),
+            workspace_config_steps: RwSignal::new(HashMap::new()),
         }
     }
 
@@ -547,79 +553,126 @@ impl WorkbenchService {
         self.harness_workspace_root.set(path);
     }
 
-    // --- Create workspace wizard ---
+    // --- Inline workspace configuration ---
 
     #[must_use]
-    pub fn create_wizard_open(&self) -> RwSignal<bool> {
-        self.create_wizard_open
+    pub fn workspace_drafts(&self) -> RwSignal<HashMap<u64, CreateWorkspaceDraft>> {
+        self.workspace_drafts
     }
 
     #[must_use]
-    pub fn create_wizard_step(&self) -> RwSignal<u8> {
-        self.create_wizard_step
+    pub fn workspace_config_step(&self, id: u64) -> u8 {
+        self.workspace_config_steps
+            .with(|m| m.get(&id).copied().unwrap_or(0))
     }
 
     #[must_use]
-    pub fn create_wizard_draft(&self) -> RwSignal<CreateWorkspaceDraft> {
-        self.create_wizard_draft
+    pub fn workspace_config_steps(&self) -> RwSignal<HashMap<u64, u8>> {
+        self.workspace_config_steps
     }
 
-    pub fn open_create_workspace_wizard(&self) {
+    pub fn set_workspace_config_step(&self, id: u64, step: u8) {
+        self.workspace_config_steps.update(|m| {
+            m.insert(id, step);
+        });
+    }
+
+    #[must_use]
+    pub fn workspace_draft(&self, id: u64) -> CreateWorkspaceDraft {
+        self.workspace_drafts
+            .with(|m| m.get(&id).cloned().unwrap_or_default())
+    }
+
+    pub fn update_workspace_draft(&self, id: u64, f: impl FnOnce(&mut CreateWorkspaceDraft)) {
+        self.workspace_drafts.update(|m| {
+            let entry = m.entry(id).or_default();
+            f(entry);
+        });
+    }
+
+    /// Creates a new workspace in inline-configuration mode and selects it.
+    /// The configurator UI renders inside the workspace surface itself —
+    /// no modal. Returns the new workspace id.
+    pub fn start_inline_configure(&self) -> u64 {
+        let id = self.workspace_next_id.get_untracked();
+        self.workspace_next_id.set(id + 1);
+
         let root = self.harness_workspace_root.get_untracked();
-        let mut d = CreateWorkspaceDraft::default();
-        d.cwd_display = root;
-        d.name_input.clear();
-        d.agents_skipped = false;
-        d.agent_counts = [0; 5];
-        self.create_wizard_draft.set(d);
-        self.create_wizard_step.set(0);
-        self.create_wizard_open.set(true);
+        let mut draft = CreateWorkspaceDraft::default();
+        draft.cwd_display = root;
+
+        let entry = WorkspaceEntry {
+            id,
+            title: format!("Workspace {id}"),
+            cwd: String::new(),
+            terminal_count: 1,
+            grid_rows: 1,
+            grid_cols: 1,
+            next_terminal_id: 1,
+            slot_ids: Vec::new(),
+            slot_agent_labels: Vec::new(),
+            slot_pane_states: Vec::new(),
+            configuring: true,
+        };
+        self.workspaces.update(|v| v.push(entry));
+        self.workspace_drafts.update(|m| {
+            m.insert(id, draft);
+        });
+        self.workspace_config_steps.update(|m| {
+            m.insert(id, 0);
+        });
+        self.active_id.set(Some(id));
+        id
     }
 
-    pub fn close_create_workspace_wizard(&self) {
-        self.create_wizard_open.set(false);
+    pub fn cancel_inline_configure(&self, id: u64) {
+        self.workspace_drafts.update(|m| {
+            m.remove(&id);
+        });
+        self.workspace_config_steps.update(|m| {
+            m.remove(&id);
+        });
+        self.close_workspace(id);
     }
 
-    pub fn wizard_set_terminal_layout(&self, count: u8) {
+    pub fn set_workspace_terminal_layout(&self, id: u64, count: u8) {
         let count = count.clamp(1, 16);
         let (r, c) = WorkspaceEntry::grid_dims_for_count(count);
-        self.create_wizard_draft.update(|d| {
+        self.update_workspace_draft(id, |d| {
             d.terminal_count = count;
             d.grid_rows = r;
             d.grid_cols = c;
         });
     }
 
-    pub fn wizard_go_to_fleet_step(&self) -> Result<(), ()> {
-        let d = self.create_wizard_draft.get_untracked();
+    pub fn workspace_go_to_fleet_step(&self, id: u64) -> Result<(), ()> {
+        let d = self.workspace_draft(id);
         if d.cwd_display.trim().is_empty() {
             return Err(());
         }
-        self.create_wizard_step.set(1);
+        self.set_workspace_config_step(id, 1);
         Ok(())
     }
 
-    pub fn wizard_back_to_layout(&self) {
-        self.create_wizard_step.set(0);
+    pub fn workspace_back_to_layout(&self, id: u64) {
+        self.set_workspace_config_step(id, 0);
     }
 
-    /// Sum of fleet agent counts.
     #[must_use]
-    pub fn wizard_fleet_assigned(&self) -> u8 {
-        self.create_wizard_draft
-            .get()
+    pub fn workspace_fleet_assigned(&self, id: u64) -> u8 {
+        self.workspace_draft(id)
             .agent_counts
             .iter()
             .copied()
             .sum()
     }
 
-    pub fn wizard_set_agent_count(&self, idx: usize, value: u8) {
+    pub fn set_workspace_agent_count(&self, id: u64, idx: usize, value: u8) {
         if idx >= 5 {
             return;
         }
-        let n = self.create_wizard_draft.get_untracked().terminal_count;
-        self.create_wizard_draft.update(|d| {
+        let n = self.workspace_draft(id).terminal_count;
+        self.update_workspace_draft(id, |d| {
             d.agents_skipped = false;
             let max_for_slot = n.saturating_sub(
                 d.agent_counts
@@ -633,20 +686,20 @@ impl WorkbenchService {
         });
     }
 
-    pub fn wizard_agent_fill_all(&self, idx: usize) {
+    pub fn workspace_agent_fill_all(&self, id: u64, idx: usize) {
         if idx >= 5 {
             return;
         }
-        let n = self.create_wizard_draft.get_untracked().terminal_count;
-        self.create_wizard_draft.update(|d| {
+        let n = self.workspace_draft(id).terminal_count;
+        self.update_workspace_draft(id, |d| {
             d.agents_skipped = false;
             d.agent_counts = [0; 5];
             d.agent_counts[idx] = n;
         });
     }
 
-    pub fn wizard_fleet_select_all(&self) {
-        self.create_wizard_draft.update(|d| {
+    pub fn workspace_fleet_select_all(&self, id: u64) {
+        self.update_workspace_draft(id, |d| {
             d.agents_skipped = false;
             for c in &mut d.agent_counts {
                 *c = 0;
@@ -655,8 +708,8 @@ impl WorkbenchService {
         });
     }
 
-    pub fn wizard_fleet_one_each(&self) {
-        self.create_wizard_draft.update(|d| {
+    pub fn workspace_fleet_one_each(&self, id: u64) {
+        self.update_workspace_draft(id, |d| {
             d.agents_skipped = false;
             let n = d.terminal_count as usize;
             let base = n / 5;
@@ -667,8 +720,8 @@ impl WorkbenchService {
         });
     }
 
-    pub fn wizard_fleet_fill_evenly(&self) {
-        self.create_wizard_draft.update(|d| {
+    pub fn workspace_fleet_fill_evenly(&self, id: u64) {
+        self.update_workspace_draft(id, |d| {
             d.agents_skipped = false;
             let n = d.terminal_count as usize;
             if n == 0 {
@@ -682,39 +735,30 @@ impl WorkbenchService {
         });
     }
 
-    pub fn wizard_fleet_clear(&self) {
-        self.create_wizard_draft.update(|d| {
+    pub fn workspace_fleet_clear(&self, id: u64) {
+        self.update_workspace_draft(id, |d| {
             d.agents_skipped = false;
             d.agent_counts = [0; 5];
         });
     }
 
-    pub fn wizard_skip_agents(&self) {
-        self.create_wizard_draft.update(|d| {
+    pub fn workspace_skip_agents(&self, id: u64) {
+        self.update_workspace_draft(id, |d| {
             d.agents_skipped = true;
             d.agent_counts = [0; 5];
         });
     }
 
-    pub fn commit_create_workspace(&self) {
-        let mut draft = self.create_wizard_draft.get_untracked();
+    /// Finalises the inline configuration: materialises slot/pane state
+    /// from the draft, flips `configuring` to false, and drops the draft.
+    pub fn commit_inline_configure(&self, id: u64) {
+        let draft = self.workspace_draft(id);
         let cwd = draft.cwd_display.trim().to_string();
         if cwd.is_empty() {
             return;
         }
         let n = draft.terminal_count as usize;
         let (gr, gc) = (draft.grid_rows, draft.grid_cols);
-        let id = self.workspace_next_id.get_untracked();
-        self.workspace_next_id.set(id + 1);
-
-        let title = {
-            let t = draft.name_input.trim();
-            if t.is_empty() {
-                format!("Workspace {id}")
-            } else {
-                t.to_string()
-            }
-        };
 
         let slot_agent_labels = if draft.agents_skipped {
             vec![String::new(); n]
@@ -726,34 +770,44 @@ impl WorkbenchService {
             fleet_counts_to_slot_labels(n, &draft.agent_counts)
         };
 
+        let title = {
+            let t = draft.name_input.trim();
+            if t.is_empty() {
+                format!("Workspace {id}")
+            } else {
+                t.to_string()
+            }
+        };
+
         let slot_ids: Vec<u64> = (1..=n as u64).collect();
-        let slot_pane_states = slot_ids
+        let slot_pane_states: Vec<SlotPaneState> = slot_ids
             .iter()
             .copied()
             .map(SlotPaneState::default_for_slot)
             .collect();
-        let entry = WorkspaceEntry {
-            id,
-            title,
-            cwd,
-            terminal_count: draft.terminal_count,
-            grid_rows: gr,
-            grid_cols: gc,
-            slot_agent_labels,
-            next_terminal_id: n as u64 + 1,
-            slot_ids,
-            slot_pane_states,
-        };
 
-        self.workspaces.update(|v| v.push(entry));
-        self.active_id.set(Some(id));
-        self.create_wizard_open.set(false);
-        draft = CreateWorkspaceDraft::default();
-        draft
-            .cwd_display
-            .clone_from(&self.harness_workspace_root.get_untracked());
-        self.create_wizard_draft.set(draft);
-        self.create_wizard_step.set(0);
+        self.workspaces.update(|v| {
+            let Some(ws) = v.iter_mut().find(|w| w.id == id) else {
+                return;
+            };
+            ws.title = title;
+            ws.cwd = cwd;
+            ws.terminal_count = draft.terminal_count;
+            ws.grid_rows = gr;
+            ws.grid_cols = gc;
+            ws.slot_ids = slot_ids;
+            ws.slot_agent_labels = slot_agent_labels;
+            ws.slot_pane_states = slot_pane_states;
+            ws.next_terminal_id = n as u64 + 1;
+            ws.configuring = false;
+        });
+
+        self.workspace_drafts.update(|m| {
+            m.remove(&id);
+        });
+        self.workspace_config_steps.update(|m| {
+            m.remove(&id);
+        });
     }
 
 
@@ -803,8 +857,8 @@ impl WorkbenchService {
         });
     }
 
-    pub fn set_wizard_cwd(&self, path: String) {
-        self.create_wizard_draft.update(|d| {
+    pub fn set_workspace_cwd(&self, id: u64, path: String) {
+        self.update_workspace_draft(id, |d| {
             if d.name_input.trim().is_empty() {
                 if let Some(name) = derive_workspace_name(&path) {
                     d.name_input = name;
@@ -840,7 +894,23 @@ impl WorkbenchService {
         if snap.version != WORKBENCH_SNAPSHOT_VERSION {
             return;
         }
-        // Workspace list + selection
+        // Workspace list + selection. Re-seed inline drafts for any
+        // workspace persisted in configuring state — drafts are transient
+        // and not serialised, so without this the configurator would
+        // render against an empty draft.
+        let root = self.harness_workspace_root.get_untracked();
+        self.workspace_drafts.update(|m| {
+            m.clear();
+            for ws in &snap.workspaces {
+                if ws.configuring {
+                    let mut d = CreateWorkspaceDraft::default();
+                    if !root.is_empty() {
+                        d.cwd_display.clone_from(&root);
+                    }
+                    m.insert(ws.id, d);
+                }
+            }
+        });
         self.workspaces.set(snap.workspaces);
         self.active_id.set(snap.active_id);
         self.workspace_next_id

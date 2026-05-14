@@ -55,6 +55,7 @@ pub fn run() {
             browser_close_tab,
             path_nav_exec_cmd,
             list_directory,
+            create_directory,
             default_cwd,
             pty_spawn,
             pty_write,

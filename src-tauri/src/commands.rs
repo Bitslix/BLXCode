@@ -206,6 +206,31 @@ pub fn list_directory(path: String) -> Result<Vec<DirEntryBrief>, String> {
     Ok(out)
 }
 
+/// Erstellt ein neues Unterverzeichnis `name` innerhalb von `parent`. Liefert
+/// den vollständigen Pfad des neu angelegten Ordners zurück. `name` darf keine
+/// Pfadtrenner enthalten — Sandboxing für den Directory-Picker.
+#[tauri::command]
+pub fn create_directory(parent: String, name: String) -> Result<String, String> {
+    let parent = parent.trim();
+    let name = name.trim();
+    if parent.is_empty() {
+        return Err("parent darf nicht leer sein".into());
+    }
+    if name.is_empty() {
+        return Err("Name darf nicht leer sein".into());
+    }
+    if name.contains('/') || name.contains('\\') || name == "." || name == ".." {
+        return Err("Name enthält ungültige Zeichen".into());
+    }
+    let parent_path = std::path::PathBuf::from(parent);
+    if !parent_path.is_dir() {
+        return Err("Elternverzeichnis existiert nicht".into());
+    }
+    let target = parent_path.join(name);
+    std::fs::create_dir(&target).map_err(|e| e.to_string())?;
+    Ok(target.to_string_lossy().into_owned())
+}
+
 #[tauri::command]
 pub fn pty_spawn(
     manager: State<'_, PtyManager>,

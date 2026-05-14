@@ -1,5 +1,6 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
+use crate::workbench::create_workspace_wizard::WorkspaceConfigurator;
 use crate::workbench::state::{TerminalSplitAxis, WorkspaceEntry};
 use crate::workbench::terminal_cell::WorkspaceTerminalCell;
 use crate::workbench::WorkbenchService;
@@ -150,6 +151,10 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
         drop(up_handle);
     });
 
+    let is_configuring = Memo::new(move |_| {
+        workspace.get().map(|w| w.configuring).unwrap_or(false)
+    });
+
     view! {
         <div
             class=move || {
@@ -160,6 +165,10 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                 class
             }
         >
+            <Show when=move || is_configuring.get()>
+                <WorkspaceConfigurator workspace_id=workspace_id />
+            </Show>
+            <Show when=move || !is_configuring.get()>
             <div
                 class="ws-term-grid"
                 style=move || {
@@ -281,6 +290,7 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                     />
                 </Show>
             </div>
+            </Show>
         </div>
     }
 }

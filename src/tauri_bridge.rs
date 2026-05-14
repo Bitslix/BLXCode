@@ -197,6 +197,15 @@ pub async fn list_directory(path: String) -> Result<Vec<DirEntryBrief>, String> 
     invoke_typed("list_directory", A { path }).await
 }
 
+pub async fn create_directory(parent: String, name: String) -> Result<String, String> {
+    #[derive(Serialize)]
+    struct A {
+        parent: String,
+        name: String,
+    }
+    invoke_typed("create_directory", A { parent, name }).await
+}
+
 pub async fn default_cwd() -> Result<String, String> {
     #[derive(Serialize)]
     struct Empty {}

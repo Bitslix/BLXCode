@@ -122,7 +122,7 @@ pub fn Sidebar() -> impl IntoView {
                             type="button"
                             class="workbench-sidebar__add-btn"
                             aria-label=move || i18n.tr(I18nKey::SbAddWorkspaceAria)()
-                            on:click=move |_| wb.open_create_workspace_wizard()
+                            on:click=move |_| { let _ = wb.start_inline_configure(); }
                         >
                             "+"
                         </button>

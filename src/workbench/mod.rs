@@ -13,7 +13,7 @@ mod workspace_panel;
 
 pub use agent_panel::AgentPanelDock;
 pub use browser_tab::{BrowserTabDock, EmbeddedBrowserGlue};
-pub use create_workspace_wizard::CreateWorkspaceWizardHost;
+pub use create_workspace_wizard::WorkspaceConfigurator;
 pub use right_panel::RightPanel;
 pub use sidebar::Sidebar;
 pub use state::{
@@ -133,6 +133,5 @@ pub fn WorkbenchShell() -> impl IntoView {
         </main>
         <EmbeddedBrowserGlue />
         <HarnessHost />
-        <CreateWorkspaceWizardHost />
     }
 }
