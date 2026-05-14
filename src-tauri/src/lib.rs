@@ -52,6 +52,7 @@ pub fn run() {
             browser_run_js,
             browser_embedding_kind,
             browser_check_iframable,
+            browser_close_tab,
             path_nav_exec_cmd,
             pty_spawn,
             pty_write,

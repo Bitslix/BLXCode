@@ -1317,6 +1317,18 @@ body {
   flex-direction: column;
 }
 
+/* Inaktive Tabs: aus dem Layout nehmen, aber DOM-Node (iframe) erhalten
+   → kein Reload beim Tab-Wechsel, Scroll-/Form-State bleibt. */
+.workbench-browser-frame-area--hidden {
+  display: none;
+}
+
+/* Mehrere iframes belegen ihren Tab-Slot vollständig. */
+.workbench-browser-host > .workbench-browser-frame-area {
+  width: 100%;
+  height: 100%;
+}
+
 .workbench-browser-new-tab {
   flex: 1;
   min-height: 0;

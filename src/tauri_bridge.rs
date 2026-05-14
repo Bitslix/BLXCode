@@ -78,11 +78,15 @@ pub async fn agent_abort() -> Result<(), String> {
 }
 
 pub async fn browser_sync_bounds(
+    active_tab_id: Option<u64>,
     payload: BrowserBoundsPayload,
     navigate: Option<&str>,
 ) -> Result<(), String> {
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct Args<'a> {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        active_tab_id: Option<u64>,
         rect: BrowserBoundsPayload,
         #[serde(skip_serializing_if = "Option::is_none")]
         url_optional: Option<&'a str>,
@@ -90,6 +94,7 @@ pub async fn browser_sync_bounds(
     invoke_unit_js(
         "browser_sync_bounds",
         args_value(Args {
+            active_tab_id,
             rect: payload,
             url_optional: navigate,
         })?,
@@ -97,12 +102,23 @@ pub async fn browser_sync_bounds(
     .await
 }
 
-pub async fn browser_navigate(url: &str) -> Result<(), String> {
+pub async fn browser_navigate(tab_id: u64, url: &str) -> Result<(), String> {
     #[derive(Serialize)]
-    struct U<'a> {
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        tab_id: u64,
         url: &'a str,
     }
-    invoke_unit_js("browser_navigate", args_value(U { url })?).await
+    invoke_unit_js("browser_navigate", args_value(A { tab_id, url })?).await
+}
+
+pub async fn browser_close_tab(tab_id: u64) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        tab_id: u64,
+    }
+    invoke_unit_js("browser_close_tab", args_value(A { tab_id })?).await
 }
 
 /// Öffnet eine URL im System-Standardbrowser (Tauri `plugin-opener`; kein `window.open` nach async).
@@ -114,12 +130,14 @@ pub async fn open_external_url(url: &str) -> Result<(), String> {
     invoke_unit_js("open_external_url", args_value(U { url })?).await
 }
 
-pub async fn browser_run_js(script: &str) -> Result<(), String> {
+pub async fn browser_run_js(tab_id: u64, script: &str) -> Result<(), String> {
     #[derive(Serialize)]
-    struct S<'a> {
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        tab_id: u64,
         script: &'a str,
     }
-    invoke_unit_js("browser_run_js", args_value(S { script })?).await
+    invoke_unit_js("browser_run_js", args_value(A { tab_id, script })?).await
 }
 
 pub async fn browser_embedding_kind() -> Result<String, String> {

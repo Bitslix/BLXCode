@@ -42,28 +42,40 @@ pub struct BrowserBoundsPayload {
 pub fn browser_sync_bounds(
     app: tauri::AppHandle,
     host: State<'_, BrowserHost>,
+    active_tab_id: Option<u64>,
     rect: BrowserBoundsPayload,
     url_optional: Option<String>,
 ) -> Result<(), String> {
-    host.sync_bounds(&app, rect, url_optional.as_deref())
+    host.sync_bounds(&app, active_tab_id, rect, url_optional.as_deref())
 }
 
 #[tauri::command]
 pub fn browser_run_js(
     app: AppHandle,
     host: State<'_, BrowserHost>,
+    tab_id: u64,
     script: String,
 ) -> Result<(), String> {
-    host.eval_embedded(&app, script)
+    host.eval_embedded(&app, tab_id, script)
 }
 
 #[tauri::command]
 pub fn browser_navigate(
     app: tauri::AppHandle,
     host: State<'_, BrowserHost>,
+    tab_id: u64,
     url: String,
 ) -> Result<(), String> {
-    host.navigate(&app, &url)
+    host.navigate(&app, tab_id, &url)
+}
+
+#[tauri::command]
+pub fn browser_close_tab(
+    app: tauri::AppHandle,
+    host: State<'_, BrowserHost>,
+    tab_id: u64,
+) -> Result<(), String> {
+    host.close_tab(&app, tab_id)
 }
 
 #[tauri::command]

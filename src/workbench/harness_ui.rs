@@ -744,8 +744,9 @@ fn persist_browser_defaults(
     }
     wb.persist_browser_url_from_input(trimmed.clone());
     let wclone = wb;
+    let aid = wb.embedded_browser_active_id().get_untracked();
     leptos::task::spawn_local(async move {
-        let _ = crate::tauri_bridge::browser_navigate(trimmed.as_str()).await;
+        let _ = crate::tauri_bridge::browser_navigate(aid, trimmed.as_str()).await;
         TimeoutFuture::new(12).await;
         sync_embedded_browser_layer(wclone, embed).await;
     });
