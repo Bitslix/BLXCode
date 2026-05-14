@@ -4,12 +4,14 @@ use crate::service::I18nService;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use pulldown_cmark::{html, Options, Parser};
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum TimelineItem {
     User { text: String },
     Assistant { text: String },
     Tool(ToolActivity),
+    Thinking { text: String, done: bool },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -17,6 +19,7 @@ pub enum DisplayTimelineItem {
     User { text: String },
     Assistant { text: String },
     ToolGroup(Vec<ToolActivity>),
+    Thinking { text: String, done: bool },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -59,6 +62,30 @@ pub fn apply_agent_event(
             _ => rows.push(TimelineItem::Assistant {
                 text: delta.clone(),
             }),
+        }),
+        AgentEvent::ThinkingDelta { delta } => timeline.update(|rows| {
+            let append = matches!(
+                rows.last(),
+                Some(TimelineItem::Thinking { done: false, .. })
+            );
+            if append {
+                if let Some(TimelineItem::Thinking { text, .. }) = rows.last_mut() {
+                    text.push_str(delta);
+                }
+            } else {
+                rows.push(TimelineItem::Thinking {
+                    text: delta.clone(),
+                    done: false,
+                });
+            }
+        }),
+        AgentEvent::ThinkingDone => timeline.update(|rows| {
+            for row in rows.iter_mut().rev() {
+                if let TimelineItem::Thinking { done, .. } = row {
+                    *done = true;
+                    break;
+                }
+            }
         }),
         AgentEvent::ToolCall { tool, args, .. } => {
             let entry = ToolActivity::from_call(tool, args.as_ref());
@@ -219,6 +246,10 @@ pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
                 out.push(DisplayTimelineItem::Assistant { text });
             }
             TimelineItem::Tool(tool) => pending_tools.push(tool),
+            TimelineItem::Thinking { text, done } => {
+                flush_tools(&mut out, &mut pending_tools);
+                out.push(DisplayTimelineItem::Thinking { text, done });
+            }
         }
     }
 
@@ -303,7 +334,12 @@ fn tool_icon(tool: &str) -> icondata::Icon {
 }
 
 #[component]
-pub fn TimelineRow(idx: usize, entry: DisplayTimelineItem, i18n: I18nService) -> impl IntoView {
+pub fn TimelineRow(
+    idx: usize,
+    entry: DisplayTimelineItem,
+    i18n: I18nService,
+    thinking_open: RwSignal<HashMap<usize, bool>>,
+) -> impl IntoView {
     let line_no = format!("{:02}", idx + 1);
     match entry {
         DisplayTimelineItem::User { text } => view! {
@@ -330,6 +366,67 @@ pub fn TimelineRow(idx: usize, entry: DisplayTimelineItem, i18n: I18nService) ->
             <ToolActivityGroupRow line_no=line_no entries=entries />
         }
         .into_any(),
+        DisplayTimelineItem::Thinking { text, done } => view! {
+            <ThinkingRow idx=idx line_no=line_no text=text done=done thinking_open=thinking_open />
+        }
+        .into_any(),
+    }
+}
+
+#[component]
+fn ThinkingRow(
+    idx: usize,
+    line_no: String,
+    text: String,
+    done: bool,
+    thinking_open: RwSignal<HashMap<usize, bool>>,
+) -> impl IntoView {
+    let open = Memo::new(move |_| {
+        thinking_open.with(|m| m.get(&idx).copied().unwrap_or(false))
+    });
+    let has_content = !text.trim().is_empty();
+    let label = if done { "Thinking" } else { "Thinking…" };
+    let body = text.clone();
+    view! {
+        <li class="agent-chat-line agent-chat-line--thinking">
+            <span class="agent-chat-index">{line_no}</span>
+            <div class="agent-chat-body">
+                <button
+                    type="button"
+                    class="agent-thinking-title"
+                    class:agent-thinking-title--active=move || !done
+                    aria-expanded=move || open.get().to_string()
+                    prop:disabled=move || !has_content
+                    on:click=move |_| {
+                        if has_content {
+                            thinking_open.update(|m| {
+                                let cur = m.get(&idx).copied().unwrap_or(false);
+                                m.insert(idx, !cur);
+                            });
+                        }
+                    }
+                >
+                    <Show when=move || !done>
+                        <span class="agent-thinking__dots" aria-hidden="true">
+                            <span></span><span></span><span></span>
+                        </span>
+                    </Show>
+                    <strong class="agent-thinking-title__label">{label}</strong>
+                    <Show when=move || has_content>
+                        <span class="agent-thinking-title__chevron" aria-hidden="true">
+                            {move || if open.get() {
+                                view! { <LxIcon icon=icondata::LuChevronUp width="0.85rem" height="0.85rem" /> }
+                            } else {
+                                view! { <LxIcon icon=icondata::LuChevronDown width="0.85rem" height="0.85rem" /> }
+                            }}
+                        </span>
+                    </Show>
+                </button>
+                <Show when=move || open.get() && has_content>
+                    <pre class="agent-thinking-card__body">{body.clone()}</pre>
+                </Show>
+            </div>
+        </li>
     }
 }
 

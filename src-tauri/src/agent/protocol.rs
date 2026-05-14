@@ -19,6 +19,10 @@ pub struct UserTurn {
 pub enum AgentEvent {
     #[serde(rename = "assistant_delta")]
     AssistantDelta { delta: String },
+    #[serde(rename = "thinking_delta")]
+    ThinkingDelta { delta: String },
+    #[serde(rename = "thinking_done")]
+    ThinkingDone,
     #[serde(rename = "tool_call")]
     ToolCall {
         tool: String,

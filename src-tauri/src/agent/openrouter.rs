@@ -199,13 +199,31 @@ impl Endpoint {
     }
 }
 
-fn reasoning_for(level: ThinkingLevel) -> Option<Value> {
-    match level {
-        ThinkingLevel::Off => None,
-        ThinkingLevel::Low => Some(json!({ "effort": "low" })),
-        ThinkingLevel::Medium => Some(json!({ "effort": "medium" })),
-        ThinkingLevel::High | ThinkingLevel::Max => Some(json!({ "effort": "high" })),
-    }
+/// Endpoint-specific reasoning payload. The request body shape differs:
+///   - OpenRouter: nested object `reasoning: { effort, exclude: false }`
+///   - OpenAI Chat Completions: flat string `reasoning_effort: "low|medium|high"`
+struct ReasoningPayload {
+    key: &'static str,
+    value: Value,
+}
+
+fn reasoning_for(level: ThinkingLevel, endpoint: Endpoint) -> Option<ReasoningPayload> {
+    let effort = match level {
+        ThinkingLevel::Off => return None,
+        ThinkingLevel::Low => "low",
+        ThinkingLevel::Medium => "medium",
+        ThinkingLevel::High | ThinkingLevel::Max => "high",
+    };
+    Some(match endpoint {
+        Endpoint::Openrouter => ReasoningPayload {
+            key: "reasoning",
+            value: json!({ "effort": effort, "exclude": false }),
+        },
+        Endpoint::Openai => ReasoningPayload {
+            key: "reasoning_effort",
+            value: Value::String(effort.to_owned()),
+        },
+    })
 }
 
 #[derive(Deserialize, Default)]
@@ -228,11 +246,15 @@ struct StreamDelta {
     content: Option<String>,
     #[serde(default)]
     tool_calls: Vec<DeltaToolCall>,
-    /// Some providers ship reasoning text on a separate field; drop it so
-    /// it never reaches the visible transcript.
+    /// Reasoning text streamed by some providers when extended thinking is
+    /// enabled. We surface it via dedicated `ThinkingDelta` events so the UI
+    /// can show a collapsible thinking panel without polluting the transcript.
+    /// `reasoning` is OpenRouter; `reasoning_content` is the DeepSeek/OpenAI
+    /// compatible alternative — we accept either.
     #[serde(default)]
-    #[allow(dead_code)]
     reasoning: Option<String>,
+    #[serde(default)]
+    reasoning_content: Option<String>,
 }
 
 #[derive(Deserialize, Default)]
@@ -308,13 +330,14 @@ pub async fn run_chat_turn(
         .filter(|s| !s.trim().is_empty());
 
     let sys = system_prompt(workspace_string.as_deref());
-    let mut messages: Vec<Value> = vec![
-        json!({ "role": "system", "content": sys }),
-        json!({ "role": "user", "content": prompt }),
-    ];
+    let mut messages: Vec<Value> = Vec::with_capacity(8);
+    messages.push(json!({ "role": "system", "content": sys }));
+    // Carry prior turns so the model has multi-turn memory.
+    messages.extend(state.conversation_snapshot());
+    messages.push(json!({ "role": "user", "content": prompt }));
 
     let tools = tools::render_for_openai();
-    let reasoning = reasoning_for(settings.thinking_level);
+    let reasoning = reasoning_for(settings.thinking_level, endpoint);
 
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(180))
@@ -344,7 +367,7 @@ pub async fn run_chat_turn(
             "tools": tools,
         });
         if let Some(r) = &reasoning {
-            body["reasoning"] = r.clone();
+            body[r.key] = r.value.clone();
         }
 
         let round_res = match run_one_round(&client, endpoint, &api_key, &body, &state).await {
@@ -422,6 +445,11 @@ pub async fn run_chat_turn(
         }
     }
 
+    // Persist non-system messages so the next turn keeps multi-turn context.
+    if messages.len() > 1 {
+        state.set_conversation(messages.split_off(1));
+    }
+
     state.push(AgentEvent::Done);
     state.set_busy(false);
 }
@@ -491,6 +519,8 @@ async fn run_one_round(
 
     let mut acc = RoundResult::default();
     let mut tool_by_index: Vec<AggregatedToolCall> = Vec::new();
+    let mut thinking_active = false;
+    let mut thinking_closed = false;
 
     loop {
         if state.cancelled() {
@@ -520,8 +550,22 @@ async fn run_one_round(
             Err(_) => continue,
         };
         for choice in chunk.choices {
+            let reasoning_chunk = choice
+                .delta
+                .reasoning
+                .or(choice.delta.reasoning_content);
+            if let Some(reasoning) = reasoning_chunk {
+                if !reasoning.is_empty() {
+                    thinking_active = true;
+                    state.push(AgentEvent::ThinkingDelta { delta: reasoning });
+                }
+            }
             if let Some(text) = choice.delta.content {
                 if !text.is_empty() {
+                    if thinking_active && !thinking_closed {
+                        thinking_closed = true;
+                        state.push(AgentEvent::ThinkingDone);
+                    }
                     state.push(AgentEvent::AssistantDelta {
                         delta: text.clone(),
                     });
@@ -553,6 +597,10 @@ async fn run_one_round(
                 acc.finish_reason = Some(reason);
             }
         }
+    }
+
+    if thinking_active && !thinking_closed {
+        state.push(AgentEvent::ThinkingDone);
     }
 
     acc.tool_calls = tool_by_index

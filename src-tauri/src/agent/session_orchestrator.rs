@@ -1,9 +1,9 @@
 //! Session facade: dispatches one user turn against the configured
 //! provider (real HTTP stream) or falls back to the mock engine when no
 //! key/model is available.
+use crate::agent::anthropic::run_chat_turn as run_anthropic_turn;
 use crate::agent::openrouter::{run_chat_turn, Endpoint};
 use crate::agent::protocol::{AgentEvent, UserTurn};
-use crate::agent::spawn_mock_turn;
 use crate::agent::state::AgentEngineState;
 use crate::agent_settings::{load_settings_pub, provider_key_pub, AgentProviderKind};
 use std::sync::Arc;
@@ -21,26 +21,12 @@ pub fn dispatch_user_turn(
     let settings = match load_settings_pub(app) {
         Ok(s) => s,
         Err(e) => {
-            // Couldn't even read settings — fall back to mock for offline dev.
-            eprintln!("[agent] settings load failed, using mock: {e}");
-            spawn_mock_turn(Arc::clone(agent), turn.prompt, turn.workspace_root);
+            spawn_settings_error(Arc::clone(agent), e);
             return Ok(());
         }
     };
 
-    let endpoint = match Endpoint::from_provider(settings.provider) {
-        Some(e) => e,
-        None => {
-            // Anthropic native is not wired yet (Phase E). Fall back to mock so
-            // the user still sees output instead of a stalled UI.
-            spawn_mock_turn(Arc::clone(agent), turn.prompt, turn.workspace_root);
-            return Ok(());
-        }
-    };
-
-    // OpenRouter is open-access for some models but most providers require
-    // a key — only Openrouter happens to also accept no-auth for a tiny
-    // free tier. We still always require a key for predictability.
+    // Every wired provider needs a key — bail early with a friendly UI message.
     let api_key = match provider_key_pub(app, settings.provider) {
         Ok(k) if !k.trim().is_empty() => k,
         Ok(_) | Err(_) => {
@@ -50,18 +36,42 @@ pub fn dispatch_user_turn(
     };
 
     let state = Arc::clone(agent);
-    async_runtime::spawn(async move {
-        run_chat_turn(
-            state,
-            endpoint,
-            api_key,
-            settings,
-            turn.prompt,
-            turn.workspace_root,
-        )
-        .await;
-    });
+    match settings.provider {
+        AgentProviderKind::Anthropic => {
+            async_runtime::spawn(async move {
+                run_anthropic_turn(state, api_key, settings, turn.prompt, turn.workspace_root)
+                    .await;
+            });
+        }
+        AgentProviderKind::Openrouter | AgentProviderKind::Openai => {
+            let endpoint = Endpoint::from_provider(settings.provider)
+                .expect("openrouter/openai endpoint mapping");
+            async_runtime::spawn(async move {
+                run_chat_turn(
+                    state,
+                    endpoint,
+                    api_key,
+                    settings,
+                    turn.prompt,
+                    turn.workspace_root,
+                )
+                .await;
+            });
+        }
+    }
     Ok(())
+}
+
+fn spawn_settings_error(state: Arc<AgentEngineState>, err: String) {
+    async_runtime::spawn(async move {
+        state.clear_cancel();
+        state.set_busy(true);
+        state.push(AgentEvent::Error {
+            message: format!("Agent-Settings konnten nicht geladen werden: {err}"),
+        });
+        state.push(AgentEvent::Done);
+        state.set_busy(false);
+    });
 }
 
 fn spawn_chat_missing_key(state: Arc<AgentEngineState>, provider: AgentProviderKind) {

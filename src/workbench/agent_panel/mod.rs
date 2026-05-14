@@ -19,6 +19,7 @@ use crate::workbench::WorkbenchService;
 use leptos::html;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
+use std::collections::HashMap;
 use wasm_bindgen::JsCast;
 
 #[component]
@@ -38,6 +39,10 @@ pub fn AgentPanelDock() -> impl IntoView {
         tasks: Vec::new(),
         active_task_id: None,
     });
+    // Open/closed state per thinking item, keyed by its position in the
+    // display timeline. Lives on the parent so streaming rerenders do not
+    // remount the row and reset the local open flag.
+    let thinking_open = RwSignal::new(HashMap::<usize, bool>::new());
 
     if is_tauri_shell() {
         leptos::task::spawn_local(async move {
@@ -158,19 +163,11 @@ pub fn AgentPanelDock() -> impl IntoView {
                                 .into_iter()
                                 .enumerate()
                                 .map(|(idx, entry)| {
-                                    view! { <TimelineRow idx=idx entry=entry i18n=i18n /> }
+                                    view! { <TimelineRow idx=idx entry=entry i18n=i18n thinking_open=thinking_open /> }
                                 })
                                 .collect_view()
                         }}
                     </ol>
-                </Show>
-                <Show when=move || busy.get()>
-                    <div class="agent-thinking" aria-live="polite" role="status">
-                        <span class="agent-thinking__dots" aria-hidden="true">
-                            <span></span><span></span><span></span>
-                        </span>
-                        <span class="agent-thinking__label">"Agent is thinking…"</span>
-                    </div>
                 </Show>
             </article>
 

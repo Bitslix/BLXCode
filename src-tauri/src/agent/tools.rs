@@ -466,6 +466,23 @@ pub fn render_for_openai() -> Value {
     Value::Array(items)
 }
 
+/// Render every tool in the registry as an Anthropic Messages API `tools[]` entry.
+/// Anthropic uses `input_schema` (vs. OpenAI's `parameters`) and a flat shape.
+pub fn render_for_anthropic() -> Value {
+    let reg = registry();
+    let items: Vec<Value> = reg
+        .into_iter()
+        .map(|t| {
+            json!({
+                "name": t.name,
+                "description": t.description,
+                "input_schema": t.parameters,
+            })
+        })
+        .collect();
+    Value::Array(items)
+}
+
 /// Execute a server-tool synchronously. Returns the textual `content`
 /// that should both be reported to the UI and fed back to the LLM.
 pub fn execute_server_tool(

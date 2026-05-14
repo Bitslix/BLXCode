@@ -21,6 +21,9 @@ pub struct AgentEngineState {
     /// Senders keyed by tool-call id; the agent loop awaits the matching
     /// `oneshot` after emitting a client-side `ToolCall`.
     pending_client_tools: Mutex<HashMap<String, oneshot::Sender<ClientToolResult>>>,
+    /// Conversation history across user turns (non-system messages only).
+    /// The system prompt is rebuilt fresh per turn from the current workspace.
+    conversation: Mutex<Vec<Value>>,
 }
 
 impl AgentEngineState {
@@ -30,7 +33,31 @@ impl AgentEngineState {
             busy: AtomicBool::new(false),
             cancel: AtomicBool::new(false),
             pending_client_tools: Mutex::new(HashMap::new()),
+            conversation: Mutex::new(Vec::new()),
         })
+    }
+
+    /// Returns the persisted conversation (non-system messages) so the next
+    /// turn can resume from prior context.
+    pub fn conversation_snapshot(&self) -> Vec<Value> {
+        self.conversation
+            .lock()
+            .expect("conversation lock poisoned")
+            .clone()
+    }
+
+    /// Overwrites the persisted conversation with the latest non-system
+    /// messages after a turn finishes.
+    pub fn set_conversation(&self, msgs: Vec<Value>) {
+        let mut g = self.conversation.lock().expect("conversation lock poisoned");
+        *g = msgs;
+    }
+
+    pub fn clear_conversation(&self) {
+        self.conversation
+            .lock()
+            .expect("conversation lock poisoned")
+            .clear();
     }
 
     pub fn push_batch(&self, evs: impl IntoIterator<Item = AgentEvent>) {

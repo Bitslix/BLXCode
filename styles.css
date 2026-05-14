@@ -1799,6 +1799,71 @@ body {
   letter-spacing: 0.01em;
 }
 
+.agent-thinking-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  color: var(--accent);
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.agent-thinking-title:hover:not(:disabled) .agent-thinking-title__label {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.agent-thinking-title:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.agent-thinking-title__label {
+  display: inline-block;
+  color: var(--accent);
+}
+
+.agent-thinking-title--active .agent-thinking-title__label {
+  color: rgba(170, 200, 255, 0.95);
+}
+
+.agent-thinking-title__chevron {
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.6;
+}
+
+.agent-thinking-title:hover:not(:disabled) .agent-thinking-title__chevron {
+  opacity: 0.9;
+}
+
+.agent-thinking-card__body {
+  margin: 0.4rem 0 0;
+  padding: 0.55rem 0.75rem;
+  background: rgba(20, 24, 34, 0.55);
+  border: 1px solid rgba(140, 160, 200, 0.16);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  line-height: 1.55;
+  color: rgba(220, 226, 240, 0.78);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 18rem;
+  overflow: auto;
+}
+
+.agent-chat-line--thinking .agent-chat-body::before {
+  background: rgba(140, 160, 200, 0.7);
+  box-shadow: 0 0 0 3px rgba(140, 160, 200, 0.12);
+}
+
 .agent-tool-list {
   list-style: none;
   margin: 0.4rem 0 0;
