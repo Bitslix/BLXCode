@@ -922,9 +922,11 @@ body {
 .workbench-right-slot {
   display: flex;
   flex-direction: row;
-  flex-shrink: 0;
+  flex-shrink: 1;
   align-items: stretch;
   min-height: 0;
+  min-width: 44px;
+  max-width: 100%;
   width: auto;
   transition: min-width 0.18s ease, width 0.18s ease;
 }
@@ -1040,6 +1042,7 @@ body {
 
 .workbench-right {
   min-width: 0;
+  max-width: 100%;
   min-height: 0;
   overflow: hidden;
   background: var(--bg-raised);
@@ -1098,6 +1101,8 @@ body {
   gap: 0.45rem;
   width: 100%;
   min-height: 34px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .workbench-right-tabstrip {
@@ -1112,6 +1117,7 @@ body {
   border-radius: 4px;
   background: rgba(0, 0, 0, 0.34);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  overflow: hidden;
 }
 
 .workbench-right-tab {
@@ -1568,6 +1574,13 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.28rem;
+}
+
+.agent-tool-group {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.22rem;
 }
 
 .agent-tool-row {
@@ -4105,6 +4118,38 @@ button {
   flex-direction: column;
   min-height: 0;
   height: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 980px) {
+  .workbench-right__header {
+    padding: 0.35rem 0.4rem;
+  }
+
+  .workbench-right__toolbar {
+    gap: 0.35rem;
+  }
+
+  .workbench-right-tab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 0.3rem;
+  }
+
+  .workbench-right-tab--active {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .workbench-right-tab__label,
+  .workbench-right-tab--active .workbench-right-tab__label {
+    max-width: 0;
+    opacity: 0;
+  }
+
+  .workbench-memory-files {
+    grid-template-columns: minmax(9.5rem, 11rem) minmax(0, 1fr);
+  }
 }
 
 .workbench-right-memory__empty {
@@ -4265,6 +4310,11 @@ button {
   grid-template-columns: minmax(13rem, 15.5rem) minmax(0, 1fr);
   min-height: 0;
 }
+
+.workbench-memory-files--collapsed {
+  grid-template-columns: 3.8rem minmax(0, 1fr);
+}
+
 .workbench-memory-files__tree {
   display: flex;
   flex-direction: column;
@@ -4272,11 +4322,22 @@ button {
   border-right: 1px solid rgba(255, 255, 255, 0.06);
   background: rgba(255, 255, 255, 0.015);
 }
+
+.workbench-memory-files__tree--collapsed {
+  align-items: center;
+}
+
 .workbench-memory-files__new {
   display: flex;
   gap: 0.3rem;
   padding: 0.45rem 0.5rem;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.workbench-memory-files__new--collapsed {
+  flex-direction: column;
+  align-items: center;
+  padding: 0.45rem 0.35rem;
 }
 .workbench-memory-files__new-input {
   flex: 1;
@@ -4305,6 +4366,25 @@ button {
 .workbench-memory-files__new-btn:hover {
   background: rgba(255, 255, 255, 0.1);
 }
+
+.workbench-memory-files__collapse-btn {
+  padding: 0;
+  width: 1.8rem;
+  height: 1.8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.workbench-memory-files__collapse-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
 .workbench-memory-files__list {
   flex: 1;
   margin: 0;
@@ -4318,6 +4398,12 @@ button {
   gap: 0.2rem;
   padding: 0.1rem 0.35rem;
 }
+
+.workbench-memory-files__item--collapsed {
+  justify-content: center;
+  padding: 0.22rem 0.2rem;
+}
+
 .workbench-memory-files__item--active {
   background: rgba(91, 157, 255, 0.12);
 }
@@ -4361,6 +4447,30 @@ button {
 .workbench-memory-files__action:hover {
   background: rgba(255, 255, 255, 0.06);
   color: rgba(238, 239, 245, 0.95);
+}
+
+.workbench-memory-files__badge {
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: rgba(238, 239, 245, 0.92);
+  background: linear-gradient(180deg, rgba(91, 157, 255, 0.16), rgba(91, 157, 255, 0.08));
+  border: 1px solid rgba(91, 157, 255, 0.2);
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.workbench-memory-files__badge:hover {
+  background: linear-gradient(180deg, rgba(91, 157, 255, 0.22), rgba(91, 157, 255, 0.12));
+  border-color: rgba(91, 157, 255, 0.34);
 }
 .workbench-memory-files__rename-form {
   flex: 1;

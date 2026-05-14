@@ -158,9 +158,13 @@ pub fn AgentPanelDock() -> impl IntoView {
                 >
                     <ol class="agent-chat-list" aria-label="Agent activity timeline">
                         {move || {
-                            timeline.get().into_iter().enumerate().map(|(idx, entry)| {
-                                view! { <TimelineRow idx=idx entry=entry i18n=i18n /> }
-                            }).collect_view()
+                            compact_timeline(timeline.get())
+                                .into_iter()
+                                .enumerate()
+                                .map(|(idx, entry)| {
+                                    view! { <TimelineRow idx=idx entry=entry i18n=i18n /> }
+                                })
+                                .collect_view()
                         }}
                     </ol>
                 </Show>
@@ -687,6 +691,44 @@ enum TimelineItem {
     Tool(ToolActivity),
 }
 
+#[derive(Clone, Debug, PartialEq)]
+enum DisplayTimelineItem {
+    User { text: String },
+    Assistant { text: String },
+    ToolGroup(Vec<ToolActivity>),
+}
+
+fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
+    let mut out = Vec::new();
+    let mut pending_tools = Vec::new();
+
+    let flush_tools = |out: &mut Vec<DisplayTimelineItem>,
+                       pending_tools: &mut Vec<ToolActivity>| {
+        if !pending_tools.is_empty() {
+            out.push(DisplayTimelineItem::ToolGroup(std::mem::take(
+                pending_tools,
+            )));
+        }
+    };
+
+    for item in items {
+        match item {
+            TimelineItem::User { text } => {
+                flush_tools(&mut out, &mut pending_tools);
+                out.push(DisplayTimelineItem::User { text });
+            }
+            TimelineItem::Assistant { text } => {
+                flush_tools(&mut out, &mut pending_tools);
+                out.push(DisplayTimelineItem::Assistant { text });
+            }
+            TimelineItem::Tool(tool) => pending_tools.push(tool),
+        }
+    }
+
+    flush_tools(&mut out, &mut pending_tools);
+    out
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum ActivityStatus {
     Pending,
@@ -774,10 +816,10 @@ fn tool_icon(tool: &str) -> icondata::Icon {
 }
 
 #[component]
-fn TimelineRow(idx: usize, entry: TimelineItem, i18n: I18nService) -> impl IntoView {
+fn TimelineRow(idx: usize, entry: DisplayTimelineItem, i18n: I18nService) -> impl IntoView {
     let line_no = format!("{:02}", idx + 1);
     match entry {
-        TimelineItem::User { text } => view! {
+        DisplayTimelineItem::User { text } => view! {
             <li class="agent-chat-line agent-chat-line--user">
                 <span class="agent-chat-index">{line_no.clone()}</span>
                 <div class="agent-chat-body">
@@ -787,7 +829,7 @@ fn TimelineRow(idx: usize, entry: TimelineItem, i18n: I18nService) -> impl IntoV
             </li>
         }
         .into_any(),
-        TimelineItem::Assistant { text } => view! {
+        DisplayTimelineItem::Assistant { text } => view! {
             <li class="agent-chat-line agent-chat-line--agent">
                 <span class="agent-chat-index">{line_no.clone()}</span>
                 <div class="agent-chat-body">
@@ -797,15 +839,36 @@ fn TimelineRow(idx: usize, entry: TimelineItem, i18n: I18nService) -> impl IntoV
             </li>
         }
         .into_any(),
-        TimelineItem::Tool(entry) => view! {
-            <ToolActivityRow idx=idx line_no=line_no entry=entry />
+        DisplayTimelineItem::ToolGroup(entries) => view! {
+            <ToolActivityGroupRow idx=idx line_no=line_no entries=entries />
         }
         .into_any(),
     }
 }
 
 #[component]
-fn ToolActivityRow(idx: usize, line_no: String, entry: ToolActivity) -> impl IntoView {
+fn ToolActivityGroupRow(idx: usize, line_no: String, entries: Vec<ToolActivity>) -> impl IntoView {
+    let _ = idx;
+
+    view! {
+        <li class="agent-chat-line agent-chat-line--tool">
+            <span class="agent-chat-index">{line_no}</span>
+            <div class="agent-chat-body">
+                <strong>"Tool"</strong>
+                <div class="agent-tool-group">
+                    {entries
+                        .into_iter()
+                        .enumerate()
+                        .map(|(tool_idx, entry)| view! { <ToolActivityRow idx=tool_idx entry=entry /> })
+                        .collect_view()}
+                </div>
+            </div>
+        </li>
+    }
+}
+
+#[component]
+fn ToolActivityRow(idx: usize, entry: ToolActivity) -> impl IntoView {
     let status_class = match entry.status {
         ActivityStatus::Pending => "agent-tool-row--pending",
         ActivityStatus::Ok => "agent-tool-row--ok",
@@ -825,41 +888,35 @@ fn ToolActivityRow(idx: usize, line_no: String, entry: ToolActivity) -> impl Int
     let _ = idx;
 
     view! {
-        <li class="agent-chat-line agent-chat-line--tool">
-            <span class="agent-chat-index">{line_no}</span>
-            <div class="agent-chat-body">
-                <strong>"Tool"</strong>
-                <div class=format!("agent-tool-row {status_class}") title=tool_name_for_title>
-                    <button
-                        type="button"
-                        class="agent-tool-row__head"
-                        aria-expanded=move || detail_open.get().to_string()
-                        prop:disabled=move || !has_detail
-                        on:click=move |_| {
-                            if has_detail {
-                                detail_open.update(|o| *o = !*o);
-                            }
-                        }
-                    >
-                        <span class="agent-tool-row__icon" aria-hidden="true">
-                            <LxIcon icon=tool_icon(&entry.tool) width="0.82rem" height="0.82rem" />
-                        </span>
-                        <span class="agent-tool-row__label">{label}</span>
-                        <Show when={
-                            let s = summary.clone();
-                            move || !s.is_empty()
-                        }>
-                            <span class="agent-tool-row__arg">{summary.clone()}</span>
-                        </Show>
-                        <span class="agent-tool-row__status" aria-hidden="true">
-                            <LxIcon icon=status_icon width="0.78rem" height="0.78rem" />
-                        </span>
-                    </button>
-                    <Show when=move || has_detail && detail_open.get()>
-                        <pre class="agent-tool-row__detail">{detail_text.clone()}</pre>
-                    </Show>
-                </div>
-            </div>
-        </li>
+        <div class=format!("agent-tool-row {status_class}") title=tool_name_for_title>
+            <button
+                type="button"
+                class="agent-tool-row__head"
+                aria-expanded=move || detail_open.get().to_string()
+                prop:disabled=move || !has_detail
+                on:click=move |_| {
+                    if has_detail {
+                        detail_open.update(|o| *o = !*o);
+                    }
+                }
+            >
+                <span class="agent-tool-row__icon" aria-hidden="true">
+                    <LxIcon icon=tool_icon(&entry.tool) width="0.82rem" height="0.82rem" />
+                </span>
+                <span class="agent-tool-row__label">{label}</span>
+                <Show when={
+                    let s = summary.clone();
+                    move || !s.is_empty()
+                }>
+                    <span class="agent-tool-row__arg">{summary.clone()}</span>
+                </Show>
+                <span class="agent-tool-row__status" aria-hidden="true">
+                    <LxIcon icon=status_icon width="0.78rem" height="0.78rem" />
+                </span>
+            </button>
+            <Show when=move || has_detail && detail_open.get()>
+                <pre class="agent-tool-row__detail">{detail_text.clone()}</pre>
+            </Show>
+        </div>
     }
 }

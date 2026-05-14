@@ -322,12 +322,20 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
     let new_note_input = RwSignal::new(String::new());
     let renaming = RwSignal::new(None::<String>);
     let rename_input = RwSignal::new(String::new());
+    let files_collapsed = RwSignal::new(false);
 
     view! {
-        <div class="workbench-memory-files">
-            <aside class="workbench-memory-files__tree">
+        <div
+            class="workbench-memory-files"
+            class:workbench-memory-files--collapsed=move || files_collapsed.get()
+        >
+            <aside
+                class="workbench-memory-files__tree"
+                class:workbench-memory-files__tree--collapsed=move || files_collapsed.get()
+            >
                 <form
                     class="workbench-memory-files__new"
+                    class:workbench-memory-files__new--collapsed=move || files_collapsed.get()
                     on:submit={
                         let s = state.clone();
                         move |ev: web_sys::SubmitEvent| {
@@ -350,18 +358,39 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                         }
                     }
                 >
-                    <input
-                        type="text"
-                        class="workbench-memory-files__new-input"
-                        placeholder=move || i18n.tr(I18nKey::MemNewNotePh)()
-                        prop:value=move || new_note_input.get()
-                        on:input=move |ev| {
-                            if let Some(v) = input_value(ev) {
-                                new_note_input.set(v);
+                    <Show when=move || !files_collapsed.get()>
+                        <input
+                            type="text"
+                            class="workbench-memory-files__new-input"
+                            placeholder=move || i18n.tr(I18nKey::MemNewNotePh)()
+                            prop:value=move || new_note_input.get()
+                            on:input=move |ev| {
+                                if let Some(v) = input_value(ev) {
+                                    new_note_input.set(v);
+                                }
                             }
-                        }
-                    />
+                        />
+                    </Show>
                     <button type="submit" class="workbench-memory-files__new-btn" title=move || i18n.tr(I18nKey::MemNewNote)()>"+"</button>
+                    <button
+                        type="button"
+                        class="workbench-memory-files__collapse-btn"
+                        aria-label=move || if files_collapsed.get() { "Expand file list" } else { "Collapse file list" }
+                        title=move || if files_collapsed.get() { "Expand file list" } else { "Collapse file list" }
+                        on:click=move |_| {
+                            renaming.set(None);
+                            files_collapsed.update(|value| *value = !*value);
+                        }
+                    >
+                        <Show
+                            when=move || files_collapsed.get()
+                            fallback=move || view! {
+                                <LxIcon icon=icondata::LuPanelLeftClose width="0.82rem" height="0.82rem" />
+                            }
+                        >
+                            <LxIcon icon=icondata::LuPanelLeftOpen width="0.82rem" height="0.82rem" />
+                        </Show>
+                    </button>
                 </form>
                 <ul class="workbench-memory-files__list">
                     <For
@@ -374,150 +403,30 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                             let state = state.clone();
                             move |n: NoteMeta| {
                                 let path = n.path.clone();
-                                let label = n.name.clone();
-                                let folder = n.path.rsplit_once('/').map(|(d, _)| d.to_string());
-                                let s = state.clone();
+                                let expanded_note = n.clone();
+                                let collapsed_note = n.clone();
                                 let s_active = state.clone();
                                 let path_for_active = path.clone();
-                                let path_for_select = path.clone();
-                                let path_for_del = path.clone();
-                                let path_for_ren = path.clone();
-                                let label_for_ren = label.clone();
                                 view! {
                                     <li
                                         class="workbench-memory-files__item"
+                                        class:workbench-memory-files__item--collapsed=move || files_collapsed.get()
                                         class:workbench-memory-files__item--active=move || {
                                             s_active.active_path.get().as_deref() == Some(path_for_active.as_str())
                                         }
                                     >
                                         <Show
-                                            when={
-                                                let p = path_for_ren.clone();
-                                                move || renaming.get().as_deref() == Some(p.as_str())
-                                            }
-                                            fallback={
-                                                let s = s.clone();
-                                                let label = label.clone();
-                                                let folder = folder.clone();
-                                                let path_for_select = path_for_select.clone();
-                                                let path_for_del = path_for_del.clone();
-                                                let path_for_ren = path_for_ren.clone();
-                                                let label_for_ren = label_for_ren.clone();
-                                                move || view! {
-                                                    <button
-                                                        type="button"
-                                                        class="workbench-memory-files__name"
-                                                        on:click={
-                                                            let s = s.clone();
-                                                            let p = path_for_select.clone();
-                                                            move |_| {
-                                                                let Some(ws) = s.workspace_cwd.get_untracked() else { return };
-                                                                load_note(s.clone(), ws, p.clone());
-                                                            }
-                                                        }
-                                                    >
-                                                        <span class="workbench-memory-files__name-text">{label.clone()}</span>
-                                                        {folder.clone().map(|f| view! { <small class="workbench-memory-files__folder">{f}</small> })}
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        class="workbench-memory-files__action"
-                                                        title=move || i18n.tr(I18nKey::MemRename)()
-                                                        on:click={
-                                                            let label_for_ren = label_for_ren.clone();
-                                                            let path_for_ren = path_for_ren.clone();
-                                                            move |_| {
-                                                                rename_input.set(label_for_ren.clone());
-                                                                renaming.set(Some(path_for_ren.clone()));
-                                                            }
-                                                        }
-                                                    >"✎"</button>
-                                                    <button
-                                                        type="button"
-                                                        class="workbench-memory-files__action workbench-memory-files__action--danger"
-                                                        title=move || i18n.tr(I18nKey::MemDelete)()
-                                                        on:click={
-                                                            let s = s.clone();
-                                                            let p = path_for_del.clone();
-                                                            move |_| {
-                                                                let Some(ws) = s.workspace_cwd.get_untracked() else { return };
-                                                                let s2 = s.clone();
-                                                                let p2 = p.clone();
-                                                                spawn_local(async move {
-                                                                    match tauri_bridge::memory_delete(&ws, &p2).await {
-                                                                        Ok(()) => {
-                                                                            if s2.active_path.get_untracked().as_deref() == Some(p2.as_str()) {
-                                                                                s2.active_path.set(None);
-                                                                                s2.editor_content.set(String::new());
-                                                                                s2.backlinks.set(Vec::new());
-                                                                            }
-                                                                            load_notes(s2, ws);
-                                                                        }
-                                                                        Err(e) => s2.error.set(Some(e)),
-                                                                    }
-                                                                });
-                                                            }
-                                                        }
-                                                    >"🗑"</button>
-                                                }
+                                            when=move || files_collapsed.get()
+                                            fallback=move || view! {
+                                                <MemoryFileExpandedRow
+                                                    state=state
+                                                    note=expanded_note.clone()
+                                                    renaming=renaming
+                                                    rename_input=rename_input
+                                                />
                                             }
                                         >
-                                            {
-                                                let s = s.clone();
-                                                let path_for_ren = path_for_ren.clone();
-                                                view! {
-                                                    <form
-                                                        class="workbench-memory-files__rename"
-                                                        on:submit={
-                                                            let s = s.clone();
-                                                            let old_path = path_for_ren.clone();
-                                                            move |ev: web_sys::SubmitEvent| {
-                                                                ev.prevent_default();
-                                                                let Some(ws) = s.workspace_cwd.get_untracked() else { return };
-                                                                let v = rename_input.get_untracked();
-                                                                let new_name = slug_to_filename(&v);
-                                                                // preserve folder
-                                                                let new_path = if let Some(parent) = old_path.rsplit_once('/').map(|(d, _)| d) {
-                                                                    format!("{parent}/{new_name}")
-                                                                } else {
-                                                                    new_name
-                                                                };
-                                                                let s2 = s.clone();
-                                                                let op = old_path.clone();
-                                                                let np = new_path.clone();
-                                                                spawn_local(async move {
-                                                                    match tauri_bridge::memory_rename(&ws, &op, &np, true).await {
-                                                                        Ok(_) => {
-                                                                            renaming.set(None);
-                                                                            if s2.active_path.get_untracked().as_deref() == Some(op.as_str()) {
-                                                                                s2.active_path.set(Some(np.clone()));
-                                                                            }
-                                                                            load_notes(s2, ws);
-                                                                        }
-                                                                        Err(e) => s2.error.set(Some(e)),
-                                                                    }
-                                                                });
-                                                            }
-                                                        }
-                                                    >
-                                                        <input
-                                                            type="text"
-                                                            class="workbench-memory-files__rename-input"
-                                                            prop:value=move || rename_input.get()
-                                                            on:input=move |ev| {
-                                                                if let Some(v) = input_value(ev) { rename_input.set(v); }
-                                                            }
-                                                        />
-                                                        <button type="submit" class="workbench-memory-files__action" title=move || i18n.tr(I18nKey::MemSave)()>"✔"</button>
-                                                        <button
-                                                            type="button"
-                                                            class="workbench-memory-files__action"
-                                                            title=move || i18n.tr(I18nKey::MemCancel)()
-                                                            on:click=move |_| renaming.set(None)
-                                                        >"✗"</button>
-                                                    </form>
-                                                }
-                                            }
+                                            <MemoryFileCollapsedRow state=state note=collapsed_note.clone() />
                                         </Show>
                                     </li>
                                 }
@@ -665,6 +574,186 @@ fn strip_ext(s: &str) -> String {
         }
     }
     s.to_owned()
+}
+
+#[component]
+fn MemoryFileCollapsedRow(state: MemoryState, note: NoteMeta) -> impl IntoView {
+    let label = note.name.clone();
+    let badge = note_badge_text(&label);
+    let path = note.path.clone();
+
+    view! {
+        <button
+            type="button"
+            class="workbench-memory-files__badge"
+            title=label.clone()
+            aria-label=label
+            on:click=move |_| {
+                let Some(ws) = state.workspace_cwd.get_untracked() else {
+                    return;
+                };
+                load_note(state, ws, path.clone());
+            }
+        >
+            {badge}
+        </button>
+    }
+}
+
+#[component]
+fn MemoryFileExpandedRow(
+    state: MemoryState,
+    note: NoteMeta,
+    renaming: RwSignal<Option<String>>,
+    rename_input: RwSignal<String>,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let label = note.name.clone();
+    let folder = note.path.rsplit_once('/').map(|(d, _)| d.to_string());
+    let note_path = note.path.clone();
+    let path_for_select = note_path.clone();
+    let path_for_del = note_path.clone();
+    let path_for_ren = note_path.clone();
+    let label_for_ren = label.clone();
+
+    view! {
+        {move || {
+            let note_path = note_path.clone();
+            let path_for_select = path_for_select.clone();
+            let path_for_del = path_for_del.clone();
+            let path_for_ren = path_for_ren.clone();
+            let label = label.clone();
+            let folder = folder.clone();
+            let label_for_ren = label_for_ren.clone();
+            if renaming.get().as_deref() == Some(note_path.as_str()) {
+                let old_path = note_path.clone();
+                view! {
+                    <form
+                        class="workbench-memory-files__rename"
+                        on:submit=move |ev: web_sys::SubmitEvent| {
+                            ev.prevent_default();
+                            let Some(ws) = state.workspace_cwd.get_untracked() else {
+                                return;
+                            };
+                            let v = rename_input.get_untracked();
+                            let new_name = slug_to_filename(&v);
+                            let new_path = if let Some(parent) = old_path.rsplit_once('/').map(|(d, _)| d) {
+                                format!("{parent}/{new_name}")
+                            } else {
+                                new_name
+                            };
+                            let op = old_path.clone();
+                            let np = new_path.clone();
+                            spawn_local(async move {
+                                match tauri_bridge::memory_rename(&ws, &op, &np, true).await {
+                                    Ok(_) => {
+                                        renaming.set(None);
+                                        if state.active_path.get_untracked().as_deref() == Some(op.as_str()) {
+                                            state.active_path.set(Some(np.clone()));
+                                        }
+                                        load_notes(state, ws);
+                                    }
+                                    Err(e) => state.error.set(Some(e)),
+                                }
+                            });
+                        }
+                    >
+                        <input
+                            type="text"
+                            class="workbench-memory-files__rename-input"
+                            prop:value=move || rename_input.get()
+                            on:input=move |ev| {
+                                if let Some(v) = input_value(ev) {
+                                    rename_input.set(v);
+                                }
+                            }
+                        />
+                        <button type="submit" class="workbench-memory-files__action" title=move || i18n.tr(I18nKey::MemSave)()>"✔"</button>
+                        <button
+                            type="button"
+                            class="workbench-memory-files__action"
+                            title=move || i18n.tr(I18nKey::MemCancel)()
+                            on:click=move |_| renaming.set(None)
+                        >"✗"</button>
+                    </form>
+                }
+                .into_any()
+            } else {
+                view! {
+                    <button
+                        type="button"
+                        class="workbench-memory-files__name"
+                        on:click=move |_| {
+                            let Some(ws) = state.workspace_cwd.get_untracked() else {
+                                return;
+                            };
+                            load_note(state, ws, path_for_select.clone());
+                        }
+                    >
+                        <span class="workbench-memory-files__name-text">{label.clone()}</span>
+                        {folder.clone().map(|f| view! { <small class="workbench-memory-files__folder">{f}</small> })}
+                    </button>
+                    <button
+                        type="button"
+                        class="workbench-memory-files__action"
+                        title=move || i18n.tr(I18nKey::MemRename)()
+                        on:click=move |_| {
+                            rename_input.set(label_for_ren.clone());
+                            renaming.set(Some(path_for_ren.clone()));
+                        }
+                    >"✎"</button>
+                    <button
+                        type="button"
+                        class="workbench-memory-files__action workbench-memory-files__action--danger"
+                        title=move || i18n.tr(I18nKey::MemDelete)()
+                        on:click=move |_| {
+                            let Some(ws) = state.workspace_cwd.get_untracked() else {
+                                return;
+                            };
+                            let p = path_for_del.clone();
+                            spawn_local(async move {
+                                match tauri_bridge::memory_delete(&ws, &p).await {
+                                    Ok(()) => {
+                                        if state.active_path.get_untracked().as_deref() == Some(p.as_str()) {
+                                            state.active_path.set(None);
+                                            state.editor_content.set(String::new());
+                                            state.backlinks.set(Vec::new());
+                                        }
+                                        load_notes(state, ws);
+                                    }
+                                    Err(e) => state.error.set(Some(e)),
+                                }
+                            });
+                        }
+                    >"🗑"</button>
+                }
+                .into_any()
+            }
+        }}
+    }
+}
+
+fn note_badge_text(name: &str) -> String {
+    let mut out = String::new();
+    for part in name
+        .split(|ch: char| !ch.is_alphanumeric())
+        .filter(|part| !part.is_empty())
+    {
+        if let Some(ch) = part.chars().next() {
+            out.extend(ch.to_uppercase());
+        }
+        if out.chars().count() >= 2 {
+            break;
+        }
+    }
+    if out.is_empty() {
+        name.chars()
+            .next()
+            .map(|ch| ch.to_uppercase().collect())
+            .unwrap_or_else(|| "?".to_string())
+    } else {
+        out
+    }
 }
 
 #[component]

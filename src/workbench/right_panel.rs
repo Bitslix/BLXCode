@@ -10,7 +10,30 @@ use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
 
 const RIGHT_PANEL_MIN_PX: f64 = 320.0;
+const RIGHT_PANEL_HARD_MIN_PX: f64 = 220.0;
 const WORKSPACE_MIN_PX: f64 = 240.0;
+
+fn viewport_width_px() -> f64 {
+    web_sys::window()
+        .and_then(|w| w.inner_width().ok())
+        .and_then(|v| v.as_f64())
+        .unwrap_or(RIGHT_PANEL_MIN_PX + WORKSPACE_MIN_PX)
+}
+
+fn right_panel_min_px(viewport_w: f64) -> f64 {
+    if viewport_w < 980.0 {
+        RIGHT_PANEL_HARD_MIN_PX
+    } else {
+        RIGHT_PANEL_MIN_PX
+    }
+}
+
+fn right_panel_max_px(viewport_w: f64) -> f64 {
+    let min_width = right_panel_min_px(viewport_w);
+    let max_by_ratio = viewport_w * 0.58;
+    let max_by_space = viewport_w - WORKSPACE_MIN_PX;
+    max_by_ratio.max(min_width).min(max_by_space.max(min_width))
+}
 
 #[component]
 fn MemoryTabDock() -> impl IntoView {
@@ -57,12 +80,10 @@ pub fn RightPanel() -> impl IntoView {
                 Err(_) => return,
             };
             let dx = f64::from(me.client_x()) - ax.get_untracked();
-            let viewport_w = web_sys::window()
-                .and_then(|w| w.inner_width().ok())
-                .and_then(|v| v.as_f64())
-                .unwrap_or(aw.get_untracked() + WORKSPACE_MIN_PX);
-            let max_width = (viewport_w - WORKSPACE_MIN_PX).max(RIGHT_PANEL_MIN_PX);
-            let next = (aw.get_untracked() - dx).clamp(RIGHT_PANEL_MIN_PX, max_width);
+            let viewport_w = viewport_width_px();
+            let min_width = right_panel_min_px(viewport_w);
+            let max_width = right_panel_max_px(viewport_w);
+            let next = (aw.get_untracked() - dx).clamp(min_width, max_width);
             width_sig.set(next);
         });
 
@@ -76,7 +97,14 @@ pub fn RightPanel() -> impl IntoView {
         });
     });
 
-    let width_style = Memo::new(move |_| format!("{:.0}px", wb.right_width_px().get()));
+    let width_style = Memo::new(move |_| {
+        let viewport_w = viewport_width_px();
+        let width = wb.right_width_px().get().clamp(
+            right_panel_min_px(viewport_w),
+            right_panel_max_px(viewport_w),
+        );
+        format!("{width:.0}px")
+    });
     let active_tab = Memo::new(move |_| wb.right_active_tab().get());
 
     view! {
