@@ -16,6 +16,29 @@ use wasm_bindgen::JsCast;
 use crate::workbench::{BrowserEmbedSurface, RightPanelTab, WorkbenchService};
 
 pub const EMBEDDED_BROWSER_HOST_ID: &str = "blx-embedded-browser-host";
+
+/// Dispatched from `terminal_bootstrap.mjs` when the user activates a terminal web link.
+pub const BLXCODE_OPEN_HTTP_EVENT: &str = "blxcode-open-http";
+
+/// Opens a new embedded-browser tab and refreshes native webview / iframe bounds (same path as toolbar shortlinks).
+pub fn open_http_in_embedded_browser(wb: WorkbenchService, surface: BrowserEmbedSurface, href: &str) {
+    if wb.open_http_in_new_embedded_tab(href) {
+        spawn_refresh_embedded_browser_nav(wb, surface);
+    }
+}
+
+fn spawn_refresh_embedded_browser_nav(wb: WorkbenchService, surface: BrowserEmbedSurface) {
+    spawn_local(async move {
+        if embed_is_native(surface) {
+            let aid = wb.embedded_browser_active_id().get_untracked();
+            let u = active_tab_url(wb);
+            if !u.trim().is_empty() {
+                let _ = browser_navigate(aid, u.trim()).await;
+            }
+        }
+        sync_embedded_browser_layer(wb, surface).await;
+    });
+}
 const RIGHT_PANEL_BODY_ID: &str = "blx-right-panel-body";
 
 fn iframe_id_for(tab_id: u64) -> String {

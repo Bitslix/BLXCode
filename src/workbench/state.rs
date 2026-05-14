@@ -920,6 +920,35 @@ impl WorkbenchService {
         nid
     }
 
+    /// Opens `http`/`https` in a **new** embedded-browser tab and focuses the browser panel.
+    ///
+    /// Host-only input (no `://`) is normalized with [`normalize_browser_url`]. Other schemes
+    /// (`mailto:`, `ftp:`, …) are rejected. Returns `false` if nothing was opened.
+    pub fn open_http_in_new_embedded_tab(&self, href: &str) -> bool {
+        let t = href.trim();
+        if t.is_empty() {
+            return false;
+        }
+        let normalized = if t.starts_with("http://") || t.starts_with("https://") {
+            t.to_string()
+        } else if t.contains("://") {
+            return false;
+        } else {
+            normalize_browser_url(t)
+        };
+        let n = normalized.trim();
+        if !(n.starts_with("http://") || n.starts_with("https://")) {
+            return false;
+        }
+        self.add_embedded_browser_tab();
+        self.persist_browser_url_from_input(n.to_string());
+        self.set_right_tab(RightPanelTab::Browser);
+        if self.right_collapsed.get_untracked() {
+            self.toggle_right_panel();
+        }
+        true
+    }
+
     pub fn close_embedded_browser_tab(&self, tab_id: u64) {
         let mut tabs = self.embedded_browser_tabs.get_untracked();
         if tabs.len() <= 1 {

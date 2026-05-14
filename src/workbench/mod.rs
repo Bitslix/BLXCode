@@ -22,16 +22,21 @@ pub use state::{
 };
 pub use workspace_panel::WorkspacePanel;
 
+use crate::open_http::dom_click_http_url_from_mouse_event;
 use crate::tauri_bridge::{
     browser_embedding_kind, harness_ensure_default_sandbox, is_tauri_shell, workbench_load_state,
     workbench_save_state,
 };
 use gloo_timers::future::TimeoutFuture;
 use harness_ui::HarnessHost;
+use js_sys;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use send_wrapper::SendWrapper;
+use wasm_bindgen::closure::Closure;
+use wasm_bindgen::JsCast;
 
 /// Debounce window before a dirty workbench gets flushed to disk. Short
 /// enough to feel "live", long enough to coalesce a burst of mutations
@@ -142,6 +147,83 @@ pub fn WorkbenchShell() -> impl IntoView {
                 .await
                 .unwrap_or_else(|_| "iframe_embed".into());
             embed_surface.0.set(Some(k));
+        });
+    });
+
+    // HTTP(S) links from Markdown / DOM: capture clicks; PTY uses `blxcode-open-http` from terminal_bootstrap.mjs.
+    Effect::new(move |_| {
+        let Some(win) = web_sys::window() else {
+            return;
+        };
+        let Some(doc) = win.document() else {
+            return;
+        };
+
+        let doc_click = Closure::wrap(Box::new({
+            let wb = wb;
+            let surface = embed_surface;
+            move |ev: web_sys::Event| {
+                let Some(mouse) = ev.dyn_ref::<web_sys::MouseEvent>() else {
+                    return;
+                };
+                let Some(url) = dom_click_http_url_from_mouse_event(mouse) else {
+                    return;
+                };
+                ev.prevent_default();
+                ev.stop_propagation();
+                browser_tab::open_http_in_embedded_browser(wb, surface, &url);
+            }
+        }) as Box<dyn FnMut(_)>);
+
+        let _ = doc.add_event_listener_with_callback_and_bool(
+            "click",
+            doc_click.as_ref().unchecked_ref(),
+            true,
+        );
+
+        let win_http = Closure::wrap(Box::new({
+            let wb = wb;
+            let surface = embed_surface;
+            move |ev: web_sys::Event| {
+                let Some(ce) = ev.dyn_ref::<web_sys::CustomEvent>() else {
+                    return;
+                };
+                let detail = ce.detail();
+                let url = js_sys::Reflect::get(&detail, &wasm_bindgen::JsValue::from_str("url"))
+                    .ok()
+                    .and_then(|v| v.as_string());
+                let Some(url) = url else {
+                    return;
+                };
+                let url = url.trim();
+                if !(url.starts_with("http://") || url.starts_with("https://")) {
+                    return;
+                }
+                browser_tab::open_http_in_embedded_browser(wb, surface, url);
+            }
+        }) as Box<dyn FnMut(_)>);
+
+        let _ = win.add_event_listener_with_callback(
+            browser_tab::BLXCODE_OPEN_HTTP_EVENT,
+            win_http.as_ref().unchecked_ref(),
+        );
+
+        let doc_click = SendWrapper::new(doc_click);
+        let win_http = SendWrapper::new(win_http);
+        let doc_cleanup = doc.clone();
+        let win_cleanup = win.clone();
+        on_cleanup(move || {
+            let dc = doc_click.take();
+            let _ = doc_cleanup.remove_event_listener_with_callback_and_bool(
+                "click",
+                dc.as_ref().unchecked_ref(),
+                true,
+            );
+            let wh = win_http.take();
+            let _ = win_cleanup.remove_event_listener_with_callback(
+                browser_tab::BLXCODE_OPEN_HTTP_EVENT,
+                wh.as_ref().unchecked_ref(),
+            );
         });
     });
 

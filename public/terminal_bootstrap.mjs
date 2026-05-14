@@ -1,5 +1,6 @@
 import { Terminal } from "https://esm.sh/@xterm/xterm@5.5.0";
 import { FitAddon } from "https://esm.sh/@xterm/addon-fit@0.10.0?deps=@xterm/xterm@5.5.0";
+import { WebLinksAddon } from "https://esm.sh/@xterm/addon-web-links@0.11.0?deps=@xterm/xterm@5.5.0";
 
 const instances = new Map();
 let nextId = 1;
@@ -61,6 +62,17 @@ window.__blxcodeTerminal = {
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
+    const webLinks = new WebLinksAddon((event, uri) => {
+      event.preventDefault();
+      event.stopPropagation();
+      window.dispatchEvent(
+        new CustomEvent("blxcode-open-http", {
+          bubbles: true,
+          detail: { url: uri },
+        }),
+      );
+    });
+    term.loadAddon(webLinks);
     term.open(container);
     const rec = {
       term,

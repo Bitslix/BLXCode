@@ -1,12 +1,16 @@
-use crate::auth::{fetch_auth_session, sign_out, AuthEnv, AuthGateState, LoginModal};
+use crate::auth::{fetch_auth_session, open_in_new_tab, sign_out, AuthEnv, AuthGateState, LoginModal};
 use crate::config::{AUTH_DEVICE_BEARER_KEY, EULA_STORAGE_KEY};
 use crate::i18n::{localized_eula_html, I18nKey};
+use crate::open_http::dom_click_http_url_from_mouse_event;
 use crate::quit::request_app_quit;
 use crate::service::{ApiService, I18nService};
 use crate::workbench::WorkbenchShell;
 use leptos::callback::UnsyncCallback;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use send_wrapper::SendWrapper;
+use wasm_bindgen::closure::Closure;
+use wasm_bindgen::JsCast;
 
 #[component]
 pub fn App() -> impl IntoView {
@@ -101,6 +105,44 @@ pub fn App() -> impl IntoView {
                 }
             });
         }
+    });
+
+    Effect::new(move |_| {
+        if !ui_ready.get() {
+            return;
+        }
+        if eula_ok.get() {
+            return;
+        }
+        let Some(doc) = web_sys::window().and_then(|w| w.document()) else {
+            return;
+        };
+        let doc_click = Closure::wrap(Box::new(move |ev: web_sys::Event| {
+            let Some(mouse) = ev.dyn_ref::<web_sys::MouseEvent>() else {
+                return;
+            };
+            let Some(url) = dom_click_http_url_from_mouse_event(mouse) else {
+                return;
+            };
+            ev.prevent_default();
+            ev.stop_propagation();
+            open_in_new_tab(&url);
+        }) as Box<dyn FnMut(_)>);
+        let _ = doc.add_event_listener_with_callback_and_bool(
+            "click",
+            doc_click.as_ref().unchecked_ref(),
+            true,
+        );
+        let doc_click = SendWrapper::new(doc_click);
+        let doc_cleanup = doc.clone();
+        on_cleanup(move || {
+            let c = doc_click.take();
+            let _ = doc_cleanup.remove_event_listener_with_callback_and_bool(
+                "click",
+                c.as_ref().unchecked_ref(),
+                true,
+            );
+        });
     });
 
     let accept = move |_| {
