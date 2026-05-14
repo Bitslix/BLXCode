@@ -1,9 +1,10 @@
 mod agent_wire;
 mod app;
 mod auth;
-mod open_http;
 mod config;
 mod i18n;
+mod memory_paths;
+mod open_http;
 mod quit;
 mod service;
 mod tauri_bridge;

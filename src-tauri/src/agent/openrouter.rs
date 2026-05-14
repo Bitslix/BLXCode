@@ -173,6 +173,11 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
            retry with corrected arguments or ask the user.\n\
          - Tools execute sequentially within a turn (no parallel calls). \
            There is a hard cap of 12 tool rounds per user turn.\n\
+         - Fenced Markdown code blocks render **collapsed** by default in the \
+           BLXCode chat UI. Put `blx-open` as the first token in the fence info \
+           line (optionally followed by a language id, e.g. `blx-open rust`) \
+           when that snippet should appear expanded immediately; omit \
+           `blx-open` when collapsed-by-default is acceptable.\n\
          - Keep replies tight; this is a developer-tool chat panel, not a \
            tutoring session.\n"
     )

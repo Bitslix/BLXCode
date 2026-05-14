@@ -434,6 +434,8 @@ pub struct WorkbenchService {
     /// agent can address terminals by slot via the harness tools without
     /// reaching into per-cell local state.
     pty_sessions: RwSignal<HashMap<String, u64>>,
+    /// When set, [`MemoryPanel`] opens this note (path relative to `.blxcode/memory/`).
+    pending_memory_note: RwSignal<Option<String>>,
 }
 
 impl WorkbenchService {
@@ -469,6 +471,7 @@ impl WorkbenchService {
             workspace_drafts: RwSignal::new(HashMap::new()),
             workspace_config_steps: RwSignal::new(HashMap::new()),
             pty_sessions: RwSignal::new(HashMap::new()),
+            pending_memory_note: RwSignal::new(None),
         }
     }
 
@@ -856,6 +859,28 @@ impl WorkbenchService {
 
     pub fn set_right_tab(&self, tab: RightPanelTab) {
         self.right_tab.set(tab);
+    }
+
+    #[must_use]
+    pub fn pending_memory_note(&self) -> RwSignal<Option<String>> {
+        self.pending_memory_note
+    }
+
+    /// Focuses the memory panel and opens `path` (relative to `.blxcode/memory/`, after sanitise).
+    pub fn request_open_memory_note(&self, path: String) {
+        let t = path.trim().replace('\\', "/");
+        let rel = crate::memory_paths::sanitize_memory_relative_path(&t).or_else(|| {
+            let slug = crate::memory_paths::slug_to_filename(&t);
+            crate::memory_paths::sanitize_memory_relative_path(&slug)
+        });
+        let Some(rel) = rel else {
+            return;
+        };
+        self.pending_memory_note.set(Some(rel));
+        self.set_right_tab(RightPanelTab::Memory);
+        if self.right_collapsed.get_untracked() {
+            self.toggle_right_panel();
+        }
     }
 
     #[must_use]

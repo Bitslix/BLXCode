@@ -1,9 +1,9 @@
 use crate::agent_wire::{AgentEvent, TaskSnapshot};
 use crate::i18n::{lookup, I18nKey, Locale};
 use crate::service::I18nService;
+use crate::workbench::chat_markdown::render_markdown_to_html;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
-use pulldown_cmark::{html, Options, Parser};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -210,18 +210,6 @@ fn synthesize_completion_message(rows: &[TimelineItem]) -> Option<String> {
     Some(message)
 }
 
-fn render_markdown(src: &str) -> String {
-    let mut opts = Options::empty();
-    opts.insert(Options::ENABLE_TABLES);
-    opts.insert(Options::ENABLE_STRIKETHROUGH);
-    opts.insert(Options::ENABLE_TASKLISTS);
-    opts.insert(Options::ENABLE_FOOTNOTES);
-    let parser = Parser::new_ext(src, opts);
-    let mut html_out = String::with_capacity(src.len() * 2);
-    html::push_html(&mut html_out, parser);
-    html_out
-}
-
 pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
     let mut out = Vec::new();
     let mut pending_tools = Vec::new();
@@ -357,7 +345,7 @@ pub fn TimelineRow(
                 <span class="agent-chat-index">{line_no.clone()}</span>
                 <div class="agent-chat-body">
                     <strong>{move || i18n.tr(I18nKey::AgAssistant)()}</strong>
-                    <div class="workbench-agent-markdown" inner_html=render_markdown(&text)></div>
+                    <div class="workbench-agent-markdown" inner_html=render_markdown_to_html(&text)></div>
                 </div>
             </li>
         }

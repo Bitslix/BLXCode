@@ -1,10 +1,17 @@
-//! Helpers for resolving HTTP(S) targets from raw DOM events (e.g. Markdown rendered via `inner_html`).
+//! Helpers for resolving navigation targets from raw DOM events (e.g. Markdown `inner_html`).
 
+use crate::memory_paths::{sanitize_memory_relative_path, slug_to_filename};
 use wasm_bindgen::JsCast;
 
-/// Left-click on an `<a href="http(s):…">` only; ignores relative, `mailto:`, `javascript:`, `blob:`, and `#fragment` links.
+#[derive(Debug)]
+pub enum DomNavHref {
+    Http(String),
+    Memory(String),
+}
+
+/// Left-click on `<a href>`: `http(s):`, `blxmemory:`, or `mailto`/`javascript`/`blob` ignored.
 #[must_use]
-pub fn dom_click_http_url_from_mouse_event(ev: &web_sys::MouseEvent) -> Option<String> {
+pub fn dom_click_nav_href(ev: &web_sys::MouseEvent) -> Option<DomNavHref> {
     if ev.button() != 0 {
         return None;
     }
@@ -22,8 +29,25 @@ pub fn dom_click_http_url_from_mouse_event(ev: &web_sys::MouseEvent) -> Option<S
     {
         return None;
     }
+    if let Some(rest) = href.strip_prefix("blxmemory:") {
+        let raw = rest.trim();
+        let rel = sanitize_memory_relative_path(raw).or_else(|| {
+            let slug = slug_to_filename(raw);
+            sanitize_memory_relative_path(&slug)
+        })?;
+        return Some(DomNavHref::Memory(rel));
+    }
     if href.starts_with("http://") || href.starts_with("https://") {
-        return Some(href.to_string());
+        return Some(DomNavHref::Http(href.to_string()));
     }
     None
+}
+
+/// EULA / HTTP-only: same as [`dom_click_nav_href`] but returns only `http(s)`.
+#[must_use]
+pub fn dom_click_http_url_from_mouse_event(ev: &web_sys::MouseEvent) -> Option<String> {
+    match dom_click_nav_href(ev)? {
+        DomNavHref::Http(s) => Some(s),
+        DomNavHref::Memory(_) => None,
+    }
 }

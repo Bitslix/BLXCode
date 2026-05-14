@@ -3,13 +3,14 @@
 //! design discussed for blxcode's Obsidian-style memory feature.
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
+use crate::memory_paths::slug_to_filename;
 use crate::tauri_bridge::{self, GraphData, NoteContent, NoteMeta, SearchHit};
+use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
-use pulldown_cmark::{html, Options, Parser};
 use std::collections::HashMap;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlInputElement;
@@ -68,57 +69,6 @@ fn current_workspace_cwd(wb: WorkbenchService) -> Option<String> {
             .map(|w| w.cwd.clone())
             .filter(|cwd| !cwd.trim().is_empty())
     })
-}
-
-fn slug_to_filename(input: &str) -> String {
-    let trimmed = input.trim();
-    if trimmed.is_empty() {
-        return "untitled.md".into();
-    }
-    let lower = trimmed.contains('/') || trimmed.contains('\\');
-    let base = if lower {
-        trimmed.replace('\\', "/")
-    } else {
-        trimmed.to_owned()
-    };
-    if base.to_ascii_lowercase().ends_with(".md") {
-        base
-    } else {
-        format!("{base}.md")
-    }
-}
-
-fn render_markdown(src: &str) -> String {
-    let mut opts = Options::empty();
-    opts.insert(Options::ENABLE_TABLES);
-    opts.insert(Options::ENABLE_STRIKETHROUGH);
-    opts.insert(Options::ENABLE_TASKLISTS);
-    opts.insert(Options::ENABLE_FOOTNOTES);
-    // Expand `[[wikilinks]]` to plain emphasised text before passing
-    // to pulldown so users see them clearly in preview.
-    let mut prepped = String::with_capacity(src.len());
-    let mut i = 0;
-    let b = src.as_bytes();
-    while i < b.len() {
-        if i + 1 < b.len() && b[i] == b'[' && b[i + 1] == b'[' {
-            if let Some(end) = src[i + 2..].find("]]") {
-                let inner = &src[i + 2..i + 2 + end];
-                let label = inner.split('|').next().unwrap_or(inner).trim();
-                prepped.push_str("[[");
-                prepped.push_str(label);
-                prepped.push_str("]]");
-                i += 2 + end + 2;
-                continue;
-            }
-        }
-        let ch = src[i..].chars().next().unwrap();
-        prepped.push(ch);
-        i += ch.len_utf8();
-    }
-    let parser = Parser::new_ext(&prepped, opts);
-    let mut html_out = String::with_capacity(prepped.len() * 2);
-    html::push_html(&mut html_out, parser);
-    html_out
 }
 
 fn load_notes(state: MemoryState, ws: String) {
@@ -217,6 +167,24 @@ pub fn MemoryPanel() -> impl IntoView {
             if let Some(ws) = cwd {
                 load_notes(eff_state.clone(), ws);
             }
+        }
+    });
+
+    Effect::new({
+        let wb = wb;
+        let st = state.clone();
+        move |_| {
+            let pending = wb.pending_memory_note().get();
+            let cwd = st.workspace_cwd.get();
+            let Some(rel) = pending else {
+                return;
+            };
+            let Some(ws) = cwd else {
+                return;
+            };
+            wb.pending_memory_note().set(None);
+            st.view.set(MemoryView::Files);
+            load_note(st.clone(), ws, rel);
         }
     });
 
@@ -510,7 +478,7 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                             let s = state.clone();
                             move || view! {
                                 <div class="workbench-memory-editor__preview"
-                                    inner_html=move || render_markdown(&s.editor_content.get())
+                                    inner_html=move || render_markdown_to_html(&s.editor_content.get())
                                 />
                             }
                         }

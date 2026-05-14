@@ -1,6 +1,7 @@
 //! Three-pane editor shell: collapsible sidebar, workspace, resizable right column.
 mod agent_panel;
 mod browser_tab;
+mod chat_markdown;
 mod create_workspace_wizard;
 mod harness_ui;
 mod memory_panel;
@@ -22,7 +23,7 @@ pub use state::{
 };
 pub use workspace_panel::WorkspacePanel;
 
-use crate::open_http::dom_click_http_url_from_mouse_event;
+use crate::open_http::{dom_click_nav_href, DomNavHref};
 use crate::tauri_bridge::{
     browser_embedding_kind, harness_ensure_default_sandbox, is_tauri_shell, workbench_load_state,
     workbench_save_state,
@@ -166,12 +167,19 @@ pub fn WorkbenchShell() -> impl IntoView {
                 let Some(mouse) = ev.dyn_ref::<web_sys::MouseEvent>() else {
                     return;
                 };
-                let Some(url) = dom_click_http_url_from_mouse_event(mouse) else {
-                    return;
-                };
-                ev.prevent_default();
-                ev.stop_propagation();
-                browser_tab::open_http_in_embedded_browser(wb, surface, &url);
+                match dom_click_nav_href(mouse) {
+                    Some(DomNavHref::Http(url)) => {
+                        ev.prevent_default();
+                        ev.stop_propagation();
+                        browser_tab::open_http_in_embedded_browser(wb, surface, &url);
+                    }
+                    Some(DomNavHref::Memory(path)) => {
+                        ev.prevent_default();
+                        ev.stop_propagation();
+                        wb.request_open_memory_note(path);
+                    }
+                    None => {}
+                }
             }
         }) as Box<dyn FnMut(_)>);
 
