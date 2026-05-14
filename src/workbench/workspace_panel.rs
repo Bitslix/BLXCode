@@ -371,10 +371,30 @@ fn TerminalSlotSurface(
                             .iter()
                             .position(|id| *id == pane_id)
                             .unwrap_or_default();
+                        // Initial title shown until the agent's title hook
+                        // (UserPromptSubmit / BeforeAgent / beforeSubmitPrompt
+                        // / chat.message — depending on the agent) emits an
+                        // OSC-2 sequence that overrides it. We label by the
+                        // selected agent slug so the slot is identifiable
+                        // *before* hooks fire (or when hooks aren't installed
+                        // yet for that agent).
+                        let agent_label = match agent_slug.trim() {
+                            "" => "Terminal",
+                            "claude" => "Claude",
+                            "codex" => "Codex",
+                            "gemini" => "Gemini",
+                            "opencode" => "OpenCode",
+                            "cursor" => "Cursor",
+                            other => other,
+                        };
                         let title = if pane_ids.get_untracked().len() <= 1 {
-                            format!("Mock Terminal {}", index + 1)
+                            format!("{agent_label} · Terminal {}", index + 1)
                         } else {
-                            format!("Mock Terminal {}.{}", index + 1, pane_index + 1)
+                            format!(
+                                "{agent_label} · Terminal {}.{}",
+                                index + 1,
+                                pane_index + 1
+                            )
                         };
 
                         let on_split_vertical = Callback::new(move |()| {

@@ -125,6 +125,12 @@ pub fn agent_session_exists(app: AppHandle, probe: AgentSessionProbe) -> bool {
     match probe.agent.as_str() {
         "claude" => claude_session_path(&home, &probe.cwd, id).is_file(),
         "codex" => codex_session_present(&home, id),
+        "gemini" => gemini_session_present(&home, id),
+        // OpenCode and Cursor don't expose a stable, documented
+        // transcript layout we can probe from the outside. Be permissive:
+        // let the CLI tell the user if the id is gone, rather than
+        // silently dropping every resume.
+        "opencode" | "cursor" => true,
         _ => false,
     }
 }
@@ -138,6 +144,17 @@ fn claude_session_path(home: &Path, cwd: &str, session_id: &str) -> PathBuf {
         .join("projects")
         .join(encoded)
         .join(format!("{session_id}.jsonl"))
+}
+
+/// Gemini's per-session transcript lives at
+/// `~/.gemini/sessions/<session_id>/transcript.json` (matches the path
+/// the SessionStart hook payload reports).
+fn gemini_session_present(home: &Path, session_id: &str) -> bool {
+    home.join(".gemini")
+        .join("sessions")
+        .join(session_id)
+        .join("transcript.json")
+        .is_file()
 }
 
 /// Codex stores transcripts under

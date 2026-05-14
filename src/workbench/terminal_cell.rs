@@ -594,6 +594,12 @@ fn build_launch_command(slug: &str, resume_id: Option<&str>) -> String {
     match (slug, resume_id) {
         ("claude", Some(id)) => format!("claude --resume {id}\r"),
         ("codex", Some(id)) => format!("codex resume {id}\r"),
+        ("gemini", Some(id)) => format!("gemini --resume {id}\r"),
+        ("opencode", Some(id)) => format!("opencode --session {id}\r"),
+        // Cursor ships as the `cursor-agent` binary; `--resume <chatId>`
+        // re-attaches the prior conversation.
+        ("cursor", Some(id)) => format!("cursor-agent --resume {id}\r"),
+        ("cursor", None) => "cursor-agent\r".to_string(),
         (other, _) => format!("{other}\r"),
     }
 }

@@ -882,9 +882,10 @@ impl WorkbenchService {
             right_collapsed: self.right_collapsed.get_untracked(),
             right_width_px: self.right_width_px.get_untracked(),
             right_tab: self.right_tab.get_untracked(),
-            embedded_browser_tabs: self.embedded_browser_tabs.get_untracked(),
-            embedded_browser_active_id: self.embedded_browser_active_id.get_untracked(),
-            embedded_browser_next_id: self.embedded_browser_next_id.get_untracked(),
+            // Browser tabs are session-scoped — never persisted.
+            embedded_browser_tabs: Vec::new(),
+            embedded_browser_active_id: 0,
+            embedded_browser_next_id: 1,
         }
     }
 
@@ -911,10 +912,17 @@ impl WorkbenchService {
                 }
             }
         });
+        // If the persisted state has no workspaces left, restart numbering
+        // from 1 — otherwise the next "+" would say "Workspace 7" after a
+        // clean app with nothing in it.
+        let next_id = if snap.workspaces.is_empty() {
+            1
+        } else {
+            snap.workspace_next_id.max(1)
+        };
         self.workspaces.set(snap.workspaces);
         self.active_id.set(snap.active_id);
-        self.workspace_next_id
-            .set(snap.workspace_next_id.max(1));
+        self.workspace_next_id.set(next_id);
 
         // Panel chrome
         self.sidebar_collapsed.set(snap.sidebar_collapsed);
@@ -924,29 +932,11 @@ impl WorkbenchService {
         }
         self.right_tab.set(snap.right_tab);
 
-        // Embedded browser — keep at least one tab to match `new()` invariant.
-        if !snap.embedded_browser_tabs.is_empty() {
-            let tabs = snap.embedded_browser_tabs;
-            let aid = if tabs.iter().any(|t| t.id == snap.embedded_browser_active_id) {
-                snap.embedded_browser_active_id
-            } else {
-                tabs[0].id
-            };
-            let next = snap
-                .embedded_browser_next_id
-                .max(tabs.iter().map(|t| t.id).max().unwrap_or(0) + 1);
-            let active_url = tabs
-                .iter()
-                .find(|t| t.id == aid)
-                .map(|t| t.url.clone())
-                .unwrap_or_default();
-            self.embedded_browser_tabs.set(tabs);
-            self.embedded_browser_active_id.set(aid);
-            self.embedded_browser_next_id.set(next);
-            if !active_url.is_empty() {
-                self.browser_url.set(active_url);
-            }
-        }
+        // Embedded browser tabs are intentionally NOT restored across
+        // restarts — each launch starts with a single default tab.
+        let _ = snap.embedded_browser_tabs;
+        let _ = snap.embedded_browser_active_id;
+        let _ = snap.embedded_browser_next_id;
     }
 }
 

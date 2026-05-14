@@ -38,7 +38,11 @@
       "../content/hooks/claude_title.py",
       "../content/hooks/codex_title.py",
       "../content/hooks/claude_session_capture.py",
-      "../content/hooks/codex_session_capture.py"
+      "../content/hooks/codex_session_capture.py",
+      "../content/hooks/gemini_title.py",
+      "../content/hooks/gemini_session_capture.py",
+      "../content/hooks/cursor_title.py",
+      "../content/hooks/cursor_session_capture.py"
     ]
   }
 }

@@ -149,6 +149,7 @@ pub fn Sidebar() -> impl IntoView {
                             let id = entry.id;
                             let title = entry.title;
                             let icon_label = workspace_icon_label(&title, id);
+                            let title_ctx = title.clone();
                             view! {
                                 <li class="workbench-sidebar__item">
                                     <button
@@ -167,7 +168,7 @@ pub fn Sidebar() -> impl IntoView {
                                             ev.prevent_default();
                                             context_menu.set(Some(WorkspaceContextMenu {
                                                 workspace_id: id,
-                                                title: title.clone(),
+                                                title: title_ctx.clone(),
                                                 x: ev.client_x(),
                                                 y: ev.client_y(),
                                             }));
@@ -181,6 +182,16 @@ pub fn Sidebar() -> impl IntoView {
                                             {title.clone()}
                                         </span>
                                     </button>
+                                    <button
+                                        type="button"
+                                        class="workbench-sidebar__close"
+                                        title=format!("Close {title}")
+                                        aria-label=format!("Close {title}")
+                                        on:click=move |ev| {
+                                            ev.stop_propagation();
+                                            wb.close_workspace(id);
+                                        }
+                                    >"×"</button>
                                 </li>
                             }
                             .into_any()
