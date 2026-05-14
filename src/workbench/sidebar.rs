@@ -375,7 +375,7 @@ pub fn Sidebar() -> impl IntoView {
                                     }));
                                 }
                             >
-                                "Rename Workspace"
+                                {move || i18n.tr(I18nKey::SbRenameMenu)()}
                             </button>
                             <button
                                 type="button"
@@ -386,7 +386,7 @@ pub fn Sidebar() -> impl IntoView {
                                     wb.close_workspace(menu.workspace_id);
                                 }
                             >
-                                "Close Workspace"
+                                {move || i18n.tr(I18nKey::SbCloseWorkspaceMenu)()}
                             </button>
                         </div>
                     }
@@ -414,11 +414,11 @@ pub fn Sidebar() -> impl IntoView {
                                 aria-labelledby="workspace-rename-title"
                             >
                                 <header class="workspace-rename-dialog__head">
-                                    <h2 id="workspace-rename-title">"Rename Workspace"</h2>
+                                    <h2 id="workspace-rename-title">{move || i18n.tr(I18nKey::SbRenameTitle)()}</h2>
                                     <button
                                         type="button"
                                         class="workspace-rename-dialog__close"
-                                        aria-label="Close rename dialog"
+                                        aria-label=move || i18n.tr(I18nKey::SbRenameCloseAria)()
                                         on:click=move |_| rename_dialog.set(None)
                                     >
                                         "×"
@@ -426,7 +426,7 @@ pub fn Sidebar() -> impl IntoView {
                                 </header>
                                 <div class="workspace-rename-dialog__body">
                                     <label class="workspace-rename-dialog__label" for="workspace-rename-input">
-                                        "Workspace name"
+                                        {move || i18n.tr(I18nKey::SbRenameNameLabel)()}
                                     </label>
                                     <input
                                         id="workspace-rename-input"
@@ -456,7 +456,7 @@ pub fn Sidebar() -> impl IntoView {
                                         class="workspace-rename-dialog__btn workspace-rename-dialog__btn--ghost"
                                         on:click=move |_| rename_dialog.set(None)
                                     >
-                                        "Cancel"
+                                        {move || i18n.tr(I18nKey::MemCancel)()}
                                     </button>
                                     <button
                                         type="button"
@@ -464,7 +464,7 @@ pub fn Sidebar() -> impl IntoView {
                                         on:click=move |_| save()
                                         disabled=move || rename_input.get().trim().is_empty()
                                     >
-                                        "Rename"
+                                        {move || i18n.tr(I18nKey::SbRenameSubmit)()}
                                     </button>
                                 </footer>
                             </section>

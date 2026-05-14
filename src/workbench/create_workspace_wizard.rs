@@ -226,9 +226,9 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
     let name_val = move || draft_memo.get().name_input.clone();
 
     view! {
-        <section class="ws-config" aria-label="Workspace setup">
+        <section class="ws-config" aria-label=move || i18n.tr(I18nKey::WzWizardAria)()>
             <div class="ws-config__shell">
-                <ol class="ws-config__steps" aria-label="Steps">
+                <ol class="ws-config__steps" aria-label=move || i18n.tr(I18nKey::WzWizardStepsAria)()>
                     <StepChip idx=0 label=I18nKey::WzSubLayout step=step_memo />
                     <li class="ws-config__step-sep" aria-hidden="true"></li>
                     <StepChip idx=1 label=I18nKey::WzFleetTitle step=step_memo />
@@ -269,7 +269,7 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                                 class="ws-config__field ws-config__field--cwd"
                                 type="text"
                                 prop:value=cwd_val
-                                placeholder="/Users/you/projects"
+                                placeholder=move || i18n.tr(I18nKey::WzCwdExamplePh)()
                                 on:focus=move |_| browser_open.set(true)
                                 on:input=move |ev| {
                                     cwd_err.set(false);
@@ -305,8 +305,8 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                                                     wb.set_workspace_cwd(workspace_id, parent);
                                                 }
                                             }
-                                            aria-label="parent"
-                                            title="Eine Ebene hoch"
+                                            aria-label=move || i18n.tr(I18nKey::WzNavParentAria)()
+                                            title=move || i18n.tr(I18nKey::WzNavParentTitle)()
                                         >
                                             <LxIcon icon=icondata::LuArrowUp width="0.85rem" height="0.85rem" />
                                         </button>
@@ -321,12 +321,12 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                                                 new_folder_open.update(|v| *v = !*v);
                                                 new_folder_err.set(String::new());
                                             }
-                                            aria-label="Neuer Ordner"
-                                            title="Neuer Ordner"
+                                            aria-label=move || i18n.tr(I18nKey::WzNewFolderAria)()
+                                            title=move || i18n.tr(I18nKey::WzNewFolderTitle)()
                                         >
                                             <LxIcon icon=icondata::LuFolderPlus width="0.85rem" height="0.85rem" />
                                         </button>
-                                        <label class="wz-cwd-browser__hidden" title=".hidden anzeigen">
+                                        <label class="wz-cwd-browser__hidden" title=move || i18n.tr(I18nKey::WzShowHiddenTitle)()>
                                             <input
                                                 type="checkbox"
                                                 prop:checked=move || show_hidden.get()
@@ -336,7 +336,7 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                                                     show_hidden.set(el.map(|e| e.checked()).unwrap_or(false));
                                                 }
                                             />
-                                            <span>".hidden"</span>
+                                            <span>{move || i18n.tr(I18nKey::WzDotHiddenLabel)()}</span>
                                         </label>
                                     </div>
                                     <Show when=move || new_folder_open.get()>
@@ -344,7 +344,7 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                                             <input
                                                 class="wz-cwd-browser__newinput"
                                                 type="text"
-                                                placeholder="Ordnername"
+                                                placeholder=move || i18n.tr(I18nKey::WzFolderNamePh)()
                                                 prop:value=move || new_folder_name.get()
                                                 on:input=move |ev| {
                                                     new_folder_err.set(String::new());
@@ -364,7 +364,7 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                                                 type="button"
                                                 class="wz-cwd-browser__newbtn"
                                                 on:mousedown=move |ev| { ev.prevent_default(); create_folder(); }
-                                            >"Anlegen"</button>
+                                            >{move || i18n.tr(I18nKey::WzFolderCreate)()}</button>
                                             <button
                                                 type="button"
                                                 class="wz-cwd-browser__newbtn wz-cwd-browser__newbtn--ghost"
@@ -385,9 +385,10 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                                                 .collect();
                                             if visible.is_empty() {
                                                 let msg = dir_err.get();
+                                                let empty = i18n.tr(I18nKey::WzCwdListEmpty)().to_string();
                                                 return view! {
                                                     <li class="wz-cwd-browser__empty">
-                                                        {if msg.is_empty() { "— empty —".to_string() } else { msg }}
+                                                        {if msg.is_empty() { empty } else { msg }}
                                                     </li>
                                                 }.into_any();
                                             }

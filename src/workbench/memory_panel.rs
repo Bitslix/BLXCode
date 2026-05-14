@@ -375,8 +375,20 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                     <button
                         type="button"
                         class="workbench-memory-files__collapse-btn"
-                        aria-label=move || if files_collapsed.get() { "Expand file list" } else { "Collapse file list" }
-                        title=move || if files_collapsed.get() { "Expand file list" } else { "Collapse file list" }
+                        aria-label=move || {
+                            if files_collapsed.get() {
+                                i18n.tr(I18nKey::MemFilesExpand)()
+                            } else {
+                                i18n.tr(I18nKey::MemFilesCollapse)()
+                            }
+                        }
+                        title=move || {
+                            if files_collapsed.get() {
+                                i18n.tr(I18nKey::MemFilesExpand)()
+                            } else {
+                                i18n.tr(I18nKey::MemFilesCollapse)()
+                            }
+                        }
                         on:click=move |_| {
                             renaming.set(None);
                             files_collapsed.update(|value| *value = !*value);

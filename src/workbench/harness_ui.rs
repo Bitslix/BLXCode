@@ -3,8 +3,8 @@
 //! Shortcut ist im Haupt-Webview gebunden ([`HarnessHost`]).
 use super::browser_tab::sync_embedded_browser_layer;
 use super::state::{
-    BrowserEmbedSurface, HarnessSettingsCategory, HarnessUiService, RecentWorkspaceItem,
-    RightPanelTab, WorkbenchService,
+    workspace_entry_has_folder, BrowserEmbedSurface, HarnessSettingsCategory, HarnessUiService,
+    RecentWorkspaceItem, RightPanelTab, WorkbenchService,
 };
 use crate::config::{EULA_STORAGE_KEY, HARNESS_BROWSER_DEFAULT_URL};
 use crate::i18n::{lookup, I18nKey, Locale, APP_LOCALES};
@@ -21,6 +21,7 @@ use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
+use web_sys::MouseEvent;
 
 #[derive(Clone, Copy)]
 enum PaletteAction {
@@ -272,9 +273,10 @@ fn QuickOpenChrome(
             list.iter()
                 .enumerate()
                 .filter(|(_, it)| {
-                    q.is_empty()
-                        || it.workspace.title.to_ascii_lowercase().contains(&q)
-                        || it.workspace.cwd.to_ascii_lowercase().contains(&q)
+                    workspace_entry_has_folder(&it.workspace)
+                        && (q.is_empty()
+                            || it.workspace.title.to_ascii_lowercase().contains(&q)
+                            || it.workspace.cwd.to_ascii_lowercase().contains(&q))
                 })
                 .map(|(i, it)| (i, it.clone()))
                 .collect::<Vec<_>>()
@@ -349,7 +351,7 @@ fn QuickOpenChrome(
                                 let cwd = item.workspace.cwd.clone();
                                 let sel = ui.quick_open_selection();
                                 view! {
-                                    <li class="harness-cmd-li">
+                                    <li class="harness-cmd-li workbench-recent-row">
                                         <button
                                             type="button"
                                             class="harness-cmd-btn"
@@ -366,6 +368,23 @@ fn QuickOpenChrome(
                                             <span class="harness-cmd-btn__text">
                                                 <span class="harness-cmd-title">{title}</span>
                                                 <span class="harness-cmd-sub">{cwd}</span>
+                                            </span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="workbench-recent-remove"
+                                            aria-label=move || i18n.tr(I18nKey::QkRecentRemoveAria)()
+                                            on:click=move |ev: MouseEvent| {
+                                                ev.stop_propagation();
+                                                ev.prevent_default();
+                                                wb.remove_recent_workspace(orig_idx);
+                                                clamp_quick_open_selection_after_recent_change(
+                                                    ui, wb,
+                                                );
+                                            }
+                                        >
+                                            <span aria-hidden="true">
+                                                <LxIcon icon=icondata::LuX width="0.85rem" height="0.85rem" />
                                             </span>
                                         </button>
                                     </li>
@@ -445,6 +464,24 @@ fn quick_open_filter_input(ev: web_sys::Event, ui: HarnessUiService) {
         ui.quick_open_query().set(s);
     }
     ui.quick_open_selection().set(0);
+}
+
+fn clamp_quick_open_selection_after_recent_change(
+    ui: HarnessUiService,
+    wb: WorkbenchService,
+) {
+    let n = wb.recent_workspaces().with(|list| {
+        list.iter()
+            .filter(|it| workspace_entry_has_folder(&it.workspace))
+            .count()
+    });
+    ui.quick_open_selection().update(|s| {
+        if n == 0 {
+            *s = 0;
+        } else {
+            *s = (*s).min(n - 1);
+        }
+    });
 }
 
 fn quick_open_key_nav(

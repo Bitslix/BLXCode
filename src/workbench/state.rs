@@ -116,6 +116,18 @@ impl WorkspaceEntry {
     }
 }
 
+#[inline]
+fn normalize_cwd_key(path: &str) -> String {
+    path.trim().trim_end_matches(['/', '\\']).to_string()
+}
+
+/// True when the workspace has a non-empty working-directory path (not
+/// merely a wizard shell before the user picks a folder).
+#[inline]
+pub(crate) fn workspace_entry_has_folder(ws: &WorkspaceEntry) -> bool {
+    !normalize_cwd_key(&ws.cwd).is_empty()
+}
+
 fn normalize_workspace_agent_labels(
     terminal_count: usize,
     agent_slugs: &[String],
@@ -612,13 +624,9 @@ impl WorkbenchService {
         Ok(id)
     }
 
-    fn normalize_cwd_key(path: &str) -> String {
-        path.trim().trim_end_matches(['/', '\\']).to_string()
-    }
-
     /// Opens a workspace from an absolute directory path (Quick Open).
     pub fn open_workspace_from_path_quick(&self, cwd: String) -> Result<u64, String> {
-        let cwd = Self::normalize_cwd_key(&cwd);
+        let cwd = normalize_cwd_key(&cwd);
         if cwd.is_empty() {
             return Err("path empty".into());
         }
@@ -631,9 +639,12 @@ impl WorkbenchService {
         workspace: WorkspaceEntry,
         sessions_terminals_json: String,
     ) {
-        let key = Self::normalize_cwd_key(&workspace.cwd);
+        if !workspace_entry_has_folder(&workspace) {
+            return;
+        }
+        let key = normalize_cwd_key(&workspace.cwd);
         self.recent_workspaces.update(|list| {
-            list.retain(|item| Self::normalize_cwd_key(&item.workspace.cwd) != key);
+            list.retain(|item| normalize_cwd_key(&item.workspace.cwd) != key);
             list.insert(
                 0,
                 RecentWorkspaceItem {
@@ -721,6 +732,15 @@ impl WorkbenchService {
                 workbench_merge_sessions_workspace(old_id, new_id, sessions_json).await
             {
                 leptos::logging::warn!("workbench_merge_sessions_workspace: {e}");
+            }
+        });
+    }
+
+    /// Drops one entry from the recent-workspaces ring buffer by list index.
+    pub fn remove_recent_workspace(&self, index: usize) {
+        self.recent_workspaces.update(|list| {
+            if index < list.len() {
+                list.remove(index);
             }
         });
     }
@@ -1246,16 +1266,33 @@ impl WorkbenchService {
     /// browser surface kind) is intentionally excluded.
     #[must_use]
     pub fn snapshot(&self) -> WorkbenchSnapshot {
+        let workspaces: Vec<WorkspaceEntry> = self
+            .workspaces
+            .get_untracked()
+            .into_iter()
+            .filter(|w| workspace_entry_has_folder(w))
+            .collect();
+        let active_id = self
+            .active_id
+            .get_untracked()
+            .filter(|id| workspaces.iter().any(|w| w.id == *id))
+            .or_else(|| workspaces.first().map(|w| w.id));
+        let recent_workspaces: Vec<RecentWorkspaceItem> = self
+            .recent_workspaces
+            .get_untracked()
+            .into_iter()
+            .filter(|r| workspace_entry_has_folder(&r.workspace))
+            .collect();
         WorkbenchSnapshot {
             version: WORKBENCH_SNAPSHOT_VERSION,
-            workspaces: self.workspaces.get_untracked(),
-            active_id: self.active_id.get_untracked(),
+            workspaces,
+            active_id,
             workspace_next_id: self.workspace_next_id.get_untracked(),
             sidebar_collapsed: self.sidebar_collapsed.get_untracked(),
             right_collapsed: self.right_collapsed.get_untracked(),
             right_width_px: self.right_width_px.get_untracked(),
             right_tab: self.right_tab.get_untracked(),
-            recent_workspaces: self.recent_workspaces.get_untracked(),
+            recent_workspaces,
             // Browser tabs are session-scoped — never persisted.
             embedded_browser_tabs: Vec::new(),
             embedded_browser_active_id: 0,
@@ -1272,6 +1309,22 @@ impl WorkbenchService {
         if snap.version != WORKBENCH_SNAPSHOT_VERSION {
             return false;
         }
+        let max_snap_workspace_id = snap
+            .workspaces
+            .iter()
+            .map(|w| w.id)
+            .max()
+            .unwrap_or(0);
+        let workspaces: Vec<WorkspaceEntry> = snap
+            .workspaces
+            .into_iter()
+            .filter(|w| workspace_entry_has_folder(w))
+            .collect();
+        let recent_workspaces: Vec<RecentWorkspaceItem> = snap
+            .recent_workspaces
+            .into_iter()
+            .filter(|r| workspace_entry_has_folder(&r.workspace))
+            .collect();
         // Workspace list + selection. Re-seed inline drafts for any
         // workspace persisted in configuring state — drafts are transient
         // and not serialised, so without this the configurator would
@@ -1279,7 +1332,7 @@ impl WorkbenchService {
         let root = self.harness_workspace_root.get_untracked();
         self.workspace_drafts.update(|m| {
             m.clear();
-            for ws in &snap.workspaces {
+            for ws in &workspaces {
                 if ws.configuring {
                     let mut d = CreateWorkspaceDraft::default();
                     if !root.is_empty() {
@@ -1289,23 +1342,18 @@ impl WorkbenchService {
                 }
             }
         });
-        let next_id = if snap.workspaces.is_empty() {
-            1
-        } else {
-            let max_id = snap
-                .workspaces
-                .iter()
-                .map(|w| w.id)
-                .max()
-                .unwrap_or(0);
-            snap.workspace_next_id
-                .max(1)
-                .max(max_id.saturating_add(1))
-        };
-        self.workspaces.set(snap.workspaces);
-        self.active_id.set(snap.active_id);
+        let next_id = snap
+            .workspace_next_id
+            .max(1)
+            .max(max_snap_workspace_id.saturating_add(1));
+        let active_id = snap
+            .active_id
+            .filter(|id| workspaces.iter().any(|w| w.id == *id))
+            .or_else(|| workspaces.first().map(|w| w.id));
+        self.workspaces.set(workspaces);
+        self.active_id.set(active_id);
         self.workspace_next_id.set(next_id);
-        self.recent_workspaces.set(snap.recent_workspaces);
+        self.recent_workspaces.set(recent_workspaces);
 
         // Panel chrome
         self.sidebar_collapsed.set(snap.sidebar_collapsed);

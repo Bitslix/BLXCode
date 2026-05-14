@@ -1,9 +1,10 @@
-use crate::i18n::I18nKey;
+use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
 use crate::workbench::browser_tab::sync_embedded_browser_layer;
 use crate::workbench::create_workspace_wizard::WorkspaceConfigurator;
 use crate::workbench::state::{
-    BrowserEmbedSurface, HarnessUiService, RightPanelTab, TerminalSplitAxis, WorkspaceEntry,
+    workspace_entry_has_folder, BrowserEmbedSurface, HarnessUiService, RightPanelTab,
+    TerminalSplitAxis, WorkspaceEntry,
 };
 use crate::workbench::terminal_cell::WorkspaceTerminalCell;
 use crate::workbench::WorkbenchService;
@@ -75,6 +76,7 @@ pub fn WorkspacePanel() -> impl IntoView {
 #[component]
 fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
+    let i18n = expect_context::<I18nService>();
     let workspace = Memo::new(move |_| {
         wb.workspaces()
             .get()
@@ -237,7 +239,7 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                                     type="button"
                                     class="ws-term-grid__resize ws-term-grid__resize--col"
                                     style=move || grid_col_handle_style(i, &col_fr.get())
-                                    aria-label="Resize terminal columns"
+                                    aria-label=move || i18n.tr(I18nKey::WsResizeTermCols)()
                                     on:mousedown=move |ev| {
                                         ev.prevent_default();
                                         let total_px = ev
@@ -270,7 +272,7 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                                     type="button"
                                     class="ws-term-grid__resize ws-term-grid__resize--row"
                                     style=move || grid_row_handle_style(i, &row_fr.get())
-                                    aria-label="Resize terminal rows"
+                                    aria-label=move || i18n.tr(I18nKey::WsResizeTermRows)()
                                     on:mousedown=move |ev| {
                                         ev.prevent_default();
                                         let total_px = ev
@@ -322,6 +324,82 @@ fn WorkspaceEmptyState() -> impl IntoView {
         <div class="workbench-empty-editor">
             <p class="workbench-empty-editor__lead">{move || i18n.tr(I18nKey::WsEmptyLead)()}</p>
             <p class="workbench-empty-editor__note">{move || i18n.tr(I18nKey::WsEmptyNote)()}</p>
+            <p class="harness-quickopen-section workbench-empty-recent-heading">
+                {move || i18n.tr(I18nKey::QkRecentHeading)()}
+            </p>
+            <ul class="harness-cmd-list workbench-empty-recent-list" role="list">
+                <Show
+                    when=move || {
+                        wb.recent_workspaces()
+                            .get()
+                            .iter()
+                            .any(|it| workspace_entry_has_folder(&it.workspace))
+                    }
+                    fallback=move || {
+                        view! {
+                            <li class="workbench-empty-recent-empty" role="status">
+                                {move || i18n.tr(I18nKey::QkEmptyRecent)()}
+                            </li>
+                        }
+                    }
+                >
+                    <For
+                        each=move || {
+                            wb.recent_workspaces()
+                                .get()
+                                .into_iter()
+                                .enumerate()
+                                .filter(|(_, it)| workspace_entry_has_folder(&it.workspace))
+                                .collect::<Vec<_>>()
+                        }
+                        key=|(_, it)| it.workspace.cwd.clone()
+                        children=move |(orig_idx, item)| {
+                            let title = item.workspace.title.clone();
+                            let cwd = item.workspace.cwd.clone();
+                            view! {
+                                <li class="harness-cmd-li workbench-recent-row">
+                                    <button
+                                        type="button"
+                                        class="harness-cmd-btn"
+                                        on:click=move |_| {
+                                            wb.reopen_recent_workspace(orig_idx);
+                                            let wb_c = wb;
+                                            let embed_c = embed;
+                                            leptos::task::spawn_local(async move {
+                                                TimeoutFuture::new(48).await;
+                                                let _ =
+                                                    sync_embedded_browser_layer(wb_c, embed_c).await;
+                                            });
+                                        }
+                                    >
+                                        <span class="harness-cmd-btn__icon" aria-hidden="true">
+                                            <LxIcon icon=icondata::LuFolder width="1rem" height="1rem" />
+                                        </span>
+                                        <span class="harness-cmd-btn__text">
+                                            <span class="harness-cmd-title">{title}</span>
+                                            <span class="harness-cmd-sub">{cwd}</span>
+                                        </span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="workbench-recent-remove"
+                                        aria-label=move || i18n.tr(I18nKey::QkRecentRemoveAria)()
+                                        on:click=move |ev: MouseEvent| {
+                                            ev.stop_propagation();
+                                            ev.prevent_default();
+                                            wb.remove_recent_workspace(orig_idx);
+                                        }
+                                    >
+                                        <span aria-hidden="true">
+                                            <LxIcon icon=icondata::LuX width="0.85rem" height="0.85rem" />
+                                        </span>
+                                    </button>
+                                </li>
+                            }
+                        }
+                    />
+                </Show>
+            </ul>
             <ul class="workbench-shortcut-list">
                 <ShortcutActionRow
                     icon=icondata::LuFolderSearch
@@ -469,6 +547,7 @@ fn TerminalSlotSurface(
     on_full_size: Callback<(), ()>,
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
+    let i18n = expect_context::<I18nService>();
     // Hydrate split layout from persisted workspace state so a restart
     // preserves the user's exact pane grid.
     let persisted = wb.slot_panes(workspace_id, slot_id);
@@ -503,38 +582,44 @@ fn TerminalSlotSurface(
                 style=move || pane_grid_style(split_axis.get(), pane_ids.get().len())
             >
                 <For
-                    each=move || pane_ids.get()
-                    key=|pane_id| *pane_id
-                    children=move |pane_id| {
+                    each=move || {
+                        let loc = i18n.locale().get();
+                        pane_ids
+                            .get()
+                            .into_iter()
+                            .map(move |id| (loc, id))
+                            .collect::<Vec<_>>()
+                    }
+                    key=|(loc, pane_id)| format!("{}-{pane_id}", loc.as_str())
+                    children=move |(loc, pane_id)| {
+                        let slug = agent_slug.clone();
                         let pane_index = pane_ids
                             .get_untracked()
                             .iter()
                             .position(|id| *id == pane_id)
                             .unwrap_or_default();
-                        // Initial title shown until the agent's title hook
-                        // (UserPromptSubmit / BeforeAgent / beforeSubmitPrompt
-                        // / chat.message — depending on the agent) emits an
-                        // OSC-2 sequence that overrides it. We label by the
-                        // selected agent slug so the slot is identifiable
-                        // *before* hooks fire (or when hooks aren't installed
-                        // yet for that agent).
-                        let agent_label = match agent_slug.trim() {
-                            "" => "Terminal",
-                            "claude" => "Claude",
-                            "codex" => "Codex",
-                            "gemini" => "Gemini",
-                            "opencode" => "OpenCode",
-                            "cursor" => "Cursor",
-                            other => other,
+                        let term_word = lookup(loc, I18nKey::WsTermSlot);
+                        let slug_trim = slug.trim();
+                        let role = match slug_trim {
+                            "" => term_word.to_string(),
+                            "claude" => lookup(loc, I18nKey::WzAgentClaude).to_string(),
+                            "codex" => lookup(loc, I18nKey::WzAgentCodex).to_string(),
+                            "gemini" => lookup(loc, I18nKey::WzAgentGemini).to_string(),
+                            "opencode" => lookup(loc, I18nKey::WzAgentOpencode).to_string(),
+                            "cursor" => lookup(loc, I18nKey::WzAgentCursor).to_string(),
+                            other => other.to_string(),
                         };
                         let title = if pane_ids.get_untracked().len() <= 1 {
-                            format!("{agent_label} · Terminal {}", index + 1)
+                            lookup(loc, I18nKey::WsTermPaneTitleSingle)
+                                .replace("{role}", &role)
+                                .replace("{term}", term_word)
+                                .replace("{n}", &(index + 1).to_string())
                         } else {
-                            format!(
-                                "{agent_label} · Terminal {}.{}",
-                                index + 1,
-                                pane_index + 1
-                            )
+                            lookup(loc, I18nKey::WsTermPaneTitleMulti)
+                                .replace("{role}", &role)
+                                .replace("{term}", term_word)
+                                .replace("{slot}", &(index + 1).to_string())
+                                .replace("{pane}", &(pane_index + 1).to_string())
                         };
 
                         let on_split_vertical = Callback::new(move |()| {

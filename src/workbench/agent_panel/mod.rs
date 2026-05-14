@@ -98,7 +98,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                     class="agent-hero__orb"
                     class:agent-hero__orb--active=move || ptt_active.get()
                     aria-pressed=move || ptt_active.get().to_string()
-                    aria-label="Talk to BLXCode Agent"
+                    aria-label=move || i18n.tr(I18nKey::AgOrbAria)()
                     on:mousedown=move |_| ptt_active.set(true)
                     on:mouseup=move |_| ptt_active.set(false)
                     on:mouseleave=move |_| ptt_active.set(false)
@@ -113,9 +113,15 @@ pub fn AgentPanelDock() -> impl IntoView {
                     <span class="agent-hero__logo">"B"</span>
                 </button>
                 <div class="agent-hero__meta">
-                    <p class="agent-hero__eyebrow">"BLXCode Agent"</p>
-                    <h2>{move || if busy.get() { "Running" } else { "Standby" }}</h2>
-                    <p>"Workspace assistant"</p>
+                    <p class="agent-hero__eyebrow">{move || i18n.tr(I18nKey::AgBrandTitle)()}</p>
+                    <h2>{move || {
+                        if busy.get() {
+                            i18n.tr(I18nKey::AgStateRunning)().to_string()
+                        } else {
+                            i18n.tr(I18nKey::AgStateStandby)().to_string()
+                        }
+                    }}</h2>
+                    <p>{move || i18n.tr(I18nKey::AgTagline)()}</p>
                 </div>
             </header>
 
@@ -134,11 +140,17 @@ pub fn AgentPanelDock() -> impl IntoView {
                 node_ref=chat_scroll_ref
                 class="workbench-agent-scroll"
                 aria-live="polite"
-                aria-label="Agent chat log"
+                aria-label=move || i18n.tr(I18nKey::AgChatArticleAria)()
             >
                 <div class="agent-section__head">
-                    <h3>"Chat log"</h3>
-                    <span>{move || if timeline.get().is_empty() { "Ready" } else { "Live" }}</span>
+                    <h3>{move || i18n.tr(I18nKey::AgChatHeading)()}</h3>
+                    <span>{move || {
+                        if timeline.get().is_empty() {
+                            i18n.tr(I18nKey::AgBadgeReady)().to_string()
+                        } else {
+                            i18n.tr(I18nKey::AgBadgeLive)().to_string()
+                        }
+                    }}</span>
                 </div>
                 <Show
                     when=move || !timeline.get().is_empty()
@@ -147,17 +159,12 @@ pub fn AgentPanelDock() -> impl IntoView {
                             <span class="agent-chat-index">"01"</span>
                             <div class="agent-chat-body">
                                 <strong>"BLXCode"</strong>
-                                <p>
-                                    {move || {
-                                        let _ = model_label.get();
-                                        "Hi — I'm the BLXCode agent. I can read files, manage workspace tasks, search workspace memory, and open terminals for you. Send a prompt to get started.".to_string()
-                                    }}
-                                </p>
+                                <p>{move || i18n.tr(I18nKey::AgWelcomeBody)()}</p>
                             </div>
                         </div>
                     }
                 >
-                    <ol class="agent-chat-list" aria-label="Agent activity timeline">
+                    <ol class="agent-chat-list" aria-label=move || i18n.tr(I18nKey::AgTimelineAria)()>
                         {move || {
                             compact_timeline(timeline.get())
                                 .into_iter()

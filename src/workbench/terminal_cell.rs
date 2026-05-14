@@ -444,10 +444,18 @@ pub fn WorkspaceTerminalCell(
                     type="button"
                     class="ws-term-cell__tool"
                     title=move || {
-                        if is_full_size.get() { "Restore size" } else { "Full size" }
+                        if is_full_size.get() {
+                            i18n.tr(I18nKey::WsTermRestoreSize)()
+                        } else {
+                            i18n.tr(I18nKey::WsTermFullSize)()
+                        }
                     }
                     aria-label=move || {
-                        if is_full_size.get() { "Restore terminal size" } else { "Full size terminal" }
+                        if is_full_size.get() {
+                            i18n.tr(I18nKey::WsTermRestoreSize)()
+                        } else {
+                            i18n.tr(I18nKey::WsTermFullSize)()
+                        }
                     }
                     on:click=move |_| on_full_size.run(())
                 >
@@ -462,8 +470,8 @@ pub fn WorkspaceTerminalCell(
                 <button
                     type="button"
                     class="ws-term-cell__tool"
-                    title="Split vertical"
-                    aria-label="Split terminal vertical"
+                    title=move || i18n.tr(I18nKey::WsTermSplitVerticalAria)()
+                    aria-label=move || i18n.tr(I18nKey::WsTermSplitVerticalAria)()
                     on:click=move |_| on_split_vertical.run(())
                 >
                     <LxIcon icon=icondata::LuPanelRight width="0.82rem" height="0.82rem" />
@@ -471,8 +479,8 @@ pub fn WorkspaceTerminalCell(
                 <button
                     type="button"
                     class="ws-term-cell__tool"
-                    title="Split horizontal"
-                    aria-label="Split terminal horizontal"
+                    title=move || i18n.tr(I18nKey::WsTermSplitHorizontalAria)()
+                    aria-label=move || i18n.tr(I18nKey::WsTermSplitHorizontalAria)()
                     on:click=move |_| on_split_horizontal.run(())
                 >
                     <LxIcon icon=icondata::LuPanelBottom width="0.82rem" height="0.82rem" />
@@ -481,8 +489,8 @@ pub fn WorkspaceTerminalCell(
                     <button
                         type="button"
                         class="ws-term-cell__tool ws-term-cell__tool--danger"
-                        title="Close"
-                        aria-label="Close terminal"
+                        title=move || i18n.tr(I18nKey::BtnClose)()
+                        aria-label=move || i18n.tr(I18nKey::WsTermCloseAria)()
                         on:click=move |_| on_close.run(())
                     >
                         <LxIcon icon=icondata::LuX width="0.86rem" height="0.86rem" />
