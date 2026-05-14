@@ -113,6 +113,29 @@ impl WorkspaceEntry {
     }
 }
 
+fn normalize_workspace_agent_labels(
+    terminal_count: usize,
+    agent_slugs: &[String],
+) -> Result<Vec<String>, String> {
+    if agent_slugs.len() > terminal_count {
+        return Err(format!(
+            "too many agent slugs for {terminal_count} terminal(s)"
+        ));
+    }
+    let mut out = Vec::with_capacity(terminal_count);
+    for slug in agent_slugs {
+        let normalized = slug.trim().to_ascii_lowercase();
+        match normalized.as_str() {
+            "" | "claude" | "codex" | "gemini" | "opencode" | "cursor" => out.push(normalized),
+            _ => return Err(format!("unsupported agent slug: {slug}")),
+        }
+    }
+    while out.len() < terminal_count {
+        out.push(String::new());
+    }
+    Ok(out)
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TerminalSplitAxis {
     Vertical,
@@ -420,6 +443,24 @@ impl WorkbenchService {
         self.active_id.set(Some(id));
     }
 
+    #[must_use]
+    pub fn default_workspace_cwd(&self) -> Option<String> {
+        if let Some(active) = self.active_id.get_untracked() {
+            let active_cwd = self.workspaces.with_untracked(|workspaces| {
+                workspaces
+                    .iter()
+                    .find(|workspace| workspace.id == active)
+                    .map(|workspace| workspace.cwd.trim().to_string())
+            });
+            if let Some(cwd) = active_cwd.filter(|cwd| !cwd.is_empty()) {
+                return Some(cwd);
+            }
+        }
+        let root = self.harness_workspace_root.get_untracked();
+        let root = root.trim();
+        (!root.is_empty()).then(|| root.to_string())
+    }
+
     pub fn rename_workspace(&self, id: u64, title: String) {
         let title = title.trim();
         if title.is_empty() {
@@ -430,6 +471,71 @@ impl WorkbenchService {
                 workspace.title = title.to_string();
             }
         });
+    }
+
+    pub fn create_workspace(
+        &self,
+        title: Option<String>,
+        cwd: Option<String>,
+        terminal_count: u8,
+        agent_slugs: Vec<String>,
+    ) -> Result<u64, String> {
+        let cwd = cwd
+            .map(|cwd| cwd.trim().to_string())
+            .filter(|cwd| !cwd.is_empty())
+            .or_else(|| self.default_workspace_cwd())
+            .ok_or_else(|| "no workspace cwd available".to_string())?;
+
+        let terminal_count = terminal_count.clamp(1, 16);
+        let slot_ids: Vec<u64> = (1..=terminal_count as u64).collect();
+        let slot_pane_states: Vec<SlotPaneState> = slot_ids
+            .iter()
+            .copied()
+            .map(SlotPaneState::default_for_slot)
+            .collect();
+        let slot_agent_labels =
+            normalize_workspace_agent_labels(terminal_count as usize, &agent_slugs)?;
+        let (grid_rows, grid_cols) = WorkspaceEntry::grid_dims_for_count(terminal_count);
+
+        let id = self.workspace_next_id.get_untracked();
+        self.workspace_next_id.set(id + 1);
+
+        let title = title
+            .map(|title| title.trim().to_string())
+            .filter(|title| !title.is_empty())
+            .unwrap_or_else(|| format!("Workspace {id}"));
+
+        if is_tauri_shell() {
+            let ws_cwd = cwd.clone();
+            spawn_local(async move {
+                let agents = vec![
+                    "claude".into(),
+                    "codex".into(),
+                    "gemini".into(),
+                    "cursor".into(),
+                    "opencode".into(),
+                ];
+                let _ = tauri_bridge::memory_install_pointers(&ws_cwd, agents).await;
+            });
+        }
+
+        self.workspaces.update(|workspaces| {
+            workspaces.push(WorkspaceEntry {
+                id,
+                title,
+                cwd,
+                terminal_count,
+                grid_rows,
+                grid_cols,
+                next_terminal_id: terminal_count as u64 + 1,
+                slot_ids,
+                slot_agent_labels,
+                slot_pane_states,
+                configuring: false,
+            });
+        });
+        self.active_id.set(Some(id));
+        Ok(id)
     }
 
     pub fn close_workspace(&self, id: u64) {

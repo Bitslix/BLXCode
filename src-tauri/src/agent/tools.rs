@@ -190,6 +190,28 @@ pub fn registry() -> Vec<ToolDef> {
             site: ToolSite::Server,
         },
         ToolDef {
+            name: "harness.create_workspace",
+            description: "Create and select a new workspace in the workbench. Defaults `cwd` to the active workspace cwd or the configured harness workspace root. `agentSlugs` maps one label per terminal slot and may contain `claude`, `codex`, `gemini`, `opencode`, `cursor`, or empty strings.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "title": { "type": "string", "description": "Workspace title shown in the sidebar." },
+                    "cwd": { "type": "string", "description": "Workspace root path. Optional; defaults to current workspace cwd or harness root." },
+                    "terminalCount": { "type": "integer", "minimum": 1, "maximum": 16, "default": 1 },
+                    "agentSlugs": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": ["", "claude", "codex", "gemini", "opencode", "cursor"]
+                        },
+                        "description": "Optional per-slot CLI agent labels. If shorter than terminalCount, remaining slots stay plain."
+                    }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
             name: "harness.list_terminals",
             description: "List terminal slots in the active workspace. Each entry has `slotId`, `agentSlug` (one of claude/codex/gemini/opencode/cursor or empty for plain shell), and `running` (whether a PTY session is currently attached). Use this before targeting a slot.",
             parameters: json!({

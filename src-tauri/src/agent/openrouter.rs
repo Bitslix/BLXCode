@@ -77,6 +77,13 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
          ## Harness actions (client-side; executed by the UI)\n\
          These mutate the workbench window itself. After the call you will \
          receive a `role:\"tool\"` reply describing the result.\n\
+         - `harness.create_workspace {{ title?, cwd?, terminalCount?, agentSlugs? }}` \
+           — create and select a new workspace in the UI. Use this when \
+           the user explicitly asks for a new workspace or a new terminal \
+           grid. `terminalCount` is 1..16. `agentSlugs` is an optional \
+           per-slot list like `[\"claude\", \"claude\", \"claude\", \"claude\"]`. \
+           If `cwd` is omitted, the harness defaults to the active \
+           workspace cwd or the configured harness root.\n\
          - `harness.open_terminal {{ agentSlug? }}` — open a new terminal \
            slot in the active workspace. `agentSlug` is one of `claude`, \
            `codex`, `gemini`, `opencode`, `cursor` and auto-launches that \

@@ -330,6 +330,7 @@ fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
     };
     let call_id = call_id.clone();
     match tool.as_str() {
+        "harness.create_workspace" => handle_create_workspace(call_id, args.clone(), wb),
         "harness.open_terminal" => handle_open_terminal(call_id, args.clone(), wb),
         "harness.list_terminals" => handle_list_terminals(call_id, wb),
         "harness.send_terminal_keys" => handle_send_keys(call_id, args.clone(), wb),
@@ -368,6 +369,61 @@ fn handle_open_terminal(call_id: String, args: Option<serde_json::Value>, wb: Wo
         None => (false, "no active workspace".to_owned()),
     };
     submit_async(call_id, ok, msg, None);
+}
+
+fn handle_create_workspace(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    let title = args
+        .as_ref()
+        .and_then(|v| v.get("title"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_owned());
+    let cwd = args
+        .as_ref()
+        .and_then(|v| v.get("cwd"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_owned());
+    let terminal_count = args
+        .as_ref()
+        .and_then(|v| v.get("terminalCount"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(1)
+        .clamp(1, 16) as u8;
+    let agent_slugs = args
+        .as_ref()
+        .and_then(|v| v.get("agentSlugs"))
+        .and_then(|v| v.as_array())
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(|entry| entry.as_str().map(ToOwned::to_owned))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+
+    match wb.create_workspace(title, cwd, terminal_count, agent_slugs) {
+        Ok(workspace_id) => {
+            let data = wb.workspaces().with_untracked(|workspaces| {
+                workspaces
+                    .iter()
+                    .find(|workspace| workspace.id == workspace_id)
+                    .map(|workspace| {
+                        serde_json::json!({
+                            "workspaceId": workspace.id,
+                            "title": workspace.title,
+                            "cwd": workspace.cwd,
+                            "terminalCount": workspace.terminal_count,
+                        })
+                    })
+            });
+            submit_async(
+                call_id,
+                true,
+                format!("created workspace {workspace_id} with {terminal_count} terminal(s)"),
+                data,
+            );
+        }
+        Err(err) => submit_async(call_id, false, err, None),
+    }
 }
 
 /// Resolves a terminal-targeting arg-blob to one specific PTY session id.
@@ -589,7 +645,22 @@ fn apply_agent_event(ev: &AgentEvent, timeline: RwSignal<Vec<TimelineItem>>, loc
                 }
             });
         }
-        AgentEvent::Done => {}
+        AgentEvent::Done => timeline.update(|rows| {
+            let fallback = match rows.last() {
+                Some(TimelineItem::Tool(tool)) if tool.status == ActivityStatus::Fail => tool
+                    .detail
+                    .as_deref()
+                    .filter(|detail| !detail.is_empty())
+                    .map(|detail| format!("`{}` failed: {detail}", tool.label))
+                    .or_else(|| Some(format!("`{}` failed.", tool.label))),
+                _ => None,
+            };
+            if let Some(message) = fallback {
+                rows.push(TimelineItem::Assistant {
+                    text: format!("{message}\n"),
+                });
+            }
+        }),
         AgentEvent::Error { message } => {
             let prefix = lookup(loc, I18nKey::AgErrColon);
             let line = format!("{prefix} {message}");
@@ -648,6 +719,7 @@ impl ToolActivity {
 /// back to the bare id so we never lose information.
 fn friendly_label(tool: &str) -> &str {
     match tool {
+        "harness.create_workspace" => "Create workspace",
         "read_workspace_file" => "Read file",
         "memory_list" => "List memory notes",
         "memory_read" => "Read memory note",
@@ -669,6 +741,7 @@ fn summarize_args(tool: &str, args: Option<&serde_json::Value>) -> String {
         return String::new();
     };
     let pick = match tool {
+        "harness.create_workspace" => Some("title"),
         "read_workspace_file" | "memory_read" | "memory_create" | "memory_write" => Some("path"),
         "memory_search" => Some("query"),
         "harness.open_terminal" => Some("agentSlug"),
@@ -685,6 +758,7 @@ fn summarize_args(tool: &str, args: Option<&serde_json::Value>) -> String {
 
 fn tool_icon(tool: &str) -> icondata::Icon {
     match tool {
+        "harness.create_workspace" => icondata::LuLayoutGrid,
         "read_workspace_file" => icondata::LuFileText,
         "memory_list" => icondata::LuList,
         "memory_read" => icondata::LuBookOpen,
