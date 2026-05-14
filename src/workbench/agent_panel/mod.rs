@@ -110,12 +110,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                 <div class="agent-hero__meta">
                     <p class="agent-hero__eyebrow">"BLXCode Agent"</p>
                     <h2>{move || if busy.get() { "Running" } else { "Standby" }}</h2>
-                    <p>
-                        {move || {
-                            let m = model_label.get();
-                            if m.is_empty() { "Configure a provider in harness settings".to_string() } else { m }
-                        }}
-                    </p>
+                    <p>"Workspace assistant"</p>
                 </div>
             </header>
 
@@ -149,14 +144,8 @@ pub fn AgentPanelDock() -> impl IntoView {
                                 <strong>"BLXCode"</strong>
                                 <p>
                                     {move || {
-                                        let m = model_label.get();
-                                        if m.is_empty() {
-                                            "Hi — I'm the BLXCode agent. Configure a provider and model in the harness settings, then send a prompt to get started.".to_string()
-                                        } else {
-                                            format!(
-                                                "Hi — I'm the BLXCode agent running {m}. I can read files, manage workspace tasks, search workspace memory, and open terminals for you. Send a prompt to get started."
-                                            )
-                                        }
+                                        let _ = model_label.get();
+                                        "Hi — I'm the BLXCode agent. I can read files, manage workspace tasks, search workspace memory, and open terminals for you. Send a prompt to get started.".to_string()
                                     }}
                                 </p>
                             </div>
@@ -174,6 +163,14 @@ pub fn AgentPanelDock() -> impl IntoView {
                                 .collect_view()
                         }}
                     </ol>
+                </Show>
+                <Show when=move || busy.get()>
+                    <div class="agent-thinking" aria-live="polite" role="status">
+                        <span class="agent-thinking__dots" aria-hidden="true">
+                            <span></span><span></span><span></span>
+                        </span>
+                        <span class="agent-thinking__label">"Agent is thinking…"</span>
+                    </div>
                 </Show>
             </article>
 
@@ -280,9 +277,11 @@ fn submit_turn(
 
     let workspace_root = resolve_effective_workspace_root(&wb);
 
-    timeline.set(vec![TimelineItem::User {
-        text: prompt.clone(),
-    }]);
+    timeline.update(|items| {
+        items.push(TimelineItem::User {
+            text: prompt.clone(),
+        });
+    });
     status_line.set(None);
     busy.set(true);
     draft.set(String::new());
