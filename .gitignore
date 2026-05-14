@@ -1,3 +1,4 @@
 /dist/
 /target/
 /Cargo.lock
+/.venv-i18n/

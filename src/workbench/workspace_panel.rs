@@ -338,7 +338,16 @@ fn WorkspaceEmptyState() -> impl IntoView {
                     keys=vec!["Ctrl", "P"]
                     on_activate=Callback::new({
                         let wb = wb;
-                        move |()| wb.toggle_sidebar()
+                        let embed = embed;
+                        move |()| {
+                            wb.toggle_right_panel();
+                            let wb_c = wb;
+                            let embed_c = embed;
+                            leptos::task::spawn_local(async move {
+                                TimeoutFuture::new(48).await;
+                                let _ = sync_embedded_browser_layer(wb_c, embed_c).await;
+                            });
+                        }
                     })
                 />
                 <li class="workbench-shortcut-row workbench-shortcut-row--spacer" aria-hidden="true"></li>
