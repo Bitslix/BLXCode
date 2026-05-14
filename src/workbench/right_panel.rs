@@ -7,7 +7,7 @@ use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
 
-const RIGHT_PANEL_MIN_PX: f64 = 160.0;
+const RIGHT_PANEL_MIN_PX: f64 = 320.0;
 const WORKSPACE_MIN_PX: f64 = 240.0;
 
 #[component]
@@ -238,7 +238,7 @@ pub fn RightPanel() -> impl IntoView {
                                 <span class="workbench-right-tab__icon" aria-hidden="true">
                                     <LxIcon icon=icondata::LuSparkles width="14px" height="14px" />
                                 </span>
-                                <span>{move || i18n.tr(I18nKey::TabAgent)()}</span>
+                                <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabAgent)()}</span>
                             </button>
                             <button
                                 type="button"
@@ -251,7 +251,7 @@ pub fn RightPanel() -> impl IntoView {
                                 <span class="workbench-right-tab__icon" aria-hidden="true">
                                     <LxIcon icon=icondata::LuGlobe width="14px" height="14px" />
                                 </span>
-                                <span>{move || i18n.tr(I18nKey::TabBrowser)()}</span>
+                                <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabBrowser)()}</span>
                             </button>
                             <button
                                 type="button"
@@ -264,7 +264,7 @@ pub fn RightPanel() -> impl IntoView {
                                 <span class="workbench-right-tab__icon" aria-hidden="true">
                                     <LxIcon icon=icondata::LuLayers width="14px" height="14px" />
                                 </span>
-                                <span>{move || i18n.tr(I18nKey::TabMemory)()}</span>
+                                <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabMemory)()}</span>
                             </button>
                         </div>
                     </div>

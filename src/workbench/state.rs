@@ -349,8 +349,8 @@ impl WorkbenchService {
             workspaces: RwSignal::new(Vec::new()),
             active_id: RwSignal::new(None),
             sidebar_collapsed: RwSignal::new(false),
-            right_collapsed: RwSignal::new(true),
-            right_width_px: RwSignal::new(288.0),
+            right_collapsed: RwSignal::new(false),
+            right_width_px: RwSignal::new(420.0),
             right_tab: RwSignal::new(RightPanelTab::Agent),
             browser_url: RwSignal::new(browser_url.clone()),
             embedded_browser_tabs: RwSignal::new(vec![EmbeddedBrowserTab {

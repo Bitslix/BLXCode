@@ -5,6 +5,7 @@ use crate::service::I18nService;
 use crate::tauri_bridge::{agent_abort, agent_drain_turn, agent_submit_turn};
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
+use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
 
 #[component]
@@ -17,61 +18,83 @@ pub fn AgentPanelDock() -> impl IntoView {
     let activity = RwSignal::new(Vec::<String>::new());
     let busy = RwSignal::new(false);
     let status_line = RwSignal::new(Option::<String>::None);
+    let ptt_active = RwSignal::new(false);
 
     view! {
         <section class="workbench-agent-pane" aria-label=move || i18n.tr(I18nKey::AgAriaPane)()>
-            <div class="workbench-agent-scope-hint">
-                <span>{move || i18n.tr(I18nKey::AgSandbox)()}</span>
-                <code>{move || {
-                    let raw = wb.harness_workspace_root().get();
-                    let t = raw.trim();
-                    if t.is_empty() {
-                        lookup(i18n.locale().get(), I18nKey::AgNoPath).to_owned()
-                    } else {
-                        t.to_string()
-                    }
-                }}</code>
-                <small class="workbench-muted">
-                    {move || i18n.tr(I18nKey::AgScopedReadHint)()}
-                </small>
-            </div>
+            <header class="agent-hero">
+                <div class="agent-hero__orb" aria-hidden="true">
+                    <span class="agent-hero__logo">"B"</span>
+                </div>
+                <div class="agent-hero__meta">
+                    <p class="agent-hero__eyebrow">"Bridge agent"</p>
+                    <h2>"Standby"</h2>
+                    <p>{move || if ptt_active.get() { "Listening mock" } else { "Tap or hold to activate" }}</p>
+                </div>
+            </header>
 
-            <textarea
-                class="workbench-agent-input"
-                placeholder=move || i18n.tr(I18nKey::AgPromptPh)()
-                rows="4"
-                prop:value=move || draft.get()
-                prop:disabled=move || busy.get()
-                on:input=move |ev| {
-                    textarea_value_from(ev, draft);
+            <button
+                type="button"
+                class="agent-ptt"
+                class:agent-ptt--active=move || ptt_active.get()
+                aria-pressed=move || ptt_active.get().to_string()
+                on:mousedown=move |_| ptt_active.set(true)
+                on:mouseup=move |_| ptt_active.set(false)
+                on:mouseleave=move |_| ptt_active.set(false)
+                on:keydown=move |ev| {
+                    if ev.key() == " " || ev.key() == "Enter" {
+                        ev.prevent_default();
+                        ptt_active.set(true);
+                    }
                 }
-            />
+                on:keyup=move |_| ptt_active.set(false)
+            >
+                <span class="agent-ptt__ring" aria-hidden="true">
+                    <LxIcon icon=icondata::LuSparkles width="1.1rem" height="1.1rem" />
+                </span>
+                <span class="agent-ptt__copy">
+                    <strong>{move || if ptt_active.get() { "Listening..." } else { "Push to talk" }}</strong>
+                    <small>"Voice capture is mocked for now"</small>
+                </span>
+            </button>
 
-            <div class="workbench-agent-actions">
-                <button
-                    type="button"
-                    class="workbench-mini-btn workbench-mini-btn--primary"
-                    prop:disabled=move || busy.get()
-                    on:click=move |_| {
-                        submit_turn(wb, i18n, draft, busy, status_line, transcript, activity);
-                    }
-                >
-                    {move || i18n.tr(I18nKey::AgSend)()}
-                </button>
-
-                <button
-                    type="button"
-                    class="workbench-mini-btn"
-                    prop:disabled=move || !busy.get()
-                    on:click=move |_| {
-                        leptos::task::spawn_local(async move {
-                            let _ = agent_abort().await;
-                        });
-                    }
-                >
-                    {move || i18n.tr(I18nKey::AgCancel)()}
-                </button>
-            </div>
+            <section class="agent-section agent-section--tasks" aria-labelledby="agent-tasks-title">
+                <div class="agent-section__head">
+                    <h3 id="agent-tasks-title">"Tasks"</h3>
+                    <span>{move || if busy.get() { "Running" } else { "Idle" }}</span>
+                </div>
+                <ol class="agent-task-list">
+                    <li class="agent-task agent-task--active">
+                        <span class="agent-task__mark" aria-hidden="true"></span>
+                        <div>
+                            <strong>"Wait for next instruction"</strong>
+                            <small>"The agent will turn new prompts into tracked work."</small>
+                        </div>
+                    </li>
+                    <li class="agent-task">
+                        <span class="agent-task__mark" aria-hidden="true"></span>
+                        <div>
+                            <strong>"Inspect active workspace"</strong>
+                            <small>{move || {
+                                let raw = wb.harness_workspace_root().get();
+                                let t = raw.trim();
+                                if t.is_empty() {
+                                    lookup(i18n.locale().get(), I18nKey::AgNoPath).to_owned()
+                                } else {
+                                    t.to_string()
+                                }
+                            }}</small>
+                        </div>
+                    </li>
+                    <li class="agent-task">
+                        <span class="agent-task__mark" aria-hidden="true"></span>
+                        <div>
+                            <strong>"Report execution details"</strong>
+                            <small>{move || i18n.tr(I18nKey::AgScopedReadHint)()}</small>
+                        </div>
+                    </li>
+                </ol>
+            </section>
 
             <Show when=move || status_line.get().is_some()>
                 {move || {
@@ -82,8 +105,26 @@ pub fn AgentPanelDock() -> impl IntoView {
                 }}
             </Show>
 
-            <article class="workbench-agent-scroll" aria-live="polite">
-                <pre class="workbench-agent-transcript">{move || transcript.get()}</pre>
+            <article class="workbench-agent-scroll agent-section" aria-live="polite" aria-label="Agent chat log">
+                <div class="agent-section__head">
+                    <h3>"Chat log"</h3>
+                    <span>{move || if activity.get().is_empty() { "Ready" } else { "Tools" }}</span>
+                </div>
+                <Show
+                    when=move || !transcript.get().trim().is_empty()
+                    fallback=move || view! {
+                        <div class="agent-chat-line agent-chat-line--agent">
+                            <strong>"Bridge"</strong>
+                            <p>"Ready. Tell me what to plan, run, or investigate in this workspace."</p>
+                        </div>
+                        <div class="agent-chat-line agent-chat-line--user">
+                            <strong>"You"</strong>
+                            <p>"Try: help me wire up the auth refactor, list bugs, or prepare a run plan."</p>
+                        </div>
+                    }
+                >
+                    <pre class="workbench-agent-transcript">{move || transcript.get()}</pre>
+                </Show>
                 <Show when=move || !activity.get().is_empty()>
                     {move || {
                         activity.get().into_iter().map(|ln|
@@ -92,6 +133,56 @@ pub fn AgentPanelDock() -> impl IntoView {
                     }}
                 </Show>
             </article>
+
+            <form
+                class="agent-compose"
+                on:submit=move |ev| {
+                    ev.prevent_default();
+                    submit_turn(wb, i18n, draft, busy, status_line, transcript, activity);
+                }
+            >
+                <textarea
+                    class="workbench-agent-input"
+                    placeholder=move || i18n.tr(I18nKey::AgPromptPh)()
+                    rows="2"
+                    prop:value=move || draft.get()
+                    prop:disabled=move || busy.get()
+                    on:input=move |ev| {
+                        textarea_value_from(ev, draft);
+                    }
+                    on:keydown=move |ev| {
+                        if ev.key() == "Enter" && (ev.ctrl_key() || ev.meta_key()) {
+                            ev.prevent_default();
+                            submit_turn(wb, i18n, draft, busy, status_line, transcript, activity);
+                        }
+                    }
+                />
+
+                <div class="workbench-agent-actions">
+                    <button
+                        type="submit"
+                        class="workbench-mini-btn workbench-mini-btn--primary agent-send-btn"
+                        prop:disabled=move || busy.get()
+                    >
+                        <LxIcon icon=icondata::LuSparkles width="0.9rem" height="0.9rem" />
+                        <span>{move || i18n.tr(I18nKey::AgSend)()}</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        class="workbench-mini-btn agent-cancel-btn"
+                        prop:disabled=move || !busy.get()
+                        on:click=move |_| {
+                            leptos::task::spawn_local(async move {
+                                let _ = agent_abort().await;
+                            });
+                        }
+                    >
+                        <LxIcon icon=icondata::LuX width="0.9rem" height="0.9rem" />
+                        <span>{move || i18n.tr(I18nKey::AgCancel)()}</span>
+                    </button>
+                </div>
+            </form>
         </section>
     }
 }
