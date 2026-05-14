@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
-use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Manager};
 #[cfg(unix)]
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::path::{Path, PathBuf};
+use tauri::{AppHandle, Manager};
 
 const SETTINGS_FILE: &str = "agent_provider_settings.json";
 const SECRETS_DIR: &str = "secrets";
@@ -182,8 +182,7 @@ fn save_settings(app: &AppHandle, settings: &AgentProviderSettings) -> Result<()
     let body = serde_json::to_string_pretty(settings)
         .map_err(|e| format!("serialize {}: {e}", path.display()))?;
     {
-        let mut f =
-            fs::File::create(&tmp).map_err(|e| format!("create {}: {e}", tmp.display()))?;
+        let mut f = fs::File::create(&tmp).map_err(|e| format!("create {}: {e}", tmp.display()))?;
         f.write_all(body.as_bytes())
             .map_err(|e| format!("write {}: {e}", tmp.display()))?;
         f.sync_all().ok();
@@ -204,7 +203,9 @@ fn read_fallback_secret(
 ) -> Result<Option<String>, String> {
     let path = fallback_secret_path(app, provider)?;
     match fs::read_to_string(&path) {
-        Ok(raw) => Ok(mask_secret(&raw).map(|_| raw.trim().to_string()).filter(|s| !s.is_empty())),
+        Ok(raw) => Ok(mask_secret(&raw)
+            .map(|_| raw.trim().to_string())
+            .filter(|s| !s.is_empty())),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(format!("read fallback {}: {e}", path.display())),
     }
@@ -251,14 +252,19 @@ fn delete_fallback_secret(app: &AppHandle, provider: AgentProviderKind) -> Resul
     }
 }
 
-fn key_masked_value(app: &AppHandle, provider: AgentProviderKind) -> Result<Option<String>, String> {
+fn key_masked_value(
+    app: &AppHandle,
+    provider: AgentProviderKind,
+) -> Result<Option<String>, String> {
     let entry = keyring_entry(provider)?;
     match entry.get_password() {
         Ok(secret) => Ok(mask_secret(&secret)),
-        Err(keyring::Error::NoEntry) => Ok(read_fallback_secret(app, provider)?
-            .and_then(|secret| mask_secret(&secret))),
-        Err(_) if cfg!(target_os = "linux") => Ok(read_fallback_secret(app, provider)?
-            .and_then(|secret| mask_secret(&secret))),
+        Err(keyring::Error::NoEntry) => {
+            Ok(read_fallback_secret(app, provider)?.and_then(|secret| mask_secret(&secret)))
+        }
+        Err(_) if cfg!(target_os = "linux") => {
+            Ok(read_fallback_secret(app, provider)?.and_then(|secret| mask_secret(&secret)))
+        }
         Err(e) => Err(format!("keyring get {}: {e}", provider.as_str())),
     }
 }
@@ -442,8 +448,10 @@ async fn fetch_models_live(
             let res = res
                 .error_for_status()
                 .map_err(|e| format!("openrouter models: {e}"))?;
-            let body: OpenrouterModelsEnvelope =
-                res.json().await.map_err(|e| format!("openrouter parse: {e}"))?;
+            let body: OpenrouterModelsEnvelope = res
+                .json()
+                .await
+                .map_err(|e| format!("openrouter parse: {e}"))?;
             let mut items = body
                 .data
                 .into_iter()
@@ -494,13 +502,18 @@ async fn fetch_models_live(
             let res = res
                 .error_for_status()
                 .map_err(|e| format!("anthropic models: {e}"))?;
-            let body: AnthropicModelsEnvelope =
-                res.json().await.map_err(|e| format!("anthropic parse: {e}"))?;
+            let body: AnthropicModelsEnvelope = res
+                .json()
+                .await
+                .map_err(|e| format!("anthropic parse: {e}"))?;
             let mut items = body
                 .data
                 .into_iter()
                 .map(|entry| ProviderModelEntry {
-                    label: entry.display_name.clone().unwrap_or_else(|| entry.id.clone()),
+                    label: entry
+                        .display_name
+                        .clone()
+                        .unwrap_or_else(|| entry.id.clone()),
                     id: entry.id,
                     description: None,
                 })
@@ -530,7 +543,10 @@ pub fn agent_settings_save(
 }
 
 #[tauri::command]
-pub fn agent_api_key_set(app: AppHandle, payload: ProviderKeyPayload) -> Result<AgentProviderSettingsView, String> {
+pub fn agent_api_key_set(
+    app: AppHandle,
+    payload: ProviderKeyPayload,
+) -> Result<AgentProviderSettingsView, String> {
     let trimmed = payload.api_key.trim();
     if trimmed.is_empty() {
         return Err("API key must not be empty".into());
@@ -599,7 +615,10 @@ pub fn agent_api_key_set(app: AppHandle, payload: ProviderKeyPayload) -> Result<
 }
 
 #[tauri::command]
-pub fn agent_api_key_delete(app: AppHandle, payload: ProviderRef) -> Result<AgentProviderSettingsView, String> {
+pub fn agent_api_key_delete(
+    app: AppHandle,
+    payload: ProviderRef,
+) -> Result<AgentProviderSettingsView, String> {
     let entry = keyring_entry(payload.provider)?;
     match entry.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => {}

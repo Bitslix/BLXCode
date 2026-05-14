@@ -17,15 +17,17 @@ use agent_settings::{
 use browser_host::BrowserHost;
 use commands::*;
 use pty_host::PtyManager;
+use tauri_plugin_opener::OpenerExt;
 use workbench_state::{
     agent_session_exists, workbench_drop_sessions, workbench_load_sessions, workbench_load_state,
     workbench_save_state, workbench_sessions_path,
 };
-use tauri_plugin_opener::OpenerExt;
 
 #[tauri::command]
 fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
-    app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

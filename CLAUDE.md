@@ -57,7 +57,7 @@ Module layout:
 - `config/app.config.rs` — all constants: API URL/path, localStorage keys, device client ID.
 - `auth/` — session fetch, sign-in, sign-out, device flow, `LoginModal` component.
 - `service/` — `ApiService` (HTTP via `gloo-net`), `I18nService`.
-- `i18n/` — locale handling, EULA HTML per locale.
+- `i18n/` — `Locale` + `APP_LOCALES` (language picker metadata), `parse_bcp47` / `infer_from_browser_lang`, `lookup` + `locales/*.rs` (one `msg` match per language), `content/eula/*.md` + `eula.rs`. Default locale is **`EnUs`**. Regenerate non-English UI tables from `en_us.rs` with `scripts/render_i18n_locales_from_en.py` (requires `deep-translator` in a venv). Adding an `I18nKey` requires a new string in **every** `locales/*.rs` file (compile-time exhaustiveness).
 - `workbench/` — three-pane shell: `Sidebar`, `WorkspacePanel`, `RightPanel`; agent panel, browser tab.
 - `agent_wire.rs` — mirrors `src-tauri/src/agent/protocol.rs`; shared Serde types for IPC events.
 - `tauri_bridge.rs` — wrappers around `invoke()` calls to Tauri commands.

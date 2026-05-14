@@ -156,7 +156,10 @@ mod tests {
 
     #[test]
     fn infer_ambiguous_zh() {
-        assert_eq!(Locale::infer_from_browser_lang("zh-XX-unknown"), Locale::EnUs);
+        assert_eq!(
+            Locale::infer_from_browser_lang("zh-XX-unknown"),
+            Locale::EnUs
+        );
     }
 
     #[test]

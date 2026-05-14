@@ -17,8 +17,8 @@ use crate::tauri_bridge::{
 use gloo_timers::future::TimeoutFuture;
 use leptos::html;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
-use leptos_icons::Icon as LxIcon;
 use leptos::prelude::*;
+use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
 
 #[derive(Clone, Copy)]
@@ -708,8 +708,12 @@ fn provider_label(i18n: &I18nService, provider: AgentProviderKind) -> String {
 
 fn provider_icon_url(provider: AgentProviderKind) -> &'static str {
     match provider {
-        AgentProviderKind::Openrouter => "https://cdn.jsdelivr.net/npm/simple-icons/icons/openrouter.svg",
-        AgentProviderKind::Anthropic => "https://cdn.jsdelivr.net/npm/simple-icons/icons/anthropic.svg",
+        AgentProviderKind::Openrouter => {
+            "https://cdn.jsdelivr.net/npm/simple-icons/icons/openrouter.svg"
+        }
+        AgentProviderKind::Anthropic => {
+            "https://cdn.jsdelivr.net/npm/simple-icons/icons/anthropic.svg"
+        }
         AgentProviderKind::Openai => "https://cdn.jsdelivr.net/npm/simple-icons/icons/openai.svg",
     }
 }
@@ -735,10 +739,7 @@ fn thinking_label(i18n: &I18nService, level: ThinkingLevel) -> String {
     i18n.tr(key)().to_string()
 }
 
-fn provider_key_configured(
-    view: &AgentProviderSettingsView,
-    provider: AgentProviderKind,
-) -> bool {
+fn provider_key_configured(view: &AgentProviderSettingsView, provider: AgentProviderKind) -> bool {
     view.key_statuses
         .iter()
         .find(|status| status.provider == provider)
@@ -772,7 +773,10 @@ fn provider_key_status_text(
     }
 }
 
-fn provider_cache(view: &AgentProviderSettingsView, provider: AgentProviderKind) -> Vec<ProviderModelEntry> {
+fn provider_cache(
+    view: &AgentProviderSettingsView,
+    provider: AgentProviderKind,
+) -> Vec<ProviderModelEntry> {
     match provider {
         AgentProviderKind::Openrouter => view.model_cache_openrouter.clone(),
         AgentProviderKind::Anthropic => view.model_cache_anthropic.clone(),

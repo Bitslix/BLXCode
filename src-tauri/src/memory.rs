@@ -308,7 +308,10 @@ pub fn memory_delete(workspace_cwd: String, path: String) -> Result<(), String> 
     // best-effort: remove empty parent dirs up to root
     if let Some(mut parent) = abs.parent() {
         while parent != root {
-            if fs::read_dir(parent).map(|mut r| r.next().is_none()).unwrap_or(false) {
+            if fs::read_dir(parent)
+                .map(|mut r| r.next().is_none())
+                .unwrap_or(false)
+            {
                 let _ = fs::remove_dir(parent);
                 if let Some(grand) = parent.parent() {
                     parent = grand;
@@ -371,7 +374,9 @@ pub fn memory_rename(
         let mut files = Vec::new();
         walk_md(&root, &mut files);
         for f in files {
-            let Ok(content) = fs::read_to_string(&f) else { continue };
+            let Ok(content) = fs::read_to_string(&f) else {
+                continue;
+            };
             let (updated, n) =
                 rewrite_wikilinks(&content, &old_basename, &new_basename, &old_path, &new_path);
             if n > 0 {
@@ -547,7 +552,9 @@ pub fn memory_graph(workspace_cwd: String) -> Result<GraphData, String> {
     let mut bodies: BTreeMap<String, String> = BTreeMap::new();
 
     for f in &files {
-        let Some(rel) = rel_from_root(&root, f) else { continue };
+        let Some(rel) = rel_from_root(&root, f) else {
+            continue;
+        };
         node_ids.push(rel.clone());
         if let Some(stem) = f.file_stem().and_then(|s| s.to_str()) {
             by_basename
@@ -616,7 +623,13 @@ pub fn memory_backlinks(workspace_cwd: String, path: String) -> Result<Vec<Strin
     let mut out: Vec<String> = g
         .edges
         .into_iter()
-        .filter_map(|e| if e.target == path { Some(e.source) } else { None })
+        .filter_map(|e| {
+            if e.target == path {
+                Some(e.source)
+            } else {
+                None
+            }
+        })
         .collect();
     out.sort();
     out.dedup();
@@ -635,8 +648,12 @@ pub fn memory_search(workspace_cwd: String, query: String) -> Result<Vec<SearchH
     walk_md(&root, &mut files);
     let mut hits: Vec<SearchHit> = Vec::new();
     for f in files {
-        let Some(rel) = rel_from_root(&root, &f) else { continue };
-        let Ok(body) = fs::read_to_string(&f) else { continue };
+        let Some(rel) = rel_from_root(&root, &f) else {
+            continue;
+        };
+        let Ok(body) = fs::read_to_string(&f) else {
+            continue;
+        };
         for (idx, line) in body.lines().enumerate() {
             if line.to_ascii_lowercase().contains(&needle_l) {
                 let snip = if line.len() > 200 { &line[..200] } else { line };
@@ -666,7 +683,9 @@ pub fn memory_export(workspace_cwd: String, dest_dir: String) -> Result<u32, Str
     walk_md(&root, &mut files);
     let mut n = 0u32;
     for f in files {
-        let Some(rel) = rel_from_root(&root, &f) else { continue };
+        let Some(rel) = rel_from_root(&root, &f) else {
+            continue;
+        };
         let target = dest.join(&rel);
         if let Some(parent) = target.parent() {
             fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
@@ -691,7 +710,9 @@ pub fn memory_import(workspace_cwd: String, src_dir: String) -> Result<u32, Stri
     walk_md(&src, &mut files);
     let mut n = 0u32;
     for f in files {
-        let Ok(rel_pb) = f.strip_prefix(&src) else { continue };
+        let Ok(rel_pb) = f.strip_prefix(&src) else {
+            continue;
+        };
         let rel = rel_pb.to_string_lossy().replace('\\', "/");
         let abs = match safe_join(&root, &rel, true) {
             Ok(p) => p,
@@ -757,10 +778,7 @@ context: read notes that are relevant to the task, and propose new notes \
 or edits when you learn something the team should remember.\n\n",
         );
     }
-    s.push_str(&format!(
-        "Memory root: `{}`\n\n",
-        memory_dir.display()
-    ));
+    s.push_str(&format!("Memory root: `{}`\n\n", memory_dir.display()));
     if notes.is_empty() {
         s.push_str("(no notes yet)\n");
     } else {
@@ -782,12 +800,7 @@ or edits when you learn something the team should remember.\n\n",
     s
 }
 
-fn splice_block(
-    existing: &str,
-    begin: &str,
-    end: &str,
-    new_body: &str,
-) -> String {
+fn splice_block(existing: &str, begin: &str, end: &str, new_body: &str) -> String {
     let block = format!("{begin}\n{new_body}{end}\n");
     if let (Some(bi), Some(ei)) = (existing.find(begin), existing.find(end)) {
         let ei_end = ei + end.len();
@@ -966,11 +979,17 @@ pub fn memory_pointer_status(workspace_cwd: String) -> Result<Vec<PointerResult>
     let agents = ["claude", "codex", "gemini", "cursor", "opencode"];
     let mut out = Vec::new();
     for a in agents {
-        let Some(fname) = pointer_filename(a) else { continue };
+        let Some(fname) = pointer_filename(a) else {
+            continue;
+        };
         let path = ws.join(fname);
         let body = fs::read_to_string(&path).unwrap_or_default();
         let cursor_style = a == "cursor";
-        let begin = if cursor_style { POINTER_BEGIN_CURSOR } else { POINTER_BEGIN };
+        let begin = if cursor_style {
+            POINTER_BEGIN_CURSOR
+        } else {
+            POINTER_BEGIN
+        };
         let installed = body.contains(begin);
         out.push(PointerResult {
             agent: a.to_owned(),

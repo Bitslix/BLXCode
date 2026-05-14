@@ -1,2 +1,12 @@
 pub mod de_de;
 pub mod en_us;
+pub mod es_es;
+pub mod fr_fr;
+pub mod it_it;
+pub mod ja_jp;
+pub mod ko_kr;
+pub mod pl_pl;
+pub mod pt_br;
+pub mod ru_ru;
+pub mod zh_cn;
+pub mod zh_tw;

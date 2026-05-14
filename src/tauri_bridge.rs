@@ -395,10 +395,7 @@ struct PtySpawnArgs {
     env: Vec<(String, String)>,
 }
 
-pub async fn pty_spawn_with_env(
-    cwd: String,
-    env: Vec<(String, String)>,
-) -> Result<u64, String> {
+pub async fn pty_spawn_with_env(cwd: String, env: Vec<(String, String)>) -> Result<u64, String> {
     invoke_typed("pty_spawn", PtySpawnArgs { cwd, env }).await
 }
 
@@ -635,14 +632,17 @@ pub async fn memory_read(ws: &str, path: &str) -> Result<NoteContent, String> {
         workspace_cwd: &'a str,
         path: &'a str,
     }
-    invoke_typed("memory_read", A { workspace_cwd: ws, path }).await
+    invoke_typed(
+        "memory_read",
+        A {
+            workspace_cwd: ws,
+            path,
+        },
+    )
+    .await
 }
 
-pub async fn memory_write(
-    ws: &str,
-    path: &str,
-    content: &str,
-) -> Result<NoteContent, String> {
+pub async fn memory_write(ws: &str, path: &str, content: &str) -> Result<NoteContent, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct A<'a> {
@@ -694,7 +694,10 @@ pub async fn memory_delete(ws: &str, path: &str) -> Result<(), String> {
     }
     invoke_unit_js(
         "memory_delete",
-        args_value(A { workspace_cwd: ws, path })?,
+        args_value(A {
+            workspace_cwd: ws,
+            path,
+        })?,
     )
     .await
 }
@@ -736,7 +739,14 @@ pub async fn memory_backlinks(ws: &str, path: &str) -> Result<Vec<String>, Strin
         workspace_cwd: &'a str,
         path: &'a str,
     }
-    invoke_typed("memory_backlinks", A { workspace_cwd: ws, path }).await
+    invoke_typed(
+        "memory_backlinks",
+        A {
+            workspace_cwd: ws,
+            path,
+        },
+    )
+    .await
 }
 
 pub async fn memory_search(ws: &str, query: &str) -> Result<Vec<SearchHit>, String> {
@@ -746,7 +756,14 @@ pub async fn memory_search(ws: &str, query: &str) -> Result<Vec<SearchHit>, Stri
         workspace_cwd: &'a str,
         query: &'a str,
     }
-    invoke_typed("memory_search", A { workspace_cwd: ws, query }).await
+    invoke_typed(
+        "memory_search",
+        A {
+            workspace_cwd: ws,
+            query,
+        },
+    )
+    .await
 }
 
 pub async fn memory_install_pointers(
@@ -759,7 +776,14 @@ pub async fn memory_install_pointers(
         workspace_cwd: &'a str,
         agents: Vec<String>,
     }
-    invoke_typed("memory_install_pointers", A { workspace_cwd: ws, agents }).await
+    invoke_typed(
+        "memory_install_pointers",
+        A {
+            workspace_cwd: ws,
+            agents,
+        },
+    )
+    .await
 }
 
 pub async fn memory_uninstall_pointers(
@@ -772,7 +796,14 @@ pub async fn memory_uninstall_pointers(
         workspace_cwd: &'a str,
         agents: Vec<String>,
     }
-    invoke_typed("memory_uninstall_pointers", A { workspace_cwd: ws, agents }).await
+    invoke_typed(
+        "memory_uninstall_pointers",
+        A {
+            workspace_cwd: ws,
+            agents,
+        },
+    )
+    .await
 }
 
 pub async fn memory_pointer_status(ws: &str) -> Result<Vec<PointerResult>, String> {

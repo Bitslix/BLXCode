@@ -121,10 +121,7 @@ pub async fn browser_check_iframable(url: String) -> Result<bool, String> {
 
     let headers = resp.headers();
 
-    if let Some(xfo) = headers
-        .get("x-frame-options")
-        .and_then(|v| v.to_str().ok())
-    {
+    if let Some(xfo) = headers.get("x-frame-options").and_then(|v| v.to_str().ok()) {
         let v = xfo.trim().to_ascii_lowercase();
         if v == "deny" || v == "sameorigin" || v.starts_with("allow-from") {
             return Ok(false);
@@ -203,7 +200,11 @@ pub fn list_directory(path: String) -> Result<Vec<DirEntryBrief>, String> {
             Some(DirEntryBrief { name, hidden })
         })
         .collect();
-    out.sort_by(|a, b| a.name.to_ascii_lowercase().cmp(&b.name.to_ascii_lowercase()));
+    out.sort_by(|a, b| {
+        a.name
+            .to_ascii_lowercase()
+            .cmp(&b.name.to_ascii_lowercase())
+    });
     Ok(out)
 }
 

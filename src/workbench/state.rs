@@ -659,11 +659,7 @@ impl WorkbenchService {
 
     #[must_use]
     pub fn workspace_fleet_assigned(&self, id: u64) -> u8 {
-        self.workspace_draft(id)
-            .agent_counts
-            .iter()
-            .copied()
-            .sum()
+        self.workspace_draft(id).agent_counts.iter().copied().sum()
     }
 
     pub fn set_workspace_agent_count(&self, id: u64, idx: usize, value: u8) {
@@ -808,7 +804,6 @@ impl WorkbenchService {
             m.remove(&id);
         });
     }
-
 
     /// Look up the persisted pane state for a slot. Returns
     /// [`SlotPaneState::default_for_slot`] when nothing has been stored

@@ -8,9 +8,9 @@ use crate::service::{ApiService, I18nService};
 use gloo_timers::future::TimeoutFuture;
 use icondata::LuClipboardCheck;
 use icondata::LuCopy;
-use leptos_icons::Icon as LxIcon;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
 use wasm_bindgen_futures::JsFuture;
 

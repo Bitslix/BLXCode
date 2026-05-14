@@ -496,11 +496,7 @@ pub fn WorkspaceTerminalCell(
 /// longer exists, e.g. an empty session that Claude never wrote) are
 /// dropped from `sessions.json` so we stop trying to resume them on
 /// every restart.
-async fn lookup_resume_session(
-    terminal_key: &str,
-    agent_slug: &str,
-    cwd: &str,
-) -> Option<String> {
+async fn lookup_resume_session(terminal_key: &str, agent_slug: &str, cwd: &str) -> Option<String> {
     let raw = match workbench_load_sessions().await {
         Ok(Some(s)) => s,
         Ok(None) => {
@@ -532,10 +528,7 @@ async fn lookup_resume_session(
             .map(|m| m.keys().cloned().collect())
             .unwrap_or_default();
         web_sys::console::log_1(
-            &format!(
-                "[blxcode resume] {terminal_key}: no entry; have {keys:?}"
-            )
-            .into(),
+            &format!("[blxcode resume] {terminal_key}: no entry; have {keys:?}").into(),
         );
         return None;
     };

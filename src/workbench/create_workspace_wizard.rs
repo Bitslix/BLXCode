@@ -47,13 +47,11 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
     let drafts = wb.workspace_drafts();
-    let draft_memo = Memo::new(move |_| {
-        drafts.with(|m| m.get(&workspace_id).cloned().unwrap_or_default())
-    });
+    let draft_memo =
+        Memo::new(move |_| drafts.with(|m| m.get(&workspace_id).cloned().unwrap_or_default()));
     let steps_sig = wb.workspace_config_steps();
-    let step_memo = Memo::new(move |_| {
-        steps_sig.with(|m| m.get(&workspace_id).copied().unwrap_or(0))
-    });
+    let step_memo =
+        Memo::new(move |_| steps_sig.with(|m| m.get(&workspace_id).copied().unwrap_or(0)));
 
     let cwd_err = RwSignal::new(false);
     let browser_open = RwSignal::new(false);
@@ -93,9 +91,15 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
     let measure_input_rect = {
         let id = wrap_id_for_measure;
         move || {
-            let Some(doc) = web_sys::window().and_then(|w| w.document()) else { return; };
-            let Some(wrap) = doc.get_element_by_id(&id) else { return; };
-            let Some(input) = wrap.query_selector("input").ok().flatten() else { return; };
+            let Some(doc) = web_sys::window().and_then(|w| w.document()) else {
+                return;
+            };
+            let Some(wrap) = doc.get_element_by_id(&id) else {
+                return;
+            };
+            let Some(input) = wrap.query_selector("input").ok().flatten() else {
+                return;
+            };
             let r = input.get_bounding_client_rect();
             popup_rect.set((r.bottom() + 4.0, r.left(), r.width()));
         }
@@ -113,10 +117,8 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
             let r: Result<PathNavResult, String> = if is_tauri_shell() {
                 path_nav_invoke(base.clone(), trimmed.clone()).await
             } else {
-                path_nav_wasm_string(&base, &trimmed).map(|(cwd, log_line)| PathNavResult {
-                    cwd,
-                    log_line,
-                })
+                path_nav_wasm_string(&base, &trimmed)
+                    .map(|(cwd, log_line)| PathNavResult { cwd, log_line })
             };
             if let Ok(res) = r {
                 wb.set_workspace_cwd(workspace_id, res.cwd);
@@ -160,10 +162,18 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
 
             let outside_id_inner = outside_id.clone();
             let h_down = window_event_listener_untyped("mousedown", move |ev| {
-                let Some(target) = ev.target() else { return; };
-                let Ok(node) = target.dyn_into::<web_sys::Node>() else { return; };
-                let Some(doc) = web_sys::window().and_then(|w| w.document()) else { return; };
-                let Some(wrap) = doc.get_element_by_id(&outside_id_inner) else { return; };
+                let Some(target) = ev.target() else {
+                    return;
+                };
+                let Ok(node) = target.dyn_into::<web_sys::Node>() else {
+                    return;
+                };
+                let Some(doc) = web_sys::window().and_then(|w| w.document()) else {
+                    return;
+                };
+                let Some(wrap) = doc.get_element_by_id(&outside_id_inner) else {
+                    return;
+                };
                 if !wrap.contains(Some(&node)) {
                     browser_open.set(false);
                     new_folder_open.set(false);

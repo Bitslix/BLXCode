@@ -300,10 +300,7 @@ fn open_via_dom_window(url: &str) {
     let Some(win) = web_sys::window() else {
         return;
     };
-    let opened = win
-        .open_with_url_and_target(url, "_blank")
-        .ok()
-        .flatten();
+    let opened = win.open_with_url_and_target(url, "_blank").ok().flatten();
     if opened.is_none() {
         let _ = win.location().set_href(url);
     }
@@ -316,7 +313,10 @@ pub fn open_in_new_tab(url: &str) {
     if crate::tauri_bridge::is_tauri_shell() {
         let owned = url.to_string();
         spawn_local(async move {
-            if crate::tauri_bridge::open_external_url(&owned).await.is_err() {
+            if crate::tauri_bridge::open_external_url(&owned)
+                .await
+                .is_err()
+            {
                 open_via_dom_window(&owned);
             }
         });

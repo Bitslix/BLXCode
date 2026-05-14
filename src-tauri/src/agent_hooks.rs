@@ -45,8 +45,7 @@ const OPENCODE_PLUGIN_SCRIPT: &str = "opencode_blxcode.ts";
 /// `path.resolve(..., Resource)` for the `.ts` file errors with
 /// "No such file or directory" in dev mode. The Python hooks don't hit
 /// this because `.py` isn't on the filter list.
-const OPENCODE_PLUGIN_SOURCE: &str =
-    include_str!("../../content/hooks/opencode_blxcode.ts");
+const OPENCODE_PLUGIN_SOURCE: &str = include_str!("../../content/hooks/opencode_blxcode.ts");
 
 const CLAUDE_TITLE_MARKER: &str = "blxcode:claude-title";
 const CLAUDE_CAPTURE_MARKER: &str = "blxcode:claude-session-capture";
@@ -143,11 +142,7 @@ fn write_json_pretty(path: &Path, value: &serde_json::Value) -> Result<(), Strin
 /// settings entry stays schema-clean — Claude/Codex reject unknown
 /// fields at the entry level in some versions, which silently disables
 /// the whole hook.
-fn hook_already_installed(
-    settings: &serde_json::Value,
-    event: &str,
-    script_path: &Path,
-) -> bool {
+fn hook_already_installed(settings: &serde_json::Value, event: &str, script_path: &Path) -> bool {
     let Some(arr) = settings
         .get("hooks")
         .and_then(|h| h.get(event))
@@ -167,7 +162,9 @@ fn hook_already_installed(
         inner.iter().any(|h| {
             h.get("command")
                 .and_then(|v| v.as_str())
-                .map(|c| c.contains(needle.as_ref()) || (!filename.is_empty() && c.contains(&filename)))
+                .map(|c| {
+                    c.contains(needle.as_ref()) || (!filename.is_empty() && c.contains(&filename))
+                })
                 .unwrap_or(false)
         })
     })
@@ -416,7 +413,12 @@ fn install_claude(home: &Path, hooks_dir: &Path, app: &AppHandle) -> AgentHookEn
     let mut last_script: Option<PathBuf> = None;
 
     for (script, event, matcher, marker) in [
-        (CLAUDE_TITLE_SCRIPT, "UserPromptSubmit", "", CLAUDE_TITLE_MARKER),
+        (
+            CLAUDE_TITLE_SCRIPT,
+            "UserPromptSubmit",
+            "",
+            CLAUDE_TITLE_MARKER,
+        ),
         (
             CLAUDE_CAPTURE_SCRIPT,
             "SessionStart",
@@ -458,13 +460,7 @@ fn install_codex(home: &Path, hooks_dir: &Path, app: &AppHandle) -> AgentHookEnt
     if let Ok(path) = copy_script(app, CODEX_TITLE_SCRIPT, hooks_dir) {
         last_script = Some(path.clone());
         // Same marker scheme; Codex hook config follows the Claude shape.
-        match patch_settings(
-            &cfg,
-            "UserPromptSubmit",
-            "",
-            "blxcode:codex-title",
-            &path,
-        ) {
+        match patch_settings(&cfg, "UserPromptSubmit", "", "blxcode:codex-title", &path) {
             Ok(true) => notes.push("UserPromptSubmit hook installed".into()),
             Ok(false) => notes.push("UserPromptSubmit hook already installed".into()),
             Err(e) => notes.push(format!("UserPromptSubmit best-effort: {e}")),

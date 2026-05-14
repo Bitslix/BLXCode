@@ -48,8 +48,7 @@ pub fn workbench_save_state(app: AppHandle, json: String) -> Result<(), String> 
 
     let tmp = target.with_extension("json.tmp");
     {
-        let mut f = fs::File::create(&tmp)
-            .map_err(|e| format!("create {}: {e}", tmp.display()))?;
+        let mut f = fs::File::create(&tmp).map_err(|e| format!("create {}: {e}", tmp.display()))?;
         f.write_all(json.as_bytes())
             .map_err(|e| format!("write {}: {e}", tmp.display()))?;
         f.sync_all().ok();
@@ -225,8 +224,7 @@ pub fn workbench_drop_sessions(app: AppHandle, prefix: String) -> Result<u32, St
     let body =
         serde_json::to_string_pretty(&state).map_err(|e| format!("serialize sessions: {e}"))?;
     {
-        let mut f =
-            fs::File::create(&tmp).map_err(|e| format!("create {}: {e}", tmp.display()))?;
+        let mut f = fs::File::create(&tmp).map_err(|e| format!("create {}: {e}", tmp.display()))?;
         f.write_all(body.as_bytes())
             .map_err(|e| format!("write {}: {e}", tmp.display()))?;
         f.sync_all().ok();

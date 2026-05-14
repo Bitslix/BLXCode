@@ -55,7 +55,13 @@ fn resolve_host_bounds() -> Option<BrowserBoundsPayload> {
     let h = (bottom - y).max(0.);
 
     let visible = w >= 8.0 && h >= 8.0;
-    Some(BrowserBoundsPayload { x, y, w, h, visible })
+    Some(BrowserBoundsPayload {
+        x,
+        y,
+        w,
+        h,
+        visible,
+    })
 }
 
 fn embed_is_native(surface: BrowserEmbedSurface) -> bool {
@@ -106,17 +112,31 @@ pub async fn sync_embedded_browser_layer(wb: WorkbenchService, surface: BrowserE
     let _ = crate::tauri_bridge::browser_sync_bounds(
         Some(active_id),
         payload,
-        if url_empty { None } else { Some(navigate_to.as_str()) },
+        if url_empty {
+            None
+        } else {
+            Some(navigate_to.as_str())
+        },
     )
     .await;
 }
 
 fn try_reload_iframe_for(tab_id: u64) {
-    let Some(w) = web_sys::window() else { return; };
-    let Some(doc) = w.document() else { return; };
-    let Some(el) = doc.get_element_by_id(&iframe_id_for(tab_id)) else { return; };
-    let Ok(frame) = el.dyn_into::<web_sys::HtmlIFrameElement>() else { return; };
-    let Some(sub) = frame.content_window() else { return; };
+    let Some(w) = web_sys::window() else {
+        return;
+    };
+    let Some(doc) = w.document() else {
+        return;
+    };
+    let Some(el) = doc.get_element_by_id(&iframe_id_for(tab_id)) else {
+        return;
+    };
+    let Ok(frame) = el.dyn_into::<web_sys::HtmlIFrameElement>() else {
+        return;
+    };
+    let Some(sub) = frame.content_window() else {
+        return;
+    };
     let _ = sub.location().reload();
 }
 

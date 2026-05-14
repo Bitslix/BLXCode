@@ -151,9 +151,8 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
         drop(up_handle);
     });
 
-    let is_configuring = Memo::new(move |_| {
-        workspace.get().map(|w| w.configuring).unwrap_or(false)
-    });
+    let is_configuring =
+        Memo::new(move |_| workspace.get().map(|w| w.configuring).unwrap_or(false));
 
     view! {
         <div
