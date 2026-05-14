@@ -74,7 +74,12 @@ pub fn RightPanel() -> impl IntoView {
             class:workbench-right-slot--collapsed=move || collapsed.get()
             class:workbench-right-slot--resizing=move || resizing.get()
         >
-            <div class="workbench-right-rail" role="toolbar" aria-label=move || i18n.tr(I18nKey::RpRailAria)()>
+            <div
+                class="workbench-right-rail"
+                class:workbench-right-rail--hidden=move || !collapsed.get()
+                role="toolbar"
+                aria-label=move || i18n.tr(I18nKey::RpRailAria)()
+            >
                 <header class="workbench-gutter-bar">
                     <button
                         type="button"
