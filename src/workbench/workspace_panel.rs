@@ -38,15 +38,6 @@ pub fn WorkspacePanel() -> impl IntoView {
     let workspaces = wb.workspaces();
     let active_id = wb.active_id();
 
-    let active_title = move || {
-        let id = active_id.get();
-        workspaces
-            .get()
-            .into_iter()
-            .find(|w| Some(w.id) == id)
-            .map(|w| w.title)
-    };
-
     view! {
         <section
             class=move || {
@@ -58,16 +49,6 @@ pub fn WorkspacePanel() -> impl IntoView {
             }
             aria-label=move || i18n.tr(I18nKey::WsAria)()
         >
-            <header class="workbench-workspace__header">
-                {move || match active_title() {
-                    Some(title) => view! { <h1 class="workbench-workspace__title">{title}</h1> }.into_any(),
-                    None => view! {
-                        <span class="workbench-workspace__title workbench-workspace__title--muted">
-                            {move || i18n.tr(I18nKey::WsEmptyTitle)()}
-                        </span>
-                    }.into_any(),
-                }}
-            </header>
             <div class="workbench-workspace__body">
                 <Show
                     when=move || !workspaces.get().is_empty()
