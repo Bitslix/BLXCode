@@ -2153,6 +2153,21 @@ body {
   color: var(--accent);
 }
 
+.harness-locale-picker .harness-provider-trigger__brand,
+.harness-locale-picker .harness-provider-option__brand {
+  width: 1.42rem;
+  height: 1.05rem;
+  flex: 0 0 1.42rem;
+  border-radius: 3px;
+}
+
+.harness-locale-picker .harness-provider-trigger__img,
+.harness-locale-picker .harness-provider-option__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .harness-stack {
   display: flex;
   flex-direction: column;

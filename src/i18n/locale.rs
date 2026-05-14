@@ -38,6 +38,31 @@ impl Locale {
         }
     }
 
+    /// SVG flag path (bundled under `public/flags`, copied by Trunk into `dist`) for `<img src>`.
+    #[must_use]
+    pub fn flag_icon_url(self) -> &'static str {
+        macro_rules! fi {
+            ($cc:literal) => {
+                concat!("/public/flags/", $cc, ".svg")
+            };
+        }
+        match self {
+            Self::DeDe => fi!("de"),
+            Self::EnUs => fi!("us"),
+            Self::EsEs => fi!("es"),
+            Self::FrFr => fi!("fr"),
+            Self::HuHu => fi!("hu"),
+            Self::ItIt => fi!("it"),
+            Self::JaJp => fi!("jp"),
+            Self::KoKr => fi!("kr"),
+            Self::PlPl => fi!("pl"),
+            Self::PtBr => fi!("br"),
+            Self::RuRu => fi!("ru"),
+            Self::ZhCn => fi!("cn"),
+            Self::ZhTw => fi!("tw"),
+        }
+    }
+
     /// Parse persisted or `<option>` BCP-47 tags (ASCII case-insensitive).
     #[must_use]
     pub fn parse_bcp47(raw: &str) -> Option<Self> {

@@ -576,6 +576,162 @@ fn HarnessCatBtn(
     }
 }
 
+fn focus_locale_option(loc: Locale) {
+    let id = format!("locale-option-{}", loc.as_str());
+    let Some(doc) = web_sys::window().and_then(|w| w.document()) else {
+        return;
+    };
+    let Some(el) = doc.get_element_by_id(&id) else {
+        return;
+    };
+    let Ok(button) = el.dyn_into::<web_sys::HtmlElement>() else {
+        return;
+    };
+    let _ = button.focus();
+}
+
+fn next_app_locale(loc: Locale) -> Locale {
+    let n = APP_LOCALES.len();
+    let idx = APP_LOCALES.iter().position(|(l, _)| *l == loc).unwrap_or(0);
+    APP_LOCALES[(idx + 1) % n].0
+}
+
+fn prev_app_locale(loc: Locale) -> Locale {
+    let n = APP_LOCALES.len();
+    let idx = APP_LOCALES.iter().position(|(l, _)| *l == loc).unwrap_or(0);
+    APP_LOCALES[(idx + n - 1) % n].0
+}
+
+fn app_locale_native_label(loc: Locale) -> &'static str {
+    APP_LOCALES
+        .iter()
+        .find(|(l, _)| *l == loc)
+        .map(|(_, label)| *label)
+        .unwrap_or("?")
+}
+
+#[component]
+fn LocalePicker() -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let open = RwSignal::new(false);
+
+    let choose = move |loc: Locale| {
+        i18n.set_locale(loc);
+        open.set(false);
+    };
+
+    view! {
+        <div class="harness-provider-picker harness-locale-picker">
+            <button
+                type="button"
+                class="harness-provider-trigger"
+                aria-haspopup="listbox"
+                aria-expanded=move || if open.get() { "true" } else { "false" }
+                on:click=move |_| {
+                    let next = !open.get_untracked();
+                    open.set(next);
+                    if next {
+                        let loc = i18n.locale().get_untracked();
+                        leptos::task::spawn_local(async move {
+                            TimeoutFuture::new(0).await;
+                            focus_locale_option(loc);
+                        });
+                    }
+                }
+                on:keydown=move |ev: web_sys::KeyboardEvent| {
+                    match ev.key().as_str() {
+                        "ArrowDown" | "Enter" | " " => {
+                            ev.prevent_default();
+                            open.set(true);
+                            let loc = i18n.locale().get_untracked();
+                            leptos::task::spawn_local(async move {
+                                TimeoutFuture::new(0).await;
+                                focus_locale_option(loc);
+                            });
+                        }
+                        "ArrowUp" => {
+                            ev.prevent_default();
+                            open.set(true);
+                            let loc = prev_app_locale(i18n.locale().get_untracked());
+                            leptos::task::spawn_local(async move {
+                                TimeoutFuture::new(0).await;
+                                focus_locale_option(loc);
+                            });
+                        }
+                        "Escape" => open.set(false),
+                        _ => {}
+                    }
+                }
+            >
+                <span class="harness-provider-trigger__main">
+                    <span class="harness-provider-trigger__brand">
+                        <img
+                            class="harness-provider-trigger__img"
+                            src=move || i18n.locale().get().flag_icon_url()
+                            alt=""
+                        />
+                    </span>
+                    <span>{move || app_locale_native_label(i18n.locale().get())}</span>
+                </span>
+                <span class="harness-provider-trigger__caret">"▾"</span>
+            </button>
+
+            <Show when=move || open.get()>
+                <div class="harness-provider-menu" role="listbox">
+                    <For
+                        each={move || APP_LOCALES.iter().copied().collect::<Vec<_>>()}
+                        key=|&(loc, _)| loc
+                        children={move |(loc, label)| {
+                            view! {
+                                <button
+                                    id=format!("locale-option-{}", loc.as_str())
+                                    type="button"
+                                    role="option"
+                                    class="harness-provider-option"
+                                    class:harness-provider-option--active=move || i18n.locale().get() == loc
+                                    aria-selected=move || if i18n.locale().get() == loc { "true" } else { "false" }
+                                    on:click=move |_| choose(loc)
+                                    on:keydown=move |ev: web_sys::KeyboardEvent| {
+                                        match ev.key().as_str() {
+                                            "ArrowDown" => {
+                                                ev.prevent_default();
+                                                focus_locale_option(next_app_locale(loc));
+                                            }
+                                            "ArrowUp" => {
+                                                ev.prevent_default();
+                                                focus_locale_option(prev_app_locale(loc));
+                                            }
+                                            "Enter" | " " => {
+                                                ev.prevent_default();
+                                                choose(loc);
+                                            }
+                                            "Escape" => {
+                                                ev.prevent_default();
+                                                open.set(false);
+                                            }
+                                            _ => {}
+                                        }
+                                    }
+                                >
+                                    <span class="harness-provider-option__brand">
+                                        <img
+                                            class="harness-provider-option__img"
+                                            src=loc.flag_icon_url()
+                                            alt=""
+                                            loading="lazy"
+                                        />
+                                    </span>
+                                    <span>{label}</span>
+                                </button>
+                            }
+                        }}
+                    />
+                </div>
+            </Show>
+        </div>
+    }
+}
+
 #[component]
 fn AppSettingsPane() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
@@ -593,31 +749,7 @@ fn AppSettingsPane() -> impl IntoView {
             </label>
             <label class="harness-stack">
                 <span>{move || i18n.tr(I18nKey::AppLanguage)()}</span>
-                <select
-                    class="workbench-plain-input"
-                    on:change=move |ev| {
-                        if let Some(tag) = select_str(&ev) {
-                            if let Some(loc) = Locale::parse_bcp47(&tag) {
-                                i18n.set_locale(loc);
-                            }
-                        }
-                    }
-                >
-                    <For
-                        each={move || APP_LOCALES.iter().copied().collect::<Vec<_>>()}
-                        key=|&(loc, _)| loc
-                        children={move |(loc, label)| {
-                            view! {
-                                <option
-                                    value=loc.as_str()
-                                    prop:selected=move || i18n.locale().get() == loc
-                                >
-                                    {label}
-                                </option>
-                            }
-                        }}
-                    />
-                </select>
+                <LocalePicker />
             </label>
             <section class="harness-subpane">
                 <AgentHooksPanel />
@@ -708,13 +840,9 @@ fn provider_label(i18n: &I18nService, provider: AgentProviderKind) -> String {
 
 fn provider_icon_url(provider: AgentProviderKind) -> &'static str {
     match provider {
-        AgentProviderKind::Openrouter => {
-            "https://cdn.jsdelivr.net/npm/simple-icons/icons/openrouter.svg"
-        }
-        AgentProviderKind::Anthropic => {
-            "https://cdn.jsdelivr.net/npm/simple-icons/icons/anthropic.svg"
-        }
-        AgentProviderKind::Openai => "https://cdn.jsdelivr.net/npm/simple-icons/icons/openai.svg",
+        AgentProviderKind::Openrouter => "/public/brand-icons/openrouter.svg",
+        AgentProviderKind::Anthropic => "/public/brand-icons/anthropic.svg",
+        AgentProviderKind::Openai => "/public/brand-icons/openai.svg",
     }
 }
 
@@ -786,10 +914,10 @@ fn provider_cache(
 
 fn hook_brand_icon(agent: &str) -> Option<&'static str> {
     match agent {
-        "claude" => Some("https://cdn.jsdelivr.net/npm/simple-icons/icons/anthropic.svg"),
-        "codex" => Some("https://cdn.jsdelivr.net/npm/simple-icons/icons/openai.svg"),
-        "gemini" => Some("https://cdn.jsdelivr.net/npm/simple-icons/icons/googlegemini.svg"),
-        "cursor" => Some("https://cdn.jsdelivr.net/npm/simple-icons/icons/cursor.svg"),
+        "claude" => Some("/public/brand-icons/anthropic.svg"),
+        "codex" => Some("/public/brand-icons/openai.svg"),
+        "gemini" => Some("/public/brand-icons/gemini.svg"),
+        "cursor" => Some("/public/brand-icons/cursor.svg"),
         _ => None,
     }
 }
