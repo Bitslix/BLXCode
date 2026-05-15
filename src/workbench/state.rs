@@ -1,6 +1,7 @@
 use crate::config::{
     HARNESS_BROWSER_DEFAULT_URL, HARNESS_BROWSER_URL_KEY, HARNESS_WORKSPACE_ROOT_KEY,
 };
+use crate::workbench::agent_timeline::TimelineItem;
 use crate::tauri_bridge::{
     is_tauri_shell, workbench_drop_sessions, workbench_extract_sessions_prefix,
     workbench_merge_sessions_workspace,
@@ -43,6 +44,12 @@ pub struct WorkspaceEntry {
     /// configuration flips it to `false`.
     #[serde(default)]
     pub configuring: bool,
+    /// Persisted agent chat timeline for this workspace folder.
+    #[serde(default)]
+    pub agent_timeline: Vec<TimelineItem>,
+    /// Draft text in the agent compose field (same workspace binding).
+    #[serde(default)]
+    pub agent_compose_draft: String,
 }
 
 /// Per-slot terminal split state — survives a restart so the grid of
@@ -83,6 +90,8 @@ impl WorkspaceEntry {
             slot_agent_labels: Vec::new(),
             slot_pane_states: Vec::new(),
             configuring: false,
+            agent_timeline: Vec::new(),
+            agent_compose_draft: String::new(),
         }
     }
 
@@ -621,6 +630,8 @@ impl WorkbenchService {
                 slot_agent_labels,
                 slot_pane_states,
                 configuring: false,
+                agent_timeline: Vec::new(),
+                agent_compose_draft: String::new(),
             });
         });
         self.active_id.set(Some(id));
@@ -1065,6 +1076,8 @@ impl WorkbenchService {
             slot_agent_labels: Vec::new(),
             slot_pane_states: Vec::new(),
             configuring: true,
+            agent_timeline: Vec::new(),
+            agent_compose_draft: String::new(),
         };
         self.workspaces.update(|v| v.push(entry));
         self.workspace_drafts.update(|m| {
@@ -1300,6 +1313,44 @@ impl WorkbenchService {
                 if *slot != state {
                     *slot = state;
                 }
+            }
+        });
+    }
+
+    pub fn set_workspace_agent_timeline(&self, workspace_id: u64, items: Vec<TimelineItem>) {
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                ws.agent_timeline = items;
+            }
+        });
+    }
+
+    #[must_use]
+    pub fn agent_timeline_for_workspace_untracked(&self, workspace_id: u64) -> Vec<TimelineItem> {
+        self.workspaces.with_untracked(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.agent_timeline.clone())
+                .unwrap_or_default()
+        })
+    }
+
+    #[must_use]
+    pub fn agent_compose_draft_for_workspace_untracked(&self, workspace_id: u64) -> String {
+        self.workspaces.with_untracked(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.agent_compose_draft.clone())
+                .unwrap_or_default()
+        })
+    }
+
+    pub fn set_workspace_agent_compose_draft(&self, workspace_id: u64, draft: String) {
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                ws.agent_compose_draft = draft;
             }
         });
     }

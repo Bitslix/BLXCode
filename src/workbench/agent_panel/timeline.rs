@@ -1,18 +1,13 @@
 use crate::agent_wire::{AgentEvent, TaskSnapshot};
 use crate::i18n::{lookup, I18nKey, Locale};
 use crate::service::I18nService;
+use crate::workbench::agent_timeline::{ActivityStatus, ToolActivity};
+pub use crate::workbench::agent_timeline::TimelineItem;
 use crate::workbench::chat_markdown::render_markdown_to_html;
+use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use std::collections::HashMap;
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum TimelineItem {
-    User { text: String },
-    Assistant { text: String },
-    Tool(ToolActivity),
-    Thinking { text: String, done: bool },
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum DisplayTimelineItem {
@@ -22,31 +17,13 @@ pub enum DisplayTimelineItem {
     Thinking { text: String, done: bool },
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-enum ActivityStatus {
-    Pending,
-    Ok,
-    Fail,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct ToolActivity {
-    tool: String,
-    label: String,
-    args_summary: String,
-    status: ActivityStatus,
-    detail: Option<String>,
-}
-
-impl ToolActivity {
-    fn from_call(tool: &str, args: Option<&serde_json::Value>) -> Self {
-        Self {
-            tool: tool.to_owned(),
-            label: friendly_label(tool).to_owned(),
-            args_summary: summarize_args(tool, args),
-            status: ActivityStatus::Pending,
-            detail: None,
-        }
+#[inline]
+fn persist_agent_timeline(
+    persist: Option<(WorkbenchService, u64)>,
+    timeline: RwSignal<Vec<TimelineItem>>,
+) {
+    if let Some((wb, workspace_id)) = persist {
+        wb.set_workspace_agent_timeline(workspace_id, timeline.get_untracked());
     }
 }
 
@@ -55,41 +32,52 @@ pub fn apply_agent_event(
     timeline: RwSignal<Vec<TimelineItem>>,
     task_snapshot: RwSignal<TaskSnapshot>,
     loc: Locale,
+    persist: Option<(WorkbenchService, u64)>,
 ) {
     match ev {
-        AgentEvent::AssistantDelta { delta } => timeline.update(|rows| match rows.last_mut() {
-            Some(TimelineItem::Assistant { text }) => text.push_str(delta),
-            _ => rows.push(TimelineItem::Assistant {
-                text: delta.clone(),
-            }),
-        }),
-        AgentEvent::ThinkingDelta { delta } => timeline.update(|rows| {
-            let append = matches!(
-                rows.last(),
-                Some(TimelineItem::Thinking { done: false, .. })
-            );
-            if append {
-                if let Some(TimelineItem::Thinking { text, .. }) = rows.last_mut() {
-                    text.push_str(delta);
-                }
-            } else {
-                rows.push(TimelineItem::Thinking {
+        AgentEvent::AssistantDelta { delta } => {
+            timeline.update(|rows| match rows.last_mut() {
+                Some(TimelineItem::Assistant { text }) => text.push_str(delta),
+                _ => rows.push(TimelineItem::Assistant {
                     text: delta.clone(),
-                    done: false,
-                });
-            }
-        }),
-        AgentEvent::ThinkingDone => timeline.update(|rows| {
-            for row in rows.iter_mut().rev() {
-                if let TimelineItem::Thinking { done, .. } = row {
-                    *done = true;
-                    break;
+                }),
+            });
+            persist_agent_timeline(persist, timeline);
+        }
+        AgentEvent::ThinkingDelta { delta } => {
+            timeline.update(|rows| {
+                let append = matches!(
+                    rows.last(),
+                    Some(TimelineItem::Thinking { done: false, .. })
+                );
+                if append {
+                    if let Some(TimelineItem::Thinking { text, .. }) = rows.last_mut() {
+                        text.push_str(delta);
+                    }
+                } else {
+                    rows.push(TimelineItem::Thinking {
+                        text: delta.clone(),
+                        done: false,
+                    });
                 }
-            }
-        }),
+            });
+            persist_agent_timeline(persist, timeline);
+        }
+        AgentEvent::ThinkingDone => {
+            timeline.update(|rows| {
+                for row in rows.iter_mut().rev() {
+                    if let TimelineItem::Thinking { done, .. } = row {
+                        *done = true;
+                        break;
+                    }
+                }
+            });
+            persist_agent_timeline(persist, timeline);
+        }
         AgentEvent::ToolCall { tool, args, .. } => {
             let entry = ToolActivity::from_call(tool, args.as_ref());
             timeline.update(|rows| rows.push(TimelineItem::Tool(entry)));
+            persist_agent_timeline(persist, timeline);
         }
         AgentEvent::ToolResult { tool, ok, message } => {
             timeline.update(|rows| {
@@ -109,9 +97,10 @@ pub fn apply_agent_event(
                     };
                     row.detail = message.clone().filter(|m| !m.is_empty());
                 } else {
+                    let stub = ToolActivity::from_call(tool, None);
                     rows.push(TimelineItem::Tool(ToolActivity {
                         tool: tool.clone(),
-                        label: friendly_label(tool).to_owned(),
+                        label: stub.label,
                         args_summary: String::new(),
                         status: if *ok {
                             ActivityStatus::Ok
@@ -122,32 +111,36 @@ pub fn apply_agent_event(
                     }));
                 }
             });
+            persist_agent_timeline(persist, timeline);
         }
         AgentEvent::TaskSnapshot { snapshot } => {
             task_snapshot.set(snapshot.clone());
         }
-        AgentEvent::Done => timeline.update(|rows| {
-            if let Some(message) = synthesize_completion_message(rows) {
-                rows.push(TimelineItem::Assistant {
-                    text: format!("{message}\n"),
-                });
-                return;
-            }
-            let fallback = match rows.last() {
-                Some(TimelineItem::Tool(tool)) if tool.status == ActivityStatus::Fail => tool
-                    .detail
-                    .as_deref()
-                    .filter(|detail| !detail.is_empty())
-                    .map(|detail| format!("`{}` failed: {detail}", tool.label))
-                    .or_else(|| Some(format!("`{}` failed.", tool.label))),
-                _ => None,
-            };
-            if let Some(message) = fallback {
-                rows.push(TimelineItem::Assistant {
-                    text: format!("{message}\n"),
-                });
-            }
-        }),
+        AgentEvent::Done => {
+            timeline.update(|rows| {
+                if let Some(message) = synthesize_completion_message(rows) {
+                    rows.push(TimelineItem::Assistant {
+                        text: format!("{message}\n"),
+                    });
+                    return;
+                }
+                let fallback = match rows.last() {
+                    Some(TimelineItem::Tool(tool)) if tool.status == ActivityStatus::Fail => tool
+                        .detail
+                        .as_deref()
+                        .filter(|detail| !detail.is_empty())
+                        .map(|detail| format!("`{}` failed: {detail}", tool.label))
+                        .or_else(|| Some(format!("`{}` failed.", tool.label))),
+                    _ => None,
+                };
+                if let Some(message) = fallback {
+                    rows.push(TimelineItem::Assistant {
+                        text: format!("{message}\n"),
+                    });
+                }
+            });
+            persist_agent_timeline(persist, timeline);
+        }
         AgentEvent::Error { message } => {
             let prefix = lookup(loc, I18nKey::AgErrColon);
             let line = format!("{prefix} {message}");
@@ -163,6 +156,7 @@ pub fn apply_agent_event(
                     text: format!("{line}\n"),
                 }),
             });
+            persist_agent_timeline(persist, timeline);
         }
     }
 }
@@ -243,58 +237,6 @@ pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
 
     flush_tools(&mut out, &mut pending_tools);
     out
-}
-
-fn friendly_label(tool: &str) -> &str {
-    match tool {
-        "harness.create_workspace" => "Create workspace",
-        "list_workspace_files" => "List files",
-        "read_workspace_file" => "Read file",
-        "memory_list" => "List memory notes",
-        "memory_read" => "Read memory note",
-        "memory_search" => "Search memory",
-        "memory_create" => "Create memory note",
-        "memory_write" => "Update memory note",
-        "task_list" => "List tasks",
-        "task_get" => "Read task",
-        "task_create" => "Create task",
-        "task_update" => "Update task",
-        "task_delete" => "Delete task",
-        "task_reorder" => "Reorder tasks",
-        "harness.open_terminal" => "Open terminal",
-        "harness.list_terminals" => "List terminals",
-        "harness.send_terminal_keys" => "Send keys to terminal",
-        "harness.read_terminal_output" => "Read terminal output",
-        other => other,
-    }
-}
-
-fn summarize_args(tool: &str, args: Option<&serde_json::Value>) -> String {
-    let Some(args) = args else {
-        return String::new();
-    };
-    let pick = match tool {
-        "harness.create_workspace" => Some("title"),
-        "list_workspace_files" => Some("path"),
-        "read_workspace_file" | "memory_read" | "memory_create" | "memory_write" => Some("path"),
-        "memory_search" => Some("query"),
-        "task_get" | "task_update" | "task_delete" => Some("id"),
-        "task_create" => Some("title"),
-        "harness.open_terminal" => Some("agentSlug"),
-        "harness.send_terminal_keys" => Some("text"),
-        _ => None,
-    };
-    if let Some(key) = pick {
-        if let Some(v) = args.get(key).and_then(|v| v.as_str()) {
-            return v.to_owned();
-        }
-    }
-    if tool == "task_reorder" {
-        if let Some(ids) = args.get("orderedIds").and_then(|v| v.as_array()) {
-            return format!("{} ids", ids.len());
-        }
-    }
-    String::new()
 }
 
 fn tool_icon(tool: &str) -> icondata::Icon {

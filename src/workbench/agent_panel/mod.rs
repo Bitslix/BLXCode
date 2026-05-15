@@ -44,6 +44,22 @@ pub fn AgentPanelDock() -> impl IntoView {
     // remount the row and reset the local open flag.
     let thinking_open = RwSignal::new(HashMap::<usize, bool>::new());
 
+    // Load authoritative timeline + compose draft when the active workspace
+    // changes only (do not subscribe to `workspaces` — timeline writes would
+    // reset thinking UI and fight streaming).
+    Effect::new(move |_| {
+        let active = wb.active_id().get();
+        let Some(id) = active else {
+            timeline.set(Vec::new());
+            thinking_open.set(HashMap::new());
+            draft.set(String::new());
+            return;
+        };
+        timeline.set(wb.agent_timeline_for_workspace_untracked(id));
+        thinking_open.set(HashMap::new());
+        draft.set(wb.agent_compose_draft_for_workspace_untracked(id));
+    });
+
     if is_tauri_shell() {
         leptos::task::spawn_local(async move {
             if let Ok(view) = agent_settings_get().await {
@@ -192,7 +208,15 @@ pub fn AgentPanelDock() -> impl IntoView {
                     prop:value=move || draft.get()
                     prop:disabled=move || busy.get()
                     on:input=move |ev| {
-                        input_value_from(ev, draft);
+                        if let Some(t) = ev.target() {
+                            if let Ok(inp) = t.dyn_into::<web_sys::HtmlInputElement>() {
+                                let v = inp.value();
+                                draft.set(v.clone());
+                                if let Some(id) = wb.active_id().get_untracked() {
+                                    wb.set_workspace_agent_compose_draft(id, v);
+                                }
+                            }
+                        }
                     }
                     on:keydown=move |ev| {
                         if ev.key() == "Enter" && !ev.shift_key() && !ev.ctrl_key() && !ev.meta_key() {
@@ -249,14 +273,6 @@ fn resolve_effective_workspace_root(wb: &WorkbenchService) -> Option<String> {
     (!t.is_empty()).then(|| t.to_owned())
 }
 
-fn input_value_from(ev: web_sys::Event, draft: RwSignal<String>) {
-    if let Some(t) = ev.target() {
-        if let Ok(inp) = t.dyn_into::<web_sys::HtmlInputElement>() {
-            draft.set(inp.value());
-        }
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
 fn submit_turn(
     wb: WorkbenchService,
@@ -279,6 +295,11 @@ fn submit_turn(
         return;
     }
 
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        status_line.set(Some("Select a workspace tab first.".into()));
+        return;
+    };
+
     let workspace_root = resolve_effective_workspace_root(&wb);
 
     timeline.update(|items| {
@@ -286,9 +307,12 @@ fn submit_turn(
             text: prompt.clone(),
         });
     });
+    wb.set_workspace_agent_timeline(ws_id, timeline.get_untracked());
+
     status_line.set(None);
     busy.set(true);
     draft.set(String::new());
+    wb.set_workspace_agent_compose_draft(ws_id, String::new());
 
     let turn = UserTurn {
         prompt,
@@ -299,6 +323,7 @@ fn submit_turn(
     let status_sig = status_line;
     let timeline_sig = timeline;
     let task_snapshot_sig = task_snapshot;
+    let ws_capture = ws_id;
 
     leptos::task::spawn_local(async move {
         if let Err(msg) = agent_submit_turn(turn).await {
@@ -312,7 +337,13 @@ fn submit_turn(
         if let Err(msg) = agent_drain_turn(move |batch| {
             let loc_now = i18n_d.locale().get_untracked();
             for ev in &batch {
-                apply_agent_event(ev, timeline_sig, task_snapshot_sig, loc_now);
+                apply_agent_event(
+                    ev,
+                    timeline_sig,
+                    task_snapshot_sig,
+                    loc_now,
+                    Some((wb_d, ws_capture)),
+                );
                 maybe_handle_client_tool(ev, wb_d);
             }
             let _ = batch;

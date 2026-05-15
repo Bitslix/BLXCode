@@ -1,4 +1,5 @@
 //! Three-pane editor shell: collapsible sidebar, workspace, resizable right column.
+mod agent_timeline;
 mod agent_panel;
 mod browser_tab;
 mod chat_markdown;
