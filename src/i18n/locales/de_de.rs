@@ -79,6 +79,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgPromptPh => "Ziel formulieren oder READ:README.md …",
         I18nKey::AgSend => "Senden",
         I18nKey::AgCancel => "Abbrechen",
+        I18nKey::AgResetChat => "Chat zurücksetzen",
+        I18nKey::AgResetChatAria => {
+            "Chat-Ansicht und Modell-Konversationsverlauf auf dem Server leeren"
+        }
         I18nKey::AgErrNeedPrompt => "Bitte Prompt eingeben.",
         I18nKey::AgYou => "Du",
         I18nKey::AgAssistant => "Agent",

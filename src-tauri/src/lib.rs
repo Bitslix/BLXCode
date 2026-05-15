@@ -58,6 +58,7 @@ pub fn run() {
             agent_submit_tool_result,
             agent_poll_events,
             agent_abort,
+            agent_clear_conversation,
             agent_provider_status,
             harness_ensure_default_sandbox,
             agent_settings_get,

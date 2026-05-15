@@ -7,7 +7,8 @@ use crate::agent_wire::{TaskSnapshot, UserTurn};
 use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_abort, agent_drain_turn, agent_settings_get, agent_submit_turn, is_tauri_shell,
+    agent_abort, agent_clear_conversation, agent_drain_turn, agent_settings_get, agent_submit_turn,
+    is_tauri_shell,
     tasks_list as fetch_tasks_list,
 };
 use crate::workbench::agent_panel::client_tools::maybe_handle_client_tool;
@@ -248,6 +249,40 @@ pub fn AgentPanelDock() -> impl IntoView {
                     >
                         <LxIcon icon=icondata::LuX width="0.9rem" height="0.9rem" />
                         <span>{move || i18n.tr(I18nKey::AgCancel)()}</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        class="workbench-mini-btn agent-reset-chat-btn"
+                        prop:disabled=move || busy.get() || !is_tauri_shell()
+                        aria-label=move || i18n.tr(I18nKey::AgResetChatAria)()
+                        on:click=move |_| {
+                            let wb = wb;
+                            let status_line = status_line;
+                            let timeline = timeline;
+                            let draft = draft;
+                            let thinking_open = thinking_open;
+                            leptos::task::spawn_local(async move {
+                                let Some(ws_id) = wb.active_id().get_untracked() else {
+                                    status_line.set(Some("Select a workspace tab first.".into()));
+                                    return;
+                                };
+                                match agent_clear_conversation().await {
+                                    Ok(()) => {
+                                        timeline.set(Vec::new());
+                                        thinking_open.set(HashMap::new());
+                                        draft.set(String::new());
+                                        wb.set_workspace_agent_timeline(ws_id, Vec::new());
+                                        wb.set_workspace_agent_compose_draft(ws_id, String::new());
+                                        status_line.set(None);
+                                    }
+                                    Err(msg) => status_line.set(Some(msg)),
+                                }
+                            });
+                        }
+                    >
+                        <LxIcon icon=icondata::LuEraser width="0.9rem" height="0.9rem" />
+                        <span>{move || i18n.tr(I18nKey::AgResetChat)()}</span>
                     </button>
                 </div>
             </form>

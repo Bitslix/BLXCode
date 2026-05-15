@@ -73,6 +73,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgPromptPh => "描述一个目标或阅读：README.md …",
         I18nKey::AgSend => "发送",
         I18nKey::AgCancel => "取消",
+        I18nKey::AgResetChat => "重置聊天",
+        I18nKey::AgResetChatAria => "清除聊天视图和服务器上的模型对话历史",
         I18nKey::AgErrNeedPrompt => "请输入提示。",
         I18nKey::AgYou => "你",
         I18nKey::AgAssistant => "代理人",

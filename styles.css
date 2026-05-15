@@ -1931,6 +1931,8 @@ button.workbench-shortcut-row--action:focus-visible {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  width: 100%;
+  box-sizing: border-box;
   padding: 0.38rem 0.55rem;
   cursor: pointer;
   font-family: var(--font-mono);
@@ -1938,6 +1940,21 @@ button.workbench-shortcut-row--action:focus-visible {
   font-weight: 650;
   color: rgba(218, 226, 245, 0.88);
   user-select: none;
+}
+
+.workbench-md-fence__summary-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.workbench-md-fence__summary-lang {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-weight: 650;
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+  text-transform: lowercase;
+  color: rgba(180, 198, 235, 0.72);
 }
 
 .workbench-md-fence__summary::-webkit-details-marker {

@@ -77,6 +77,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgPromptPh => "목표를 설명하거나 READ:README.md …",
         I18nKey::AgSend => "보내다",
         I18nKey::AgCancel => "취소",
+        I18nKey::AgResetChat => "채팅 재설정",
+        I18nKey::AgResetChatAria => {
+            "채팅 화면과 서버의 모델 대화 기록 지우기"
+        }
         I18nKey::AgErrNeedPrompt => "프롬프트를 입력하세요.",
         I18nKey::AgYou => "너",
         I18nKey::AgAssistant => "대리인",

@@ -73,6 +73,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgPromptPh => "描述一個目標或閱讀：README.md …",
         I18nKey::AgSend => "傳送",
         I18nKey::AgCancel => "取消",
+        I18nKey::AgResetChat => "重設聊天",
+        I18nKey::AgResetChatAria => "清除聊天畫面與伺服器上的模型對話紀錄",
         I18nKey::AgErrNeedPrompt => "請輸入提示。",
         I18nKey::AgYou => "你",
         I18nKey::AgAssistant => "代理人",

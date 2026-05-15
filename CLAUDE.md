@@ -67,14 +67,15 @@ Module layout:
 `lib.rs` wires Tauri state and registers all commands.
 
 **Agent subsystem** (`agent/`):
-- `state.rs` — `AgentEngineState`: thread-safe event queue (`VecDeque` behind `Mutex`) + atomic `busy`/`cancel` flags. `ProviderEnv` reads `BLX_ANTHROPIC_API_KEY` from the environment.
+- `state.rs` — `AgentEngineState`: thread-safe event queue (`VecDeque` behind `Mutex`) + atomic `busy`/`cancel` flags; persisted model `conversation` (cleared via `agent_clear_conversation`). `ProviderEnv` reads `BLX_ANTHROPIC_API_KEY` from the environment.
 - `protocol.rs` — `UserTurn` (input) and `AgentEvent` enum (output: `AssistantDelta`, `ToolCall`, `ToolResult`, `Done`, `Error`).
-- `orchestrator.rs` — `spawn_mock_turn`: current mock engine; streams chunked deltas, supports `READ:<relative-path>` inline command for scoped file reads.
-- `session_orchestrator.rs` — `dispatch_user_turn`: thin facade; checks busy state before spawning.
-- `provider.rs` — `InferenceProvider` trait stub; `maybe_emit_network_hint` probes `api.anthropic.com` when the API key is set.
+- `system_prompt.rs` — shared system prompt for OpenRouter, OpenAI-compatible, and Anthropic paths.
+- `session_orchestrator.rs` — `dispatch_user_turn`: loads settings + API key, spawns the configured HTTP provider turn.
+- `openrouter.rs` / `anthropic.rs` — streaming tool-call loops against remote APIs.
+- `provider.rs` — `InferenceProvider` trait stub for future pluggable backends.
 - `tools.rs` — `WorkspaceRootGuard` / `ScopedReadOps`: sandboxed file reads within the user-set workspace root.
 
-**IPC pattern**: The frontend polls `agent_poll_events` on a timer to drain `AgentEvent`s from the queue. Submissions go via `agent_submit_turn`. This is a poll-based design, not push/SSE.
+**IPC pattern**: The frontend polls `agent_poll_events` on a timer to drain `AgentEvent`s from the queue. Submissions go via `agent_submit_turn`. Chat + model context reset: `agent_clear_conversation` (disabled while the agent is busy). This is a poll-based design, not push/SSE.
 
 **Browser host** (`browser_host.rs`): Embeds a native child webview on Windows/macOS (`add_child` via Tauri unstable API). On Linux, falls back to an `<iframe>` inside the SPA because `native_child_inset_supported()` returns `false`.
 

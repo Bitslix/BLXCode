@@ -81,6 +81,10 @@ pub async fn agent_abort() -> Result<(), String> {
     invoke_unit_js("agent_abort", JsValue::UNDEFINED).await
 }
 
+pub async fn agent_clear_conversation() -> Result<(), String> {
+    invoke_unit_js("agent_clear_conversation", JsValue::UNDEFINED).await
+}
+
 /// Idempotently creates `{app_data}/sandbox` and returns its absolute path.
 /// Used as the always-available workspace root fallback in Phase A.
 pub async fn harness_ensure_default_sandbox() -> Result<String, String> {

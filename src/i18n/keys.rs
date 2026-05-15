@@ -80,6 +80,8 @@ pub enum I18nKey {
     AgPromptPh,
     AgSend,
     AgCancel,
+    AgResetChat,
+    AgResetChatAria,
     AgErrNeedPrompt,
     AgYou,
     AgAssistant,

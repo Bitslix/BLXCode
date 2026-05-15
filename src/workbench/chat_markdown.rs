@@ -225,21 +225,39 @@ fn strip_blx_open_fence_info(info: &str) -> (bool, String) {
     (true, rest)
 }
 
-fn language_token_from_pre_open_tag(pre_open: &str) -> Option<String> {
+fn language_token_from_open_tags(pre_and_code_open: &str) -> Option<String> {
     const KEY: &str = "class=\"language-";
-    let start = pre_open.find(KEY)? + KEY.len();
-    let rel = &pre_open[start..];
+    let start = pre_and_code_open.find(KEY)? + KEY.len();
+    let rel = &pre_and_code_open[start..];
     let end = rel.find('"')?;
     Some(rel[..end].to_string())
 }
 
-fn fence_summary_caption(pre_open: &str) -> String {
-    if let Some(lang) = language_token_from_pre_open_tag(pre_open) {
-        if !lang.is_empty() {
-            return lang;
+/// `pulldown-cmark` emits `<pre><code class="language-…">` with the first `>` closing `<pre>`,
+/// so `pre_open` must include the `<code …>` prefix to read the language class.
+fn fence_summary_html(pre_open: &str, inner: &str) -> String {
+    let scan = match inner.find('>') {
+        Some(gt) => {
+            let mut s = String::with_capacity(pre_open.len() + gt + 1);
+            s.push_str(pre_open);
+            s.push_str(&inner[..=gt]);
+            s
         }
-    }
-    "Code".to_string()
+        None => pre_open.to_string(),
+    };
+    let lang = language_token_from_open_tags(&scan).filter(|s| !s.is_empty());
+    let lang_html = lang
+        .as_ref()
+        .map(|l| {
+            format!(
+                r#"<span class="workbench-md-fence__summary-lang">{}</span>"#,
+                html_escape_summary_text(l)
+            )
+        })
+        .unwrap_or_default();
+    format!(
+        r#"<span class="workbench-md-fence__summary-title">Code</span>{lang_html}"#
+    )
 }
 
 fn html_escape_summary_text(s: &str) -> String {
@@ -254,6 +272,56 @@ fn html_escape_summary_text(s: &str) -> String {
         }
     }
     o
+}
+
+fn looks_like_markdown_fence_open_line(line: &str) -> bool {
+    let t = line.trim_start();
+    if !t.starts_with("```") {
+        return false;
+    }
+    !t[3..].contains('`')
+}
+
+fn looks_like_markdown_fence_close_line(line: &str) -> bool {
+    line.trim() == "```"
+}
+
+/// Removes a leading / trailing Markdown fence line accidentally left inside `<code>` (e.g.
+/// indented blocks or odd model formatting).
+fn strip_echo_fence_lines_in_code_inner_html(inner: &str) -> String {
+    let Some(gt) = inner.find('>') else {
+        return inner.to_string();
+    };
+    let Some(close) = inner.rfind("</code>") else {
+        return inner.to_string();
+    };
+    let prefix = &inner[..=gt];
+    let body = &inner[gt + 1..close];
+    let suffix = &inner[close..];
+    let ends_nl = body.ends_with('\n');
+    let lines: Vec<&str> = body.split('\n').collect();
+    if lines.len() < 2 {
+        return inner.to_string();
+    }
+    let mut start = 0usize;
+    let mut end = lines.len();
+    if looks_like_markdown_fence_open_line(lines[0]) {
+        start = 1;
+    }
+    while end > start && lines[end - 1].trim().is_empty() {
+        end -= 1;
+    }
+    if end > start && looks_like_markdown_fence_close_line(lines[end - 1]) {
+        end -= 1;
+    }
+    if start == 0 && end == lines.len() {
+        return inner.to_string();
+    }
+    let mut out = lines[start..end].join("\n");
+    if ends_nl && !out.is_empty() && !out.ends_with('\n') {
+        out.push('\n');
+    }
+    format!("{prefix}{out}{suffix}")
 }
 
 /// Wraps each `<pre>…</pre>` emitted for fenced code in `<details>`; consumes `expand_defaults`
@@ -282,15 +350,16 @@ fn wrap_collapsible_code_fences(html: String, expand_defaults: &[bool]) -> Strin
 
         let expand = flags.next().unwrap_or(false);
         let open_attr = if expand { " open" } else { "" };
-        let cap = fence_summary_caption(pre_open);
+        let summary = fence_summary_html(pre_open, inner);
+        let inner = strip_echo_fence_lines_in_code_inner_html(inner);
 
         out.push_str(r#"<details class="workbench-md-fence""#);
         out.push_str(open_attr);
         out.push_str(r#"><summary class="workbench-md-fence__summary" tabindex="0">"#);
-        out.push_str(&html_escape_summary_text(&cap));
+        out.push_str(&summary);
         out.push_str(r#"</summary><div class="workbench-md-fence__body">"#);
         out.push_str(pre_open);
-        out.push_str(inner);
+        out.push_str(&inner);
         out.push_str("</pre></div></details>");
     }
     out.push_str(rest);
@@ -387,6 +456,36 @@ mod tests {
         assert!(wrapped.contains("<details"));
         assert!(!wrapped.contains("<details class=\"workbench-md-fence\" open"));
         assert!(wrapped.contains("</details>"));
+    }
+
+    #[test]
+    fn wrap_summary_includes_language_from_code_tag() {
+        let html = r#"<pre><code class="language-rust">fn main() {}
+</code></pre>"#;
+        let wrapped = wrap_collapsible_code_fences(html.to_string(), &[false]);
+        assert!(wrapped.contains("workbench-md-fence__summary-lang"));
+        assert!(wrapped.contains("rust"));
+        assert!(wrapped.contains("workbench-md-fence__summary-title"));
+    }
+
+    #[test]
+    fn strip_echo_fences_inside_code_block() {
+        let inner = r#"<code class="language-rust">``` rust
+fn main() {}
+```
+</code>"#;
+        let out = strip_echo_fence_lines_in_code_inner_html(inner);
+        assert!(!out.contains("```"));
+        assert!(out.contains("fn main()"));
+    }
+
+    #[test]
+    fn render_fenced_rust_has_lang_and_no_ticks_in_body() {
+        let md = "```rust\nfn main() {}\n```\n";
+        let html = render_markdown_to_html(md);
+        assert!(html.contains("workbench-md-fence__summary-lang"));
+        assert!(html.contains("fence__summary-lang\">rust</span>"));
+        assert!(!html.contains("```"));
     }
 
     #[test]

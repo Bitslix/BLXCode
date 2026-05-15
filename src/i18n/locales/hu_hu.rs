@@ -79,6 +79,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgPromptPh => "Írjon le egy célt vagy READ:README.md…",
         I18nKey::AgSend => "Elküld",
         I18nKey::AgCancel => "Mégse",
+        I18nKey::AgResetChat => "Csevegés visszaállítása",
+        I18nKey::AgResetChatAria => {
+            "A csevegés nézet és a modell beszélgetési előzményeinek törlése a szerveren"
+        }
         I18nKey::AgErrNeedPrompt => "Kérjük, írjon be egy felszólítást.",
         I18nKey::AgYou => "Te",
         I18nKey::AgAssistant => "Ügynök",
