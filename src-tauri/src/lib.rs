@@ -42,8 +42,21 @@ fn exit_app(app: tauri::AppHandle) {
     app.exit(0);
 }
 
+/// WebKit2GTK on Linux often misbehaves with the default DMABuf path (blank window, GBM errors,
+/// or flaky network/render processes). Respect an explicit env override from the user.
+#[cfg(target_os = "linux")]
+fn apply_linux_webkit_workarounds() {
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn apply_linux_webkit_workarounds() {}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    apply_linux_webkit_workarounds();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(AgentEngineState::new())
