@@ -233,8 +233,86 @@ fn language_token_from_open_tags(pre_and_code_open: &str) -> Option<String> {
     Some(rel[..end].to_string())
 }
 
+fn is_vague_fence_language_for_display(lang: &str) -> bool {
+    let l = lang.to_ascii_lowercase();
+    matches!(
+        l.as_str(),
+        "text" | "txt" | "plain" | "plaintext" | "markdown" | "md" | "none"
+    )
+}
+
+fn code_body_inside_code_inner_html(inner: &str) -> Option<&str> {
+    let gt = inner.find('>')?;
+    let close = inner.rfind("</code>")?;
+    inner.get(gt + 1..close)
+}
+
+/// Best-effort language for the summary chip when the declared fence language is generic.
+fn infer_language_label_from_code_body(body: &str) -> Option<&'static str> {
+    let lower = body.to_ascii_lowercase();
+    if lower.contains("#!/bin/bash")
+        || lower.contains("#!/usr/bin/env bash")
+        || lower.contains("#!/bin/sh")
+    {
+        return Some("bash");
+    }
+    if lower.starts_with("<!doctype html") || lower.contains("<html") {
+        return Some("html");
+    }
+    if lower.contains("#include <iostream") || lower.contains("std::") {
+        return Some("cpp");
+    }
+    if lower.contains("#include <stdio") {
+        return Some("c");
+    }
+    if lower.contains("package main") && lower.contains("func ") {
+        return Some("go");
+    }
+    if lower.contains("public static void main") {
+        return Some("java");
+    }
+    if lower.contains("println!") || lower.contains("fn main") {
+        return Some("rust");
+    }
+    if lower.contains("use strict") || lower.contains("console.log") {
+        return Some("javascript");
+    }
+    if lower.contains("interface ")
+        && (lower.contains(": string")
+            || lower.contains(": number")
+            || lower.contains(": boolean"))
+    {
+        return Some("typescript");
+    }
+    if lower.contains("def ")
+        && (lower.contains("import ")
+            || lower.contains("__name__")
+            || lower.contains("elif ")
+            || lower.contains("self."))
+    {
+        return Some("python");
+    }
+    if lower.contains("select ") && lower.contains(" from ") {
+        return Some("sql");
+    }
+    None
+}
+
+fn display_language_for_fence_summary(declared: Option<&str>, inner: &str) -> Option<String> {
+    let declared = declared.filter(|s| !s.is_empty())?;
+    let body = code_body_inside_code_inner_html(inner).unwrap_or("");
+    if is_vague_fence_language_for_display(declared) {
+        if let Some(inferred) = infer_language_label_from_code_body(body) {
+            return Some(inferred.to_string());
+        }
+    }
+    Some(declared.to_string())
+}
+
 /// `pulldown-cmark` emits `<pre><code class="language-…">` with the first `>` closing `<pre>`,
 /// so `pre_open` must include the `<code …>` prefix to read the language class.
+///
+/// `inner` should be the **post-strip** `<code>…</code>` fragment so inference sees real code.
 fn fence_summary_html(pre_open: &str, inner: &str) -> String {
     let scan = match inner.find('>') {
         Some(gt) => {
@@ -245,7 +323,8 @@ fn fence_summary_html(pre_open: &str, inner: &str) -> String {
         }
         None => pre_open.to_string(),
     };
-    let lang = language_token_from_open_tags(&scan).filter(|s| !s.is_empty());
+    let declared = language_token_from_open_tags(&scan);
+    let lang = display_language_for_fence_summary(declared.as_deref(), inner);
     let lang_html = lang
         .as_ref()
         .map(|l| {
@@ -348,10 +427,10 @@ fn wrap_collapsible_code_fences(html: String, expand_defaults: &[bool]) -> Strin
         let inner = &rest[..close];
         rest = &rest[close + 6..];
 
+        let inner = strip_echo_fence_lines_in_code_inner_html(inner);
         let expand = flags.next().unwrap_or(false);
         let open_attr = if expand { " open" } else { "" };
-        let summary = fence_summary_html(pre_open, inner);
-        let inner = strip_echo_fence_lines_in_code_inner_html(inner);
+        let summary = fence_summary_html(pre_open, &inner);
 
         out.push_str(r#"<details class="workbench-md-fence""#);
         out.push_str(open_attr);
@@ -486,6 +565,27 @@ fn main() {}
         assert!(html.contains("workbench-md-fence__summary-lang"));
         assert!(html.contains("fence__summary-lang\">rust</span>"));
         assert!(!html.contains("```"));
+    }
+
+    #[test]
+    fn vague_markdown_fence_shows_inferred_rust_in_summary() {
+        let html = r#"<pre><code class="language-markdown">fn main() {
+    println!("Hello, world!");
+}
+</code></pre>"#;
+        let wrapped = wrap_collapsible_code_fences(html.to_string(), &[false]);
+        assert!(wrapped.contains("fence__summary-lang\">rust</span>"));
+        assert!(!wrapped.contains("fence__summary-lang\">markdown</span>"));
+    }
+
+    #[test]
+    fn vague_markdown_fence_keeps_markdown_when_content_is_prose() {
+        let html = r#"<pre><code class="language-markdown"># Title
+
+- list item
+</code></pre>"#;
+        let wrapped = wrap_collapsible_code_fences(html.to_string(), &[false]);
+        assert!(wrapped.contains("fence__summary-lang\">markdown</span>"));
     }
 
     #[test]
