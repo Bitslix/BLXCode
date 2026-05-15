@@ -9,7 +9,7 @@
 //! Cancellation, multi-turn history, and tool dispatch follow the same
 //! contracts as the OpenAI-compatible path.
 
-use super::openrouter::system_prompt;
+use super::system_prompt::system_prompt;
 use crate::agent::protocol::AgentEvent;
 use crate::agent::state::{AgentEngineState, ClientToolResult};
 use crate::agent::tools::{self, ToolSite, WorkspaceRootGuard};

@@ -2,6 +2,7 @@ mod protocol;
 mod state;
 pub mod tools;
 
+mod system_prompt;
 mod anthropic;
 mod openrouter;
 mod orchestrator;
