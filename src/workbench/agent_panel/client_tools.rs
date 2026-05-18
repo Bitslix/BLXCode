@@ -30,29 +30,94 @@ fn submit_async(call_id: String, ok: bool, message: String, data: Option<serde_j
 }
 
 fn handle_open_terminal(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
-    let agent_slug = args
+    // Resolve count (default 1, clamped 1..=16).
+    let count = args
+        .as_ref()
+        .and_then(|v| v.get("count"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(1)
+        .clamp(1, 16) as usize;
+
+    // Resolve per-slot agent slugs. `agentSlugs` (array) takes precedence;
+    // otherwise `agentSlug` (string) applies to every slot; otherwise plain.
+    let slugs_array = args
+        .as_ref()
+        .and_then(|v| v.get("agentSlugs"))
+        .and_then(|v| v.as_array())
+        .map(|entries| {
+            entries
+                .iter()
+                .filter_map(|e| e.as_str().map(ToOwned::to_owned))
+                .collect::<Vec<_>>()
+        });
+    let single_slug = args
         .as_ref()
         .and_then(|v| v.get("agentSlug"))
         .and_then(|v| v.as_str())
         .map(|s| s.to_owned());
-    let active = wb.active_id().get_untracked();
-    let (ok, msg) = match active {
-        Some(workspace_id) => match wb.append_terminal_slot(workspace_id, agent_slug.clone()) {
-            Ok(slot_id) => (
-                true,
-                format!(
-                    "opened terminal slot {slot_id}{}",
-                    agent_slug
-                        .as_ref()
-                        .map(|s| format!(" with agent={s}"))
-                        .unwrap_or_default()
-                ),
-            ),
-            Err(e) => (false, e),
+
+    let slugs: Vec<String> = match slugs_array {
+        Some(arr) => {
+            if arr.len() != count {
+                submit_async(
+                    call_id,
+                    false,
+                    format!(
+                        "agentSlugs length {} does not match count {}",
+                        arr.len(),
+                        count
+                    ),
+                    None,
+                );
+                return;
+            }
+            arr
+        }
+        None => match single_slug.as_ref() {
+            Some(s) => vec![s.clone(); count],
+            None => vec![String::new(); count],
         },
-        None => (false, "no active workspace".to_owned()),
     };
-    submit_async(call_id, ok, msg, None);
+
+    let Some(workspace_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+
+    match wb.append_terminal_slots(workspace_id, slugs.clone()) {
+        Ok(slot_ids) => {
+            let summary = if count == 1 {
+                let suffix = slugs
+                    .first()
+                    .filter(|s| !s.is_empty())
+                    .map(|s| format!(" with agent={s}"))
+                    .unwrap_or_default();
+                format!("opened terminal slot {}{}", slot_ids[0], suffix)
+            } else {
+                let agent_note = match (slugs_array_is_uniform(&slugs), single_slug.as_ref()) {
+                    (Some(s), _) if !s.is_empty() => format!(" with agent={s}"),
+                    _ => String::new(),
+                };
+                format!("opened {} terminal slot(s){}", slot_ids.len(), agent_note)
+            };
+            let data = serde_json::json!({ "slotIds": slot_ids });
+            submit_async(call_id, true, summary, Some(data));
+        }
+        Err(e) => submit_async(call_id, false, e, None),
+    }
+}
+
+/// If every entry in `slugs` matches (and is non-empty), return that value.
+fn slugs_array_is_uniform(slugs: &[String]) -> Option<&str> {
+    let first = slugs.first()?;
+    if first.is_empty() {
+        return None;
+    }
+    if slugs.iter().all(|s| s == first) {
+        Some(first)
+    } else {
+        None
+    }
 }
 
 fn handle_create_workspace(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {

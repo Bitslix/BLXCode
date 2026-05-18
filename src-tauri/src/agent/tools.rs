@@ -419,14 +419,29 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "harness.open_terminal",
-            description: "Open a new terminal slot in the active workspace. Call with no arguments (`{}`) for a plain shell — this is the default and correct form when the user does not name a CLI agent. Only set `agentSlug` when the user explicitly asks for one of: `claude`, `codex`, `gemini`, `opencode`, `cursor`.",
+            description: "Open one or more new terminal slots in the active workspace. Call with no arguments (`{}`) for a single plain shell — the default. Set `count` to open multiple terminals in one call (default 1, max 16). Use `agentSlug` for a single CLI agent applied to all opened slots, or `agentSlugs` (array, length == count) to assign different agents per slot. Only set agent slugs when the user explicitly names one of: `claude`, `codex`, `gemini`, `opencode`, `cursor`.",
             parameters: json!({
                 "type": "object",
                 "properties": {
+                    "count": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 16,
+                        "default": 1,
+                        "description": "Number of terminal slots to open. Defaults to 1."
+                    },
                     "agentSlug": {
                         "type": "string",
                         "enum": ["claude", "codex", "gemini", "opencode", "cursor"],
-                        "description": "OPTIONAL. Only include when the user explicitly names a CLI agent. Omit the entire property otherwise."
+                        "description": "OPTIONAL. Applied to every new slot. Omit for plain shells."
+                    },
+                    "agentSlugs": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "enum": ["claude", "codex", "gemini", "opencode", "cursor"]
+                        },
+                        "description": "OPTIONAL. Per-slot agent slugs. Length must equal `count`. Takes precedence over `agentSlug`."
                     }
                 },
                 "required": [],

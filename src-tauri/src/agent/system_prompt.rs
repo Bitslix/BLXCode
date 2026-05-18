@@ -118,13 +118,18 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
            per-slot list like `[\"claude\", \"claude\", \"claude\", \"claude\"]`. \
            If `cwd` is omitted, the harness defaults to the active \
            workspace cwd or the configured harness root.\n\
-         - `harness.open_terminal {{ agentSlug? }}` — open a new terminal \
-           slot in the active workspace. **Default form: call with no \
-           arguments (`{{}}`) for a plain shell.** Only pass `agentSlug` \
-           when the user explicitly names one of `claude`, `codex`, \
-           `gemini`, `opencode`, `cursor`. Do not deliberate about the \
-           schema; if the user asks for \"a terminal\" without naming a \
-           CLI, call it with `{{}}` immediately. Fails at the 16-slot max.\n\
+         - `harness.open_terminal {{ count?, agentSlug?, agentSlugs? }}` \
+           — open one or more terminal slots in the active workspace. \
+           **Default form: call with no arguments (`{{}}`) for a single \
+           plain shell.** To open multiple terminals, set `count` (max 16) \
+           in ONE call — do NOT call this tool repeatedly in a loop. Use \
+           `agentSlug` to apply the same CLI agent to every new slot, or \
+           `agentSlugs` (array of length `count`) for per-slot agents. \
+           Only pass agent slugs when the user explicitly names one of \
+           `claude`, `codex`, `gemini`, `opencode`, `cursor`. \
+           Example: \"open 3 codex terminals\" → \
+           `{{\"count\": 3, \"agentSlug\": \"codex\"}}`. \
+           Fails at the 16-slot max.\n\
          \n\
          ## Driving other CLI agents (client-side)\n\
          The workspace can host live `claude`/`codex`/`gemini`/`opencode`/\
