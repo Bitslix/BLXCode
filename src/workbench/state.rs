@@ -546,6 +546,30 @@ impl WorkbenchService {
         self.terminal_layout_tick.update(|t| *t = t.wrapping_add(1));
     }
 
+    /// Allocate the next workspace id. When the sidebar list is empty, always
+    /// returns `1` so default titles restart at "Workspace 1".
+    fn allocate_workspace_id(&self) -> u64 {
+        if self.workspaces.with_untracked(|w| w.is_empty()) {
+            self.workspace_next_id.set(2);
+            return 1;
+        }
+        let max_open = self
+            .workspaces
+            .with_untracked(|w| w.iter().map(|x| x.id).max().unwrap_or(0));
+        let id = self
+            .workspace_next_id
+            .get_untracked()
+            .max(max_open.saturating_add(1));
+        self.workspace_next_id.set(id.saturating_add(1));
+        id
+    }
+
+    fn reset_workspace_id_counter_if_empty(&self) {
+        if self.workspaces.with_untracked(|w| w.is_empty()) {
+            self.workspace_next_id.set(1);
+        }
+    }
+
     /// Register a live PTY session for a terminal cell. `terminal_key` is
     /// the same `"{ws}:{slot}:{pane}"` shape used by the cell.
     pub fn register_pty_session(&self, terminal_key: String, session_id: u64) {
@@ -671,8 +695,7 @@ impl WorkbenchService {
             normalize_workspace_agent_labels(terminal_count as usize, &agent_slugs)?;
         let (grid_rows, grid_cols) = WorkspaceEntry::grid_dims_for_count(terminal_count);
 
-        let id = self.workspace_next_id.get_untracked();
-        self.workspace_next_id.set(id + 1);
+        let id = self.allocate_workspace_id();
 
         let title = title
             .map(|title| title.trim().to_string())
@@ -749,6 +772,7 @@ impl WorkbenchService {
                     .map(|workspace| workspace.id);
                 self.active_id.set(next);
             }
+            self.reset_workspace_id_counter_if_empty();
         });
     }
 
@@ -790,8 +814,7 @@ impl WorkbenchService {
                 r.remove(index);
             }
         });
-        let new_id = self.workspace_next_id.get_untracked();
-        self.workspace_next_id.set(new_id + 1);
+        let new_id = self.allocate_workspace_id();
         item.workspace.id = new_id;
         let sessions_json = item.sessions_terminals_json.clone();
         self.active_id.set(Some(new_id));
@@ -1205,8 +1228,7 @@ impl WorkbenchService {
     /// The configurator UI renders inside the workspace surface itself —
     /// no modal. Returns the new workspace id.
     pub fn start_inline_configure(&self) -> u64 {
-        let id = self.workspace_next_id.get_untracked();
-        self.workspace_next_id.set(id + 1);
+        let id = self.allocate_workspace_id();
 
         let root = self.harness_workspace_root.get_untracked();
         let mut draft = CreateWorkspaceDraft::default();
@@ -1611,7 +1633,11 @@ impl WorkbenchService {
         self.active_id.set(active_id);
         let has_workspaces = !workspaces.is_empty();
         self.workspaces.set(workspaces);
-        self.workspace_next_id.set(next_id);
+        self.workspace_next_id.set(if has_workspaces {
+            next_id
+        } else {
+            1
+        });
         self.recent_workspaces.set(recent_workspaces);
 
         // Panel chrome
