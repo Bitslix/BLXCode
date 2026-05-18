@@ -176,3 +176,41 @@ pub fn terminal_set_stdin_enabled(term_id: f64, enabled: bool) {
         );
     }
 }
+
+pub fn terminal_observe_workspace_grid(container: &HtmlElement, workspace_id: u64) {
+    let Some(w) = web_sys::window() else {
+        return;
+    };
+    let Ok(root) = Reflect::get(&w, &wasm_bindgen::JsValue::from_str("__blxcodeTerminal")) else {
+        return;
+    };
+    let Ok(observe) =
+        Reflect::get(&root, &wasm_bindgen::JsValue::from_str("observeWorkspaceGrid"))
+    else {
+        return;
+    };
+    if let Some(f) = observe.dyn_ref::<Function>() {
+        let _ = f.call2(
+            &root,
+            container,
+            &wasm_bindgen::JsValue::from_f64(workspace_id as f64),
+        );
+    }
+}
+
+pub fn terminal_unobserve_workspace_grid(workspace_id: u64) {
+    let Some(w) = web_sys::window() else {
+        return;
+    };
+    let Ok(root) = Reflect::get(&w, &wasm_bindgen::JsValue::from_str("__blxcodeTerminal")) else {
+        return;
+    };
+    let Ok(unobserve) =
+        Reflect::get(&root, &wasm_bindgen::JsValue::from_str("unobserveWorkspaceGrid"))
+    else {
+        return;
+    };
+    if let Some(f) = unobserve.dyn_ref::<Function>() {
+        let _ = f.call1(&root, &wasm_bindgen::JsValue::from_f64(workspace_id as f64));
+    }
+}

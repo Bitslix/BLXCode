@@ -7,6 +7,7 @@ use crate::tauri_bridge::{
 };
 use crate::workbench::agent_timeline::TimelineItem;
 use leptos::prelude::*;
+use gloo_timers::future::TimeoutFuture;
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -485,6 +486,9 @@ pub struct WorkbenchService {
     pty_sessions: RwSignal<HashMap<String, u64>>,
     /// When set, [`MemoryPanel`] opens this note (path relative to `.blxcode/memory/`).
     pending_memory_note: RwSignal<Option<String>>,
+    /// Bumped when the terminal grid gains real layout (wizard commit, etc.)
+    /// so cells refit xterm/PTY after flex/grid reflow.
+    terminal_layout_tick: RwSignal<u32>,
 }
 
 impl WorkbenchService {
@@ -530,7 +534,16 @@ impl WorkbenchService {
             workspace_config_steps: RwSignal::new(HashMap::new()),
             pty_sessions: RwSignal::new(HashMap::new()),
             pending_memory_note: RwSignal::new(None),
+            terminal_layout_tick: RwSignal::new(0),
         }
+    }
+
+    pub fn terminal_layout_tick(&self) -> RwSignal<u32> {
+        self.terminal_layout_tick
+    }
+
+    pub fn bump_terminal_layout(&self) {
+        self.terminal_layout_tick.update(|t| *t = t.wrapping_add(1));
     }
 
     /// Register a live PTY session for a terminal cell. `terminal_key` is
@@ -1404,6 +1417,16 @@ impl WorkbenchService {
         self.workspace_config_steps.update(|m| {
             m.remove(&id);
         });
+        self.bump_terminal_layout();
+        // Grid cells mount on the next frame; delayed ticks retry agent
+        // launch once xterm has real dimensions (plain shells don't need this).
+        let wb = *self;
+        spawn_local(async move {
+            for delay_ms in [50_u32, 150, 300, 600, 1000, 1500] {
+                TimeoutFuture::new(delay_ms).await;
+                wb.bump_terminal_layout();
+            }
+        });
     }
 
     /// Look up the persisted pane state for a slot. Returns
@@ -1586,6 +1609,7 @@ impl WorkbenchService {
             .filter(|id| workspaces.iter().any(|w| w.id == *id))
             .or_else(|| workspaces.first().map(|w| w.id));
         self.active_id.set(active_id);
+        let has_workspaces = !workspaces.is_empty();
         self.workspaces.set(workspaces);
         self.workspace_next_id.set(next_id);
         self.recent_workspaces.set(recent_workspaces);
@@ -1603,6 +1627,17 @@ impl WorkbenchService {
         let _ = snap.embedded_browser_tabs;
         let _ = snap.embedded_browser_active_id;
         let _ = snap.embedded_browser_next_id;
+
+        if has_workspaces {
+            self.bump_terminal_layout();
+            let wb = *self;
+            spawn_local(async move {
+                for delay_ms in [0_u32, 16, 50, 150, 300, 600, 1000] {
+                    TimeoutFuture::new(delay_ms).await;
+                    wb.bump_terminal_layout();
+                }
+            });
+        }
         true
     }
 }

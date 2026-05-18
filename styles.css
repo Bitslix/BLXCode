@@ -723,6 +723,7 @@ body {
 .workbench-workspace:not(.workbench-workspace--empty) .workbench-workspace__body {
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   padding: 0.35rem;
 }
 
@@ -3596,7 +3597,14 @@ button {
   min-width: 0;
   min-height: 0;
   width: 100%;
+  height: 100%;
+  align-content: stretch;
   position: relative;
+}
+
+.ws-term-grid > .ws-term-slot {
+  min-height: 0;
+  height: 100%;
 }
 
 .workspace-surface {
@@ -3645,7 +3653,10 @@ button {
 .ws-term-slot {
   min-width: 0;
   min-height: 0;
+  width: 100%;
+  height: 100%;
   display: flex;
+  align-self: stretch;
 }
 
 .ws-term-pane-grid {

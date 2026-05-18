@@ -7,7 +7,7 @@ use crate::tauri_bridge::{
 };
 use crate::workbench::terminal_glue::{
     terminal_create, terminal_dispose, terminal_fit, terminal_request_fit,
-    terminal_set_stdin_enabled, terminal_show_fallback, terminal_size_from_js,
+    terminal_set_stdin_enabled, terminal_show_fallback, terminal_size_from_js, TerminalSize,
     terminal_wait_api_ready, terminal_write_b64,
 };
 use gloo_timers::future::TimeoutFuture;
@@ -19,13 +19,35 @@ use std::sync::{Arc, Mutex};
 use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
 
+#[derive(Clone)]
+struct AgentLaunchPending {
+    slug: String,
+    cwd: String,
+    terminal_key: String,
+    sid: u64,
+}
+
 #[derive(Clone, Default)]
 struct CellState {
-    started: bool,
+    /// xterm bootstrap finished successfully.
+    bootstrapped: bool,
+    /// Bootstrap async task is running.
+    bootstrap_inflight: bool,
     disposed: bool,
     launch_sent: bool,
+    /// True while [`spawn_agent_launch_when_ready`] is already running.
+    agent_launch_inflight: bool,
     term_id: Option<f64>,
     pty_session: Option<u64>,
+    /// Agent auto-launch waits here until xterm+PTY have a real size.
+    agent_launch: Option<AgentLaunchPending>,
+    /// Most recent terminal size reported via `blxcode-pty-resize` before
+    /// the PTY existed. Flushed once `pty_session` is set so the very
+    /// first agent invocation gets a correct TTY size instead of the
+    /// default 80×24. Without this, the early `requestFit`/setTimeout
+    /// resize events from `terminal_bootstrap.mjs::create()` are lost
+    /// whenever `pty_spawn_with_env().await` hasn't resolved yet.
+    pending_resize: Option<(u16, u16)>,
 }
 
 #[component]
@@ -89,158 +111,51 @@ pub fn WorkspaceTerminalCell(
         }
     });
 
-    node_ref.on_load({
+    // `NodeRef::on_load` can miss the first mount when the grid appears via
+    // `<Show>` after wizard commit; track the ref in an Effect instead.
+    Effect::new({
+        let node_ref = node_ref;
         let cwd = cwd.clone();
         let agent_slug = agent_slug.clone();
         let i18n = i18n.clone();
         let state = state.clone();
         let load_failed = load_failed.clone();
         let terminal_key = terminal_key.clone();
-        move |container| {
-            // Start only after Leptos has attached the actual terminal node.
-            // Timer-polling for the NodeRef made the first terminal boot
-            // depend on the browser event loop being woken by some unrelated
-            // GUI action.
-            let Ok(container) = container.dyn_into::<HtmlElement>() else {
+        let wb = wb;
+        move |_| {
+            let _ = wb.terminal_layout_tick().get();
+            if !(is_workspace_active.get() && !is_slot_hidden.get()) {
+                return;
+            }
+            let Some(el) = node_ref.get() else {
+                return;
+            };
+            let Ok(container) = el.dyn_into::<HtmlElement>() else {
                 load_failed.set(true);
                 return;
             };
-            {
+            let start = {
                 let mut s = state.lock().expect("cell state");
-                if s.started {
-                    return;
+                if s.bootstrapped || s.bootstrap_inflight || s.disposed {
+                    false
+                } else {
+                    s.bootstrap_inflight = true;
+                    true
                 }
-                s.started = true;
+            };
+            if !start {
+                return;
             }
-
-            leptos::task::spawn_local({
-                let cwd = cwd.clone();
-                let agent_slug = agent_slug.clone();
-                let i18n = i18n.clone();
-                let state = state.clone();
-                let load_failed = load_failed.clone();
-                let terminal_key = terminal_key.clone();
-                async move {
-                    if !terminal_wait_api_ready().await {
-                        load_failed.set(true);
-                        return;
-                    }
-                    let tid = match terminal_create(&container) {
-                        Ok(v) => v,
-                        Err(_) => {
-                            load_failed.set(true);
-                            return;
-                        }
-                    };
-                    state.lock().expect("cell").term_id = Some(tid);
-
-                    let initial_size = terminal_request_fit(tid).or_else(|| terminal_fit(tid));
-
-                    let pty_sid = if is_tauri_shell() {
-                        // Phase 2 resume plumbing: inject env so the agent's
-                        // SessionStart hook can record session_id -> this
-                        // terminal slot. The sessions.json path is also
-                        // exposed via env (cross-platform path discovery).
-                        let sessions_path = workbench_sessions_path().await.ok();
-                        let mut env: Vec<(String, String)> = Vec::new();
-                        env.push(("BLX_TERMINAL_KEY".into(), terminal_key.clone()));
-                        if !agent_slug.trim().is_empty() {
-                            env.push(("BLX_AGENT_SLUG".into(), agent_slug.trim().into()));
-                        }
-                        if let Some(p) = sessions_path.as_ref() {
-                            env.push(("BLX_SESSIONS_PATH".into(), p.clone()));
-                        }
-                        match pty_spawn_with_env(cwd.clone(), env).await {
-                            Ok(sid) => {
-                                terminal_set_stdin_enabled(tid, true);
-                                state.lock().expect("cell").pty_session = Some(sid);
-                                wb.register_pty_session(terminal_key.clone(), sid);
-                                if let Some(size) = initial_size {
-                                    let _ = pty_resize(sid, size.rows, size.cols).await;
-                                }
-
-                                let state2 = state.clone();
-                                let i18n2 = i18n.clone();
-                                leptos::task::spawn_local(async move {
-                                    loop {
-                                        if state2.lock().expect("cell").disposed {
-                                            break;
-                                        }
-                                        match pty_drain_wait(sid, 65536, 250).await {
-                                            Ok(b64) if !b64.is_empty() => {
-                                                if let Some(t) =
-                                                    state2.lock().expect("cell").term_id
-                                                {
-                                                    terminal_write_b64(t, &b64);
-                                                }
-                                            }
-                                            Ok(_) => {}
-                                            Err(err) => {
-                                                if let Some(t) =
-                                                    state2.lock().expect("cell").term_id
-                                                {
-                                                    let msg = format!(
-                                                        "{}\n{}",
-                                                        i18n2.tr(I18nKey::WsPtySpawnFailed)(),
-                                                        err
-                                                    );
-                                                    terminal_show_fallback(t, &msg);
-                                                }
-                                                break;
-                                            }
-                                        }
-                                    }
-                                });
-                                spawn_terminal_refit(state.clone(), 240, 50);
-
-                                // Auto-launch agent command after shell init.
-                                // If sessions.json (written by the SessionStart
-                                // hook on a previous run) has a session_id for
-                                // this terminal_key, resume it; otherwise start
-                                // a fresh session.
-                                let slug = agent_slug.trim().to_string();
-                                if !slug.is_empty() {
-                                    let resume_id =
-                                        lookup_resume_session(&terminal_key, &slug, &cwd).await;
-                                    let should_launch = {
-                                        let mut st = state.lock().expect("cell");
-                                        if st.launch_sent {
-                                            false
-                                        } else {
-                                            st.launch_sent = true;
-                                            true
-                                        }
-                                    };
-                                    if should_launch {
-                                        let cmd = build_launch_command(&slug, resume_id.as_deref());
-                                        use base64::Engine;
-                                        let b64 = base64::engine::general_purpose::STANDARD
-                                            .encode(cmd.as_bytes());
-                                        let _ = pty_write(sid, b64).await;
-                                    }
-                                }
-                                Some(sid)
-                            }
-                            Err(err) => {
-                                let msg = format!(
-                                    "{}\n{}\n{}",
-                                    i18n.tr(I18nKey::WsPtySpawnFailed)(),
-                                    i18n.tr(I18nKey::WsPtyNoDesktop)(),
-                                    err
-                                );
-                                terminal_show_fallback(tid, &msg);
-                                None
-                            }
-                        }
-                    } else {
-                        terminal_show_fallback(tid, i18n.tr(I18nKey::WsPtyNoDesktop)());
-                        None
-                    };
-                    if pty_sid.is_none() {
-                        state.lock().expect("cell").pty_session = None;
-                    }
-                }
-            });
+            leptos::task::spawn_local(bootstrap_terminal_cell(
+                container,
+                cwd.clone(),
+                agent_slug.clone(),
+                i18n.clone(),
+                state.clone(),
+                load_failed.clone(),
+                terminal_key.clone(),
+                wb,
+            ));
         }
     });
 
@@ -340,9 +255,6 @@ pub fn WorkspaceTerminalCell(
                 let Some(term_id) = term_id else {
                     return;
                 };
-                let Some(sid) = sid else {
-                    return;
-                };
                 let Some(ce) = ev.dyn_ref::<web_sys::CustomEvent>() else {
                     return;
                 };
@@ -354,13 +266,41 @@ pub fn WorkspaceTerminalCell(
                 if term_js != Some(term_id) {
                     return;
                 }
-                if let Some(size) = terminal_size_from_js(&detail) {
-                    leptos::task::spawn_local(async move {
-                        let _ = pty_resize(sid, size.rows, size.cols).await;
-                    });
-                }
+                let Some(size) = terminal_size_from_js(&detail) else {
+                    return;
+                };
+                // PTY not yet spawned (very first terminal in a fresh
+                // workspace): buffer the latest size so it can be
+                // applied right after the spawn resolves.
+                let Some(sid) = sid else {
+                    state.lock().expect("cell").pending_resize = Some((size.rows, size.cols));
+                    return;
+                };
+                leptos::task::spawn_local(async move {
+                    let _ = pty_resize(sid, size.rows, size.cols).await;
+                });
+                request_agent_launch(state.clone());
             }
         });
+
+    let grid_ready_handle = leptos::leptos_dom::helpers::window_event_listener_untyped(
+        "blxcode-ws-term-grid-ready",
+        {
+            let state = state.clone();
+            let agent_slug = agent_slug.clone();
+            move |ev| {
+                if agent_slug.trim().is_empty() {
+                    return;
+                }
+                let Some(ce) = ev.dyn_ref::<web_sys::CustomEvent>() else {
+                    return;
+                };
+                let _ = ce.detail();
+                request_agent_launch(state.clone());
+                spawn_terminal_refit(state.clone(), 32, 32);
+            }
+        },
+    );
 
     let resize_handle = leptos::leptos_dom::helpers::window_event_listener_untyped("resize", {
         let state = state.clone();
@@ -371,14 +311,20 @@ pub fn WorkspaceTerminalCell(
 
     Effect::new({
         let state = state.clone();
+        let agent_slug = agent_slug.clone();
         move |_| {
             let visible = is_workspace_active.get() && !is_slot_hidden.get();
             let _ = wb.sidebar_collapsed().get();
             let _ = wb.right_collapsed().get();
             let _ = wb.right_width_px().get();
+            let _ = wb.terminal_layout_tick().get();
             let _ = is_full_size.get();
             if visible {
+                spawn_terminal_xterm_fit(state.clone(), 240, 50);
                 spawn_terminal_refit(state.clone(), 240, 50);
+                if !agent_slug.trim().is_empty() {
+                    request_agent_launch(state.clone());
+                }
             }
         }
     });
@@ -391,6 +337,7 @@ pub fn WorkspaceTerminalCell(
             drop(pty_input_handle);
             drop(pty_title_handle);
             drop(pty_resize_handle);
+            drop(grid_ready_handle);
             drop(resize_handle);
             if let Ok(mut st) = state.lock() {
                 st.disposed = true;
@@ -502,6 +449,268 @@ pub fn WorkspaceTerminalCell(
     }
 }
 
+async fn wait_for_container_ready(container: &HtmlElement, attempts: u32, delay_ms: u32) -> bool {
+    for _ in 0..attempts {
+        let rect = container.get_bounding_client_rect();
+        if rect.width() > 1.0 && rect.height() > 1.0 {
+            return true;
+        }
+        TimeoutFuture::new(delay_ms).await;
+    }
+    false
+}
+
+async fn bootstrap_terminal_cell(
+    container: HtmlElement,
+    cwd: String,
+    agent_slug: String,
+    i18n: I18nService,
+    state: Arc<Mutex<CellState>>,
+    load_failed: RwSignal<bool>,
+    terminal_key: String,
+    wb: crate::workbench::state::WorkbenchService,
+) {
+    struct BootstrapGuard(Arc<Mutex<CellState>>);
+    impl Drop for BootstrapGuard {
+        fn drop(&mut self) {
+            if let Ok(mut st) = self.0.lock() {
+                st.bootstrap_inflight = false;
+            }
+        }
+    }
+    let _bootstrap_guard = BootstrapGuard(state.clone());
+
+    if !terminal_wait_api_ready().await {
+        load_failed.set(true);
+        return;
+    }
+    if !wait_for_container_ready(&container, 500, 16).await {
+        load_failed.set(true);
+        return;
+    }
+    let tid = match terminal_create(&container) {
+        Ok(v) => v,
+        Err(_) => {
+            load_failed.set(true);
+            return;
+        }
+    };
+    {
+        let mut st = state.lock().expect("cell");
+        st.term_id = Some(tid);
+        st.bootstrapped = true;
+    }
+
+    spawn_terminal_xterm_fit(state.clone(), 48, 16);
+    let initial_size = terminal_request_fit(tid).or_else(|| terminal_fit(tid));
+
+    let pty_sid = if is_tauri_shell() {
+        let sessions_path = workbench_sessions_path().await.ok();
+        let mut env: Vec<(String, String)> = Vec::new();
+        env.push(("BLX_TERMINAL_KEY".into(), terminal_key.clone()));
+        if !agent_slug.trim().is_empty() {
+            env.push(("BLX_AGENT_SLUG".into(), agent_slug.trim().into()));
+        }
+        if let Some(p) = sessions_path.as_ref() {
+            env.push(("BLX_SESSIONS_PATH".into(), p.clone()));
+        }
+        match pty_spawn_with_env(cwd.clone(), env).await {
+            Ok(sid) => {
+                terminal_set_stdin_enabled(tid, true);
+                let pending = {
+                    let mut st = state.lock().expect("cell");
+                    st.pty_session = Some(sid);
+                    st.pending_resize.take()
+                };
+                wb.register_pty_session(terminal_key.clone(), sid);
+                let resize_target = pending
+                    .map(|(rows, cols)| (rows, cols))
+                    .or_else(|| initial_size.map(|s| (s.rows, s.cols)));
+                if let Some((rows, cols)) = resize_target {
+                    let _ = pty_resize(sid, rows, cols).await;
+                }
+
+                let state2 = state.clone();
+                let i18n2 = i18n.clone();
+                leptos::task::spawn_local(async move {
+                    loop {
+                        if state2.lock().expect("cell").disposed {
+                            break;
+                        }
+                        match pty_drain_wait(sid, 65536, 250).await {
+                            Ok(b64) if !b64.is_empty() => {
+                                if let Some(t) = state2.lock().expect("cell").term_id {
+                                    terminal_write_b64(t, &b64);
+                                }
+                            }
+                            Ok(_) => {}
+                            Err(err) => {
+                                if let Some(t) = state2.lock().expect("cell").term_id {
+                                    let msg = format!(
+                                        "{}\n{}",
+                                        i18n2.tr(I18nKey::WsPtySpawnFailed)(),
+                                        err
+                                    );
+                                    terminal_show_fallback(t, &msg);
+                                }
+                                break;
+                            }
+                        }
+                    }
+                });
+                spawn_terminal_refit(state.clone(), 240, 50);
+
+                let slug = agent_slug.trim().to_string();
+                if !slug.is_empty() {
+                    state.lock().expect("cell").agent_launch = Some(AgentLaunchPending {
+                        slug,
+                        cwd: cwd.clone(),
+                        terminal_key: terminal_key.clone(),
+                        sid,
+                    });
+                    request_agent_launch(state.clone());
+                }
+                Some(sid)
+            }
+            Err(err) => {
+                let msg = format!(
+                    "{}\n{}\n{}",
+                    i18n.tr(I18nKey::WsPtySpawnFailed)(),
+                    i18n.tr(I18nKey::WsPtyNoDesktop)(),
+                    err
+                );
+                terminal_show_fallback(tid, &msg);
+                None
+            }
+        }
+    } else {
+        terminal_show_fallback(tid, i18n.tr(I18nKey::WsPtyNoDesktop)());
+        None
+    };
+    if pty_sid.is_none() {
+        state.lock().expect("cell").pty_session = None;
+    }
+}
+
+fn request_agent_launch(state: Arc<Mutex<CellState>>) {
+    let start = {
+        let mut st = state.lock().expect("cell");
+        if st.disposed || st.launch_sent || st.agent_launch.is_none() || st.agent_launch_inflight {
+            false
+        } else {
+            st.agent_launch_inflight = true;
+            true
+        }
+    };
+    if !start {
+        return;
+    }
+    leptos::task::spawn_local(async move {
+        spawn_agent_launch_when_ready(state).await;
+    });
+}
+
+/// Auto-launch the agent CLI only after xterm+PTY have non-zero dimensions.
+/// Plain shells tolerate the default 80×24; TUIs stay black until a real
+/// resize — which is why agent slots looked "stuck" until sidebar reflow.
+async fn spawn_agent_launch_when_ready(state: Arc<Mutex<CellState>>) {
+    struct InflightGuard(Arc<Mutex<CellState>>);
+    impl Drop for InflightGuard {
+        fn drop(&mut self) {
+            if let Ok(mut st) = self.0.lock() {
+                st.agent_launch_inflight = false;
+            }
+        }
+    }
+    let _guard = InflightGuard(state.clone());
+
+    if state.lock().expect("cell").disposed {
+        return;
+    }
+    let pending = state.lock().expect("cell").agent_launch.clone();
+    let Some(pending) = pending else {
+        return;
+    };
+    if state.lock().expect("cell").launch_sent {
+        return;
+    }
+
+    // Brief shell settle after PTY spawn.
+    TimeoutFuture::new(200).await;
+
+    const MAX_ROUNDS: u32 = 60;
+    let mut sized = false;
+    for round in 0..MAX_ROUNDS {
+        if state.lock().expect("cell").disposed {
+            return;
+        }
+        if state.lock().expect("cell").launch_sent {
+            return;
+        }
+
+        if apply_buffered_or_fitted_size(&state, pending.sid).await {
+            sized = true;
+            break;
+        }
+        if refit_pty_until_ready(state.clone(), 6, 24).await {
+            sized = true;
+            break;
+        }
+        if round + 1 >= MAX_ROUNDS {
+            break;
+        }
+        TimeoutFuture::new(50).await;
+    }
+
+    if !sized {
+        let _ = pty_resize(pending.sid, 24, 80).await;
+    }
+
+    let resume_id =
+        lookup_resume_session(&pending.terminal_key, &pending.slug, &pending.cwd).await;
+    let should_launch = {
+        let mut st = state.lock().expect("cell");
+        if st.launch_sent || st.disposed {
+            false
+        } else {
+            st.launch_sent = true;
+            true
+        }
+    };
+    if !should_launch {
+        return;
+    }
+    let cmd = build_launch_command(&pending.slug, resume_id.as_deref());
+    use base64::Engine;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(cmd.as_bytes());
+    let _ = pty_write(pending.sid, b64).await;
+    state.lock().expect("cell").agent_launch = None;
+    spawn_terminal_refit(state, 32, 32);
+}
+
+async fn apply_buffered_or_fitted_size(state: &Arc<Mutex<CellState>>, sid: u64) -> bool {
+    let (term_id, pending) = {
+        let st = state.lock().expect("cell");
+        (st.term_id, st.pending_resize)
+    };
+    let Some(term_id) = term_id else {
+        return false;
+    };
+    if let Some((rows, cols)) = pending {
+        if rows > 0 && cols > 0 {
+            let _ = pty_resize(sid, rows, cols).await;
+            return true;
+        }
+    }
+    if let Some(size) = terminal_request_fit(term_id).or_else(|| terminal_fit(term_id)) {
+        if size.rows > 0 && size.cols > 0 {
+            let _ = pty_resize(sid, size.rows, size.cols).await;
+            return true;
+        }
+    }
+    false
+}
+
 fn terminal_session_pair(state: &Arc<Mutex<CellState>>) -> Option<(f64, u64)> {
     let st = state.lock().expect("cell");
     if st.disposed {
@@ -510,10 +719,57 @@ fn terminal_session_pair(state: &Arc<Mutex<CellState>>) -> Option<(f64, u64)> {
     Some((st.term_id?, st.pty_session?))
 }
 
+fn spawn_terminal_xterm_fit(state: Arc<Mutex<CellState>>, attempts: u32, delay_ms: u32) {
+    leptos::task::spawn_local(async move {
+        let _ = refit_xterm_until_ready(state, attempts, delay_ms).await;
+    });
+}
+
 fn spawn_terminal_refit(state: Arc<Mutex<CellState>>, attempts: u32, delay_ms: u32) {
     leptos::task::spawn_local(async move {
         let _ = refit_pty_until_ready(state, attempts, delay_ms).await;
     });
+}
+
+fn terminal_id(state: &Arc<Mutex<CellState>>) -> Option<f64> {
+    let st = state.lock().expect("cell");
+    if st.disposed {
+        return None;
+    }
+    st.term_id
+}
+
+fn valid_terminal_size(size: TerminalSize) -> Option<TerminalSize> {
+    if size.rows > 0 && size.cols > 0 {
+        Some(size)
+    } else {
+        None
+    }
+}
+
+async fn refit_xterm_until_ready(
+    state: Arc<Mutex<CellState>>,
+    attempts: u32,
+    delay_ms: u32,
+) -> Option<TerminalSize> {
+    let mut requested_fit = false;
+    for _ in 0..attempts {
+        let Some(term_id) = terminal_id(&state) else {
+            TimeoutFuture::new(delay_ms).await;
+            continue;
+        };
+        let size = if requested_fit {
+            terminal_fit(term_id)
+        } else {
+            requested_fit = true;
+            terminal_request_fit(term_id).or_else(|| terminal_fit(term_id))
+        };
+        if let Some(size) = size.and_then(valid_terminal_size) {
+            return Some(size);
+        }
+        TimeoutFuture::new(delay_ms).await;
+    }
+    None
 }
 
 async fn refit_pty_until_ready(state: Arc<Mutex<CellState>>, attempts: u32, delay_ms: u32) -> bool {
@@ -529,7 +785,7 @@ async fn refit_pty_until_ready(state: Arc<Mutex<CellState>>, attempts: u32, dela
             requested_fit = true;
             terminal_request_fit(term_id).or_else(|| terminal_fit(term_id))
         };
-        if let Some(size) = size {
+        if let Some(size) = size.and_then(valid_terminal_size) {
             let _ = pty_resize(sid, size.rows, size.cols).await;
             return true;
         }

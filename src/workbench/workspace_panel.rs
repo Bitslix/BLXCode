@@ -7,13 +7,17 @@ use crate::workbench::state::{
     TerminalSplitAxis, WorkspaceEntry,
 };
 use crate::workbench::terminal_cell::WorkspaceTerminalCell;
+use crate::workbench::terminal_glue::{
+    terminal_observe_workspace_grid, terminal_unobserve_workspace_grid,
+};
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
 use leptos::callback::Callback;
+use leptos::html;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
-use web_sys::MouseEvent;
+use web_sys::{HtmlElement, MouseEvent};
 
 #[derive(Clone, Copy)]
 enum GridResizeAxis {
@@ -113,6 +117,34 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
         }
     });
 
+    // Wizard → grid: flex/grid height may stay 0 until a later reflow; nudge
+    // all terminal cells to refit xterm/PTY once layout has settled.
+    let was_configuring = StoredValue::new(true);
+    Effect::new({
+        let wb = wb;
+        move |_| {
+            let configuring = workspace.get().map(|w| w.configuring).unwrap_or(true);
+            if was_configuring.get_value() && !configuring {
+                if let Some(ws) = workspace.get() {
+                    let rows = ws.grid_rows as usize;
+                    let cols = ws.grid_cols as usize;
+                    row_fr.set(vec![1.0; rows]);
+                    col_fr.set(vec![1.0; cols]);
+                }
+                force_workbench_terminal_layout();
+                wb.bump_terminal_layout();
+                leptos::task::spawn_local(async move {
+                    for delay_ms in [0_u32, 16, 50, 150, 300, 600, 1000, 1500] {
+                        TimeoutFuture::new(delay_ms).await;
+                        force_workbench_terminal_layout();
+                        wb.bump_terminal_layout();
+                    }
+                });
+            }
+            was_configuring.set_value(configuring);
+        }
+    });
+
     let move_handle = leptos::leptos_dom::helpers::window_event_listener_untyped("mousemove", {
         move |ev| {
             let Some(ev) = ev.dyn_ref::<MouseEvent>() else {
@@ -159,6 +191,29 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
 
     let is_configuring =
         Memo::new(move |_| workspace.get().map(|w| w.configuring).unwrap_or(false));
+    let term_grid_ref = NodeRef::<html::Div>::new();
+
+    Effect::new({
+        let term_grid_ref = term_grid_ref;
+        let wb = wb;
+        move |_| {
+            if is_configuring.get() {
+                terminal_unobserve_workspace_grid(workspace_id);
+                return;
+            }
+            let Some(el) = term_grid_ref.get() else {
+                return;
+            };
+            if let Ok(grid) = el.dyn_into::<HtmlElement>() {
+                terminal_observe_workspace_grid(&grid, workspace_id);
+                wb.bump_terminal_layout();
+            }
+        }
+    });
+
+    on_cleanup(move || {
+        terminal_unobserve_workspace_grid(workspace_id);
+    });
 
     view! {
         <div
@@ -176,6 +231,7 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
             <Show when=move || !is_configuring.get()>
             <div
                 class="ws-term-grid"
+                node_ref=term_grid_ref
                 style=move || {
                     let full = full_size_terminal.get().is_some();
                     // Derive the authoritative track count from the
@@ -765,6 +821,34 @@ fn fr_template(values: &[f64]) -> String {
 fn grid_handle_offset(index: usize, values: &[f64]) -> f64 {
     let total = values.iter().sum::<f64>().max(1.0);
     values.iter().take(index + 1).sum::<f64>() / total * 100.0
+}
+
+/// Nudge the browser to resolve flex/grid sizes for terminal panes.
+fn force_workbench_terminal_layout() {
+    let Some(doc) = web_sys::window().and_then(|w| w.document()) else {
+        return;
+    };
+    let Ok(grids) = doc.query_selector_all(".ws-term-grid") else {
+        return;
+    };
+    for i in 0..grids.length() {
+        let Some(node) = grids.item(i) else {
+            continue;
+        };
+        let Some(el) = node.dyn_ref::<HtmlElement>() else {
+            continue;
+        };
+        let _ = el.offset_height();
+        let _ = el.get_bounding_client_rect();
+        if let Ok(cells) = el.query_selector_all(".ws-term-cell__xterm") {
+            for j in 0..cells.length() {
+                if let Some(c) = cells.item(j).and_then(|n| n.dyn_into::<HtmlElement>().ok()) {
+                    let _ = c.offset_height();
+                    let _ = c.get_bounding_client_rect();
+                }
+            }
+        }
+    }
 }
 
 fn grid_col_handle_style(index: usize, values: &[f64]) -> String {

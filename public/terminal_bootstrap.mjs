@@ -48,13 +48,36 @@ function fitTerminal(rec) {
     forceLayout(rec);
     rec.fit.fit();
     scheduleRefresh(rec);
-    return {
+    const size = {
       rows: rec.term.rows || 0,
       cols: rec.term.cols || 0,
     };
+    if (size.rows <= 0 || size.cols <= 0) {
+      scheduleZeroSizeRetry(rec);
+    }
+    return size;
   } catch (_) {
+    scheduleZeroSizeRetry(rec);
     return { rows: 0, cols: 0 };
   }
+}
+
+function scheduleZeroSizeRetry(rec) {
+  if (rec.zeroFitAttempts >= 40) return;
+  rec.zeroFitAttempts += 1;
+  const delay = Math.min(16 * rec.zeroFitAttempts, 400);
+  window.setTimeout(() => {
+    const rect = rec.container.getBoundingClientRect();
+    if (rect.width <= 1 || rect.height <= 1) {
+      scheduleZeroSizeRetry(rec);
+      return;
+    }
+    const size = fitTerminal(rec);
+    const termId = [...instances.entries()].find(([, v]) => v === rec)?.[0];
+    if (termId != null && size.rows > 0 && size.cols > 0) {
+      dispatchPtyResize(termId, rec, size, true);
+    }
+  }, delay);
 }
 
 function dispatchPtyResize(termId, rec, size, force = false) {
@@ -86,16 +109,65 @@ function requestFit(termId) {
   const rec = instances.get(termId);
   if (!rec) return null;
   const run = () => {
+    const rect = rec.container.getBoundingClientRect();
+    if (rect.width <= 1 || rect.height <= 1) {
+      scheduleZeroSizeRetry(rec);
+      return { rows: 0, cols: 0 };
+    }
     const size = fitTerminal(rec);
     dispatchPtyResize(termId, rec, size, true);
     scheduleRefresh(rec);
     return size;
   };
-  requestAnimationFrame(run);
-  for (const delay of [0, 50, 150, 300, 600]) {
+  requestAnimationFrame(() => requestAnimationFrame(run));
+  for (const delay of [0, 16, 50, 150, 300, 600]) {
     window.setTimeout(run, delay);
   }
-  return run();
+  if (rec.lastRows > 0 && rec.lastCols > 0) {
+    return { rows: rec.lastRows, cols: rec.lastCols };
+  }
+  return { rows: 0, cols: 0 };
+}
+
+const gridObservers = new Map();
+
+function observeWorkspaceGrid(container, workspaceId) {
+  const key = String(workspaceId);
+  const prev = gridObservers.get(key);
+  if (prev) {
+    try {
+      prev.disconnect();
+    } catch (_) {}
+  }
+  const notify = () => {
+    const rect = container.getBoundingClientRect();
+    if (rect.width <= 1 || rect.height <= 1) return;
+    window.dispatchEvent(
+      new CustomEvent("blxcode-ws-term-grid-ready", {
+        detail: { workspaceId },
+      }),
+    );
+  };
+  const ro = new ResizeObserver(notify);
+  ro.observe(container);
+  const parent = container.parentElement;
+  if (parent) ro.observe(parent);
+  gridObservers.set(key, ro);
+  requestAnimationFrame(() => requestAnimationFrame(notify));
+  for (const delay of [0, 16, 50, 150, 300, 600]) {
+    window.setTimeout(notify, delay);
+  }
+  return true;
+}
+
+function unobserveWorkspaceGrid(workspaceId) {
+  const key = String(workspaceId);
+  const ro = gridObservers.get(key);
+  if (!ro) return;
+  try {
+    ro.disconnect();
+  } catch (_) {}
+  gridObservers.delete(key);
 }
 
 window.__blxcodeTerminal = {
@@ -132,6 +204,7 @@ window.__blxcodeTerminal = {
       lastCols: 0,
       pendingRows: 0,
       pendingCols: 0,
+      zeroFitAttempts: 0,
     };
     term.onData((data) => {
       window.dispatchEvent(
@@ -149,17 +222,22 @@ window.__blxcodeTerminal = {
     });
     instances.set(id, rec);
     rec.resizeObserver = new ResizeObserver(() => {
+      const rect = rec.container.getBoundingClientRect();
+      if (rect.width <= 1 || rect.height <= 1) {
+        scheduleZeroSizeRetry(rec);
+        return;
+      }
       const size = fitTerminal(rec);
       schedulePtyResize(id, rec, size);
     });
     rec.resizeObserver.observe(container);
-    for (const delay of [0, 50, 150, 300]) {
-      window.setTimeout(() => {
-        const size = fitTerminal(rec);
-        if (delay === 300) dispatchPtyResize(id, rec, size);
-      }, delay);
+    const observeTarget = container.parentElement ?? container;
+    if (observeTarget !== container) {
+      rec.resizeObserver.observe(observeTarget);
     }
-    requestFit(id);
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => requestFit(id));
+    });
     return id;
   },
   dispose(termId) {
@@ -206,6 +284,12 @@ window.__blxcodeTerminal = {
     try {
       rec.term.options.disableStdin = !enabled;
     } catch (_) {}
+  },
+  observeWorkspaceGrid(container, workspaceId) {
+    return observeWorkspaceGrid(container, workspaceId);
+  },
+  unobserveWorkspaceGrid(workspaceId) {
+    unobserveWorkspaceGrid(workspaceId);
   },
 };
 
