@@ -5,17 +5,49 @@ import { WebLinksAddon } from "https://esm.sh/@xterm/addon-web-links@0.11.0?deps
 const instances = new Map();
 let nextId = 1;
 
-function writeB64(term, b64) {
+function forceLayout(rec) {
+  try {
+    void rec.container.getBoundingClientRect();
+    void rec.term.element?.getBoundingClientRect();
+  } catch (_) {}
+}
+
+function refreshTerminal(rec) {
+  try {
+    const end = Math.max(0, (rec.term.rows || 1) - 1);
+    rec.term.refresh(0, end);
+  } catch (_) {}
+}
+
+function scheduleRefresh(rec) {
+  forceLayout(rec);
+  refreshTerminal(rec);
+  requestAnimationFrame(() => {
+    forceLayout(rec);
+    refreshTerminal(rec);
+  });
+  for (const delay of [0, 16, 50, 120]) {
+    window.setTimeout(() => {
+      forceLayout(rec);
+      refreshTerminal(rec);
+    }, delay);
+  }
+}
+
+function writeB64(rec, b64) {
   if (!b64) return;
   const bin = atob(b64);
   const u8 = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-  term.write(u8);
+  rec.term.write(u8, () => scheduleRefresh(rec));
+  scheduleRefresh(rec);
 }
 
 function fitTerminal(rec) {
   try {
+    forceLayout(rec);
     rec.fit.fit();
+    scheduleRefresh(rec);
     return {
       rows: rec.term.rows || 0,
       cols: rec.term.cols || 0,
@@ -56,6 +88,7 @@ function requestFit(termId) {
   const run = () => {
     const size = fitTerminal(rec);
     dispatchPtyResize(termId, rec, size, true);
+    scheduleRefresh(rec);
     return size;
   };
   requestAnimationFrame(run);
@@ -126,6 +159,7 @@ window.__blxcodeTerminal = {
         if (delay === 300) dispatchPtyResize(id, rec, size);
       }, delay);
     }
+    requestFit(id);
     return id;
   },
   dispose(termId) {
@@ -151,7 +185,7 @@ window.__blxcodeTerminal = {
   writeBytesB64(termId, b64) {
     const rec = instances.get(termId);
     if (!rec) return;
-    writeB64(rec.term, b64);
+    writeB64(rec, b64);
   },
   showFallback(termId, text) {
     const rec = instances.get(termId);
@@ -161,6 +195,7 @@ window.__blxcodeTerminal = {
     for (const line of text.split("\n")) {
       rec.term.writeln(line);
     }
+    scheduleRefresh(rec);
     try {
       rec.term.options.disableStdin = true;
     } catch (_) {}

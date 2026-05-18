@@ -90,25 +90,23 @@ pub fn WorkspaceTerminalCell(
         }
     });
 
-    Effect::new({
+    node_ref.on_load({
         let cwd = cwd.clone();
         let agent_slug = agent_slug.clone();
         let i18n = i18n.clone();
         let state = state.clone();
-        let node_ref = node_ref.clone();
         let load_failed = load_failed.clone();
         let initial_pty_output_seen = initial_pty_output_seen.clone();
         let terminal_key = terminal_key.clone();
-        move |_| {
-            // Subscribe to node_ref so the effect re-fires on mount, but do
-            // NOT early-return — we kick off the spawn task unconditionally
-            // and let it poll for the element. This avoids a class of races
-            // where Leptos sets up the Effect before the DOM mount, the
-            // first run sees `None`, and subsequent NodeRef updates fail to
-            // retrigger reliably (manifests as terminals never spawning
-            // their agent CLI until something else forces a re-layout, e.g.
-            // a sidebar toggle).
-            let _track = node_ref.get();
+        move |container| {
+            // Start only after Leptos has attached the actual terminal node.
+            // Timer-polling for the NodeRef made the first terminal boot
+            // depend on the browser event loop being woken by some unrelated
+            // GUI action.
+            let Ok(container) = container.dyn_into::<HtmlElement>() else {
+                load_failed.set(true);
+                return;
+            };
             {
                 let mut s = state.lock().expect("cell state");
                 if s.started {
@@ -122,37 +120,10 @@ pub fn WorkspaceTerminalCell(
                 let agent_slug = agent_slug.clone();
                 let i18n = i18n.clone();
                 let state = state.clone();
-                let node_ref = node_ref.clone();
                 let load_failed = load_failed.clone();
                 let initial_pty_output_seen = initial_pty_output_seen.clone();
                 let terminal_key = terminal_key.clone();
                 async move {
-                    // Poll for the xterm container element (mounted by the
-                    // view! macro). Up to 4 s; bail out gracefully if it
-                    // never appears (component disposed early).
-                    let container: HtmlElement = {
-                        let mut found: Option<HtmlElement> = None;
-                        for _ in 0..80u32 {
-                            if state.lock().expect("cell state").disposed {
-                                return;
-                            }
-                            if let Some(el) = node_ref.get_untracked() {
-                                if let Ok(c) = el.dyn_into::<HtmlElement>() {
-                                    found = Some(c);
-                                    break;
-                                }
-                            }
-                            TimeoutFuture::new(50).await;
-                        }
-                        match found {
-                            Some(c) => c,
-                            None => {
-                                load_failed.set(true);
-                                return;
-                            }
-                        }
-                    };
-
                     // Wait for xterm.js to load (up to 6 s)
                     for _ in 0..120u32 {
                         if terminal_api_ready() {
