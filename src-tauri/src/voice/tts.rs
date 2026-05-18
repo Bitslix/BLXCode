@@ -45,9 +45,6 @@ pub async fn synthesize(
             .unwrap_or_else(|e| format!("<body unavailable: {e}>"));
         return Err(format!("tts {status}: {body}"));
     }
-    let bytes = res
-        .bytes()
-        .await
-        .map_err(|e| format!("tts body: {e}"))?;
+    let bytes = res.bytes().await.map_err(|e| format!("tts body: {e}"))?;
     Ok(bytes.to_vec())
 }

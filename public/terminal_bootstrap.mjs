@@ -25,9 +25,9 @@ function fitTerminal(rec) {
   }
 }
 
-function dispatchPtyResize(termId, rec, size) {
+function dispatchPtyResize(termId, rec, size, force = false) {
   if (size.rows <= 0 || size.cols <= 0) return;
-  if (rec.lastRows === size.rows && rec.lastCols === size.cols) return;
+  if (!force && rec.lastRows === size.rows && rec.lastCols === size.cols) return;
   rec.lastRows = size.rows;
   rec.lastCols = size.cols;
   window.dispatchEvent(
@@ -48,6 +48,21 @@ function schedulePtyResize(termId, rec, size) {
       cols: rec.pendingCols || 0,
     });
   }, 120);
+}
+
+function requestFit(termId) {
+  const rec = instances.get(termId);
+  if (!rec) return null;
+  const run = () => {
+    const size = fitTerminal(rec);
+    dispatchPtyResize(termId, rec, size, true);
+    return size;
+  };
+  requestAnimationFrame(run);
+  for (const delay of [0, 50, 150, 300, 600]) {
+    window.setTimeout(run, delay);
+  }
+  return run();
 }
 
 window.__blxcodeTerminal = {
@@ -129,6 +144,9 @@ window.__blxcodeTerminal = {
     const rec = instances.get(termId);
     if (!rec) return null;
     return fitTerminal(rec);
+  },
+  requestFit(termId) {
+    return requestFit(termId);
   },
   writeBytesB64(termId, b64) {
     const rec = instances.get(termId);

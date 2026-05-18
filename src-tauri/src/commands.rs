@@ -28,9 +28,7 @@ pub fn agent_abort(agent: State<'_, Arc<AgentEngineState>>) {
 #[tauri::command]
 pub fn agent_clear_conversation(agent: State<'_, Arc<AgentEngineState>>) -> Result<(), String> {
     if agent.busy() {
-        return Err(
-            "Agent ist noch beschäftigt. Bitte zuerst abbrechen oder warten.".into(),
-        );
+        return Err("Agent ist noch beschäftigt. Bitte zuerst abbrechen oder warten.".into());
     }
     agent.clear_conversation();
     Ok(())

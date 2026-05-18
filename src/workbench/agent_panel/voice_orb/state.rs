@@ -47,5 +47,8 @@ pub fn focus_in_editable() -> bool {
     if tag == "input" || tag == "textarea" {
         return true;
     }
-    matches!(el.get_attribute("contenteditable").as_deref(), Some("true") | Some(""))
+    matches!(
+        el.get_attribute("contenteditable").as_deref(),
+        Some("true") | Some("")
+    )
 }

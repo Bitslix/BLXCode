@@ -63,6 +63,25 @@ pub fn terminal_fit(term_id: f64) -> Option<TerminalSize> {
     None
 }
 
+pub fn terminal_request_fit(term_id: f64) -> Option<TerminalSize> {
+    let Some(w) = web_sys::window() else {
+        return None;
+    };
+    let Ok(root) = Reflect::get(&w, &wasm_bindgen::JsValue::from_str("__blxcodeTerminal")) else {
+        return None;
+    };
+    let Ok(fit_fn) = Reflect::get(&root, &wasm_bindgen::JsValue::from_str("requestFit")) else {
+        return None;
+    };
+    if let Some(f) = fit_fn.dyn_ref::<Function>() {
+        let Ok(v) = f.call1(&root, &wasm_bindgen::JsValue::from_f64(term_id)) else {
+            return None;
+        };
+        return terminal_size_from_js(&v);
+    }
+    None
+}
+
 pub fn terminal_size_from_js(value: &wasm_bindgen::JsValue) -> Option<TerminalSize> {
     let rows = Reflect::get(value, &wasm_bindgen::JsValue::from_str("rows"))
         .ok()

@@ -137,8 +137,8 @@ pub fn HarnessHost() -> impl IntoView {
             }
 
             if ctrl_or_meta && !ke.shift_key() && !blocked {
-                let open_agent_tab = matches!(key.as_str(), "`" | "Backquote")
-                    || code.as_str() == "Backquote";
+                let open_agent_tab =
+                    matches!(key.as_str(), "`" | "Backquote") || code.as_str() == "Backquote";
                 if open_agent_tab {
                     ke.prevent_default();
                     if wb.right_collapsed().get_untracked() {
@@ -470,10 +470,7 @@ fn quick_open_filter_input(ev: web_sys::Event, ui: HarnessUiService) {
     ui.quick_open_selection().set(0);
 }
 
-fn clamp_quick_open_selection_after_recent_change(
-    ui: HarnessUiService,
-    wb: WorkbenchService,
-) {
+fn clamp_quick_open_selection_after_recent_change(ui: HarnessUiService, wb: WorkbenchService) {
     let n = wb.recent_workspaces().with(|list| {
         list.iter()
             .filter(|it| workspace_entry_has_folder(&it.workspace))

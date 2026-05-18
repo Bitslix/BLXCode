@@ -123,9 +123,8 @@ pub async fn run_chat_turn(
             }
         }
     }
-    let thinking_cfg = thinking_budget(settings.thinking_level).map(|budget| {
-        json!({ "type": "enabled", "budget_tokens": budget })
-    });
+    let thinking_cfg = thinking_budget(settings.thinking_level)
+        .map(|budget| json!({ "type": "enabled", "budget_tokens": budget }));
 
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(180))
@@ -187,8 +186,7 @@ pub async fn run_chat_turn(
             assistant_blocks.push(json!({ "type": "text", "text": round_res.text }));
         }
         for call in &round_res.tool_calls {
-            let input: Value =
-                serde_json::from_str(&call.arguments).unwrap_or_else(|_| json!({}));
+            let input: Value = serde_json::from_str(&call.arguments).unwrap_or_else(|_| json!({}));
             assistant_blocks.push(json!({
                 "type": "tool_use",
                 "id": call.id,

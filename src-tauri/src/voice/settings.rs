@@ -156,8 +156,8 @@ fn read_envelope(app: &AppHandle) -> Result<serde_json::Map<String, serde_json::
     match fs::read_to_string(&path) {
         Ok(raw) if raw.trim().is_empty() => Ok(serde_json::Map::new()),
         Ok(raw) => {
-            let val: serde_json::Value = serde_json::from_str(&raw)
-                .map_err(|e| format!("parse {}: {e}", path.display()))?;
+            let val: serde_json::Value =
+                serde_json::from_str(&raw).map_err(|e| format!("parse {}: {e}", path.display()))?;
             match val {
                 serde_json::Value::Object(m) => Ok(m),
                 _ => Ok(serde_json::Map::new()),
@@ -200,8 +200,8 @@ pub fn load(app: &AppHandle) -> Result<VoiceSettings, String> {
 
 pub fn save(app: &AppHandle, settings: &VoiceSettings) -> Result<VoiceSettings, String> {
     let mut envelope = read_envelope(app)?;
-    let value = serde_json::to_value(settings)
-        .map_err(|e| format!("serialize voice settings: {e}"))?;
+    let value =
+        serde_json::to_value(settings).map_err(|e| format!("serialize voice settings: {e}"))?;
     envelope.insert("voice".into(), value);
     write_envelope(app, &envelope)?;
     Ok(settings.clone())
@@ -209,10 +209,7 @@ pub fn save(app: &AppHandle, settings: &VoiceSettings) -> Result<VoiceSettings, 
 
 /// Resolve the API key used for a voice provider, piggybacking on the
 /// existing agent provider keyring entries.
-pub fn provider_key(
-    app: &AppHandle,
-    provider: VoiceProviderKind,
-) -> Result<String, String> {
+pub fn provider_key(app: &AppHandle, provider: VoiceProviderKind) -> Result<String, String> {
     let agent_provider = match provider {
         VoiceProviderKind::Openai => crate::agent_settings::AgentProviderKind::Openai,
         VoiceProviderKind::Openrouter => crate::agent_settings::AgentProviderKind::Openrouter,

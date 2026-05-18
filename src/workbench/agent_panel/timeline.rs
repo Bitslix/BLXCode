@@ -1,8 +1,8 @@
 use crate::agent_wire::{AgentEvent, TaskSnapshot};
 use crate::i18n::{lookup, I18nKey, Locale};
 use crate::service::I18nService;
-use crate::workbench::agent_timeline::{ActivityStatus, ToolActivity};
 pub use crate::workbench::agent_timeline::TimelineItem;
+use crate::workbench::agent_timeline::{ActivityStatus, ToolActivity};
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
@@ -314,9 +314,7 @@ fn ThinkingRow(
     done: bool,
     thinking_open: RwSignal<HashMap<usize, bool>>,
 ) -> impl IntoView {
-    let open = Memo::new(move |_| {
-        thinking_open.with(|m| m.get(&idx).copied().unwrap_or(false))
-    });
+    let open = Memo::new(move |_| thinking_open.with(|m| m.get(&idx).copied().unwrap_or(false)));
     let has_content = !text.trim().is_empty();
     let label = if done { "Thinking" } else { "Thinking…" };
     let body = text.clone();

@@ -49,7 +49,10 @@ impl AgentEngineState {
     /// Overwrites the persisted conversation with the latest non-system
     /// messages after a turn finishes.
     pub fn set_conversation(&self, msgs: Vec<Value>) {
-        let mut g = self.conversation.lock().expect("conversation lock poisoned");
+        let mut g = self
+            .conversation
+            .lock()
+            .expect("conversation lock poisoned");
         *g = msgs;
     }
 

@@ -26,13 +26,8 @@ impl ModelKind {
     fn matches(self, id: &str) -> bool {
         let lower = id.to_ascii_lowercase();
         match self {
-            Self::Stt => {
-                lower.contains("transcribe")
-                    || lower.contains("whisper")
-            }
-            Self::Tts => {
-                lower.contains("tts") || lower.contains("speech")
-            }
+            Self::Stt => lower.contains("transcribe") || lower.contains("whisper"),
+            Self::Tts => lower.contains("tts") || lower.contains("speech"),
         }
     }
 }
@@ -425,7 +420,11 @@ where
 }
 
 #[component]
-fn ProviderBtn(label: &'static str, target: VoiceProviderKind, active: VoiceProviderKind) -> impl IntoView {
+fn ProviderBtn(
+    label: &'static str,
+    target: VoiceProviderKind,
+    active: VoiceProviderKind,
+) -> impl IntoView {
     let is_active = move || target == active;
     view! {
         <button
@@ -635,7 +634,11 @@ where
 }
 
 #[component]
-fn GenderBtn(target: GenderFilter, label_key: I18nKey, filter: RwSignal<GenderFilter>) -> impl IntoView {
+fn GenderBtn(
+    target: GenderFilter,
+    label_key: I18nKey,
+    filter: RwSignal<GenderFilter>,
+) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let is_active = move || filter.get() == target;
     view! {
@@ -742,11 +745,7 @@ where
 // ---------------------------------------------------------------------------
 
 #[component]
-fn LanguageSection<F>(
-    current: VoiceSettings,
-    stt_lang: SttLanguageMode,
-    save: F,
-) -> impl IntoView
+fn LanguageSection<F>(current: VoiceSettings, stt_lang: SttLanguageMode, save: F) -> impl IntoView
 where
     F: Fn(VoiceSettings) + Send + Sync + 'static + Copy,
 {
@@ -868,7 +867,17 @@ where
                 recording.set(false);
                 return;
             }
-            if matches!(ev.code().as_str(), "ControlLeft" | "ControlRight" | "ShiftLeft" | "ShiftRight" | "AltLeft" | "AltRight" | "MetaLeft" | "MetaRight") {
+            if matches!(
+                ev.code().as_str(),
+                "ControlLeft"
+                    | "ControlRight"
+                    | "ShiftLeft"
+                    | "ShiftRight"
+                    | "AltLeft"
+                    | "AltRight"
+                    | "MetaLeft"
+                    | "MetaRight"
+            ) {
                 return;
             }
             let mut next = current.clone();

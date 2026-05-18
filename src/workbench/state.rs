@@ -1,11 +1,11 @@
 use crate::config::{
     HARNESS_BROWSER_DEFAULT_URL, HARNESS_BROWSER_URL_KEY, HARNESS_WORKSPACE_ROOT_KEY,
 };
-use crate::workbench::agent_timeline::TimelineItem;
 use crate::tauri_bridge::{
     is_tauri_shell, workbench_drop_sessions, workbench_extract_sessions_prefix,
     workbench_merge_sessions_workspace,
 };
+use crate::workbench::agent_timeline::TimelineItem;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
@@ -422,8 +422,7 @@ fn push_history_entry(t: &mut EmbeddedBrowserTab, url: &str) {
         t.history_index = 0;
         return;
     }
-    if t
-        .history
+    if t.history
         .get(t.history_index)
         .map(|s| s.as_str() == url)
         .unwrap_or(false)
@@ -792,8 +791,7 @@ impl WorkbenchService {
             return;
         }
         spawn_local(async move {
-            if let Err(e) =
-                workbench_merge_sessions_workspace(old_id, new_id, sessions_json).await
+            if let Err(e) = workbench_merge_sessions_workspace(old_id, new_id, sessions_json).await
             {
                 leptos::logging::warn!("workbench_merge_sessions_workspace: {e}");
             }
@@ -1551,12 +1549,7 @@ impl WorkbenchService {
         if snap.version != WORKBENCH_SNAPSHOT_VERSION {
             return false;
         }
-        let max_snap_workspace_id = snap
-            .workspaces
-            .iter()
-            .map(|w| w.id)
-            .max()
-            .unwrap_or(0);
+        let max_snap_workspace_id = snap.workspaces.iter().map(|w| w.id).max().unwrap_or(0);
         let workspaces: Vec<WorkspaceEntry> = snap
             .workspaces
             .into_iter()

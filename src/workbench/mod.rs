@@ -1,6 +1,6 @@
 //! Three-pane editor shell: collapsible sidebar, workspace, resizable right column.
-mod agent_timeline;
 mod agent_panel;
+mod agent_timeline;
 mod browser_tab;
 mod chat_markdown;
 mod create_workspace_wizard;
@@ -35,9 +35,9 @@ use harness_ui::HarnessHost;
 use js_sys;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use send_wrapper::SendWrapper;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
-use send_wrapper::SendWrapper;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
 
@@ -128,7 +128,10 @@ pub fn WorkbenchShell() -> impl IntoView {
     // may not fire if the OS terminates the process first.
     let beforeunload_handle =
         leptos::leptos_dom::helpers::window_event_listener_untyped("beforeunload", move |_| {
-            if !hydrated.get_untracked() || !is_tauri_shell() || !persistence_enabled.get_untracked() {
+            if !hydrated.get_untracked()
+                || !is_tauri_shell()
+                || !persistence_enabled.get_untracked()
+            {
                 return;
             }
             let snap = wb.snapshot();

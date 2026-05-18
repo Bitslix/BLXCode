@@ -87,9 +87,7 @@ pub fn start(
             stream_sample_format,
             sample_tx.clone(),
         )?;
-        stream
-            .play()
-            .map_err(|e| format!("stream.play: {e}"))?;
+        stream.play().map_err(|e| format!("stream.play: {e}"))?;
 
         let spec = hound::WavSpec {
             channels: 1,
@@ -186,10 +184,7 @@ pub fn cancel(state: &VoiceRecorderState, turn_id: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn take_recording(
-    state: &VoiceRecorderState,
-    turn_id: &str,
-) -> Result<ActiveRecording, String> {
+fn take_recording(state: &VoiceRecorderState, turn_id: &str) -> Result<ActiveRecording, String> {
     let mut map = state
         .inner
         .lock()

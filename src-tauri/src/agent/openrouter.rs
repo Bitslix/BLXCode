@@ -402,10 +402,7 @@ async fn run_one_round(
             Err(_) => continue,
         };
         for choice in chunk.choices {
-            let reasoning_chunk = choice
-                .delta
-                .reasoning
-                .or(choice.delta.reasoning_content);
+            let reasoning_chunk = choice.delta.reasoning.or(choice.delta.reasoning_content);
             if let Some(reasoning) = reasoning_chunk {
                 if !reasoning.is_empty() {
                     thinking_active = true;

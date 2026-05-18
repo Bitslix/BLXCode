@@ -21,7 +21,11 @@ pub const EMBEDDED_BROWSER_HOST_ID: &str = "blx-embedded-browser-host";
 pub const BLXCODE_OPEN_HTTP_EVENT: &str = "blxcode-open-http";
 
 /// Opens a new embedded-browser tab and refreshes native webview / iframe bounds (same path as toolbar shortlinks).
-pub fn open_http_in_embedded_browser(wb: WorkbenchService, surface: BrowserEmbedSurface, href: &str) {
+pub fn open_http_in_embedded_browser(
+    wb: WorkbenchService,
+    surface: BrowserEmbedSurface,
+    href: &str,
+) {
     if wb.open_http_in_new_embedded_tab(href) {
         spawn_refresh_embedded_browser_nav(wb, surface);
     }

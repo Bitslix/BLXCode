@@ -66,10 +66,7 @@ pub async fn transcribe_wav(
         .map_err(|e| format!("stt request: {e}"))?;
 
     let status = res.status();
-    let body = res
-        .text()
-        .await
-        .map_err(|e| format!("stt body: {e}"))?;
+    let body = res.text().await.map_err(|e| format!("stt body: {e}"))?;
     if !status.is_success() {
         return Err(format!("stt {status}: {body}"));
     }

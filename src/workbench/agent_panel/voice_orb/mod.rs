@@ -82,8 +82,7 @@ where
             return;
         };
         handle.state.set(VoiceOrbState::Transcribing);
-        let locale_hint =
-            build_locale_hint(handle.settings.get_untracked().as_ref(), &i18n);
+        let locale_hint = build_locale_hint(handle.settings.get_untracked().as_ref(), &i18n);
         leptos::task::spawn_local(async move {
             let result = voice_stop_and_transcribe(turn_id, locale_hint).await;
             active_turn_id.set(None);
@@ -282,8 +281,7 @@ pub fn install_ptt_hotkey(
         return;
     };
 
-    let active_turn_id =
-        std::rc::Rc::new(std::cell::RefCell::new(Option::<String>::None));
+    let active_turn_id = std::rc::Rc::new(std::cell::RefCell::new(Option::<String>::None));
     let active_down = active_turn_id.clone();
     let active_up = active_turn_id.clone();
 

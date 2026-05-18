@@ -6,7 +6,7 @@ use crate::tauri_bridge::{
     workbench_sessions_path,
 };
 use crate::workbench::terminal_glue::{
-    terminal_api_ready, terminal_create, terminal_dispose, terminal_fit,
+    terminal_api_ready, terminal_create, terminal_dispose, terminal_fit, terminal_request_fit,
     terminal_set_stdin_enabled, terminal_show_fallback, terminal_size_from_js, terminal_write_b64,
 };
 use gloo_timers::future::TimeoutFuture;
@@ -25,6 +25,7 @@ use web_sys::HtmlElement;
 struct CellState {
     started: bool,
     disposed: bool,
+    launch_sent: bool,
     term_id: Option<f64>,
     pty_session: Option<u64>,
 }
@@ -99,12 +100,15 @@ pub fn WorkspaceTerminalCell(
         let initial_pty_output_seen = initial_pty_output_seen.clone();
         let terminal_key = terminal_key.clone();
         move |_| {
-            let Some(el) = node_ref.get() else {
-                return;
-            };
-            let Ok(container) = el.dyn_into::<HtmlElement>() else {
-                return;
-            };
+            // Subscribe to node_ref so the effect re-fires on mount, but do
+            // NOT early-return — we kick off the spawn task unconditionally
+            // and let it poll for the element. This avoids a class of races
+            // where Leptos sets up the Effect before the DOM mount, the
+            // first run sees `None`, and subsequent NodeRef updates fail to
+            // retrigger reliably (manifests as terminals never spawning
+            // their agent CLI until something else forces a re-layout, e.g.
+            // a sidebar toggle).
+            let _track = node_ref.get();
             {
                 let mut s = state.lock().expect("cell state");
                 if s.started {
@@ -118,10 +122,37 @@ pub fn WorkspaceTerminalCell(
                 let agent_slug = agent_slug.clone();
                 let i18n = i18n.clone();
                 let state = state.clone();
+                let node_ref = node_ref.clone();
                 let load_failed = load_failed.clone();
                 let initial_pty_output_seen = initial_pty_output_seen.clone();
                 let terminal_key = terminal_key.clone();
                 async move {
+                    // Poll for the xterm container element (mounted by the
+                    // view! macro). Up to 4 s; bail out gracefully if it
+                    // never appears (component disposed early).
+                    let container: HtmlElement = {
+                        let mut found: Option<HtmlElement> = None;
+                        for _ in 0..80u32 {
+                            if state.lock().expect("cell state").disposed {
+                                return;
+                            }
+                            if let Some(el) = node_ref.get_untracked() {
+                                if let Ok(c) = el.dyn_into::<HtmlElement>() {
+                                    found = Some(c);
+                                    break;
+                                }
+                            }
+                            TimeoutFuture::new(50).await;
+                        }
+                        match found {
+                            Some(c) => c,
+                            None => {
+                                load_failed.set(true);
+                                return;
+                            }
+                        }
+                    };
+
                     // Wait for xterm.js to load (up to 6 s)
                     for _ in 0..120u32 {
                         if terminal_api_ready() {
@@ -205,6 +236,7 @@ pub fn WorkspaceTerminalCell(
                                         }
                                     }
                                 });
+                                spawn_terminal_refit(state.clone(), 40, 50);
 
                                 // Auto-launch agent command after shell init.
                                 // If sessions.json (written by the SessionStart
@@ -222,11 +254,22 @@ pub fn WorkspaceTerminalCell(
                                         TimeoutFuture::new(25).await;
                                     }
                                     TimeoutFuture::new(50).await;
-                                    let cmd = build_launch_command(&slug, resume_id.as_deref());
-                                    use base64::Engine;
-                                    let b64 = base64::engine::general_purpose::STANDARD
-                                        .encode(cmd.as_bytes());
-                                    let _ = pty_write(sid, b64).await;
+                                    let should_launch = {
+                                        let mut st = state.lock().expect("cell");
+                                        if st.launch_sent {
+                                            false
+                                        } else {
+                                            st.launch_sent = true;
+                                            true
+                                        }
+                                    };
+                                    if should_launch {
+                                        let cmd = build_launch_command(&slug, resume_id.as_deref());
+                                        use base64::Engine;
+                                        let b64 = base64::engine::general_purpose::STANDARD
+                                            .encode(cmd.as_bytes());
+                                        let _ = pty_write(sid, b64).await;
+                                    }
                                 }
                                 Some(sid)
                             }
@@ -374,14 +417,19 @@ pub fn WorkspaceTerminalCell(
     let resize_handle = leptos::leptos_dom::helpers::window_event_listener_untyped("resize", {
         let state = state.clone();
         move |_| {
-            let term_id = state.lock().expect("cell").term_id;
-            let sid = state.lock().expect("cell").pty_session;
-            if let (Some(t), Some(sid)) = (term_id, sid) {
-                if let Some(size) = terminal_fit(t) {
-                    leptos::task::spawn_local(async move {
-                        let _ = pty_resize(sid, size.rows, size.cols).await;
-                    });
-                }
+            spawn_terminal_refit(state.clone(), 8, 32);
+        }
+    });
+
+    Effect::new({
+        let state = state.clone();
+        move |_| {
+            let _ = wb.sidebar_collapsed().get();
+            let _ = wb.right_collapsed().get();
+            let _ = wb.right_width_px().get();
+            let _ = is_full_size.get();
+            if terminal_session_pair(&state).is_some() {
+                spawn_terminal_refit(state.clone(), 8, 32);
             }
         }
     });
@@ -503,6 +551,42 @@ pub fn WorkspaceTerminalCell(
             <div class="ws-term-cell__xterm" node_ref=node_ref></div>
         </div>
     }
+}
+
+fn terminal_session_pair(state: &Arc<Mutex<CellState>>) -> Option<(f64, u64)> {
+    let st = state.lock().expect("cell");
+    if st.disposed {
+        return None;
+    }
+    Some((st.term_id?, st.pty_session?))
+}
+
+fn spawn_terminal_refit(state: Arc<Mutex<CellState>>, attempts: u32, delay_ms: u32) {
+    leptos::task::spawn_local(async move {
+        let _ = refit_pty_until_ready(state, attempts, delay_ms).await;
+    });
+}
+
+async fn refit_pty_until_ready(state: Arc<Mutex<CellState>>, attempts: u32, delay_ms: u32) -> bool {
+    let mut requested_fit = false;
+    for _ in 0..attempts {
+        let Some((term_id, sid)) = terminal_session_pair(&state) else {
+            TimeoutFuture::new(delay_ms).await;
+            continue;
+        };
+        let size = if requested_fit {
+            terminal_fit(term_id)
+        } else {
+            requested_fit = true;
+            terminal_request_fit(term_id).or_else(|| terminal_fit(term_id))
+        };
+        if let Some(size) = size {
+            let _ = pty_resize(sid, size.rows, size.cols).await;
+            return true;
+        }
+        TimeoutFuture::new(delay_ms).await;
+    }
+    false
 }
 
 /// Consult `sessions.json` for a prior session id matching this terminal

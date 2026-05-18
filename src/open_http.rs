@@ -23,10 +23,7 @@ pub fn dom_click_nav_href(ev: &web_sys::MouseEvent) -> Option<DomNavHref> {
     if href.is_empty() || href.starts_with('#') {
         return None;
     }
-    if href.starts_with("mailto:")
-        || href.starts_with("javascript:")
-        || href.starts_with("blob:")
-    {
+    if href.starts_with("mailto:") || href.starts_with("javascript:") || href.starts_with("blob:") {
         return None;
     }
     if let Some(rest) = href.strip_prefix("blxmemory:") {

@@ -87,17 +87,11 @@ fn scan_line_for_wikilinks_and_paths(line: &str) -> String {
             let end = after
                 .find(|c: char| {
                     c.is_whitespace()
-                        || matches!(
-                            c,
-                            ')' | ']' | '`' | '"' | '\'' | '>' | '<' | ';' | ','
-                        )
+                        || matches!(c, ')' | ']' | '`' | '"' | '\'' | '>' | '<' | ';' | ',')
                 })
                 .unwrap_or(after.len());
             let raw = after[..end].trim();
-            if !raw.is_empty()
-                && !raw.contains("..")
-                && raw.to_ascii_lowercase().ends_with(".md")
-            {
+            if !raw.is_empty() && !raw.contains("..") && raw.to_ascii_lowercase().ends_with(".md") {
                 if let Some(rel) = sanitize_memory_relative_path(raw) {
                     let display_path = format!("{PREFIX}{raw}");
                     out.push('[');
@@ -278,9 +272,7 @@ fn infer_language_label_from_code_body(body: &str) -> Option<&'static str> {
         return Some("javascript");
     }
     if lower.contains("interface ")
-        && (lower.contains(": string")
-            || lower.contains(": number")
-            || lower.contains(": boolean"))
+        && (lower.contains(": string") || lower.contains(": number") || lower.contains(": boolean"))
     {
         return Some("typescript");
     }
@@ -334,9 +326,7 @@ fn fence_summary_html(pre_open: &str, inner: &str) -> String {
             )
         })
         .unwrap_or_default();
-    format!(
-        r#"<span class="workbench-md-fence__summary-title">Code</span>{lang_html}"#
-    )
+    format!(r#"<span class="workbench-md-fence__summary-title">Code</span>{lang_html}"#)
 }
 
 fn html_escape_summary_text(s: &str) -> String {

@@ -1,7 +1,11 @@
 use crate::agent_wire::AgentEvent;
 use crate::tauri_bridge::{agent_submit_tool_result, pty_peek_output, pty_write};
 use crate::workbench::WorkbenchService;
+use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
+
+const PTY_READY_ATTEMPTS: u32 = 40;
+const PTY_READY_DELAY_MS: u32 = 50;
 
 pub fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
     let AgentEvent::ToolCall {
@@ -100,8 +104,12 @@ fn handle_open_terminal(call_id: String, args: Option<serde_json::Value>, wb: Wo
                 };
                 format!("opened {} terminal slot(s){}", slot_ids.len(), agent_note)
             };
+            let wait_slot_ids = slot_ids.clone();
             let data = serde_json::json!({ "slotIds": slot_ids });
-            submit_async(call_id, true, summary, Some(data));
+            leptos::task::spawn_local(async move {
+                let _ = wait_for_slots(wb, workspace_id, &wait_slot_ids).await;
+                let _ = agent_submit_tool_result(call_id, true, Some(summary), Some(data)).await;
+            });
         }
         Err(e) => submit_async(call_id, false, e, None),
     }
@@ -228,6 +236,40 @@ fn resolve_target_session(
     Ok((sid, pane))
 }
 
+fn slots_registered(wb: &WorkbenchService, workspace_id: u64, slot_ids: &[u64]) -> bool {
+    let running = wb.pty_sessions_for_workspace(workspace_id);
+    slot_ids
+        .iter()
+        .all(|slot_id| running.iter().any(|(slot, _, _)| slot == slot_id))
+}
+
+async fn wait_for_slots(wb: WorkbenchService, workspace_id: u64, slot_ids: &[u64]) -> bool {
+    for _ in 0..PTY_READY_ATTEMPTS {
+        if slots_registered(&wb, workspace_id, slot_ids) {
+            return true;
+        }
+        TimeoutFuture::new(PTY_READY_DELAY_MS).await;
+    }
+    slots_registered(&wb, workspace_id, slot_ids)
+}
+
+async fn wait_for_target_session(
+    wb: WorkbenchService,
+    workspace_id: u64,
+    args: &Option<serde_json::Value>,
+) -> Result<(u64, u64), String> {
+    let mut last_err = None;
+    for _ in 0..PTY_READY_ATTEMPTS {
+        match resolve_target_session(&wb, workspace_id, args) {
+            Ok(session) => return Ok(session),
+            Err(err) => last_err = Some(err),
+        }
+        TimeoutFuture::new(PTY_READY_DELAY_MS).await;
+    }
+    resolve_target_session(&wb, workspace_id, args)
+        .or_else(|_| Err(last_err.unwrap_or_else(|| "terminal session not running".into())))
+}
+
 fn handle_list_terminals(call_id: String, wb: WorkbenchService) {
     let Some(workspace_id) = wb.active_id().get_untracked() else {
         submit_async(call_id, false, "no active workspace".into(), None);
@@ -276,13 +318,6 @@ fn handle_send_keys(call_id: String, args: Option<serde_json::Value>, wb: Workbe
         .and_then(|v| v.get("submit"))
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
-    let (sid, _pane) = match resolve_target_session(&wb, workspace_id, &args) {
-        Ok(t) => t,
-        Err(e) => {
-            submit_async(call_id, false, e, None);
-            return;
-        }
-    };
     let mut payload = text.clone();
     if submit {
         payload.push('\r');
@@ -290,6 +325,13 @@ fn handle_send_keys(call_id: String, args: Option<serde_json::Value>, wb: Workbe
     use base64::Engine;
     let b64 = base64::engine::general_purpose::STANDARD.encode(payload.as_bytes());
     leptos::task::spawn_local(async move {
+        let (sid, _pane) = match wait_for_target_session(wb, workspace_id, &args).await {
+            Ok(t) => t,
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+                return;
+            }
+        };
         match pty_write(sid, b64).await {
             Ok(()) => {
                 let msg = format!(

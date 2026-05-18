@@ -2,8 +2,8 @@
 //! graph view, search, agent-pointer installer. Mirrors the Phase 1–5
 //! design discussed for blxcode's Obsidian-style memory feature.
 use crate::i18n::I18nKey;
-use crate::service::I18nService;
 use crate::memory_paths::slug_to_filename;
+use crate::service::I18nService;
 use crate::tauri_bridge::{self, GraphData, NoteContent, NoteMeta, SearchHit};
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::WorkbenchService;
@@ -780,8 +780,7 @@ fn MemoryGraphView(state: MemoryState) -> impl IntoView {
             viewbox.set((0.0, 0.0, 400.0, 320.0));
             return;
         }
-        let (mut minx, mut miny, mut maxx, mut maxy) =
-            (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
+        let (mut minx, mut miny, mut maxx, mut maxy) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
         for &(x, y) in pos.values() {
             minx = minx.min(x);
             maxx = maxx.max(x);
@@ -827,7 +826,9 @@ fn MemoryGraphView(state: MemoryState) -> impl IntoView {
     let on_wheel = move |ev: web_sys::WheelEvent| {
         ev.prevent_default();
         let Some(t) = ev.current_target() else { return };
-        let Ok(svg) = t.dyn_into::<web_sys::Element>() else { return };
+        let Ok(svg) = t.dyn_into::<web_sys::Element>() else {
+            return;
+        };
         let rect = svg.get_bounding_client_rect();
         let w = rect.width() as f32;
         let h = rect.height() as f32;
@@ -861,7 +862,9 @@ fn MemoryGraphView(state: MemoryState) -> impl IntoView {
         let dy = ev.client_y() as f32 - ly;
         last_pos.set((ev.client_x() as f32, ev.client_y() as f32));
         let Some(t) = ev.current_target() else { return };
-        let Ok(svg) = t.dyn_into::<web_sys::Element>() else { return };
+        let Ok(svg) = t.dyn_into::<web_sys::Element>() else {
+            return;
+        };
         let rect = svg.get_bounding_client_rect();
         let w = rect.width() as f32;
         let h = rect.height() as f32;
@@ -1052,7 +1055,12 @@ fn MemoryGraphView(state: MemoryState) -> impl IntoView {
 }
 
 #[derive(Clone, Copy)]
-enum NodeFocus { Normal, Hovered, Neighbor, Dim }
+enum NodeFocus {
+    Normal,
+    Hovered,
+    Neighbor,
+    Dim,
+}
 
 fn compute_degrees(
     nodes: &[crate::tauri_bridge::GraphNode],
@@ -1060,8 +1068,12 @@ fn compute_degrees(
 ) -> HashMap<String, u32> {
     let mut d: HashMap<String, u32> = nodes.iter().map(|n| (n.id.clone(), 0)).collect();
     for e in edges {
-        if let Some(v) = d.get_mut(&e.source) { *v += 1; }
-        if let Some(v) = d.get_mut(&e.target) { *v += 1; }
+        if let Some(v) = d.get_mut(&e.source) {
+            *v += 1;
+        }
+        if let Some(v) = d.get_mut(&e.target) {
+            *v += 1;
+        }
     }
     d
 }
@@ -1071,8 +1083,12 @@ fn compute_neighbors(
 ) -> HashMap<String, std::collections::HashSet<String>> {
     let mut m: HashMap<String, std::collections::HashSet<String>> = HashMap::new();
     for e in edges {
-        m.entry(e.source.clone()).or_default().insert(e.target.clone());
-        m.entry(e.target.clone()).or_default().insert(e.source.clone());
+        m.entry(e.source.clone())
+            .or_default()
+            .insert(e.target.clone());
+        m.entry(e.target.clone())
+            .or_default()
+            .insert(e.source.clone());
     }
     m
 }
@@ -1109,7 +1125,10 @@ fn fade_color(css: &str, alpha: f32) -> String {
             let parts: Vec<&str> = inner.split(',').map(|p| p.trim()).collect();
             if parts.len() == 4 {
                 let prefix = &css[..open + 1];
-                return format!("{}{}, {}, {}, {:.3})", prefix, parts[0], parts[1], parts[2], alpha);
+                return format!(
+                    "{}{}, {}, {}, {:.3})",
+                    prefix, parts[0], parts[1], parts[2], alpha
+                );
             }
         }
     }
@@ -1157,7 +1176,9 @@ fn force_layout(g: &GraphData, w: f32, h: f32, iters: u32) -> HashMap<String, (f
         } else {
             for i in 0..n {
                 for j in 0..n {
-                    if i == j { continue; }
+                    if i == j {
+                        continue;
+                    }
                     let dx = pos[i].0 - pos[j].0;
                     let dy = pos[i].1 - pos[j].1;
                     let dist = (dx * dx + dy * dy).sqrt().max(0.5);
@@ -1201,7 +1222,9 @@ fn force_layout(g: &GraphData, w: f32, h: f32, iters: u32) -> HashMap<String, (f
 /// Barnes-Hut quadtree. Each internal node stores center of mass + total mass of its subtree.
 /// During repulsion traversal a subtree is treated as a single point when (size / distance) < θ.
 struct QuadTree {
-    minx: f32, miny: f32, size: f32,
+    minx: f32,
+    miny: f32,
+    size: f32,
     com: (f32, f32),
     mass: u32,
     children: Option<Box<[Option<QuadTree>; 4]>>,
@@ -1212,10 +1235,17 @@ impl QuadTree {
     fn build(points: &[(f32, f32)], w: f32, h: f32) -> Self {
         let size = w.max(h).max(1.0);
         let mut root = QuadTree {
-            minx: 0.0, miny: 0.0, size,
-            com: (0.0, 0.0), mass: 0, children: None, leaf: None,
+            minx: 0.0,
+            miny: 0.0,
+            size,
+            com: (0.0, 0.0),
+            mass: 0,
+            children: None,
+            leaf: None,
         };
-        for &p in points { root.insert(p, 24); }
+        for &p in points {
+            root.insert(p, 24);
+        }
         root
     }
 
@@ -1234,7 +1264,12 @@ impl QuadTree {
 
     fn child_bounds(&self, q: usize) -> (f32, f32, f32) {
         let half = self.size * 0.5;
-        let (dx, dy) = match q { 0 => (0.0, 0.0), 1 => (half, 0.0), 2 => (0.0, half), _ => (half, half) };
+        let (dx, dy) = match q {
+            0 => (0.0, 0.0),
+            1 => (half, 0.0),
+            2 => (0.0, half),
+            _ => (half, half),
+        };
         (self.minx + dx, self.miny + dy, half)
     }
 
@@ -1267,15 +1302,22 @@ impl QuadTree {
         let children = self.children.as_mut().unwrap();
         if children[q].is_none() {
             children[q] = Some(QuadTree {
-                minx: cx, miny: cy, size: csize,
-                com: (0.0, 0.0), mass: 0, children: None, leaf: None,
+                minx: cx,
+                miny: cy,
+                size: csize,
+                com: (0.0, 0.0),
+                mass: 0,
+                children: None,
+                leaf: None,
             });
         }
         children[q].as_mut().unwrap().insert(p, depth);
     }
 
     fn repulsion(&self, p: (f32, f32), k: f32, theta: f32) -> (f32, f32) {
-        if self.mass == 0 { return (0.0, 0.0); }
+        if self.mass == 0 {
+            return (0.0, 0.0);
+        }
         let dx = p.0 - self.com.0;
         let dy = p.1 - self.com.1;
         let dist2 = dx * dx + dy * dy;
@@ -1293,11 +1335,13 @@ impl QuadTree {
             let f = k * k / dist * self.mass as f32;
             return (dx / dist * f, dy / dist * f);
         }
-        let mut fx = 0.0; let mut fy = 0.0;
+        let mut fx = 0.0;
+        let mut fy = 0.0;
         if let Some(children) = &self.children {
             for c in children.iter().flatten() {
                 let (cfx, cfy) = c.repulsion(p, k, theta);
-                fx += cfx; fy += cfy;
+                fx += cfx;
+                fy += cfy;
             }
         }
         (fx, fy)
@@ -1312,17 +1356,23 @@ fn bundle_edges(
     pos: &HashMap<String, (f32, f32)>,
 ) -> Vec<Vec<(f32, f32)>> {
     let m = edges.len();
-    if m == 0 { return Vec::new(); }
+    if m == 0 {
+        return Vec::new();
+    }
     let _ = nodes;
 
     // Endpoints
-    let endpoints: Vec<((f32, f32), (f32, f32))> = edges.iter()
+    let endpoints: Vec<((f32, f32), (f32, f32))> = edges
+        .iter()
         .filter_map(|e| Some((*pos.get(&e.source)?, *pos.get(&e.target)?)))
         .collect();
-    if endpoints.len() != m { return Vec::new(); }
+    if endpoints.len() != m {
+        return Vec::new();
+    }
 
     // Edge length (used in compatibility)
-    let lengths: Vec<f32> = endpoints.iter()
+    let lengths: Vec<f32> = endpoints
+        .iter()
         .map(|(a, b)| ((b.0 - a.0).powi(2) + (b.1 - a.1).powi(2)).sqrt().max(1.0))
         .collect();
 
@@ -1345,18 +1395,25 @@ fn bundle_edges(
     let mut k_spring: f32 = 0.1;
     let mut iters: usize = 50;
     // Initial subdivisions = midpoints
-    let mut polys: Vec<Vec<(f32, f32)>> = endpoints.iter().map(|(a, b)| {
-        let mid = ((a.0 + b.0) * 0.5, (a.1 + b.1) * 0.5);
-        vec![*a, mid, *b]
-    }).collect();
+    let mut polys: Vec<Vec<(f32, f32)>> = endpoints
+        .iter()
+        .map(|(a, b)| {
+            let mid = ((a.0 + b.0) * 0.5, (a.1 + b.1) * 0.5);
+            vec![*a, mid, *b]
+        })
+        .collect();
 
     for _ in 0..cycles {
         // Refine: double subdivisions
         p_count = (p_count * 2).max(2);
-        polys = polys.into_iter().enumerate().map(|(i, _)| {
-            let (a, b) = endpoints[i];
-            resample(a, b, p_count)
-        }).collect();
+        polys = polys
+            .into_iter()
+            .enumerate()
+            .map(|(i, _)| {
+                let (a, b) = endpoints[i];
+                resample(a, b, p_count)
+            })
+            .collect();
         // For each iter, compute forces on internal subdivision points
         for _ in 0..iters {
             let snapshot = polys.clone();
@@ -1376,7 +1433,9 @@ fn bundle_edges(
                         let dx = q.0 - p.0;
                         let dy = q.1 - p.1;
                         let d2 = dx * dx + dy * dy;
-                        if d2 < 0.0001 { continue; }
+                        if d2 < 0.0001 {
+                            continue;
+                        }
                         let inv = 1.0 / d2.sqrt();
                         fx += c * dx * inv;
                         fy += c * dy * inv;
@@ -1406,15 +1465,20 @@ fn resample(a: (f32, f32), b: (f32, f32), p: usize) -> Vec<(f32, f32)> {
     out
 }
 
-fn edge_compat(e1: ((f32, f32), (f32, f32)), l1: f32, e2: ((f32, f32), (f32, f32)), l2: f32) -> f32 {
-    let v1 = (e1.1.0 - e1.0.0, e1.1.1 - e1.0.1);
-    let v2 = (e2.1.0 - e2.0.0, e2.1.1 - e2.0.1);
+fn edge_compat(
+    e1: ((f32, f32), (f32, f32)),
+    l1: f32,
+    e2: ((f32, f32), (f32, f32)),
+    l2: f32,
+) -> f32 {
+    let v1 = (e1.1 .0 - e1.0 .0, e1.1 .1 - e1.0 .1);
+    let v2 = (e2.1 .0 - e2.0 .0, e2.1 .1 - e2.0 .1);
     let dot = v1.0 * v2.0 + v1.1 * v2.1;
     let angle = (dot / (l1 * l2)).abs();
     let lavg = (l1 + l2) * 0.5;
     let scale = 2.0 / (lavg / l1.min(l2) + l1.max(l2) / lavg);
-    let m1 = ((e1.0.0 + e1.1.0) * 0.5, (e1.0.1 + e1.1.1) * 0.5);
-    let m2 = ((e2.0.0 + e2.1.0) * 0.5, (e2.0.1 + e2.1.1) * 0.5);
+    let m1 = ((e1.0 .0 + e1.1 .0) * 0.5, (e1.0 .1 + e1.1 .1) * 0.5);
+    let m2 = ((e2.0 .0 + e2.1 .0) * 0.5, (e2.0 .1 + e2.1 .1) * 0.5);
     let mdist = ((m1.0 - m2.0).powi(2) + (m1.1 - m2.1).powi(2)).sqrt();
     let pos_comp = lavg / (lavg + mdist);
     angle * scale * pos_comp

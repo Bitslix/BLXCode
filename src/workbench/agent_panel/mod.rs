@@ -9,8 +9,7 @@ use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_abort, agent_clear_conversation, agent_drain_turn_opts, agent_settings_get,
-    agent_submit_turn, is_tauri_shell,
-    tasks_list as fetch_tasks_list,
+    agent_submit_turn, is_tauri_shell, tasks_list as fetch_tasks_list,
 };
 use crate::workbench::agent_panel::client_tools::maybe_handle_client_tool;
 use crate::workbench::agent_panel::task_list::TaskSection;
@@ -114,31 +113,27 @@ pub fn AgentPanelDock() -> impl IntoView {
     // Window-level PTT hotkey: install once on mount; listeners are removed
     // via on_cleanup inside install_ptt_hotkey.
     if is_tauri_shell() {
-        install_ptt_hotkey(
-            voice_handle,
-            i18n,
-            move |text: String, auto_send: bool| {
-                if auto_send {
-                    draft.set(text);
-                    submit_turn(
-                        wb,
-                        i18n,
-                        draft,
-                        busy,
-                        status_line,
-                        timeline,
-                        task_snapshot,
-                        thinking_open,
-                        voice_handle,
-                    );
-                } else {
-                    draft.set(text);
-                    if let Some(id) = wb.active_id().get_untracked() {
-                        wb.set_workspace_agent_compose_draft(id, draft.get_untracked());
-                    }
+        install_ptt_hotkey(voice_handle, i18n, move |text: String, auto_send: bool| {
+            if auto_send {
+                draft.set(text);
+                submit_turn(
+                    wb,
+                    i18n,
+                    draft,
+                    busy,
+                    status_line,
+                    timeline,
+                    task_snapshot,
+                    thinking_open,
+                    voice_handle,
+                );
+            } else {
+                draft.set(text);
+                if let Some(id) = wb.active_id().get_untracked() {
+                    wb.set_workspace_agent_compose_draft(id, draft.get_untracked());
                 }
-            },
-        );
+            }
+        });
     }
 
     view! {

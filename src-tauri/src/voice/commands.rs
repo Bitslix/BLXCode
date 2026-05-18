@@ -177,4 +177,3 @@ fn reduce_to_iso639_1(tag: &str) -> String {
     let primary = t.split(|c| c == '-' || c == '_').next().unwrap_or("");
     primary.to_ascii_lowercase()
 }
-
