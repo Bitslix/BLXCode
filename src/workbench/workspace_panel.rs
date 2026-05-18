@@ -232,6 +232,9 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                                 index=index
                                 cwd=cwd
                                 agent_slug=slug
+                                is_workspace_active=Signal::derive(move || {
+                                    wb.active_id().get() == Some(workspace_id)
+                                })
                                 hidden=Signal::derive(move || {
                                     full_size_terminal.get().is_some_and(|active| active != terminal_id)
                                 })
@@ -569,6 +572,7 @@ fn TerminalSlotSurface(
     index: usize,
     cwd: String,
     agent_slug: String,
+    is_workspace_active: Signal<bool>,
     hidden: Signal<bool>,
     is_full_size: Signal<bool>,
     on_full_size: Callback<(), ()>,
@@ -687,6 +691,8 @@ fn TerminalSlotSurface(
                                 agent_slug=agent_slug.clone()
                                 title=title
                                 terminal_key=terminal_key
+                                is_workspace_active=is_workspace_active
+                                is_slot_hidden=hidden
                                 is_full_size=is_full_size
                                 on_full_size=on_full_size
                                 on_split_vertical=on_split_vertical

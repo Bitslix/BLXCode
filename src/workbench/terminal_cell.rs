@@ -41,6 +41,8 @@ pub fn WorkspaceTerminalCell(
     /// SessionStart hooks) so we can resume the precise prior agent
     /// session for this cell.
     terminal_key: String,
+    is_workspace_active: Signal<bool>,
+    is_slot_hidden: Signal<bool>,
     is_full_size: Signal<bool>,
     on_full_size: Callback<(), ()>,
     on_split_vertical: Callback<(), ()>,
@@ -207,7 +209,7 @@ pub fn WorkspaceTerminalCell(
                                         }
                                     }
                                 });
-                                spawn_terminal_refit(state.clone(), 40, 50);
+                                spawn_terminal_refit(state.clone(), 240, 50);
 
                                 // Auto-launch agent command after shell init.
                                 // If sessions.json (written by the SessionStart
@@ -395,12 +397,13 @@ pub fn WorkspaceTerminalCell(
     Effect::new({
         let state = state.clone();
         move |_| {
+            let visible = is_workspace_active.get() && !is_slot_hidden.get();
             let _ = wb.sidebar_collapsed().get();
             let _ = wb.right_collapsed().get();
             let _ = wb.right_width_px().get();
             let _ = is_full_size.get();
-            if terminal_session_pair(&state).is_some() {
-                spawn_terminal_refit(state.clone(), 8, 32);
+            if visible {
+                spawn_terminal_refit(state.clone(), 240, 50);
             }
         }
     });

@@ -666,6 +666,7 @@ impl WorkbenchService {
             .filter(|title| !title.is_empty())
             .unwrap_or_else(|| format!("Workspace {id}"));
 
+        self.active_id.set(Some(id));
         self.workspaces.update(|workspaces| {
             workspaces.push(WorkspaceEntry {
                 id,
@@ -683,7 +684,6 @@ impl WorkbenchService {
                 agent_compose_draft: String::new(),
             });
         });
-        self.active_id.set(Some(id));
         Ok(id)
     }
 
@@ -781,8 +781,8 @@ impl WorkbenchService {
         self.workspace_next_id.set(new_id + 1);
         item.workspace.id = new_id;
         let sessions_json = item.sessions_terminals_json.clone();
-        self.workspaces.update(|v| v.push(item.workspace));
         self.active_id.set(Some(new_id));
+        self.workspaces.update(|v| v.push(item.workspace));
         if !is_tauri_shell() {
             return;
         }
@@ -1214,6 +1214,7 @@ impl WorkbenchService {
             agent_timeline: Vec::new(),
             agent_compose_draft: String::new(),
         };
+        self.active_id.set(Some(id));
         self.workspaces.update(|v| v.push(entry));
         self.workspace_drafts.update(|m| {
             m.insert(id, draft);
@@ -1221,7 +1222,6 @@ impl WorkbenchService {
         self.workspace_config_steps.update(|m| {
             m.insert(id, 0);
         });
-        self.active_id.set(Some(id));
         id
     }
 
@@ -1585,8 +1585,8 @@ impl WorkbenchService {
             .active_id
             .filter(|id| workspaces.iter().any(|w| w.id == *id))
             .or_else(|| workspaces.first().map(|w| w.id));
-        self.workspaces.set(workspaces);
         self.active_id.set(active_id);
+        self.workspaces.set(workspaces);
         self.workspace_next_id.set(next_id);
         self.recent_workspaces.set(recent_workspaces);
 
