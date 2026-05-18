@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Session resume for hooked agent terminals (`sessions.json`) with captured titles on the terminal grid.
+- Workspace and per-terminal completion notification badges with optional sound when background agents finish.
 - Voice input and replies: microphone STT, OpenAI/OpenRouter transcription, and OpenAI TTS playback with a dedicated settings pane.
 - Embedded browser navigation history and `browser_run_js` for running scripts in browser tabs.
 - Workspace terminal improvements: multi-slot agent assignment, active/visibility controls, `pty_drain_wait`, terminal-wait-ready events, and agent launch retry.

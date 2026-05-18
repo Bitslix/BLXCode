@@ -22,7 +22,8 @@ The project is designed for people who want one focused local cockpit for agent-
 - **Workspace memory** stored as Markdown notes under `.blxcode/memory`.
 - **Workspace tasks** stored under `.blxcode/tasks`.
 - **Embedded browser** for links and research, with native child webviews on supported platforms and iframe fallback where needed.
-- **Agent hooks** for Claude, Codex, Gemini, OpenCode, and Cursor session/title capture.
+- **Agent hooks** for Claude, Codex, Gemini, OpenCode, and Cursor session/title capture and **session resume** when reopening a terminal slot.
+- **Completion notification badges** on workspaces and terminals (active + total unread) with an optional sound when a background agent finishes.
 - **14-language UI** with compile-time translations, localized EULA on first launch, and a language picker in app settings (Deutsch, English, Español, Français, Magyar, Italiano, 日本語, 한국어, Polski, Português, Русский, 简体中文, 繁體中文).
 
 ## Internationalization
@@ -52,6 +53,12 @@ BLXCode is early-stage open source software. Core desktop, workspace, memory, ta
 | Provider Settings | Voice And Memory |
 |---|---|
 | <img src="docs/images/screenshot-2026-05-18_17-58-05.png" alt="BLXCode agent provider settings with OpenRouter model and API key" /> | <img src="docs/images/screenshot-2026-05-18_17-58-12.png" alt="BLXCode voice settings with speech-to-text and text-to-speech controls" /> |
+
+<p align="center">
+  <img src="docs/images/screenshot-2026-05-19_00-34-22.png" alt="BLXCode workspace with resumed Claude, Codex, and Cursor sessions, per-terminal titles, and workspace notification badges" width="920" />
+</p>
+
+*Session resume across a multi-agent terminal grid; workspace sidebar shows active (6) and total (18) unread completion badges.*
 
 ## Quick Start
 

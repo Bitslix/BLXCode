@@ -54,6 +54,12 @@ BLXCode injects a few environment variables into terminal sessions when needed:
 
 These values support session capture and notification hooks for external coding tools.
 
+## Session resume
+
+With agent hooks installed, BLXCode records each terminal slot’s external agent session id in `sessions.json`. When you reopen a slot in the same workspace (same agent label and working directory), the launch command uses the provider’s resume syntax—for example `claude --resume <id>` or `codex resume <id>`—so you pick up where the CLI left off instead of starting a blank session.
+
+Captured session titles appear on terminal chrome (for example **Test session setup**, **Just a test**, **sandbox**, **Chat Pal**), so a multi-slot grid gives you an at-a-glance overview of running agents across Claude, Codex, Cursor, and the rest of the fleet.
+
 ## Agent completion badges
 
 When agent hooks are installed (Harness → Agent hooks), each terminal CLI fires a **Stop** (or OpenCode `session.idle`) hook when a turn finishes. The hook increments an unread counter in `notifications.json`.
@@ -68,6 +74,12 @@ The workspace sidebar shows two badges per workspace:
 Unread counts clear when you **focus** the terminal cell (click or tab into it). A short beep plays when a task completes in a background workspace or unfocused terminal.
 
 Re-run **Install agent hooks** after upgrading blxcode so notify hooks are registered alongside title and session-capture hooks.
+
+<p align="center">
+  <img src="../images/screenshot-2026-05-19_00-34-22.png" alt="BLXCode workspace with resumed agent sessions, terminal titles, and workspace notification badges showing active and total unread counts" />
+</p>
+
+*Example: four resumed sessions in a 2×2 grid; the **Test** workspace shows **6** active and **18** total unread completions.*
 
 ## Embedded Browser
 

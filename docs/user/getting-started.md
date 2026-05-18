@@ -43,7 +43,7 @@ After accepting, the workbench opens. In the desktop shell, BLXCode also creates
 4. Optionally assign terminal slots to coding agents such as Claude, Codex, Gemini, OpenCode, or Cursor.
 5. Confirm the workspace to open the terminal grid.
 
-Workspace layout and recent workspace state are persisted by the Tauri backend and restored on the next launch.
+Workspace layout and recent workspace state are persisted by the Tauri backend and restored on the next launch. With [agent hooks](agent-providers.md) installed, terminal slots can **resume** prior Claude/Codex/Gemini/OpenCode/Cursor sessions and surface **completion badges** in the sidebar—see [Workspaces](workspaces.md#session-resume).
 
 ## Configure An Agent Provider
 
