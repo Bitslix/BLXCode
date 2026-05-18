@@ -772,6 +772,7 @@ fn harness_settings_cat_icon(cat: HarnessSettingsCategory) -> icondata::Icon {
         HarnessSettingsCategory::App => icondata::LuLayoutDashboard,
         HarnessSettingsCategory::Workspace => icondata::LuFolderOpen,
         HarnessSettingsCategory::AgentProvider => icondata::LuCpu,
+        HarnessSettingsCategory::Voice => icondata::LuMic,
     }
 }
 
@@ -872,6 +873,7 @@ fn SettingsChrome(
                         <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::App label=I18nKey::HsCatApp />
                         <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Workspace label=I18nKey::HsCatWorkspace />
                         <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::AgentProvider label=I18nKey::HsCatProvider />
+                        <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Voice label=I18nKey::HsCatVoice />
                     </nav>
 
                     <div class="harness-settings-detail">
@@ -884,6 +886,9 @@ fn SettingsChrome(
                             }.into_any(),
                             HarnessSettingsCategory::AgentProvider => view! {
                                 <AgentProviderPane />
+                            }.into_any(),
+                            HarnessSettingsCategory::Voice => view! {
+                                <crate::workbench::harness_voice_pane::VoicePane />
                             }.into_any(),
                         }}
                     </div>

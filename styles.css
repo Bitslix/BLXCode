@@ -5326,3 +5326,150 @@ button {
 .workbench-memory-graph__nodes,
 .workbench-memory-graph__edges { pointer-events: auto; }
 .workbench-memory-graph__node { cursor: pointer; }
+
+/* ============================================================ */
+/* Voice subsystem                                              */
+/* ============================================================ */
+
+/* Hidden audio element used for TTS playback */
+.voice-orb__audio { display: none; }
+
+.voice-orb { position: relative; }
+.voice-orb--transcribing { opacity: 0.7; }
+.voice-orb--transcribing svg { animation: voice-spin 1s linear infinite; }
+
+@keyframes voice-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Voice settings pane */
+.voice-pane { display: flex; flex-direction: column; gap: 1.25rem; }
+.voice-pane__section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 0.6rem;
+    padding: 0.85rem 1rem;
+}
+.voice-pane__section h3 {
+    margin: 0 0 0.4rem 0;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+.voice-pane__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.voice-pane__field > label {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.6);
+    letter-spacing: 0.02em;
+}
+.voice-pane__input,
+.voice-pane__hotkey-capture {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: inherit;
+    border-radius: 0.4rem;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.voice-pane__input { cursor: text; }
+.voice-pane__hotkey-capture--recording {
+    border-color: #5b9dff;
+    background: rgba(91, 157, 255, 0.08);
+}
+.voice-pane__provider-row,
+.voice-pane__quality-row,
+.voice-pane__gender-row,
+.voice-pane__radio-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+.voice-pane__choice {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: inherit;
+    padding: 0.35rem 0.7rem;
+    border-radius: 0.4rem;
+    font-size: 0.82rem;
+    cursor: pointer;
+}
+.voice-pane__choice--active {
+    background: rgba(91, 157, 255, 0.15);
+    border-color: #5b9dff;
+}
+.voice-pane__voice-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 0.5rem;
+    margin-top: 0.4rem;
+}
+.voice-pane__voice-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    padding: 0.4rem 0.55rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.45rem;
+    background: rgba(255, 255, 255, 0.02);
+}
+.voice-pane__voice-card--active {
+    border-color: #5b9dff;
+    background: rgba(91, 157, 255, 0.08);
+}
+.voice-pane__voice-pick {
+    background: transparent;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    flex: 1;
+}
+.voice-pane__voice-pick strong {
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+.voice-pane__voice-gender {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.5);
+}
+.voice-pane__voice-preview {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: inherit;
+    border-radius: 0.35rem;
+    padding: 0.25rem 0.4rem;
+    cursor: pointer;
+}
+.voice-pane__toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+.voice-pane__hint {
+    margin: 0;
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.55);
+}
+.voice-pane__hint--small {
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.4);
+}
+.voice-pane__loading,
+.voice-pane__status {
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 0.85rem;
+}

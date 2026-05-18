@@ -918,20 +918,338 @@ pub async fn pty_kill(session_id: u64) -> Result<(), String> {
     invoke_unit_js("pty_kill", args_value(KillArgs { session_id })?).await
 }
 /// Draint Events bis `Done`/`Error`; bei leeren Batches kurz warten (Streaming).
+#[allow(dead_code)]
 pub async fn agent_drain_turn(on_batch: impl Fn(Vec<AgentEvent>)) -> Result<(), String> {
+    agent_drain_turn_opts(false, on_batch).await
+}
+
+/// Variante mit `expect_voice`: drain läuft nach `Done` weiter, bis ein
+/// `VoiceReady` oder ein zusätzlicher `Error` ankommt (max. ~30 s leerlauf).
+/// Damit holen wir den TTS-Output, der vom Orchestrator nach dem
+/// regulären `Done` gepusht wird.
+pub async fn agent_drain_turn_opts(
+    expect_voice: bool,
+    on_batch: impl Fn(Vec<AgentEvent>),
+) -> Result<(), String> {
+    let mut seen_done = false;
+    let mut idle_after_done: u32 = 0;
+    const VOICE_TAIL_IDLE_MAX: u32 = 600; // 600 * 50ms ≈ 30s
     loop {
         let batch = agent_poll_events(64).await?;
         if batch.is_empty() {
+            if seen_done && expect_voice {
+                idle_after_done += 1;
+                if idle_after_done >= VOICE_TAIL_IDLE_MAX {
+                    break;
+                }
+            }
             TimeoutFuture::new(50).await;
             continue;
         }
-        let done = batch
+        let has_done = batch
             .iter()
             .any(|e| matches!(e, AgentEvent::Done | AgentEvent::Error { .. }));
+        let has_voice = batch
+            .iter()
+            .any(|e| matches!(e, AgentEvent::VoiceReady { .. }));
         on_batch(batch);
-        if done {
+        if has_done {
+            if !expect_voice || has_voice {
+                break;
+            }
+            seen_done = true;
+            idle_after_done = 0;
+            continue;
+        }
+        if has_voice {
+            // Voice arrived (possibly because drain was called expecting
+            // voice without a preceding text path); we're done.
             break;
         }
     }
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Voice subsystem bridge
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum VoiceProviderKind {
+    Openai,
+    Openrouter,
+}
+
+impl VoiceProviderKind {
+    #[allow(dead_code)]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Openai => "openai",
+            Self::Openrouter => "openrouter",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PostSttFlow {
+    AutoSend,
+    Draft,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase", tag = "mode")]
+pub enum SttLanguageMode {
+    FollowApp,
+    AutoDetect,
+    Manual { code: String },
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PttHotkey {
+    pub enabled: bool,
+    pub code: String,
+    #[serde(default)]
+    pub ctrl: bool,
+    #[serde(default)]
+    pub shift: bool,
+    #[serde(default)]
+    pub alt: bool,
+    #[serde(default)]
+    pub meta: bool,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SttSettings {
+    pub provider: VoiceProviderKind,
+    pub model_id: String,
+    pub sample_rate_hz: u32,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TtsSettings {
+    pub provider: VoiceProviderKind,
+    pub model_id: String,
+    pub voice: String,
+    pub enabled: bool,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VoiceSettings {
+    pub stt: SttSettings,
+    pub tts: TtsSettings,
+    pub post_stt_flow: PostSttFlow,
+    pub stt_language: SttLanguageMode,
+    pub ptt_hotkey: PttHotkey,
+}
+
+impl Default for VoiceSettings {
+    fn default() -> Self {
+        Self {
+            stt: SttSettings {
+                provider: VoiceProviderKind::Openai,
+                model_id: "gpt-4o-mini-transcribe".into(),
+                sample_rate_hz: 16_000,
+            },
+            tts: TtsSettings {
+                provider: VoiceProviderKind::Openai,
+                model_id: "gpt-4o-mini-tts".into(),
+                voice: "nova".into(),
+                enabled: true,
+            },
+            post_stt_flow: PostSttFlow::AutoSend,
+            stt_language: SttLanguageMode::FollowApp,
+            ptt_hotkey: PttHotkey {
+                enabled: true,
+                code: "Space".into(),
+                ctrl: false,
+                shift: false,
+                alt: false,
+                meta: false,
+            },
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum VoiceGender {
+    Male,
+    Female,
+    Neutral,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VoiceEntry {
+    pub id: String,
+    pub label: String,
+    pub gender: VoiceGender,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VoiceProviderVoicesResponse {
+    #[allow(dead_code)]
+    pub provider: VoiceProviderKind,
+    pub voices: Vec<VoiceEntry>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VoiceStartResponse {
+    pub turn_id: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VoiceStopResponse {
+    pub text: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VoiceTtsPreviewResponse {
+    pub audio_b64: String,
+    pub mime: String,
+}
+
+pub async fn voice_start_recording(sample_rate_hz: u32) -> Result<VoiceStartResponse, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        payload: Payload,
+    }
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Payload {
+        sample_rate_hz: u32,
+    }
+    invoke_typed(
+        "voice_start_recording",
+        Args {
+            payload: Payload { sample_rate_hz },
+        },
+    )
+    .await
+}
+
+pub async fn voice_stop_and_transcribe(
+    turn_id: String,
+    locale_hint: Option<String>,
+) -> Result<VoiceStopResponse, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        payload: Payload,
+    }
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Payload {
+        turn_id: String,
+        locale_hint: Option<String>,
+    }
+    invoke_typed(
+        "voice_stop_and_transcribe",
+        Args {
+            payload: Payload {
+                turn_id,
+                locale_hint,
+            },
+        },
+    )
+    .await
+}
+
+pub async fn voice_cancel_recording(turn_id: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        payload: Payload,
+    }
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Payload {
+        turn_id: String,
+    }
+    invoke_unit_js(
+        "voice_cancel_recording",
+        args_value(Args {
+            payload: Payload { turn_id },
+        })?,
+    )
+    .await
+}
+
+pub async fn voice_settings_get() -> Result<VoiceSettings, String> {
+    invoke_typed("voice_settings_get", serde_json::json!({})).await
+}
+
+pub async fn voice_settings_save(patch: VoiceSettings) -> Result<VoiceSettings, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        patch: VoiceSettings,
+    }
+    invoke_typed("voice_settings_save", Args { patch }).await
+}
+
+pub async fn voice_provider_voices(
+    provider: VoiceProviderKind,
+) -> Result<VoiceProviderVoicesResponse, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        payload: Payload,
+    }
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Payload {
+        provider: VoiceProviderKind,
+    }
+    invoke_typed(
+        "voice_provider_voices",
+        Args {
+            payload: Payload { provider },
+        },
+    )
+    .await
+}
+
+pub async fn voice_tts_preview(
+    provider: VoiceProviderKind,
+    model_id: String,
+    voice: String,
+    text: String,
+) -> Result<VoiceTtsPreviewResponse, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        payload: Payload,
+    }
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Payload {
+        provider: VoiceProviderKind,
+        model_id: String,
+        voice: String,
+        text: String,
+    }
+    invoke_typed(
+        "voice_tts_preview",
+        Args {
+            payload: Payload {
+                provider,
+                model_id,
+                voice,
+                text,
+            },
+        },
+    )
+    .await
 }

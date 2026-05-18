@@ -2,19 +2,23 @@
 mod client_tools;
 mod task_list;
 mod timeline;
+mod voice_orb;
 
-use crate::agent_wire::{TaskSnapshot, UserTurn};
+use crate::agent_wire::{AgentEvent, TaskSnapshot, UserTurn};
 use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_abort, agent_clear_conversation, agent_drain_turn, agent_settings_get, agent_submit_turn,
-    is_tauri_shell,
+    agent_abort, agent_clear_conversation, agent_drain_turn_opts, agent_settings_get,
+    agent_submit_turn, is_tauri_shell,
     tasks_list as fetch_tasks_list,
 };
 use crate::workbench::agent_panel::client_tools::maybe_handle_client_tool;
 use crate::workbench::agent_panel::task_list::TaskSection;
 use crate::workbench::agent_panel::timeline::{
     apply_agent_event, compact_timeline, TimelineItem, TimelineRow,
+};
+use crate::workbench::agent_panel::voice_orb::{
+    handle_voice_event, install_ptt_hotkey, VoiceOrb, VoiceOrbHandle,
 };
 use crate::workbench::WorkbenchService;
 use leptos::html;
@@ -32,10 +36,10 @@ pub fn AgentPanelDock() -> impl IntoView {
     let timeline = RwSignal::new(Vec::<TimelineItem>::new());
     let busy = RwSignal::new(false);
     let status_line = RwSignal::new(Option::<String>::None);
-    let ptt_active = RwSignal::new(false);
     let tasks_open = RwSignal::new(true);
     let model_label = RwSignal::new(String::new());
     let chat_scroll_ref = NodeRef::<html::Article>::new();
+    let voice_handle = VoiceOrbHandle::new();
     let task_snapshot = RwSignal::new(TaskSnapshot {
         tasks: Vec::new(),
         active_task_id: None,
@@ -107,28 +111,63 @@ pub fn AgentPanelDock() -> impl IntoView {
         }
     });
 
+    // Window-level PTT hotkey: install once on mount; listeners are removed
+    // via on_cleanup inside install_ptt_hotkey.
+    if is_tauri_shell() {
+        install_ptt_hotkey(
+            voice_handle,
+            i18n,
+            move |text: String, auto_send: bool| {
+                if auto_send {
+                    draft.set(text);
+                    submit_turn(
+                        wb,
+                        i18n,
+                        draft,
+                        busy,
+                        status_line,
+                        timeline,
+                        task_snapshot,
+                        thinking_open,
+                        voice_handle,
+                    );
+                } else {
+                    draft.set(text);
+                    if let Some(id) = wb.active_id().get_untracked() {
+                        wb.set_workspace_agent_compose_draft(id, draft.get_untracked());
+                    }
+                }
+            },
+        );
+    }
+
     view! {
         <section class="workbench-agent-pane" aria-label=move || i18n.tr(I18nKey::AgAriaPane)()>
             <header class="agent-hero">
-                <button
-                    type="button"
-                    class="agent-hero__orb"
-                    class:agent-hero__orb--active=move || ptt_active.get()
-                    aria-pressed=move || ptt_active.get().to_string()
-                    aria-label=move || i18n.tr(I18nKey::AgOrbAria)()
-                    on:mousedown=move |_| ptt_active.set(true)
-                    on:mouseup=move |_| ptt_active.set(false)
-                    on:mouseleave=move |_| ptt_active.set(false)
-                    on:keydown=move |ev| {
-                        if ev.key() == " " || ev.key() == "Enter" {
-                            ev.prevent_default();
-                            ptt_active.set(true);
+                <VoiceOrb
+                    handle=voice_handle
+                    on_transcript=move |text: String, auto_send: bool| {
+                        if auto_send {
+                            draft.set(text);
+                            submit_turn(
+                                wb,
+                                i18n,
+                                draft,
+                                busy,
+                                status_line,
+                                timeline,
+                                task_snapshot,
+                                thinking_open,
+                                voice_handle,
+                            );
+                        } else {
+                            draft.set(text);
+                            if let Some(id) = wb.active_id().get_untracked() {
+                                wb.set_workspace_agent_compose_draft(id, draft.get_untracked());
+                            }
                         }
                     }
-                    on:keyup=move |_| ptt_active.set(false)
-                >
-                    <span class="agent-hero__logo">"B"</span>
-                </button>
+                />
                 <div class="agent-hero__meta">
                     <p class="agent-hero__eyebrow">{move || i18n.tr(I18nKey::AgBrandTitle)()}</p>
                     <h2>{move || {
@@ -199,7 +238,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                 class="agent-compose"
                 on:submit=move |ev| {
                     ev.prevent_default();
-                    submit_turn(wb, i18n, draft, busy, status_line, timeline, task_snapshot, thinking_open);
+                    submit_turn(wb, i18n, draft, busy, status_line, timeline, task_snapshot, thinking_open, voice_handle);
                 }
             >
                 <input
@@ -222,7 +261,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                     on:keydown=move |ev| {
                         if ev.key() == "Enter" && !ev.shift_key() && !ev.ctrl_key() && !ev.meta_key() {
                             ev.prevent_default();
-                            submit_turn(wb, i18n, draft, busy, status_line, timeline, task_snapshot, thinking_open);
+                            submit_turn(wb, i18n, draft, busy, status_line, timeline, task_snapshot, thinking_open, voice_handle);
                         }
                     }
                 />
@@ -323,6 +362,7 @@ fn submit_turn(
     timeline: RwSignal<Vec<TimelineItem>>,
     task_snapshot: RwSignal<TaskSnapshot>,
     thinking_open: RwSignal<HashMap<usize, bool>>,
+    voice_handle: VoiceOrbHandle,
 ) {
     if busy.get_untracked() {
         return;
@@ -373,9 +413,19 @@ fn submit_turn(
     draft.set(String::new());
     wb.set_workspace_agent_compose_draft(ws_id, String::new());
 
+    // Take + reset the voice flag — only this single turn is marked as voice.
+    let voice_input = voice_handle.voice_pending.get_untracked()
+        && voice_handle
+            .settings
+            .get_untracked()
+            .map(|s| s.tts.enabled)
+            .unwrap_or(false);
+    voice_handle.voice_pending.set(false);
+
     let turn = UserTurn {
         prompt,
         workspace_root,
+        voice_input,
     };
 
     let busy_sig = busy;
@@ -383,6 +433,7 @@ fn submit_turn(
     let timeline_sig = timeline;
     let task_snapshot_sig = task_snapshot;
     let ws_capture = ws_id;
+    let audio_ref = voice_handle.audio_ref;
 
     leptos::task::spawn_local(async move {
         if let Err(msg) = agent_submit_turn(turn).await {
@@ -393,9 +444,13 @@ fn submit_turn(
 
         let i18n_d = i18n;
         let wb_d = wb;
-        if let Err(msg) = agent_drain_turn(move |batch| {
+        if let Err(msg) = agent_drain_turn_opts(voice_input, move |batch| {
             let loc_now = i18n_d.locale().get_untracked();
             for ev in &batch {
+                if matches!(ev, AgentEvent::VoiceReady { .. }) {
+                    handle_voice_event(audio_ref, ev);
+                    continue;
+                }
                 apply_agent_event(
                     ev,
                     timeline_sig,

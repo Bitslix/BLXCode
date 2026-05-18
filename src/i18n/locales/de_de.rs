@@ -133,6 +133,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatApp => "App",
         I18nKey::HsCatWorkspace => "Arbeitsplatz",
         I18nKey::HsCatProvider => "Agent-Provider",
+        I18nKey::HsCatVoice => "Sprache",
         I18nKey::AppHeading => "App",
         I18nKey::GenEulaStatus => "EULA-Status",
         I18nKey::AppLanguage => "UI-Sprache",
@@ -260,5 +261,56 @@ pub fn msg(key: I18nKey) -> &'static str {
         }
         I18nKey::EulaAccepted => "Akzeptiert",
         I18nKey::EulaUnknown => "Unbekannt",
+
+        I18nKey::VoicePaneTitle => "Sprache",
+        I18nKey::VoiceSttSection => "Spracherkennung (STT)",
+        I18nKey::VoiceTtsSection => "Sprachausgabe (TTS)",
+        I18nKey::VoiceBehaviorSection => "Verhalten",
+        I18nKey::VoiceLanguageSection => "Sprache",
+        I18nKey::VoicePttSection => "Push-to-Talk",
+        I18nKey::VoiceProviderField => "Provider",
+        I18nKey::VoiceModelField => "Modell",
+        I18nKey::VoiceVoiceField => "Stimme",
+        I18nKey::VoiceGenderAll => "Alle",
+        I18nKey::VoiceGenderMale => "Männlich",
+        I18nKey::VoiceGenderFemale => "Weiblich",
+        I18nKey::VoiceGenderNeutral => "Neutral",
+        I18nKey::VoiceQualityField => "Aufnahme-Qualität",
+        I18nKey::VoiceQualityLow => "Niedrig — 16 kHz",
+        I18nKey::VoiceQualityStandard => "Standard — 24 kHz",
+        I18nKey::VoiceQualityHigh => "Hoch — 48 kHz",
+        I18nKey::VoiceQualityHint => {
+            "Höhere Qualität verbessert die Erkennung kaum, vergrößert aber die Upload-Datei und verlängert die Wartezeit auf das Transkript spürbar."
+        }
+        I18nKey::VoiceQualitySizeEstimate => "≈ {kb} KB pro 10 s",
+        I18nKey::VoicePostSttFlow => "Nach Transkription",
+        I18nKey::VoicePostSttAutoSend => "Direkt an Agent senden",
+        I18nKey::VoicePostSttDraft => "In Eingabefeld einfügen",
+        I18nKey::VoiceTtsEnabled => "Antwort vorlesen",
+        I18nKey::VoiceTtsAutoplayHint => {
+            "Wird nur abgespielt, wenn der Turn per Stimme gestartet wurde."
+        }
+        I18nKey::VoiceTtsLangAutoNote => {
+            "TTS erkennt die Sprache automatisch aus dem Antworttext."
+        }
+        I18nKey::VoiceSttLangMode => "Eingabesprache (STT)",
+        I18nKey::VoiceSttLangFollowApp => "App-Sprache übernehmen",
+        I18nKey::VoiceSttLangAutoDetect => "Automatisch erkennen",
+        I18nKey::VoiceSttLangManual => "Manuell",
+        I18nKey::VoicePttEnabled => "Push-to-Talk-Hotkey aktivieren",
+        I18nKey::VoicePttHotkey => "Tastenkombination",
+        I18nKey::VoicePttRecorderHint => "Taste drücken …",
+        I18nKey::VoicePttConflictWarn => "Konflikt mit einem anderen App-Shortcut.",
+        I18nKey::VoicePreviewBtn => "Probe",
+        I18nKey::VoicePreviewText => "Hallo, dies ist eine Sprachvorschau.",
+        I18nKey::VoiceKeyReused => "Schlüssel von {provider} wiederverwendet",
+        I18nKey::VoiceKeyMissing => "Kein API-Key für {provider} hinterlegt",
+        I18nKey::VoiceSaveDone => "Voice-Einstellungen gespeichert",
+        I18nKey::VoiceOrbAriaIdle => "Sprache — Klicken zum Aufnehmen",
+        I18nKey::VoiceOrbAriaRecording => "Aufnahme läuft — Klick oder loslassen zum Stoppen",
+        I18nKey::VoiceOrbAriaTranscribing => "Transkribiere …",
+        I18nKey::VoiceOrbCancelHint => "ESC bricht die Aufnahme ab",
+        I18nKey::VoiceErrNoMic => "Mikrofon nicht verfügbar.",
+        I18nKey::VoiceErrStt => "Transkription fehlgeschlagen: {message}",
     }
 }

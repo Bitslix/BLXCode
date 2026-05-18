@@ -38,6 +38,26 @@ impl Locale {
         }
     }
 
+    /// ISO-639-1 primary language code, used as the STT `language` hint.
+    #[must_use]
+    pub fn iso639_1(self) -> &'static str {
+        match self {
+            Self::DeDe => "de",
+            Self::EnUs => "en",
+            Self::EsEs => "es",
+            Self::FrFr => "fr",
+            Self::HuHu => "hu",
+            Self::ItIt => "it",
+            Self::JaJp => "ja",
+            Self::KoKr => "ko",
+            Self::PlPl => "pl",
+            Self::PtBr => "pt",
+            Self::RuRu => "ru",
+            Self::ZhCn => "zh",
+            Self::ZhTw => "zh",
+        }
+    }
+
     /// SVG flag path (bundled under `public/flags`, copied by Trunk into `dist`) for `<img src>`.
     #[must_use]
     pub fn flag_icon_url(self) -> &'static str {

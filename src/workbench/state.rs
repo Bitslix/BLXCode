@@ -246,6 +246,7 @@ pub enum HarnessSettingsCategory {
     App,
     Workspace,
     AgentProvider,
+    Voice,
 }
 
 #[derive(Clone, Copy)]

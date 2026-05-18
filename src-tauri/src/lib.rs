@@ -7,6 +7,7 @@ mod git_info;
 mod memory;
 mod pty_host;
 mod tasks;
+mod voice;
 mod workbench_state;
 
 use agent::AgentEngineState;
@@ -19,6 +20,10 @@ use browser_host::BrowserHost;
 use commands::*;
 use pty_host::PtyManager;
 use tauri_plugin_opener::OpenerExt;
+use voice::{
+    voice_cancel_recording, voice_provider_voices, voice_settings_get, voice_settings_save,
+    voice_start_recording, voice_stop_and_transcribe, voice_tts_preview, VoiceRecorderState,
+};
 use workbench_state::{
     agent_session_exists, workbench_drop_sessions, workbench_extract_sessions_prefix,
     workbench_load_sessions, workbench_load_state, workbench_merge_sessions_workspace,
@@ -62,6 +67,7 @@ pub fn run() {
         .manage(AgentEngineState::new())
         .manage(BrowserHost::default())
         .manage(PtyManager::default())
+        .manage(VoiceRecorderState::new())
         .manage(WorkbenchSessionsFileLock::default())
         .invoke_handler(tauri::generate_handler![
             open_external_url,
@@ -128,6 +134,13 @@ pub fn run() {
             tasks::tasks_update,
             tasks::tasks_delete,
             tasks::tasks_reorder,
+            voice_start_recording,
+            voice_stop_and_transcribe,
+            voice_cancel_recording,
+            voice_settings_get,
+            voice_settings_save,
+            voice_provider_voices,
+            voice_tts_preview,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

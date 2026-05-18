@@ -6,6 +6,7 @@ use crate::agent::openrouter::{run_chat_turn, Endpoint};
 use crate::agent::protocol::{AgentEvent, UserTurn};
 use crate::agent::state::AgentEngineState;
 use crate::agent_settings::{load_settings_pub, provider_key_pub, AgentProviderKind};
+use crate::voice::{self, VoiceSettings};
 use std::sync::Arc;
 use tauri::{async_runtime, AppHandle};
 
@@ -36,11 +37,24 @@ pub fn dispatch_user_turn(
     };
 
     let state = Arc::clone(agent);
+    let app_handle = app.clone();
+    let voice_input = turn.voice_input;
+    let prompt = turn.prompt;
+    let workspace_root = turn.workspace_root;
     match settings.provider {
         AgentProviderKind::Anthropic => {
             async_runtime::spawn(async move {
-                run_anthropic_turn(state, api_key, settings, turn.prompt, turn.workspace_root)
-                    .await;
+                run_anthropic_turn(
+                    Arc::clone(&state),
+                    api_key,
+                    settings,
+                    prompt,
+                    workspace_root,
+                )
+                .await;
+                if voice_input {
+                    maybe_emit_tts(&app_handle, &state).await;
+                }
             });
         }
         AgentProviderKind::Openrouter | AgentProviderKind::Openai => {
@@ -48,14 +62,17 @@ pub fn dispatch_user_turn(
                 .expect("openrouter/openai endpoint mapping");
             async_runtime::spawn(async move {
                 run_chat_turn(
-                    state,
+                    Arc::clone(&state),
                     endpoint,
                     api_key,
                     settings,
-                    turn.prompt,
-                    turn.workspace_root,
+                    prompt,
+                    workspace_root,
                 )
                 .await;
+                if voice_input {
+                    maybe_emit_tts(&app_handle, &state).await;
+                }
             });
         }
     }
@@ -87,4 +104,92 @@ fn spawn_chat_missing_key(state: Arc<AgentEngineState>, provider: AgentProviderK
         state.push(AgentEvent::Done);
         state.set_busy(false);
     });
+}
+
+/// After a turn finishes, run TTS over the final assistant text if voice
+/// output is configured. Errors are surfaced as `AgentEvent::Error` rather
+/// than failing the whole turn (the text answer already reached the user).
+async fn maybe_emit_tts(app: &AppHandle, state: &Arc<AgentEngineState>) {
+    let voice_settings: VoiceSettings = match voice::settings::load(app) {
+        Ok(v) => v,
+        Err(e) => {
+            state.push(AgentEvent::Error {
+                message: format!("Voice-Settings konnten nicht geladen werden: {e}"),
+            });
+            return;
+        }
+    };
+    if !voice_settings.tts.enabled {
+        return;
+    }
+    let Some(text) = last_assistant_text(state) else {
+        return;
+    };
+    if text.trim().is_empty() {
+        return;
+    }
+    let api_key = match voice::settings::provider_key(app, voice_settings.tts.provider) {
+        Ok(k) => k,
+        Err(e) => {
+            state.push(AgentEvent::Error {
+                message: format!("Voice-Key fehlt: {e}"),
+            });
+            return;
+        }
+    };
+    match voice::tts::synthesize(
+        voice_settings.tts.provider,
+        &voice_settings.tts.model_id,
+        &voice_settings.tts.voice,
+        &text,
+        &api_key,
+    )
+    .await
+    {
+        Ok(bytes) => {
+            use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+            state.push(AgentEvent::VoiceReady {
+                audio_b64: BASE64.encode(&bytes),
+                mime: "audio/mpeg".into(),
+            });
+        }
+        Err(e) => {
+            state.push(AgentEvent::Error {
+                message: format!("TTS-Fehler: {e}"),
+            });
+        }
+    }
+}
+
+fn last_assistant_text(state: &Arc<AgentEngineState>) -> Option<String> {
+    let convo = state.conversation_snapshot();
+    for msg in convo.iter().rev() {
+        let role = msg.get("role").and_then(|v| v.as_str()).unwrap_or("");
+        if role != "assistant" {
+            continue;
+        }
+        if let Some(content) = msg.get("content") {
+            if let Some(s) = content.as_str() {
+                return Some(s.to_string());
+            }
+            // Anthropic-style content array: [{ "type":"text", "text":"..."}, ...]
+            if let Some(arr) = content.as_array() {
+                let mut buf = String::new();
+                for block in arr {
+                    if block.get("type").and_then(|v| v.as_str()) == Some("text") {
+                        if let Some(s) = block.get("text").and_then(|v| v.as_str()) {
+                            if !buf.is_empty() {
+                                buf.push('\n');
+                            }
+                            buf.push_str(s);
+                        }
+                    }
+                }
+                if !buf.is_empty() {
+                    return Some(buf);
+                }
+            }
+        }
+    }
+    None
 }

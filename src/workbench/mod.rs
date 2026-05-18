@@ -5,6 +5,7 @@ mod browser_tab;
 mod chat_markdown;
 mod create_workspace_wizard;
 mod harness_ui;
+mod harness_voice_pane;
 mod memory_panel;
 mod path_nav;
 mod right_panel;

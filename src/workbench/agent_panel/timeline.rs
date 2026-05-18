@@ -158,6 +158,9 @@ pub fn apply_agent_event(
             });
             persist_agent_timeline(persist, timeline);
         }
+        AgentEvent::VoiceReady { .. } => {
+            // Voice playback is handled in the agent panel; no timeline mutation.
+        }
     }
 }
 

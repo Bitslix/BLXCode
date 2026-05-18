@@ -7,6 +7,8 @@ use serde_json::Value;
 pub struct UserTurn {
     pub prompt: String,
     pub workspace_root: Option<String>,
+    #[serde(default)]
+    pub voice_input: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -75,6 +77,8 @@ pub enum AgentEvent {
     Done,
     #[serde(rename = "error")]
     Error { message: String },
+    #[serde(rename = "voice_ready")]
+    VoiceReady { audio_b64: String, mime: String },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

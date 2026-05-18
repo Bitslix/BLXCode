@@ -45,6 +45,12 @@ web-sys = { version = "0.3", features = [
     "Event",
     "CustomEvent",
     "KeyboardEvent",
+    "HtmlAudioElement",
+    "HtmlMediaElement",
+    "Blob",
+    "BlobPropertyBag",
+    "Url",
+    "Performance",
 ] }
 
 [workspace]

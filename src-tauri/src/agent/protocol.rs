@@ -8,6 +8,10 @@ pub struct UserTurn {
     pub prompt: String,
     /// Sandbox root for read-only tools; must be canonical if set (caller responsibility).
     pub workspace_root: Option<String>,
+    /// When true, the orchestrator runs the configured TTS engine on the
+    /// final assistant text and emits an `AgentEvent::VoiceReady`.
+    #[serde(default)]
+    pub voice_input: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -47,4 +51,6 @@ pub enum AgentEvent {
     Done,
     #[serde(rename = "error")]
     Error { message: String },
+    #[serde(rename = "voice_ready")]
+    VoiceReady { audio_b64: String, mime: String },
 }
