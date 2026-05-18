@@ -3,19 +3,17 @@ use crate::i18n::I18nKey;
 #[must_use]
 pub fn msg(key: I18nKey) -> &'static str {
     match key {
-        I18nKey::Decline => "Odrzuć",
-        I18nKey::Accept => "Akceptuj",
-        I18nKey::BtnClose => "Zamknij",
-        I18nKey::BtnApply => "Zastosuj",
-        I18nKey::BtnSave => "Zapisz",
+        I18nKey::Decline => "Spadek",
+        I18nKey::Accept => "Przyjąć",
+        I18nKey::BtnClose => "Zamknąć",
+        I18nKey::BtnApply => "Stosować",
+        I18nKey::BtnSave => "Ratować",
         I18nKey::WsAria => "Obszar roboczy",
         I18nKey::WsEmptyTitle => "Brak otwartego obszaru roboczego",
         I18nKey::WsEmptyLead => {
-            "Wybierz obszar roboczy na pasku bocznym lub otwórz ponownie ostatni z listy poniżej."
+            "Wybierz obszar roboczy na pasku bocznym lub otwórz ponownie ostatnio używany obszar roboczy z poniższej listy."
         }
-        I18nKey::WsEmptyNote => {
-            "Otwórz prawy panel, by korzystać z agenta, pamięci obszaru roboczego i wbudowanej przeglądarki."
-        }
+        I18nKey::WsEmptyNote => "Otwórz prawy panel agenta, pamięci obszaru roboczego i wbudowanej przeglądarki.",
         I18nKey::WsKwCmdPalette => "Paleta poleceń",
         I18nKey::WsKwQuickOpen => "Szybkie otwieranie",
         I18nKey::WsKwSidePanel => "Panel boczny",
@@ -52,7 +50,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemEmptyLead => {
             "Pamięć jest ograniczona do obszaru roboczego. Aby rozpocząć, wybierz jeden na pasku bocznym lub utwórz nowy obszar roboczy."
         }
-        I18nKey::MemEmptyCreate => "+ Utwórz obszar roboczy",
+        I18nKey::MemEmptyCreate => "+ Utwórz przestrzeń roboczą",
         I18nKey::MemTabFiles => "Akta",
         I18nKey::MemTabGraph => "Wykres",
         I18nKey::MemTabSearch => "Szukaj",
@@ -77,12 +75,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgNoPath => "(bez ścieżki)",
         I18nKey::AgScopedReadHint => "Użyj READ:relative/path, aby uzyskać dostęp do odczytu w określonym zakresie.",
         I18nKey::AgPromptPh => "Opisz cel lub CZYTAJ:README.md…",
-        I18nKey::AgSend => "Wyślij",
-        I18nKey::AgCancel => "Anuluj",
-        I18nKey::AgResetChat => "Resetuj czat",
-        I18nKey::AgResetChatAria => {
-            "Wyczyść widok czatu i historię rozmowy modelu na serwerze"
-        }
+        I18nKey::AgSend => "Wysłać",
+        I18nKey::AgCancel => "Anulować",
+        I18nKey::AgResetChat => "Zresetuj czat",
+        I18nKey::AgResetChatAria => "Wyczyść widok czatu i historię rozmów modelowych na serwerze",
         I18nKey::AgErrNeedPrompt => "Proszę wprowadzić monit.",
         I18nKey::AgYou => "Ty",
         I18nKey::AgAssistant => "Agent",
@@ -101,10 +97,10 @@ pub fn msg(key: I18nKey) -> &'static str {
             "Cześć — jestem agentem BLXCode. Mogę czytać pliki, zarządzać zadaniami w obszarze roboczym, przeszukiwać pamięć obszaru roboczego i otwierać dla Ciebie terminale. Wyślij monit, aby rozpocząć."
         }
         I18nKey::BrToolbarAria => "Wbudowana przeglądarka",
-        I18nKey::BrBack => "Wstecz",
-        I18nKey::BrFwd => "Dalej",
-        I18nKey::BrReload => "Odśwież",
-        I18nKey::BrGo => "Idź",
+        I18nKey::BrBack => "Z powrotem",
+        I18nKey::BrFwd => "Do przodu",
+        I18nKey::BrReload => "Przeładować",
+        I18nKey::BrGo => "Iść",
         I18nKey::BrTabsAria => "Zakładki przeglądarki",
         I18nKey::BrNewTab => "Nowa zakładka",
         I18nKey::BrNewTabBtnAria => "Nowa zakładka",
@@ -133,11 +129,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatApp => "Aplikacja",
         I18nKey::HsCatWorkspace => "Obszar roboczy",
         I18nKey::HsCatProvider => "Dostawca agenta",
-        I18nKey::HsCatVoice => "Voice",
+        I18nKey::HsCatVoice => "Głos",
         I18nKey::AppHeading => "Aplikacja",
         I18nKey::GenEulaStatus => "Stan EULA",
         I18nKey::AppLanguage => "Język interfejsu",
-        I18nKey::AppHooksHeading => "Haki końcowe",
+        I18nKey::AppHooksHeading => "Terminal hooks",
         I18nKey::WsHeading => "Obszar roboczy",
         I18nKey::LayBrowserUrl => "Domyślny adres URL wbudowanej przeglądarki",
         I18nKey::WsBrowserDefault => "Ustawienie wstępne:",
@@ -171,7 +167,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgModelsUnavailable => "Brak dostępnych modeli",
         I18nKey::AgSaveProvider => "Zapisz ustawienia dostawcy",
         I18nKey::AgSaveProviderDone => "Ustawienia dostawcy zostały zapisane",
-        I18nKey::AgHooksHeading => "Haki końcowe",
+        I18nKey::AgHooksHeading => "Terminal hooks",
         I18nKey::AgHooksDesc => {
             "Zainstaluj zaczepy do przechwytywania tytułu i sesji dla obsługiwanych interfejsów CLI agenta, aby karty terminala podążały za aktywnym monitem i sesje mogły zostać wznowione po ponownym uruchomieniu."
         }
@@ -181,14 +177,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgHooksStatusMissing => "nie zainstalowany",
         I18nKey::AgHooksStatusUnknown => "nieznany",
         I18nKey::AgHooksBusy => "Pracujący…",
-        I18nKey::BlxLoading => "Ładowanie…",        I18nKey::SbRenameTitle => "Zmień nazwę obszaru roboczego",
+        I18nKey::BlxLoading => "Ładowanie…",
+        I18nKey::SbRenameTitle => "Zmień nazwę obszaru roboczego",
         I18nKey::SbRenameNameLabel => "Nazwa obszaru roboczego",
         I18nKey::SbRenameCloseAria => "Zamknij okno zmiany nazwy",
         I18nKey::SbRenameSubmit => "Przemianować",
         I18nKey::SbRenameMenu => "Zmień nazwę obszaru roboczego",
         I18nKey::SbCloseWorkspaceMenu => "Zamknij obszar roboczy",
         I18nKey::SbAddWorkspaceAria => "Utwórz nowy obszar roboczy",
-        I18nKey::SbBadgeTotalAria => "{n} unread in workspace",
+        I18nKey::SbBadgeTotalAria => "{n} nieprzeczytane w obszarze roboczym",
         I18nKey::WzTitle => "Utwórz obszar roboczy",
         I18nKey::WzSubLayout => "Wybierz układ i katalog roboczy.",
         I18nKey::WzSubFleet => "Przypisz agentów do {n} terminali.",
@@ -197,7 +194,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzNamePh => "np. Refaktor zaplecza",
         I18nKey::WzCwdLabel => "Katalog roboczy",
         I18nKey::WzNavPh => "płyta CD …",
-        I18nKey::WzGo => "Idź",
+        I18nKey::WzGo => "Iść",
         I18nKey::WzNavHint => {
             "Tylko `cd`, `cd ..`, `cd /abs` lub względne `cd` — w przeglądarce ścieżki kompilacji nie są weryfikowane z rzeczywistym systemem plików."
         }
@@ -216,11 +213,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzCwdListEmpty => "- pusty -",
         I18nKey::WzCwdEmpty => "Proszę ustawić katalog roboczy.",
         I18nKey::WzNext => "Następny",
-        I18nKey::WzBack => "Wstecz",
-        I18nKey::WzCancel => "Anuluj",
+        I18nKey::WzBack => "Z powrotem",
+        I18nKey::WzCancel => "Anulować",
         I18nKey::WzSkipAgents => "Pomiń agentów",
         I18nKey::WzLaunch => "Uruchom obszar roboczy",
-        I18nKey::WzPresetSingle => "Jeden terminal",
+        I18nKey::WzPresetSingle => "1 terminal",
         I18nKey::WzPreset2 => "2 terminale",
         I18nKey::WzPreset4 => "4 terminale",
         I18nKey::WzPreset6 => "6 terminali",
@@ -237,7 +234,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzFleetSelectAll => "Zaznacz wszystko",
         I18nKey::WzFleetOneEach => "Po jednym",
         I18nKey::WzFillEvenly => "Wypełnij równomiernie",
-        I18nKey::WzFleetClear => "Wyczyść",
+        I18nKey::WzFleetClear => "Jasne",
         I18nKey::WzFleetAll => "Wszystko {n}",
         I18nKey::WzAgentClaude => "Klaudiusz",
         I18nKey::WzAgentSubClaude => "antropiczny",
@@ -266,57 +263,51 @@ pub fn msg(key: I18nKey) -> &'static str {
         }
         I18nKey::EulaAccepted => "Przyjęty",
         I18nKey::EulaUnknown => "Nieznany",
-
-        I18nKey::VoicePaneTitle => "Voice",
-        I18nKey::VoiceSttSection => "Speech-to-Text",
-        I18nKey::VoiceTtsSection => "Text-to-Speech",
-        I18nKey::VoiceBehaviorSection => "Behavior",
-        I18nKey::VoiceLanguageSection => "Language",
-        I18nKey::VoicePttSection => "Push-to-Talk",
-        I18nKey::VoiceProviderField => "Provider",
+        I18nKey::VoicePaneTitle => "Głos",
+        I18nKey::VoiceSttSection => "Zamiana mowy na tekst",
+        I18nKey::VoiceTtsSection => "Zamiana tekstu na mowę",
+        I18nKey::VoiceBehaviorSection => "Zachowanie",
+        I18nKey::VoiceLanguageSection => "Język",
+        I18nKey::VoicePttSection => "Naciśnij i mów",
+        I18nKey::VoiceProviderField => "Dostawca",
         I18nKey::VoiceModelField => "Model",
-        I18nKey::VoiceVoiceField => "Voice",
-        I18nKey::VoiceGenderAll => "All",
-        I18nKey::VoiceGenderMale => "Male",
-        I18nKey::VoiceGenderFemale => "Female",
-        I18nKey::VoiceGenderNeutral => "Neutral",
-        I18nKey::VoiceQualityField => "Recording quality",
-        I18nKey::VoiceQualityLow => "Low — 16 kHz",
-        I18nKey::VoiceQualityStandard => "Standard — 24 kHz",
-        I18nKey::VoiceQualityHigh => "High — 48 kHz",
+        I18nKey::VoiceVoiceField => "Głos",
+        I18nKey::VoiceGenderAll => "Wszystko",
+        I18nKey::VoiceGenderMale => "Mężczyzna",
+        I18nKey::VoiceGenderFemale => "Kobieta",
+        I18nKey::VoiceGenderNeutral => "Neutralny",
+        I18nKey::VoiceQualityField => "Jakość nagrywania",
+        I18nKey::VoiceQualityLow => "Niska — 16 kHz",
+        I18nKey::VoiceQualityStandard => "Standardowe — 24 kHz",
+        I18nKey::VoiceQualityHigh => "Wysoka — 48 kHz",
         I18nKey::VoiceQualityHint => {
-            "Higher quality barely improves recognition but increases upload size and noticeably slows transcription."
+            "Wyższa jakość ledwo poprawia rozpoznawanie, ale zwiększa rozmiar przesyłanego pliku i zauważalnie spowalnia transkrypcję."
         }
-        I18nKey::VoiceQualitySizeEstimate => "≈ {kb} KB per 10 s",
-        I18nKey::VoicePostSttFlow => "After transcription",
-        I18nKey::VoicePostSttAutoSend => "Auto-send to agent",
-        I18nKey::VoicePostSttDraft => "Drop into compose field",
-        I18nKey::VoiceTtsEnabled => "Speak agent replies",
-        I18nKey::VoiceTtsAutoplayHint => {
-            "Only plays when the turn was started by voice."
-        }
-        I18nKey::VoiceTtsLangAutoNote => {
-            "TTS detects the language automatically from the reply text."
-        }
-        I18nKey::VoiceSttLangMode => "Input language (STT)",
-        I18nKey::VoiceSttLangFollowApp => "Follow app language",
-        I18nKey::VoiceSttLangAutoDetect => "Auto-detect",
-        I18nKey::VoiceSttLangManual => "Manual",
-        I18nKey::VoicePttEnabled => "Enable push-to-talk hotkey",
-        I18nKey::VoicePttHotkey => "Hotkey",
-        I18nKey::VoicePttRecorderHint => "Press a key…",
-        I18nKey::VoicePttConflictWarn => "Conflicts with another app shortcut.",
-        I18nKey::VoicePreviewBtn => "Sample",
-        I18nKey::VoicePreviewText => "Hello, this is a voice preview.",
-        I18nKey::VoiceKeyReused => "Reused key from {provider}",
-        I18nKey::VoiceKeyMissing => "No API key set for {provider}",
-        I18nKey::VoiceSaveDone => "Voice settings saved",
-        I18nKey::VoiceOrbAriaIdle => "Voice — click to record",
-        I18nKey::VoiceOrbAriaRecording => "Recording — click or release to stop",
-        I18nKey::VoiceOrbAriaTranscribing => "Transcribing…",
-        I18nKey::VoiceOrbCancelHint => "ESC cancels the recording",
-        I18nKey::VoiceErrNoMic => "Microphone not available.",
-        I18nKey::VoiceErrStt => "Transcription failed: {message}",
-
+        I18nKey::VoiceQualitySizeEstimate => "≈ {kb} KB na 10 s",
+        I18nKey::VoicePostSttFlow => "Po transkrypcji",
+        I18nKey::VoicePostSttAutoSend => "Automatyczne wysyłanie do agenta",
+        I18nKey::VoicePostSttDraft => "Wrzuć do pola tworzenia",
+        I18nKey::VoiceTtsEnabled => "Mów odpowiedzi agenta",
+        I18nKey::VoiceTtsAutoplayHint => "Gra tylko wtedy, gdy tura została rozpoczęta za pomocą głosu.",
+        I18nKey::VoiceTtsLangAutoNote => "TTS automatycznie wykrywa język na podstawie tekstu odpowiedzi.",
+        I18nKey::VoiceSttLangMode => "Język wprowadzania (STT)",
+        I18nKey::VoiceSttLangFollowApp => "Postępuj zgodnie z językiem aplikacji",
+        I18nKey::VoiceSttLangAutoDetect => "Automatyczne wykrywanie",
+        I18nKey::VoiceSttLangManual => "Podręcznik",
+        I18nKey::VoicePttEnabled => "Włącz klawisz skrótu „Naciśnij i mów”.",
+        I18nKey::VoicePttHotkey => "Klawisz skrótu",
+        I18nKey::VoicePttRecorderHint => "Naciśnij klawisz…",
+        I18nKey::VoicePttConflictWarn => "Konflikt z innym skrótem do aplikacji.",
+        I18nKey::VoicePreviewBtn => "Próbka",
+        I18nKey::VoicePreviewText => "Witaj, to jest podgląd głosowy.",
+        I18nKey::VoiceKeyReused => "Ponownie użyty klucz od {provider}",
+        I18nKey::VoiceKeyMissing => "Brak zestawu kluczy API dla {provider}",
+        I18nKey::VoiceSaveDone => "Ustawienia głosu zostały zapisane",
+        I18nKey::VoiceOrbAriaIdle => "Głos — kliknij, aby nagrać",
+        I18nKey::VoiceOrbAriaRecording => "Nagrywanie — kliknij lub zwolnij, aby zatrzymać",
+        I18nKey::VoiceOrbAriaTranscribing => "Transkrypcja…",
+        I18nKey::VoiceOrbCancelHint => "ESC anuluje nagrywanie",
+        I18nKey::VoiceErrNoMic => "Mikrofon niedostępny.",
+        I18nKey::VoiceErrStt => "Transkrypcja nie powiodła się: {wiadomość}",
     }
 }
