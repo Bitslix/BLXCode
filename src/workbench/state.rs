@@ -405,11 +405,51 @@ fn normalize_browser_url(raw: &str) -> String {
     format!("https://{trimmed}")
 }
 
+/// Push a navigation entry into the tab's history stack.
+///
+/// Behaviour matches a browser address bar:
+/// - empty URL clears the tab (no history change beyond `url`).
+/// - navigating to the same URL we already point at is a no-op.
+/// - any forward entries past `history_index` are truncated (classic
+///   "navigate from middle of stack").
+fn push_history_entry(t: &mut EmbeddedBrowserTab, url: &str) {
+    t.url = url.to_string();
+    if url.trim().is_empty() {
+        return;
+    }
+    if t.history.is_empty() {
+        t.history.push(url.to_string());
+        t.history_index = 0;
+        return;
+    }
+    if t
+        .history
+        .get(t.history_index)
+        .map(|s| s.as_str() == url)
+        .unwrap_or(false)
+    {
+        return;
+    }
+    t.history.truncate(t.history_index + 1);
+    t.history.push(url.to_string());
+    t.history_index = t.history.len() - 1;
+}
+
 /// Ein „Blatt“ innerhalb des eingebetteten Browsers (rechtes Panel), mit eigener URL.
+///
+/// `history` ist ein parent-seitiger Navigations-Stack: jeder explizite
+/// `navigate` (URL-Bar, Shortlink, programmatisch) trunkiert den Stack
+/// hinter `history_index` und pusht die neue URL. Back/Forward bewegen
+/// `history_index`. In-iframe Link-Klicks tauchen hier NICHT auf
+/// (cross-origin iframes verbieten dem Parent das Auslesen der Location).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EmbeddedBrowserTab {
     pub id: u64,
     pub url: String,
+    #[serde(default)]
+    pub history: Vec<String>,
+    #[serde(default)]
+    pub history_index: usize,
 }
 
 /// Unterscheidung: natives Child-Webview vs. SPA-iframe (Linux/Browser-CSR ohne Tauri).
@@ -470,9 +510,18 @@ impl WorkbenchService {
             right_width_px: RwSignal::new(420.0),
             right_tab: RwSignal::new(RightPanelTab::Agent),
             browser_url: RwSignal::new(browser_url.clone()),
-            embedded_browser_tabs: RwSignal::new(vec![EmbeddedBrowserTab {
-                id: first_tab_id,
-                url: browser_url,
+            embedded_browser_tabs: RwSignal::new(vec![{
+                let history = if browser_url.trim().is_empty() {
+                    Vec::new()
+                } else {
+                    vec![browser_url.clone()]
+                };
+                EmbeddedBrowserTab {
+                    id: first_tab_id,
+                    url: browser_url,
+                    history,
+                    history_index: 0,
+                }
             }]),
             embedded_browser_active_id: RwSignal::new(first_tab_id),
             embedded_browser_next_id: RwSignal::new(first_tab_id + 1),
@@ -912,10 +961,78 @@ impl WorkbenchService {
         let aid = self.embedded_browser_active_id.get_untracked();
         self.embedded_browser_tabs.update(|tabs| {
             if let Some(t) = tabs.iter_mut().find(|t| t.id == aid) {
-                t.url.clone_from(&normalized);
+                push_history_entry(t, &normalized);
             }
         });
         self.browser_url.set(normalized);
+    }
+
+    /// Move back one entry in the active tab's history stack. Returns the
+    /// URL that should now be loaded (caller must trigger iframe reload /
+    /// native navigate). No-op + `None` if already at the head.
+    pub fn tab_navigate_back(&self) -> Option<String> {
+        let aid = self.embedded_browser_active_id.get_untracked();
+        let mut next_url: Option<String> = None;
+        self.embedded_browser_tabs.update(|tabs| {
+            if let Some(t) = tabs.iter_mut().find(|t| t.id == aid) {
+                if t.history_index > 0 && !t.history.is_empty() {
+                    t.history_index -= 1;
+                    if let Some(u) = t.history.get(t.history_index).cloned() {
+                        t.url = u.clone();
+                        next_url = Some(u);
+                    }
+                }
+            }
+        });
+        if let Some(ref u) = next_url {
+            self.browser_url.set(u.clone());
+        }
+        next_url
+    }
+
+    /// Move forward one entry in the active tab's history stack.
+    pub fn tab_navigate_forward(&self) -> Option<String> {
+        let aid = self.embedded_browser_active_id.get_untracked();
+        let mut next_url: Option<String> = None;
+        self.embedded_browser_tabs.update(|tabs| {
+            if let Some(t) = tabs.iter_mut().find(|t| t.id == aid) {
+                if !t.history.is_empty() && t.history_index + 1 < t.history.len() {
+                    t.history_index += 1;
+                    if let Some(u) = t.history.get(t.history_index).cloned() {
+                        t.url = u.clone();
+                        next_url = Some(u);
+                    }
+                }
+            }
+        });
+        if let Some(ref u) = next_url {
+            self.browser_url.set(u.clone());
+        }
+        next_url
+    }
+
+    /// True iff the active tab has a previous entry in its history stack.
+    #[must_use]
+    pub fn tab_can_go_back(&self) -> bool {
+        let aid = self.embedded_browser_active_id.get();
+        self.embedded_browser_tabs.with(|tabs| {
+            tabs.iter()
+                .find(|t| t.id == aid)
+                .map(|t| t.history_index > 0)
+                .unwrap_or(false)
+        })
+    }
+
+    /// True iff the active tab has a forward entry in its history stack.
+    #[must_use]
+    pub fn tab_can_go_forward(&self) -> bool {
+        let aid = self.embedded_browser_active_id.get();
+        self.embedded_browser_tabs.with(|tabs| {
+            tabs.iter()
+                .find(|t| t.id == aid)
+                .map(|t| !t.history.is_empty() && t.history_index + 1 < t.history.len())
+                .unwrap_or(false)
+        })
     }
 
     #[must_use]
@@ -950,6 +1067,8 @@ impl WorkbenchService {
         let tab = EmbeddedBrowserTab {
             id: nid,
             url: String::new(),
+            history: Vec::new(),
+            history_index: 0,
         };
         self.embedded_browser_tabs.update(|tabs| tabs.push(tab));
         self.embedded_browser_active_id.set(nid);

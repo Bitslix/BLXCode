@@ -1,5 +1,12 @@
 # BLXCode
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-f4a261?style=for-the-badge)](LICENSE)
+![Rust](https://img.shields.io/badge/Rust-2021-b7410e?style=for-the-badge&logo=rust&logoColor=white)
+![Tauri](https://img.shields.io/badge/Tauri-2-24c8db?style=for-the-badge&logo=tauri&logoColor=white)
+![Leptos](https://img.shields.io/badge/Leptos-0.7-ef3939?style=for-the-badge)
+![Platforms](https://img.shields.io/badge/Linux%20%7C%20macOS%20%7C%20Windows-desktop-2f334d?style=for-the-badge)
+![Status](https://img.shields.io/badge/status-early%20stage-8a7cff?style=for-the-badge)
+
 **BLXCode** is an open-source desktop workbench for running AI coding agents beside real terminals, project memory, tasks, and an embedded browser. It is built with **Tauri 2**, **Rust**, **Leptos**, and **Trunk**.
 
 The project is designed for people who want one focused local cockpit for agent-assisted development: create a workspace, assign terminal slots to tools such as Claude, Codex, Gemini, OpenCode, or Cursor, keep durable project notes in `.blxcode/memory`, and talk to model providers from the same interface.

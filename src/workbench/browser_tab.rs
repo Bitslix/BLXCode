@@ -396,22 +396,19 @@ pub fn BrowserTabDock() -> impl IntoView {
                     type="button"
                     class="workbench-mini-btn"
                     aria-label=move || i18n.tr(I18nKey::BrBack)()
+                    prop:disabled=move || !wb.tab_can_go_back()
                     on:click=move |_| {
+                        let Some(target) = wb.tab_navigate_back() else { return; };
                         let embed = surface;
                         let aid = wb.embedded_browser_active_id().get_untracked();
                         spawn_local(async move {
                             if embed_is_native(embed) {
-                                let _ = crate::tauri_bridge::browser_run_js(
-                                    aid, "window.history.back()",
-                                ).await;
-                            } else {
-                                let _ = web_sys::window()
-                                    .and_then(|w| w.document())
-                                    .and_then(|d| d.get_element_by_id(&iframe_id_for(aid)))
-                                    .and_then(|el| el.dyn_into::<web_sys::HtmlIFrameElement>().ok())
-                                    .and_then(|f| f.content_window())
-                                    .map(|s| s.history().ok().map(|h| h.back()));
+                                let _ = browser_navigate(aid, target.trim()).await;
                             }
+                            // iframe path: prop:src is bound to the tab url
+                            // memo, which we just mutated, so the iframe
+                            // reloads automatically.
+                            sync_embedded_browser_layer(wb, embed).await;
                         });
                     }
                 >
@@ -421,22 +418,16 @@ pub fn BrowserTabDock() -> impl IntoView {
                     type="button"
                     class="workbench-mini-btn"
                     aria-label=move || i18n.tr(I18nKey::BrFwd)()
+                    prop:disabled=move || !wb.tab_can_go_forward()
                     on:click=move |_| {
+                        let Some(target) = wb.tab_navigate_forward() else { return; };
                         let embed = surface;
                         let aid = wb.embedded_browser_active_id().get_untracked();
                         spawn_local(async move {
                             if embed_is_native(embed) {
-                                let _ = crate::tauri_bridge::browser_run_js(
-                                    aid, "window.history.forward()",
-                                ).await;
-                            } else {
-                                let _ = web_sys::window()
-                                    .and_then(|w| w.document())
-                                    .and_then(|d| d.get_element_by_id(&iframe_id_for(aid)))
-                                    .and_then(|el| el.dyn_into::<web_sys::HtmlIFrameElement>().ok())
-                                    .and_then(|f| f.content_window())
-                                    .map(|s| s.history().ok().map(|h| h.forward()));
+                                let _ = browser_navigate(aid, target.trim()).await;
                             }
+                            sync_embedded_browser_layer(wb, embed).await;
                         });
                     }
                 >
