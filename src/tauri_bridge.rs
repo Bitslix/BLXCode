@@ -627,6 +627,36 @@ pub async fn workbench_clear_terminal_notifications(terminal_key: String) -> Res
     .await
 }
 
+pub async fn workbench_prune_notifications(valid_terminal_keys: Vec<String>) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        valid_terminal_keys: Vec<String>,
+    }
+    invoke_unit_js(
+        "workbench_prune_notifications",
+        args_value(A {
+            valid_terminal_keys,
+        })?,
+    )
+    .await
+}
+
+pub async fn workbench_prune_sessions(valid_terminal_keys: Vec<String>) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        valid_terminal_keys: Vec<String>,
+    }
+    invoke_unit_js(
+        "workbench_prune_sessions",
+        args_value(A {
+            valid_terminal_keys,
+        })?,
+    )
+    .await
+}
+
 pub async fn workbench_drop_sessions(prefix: String) -> Result<u32, String> {
     #[derive(Serialize)]
     struct A {
@@ -644,22 +674,22 @@ pub async fn workbench_extract_sessions_prefix(prefix: String) -> Result<String,
 }
 
 pub async fn workbench_merge_sessions_workspace(
-    old_workspace_id: u64,
-    new_workspace_id: u64,
+    old_workspace_key: String,
+    new_workspace_key: String,
     terminals_json: String,
 ) -> Result<(), String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct A {
-        old_workspace_id: u64,
-        new_workspace_id: u64,
+        old_workspace_key: String,
+        new_workspace_key: String,
         terminals_json: String,
     }
     invoke_unit_js(
         "workbench_merge_sessions_workspace",
         args_value(A {
-            old_workspace_id,
-            new_workspace_id,
+            old_workspace_key,
+            new_workspace_key,
             terminals_json,
         })?,
     )
@@ -690,6 +720,26 @@ pub async fn agent_session_exists(
                 cwd,
                 session_id,
             },
+        },
+    )
+    .await
+}
+
+pub async fn agent_latest_session_id(agent: String, cwd: String) -> Result<Option<String>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Probe {
+        agent: String,
+        cwd: String,
+    }
+    #[derive(Serialize)]
+    struct Args {
+        probe: Probe,
+    }
+    invoke_typed(
+        "agent_latest_session_id",
+        Args {
+            probe: Probe { agent, cwd },
         },
     )
     .await

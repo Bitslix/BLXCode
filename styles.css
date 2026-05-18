@@ -357,7 +357,8 @@ body {
   letter-spacing: -0.02em;
 }
 
-.workbench-sidebar__badge--agent {
+.workbench-sidebar__badge--total {
+  background-color: #e8954a;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
 }
 

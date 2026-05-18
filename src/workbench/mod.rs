@@ -2,13 +2,13 @@
 mod agent_accent;
 mod agent_panel;
 mod agent_timeline;
-mod notification_sound;
 mod browser_tab;
 mod chat_markdown;
 mod create_workspace_wizard;
 mod harness_ui;
 mod harness_voice_pane;
 mod memory_panel;
+mod notification_sound;
 mod path_nav;
 mod right_panel;
 mod sidebar;
@@ -23,14 +23,16 @@ pub use memory_panel::MemoryPanel;
 pub use right_panel::RightPanel;
 pub use sidebar::Sidebar;
 pub use state::{
-    BrowserEmbedSurface, HarnessUiService, RightPanelTab, WorkbenchService, WorkbenchSnapshot,
+    BrowserEmbedSurface, HarnessUiService, LegacyStorageMigration, RightPanelTab, WorkbenchService,
+    WorkbenchSnapshot,
 };
 pub use workspace_panel::WorkspacePanel;
 
 use crate::open_http::{dom_click_nav_href, DomNavHref};
 use crate::tauri_bridge::{
-    browser_embedding_kind, harness_ensure_default_sandbox, is_tauri_shell, workbench_load_state,
-    workbench_save_state,
+    browser_embedding_kind, harness_ensure_default_sandbox, is_tauri_shell,
+    workbench_extract_sessions_prefix, workbench_load_state, workbench_merge_sessions_workspace,
+    workbench_prune_notifications, workbench_prune_sessions, workbench_save_state,
 };
 use gloo_timers::future::TimeoutFuture;
 use harness_ui::HarnessHost;
@@ -47,6 +49,32 @@ use wasm_bindgen::JsCast;
 /// enough to feel "live", long enough to coalesce a burst of mutations
 /// (typing in name field, dragging splitter, etc.) into one IPC call.
 const AUTO_SAVE_DEBOUNCE_MS: u32 = 500;
+
+async fn migrate_legacy_sessions(migrations: Vec<LegacyStorageMigration>) {
+    for migration in migrations {
+        let old_prefix = format!("{}:", migration.old_workspace_key);
+        let blob = match workbench_extract_sessions_prefix(old_prefix).await {
+            Ok(blob) => blob,
+            Err(err) => {
+                leptos::logging::warn!("workbench_extract_sessions_prefix: {err}");
+                continue;
+            }
+        };
+        let trimmed = blob.trim();
+        if trimmed.is_empty() || trimmed == "{}" {
+            continue;
+        }
+        if let Err(err) = workbench_merge_sessions_workspace(
+            migration.old_workspace_key,
+            migration.new_workspace_key,
+            blob,
+        )
+        .await
+        {
+            leptos::logging::warn!("workbench_merge_sessions_workspace: {err}");
+        }
+    }
+}
 
 #[component]
 pub fn WorkbenchShell() -> impl IntoView {
@@ -74,7 +102,11 @@ pub fn WorkbenchShell() -> impl IntoView {
                 Ok(None) => {}
                 Ok(Some(json)) => match serde_json::from_str::<WorkbenchSnapshot>(&json) {
                     Err(_) => allow_save = false,
-                    Ok(snap) => {
+                    Ok(mut snap) => {
+                        let migrations = snap.backfill_storage_keys();
+                        if !migrations.is_empty() {
+                            migrate_legacy_sessions(migrations).await;
+                        }
                         allow_save = wb.hydrate(snap);
                     }
                 },
@@ -94,7 +126,36 @@ pub fn WorkbenchShell() -> impl IntoView {
         });
     });
 
-    notification_sound::spawn_notification_poller(wb);
+    // One-shot prune right after hydration: removes notifications.json
+    // and sessions.json entries whose terminal_key has no matching slot
+    // in the freshly-loaded workspace state. This drops legacy numeric
+    // notification keys and any closed-slot session references after
+    // pre-UUID session entries have been migrated.
+    Effect::new(move |_| {
+        if !hydrated.get() {
+            return;
+        }
+        if !is_tauri_shell() {
+            return;
+        }
+        let live_keys = wb.live_terminal_keys();
+        let live_keys_for_sessions = live_keys.clone();
+        spawn_local(async move {
+            let _ = workbench_prune_notifications(live_keys).await;
+        });
+        spawn_local(async move {
+            let _ = workbench_prune_sessions(live_keys_for_sessions).await;
+        });
+    });
+
+    let notification_poller_started = RwSignal::new(false);
+    Effect::new(move |_| {
+        if !hydrated.get() || notification_poller_started.get_untracked() {
+            return;
+        }
+        notification_poller_started.set(true);
+        notification_sound::spawn_notification_poller(wb);
+    });
 
     // Debounced auto-save. Tracks every persisted signal; a token guards
     // against firing a stale save when a newer tick is already scheduled.
@@ -122,9 +183,11 @@ pub fn WorkbenchShell() -> impl IntoView {
                 return; // newer tick superseded us
             }
             let snap = wb.snapshot();
+            let live_keys = wb.live_terminal_keys();
             if let Ok(json) = serde_json::to_string(&snap) {
                 let _ = workbench_save_state(json).await;
             }
+            let _ = workbench_prune_notifications(live_keys).await;
         });
     });
 

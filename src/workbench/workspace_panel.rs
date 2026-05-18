@@ -739,7 +739,13 @@ fn TerminalSlotSurface(
                             })
                         });
 
-                        let terminal_key = format!("{workspace_id}:{slot_id}:{pane_id}");
+                        let storage_key = workspaces_sig.with_untracked(|ws| {
+                            ws.iter()
+                                .find(|w| w.id == workspace_id)
+                                .map(|w| w.storage_key.clone())
+                                .unwrap_or_default()
+                        });
+                        let terminal_key = format!("{storage_key}:{slot_id}:{pane_id}");
                         view! {
                             <WorkspaceTerminalCell
                                 workspace_id=workspace_id

@@ -6,8 +6,8 @@ use crate::tauri_bridge::{
     workbench_merge_sessions_workspace,
 };
 use crate::workbench::agent_timeline::TimelineItem;
-use leptos::prelude::*;
 use gloo_timers::future::TimeoutFuture;
+use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -25,6 +25,17 @@ pub const WORKSPACE_FLEET_AGENT_SLUGS: [&str; 5] =
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkspaceEntry {
     pub id: u64,
+    /// Stable, globally-unique identifier (UUID v4 hex, no dashes) used as
+    /// the prefix of every `terminal_key` and therefore as the
+    /// persistence key into `notifications.json` and `sessions.json`.
+    /// Unlike `id` (which is a session-scoped `u64` reused for in-memory
+    /// references), this never collides across workspace creation /
+    /// deletion / re-creation cycles — closing "Workspace 1" and
+    /// immediately creating a new "Workspace 1" produces a fresh
+    /// `storage_key`, so the new workspace cannot inherit notification
+    /// counts or PTY session references from the old one.
+    #[serde(default)]
+    pub storage_key: String,
     pub title: String,
     pub cwd: String,
     pub terminal_count: u8,
@@ -77,10 +88,20 @@ impl SlotPaneState {
 }
 
 impl WorkspaceEntry {
+    /// Fresh UUID v4 in compact hex (no dashes) — used for the
+    /// `storage_key` field on every new workspace. Legacy snapshots
+    /// deserialize this as an empty string, then the snapshot backfill step
+    /// assigns a UUID and migrates matching session keys before hydration.
+    #[must_use]
+    pub fn new_storage_key() -> String {
+        uuid::Uuid::new_v4().simple().to_string()
+    }
+
     #[must_use]
     pub fn empty_surface(id: u64) -> Self {
         Self {
             id,
+            storage_key: Self::new_storage_key(),
             title: String::new(),
             cwd: String::new(),
             terminal_count: 1,
@@ -231,6 +252,38 @@ impl Default for RecentWorkspaceItem {
             sessions_terminals_json: "{}".into(),
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LegacyStorageMigration {
+    pub old_workspace_key: String,
+    pub new_workspace_key: String,
+}
+
+fn rewrite_sessions_terminals_json(raw: &str, old_key: &str, new_key: &str) -> String {
+    let Ok(mut value) = serde_json::from_str::<serde_json::Value>(raw.trim()) else {
+        return raw.to_string();
+    };
+    let Some(map) = value.as_object_mut() else {
+        return raw.to_string();
+    };
+    let old_prefix = format!("{old_key}:");
+    let new_prefix = format!("{new_key}:");
+    let keys: Vec<String> = map
+        .keys()
+        .filter(|key| key.starts_with(&old_prefix))
+        .cloned()
+        .collect();
+    if keys.is_empty() {
+        return raw.to_string();
+    }
+    for key in keys {
+        if let Some(entry) = map.remove(&key) {
+            let suffix = key.strip_prefix(&old_prefix).unwrap_or_default();
+            map.insert(format!("{new_prefix}{suffix}"), entry);
+        }
+    }
+    serde_json::to_string(&value).unwrap_or_else(|_| raw.to_string())
 }
 
 /// Rechtes Panel (Pi-inspirierte Harness-Ansicht): Agent-Stream vs. eingebetteter Browser.
@@ -495,25 +548,21 @@ pub struct WorkbenchService {
     /// The notification poller filters these out so a freshly-cleared key cannot reappear
     /// before `workbench_clear_terminal_notifications` lands on disk.
     pending_clears: RwSignal<HashSet<String>>,
-    /// Last focused terminal per workspace (`"{ws}:{slot}:{pane}"`); survives workspace switches.
-    focused_terminal_by_workspace: RwSignal<HashMap<u64, String>>,
+    /// Last focused terminal per workspace, keyed by the workspace's
+    /// `storage_key` (UUID). Survives workspace switches. The value is the
+    /// full `terminal_key`.
+    focused_terminal_by_workspace: RwSignal<HashMap<String, String>>,
 }
 
-/// One per-agent badge in the sidebar workspace row.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct AgentNotificationBadge {
-    /// Lowercased agent slug (`"claude"`, `"codex"`, ...) or `""` for the
-    /// generic fallback row when no agent label is attached.
-    pub agent_slug: String,
-    pub unread: u32,
-    pub accent: String,
-}
-
-/// Sidebar badge aggregates for one workspace row. One entry per agent slug
-/// that has unread notifications across all of the workspace's terminals.
+/// Sidebar badge aggregate for one workspace row. A single total across
+/// every terminal in the workspace — per-agent breakdown is unnecessary
+/// because the user resolves notifications by clicking into the specific
+/// terminal that fired one (visually identifiable via the pulsing
+/// titlebar), and a typical workspace only carries one unread per agent
+/// at a time anyway.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct WorkspaceNotificationCounts {
-    pub agents: Vec<AgentNotificationBadge>,
+    pub total_unread: u32,
 }
 
 impl WorkbenchService {
@@ -570,21 +619,51 @@ impl WorkbenchService {
         self.notifications
     }
 
-    pub fn focused_terminal_by_workspace(&self) -> RwSignal<HashMap<u64, String>> {
+    /// All currently-live terminal keys (`"{ws}:{slot}:{pane}"`) across
+    /// every open workspace. Used to prune stale entries from
+    /// `notifications.json` after slots or panes are closed.
+    #[must_use]
+    pub fn live_terminal_keys(&self) -> Vec<String> {
+        self.workspaces.with_untracked(|list| {
+            let mut out = Vec::new();
+            for ws in list {
+                for (slot_idx, &slot_id) in ws.slot_ids.iter().enumerate() {
+                    let panes = ws
+                        .slot_pane_states
+                        .get(slot_idx)
+                        .map(|p| p.pane_ids.clone())
+                        .unwrap_or_else(|| SlotPaneState::default_for_slot(slot_id).pane_ids);
+                    for pane_id in panes {
+                        out.push(format!("{}:{}:{}", ws.storage_key, slot_id, pane_id));
+                    }
+                }
+            }
+            out
+        })
+    }
+
+    pub fn focused_terminal_by_workspace(&self) -> RwSignal<HashMap<String, String>> {
         self.focused_terminal_by_workspace
+    }
+
+    /// Storage-key (UUID) of the currently active workspace, if any.
+    /// Used by the notification poller to compare against a notification's
+    /// terminal-key prefix without going through the `u64` `id` indirection.
+    #[must_use]
+    pub fn active_workspace_storage_key(&self) -> Option<String> {
+        let active_id = self.active_id.get_untracked()?;
+        self.workspaces.with_untracked(|list| {
+            list.iter()
+                .find(|w| w.id == active_id)
+                .map(|w| w.storage_key.clone())
+        })
     }
 
     pub fn set_notifications(&self, mut map: HashMap<String, u32>) {
         let pending = self.pending_clears.get_untracked();
         if !pending.is_empty() {
-            let mut still_pending: HashSet<String> = HashSet::new();
-            for key in pending {
-                if map.remove(&key).is_some() {
-                    still_pending.insert(key);
-                }
-            }
-            if self.pending_clears.with_untracked(|p| *p != still_pending) {
-                self.pending_clears.set(still_pending);
+            for key in pending.iter() {
+                map.remove(key);
             }
         }
         self.notifications.set(map);
@@ -605,16 +684,34 @@ impl WorkbenchService {
             p.insert(key.clone());
         });
         if crate::tauri_bridge::is_tauri_shell() {
+            let pending_clears = self.pending_clears;
             leptos::task::spawn_local(async move {
-                let _ = crate::tauri_bridge::workbench_clear_terminal_notifications(key).await;
+                let _ =
+                    crate::tauri_bridge::workbench_clear_terminal_notifications(key.clone()).await;
+                // Backend confirmed disk-write to `unread: 0`. Any future
+                // notify hook firing for this terminal must be allowed
+                // through the next poll — drop the suppression entry now,
+                // otherwise the poller keeps stripping fresh notifications
+                // (the original bug: unread re-armed by the agent never
+                // surfaced because the key never escaped pending_clears).
+                pending_clears.update(|p| {
+                    p.remove(&key);
+                });
+            });
+        } else {
+            self.pending_clears.update(|p| {
+                p.remove(&key);
             });
         }
     }
 
     #[must_use]
-    pub fn is_terminal_focused(&self, workspace_id: u64, terminal_key: &str) -> bool {
+    pub fn is_terminal_focused(&self, terminal_key: &str) -> bool {
+        let Some(storage_key) = super::agent_accent::terminal_key_storage_key(terminal_key) else {
+            return false;
+        };
         self.focused_terminal_by_workspace.with_untracked(|m| {
-            m.get(&workspace_id)
+            m.get(&storage_key)
                 .map(|k| k == terminal_key)
                 .unwrap_or(false)
         })
@@ -625,59 +722,63 @@ impl WorkbenchService {
     /// it represents activity the user has not yet acknowledged by clicking
     /// into that specific terminal.
     pub fn focus_terminal(&self, terminal_key: String) {
-        let Some(ws_id) = super::agent_accent::terminal_key_workspace_id(&terminal_key) else {
+        let Some(storage_key) = super::agent_accent::terminal_key_storage_key(&terminal_key) else {
             return;
         };
         self.clear_terminal_notifications(&terminal_key);
         self.focused_terminal_by_workspace.update(|m| {
-            m.insert(ws_id, terminal_key);
+            m.insert(storage_key, terminal_key);
         });
     }
 
-    fn agent_slug_for_terminal_key(&self, key: &str) -> Option<String> {
-        let ws_id = super::agent_accent::terminal_key_workspace_id(key)?;
-        let slot_id: u64 = key.split(':').nth(1)?.parse().ok()?;
+    /// True when a notification's terminal key still maps to an agent-attached
+    /// slot in the open workspace. Filters out ghosts from previous sessions
+    /// (closed slots and slots without an agent label).
+    fn notification_key_is_live(&self, key: &str) -> bool {
+        let Some(storage_key) = super::agent_accent::terminal_key_storage_key(key) else {
+            return false;
+        };
+        let Some(slot_id) = key.split(':').nth(1).and_then(|s| s.parse::<u64>().ok()) else {
+            return false;
+        };
         self.workspaces.with_untracked(|list| {
-            let ws = list.iter().find(|w| w.id == ws_id)?;
-            let idx = ws.slot_ids.iter().position(|&id| id == slot_id)?;
+            let Some(ws) = list.iter().find(|w| w.storage_key == storage_key) else {
+                return false;
+            };
+            let Some(idx) = ws.slot_ids.iter().position(|&id| id == slot_id) else {
+                return false;
+            };
             ws.slot_agent_labels
                 .get(idx)
-                .filter(|s| !s.trim().is_empty())
-                .cloned()
+                .map(|s| !s.trim().is_empty())
+                .unwrap_or(false)
         })
     }
 
     #[must_use]
     pub fn workspace_notification_counts(&self, workspace_id: u64) -> WorkspaceNotificationCounts {
-        let prefix = format!("{workspace_id}:");
-        let mut per_agent: HashMap<String, u32> = HashMap::new();
+        let Some(storage_key) = self.workspaces.with_untracked(|list| {
+            list.iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.storage_key.clone())
+        }) else {
+            return WorkspaceNotificationCounts::default();
+        };
+        let prefix = format!("{storage_key}:");
+        let mut total_unread = 0u32;
         for (key, &count) in self.notifications.get_untracked().iter() {
             if count == 0 || !key.starts_with(&prefix) {
                 continue;
             }
-            let slug = self
-                .agent_slug_for_terminal_key(key)
-                .map(|s| s.trim().to_lowercase())
-                .unwrap_or_default();
-            *per_agent.entry(slug).or_insert(0) += count;
+            // Skip entries for slots that no longer exist or have no agent
+            // attached — they would otherwise inflate the badge with
+            // ghost counts from a previous session.
+            if !self.notification_key_is_live(key) {
+                continue;
+            }
+            total_unread = total_unread.saturating_add(count);
         }
-        let mut agents: Vec<AgentNotificationBadge> = per_agent
-            .into_iter()
-            .map(|(slug, unread)| AgentNotificationBadge {
-                accent: super::agent_accent::agent_accent_color(&slug).to_string(),
-                agent_slug: slug,
-                unread,
-            })
-            .collect();
-        // Stable order: WORKSPACE_FLEET_AGENT_SLUGS first, unknown agents after.
-        agents.sort_by_key(|b| {
-            WORKSPACE_FLEET_AGENT_SLUGS
-                .iter()
-                .position(|s| *s == b.agent_slug.as_str())
-                .map(|i| (0u8, i))
-                .unwrap_or((1, 0))
-        });
-        WorkspaceNotificationCounts { agents }
+        WorkspaceNotificationCounts { total_unread }
     }
 
     pub fn terminal_layout_tick(&self) -> RwSignal<u32> {
@@ -688,29 +789,33 @@ impl WorkbenchService {
         self.terminal_layout_tick.update(|t| *t = t.wrapping_add(1));
     }
 
-    /// Allocate the next workspace id. When the sidebar list is empty, always
-    /// returns `1` so default titles restart at "Workspace 1".
+    /// Allocate the next workspace id. Monotonically increasing across
+    /// the entire app lifetime — never reused, even after every workspace
+    /// has been closed. This keeps the `u64` id unique enough for
+    /// session-scoped UI references (drag-drop, context menu, active
+    /// selection); the truly stable persistence key is
+    /// `WorkspaceEntry::storage_key` (a UUID, not derived from this id).
     fn allocate_workspace_id(&self) -> u64 {
-        if self.workspaces.with_untracked(|w| w.is_empty()) {
-            self.workspace_next_id.set(2);
-            return 1;
-        }
         let max_open = self
             .workspaces
             .with_untracked(|w| w.iter().map(|x| x.id).max().unwrap_or(0));
         let id = self
             .workspace_next_id
             .get_untracked()
+            .max(1)
             .max(max_open.saturating_add(1));
         self.workspace_next_id.set(id.saturating_add(1));
         id
     }
 
-    fn reset_workspace_id_counter_if_empty(&self) {
-        if self.workspaces.with_untracked(|w| w.is_empty()) {
-            self.workspace_next_id.set(1);
-        }
-    }
+    /// No-op kept as a stable callsite. Previously reset the workspace id
+    /// counter to `1` whenever the workspace list became empty, which
+    /// caused brand-new workspaces to reuse ids from closed ones and
+    /// inherit their stale `notifications.json` / `sessions.json`
+    /// entries. Replaced by monotonic allocation in
+    /// [`Self::allocate_workspace_id`] plus per-workspace UUID storage
+    /// keys, so this function is intentionally empty now.
+    fn reset_workspace_id_counter_if_empty(&self) {}
 
     /// Register a live PTY session for a terminal cell. `terminal_key` is
     /// the same `"{ws}:{slot}:{pane}"` shape used by the cell.
@@ -730,14 +835,21 @@ impl WorkbenchService {
     /// `(slot_id, pane_id)`. The pane component is parsed from the key.
     #[must_use]
     pub fn pty_sessions_for_workspace(&self, workspace_id: u64) -> Vec<(u64, u64, u64)> {
+        let Some(storage_key) = self.workspaces.with_untracked(|list| {
+            list.iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.storage_key.clone())
+        }) else {
+            return Vec::new();
+        };
         self.pty_sessions.with_untracked(|m| {
             m.iter()
                 .filter_map(|(key, sid)| {
                     let mut it = key.split(':');
-                    let ws: u64 = it.next()?.parse().ok()?;
+                    let ws = it.next()?;
                     let slot: u64 = it.next()?.parse().ok()?;
                     let pane: u64 = it.next()?.parse().ok()?;
-                    if ws == workspace_id {
+                    if ws == storage_key {
                         Some((slot, pane, *sid))
                     } else {
                         None
@@ -848,6 +960,7 @@ impl WorkbenchService {
         self.workspaces.update(|workspaces| {
             workspaces.push(WorkspaceEntry {
                 id,
+                storage_key: WorkspaceEntry::new_storage_key(),
                 title,
                 cwd,
                 terminal_count,
@@ -931,9 +1044,10 @@ impl WorkbenchService {
             self.finalize_workspace_close(id, entry, "{}".into());
             return;
         }
+        let storage_key = entry.storage_key.clone();
         let me = *self;
         spawn_local(async move {
-            let blob = match workbench_extract_sessions_prefix(format!("{id}:")).await {
+            let blob = match workbench_extract_sessions_prefix(format!("{storage_key}:")).await {
                 Ok(s) => s,
                 Err(e) => {
                     leptos::logging::warn!("workbench_extract_sessions_prefix: {e}");
@@ -944,7 +1058,11 @@ impl WorkbenchService {
         });
     }
 
-    /// Restores a workspace from the recent list and rewrites session keys.
+    /// Restores a workspace from the recent list. The recent entry already
+    /// carries its original `storage_key` (UUID) — we keep it so the
+    /// extracted session entries (keyed by `{storage_key}:slot:pane`) are
+    /// reinjected without any key rewriting. Only the in-memory `id: u64`
+    /// is fresh.
     pub fn reopen_recent_workspace(&self, index: usize) {
         let item = self
             .recent_workspaces
@@ -952,7 +1070,6 @@ impl WorkbenchService {
         let Some(mut item) = item else {
             return;
         };
-        let old_id = item.workspace.id;
         self.recent_workspaces.update(|r| {
             if index < r.len() {
                 r.remove(index);
@@ -960,6 +1077,11 @@ impl WorkbenchService {
         });
         let new_id = self.allocate_workspace_id();
         item.workspace.id = new_id;
+        // Backfill a storage_key on legacy recent entries that predate UUIDs.
+        if item.workspace.storage_key.trim().is_empty() {
+            item.workspace.storage_key = WorkspaceEntry::new_storage_key();
+        }
+        let storage_key = item.workspace.storage_key.clone();
         let sessions_json = item.sessions_terminals_json.clone();
         self.active_id.set(Some(new_id));
         self.workspaces.update(|v| v.push(item.workspace));
@@ -971,7 +1093,9 @@ impl WorkbenchService {
             return;
         }
         spawn_local(async move {
-            if let Err(e) = workbench_merge_sessions_workspace(old_id, new_id, sessions_json).await
+            if let Err(e) =
+                workbench_merge_sessions_workspace(storage_key.clone(), storage_key, sessions_json)
+                    .await
             {
                 leptos::logging::warn!("workbench_merge_sessions_workspace: {e}");
             }
@@ -1065,6 +1189,11 @@ impl WorkbenchService {
     }
 
     pub fn close_terminal(&self, workspace_id: u64, terminal_id: u64) {
+        let storage_key = self.workspaces.with_untracked(|list| {
+            list.iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.storage_key.clone())
+        });
         self.workspaces.update(|workspaces| {
             let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
                 return;
@@ -1082,7 +1211,9 @@ impl WorkbenchService {
             }
             workspace.set_count_and_dims(workspace.slot_agent_labels.len() as u8);
         });
-        drop_sessions_for_prefix(format!("{workspace_id}:{terminal_id}:"));
+        if let Some(storage_key) = storage_key {
+            drop_sessions_for_prefix(format!("{storage_key}:{terminal_id}:"));
+        }
     }
 
     #[must_use]
@@ -1380,6 +1511,7 @@ impl WorkbenchService {
 
         let entry = WorkspaceEntry {
             id,
+            storage_key: WorkspaceEntry::new_storage_key(),
             title: format!("Workspace {id}"),
             cwd: String::new(),
             terminal_count: 1,
@@ -1743,11 +1875,27 @@ impl WorkbenchService {
             .workspaces
             .into_iter()
             .filter(|w| workspace_entry_has_folder(w))
+            .map(|mut w| {
+                // Safety net for callers that did not run
+                // `WorkbenchSnapshot::backfill_storage_keys` before hydrate.
+                // The normal Tauri startup path backfills first so matching
+                // sessions can be migrated before terminal cells mount.
+                if w.storage_key.trim().is_empty() {
+                    w.storage_key = WorkspaceEntry::new_storage_key();
+                }
+                w
+            })
             .collect();
         let recent_workspaces: Vec<RecentWorkspaceItem> = snap
             .recent_workspaces
             .into_iter()
             .filter(|r| workspace_entry_has_folder(&r.workspace))
+            .map(|mut r| {
+                if r.workspace.storage_key.trim().is_empty() {
+                    r.workspace.storage_key = WorkspaceEntry::new_storage_key();
+                }
+                r
+            })
             .collect();
         // Workspace list + selection. Re-seed inline drafts for any
         // workspace persisted in configuring state — drafts are transient
@@ -1774,14 +1922,17 @@ impl WorkbenchService {
             .active_id
             .filter(|id| workspaces.iter().any(|w| w.id == *id))
             .or_else(|| workspaces.first().map(|w| w.id));
-        self.active_id.set(active_id);
         let has_workspaces = !workspaces.is_empty();
+        self.active_id.set(active_id);
         self.workspaces.set(workspaces);
-        self.workspace_next_id.set(if has_workspaces {
-            next_id
-        } else {
-            1
-        });
+        // Preserve the persisted counter even when the workspace list is
+        // empty: a fresh workspace must NOT get id=1 if we have ever
+        // allocated higher ids in this app installation. Otherwise it
+        // would reuse the storage references of a previously-closed
+        // workspace. (The deeper guarantee is `storage_key`, but keeping
+        // the `id` monotonic too removes a footgun from any code that
+        // still derives state from `id`.)
+        self.workspace_next_id.set(next_id);
         self.recent_workspaces.set(recent_workspaces);
 
         // Panel chrome
@@ -1829,6 +1980,36 @@ pub struct WorkbenchSnapshot {
     pub embedded_browser_tabs: Vec<EmbeddedBrowserTab>,
     pub embedded_browser_active_id: u64,
     pub embedded_browser_next_id: u64,
+}
+
+impl WorkbenchSnapshot {
+    /// Backfill pre-UUID snapshots before hydration so terminal cells mount
+    /// with keys that already have their `sessions.json` entries migrated.
+    pub fn backfill_storage_keys(&mut self) -> Vec<LegacyStorageMigration> {
+        let mut migrations = Vec::new();
+        for workspace in &mut self.workspaces {
+            if workspace.storage_key.trim().is_empty() {
+                let old_workspace_key = workspace.id.to_string();
+                workspace.storage_key = WorkspaceEntry::new_storage_key();
+                migrations.push(LegacyStorageMigration {
+                    old_workspace_key,
+                    new_workspace_key: workspace.storage_key.clone(),
+                });
+            }
+        }
+        for item in &mut self.recent_workspaces {
+            if item.workspace.storage_key.trim().is_empty() {
+                let old_workspace_key = item.workspace.id.to_string();
+                item.workspace.storage_key = WorkspaceEntry::new_storage_key();
+                item.sessions_terminals_json = rewrite_sessions_terminals_json(
+                    &item.sessions_terminals_json,
+                    &old_workspace_key,
+                    &item.workspace.storage_key,
+                );
+            }
+        }
+        migrations
+    }
 }
 
 /// Fire-and-forget cleanup of `sessions.json` entries whose key starts

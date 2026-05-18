@@ -261,6 +261,13 @@ pub struct AgentSessionProbe {
     pub session_id: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentSessionLookup {
+    pub agent: String,
+    pub cwd: String,
+}
+
 /// Validate that the on-disk transcript for an `(agent, cwd, session_id)`
 /// triple actually exists. Used by the frontend before issuing `--resume`
 /// to avoid the "No conversation found with session ID …" error path
@@ -277,7 +284,10 @@ pub fn agent_session_exists(app: AppHandle, probe: AgentSessionProbe) -> bool {
         return false;
     }
     match probe.agent.as_str() {
-        "claude" => claude_session_path(&home, &probe.cwd, id).is_file(),
+        "claude" => {
+            claude_session_path(&home, &probe.cwd, id).is_file()
+                || claude_session_present(&home, id)
+        }
         "codex" => codex_session_present(&home, id),
         "gemini" => gemini_session_present(&home, id),
         "opencode" | "cursor" => true,
@@ -285,13 +295,82 @@ pub fn agent_session_exists(app: AppHandle, probe: AgentSessionProbe) -> bool {
     }
 }
 
-/// `~/.claude/projects/<cwd-with-slashes-replaced-by-dashes>/<id>.jsonl`.
+#[tauri::command]
+pub fn agent_latest_session_id(app: AppHandle, probe: AgentSessionLookup) -> Option<String> {
+    let Ok(home) = app.path().home_dir() else {
+        return None;
+    };
+    match probe.agent.as_str() {
+        "claude" => latest_claude_session_id(&home, &probe.cwd),
+        _ => None,
+    }
+}
+
+/// `~/.claude/projects/<cwd-with-non-alnum-replaced-by-dashes>/<id>.jsonl`.
 fn claude_session_path(home: &Path, cwd: &str, session_id: &str) -> PathBuf {
-    let encoded = cwd.trim_end_matches('/').replace('/', "-");
-    home.join(".claude")
-        .join("projects")
-        .join(encoded)
-        .join(format!("{session_id}.jsonl"))
+    claude_project_dir(home, cwd).join(format!("{session_id}.jsonl"))
+}
+
+fn claude_project_dir(home: &Path, cwd: &str) -> PathBuf {
+    let encoded: String = cwd
+        .trim_end_matches(['/', '\\'])
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    home.join(".claude").join("projects").join(encoded)
+}
+
+fn latest_claude_session_id(home: &Path, cwd: &str) -> Option<String> {
+    let dir = claude_project_dir(home, cwd);
+    let entries = fs::read_dir(dir).ok()?;
+    let mut newest: Option<(SystemTime, String)> = None;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|s| s.to_str()) != Some("jsonl") {
+            continue;
+        }
+        let Some(stem) = path.file_stem().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if !is_safe_storage_session_id(stem) {
+            continue;
+        }
+        let modified = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .unwrap_or(UNIX_EPOCH);
+        if newest
+            .as_ref()
+            .map(|(current, _)| modified > *current)
+            .unwrap_or(true)
+        {
+            newest = Some((modified, stem.to_string()));
+        }
+    }
+    newest.map(|(_, session_id)| session_id)
+}
+
+fn claude_session_present(home: &Path, session_id: &str) -> bool {
+    let root = home.join(".claude").join("projects");
+    if !root.is_dir() {
+        return false;
+    }
+    let Ok(projects) = fs::read_dir(root) else {
+        return false;
+    };
+    let file_name = format!("{session_id}.jsonl");
+    for project in projects.flatten() {
+        let Ok(ft) = project.file_type() else {
+            continue;
+        };
+        if !ft.is_dir() {
+            continue;
+        }
+        if project.path().join(&file_name).is_file() {
+            return true;
+        }
+    }
+    false
 }
 
 fn gemini_session_present(home: &Path, session_id: &str) -> bool {
@@ -401,14 +480,62 @@ pub fn workbench_extract_sessions_prefix(
     serde_json::to_string(&out).map_err(|e| e.to_string())
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PruneSessionsArgs {
+    pub valid_terminal_keys: Vec<String>,
+}
+
+/// Drop `sessions.json` terminal entries whose key has no matching slot
+/// in any open workspace. Mirrors `workbench_prune_notifications`. Used
+/// to wipe legacy numeric-prefix keys after the storage_key (UUID)
+/// migration, and to keep the file from accumulating ghost session
+/// resume-ids forever as workspaces are opened and closed.
+#[tauri::command]
+pub fn workbench_prune_sessions(
+    app: AppHandle,
+    args: PruneSessionsArgs,
+    lock: tauri::State<'_, WorkbenchSessionsFileLock>,
+) -> Result<(), String> {
+    let _guard = lock
+        .0
+        .lock()
+        .map_err(|e| format!("sessions file lock poisoned: {e}"))?;
+    let valid: std::collections::HashSet<String> = args.valid_terminal_keys.into_iter().collect();
+    let target = sessions_path_impl(&app)?;
+    let mut state = load_sessions_document(&target)?;
+    let mut changed = false;
+    if let Some(terminals) = state.get_mut("terminals").and_then(|t| t.as_object_mut()) {
+        let stale: Vec<String> = terminals
+            .keys()
+            .filter(|k| !valid.contains(k.as_str()))
+            .cloned()
+            .collect();
+        if !stale.is_empty() {
+            for key in stale {
+                terminals.remove(&key);
+            }
+            changed = true;
+        }
+    }
+    if changed {
+        atomic_write_json(&target, &state)
+    } else {
+        Ok(())
+    }
+}
+
 /// Merges validated terminal entries from `terminals_json` into
-/// `sessions.json`, rewriting each key's leading `old_workspace_id:` to
-/// `new_workspace_id:`.
+/// `sessions.json`, rewriting each key's leading `old_workspace_key:` to
+/// `new_workspace_key:`. Both keys are the workspace's stable UUID
+/// `storage_key` (used as the prefix of every `terminal_key`); when
+/// `old == new` the function reinjects sessions under their original
+/// keys without rewriting.
 #[tauri::command]
 pub fn workbench_merge_sessions_workspace(
     app: AppHandle,
-    old_workspace_id: u64,
-    new_workspace_id: u64,
+    old_workspace_key: String,
+    new_workspace_key: String,
     terminals_json: String,
     lock: tauri::State<'_, WorkbenchSessionsFileLock>,
 ) -> Result<(), String> {
@@ -421,8 +548,11 @@ pub fn workbench_merge_sessions_workspace(
     let Some(map) = parsed.as_object() else {
         return Err("terminals_json must be a JSON object".into());
     };
-    let old_prefix = format!("{old_workspace_id}:");
-    let new_prefix = format!("{new_workspace_id}:");
+    if old_workspace_key.is_empty() || new_workspace_key.is_empty() {
+        return Err("workspace keys must be non-empty".into());
+    }
+    let old_prefix = format!("{old_workspace_key}:");
+    let new_prefix = format!("{new_workspace_key}:");
     let mut to_merge: BTreeMap<String, Value> = BTreeMap::new();
     for (k, v) in map {
         if !k.starts_with(&old_prefix) {
@@ -450,7 +580,9 @@ pub fn workbench_merge_sessions_workspace(
 /// Absolute path for agent notify hooks (`BLX_NOTIFICATIONS_PATH`).
 #[tauri::command]
 pub fn workbench_notifications_path(app: AppHandle) -> Result<String, String> {
-    Ok(notifications_path_impl(&app)?.to_string_lossy().into_owned())
+    Ok(notifications_path_impl(&app)?
+        .to_string_lossy()
+        .into_owned())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -532,4 +664,49 @@ pub fn workbench_clear_terminal_notifications(
         }
     }
     atomic_write_json(&target, &state)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PruneNotificationsArgs {
+    pub valid_terminal_keys: Vec<String>,
+}
+
+/// Drop notification entries whose terminal key no longer exists in any
+/// open workspace. Called from the workbench auto-save effect after a
+/// terminal slot is closed or a workspace is rebuilt; without it, stale
+/// keys remain in `notifications.json` and surface as a generic
+/// "unknown agent" badge in the sidebar.
+#[tauri::command]
+pub fn workbench_prune_notifications(
+    app: AppHandle,
+    args: PruneNotificationsArgs,
+    lock: tauri::State<'_, WorkbenchSessionsFileLock>,
+) -> Result<(), String> {
+    let _guard = lock
+        .0
+        .lock()
+        .map_err(|e| format!("sessions file lock poisoned: {e}"))?;
+    let valid: std::collections::HashSet<String> = args.valid_terminal_keys.into_iter().collect();
+    let target = notifications_path_impl(&app)?;
+    let mut state = load_notifications_document(&target)?;
+    let mut changed = false;
+    if let Some(terminals) = state.get_mut("terminals").and_then(|t| t.as_object_mut()) {
+        let stale: Vec<String> = terminals
+            .keys()
+            .filter(|k| !valid.contains(k.as_str()))
+            .cloned()
+            .collect();
+        if !stale.is_empty() {
+            for key in stale {
+                terminals.remove(&key);
+            }
+            changed = true;
+        }
+    }
+    if changed {
+        atomic_write_json(&target, &state)
+    } else {
+        Ok(())
+    }
 }

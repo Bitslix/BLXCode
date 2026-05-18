@@ -1,15 +1,15 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_session_exists, git_branch, is_tauri_shell, pty_drain_wait, pty_kill, pty_resize,
-    pty_spawn_with_env, pty_write, workbench_drop_sessions, workbench_load_sessions,
-    workbench_notifications_path, workbench_sessions_path,
+    agent_latest_session_id, agent_session_exists, git_branch, is_tauri_shell, pty_drain_wait,
+    pty_kill, pty_resize, pty_spawn_with_env, pty_write, workbench_drop_sessions,
+    workbench_load_sessions, workbench_notifications_path, workbench_sessions_path,
 };
 use crate::workbench::agent_accent::agent_accent_class;
 use crate::workbench::terminal_glue::{
     terminal_create, terminal_dispose, terminal_fit, terminal_request_fit,
-    terminal_set_stdin_enabled, terminal_show_fallback, terminal_size_from_js, TerminalSize,
-    terminal_wait_api_ready, terminal_write_b64,
+    terminal_set_stdin_enabled, terminal_show_fallback, terminal_size_from_js,
+    terminal_wait_api_ready, terminal_write_b64, TerminalSize,
 };
 use gloo_timers::future::TimeoutFuture;
 use leptos::callback::{Callable, Callback};
@@ -81,11 +81,19 @@ pub fn WorkspaceTerminalCell(
     let terminal_key_focus = terminal_key.clone();
     let is_focused = Signal::derive(move || {
         let _ = wb.focused_terminal_by_workspace().get();
-        wb.is_terminal_focused(workspace_id, &terminal_key_focus)
+        wb.is_terminal_focused(&terminal_key_focus)
     });
     let terminal_key_unread = terminal_key.clone();
+    let agent_slug_unread = agent_slug.clone();
     let has_unread = Signal::derive(move || {
         let _ = wb.notifications().get();
+        // No pulse for slots without an agent. The notifications file may
+        // still hold entries for this terminal key from a previous
+        // session (same workspace+slot id reused), but they have no
+        // semantic meaning until the user attaches an agent.
+        if agent_slug_unread.trim().is_empty() {
+            return false;
+        }
         wb.terminal_unread_count(&terminal_key_unread) > 0
     });
     let state: Arc<Mutex<CellState>> = Arc::new(Mutex::new(CellState::default()));
@@ -295,9 +303,8 @@ pub fn WorkspaceTerminalCell(
             }
         });
 
-    let grid_ready_handle = leptos::leptos_dom::helpers::window_event_listener_untyped(
-        "blxcode-ws-term-grid-ready",
-        {
+    let grid_ready_handle =
+        leptos::leptos_dom::helpers::window_event_listener_untyped("blxcode-ws-term-grid-ready", {
             let state = state.clone();
             let agent_slug = agent_slug.clone();
             move |ev| {
@@ -308,20 +315,17 @@ pub fn WorkspaceTerminalCell(
                     return;
                 };
                 let detail = ce.detail();
-                let ws_js = js_sys::Reflect::get(
-                    &detail,
-                    &wasm_bindgen::JsValue::from_str("workspaceId"),
-                )
-                .ok()
-                .and_then(|v| v.as_f64());
+                let ws_js =
+                    js_sys::Reflect::get(&detail, &wasm_bindgen::JsValue::from_str("workspaceId"))
+                        .ok()
+                        .and_then(|v| v.as_f64());
                 if ws_js != Some(workspace_id as f64) {
                     return;
                 }
                 schedule_agent_launch_retries(state.clone());
                 spawn_terminal_refit(state.clone(), 32, 32);
             }
-        },
-    );
+        });
 
     let resize_handle = leptos::leptos_dom::helpers::window_event_listener_untyped("resize", {
         let state = state.clone();
@@ -722,8 +726,7 @@ async fn spawn_agent_launch_when_ready(state: Arc<Mutex<CellState>>) {
         let _ = pty_resize(pending.sid, 24, 80).await;
     }
 
-    let resume_id =
-        lookup_resume_session(&pending.terminal_key, &pending.slug, &pending.cwd).await;
+    let resume_id = lookup_resume_session(&pending.terminal_key, &pending.slug, &pending.cwd).await;
     if state.lock().expect("cell").launch_sent || state.lock().expect("cell").disposed {
         return;
     }
@@ -925,7 +928,18 @@ async fn lookup_resume_session(terminal_key: &str, agent_slug: &str, cwd: &str) 
             leptos::task::spawn_local(async move {
                 let _ = workbench_drop_sessions(key).await;
             });
-            None
+            match agent_latest_session_id(agent_slug.to_string(), cwd.to_string()).await {
+                Ok(Some(fallback)) if fallback != id => {
+                    web_sys::console::log_1(
+                        &format!(
+                            "[blxcode resume] {terminal_key}: fallback latest session {fallback}"
+                        )
+                        .into(),
+                    );
+                    Some(fallback)
+                }
+                _ => None,
+            }
         }
         Err(e) => {
             web_sys::console::log_1(

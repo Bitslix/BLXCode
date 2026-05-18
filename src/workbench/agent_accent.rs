@@ -1,17 +1,4 @@
-//! Per-agent accent colors for terminal focus rings and sidebar badges.
-
-/// CSS color for an agent slug (fleet order in [`crate::workbench::state::WORKSPACE_FLEET_AGENT_SLUGS`]).
-#[must_use]
-pub fn agent_accent_color(slug: &str) -> &'static str {
-    match slug.trim().to_lowercase().as_str() {
-        "claude" => "#e8954a",
-        "codex" => "#3db8a8",
-        "gemini" => "#5b9cf5",
-        "opencode" => "#a67cf0",
-        "cursor" => "#5ecf7a",
-        _ => "#72a0ff",
-    }
-}
+//! Per-agent accent helpers for terminal focus rings and titlebar pulses.
 
 /// CSS modifier class for terminal cells (`ws-term-cell--agent-{slug}`).
 #[must_use]
@@ -26,7 +13,24 @@ pub fn agent_accent_class(slug: &str) -> Option<&'static str> {
     }
 }
 
-/// Parse `"{workspace_id}:{slot_id}:{pane_id}"` → workspace id.
+/// Parse `"{storage_key}:{slot_id}:{pane_id}"` → workspace storage key
+/// (UUID v4 hex). The storage key contains no colons, so a single split
+/// suffices. Empty or malformed inputs return `None`.
+#[must_use]
+pub fn terminal_key_storage_key(key: &str) -> Option<String> {
+    let first = key.split(':').next()?;
+    if first.is_empty() {
+        return None;
+    }
+    Some(first.to_string())
+}
+
+/// Legacy parser for pre-UUID terminal keys (`"{workspace_id}:{slot}:{pane}"`).
+///
+/// New workbench state must use [`terminal_key_storage_key`] because the
+/// terminal key prefix is now a workspace UUID, not the numeric UI id.
+#[allow(dead_code)]
+#[deprecated(note = "use terminal_key_storage_key for UUID-backed terminal keys")]
 #[must_use]
 pub fn terminal_key_workspace_id(key: &str) -> Option<u64> {
     key.split(':').next()?.parse().ok()

@@ -422,6 +422,7 @@ fn install_claude(home: &Path, hooks_dir: &Path, app: &AppHandle) -> AgentHookEn
     let settings = claude_settings_path(home);
     let mut notes: Vec<String> = Vec::new();
     let mut last_script: Option<PathBuf> = None;
+    let _ = copy_script(app, BLXCODE_NOTIFY_SCRIPT, hooks_dir);
 
     for (script, event, matcher, marker) in [
         (
@@ -528,6 +529,7 @@ fn install_gemini(home: &Path, hooks_dir: &Path, app: &AppHandle) -> AgentHookEn
     let settings = gemini_settings_path(home);
     let mut notes: Vec<String> = Vec::new();
     let mut last_script: Option<PathBuf> = None;
+    let _ = copy_script(app, BLXCODE_NOTIFY_SCRIPT, hooks_dir);
 
     for (script, event, matcher, marker) in [
         (GEMINI_TITLE_SCRIPT, "BeforeAgent", "", GEMINI_TITLE_MARKER),
@@ -568,6 +570,7 @@ fn install_cursor(home: &Path, hooks_dir: &Path, app: &AppHandle) -> AgentHookEn
     let cfg = cursor_hooks_path(home);
     let mut notes: Vec<String> = Vec::new();
     let mut last_script: Option<PathBuf> = None;
+    let _ = copy_script(app, BLXCODE_NOTIFY_SCRIPT, hooks_dir);
 
     for (script, event) in [
         (CURSOR_TITLE_SCRIPT, "beforeSubmitPrompt"),
@@ -829,12 +832,7 @@ pub fn uninstall_agent_hooks(app: AppHandle) -> Result<AgentHooksReport, String>
         CODEX_CAPTURE_MARKER,
         CODEX_CAPTURE_SCRIPT,
     );
-    let _ = unpatch_settings(
-        &codex_cfg,
-        "Stop",
-        CODEX_NOTIFY_MARKER,
-        CODEX_NOTIFY_SCRIPT,
-    );
+    let _ = unpatch_settings(&codex_cfg, "Stop", CODEX_NOTIFY_MARKER, CODEX_NOTIFY_SCRIPT);
     let _ = unpatch_settings(
         &gemini_cfg,
         "BeforeAgent",

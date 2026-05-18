@@ -1,11 +1,11 @@
 //! Short beep when agent tasks complete in a background terminal.
 
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use crate::tauri_bridge::TerminalNotification;
-use crate::workbench::agent_accent::terminal_key_workspace_id;
+use crate::workbench::agent_accent::terminal_key_storage_key;
 use crate::workbench::WorkbenchService;
 use leptos::prelude::GetUntracked;
 
@@ -42,7 +42,7 @@ pub fn maybe_play_for_notification_delta(
     prev_seen: &mut HashMap<String, String>,
     loaded: &HashMap<String, TerminalNotification>,
 ) {
-    let active_ws = wb.active_id().get_untracked();
+    let active_storage_key = wb.active_workspace_storage_key();
     let focused_map = wb.focused_terminal_by_workspace().get_untracked();
 
     for (key, note) in loaded {
@@ -55,14 +55,13 @@ pub fn maybe_play_for_notification_delta(
         }
         prev_seen.insert(key.clone(), stamp.to_string());
 
-        let ws_id = terminal_key_workspace_id(key);
-        let ws_active = ws_id.is_some_and(|id| active_ws == Some(id));
-        let term_focused = ws_id.is_some_and(|id| {
-            focused_map
-                .get(&id)
-                .map(|focused| focused == key)
-                .unwrap_or(false)
-        });
+        let storage_key = terminal_key_storage_key(key);
+        let ws_active = storage_key.as_deref() == active_storage_key.as_deref();
+        let term_focused = storage_key
+            .as_ref()
+            .and_then(|sk| focused_map.get(sk))
+            .map(|focused| focused == key)
+            .unwrap_or(false);
         if ws_active && term_focused {
             continue;
         }
@@ -73,7 +72,9 @@ pub fn maybe_play_for_notification_delta(
 
 /// Start polling `notifications.json` and updating workbench signals.
 pub fn spawn_notification_poller(wb: WorkbenchService) {
-    use crate::tauri_bridge::{is_tauri_shell, workbench_load_notifications};
+    use crate::tauri_bridge::{
+        is_tauri_shell, workbench_clear_terminal_notifications, workbench_load_notifications,
+    };
     use gloo_timers::future::TimeoutFuture;
     use leptos::task::spawn_local;
 
@@ -83,20 +84,37 @@ pub fn spawn_notification_poller(wb: WorkbenchService) {
 
     spawn_local(async move {
         let prev_seen = Rc::new(RefCell::new(HashMap::<String, String>::new()));
+        let mut first_run = true;
         loop {
             TimeoutFuture::new(NOTIFY_POLL_MS).await;
             match workbench_load_notifications().await {
                 Ok(map) => {
-                    let counts: HashMap<String, u32> = map
-                        .iter()
-                        .map(|(k, v)| (k.clone(), v.unread))
-                        .collect();
-                    wb.set_notifications(counts);
-                    maybe_play_for_notification_delta(
-                        wb,
-                        &mut prev_seen.borrow_mut(),
-                        &map,
-                    );
+                    if first_run {
+                        // Seed `prev_seen` with everything already on disk —
+                        // notifications from a previous app session must not
+                        // beep, badge, or pulse titlebars on startup. External
+                        // agent terminals are owned by this app process, so any
+                        // unread values present before the first post-hydration
+                        // poll are stale from the last run.
+                        let mut prev = prev_seen.borrow_mut();
+                        for (key, note) in &map {
+                            prev.insert(key.clone(), note.updated_at.clone().unwrap_or_default());
+                        }
+                        first_run = false;
+                        wb.set_notifications(HashMap::new());
+                        let live_keys: HashSet<String> =
+                            wb.live_terminal_keys().into_iter().collect();
+                        for key in map.keys().filter(|key| live_keys.contains(*key)).cloned() {
+                            spawn_local(async move {
+                                let _ = workbench_clear_terminal_notifications(key).await;
+                            });
+                        }
+                    } else {
+                        let counts: HashMap<String, u32> =
+                            map.iter().map(|(k, v)| (k.clone(), v.unread)).collect();
+                        wb.set_notifications(counts);
+                        maybe_play_for_notification_delta(wb, &mut prev_seen.borrow_mut(), &map);
+                    }
                 }
                 Err(_) => {}
             }

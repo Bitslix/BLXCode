@@ -234,57 +234,23 @@ pub fn Sidebar() -> impl IntoView {
                                             {move || title_signal.get()}
                                         </span>
                                         <Show when=move || {
-                                            !collapsed.get()
-                                                && !badge_counts.get().agents.is_empty()
+                                            !collapsed.get() && badge_counts.get().total_unread > 0
                                         }>
                                             {move || {
-                                                let counts = badge_counts.get();
-                                                let badges = counts
-                                                    .agents
-                                                    .into_iter()
-                                                    .map(|b| {
-                                                        let aria = i18n
-                                                            .tr(I18nKey::SbBadgeAgentAria)()
-                                                            .replace("{n}", &b.unread.to_string())
-                                                            .replace(
-                                                                "{agent}",
-                                                                if b.agent_slug.is_empty() {
-                                                                    "agent"
-                                                                } else {
-                                                                    b.agent_slug.as_str()
-                                                                },
-                                                            );
-                                                        let style = format!("background-color: {}", b.accent);
-                                                        let class = if b.agent_slug.is_empty() {
-                                                            String::from(
-                                                                "workbench-sidebar__badge workbench-sidebar__badge--agent",
-                                                            )
-                                                        } else {
-                                                            format!(
-                                                                "workbench-sidebar__badge workbench-sidebar__badge--agent workbench-sidebar__badge--agent-{}",
-                                                                b.agent_slug,
-                                                            )
-                                                        };
-                                                        view! {
-                                                            <span
-                                                                class=class
-                                                                style=style
-                                                                aria-label=aria
-                                                                title=move || {
-                                                                    if b.agent_slug.is_empty() {
-                                                                        format!("{}", b.unread)
-                                                                    } else {
-                                                                        format!("{}: {}", b.agent_slug, b.unread)
-                                                                    }
-                                                                }
-                                                            >
-                                                                {b.unread.to_string()}
-                                                            </span>
-                                                        }
-                                                    })
-                                                    .collect::<Vec<_>>();
+                                                let total = badge_counts.get().total_unread;
+                                                let aria = i18n
+                                                    .tr(I18nKey::SbBadgeTotalAria)()
+                                                    .replace("{n}", &total.to_string());
                                                 view! {
-                                                    <span class="workbench-sidebar__badges">{badges}</span>
+                                                    <span class="workbench-sidebar__badges">
+                                                        <span
+                                                            class="workbench-sidebar__badge workbench-sidebar__badge--total"
+                                                            aria-label=aria
+                                                            title=move || total.to_string()
+                                                        >
+                                                            {total.to_string()}
+                                                        </span>
+                                                    </span>
                                                 }
                                             }}
                                         </Show>
