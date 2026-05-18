@@ -4,9 +4,10 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    is_tauri_shell, voice_provider_voices, voice_settings_get, voice_settings_save,
-    voice_tts_preview, PostSttFlow, PttHotkey, SttLanguageMode, SttSettings, TtsSettings,
-    VoiceEntry, VoiceGender, VoiceProviderKind, VoiceSettings,
+    agent_provider_models, is_tauri_shell, voice_provider_voices, voice_settings_get,
+    voice_settings_save, voice_tts_preview, AgentProviderKind, PostSttFlow, ProviderModelEntry,
+    PttHotkey, SttLanguageMode, SttSettings, TtsSettings, VoiceEntry, VoiceGender,
+    VoiceProviderKind, VoiceSettings,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use js_sys::Uint8Array;
@@ -14,6 +15,57 @@ use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
 use web_sys::{Blob, BlobPropertyBag, HtmlAudioElement};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ModelKind {
+    Stt,
+    Tts,
+}
+
+impl ModelKind {
+    fn matches(self, id: &str) -> bool {
+        let lower = id.to_ascii_lowercase();
+        match self {
+            Self::Stt => {
+                lower.contains("transcribe")
+                    || lower.contains("whisper")
+            }
+            Self::Tts => {
+                lower.contains("tts") || lower.contains("speech")
+            }
+        }
+    }
+}
+
+fn voice_to_agent_provider(v: VoiceProviderKind) -> AgentProviderKind {
+    match v {
+        VoiceProviderKind::Openai => AgentProviderKind::Openai,
+        VoiceProviderKind::Openrouter => AgentProviderKind::Openrouter,
+    }
+}
+
+async fn fetch_models_for(
+    provider: VoiceProviderKind,
+    kind: ModelKind,
+    out: RwSignal<Vec<ProviderModelEntry>>,
+) {
+    let agent_provider = voice_to_agent_provider(provider);
+    let all = match agent_provider_models(agent_provider).await {
+        Ok(resp) => resp.entries,
+        Err(_) => Vec::new(),
+    };
+    // Prefer audio-shaped models if the provider returns any; otherwise
+    // surface the full list so the user can still pick something (especially
+    // OpenRouter, whose /models endpoint does not flag transcription/TTS).
+    let filtered: Vec<_> = all
+        .iter()
+        .filter(|m| kind.matches(&m.id))
+        .cloned()
+        .collect();
+    let mut entries = if filtered.is_empty() { all } else { filtered };
+    entries.sort_by(|a, b| a.id.cmp(&b.id));
+    out.set(entries);
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum GenderFilter {
@@ -43,14 +95,18 @@ pub fn VoicePane() -> impl IntoView {
     let gender_filter = RwSignal::new(GenderFilter::All);
     let status = RwSignal::new(Option::<String>::None);
     let recording_hotkey = RwSignal::new(false);
+    let stt_models = RwSignal::new(Vec::<ProviderModelEntry>::new());
+    let tts_models = RwSignal::new(Vec::<ProviderModelEntry>::new());
 
-    // Load current settings + initial voice catalogue.
+    // Load current settings + initial voice catalogue + model lists.
     if is_tauri_shell() {
         leptos::task::spawn_local(async move {
             if let Ok(v) = voice_settings_get().await {
                 if let Ok(catalog) = voice_provider_voices(v.tts.provider).await {
                     voices.set(catalog.voices);
                 }
+                fetch_models_for(v.stt.provider, ModelKind::Stt, stt_models).await;
+                fetch_models_for(v.tts.provider, ModelKind::Tts, tts_models).await;
                 settings.set(Some(v));
             }
         });
@@ -77,6 +133,13 @@ pub fn VoicePane() -> impl IntoView {
             if let Ok(catalog) = voice_provider_voices(provider).await {
                 voices.set(catalog.voices);
             }
+            fetch_models_for(provider, ModelKind::Tts, tts_models).await;
+        });
+    };
+
+    let reload_stt_models = move |provider: VoiceProviderKind| {
+        leptos::task::spawn_local(async move {
+            fetch_models_for(provider, ModelKind::Stt, stt_models).await;
         });
     };
 
@@ -117,7 +180,9 @@ pub fn VoicePane() -> impl IntoView {
                             stt_provider=stt_provider
                             stt_model=stt_model.clone()
                             sample_rate=sample_rate
+                            models=stt_models
                             save=save
+                            reload_models=reload_stt_models
                         />
                         <TtsSection
                             current=current.clone()
@@ -127,6 +192,7 @@ pub fn VoicePane() -> impl IntoView {
                             voices=voices
                             gender_filter=gender_filter
                             tts_enabled=tts_enabled
+                            models=tts_models
                             save=save
                             reload_voices=reload_voices
                         />
@@ -162,15 +228,18 @@ pub fn VoicePane() -> impl IntoView {
 // ---------------------------------------------------------------------------
 
 #[component]
-fn SttSection<F>(
+fn SttSection<F, RM>(
     current: VoiceSettings,
     stt_provider: VoiceProviderKind,
     stt_model: String,
     sample_rate: u32,
+    models: RwSignal<Vec<ProviderModelEntry>>,
     save: F,
+    reload_models: RM,
 ) -> impl IntoView
 where
     F: Fn(VoiceSettings) + Send + Sync + 'static + Copy,
+    RM: Fn(VoiceProviderKind) + Send + Sync + 'static + Copy,
 {
     let i18n = expect_context::<I18nService>();
     let on_provider = {
@@ -179,6 +248,7 @@ where
             let mut next = current.clone();
             next.stt.provider = p;
             save(next);
+            reload_models(p);
         }
     };
     let on_model = {
@@ -216,24 +286,17 @@ where
                 </div>
             </div>
 
-            <div class="voice-pane__field">
-                <label>{move || i18n.tr(I18nKey::VoiceModelField)()}</label>
-                <input
-                    type="text"
-                    class="voice-pane__input"
-                    prop:value=stt_model.clone()
-                    on:change={
-                        let on_model = on_model.clone();
-                        move |ev| {
-                            if let Some(t) = ev.target() {
-                                if let Ok(inp) = t.dyn_into::<web_sys::HtmlInputElement>() {
-                                    on_model(inp.value());
-                                }
-                            }
-                        }
-                    }
-                />
-            </div>
+            <ModelPicker
+                label_key=I18nKey::VoiceModelField
+                datalist_id="blxcode-voice-stt-models"
+                current=stt_model.clone()
+                models=models
+                on_change=on_model.clone()
+                on_refresh={
+                    let stt_provider = stt_provider;
+                    move || reload_models(stt_provider)
+                }
+            />
 
             <div class="voice-pane__field">
                 <label>{move || i18n.tr(I18nKey::VoiceQualityField)()}</label>
@@ -262,6 +325,102 @@ where
                 </p>
             </div>
         </section>
+    }
+}
+
+#[component]
+fn ModelPicker<F, R>(
+    label_key: I18nKey,
+    datalist_id: &'static str,
+    current: String,
+    models: RwSignal<Vec<ProviderModelEntry>>,
+    on_change: F,
+    on_refresh: R,
+) -> impl IntoView
+where
+    F: Fn(String) + Send + Sync + 'static + Clone,
+    R: Fn() + Send + Sync + 'static + Copy,
+{
+    let i18n = expect_context::<I18nService>();
+    let buf = RwSignal::new(current.clone());
+    let loading = RwSignal::new(false);
+
+    // Keep the buffer aligned with the persisted value when settings reload.
+    Effect::new({
+        let current = current.clone();
+        move |_| {
+            // Re-bind when models reload — the parent re-renders this picker.
+            let _ = models.get();
+            buf.set(current.clone());
+        }
+    });
+
+    let on_input = {
+        let on_change = on_change.clone();
+        move |ev: web_sys::Event| {
+            if let Some(t) = ev.target() {
+                if let Ok(inp) = t.dyn_into::<web_sys::HtmlInputElement>() {
+                    let v = inp.value();
+                    buf.set(v.clone());
+                    on_change(v);
+                }
+            }
+        }
+    };
+
+    let on_refresh_click = move |_| {
+        if loading.get_untracked() {
+            return;
+        }
+        loading.set(true);
+        on_refresh();
+        // Loading flag is reset by an effect that watches the model list.
+    };
+
+    Effect::new(move |_| {
+        let _ = models.get();
+        loading.set(false);
+    });
+
+    view! {
+        <div class="voice-pane__field">
+            <label>{move || i18n.tr(label_key)()}</label>
+            <input
+                class="workbench-plain-input"
+                type="text"
+                list=datalist_id
+                prop:value=move || buf.get()
+                on:input=on_input
+            />
+            <datalist id=datalist_id>
+                {move || {
+                    models.get()
+                        .into_iter()
+                        .map(|m| view! { <option value=m.id.clone()></option> })
+                        .collect_view()
+                }}
+            </datalist>
+            <div class="harness-row-gap">
+                <button
+                    type="button"
+                    class="workbench-mini-btn"
+                    prop:disabled=move || loading.get()
+                    on:click=on_refresh_click
+                >
+                    <span class="harness-btn-inline">
+                        <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
+                        <span>{move || if loading.get() {
+                            i18n.tr(I18nKey::AgModelsLoading)().to_string()
+                        } else {
+                            i18n.tr(I18nKey::AgModelsRefresh)().to_string()
+                        }}</span>
+                    </span>
+                </button>
+                <small class="harness-muted">
+                    {move || format!("{} entries", models.get().len())}
+                </small>
+            </div>
+        </div>
     }
 }
 
@@ -307,6 +466,7 @@ fn TtsSection<F, RV>(
     voices: RwSignal<Vec<VoiceEntry>>,
     gender_filter: RwSignal<GenderFilter>,
     tts_enabled: bool,
+    models: RwSignal<Vec<ProviderModelEntry>>,
     save: F,
     reload_voices: RV,
 ) -> impl IntoView
@@ -379,24 +539,17 @@ where
                 </div>
             </div>
 
-            <div class="voice-pane__field">
-                <label>{move || i18n.tr(I18nKey::VoiceModelField)()}</label>
-                <input
-                    type="text"
-                    class="voice-pane__input"
-                    prop:value=tts_model.clone()
-                    on:change={
-                        let on_model = on_model.clone();
-                        move |ev| {
-                            if let Some(t) = ev.target() {
-                                if let Ok(inp) = t.dyn_into::<web_sys::HtmlInputElement>() {
-                                    on_model(inp.value());
-                                }
-                            }
-                        }
-                    }
-                />
-            </div>
+            <ModelPicker
+                label_key=I18nKey::VoiceModelField
+                datalist_id="blxcode-voice-tts-models"
+                current=tts_model.clone()
+                models=models
+                on_change=on_model.clone()
+                on_refresh={
+                    let tts_provider = tts_provider;
+                    move || reload_voices(tts_provider)
+                }
+            />
 
             <div class="voice-pane__field">
                 <label>{move || i18n.tr(I18nKey::VoiceVoiceField)()}</label>

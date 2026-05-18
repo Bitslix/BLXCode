@@ -5368,6 +5368,23 @@ button {
     color: rgba(255, 255, 255, 0.6);
     letter-spacing: 0.02em;
 }
+.voice-pane__select {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: inherit;
+    border-radius: 0.4rem;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+    font-family: inherit;
+    cursor: pointer;
+    width: 100%;
+}
+.voice-pane__model-custom {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+}
+.voice-pane__model-custom .voice-pane__input { flex: 1; }
 .voice-pane__input,
 .voice-pane__hotkey-capture {
     background: rgba(255, 255, 255, 0.03);
