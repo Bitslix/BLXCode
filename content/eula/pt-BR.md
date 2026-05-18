@@ -1,32 +1,35 @@
 <!--
-  Termos de uso — modelo de Markdown editável (en-US).
-  Compilado no pacote WASM via INCLUDE_STR!; reconstruir após edições.
-
-  O primeiro cabeçalho Markdown `#` recebe id="eula-heading" para acessibilidade.
+  Termos de uso — modelo Markdown editável (pt-BR).
 -->
 
 *Legal*
 
-# Termos de uso
+# Termos de uso e licença
 
-Reveja as seguintes regras antes de utilizar a aplicação.
+Leia o seguinte antes de usar o BLXCode.
 
 ---
 
-## Âmbito
+## Licença de código aberto
 
-Com o blxcode você trabalha com dados processados localmente e externos emterfaces. Estes termos regem o uso permitido do software e suas funções ao lidar com o conteúdo e informações confidenciais de terceiros.
+O BLXCode é **software de código aberto** distribuído sob a **licença MIT**. Uma cópia da licença acompanha o aplicativo e consta no arquivo `LICENSE` do repositório de origem. Ao usar o BLXCode, você concorda com os termos da licença MIT.
+
+## Escopo
+
+O BLXCode é um ambiente de trabalho local para desenvolvimento assistido por IA. O software roda na sua máquina; arquivos do workspace, notas, tarefas e configuração permanecem em caminhos sob seu controle, salvo conexão a serviços externos.
 
 ## Uso permitido
 
-Você concorda em usar o aplicativo apenas em conformidade com as leis e políticas internas aplicáveis. É proibido contornar medidas de segurança, introduzir malware ou prejudicar a disponibilidade de terceiros.
+Use o BLXCode apenas em conformidade com as leis aplicáveis. É proibido contornar controles de segurança, distribuir malware ou interferir em sistemas sem autorização.
 
-## Responsabilidade e actualizaçãoes
+## Serviços de terceiros
 
-O software é fornecido como está. Podemos alterar ou limitar os recursos quando necessário por motivos técnicos ou legais. Faça backup de dados importantes regularmente.
+Recursos como agente de código, transcrição de voz e síntese de voz podem enviar dados a APIs de terceiros quando você configurar chaves de provedor. Essas solicitações seguem os termos, preços e políticas de privacidade de cada provedor. Você é responsável por proteger suas chaves e por custos incorridos.
 
-## Contacto
+## Isenção de responsabilidade
 
-Se tiver dúvidas sobre estes termos, contacte a parte responsável na sua organização ou nas operações do produto de acordo com as suas diretrizes internas.
+O SOFTWARE É FORNECIDO «NO ESTADO EM QUE SE ENCONTRA», SEM GARANTIAS DE QUALQUER TIPO. EM NENHUM CASO OS AUTORES OU TITULARES DE DIREITOS SERÃO RESPONSÁVEIS POR REIVINDICAÇÕES, DANOS OU OUTRAS RESPONSABILIDADES DECORRENTES DO USO DO SOFTWARE.
 
-> **Aviso:** Este é o texto do espaço reservado. Substituircom o seu EULA válido ou termos de utilização legalmente revistos.
+## Contato
+
+Dúvidas sobre o BLXCode podem ser encaminhadas aos mantenedores do projeto pelo repositório de onde você obteve o software (issues e discussões).

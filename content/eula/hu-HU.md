@@ -1,32 +1,35 @@
 <!--
-  Használati feltételek — szerkeszthető Markdown sablon (en-US).
-  A WASM-csomagba összeállítva az INCLUDE_Str!; segítségével, szerkesztés után újraépítve.
-
-  Az első Markdown `#` fejléc id="eula-heading" lesz az akadálymentesség érdekében.
+  Felhasználási feltételek — szerkeszthető Markdown sablon (hu-HU).
 -->
 
-*Jogi*
+*Jogi információk*
 
-# Használati feltételek
+# Felhasználási feltételek és licenc
 
-Az alkalmazás használata előtt tekintsd át a következő szabályokat.
+Kérjük, olvassa el az alábbiakat a BLXCode használata előtt.
 
 ---
 
-## Hatókör
+## Nyílt forráskódú licenc
 
-A blxcode-dal helyileg feldolgozott adatokkal és külső interfészekkel dolgozik. Ezek a feltételek szabályozzák a szoftver engedélyezett használatát és az Ön feladatait mások tartalmának és bizalmas információinak kezelése során.
+A BLXCode **nyílt forráskódú szoftver**, amelyet az **MIT licenc** alatt terjesztenek. A licenc másolata az alkalmazással együtt érkezik, és a forráskód-tároló `LICENSE` fájljában is megtalálható. A BLXCode használatával elfogadja az MIT licenc feltételeit.
 
-## Engedélyezett használat
+## Hatály
 
-Beleegyezel, hogy az alkalmazást csak a vonatkozó jogszabályoknak és belső irányelveknek megfelelően használod. Tilos a biztonsági intézkedések megkerülése, rosszindulatú programok bevezetése vagy a harmadik felek elérhetőségének korlátozása.
+A BLXCode helyi asztali munkakörnyezet AI-támogatott fejlesztéshez. A szoftver a gépeden fut; a munkaterület fájljai, jegyzetei, feladatai és beállításai az általad ellenőrzött útvonalakon maradnak, hacsak nem csatlakozol külső szolgáltatásokhoz.
 
-## Felelősség és frissítések
+## Megengedett használat
 
-A szoftvert úgy biztosítjuk, ahogy van. Miha műszaki vagy jogi okokból szükséges, módosítsa vagy korlátozza a funkciókat. Kérjük, rendszeresen készítsen biztonsági másolatot a fontos adatokról.
+A BLXCode-ot csak a vonatkozó jogszabályoknak megfelelően használd. Tilos a biztonsági védelem megkerülése, kártevő terjesztése vagy jogosulatlan rendszerekbe való beavatkozás.
+
+## Harmadik fél szolgáltatásai
+
+Az olyan funkciók, mint a kódoló ügynök, hangfelismerés és szövegfelolvasás harmadik fél API-jaihoz küldhetnek adatot, ha szolgáltatói kulcsokat állítasz be. Ezeket a kéréseket az adott szolgáltató feltételei, árai és adatvédelmi irányelvei szabályozzák. Te felelsz a kulcsok védelméért és a felmerülő költségekért.
+
+## Felelősségkizárás
+
+A SZOFTVER „AHOGY VAN” ALAPON KERÜL BIZTOSÍTÁSRA, MINDEN GARANCIA NÉLKÜL. A SZERZŐK VAGY JOGTULAJDONOSOK SEMMILYEN ESETBEN SEM FELELNEK OLYAN KÁROKÉRT VAGY IGÉNYEKÉRT, AMELYEK A SZOFTVER HASZNÁLATÁBÓL EREDNEK.
 
 ## Kapcsolat
 
-Ha kérdései vannak ezekkel a feltételekkel kapcsolatban, vegye fel a kapcsolatot a szervezet vagy a termék működéséért felelős féllel a belső irányelveinek megfelelően.
-
-> **Megjegyzés:** Ez egy helyőrző szöveg. Cserélje ki az érvényes EULA-val vagy a jogilag felülvizsgált használati feltételekkel.
+A BLXCode-dal kapcsolatos kérdéseket a projekt karbantartóihoz intézheted a szoftvert biztosító tárolón keresztül (issue-k és megbeszélések).

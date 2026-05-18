@@ -1,32 +1,35 @@
 <!--
-  Conditions d'utilisation — modèle Markdown modifiable (en-US).
-  Compilé dans le bundle WASM via include_str ! ; reconstruire après les modifications.
-
-  Le premier titre Markdown `#` obtient id="eula-heading" pour l'accessibilité.
+  Conditions d'utilisation — modèle Markdown modifiable (fr-FR).
 -->
 
 *Mentions légales*
 
-# Conditions d'utilisation
+# Conditions d'utilisation et licence
 
-Veuillez consulter les règles suivantes avant d'utiliser l'application.
+Veuillez lire ce qui suit avant d'utiliser BLXCode.
 
 ---
 
-## Portée
+## Licence open source
 
-Avec blxcode, vous travaillez avec des données traitées localement et externes dansterfaces. Ces conditions régissent l'utilisation autorisée du logiciel et vos devoirs lors du traitement du contenu et des informations confidentielles d'autrui.
+BLXCode est un **logiciel open source** distribué sous la **licence MIT**. Une copie de la licence est fournie avec l'application et figure dans le fichier `LICENSE` du dépôt source. En utilisant BLXCode, vous acceptez les termes de la licence MIT.
+
+## Champ d'application
+
+BLXCode est un environnement de bureau local pour le développement assisté par IA. Le logiciel s'exécute sur votre machine ; les fichiers d'espace de travail, notes, tâches et la configuration restent sous des chemins que vous contrôlez, sauf connexion à des services externes.
 
 ## Utilisation autorisée
 
-Vous acceptez d'utiliser l'application uniquement dans le respect des lois applicables et des politiques internes. Il est interdit de contourner les mesures de sécurité, d'introduire des logiciels malveillants ou de compromettre la disponibilité par des tiers.
+Utilisez BLXCode uniquement conformément aux lois applicables. Il est interdit de contourner les contrôles de sécurité, de distribuer des logiciels malveillants ou d'interférer avec des systèmes non autorisés.
 
-## Responsabilité et mise à joures
+## Services tiers
 
-Le logiciel est fourni tel quel. Nous pouvons modifier ou limiter les fonctionnalités lorsque cela est nécessaire pour des raisons techniques ou juridiques. Veuillez sauvegarder vous-même régulièrement les données importantes.
+Des fonctionnalités telles que l'agent de code, la transcription vocale et la synthèse vocale peuvent envoyer des données à des API tierces lorsque vous configurez des clés fournisseur. Ces requêtes sont régies par les conditions, tarifs et politiques de confidentialité des fournisseurs respectifs. Vous êtes responsable de la sécurité de vos clés et des frais engagés.
+
+## Avertissement
+
+LE LOGICIEL EST FOURNI « EN L'ÉTAT », SANS GARANTIE D'AUCUNE SORTE. EN AUCUN CAS LES AUTEURS OU DÉTENTEURS DES DROITS NE SERONT RESPONSABLES DE RÉCLAMATIONS, DOMMAGES OU AUTRES RESPONSABILITÉS LIÉS À L'UTILISATION DU LOGICIEL.
 
 ## Contact
 
-Si vous avez des questions sur ces conditions, contactez la partie responsable de votre organisation ou des opérations du produit conformément à vos directives internes.
-
-> **Avis :** Ceci est un texte d'espace réservé. Remplaceravec votre CLUF valide ou vos conditions d'utilisation révisées par la loi.
+Les questions concernant BLXCode peuvent être adressées aux mainteneurs du projet via le dépôt d'où vous avez obtenu le logiciel (issues et discussions).

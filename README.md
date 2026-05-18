@@ -148,6 +148,10 @@ Important project conventions:
 - Add or update docs when user-facing behavior changes.
 - Run the relevant checks before opening a pull request.
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
+
 ## License
 
 BLXCode is released under the [MIT License](LICENSE).

@@ -1,5 +1,5 @@
 /// `localStorage` key for persisted EULA acceptance.
-pub const EULA_STORAGE_KEY: &str = "blxcode_eula_v1";
+pub const EULA_STORAGE_KEY: &str = "blxcode_eula_v2";
 
 /// `localStorage` key for UI locale (BCP-47, e.g. `de-DE`, `en-US`).
 pub const I18N_LOCALE_STORAGE_KEY: &str = "blxcode_locale_v1";

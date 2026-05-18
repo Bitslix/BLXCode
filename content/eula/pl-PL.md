@@ -1,32 +1,35 @@
 <!--
-  Warunki użytkowania — edytowalny szablon Markdown (en-US).
-  Wkompilowano do pakietu WASM poprzez include_str!; przebudowę po edycjach.
-
-  Pierwszy nagłówek Markdown `#` otrzymuje id="eula-heading" za dostępność.
+  Warunki użytkowania — edytowalny szablon Markdown (pl-PL).
 -->
 
-*Legal*
+*Informacje prawne*
 
-# Warunki użytkowania
+# Warunki użytkowania i licencja
 
-Przed użyciem aplikacji zapoznaj się z poniższymi zasadami.
+Przeczytaj poniższe informacje przed użyciem BLXCode.
 
 ---
 
+## Licencja open source
+
+BLXCode to **oprogramowanie open source** dystrybuowane na **licencji MIT**. Kopia licencji jest dołączona do aplikacji i znajduje się w pliku `LICENSE` w repozytorium źródłowym. Korzystając z BLXCode, akceptujesz warunki licencji MIT.
+
 ## Zakres
 
-Z blxcode pracujesz z lokalnie przetwarzanymi danymi i zewnętrznymi winterfejsy. Niniejsze warunki regulują dozwolone korzystanie z oprogramowania i Twoje obowiązki podczas obchodzenia się z treściami i informacjami poufnymi innych osób.
+BLXCode to lokalne środowisko desktopowe do rozwoju wspomaganego przez AI. Oprogramowanie działa na Twoim komputerze; pliki workspace, notatki, zadania i konfiguracja pozostają pod ścieżkami, które kontrolujesz, o ile nie łączysz się z usługami zewnętrznymi.
 
-## Dozwolone użytkowanie
+## Dozwolone użycie
 
-Zgadzasz się korzystać z aplikacji wyłącznie zgodnie z obowiązującymi przepisami prawa i wewnętrznymi zasadami. Obchodzenie środków bezpieczeństwa, wprowadzanie złośliwego oprogramowania lub ograniczanie dostępności stron trzecich jest zabronione.
+Używaj BLXCode wyłącznie zgodnie z obowiązującym prawem. Zabronione jest omijanie zabezpieczeń, rozpowszechnianie złośliwego oprogramowania lub ingerencja w systemy, do których nie masz uprawnień.
 
-Odpowiedzialność i aktualizacjaes
+## Usługi stron trzecich
 
-Oprogramowanie jest dostarczane w stanie, w jakim jest. Możemy zmieniać lub ograniczać funkcje, jeśli jest to wymagane ze względów technicznych lub prawnych. Regularnie twórz kopie zapasowe ważnych danych.
+Funkcje takie jak agent kodowania, transkrypcja mowy i synteza mowy mogą wysyłać dane do API zewnętrznych po skonfigurowaniu kluczy dostawcy. Żądania podlegają warunkom, cenom i politykom prywatności dostawców. Odpowiadasz za ochronę kluczy i powstałe koszty.
+
+## Wyłączenie odpowiedzialności
+
+OPROGRAMOWANIE JEST DOSTARCZANE „TAK JAK JEST”, BEZ JAKIEJKOLWIEK GWARANCJI. AUTORZY LUB POSIADACZE PRAW AUTORSKICH NIE PONOSZĄ ODPOWIEDZIALNOŚCI ZA ROSZCZENIA, SZKODY LUB INNE ZOBOWIĄZANIA WYNIKAJĄCE Z UŻYCIA OPROGRAMOWANIA.
 
 ## Kontakt
 
-Jeśli masz pytania dotyczące tych warunków, skontaktuj się ze stroną odpowiedzialną w swojej organizacji lub operacjami produktowymi zgodnie z wewnętrznymi wytycznymi.
-
-> **Uwaga:** jest to tekst zastępczy. Zastąpz ważną umową EULA lub zweryfikowanymi prawnie warunkami użytkowania.
+Pytania dotyczące BLXCode kieruj do maintainerów projektu przez repozytorium, z którego pobrałeś oprogramowanie (issues i dyskusje).

@@ -1,32 +1,35 @@
 <!--
-  Términos de uso — plantilla Markdown editable (en-US).
-  Compilado en el paquete WASM a través de include_str!; reconstruir después de las ediciones.
-
-  El primer encabezado de Markdown `#` obtiene id="eula-heading" para la accesibilidad.
+  Términos de uso — plantilla Markdown editable (es-ES).
 -->
 
 *Legal*
 
-# Condiciones de uso
+# Términos de uso y licencia
 
-Revise las siguientes reglas antes de usar la aplicación.
+Revise lo siguiente antes de usar BLXCode.
 
 ---
 
-## Alcance
+## Licencia de código abierto
 
-Con blxcode trabajas con datos procesados localmente y externos enterfaces. Estos términos rigen el uso permitido del software y sus deberes al manejar el contenido y la información confidencial de otros.
+BLXCode es **software de código abierto** distribuido bajo la **licencia MIT**. Una copia de la licencia se incluye con la aplicación y aparece en el archivo `LICENSE` del repositorio de origen. Al usar BLXCode, acepta los términos de la licencia MIT.
+
+## Ámbito
+
+BLXCode es un entorno de escritorio local para desarrollo asistido por IA. El software se ejecuta en su equipo; los archivos del espacio de trabajo, notas, tareas y la configuración permanecen bajo rutas que usted controla, salvo que conecte servicios externos.
 
 ## Uso permitido
 
-Aceptas utilizar la aplicación solo de conformidad con las leyes y políticas internas aplicables. Está prohibido eludir las medidas de seguridad, introducir malware o perjudicar la disponibilidad de terceros.
+Utilice BLXCode solo conforme a la legislación aplicable. No debe usar el software para eludir controles de seguridad, distribuir malware ni interferir con sistemas a los que no esté autorizado.
 
-## Responsabilidad y actualizaciónes
+## Servicios de terceros
 
-El software se proporciona tal cual. Podemos cambiar o limitar las características cuando sea necesario por razones técnicas o legales. Haga una copia de seguridad de los datos importantes usted mismo con regularidad.
+Funciones como el agente de código, transcripción de voz y síntesis de voz pueden enviar datos a APIs de terceros cuando configure claves de proveedor. Esas solicitudes se rigen por los términos, precios y políticas de privacidad de cada proveedor. Usted es responsable de proteger sus claves y de los costes incurridos.
+
+## Descargo de responsabilidad
+
+EL SOFTWARE SE PROPORCIONA «TAL CUAL», SIN GARANTÍA DE NINGÚN TIPO. EN NINGÚN CASO LOS AUTORES O TITULARES DE DERECHOS SERÁN RESPONSABLES DE RECLAMACIONES, DAÑOS U OTRAS RESPONSABILIDADES DERIVADAS DEL USO DEL SOFTWARE.
 
 ## Contacto
 
-Si tiene preguntas sobre estos términos, comuníquese con la parte responsable de su organización u operaciones de productos de acuerdo con sus pautas internas.
-
-> **Aviso:** Este es el texto del marcador de posición. Reemplazarcon su EULA válido o con los términos de uso revisados legalmente.
+Las preguntas sobre BLXCode pueden dirigirse a los mantenedores del proyecto a través del repositorio del que obtuvo el software (incidencias y debates).

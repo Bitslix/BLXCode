@@ -7,26 +7,32 @@
 
 *Legal*
 
-# Terms of use
+# Terms of use and license
 
-Please review the following rules before using the application.
+Please review the following before using BLXCode.
 
 ---
 
+## Open source license
+
+BLXCode is **open source software** distributed under the **MIT License**. A copy of the license ships with the application and appears in the `LICENSE` file in the source repository. By using BLXCode you agree to the MIT License terms.
+
 ## Scope
 
-With blxcode you work with locally processed data and external interfaces. These terms govern permitted use of the software and your duties when handling others' content and confidential information.
+BLXCode is a local desktop workbench for AI-assisted development. The software runs on your machine; workspace files, memory notes, tasks, and configuration remain under paths you control unless you connect to external services.
 
 ## Permitted use
 
-You agree to use the application only in compliance with applicable laws and internal policies. Circumventing security measures, introducing malware, or impairing third-party availability is prohibited.
+Use BLXCode only in compliance with applicable laws. You must not use the software to circumvent security controls, distribute malware, or interfere with systems you are not authorized to access.
 
-## Liability and updates
+## Third-party services
 
-The software is provided as-is. We may change or limit features where required for technical or legal reasons. Please back up important data yourself regularly.
+Features such as the coding agent, voice transcription, and text-to-speech may send data to third-party APIs when you configure provider keys. Those requests are governed by the respective provider terms, pricing, and privacy policies. You are responsible for securing your keys and for any charges incurred.
+
+## Disclaimer
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ## Contact
 
-If you have questions about these terms, contact the responsible party in your organization or product operations according to your internal guidelines.
-
-> **Notice:** This is placeholder text. Replace it with your valid EULA or legally reviewed terms of use.
+Questions about BLXCode can be directed to the project maintainers through the repository where you obtained the software (issues and discussions).

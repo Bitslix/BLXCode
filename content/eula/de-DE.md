@@ -1,33 +1,36 @@
 <!--
-  EULA / Nutzungsbedingungen — bearbeitbare Markdown-Vorlage (de-DE).
+  Nutzungsbedingungen — bearbeitbare Markdown-Vorlage (de-DE).
   Wird zur Build-Zeit eingebunden; nach Änderungen Projekt neu bauen.
-
-  Hinweis: Kein JSX/MDX nötig; normales Markdown. Erste `#`-Überschrift
-  erhält automatisch id="eula-heading" für Barrierefreiheit.
 -->
 
 *Rechtliches*
 
-# Nutzungsbedingungen
+# Nutzungsbedingungen und Lizenz
 
-Bitte prüfen Sie die folgenden Regeln, bevor Sie die Anwendung nutzen.
+Bitte lesen Sie das Folgende, bevor Sie BLXCode nutzen.
 
 ---
 
+## Open-Source-Lizenz
+
+BLXCode ist **Open-Source-Software** unter der **MIT-Lizenz**. Der Lizenztext liegt der Anwendung bei und steht in der Datei `LICENSE` im Quellcode-Repository. Mit der Nutzung von BLXCode stimmen Sie den Bedingungen der MIT-Lizenz zu.
+
 ## Geltungsbereich
 
-Mit blxcode arbeiten Sie mit lokal verarbeiteten Daten und externen Schnittstellen. Diese Bedingungen regeln die zulässige Nutzung der Software und Ihre Pflichten beim Umgang mit Inhalten anderer sowie mit vertraulichen Informationen.
+BLXCode ist eine lokale Desktop-Arbeitsumgebung für KI-gestützte Entwicklung. Die Software läuft auf Ihrem Rechner; Arbeitsbereichsdateien, Notizen, Aufgaben und Konfiguration verbleiben unter von Ihnen kontrollierten Pfaden, sofern Sie keine externen Dienste anbinden.
 
 ## Erlaubte Nutzung
 
-Sie verpflichten sich, die Anwendung nur im Rahmen geltender Gesetze und interner Richtlinien zu verwenden. Es ist untersagt, Sicherheitsmechanismen zu umgehen, Schadcode einzuspielen oder die Verfügbarkeit Dritter zu beeinträchtigen.
+Nutzen Sie BLXCode nur im Einklang mit geltendem Recht. Es ist untersagt, Sicherheitskontrollen zu umgehen, Schadcode zu verbreiten oder Systeme zu beeinträchtigen, für die Sie keine Berechtigung haben.
 
-## Haftung und Updates
+## Dienste Dritter
 
-Die Software wird wie besehen bereitgestellt. Wir können Funktionen anpassen oder einschränken, soweit technische oder rechtliche Gründe dies erfordern. Bitte sichern Sie wichtige Daten regelmäßig selbst.
+Funktionen wie der Coding-Agent, Spracherkennung (STT) und Sprachausgabe (TTS) können Daten an APIs Dritter senden, wenn Sie Anbieter-Schlüssel hinterlegen. Diese Anfragen unterliegen den jeweiligen Nutzungsbedingungen, Preisen und Datenschutzrichtlinien der Anbieter. Sie sind für den Schutz Ihrer Schlüssel und entstehende Kosten verantwortlich.
+
+## Haftungsausschluss
+
+DIE SOFTWARE WIRD „WIE BESEHEN“ BEREITGESTELLT, OHNE JEGLICHE AUSDRÜCKLICHE ODER STILLSCHWEIGENDE GEWÄHRLEISTUNG. DIE AUTOREN ODER RECHTEINHABER HAFTEN IN KEINEM FALL FÜR ANSPRÜCHE, SCHÄDEN ODER SONSTIGE VERPFLICHTUNGEN AUS DEM GEBRAUCH ODER SONSTIGER HANDLUNGEN MIT DER SOFTWARE.
 
 ## Kontakt
 
-Bei Fragen zu diesen Bedingungen wenden Sie sich an die verantwortliche Stelle Ihrer Organisation oder an den Produktbetrieb gemäß Ihrer internen Vorgaben.
-
-> **Hinweis:** Dies ist Platzhaltertext. Ersetzen Sie ihn durch Ihre gültige EULA oder juristisch geprüfte Nutzungsbedingungen.
+Fragen zu BLXCode richten Sie an die Projektbetreuer über das Repository, aus dem Sie die Software bezogen haben (Issues und Diskussionen).

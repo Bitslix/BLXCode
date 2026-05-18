@@ -1,32 +1,35 @@
 <!--
-  Condizioni d'uso — modello Markdown modificabile (it-IT).
-  Compilato nel bundle WASM tramite include_str!; ricostruito dopo le modifiche.
-
-  La prima intestazione Markdown `#` ottiene id="eula-heading" per l'accessibilità.
+  Termini di utilizzo — modello Markdown modificabile (it-IT).
 -->
 
-*Informazioni legali*
+*Note legali*
 
-# Termini di utilizzo
+# Termini di utilizzo e licenza
 
-Si prega di rivedere le seguenti regole prima di utilizzare l'applicazione.
+Leggere quanto segue prima di usare BLXCode.
 
 ---
 
+## Licenza open source
+
+BLXCode è **software open source** distribuito con **licenza MIT**. Una copia della licenza è inclusa nell'applicazione e nel file `LICENSE` del repository sorgente. Utilizzando BLXCode, si accettano i termini della licenza MIT.
+
 ## Ambito
 
-Con blxcode lavori con dati elaborati localmente ed esterni interfaces. Questi termini regolano l'uso consentito del software e i tuoi doveri quando gestisci i contenuti e le informazioni riservate di altri.
+BLXCode è un ambiente desktop locale per lo sviluppo assistito dall'IA. Il software gira sul proprio computer; file dell'area di lavoro, note, attività e configurazione restano in percorsi sotto il proprio controllo, salvo connessione a servizi esterni.
 
 ## Uso consentito
 
-L'utente accetta di utilizzare l'applicazione solo in conformità con le leggi applicabili e le politiche interne. È vietato eludere le misure di sicurezza, introdurre malware o compromettere la disponibilità di terze parti.
+Usare BLXCode solo nel rispetto delle leggi applicabili. È vietato aggirare controlli di sicurezza, distribuire malware o interferire con sistemi non autorizzati.
 
-## Responsabilità e aggiornamentoes
+## Servizi di terze parti
 
-Il software viene fornito così com'è. Possiamo modificare o limitare le funzionalità ove richiesto per motivi tecnici o legali. Esegui regolarmente il backup dei dati importanti.
+Funzioni come l'agente di codice, la trascrizione vocale e la sintesi vocale possono inviare dati ad API di terze parti quando si configurano chiavi fornitore. Tali richieste sono regolate dai termini, prezzi e informative privacy dei rispettivi fornitori. L'utente è responsabile della protezione delle chiavi e dei costi sostenuti.
 
-## Contatti
+## Esclusione di garanzia
 
-In caso di domande su questi termini, contattare la parte responsabile dell'organizzazione o delle operazioni del prodotto in base alle linee guida interne.
+IL SOFTWARE È FORNITO «COSÌ COM'È», SENZA GARANZIE DI ALCUN TIPO. IN NESSUN CASO GLI AUTORI O I TITOLARI DEL COPYRIGHT SARANNO RESPONSABILI PER RECLAMI, DANNI O ALTRE RESPONSABILITÀ DERIVANTI DALL'USO DEL SOFTWARE.
 
-> **Avviso:** Questo è un testo segnaposto. Sostituiscicon il tuo EULA valido o i termini di utilizzo legalmente rivisti.
+## Contatto
+
+Per domande su BLXCode, rivolgersi ai maintainer del progetto tramite il repository da cui è stato ottenuto il software (issue e discussioni).
