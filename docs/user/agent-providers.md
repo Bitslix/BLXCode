@@ -18,6 +18,10 @@ If keyring access fails on Linux or another platform, BLXCode writes a fallback 
 
 The UI only displays masked API key values after save.
 
+<p align="center">
+  <img src="../images/screenshot-2026-05-18_17-58-05.png" alt="Agent provider settings showing provider, model, thinking level, and masked API key" />
+</p>
+
 ## Voice Provider Keys
 
 Voice features reuse the same provider key storage:
@@ -70,6 +74,10 @@ BLXCode bundles helper scripts under `content/hooks/` for session and title capt
 - Cursor.
 
 The backend can install, inspect, and uninstall supported hooks. Hook scripts use environment values injected into terminal sessions to connect external agent sessions back to the active BLXCode terminal slot.
+
+<p align="center">
+  <img src="../images/screenshot-2026-05-18_17-57-52.png" alt="BLXCode settings showing installed terminal hooks for Claude, Codex, Gemini, Cursor, and OpenCode" />
+</p>
 
 ## Missing Key Behavior
 

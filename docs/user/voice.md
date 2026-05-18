@@ -44,6 +44,10 @@ The default voice settings are conservative:
 
 Open the voice settings tab in the right-side settings area.
 
+<p align="center">
+  <img src="../images/screenshot-2026-05-18_17-58-12.png" alt="Voice settings showing STT provider, model, recording quality, TTS model, and voice selection" />
+</p>
+
 You can configure:
 
 - STT provider and model.

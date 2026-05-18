@@ -37,6 +37,10 @@ Each workspace has a top-level terminal grid. Preset counts map to balanced grid
 
 Individual terminal slots can also keep split-pane state. BLXCode persists pane IDs, split axis, and terminal layout so the workbench can restore the surface after restart.
 
+<p align="center">
+  <img src="../images/screenshot-2026-05-18_18-10-48.png" alt="Workspace terminal grid after the agent opens two additional Claude terminal slots" />
+</p>
+
 ## Shell Environment
 
 The backend spawns PTY sessions through `portable-pty`. On Unix-like systems it uses `$SHELL`, falling back to `/bin/sh`.

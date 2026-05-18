@@ -18,6 +18,10 @@ The memory system stores Markdown files and supports nested directories. Templat
 
 Paths are sandboxed to the memory root. BLXCode rejects absolute paths, `..` escapes, and non-Markdown files for note operations.
 
+<p align="center">
+  <img src="../images/screenshot-2026-05-18_17-58-53.png" alt="Memory panel showing workspace note files" />
+</p>
+
 ## Note Links
 
 Memory supports an Obsidian-style subset:
@@ -32,6 +36,10 @@ Memory supports an Obsidian-style subset:
 The backend can build graph data from notes, backlinks, and tags. It can also search notes and return line-level snippets.
 
 This makes `.blxcode/memory` useful both as a user-facing notebook and as context the agent can inspect through memory tools.
+
+<p align="center">
+  <img src="../images/screenshot-2026-05-18_17-58-47.png" alt="Memory graph showing linked notes in the workspace memory panel" />
+</p>
 
 ## Agent Memory Pointers
 
@@ -76,3 +84,7 @@ Supported statuses are:
 - `cancelled`
 
 Task writes are serialized through the backend and stored as pretty JSON. The store has a version number so future migrations can detect incompatible formats.
+
+<p align="center">
+  <img src="../images/screenshot-2026-05-18_17-46-39.png" alt="Agent panel showing workspace task context and task-tool output" />
+</p>

@@ -42,6 +42,10 @@ BLXCode is early-stage open source software. Core desktop, workspace, memory, ta
 |---|---|
 | <img src="docs/images/screenshot-2026-05-18_17-46-07.png" alt="Four-terminal workspace grid running Claude Code sessions" /> | <img src="docs/images/screenshot-2026-05-18_17-46-39.png" alt="Workspace terminals beside the BLXCode agent panel and task context" /> |
 
+| Provider Settings | Voice And Memory |
+|---|---|
+| <img src="docs/images/screenshot-2026-05-18_17-58-05.png" alt="BLXCode agent provider settings with OpenRouter model and API key" /> | <img src="docs/images/screenshot-2026-05-18_17-58-12.png" alt="BLXCode voice settings with speech-to-text and text-to-speech controls" /> |
+
 ## Quick Start
 
 ### Prerequisites
