@@ -188,7 +188,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbRenameMenu => "Munkaterület átnevezése",
         I18nKey::SbCloseWorkspaceMenu => "Zárja be a munkaterületet",
         I18nKey::SbAddWorkspaceAria => "Hozzon létre új munkaterületet",
-        I18nKey::SbBadgeAgentAria => "{n} unread from {agent}",
+        I18nKey::SbBadgeTotalAria => "{n} unread in workspace",
         I18nKey::WzTitle => "Hozzon létre munkaterületet",
         I18nKey::WzSubLayout => "Válassza ki az elrendezést és a munkakönyvtárat.",
         I18nKey::WzSubFleet => "Ügynökök hozzárendelése {n} terminálhoz.",

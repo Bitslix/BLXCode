@@ -182,7 +182,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbRenameMenu => "작업공간 이름 바꾸기",
         I18nKey::SbCloseWorkspaceMenu => "작업공간 닫기",
         I18nKey::SbAddWorkspaceAria => "새 작업공간 만들기",
-        I18nKey::SbBadgeAgentAria => "{n} unread from {agent}",
+        I18nKey::SbBadgeTotalAria => "{n} unread in workspace",
         I18nKey::WzTitle => "작업공간 만들기",
         I18nKey::WzSubLayout => "레이아웃과 작업 디렉터리를 선택합니다.",
         I18nKey::WzSubFleet => "{n} 단말기에 상담원을 배정하세요.",
