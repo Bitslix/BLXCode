@@ -52,6 +52,7 @@ struct CellState {
 
 #[component]
 pub fn WorkspaceTerminalCell(
+    workspace_id: u64,
     cwd: String,
     grid_index: usize,
     agent_slug: String,
@@ -279,7 +280,7 @@ pub fn WorkspaceTerminalCell(
                 leptos::task::spawn_local(async move {
                     let _ = pty_resize(sid, size.rows, size.cols).await;
                 });
-                request_agent_launch(state.clone());
+                schedule_agent_launch_retries(state.clone());
             }
         });
 
@@ -295,8 +296,17 @@ pub fn WorkspaceTerminalCell(
                 let Some(ce) = ev.dyn_ref::<web_sys::CustomEvent>() else {
                     return;
                 };
-                let _ = ce.detail();
-                request_agent_launch(state.clone());
+                let detail = ce.detail();
+                let ws_js = js_sys::Reflect::get(
+                    &detail,
+                    &wasm_bindgen::JsValue::from_str("workspaceId"),
+                )
+                .ok()
+                .and_then(|v| v.as_f64());
+                if ws_js != Some(workspace_id as f64) {
+                    return;
+                }
+                schedule_agent_launch_retries(state.clone());
                 spawn_terminal_refit(state.clone(), 32, 32);
             }
         },
@@ -323,7 +333,7 @@ pub fn WorkspaceTerminalCell(
                 spawn_terminal_xterm_fit(state.clone(), 240, 50);
                 spawn_terminal_refit(state.clone(), 240, 50);
                 if !agent_slug.trim().is_empty() {
-                    request_agent_launch(state.clone());
+                    schedule_agent_launch_retries(state.clone());
                 }
             }
         }
@@ -484,10 +494,9 @@ async fn bootstrap_terminal_cell(
         load_failed.set(true);
         return;
     }
-    if !wait_for_container_ready(&container, 500, 16).await {
-        load_failed.set(true);
-        return;
-    }
+    // Keep trying xterm even if the grid is still settling; agent launch retries
+    // until a real resize arrives.
+    let _ = wait_for_container_ready(&container, 120, 16).await;
     let tid = match terminal_create(&container) {
         Ok(v) => v,
         Err(_) => {
@@ -568,7 +577,7 @@ async fn bootstrap_terminal_cell(
                         terminal_key: terminal_key.clone(),
                         sid,
                     });
-                    request_agent_launch(state.clone());
+                    schedule_agent_launch_retries(state.clone());
                 }
                 Some(sid)
             }
@@ -590,6 +599,24 @@ async fn bootstrap_terminal_cell(
     if pty_sid.is_none() {
         state.lock().expect("cell").pty_session = None;
     }
+}
+
+/// Retry agent auto-launch across layout ticks (grid mount, resize, sidebar).
+fn schedule_agent_launch_retries(state: Arc<Mutex<CellState>>) {
+    leptos::task::spawn_local(async move {
+        for delay in [0_u32, 80, 200, 500, 1200, 2500] {
+            if delay > 0 {
+                TimeoutFuture::new(delay).await;
+            }
+            if state.lock().expect("cell").disposed {
+                return;
+            }
+            if state.lock().expect("cell").launch_sent {
+                return;
+            }
+            request_agent_launch(state.clone());
+        }
+    });
 }
 
 fn request_agent_launch(state: Arc<Mutex<CellState>>) {
@@ -668,23 +695,17 @@ async fn spawn_agent_launch_when_ready(state: Arc<Mutex<CellState>>) {
 
     let resume_id =
         lookup_resume_session(&pending.terminal_key, &pending.slug, &pending.cwd).await;
-    let should_launch = {
-        let mut st = state.lock().expect("cell");
-        if st.launch_sent || st.disposed {
-            false
-        } else {
-            st.launch_sent = true;
-            true
-        }
-    };
-    if !should_launch {
+    if state.lock().expect("cell").launch_sent || state.lock().expect("cell").disposed {
         return;
     }
     let cmd = build_launch_command(&pending.slug, resume_id.as_deref());
     use base64::Engine;
     let b64 = base64::engine::general_purpose::STANDARD.encode(cmd.as_bytes());
-    let _ = pty_write(pending.sid, b64).await;
-    state.lock().expect("cell").agent_launch = None;
+    if pty_write(pending.sid, b64).await.is_ok() {
+        let mut st = state.lock().expect("cell");
+        st.launch_sent = true;
+        st.agent_launch = None;
+    }
     spawn_terminal_refit(state, 32, 32);
 }
 
