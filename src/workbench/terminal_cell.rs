@@ -3,8 +3,9 @@ use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_session_exists, git_branch, is_tauri_shell, pty_drain_wait, pty_kill, pty_resize,
     pty_spawn_with_env, pty_write, workbench_drop_sessions, workbench_load_sessions,
-    workbench_sessions_path,
+    workbench_notifications_path, workbench_sessions_path,
 };
+use crate::workbench::agent_accent::agent_accent_class;
 use crate::workbench::terminal_glue::{
     terminal_create, terminal_dispose, terminal_fit, terminal_request_fit,
     terminal_set_stdin_enabled, terminal_show_fallback, terminal_size_from_js, TerminalSize,
@@ -76,8 +77,17 @@ pub fn WorkspaceTerminalCell(
     let i18n = expect_context::<I18nService>();
     let wb = expect_context::<crate::workbench::state::WorkbenchService>();
     let load_failed = RwSignal::new(false);
-    let active = RwSignal::new(false);
     let node_ref = NodeRef::<html::Div>::new();
+    let terminal_key_focus = terminal_key.clone();
+    let is_focused = Signal::derive(move || {
+        let _ = wb.focused_terminal_by_workspace().get();
+        wb.is_terminal_focused(workspace_id, &terminal_key_focus)
+    });
+    let terminal_key_unread = terminal_key.clone();
+    let has_unread = Signal::derive(move || {
+        let _ = wb.notifications().get();
+        wb.terminal_unread_count(&terminal_key_unread) > 0
+    });
     let state: Arc<Mutex<CellState>> = Arc::new(Mutex::new(CellState::default()));
     let branch = RwSignal::new(None::<String>);
     let initial_title = title.clone();
@@ -93,6 +103,7 @@ pub fn WorkspaceTerminalCell(
     }
 
     let agent_slug_memo = agent_slug.clone();
+    let agent_slug_class = agent_slug.clone();
     let agent_label = Memo::new({
         let i18n = i18n;
         move |_| {
@@ -372,16 +383,30 @@ pub fn WorkspaceTerminalCell(
         <div
             class=move || {
                 let mut class = String::from("ws-term-cell");
-                if active.get() {
+                if is_focused.get() {
                     class.push_str(" ws-term-cell--active");
+                }
+                if has_unread.get() {
+                    class.push_str(" ws-term-cell--has-unread");
+                }
+                if let Some(modifier) = agent_accent_class(&agent_slug_class) {
+                    class.push(' ');
+                    class.push_str(modifier);
                 }
                 class
             }
             role="region"
             aria-label=move || format!("{} {}", i18n.tr(I18nKey::WsTermSlot)(), grid_index + 1)
-            on:mousedown=move |_| active.set(true)
-            on:focusin=move |_| active.set(true)
-            on:focusout=move |_| active.set(false)
+            on:mousedown={
+                let terminal_key = terminal_key.clone();
+                let wb = wb;
+                move |_| wb.focus_terminal(terminal_key.clone())
+            }
+            on:focusin={
+                let terminal_key = terminal_key.clone();
+                let wb = wb;
+                move |_| wb.focus_terminal(terminal_key.clone())
+            }
         >
             <div class="ws-term-cell__head">
                 <span class="ws-term-cell__title">{move || dynamic_title.get()}</span>
@@ -515,6 +540,7 @@ async fn bootstrap_terminal_cell(
 
     let pty_sid = if is_tauri_shell() {
         let sessions_path = workbench_sessions_path().await.ok();
+        let notifications_path = workbench_notifications_path().await.ok();
         let mut env: Vec<(String, String)> = Vec::new();
         env.push(("BLX_TERMINAL_KEY".into(), terminal_key.clone()));
         if !agent_slug.trim().is_empty() {
@@ -522,6 +548,9 @@ async fn bootstrap_terminal_cell(
         }
         if let Some(p) = sessions_path.as_ref() {
             env.push(("BLX_SESSIONS_PATH".into(), p.clone()));
+        }
+        if let Some(p) = notifications_path.as_ref() {
+            env.push(("BLX_NOTIFICATIONS_PATH".into(), p.clone()));
         }
         match pty_spawn_with_env(cwd.clone(), env).await {
             Ok(sid) => {

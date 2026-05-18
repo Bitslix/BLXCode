@@ -5,6 +5,7 @@ Welcome to the BLXCode docs. This folder is split into user documentation for ru
 ## User Docs
 
 - [Getting Started](user/getting-started.md): install prerequisites, run BLXCode, and create your first workspace.
+- [UI Language](user/language.md): supported locales, changing the UI language, first-launch detection, and EULA localization.
 - [Building](user/building.md): build BLXCode from source on Linux, macOS, and Windows.
 - [Voice](user/voice.md): configure and use speech-to-text, text-to-speech, microphone recording, and push-to-talk.
 - [Workspaces](user/workspaces.md): workspace creation, terminal grids, panes, browser tabs, and persistence.

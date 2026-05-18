@@ -50,8 +50,24 @@ BLXCode injects a few environment variables into terminal sessions when needed:
 - `BLX_TERMINAL_KEY`: stable terminal/session mapping key.
 - `BLX_AGENT_SLUG`: assigned agent label for the slot.
 - `BLX_SESSIONS_PATH`: app-managed session mapping file path.
+- `BLX_NOTIFICATIONS_PATH`: app-managed unread counter file for agent completion hooks.
 
-These values support session capture hooks for external coding tools.
+These values support session capture and notification hooks for external coding tools.
+
+## Agent completion badges
+
+When agent hooks are installed (Harness → Agent hooks), each terminal CLI fires a **Stop** (or OpenCode `session.idle`) hook when a turn finishes. The hook increments an unread counter in `notifications.json`.
+
+The workspace sidebar shows two badges per workspace:
+
+| Badge | Meaning | Color |
+|-------|---------|-------|
+| Active | Unread count on the **focused** terminal in that workspace | Same accent as the focused terminal’s agent |
+| Total | Sum of unread counts across **all** terminals in the workspace | Orange |
+
+Unread counts clear when you **focus** the terminal cell (click or tab into it). A short beep plays when a task completes in a background workspace or unfocused terminal.
+
+Re-run **Install agent hooks** after upgrading blxcode so notify hooks are registered alongside title and session-capture hooks.
 
 ## Embedded Browser
 

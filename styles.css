@@ -335,6 +335,32 @@ body {
   border-left: 2px solid transparent;
 }
 
+.workbench-sidebar__badges {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  margin-left: auto;
+}
+
+.workbench-sidebar__badge {
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.28rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  letter-spacing: -0.02em;
+}
+
+.workbench-sidebar__badge--agent {
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+
 .workbench-sidebar__close {
   position: absolute;
   top: 50%;
@@ -3691,9 +3717,111 @@ button {
     0 0 0 1px rgba(114, 160, 255, 0.18);
 }
 
+.ws-term-cell--active.ws-term-cell--agent-claude {
+  border-color: rgba(232, 149, 74, 0.92);
+  box-shadow:
+    inset 0 0 0 1px rgba(232, 149, 74, 0.42),
+    0 0 0 1px rgba(232, 149, 74, 0.2);
+}
+
+.ws-term-cell--active.ws-term-cell--agent-codex {
+  border-color: rgba(61, 184, 168, 0.92);
+  box-shadow:
+    inset 0 0 0 1px rgba(61, 184, 168, 0.42),
+    0 0 0 1px rgba(61, 184, 168, 0.2);
+}
+
+.ws-term-cell--active.ws-term-cell--agent-gemini {
+  border-color: rgba(91, 156, 245, 0.92);
+  box-shadow:
+    inset 0 0 0 1px rgba(91, 156, 245, 0.42),
+    0 0 0 1px rgba(91, 156, 245, 0.2);
+}
+
+.ws-term-cell--active.ws-term-cell--agent-opencode {
+  border-color: rgba(166, 124, 240, 0.92);
+  box-shadow:
+    inset 0 0 0 1px rgba(166, 124, 240, 0.42),
+    0 0 0 1px rgba(166, 124, 240, 0.2);
+}
+
+.ws-term-cell--active.ws-term-cell--agent-cursor {
+  border-color: rgba(94, 207, 122, 0.92);
+  box-shadow:
+    inset 0 0 0 1px rgba(94, 207, 122, 0.42),
+    0 0 0 1px rgba(94, 207, 122, 0.2);
+}
+
 .ws-term-cell--active .ws-term-cell__head {
   border-color: rgba(114, 160, 255, 0.55);
   background: rgba(24, 26, 34, 0.96);
+}
+
+.ws-term-cell--active.ws-term-cell--agent-claude .ws-term-cell__head {
+  border-color: rgba(232, 149, 74, 0.55);
+}
+
+.ws-term-cell--active.ws-term-cell--agent-codex .ws-term-cell__head {
+  border-color: rgba(61, 184, 168, 0.55);
+}
+
+.ws-term-cell--active.ws-term-cell--agent-gemini .ws-term-cell__head {
+  border-color: rgba(91, 156, 245, 0.55);
+}
+
+.ws-term-cell--active.ws-term-cell--agent-opencode .ws-term-cell__head {
+  border-color: rgba(166, 124, 240, 0.55);
+}
+
+.ws-term-cell--active.ws-term-cell--agent-cursor .ws-term-cell__head {
+  border-color: rgba(94, 207, 122, 0.55);
+}
+
+/* Pulse the titlebar of any terminal that has unread notifications so the
+ * user can see, before clicking, which slot the notify came from. Click
+ * (focus) the cell to acknowledge — the unread is then cleared and this
+ * class drops automatically. The pulse keeps running even on the focused
+ * cell for the brief moment between disk-clear write and the next poll,
+ * but the focused-and-unread combination is also covered by the
+ * `--active` styles above which take priority on `border-color`. */
+.ws-term-cell--has-unread .ws-term-cell__head {
+  border-color: rgba(232, 149, 74, 0.85);
+  background: rgba(38, 28, 20, 0.96);
+  animation: ws-term-head-pulse 1.4s ease-in-out infinite;
+}
+
+.ws-term-cell--has-unread.ws-term-cell--agent-claude .ws-term-cell__head {
+  border-color: rgba(232, 149, 74, 0.85);
+  box-shadow: 0 0 0 1px rgba(232, 149, 74, 0.35);
+}
+
+.ws-term-cell--has-unread.ws-term-cell--agent-codex .ws-term-cell__head {
+  border-color: rgba(61, 184, 168, 0.85);
+  box-shadow: 0 0 0 1px rgba(61, 184, 168, 0.35);
+}
+
+.ws-term-cell--has-unread.ws-term-cell--agent-gemini .ws-term-cell__head {
+  border-color: rgba(91, 156, 245, 0.85);
+  box-shadow: 0 0 0 1px rgba(91, 156, 245, 0.35);
+}
+
+.ws-term-cell--has-unread.ws-term-cell--agent-opencode .ws-term-cell__head {
+  border-color: rgba(166, 124, 240, 0.85);
+  box-shadow: 0 0 0 1px rgba(166, 124, 240, 0.35);
+}
+
+.ws-term-cell--has-unread.ws-term-cell--agent-cursor .ws-term-cell__head {
+  border-color: rgba(94, 207, 122, 0.85);
+  box-shadow: 0 0 0 1px rgba(94, 207, 122, 0.35);
+}
+
+@keyframes ws-term-head-pulse {
+  0%, 100% {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(232, 149, 74, 0.15);
+  }
+  50% {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28), 0 0 0 3px rgba(232, 149, 74, 0.45);
+  }
 }
 
 .ws-term-cell__head {

@@ -22,7 +22,13 @@ The project is designed for people who want one focused local cockpit for agent-
 - **Workspace tasks** stored under `.blxcode/tasks`.
 - **Embedded browser** for links and research, with native child webviews on supported platforms and iframe fallback where needed.
 - **Agent hooks** for Claude, Codex, Gemini, OpenCode, and Cursor session/title capture.
-- **Internationalized UI and EULA content** with locale files generated from the English source.
+- **14-language UI** with compile-time translations, localized EULA on first launch, and a language picker in app settings (Deutsch, English, Español, Français, Magyar, Italiano, 日本語, 한국어, Polski, Português, Русский, 简体中文, 繁體中文).
+
+## Internationalization
+
+BLXCode is built for multilingual use out of the box. The workbench UI, settings, and first-run EULA are translated into **14 locales**; strings are checked at compile time so incomplete translations fail the build instead of showing blanks. On first launch, BLXCode picks a language from your saved preference, system/browser language, or English as fallback. Change it anytime via **Ctrl+Shift+P** → **BLXCode settings** → **App** → **UI language**.
+
+User guide: [UI Language](docs/user/language.md) · Contributor guide: [Internationalization](docs/developer/i18n.md)
 
 ## Status
 
@@ -91,6 +97,7 @@ trunk build
 - [Documentation Home](docs/README.md)
 - [User Guide](docs/user/getting-started.md)
 - [Build From Source](docs/user/building.md)
+- [UI Language](docs/user/language.md)
 - [Voice: STT And TTS](docs/user/voice.md)
 - [Workspace Guide](docs/user/workspaces.md)
 - [Agent Providers](docs/user/agent-providers.md)

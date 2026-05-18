@@ -1,6 +1,8 @@
 //! Three-pane editor shell: collapsible sidebar, workspace, resizable right column.
+mod agent_accent;
 mod agent_panel;
 mod agent_timeline;
+mod notification_sound;
 mod browser_tab;
 mod chat_markdown;
 mod create_workspace_wizard;
@@ -91,6 +93,8 @@ pub fn WorkbenchShell() -> impl IntoView {
             hydrated.set(true);
         });
     });
+
+    notification_sound::spawn_notification_poller(wb);
 
     // Debounced auto-save. Tracks every persisted signal; a token guards
     // against firing a stale save when a newer tick is already scheduled.

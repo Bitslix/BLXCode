@@ -10,7 +10,7 @@ use leptos::prelude::*;
 use gloo_timers::future::TimeoutFuture;
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Bumped when the on-disk schema changes incompatibly. Snapshots with an
 /// unknown version are ignored on load (we fall back to defaults rather
@@ -489,6 +489,31 @@ pub struct WorkbenchService {
     /// Bumped when the terminal grid gains real layout (wizard commit, etc.)
     /// so cells refit xterm/PTY after flex/grid reflow.
     terminal_layout_tick: RwSignal<u32>,
+    /// Unread counts per `"{workspace_id}:{slot_id}:{pane_id}"` from agent notify hooks.
+    notifications: RwSignal<HashMap<String, u32>>,
+    /// Keys recently cleared in-memory while the async backend disk-write is still in flight.
+    /// The notification poller filters these out so a freshly-cleared key cannot reappear
+    /// before `workbench_clear_terminal_notifications` lands on disk.
+    pending_clears: RwSignal<HashSet<String>>,
+    /// Last focused terminal per workspace (`"{ws}:{slot}:{pane}"`); survives workspace switches.
+    focused_terminal_by_workspace: RwSignal<HashMap<u64, String>>,
+}
+
+/// One per-agent badge in the sidebar workspace row.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct AgentNotificationBadge {
+    /// Lowercased agent slug (`"claude"`, `"codex"`, ...) or `""` for the
+    /// generic fallback row when no agent label is attached.
+    pub agent_slug: String,
+    pub unread: u32,
+    pub accent: String,
+}
+
+/// Sidebar badge aggregates for one workspace row. One entry per agent slug
+/// that has unread notifications across all of the workspace's terminals.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct WorkspaceNotificationCounts {
+    pub agents: Vec<AgentNotificationBadge>,
 }
 
 impl WorkbenchService {
@@ -535,7 +560,124 @@ impl WorkbenchService {
             pty_sessions: RwSignal::new(HashMap::new()),
             pending_memory_note: RwSignal::new(None),
             terminal_layout_tick: RwSignal::new(0),
+            notifications: RwSignal::new(HashMap::new()),
+            pending_clears: RwSignal::new(HashSet::new()),
+            focused_terminal_by_workspace: RwSignal::new(HashMap::new()),
         }
+    }
+
+    pub fn notifications(&self) -> RwSignal<HashMap<String, u32>> {
+        self.notifications
+    }
+
+    pub fn focused_terminal_by_workspace(&self) -> RwSignal<HashMap<u64, String>> {
+        self.focused_terminal_by_workspace
+    }
+
+    pub fn set_notifications(&self, mut map: HashMap<String, u32>) {
+        let pending = self.pending_clears.get_untracked();
+        if !pending.is_empty() {
+            let mut still_pending: HashSet<String> = HashSet::new();
+            for key in pending {
+                if map.remove(&key).is_some() {
+                    still_pending.insert(key);
+                }
+            }
+            if self.pending_clears.with_untracked(|p| *p != still_pending) {
+                self.pending_clears.set(still_pending);
+            }
+        }
+        self.notifications.set(map);
+    }
+
+    #[must_use]
+    pub fn terminal_unread_count(&self, terminal_key: &str) -> u32 {
+        self.notifications
+            .with(|m| m.get(terminal_key).copied().unwrap_or(0))
+    }
+
+    fn clear_terminal_notifications(&self, terminal_key: &str) {
+        let key = terminal_key.to_string();
+        self.notifications.update(|m| {
+            m.remove(&key);
+        });
+        self.pending_clears.update(|p| {
+            p.insert(key.clone());
+        });
+        if crate::tauri_bridge::is_tauri_shell() {
+            leptos::task::spawn_local(async move {
+                let _ = crate::tauri_bridge::workbench_clear_terminal_notifications(key).await;
+            });
+        }
+    }
+
+    #[must_use]
+    pub fn is_terminal_focused(&self, workspace_id: u64, terminal_key: &str) -> bool {
+        self.focused_terminal_by_workspace.with_untracked(|m| {
+            m.get(&workspace_id)
+                .map(|k| k == terminal_key)
+                .unwrap_or(false)
+        })
+    }
+
+    /// Focus a terminal: remember per workspace and clear unread on the newly
+    /// focused cell only. Unread on a previously focused cell is preserved —
+    /// it represents activity the user has not yet acknowledged by clicking
+    /// into that specific terminal.
+    pub fn focus_terminal(&self, terminal_key: String) {
+        let Some(ws_id) = super::agent_accent::terminal_key_workspace_id(&terminal_key) else {
+            return;
+        };
+        self.clear_terminal_notifications(&terminal_key);
+        self.focused_terminal_by_workspace.update(|m| {
+            m.insert(ws_id, terminal_key);
+        });
+    }
+
+    fn agent_slug_for_terminal_key(&self, key: &str) -> Option<String> {
+        let ws_id = super::agent_accent::terminal_key_workspace_id(key)?;
+        let slot_id: u64 = key.split(':').nth(1)?.parse().ok()?;
+        self.workspaces.with_untracked(|list| {
+            let ws = list.iter().find(|w| w.id == ws_id)?;
+            let idx = ws.slot_ids.iter().position(|&id| id == slot_id)?;
+            ws.slot_agent_labels
+                .get(idx)
+                .filter(|s| !s.trim().is_empty())
+                .cloned()
+        })
+    }
+
+    #[must_use]
+    pub fn workspace_notification_counts(&self, workspace_id: u64) -> WorkspaceNotificationCounts {
+        let prefix = format!("{workspace_id}:");
+        let mut per_agent: HashMap<String, u32> = HashMap::new();
+        for (key, &count) in self.notifications.get_untracked().iter() {
+            if count == 0 || !key.starts_with(&prefix) {
+                continue;
+            }
+            let slug = self
+                .agent_slug_for_terminal_key(key)
+                .map(|s| s.trim().to_lowercase())
+                .unwrap_or_default();
+            *per_agent.entry(slug).or_insert(0) += count;
+        }
+        let mut agents: Vec<AgentNotificationBadge> = per_agent
+            .into_iter()
+            .map(|(slug, unread)| AgentNotificationBadge {
+                accent: super::agent_accent::agent_accent_color(&slug).to_string(),
+                agent_slug: slug,
+                unread,
+            })
+            .collect();
+        // Stable order: WORKSPACE_FLEET_AGENT_SLUGS first, unknown agents after.
+        agents.sort_by_key(|b| {
+            WORKSPACE_FLEET_AGENT_SLUGS
+                .iter()
+                .position(|s| *s == b.agent_slug.as_str())
+                .map(|i| (0u8, i))
+                .unwrap_or((1, 0))
+        });
+        WorkspaceNotificationCounts { agents }
     }
 
     pub fn terminal_layout_tick(&self) -> RwSignal<u32> {

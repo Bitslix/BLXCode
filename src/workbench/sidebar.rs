@@ -142,6 +142,11 @@ pub fn Sidebar() -> impl IntoView {
                             let icon_label = move || {
                                 workspace_icon_label(&title_signal.get(), id)
                             };
+                            let badge_counts = Memo::new(move |_| {
+                                let _ = wb.notifications().get();
+                                let _ = wb.workspaces().get();
+                                wb.workspace_notification_counts(id)
+                            });
                             view! {
                                 <li
                                     class=move || {
@@ -228,6 +233,61 @@ pub fn Sidebar() -> impl IntoView {
                                             <span class="workbench-sidebar__bullet">"▸ "</span>
                                             {move || title_signal.get()}
                                         </span>
+                                        <Show when=move || {
+                                            !collapsed.get()
+                                                && !badge_counts.get().agents.is_empty()
+                                        }>
+                                            {move || {
+                                                let counts = badge_counts.get();
+                                                let badges = counts
+                                                    .agents
+                                                    .into_iter()
+                                                    .map(|b| {
+                                                        let aria = i18n
+                                                            .tr(I18nKey::SbBadgeAgentAria)()
+                                                            .replace("{n}", &b.unread.to_string())
+                                                            .replace(
+                                                                "{agent}",
+                                                                if b.agent_slug.is_empty() {
+                                                                    "agent"
+                                                                } else {
+                                                                    b.agent_slug.as_str()
+                                                                },
+                                                            );
+                                                        let style = format!("background-color: {}", b.accent);
+                                                        let class = if b.agent_slug.is_empty() {
+                                                            String::from(
+                                                                "workbench-sidebar__badge workbench-sidebar__badge--agent",
+                                                            )
+                                                        } else {
+                                                            format!(
+                                                                "workbench-sidebar__badge workbench-sidebar__badge--agent workbench-sidebar__badge--agent-{}",
+                                                                b.agent_slug,
+                                                            )
+                                                        };
+                                                        view! {
+                                                            <span
+                                                                class=class
+                                                                style=style
+                                                                aria-label=aria
+                                                                title=move || {
+                                                                    if b.agent_slug.is_empty() {
+                                                                        format!("{}", b.unread)
+                                                                    } else {
+                                                                        format!("{}: {}", b.agent_slug, b.unread)
+                                                                    }
+                                                                }
+                                                            >
+                                                                {b.unread.to_string()}
+                                                            </span>
+                                                        }
+                                                    })
+                                                    .collect::<Vec<_>>();
+                                                view! {
+                                                    <span class="workbench-sidebar__badges">{badges}</span>
+                                                }
+                                            }}
+                                        </Show>
                                     </button>
                                     <button
                                         type="button"

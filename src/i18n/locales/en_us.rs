@@ -202,6 +202,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbCloseWorkspaceMenu => "Close workspace",
 
         I18nKey::SbAddWorkspaceAria => "Create new workspace",
+        I18nKey::SbBadgeAgentAria => "{n} unread from {agent}",
         I18nKey::WzTitle => "Create workspace",
         I18nKey::WzSubLayout => "Choose layout and working directory.",
         I18nKey::WzSubFleet => "Assign agents for {n} terminals.",

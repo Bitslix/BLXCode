@@ -176,6 +176,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbRenameMenu => "重新命名工作區",
         I18nKey::SbCloseWorkspaceMenu => "關閉工作區",
         I18nKey::SbAddWorkspaceAria => "建立新工作區",
+        I18nKey::SbBadgeAgentAria => "{n} unread from {agent}",
         I18nKey::WzTitle => "建立工作區",
         I18nKey::WzSubLayout => "選擇佈局和工作目錄。",
         I18nKey::WzSubFleet => "為 {n} 個終端分配代理程式。",

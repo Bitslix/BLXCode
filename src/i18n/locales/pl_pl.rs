@@ -188,6 +188,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbRenameMenu => "Zmień nazwę obszaru roboczego",
         I18nKey::SbCloseWorkspaceMenu => "Zamknij obszar roboczy",
         I18nKey::SbAddWorkspaceAria => "Utwórz nowy obszar roboczy",
+        I18nKey::SbBadgeAgentAria => "{n} unread from {agent}",
         I18nKey::WzTitle => "Utwórz obszar roboczy",
         I18nKey::WzSubLayout => "Wybierz układ i katalog roboczy.",
         I18nKey::WzSubFleet => "Przypisz agentów do {n} terminali.",

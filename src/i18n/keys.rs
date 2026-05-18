@@ -188,6 +188,7 @@ pub enum I18nKey {
     SbRenameSubmit,
     SbRenameMenu,
     SbCloseWorkspaceMenu,
+    SbBadgeAgentAria,
 
     EulaAccepted,
     EulaUnknown,

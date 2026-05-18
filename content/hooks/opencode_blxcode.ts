@@ -15,10 +15,13 @@
 //      blxcode-managed `sessions.json`, so blxcode can issue
 //      `opencode --session <id>` to resume the precise prior session
 //      for that terminal slot on next launch.
+//   3. Notifications — on debounced `session.idle`, increment unread in
+//      `notifications.json` so the workbench sidebar can show badges.
 //
 // Required env (set by blxcode when spawning the PTY):
-//   BLX_TERMINAL_KEY    composite "<workspace_id>:<terminal_slot_id>"
-//   BLX_SESSIONS_PATH   absolute path to sessions.json
+//   BLX_TERMINAL_KEY         composite "<workspace_id>:<slot_id>:<pane_id>"
+//   BLX_SESSIONS_PATH        absolute path to sessions.json
+//   BLX_NOTIFICATIONS_PATH   absolute path to notifications.json
 //
 // All file IO and TTY writes are wrapped — a plugin must never crash
 // the host CLI.
@@ -29,6 +32,9 @@ import * as path from "node:path";
 
 const MAX_TOPIC_LEN = 48;
 const PREFIX = "opencode";
+const NOTIFY_DEBOUNCE_MS = 2000;
+
+let notifyDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 function shortenPrompt(input: string): string {
   const firstLine = (input.split(/\r?\n/)[0] ?? "").replace(/\s+/g, " ").trim();
@@ -132,6 +138,63 @@ function recordSession(
   atomicWrite(sessionsPath, state);
 }
 
+function loadNotifications(p: string): {
+  version: number;
+  terminals: Record<string, { unread?: number; agent?: string; updated_at?: string }>;
+} {
+  try {
+    const raw = fs.readFileSync(p, { encoding: "utf8" });
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const terminals =
+        parsed.terminals && typeof parsed.terminals === "object"
+          ? (parsed.terminals as Record<
+              string,
+              { unread?: number; agent?: string; updated_at?: string }
+            >)
+          : {};
+      return { version: 1, terminals };
+    }
+  } catch {
+    // missing / corrupt
+  }
+  return { version: 1, terminals: {} };
+}
+
+function recordNotification(): void {
+  const terminalKey = (process.env.BLX_TERMINAL_KEY ?? "").trim();
+  const notificationsPath = (process.env.BLX_NOTIFICATIONS_PATH ?? "").trim();
+  if (!terminalKey || !notificationsPath) return;
+
+  const agent = (process.env.BLX_AGENT_SLUG ?? "opencode").trim() || "opencode";
+  const state = loadNotifications(notificationsPath);
+  const prev = state.terminals[terminalKey] ?? {};
+  const unread =
+    typeof prev.unread === "number"
+      ? prev.unread
+      : Number.parseInt(String(prev.unread ?? "0"), 10) || 0;
+  state.terminals[terminalKey] = {
+    unread: unread + 1,
+    agent,
+    updated_at: new Date().toISOString().replace(/\.\d+Z$/, "Z"),
+  };
+  atomicWrite(notificationsPath, state);
+}
+
+function scheduleNotification(): void {
+  if (notifyDebounceTimer) {
+    clearTimeout(notifyDebounceTimer);
+  }
+  notifyDebounceTimer = setTimeout(() => {
+    notifyDebounceTimer = null;
+    try {
+      recordNotification();
+    } catch {
+      // ignore
+    }
+  }, NOTIFY_DEBOUNCE_MS);
+}
+
 // OpenCode plugin entry. The exact `Plugin` type isn't imported (avoids
 // requiring `@opencode-ai/plugin` as a dev dependency in this repo);
 // OpenCode treats the default export as a plugin factory.
@@ -147,11 +210,11 @@ export const BlxcodePlugin = async (ctx: {
         const sessionId =
           (event as { session_id?: string }).session_id ??
           (event as { sessionID?: string }).sessionID;
-        if (
-          (event.type === "session.created" || event.type === "session.idle") &&
-          typeof sessionId === "string"
-        ) {
+        if (event.type === "session.created" && typeof sessionId === "string") {
           recordSession(sessionId, cwdHint);
+        } else if (event.type === "session.idle" && typeof sessionId === "string") {
+          recordSession(sessionId, cwdHint);
+          scheduleNotification();
         }
       } catch {
         // never break the host CLI

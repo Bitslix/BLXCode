@@ -17,12 +17,13 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use tauri::{AppHandle, Manager};
 
 const STATE_FILE: &str = "workbench.json";
 const SESSIONS_FILE: &str = "sessions.json";
+const NOTIFICATIONS_FILE: &str = "notifications.json";
 
 /// Serialises every `sessions.json` load / update from this process so
 /// overlapping Tauri commands cannot clobber each other's read-modify-write.
@@ -48,6 +49,44 @@ fn sessions_path_impl(app: &AppHandle) -> Result<PathBuf, String> {
         .app_config_dir()
         .map_err(|e| format!("app config dir unavailable: {e}"))?;
     Ok(base.join(SESSIONS_FILE))
+}
+
+fn notifications_path_impl(app: &AppHandle) -> Result<PathBuf, String> {
+    let base = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("app config dir unavailable: {e}"))?;
+    Ok(base.join(NOTIFICATIONS_FILE))
+}
+
+fn load_notifications_document(target: &Path) -> Result<Value, String> {
+    let raw = match fs::read_to_string(target) {
+        Ok(s) if s.trim().is_empty() => return Ok(json!({ "version": 1, "terminals": {} })),
+        Ok(s) => s,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(json!({ "version": 1, "terminals": {} }));
+        }
+        Err(e) => return Err(format!("read {}: {e}", target.display())),
+    };
+    match serde_json::from_str::<Value>(&raw) {
+        Ok(v) => Ok(v),
+        Err(_) => {
+            atomic_write_json(target, &json!({ "version": 1, "terminals": {} }))?;
+            Ok(json!({ "version": 1, "terminals": {} }))
+        }
+    }
+}
+
+fn terminal_unread_count(v: &Value) -> u32 {
+    v.get("unread")
+        .and_then(|x| x.as_u64())
+        .or_else(|| {
+            v.get("unread")
+                .and_then(|x| x.as_i64())
+                .filter(|&n| n >= 0)
+                .map(|n| n as u64)
+        })
+        .unwrap_or(0) as u32
 }
 
 fn ensure_dir(path: &Path) -> Result<(), String> {
@@ -404,6 +443,93 @@ pub fn workbench_merge_sessions_workspace(
         .ok_or_else(|| "sessions.json missing terminals object".to_string())?;
     for (k, v) in to_merge {
         terminals.insert(k, v);
+    }
+    atomic_write_json(&target, &state)
+}
+
+/// Absolute path for agent notify hooks (`BLX_NOTIFICATIONS_PATH`).
+#[tauri::command]
+pub fn workbench_notifications_path(app: AppHandle) -> Result<String, String> {
+    Ok(notifications_path_impl(&app)?.to_string_lossy().into_owned())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalNotification {
+    pub unread: u32,
+    pub agent: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+/// Per-terminal unread counts written by agent Stop/stop hooks.
+#[tauri::command]
+pub fn workbench_load_notifications(
+    app: AppHandle,
+    lock: tauri::State<'_, WorkbenchSessionsFileLock>,
+) -> Result<std::collections::HashMap<String, TerminalNotification>, String> {
+    let _guard = lock
+        .0
+        .lock()
+        .map_err(|e| format!("sessions file lock poisoned: {e}"))?;
+    let target = notifications_path_impl(&app)?;
+    let state = load_notifications_document(&target)?;
+    let mut out = std::collections::HashMap::new();
+    if let Some(terminals) = state.get("terminals").and_then(|t| t.as_object()) {
+        for (k, v) in terminals {
+            let unread = terminal_unread_count(v);
+            if unread == 0 {
+                continue;
+            }
+            let agent = v
+                .get("agent")
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string());
+            let updated_at = v
+                .get("updated_at")
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string());
+            out.insert(
+                k.clone(),
+                TerminalNotification {
+                    unread,
+                    agent,
+                    updated_at,
+                },
+            );
+        }
+    }
+    Ok(out)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClearTerminalNotificationsArgs {
+    pub terminal_key: String,
+}
+
+/// Clears unread for one terminal slot (focus-only UX in the workbench).
+#[tauri::command]
+pub fn workbench_clear_terminal_notifications(
+    app: AppHandle,
+    args: ClearTerminalNotificationsArgs,
+    lock: tauri::State<'_, WorkbenchSessionsFileLock>,
+) -> Result<(), String> {
+    let _guard = lock
+        .0
+        .lock()
+        .map_err(|e| format!("sessions file lock poisoned: {e}"))?;
+    let key = args.terminal_key.trim();
+    if key.is_empty() {
+        return Ok(());
+    }
+    let target = notifications_path_impl(&app)?;
+    let mut state = load_notifications_document(&target)?;
+    if let Some(terminals) = state.get_mut("terminals").and_then(|t| t.as_object_mut()) {
+        if let Some(entry) = terminals.get_mut(key) {
+            if let Some(obj) = entry.as_object_mut() {
+                obj.insert("unread".into(), json!(0));
+            }
+        }
     }
     atomic_write_json(&target, &state)
 }

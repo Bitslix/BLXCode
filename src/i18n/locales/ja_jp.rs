@@ -184,6 +184,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbRenameMenu => "ワークスペースの名前を変更",
         I18nKey::SbCloseWorkspaceMenu => "ワークスペースを閉じる",
         I18nKey::SbAddWorkspaceAria => "新しいワークスペースを作成する",
+        I18nKey::SbBadgeAgentAria => "{n} unread from {agent}",
         I18nKey::WzTitle => "ワークスペースの作成",
         I18nKey::WzSubLayout => "レイアウトと作業ディレクトリを選択します。",
         I18nKey::WzSubFleet => "{n} 台の端末にエージェントを割り当てます。",

@@ -27,7 +27,9 @@ use voice::{
 use workbench_state::{
     agent_session_exists, workbench_drop_sessions, workbench_extract_sessions_prefix,
     workbench_load_sessions, workbench_load_state, workbench_merge_sessions_workspace,
-    workbench_save_state, workbench_sessions_path, WorkbenchSessionsFileLock,
+    workbench_clear_terminal_notifications, workbench_load_notifications,
+    workbench_notifications_path, workbench_save_state, workbench_sessions_path,
+    WorkbenchSessionsFileLock,
 };
 
 #[tauri::command]
@@ -113,6 +115,9 @@ pub fn run() {
             workbench_drop_sessions,
             workbench_extract_sessions_prefix,
             workbench_merge_sessions_workspace,
+            workbench_notifications_path,
+            workbench_load_notifications,
+            workbench_clear_terminal_notifications,
             agent_session_exists,
             memory::memory_root,
             memory::memory_list,

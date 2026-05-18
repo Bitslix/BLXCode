@@ -31,7 +31,7 @@ This launches the Tauri app and automatically starts Trunk using the command con
 
 ## First Launch
 
-On first launch, BLXCode shows the EULA gate. Accepting it stores a local `blxcode_eula_v1` flag in browser local storage. Declining exits the app.
+On first launch, BLXCode shows the EULA gate in your detected UI language. Accepting it stores a local `blxcode_eula_v1` flag in browser local storage. Declining exits the app. BLXCode supports **14 UI locales**; see [UI Language](language.md) to change the language or review the full list.
 
 After accepting, the workbench opens. In the desktop shell, BLXCode also creates a default sandbox folder under the app data directory so the agent always has a writable fallback workspace.
 

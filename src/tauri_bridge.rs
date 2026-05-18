@@ -3,7 +3,7 @@ use crate::agent_wire::{AgentEvent, BrowserBoundsPayload, TaskSnapshot, UserTurn
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Reflect;
 use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -595,6 +595,36 @@ pub async fn workbench_sessions_path() -> Result<String, String> {
 
 pub async fn workbench_load_sessions() -> Result<Option<String>, String> {
     invoke_typed("workbench_load_sessions", serde_json::json!({})).await
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalNotification {
+    pub unread: u32,
+    pub agent: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+pub async fn workbench_notifications_path() -> Result<String, String> {
+    invoke_typed("workbench_notifications_path", serde_json::json!({})).await
+}
+
+pub async fn workbench_load_notifications(
+) -> Result<std::collections::HashMap<String, TerminalNotification>, String> {
+    invoke_typed("workbench_load_notifications", serde_json::json!({})).await
+}
+
+pub async fn workbench_clear_terminal_notifications(terminal_key: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        terminal_key: String,
+    }
+    invoke_unit_js(
+        "workbench_clear_terminal_notifications",
+        args_value(A { terminal_key })?,
+    )
+    .await
 }
 
 pub async fn workbench_drop_sessions(prefix: String) -> Result<u32, String> {

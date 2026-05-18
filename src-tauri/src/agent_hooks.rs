@@ -8,6 +8,8 @@
 //!   session start / resume; record `terminal_key -> session_id` in
 //!   `sessions.json` so blxcode can later issue `<agent> --resume <id>`
 //!   for that exact slot.
+//! - **Notify hooks** (`*_notify.py` / OpenCode plugin) — fire on agent
+//!   turn completion; increment unread counts in `notifications.json`.
 //!
 //! For OpenCode neither category exists: OpenCode loads JS/TS plugins
 //! from `~/.config/opencode/plugin/`, so we ship a single
@@ -36,6 +38,11 @@ const GEMINI_TITLE_SCRIPT: &str = "gemini_title.py";
 const GEMINI_CAPTURE_SCRIPT: &str = "gemini_session_capture.py";
 const CURSOR_TITLE_SCRIPT: &str = "cursor_title.py";
 const CURSOR_CAPTURE_SCRIPT: &str = "cursor_session_capture.py";
+const CLAUDE_NOTIFY_SCRIPT: &str = "claude_notify.py";
+const CODEX_NOTIFY_SCRIPT: &str = "codex_notify.py";
+const GEMINI_NOTIFY_SCRIPT: &str = "gemini_notify.py";
+const CURSOR_NOTIFY_SCRIPT: &str = "cursor_notify.py";
+const BLXCODE_NOTIFY_SCRIPT: &str = "blxcode_notify.py";
 const OPENCODE_PLUGIN_SCRIPT: &str = "opencode_blxcode.ts";
 
 /// OpenCode plugin source, embedded at compile time. We ship this via
@@ -54,6 +61,10 @@ const GEMINI_TITLE_MARKER: &str = "blxcode:gemini-title";
 const GEMINI_CAPTURE_MARKER: &str = "blxcode:gemini-session-capture";
 const CURSOR_TITLE_MARKER: &str = "blxcode:cursor-title";
 const CURSOR_CAPTURE_MARKER: &str = "blxcode:cursor-session-capture";
+const CLAUDE_NOTIFY_MARKER: &str = "blxcode:claude-notify";
+const CODEX_NOTIFY_MARKER: &str = "blxcode:codex-notify";
+const GEMINI_NOTIFY_MARKER: &str = "blxcode:gemini-notify";
+const CURSOR_NOTIFY_MARKER: &str = "blxcode:cursor-notify";
 
 #[cfg(target_os = "windows")]
 const PYTHON_BIN: &str = "py -3";
@@ -425,6 +436,7 @@ fn install_claude(home: &Path, hooks_dir: &Path, app: &AppHandle) -> AgentHookEn
             "startup|resume|clear",
             CLAUDE_CAPTURE_MARKER,
         ),
+        (CLAUDE_NOTIFY_SCRIPT, "Stop", "", CLAUDE_NOTIFY_MARKER),
     ] {
         match copy_script(app, script, hooks_dir) {
             Ok(path) => {
@@ -487,6 +499,20 @@ fn install_codex(home: &Path, hooks_dir: &Path, app: &AppHandle) -> AgentHookEnt
         Err(e) => notes.push(format!("codex_session_capture.py: {e}")),
     }
 
+    match copy_script(app, CODEX_NOTIFY_SCRIPT, hooks_dir) {
+        Ok(path) => {
+            last_script = Some(path.clone());
+            match patch_settings(&cfg, "Stop", "", CODEX_NOTIFY_MARKER, &path) {
+                Ok(true) => notes.push("Stop notify hook installed".into()),
+                Ok(false) => notes.push("Stop notify hook already installed".into()),
+                Err(e) => notes.push(format!("Stop notify patch failed: {e}")),
+            }
+        }
+        Err(e) => notes.push(format!("codex_notify.py: {e}")),
+    }
+
+    let _ = copy_script(app, BLXCODE_NOTIFY_SCRIPT, hooks_dir);
+
     AgentHookEntry {
         agent: "codex".into(),
         script_path: last_script.map(|p| p.to_string_lossy().into_owned()),
@@ -511,6 +537,7 @@ fn install_gemini(home: &Path, hooks_dir: &Path, app: &AppHandle) -> AgentHookEn
             "",
             GEMINI_CAPTURE_MARKER,
         ),
+        (GEMINI_NOTIFY_SCRIPT, "Stop", "", GEMINI_NOTIFY_MARKER),
     ] {
         match copy_script(app, script, hooks_dir) {
             Ok(path) => {
@@ -545,6 +572,7 @@ fn install_cursor(home: &Path, hooks_dir: &Path, app: &AppHandle) -> AgentHookEn
     for (script, event) in [
         (CURSOR_TITLE_SCRIPT, "beforeSubmitPrompt"),
         (CURSOR_CAPTURE_SCRIPT, "sessionStart"),
+        (CURSOR_NOTIFY_SCRIPT, "stop"),
     ] {
         match copy_script(app, script, hooks_dir) {
             Ok(path) => {
@@ -628,6 +656,7 @@ pub fn install_agent_hooks(app: AppHandle) -> Result<AgentHooksReport, String> {
     let home = home_dir(&app)?;
     let dir = hooks_dir(&app)?;
     ensure_dir(&dir)?;
+    let _ = copy_script(&app, BLXCODE_NOTIFY_SCRIPT, &dir);
 
     let entries = vec![
         install_claude(&home, &dir, &app),
@@ -663,25 +692,36 @@ pub fn agent_hooks_status(app: AppHandle) -> Result<AgentHooksReport, String> {
     let cursor_cfg = cursor_hooks_path(&home);
     let opencode_plugin = opencode_plugin_path(&home);
 
+    let claude_notify = dir.join(CLAUDE_NOTIFY_SCRIPT);
+    let codex_notify = dir.join(CODEX_NOTIFY_SCRIPT);
+    let gemini_notify = dir.join(GEMINI_NOTIFY_SCRIPT);
+    let cursor_notify = dir.join(CURSOR_NOTIFY_SCRIPT);
+
     let claude_installed = read_json_or_empty(&claude_cfg)
         .map(|v| {
             hook_already_installed(&v, "UserPromptSubmit", &claude_title)
                 && hook_already_installed(&v, "SessionStart", &claude_capture)
+                && hook_already_installed(&v, "Stop", &claude_notify)
         })
         .unwrap_or(false);
     let codex_installed = read_json_or_empty(&codex_cfg)
-        .map(|v| hook_already_installed(&v, "SessionStart", &codex_capture))
+        .map(|v| {
+            hook_already_installed(&v, "SessionStart", &codex_capture)
+                && hook_already_installed(&v, "Stop", &codex_notify)
+        })
         .unwrap_or(false);
     let gemini_installed = read_json_or_empty(&gemini_cfg)
         .map(|v| {
             hook_already_installed(&v, "BeforeAgent", &gemini_title)
                 && hook_already_installed(&v, "SessionStart", &gemini_capture)
+                && hook_already_installed(&v, "Stop", &gemini_notify)
         })
         .unwrap_or(false);
     let cursor_installed = read_json_or_empty(&cursor_cfg)
         .map(|v| {
             cursor_hook_already_installed(&v, "beforeSubmitPrompt", &cursor_title)
                 && cursor_hook_already_installed(&v, "sessionStart", &cursor_capture)
+                && cursor_hook_already_installed(&v, "stop", &cursor_notify)
         })
         .unwrap_or(false);
     let opencode_installed = opencode_plugin.is_file();
@@ -772,6 +812,12 @@ pub fn uninstall_agent_hooks(app: AppHandle) -> Result<AgentHooksReport, String>
         CLAUDE_CAPTURE_SCRIPT,
     );
     let _ = unpatch_settings(
+        &claude_cfg,
+        "Stop",
+        CLAUDE_NOTIFY_MARKER,
+        CLAUDE_NOTIFY_SCRIPT,
+    );
+    let _ = unpatch_settings(
         &codex_cfg,
         "UserPromptSubmit",
         "blxcode:codex-title",
@@ -782,6 +828,12 @@ pub fn uninstall_agent_hooks(app: AppHandle) -> Result<AgentHooksReport, String>
         "SessionStart",
         CODEX_CAPTURE_MARKER,
         CODEX_CAPTURE_SCRIPT,
+    );
+    let _ = unpatch_settings(
+        &codex_cfg,
+        "Stop",
+        CODEX_NOTIFY_MARKER,
+        CODEX_NOTIFY_SCRIPT,
     );
     let _ = unpatch_settings(
         &gemini_cfg,
@@ -795,6 +847,12 @@ pub fn uninstall_agent_hooks(app: AppHandle) -> Result<AgentHooksReport, String>
         GEMINI_CAPTURE_MARKER,
         GEMINI_CAPTURE_SCRIPT,
     );
+    let _ = unpatch_settings(
+        &gemini_cfg,
+        "Stop",
+        GEMINI_NOTIFY_MARKER,
+        GEMINI_NOTIFY_SCRIPT,
+    );
     let _ = unpatch_cursor_settings(
         &cursor_cfg,
         "beforeSubmitPrompt",
@@ -807,6 +865,12 @@ pub fn uninstall_agent_hooks(app: AppHandle) -> Result<AgentHooksReport, String>
         CURSOR_CAPTURE_MARKER,
         CURSOR_CAPTURE_SCRIPT,
     );
+    let _ = unpatch_cursor_settings(
+        &cursor_cfg,
+        "stop",
+        CURSOR_NOTIFY_MARKER,
+        CURSOR_NOTIFY_SCRIPT,
+    );
 
     for name in [
         CLAUDE_TITLE_SCRIPT,
@@ -817,6 +881,11 @@ pub fn uninstall_agent_hooks(app: AppHandle) -> Result<AgentHooksReport, String>
         GEMINI_CAPTURE_SCRIPT,
         CURSOR_TITLE_SCRIPT,
         CURSOR_CAPTURE_SCRIPT,
+        CLAUDE_NOTIFY_SCRIPT,
+        CODEX_NOTIFY_SCRIPT,
+        GEMINI_NOTIFY_SCRIPT,
+        CURSOR_NOTIFY_SCRIPT,
+        BLXCODE_NOTIFY_SCRIPT,
         OPENCODE_PLUGIN_SCRIPT,
     ] {
         let p = dir.join(name);
