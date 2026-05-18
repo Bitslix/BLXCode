@@ -2,3 +2,11 @@
 /target/
 /Cargo.lock
 /.venv-i18n/
+.claude/
+.codex/
+.idea/
+.vscode/
+*.log
+*.tmp
+*.bak
+*.swp

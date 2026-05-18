@@ -1,37 +1,13 @@
-use crate::auth::{AuthEnv, AuthUserBrief};
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::workbench::WorkbenchService;
-use leptos::callback::Callable;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{DragEvent, HtmlInputElement};
 
-fn initials_for(profile: Option<&AuthUserBrief>) -> String {
-    let Some(b) = profile else {
-        return "?".into();
-    };
-    let base = b.name.trim();
-    let mut words = base.split_whitespace().filter_map(|w| w.chars().next());
-    let Some(a) = words.next() else {
-        return "?".into();
-    };
-    let mut s: String = a.to_uppercase().collect();
-    if let Some(b) = words.next() {
-        s.extend(b.to_uppercase());
-    }
-    s.truncate(3);
-    s
-}
-
-fn avatar_img_url(profile: Option<&AuthUserBrief>) -> Option<String> {
-    profile?
-        .avatar_url
-        .as_ref()
-        .filter(|u| !u.trim().is_empty())
-        .cloned()
-}
+const APP_NAME: &str = "blxcode";
+const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn workspace_icon_label(title: &str, fallback_num: u64) -> String {
     let trimmed = title.trim();
@@ -58,7 +34,6 @@ fn workspace_icon_label(title: &str, fallback_num: u64) -> String {
 pub fn Sidebar() -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
-    let auth = expect_context::<AuthEnv>();
 
     let collapsed = wb.sidebar_collapsed();
     let workspaces = wb.workspaces();
@@ -286,70 +261,10 @@ pub fn Sidebar() -> impl IntoView {
             </nav>
 
             <div class="workbench-sidebar__footer">
-                <details class="sidebar-user-menu">
-                    <summary
-                        class="sidebar-user-menu__trigger"
-                        aria-label=move || i18n.tr(I18nKey::SbUserMenuAria)()
-                    >
-                        <span class="sidebar-user-menu__avatar-slot" aria-hidden="true">
-                            {move || {
-                                let p = auth.profile.get();
-                                match avatar_img_url(p.as_ref()) {
-                                    Some(url) => view! {
-                                        <img
-                                            class="sidebar-user-menu__avatar-img"
-                                            src=url
-                                            alt=""
-                                            referrerpolicy="no-referrer"
-                                            loading="lazy"
-                                        />
-                                    }
-                                    .into_any(),
-                                    None => {
-                                        let ini = initials_for(p.as_ref());
-                                        view! {
-                                            <span class="sidebar-user-menu__avatar-initials">{ini}</span>
-                                        }
-                                        .into_any()
-                                    }
-                                }
-                            }}
-                        </span>
-                        <span class="sidebar-user-menu__identity">
-                            <span class="sidebar-user-menu__name">
-                                {move || {
-                                    auth.profile.with(|p| {
-                                        p.as_ref()
-                                            .map(|x| x.name.clone())
-                                            .unwrap_or_else(|| i18n.tr(I18nKey::SbAccount)().to_string())
-                                    })
-                                }}
-                            </span>
-                            <span class="sidebar-user-menu__caret" aria-hidden="true">
-                                "▾"
-                            </span>
-                        </span>
-                    </summary>
-                    <div class="sidebar-user-menu__dropdown" role="group">
-                        <p class="sidebar-user-menu__email">
-                            {move || {
-                                auth.profile.with(|p| {
-                                    p.as_ref().and_then(|x| x.email.clone()).unwrap_or_default()
-                                })
-                            }}
-                        </p>
-                        <button
-                            type="button"
-                            class="sidebar-user-menu__signout workbench-sidebar__logout eula-btn eula-btn--ghost"
-                            on:click=move |ev| {
-                                ev.prevent_default();
-                                auth.logout.run(());
-                            }
-                        >
-                            {move || i18n.tr(I18nKey::SbSignOut)()}
-                        </button>
-                    </div>
-                </details>
+                <div class="sidebar-app-brand" aria-label=APP_NAME>
+                    <span class="sidebar-app-brand__name">{APP_NAME}</span>
+                    <span class="sidebar-app-brand__version">{format!("v{APP_VERSION}")}</span>
+                </div>
             </div>
             <Show when=move || context_menu.get().is_some()>
                 {move || {

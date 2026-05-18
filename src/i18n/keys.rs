@@ -181,29 +181,6 @@ pub enum I18nKey {
     AgHooksBusy,
     BlxLoading,
 
-    AuthGateChecking,
-    AuthLoginHeading,
-    AuthTabEmail,
-    AuthTabDevice,
-    AuthEmailLabel,
-    AuthPasswordLabel,
-    AuthSubmit,
-    AuthDeviceIntro,
-    AuthDeviceStart,
-    AuthDeviceCode,
-    /// Clipboard: Gerätecode kopieren.
-    AuthDeviceCopyAria,
-    /// Kurzfeedback nach Kopieren.
-    AuthDeviceCopied,
-
-    AuthOpenVerify,
-    AuthPolling,
-    AuthFail,
-    SbSignOut,
-    /// Steuer „Konto-Menü öffnen“ (Sidebar).
-    SbUserMenuAria,
-    /// Platzhalter, falls das Profil noch fehlt.
-    SbAccount,
     SbRenameTitle,
     SbRenameNameLabel,
     SbRenameCloseAria,

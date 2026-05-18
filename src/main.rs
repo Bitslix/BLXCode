@@ -1,6 +1,5 @@
 mod agent_wire;
 mod app;
-mod auth;
 mod config;
 mod i18n;
 mod memory_paths;
