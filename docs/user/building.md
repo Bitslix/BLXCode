@@ -27,6 +27,7 @@ Install these on every platform:
 - Trunk.
 - Cargo Tauri CLI.
 - The WebAssembly Rust target used by the Leptos frontend.
+- System audio development libraries required by `cpal` on your platform.
 
 ```bash
 rustup target add wasm32-unknown-unknown
@@ -59,7 +60,9 @@ sudo apt install libwebkit2gtk-4.1-dev \
   libxdo-dev \
   libssl-dev \
   libayatana-appindicator3-dev \
-  librsvg2-dev
+  librsvg2-dev \
+  libasound2-dev \
+  pkg-config
 ```
 
 Then build:
@@ -82,6 +85,8 @@ xcode-select --install
 
 If you plan to do iOS work too, install full Xcode instead of only Command Line Tools. For desktop-only BLXCode builds, Command Line Tools are usually enough.
 
+BLXCode's voice recorder uses the system audio stack through `cpal`; no extra Homebrew package is normally required for macOS audio capture.
+
 Then build:
 
 ```bash
@@ -101,6 +106,8 @@ Install:
 - Microsoft C++ Build Tools with **Desktop development with C++** selected.
 - Microsoft Edge WebView2 Runtime if it is not already installed.
 - Rust with the MSVC toolchain.
+
+The voice recorder uses Windows audio APIs through `cpal`, so use the MSVC Rust toolchain rather than GNU for the least surprising Tauri build path.
 
 In PowerShell, make sure Rust uses the MSVC toolchain:
 

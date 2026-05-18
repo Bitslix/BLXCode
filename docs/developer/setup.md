@@ -16,10 +16,28 @@ Install:
 - Trunk.
 - Cargo Tauri CLI.
 - Tauri 2 native system dependencies.
+- Native audio development dependencies used by the voice recorder.
 
 ```bash
 rustup target add wasm32-unknown-unknown
 cargo install trunk tauri-cli
+```
+
+On Debian or Ubuntu, the current Linux dependency set includes Tauri's WebKitGTK packages plus ALSA headers for `cpal` voice recording:
+
+```bash
+sudo apt update
+sudo apt install libwebkit2gtk-4.1-dev \
+  build-essential \
+  curl \
+  wget \
+  file \
+  libxdo-dev \
+  libssl-dev \
+  libayatana-appindicator3-dev \
+  librsvg2-dev \
+  libasound2-dev \
+  pkg-config
 ```
 
 ## Development Commands

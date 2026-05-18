@@ -6,6 +6,7 @@ Welcome to the BLXCode docs. This folder is split into user documentation for ru
 
 - [Getting Started](user/getting-started.md): install prerequisites, run BLXCode, and create your first workspace.
 - [Building](user/building.md): build BLXCode from source on Linux, macOS, and Windows.
+- [Voice](user/voice.md): configure and use speech-to-text, text-to-speech, microphone recording, and push-to-talk.
 - [Workspaces](user/workspaces.md): workspace creation, terminal grids, panes, browser tabs, and persistence.
 - [Agent Providers](user/agent-providers.md): provider selection, API keys, models, thinking levels, and hooks.
 - [Memory And Tasks](user/memory-and-tasks.md): project notes, backlinks, graph data, task storage, and agent tools.
@@ -16,6 +17,7 @@ Welcome to the BLXCode docs. This folder is split into user documentation for ru
 - [Setup](developer/setup.md): local development environment and verification commands.
 - [Architecture](developer/architecture.md): frontend/backend split, important modules, data flow, and storage.
 - [Tauri IPC](developer/tauri-ipc.md): command registration, frontend wrappers, and command groups.
+- [Voice Architecture](developer/voice.md): backend voice modules, frontend orb, settings, STT/TTS flows, and command surface.
 - [Internationalization](developer/i18n.md): locales, EULA content, and translation workflow.
 - [Contributing](developer/contributing.md): code style, project rules, testing expectations, and pull request checklist.
 

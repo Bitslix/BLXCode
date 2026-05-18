@@ -9,6 +9,7 @@ The project is designed for people who want one focused local cockpit for agent-
 - **Native desktop shell** powered by Tauri 2 with a Leptos/WASM frontend.
 - **Multi-terminal workspaces** with preset grids, split panes, recent workspaces, and persisted layout state.
 - **Agent panel** with OpenRouter, Anthropic, and OpenAI-compatible provider settings.
+- **Voice input and voice replies** with microphone STT, OpenAI/OpenRouter transcription, and OpenAI TTS playback.
 - **Sandbox-aware agent tools** for listing and reading workspace files.
 - **Workspace memory** stored as Markdown notes under `.blxcode/memory`.
 - **Workspace tasks** stored under `.blxcode/tasks`.
@@ -69,6 +70,7 @@ trunk build
 - [Documentation Home](docs/README.md)
 - [User Guide](docs/user/getting-started.md)
 - [Build From Source](docs/user/building.md)
+- [Voice: STT And TTS](docs/user/voice.md)
 - [Workspace Guide](docs/user/workspaces.md)
 - [Agent Providers](docs/user/agent-providers.md)
 - [Memory And Tasks](docs/user/memory-and-tasks.md)
@@ -76,6 +78,7 @@ trunk build
 - [Developer Setup](docs/developer/setup.md)
 - [Architecture](docs/developer/architecture.md)
 - [Tauri IPC Reference](docs/developer/tauri-ipc.md)
+- [Voice Architecture](docs/developer/voice.md)
 - [Internationalization](docs/developer/i18n.md)
 - [Contributing](docs/developer/contributing.md)
 

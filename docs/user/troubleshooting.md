@@ -41,6 +41,24 @@ On Linux, make sure a secret service such as GNOME Keyring or KWallet is availab
 
 Open provider settings, select the provider you want to use, paste an API key, save it, and retry the agent turn. Provider keys are stored per provider, so saving an Anthropic key does not configure OpenRouter or OpenAI.
 
+## Voice Recording Cannot Start
+
+Check that your system has a default input device and that BLXCode has microphone permission. In development, your OS may grant microphone permission to the terminal, shell, or built app wrapper rather than to a named BLXCode release bundle.
+
+On Linux, verify your audio stack is running and that the user session can access the microphone through PipeWire, PulseAudio, ALSA, or your distribution's configured audio backend.
+
+## STT Fails
+
+Make sure the selected STT provider has an API key saved in provider settings. OpenAI STT uses the OpenAI key; OpenRouter STT uses the OpenRouter key.
+
+If language hints seem wrong, switch voice settings from **Follow app** to **Auto detect** or enter a manual ISO language code.
+
+## TTS Does Not Play
+
+TTS currently supports OpenAI speech synthesis. Save an OpenAI key, use an OpenAI TTS model such as `gpt-4o-mini-tts`, and keep TTS autoplay enabled in voice settings.
+
+Some browsers/webviews block autoplay in edge cases. Interact with the app once and retry the voice turn.
+
 ## Terminal Starts In The Wrong Directory
 
 Check the workspace folder in the sidebar or workspace configurator. Terminal sessions spawn from the workspace `cwd`. If no workspace is selected, BLXCode uses a default sandbox under the app data directory.

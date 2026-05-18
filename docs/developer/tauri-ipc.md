@@ -31,6 +31,7 @@ Current command groups include:
 - Workbench persistence: `workbench_save_state`, `workbench_load_state`, `workbench_sessions_path`, `workbench_load_sessions`, `workbench_drop_sessions`, `workbench_extract_sessions_prefix`, `workbench_merge_sessions_workspace`, `agent_session_exists`.
 - Memory: `memory_root`, `memory_list`, `memory_read`, `memory_write`, `memory_create`, `memory_delete`, `memory_rename`, `memory_graph`, `memory_backlinks`, `memory_search`, `memory_export`, `memory_import`, `memory_install_pointers`, `memory_uninstall_pointers`, `memory_pointer_status`.
 - Tasks: `tasks_list`, `tasks_get`, `tasks_create`, `tasks_update`, `tasks_delete`, `tasks_reorder`.
+- Voice: `voice_start_recording`, `voice_stop_and_transcribe`, `voice_cancel_recording`, `voice_settings_get`, `voice_settings_save`, `voice_provider_voices`, `voice_tts_preview`.
 
 ## Command Design Guidelines
 

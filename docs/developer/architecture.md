@@ -29,6 +29,7 @@ Leptos UI
 - `src-tauri/src/workbench_state.rs`: persisted workbench snapshot/session storage.
 - `src-tauri/src/pty_host.rs`: terminal session lifecycle and PTY IO.
 - `src-tauri/src/browser_host.rs`: native or iframe browser embedding support.
+- `src-tauri/src/voice/`: microphone recording, voice settings, STT, TTS, and voice catalog.
 
 ## Agent Subsystem
 
@@ -43,6 +44,16 @@ The agent subsystem lives under `src-tauri/src/agent/`.
 - `system_prompt.rs`: shared system prompt for all providers.
 
 The frontend submits turns through `agent_submit_turn` and polls `agent_poll_events`. Tool results that need client execution are returned through `agent_submit_tool_result`.
+
+Voice-originated turns set `voice_input=true`. After the provider turn finishes, the session orchestrator can synthesize the final assistant text and emit `AgentEvent::VoiceReady` for frontend playback.
+
+## Voice Subsystem
+
+The voice subsystem lives under `src-tauri/src/voice/` with frontend support in `src/workbench/agent_panel/voice_orb/` and `src/workbench/harness_voice_pane/`.
+
+It captures microphone audio with `cpal`, writes temporary mono WAV files with `hound`, sends STT requests to OpenAI or OpenRouter, and sends TTS requests to OpenAI. Voice settings are persisted as a `voice` sub-object inside `agent_provider_settings.json` and reuse the existing provider keyring entries.
+
+See [Voice Architecture](voice.md) for the detailed flow.
 
 ## Workbench State
 

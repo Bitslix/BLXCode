@@ -18,6 +18,16 @@ If keyring access fails on Linux or another platform, BLXCode writes a fallback 
 
 The UI only displays masked API key values after save.
 
+## Voice Provider Keys
+
+Voice features reuse the same provider key storage:
+
+- STT with OpenAI uses the saved OpenAI key.
+- STT with OpenRouter uses the saved OpenRouter key.
+- TTS currently uses OpenAI and therefore needs the saved OpenAI key.
+
+For voice usage details, see [Voice: STT And TTS](voice.md).
+
 ## Thinking Levels
 
 The provider settings include a thinking level:
@@ -46,6 +56,8 @@ Workspace file tools are sandboxed to the selected workspace root. Absolute path
 The frontend submits a turn through `agent_submit_turn`. The backend starts provider work and queues events. The frontend polls `agent_poll_events` to drain events such as assistant deltas, tool calls, tool results, completion, and errors.
 
 This is a polling design rather than a push/SSE connection from backend to frontend.
+
+Voice-originated turns set a `voice_input` flag. After such a turn completes, BLXCode can synthesize the final assistant text and emit a `voice_ready` event for frontend playback.
 
 ## Hooks For External Agents
 
