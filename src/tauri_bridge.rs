@@ -190,6 +190,7 @@ pub async fn open_external_url(url: &str) -> Result<(), String> {
     invoke_unit_js("open_external_url", args_value(U { url })?).await
 }
 
+#[allow(dead_code)]
 pub async fn browser_run_js(tab_id: u64, script: &str) -> Result<(), String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
