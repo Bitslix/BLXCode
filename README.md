@@ -30,7 +30,17 @@ BLXCode is early-stage open source software. Core desktop, workspace, memory, ta
 
 ## Screenshots
 
-Screenshots are not committed yet. If you are contributing, a good first docs improvement is adding current images of the workbench, workspace wizard, memory panel, and provider settings panel.
+<p align="center">
+  <img src="docs/images/screenshot-2026-05-18_17-45-25.png" alt="BLXCode start screen with recent workspace and embedded browser" width="920" />
+</p>
+
+| Workspace Setup | Agent Fleet |
+|---|---|
+| <img src="docs/images/screenshot-2026-05-18_17-45-40.png" alt="Create workspace layout and working directory step" /> | <img src="docs/images/screenshot-2026-05-18_17-45-53.png" alt="Assign AI agent fleet across workspace terminals" /> |
+
+| Terminal Grid | Agent And Tasks |
+|---|---|
+| <img src="docs/images/screenshot-2026-05-18_17-46-07.png" alt="Four-terminal workspace grid running Claude Code sessions" /> | <img src="docs/images/screenshot-2026-05-18_17-46-39.png" alt="Workspace terminals beside the BLXCode agent panel and task context" /> |
 
 ## Quick Start
 
