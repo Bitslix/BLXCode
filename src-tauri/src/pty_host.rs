@@ -5,8 +5,9 @@ use serde::Serialize;
 use std::collections::{HashMap, VecDeque};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
+use std::time::Duration;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,6 +30,7 @@ struct PtySession {
     child: Mutex<Box<dyn portable_pty::Child + Send + Sync>>,
     writer: Mutex<Box<dyn Write + Send>>,
     queue: Arc<Mutex<VecDeque<Vec<u8>>>>,
+    output_ready: Arc<Condvar>,
     /// Non-destructive rolling tail of recent output. Filled in parallel
     /// with `queue` by the reader thread so the agent can `peek` without
     /// stealing bytes from the live terminal view.
@@ -94,6 +96,8 @@ impl PtyManager {
 
         let queue: Arc<Mutex<VecDeque<Vec<u8>>>> = Arc::new(Mutex::new(VecDeque::new()));
         let q_reader = Arc::clone(&queue);
+        let output_ready = Arc::new(Condvar::new());
+        let output_ready_reader = Arc::clone(&output_ready);
         let tail: Arc<Mutex<VecDeque<u8>>> =
             Arc::new(Mutex::new(VecDeque::with_capacity(TAIL_CAP_BYTES)));
         let tail_reader = Arc::clone(&tail);
@@ -109,6 +113,7 @@ impl PtyManager {
                     child: Mutex::new(child),
                     writer: Mutex::new(writer),
                     queue: Arc::clone(&queue),
+                    output_ready: Arc::clone(&output_ready),
                     tail: Arc::clone(&tail),
                 },
             );
@@ -137,11 +142,16 @@ impl PtyManager {
                             while q.len() > MAX_QUEUED {
                                 q.pop_front();
                             }
+                            output_ready_reader.notify_all();
                         }
                     }
-                    Err(_) => break,
+                    Err(_) => {
+                        output_ready_reader.notify_all();
+                        break;
+                    }
                 }
             }
+            output_ready_reader.notify_all();
         });
 
         Ok(id)
@@ -183,24 +193,39 @@ impl PtyManager {
             .sessions
             .get(&session_id)
             .ok_or_else(|| "unknown session".to_string())?;
-        let mut out: Vec<u8> = Vec::new();
         let cap = max_bytes.max(1).min(65536);
-        if let Ok(mut q) = s.queue.lock() {
-            while out.len() < cap {
-                let Some(chunk) = q.pop_front() else {
-                    break;
-                };
-                let remain = cap - out.len();
-                if chunk.len() <= remain {
-                    out.extend_from_slice(&chunk);
-                } else {
-                    out.extend_from_slice(&chunk[..remain]);
-                    let rest = chunk[remain..].to_vec();
-                    q.push_front(rest);
-                    break;
-                }
-            }
+        let mut q = s.queue.lock().map_err(|_| "queue lock")?;
+        let out = drain_queue(&mut q, cap);
+        Ok(base64::engine::general_purpose::STANDARD.encode(out))
+    }
+
+    /// Drain output, waiting briefly in the backend for the PTY reader
+    /// thread to produce data. This avoids frontend timer polling becoming
+    /// the thing that "starts" terminals after a GUI event.
+    pub fn drain_output_wait(
+        &self,
+        session_id: u64,
+        max_bytes: usize,
+        timeout_ms: u64,
+    ) -> Result<String, String> {
+        let (queue, output_ready) = {
+            let g = self.inner.lock().map_err(|_| "pty lock")?;
+            let s = g
+                .sessions
+                .get(&session_id)
+                .ok_or_else(|| "unknown session".to_string())?;
+            (Arc::clone(&s.queue), Arc::clone(&s.output_ready))
+        };
+        let cap = max_bytes.max(1).min(65536);
+        let mut q = queue.lock().map_err(|_| "queue lock")?;
+        if q.is_empty() && timeout_ms > 0 {
+            let timeout = Duration::from_millis(timeout_ms.min(5_000));
+            let (guard, _) = output_ready
+                .wait_timeout(q, timeout)
+                .map_err(|_| "queue lock")?;
+            q = guard;
         }
+        let out = drain_queue(&mut q, cap);
         Ok(base64::engine::general_purpose::STANDARD.encode(out))
     }
 
@@ -235,6 +260,25 @@ impl PtyManager {
         }
         Ok(())
     }
+}
+
+fn drain_queue(q: &mut VecDeque<Vec<u8>>, cap: usize) -> Vec<u8> {
+    let mut out: Vec<u8> = Vec::new();
+    while out.len() < cap {
+        let Some(chunk) = q.pop_front() else {
+            break;
+        };
+        let remain = cap - out.len();
+        if chunk.len() <= remain {
+            out.extend_from_slice(&chunk);
+        } else {
+            out.extend_from_slice(&chunk[..remain]);
+            let rest = chunk[remain..].to_vec();
+            q.push_front(rest);
+            break;
+        }
+    }
+    out
 }
 
 fn home_dir_string() -> Option<String> {

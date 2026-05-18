@@ -324,6 +324,16 @@ pub fn pty_drain(
 }
 
 #[tauri::command]
+pub async fn pty_drain_wait(
+    manager: State<'_, PtyManager>,
+    session_id: u64,
+    max_bytes: usize,
+    timeout_ms: u64,
+) -> Result<String, String> {
+    manager.drain_output_wait(session_id, max_bytes, timeout_ms)
+}
+
+#[tauri::command]
 pub fn pty_peek_output(
     manager: State<'_, PtyManager>,
     session_id: u64,

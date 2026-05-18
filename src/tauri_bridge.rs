@@ -509,12 +509,25 @@ struct PtyDrainArgs {
     max_bytes: usize,
 }
 
-pub async fn pty_drain(session_id: u64, max_bytes: usize) -> Result<String, String> {
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PtyDrainWaitArgs {
+    session_id: u64,
+    max_bytes: usize,
+    timeout_ms: u64,
+}
+
+pub async fn pty_drain_wait(
+    session_id: u64,
+    max_bytes: usize,
+    timeout_ms: u64,
+) -> Result<String, String> {
     invoke_typed(
-        "pty_drain",
-        PtyDrainArgs {
+        "pty_drain_wait",
+        PtyDrainWaitArgs {
             session_id,
             max_bytes,
+            timeout_ms,
         },
     )
     .await

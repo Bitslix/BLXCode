@@ -1,7 +1,7 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_session_exists, git_branch, is_tauri_shell, pty_drain, pty_kill, pty_resize,
+    agent_session_exists, git_branch, is_tauri_shell, pty_drain_wait, pty_kill, pty_resize,
     pty_spawn_with_env, pty_write, workbench_drop_sessions, workbench_load_sessions,
     workbench_sessions_path,
 };
@@ -14,10 +14,7 @@ use leptos::callback::{Callable, Callback};
 use leptos::html;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc, Mutex,
-};
+use std::sync::{Arc, Mutex};
 use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
 
@@ -58,7 +55,6 @@ pub fn WorkspaceTerminalCell(
     let active = RwSignal::new(false);
     let node_ref = NodeRef::<html::Div>::new();
     let state: Arc<Mutex<CellState>> = Arc::new(Mutex::new(CellState::default()));
-    let initial_pty_output_seen = Arc::new(AtomicBool::new(false));
     let branch = RwSignal::new(None::<String>);
     let initial_title = title.clone();
     let dynamic_title = RwSignal::new(initial_title);
@@ -98,7 +94,6 @@ pub fn WorkspaceTerminalCell(
         let i18n = i18n.clone();
         let state = state.clone();
         let load_failed = load_failed.clone();
-        let initial_pty_output_seen = initial_pty_output_seen.clone();
         let terminal_key = terminal_key.clone();
         move |container| {
             // Start only after Leptos has attached the actual terminal node.
@@ -123,7 +118,6 @@ pub fn WorkspaceTerminalCell(
                 let i18n = i18n.clone();
                 let state = state.clone();
                 let load_failed = load_failed.clone();
-                let initial_pty_output_seen = initial_pty_output_seen.clone();
                 let terminal_key = terminal_key.clone();
                 async move {
                     // Wait for xterm.js to load (up to 6 s)
@@ -146,9 +140,7 @@ pub fn WorkspaceTerminalCell(
                     };
                     state.lock().expect("cell").term_id = Some(tid);
 
-                    // Allow one browser frame so CSS layout is settled before fit()
-                    TimeoutFuture::new(50).await;
-                    let initial_size = terminal_fit(tid);
+                    let initial_size = terminal_request_fit(tid).or_else(|| terminal_fit(tid));
 
                     let pty_sid = if is_tauri_shell() {
                         // Phase 2 resume plumbing: inject env so the agent's
@@ -175,17 +167,13 @@ pub fn WorkspaceTerminalCell(
 
                                 let state2 = state.clone();
                                 let i18n2 = i18n.clone();
-                                let initial_pty_output_seen2 = initial_pty_output_seen.clone();
                                 leptos::task::spawn_local(async move {
                                     loop {
-                                        TimeoutFuture::new(35).await;
                                         if state2.lock().expect("cell").disposed {
                                             break;
                                         }
-                                        match pty_drain(sid, 65536).await {
+                                        match pty_drain_wait(sid, 65536, 250).await {
                                             Ok(b64) if !b64.is_empty() => {
-                                                initial_pty_output_seen2
-                                                    .store(true, Ordering::Relaxed);
                                                 if let Some(t) =
                                                     state2.lock().expect("cell").term_id
                                                 {
@@ -220,13 +208,6 @@ pub fn WorkspaceTerminalCell(
                                 if !slug.is_empty() {
                                     let resume_id =
                                         lookup_resume_session(&terminal_key, &slug, &cwd).await;
-                                    for _ in 0..30u8 {
-                                        if initial_pty_output_seen.load(Ordering::Relaxed) {
-                                            break;
-                                        }
-                                        TimeoutFuture::new(25).await;
-                                    }
-                                    TimeoutFuture::new(50).await;
                                     let should_launch = {
                                         let mut st = state.lock().expect("cell");
                                         if st.launch_sent {
