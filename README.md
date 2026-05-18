@@ -5,7 +5,7 @@
 ![Tauri](https://img.shields.io/badge/Tauri-2-24c8db?style=for-the-badge&logo=tauri&logoColor=white)
 ![Leptos](https://img.shields.io/badge/Leptos-0.7-ef3939?style=for-the-badge)
 ![Platforms](https://img.shields.io/badge/Linux%20%7C%20macOS%20%7C%20Windows-desktop-2f334d?style=for-the-badge)
-![Status](https://img.shields.io/badge/status-early%20stage-8a7cff?style=for-the-badge)
+![Status](https://img.shields.io/badge/status-ready-8a7cff?style=for-the-badge)
 
 **BLXCode** is an open-source desktop workbench for running AI coding agents beside real terminals, project memory, tasks, and an embedded browser. It is built with **Tauri 2**, **Rust**, **Leptos**, and **Trunk**.
 

@@ -178,8 +178,25 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                 class="ws-term-grid"
                 style=move || {
                     let full = full_size_terminal.get().is_some();
-                    let rows = if full { "minmax(0,1fr)".to_string() } else { fr_template(&row_fr.get()) };
-                    let cols = if full { "minmax(0,1fr)".to_string() } else { fr_template(&col_fr.get()) };
+                    // Derive the authoritative track count from the
+                    // workspace itself; row_fr/col_fr only carry user-driven
+                    // resize fractions. If the cached fractions don't match
+                    // the current row/col count (e.g. right after wizard
+                    // commit, before the sync Effect fires), fall back to
+                    // even 1.0 fractions instead of rendering a stale
+                    // template. Without this fallback the grid renders the
+                    // old N×M layout, CSS auto-flow pushes children into
+                    // implicit rows at `auto` height, terminals collapse to
+                    // header-only, and xterm.fit() returns 0×0 — which makes
+                    // the spawned agent (claude/codex) see a broken TTY.
+                    let ws_rows = workspace.get().map(|w| w.grid_rows as usize).unwrap_or(1);
+                    let ws_cols = workspace.get().map(|w| w.grid_cols as usize).unwrap_or(1);
+                    let rf = row_fr.get();
+                    let cf = col_fr.get();
+                    let row_frac = if rf.len() == ws_rows { rf } else { vec![1.0; ws_rows] };
+                    let col_frac = if cf.len() == ws_cols { cf } else { vec![1.0; ws_cols] };
+                    let rows = if full { "minmax(0,1fr)".to_string() } else { fr_template(&row_frac) };
+                    let cols = if full { "minmax(0,1fr)".to_string() } else { fr_template(&col_frac) };
                     format!(
                         "display:grid;grid-template-rows:{rows};grid-template-columns:{cols};gap:4px;"
                     )
