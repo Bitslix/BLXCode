@@ -480,12 +480,6 @@ pub fn workbench_extract_sessions_prefix(
     serde_json::to_string(&out).map_err(|e| e.to_string())
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PruneSessionsArgs {
-    pub valid_terminal_keys: Vec<String>,
-}
-
 /// Drop `sessions.json` terminal entries whose key has no matching slot
 /// in any open workspace. Mirrors `workbench_prune_notifications`. Used
 /// to wipe legacy numeric-prefix keys after the storage_key (UUID)
@@ -494,14 +488,14 @@ pub struct PruneSessionsArgs {
 #[tauri::command]
 pub fn workbench_prune_sessions(
     app: AppHandle,
-    args: PruneSessionsArgs,
+    valid_terminal_keys: Vec<String>,
     lock: tauri::State<'_, WorkbenchSessionsFileLock>,
 ) -> Result<(), String> {
     let _guard = lock
         .0
         .lock()
         .map_err(|e| format!("sessions file lock poisoned: {e}"))?;
-    let valid: std::collections::HashSet<String> = args.valid_terminal_keys.into_iter().collect();
+    let valid: std::collections::HashSet<String> = valid_terminal_keys.into_iter().collect();
     let target = sessions_path_impl(&app)?;
     let mut state = load_sessions_document(&target)?;
     let mut changed = false;
@@ -633,43 +627,27 @@ pub fn workbench_load_notifications(
     Ok(out)
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ClearTerminalNotificationsArgs {
-    pub terminal_key: String,
-}
-
 /// Clears unread for one terminal slot (focus-only UX in the workbench).
 #[tauri::command]
 pub fn workbench_clear_terminal_notifications(
     app: AppHandle,
-    args: ClearTerminalNotificationsArgs,
+    terminal_key: String,
     lock: tauri::State<'_, WorkbenchSessionsFileLock>,
 ) -> Result<(), String> {
     let _guard = lock
         .0
         .lock()
         .map_err(|e| format!("sessions file lock poisoned: {e}"))?;
-    let key = args.terminal_key.trim();
+    let key = terminal_key.trim();
     if key.is_empty() {
         return Ok(());
     }
     let target = notifications_path_impl(&app)?;
     let mut state = load_notifications_document(&target)?;
     if let Some(terminals) = state.get_mut("terminals").and_then(|t| t.as_object_mut()) {
-        if let Some(entry) = terminals.get_mut(key) {
-            if let Some(obj) = entry.as_object_mut() {
-                obj.insert("unread".into(), json!(0));
-            }
-        }
+        terminals.remove(key);
     }
     atomic_write_json(&target, &state)
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct PruneNotificationsArgs {
-    pub valid_terminal_keys: Vec<String>,
 }
 
 /// Drop notification entries whose terminal key no longer exists in any
@@ -680,14 +658,14 @@ pub struct PruneNotificationsArgs {
 #[tauri::command]
 pub fn workbench_prune_notifications(
     app: AppHandle,
-    args: PruneNotificationsArgs,
+    valid_terminal_keys: Vec<String>,
     lock: tauri::State<'_, WorkbenchSessionsFileLock>,
 ) -> Result<(), String> {
     let _guard = lock
         .0
         .lock()
         .map_err(|e| format!("sessions file lock poisoned: {e}"))?;
-    let valid: std::collections::HashSet<String> = args.valid_terminal_keys.into_iter().collect();
+    let valid: std::collections::HashSet<String> = valid_terminal_keys.into_iter().collect();
     let target = notifications_path_impl(&app)?;
     let mut state = load_notifications_document(&target)?;
     let mut changed = false;

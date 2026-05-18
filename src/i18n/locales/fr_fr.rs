@@ -3,7 +3,7 @@ use crate::i18n::I18nKey;
 #[must_use]
 pub fn msg(key: I18nKey) -> &'static str {
     match key {
-        I18nKey::Decline => "Refuser",
+        I18nKey::Decline => "Déclin",
         I18nKey::Accept => "Accepter",
         I18nKey::BtnClose => "Fermer",
         I18nKey::BtnApply => "Appliquer",
@@ -11,7 +11,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsAria => "Espace de travail",
         I18nKey::WsEmptyTitle => "Aucun espace de travail ouvert",
         I18nKey::WsEmptyLead => {
-            "Choisissez un espace de travail dans la barre latérale ou rouvrez-en un récent dans la liste ci-dessous."
+            "Choisissez un espace de travail dans la barre latérale ou rouvrez un espace de travail récent dans la liste ci-dessous."
         }
         I18nKey::WsEmptyNote => {
             "Ouvrez le panneau de droite pour l'agent, la mémoire de l'espace de travail et le navigateur intégré."
@@ -30,7 +30,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::QkHint => "↑↓ pour sélectionner · Enter pour ouvrir · Esc pour fermer",
         I18nKey::QkRecentHeading => "Récent",
         I18nKey::QkEmptyRecent => "Aucun espace de travail récent pour l'instant.",
-        I18nKey::QkRecentRemoveAria => "Retirer des espaces de travail récents",
+        I18nKey::QkRecentRemoveAria => "Supprimer des espaces de travail récents",
         I18nKey::QkPathPh => "/absolu/chemin/vers/projet",
         I18nKey::QkPathOpen => "Chemin ouvert",
         I18nKey::QkNewWorkspace => "Nouvel assistant d’espace de travail…",
@@ -80,9 +80,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgSend => "Envoyer",
         I18nKey::AgCancel => "Annuler",
         I18nKey::AgResetChat => "Réinitialiser le chat",
-        I18nKey::AgResetChatAria => {
-            "Effacer la vue du chat et l’historique de conversation du modèle sur le serveur"
-        }
+        I18nKey::AgResetChatAria => "Effacer la vue du chat et l'historique des conversations modèles sur le serveur",
         I18nKey::AgErrNeedPrompt => "Veuillez saisir une invite.",
         I18nKey::AgYou => "Toi",
         I18nKey::AgAssistant => "Agent",
@@ -98,7 +96,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgBadgeReady => "Prêt",
         I18nKey::AgBadgeLive => "En direct",
         I18nKey::AgWelcomeBody => {
-            "Salut, je suis l'agent BLXCode. Je peux lire des fichiers, gérer les tâches de l'espace de travail, rechercher la mémoire de l'espace de travail et ouvrir des terminaux pour vous. Envoyez une invite pour commencer."
+            "Hi — I'm the BLXCode agent. Je peux lire des fichiers, gérer les tâches de l'espace de travail, rechercher la mémoire de l'espace de travail et ouvrir des terminaux pour vous. Send a prompt to get started."
         }
         I18nKey::BrToolbarAria => "Navigateur intégré",
         I18nKey::BrBack => "Dos",
@@ -133,7 +131,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatApp => "Application",
         I18nKey::HsCatWorkspace => "Espace de travail",
         I18nKey::HsCatProvider => "Fournisseur d'agents",
-        I18nKey::HsCatVoice => "Voice",
+        I18nKey::HsCatVoice => "Voix",
         I18nKey::AppHeading => "Application",
         I18nKey::GenEulaStatus => "Statut du CLUF",
         I18nKey::AppLanguage => "Langue de l'interface utilisateur",
@@ -183,14 +181,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgHooksStatusMissing => "non installé",
         I18nKey::AgHooksStatusUnknown => "inconnu",
         I18nKey::AgHooksBusy => "Fonctionnement…",
-        I18nKey::BlxLoading => "Chargement …",        I18nKey::SbRenameTitle => "Renommer l'espace de travail",
+        I18nKey::BlxLoading => "Chargement …",
+        I18nKey::SbRenameTitle => "Renommer l'espace de travail",
         I18nKey::SbRenameNameLabel => "Nom de l'espace de travail",
         I18nKey::SbRenameCloseAria => "Fermer la boîte de dialogue de renommage",
         I18nKey::SbRenameSubmit => "Rebaptiser",
         I18nKey::SbRenameMenu => "Renommer l'espace de travail",
         I18nKey::SbCloseWorkspaceMenu => "Fermer l'espace de travail",
         I18nKey::SbAddWorkspaceAria => "Créer un nouvel espace de travail",
-        I18nKey::SbBadgeTotalAria => "{n} unread in workspace",
+        I18nKey::SbBadgeTotalAria => "{n} non lu dans l'espace de travail",
         I18nKey::WzTitle => "Créer un espace de travail",
         I18nKey::WzSubLayout => "Choisissez la mise en page et le répertoire de travail.",
         I18nKey::WzSubFleet => "Attribuez des agents pour {n} terminaux.",
@@ -268,57 +267,51 @@ pub fn msg(key: I18nKey) -> &'static str {
         }
         I18nKey::EulaAccepted => "Accepté",
         I18nKey::EulaUnknown => "Inconnu",
-
-        I18nKey::VoicePaneTitle => "Voice",
-        I18nKey::VoiceSttSection => "Speech-to-Text",
-        I18nKey::VoiceTtsSection => "Text-to-Speech",
-        I18nKey::VoiceBehaviorSection => "Behavior",
-        I18nKey::VoiceLanguageSection => "Language",
-        I18nKey::VoicePttSection => "Push-to-Talk",
-        I18nKey::VoiceProviderField => "Provider",
-        I18nKey::VoiceModelField => "Model",
-        I18nKey::VoiceVoiceField => "Voice",
-        I18nKey::VoiceGenderAll => "All",
-        I18nKey::VoiceGenderMale => "Male",
-        I18nKey::VoiceGenderFemale => "Female",
-        I18nKey::VoiceGenderNeutral => "Neutral",
-        I18nKey::VoiceQualityField => "Recording quality",
-        I18nKey::VoiceQualityLow => "Low — 16 kHz",
-        I18nKey::VoiceQualityStandard => "Standard — 24 kHz",
-        I18nKey::VoiceQualityHigh => "High — 48 kHz",
+        I18nKey::VoicePaneTitle => "Voix",
+        I18nKey::VoiceSttSection => "Parole en texte",
+        I18nKey::VoiceTtsSection => "Synthèse vocale",
+        I18nKey::VoiceBehaviorSection => "Comportement",
+        I18nKey::VoiceLanguageSection => "Langue",
+        I18nKey::VoicePttSection => "Appuyer pour parler",
+        I18nKey::VoiceProviderField => "Fournisseur",
+        I18nKey::VoiceModelField => "Modèle",
+        I18nKey::VoiceVoiceField => "Voix",
+        I18nKey::VoiceGenderAll => "Tous",
+        I18nKey::VoiceGenderMale => "Mâle",
+        I18nKey::VoiceGenderFemale => "Femelle",
+        I18nKey::VoiceGenderNeutral => "Neutre",
+        I18nKey::VoiceQualityField => "Qualité d'enregistrement",
+        I18nKey::VoiceQualityLow => "Faible — 16 kHz",
+        I18nKey::VoiceQualityStandard => "Norme — 24 kHz",
+        I18nKey::VoiceQualityHigh => "Élevé – 48 kHz",
         I18nKey::VoiceQualityHint => {
-            "Higher quality barely improves recognition but increases upload size and noticeably slows transcription."
+            "Une qualité supérieure améliore à peine la reconnaissance, mais augmente la taille du téléchargement et ralentit sensiblement la transcription."
         }
-        I18nKey::VoiceQualitySizeEstimate => "≈ {kb} KB per 10 s",
-        I18nKey::VoicePostSttFlow => "After transcription",
-        I18nKey::VoicePostSttAutoSend => "Auto-send to agent",
-        I18nKey::VoicePostSttDraft => "Drop into compose field",
-        I18nKey::VoiceTtsEnabled => "Speak agent replies",
-        I18nKey::VoiceTtsAutoplayHint => {
-            "Only plays when the turn was started by voice."
-        }
-        I18nKey::VoiceTtsLangAutoNote => {
-            "TTS detects the language automatically from the reply text."
-        }
-        I18nKey::VoiceSttLangMode => "Input language (STT)",
-        I18nKey::VoiceSttLangFollowApp => "Follow app language",
-        I18nKey::VoiceSttLangAutoDetect => "Auto-detect",
-        I18nKey::VoiceSttLangManual => "Manual",
-        I18nKey::VoicePttEnabled => "Enable push-to-talk hotkey",
-        I18nKey::VoicePttHotkey => "Hotkey",
-        I18nKey::VoicePttRecorderHint => "Press a key…",
-        I18nKey::VoicePttConflictWarn => "Conflicts with another app shortcut.",
-        I18nKey::VoicePreviewBtn => "Sample",
-        I18nKey::VoicePreviewText => "Hello, this is a voice preview.",
-        I18nKey::VoiceKeyReused => "Reused key from {provider}",
-        I18nKey::VoiceKeyMissing => "No API key set for {provider}",
-        I18nKey::VoiceSaveDone => "Voice settings saved",
-        I18nKey::VoiceOrbAriaIdle => "Voice — click to record",
-        I18nKey::VoiceOrbAriaRecording => "Recording — click or release to stop",
-        I18nKey::VoiceOrbAriaTranscribing => "Transcribing…",
-        I18nKey::VoiceOrbCancelHint => "ESC cancels the recording",
-        I18nKey::VoiceErrNoMic => "Microphone not available.",
-        I18nKey::VoiceErrStt => "Transcription failed: {message}",
-
+        I18nKey::VoiceQualitySizeEstimate => "≈ {ko} Ko toutes les 10 s",
+        I18nKey::VoicePostSttFlow => "Après transcription",
+        I18nKey::VoicePostSttAutoSend => "Envoi automatique à l'agent",
+        I18nKey::VoicePostSttDraft => "Déposez dans le champ de rédaction",
+        I18nKey::VoiceTtsEnabled => "Parler des réponses de l'agent",
+        I18nKey::VoiceTtsAutoplayHint => "Joue uniquement lorsque le tour a été démarré vocalement.",
+        I18nKey::VoiceTtsLangAutoNote => "TTS détecte automatiquement la langue à partir du texte de réponse.",
+        I18nKey::VoiceSttLangMode => "Langue d'entrée (STT)",
+        I18nKey::VoiceSttLangFollowApp => "Suivre la langue de l'application",
+        I18nKey::VoiceSttLangAutoDetect => "Détection automatique",
+        I18nKey::VoiceSttLangManual => "Manuel",
+        I18nKey::VoicePttEnabled => "Activer le raccourci clavier Push-to-Talk",
+        I18nKey::VoicePttHotkey => "Raccourci clavier",
+        I18nKey::VoicePttRecorderHint => "Appuyez sur une touche…",
+        I18nKey::VoicePttConflictWarn => "Conflit avec un autre raccourci d'application.",
+        I18nKey::VoicePreviewBtn => "Échantillon",
+        I18nKey::VoicePreviewText => "Bonjour, ceci est un aperçu vocal.",
+        I18nKey::VoiceKeyReused => "Clé réutilisée de {provider}",
+        I18nKey::VoiceKeyMissing => "Aucune clé API définie pour {provider}",
+        I18nKey::VoiceSaveDone => "Paramètres vocaux enregistrés",
+        I18nKey::VoiceOrbAriaIdle => "Voix — cliquez pour enregistrer",
+        I18nKey::VoiceOrbAriaRecording => "Enregistrement — cliquez ou relâchez pour arrêter",
+        I18nKey::VoiceOrbAriaTranscribing => "Transcription…",
+        I18nKey::VoiceOrbCancelHint => "ESC annule l'enregistrement",
+        I18nKey::VoiceErrNoMic => "Micro non disponible.",
+        I18nKey::VoiceErrStt => "Échec de la transcription : {message}",
     }
 }

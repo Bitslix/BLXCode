@@ -688,7 +688,7 @@ impl WorkbenchService {
             leptos::task::spawn_local(async move {
                 let _ =
                     crate::tauri_bridge::workbench_clear_terminal_notifications(key.clone()).await;
-                // Backend confirmed disk-write to `unread: 0`. Any future
+                // Backend finished the disk clear. Any future
                 // notify hook firing for this terminal must be allowed
                 // through the next poll — drop the suppression entry now,
                 // otherwise the poller keeps stripping fresh notifications

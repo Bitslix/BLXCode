@@ -184,9 +184,10 @@ pub fn terminal_observe_workspace_grid(container: &HtmlElement, workspace_id: u6
     let Ok(root) = Reflect::get(&w, &wasm_bindgen::JsValue::from_str("__blxcodeTerminal")) else {
         return;
     };
-    let Ok(observe) =
-        Reflect::get(&root, &wasm_bindgen::JsValue::from_str("observeWorkspaceGrid"))
-    else {
+    let Ok(observe) = Reflect::get(
+        &root,
+        &wasm_bindgen::JsValue::from_str("observeWorkspaceGrid"),
+    ) else {
         return;
     };
     if let Some(f) = observe.dyn_ref::<Function>() {
@@ -205,9 +206,10 @@ pub fn terminal_unobserve_workspace_grid(workspace_id: u64) {
     let Ok(root) = Reflect::get(&w, &wasm_bindgen::JsValue::from_str("__blxcodeTerminal")) else {
         return;
     };
-    let Ok(unobserve) =
-        Reflect::get(&root, &wasm_bindgen::JsValue::from_str("unobserveWorkspaceGrid"))
-    else {
+    let Ok(unobserve) = Reflect::get(
+        &root,
+        &wasm_bindgen::JsValue::from_str("unobserveWorkspaceGrid"),
+    ) else {
         return;
     };
     if let Some(f) = unobserve.dyn_ref::<Function>() {
