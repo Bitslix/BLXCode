@@ -406,13 +406,30 @@ pub fn WorkspaceTerminalCell(
                 let wb = wb;
                 move |_| wb.focus_terminal(terminal_key.clone())
             }
+            on:click={
+                let terminal_key = terminal_key.clone();
+                let wb = wb;
+                move |_| wb.focus_terminal(terminal_key.clone())
+            }
             on:focusin={
                 let terminal_key = terminal_key.clone();
                 let wb = wb;
                 move |_| wb.focus_terminal(terminal_key.clone())
             }
         >
-            <div class="ws-term-cell__head">
+            <div
+                class="ws-term-cell__head"
+                on:mousedown={
+                    let terminal_key = terminal_key.clone();
+                    let wb = wb;
+                    move |_| wb.focus_terminal(terminal_key.clone())
+                }
+                on:click={
+                    let terminal_key = terminal_key.clone();
+                    let wb = wb;
+                    move |_| wb.focus_terminal(terminal_key.clone())
+                }
+            >
                 <span class="ws-term-cell__title">{move || dynamic_title.get()}</span>
                 <Show when=move || branch.with(|b| b.is_some())>
                     <span class="ws-term-cell__branch">
@@ -483,7 +500,20 @@ pub fn WorkspaceTerminalCell(
             <Show when=move || load_failed.get()>
                 <p class="ws-term-cell__boot-fail">{move || i18n.tr(I18nKey::WsTermBootstrapFailed)()}</p>
             </Show>
-            <div class="ws-term-cell__xterm" node_ref=node_ref></div>
+            <div
+                class="ws-term-cell__xterm"
+                node_ref=node_ref
+                on:mousedown={
+                    let terminal_key = terminal_key.clone();
+                    let wb = wb;
+                    move |_| wb.focus_terminal(terminal_key.clone())
+                }
+                on:click={
+                    let terminal_key = terminal_key.clone();
+                    let wb = wb;
+                    move |_| wb.focus_terminal(terminal_key.clone())
+                }
+            ></div>
         </div>
     }
 }

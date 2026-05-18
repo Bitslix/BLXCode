@@ -705,6 +705,55 @@ impl WorkbenchService {
         }
     }
 
+    fn agent_slug_for_terminal_key(&self, key: &str) -> Option<String> {
+        let storage_key = super::agent_accent::terminal_key_storage_key(key)?;
+        let slot_id = key.split(':').nth(1)?.parse::<u64>().ok()?;
+        self.workspaces.with_untracked(|list| {
+            let ws = list.iter().find(|w| w.storage_key == storage_key)?;
+            let idx = ws.slot_ids.iter().position(|&id| id == slot_id)?;
+            ws.slot_agent_labels
+                .get(idx)
+                .map(|s| s.trim().to_ascii_lowercase())
+                .filter(|s| !s.is_empty())
+        })
+    }
+
+    fn notification_ack_keys_for_terminal(&self, terminal_key: &str) -> Vec<String> {
+        let mut keys = vec![terminal_key.to_string()];
+        let Some(storage_key) = super::agent_accent::terminal_key_storage_key(terminal_key) else {
+            return keys;
+        };
+        let Some(agent_slug) = self.agent_slug_for_terminal_key(terminal_key) else {
+            return keys;
+        };
+        self.workspaces.with_untracked(|list| {
+            let Some(ws) = list.iter().find(|w| w.storage_key == storage_key) else {
+                return;
+            };
+            for (idx, &slot_id) in ws.slot_ids.iter().enumerate() {
+                let slot_agent = ws
+                    .slot_agent_labels
+                    .get(idx)
+                    .map(|s| s.trim().to_ascii_lowercase())
+                    .unwrap_or_default();
+                if slot_agent != agent_slug {
+                    continue;
+                }
+                let panes = ws
+                    .slot_pane_states
+                    .get(idx)
+                    .map(|state| state.pane_ids.clone())
+                    .unwrap_or_else(|| SlotPaneState::default_for_slot(slot_id).pane_ids);
+                for pane_id in panes {
+                    keys.push(format!("{}:{}:{}", ws.storage_key, slot_id, pane_id));
+                }
+            }
+        });
+        keys.sort();
+        keys.dedup();
+        keys
+    }
+
     #[must_use]
     pub fn is_terminal_focused(&self, terminal_key: &str) -> bool {
         let Some(storage_key) = super::agent_accent::terminal_key_storage_key(terminal_key) else {
@@ -725,7 +774,9 @@ impl WorkbenchService {
         let Some(storage_key) = super::agent_accent::terminal_key_storage_key(&terminal_key) else {
             return;
         };
-        self.clear_terminal_notifications(&terminal_key);
+        for key in self.notification_ack_keys_for_terminal(&terminal_key) {
+            self.clear_terminal_notifications(&key);
+        }
         self.focused_terminal_by_workspace.update(|m| {
             m.insert(storage_key, terminal_key);
         });
