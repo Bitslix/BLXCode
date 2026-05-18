@@ -789,13 +789,15 @@ impl WorkbenchService {
         self.terminal_layout_tick.update(|t| *t = t.wrapping_add(1));
     }
 
-    /// Allocate the next workspace id. Monotonically increasing across
-    /// the entire app lifetime — never reused, even after every workspace
-    /// has been closed. This keeps the `u64` id unique enough for
-    /// session-scoped UI references (drag-drop, context menu, active
-    /// selection); the truly stable persistence key is
-    /// `WorkspaceEntry::storage_key` (a UUID, not derived from this id).
+    /// Allocate the next visible workspace id. When every workspace has
+    /// been closed, restart at `1` so default titles become "Workspace 1"
+    /// again. Session/notification persistence stays safe because terminal
+    /// keys use `WorkspaceEntry::storage_key`, not this display-oriented id.
     fn allocate_workspace_id(&self) -> u64 {
+        if self.workspaces.with_untracked(|w| w.is_empty()) {
+            self.workspace_next_id.set(2);
+            return 1;
+        }
         let max_open = self
             .workspaces
             .with_untracked(|w| w.iter().map(|x| x.id).max().unwrap_or(0));
@@ -808,14 +810,14 @@ impl WorkbenchService {
         id
     }
 
-    /// No-op kept as a stable callsite. Previously reset the workspace id
-    /// counter to `1` whenever the workspace list became empty, which
-    /// caused brand-new workspaces to reuse ids from closed ones and
-    /// inherit their stale `notifications.json` / `sessions.json`
-    /// entries. Replaced by monotonic allocation in
-    /// [`Self::allocate_workspace_id`] plus per-workspace UUID storage
-    /// keys, so this function is intentionally empty now.
-    fn reset_workspace_id_counter_if_empty(&self) {}
+    /// Reset the visible workspace numbering after the last workspace is
+    /// closed. Storage keys remain UUID-backed, so this no longer revives
+    /// stale terminal sessions or unread notification entries.
+    fn reset_workspace_id_counter_if_empty(&self) {
+        if self.workspaces.with_untracked(|w| w.is_empty()) {
+            self.workspace_next_id.set(1);
+        }
+    }
 
     /// Register a live PTY session for a terminal cell. `terminal_key` is
     /// the same `"{ws}:{slot}:{pane}"` shape used by the cell.
