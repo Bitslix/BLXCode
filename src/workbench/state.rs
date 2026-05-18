@@ -766,10 +766,10 @@ impl WorkbenchService {
         })
     }
 
-    /// Focus a terminal: remember per workspace and clear unread on the newly
-    /// focused cell only. Unread on a previously focused cell is preserved —
-    /// it represents activity the user has not yet acknowledged by clicking
-    /// into that specific terminal.
+    /// Focus a terminal: remember per workspace and acknowledge unread on
+    /// that terminal's agent slot. With a workspace-level badge, clicking a
+    /// Claude/Codex/Cursor terminal should clear that agent's contribution
+    /// instead of leaving the badge looking stuck.
     pub fn focus_terminal(&self, terminal_key: String) {
         let Some(storage_key) = super::agent_accent::terminal_key_storage_key(&terminal_key) else {
             return;

@@ -4,6 +4,7 @@
 ![Rust](https://img.shields.io/badge/Rust-2021-b7410e?style=for-the-badge&logo=rust&logoColor=white)
 ![Tauri](https://img.shields.io/badge/Tauri-2-24c8db?style=for-the-badge&logo=tauri&logoColor=white)
 ![Leptos](https://img.shields.io/badge/Leptos-0.7-ef3939?style=for-the-badge)
+[![Languages](https://img.shields.io/badge/languages-14%20locales-5c6bc0?style=for-the-badge&logo=googletranslate&logoColor=white)](docs/user/language.md)
 ![Platforms](https://img.shields.io/badge/Linux%20%7C%20macOS%20%7C%20Windows-desktop-2f334d?style=for-the-badge)
 ![Status](https://img.shields.io/badge/status-ready-8a7cff?style=for-the-badge)
 
