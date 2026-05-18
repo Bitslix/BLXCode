@@ -199,7 +199,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                 class="agent-compose"
                 on:submit=move |ev| {
                     ev.prevent_default();
-                    submit_turn(wb, i18n, draft, busy, status_line, timeline, task_snapshot);
+                    submit_turn(wb, i18n, draft, busy, status_line, timeline, task_snapshot, thinking_open);
                 }
             >
                 <input
@@ -222,7 +222,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                     on:keydown=move |ev| {
                         if ev.key() == "Enter" && !ev.shift_key() && !ev.ctrl_key() && !ev.meta_key() {
                             ev.prevent_default();
-                            submit_turn(wb, i18n, draft, busy, status_line, timeline, task_snapshot);
+                            submit_turn(wb, i18n, draft, busy, status_line, timeline, task_snapshot, thinking_open);
                         }
                     }
                 />
@@ -290,6 +290,11 @@ pub fn AgentPanelDock() -> impl IntoView {
     }
 }
 
+fn is_reset_command(prompt: &str) -> bool {
+    let p = prompt.trim().to_ascii_lowercase();
+    matches!(p.as_str(), "/reset" | "/new")
+}
+
 fn resolve_effective_workspace_root(wb: &WorkbenchService) -> Option<String> {
     let active = wb.active_id().get_untracked();
     if let Some(id) = active {
@@ -317,6 +322,7 @@ fn submit_turn(
     status_line: RwSignal<Option<String>>,
     timeline: RwSignal<Vec<TimelineItem>>,
     task_snapshot: RwSignal<TaskSnapshot>,
+    thinking_open: RwSignal<HashMap<usize, bool>>,
 ) {
     if busy.get_untracked() {
         return;
@@ -334,6 +340,24 @@ fn submit_turn(
         status_line.set(Some("Select a workspace tab first.".into()));
         return;
     };
+
+    if is_reset_command(&prompt) {
+        draft.set(String::new());
+        wb.set_workspace_agent_compose_draft(ws_id, String::new());
+        status_line.set(None);
+        leptos::task::spawn_local(async move {
+            match agent_clear_conversation().await {
+                Ok(()) => {
+                    timeline.set(Vec::new());
+                    thinking_open.set(HashMap::new());
+                    wb.set_workspace_agent_timeline(ws_id, Vec::new());
+                    status_line.set(None);
+                }
+                Err(msg) => status_line.set(Some(msg)),
+            }
+        });
+        return;
+    }
 
     let workspace_root = resolve_effective_workspace_root(&wb);
 
