@@ -208,3 +208,5 @@ window.__blxcodeTerminal = {
     } catch (_) {}
   },
 };
+
+window.dispatchEvent(new CustomEvent("blxcode-terminal-api-ready"));

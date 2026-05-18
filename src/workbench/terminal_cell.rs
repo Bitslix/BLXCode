@@ -6,8 +6,9 @@ use crate::tauri_bridge::{
     workbench_sessions_path,
 };
 use crate::workbench::terminal_glue::{
-    terminal_api_ready, terminal_create, terminal_dispose, terminal_fit, terminal_request_fit,
-    terminal_set_stdin_enabled, terminal_show_fallback, terminal_size_from_js, terminal_write_b64,
+    terminal_create, terminal_dispose, terminal_fit, terminal_request_fit,
+    terminal_set_stdin_enabled, terminal_show_fallback, terminal_size_from_js,
+    terminal_wait_api_ready, terminal_write_b64,
 };
 use gloo_timers::future::TimeoutFuture;
 use leptos::callback::{Callable, Callback};
@@ -120,14 +121,7 @@ pub fn WorkspaceTerminalCell(
                 let load_failed = load_failed.clone();
                 let terminal_key = terminal_key.clone();
                 async move {
-                    // Wait for xterm.js to load (up to 6 s)
-                    for _ in 0..120u32 {
-                        if terminal_api_ready() {
-                            break;
-                        }
-                        TimeoutFuture::new(50).await;
-                    }
-                    if !terminal_api_ready() {
+                    if !terminal_wait_api_ready().await {
                         load_failed.set(true);
                         return;
                     }

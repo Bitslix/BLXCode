@@ -1,6 +1,9 @@
 //! JS bridge for xterm (`window.__blxcodeTerminal` from `public/terminal_bootstrap.mjs`).
-use js_sys::{Function, Reflect};
+use js_sys::{Function, Promise, Reflect};
+use wasm_bindgen::closure::Closure;
+use wasm_bindgen::prelude::JsValue;
 use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::JsFuture;
 use web_sys::HtmlElement;
 
 #[derive(Clone, Copy, Debug)]
@@ -14,6 +17,29 @@ pub fn terminal_api_ready() -> bool {
         return false;
     };
     Reflect::has(&w, &wasm_bindgen::JsValue::from_str("__blxcodeTerminal")).unwrap_or(false)
+}
+
+pub async fn terminal_wait_api_ready() -> bool {
+    if terminal_api_ready() {
+        return true;
+    }
+    let promise = Promise::new(&mut |resolve: Function, _reject: Function| {
+        if terminal_api_ready() {
+            let _ = resolve.call0(&JsValue::UNDEFINED);
+            return;
+        }
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        let callback = Closure::once_into_js(move |_event: web_sys::Event| {
+            let _ = resolve.call0(&JsValue::UNDEFINED);
+        });
+        let _ = window.add_event_listener_with_callback(
+            "blxcode-terminal-api-ready",
+            callback.unchecked_ref(),
+        );
+    });
+    JsFuture::from(promise).await.is_ok() && terminal_api_ready()
 }
 
 pub fn terminal_create(container: &HtmlElement) -> Result<f64, String> {
