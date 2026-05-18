@@ -5,6 +5,7 @@ Welcome to the BLXCode docs. This folder is split into user documentation for ru
 ## User Docs
 
 - [Getting Started](user/getting-started.md): install prerequisites, run BLXCode, and create your first workspace.
+- [Building](user/building.md): build BLXCode from source on Linux, macOS, and Windows.
 - [Workspaces](user/workspaces.md): workspace creation, terminal grids, panes, browser tabs, and persistence.
 - [Agent Providers](user/agent-providers.md): provider selection, API keys, models, thinking levels, and hooks.
 - [Memory And Tasks](user/memory-and-tasks.md): project notes, backlinks, graph data, task storage, and agent tools.

@@ -73,3 +73,5 @@ cargo tauri build
 ```
 
 The configured bundle targets are controlled by `src-tauri/tauri.conf.json`.
+
+For platform-specific Linux, macOS, and Windows instructions, see [Building BLXCode](building.md).

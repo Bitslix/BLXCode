@@ -68,6 +68,7 @@ trunk build
 
 - [Documentation Home](docs/README.md)
 - [User Guide](docs/user/getting-started.md)
+- [Build From Source](docs/user/building.md)
 - [Workspace Guide](docs/user/workspaces.md)
 - [Agent Providers](docs/user/agent-providers.md)
 - [Memory And Tasks](docs/user/memory-and-tasks.md)
