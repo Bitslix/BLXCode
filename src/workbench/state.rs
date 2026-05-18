@@ -772,8 +772,10 @@ impl WorkbenchService {
                     .map(|workspace| workspace.id);
                 self.active_id.set(next);
             }
-            self.reset_workspace_id_counter_if_empty();
         });
+        // Must run after `workspaces.update` — re-entering the same signal inside
+        // the closure can deadlock Leptos and freeze close / add workspace.
+        self.reset_workspace_id_counter_if_empty();
     }
 
     pub fn close_workspace(&self, id: u64) {
