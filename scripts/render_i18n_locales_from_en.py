@@ -200,9 +200,17 @@ def run_selective_translate(
     )
     print(f"mode: {mode}")
 
+    total_translated = 0
+    total_english_untranslated = 0
+
     for filename, tgt_code, _label in targets:
         path = LOCALES_DIR / filename
         loc_map = dict(parse_locale_rs(path))
+        english_untranslated = [
+            k for k, en in en_pairs if k in loc_map and loc_map[k] == en
+        ]
+        total_english_untranslated += len(english_untranslated)
+
         translator = GoogleTranslator(source="en", target=tgt_code)
         cache: dict[str, str] = {}
         merged: list[tuple[str, str]] = []
@@ -220,11 +228,39 @@ def run_selective_translate(
                 cur = translate_cached(translator, cache, en)
                 translated_rows += 1
             merged.append((k, cur))
-        path.write_text(emit_locale_rs(merged), encoding="utf-8")
+        total_translated += translated_rows
+
+        body = emit_locale_rs(merged)
+        previous = path.read_text(encoding="utf-8")
+        if body == previous:
+            print(
+                f"unchanged {path} (0 rows translated; "
+                f"{len(english_untranslated)} rows still match English)"
+            )
+            continue
+        path.write_text(body, encoding="utf-8")
         print(
             f"wrote {path} ({translated_rows} rows translated, "
             f"{len(cache)} unique strings in cache)"
         )
+
+    if total_translated == 0:
+        print(
+            "\nNo rows translated. Default mode only fills I18nKey variants "
+            "missing from each locale file."
+        )
+        if not keys and not patch_english:
+            if total_english_untranslated > 0:
+                print(
+                    "Some locales still use English text copied from en_us.rs "
+                    "(rows present but not translated)."
+                )
+                print(
+                    "  • Translate those rows:  --patch-english-matches\n"
+                    "  • Or only specific keys: --keys GitignorePromptTitle,…"
+                )
+            else:
+                print("All locale files already contain every key from en_us.rs.")
     print("done")
 
 

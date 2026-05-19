@@ -5,13 +5,12 @@ pub fn msg(key: I18nKey) -> &'static str {
     match key {
         I18nKey::Decline => "Spadek",
         I18nKey::Accept => "Przyjąć",
-        I18nKey::GitignorePromptTitle => "Add .blxcode to .gitignore?",
+        I18nKey::GitignorePromptTitle => "Dodać .blxcode do .gitignore?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \
-Add it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
-        I18nKey::GitignorePromptYes => "Yes, add it",
-        I18nKey::GitignorePromptNo => "Not now",
+        I18nKey::GitignorePromptYes => "Tak, dodaj to",
+        I18nKey::GitignorePromptNo => "Nie teraz",
         I18nKey::BtnClose => "Zamknąć",
         I18nKey::BtnApply => "Stosować",
         I18nKey::BtnSave => "Ratować",
@@ -140,7 +139,7 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::AppHeading => "Aplikacja",
         I18nKey::GenEulaStatus => "Stan EULA",
         I18nKey::AppLanguage => "Język interfejsu",
-        I18nKey::AppHooksHeading => "Terminal hooks",
+        I18nKey::AppHooksHeading => "Haki końcowe",
         I18nKey::WsHeading => "Obszar roboczy",
         I18nKey::LayBrowserUrl => "Domyślny adres URL wbudowanej przeglądarki",
         I18nKey::WsBrowserDefault => "Ustawienie wstępne:",
@@ -174,7 +173,7 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::AgModelsUnavailable => "Brak dostępnych modeli",
         I18nKey::AgSaveProvider => "Zapisz ustawienia dostawcy",
         I18nKey::AgSaveProviderDone => "Ustawienia dostawcy zostały zapisane",
-        I18nKey::AgHooksHeading => "Terminal hooks",
+        I18nKey::AgHooksHeading => "Haki końcowe",
         I18nKey::AgHooksDesc => {
             "Zainstaluj zaczepy do przechwytywania tytułu i sesji dla obsługiwanych interfejsów CLI agenta, aby karty terminala podążały za aktywnym monitem i sesje mogły zostać wznowione po ponownym uruchomieniu."
         }

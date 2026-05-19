@@ -5,13 +5,12 @@ pub fn msg(key: I18nKey) -> &'static str {
     match key {
         I18nKey::Decline => "衰退",
         I18nKey::Accept => "接受",
-        I18nKey::GitignorePromptTitle => "Add .blxcode to .gitignore?",
+        I18nKey::GitignorePromptTitle => "将 .blxcode 添加到 .gitignore 中？",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \
-Add it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
-        I18nKey::GitignorePromptYes => "Yes, add it",
-        I18nKey::GitignorePromptNo => "Not now",
+        I18nKey::GitignorePromptYes => "是的，添加它",
+        I18nKey::GitignorePromptNo => "现在不要",
         I18nKey::BtnClose => "关闭",
         I18nKey::BtnApply => "申请",
         I18nKey::BtnSave => "节省",
@@ -103,16 +102,16 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::BrReload => "重新加载",
         I18nKey::BrGo => "去",
         I18nKey::BrTabsAria => "浏览器选项卡",
-        I18nKey::BrNewTab => "New tab",
-        I18nKey::BrNewTabBtnAria => "New tab",
+        I18nKey::BrNewTab => "新标签页",
+        I18nKey::BrNewTabBtnAria => "新标签页",
         I18nKey::BrCloseTab => "关闭选项卡",
         I18nKey::BrPreparing => "正在准备浏览器...",
-        I18nKey::BrNativeAria => "Native browser",
+        I18nKey::BrNativeAria => "原生浏览器",
         I18nKey::BrFrameTitle => "嵌入式浏览器",
         I18nKey::BrNewHint => "在上面输入地址，然后按 Enter 或 Go。",
         I18nKey::BrShortcutsHeading => "快捷方式",
         I18nKey::PlFilterPh => "过滤命令...",
-        I18nKey::PlHint => "Escape closes • Arrow keys • Enter",
+        I18nKey::PlHint => "Escape 关闭 • 箭头键 • Enter",
         I18nKey::PlNoHits => "没有匹配项",
         I18nKey::CmdSetTitle => "BLX 代码设置",
         I18nKey::CmdSetSub => "管理应用程序、工作区和代理提供商",
@@ -296,7 +295,7 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::VoiceSaveDone => "已保存语音设置",
         I18nKey::VoiceOrbAriaIdle => "语音——点击录音",
         I18nKey::VoiceOrbAriaRecording => "录音 — 单击或松开即可停止",
-        I18nKey::VoiceOrbAriaTranscribing => "Transcribing…",
+        I18nKey::VoiceOrbAriaTranscribing => "正在抄写…",
         I18nKey::VoiceOrbCancelHint => "ESC取消录音",
         I18nKey::VoiceErrNoMic => "麦克风不可用。",
         I18nKey::VoiceErrStt => "转录失败：{消息}",

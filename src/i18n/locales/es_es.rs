@@ -5,13 +5,12 @@ pub fn msg(key: I18nKey) -> &'static str {
     match key {
         I18nKey::Decline => "Rechazar",
         I18nKey::Accept => "Aceptar",
-        I18nKey::GitignorePromptTitle => "Add .blxcode to .gitignore?",
+        I18nKey::GitignorePromptTitle => "¿Agregar .blxcode a .gitignore?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \
-Add it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
-        I18nKey::GitignorePromptYes => "Yes, add it",
-        I18nKey::GitignorePromptNo => "Not now",
+        I18nKey::GitignorePromptYes => "Sí, agrégalo",
+        I18nKey::GitignorePromptNo => "Ahora no",
         I18nKey::BtnClose => "Cerca",
         I18nKey::BtnApply => "Aplicar",
         I18nKey::BtnSave => "Ahorrar",
@@ -303,7 +302,7 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::VoiceSttLangFollowApp => "Seguir el idioma de la aplicación",
         I18nKey::VoiceSttLangAutoDetect => "Detección automática",
         I18nKey::VoiceSttLangManual => "Manual",
-        I18nKey::VoicePttEnabled => "Habilitar la tecla de acceso rápido \"pulsar para hablar\"",
+        I18nKey::VoicePttEnabled => "Habilitar la tecla de acceso rápido \\\\\\\"pulsar para hablar\\\\\\\"",
         I18nKey::VoicePttHotkey => "tecla de acceso rápido",
         I18nKey::VoicePttRecorderHint => "Presione una tecla…",
         I18nKey::VoicePttConflictWarn => "Entra en conflicto con otro acceso directo a la aplicación.",

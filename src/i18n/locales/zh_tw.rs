@@ -5,13 +5,12 @@ pub fn msg(key: I18nKey) -> &'static str {
     match key {
         I18nKey::Decline => "衰退",
         I18nKey::Accept => "接受",
-        I18nKey::GitignorePromptTitle => "Add .blxcode to .gitignore?",
+        I18nKey::GitignorePromptTitle => "將 .blxcode 加入 .gitignore 中？",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \
-Add it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
-        I18nKey::GitignorePromptYes => "Yes, add it",
-        I18nKey::GitignorePromptNo => "Not now",
+        I18nKey::GitignorePromptYes => "是的，添加它",
+        I18nKey::GitignorePromptNo => "現在不要",
         I18nKey::BtnClose => "關閉",
         I18nKey::BtnApply => "申請",
         I18nKey::BtnSave => "節省",
@@ -44,7 +43,7 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::SbCollapse => "隱藏側邊欄",
         I18nKey::SbHeading => "工作空間",
         I18nKey::RpRailAria => "右面板",
-        I18nKey::RpExpand => "Show right panel",
+        I18nKey::RpExpand => "顯示右側面板",
         I18nKey::RpCollapse => "隱藏右側面板",
         I18nKey::RpSplitterAria => "右面板寬度",
         I18nKey::RpTabsAria => "右窗格",
@@ -147,7 +146,7 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::AgProviderOpenai => "開放人工智慧",
         I18nKey::AgModelField => "模型",
         I18nKey::AgModelCustomField => "自訂型號 ID",
-        I18nKey::AgThinkingField => "Thinking level",
+        I18nKey::AgThinkingField => "思維層面",
         I18nKey::AgThinkingOff => "離開",
         I18nKey::AgThinkingLow => "低的",
         I18nKey::AgThinkingMedium => "中等的",
@@ -177,7 +176,7 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::AgHooksStatusUnknown => "未知",
         I18nKey::AgHooksBusy => "在職的…",
         I18nKey::BlxLoading => "載入中 …",
-        I18nKey::SbRenameTitle => "Rename Workspace",
+        I18nKey::SbRenameTitle => "重新命名工作區",
         I18nKey::SbRenameNameLabel => "工作區名稱",
         I18nKey::SbRenameCloseAria => "關閉重新命名對話框",
         I18nKey::SbRenameSubmit => "重新命名",
@@ -217,7 +216,7 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::WzPresetSingle => "1個航廈",
         I18nKey::WzPreset2 => "2個終端",
         I18nKey::WzPreset4 => "4個終端",
-        I18nKey::WzPreset6 => "6 terminals",
+        I18nKey::WzPreset6 => "6個終端",
         I18nKey::WzPreset8 => "8個終端",
         I18nKey::WzPreset10 => "10個終端",
         I18nKey::WzPreset12 => "12個終端",
@@ -249,7 +248,7 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::WsTermSplitVerticalAria => "垂直分割端子",
         I18nKey::WsTermSplitHorizontalAria => "水平分割端子",
         I18nKey::WsTermCloseAria => "關閉終端",
-        I18nKey::WsTermFullSize => "Full size terminal",
+        I18nKey::WsTermFullSize => "全尺寸終端",
         I18nKey::WsTermRestoreSize => "恢復終端大小",
         I18nKey::WsTermPaneTitleSingle => "{角色} · {術語} {n}",
         I18nKey::WsTermPaneTitleMulti => "{角色} · {術語} {插槽}.{窗格}",
