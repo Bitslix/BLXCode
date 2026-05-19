@@ -3,7 +3,7 @@ use crate::config::{
 };
 use crate::tauri_bridge::{
     is_tauri_shell, workbench_drop_sessions, workbench_extract_sessions_prefix,
-    workbench_merge_sessions_workspace,
+    workbench_merge_sessions_workspace, workspace_ensure_agents,
 };
 use crate::workbench::agent_timeline::TimelineItem;
 use gloo_timers::future::TimeoutFuture;
@@ -157,6 +157,17 @@ fn normalize_cwd_key(path: &str) -> String {
 #[inline]
 pub(crate) fn workspace_entry_has_folder(ws: &WorkspaceEntry) -> bool {
     !normalize_cwd_key(&ws.cwd).is_empty()
+}
+
+fn spawn_ensure_agents_layout(cwd: String) {
+    let trimmed = cwd.trim();
+    if trimmed.is_empty() || !is_tauri_shell() {
+        return;
+    }
+    let cwd = trimmed.to_owned();
+    spawn_local(async move {
+        let _ = workspace_ensure_agents(&cwd).await;
+    });
 }
 
 fn normalize_workspace_agent_labels(
@@ -537,7 +548,7 @@ pub struct WorkbenchService {
     /// agent can address terminals by slot via the harness tools without
     /// reaching into per-cell local state.
     pty_sessions: RwSignal<HashMap<String, u64>>,
-    /// When set, [`MemoryPanel`] opens this note (path relative to `.blxcode/memory/`).
+    /// When set, [`MemoryPanel`] opens this note (API path, e.g. `learnings/topic.md`).
     pending_memory_note: RwSignal<Option<String>>,
     /// Bumped when the terminal grid gains real layout (wizard commit, etc.)
     /// so cells refit xterm/PTY after flex/grid reflow.
@@ -929,6 +940,19 @@ impl WorkbenchService {
 
     pub fn select_workspace(&self, id: u64) {
         self.active_id.set(Some(id));
+        if let Some(cwd) = self.workspace_cwd_for(id) {
+            spawn_ensure_agents_layout(cwd);
+        }
+    }
+
+    fn workspace_cwd_for(&self, id: u64) -> Option<String> {
+        self.workspaces.with_untracked(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == id)
+                .filter(|w| workspace_entry_has_folder(w))
+                .map(|w| w.cwd.clone())
+        })
     }
 
     #[must_use]
@@ -1306,7 +1330,7 @@ impl WorkbenchService {
         self.pending_memory_note
     }
 
-    /// Focuses the memory panel and opens `path` (relative to `.blxcode/memory/`, after sanitise).
+    /// Focuses the memory panel and opens `path` (memory API path, after sanitise).
     pub fn request_open_memory_note(&self, path: String) {
         let t = path.trim().replace('\\', "/");
         let rel = crate::memory_paths::sanitize_memory_relative_path(&t).or_else(|| {
@@ -1717,6 +1741,7 @@ impl WorkbenchService {
         if cwd.is_empty() {
             return;
         }
+        let cwd_for_agents = cwd.clone();
         let n = draft.terminal_count as usize;
         let (gr, gc) = (draft.grid_rows, draft.grid_cols);
 
@@ -1769,6 +1794,7 @@ impl WorkbenchService {
             m.remove(&id);
         });
         self.bump_terminal_layout();
+        spawn_ensure_agents_layout(cwd_for_agents);
         // Grid cells mount on the next frame; delayed ticks retry agent
         // launch once xterm has real dimensions (plain shells don't need this).
         let wb = *self;
@@ -2004,6 +2030,11 @@ impl WorkbenchService {
 
         if has_workspaces {
             self.bump_terminal_layout();
+            if let Some(id) = active_id {
+                if let Some(cwd) = self.workspace_cwd_for(id) {
+                    spawn_ensure_agents_layout(cwd);
+                }
+            }
             let wb = *self;
             spawn_local(async move {
                 for delay_ms in [0_u32, 16, 50, 150, 300, 600, 1000] {

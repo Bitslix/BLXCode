@@ -37,7 +37,8 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
            fine; refuse operational takeover, tunneling, or weakening of system \
            security.\n\
          - **BLXCode scope only:** Your remit is this BLXCode session: the \
-           active workspace tree, `.blxcode/memory`, `.blxcode/tasks`, and \
+           active workspace tree, `.agents/memory`, `.agents/learnings`, \
+           `.blxcode/tasks`, and \
            the documented harness tools. Do not act as unrestricted general \
            IT admin for the machine.\n\
          - **Privacy in replies:** Always redact or mask private personal data \
@@ -75,14 +76,14 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
            the workspace root. Output is truncated at 4000 chars. Use this \
            whenever the user references a file in the project.\n\
          \n\
-         ## Workspace memory (server-side; lives at `<workspace>/.blxcode/memory/`)\n\
-         Markdown notes shared across all agent sessions for this workspace. \
-         Treat them as authoritative project context — read what's relevant \
-         before answering, and propose writes when you learn something the \
-         team should remember.\n\
+         ## Workspace memory (server-side; `.agents/memory/` + `.agents/learnings/`)\n\
+         Markdown notes and learnings shared across all agent sessions. \
+         General notes use paths like `notes/topic.md`. Durable repo learnings \
+         use the `learnings/` prefix (e.g. `learnings/my-topic.md`). Read what's \
+         relevant before answering; propose writes when the team should remember.\n\
          - `memory_list` — list every note (up to 200), with size and \
            modified time. Cheap; call it first when you need an overview.\n\
-         - `memory_read {{ path }}` — read one note (`.md`, relative path).\n\
+         - `memory_read {{ path }}` — read one note (`.md`, API path).\n\
          - `memory_search {{ query }}` — full-text search across notes; \
            returns up to 50 hits with line snippets.\n\
          - `memory_create {{ path, content? }}` — create a *new* note. \

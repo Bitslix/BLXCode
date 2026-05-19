@@ -748,6 +748,13 @@ pub async fn agent_latest_session_id(agent: String, cwd: String) -> Result<Optio
 // ---------------------------------------------------------------------
 // Memory (workspace-scoped Markdown notes, Obsidian-style)
 
+pub async fn workspace_ensure_agents(ws: &str) -> Result<(), String> {
+    invoke_typed("workspace_ensure_agents", WsArg {
+        workspace_cwd: ws,
+    })
+    .await
+}
+
 #[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]

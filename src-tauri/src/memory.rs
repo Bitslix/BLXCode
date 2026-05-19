@@ -1,18 +1,14 @@
 //! Workspace-scoped Obsidian-style memory.
 //!
-//! Layout per workspace (lives inside the user's workspace cwd so it
-//! travels with the project and is git-trackable if desired):
+//! Layout per workspace:
 //!
 //! ```text
-//! <workspace_cwd>/.blxcode/memory/
-//!   *.md                    — user notes
-//!   <subdirs>/*.md          — nested notes
-//!   _templates/*.md         — note templates (phase 5)
+//! <workspace_cwd>/.agents/memory/      — user notes (+ _templates/)
+//! <workspace_cwd>/.agents/learnings/ — durable repo learnings (API: `learnings/…`)
 //! ```
 //!
-//! All Tauri commands take the workspace cwd and resolve everything
-//! relative to its `.blxcode/memory/` root. Paths are sandboxed: any
-//! attempt to escape the root via `..` or absolute paths is rejected.
+//! Legacy `.blxcode/memory/` is migrated once into `.agents/memory/` when empty.
+//! All Tauri commands take the workspace cwd; API paths are sandboxed.
 //!
 //! Link syntax (Obsidian-compatible subset):
 //!   `[[Note Name]]`            — link to `Note Name.md` (by basename, case-insensitive)
@@ -20,13 +16,16 @@
 //!   `[[Note Name|alias]]`      — display alias (ignored for graph)
 //!   `#tag`                     — tag (graph metadata)
 
+use crate::agents_layout::{
+    ensure_agents_layout, validate_workspace_cwd, WorkspaceRoots, LEARNINGS_API_PREFIX,
+    LEARNINGS_REL, MEMORY_REL,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 
-const MEMORY_REL: &str = ".blxcode/memory";
 const TEMPLATES_DIRNAME: &str = "_templates";
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -96,28 +95,83 @@ fn err<T>(s: impl Into<String>) -> Result<T, String> {
     Err(s.into())
 }
 
-fn validate_workspace_cwd(ws: &str) -> Result<PathBuf, String> {
-    let trimmed = ws.trim();
-    if trimmed.is_empty() {
-        return err("workspace cwd is empty");
-    }
-    let p = PathBuf::from(trimmed);
-    if !p.is_absolute() {
-        return err("workspace cwd must be absolute");
-    }
-    if !p.exists() {
-        return err(format!("workspace cwd does not exist: {}", trimmed));
-    }
-    Ok(p)
+fn ensure_workspace_memory(ws: &str) -> Result<WorkspaceRoots, String> {
+    ensure_agents_layout(ws)
 }
 
-/// Resolves `<ws>/.blxcode/memory`, creating both directory levels when
-/// missing. Returns the canonicalized absolute path.
-fn ensure_memory_root(ws: &str) -> Result<PathBuf, String> {
-    let ws_path = validate_workspace_cwd(ws)?;
-    let root = ws_path.join(MEMORY_REL);
-    fs::create_dir_all(&root).map_err(|e| format!("create memory root: {e}"))?;
-    Ok(root)
+fn resolve_api_path(api_path: &str) -> Result<(bool, String), String> {
+    let p = api_path.trim().replace('\\', "/");
+    if p.is_empty() {
+        return err("empty path");
+    }
+    if p.starts_with(LEARNINGS_API_PREFIX) {
+        let rel = p
+            .strip_prefix(LEARNINGS_API_PREFIX)
+            .unwrap_or_default()
+            .trim();
+        if rel.is_empty() || rel.contains("..") {
+            return err("invalid learnings path");
+        }
+        return Ok((true, rel.to_owned()));
+    }
+    if p.contains("..") {
+        return err("invalid path");
+    }
+    Ok((false, p))
+}
+
+fn note_root<'a>(roots: &'a WorkspaceRoots, is_learnings: bool) -> &'a Path {
+    if is_learnings {
+        roots.learnings.as_path()
+    } else {
+        roots.memory.as_path()
+    }
+}
+
+fn resolve_note_abs(roots: &WorkspaceRoots, api_path: &str) -> Result<PathBuf, String> {
+    let (is_learnings, rel) = resolve_api_path(api_path)?;
+    safe_join(note_root(roots, is_learnings), &rel, true)
+}
+
+fn api_path_for(roots: &WorkspaceRoots, file_root: &Path, rel: &str) -> String {
+    if file_root == roots.learnings.as_path() {
+        format!("{LEARNINGS_API_PREFIX}{rel}")
+    } else {
+        rel.to_owned()
+    }
+}
+
+fn collect_all_md(roots: &WorkspaceRoots, out: &mut Vec<(String, PathBuf, PathBuf)>) {
+    for root in [roots.memory.as_path(), roots.learnings.as_path()] {
+        let mut files = Vec::new();
+        walk_md(root, &mut files);
+        for abs in files {
+            let Some(rel) = rel_from_root(root, &abs) else {
+                continue;
+            };
+            let api = api_path_for(roots, root, &rel);
+            out.push((api, abs, root.to_path_buf()));
+        }
+    }
+}
+
+fn meta_from_abs(_roots: &WorkspaceRoots, api_path: &str, abs: &Path, file_root: &Path) -> NoteMeta {
+    let rel = rel_from_root(file_root, abs).unwrap_or_default();
+    let meta = fs::metadata(abs).ok();
+    let name = abs
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_owned();
+    let is_template = !api_path.starts_with(LEARNINGS_API_PREFIX)
+        && rel.starts_with(&format!("{TEMPLATES_DIRNAME}/"));
+    NoteMeta {
+        path: api_path.to_owned(),
+        name,
+        size: meta.as_ref().map(|m| m.len()).unwrap_or(0),
+        modified: mtime_secs(abs),
+        is_template,
+    }
 }
 
 /// Validates `rel` is a clean relative path with no `..` or absolute
@@ -198,35 +252,25 @@ fn walk_md(root: &Path, out: &mut Vec<PathBuf>) {
 }
 
 #[tauri::command]
+pub fn workspace_ensure_agents(workspace_cwd: String) -> Result<(), String> {
+    ensure_agents_layout(&workspace_cwd)?;
+    Ok(())
+}
+
+#[tauri::command]
 pub fn memory_root(workspace_cwd: String) -> Result<String, String> {
-    let p = ensure_memory_root(&workspace_cwd)?;
-    Ok(p.to_string_lossy().into_owned())
+    let roots = ensure_workspace_memory(&workspace_cwd)?;
+    Ok(roots.memory.to_string_lossy().into_owned())
 }
 
 #[tauri::command]
 pub fn memory_list(workspace_cwd: String) -> Result<Vec<NoteMeta>, String> {
-    let root = ensure_memory_root(&workspace_cwd)?;
-    let mut files = Vec::new();
-    walk_md(&root, &mut files);
-    let mut out: Vec<NoteMeta> = files
+    let roots = ensure_workspace_memory(&workspace_cwd)?;
+    let mut collected = Vec::new();
+    collect_all_md(&roots, &mut collected);
+    let mut out: Vec<NoteMeta> = collected
         .into_iter()
-        .filter_map(|p| {
-            let rel = rel_from_root(&root, &p)?;
-            let meta = fs::metadata(&p).ok()?;
-            let name = p
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("")
-                .to_owned();
-            let is_template = rel.starts_with(&format!("{TEMPLATES_DIRNAME}/"));
-            Some(NoteMeta {
-                path: rel,
-                name,
-                size: meta.len(),
-                modified: mtime_secs(&p),
-                is_template,
-            })
-        })
+        .map(|(api, abs, file_root)| meta_from_abs(&roots, &api, &abs, &file_root))
         .collect();
     out.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()));
     Ok(out)
@@ -234,8 +278,8 @@ pub fn memory_list(workspace_cwd: String) -> Result<Vec<NoteMeta>, String> {
 
 #[tauri::command]
 pub fn memory_read(workspace_cwd: String, path: String) -> Result<NoteContent, String> {
-    let root = ensure_memory_root(&workspace_cwd)?;
-    let abs = safe_join(&root, &path, true)?;
+    let roots = ensure_workspace_memory(&workspace_cwd)?;
+    let abs = resolve_note_abs(&roots, &path)?;
     let content = fs::read_to_string(&abs).map_err(|e| format!("read {path}: {e}"))?;
     Ok(NoteContent {
         path,
@@ -250,8 +294,8 @@ pub fn memory_write(
     path: String,
     content: String,
 ) -> Result<NoteContent, String> {
-    let root = ensure_memory_root(&workspace_cwd)?;
-    let abs = safe_join(&root, &path, true)?;
+    let roots = ensure_workspace_memory(&workspace_cwd)?;
+    let abs = resolve_note_abs(&roots, &path)?;
     if let Some(parent) = abs.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
     }
@@ -271,8 +315,8 @@ pub fn memory_create(
     path: String,
     content: Option<String>,
 ) -> Result<NoteMeta, String> {
-    let root = ensure_memory_root(&workspace_cwd)?;
-    let abs = safe_join(&root, &path, true)?;
+    let roots = ensure_workspace_memory(&workspace_cwd)?;
+    let abs = resolve_note_abs(&roots, &path)?;
     if abs.exists() {
         return err(format!("already exists: {path}"));
     }
@@ -281,26 +325,17 @@ pub fn memory_create(
     }
     let body = content.unwrap_or_default();
     fs::write(&abs, body.as_bytes()).map_err(|e| format!("write {path}: {e}"))?;
-    let meta = fs::metadata(&abs).map_err(|e| e.to_string())?;
-    let name = abs
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("")
-        .to_owned();
-    let is_template = path.starts_with(&format!("{TEMPLATES_DIRNAME}/"));
-    Ok(NoteMeta {
-        path,
-        name,
-        size: meta.len(),
-        modified: mtime_secs(&abs),
-        is_template,
-    })
+    let (is_learnings, _) = resolve_api_path(&path)?;
+    let file_root = note_root(&roots, is_learnings);
+    Ok(meta_from_abs(&roots, &path, &abs, file_root))
 }
 
 #[tauri::command]
 pub fn memory_delete(workspace_cwd: String, path: String) -> Result<(), String> {
-    let root = ensure_memory_root(&workspace_cwd)?;
-    let abs = safe_join(&root, &path, true)?;
+    let roots = ensure_workspace_memory(&workspace_cwd)?;
+    let (is_learnings, _) = resolve_api_path(&path)?;
+    let root = note_root(&roots, is_learnings);
+    let abs = resolve_note_abs(&roots, &path)?;
     if !abs.exists() {
         return err(format!("not found: {path}"));
     }
@@ -342,9 +377,14 @@ pub fn memory_rename(
     new_path: String,
     rewrite_links: bool,
 ) -> Result<RenameReport, String> {
-    let root = ensure_memory_root(&workspace_cwd)?;
-    let abs_old = safe_join(&root, &old_path, true)?;
-    let abs_new = safe_join(&root, &new_path, true)?;
+    let roots = ensure_workspace_memory(&workspace_cwd)?;
+    let (old_learn, _) = resolve_api_path(&old_path)?;
+    let (new_learn, _) = resolve_api_path(&new_path)?;
+    if old_learn != new_learn {
+        return err("cannot rename across memory and learnings roots");
+    }
+    let abs_old = resolve_note_abs(&roots, &old_path)?;
+    let abs_new = resolve_note_abs(&roots, &new_path)?;
     if !abs_old.exists() {
         return err(format!("not found: {old_path}"));
     }
@@ -371,9 +411,9 @@ pub fn memory_rename(
     let mut files_changed = 0u32;
 
     if rewrite_links && !old_basename.is_empty() && !new_basename.is_empty() {
-        let mut files = Vec::new();
-        walk_md(&root, &mut files);
-        for f in files {
+        let mut collected = Vec::new();
+        collect_all_md(&roots, &mut collected);
+        for (_, f, _) in collected {
             let Ok(content) = fs::read_to_string(&f) else {
                 continue;
             };
@@ -535,36 +575,28 @@ fn parse_links_and_tags(body: &str) -> (Vec<String>, Vec<String>) {
 
 #[tauri::command]
 pub fn memory_graph(workspace_cwd: String) -> Result<GraphData, String> {
-    let root = ensure_memory_root(&workspace_cwd)?;
-    let mut files = Vec::new();
-    walk_md(&root, &mut files);
-    // Skip templates folder.
-    files.retain(|p| {
-        rel_from_root(&root, p)
-            .map(|r| !r.starts_with(&format!("{TEMPLATES_DIRNAME}/")))
-            .unwrap_or(true)
-    });
+    let roots = ensure_workspace_memory(&workspace_cwd)?;
+    let mut collected = Vec::new();
+    collect_all_md(&roots, &mut collected);
+    collected.retain(|(api, _, _)| !api.starts_with(&format!("{TEMPLATES_DIRNAME}/")));
 
-    // index by basename (case-insensitive) and by relative path-without-ext.
     let mut by_basename: HashMap<String, Vec<String>> = HashMap::new();
     let mut by_pwx: HashMap<String, String> = HashMap::new();
-    let mut node_ids: Vec<String> = Vec::new();
     let mut bodies: BTreeMap<String, String> = BTreeMap::new();
 
-    for f in &files {
-        let Some(rel) = rel_from_root(&root, f) else {
-            continue;
-        };
-        node_ids.push(rel.clone());
-        if let Some(stem) = f.file_stem().and_then(|s| s.to_str()) {
+    for (api, f, _) in &collected {
+        if let Some(stem) = Path::new(api)
+            .file_stem()
+            .and_then(|s| s.to_str())
+        {
             by_basename
                 .entry(stem.to_ascii_lowercase())
                 .or_default()
-                .push(rel.clone());
+                .push(api.clone());
         }
-        by_pwx.insert(strip_md_ext(&rel).to_ascii_lowercase(), rel.clone());
+        by_pwx.insert(strip_md_ext(api).to_ascii_lowercase(), api.clone());
         if let Ok(body) = fs::read_to_string(f) {
-            bodies.insert(rel, body);
+            bodies.insert(api.clone(), body);
         }
     }
 
@@ -638,19 +670,16 @@ pub fn memory_backlinks(workspace_cwd: String, path: String) -> Result<Vec<Strin
 
 #[tauri::command]
 pub fn memory_search(workspace_cwd: String, query: String) -> Result<Vec<SearchHit>, String> {
-    let root = ensure_memory_root(&workspace_cwd)?;
+    let roots = ensure_workspace_memory(&workspace_cwd)?;
     let needle = query.trim();
     if needle.is_empty() {
         return Ok(Vec::new());
     }
     let needle_l = needle.to_ascii_lowercase();
-    let mut files = Vec::new();
-    walk_md(&root, &mut files);
+    let mut collected = Vec::new();
+    collect_all_md(&roots, &mut collected);
     let mut hits: Vec<SearchHit> = Vec::new();
-    for f in files {
-        let Some(rel) = rel_from_root(&root, &f) else {
-            continue;
-        };
+    for (api, f, _) in collected {
         let Ok(body) = fs::read_to_string(&f) else {
             continue;
         };
@@ -658,7 +687,7 @@ pub fn memory_search(workspace_cwd: String, query: String) -> Result<Vec<SearchH
             if line.to_ascii_lowercase().contains(&needle_l) {
                 let snip = if line.len() > 200 { &line[..200] } else { line };
                 hits.push(SearchHit {
-                    path: rel.clone(),
+                    path: api.clone(),
                     line: (idx + 1) as u32,
                     snippet: snip.to_owned(),
                 });
@@ -673,32 +702,37 @@ pub fn memory_search(workspace_cwd: String, query: String) -> Result<Vec<SearchH
 
 #[tauri::command]
 pub fn memory_export(workspace_cwd: String, dest_dir: String) -> Result<u32, String> {
-    let root = ensure_memory_root(&workspace_cwd)?;
+    let roots = ensure_workspace_memory(&workspace_cwd)?;
     let dest = PathBuf::from(dest_dir.trim());
     if !dest.is_absolute() {
         return err("dest_dir must be absolute");
     }
     fs::create_dir_all(&dest).map_err(|e| format!("mkdir dest: {e}"))?;
-    let mut files = Vec::new();
-    walk_md(&root, &mut files);
     let mut n = 0u32;
-    for f in files {
-        let Some(rel) = rel_from_root(&root, &f) else {
-            continue;
-        };
-        let target = dest.join(&rel);
-        if let Some(parent) = target.parent() {
-            fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
+    for (root, sub) in [
+        (roots.memory.as_path(), "memory"),
+        (roots.learnings.as_path(), "learnings"),
+    ] {
+        let mut files = Vec::new();
+        walk_md(root, &mut files);
+        for f in files {
+            let Some(rel) = rel_from_root(root, &f) else {
+                continue;
+            };
+            let target = dest.join(sub).join(&rel);
+            if let Some(parent) = target.parent() {
+                fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
+            }
+            fs::copy(&f, &target).map_err(|e| format!("copy {rel}: {e}"))?;
+            n += 1;
         }
-        fs::copy(&f, &target).map_err(|e| format!("copy {rel}: {e}"))?;
-        n += 1;
     }
     Ok(n)
 }
 
 #[tauri::command]
 pub fn memory_import(workspace_cwd: String, src_dir: String) -> Result<u32, String> {
-    let root = ensure_memory_root(&workspace_cwd)?;
+    let roots = ensure_workspace_memory(&workspace_cwd)?;
     let src = PathBuf::from(src_dir.trim());
     if !src.is_absolute() {
         return err("src_dir must be absolute");
@@ -706,15 +740,30 @@ pub fn memory_import(workspace_cwd: String, src_dir: String) -> Result<u32, Stri
     if !src.exists() {
         return err("src_dir does not exist");
     }
+    let mut n = 0u32;
+    let learnings_src = src.join("learnings");
+    let memory_src = src.join("memory");
+    if learnings_src.is_dir() {
+        n += import_tree_into_root(&learnings_src, &roots.learnings)?;
+    }
+    if memory_src.is_dir() {
+        n += import_tree_into_root(&memory_src, &roots.memory)?;
+    } else if !learnings_src.is_dir() {
+        n += import_tree_into_root(&src, &roots.memory)?;
+    }
+    Ok(n)
+}
+
+fn import_tree_into_root(src: &Path, dest_root: &Path) -> Result<u32, String> {
     let mut files = Vec::new();
-    walk_md(&src, &mut files);
+    walk_md(src, &mut files);
     let mut n = 0u32;
     for f in files {
-        let Ok(rel_pb) = f.strip_prefix(&src) else {
+        let Ok(rel_pb) = f.strip_prefix(src) else {
             continue;
         };
         let rel = rel_pb.to_string_lossy().replace('\\', "/");
-        let abs = match safe_join(&root, &rel, true) {
+        let abs = match safe_join(dest_root, &rel, true) {
             Ok(p) => p,
             Err(_) => continue,
         };
@@ -765,19 +814,24 @@ fn pointer_filename(agent: &str) -> Option<&'static str> {
 
 fn pointer_body(workspace_cwd: &Path, notes: &[NoteMeta], cursor_style: bool) -> String {
     let memory_dir = workspace_cwd.join(MEMORY_REL);
+    let learnings_dir = workspace_cwd.join(LEARNINGS_REL);
     let mut s = String::new();
     if cursor_style {
-        s.push_str("blxcode tracks per-workspace memory at the path below.\n");
+        s.push_str("blxcode tracks per-workspace memory and learnings at the paths below.\n");
     } else {
         s.push_str("## blxcode workspace memory\n\n");
         s.push_str(
-            "This workspace uses **blxcode** to maintain a set of Markdown notes \
-shared across all agent sessions. Treat the directory below as authoritative \
+            "This workspace uses **blxcode** to maintain Markdown notes and learnings \
+shared across all agent sessions. Treat the directories below as authoritative \
 context: read notes that are relevant to the task, and propose new notes \
 or edits when you learn something the team should remember.\n\n",
         );
     }
-    s.push_str(&format!("Memory root: `{}`\n\n", memory_dir.display()));
+    s.push_str(&format!("Memory root: `{}`\n", memory_dir.display()));
+    s.push_str(&format!(
+        "Learnings root: `{}` (API paths: `learnings/…`)\n\n",
+        learnings_dir.display()
+    ));
     if notes.is_empty() {
         s.push_str("(no notes yet)\n");
     } else {
@@ -850,7 +904,7 @@ pub fn memory_install_pointers(
     agents: Vec<String>,
 ) -> Result<Vec<PointerResult>, String> {
     let ws = validate_workspace_cwd(&workspace_cwd)?;
-    let _ = ensure_memory_root(&workspace_cwd)?;
+    let _ = ensure_workspace_memory(&workspace_cwd)?;
     let notes = memory_list(workspace_cwd.clone()).unwrap_or_default();
     let mut results: Vec<PointerResult> = Vec::new();
     let mut written_files: BTreeSet<String> = BTreeSet::new();
@@ -1027,6 +1081,7 @@ pub fn memory_pointer_status(workspace_cwd: String) -> Result<Vec<PointerResult>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents_layout::{LEGACY_MEMORY_REL, LEARNINGS_REL};
 
     #[test]
     fn safe_join_rejects_traversal() {
@@ -1057,6 +1112,39 @@ mod tests {
         assert!(tags.contains(&"foo".to_owned()));
         assert!(tags.contains(&"bar-baz".to_owned()));
         assert!(!tags.iter().any(|t| t == "Heading"));
+    }
+
+    #[test]
+    fn memory_list_includes_learnings_and_legacy_migrates() {
+        let ws = std::env::temp_dir().join(format!(
+            "blxcode_mem_multi_{}_{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let _ = fs::remove_dir_all(&ws);
+        fs::create_dir_all(&ws).unwrap();
+        fs::create_dir_all(ws.join(LEARNINGS_REL)).unwrap();
+        fs::write(
+            ws.join(LEARNINGS_REL).join("LEARNINGS.md"),
+            "## Index\n\n- [Topic](topic.md)\n",
+        )
+        .unwrap();
+        fs::write(ws.join(LEARNINGS_REL).join("topic.md"), "# Topic").unwrap();
+        fs::create_dir_all(ws.join(LEGACY_MEMORY_REL)).unwrap();
+        fs::write(ws.join(LEGACY_MEMORY_REL).join("legacy.md"), "old").unwrap();
+
+        let cwd = ws.to_string_lossy().into_owned();
+        let list = memory_list(cwd.clone()).unwrap();
+        assert!(list.iter().any(|n| n.path == "learnings/topic.md"));
+        assert!(list.iter().any(|n| n.path == "legacy.md"));
+
+        let g = memory_graph(cwd).unwrap();
+        assert!(g.edges.iter().any(|e| e.source.contains("LEARNINGS") || e.target.contains("topic")));
+
+        let _ = fs::remove_dir_all(&ws);
     }
 
     #[test]

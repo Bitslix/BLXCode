@@ -184,7 +184,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "memory_list",
-            description: "List Markdown notes under <workspace>/.blxcode/memory/. Returns at most 200 entries (path, name, size).",
+            description: "List Markdown notes under <workspace>/.agents/memory/ and learnings under .agents/learnings/ (API paths: learnings/…). Returns at most 200 entries.",
             parameters: json!({
                 "type": "object",
                 "properties": {},
@@ -194,7 +194,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "memory_read",
-            description: "Read a Markdown note under <workspace>/.blxcode/memory/. Path is relative to that root and must end in .md.",
+            description: "Read a Markdown note (API path: `notes.md` or `learnings/topic.md`). Must end in .md.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -207,7 +207,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "memory_create",
-            description: "Create a new Markdown note under <workspace>/.blxcode/memory/. Path is relative, must end in .md, must not exist. Content is capped at 32 KiB per call.",
+            description: "Create a new Markdown note under .agents/memory/ or learnings via `learnings/…` path. Must end in .md, must not exist. Content capped at 32 KiB.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -221,7 +221,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "memory_write",
-            description: "Overwrite an existing Markdown note under <workspace>/.blxcode/memory/. Path is relative, must end in .md. Content is capped at 32 KiB per call.",
+            description: "Overwrite an existing Markdown note (memory or `learnings/…` path). Must end in .md. Content capped at 32 KiB.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -235,7 +235,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "memory_search",
-            description: "Full-text search across <workspace>/.blxcode/memory/. Returns up to 50 hits (path, line, snippet).",
+            description: "Full-text search across .agents/memory/ and .agents/learnings/. Returns up to 50 hits (path, line, snippet).",
             parameters: json!({
                 "type": "object",
                 "properties": {

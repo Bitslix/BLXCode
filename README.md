@@ -10,7 +10,7 @@
 
 **BLXCode** is an open-source desktop workbench for running AI coding agents beside real terminals, project memory, tasks, and an embedded browser. It is built with **Tauri 2**, **Rust**, **Leptos**, and **Trunk**.
 
-The project is designed for people who want one focused local cockpit for agent-assisted development: create a workspace, assign terminal slots to tools such as Claude, Codex, Gemini, OpenCode, or Cursor, keep durable project notes in `.blxcode/memory`, and talk to model providers from the same interface.
+The project is designed for people who want one focused local cockpit for agent-assisted development: create a workspace, assign terminal slots to tools such as Claude, Codex, Gemini, OpenCode, or Cursor, keep durable project notes in `.agents/memory` and learnings in `.agents/learnings`, and talk to model providers from the same interface.
 
 ## Highlights
 
@@ -19,7 +19,7 @@ The project is designed for people who want one focused local cockpit for agent-
 - **Agent panel** with OpenRouter, Anthropic, and OpenAI-compatible provider settings.
 - **Voice input and voice replies** with microphone STT, OpenAI/OpenRouter transcription, and OpenAI TTS playback.
 - **Sandbox-aware agent tools** for listing and reading workspace files.
-- **Workspace memory** stored as Markdown notes under `.blxcode/memory`.
+- **Workspace memory** stored as Markdown notes under `.agents/memory`, with repo learnings under `.agents/learnings`.
 - **Workspace tasks** stored under `.blxcode/tasks`.
 - **Embedded browser** for links and research, with native child webviews on supported platforms and iframe fallback where needed.
 - **Agent hooks** for Claude, Codex, Gemini, OpenCode, and Cursor session/title capture and **session resume** when reopening a terminal slot.
@@ -138,7 +138,8 @@ trunk build
 Most user-facing configuration is managed in the app UI and persisted in the platform app config/data directories. Workspace-local data is stored under the selected workspace:
 
 ```text
-<workspace>/.blxcode/memory/
+<workspace>/.agents/memory/
+<workspace>/.agents/learnings/
 <workspace>/.blxcode/tasks/
 ```
 

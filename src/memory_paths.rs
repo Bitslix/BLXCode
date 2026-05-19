@@ -1,4 +1,4 @@
-//! Workspace memory paths (relative to `.blxcode/memory/`), shared by UI + click routing.
+//! Workspace memory API paths (`.agents/memory/` + `learnings/…`), shared by UI + click routing.
 
 /// Normalizes link target / filename fragment to API shape (`foo.md`, `dir/bar.md`).
 #[must_use]
@@ -19,7 +19,7 @@ pub fn slug_to_filename(input: &str) -> String {
     }
 }
 
-/// Rejects empty / absolute / `..` segments. Returns a path relative to `.blxcode/memory/`.
+/// Rejects empty / absolute / `..` segments. Returns an API path relative to memory roots.
 #[must_use]
 pub fn sanitize_memory_relative_path(raw: &str) -> Option<String> {
     let mut s = raw.trim().replace('\\', "/");

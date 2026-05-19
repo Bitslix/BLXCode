@@ -11,14 +11,29 @@ use std::borrow::Cow;
 
 fn strip_known_prefixes(path: &str) -> Cow<'_, str> {
     let t = path.trim();
+    if let Some(r) = t.strip_prefix(".agents/learnings/") {
+        return Cow::Owned(format!("learnings/{r}"));
+    }
+    if let Some(r) = t.strip_prefix(".agents/memory/") {
+        return Cow::Borrowed(r);
+    }
     if let Some(r) = t.strip_prefix(".blxcode/memory/") {
         return Cow::Borrowed(r);
+    }
+    if t.starts_with("learnings/") {
+        return Cow::Borrowed(t);
     }
     if let Some(r) = t.strip_prefix("memory/") {
         return Cow::Borrowed(r);
     }
     Cow::Borrowed(t)
 }
+
+const MEMORY_PATH_PREFIXES: &[&str] = &[
+    ".agents/learnings/",
+    ".agents/memory/",
+    ".blxcode/memory/",
+];
 
 fn memory_rel_from_display_path(display_path: &str) -> Option<String> {
     let t = display_path.trim();
@@ -81,28 +96,37 @@ fn scan_line_for_wikilinks_and_paths(line: &str) -> String {
             continue;
         }
 
-        const PREFIX: &str = ".blxcode/memory/";
-        if line[i..].starts_with(PREFIX) {
-            let after = &line[i + PREFIX.len()..];
-            let end = after
-                .find(|c: char| {
-                    c.is_whitespace()
-                        || matches!(c, ')' | ']' | '`' | '"' | '\'' | '>' | '<' | ';' | ',')
-                })
-                .unwrap_or(after.len());
-            let raw = after[..end].trim();
-            if !raw.is_empty() && !raw.contains("..") && raw.to_ascii_lowercase().ends_with(".md") {
-                if let Some(rel) = sanitize_memory_relative_path(raw) {
-                    let display_path = format!("{PREFIX}{raw}");
-                    out.push('[');
-                    escape_md_link_text_fragment(&display_path, &mut out);
-                    out.push_str("](blxmemory:");
-                    out.push_str(&rel);
-                    out.push(')');
-                    i += PREFIX.len() + end;
-                    continue;
+        let mut matched_prefix = false;
+        for prefix in MEMORY_PATH_PREFIXES {
+            if line[i..].starts_with(prefix) {
+                let after = &line[i + prefix.len()..];
+                let end = after
+                    .find(|c: char| {
+                        c.is_whitespace()
+                            || matches!(c, ')' | ']' | '`' | '"' | '\'' | '>' | '<' | ';' | ',')
+                    })
+                    .unwrap_or(after.len());
+                let raw = after[..end].trim();
+                if !raw.is_empty()
+                    && !raw.contains("..")
+                    && raw.to_ascii_lowercase().ends_with(".md")
+                {
+                    let display_path = format!("{prefix}{raw}");
+                    if let Some(rel) = memory_rel_from_display_path(&display_path) {
+                        out.push('[');
+                        escape_md_link_text_fragment(&display_path, &mut out);
+                        out.push_str("](blxmemory:");
+                        out.push_str(&rel);
+                        out.push(')');
+                        i += prefix.len() + end;
+                        matched_prefix = true;
+                        break;
+                    }
                 }
             }
+        }
+        if matched_prefix {
+            continue;
         }
 
         let ch = line[i..].chars().next().unwrap();
@@ -112,7 +136,7 @@ fn scan_line_for_wikilinks_and_paths(line: &str) -> String {
     out
 }
 
-/// Expands `[[wikilinks]]`, `.blxcode/memory/*.md` (outside fenced code), then runs pulldown + light HTML fixes.
+/// Expands `[[wikilinks]]`, `.agents/memory/*.md` / `.agents/learnings/*.md` (outside fenced code), then runs pulldown + light HTML fixes.
 #[must_use]
 pub fn preprocess_agent_chat_markdown(src: &str) -> String {
     let mut out = String::with_capacity(src.len() + 32);
@@ -463,7 +487,9 @@ fn postprocess_html_inline_code_memory_paths(html: &mut String) {
         rest = &rest[en + 7..];
         let trimmed = inner.trim();
         if !inner.contains('\n')
-            && trimmed.starts_with(".blxcode/memory/")
+            && MEMORY_PATH_PREFIXES
+                .iter()
+                .any(|p| trimmed.starts_with(p))
             && trimmed.to_ascii_lowercase().ends_with(".md")
         {
             if let Some(rel) = memory_rel_from_display_path(trimmed) {

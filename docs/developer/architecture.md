@@ -63,7 +63,7 @@ The state model includes workspaces, active workspace ID, recent workspaces, sid
 
 ## Memory And Tasks
 
-Memory lives in `src-tauri/src/memory.rs` and stores Markdown notes under `<workspace>/.blxcode/memory/`.
+Memory lives in `src-tauri/src/memory.rs` and `src-tauri/src/agents_layout.rs`. Notes are stored under `<workspace>/.agents/memory/` and learnings under `<workspace>/.agents/learnings/` (API paths `learnings/…`). Legacy `.blxcode/memory/` is migrated on workspace bootstrap.
 
 Tasks live in `src-tauri/src/tasks.rs` and store JSON under `<workspace>/.blxcode/tasks/index.json`.
 

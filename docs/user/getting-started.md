@@ -60,7 +60,8 @@ API keys are stored in the operating system keyring when available. On platforms
 Workspace-local data is stored inside the workspace folder:
 
 ```text
-.blxcode/memory/
+.agents/memory/
+.agents/learnings/
 .blxcode/tasks/
 ```
 
