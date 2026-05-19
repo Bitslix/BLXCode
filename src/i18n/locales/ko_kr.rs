@@ -72,6 +72,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemSearchPh => "메모 검색…",
         I18nKey::MemFilesExpand => "파일 목록 펼치기",
         I18nKey::MemFilesCollapse => "파일 목록 축소",
+        I18nKey::MemFilesGroupMemory => "Memory",
+        I18nKey::MemFilesGroupLearnings => "Learnings",
         I18nKey::AgAriaPane => "에이전트 하네스",
         I18nKey::AgSandbox => "도구 샌드박스",
         I18nKey::AgNoPath => "(경로 없음)",

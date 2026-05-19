@@ -76,6 +76,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemSearchPh => "Jegyzetek keresése…",
         I18nKey::MemFilesExpand => "A fájllista kibontása",
         I18nKey::MemFilesCollapse => "Fájllista összecsukása",
+        I18nKey::MemFilesGroupMemory => "Memory",
+        I18nKey::MemFilesGroupLearnings => "Learnings",
         I18nKey::AgAriaPane => "Ügynök hám",
         I18nKey::AgSandbox => "Szerszám homokozó",
         I18nKey::AgNoPath => "(nincs út)",

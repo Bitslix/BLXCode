@@ -76,6 +76,8 @@ pub enum I18nKey {
     MemSearchPh,
     MemFilesExpand,
     MemFilesCollapse,
+    MemFilesGroupMemory,
+    MemFilesGroupLearnings,
 
     AgAriaPane,
     AgSandbox,

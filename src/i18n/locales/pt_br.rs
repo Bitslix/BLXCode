@@ -76,6 +76,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemSearchPh => "Notas de pesquisa…",
         I18nKey::MemFilesExpand => "Expandir lista de arquivos",
         I18nKey::MemFilesCollapse => "Recolher lista de arquivos",
+        I18nKey::MemFilesGroupMemory => "Memory",
+        I18nKey::MemFilesGroupLearnings => "Learnings",
         I18nKey::AgAriaPane => "Arnês do agente",
         I18nKey::AgSandbox => "Caixa de areia de ferramentas",
         I18nKey::AgNoPath => "(sem caminho)",

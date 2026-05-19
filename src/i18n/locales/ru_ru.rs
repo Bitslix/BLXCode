@@ -76,6 +76,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemSearchPh => "Поиск заметок…",
         I18nKey::MemFilesExpand => "Развернуть список файлов",
         I18nKey::MemFilesCollapse => "Свернуть список файлов",
+        I18nKey::MemFilesGroupMemory => "Memory",
+        I18nKey::MemFilesGroupLearnings => "Learnings",
         I18nKey::AgAriaPane => "Агентская обвязка",
         I18nKey::AgSandbox => "Песочница для инструментов",
         I18nKey::AgNoPath => "(нет пути)",

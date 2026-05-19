@@ -72,6 +72,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemSearchPh => "メモを検索…",
         I18nKey::MemFilesExpand => "ファイルリストを展開する",
         I18nKey::MemFilesCollapse => "ファイルリストを折りたたむ",
+        I18nKey::MemFilesGroupMemory => "Memory",
+        I18nKey::MemFilesGroupLearnings => "Learnings",
         I18nKey::AgAriaPane => "エージェントハーネス",
         I18nKey::AgSandbox => "ツールサンドボックス",
         I18nKey::AgNoPath => "(パスがありません)",

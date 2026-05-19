@@ -5052,6 +5052,19 @@ button {
   list-style: none;
   overflow-y: auto;
 }
+.workbench-memory-files__group-head {
+  margin: 0.55rem 0.35rem 0.15rem;
+  padding: 0 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(160, 165, 180, 0.85);
+  list-style: none;
+}
+.workbench-memory-files__group-head:first-child {
+  margin-top: 0.15rem;
+}
 .workbench-memory-files__item {
   display: flex;
   align-items: center;

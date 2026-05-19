@@ -72,6 +72,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemSearchPh => "搜尋筆記...",
         I18nKey::MemFilesExpand => "展開文件列表",
         I18nKey::MemFilesCollapse => "折疊文件列表",
+        I18nKey::MemFilesGroupMemory => "Memory",
+        I18nKey::MemFilesGroupLearnings => "Learnings",
         I18nKey::AgAriaPane => "代理線束",
         I18nKey::AgSandbox => "工具沙箱",
         I18nKey::AgNoPath => "（沒有路徑）",

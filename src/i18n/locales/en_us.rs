@@ -83,6 +83,8 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::MemSearchPh => "Search notes…",
         I18nKey::MemFilesExpand => "Expand file list",
         I18nKey::MemFilesCollapse => "Collapse file list",
+        I18nKey::MemFilesGroupMemory => "Memory",
+        I18nKey::MemFilesGroupLearnings => "Learnings",
 
         I18nKey::AgAriaPane => "Agent harness",
         I18nKey::AgSandbox => "Tool sandbox ",

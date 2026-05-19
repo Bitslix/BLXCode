@@ -16,6 +16,7 @@ use wasm_bindgen::JsCast;
 use web_sys::HtmlInputElement;
 
 const SAVE_DEBOUNCE_MS: u32 = 600;
+const LEARNINGS_API_PREFIX: &str = "learnings/";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum MemoryView {
@@ -376,39 +377,63 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                     <For
                         each={
                             let s = state.clone();
-                            move || s.notes.get()
+                            move || memory_note_groups(s.notes.get())
                         }
-                        key=|n| n.path.clone()
+                        key=|g| g.key
                         children={
                             let state = state.clone();
-                            move |n: NoteMeta| {
-                                let path = n.path.clone();
-                                let expanded_note = n.clone();
-                                let collapsed_note = n.clone();
-                                let s_active = state.clone();
-                                let path_for_active = path.clone();
+                            let i18n = i18n.clone();
+                            move |group: MemoryNoteGroup| {
+                                let group_key = group.key;
+                                let group_notes = group.notes;
+                                let state = state.clone();
+                                let i18n = i18n.clone();
                                 view! {
-                                    <li
-                                        class="workbench-memory-files__item"
-                                        class:workbench-memory-files__item--collapsed=move || files_collapsed.get()
-                                        class:workbench-memory-files__item--active=move || {
-                                            s_active.active_path.get().as_deref() == Some(path_for_active.as_str())
-                                        }
-                                    >
-                                        <Show
-                                            when=move || files_collapsed.get()
-                                            fallback=move || view! {
-                                                <MemoryFileExpandedRow
-                                                    state=state
-                                                    note=expanded_note.clone()
-                                                    renaming=renaming
-                                                    rename_input=rename_input
-                                                />
+                                    <Show when=move || !files_collapsed.get()>
+                                        <li class="workbench-memory-files__group-head" role="presentation">
+                                            {move || match group_key {
+                                                "learnings" => i18n.tr(I18nKey::MemFilesGroupLearnings)(),
+                                                _ => i18n.tr(I18nKey::MemFilesGroupMemory)(),
+                                            }}
+                                        </li>
+                                    </Show>
+                                    <For
+                                        each=move || group_notes.clone()
+                                        key=|n| n.path.clone()
+                                        children={
+                                            let state = state.clone();
+                                            move |n: NoteMeta| {
+                                                let path = n.path.clone();
+                                                let expanded_note = n.clone();
+                                                let collapsed_note = n.clone();
+                                                let s_active = state.clone();
+                                                let path_for_active = path.clone();
+                                                view! {
+                                                    <li
+                                                        class="workbench-memory-files__item"
+                                                        class:workbench-memory-files__item--collapsed=move || files_collapsed.get()
+                                                        class:workbench-memory-files__item--active=move || {
+                                                            s_active.active_path.get().as_deref() == Some(path_for_active.as_str())
+                                                        }
+                                                    >
+                                                        <Show
+                                                            when=move || files_collapsed.get()
+                                                            fallback=move || view! {
+                                                                <MemoryFileExpandedRow
+                                                                    state=state
+                                                                    note=expanded_note.clone()
+                                                                    renaming=renaming
+                                                                    rename_input=rename_input
+                                                                />
+                                                            }
+                                                        >
+                                                            <MemoryFileCollapsedRow state=state note=collapsed_note.clone() />
+                                                        </Show>
+                                                    </li>
+                                                }
                                             }
-                                        >
-                                            <MemoryFileCollapsedRow state=state note=collapsed_note.clone() />
-                                        </Show>
-                                    </li>
+                                        }
+                                    />
                                 }
                             }
                         }
@@ -589,7 +614,7 @@ fn MemoryFileExpandedRow(
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let label = note.name.clone();
-    let folder = note.path.rsplit_once('/').map(|(d, _)| d.to_string());
+    let folder = memory_display_folder(&note.path);
     let note_path = note.path.clone();
     let path_for_select = note_path.clone();
     let path_for_del = note_path.clone();
@@ -711,6 +736,43 @@ fn MemoryFileExpandedRow(
             }
         }}
     }
+}
+
+#[derive(Clone)]
+struct MemoryNoteGroup {
+    key: &'static str,
+    notes: Vec<NoteMeta>,
+}
+
+fn memory_note_groups(notes: Vec<NoteMeta>) -> Vec<MemoryNoteGroup> {
+    let mut memory = Vec::new();
+    let mut learnings = Vec::new();
+    for n in notes {
+        if n.path.starts_with(LEARNINGS_API_PREFIX) {
+            learnings.push(n);
+        } else {
+            memory.push(n);
+        }
+    }
+    let mut groups = Vec::new();
+    if !memory.is_empty() {
+        groups.push(MemoryNoteGroup {
+            key: "memory",
+            notes: memory,
+        });
+    }
+    if !learnings.is_empty() {
+        groups.push(MemoryNoteGroup {
+            key: "learnings",
+            notes: learnings,
+        });
+    }
+    groups
+}
+
+fn memory_display_folder(path: &str) -> Option<String> {
+    let tail = path.strip_prefix(LEARNINGS_API_PREFIX).unwrap_or(path);
+    tail.rsplit_once('/').map(|(d, _)| d.to_string())
 }
 
 fn note_badge_text(name: &str) -> String {
