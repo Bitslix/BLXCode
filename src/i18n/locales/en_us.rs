@@ -81,10 +81,13 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::MemGraphEmpty => "No notes yet — create one in Files.",
         I18nKey::MemGraphLegend => "Nodes = notes · edges = [[wiki links]]",
         I18nKey::MemSearchPh => "Search notes…",
+        I18nKey::MemSearchFilterAll => "All",
         I18nKey::MemFilesExpand => "Expand file list",
         I18nKey::MemFilesCollapse => "Collapse file list",
         I18nKey::MemFilesGroupMemory => "Memory",
         I18nKey::MemFilesGroupLearnings => "Learnings",
+        I18nKey::MemFilesGroupExpand => "Expand group",
+        I18nKey::MemFilesGroupCollapse => "Collapse group",
 
         I18nKey::AgAriaPane => "Agent harness",
         I18nKey::AgSandbox => "Tool sandbox ",

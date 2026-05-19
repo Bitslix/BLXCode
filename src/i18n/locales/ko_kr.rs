@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "수용하다",
         I18nKey::GitignorePromptTitle => ".gitignore에 .blxcode를 추가하시겠습니까?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
         I18nKey::GitignorePromptYes => "예, 추가하세요",
         I18nKey::GitignorePromptNo => "지금은 아님",
@@ -70,10 +70,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemGraphEmpty => "아직 메모가 없습니다. 파일에서 메모를 만드세요.",
         I18nKey::MemGraphLegend => "노드 = 메모 · 가장자리 = [[wiki 링크]]",
         I18nKey::MemSearchPh => "메모 검색…",
+        I18nKey::MemSearchFilterAll => "모두",
         I18nKey::MemFilesExpand => "파일 목록 펼치기",
         I18nKey::MemFilesCollapse => "파일 목록 축소",
-        I18nKey::MemFilesGroupMemory => "Memory",
-        I18nKey::MemFilesGroupLearnings => "Learnings",
+        I18nKey::MemFilesGroupMemory => "메모리",
+        I18nKey::MemFilesGroupLearnings => "학습",
+        I18nKey::MemFilesGroupExpand => "그룹 펼치기",
+        I18nKey::MemFilesGroupCollapse => "그룹 축소",
         I18nKey::AgAriaPane => "에이전트 하네스",
         I18nKey::AgSandbox => "도구 샌드박스",
         I18nKey::AgNoPath => "(경로 없음)",

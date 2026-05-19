@@ -5053,17 +5053,64 @@ button {
   overflow-y: auto;
 }
 .workbench-memory-files__group-head {
-  margin: 0.55rem 0.35rem 0.15rem;
-  padding: 0 0.4rem;
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: rgba(160, 165, 180, 0.85);
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin: 0.55rem 0.2rem 0.1rem;
+  padding: 0;
   list-style: none;
 }
 .workbench-memory-files__group-head:first-child {
   margin-top: 0.15rem;
+}
+.workbench-memory-files__group-head--hidden {
+  display: none;
+}
+.workbench-memory-files__group-head--active .workbench-memory-files__group-index {
+  color: rgba(140, 190, 255, 0.95);
+}
+.workbench-memory-files__group-chevron {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0;
+  color: rgba(160, 165, 180, 0.85);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.workbench-memory-files__group-chevron--open {
+  transform: rotate(90deg);
+}
+.workbench-memory-files__group-chevron:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(220, 223, 235, 0.95);
+}
+.workbench-memory-files__group-index {
+  flex: 1;
+  min-width: 0;
+  padding: 0.28rem 0.35rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(190, 194, 208, 0.92);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workbench-memory-files__group-index:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(238, 239, 245, 0.95);
 }
 .workbench-memory-files__item {
   display: flex;
@@ -5379,6 +5426,34 @@ button {
 .workbench-memory-search__input:focus {
   outline: none;
   border-color: var(--accent, #5b9dff);
+}
+.workbench-memory-search__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0 0.55rem 0.45rem;
+}
+.workbench-memory-search__filter {
+  padding: 0.18rem 0.55rem;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(200, 204, 218, 0.88);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.workbench-memory-search__filter:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: rgba(238, 239, 245, 0.95);
+}
+.workbench-memory-search__filter--active {
+  color: rgba(238, 239, 245, 0.96);
+  background: linear-gradient(180deg, rgba(91, 157, 255, 0.2), rgba(91, 157, 255, 0.1));
+  border-color: rgba(91, 157, 255, 0.35);
 }
 .workbench-memory-search__results {
   flex: 1;

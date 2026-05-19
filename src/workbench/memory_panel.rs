@@ -11,12 +11,14 @@ use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use wasm_bindgen::JsCast;
 use web_sys::HtmlInputElement;
 
 const SAVE_DEBOUNCE_MS: u32 = 600;
 const LEARNINGS_API_PREFIX: &str = "learnings/";
+const LEARNINGS_INDEX_PATHS: &[&str] = &["learnings/LEARNINGS.md", "learnings/LEARNIGS.md"];
+const MEMORY_INDEX_PATHS: &[&str] = &["README.md", "MEMORY.md"];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum MemoryView {
@@ -292,6 +294,7 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
     let renaming = RwSignal::new(None::<String>);
     let rename_input = RwSignal::new(String::new());
     let files_collapsed = RwSignal::new(false);
+    let groups_open = RwSignal::new(HashSet::<&'static str>::new());
 
     view! {
         <div
@@ -382,57 +385,15 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                         key=|g| g.key
                         children={
                             let state = state.clone();
-                            let i18n = i18n.clone();
                             move |group: MemoryNoteGroup| {
-                                let group_key = group.key;
-                                let group_notes = group.notes;
-                                let state = state.clone();
-                                let i18n = i18n.clone();
                                 view! {
-                                    <Show when=move || !files_collapsed.get()>
-                                        <li class="workbench-memory-files__group-head" role="presentation">
-                                            {move || match group_key {
-                                                "learnings" => i18n.tr(I18nKey::MemFilesGroupLearnings)(),
-                                                _ => i18n.tr(I18nKey::MemFilesGroupMemory)(),
-                                            }}
-                                        </li>
-                                    </Show>
-                                    <For
-                                        each=move || group_notes.clone()
-                                        key=|n| n.path.clone()
-                                        children={
-                                            let state = state.clone();
-                                            move |n: NoteMeta| {
-                                                let path = n.path.clone();
-                                                let expanded_note = n.clone();
-                                                let collapsed_note = n.clone();
-                                                let s_active = state.clone();
-                                                let path_for_active = path.clone();
-                                                view! {
-                                                    <li
-                                                        class="workbench-memory-files__item"
-                                                        class:workbench-memory-files__item--collapsed=move || files_collapsed.get()
-                                                        class:workbench-memory-files__item--active=move || {
-                                                            s_active.active_path.get().as_deref() == Some(path_for_active.as_str())
-                                                        }
-                                                    >
-                                                        <Show
-                                                            when=move || files_collapsed.get()
-                                                            fallback=move || view! {
-                                                                <MemoryFileExpandedRow
-                                                                    state=state
-                                                                    note=expanded_note.clone()
-                                                                    renaming=renaming
-                                                                    rename_input=rename_input
-                                                                />
-                                                            }
-                                                        >
-                                                            <MemoryFileCollapsedRow state=state note=collapsed_note.clone() />
-                                                        </Show>
-                                                    </li>
-                                                }
-                                            }
-                                        }
+                                    <MemoryFileGroupSection
+                                        state=state.clone()
+                                        group=group
+                                        groups_open=groups_open
+                                        files_collapsed=files_collapsed
+                                        renaming=renaming
+                                        rename_input=rename_input
                                     />
                                 }
                             }
@@ -579,6 +540,155 @@ fn strip_ext(s: &str) -> String {
         }
     }
     s.to_owned()
+}
+
+#[component]
+fn MemoryFileGroupHead(
+    state: MemoryState,
+    group_key: &'static str,
+    groups_open: RwSignal<HashSet<&'static str>>,
+    files_collapsed: RwSignal<bool>,
+    header_title: String,
+    index_path: Option<String>,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let index_active = index_path.clone();
+    let index_open = index_path;
+
+    view! {
+        <li
+            class="workbench-memory-files__group-head"
+            class:workbench-memory-files__group-head--hidden=move || files_collapsed.get()
+            class:workbench-memory-files__group-head--active=move || {
+                memory_group_index_active(&state, &index_active)
+            }
+        >
+            <button
+                type="button"
+                class="workbench-memory-files__group-chevron"
+                class:workbench-memory-files__group-chevron--open=move || {
+                    groups_open.with(|s| s.contains(group_key))
+                }
+                aria-expanded=move || groups_open.with(|s| s.contains(group_key)).to_string()
+                aria-label=move || {
+                    if groups_open.with(|s| s.contains(group_key)) {
+                        i18n.tr(I18nKey::MemFilesGroupCollapse)()
+                    } else {
+                        i18n.tr(I18nKey::MemFilesGroupExpand)()
+                    }
+                }
+                on:click=move |ev: web_sys::MouseEvent| {
+                    ev.stop_propagation();
+                    groups_open.update(|s| {
+                        if s.contains(group_key) {
+                            s.remove(group_key);
+                        } else {
+                            s.insert(group_key);
+                        }
+                    });
+                }
+            >
+                <LxIcon icon=icondata::LuChevronRight width="0.75rem" height="0.75rem" />
+            </button>
+            <MemoryFileGroupIndexButton
+                state=state
+                label=header_title
+                index_path=index_open
+            />
+        </li>
+    }
+}
+
+#[component]
+fn MemoryFileGroupIndexButton(
+    state: MemoryState,
+    label: String,
+    index_path: Option<String>,
+) -> impl IntoView {
+    let title = label.clone();
+    view! {
+        <button
+            type="button"
+            class="workbench-memory-files__group-index"
+            title=title
+            on:click=move |_| memory_open_group_index(state, index_path.clone())
+        >
+            {label}
+        </button>
+    }
+}
+
+#[component]
+fn MemoryFileGroupSection(
+    state: MemoryState,
+    group: MemoryNoteGroup,
+    groups_open: RwSignal<HashSet<&'static str>>,
+    files_collapsed: RwSignal<bool>,
+    renaming: RwSignal<Option<String>>,
+    rename_input: RwSignal<String>,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let group_key = group.key;
+    let header_title = memory_group_header_label(&group, &i18n);
+    let index_path = group.index.as_ref().map(|n| n.path.clone());
+    let index = group.index;
+    let group_notes = group.notes;
+
+    view! {
+        <MemoryFileGroupHead
+            state=state
+            group_key=group_key
+            groups_open=groups_open
+            files_collapsed=files_collapsed
+            header_title=header_title
+            index_path=index_path
+        />
+        <For
+            each=move || {
+                if files_collapsed.get() {
+                    memory_group_collapsed_items(&index, &group_notes)
+                } else if groups_open.with(|s| s.contains(group_key)) {
+                    group_notes.clone()
+                } else {
+                    Vec::new()
+                }
+            }
+            key=|n| n.path.clone()
+            children={
+                let state = state.clone();
+                move |n: NoteMeta| {
+                    let path = n.path.clone();
+                    let expanded_note = n.clone();
+                    let collapsed_note = n.clone();
+                    let s_active = state.clone();
+                    let path_for_active = path.clone();
+                    view! {
+                        <li
+                            class="workbench-memory-files__item"
+                            class:workbench-memory-files__item--collapsed=move || files_collapsed.get()
+                            class:workbench-memory-files__item--active=move || {
+                                s_active.active_path.get().as_deref() == Some(path_for_active.as_str())
+                            }
+                        >
+                            <Show
+                                when=move || files_collapsed.get()
+                                fallback=move || view! {
+                                    <MemoryFileExpandedRow
+                                        state=state
+                                        note=expanded_note.clone()
+                                        renaming=renaming
+                                        rename_input=rename_input
+                                    />
+                                }
+                            >
+                                <MemoryFileCollapsedRow state=state note=collapsed_note.clone() />
+                            </Show>
+                        </li>
+                    }
+                }
+            }
+        />
+    }
 }
 
 #[component]
@@ -741,6 +851,7 @@ fn MemoryFileExpandedRow(
 #[derive(Clone)]
 struct MemoryNoteGroup {
     key: &'static str,
+    index: Option<NoteMeta>,
     notes: Vec<NoteMeta>,
 }
 
@@ -755,19 +866,89 @@ fn memory_note_groups(notes: Vec<NoteMeta>) -> Vec<MemoryNoteGroup> {
         }
     }
     let mut groups = Vec::new();
-    if !memory.is_empty() {
+    let (mem_index, mem_notes) = split_group_index(memory, is_memory_index_note);
+    if mem_index.is_some() || !mem_notes.is_empty() {
         groups.push(MemoryNoteGroup {
             key: "memory",
-            notes: memory,
+            index: mem_index,
+            notes: mem_notes,
         });
     }
-    if !learnings.is_empty() {
+    let (learn_index, learn_notes) = split_group_index(learnings, is_learnings_index_note);
+    if learn_index.is_some() || !learn_notes.is_empty() {
         groups.push(MemoryNoteGroup {
             key: "learnings",
-            notes: learnings,
+            index: learn_index,
+            notes: learn_notes,
         });
     }
     groups
+}
+
+fn split_group_index(
+    notes: Vec<NoteMeta>,
+    is_index: impl Fn(&NoteMeta) -> bool,
+) -> (Option<NoteMeta>, Vec<NoteMeta>) {
+    let mut index = None;
+    let mut rest = Vec::new();
+    for n in notes {
+        if index.is_none() && is_index(&n) {
+            index = Some(n);
+        } else {
+            rest.push(n);
+        }
+    }
+    (index, rest)
+}
+
+fn is_learnings_index_note(note: &NoteMeta) -> bool {
+    LEARNINGS_INDEX_PATHS
+        .iter()
+        .any(|p| note.path.eq_ignore_ascii_case(p))
+}
+
+fn is_memory_index_note(note: &NoteMeta) -> bool {
+    MEMORY_INDEX_PATHS
+        .iter()
+        .any(|p| note.path.eq_ignore_ascii_case(p))
+}
+
+fn memory_open_group_index(state: MemoryState, index_path: Option<String>) {
+    let Some(path) = index_path else {
+        return;
+    };
+    let Some(ws) = state.workspace_cwd.get_untracked() else {
+        return;
+    };
+    load_note(state, ws, path);
+}
+
+fn memory_group_index_active(state: &MemoryState, index_path: &Option<String>) -> bool {
+    index_path
+        .as_deref()
+        .is_some_and(|p| state.active_path.get().as_deref() == Some(p))
+}
+
+fn memory_group_header_label(group: &MemoryNoteGroup, i18n: &I18nService) -> String {
+    if let Some(idx) = &group.index {
+        return idx.name.clone();
+    }
+    match group.key {
+        "learnings" => i18n.tr(I18nKey::MemFilesGroupLearnings)().to_string(),
+        _ => i18n.tr(I18nKey::MemFilesGroupMemory)().to_string(),
+    }
+}
+
+fn memory_group_collapsed_items(
+    index: &Option<NoteMeta>,
+    notes: &[NoteMeta],
+) -> Vec<NoteMeta> {
+    let mut out = Vec::new();
+    if let Some(idx) = index {
+        out.push(idx.clone());
+    }
+    out.extend(notes.iter().cloned());
+    out
 }
 
 fn memory_display_folder(path: &str) -> Option<String> {
@@ -1546,15 +1727,68 @@ fn edge_compat(
     angle * scale * pos_comp
 }
 
+fn search_hit_category(path: &str) -> &'static str {
+    if path.starts_with(LEARNINGS_API_PREFIX) {
+        "learnings"
+    } else {
+        "memory"
+    }
+}
+
+fn search_filter_categories(hits: &[SearchHit]) -> Vec<String> {
+    let mut memory = false;
+    let mut learnings = false;
+    for h in hits {
+        match search_hit_category(&h.path) {
+            "learnings" => learnings = true,
+            _ => memory = true,
+        }
+    }
+    let mut out = Vec::new();
+    if memory {
+        out.push("memory".into());
+    }
+    if learnings {
+        out.push("learnings".into());
+    }
+    out
+}
+
+fn search_category_count(hits: &[SearchHit], category: &str) -> usize {
+    hits.iter()
+        .filter(|h| search_hit_category(&h.path) == category)
+        .count()
+}
+
+fn search_category_label(i18n: &I18nService, category: &str) -> String {
+    match category {
+        "learnings" => i18n.tr(I18nKey::MemFilesGroupLearnings)().to_string(),
+        _ => i18n.tr(I18nKey::MemFilesGroupMemory)().to_string(),
+    }
+}
+
+fn filter_search_hits(hits: Vec<SearchHit>, filter: Option<String>) -> Vec<SearchHit> {
+    match filter {
+        None => hits,
+        Some(cat) => hits
+            .into_iter()
+            .filter(|h| search_hit_category(&h.path) == cat.as_str())
+            .collect(),
+    }
+}
+
 #[component]
 fn MemorySearchView(state: MemoryState) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let debounce_token: RwSignal<u32> = RwSignal::new(0);
+    let search_filter: RwSignal<Option<String>> = RwSignal::new(None);
 
     let on_input = {
+        let search_filter = search_filter;
         move |ev: web_sys::Event| {
             let v = input_value(ev).unwrap_or_default();
             state.search_query.set(v.clone());
+            search_filter.set(None);
             let token = debounce_token.get_untracked() + 1;
             debounce_token.set(token);
             let s = state;
@@ -1590,11 +1824,67 @@ fn MemorySearchView(state: MemoryState) -> impl IntoView {
                 }
                 on:input=on_input
             />
+            <Show
+                when={
+                    let s = state.clone();
+                    move || search_filter_categories(&s.search_results.get()).len() > 1
+                }
+            >
+                <div class="workbench-memory-search__filters" role="group">
+                    <button
+                        type="button"
+                        class="workbench-memory-search__filter"
+                        class:workbench-memory-search__filter--active=move || search_filter.get().is_none()
+                        on:click=move |_| search_filter.set(None)
+                    >
+                        {move || {
+                            let s = state.clone();
+                            let n = s.search_results.get().len();
+                            format!("{} ({n})", i18n.tr(I18nKey::MemSearchFilterAll)())
+                        }}
+                    </button>
+                    <For
+                        each={
+                            let s = state.clone();
+                            move || search_filter_categories(&s.search_results.get())
+                        }
+                        key=|cat| cat.clone()
+                        children={
+                            let i18n = i18n.clone();
+                            let state = state.clone();
+                            move |cat: String| {
+                                let i18n = i18n.clone();
+                                let state = state.clone();
+                                let cat_for_active = cat.clone();
+                                let cat_for_click = cat.clone();
+                                view! {
+                                    <button
+                                        type="button"
+                                        class="workbench-memory-search__filter"
+                                        class:workbench-memory-search__filter--active=move || {
+                                            search_filter.get() == Some(cat_for_active.clone())
+                                        }
+                                        on:click=move |_| search_filter.set(Some(cat_for_click.clone()))
+                                    >
+                                        {move || {
+                                            let n = search_category_count(&state.search_results.get(), &cat);
+                                            format!("{} ({n})", search_category_label(&i18n, &cat))
+                                        }}
+                                    </button>
+                                }
+                            }
+                        }
+                    />
+                </div>
+            </Show>
             <ul class="workbench-memory-search__results">
                 <For
                     each={
                         let s = state.clone();
-                        move || s.search_results.get()
+                        move || {
+                            let hits = s.search_results.get();
+                            filter_search_hits(hits, search_filter.get())
+                        }
                     }
                     key=|h| format!("{}:{}", h.path, h.line)
                     children={

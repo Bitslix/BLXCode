@@ -74,10 +74,13 @@ pub enum I18nKey {
     MemGraphEmpty,
     MemGraphLegend,
     MemSearchPh,
+    MemSearchFilterAll,
     MemFilesExpand,
     MemFilesCollapse,
     MemFilesGroupMemory,
     MemFilesGroupLearnings,
+    MemFilesGroupExpand,
+    MemFilesGroupCollapse,
 
     AgAriaPane,
     AgSandbox,

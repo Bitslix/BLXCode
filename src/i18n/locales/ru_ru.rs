@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "Принимать",
         I18nKey::GitignorePromptTitle => "Добавить .blxcode в .gitignore?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
         I18nKey::GitignorePromptYes => "Да, добавь",
         I18nKey::GitignorePromptNo => "Не сейчас",
@@ -74,10 +74,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemGraphEmpty => "Заметок пока нет — создайте их в Файлах.",
         I18nKey::MemGraphLegend => "Узлы = примечания · края = [[вики-ссылки]]",
         I18nKey::MemSearchPh => "Поиск заметок…",
+        I18nKey::MemSearchFilterAll => "Все",
         I18nKey::MemFilesExpand => "Развернуть список файлов",
         I18nKey::MemFilesCollapse => "Свернуть список файлов",
-        I18nKey::MemFilesGroupMemory => "Memory",
-        I18nKey::MemFilesGroupLearnings => "Learnings",
+        I18nKey::MemFilesGroupMemory => "Память",
+        I18nKey::MemFilesGroupLearnings => "Обучение",
+        I18nKey::MemFilesGroupExpand => "Развернуть группу",
+        I18nKey::MemFilesGroupCollapse => "Свернуть группу",
         I18nKey::AgAriaPane => "Агентская обвязка",
         I18nKey::AgSandbox => "Песочница для инструментов",
         I18nKey::AgNoPath => "(нет пути)",

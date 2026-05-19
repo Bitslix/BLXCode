@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "Elfogadás",
         I18nKey::GitignorePromptTitle => "Hozzáadja a .blxcode-ot a .gitignore fájlhoz?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
         I18nKey::GitignorePromptYes => "Igen, add hozzá",
         I18nKey::GitignorePromptNo => "Most nem",
@@ -74,10 +74,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemGraphEmpty => "Még nincsenek jegyzetek – hozzon létre egyet a Fájlokban.",
         I18nKey::MemGraphLegend => "Csomópontok = jegyzetek · élek = [[wiki linkek]]",
         I18nKey::MemSearchPh => "Jegyzetek keresése…",
+        I18nKey::MemSearchFilterAll => "Minden",
         I18nKey::MemFilesExpand => "A fájllista kibontása",
         I18nKey::MemFilesCollapse => "Fájllista összecsukása",
-        I18nKey::MemFilesGroupMemory => "Memory",
-        I18nKey::MemFilesGroupLearnings => "Learnings",
+        I18nKey::MemFilesGroupMemory => "Memória",
+        I18nKey::MemFilesGroupLearnings => "Tanulmányok",
+        I18nKey::MemFilesGroupExpand => "Csoport bővítése",
+        I18nKey::MemFilesGroupCollapse => "Csoport összecsukása",
         I18nKey::AgAriaPane => "Ügynök hám",
         I18nKey::AgSandbox => "Szerszám homokozó",
         I18nKey::AgNoPath => "(nincs út)",

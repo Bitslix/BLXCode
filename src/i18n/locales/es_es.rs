@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "Aceptar",
         I18nKey::GitignorePromptTitle => "¿Agregar .blxcode a .gitignore?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
         I18nKey::GitignorePromptYes => "Sí, agrégalo",
         I18nKey::GitignorePromptNo => "Ahora no",
@@ -74,10 +74,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemGraphEmpty => "Aún no hay notas: cree una en Archivos.",
         I18nKey::MemGraphLegend => "Nodos = notas · bordes = [[enlaces wiki]]",
         I18nKey::MemSearchPh => "Notas de búsqueda...",
+        I18nKey::MemSearchFilterAll => "Todo",
         I18nKey::MemFilesExpand => "Expandir lista de archivos",
         I18nKey::MemFilesCollapse => "Contraer lista de archivos",
-        I18nKey::MemFilesGroupMemory => "Memory",
-        I18nKey::MemFilesGroupLearnings => "Learnings",
+        I18nKey::MemFilesGroupMemory => "Memoria",
+        I18nKey::MemFilesGroupLearnings => "Aprendizajes",
+        I18nKey::MemFilesGroupExpand => "Expandir grupo",
+        I18nKey::MemFilesGroupCollapse => "Colapsar grupo",
         I18nKey::AgAriaPane => "Arnés de agente",
         I18nKey::AgSandbox => "Caja de arena para herramientas",
         I18nKey::AgNoPath => "(sin camino)",
@@ -304,7 +307,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::VoiceSttLangFollowApp => "Seguir el idioma de la aplicación",
         I18nKey::VoiceSttLangAutoDetect => "Detección automática",
         I18nKey::VoiceSttLangManual => "Manual",
-        I18nKey::VoicePttEnabled => "Habilitar la tecla de acceso rápido \\\\\\\"pulsar para hablar\\\\\\\"",
+        I18nKey::VoicePttEnabled => "Habilitar la tecla de acceso rápido \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"pulsar para hablar\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"",
         I18nKey::VoicePttHotkey => "tecla de acceso rápido",
         I18nKey::VoicePttRecorderHint => "Presione una tecla…",
         I18nKey::VoicePttConflictWarn => "Entra en conflicto con otro acceso directo a la aplicación.",

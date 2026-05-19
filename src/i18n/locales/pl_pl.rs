@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "Przyjąć",
         I18nKey::GitignorePromptTitle => "Dodać .blxcode do .gitignore?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
         I18nKey::GitignorePromptYes => "Tak, dodaj to",
         I18nKey::GitignorePromptNo => "Nie teraz",
@@ -74,10 +74,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemGraphEmpty => "Nie masz jeszcze żadnych notatek — utwórz je w Plikach.",
         I18nKey::MemGraphLegend => "Węzły = notatki · krawędzie = [[linki wiki]]",
         I18nKey::MemSearchPh => "Wyszukaj notatki…",
+        I18nKey::MemSearchFilterAll => "Wszystko",
         I18nKey::MemFilesExpand => "Rozwiń listę plików",
         I18nKey::MemFilesCollapse => "Zwiń listę plików",
-        I18nKey::MemFilesGroupMemory => "Memory",
-        I18nKey::MemFilesGroupLearnings => "Learnings",
+        I18nKey::MemFilesGroupMemory => "Pamięć",
+        I18nKey::MemFilesGroupLearnings => "Nauka",
+        I18nKey::MemFilesGroupExpand => "Rozwiń grupę",
+        I18nKey::MemFilesGroupCollapse => "Zwiń grupę",
         I18nKey::AgAriaPane => "Uprząż agenta",
         I18nKey::AgSandbox => "Piaskownica narzędziowa",
         I18nKey::AgNoPath => "(bez ścieżki)",

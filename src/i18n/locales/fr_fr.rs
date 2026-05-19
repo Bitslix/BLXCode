@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "Accepter",
         I18nKey::GitignorePromptTitle => "Ajouter .blxcode à .gitignore ?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
         I18nKey::GitignorePromptYes => "Oui, ajoute-le",
         I18nKey::GitignorePromptNo => "Pas maintenant",
@@ -76,10 +76,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemGraphEmpty => "Aucune note pour l'instant : créez-en une dans Fichiers.",
         I18nKey::MemGraphLegend => "Nœuds = notes · bords = [[liens wiki]]",
         I18nKey::MemSearchPh => "Notes de recherche…",
+        I18nKey::MemSearchFilterAll => "Tous",
         I18nKey::MemFilesExpand => "Développer la liste des fichiers",
         I18nKey::MemFilesCollapse => "Réduire la liste des fichiers",
-        I18nKey::MemFilesGroupMemory => "Memory",
-        I18nKey::MemFilesGroupLearnings => "Learnings",
+        I18nKey::MemFilesGroupMemory => "Mémoire",
+        I18nKey::MemFilesGroupLearnings => "Apprentissages",
+        I18nKey::MemFilesGroupExpand => "Agrandir le groupe",
+        I18nKey::MemFilesGroupCollapse => "Réduire le groupe",
         I18nKey::AgAriaPane => "Harnais d'agent",
         I18nKey::AgSandbox => "Bac à sable à outils",
         I18nKey::AgNoPath => "(pas de chemin)",

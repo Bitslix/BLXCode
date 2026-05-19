@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "受け入れる",
         I18nKey::GitignorePromptTitle => ".blxcode を .gitignore に追加しますか?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
         I18nKey::GitignorePromptYes => "はい、追加します",
         I18nKey::GitignorePromptNo => "今じゃない",
@@ -70,10 +70,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemGraphEmpty => "まだメモはありません。ファイルでメモを作成してください。",
         I18nKey::MemGraphLegend => "ノード = ノート · エッジ = [[wiki リンク]]",
         I18nKey::MemSearchPh => "メモを検索…",
+        I18nKey::MemSearchFilterAll => "全て",
         I18nKey::MemFilesExpand => "ファイルリストを展開する",
         I18nKey::MemFilesCollapse => "ファイルリストを折りたたむ",
-        I18nKey::MemFilesGroupMemory => "Memory",
-        I18nKey::MemFilesGroupLearnings => "Learnings",
+        I18nKey::MemFilesGroupMemory => "メモリ",
+        I18nKey::MemFilesGroupLearnings => "学び",
+        I18nKey::MemFilesGroupExpand => "グループを展開する",
+        I18nKey::MemFilesGroupCollapse => "グループを折りたたむ",
         I18nKey::AgAriaPane => "エージェントハーネス",
         I18nKey::AgSandbox => "ツールサンドボックス",
         I18nKey::AgNoPath => "(パスがありません)",

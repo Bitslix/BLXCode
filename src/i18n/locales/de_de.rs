@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "Annehmen",
         I18nKey::GitignorePromptTitle => ".blxcode zur .gitignore hinzufügen?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode speichert lokale Workspace-Daten (Aufgaben, Sitzungen) im Ordner `.blxcode`. \\\\\nSoll dieser Eintrag in die `.gitignore` dieses Projekts aufgenommen werden, damit er nicht \\\\\nversehentlich committed wird?"
+            "BLXCode speichert lokale Workspace-Daten (Aufgaben, Sitzungen) im Ordner `.blxcode`. \\\\\\\\\\\\\\\\\nSoll dieser Eintrag in die `.gitignore` dieses Projekts aufgenommen werden, damit er nicht \\\\\\\\\\\\\\\\\nversehentlich committed wird?"
         }
         I18nKey::GitignorePromptYes => "Ja, hinzufügen",
         I18nKey::GitignorePromptNo => "Nicht jetzt",
@@ -74,10 +74,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemGraphEmpty => "Noch keine Notizen – erstellen Sie eine in „Dateien“.",
         I18nKey::MemGraphLegend => "Knoten = Notizen · Kanten = [[Wiki-Links]]",
         I18nKey::MemSearchPh => "Notizen durchsuchen…",
+        I18nKey::MemSearchFilterAll => "Alle",
         I18nKey::MemFilesExpand => "Dateiliste erweitern",
         I18nKey::MemFilesCollapse => "Dateiliste einklappen",
-        I18nKey::MemFilesGroupMemory => "Memory",
-        I18nKey::MemFilesGroupLearnings => "Learnings",
+        I18nKey::MemFilesGroupMemory => "Erinnerung",
+        I18nKey::MemFilesGroupLearnings => "Erkenntnisse",
+        I18nKey::MemFilesGroupExpand => "Gruppe aufklappen",
+        I18nKey::MemFilesGroupCollapse => "Gruppe einklappen",
         I18nKey::AgAriaPane => "Agent Harness",
         I18nKey::AgSandbox => "Tool-Sandbox ",
         I18nKey::AgNoPath => "(kein Pfad)",

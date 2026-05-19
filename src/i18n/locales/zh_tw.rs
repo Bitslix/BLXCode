@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "接受",
         I18nKey::GitignorePromptTitle => "將 .blxcode 加入 .gitignore 中？",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
         I18nKey::GitignorePromptYes => "是的，添加它",
         I18nKey::GitignorePromptNo => "現在不要",
@@ -70,10 +70,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemGraphEmpty => "還沒有註釋 - 在“文件”中建立一個註釋。",
         I18nKey::MemGraphLegend => "節點 = 註解 · 邊 = [[wiki 連結]]",
         I18nKey::MemSearchPh => "搜尋筆記...",
+        I18nKey::MemSearchFilterAll => "全部",
         I18nKey::MemFilesExpand => "展開文件列表",
         I18nKey::MemFilesCollapse => "折疊文件列表",
-        I18nKey::MemFilesGroupMemory => "Memory",
-        I18nKey::MemFilesGroupLearnings => "Learnings",
+        I18nKey::MemFilesGroupMemory => "記憶",
+        I18nKey::MemFilesGroupLearnings => "學習內容",
+        I18nKey::MemFilesGroupExpand => "展開組",
+        I18nKey::MemFilesGroupCollapse => "折疊組",
         I18nKey::AgAriaPane => "代理線束",
         I18nKey::AgSandbox => "工具沙箱",
         I18nKey::AgNoPath => "（沒有路徑）",
