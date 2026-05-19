@@ -7,6 +7,17 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      platforms:
+        description: Build targets
+        type: choice
+        required: true
+        default: Alle
+        options:
+          - Alle
+          - Linux (deb, rpm, AppImage)
+          - Mac Universal
+          - Windows
 
 # Only the repository owner may trigger release builds (manual run or version tag push).
 # On user-owned repos: github.actor must equal github.repository_owner.
@@ -35,20 +46,49 @@ jobs:
           fi
           exit 1
 
-  build:
+  plan:
     needs: authorize
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.targets.outputs.matrix }}
+    steps:
+      - name: Select build matrix
+        id: targets
+        env:
+          PLATFORMS: ${{ github.event_name == 'workflow_dispatch' && inputs.platforms || 'Alle' }}
+        run: |
+          case "$PLATFORMS" in
+            Alle)
+              matrix='[
+                {"platform":"ubuntu-22.04","args":""},
+                {"platform":"macos-latest","args":"--target universal-apple-darwin"},
+                {"platform":"windows-latest","args":""}
+              ]'
+              ;;
+            "Linux (deb, rpm, AppImage)")
+              matrix='[{"platform":"ubuntu-22.04","args":""}]'
+              ;;
+            "Mac Universal")
+              matrix='[{"platform":"macos-latest","args":"--target universal-apple-darwin"}]'
+              ;;
+            Windows)
+              matrix='[{"platform":"windows-latest","args":""}]'
+              ;;
+            *)
+              echo "::error::Unknown platforms choice: $PLATFORMS"
+              exit 1
+              ;;
+          esac
+          echo "Selected: $PLATFORMS"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: plan
     permissions:
       contents: write
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - platform: ubuntu-22.04
-            args: ""
-          - platform: macos-latest
-            args: "--target universal-apple-darwin"
-          - platform: windows-latest
-            args: ""
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
 
     runs-on: ${{ matrix.platform }}
     steps:

@@ -156,7 +156,12 @@ For the least painful path, build each platform on that platform:
 - Build macOS `.app` / `.dmg` on macOS (`aarch64-apple-darwin`, `x86_64-apple-darwin`, or `universal-apple-darwin`).
 - Build Windows installers on Windows.
 
-Cross-compiling Tauri desktop bundles from Linux to macOS is **not supported** for release artifacts. Use a Mac or the repository **Release** workflow (version tag `v*` or `workflow_dispatch`) to produce macOS binaries in CI. Only the **repository owner** may trigger that workflow (on org-owned repos, set the Actions variable `RELEASE_OWNER` to the allowed GitHub login).
+Cross-compiling Tauri desktop bundles from Linux to macOS is **not supported** for release artifacts. Use a Mac or the repository **Release** workflow to produce binaries in CI:
+
+- **Tag push** (`v*`) — builds all platforms (Linux, macOS universal, Windows).
+- **Manual run** (`workflow_dispatch`) — choose **Alle**, **Linux (deb, rpm, AppImage)**, **Mac Universal**, or **Windows**.
+
+Only the **repository owner** may trigger that workflow (on org-owned repos, set the Actions variable `RELEASE_OWNER` to the allowed GitHub login).
 
 ## Clean Rebuild
 
