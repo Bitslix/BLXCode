@@ -6,4 +6,5 @@ Persistent plans for multi-step work on **blxcode**. Individual plans live as Ma
 
 | Status | Plan | Description |
 |--------|------|-------------|
-| pending | [memory-nach-agents.md](memory-nach-agents.md) | Move workspace memory to `.agents/memory`, integrate `.agents/learnings` into Memory API, bootstrap `.agents/` on workspace open, auto-migrate legacy paths and wikilinks for graph |
+| done | [memory-nach-agents.md](memory-nach-agents.md) | Move workspace memory to `.agents/memory`, integrate `.agents/learnings` into Memory API, bootstrap `.agents/` on workspace open, auto-migrate legacy paths and wikilinks for graph |
+| pending | [graph-3d-toolbar-preview.md](graph-3d-toolbar-preview.md) | Memory Graph: 3D-Orb (default), Icon-Toolbar (Zoom/2D-3D), Popover-Preview on node click, lazy local bundle, memory_panel.rs split |

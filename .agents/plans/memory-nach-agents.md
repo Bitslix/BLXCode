@@ -1,56 +1,53 @@
 # Memory nach `.agents/` mit integrierten Learnings
 
-**Status:** pending  
+**Status:** done  
 **Overview:** Workspace-Memory von `.blxcode/memory/` nach `.agents/memory/` verlegen, Learnings unter `.agents/learnings/` in dieselbe Memory-API und UI einbinden (ohne neuen Unterordner), mit automatischer Einmal-Migration beim ersten Zugriff.
 
 ## Todos
 
-- [ ] `agents-bootstrap` — `ensure_agents_layout` + Tauri-Command `workspace_ensure_agents`; Aufruf beim Workspace-Pfad setzen (commit, active switch, restore)
-- [ ] `paths-resolve` — `MEMORY_REL` / `LEARNINGS_REL` + `resolve_note_abs` + `ensure_workspace_memory` mit Legacy-Migration in `memory.rs`
-- [ ] `commands-multiroot` — Alle `memory_*` Commands, graph/search/rename/export/import auf zwei Roots umstellen
-- [ ] `agent-pointers` — `system_prompt.rs`, `tools.rs`, `pointer_body` für `.agents/memory` + `.agents/learnings`
-- [ ] `frontend-paths` — `memory_paths.rs`, `chat_markdown.rs` (neue + Legacy-Prefixe), MemoryPanel-Gruppierung
-- [ ] `docs-changelog` — User-/Dev-Docs und CHANGELOG auf neue Pfade aktualisieren
-- [ ] `learnings-wikilinks` — `upgrade_learnings_graph_links` — bestehende Learnings (Index + Topic-MD) idempotent auf `[[wikilinks]]` für Graph umstellen
-- [ ] `tests` — Rust-Tests: Migration, learnings/-Pfad, kombinierte list/graph, Wikilink-Upgrade
+- [x] `agents-bootstrap` — `ensure_agents_layout` + Tauri-Command `workspace_ensure_agents`; Aufruf beim Workspace-Pfad setzen (commit, active switch, restore)
+- [x] `paths-resolve` — `MEMORY_REL` / `LEARNINGS_REL` + `resolve_note_abs` + `ensure_workspace_memory` mit Legacy-Migration in `memory.rs`
+- [x] `commands-multiroot` — Alle `memory_*` Commands, graph/search/rename/export/import auf zwei Roots umstellen
+- [x] `agent-pointers` — `system_prompt.rs`, `tools.rs`, `pointer_body` für `.agents/memory` + `.agents/learnings`
+- [x] `frontend-paths` — `memory_paths.rs`, `chat_markdown.rs` (neue + Legacy-Prefixe), MemoryPanel-Gruppierung
+- [x] `docs-changelog` — User-/Dev-Docs und CHANGELOG auf neue Pfade aktualisieren
+- [x] `learnings-wikilinks` — `upgrade_learnings_graph_links` — bestehende Learnings (Index + Topic-MD) idempotent auf `[[wikilinks]]` für Graph umstellen
+- [x] `tests` — Rust-Tests: Migration, learnings/-Pfad, kombinierte list/graph, Wikilink-Upgrade
 
-## Ist-Zustand
+## Umsetzung (Ist)
 
 | Bereich | Pfad / Verhalten |
 |---------|------------------|
-| Memory-Root (Backend) | `MEMORY_REL = ".blxcode/memory"` in [`src-tauri/src/memory.rs`](../../src-tauri/src/memory.rs) |
-| Tasks | unverändert [`.blxcode/tasks`](../../src-tauri/src/tasks.rs) — **nicht** Teil dieses Plans |
-| UI + Wikilinks | Hardcoded `.blxcode/memory/` in [`src/workbench/chat_markdown.rs`](../../src/workbench/chat_markdown.rs), [`src/memory_paths.rs`](../../src/memory_paths.rs) |
-| Agent | `memory_*`-Tools + System-Prompt in [`src-tauri/src/agent/system_prompt.rs`](../../src-tauri/src/agent/system_prompt.rs), [`tools.rs`](../../src-tauri/src/agent/tools.rs) |
-| Externe Pointer | Block in `CLAUDE.md` / `AGENTS.md` zeigt auf `.blxcode/memory` ([`pointer_body`](../../src-tauri/src/memory.rs)) |
-| Learnings | Noch nicht in blxcode; Referenz: bitslix-api `.agents/learnings/` (Index + Topic-`.md`) |
+| Memory-Root (Backend) | `MEMORY_REL = ".agents/memory"` in [`src-tauri/src/agents_layout.rs`](../../src-tauri/src/agents_layout.rs), re-export in [`memory.rs`](../../src-tauri/src/memory.rs) |
+| Learnings | `LEARNINGS_REL = ".agents/learnings"` — gleiche Memory-API, API-Pfade `learnings/…` |
+| Legacy | `.blxcode/memory/` wird einmalig nach `.agents/memory/` kopiert, wenn das neue Verzeichnis leer ist |
+| Tasks | unverändert [`.blxcode/tasks`](../../src-tauri/src/tasks.rs) |
+| UI + Wikilinks | [`src/memory_paths.rs`](../../src/memory_paths.rs), [`chat_markdown.rs`](../../src/workbench/chat_markdown.rs) — `.agents/memory/`, `.agents/learnings/` + Legacy-Prefix |
+| Agent | [`system_prompt.rs`](../../src-tauri/src/agent/system_prompt.rs), [`tools.rs`](../../src-tauri/src/agent/tools.rs) — beide Roots |
+| Externe Pointer | [`pointer_body`](../../src-tauri/src/memory.rs) → `.agents/memory` + `.agents/learnings` in `CLAUDE.md` / `AGENTS.md` |
+| Bootstrap | `workspace_ensure_agents` — Frontend [`state.rs`](../../src/workbench/state.rs) beim Workspace-Pfad setzen |
 
 ```mermaid
 flowchart LR
-  subgraph today [Heute]
+  subgraph current [Aktuell]
     UI[MemoryPanel_UI]
-    Tauri[memory.rs]
-    Old[".blxcode/memory"]
-    UI --> Tauri --> Old
-  end
-```
-
-## Zielbild (Scope dieses Plans)
-
-```mermaid
-flowchart LR
-  subgraph target [Ziel]
-    UI2[MemoryPanel_UI]
-    API[memory_*_commands]
+    API[memory_commands]
+    Bootstrap[workspace_ensure_agents]
     Mem[".agents/memory"]
     Learn[".agents/learnings"]
     Legacy[".blxcode/memory"]
-    UI2 --> API
+    UI --> API
+    Bootstrap --> Mem
+    Bootstrap --> Learn
     API --> Mem
     API --> Learn
     Legacy -.->|auto_migrate_once| Mem
   end
 ```
+
+## Zielbild (umgesetzt)
+
+> Entspricht dem Abschnitt **Umsetzung (Ist)** oben — Plan abgeschlossen.
 
 - **Memory-Notizen:** `<workspace>/.agents/memory/` (inkl. `_templates/`)
 - **Learnings:** bleiben bei `<workspace>/.agents/learnings/` (kein neuer Ordner unter memory)

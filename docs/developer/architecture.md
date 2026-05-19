@@ -63,7 +63,36 @@ The state model includes workspaces, active workspace ID, recent workspaces, sid
 
 ## Memory And Tasks
 
-Memory lives in `src-tauri/src/memory.rs` and `src-tauri/src/agents_layout.rs`. Notes are stored under `<workspace>/.agents/memory/` and learnings under `<workspace>/.agents/learnings/` (API paths `learnings/…`). Legacy `.blxcode/memory/` is migrated on workspace bootstrap.
+Memory lives in `src-tauri/src/memory.rs` and `src-tauri/src/agents_layout.rs`. Notes are stored under `<workspace>/.agents/memory/` and learnings under `<workspace>/.agents/learnings/` (API paths `learnings/…`). Legacy `.blxcode/memory/` is migrated on workspace bootstrap via `workspace_ensure_agents`.
+
+```mermaid
+flowchart LR
+  subgraph frontend [Frontend]
+    Panel[MemoryPanel]
+    Bridge[tauri_bridge.rs]
+  end
+  subgraph backend [Backend]
+    Ensure[workspace_ensure_agents]
+    MemCmd[memory_* commands]
+    Layout[agents_layout.rs]
+    MemMod[memory.rs]
+  end
+  subgraph storage [Workspace]
+    MemDir[".agents/memory"]
+    LearnDir[".agents/learnings"]
+    Legacy[".blxcode/memory"]
+  end
+  Panel --> Bridge
+  Bridge --> Ensure
+  Bridge --> MemCmd
+  Ensure --> Layout
+  MemCmd --> MemMod
+  Layout --> MemDir
+  Layout --> LearnDir
+  Layout -.->|migrate if empty| Legacy
+  MemMod --> MemDir
+  MemMod --> LearnDir
+```
 
 Tasks live in `src-tauri/src/tasks.rs` and store JSON under `<workspace>/.blxcode/tasks/index.json`.
 

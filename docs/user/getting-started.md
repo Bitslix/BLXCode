@@ -65,6 +65,8 @@ Workspace-local data is stored inside the workspace folder:
 .blxcode/tasks/
 ```
 
+Opening or switching to a workspace runs `workspace_ensure_agents`, which creates the `.agents/` layout and migrates legacy memory when needed.
+
 App layout, provider settings, and secrets live in platform-specific Tauri app config or app data directories.
 
 ## Build A Release Bundle

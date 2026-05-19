@@ -25,10 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Agent system prompt and memory tool descriptions reference `.agents/memory/` and `.agents/learnings/`.
 - Agent memory pointer blocks list both memory and learnings roots.
 - Memory export/import uses `memory/` and `learnings/` subdirectories.
+- Developer docs (`architecture`, `tauri-ipc`, `getting-started`, `memory-and-tasks`) updated for the `.agents/` memory layout, `workspace_ensure_agents`, and memory-flow diagrams.
 - `scripts/render_i18n_locales_from_en.py` default mode translates only **missing** keys (not a full locale rewrite); use `--full` for the previous behavior, `--patch-english-matches` or `--keys` for English placeholder rows.
 
 ### Fixed
 
+- Release CI `authorize` job reads optional `RELEASE_OWNER` via the GitHub API (`actions/github-script`) instead of `${{ vars.RELEASE_OWNER }}` in workflow expressions (avoids invalid context warnings when the variable is unset).
 - i18n render script no longer rewrites locale files when nothing changed; prints guidance when zero rows are translated.
 
 ## [0.1.5] - 2026-05-19
