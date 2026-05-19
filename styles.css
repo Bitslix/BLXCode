@@ -3214,6 +3214,24 @@ button.workbench-shortcut-row--action:focus-visible {
   }
 }
 
+.eula-sheet--compact {
+  max-height: min(70vh, 22rem);
+}
+
+.gitignore-prompt__title {
+  margin: 0 0 0.75rem;
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.gitignore-prompt__body {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--text-muted, var(--text));
+}
+
 .eula-sheet {
   position: relative;
   width: min(100%, 40rem);

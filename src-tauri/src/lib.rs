@@ -5,6 +5,7 @@ mod agents_layout;
 mod browser_host;
 mod commands;
 mod git_info;
+mod gitignore;
 mod memory;
 mod pty_host;
 mod tasks;
@@ -123,6 +124,7 @@ pub fn run() {
             workbench_prune_sessions,
             agent_session_exists,
             agent_latest_session_id,
+            gitignore::gitignore_append_blxcode,
             memory::workspace_ensure_agents,
             memory::memory_root,
             memory::memory_list,

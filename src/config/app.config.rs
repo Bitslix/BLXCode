@@ -1,6 +1,13 @@
 /// `localStorage` key for persisted EULA acceptance.
 pub const EULA_STORAGE_KEY: &str = "blxcode_eula_v2";
 
+/// `localStorage` key for the one-time ".blxcode in .gitignore" prompt (`yes` / `no`).
+pub const GITIGNORE_PROMPT_STORAGE_KEY: &str = "blxcode_gitignore_prompt_v1";
+
+/// Stored when the user completed the gitignore prompt (`yes` or `no`).
+pub const GITIGNORE_PROMPT_ANSWER_YES: &str = "yes";
+pub const GITIGNORE_PROMPT_ANSWER_NO: &str = "no";
+
 /// `localStorage` key for UI locale (BCP-47, e.g. `de-DE`, `en-US`).
 pub const I18N_LOCALE_STORAGE_KEY: &str = "blxcode_locale_v1";
 

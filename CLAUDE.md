@@ -55,7 +55,7 @@ Entry point: `src/main.rs` → mounts `<App/>`.
 Module layout:
 - `config/app.config.rs` — all constants: localStorage keys, embedded browser defaults.
 - `service/` — `I18nService`.
-- `i18n/` — `Locale` + `APP_LOCALES` (language picker metadata), `parse_bcp47` / `infer_from_browser_lang`, `lookup` + `locales/*.rs` (one `msg` match per language), `content/eula/*.md` + `eula.rs`. Default locale is **`EnUs`**. Regenerate non-English UI tables from `en_us.rs` with `scripts/render_i18n_locales_from_en.py` (requires `deep-translator` in a venv). Adding an `I18nKey` requires a new string in **every** `locales/*.rs` file (compile-time exhaustiveness).
+- `i18n/` — `Locale` + `APP_LOCALES` (language picker metadata), `parse_bcp47` / `infer_from_browser_lang`, `lookup` + `locales/*.rs` (one `msg` match per language), `content/eula/*.md` + `eula.rs`. Default locale is **`EnUs`**. Regenerate non-English UI tables from `en_us.rs` with `scripts/render_i18n_locales_from_en.py` (default: missing keys only; use `--full` for a full rewrite; requires `deep-translator` in a venv). Adding an `I18nKey` requires a new string in **every** `locales/*.rs` file (compile-time exhaustiveness).
 - `workbench/` — three-pane shell: `Sidebar`, `WorkspacePanel`, `RightPanel`; agent panel, browser tab.
 - Workspace data: `.agents/memory/`, `.agents/learnings/` (memory API), `.blxcode/tasks/`.
 - `agent_wire.rs` — mirrors `src-tauri/src/agent/protocol.rs`; shared Serde types for IPC events.

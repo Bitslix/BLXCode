@@ -5,6 +5,13 @@ pub fn msg(key: I18nKey) -> &'static str {
     match key {
         I18nKey::Decline => "衰退",
         I18nKey::Accept => "受け入れる",
+        I18nKey::GitignorePromptTitle => "Add .blxcode to .gitignore?",
+        I18nKey::GitignorePromptBody => {
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \
+Add it to this project's `.gitignore` so it is not committed by mistake?"
+        }
+        I18nKey::GitignorePromptYes => "Yes, add it",
+        I18nKey::GitignorePromptNo => "Not now",
         I18nKey::BtnClose => "近い",
         I18nKey::BtnApply => "適用する",
         I18nKey::BtnSave => "保存",

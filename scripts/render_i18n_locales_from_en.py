@@ -4,17 +4,20 @@
 Requires: pip install deep-translator (use a venv).
 
 Run from repo root:
-  # Full rewrite of every non-English locale (all strings translated from en)
+  # Default: translate only I18nKey rows missing from each locale file (new keys in en_us.rs)
   python scripts/render_i18n_locales_from_en.py
 
-  # Only replace entries that are still identical to en_us.rs (keeps good rows)
+  # Also re-translate rows that still match English verbatim (use sparingly)
   python scripts/render_i18n_locales_from_en.py --patch-english-matches
 
-  # Same, but only some locale files (basename without .rs)
-  python scripts/render_i18n_locales_from_en.py --patch-english-matches --locales es_es,ja_jp
+  # Only specific keys (comma-separated variant names)
+  python scripts/render_i18n_locales_from_en.py --keys GitignorePromptTitle,GitignorePromptBody
 
-  # Force re-translate specific I18nKey variants from English for all targets
-  python scripts/render_i18n_locales_from_en.py --keys QkTitle,MemTabFiles
+  # Full rewrite of every non-English locale (all strings — slow, overwrites good rows)
+  python scripts/render_i18n_locales_from_en.py --full
+
+  # Limit to some locale files (basename without .rs)
+  python scripts/render_i18n_locales_from_en.py --locales es_es,ja_jp
 """
 from __future__ import annotations
 
@@ -156,7 +159,26 @@ def run_full_regen(targets: list[tuple[str, str, str]]) -> None:
     print("done")
 
 
-def run_patch_or_keys(
+def should_translate_row(
+    key: str,
+    en: str,
+    cur: str,
+    loc_map: dict[str, str],
+    *,
+    explicit_keys: set[str] | None,
+    patch_english: bool,
+) -> bool:
+    """True when this row should be sent to the translator this run."""
+    if explicit_keys is not None:
+        return key in explicit_keys
+    if key not in loc_map:
+        return True
+    if patch_english and cur == en:
+        return True
+    return False
+
+
+def run_selective_translate(
     *,
     patch_english: bool,
     keys: set[str] | None,
@@ -171,36 +193,58 @@ def run_patch_or_keys(
         if missing:
             raise SystemExit(f"unknown I18nKey names: {sorted(missing)}")
 
+    mode = (
+        f"keys={sorted(keys)}"
+        if keys
+        else ("missing + english-matches" if patch_english else "missing keys only")
+    )
+    print(f"mode: {mode}")
+
     for filename, tgt_code, _label in targets:
         path = LOCALES_DIR / filename
         loc_map = dict(parse_locale_rs(path))
         translator = GoogleTranslator(source="en", target=tgt_code)
         cache: dict[str, str] = {}
         merged: list[tuple[str, str]] = []
+        translated_rows = 0
         for k, en in en_pairs:
             cur = loc_map.get(k, en)
-            if keys and k in keys:
+            if should_translate_row(
+                k,
+                en,
+                cur,
+                loc_map,
+                explicit_keys=keys,
+                patch_english=patch_english,
+            ):
                 cur = translate_cached(translator, cache, en)
-            elif patch_english and cur == en:
-                cur = translate_cached(translator, cache, en)
+                translated_rows += 1
             merged.append((k, cur))
         path.write_text(emit_locale_rs(merged), encoding="utf-8")
-        print(f"wrote {path} ({len(cache)} unique strings translated this run)")
+        print(
+            f"wrote {path} ({translated_rows} rows translated, "
+            f"{len(cache)} unique strings in cache)"
+        )
     print("done")
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
+        "--full",
+        action="store_true",
+        help="Re-translate every row in every locale (destructive; not the default).",
+    )
+    ap.add_argument(
         "--patch-english-matches",
         action="store_true",
-        help="Keep each row unless it still matches English; then translate from en.",
+        help="Also translate rows that still match English verbatim (in addition to missing keys).",
     )
     ap.add_argument(
         "--keys",
         default="",
-        help="Comma-separated I18nKey variant names (e.g. QkTitle,MemTabFiles) "
-        "to always re-translate from English.",
+        help="Comma-separated I18nKey variant names; only these rows are translated "
+        "(ignores missing-key default).",
     )
     ap.add_argument(
         "--locales",
@@ -211,15 +255,17 @@ def main() -> None:
     targets = resolve_targets(args.locales.strip() or None)
     key_set = {x.strip() for x in args.keys.split(",") if x.strip()}
 
-    if args.patch_english_matches or key_set:
-        run_patch_or_keys(
-            patch_english=args.patch_english_matches,
-            keys=key_set or None,
-            targets=targets,
-        )
+    if args.full:
+        if args.patch_english_matches or key_set:
+            raise SystemExit("--full cannot be combined with --patch-english-matches or --keys")
+        run_full_regen(targets)
         return
 
-    run_full_regen(targets)
+    run_selective_translate(
+        patch_english=args.patch_english_matches,
+        keys=key_set or None,
+        targets=targets,
+    )
 
 
 if __name__ == "__main__":
