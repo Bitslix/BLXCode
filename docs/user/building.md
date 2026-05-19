@@ -73,9 +73,17 @@ cargo install trunk tauri-cli
 cargo tauri build
 ```
 
-Common Linux outputs include AppImage, Debian, or RPM-style bundle folders depending on the Tauri bundler setup and installed tools.
+Common Linux outputs include AppImage, Debian, and RPM bundles under `target/release/bundle/` (for example `deb/BLXCode_0.1.5_amd64.deb`, `rpm/BLXCode-0.1.5-1.x86_64.rpm`, `appimage/BLXCode_0.1.5_amd64.AppImage`).
+
+On Arch and other distros with newer binutils, AppImage bundling may fail during `linuxdeploy` strip with `.relr.dyn` errors. Use:
+
+```bash
+NO_STRIP=1 APPIMAGE_EXTRACT_AND_RUN=1 cargo tauri build --bundles appimage
+```
 
 ## macOS
+
+**You cannot produce macOS `.app` / `.dmg` bundles on Linux or Windows.** Tauri links against Apple toolchains and must run `cargo tauri build` on a Mac (or use [GitHub Actions](https://github.com/tauri-apps/tauri-action) on `macos-latest` — see `.github/workflows/release.yml` in this repo).
 
 Install Apple's build tools first:
 
@@ -87,15 +95,33 @@ If you plan to do iOS work too, install full Xcode instead of only Command Line 
 
 BLXCode's voice recorder uses the system audio stack through `cpal`; no extra Homebrew package is normally required for macOS audio capture.
 
-Then build:
+### Apple Silicon only (`aarch64`)
 
 ```bash
-rustup target add wasm32-unknown-unknown
+rustup target add wasm32-unknown-unknown aarch64-apple-darwin
 cargo install trunk tauri-cli
-cargo tauri build
+cargo tauri build --target aarch64-apple-darwin
 ```
 
-Typical macOS outputs include an `.app` bundle and, when configured by Tauri, a `.dmg`.
+### Intel Mac only (`x86_64`)
+
+```bash
+rustup target add wasm32-unknown-unknown x86_64-apple-darwin
+cargo install trunk tauri-cli
+cargo tauri build --target x86_64-apple-darwin
+```
+
+### Universal binary (Apple Silicon + Intel in one `.app`)
+
+On any Mac with both Rust targets installed:
+
+```bash
+rustup target add wasm32-unknown-unknown aarch64-apple-darwin x86_64-apple-darwin
+cargo install trunk tauri-cli
+cargo tauri build --target universal-apple-darwin
+```
+
+Typical outputs under `target/release/bundle/macos/` include `BLXCode.app` and, when enabled, a `.dmg` (names include the version, for example `BLXCode_0.1.5_universal.dmg`).
 
 Unsigned local builds may be blocked or warned about by Gatekeeper on other Macs. Distribution builds should be signed and notarized with an Apple Developer account.
 
@@ -126,11 +152,11 @@ Because BLXCode currently uses `"targets": "all"` in `src-tauri/tauri.conf.json`
 
 For the least painful path, build each platform on that platform:
 
-- Build Linux packages on Linux.
-- Build macOS `.app` or `.dmg` artifacts on macOS.
+- Build Linux packages on Linux (`.deb`, `.rpm`, `.AppImage`).
+- Build macOS `.app` / `.dmg` on macOS (`aarch64-apple-darwin`, `x86_64-apple-darwin`, or `universal-apple-darwin`).
 - Build Windows installers on Windows.
 
-Cross-compiling Tauri apps is possible in some cases, especially Windows NSIS builds from Linux/macOS, but it has more moving parts and is best handled later through CI.
+Cross-compiling Tauri desktop bundles from Linux to macOS is **not supported** for release artifacts. Use a Mac or the repository **Release** workflow (version tag `v*` or `workflow_dispatch`) to produce macOS binaries in CI. Only the **repository owner** may trigger that workflow (on org-owned repos, set the Actions variable `RELEASE_OWNER` to the allowed GitHub login).
 
 ## Clean Rebuild
 

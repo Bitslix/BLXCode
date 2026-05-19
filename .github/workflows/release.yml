@@ -1,0 +1,92 @@
+# Build release bundles on all three desktop OSes.
+# macOS .app/.dmg require a macOS runner (Intel + Apple Silicon via universal target).
+# Linux AppImage on Ubuntu CI does not need NO_STRIP; use it on Arch when building locally.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+# Only the repository owner may trigger release builds (manual run or version tag push).
+# On user-owned repos: github.actor must equal github.repository_owner.
+# On org-owned repos: set repository variable RELEASE_OWNER to the GitHub login allowed to release.
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require repository owner (or RELEASE_OWNER on org repos)
+        env:
+          RELEASE_OWNER: ${{ vars.RELEASE_OWNER }}
+        run: |
+          actor="${{ github.actor }}"
+          owner="${{ github.repository_owner }}"
+          if [ "$actor" = "$owner" ]; then
+            echo "Authorized: repository owner @${actor}"
+            exit 0
+          fi
+          if [ -n "$RELEASE_OWNER" ] && [ "$actor" = "$RELEASE_OWNER" ]; then
+            echo "Authorized: RELEASE_OWNER @${actor}"
+            exit 0
+          fi
+          echo "::error::Release denied for @${actor}. Only @${owner} may run this workflow."
+          if [ "$owner" != "$actor" ] && [ -z "$RELEASE_OWNER" ]; then
+            echo "::error::Org repo? Set Settings → Secrets and variables → Actions → Variable RELEASE_OWNER to your GitHub login."
+          fi
+          exit 1
+
+  build:
+    needs: authorize
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            args: ""
+          - platform: macos-latest
+            args: "--target universal-apple-darwin"
+          - platform: windows-latest
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Add macOS Rust targets
+        if: matrix.platform == 'macos-latest'
+        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Install Trunk and Tauri CLI
+        run: |
+          cargo install trunk --locked
+          cargo install tauri-cli --version "^2" --locked
+
+      - name: Build bundles
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: src-tauri
+          tagName: ${{ github.ref_name }}
+          releaseName: "BLXCode ${{ github.ref_name }}"
+          releaseBody: "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details."
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
