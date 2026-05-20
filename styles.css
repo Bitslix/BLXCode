@@ -1274,7 +1274,7 @@ button.workbench-shortcut-row--action:focus-visible {
 .workbench-splitter {
   position: relative;
   z-index: 20;
-  width: 1px;
+  width: 3px;
   flex-shrink: 0;
   cursor: col-resize;
   background: var(--border);
