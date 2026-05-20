@@ -39,6 +39,16 @@ pub enum TimelineItem {
     Assistant { text: String },
     Tool(ToolActivity),
     Thinking { text: String, done: bool },
+    /// Output of an image-mode turn. `preview_src` is a data URL suitable
+    /// for `<img src>`; after a workspace reload we hydrate it lazily from
+    /// `saved_path` via the `generated_image_preview` Tauri command.
+    GeneratedImage {
+        prompt: String,
+        mime: String,
+        preview_src: String,
+        saved_path: Option<String>,
+        filename: Option<String>,
+    },
 }
 
 fn friendly_label(tool: &str) -> &str {

@@ -10,6 +10,8 @@ pub struct UserTurn {
     #[serde(default)]
     pub voice_input: bool,
     #[serde(default)]
+    pub image_generate: bool,
+    #[serde(default)]
     pub context_items: Vec<AgentContextItem>,
     #[serde(default)]
     pub image_context_items: Vec<AgentImageContextItem>,
@@ -120,6 +122,16 @@ pub enum AgentEvent {
     TaskSnapshot { snapshot: TaskSnapshot },
     #[serde(rename = "image_context_consumed")]
     ImageContextConsumed { ids: Vec<String> },
+    #[serde(rename = "image_generated")]
+    ImageGenerated {
+        prompt: String,
+        mime: String,
+        #[serde(default)]
+        saved_path: Option<String>,
+        #[serde(default)]
+        filename: Option<String>,
+        preview_src: String,
+    },
     #[serde(rename = "done")]
     Done,
     #[serde(rename = "error")]

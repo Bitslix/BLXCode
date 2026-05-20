@@ -3,12 +3,9 @@
 //! conservative: 16 kHz mic, follow-app language, push-to-talk via Space.
 
 use serde::{Deserialize, Serialize};
-use std::fs;
-use std::io::Write;
-use std::path::PathBuf;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
-const SETTINGS_FILE: &str = "agent_provider_settings.json";
+use crate::agent_settings;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -140,58 +137,8 @@ pub struct VoiceSettings {
     pub ptt_hotkey: PttHotkey,
 }
 
-/// File envelope mirroring just the fields we touch. We deserialize as
-/// `serde_json::Value` so the rest of `AgentProviderSettings` round-trips
-/// unchanged through load/save here.
-fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let base = app
-        .path()
-        .app_config_dir()
-        .map_err(|e| format!("app config dir unavailable: {e}"))?;
-    Ok(base.join(SETTINGS_FILE))
-}
-
-fn read_envelope(app: &AppHandle) -> Result<serde_json::Map<String, serde_json::Value>, String> {
-    let path = settings_path(app)?;
-    match fs::read_to_string(&path) {
-        Ok(raw) if raw.trim().is_empty() => Ok(serde_json::Map::new()),
-        Ok(raw) => {
-            let val: serde_json::Value =
-                serde_json::from_str(&raw).map_err(|e| format!("parse {}: {e}", path.display()))?;
-            match val {
-                serde_json::Value::Object(m) => Ok(m),
-                _ => Ok(serde_json::Map::new()),
-            }
-        }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(serde_json::Map::new()),
-        Err(e) => Err(format!("read {}: {e}", path.display())),
-    }
-}
-
-fn write_envelope(
-    app: &AppHandle,
-    envelope: &serde_json::Map<String, serde_json::Value>,
-) -> Result<(), String> {
-    let path = settings_path(app)?;
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("mkdir {}: {e}", parent.display()))?;
-    }
-    let tmp = path.with_extension("json.tmp");
-    let body = serde_json::to_string_pretty(envelope)
-        .map_err(|e| format!("serialize {}: {e}", path.display()))?;
-    {
-        let mut f = fs::File::create(&tmp).map_err(|e| format!("create {}: {e}", tmp.display()))?;
-        f.write_all(body.as_bytes())
-            .map_err(|e| format!("write {}: {e}", tmp.display()))?;
-        f.sync_all().ok();
-    }
-    fs::rename(&tmp, &path)
-        .map_err(|e| format!("rename {} -> {}: {e}", tmp.display(), path.display()))?;
-    Ok(())
-}
-
 pub fn load(app: &AppHandle) -> Result<VoiceSettings, String> {
-    let envelope = read_envelope(app)?;
+    let envelope = agent_settings::read_envelope(app)?;
     Ok(envelope
         .get("voice")
         .and_then(|v| serde_json::from_value(v.clone()).ok())
@@ -199,11 +146,11 @@ pub fn load(app: &AppHandle) -> Result<VoiceSettings, String> {
 }
 
 pub fn save(app: &AppHandle, settings: &VoiceSettings) -> Result<VoiceSettings, String> {
-    let mut envelope = read_envelope(app)?;
+    let mut envelope = agent_settings::read_envelope(app)?;
     let value =
         serde_json::to_value(settings).map_err(|e| format!("serialize voice settings: {e}"))?;
     envelope.insert("voice".into(), value);
-    write_envelope(app, &envelope)?;
+    agent_settings::write_envelope(app, &envelope)?;
     Ok(settings.clone())
 }
 
@@ -211,8 +158,8 @@ pub fn save(app: &AppHandle, settings: &VoiceSettings) -> Result<VoiceSettings, 
 /// existing agent provider keyring entries.
 pub fn provider_key(app: &AppHandle, provider: VoiceProviderKind) -> Result<String, String> {
     let agent_provider = match provider {
-        VoiceProviderKind::Openai => crate::agent_settings::AgentProviderKind::Openai,
-        VoiceProviderKind::Openrouter => crate::agent_settings::AgentProviderKind::Openrouter,
+        VoiceProviderKind::Openai => agent_settings::AgentProviderKind::Openai,
+        VoiceProviderKind::Openrouter => agent_settings::AgentProviderKind::Openrouter,
     };
-    crate::agent_settings::provider_key_pub(app, agent_provider)
+    agent_settings::provider_key_pub(app, agent_provider)
 }

@@ -715,6 +715,7 @@ fn harness_settings_cat_icon(cat: HarnessSettingsCategory) -> icondata::Icon {
         HarnessSettingsCategory::AgentProvider => icondata::LuCpu,
         HarnessSettingsCategory::Memory => icondata::LuPalette,
         HarnessSettingsCategory::Voice => icondata::LuMic,
+        HarnessSettingsCategory::Image => icondata::LuImage,
     }
 }
 
@@ -817,6 +818,7 @@ fn SettingsChrome(
                         <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::AgentProvider label=I18nKey::HsCatProvider />
                         <HarnessCatStaticBtn ui=ui cat=HarnessSettingsCategory::Memory label="Memory" />
                         <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Voice label=I18nKey::HsCatVoice />
+                        <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Image label=I18nKey::HsCatImage />
                     </nav>
 
                     <div class="harness-settings-detail">
@@ -835,6 +837,9 @@ fn SettingsChrome(
                             }.into_any(),
                             HarnessSettingsCategory::Voice => view! {
                                 <crate::workbench::harness_voice_pane::VoicePane />
+                            }.into_any(),
+                            HarnessSettingsCategory::Image => view! {
+                                <crate::workbench::harness_image_pane::ImagePane />
                             }.into_any(),
                         }}
                     </div>

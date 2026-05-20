@@ -46,6 +46,10 @@ pub fn AgentPanelDock() -> impl IntoView {
     let context_open = RwSignal::new(false);
     let drop_state = RwSignal::new(DropZoneState::Inactive);
     let model_label = RwSignal::new(String::new());
+    // Per-session view of the persisted `WorkspaceEntry.agent_image_mode`.
+    // Synced on workspace switch and on toggle (writer also persists to the
+    // workspace entry so the flag survives reloads).
+    let image_mode = RwSignal::new(false);
     let chat_scroll_ref = NodeRef::<html::Article>::new();
     let voice_handle = VoiceOrbHandle::new();
     let task_snapshot = RwSignal::new(TaskSnapshot {
@@ -67,11 +71,13 @@ pub fn AgentPanelDock() -> impl IntoView {
             timeline.set(Vec::new());
             thinking_open.set(HashMap::new());
             draft.set(String::new());
+            image_mode.set(false);
             return;
         };
         timeline.set(wb.agent_timeline_for_workspace_untracked(id));
         thinking_open.set(HashMap::new());
         draft.set(wb.agent_compose_draft_for_workspace_untracked(id));
+        image_mode.set(wb.agent_image_mode_for_workspace_untracked(id));
     });
 
     if is_tauri_shell() {
@@ -277,6 +283,29 @@ pub fn AgentPanelDock() -> impl IntoView {
                         }}</span>
                         <button
                             type="button"
+                            class=move || {
+                                let mut c = String::from("agent-chat-head__image-mode");
+                                if image_mode.get() {
+                                    c.push_str(" agent-chat-head__image-mode--active");
+                                }
+                                c
+                            }
+                            prop:disabled=move || busy.get() || !is_tauri_shell()
+                            title=move || i18n.tr(I18nKey::ImageModeToggleAria)()
+                            aria-label=move || i18n.tr(I18nKey::ImageModeToggleAria)()
+                            aria-pressed=move || if image_mode.get() { "true" } else { "false" }
+                            on:click=move |_| {
+                                let next = !image_mode.get_untracked();
+                                image_mode.set(next);
+                                if let Some(ws_id) = wb.active_id().get_untracked() {
+                                    wb.set_workspace_agent_image_mode(ws_id, next);
+                                }
+                            }
+                        >
+                            <LxIcon icon=icondata::LuImagePlus width="0.86rem" height="0.86rem" />
+                        </button>
+                        <button
+                            type="button"
                             class="agent-chat-head__reset"
                             prop:disabled=move || busy.get() || !is_tauri_shell()
                             title=move || i18n.tr(I18nKey::AgResetChat)()
@@ -310,6 +339,11 @@ pub fn AgentPanelDock() -> impl IntoView {
                         </button>
                     </div>
                 </div>
+                <Show when=move || image_mode.get()>
+                    <p class="agent-chat-head__image-hint">
+                        {move || i18n.tr(I18nKey::ImageModeHint)()}
+                    </p>
+                </Show>
                 <Show
                     when=move || !timeline.get().is_empty()
                     fallback=move || view! {
@@ -496,10 +530,15 @@ fn submit_turn(
             .unwrap_or(false);
     voice_handle.voice_pending.set(false);
 
+    // Image mode is workspace-scoped state (persisted in WorkspaceEntry);
+    // read it here so every entry point — Enter key, submit button, voice
+    // auto-send — honours the toggle without an extra arg.
+    let image_generate = wb.agent_image_mode_for_workspace_untracked(ws_id);
     let turn = UserTurn {
         prompt,
         workspace_root,
         voice_input,
+        image_generate,
         context_items,
         image_context_items,
     };

@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "Annehmen",
         I18nKey::GitignorePromptTitle => ".blxcode zur .gitignore hinzufügen?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode speichert lokale Workspace-Daten (Aufgaben, Sitzungen) im Ordner `.blxcode`. \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nSoll dieser Eintrag in die `.gitignore` dieses Projekts aufgenommen werden, damit er nicht versehentlich committed wird?"
+            "BLXCode speichert lokale Workspace-Daten (Aufgaben, Sitzungen) im Ordner `.blxcode`. \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nSoll dieser Eintrag in die `.gitignore` dieses Projekts aufgenommen werden, damit er nicht versehentlich committed wird?"
         }
         I18nKey::GitignorePromptYes => "Ja, hinzufügen",
         I18nKey::GitignorePromptNo => "Nicht jetzt",
@@ -180,7 +180,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppShortcutModeTmux => "Tmux-Stil (Ctrl+b, dann Taste)",
         I18nKey::AppShortcutModeLegacy => "Klassisch (Ctrl / Ctrl+Shift)",
         I18nKey::AppShortcutModeHint => {
-            "Tmux: Prefix Ctrl+b, dann zweite Taste (z. B. n für neues Terminal, : für Befehlspalette). \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nKlassisch: Ctrl+O Schnell öffnen, Ctrl+` neues Terminal, Ctrl+Shift+P Palette."
+            "Tmux: Prefix Ctrl+b, dann zweite Taste (z. B. n für neues Terminal, : für Befehlspalette). \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nKlassisch: Ctrl+O Schnell öffnen, Ctrl+` neues Terminal, Ctrl+Shift+P Palette."
         }
         I18nKey::MemShowInGraph => "Im Graph zeigen",
         I18nKey::MemGraph3dLoadFailed => "3D-Grafik konnte nicht geladen werden. 2D-Grafik wird angezeigt.",
@@ -252,6 +252,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatWorkspace => "Arbeitsplatz",
         I18nKey::HsCatProvider => "Agentenanbieter",
         I18nKey::HsCatVoice => "Stimme",
+        I18nKey::HsCatImage => "Bild",
         I18nKey::AppHeading => "App",
         I18nKey::GenEulaStatus => "EULA-Status",
         I18nKey::AppLanguage => "UI-Sprache",
@@ -431,5 +432,20 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::VoiceOrbCancelHint => "ESC bricht die Aufnahme ab",
         I18nKey::VoiceErrNoMic => "Mikrofon nicht verfügbar.",
         I18nKey::VoiceErrStt => "Transkription fehlgeschlagen: {message}",
+        I18nKey::ImagePaneTitle => "Bilderzeugung",
+        I18nKey::ImagePaneDescription => "Anbieter und Modell, die verwendet werden, wenn der Bildmodus im Agenten-Chat aktiv ist.",
+        I18nKey::ImageProviderField => "Anbieter",
+        I18nKey::ImageModelField => "Modell",
+        I18nKey::ImageSettingsSaved => "Gespeichert.",
+        I18nKey::ImageModeToggleAria => "Schalten Sie den Bildgenerierungsmodus um",
+        I18nKey::ImageModeHint => "Bildmodus: Ihre Eingabeaufforderung erzeugt ein Bild, keine Chat-Antwort.",
+        I18nKey::ImageModeBadge => "Bild",
+        I18nKey::ImageGenerateUserPromptPrefix => "Bildaufforderung",
+        I18nKey::ImageGenerateDownload => "Herunterladen",
+        I18nKey::ImageGenerateOpenFolder => "Im Ordner offenbaren",
+        I18nKey::ImageGenerateNoWorkspaceWarn => "Kein Arbeitsbereich ausgewählt – das Bild bleibt nur im Speicher.",
+        I18nKey::ImageGenerateMissingKey => "Für den Bildanbieter ist kein API-Schlüssel festgelegt.",
+        I18nKey::ImageGenerateFailed => "Bildgenerierung fehlgeschlagen: {message}",
+        I18nKey::ImageGenerateConfirmTts => "Bild erstellt.",
     }
 }

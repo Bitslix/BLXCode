@@ -1880,3 +1880,119 @@ pub async fn voice_tts_preview(
     )
     .await
 }
+
+// ---------------------------------------------------------------------------
+// Image subsystem bridge
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ImageProviderKind {
+    Openai,
+    Openrouter,
+}
+
+impl ImageProviderKind {
+    #[allow(dead_code)]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Openai => "openai",
+            Self::Openrouter => "openrouter",
+        }
+    }
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageSettings {
+    pub provider: ImageProviderKind,
+    pub model_id: String,
+}
+
+impl Default for ImageSettings {
+    fn default() -> Self {
+        Self {
+            provider: ImageProviderKind::Openai,
+            model_id: "gpt-image-1".into(),
+        }
+    }
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageCuratedModel {
+    pub id: String,
+    pub label: String,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImageModelsResponse {
+    pub provider: ImageProviderKind,
+    pub entries: Vec<ImageCuratedModel>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneratedImagePreviewResponse {
+    pub mime: String,
+    pub bytes_b64: String,
+}
+
+pub async fn image_settings_get() -> Result<ImageSettings, String> {
+    invoke_typed("image_settings_get", serde_json::json!({})).await
+}
+
+pub async fn image_settings_save(patch: ImageSettings) -> Result<ImageSettings, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        patch: ImageSettings,
+    }
+    invoke_typed("image_settings_save", Args { patch }).await
+}
+
+#[allow(dead_code)]
+pub async fn image_curated_models(
+    provider: ImageProviderKind,
+) -> Result<ImageModelsResponse, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        payload: Payload,
+    }
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Payload {
+        provider: ImageProviderKind,
+    }
+    invoke_typed(
+        "image_curated_models",
+        Args {
+            payload: Payload { provider },
+        },
+    )
+    .await
+}
+
+pub async fn generated_image_preview(path: String) -> Result<GeneratedImagePreviewResponse, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        payload: Payload,
+    }
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Payload {
+        path: String,
+    }
+    invoke_typed(
+        "generated_image_preview",
+        Args {
+            payload: Payload { path },
+        },
+    )
+    .await
+}

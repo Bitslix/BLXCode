@@ -12,6 +12,11 @@ pub struct UserTurn {
     /// final assistant text and emits an `AgentEvent::VoiceReady`.
     #[serde(default)]
     pub voice_input: bool,
+    /// When true, the orchestrator runs the configured image provider on
+    /// the prompt (plus any `image_context_items` as references) instead of
+    /// dispatching a text-agent turn.
+    #[serde(default)]
+    pub image_generate: bool,
     #[serde(default)]
     pub context_items: Vec<AgentContextItem>,
     #[serde(default)]
@@ -91,6 +96,22 @@ pub enum AgentEvent {
     TaskSnapshot { snapshot: TaskSnapshot },
     #[serde(rename = "image_context_consumed")]
     ImageContextConsumed { ids: Vec<String> },
+    /// Emitted after a successful image-generation turn. `savedPath` is the
+    /// absolute file path under `.blxcode/generated/` when a workspace root
+    /// was provided; otherwise the image lives only in-memory and the
+    /// `previewSrc` data URL carries the bytes.
+    #[serde(rename = "image_generated")]
+    ImageGenerated {
+        prompt: String,
+        mime: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        saved_path: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        filename: Option<String>,
+        /// Data URL (`data:<mime>;base64,...`) suitable for `<img src>`
+        /// directly. Always present so the UI can render immediately.
+        preview_src: String,
+    },
     #[serde(rename = "done")]
     Done,
     #[serde(rename = "error")]

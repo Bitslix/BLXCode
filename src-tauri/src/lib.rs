@@ -8,6 +8,7 @@ mod fs_entries;
 mod git_graph;
 mod git_info;
 mod gitignore;
+mod image;
 mod memory;
 mod plans;
 mod pty_host;
@@ -26,6 +27,7 @@ use browser_host::BrowserHost;
 use commands::*;
 use pty_host::PtyManager;
 use tauri_plugin_opener::OpenerExt;
+use image::{image_curated_models, image_settings_get, image_settings_save};
 use voice::{
     voice_cancel_recording, voice_provider_voices, voice_settings_get, voice_settings_save,
     voice_start_recording, voice_stop_and_transcribe, voice_tts_preview, VoiceRecorderState,
@@ -185,6 +187,10 @@ pub fn run() {
             voice_settings_save,
             voice_provider_voices,
             voice_tts_preview,
+            image_settings_get,
+            image_settings_save,
+            image_curated_models,
+            crate::image::commands::generated_image_preview,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

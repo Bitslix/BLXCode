@@ -174,23 +174,39 @@ pub(crate) fn provider_key_pub(
     provider_key(app, provider)
 }
 
-fn load_settings(app: &AppHandle) -> Result<AgentProviderSettings, String> {
+/// Shared envelope reader: parses `agent_provider_settings.json` as a JSON
+/// object so sub-modules (`voice`, `image`) can insert their keys without
+/// clobbering each other.
+pub(crate) fn read_envelope(
+    app: &AppHandle,
+) -> Result<serde_json::Map<String, serde_json::Value>, String> {
     let path = settings_path(app)?;
     match fs::read_to_string(&path) {
-        Ok(raw) if raw.trim().is_empty() => Ok(AgentProviderSettings::default()),
-        Ok(raw) => serde_json::from_str(&raw).map_err(|e| format!("parse {}: {e}", path.display())),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(AgentProviderSettings::default()),
+        Ok(raw) if raw.trim().is_empty() => Ok(serde_json::Map::new()),
+        Ok(raw) => {
+            let val: serde_json::Value =
+                serde_json::from_str(&raw).map_err(|e| format!("parse {}: {e}", path.display()))?;
+            match val {
+                serde_json::Value::Object(m) => Ok(m),
+                _ => Ok(serde_json::Map::new()),
+            }
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(serde_json::Map::new()),
         Err(e) => Err(format!("read {}: {e}", path.display())),
     }
 }
 
-fn save_settings(app: &AppHandle, settings: &AgentProviderSettings) -> Result<(), String> {
+/// Shared envelope writer (atomic via temp + rename).
+pub(crate) fn write_envelope(
+    app: &AppHandle,
+    envelope: &serde_json::Map<String, serde_json::Value>,
+) -> Result<(), String> {
     let path = settings_path(app)?;
     if let Some(parent) = path.parent() {
         ensure_dir(parent)?;
     }
     let tmp = path.with_extension("json.tmp");
-    let body = serde_json::to_string_pretty(settings)
+    let body = serde_json::to_string_pretty(envelope)
         .map_err(|e| format!("serialize {}: {e}", path.display()))?;
     {
         let mut f = fs::File::create(&tmp).map_err(|e| format!("create {}: {e}", tmp.display()))?;
@@ -200,6 +216,45 @@ fn save_settings(app: &AppHandle, settings: &AgentProviderSettings) -> Result<()
     }
     fs::rename(&tmp, &path)
         .map_err(|e| format!("rename {} -> {}: {e}", tmp.display(), path.display()))?;
+    Ok(())
+}
+
+/// List of envelope keys reserved by sibling subsystems. The agent-settings
+/// writer must preserve these on every save.
+const RESERVED_SIBLING_KEYS: &[&str] = &["voice", "image"];
+
+fn load_settings(app: &AppHandle) -> Result<AgentProviderSettings, String> {
+    let envelope = read_envelope(app)?;
+    if envelope.is_empty() {
+        return Ok(AgentProviderSettings::default());
+    }
+    serde_json::from_value(serde_json::Value::Object(envelope.clone()))
+        .map_err(|e| format!("parse agent settings: {e}"))
+}
+
+fn save_settings(app: &AppHandle, settings: &AgentProviderSettings) -> Result<(), String> {
+    // Merge the agent settings into the existing envelope so sibling keys
+    // (voice/image) are preserved.
+    let mut envelope = read_envelope(app)?;
+    let value = serde_json::to_value(settings)
+        .map_err(|e| format!("serialize agent settings: {e}"))?;
+    let merged = match value {
+        serde_json::Value::Object(map) => map,
+        _ => return Err("agent settings did not serialize to a JSON object".into()),
+    };
+    // Drop keys belonging to the agent settings shape that no longer exist
+    // (none today, but defensive), then write each field.
+    let preserved: serde_json::Map<String, serde_json::Value> = envelope
+        .iter()
+        .filter(|(k, _)| RESERVED_SIBLING_KEYS.contains(&k.as_str()))
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    envelope.clear();
+    envelope.extend(merged);
+    for (k, v) in preserved {
+        envelope.insert(k, v);
+    }
+    write_envelope(app, &envelope)?;
     Ok(())
 }
 

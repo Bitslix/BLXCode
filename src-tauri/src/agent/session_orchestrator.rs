@@ -3,11 +3,15 @@
 //! key/model is available.
 use crate::agent::anthropic::run_chat_turn as run_anthropic_turn;
 use crate::agent::openrouter::{run_chat_turn, Endpoint};
-use crate::agent::protocol::{AgentContextItem, AgentContextKind, AgentEvent, UserTurn};
+use crate::agent::protocol::{
+    AgentContextItem, AgentContextKind, AgentEvent, AgentImageContextItem, UserTurn,
+};
 use crate::agent::state::AgentEngineState;
 use crate::agent_settings::{load_settings_pub, provider_key_pub, AgentProviderKind};
+use crate::image::{self, generate as image_generate};
 use crate::plans;
 use crate::voice::{self, VoiceSettings};
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use std::sync::Arc;
 use tauri::{async_runtime, AppHandle};
 
@@ -18,6 +22,14 @@ pub fn dispatch_user_turn(
 ) -> Result<(), String> {
     if agent.busy() {
         return Err("Agent ist noch beschäftigt.".into());
+    }
+
+    // Image-mode branch: short-circuits the text-agent pipeline. Loads the
+    // image settings + the image-provider's API key (NOT the text-agent
+    // provider's key) and spawns one HTTP request.
+    if turn.image_generate {
+        dispatch_image_turn(app, agent, turn);
+        return Ok(());
     }
 
     let settings = match load_settings_pub(app) {
@@ -60,7 +72,7 @@ pub fn dispatch_user_turn(
                 )
                 .await;
                 if voice_input {
-                    maybe_emit_tts(&app_handle, &state).await;
+                    maybe_emit_tts_for_last_assistant(&app_handle, &state).await;
                 }
             });
         }
@@ -79,12 +91,117 @@ pub fn dispatch_user_turn(
                 )
                 .await;
                 if voice_input {
-                    maybe_emit_tts(&app_handle, &state).await;
+                    maybe_emit_tts_for_last_assistant(&app_handle, &state).await;
                 }
             });
         }
     }
     Ok(())
+}
+
+/// Image-mode dispatch. Does **not** touch the text conversation history;
+/// emits a single `ImageGenerated` event + `Done` and (optionally) a TTS
+/// confirmation when the turn originated from voice input.
+fn dispatch_image_turn(app: &AppHandle, agent: &Arc<AgentEngineState>, turn: UserTurn) {
+    let state = Arc::clone(agent);
+    let app_handle = app.clone();
+    async_runtime::spawn(async move {
+        state.clear_cancel();
+        state.set_busy(true);
+        let result = run_image_turn(&app_handle, &state, &turn).await;
+        match result {
+            Ok(()) => {
+                state.push(AgentEvent::Done);
+            }
+            Err(message) => {
+                state.push(AgentEvent::Error { message });
+                state.push(AgentEvent::Done);
+            }
+        }
+        // TTS only fires when the user spoke the prompt; the confirmation
+        // text is short and fixed (not the assistant transcript).
+        if turn.voice_input {
+            emit_tts_for_text(&app_handle, &state, tts_confirmation_text()).await;
+        }
+        state.set_busy(false);
+    });
+}
+
+async fn run_image_turn(
+    app: &AppHandle,
+    state: &Arc<AgentEngineState>,
+    turn: &UserTurn,
+) -> Result<(), String> {
+    let settings = image::settings::load(app)
+        .map_err(|e| format!("Image-Settings konnten nicht geladen werden: {e}"))?;
+    let api_key = match image::settings::provider_key(app, settings.provider) {
+        Ok(k) if !k.trim().is_empty() => k,
+        Ok(_) | Err(_) => {
+            return Err(format!(
+                "Kein API-Key für Bild-Provider {} hinterlegt. In den Image-Einstellungen setzen.",
+                settings.provider.as_str()
+            ));
+        }
+    };
+
+    let refs: &[AgentImageContextItem] = &turn.image_context_items;
+    let generated = image_generate::generate(state, &settings, &api_key, &turn.prompt, refs)
+        .await
+        .map_err(|e| e.into_message())?;
+
+    // Only mark refs as consumed after a successful 2xx (i.e. now).
+    if !refs.is_empty() {
+        state.push(AgentEvent::ImageContextConsumed {
+            ids: refs.iter().map(|r| r.id.clone()).collect(),
+        });
+    }
+
+    // Persist when we have a workspace root, otherwise inline only.
+    let (saved_path, filename) = if let Some(root) = turn
+        .workspace_root
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
+        match image_generate::save_to_workspace(
+            std::path::Path::new(root),
+            &generated,
+            &turn.prompt,
+        ) {
+            Ok(saved) => (
+                Some(saved.abs_path.to_string_lossy().into_owned()),
+                Some(saved.filename),
+            ),
+            Err(e) => {
+                state.push(AgentEvent::Error {
+                    message: format!("Bild speichern fehlgeschlagen: {e}"),
+                });
+                (None, None)
+            }
+        }
+    } else {
+        (None, None)
+    };
+
+    let preview_src = format!(
+        "data:{};base64,{}",
+        generated.mime,
+        BASE64.encode(&generated.bytes)
+    );
+    state.push(AgentEvent::ImageGenerated {
+        prompt: turn.prompt.clone(),
+        mime: generated.mime,
+        saved_path,
+        filename,
+        preview_src,
+    });
+    Ok(())
+}
+
+fn tts_confirmation_text() -> String {
+    // Locale-neutral: short German phrase matching the UI's primary locale
+    // hint. The string itself is short enough that any TTS engine handles
+    // it cleanly even when set to follow-app locale.
+    "Bild erstellt.".to_owned()
 }
 
 fn render_context_prompt(
@@ -202,10 +319,20 @@ fn spawn_chat_missing_key(state: Arc<AgentEngineState>, provider: AgentProviderK
     });
 }
 
-/// After a turn finishes, run TTS over the final assistant text if voice
-/// output is configured. Errors are surfaced as `AgentEvent::Error` rather
-/// than failing the whole turn (the text answer already reached the user).
-async fn maybe_emit_tts(app: &AppHandle, state: &Arc<AgentEngineState>) {
+/// After a text turn finishes, run TTS over the final assistant text if
+/// voice output is configured. Used by the Anthropic / OpenAI / OpenRouter
+/// chat paths.
+async fn maybe_emit_tts_for_last_assistant(app: &AppHandle, state: &Arc<AgentEngineState>) {
+    let Some(text) = last_assistant_text(state) else {
+        return;
+    };
+    emit_tts_for_text(app, state, text).await;
+}
+
+/// Run TTS over a caller-provided text. Used by the image branch for
+/// short confirmation phrases, and indirectly by chat turns via
+/// `maybe_emit_tts_for_last_assistant`.
+async fn emit_tts_for_text(app: &AppHandle, state: &Arc<AgentEngineState>, text: String) {
     let voice_settings: VoiceSettings = match voice::settings::load(app) {
         Ok(v) => v,
         Err(e) => {
@@ -218,9 +345,6 @@ async fn maybe_emit_tts(app: &AppHandle, state: &Arc<AgentEngineState>) {
     if !voice_settings.tts.enabled {
         return;
     }
-    let Some(text) = last_assistant_text(state) else {
-        return;
-    };
     if text.trim().is_empty() {
         return;
     }
@@ -243,7 +367,6 @@ async fn maybe_emit_tts(app: &AppHandle, state: &Arc<AgentEngineState>) {
     .await
     {
         Ok(bytes) => {
-            use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
             state.push(AgentEvent::VoiceReady {
                 audio_b64: BASE64.encode(&bytes),
                 mime: "audio/mpeg".into(),

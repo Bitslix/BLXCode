@@ -1,0 +1,33 @@
+/* Shared model picker — keeps the field layout consistent across the
+   voice and image settings panes. Globals (workbench-plain-input,
+   workbench-mini-btn, harness-muted) come from styles.css. */
+
+.model-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: 0.6rem;
+}
+
+.model-picker__label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-muted, #9aa);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.model-picker__input {
+    width: 100%;
+}
+
+.model-picker__row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.model-picker__count {
+    font-size: 0.7rem;
+    opacity: 0.7;
+}

@@ -1,5 +1,5 @@
-mod protocol;
-mod state;
+pub(crate) mod protocol;
+pub(crate) mod state;
 pub mod tools;
 
 mod anthropic;

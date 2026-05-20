@@ -19,6 +19,13 @@ pub enum DisplayTimelineItem {
     Assistant { text: String },
     ToolGroup(Vec<ToolActivity>),
     Thinking { text: String, done: bool },
+    GeneratedImage {
+        prompt: String,
+        mime: String,
+        preview_src: String,
+        saved_path: Option<String>,
+        filename: Option<String>,
+    },
 }
 
 #[inline]
@@ -27,7 +34,35 @@ fn persist_agent_timeline(
     timeline: RwSignal<Vec<TimelineItem>>,
 ) {
     if let Some((wb, workspace_id)) = persist {
-        wb.set_workspace_agent_timeline(workspace_id, timeline.get_untracked());
+        // Drop large base64 previews when a `saved_path` is available — the
+        // image lives on disk and is rehydrated via `generated_image_preview`
+        // on next render. Keeps `sessions.json` small.
+        let sanitized = timeline
+            .get_untracked()
+            .into_iter()
+            .map(|item| match item {
+                TimelineItem::GeneratedImage {
+                    prompt,
+                    mime,
+                    preview_src,
+                    saved_path,
+                    filename,
+                } => {
+                    let drop_preview = saved_path
+                        .as_deref()
+                        .is_some_and(|p| !p.trim().is_empty());
+                    TimelineItem::GeneratedImage {
+                        prompt,
+                        mime,
+                        preview_src: if drop_preview { String::new() } else { preview_src },
+                        saved_path,
+                        filename,
+                    }
+                }
+                other => other,
+            })
+            .collect::<Vec<_>>();
+        wb.set_workspace_agent_timeline(workspace_id, sanitized);
     }
 }
 
@@ -168,6 +203,24 @@ pub fn apply_agent_event(
         AgentEvent::ImageContextConsumed { .. } => {
             // Image context status is handled in the agent panel; no timeline mutation.
         }
+        AgentEvent::ImageGenerated {
+            prompt,
+            mime,
+            saved_path,
+            filename,
+            preview_src,
+        } => {
+            timeline.update(|rows| {
+                rows.push(TimelineItem::GeneratedImage {
+                    prompt: prompt.clone(),
+                    mime: mime.clone(),
+                    preview_src: preview_src.clone(),
+                    saved_path: saved_path.clone(),
+                    filename: filename.clone(),
+                });
+            });
+            persist_agent_timeline(persist, timeline);
+        }
     }
 }
 
@@ -180,6 +233,15 @@ fn synthesize_completion_message(rows: &[TimelineItem]) -> Option<String> {
         .iter()
         .any(|entry| matches!(entry, TimelineItem::Assistant { text } if !text.trim().is_empty()));
     if has_assistant_after_user {
+        return None;
+    }
+
+    // Image-mode turns end with a `GeneratedImage` row instead of assistant
+    // text — skip the synthetic completion blurb so the chat stays clean.
+    let has_image_after_user = rows[last_user_idx + 1..]
+        .iter()
+        .any(|entry| matches!(entry, TimelineItem::GeneratedImage { .. }));
+    if has_image_after_user {
         return None;
     }
 
@@ -241,6 +303,22 @@ pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
             TimelineItem::Thinking { text, done } => {
                 flush_tools(&mut out, &mut pending_tools);
                 out.push(DisplayTimelineItem::Thinking { text, done });
+            }
+            TimelineItem::GeneratedImage {
+                prompt,
+                mime,
+                preview_src,
+                saved_path,
+                filename,
+            } => {
+                flush_tools(&mut out, &mut pending_tools);
+                out.push(DisplayTimelineItem::GeneratedImage {
+                    prompt,
+                    mime,
+                    preview_src,
+                    saved_path,
+                    filename,
+                });
             }
         }
     }
@@ -372,6 +450,122 @@ pub fn TimelineRow(
             <ThinkingRow idx=idx line_no=line_no text=text done=done thinking_open=thinking_open voice_handle=voice_handle />
         }
         .into_any(),
+        DisplayTimelineItem::GeneratedImage {
+            prompt,
+            mime,
+            preview_src,
+            saved_path,
+            filename,
+        } => view! {
+            <GeneratedImageRow
+                line_no=line_no
+                prompt=prompt
+                mime=mime
+                preview_src=preview_src
+                saved_path=saved_path
+                filename=filename
+                voice_handle=voice_handle
+            />
+        }
+        .into_any(),
+    }
+}
+
+#[component]
+fn GeneratedImageRow(
+    line_no: String,
+    prompt: String,
+    mime: String,
+    preview_src: String,
+    saved_path: Option<String>,
+    filename: Option<String>,
+    voice_handle: VoiceOrbHandle,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    // Lazily re-hydrate the preview from disk when restored timelines only
+    // carry a `saved_path` (we never persist the data URL in the snapshot).
+    let preview = RwSignal::new(preview_src.clone());
+    let path_for_effect = saved_path.clone();
+    Effect::new(move |_| {
+        let needs_hydrate = preview.with(|v| v.is_empty());
+        if !needs_hydrate {
+            return;
+        }
+        let Some(path) = path_for_effect.clone() else {
+            return;
+        };
+        if !is_tauri_shell() || path.is_empty() {
+            return;
+        }
+        leptos::task::spawn_local(async move {
+            if let Ok(resp) =
+                crate::tauri_bridge::generated_image_preview(path).await
+            {
+                preview.set(format!("data:{};base64,{}", resp.mime, resp.bytes_b64));
+            }
+        });
+    });
+
+    let download_name = filename
+        .clone()
+        .unwrap_or_else(|| format!("generated.{}", ext_for_mime(&mime)));
+    let saved_path_attr = saved_path.clone().unwrap_or_default();
+    let saved_path_has = !saved_path_attr.is_empty();
+    let alt_text = prompt.clone();
+    let prompt_for_label = prompt.clone();
+
+    view! {
+        <li class="agent-chat-line agent-chat-line--image">
+            <ChatLineIndexColumn line_no=line_no tts_text=None voice_handle=voice_handle />
+            <div class="agent-chat-body">
+                <strong>{move || i18n.tr(I18nKey::ImageModeBadge)()}</strong>
+                <p class="agent-chat-image-prompt">
+                    <span class="agent-chat-image-prompt__label">
+                        {move || i18n.tr(I18nKey::ImageGenerateUserPromptPrefix)()}":"
+                    </span>
+                    <span>{prompt_for_label.clone()}</span>
+                </p>
+                <Show
+                    when=move || !preview.with(|s| s.is_empty())
+                    fallback=move || view! {
+                        <p class="agent-chat-image-missing">"…"</p>
+                    }
+                >
+                    <img
+                        class="agent-chat-image"
+                        src=move || preview.get()
+                        alt=alt_text.clone()
+                    />
+                </Show>
+                <div class="agent-chat-image-actions">
+                    <a
+                        class="workbench-mini-btn"
+                        prop:href=move || preview.get()
+                        prop:download=download_name.clone()
+                    >
+                        <span class="harness-btn-inline">
+                            <LxIcon icon=icondata::LuDownload width="0.82rem" height="0.82rem" />
+                            <span>{move || i18n.tr(I18nKey::ImageGenerateDownload)()}</span>
+                        </span>
+                    </a>
+                    <Show when=move || saved_path_has>
+                        <small class="harness-muted agent-chat-image-path">
+                            {saved_path_attr.clone()}
+                        </small>
+                    </Show>
+                </div>
+            </div>
+        </li>
+    }
+}
+
+fn ext_for_mime(mime: &str) -> &'static str {
+    match mime.trim().to_ascii_lowercase().as_str() {
+        "image/png" => "png",
+        "image/jpeg" | "image/jpg" => "jpg",
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        _ => "bin",
     }
 }
 

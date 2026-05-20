@@ -9,6 +9,7 @@ use crate::tauri_bridge::{
     PttHotkey, SttLanguageMode, SttSettings, TtsSettings, VoiceEntry, VoiceGender,
     VoiceProviderKind, VoiceSettings,
 };
+use crate::workbench::model_picker::ModelPicker;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use js_sys::Uint8Array;
 use leptos::prelude::*;
@@ -320,102 +321,6 @@ where
                 </p>
             </div>
         </section>
-    }
-}
-
-#[component]
-fn ModelPicker<F, R>(
-    label_key: I18nKey,
-    datalist_id: &'static str,
-    current: String,
-    models: RwSignal<Vec<ProviderModelEntry>>,
-    on_change: F,
-    on_refresh: R,
-) -> impl IntoView
-where
-    F: Fn(String) + Send + Sync + 'static + Clone,
-    R: Fn() + Send + Sync + 'static + Copy,
-{
-    let i18n = expect_context::<I18nService>();
-    let buf = RwSignal::new(current.clone());
-    let loading = RwSignal::new(false);
-
-    // Keep the buffer aligned with the persisted value when settings reload.
-    Effect::new({
-        let current = current.clone();
-        move |_| {
-            // Re-bind when models reload — the parent re-renders this picker.
-            let _ = models.get();
-            buf.set(current.clone());
-        }
-    });
-
-    let on_input = {
-        let on_change = on_change.clone();
-        move |ev: web_sys::Event| {
-            if let Some(t) = ev.target() {
-                if let Ok(inp) = t.dyn_into::<web_sys::HtmlInputElement>() {
-                    let v = inp.value();
-                    buf.set(v.clone());
-                    on_change(v);
-                }
-            }
-        }
-    };
-
-    let on_refresh_click = move |_| {
-        if loading.get_untracked() {
-            return;
-        }
-        loading.set(true);
-        on_refresh();
-        // Loading flag is reset by an effect that watches the model list.
-    };
-
-    Effect::new(move |_| {
-        let _ = models.get();
-        loading.set(false);
-    });
-
-    view! {
-        <div class="voice-pane__field">
-            <label>{move || i18n.tr(label_key)()}</label>
-            <input
-                class="workbench-plain-input"
-                type="text"
-                list=datalist_id
-                prop:value=move || buf.get()
-                on:input=on_input
-            />
-            <datalist id=datalist_id>
-                {move || {
-                    models.get()
-                        .into_iter()
-                        .map(|m| view! { <option value=m.id.clone()></option> })
-                        .collect_view()
-                }}
-            </datalist>
-            <div class="harness-row-gap">
-                <button
-                    type="button"
-                    class="workbench-mini-btn"
-                    prop:disabled=move || loading.get()
-                    on:click=on_refresh_click
-                >
-                    <span class="harness-btn-inline">
-                        <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
-                        <span>{move || if loading.get() {
-                            i18n.tr(I18nKey::AgModelsLoading)().to_string()
-                        } else {
-                            i18n.tr(I18nKey::AgModelsRefresh)().to_string()
-                        }}</span>
-                    </span>
-                </button>
-                <small class="harness-muted">
-                    {move || format!("{} entries", models.get().len())}
-                </small>
-            </div>
-        </div>
     }
 }
 

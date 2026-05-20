@@ -65,6 +65,9 @@ pub struct WorkspaceEntry {
     /// Draft text in the agent compose field (same workspace binding).
     #[serde(default)]
     pub agent_compose_draft: String,
+    /// Image-generation toggle for the agent chat (per workspace).
+    #[serde(default)]
+    pub agent_image_mode: bool,
     /// Memory/Learnings context attached to the next BLXCode Agent turns.
     #[serde(default)]
     pub agent_context_items: Vec<AgentContextItem>,
@@ -265,6 +268,7 @@ impl WorkspaceEntry {
             configuring: false,
             agent_timeline: Vec::new(),
             agent_compose_draft: String::new(),
+            agent_image_mode: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
             sidebar_explorer_open: true,
@@ -475,6 +479,7 @@ pub enum HarnessSettingsCategory {
     AgentProvider,
     Memory,
     Voice,
+    Image,
 }
 
 #[derive(Clone, Copy)]
@@ -1336,6 +1341,7 @@ impl WorkbenchService {
                 configuring: false,
                 agent_timeline: Vec::new(),
                 agent_compose_draft: String::new(),
+                agent_image_mode: false,
                 agent_context_items: Vec::new(),
                 memory_category_settings: HashMap::new(),
                 sidebar_explorer_open: true,
@@ -1896,6 +1902,7 @@ impl WorkbenchService {
             configuring: true,
             agent_timeline: Vec::new(),
             agent_compose_draft: String::new(),
+            agent_image_mode: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
             sidebar_explorer_open: true,
@@ -2187,6 +2194,25 @@ impl WorkbenchService {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
                 ws.agent_compose_draft = draft;
+            }
+        });
+    }
+
+    #[must_use]
+    pub fn agent_image_mode_for_workspace_untracked(&self, workspace_id: u64) -> bool {
+        self.workspaces.with_untracked(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.agent_image_mode)
+                .unwrap_or(false)
+        })
+    }
+
+    pub fn set_workspace_agent_image_mode(&self, workspace_id: u64, image_mode: bool) {
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                ws.agent_image_mode = image_mode;
             }
         });
     }
