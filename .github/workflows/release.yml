@@ -124,7 +124,11 @@ jobs:
               ;;
           esac
           echo "Selected: $PLATFORMS"
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          {
+            echo "matrix<<EOF"
+            echo "$matrix"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
   build:
     needs: plan
