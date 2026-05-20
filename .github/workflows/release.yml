@@ -7,6 +7,10 @@ permissions:
   contents: write
   actions: read
 
+env:
+  # Comma-separated GitHub logins allowed to release on org-owned repos (when != repository_owner).
+  RELEASE_MAINTAINERS: iptoux
+
 on:
   push:
     tags: ["v*"]
@@ -39,9 +43,18 @@ jobs:
           script: |
             const actor = context.actor;
             const owner = context.payload.repository.owner.login;
+            const maintainers = (process.env.RELEASE_MAINTAINERS || "")
+              .split(",")
+              .map((s) => s.trim())
+              .filter(Boolean);
 
             if (actor === owner) {
               core.info(`Authorized: repository owner @${actor}`);
+              return;
+            }
+
+            if (maintainers.includes(actor)) {
+              core.info(`Authorized: RELEASE_MAINTAINERS @${actor}`);
               return;
             }
 
