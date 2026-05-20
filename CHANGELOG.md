@@ -7,8 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-05-20
+
 ### Added
 
+- Terminal agent context handoff: new BLXCode Agent client tool `harness.send_agent_context { slotId? | agentSlug?, instruction?, includeKinds?, submit? }` that hands off the active workspace's attached Memory/Learnings/Images to a live `claude` / `codex` / `gemini` / `opencode` / `cursor` CLI session in the workbench terminal grid. Renders a terminal-safe Markdown block (workspace root, attached items, image paths, optional instruction), writes it through the existing PTY path, and submits by default. Image bytes are exported to disk and cited by path — base64 is never written into the prompt.
+- Image export pipeline for context handoff: new Tauri command `agent_export_context_images` writes selected images to `<workspace>/.blxcode/agent-context/images/` with sanitized filenames and a JSON manifest sidecar; collision-safe (`-2`, `-3` suffix) and idempotent across retries.
+- Terminal PTY env vars `BLX_AGENT_CONTEXT_DIR` and `BLX_AGENT_CONTEXT_MANIFEST` so hooks and the spawned CLI agent can discover the workspace handoff directory and manifest path. Hooks remain advisory — the explicit toolcall is the only transport.
+- Terminal titlebar **handoff dropdown** on every workspace terminal cell: opens a menu listing every live terminal in the workspace (so context can be forwarded to any peer slot), a separator, and a "Send to BLXCode agent context" entry that attaches the workspace's Memory category to the BLXCode Agent context (idempotent upsert). Button icon briefly flips to a check or alert and the border tints green / red as visual feedback (~2.8 s).
+- Memory **Graph preview** handoff button: the note preview popover gains a terminal-share icon (next to "Open in Files" / "Close") that opens the same dropdown. Picking a terminal sends ONLY this note as a one-shot `memory_note` / `learning_note` context item; the "Send to BLXCode agent context" entry attaches the previewed note to the BLXCode Agent context.
+- Shared frontend module `agent_context_handoff` containing the Markdown renderer (`render_agent_context_block`), the `WorkspaceTerminalTarget` listing, the async `perform_handoff` helper, and the reusable Leptos components `HandoffMenu` + `TerminalSlotHandoffButton`. The renderer is the single source of truth for the prompt shape and is fully unit-tested (empty / memory-only / image-only / mixed-with-instruction / long-path collapsing).
+- `pty_sessions_signal()` accessor on `WorkbenchService` so UI components can react to live PTY session registration (button enables the instant the cell registers; no stale-disabled states).
+- i18n keys for the new UI: `MemGraphSendToTerminal`, `HandoffSendContext`, `HandoffPickTerminal`, `HandoffNoTerminals`, `HandoffOkSent`, `HandoffFailed`, `HandoffToAgentContext` — German strings translated, all 12 other locales stubbed with the English fallback.
 - Agent Panel image context: attach PNG, JPEG, WebP, or GIF images to the BLXCode Agent via OS/browser drag-and-drop or paste.
 - Agent Panel drop-zone feedback: dragging images over the Agent chat highlights the pane with a dashed border and helper text; unsupported drops show a rejection hint.
 - Agent Context image rows: attached images show Pending/Read status, remove controls, manual “use again” reactivation, and a preview dialog with close/remove actions.
@@ -28,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- BLXCode Agent system prompt now documents `harness.send_agent_context` next to `harness.send_terminal_keys`, instructs the agent to prefer the new tool for context-aware delegation, and warns against broadcasting context to multiple terminals without explicit user intent.
+- `WorkspaceTerminalCell` accepts `slot_id` and `pane_id` props so the new handoff dropdown can be embedded directly in the titlebar (caller in `workspace_panel.rs` updated).
 - Agent conversation history now sanitizes image content after a turn so base64 image bytes are not persisted or resent on later text/voice turns.
 - Agent Chat reset moved from the compose action row into the Chat log header as an icon-only control with tooltip.
 - Right panel rail and open-tabstrip now carry five tabs (Agent / Browser / Memory / Rules / Skills) with `LuShield` and `LuPuzzle` icons for the two new entries.
