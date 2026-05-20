@@ -124,6 +124,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HandoffNoTerminals => "No running terminals in this workspace",
         I18nKey::HandoffOkSent => "Context sent",
         I18nKey::HandoffFailed => "Handoff failed",
+        I18nKey::HandoffToAgentContext => "Send to BLXCode agent context",
         I18nKey::MemShowInGraph => "Afficher dans le graphique",
         I18nKey::MemGraph3dLoadFailed => "Le graphique 3D n'a pas pu se charger. Affichage d'un graphique 2D.",
         I18nKey::MemSearchPh => "Notes de recherche…",

@@ -123,6 +123,7 @@ Soll dieser Eintrag in die `.gitignore` dieses Projekts aufgenommen werden, dami
         I18nKey::HandoffNoTerminals => "Keine laufenden Terminals im Workspace",
         I18nKey::HandoffOkSent => "Kontext gesendet",
         I18nKey::HandoffFailed => "Übergabe fehlgeschlagen",
+        I18nKey::HandoffToAgentContext => "An BLXCode-Agent-Kontext anhängen",
         I18nKey::MemShowInGraph => "Im Graph zeigen",
         I18nKey::MemGraph3dLoadFailed => "3D-Grafik konnte nicht geladen werden. 2D-Grafik wird angezeigt.",
         I18nKey::MemSearchPh => "Notizen durchsuchen…",

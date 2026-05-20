@@ -118,6 +118,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HandoffNoTerminals => "No running terminals in this workspace",
         I18nKey::HandoffOkSent => "Context sent",
         I18nKey::HandoffFailed => "Handoff failed",
+        I18nKey::HandoffToAgentContext => "Send to BLXCode agent context",
         I18nKey::MemShowInGraph => "그래프로 표시",
         I18nKey::MemGraph3dLoadFailed => "3D 그래프를 로드할 수 없습니다. 2D 그래프를 표시합니다.",
         I18nKey::MemSearchPh => "메모 검색…",

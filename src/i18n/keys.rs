@@ -124,6 +124,7 @@ pub enum I18nKey {
     HandoffNoTerminals,
     HandoffOkSent,
     HandoffFailed,
+    HandoffToAgentContext,
     MemShowInGraph,
     MemGraph3dLoadFailed,
     MemSearchPh,

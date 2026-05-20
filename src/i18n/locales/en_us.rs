@@ -129,6 +129,7 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::HandoffNoTerminals => "No running terminals in this workspace",
         I18nKey::HandoffOkSent => "Context sent",
         I18nKey::HandoffFailed => "Handoff failed",
+        I18nKey::HandoffToAgentContext => "Send to BLXCode agent context",
         I18nKey::MemShowInGraph => "Show in graph",
         I18nKey::MemGraph3dLoadFailed => "3D graph could not load. Showing 2D graph.",
         I18nKey::MemSearchPh => "Search notes…",

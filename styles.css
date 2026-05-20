@@ -5908,6 +5908,11 @@ button {
   padding: 0.4rem 0.5rem;
   color: rgba(170, 175, 190, 0.7);
 }
+.workbench-handoff-menu__separator {
+  height: 1px;
+  margin: 0.35rem -0.1rem;
+  background: rgba(255, 255, 255, 0.08);
+}
 .workbench-handoff-status {
   padding: 0.3rem 0.7rem;
   font-size: 0.72rem;

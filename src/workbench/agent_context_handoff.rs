@@ -312,15 +312,17 @@ pub async fn perform_handoff(
     })
 }
 
-/// Compact dropdown listing available terminals; on click triggers
-/// `perform_handoff` for the active workspace.
+/// Compact dropdown listing available terminals plus a separator and a
+/// "Send to BLXCode agent context" item. Used by the note-preview popover and
+/// the terminal titlebar button.
 ///
-/// - `note_path` (optional): when `Some`, the handoff sends ONLY this note as
-///   a one-shot `memory_note` / `learning_note` context item (no other
-///   attached memory). When `None`, the handoff sends the workspace's full
-///   attached agent context.
-/// - `label` is used for the rendered context item label and the success
-///   message.
+/// - `note_path` (optional): when `Some`, the per-terminal handoff sends ONLY
+///   this note as a one-shot `memory_note` / `learning_note` context item,
+///   and the BLXCode-Agent entry attaches that note. When `None`, the
+///   terminal handoff sends the workspace's full attached context, and the
+///   BLXCode-Agent entry attaches the workspace's memory category (no-op if
+///   already attached — idempotent).
+/// - `label` is the visible name used for the rendered/attached item.
 #[component]
 pub fn HandoffMenu(
     wb: WorkbenchService,
@@ -383,6 +385,41 @@ pub fn HandoffMenu(
         });
     };
 
+    let attach_to_agent = move |_| {
+        on_close.run(());
+        let Some(ws_id) = wb.active_id().get_untracked() else {
+            on_status.run((false, "no active workspace".into()));
+            return;
+        };
+        let label_str = label.get_untracked();
+        let path = note_path.get_untracked();
+        let item = match path {
+            Some(p) => note_context_item(&p, &label_str),
+            None => {
+                // No specific source — attach the workspace's "memory" category as
+                // a coarse default. Idempotent: existing entry is upserted.
+                AgentContextItem {
+                    id: "memory-category:memory".into(),
+                    kind: AgentContextKind::MemoryCategory,
+                    label: "Memory".into(),
+                    source: "memory category".into(),
+                    paths: Vec::new(),
+                    added_at: 0,
+                }
+            }
+        };
+        let attach_label = item.label.clone();
+        wb.upsert_workspace_agent_context(ws_id, item);
+        on_status.run((
+            true,
+            format!(
+                "{} → BLXCode agent · {}",
+                i18n.tr(I18nKey::HandoffOkSent)(),
+                attach_label
+            ),
+        ));
+    };
+
     view! {
         <div class="workbench-handoff-menu" on:click=move |ev| ev.stop_propagation()>
             <div class="workbench-handoff-menu__head">
@@ -417,142 +454,104 @@ pub fn HandoffMenu(
                     />
                 </ul>
             </Show>
+            <div class="workbench-handoff-menu__separator" role="separator"></div>
+            <ul class="workbench-handoff-menu__list">
+                <li>
+                    <button
+                        type="button"
+                        class="workbench-handoff-menu__item"
+                        on:click=attach_to_agent
+                    >
+                        <LxIcon icon=icondata::LuLayers width="0.78rem" height="0.78rem" />
+                        <span>{move || i18n.tr(I18nKey::HandoffToAgentContext)()}</span>
+                    </button>
+                </li>
+            </ul>
         </div>
     }
 }
 
-/// Per-slot handoff button. Sends the workspace's attached BLXCode agent
-/// context (memory + images) directly into THIS slot's PTY. Rendered inside
-/// the terminal titlebar.
+/// Per-slot handoff dropdown rendered inside the terminal titlebar. The
+/// button opens a `HandoffMenu` listing every live terminal in the workspace
+/// plus a separator and a "Send to BLXCode agent context" entry. The
+/// `note_path` is `None` here (no specific source note) — so the menu hands
+/// off the workspace's attached BLXCode-Agent context to the chosen terminal.
 #[component]
 pub fn TerminalSlotHandoffButton(
     slot_id: u64,
     pane_id: u64,
-    agent_slug: String,
+    #[allow(unused_variables)] agent_slug: String,
     workspace_id: u64,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let wb = expect_context::<WorkbenchService>();
     let status = RwSignal::new(None::<(bool, String)>);
-    let busy = RwSignal::new(false);
-    let agent_slug = agent_slug.trim().to_owned();
+    let open = RwSignal::new(false);
+    let _ = (slot_id, pane_id, workspace_id, agent_slug);
 
-    // Re-evaluate liveness of this slot from the workspace's PTY map.
-    // Track BOTH the workspaces list (storage_key changes) and the live
-    // pty_sessions map so the button enables as soon as the cell registers.
-    let target = Memo::new(move |_| {
-        let _ = wb.workspaces().get();
-        let _ = wb.pty_sessions_signal().get();
-        let sessions = wb.pty_sessions_for_workspace(workspace_id);
-        sessions
-            .into_iter()
-            .find(|(s, p, _)| *s == slot_id && *p == pane_id)
-            .map(|(_, _, sid)| sid)
-    });
-
-    let agent_slug_for_send = agent_slug.clone();
-    let on_send = move |_| {
-        if busy.get_untracked() {
-            return;
+    let icon = move || match status.get() {
+        Some((true, _)) => view! {
+            <LxIcon icon=icondata::LuCheck width="0.82rem" height="0.82rem" />
         }
-        let Some(sid) = target.get_untracked() else {
-            let msg = i18n.tr(I18nKey::HandoffNoTerminals)().to_string();
-            status.set(Some((false, msg)));
-            schedule_status_clear(status);
-            return;
-        };
-        let label = if agent_slug_for_send.is_empty() {
-            format!("Slot {slot_id}")
-        } else {
-            format!("Slot {slot_id} · {agent_slug_for_send}")
-        };
-        let t = WorkspaceTerminalTarget {
-            slot_id,
-            pane_id,
-            session_id: sid,
-            agent_slug: agent_slug_for_send.clone(),
-            label,
-        };
-        let req = HandoffRequest {
-            workspace_id,
-            workspace_root: wb.default_workspace_cwd(),
-            target: t,
-            context_items: None,
-            include_memory: true,
-            include_images: true,
-            instruction: None,
-            submit: true,
-        };
-        busy.set(true);
-        spawn_local(async move {
-            let result = perform_handoff(wb, req).await;
-            busy.set(false);
-            match result {
-                Ok(outcome) => status.set(Some((
-                    true,
-                    format!(
-                        "{} ({} bytes{})",
-                        i18n.tr(I18nKey::HandoffOkSent)(),
-                        outcome.bytes_written,
-                        if outcome.submitted { ", submitted" } else { "" }
-                    ),
-                ))),
-                Err(e) => status.set(Some((
-                    false,
-                    format!("{}: {e}", i18n.tr(I18nKey::HandoffFailed)()),
-                ))),
-            }
-            schedule_status_clear(status);
-        });
-    };
-
-    let icon = move || {
-        let s = status.get();
-        match s {
-            Some((true, _)) => view! {
-                <LxIcon icon=icondata::LuCheck width="0.82rem" height="0.82rem" />
-            }
-            .into_any(),
-            Some((false, _)) => view! {
-                <LxIcon icon=icondata::LuAlertTriangle width="0.82rem" height="0.82rem" />
-            }
-            .into_any(),
-            None => view! {
-                <LxIcon icon=icondata::LuShare2 width="0.82rem" height="0.82rem" />
-            }
-            .into_any(),
+        .into_any(),
+        Some((false, _)) => view! {
+            <LxIcon icon=icondata::LuAlertTriangle width="0.82rem" height="0.82rem" />
         }
+        .into_any(),
+        None => view! {
+            <LxIcon icon=icondata::LuShare2 width="0.82rem" height="0.82rem" />
+        }
+        .into_any(),
     };
 
     view! {
-        <button
-            type="button"
-            class=move || {
-                let mut c = String::from("ws-term-cell__tool");
-                match status.get() {
-                    Some((true, _)) => c.push_str(" ws-term-cell__tool--ok"),
-                    Some((false, _)) => c.push_str(" ws-term-cell__tool--danger"),
-                    None => {}
+        <div class="workbench-handoff-anchor">
+            <button
+                type="button"
+                class=move || {
+                    let mut c = String::from("ws-term-cell__tool");
+                    match status.get() {
+                        Some((true, _)) => c.push_str(" ws-term-cell__tool--ok"),
+                        Some((false, _)) => c.push_str(" ws-term-cell__tool--danger"),
+                        None => {}
+                    }
+                    c
                 }
-                c
-            }
-            disabled=move || busy.get() || target.get().is_none()
-            title=move || {
-                status
-                    .with(|s| s.as_ref().map(|(_, msg)| msg.clone()))
-                    .unwrap_or_else(|| i18n.tr(I18nKey::HandoffSendContext)().to_string())
-            }
-            aria-label=move || i18n.tr(I18nKey::HandoffSendContext)()
-            on:click=on_send
-        >
-            {icon}
-        </button>
+                title=move || {
+                    status
+                        .with(|s| s.as_ref().map(|(_, msg)| msg.clone()))
+                        .unwrap_or_else(|| i18n.tr(I18nKey::HandoffSendContext)().to_string())
+                }
+                aria-label=move || i18n.tr(I18nKey::HandoffSendContext)()
+                aria-haspopup="menu"
+                aria-expanded=move || if open.get() { "true" } else { "false" }
+                on:click=move |ev| {
+                    ev.stop_propagation();
+                    status.set(None);
+                    open.update(|v| *v = !*v);
+                }
+            >
+                {icon}
+            </button>
+            <Show when=move || open.get()>
+                <HandoffMenu
+                    wb=wb
+                    label=Signal::derive(move || String::from("Workspace context"))
+                    note_path=Signal::derive(move || None::<String>)
+                    on_close=Callback::new(move |_| open.set(false))
+                    on_status=Callback::new(move |s: (bool, String)| {
+                        status.set(Some(s));
+                        schedule_status_clear(status);
+                    })
+                />
+            </Show>
+        </div>
     }
 }
 
 fn schedule_status_clear(status: RwSignal<Option<(bool, String)>>) {
     spawn_local(async move {
-        TimeoutFuture::new(2400).await;
+        TimeoutFuture::new(2800).await;
         status.set(None);
     });
 }

@@ -118,6 +118,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HandoffNoTerminals => "No running terminals in this workspace",
         I18nKey::HandoffOkSent => "Context sent",
         I18nKey::HandoffFailed => "Handoff failed",
+        I18nKey::HandoffToAgentContext => "Send to BLXCode agent context",
         I18nKey::MemShowInGraph => "显示在图表中",
         I18nKey::MemGraph3dLoadFailed => "3D 图表无法加载。显示 2D 图表。",
         I18nKey::MemSearchPh => "搜索笔记...",
