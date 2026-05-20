@@ -20,8 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Workspace plans system-prompt section**: explains plan tooling, `## Tasks` line syntax, the `task_*` vs. `plan_*` separation, automatic status write-back, and that plan files and the task store survive workspace reload / harness restart / OS exit — so `plan_list` + `task_list` reconstruct in-flight work authoritatively after a restart.
 - **i18n**: `TabPlans` plus 14 Plans-panel keys (`PlansEmptyTitle`, `PlansEmptyLead`, `PlansNewPlan`, `PlansNewPlanPh`, `PlansRename`, `PlansDelete`, `PlansSelectPlan`, `PlansEdit`, `PlansPreview`, `PlansLoadIntoAgent`, `PlansLoaded`, `PlansRefresh`, `PlansTaskSummary`, `PlansProtectedIndex`) added to all 13 locales; `TabPlans` is localised, the rest fall back to English.
 - **Tests**: 11 new plan tests covering CRUD round-trip, `PLANS.md` protection, path-traversal sandboxing, parser status markers + `## Todos` alias, `plan_load` replace-only-plan-tasks semantics, `task_update` status write-back to plan Markdown, `plan_sync_from_tasks` round-trip preserving non-Task sections. New handoff-renderer tests for the plans/tasks section. New system-prompt tests verifying the mandatory Turn checklist, all continuation keywords, and the persistence guarantee.
+- **Sidebar layout — bottom panel**: Project Files and Git graph share a single `.workbench-sidebar__panels` block (default **50%** of sidebar height, not the full area below Workspaces). A horizontal drag handle between the workspace list and this block resizes the combined panel; the existing handle inside the block still splits Explorer vs. graph (`blxcode_sidebar_panels_height_pct_v1` / `blxcode_sidebar_explorer_height_pct_v1` in `localStorage`).
+- **Sidebar width**: drag handle on the right edge of the sidebar (like the right panel splitter) resizes width in pixels; default **260px** (was `clamp(216px, 22vw, 280px)`). Persisted as `blxcode_sidebar_width_px_v1` and on `WorkbenchSnapshot.sidebar_width_px`.
+- **Project Explorer — hidden files**: toolbar eye toggle (`LuEye` / `LuEyeOff`) shows or hides dot-prefixed entries client-side; preference stored as `blxcode_sidebar_explorer_show_hidden_v1` (default off).
+- **Project Explorer — tree navigation**: clicking a folder row (name/icon area) expands or collapses the tree; the chevron still works and does not double-toggle.
+- i18n: `SbExplorerShowHidden`, `SbExplorerHideHidden`, `SbExplorerResizeAria`, `SbPanelsResizeAria`, `SbWidthSplitterAria` — added to all 14 locales (`de_de`, `fr_fr`, `es_es` translated for the new strings).
 
 ### Changed
+
+- Sidebar Explorer/graph: `SidebarResizer` supports top- vs. bottom-measured splits (`measure_from_bottom` for the workspace↔panels boundary); container basis for the inner split is `.workbench-sidebar__panels` instead of `.workbench-sidebar__views`.
+- Workspaces nav in the sidebar uses remaining space above the bottom panel (`flex: 1 1 auto`) instead of a fixed `max-height: 32%`.
 
 - `ensure_agents_layout` now also creates `.agents/plans/` and seeds `PLANS.md` if missing; `WorkspaceRoots` gains a `plans` field.
 - `RightPanelTab` adds a `Plans` variant; the right-panel rail and tabstrip render it before Memory.
@@ -29,7 +37,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Sidebar Project Explorer no longer occupies almost the full sidebar when the tree is empty: Explorer and graph are confined to the resizable bottom panel so the graph stays visible and the file tree does not “stick” at the top of an oversized slot.
+
 ### Removed
+
+- Project Explorer toolbar action **Collapse all folders** (`SbExplorerCollapseAll`); replaced by the hidden-files eye toggle.
 
 
 ## [0.1.11] - 2026-05-20
