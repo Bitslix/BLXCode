@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+
+## [0.1.11] - 2026-05-20
+
+### Added
+
 - **Sidebar Explorer & Git graph** (VS Code–style view sections): collapsible panels at the bottom of the left sidebar (above the version footer), with the workspace list scrolling independently above.
 - **Project Explorer** section: lazy file tree for the active workspace `cwd` (directories and files via Tauri `list_path_entries`, sandboxed under the workspace root); refresh and collapse-all toolbar actions; expanded paths and open/collapsed state persisted per workspace.
 - **Git graph** section: commit history with swim-lane SVG layout, ref badges, and author/time metadata from `git_commit_graph` (up to 100 commits, `git log --topo-order`); shown only when `.git` is detected (`git_is_repository`); if Git is not on `PATH`, the section stays visible with an i18n hint (`SbGraphGitMissing`) instead of an empty graph.
