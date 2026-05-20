@@ -88,6 +88,12 @@ pub enum I18nKey {
     PlansLoaded,
     PlansRefresh,
     PlansTaskSummary,
+    PlansTaskStatTotal,
+    PlansTaskStatPending,
+    PlansTaskStatInProgress,
+    PlansTaskStatBlocked,
+    PlansTaskStatCompleted,
+    PlansTaskStatCancelled,
     PlansProtectedIndex,
 
     // Skills & Rules panel

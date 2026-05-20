@@ -105,6 +105,12 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::PlansRefresh => "Refresh plans",
 
         I18nKey::PlansTaskSummary => "Task summary",
+        I18nKey::PlansTaskStatTotal => "Total tasks",
+        I18nKey::PlansTaskStatPending => "Pending",
+        I18nKey::PlansTaskStatInProgress => "In progress",
+        I18nKey::PlansTaskStatBlocked => "Blocked",
+        I18nKey::PlansTaskStatCompleted => "Completed",
+        I18nKey::PlansTaskStatCancelled => "Cancelled",
 
         I18nKey::PlansProtectedIndex => "PLANS.md is the protected index file.",
         I18nKey::SrRulesEmpty => "No rules in this workspace yet.",

@@ -11,7 +11,7 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     self, plan_create, plan_delete, plan_list, plan_load, plan_read, plan_rename, plan_write,
-    PlanContent, PlanMeta,
+    PlanContent, PlanMeta, PlanTaskSummaryWire,
 };
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::WorkbenchService;
@@ -274,7 +274,9 @@ fn PlansManageView(state: PlansState) -> impl IntoView {
                         class="workbench-plans-manage__new-btn"
                         title=move || i18n.tr(I18nKey::PlansNewPlan)()
                         aria-label=move || i18n.tr(I18nKey::PlansNewPlan)()
-                    >"+"</button>
+                    >
+                        <LxIcon icon=icondata::LuPlus width="0.82rem" height="0.82rem" />
+                    </button>
                     <Show when=move || !list_collapsed.get()>
                         <button
                             type="button"
@@ -474,34 +476,84 @@ fn PlansEditorToolbar(state: PlansState, wb: WorkbenchService) -> impl IntoView 
 }
 
 #[component]
+fn PlanTaskStatChip(
+    icon: icondata::Icon,
+    count: u32,
+    modifier: &'static str,
+    label_key: I18nKey,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    view! {
+        <span
+            class=format!(
+                "workbench-plans-manage__task-stat workbench-plans-manage__task-stat--{modifier}"
+            )
+            class:workbench-plans-manage__task-stat--zero=move || count == 0
+            title=move || format!("{}: {count}", i18n.tr(label_key)())
+        >
+            <LxIcon icon=icon width="0.68rem" height="0.68rem" />
+            <span class="workbench-plans-manage__task-stat-count">{count}</span>
+        </span>
+    }
+}
+
+#[component]
+fn PlanTaskSummaryIcons(summary: PlanTaskSummaryWire) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    view! {
+        <span
+            class="workbench-plans-manage__task-summary"
+            aria-label=move || i18n.tr(I18nKey::PlansTaskSummary)()
+        >
+            <PlanTaskStatChip
+                icon=icondata::LuListTodo
+                count=summary.total
+                modifier="total"
+                label_key=I18nKey::PlansTaskStatTotal
+            />
+            <PlanTaskStatChip
+                icon=icondata::LuCircle
+                count=summary.pending
+                modifier="pending"
+                label_key=I18nKey::PlansTaskStatPending
+            />
+            <PlanTaskStatChip
+                icon=icondata::LuPlayCircle
+                count=summary.in_progress
+                modifier="in-progress"
+                label_key=I18nKey::PlansTaskStatInProgress
+            />
+            <PlanTaskStatChip
+                icon=icondata::LuAlertCircle
+                count=summary.blocked
+                modifier="blocked"
+                label_key=I18nKey::PlansTaskStatBlocked
+            />
+            <PlanTaskStatChip
+                icon=icondata::LuCheckCircle
+                count=summary.completed
+                modifier="completed"
+                label_key=I18nKey::PlansTaskStatCompleted
+            />
+            <PlanTaskStatChip
+                icon=icondata::LuMinusCircle
+                count=summary.cancelled
+                modifier="cancelled"
+                label_key=I18nKey::PlansTaskStatCancelled
+            />
+        </span>
+    }
+}
+
+#[component]
 fn PlansListRow(
     state: PlansState,
     plan: PlanMeta,
     list_collapsed: RwSignal<bool>,
 ) -> impl IntoView {
-    let i18n = expect_context::<I18nService>();
     let plan_path_active = plan.path.clone();
-    let plan_path_rename_match = plan.path.clone();
-    let plan_path_for_rename_row = plan.path.clone();
-    let plan_path_select = plan.path.clone();
-    let plan_path_rename = plan.path.clone();
-    let plan_path_delete = plan.path.clone();
-    let title = plan.title.clone();
-    let task_summary = plan.task_summary.clone();
-    let is_index = plan.is_index;
-    let summary_text = format!(
-        "{} · {}p / {}>!{}b / {}x / {}-",
-        task_summary.total,
-        task_summary.pending,
-        task_summary.in_progress,
-        task_summary.blocked,
-        task_summary.completed,
-        task_summary.cancelled
-    );
-
-    let badge = plan_badge_text(&title);
-    let title_label = title.clone();
-    let summary_label = summary_text.clone();
+    let plan_expanded = plan.clone();
+    let plan_collapsed = plan.clone();
 
     view! {
         <li
@@ -510,120 +562,118 @@ fn PlansListRow(
             class:workbench-plans-manage__row--active=move || {
                 state.active_path.get().as_deref() == Some(plan_path_active.as_str())
             }
-            class:workbench-plans-manage__row--index=is_index
+            class:workbench-plans-manage__row--index=plan.is_index
         >
             <Show
                 when=move || list_collapsed.get()
-                fallback=move || {
-                    let plan_path_select = plan_path_select.clone();
-                    let plan_path_rename = plan_path_rename.clone();
-                    let plan_path_delete = plan_path_delete.clone();
-                    let plan_path_rename_match = plan_path_rename_match.clone();
-                    let plan_path_for_rename_row = plan_path_for_rename_row.clone();
-                    view! {
-                        <>
-                            <button
-                                type="button"
-                                class="workbench-plans-manage__row-main"
-                                on:click=move |_| {
-                                    if let Some(ws) = state.workspace_cwd.get_untracked() {
-                                        load_plan(state, ws, plan_path_select.clone());
-                                    }
-                                }
-                            >
-                                <span class="workbench-plans-manage__row-title">{title_label.clone()}</span>
-                                <span class="workbench-plans-manage__row-summary" title=move || i18n.tr(I18nKey::PlansTaskSummary)()>
-                                    {summary_label.clone()}
-                                </span>
-                            </button>
-                            <Show when=move || !is_index>
-                                <button
-                                    type="button"
-                                    class="workbench-plans-manage__row-action"
-                                    title=move || i18n.tr(I18nKey::PlansRename)()
-                                    aria-label=move || i18n.tr(I18nKey::PlansRename)()
-                                    on:click={
-                                        let path = plan_path_rename.clone();
-                                        move |_| {
-                                            state.renaming.set(Some(path.clone()));
-                                            state.rename_input.set(path.clone());
-                                        }
-                                    }
-                                >
-                                    <LxIcon icon=icondata::LuPencil width="0.78rem" height="0.78rem" />
-                                </button>
-                                <button
-                                    type="button"
-                                    class="workbench-plans-manage__row-action"
-                                    title=move || i18n.tr(I18nKey::PlansDelete)()
-                                    aria-label=move || i18n.tr(I18nKey::PlansDelete)()
-                                    on:click={
-                                        let path = plan_path_delete.clone();
-                                        move |_| {
-                                            let Some(ws) = state.workspace_cwd.get_untracked() else { return };
-                                            let path = path.clone();
-                                            spawn_local(async move {
-                                                match plan_delete(&ws, &path).await {
-                                                    Ok(()) => {
-                                                        if state.active_path.get_untracked().as_deref()
-                                                            == Some(path.as_str())
-                                                        {
-                                                            state.active_path.set(None);
-                                                            state.editor_content.set(String::new());
-                                                        }
-                                                        load_plans_list(state, ws);
-                                                    }
-                                                    Err(e) => state.error.set(Some(e)),
-                                                }
-                                            });
-                                        }
-                                    }
-                                >
-                                    <LxIcon icon=icondata::LuTrash2 width="0.78rem" height="0.78rem" />
-                                </button>
-                            </Show>
-                            <Show when={
-                                let path = plan_path_rename_match.clone();
-                                move || state.renaming.get().as_deref() == Some(path.as_str())
-                            }>
-                                <PlansRenameRow state=state old_path=plan_path_for_rename_row.clone() />
-                            </Show>
-                        </>
-                    }.into_any()
+                fallback=move || view! {
+                    <PlansListRowExpanded state=state plan=plan_expanded.clone() />
                 }
             >
-                <PlansListCollapsedRow
-                    state=state
-                    plan_path=plan_path_select.clone()
-                    badge=badge.clone()
-                    title=title_label
-                />
+                <PlansListRowCollapsed state=state plan=plan_collapsed.clone() />
             </Show>
         </li>
     }
 }
 
 #[component]
-fn PlansListCollapsedRow(
-    state: PlansState,
-    plan_path: String,
-    badge: String,
-    title: String,
-) -> impl IntoView {
+fn PlansListRowCollapsed(state: PlansState, plan: PlanMeta) -> impl IntoView {
+    let badge = plan_badge_text(&plan.title);
     view! {
         <button
             type="button"
             class="workbench-plans-manage__badge"
-            title=title.clone()
-            aria-label=title
+            title=plan.title.clone()
+            aria-label=plan.title.clone()
             on:click=move |_| {
                 if let Some(ws) = state.workspace_cwd.get_untracked() {
-                    load_plan(state, ws, plan_path.clone());
+                    load_plan(state, ws, plan.path.clone());
                 }
             }
         >
             {badge}
         </button>
+    }
+}
+
+#[component]
+fn PlansListRowExpanded(state: PlansState, plan: PlanMeta) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let plan_path_select = plan.path.clone();
+    let plan_path_rename = plan.path.clone();
+    let plan_path_delete = plan.path.clone();
+    let plan_path_rename_match = plan.path.clone();
+    let plan_path_for_rename_row = plan.path.clone();
+    let title = plan.title.clone();
+    let is_index = plan.is_index;
+    let task_summary = plan.task_summary;
+
+    view! {
+        <button
+            type="button"
+            class="workbench-plans-manage__row-main"
+            on:click=move |_| {
+                if let Some(ws) = state.workspace_cwd.get_untracked() {
+                    load_plan(state, ws, plan_path_select.clone());
+                }
+            }
+        >
+            <span class="workbench-plans-manage__row-title">{title}</span>
+            <span class="workbench-plans-manage__row-summary">
+                <PlanTaskSummaryIcons summary=task_summary />
+            </span>
+        </button>
+        <Show when=move || !is_index>
+            <button
+                type="button"
+                class="workbench-plans-manage__row-action"
+                title=move || i18n.tr(I18nKey::PlansRename)()
+                aria-label=move || i18n.tr(I18nKey::PlansRename)()
+                on:click={
+                    let path = plan_path_rename.clone();
+                    move |_| {
+                        state.renaming.set(Some(path.clone()));
+                        state.rename_input.set(path.clone());
+                    }
+                }
+            >
+                <LxIcon icon=icondata::LuPencil width="0.78rem" height="0.78rem" />
+            </button>
+            <button
+                type="button"
+                class="workbench-plans-manage__row-action"
+                title=move || i18n.tr(I18nKey::PlansDelete)()
+                aria-label=move || i18n.tr(I18nKey::PlansDelete)()
+                on:click={
+                    let path = plan_path_delete.clone();
+                    move |_| {
+                        let Some(ws) = state.workspace_cwd.get_untracked() else { return };
+                        let path = path.clone();
+                        spawn_local(async move {
+                            match plan_delete(&ws, &path).await {
+                                Ok(()) => {
+                                    if state.active_path.get_untracked().as_deref()
+                                        == Some(path.as_str())
+                                    {
+                                        state.active_path.set(None);
+                                        state.editor_content.set(String::new());
+                                    }
+                                    load_plans_list(state, ws);
+                                }
+                                Err(e) => state.error.set(Some(e)),
+                            }
+                        });
+                    }
+                }
+            >
+                <LxIcon icon=icondata::LuTrash2 width="0.78rem" height="0.78rem" />
+            </button>
+        </Show>
+        <Show when=move || {
+            state.renaming.get().as_deref() == Some(plan_path_rename_match.as_str())
+        }>
+            <PlansRenameRow state=state old_path=plan_path_for_rename_row.clone() />
+        </Show>
     }
 }
 

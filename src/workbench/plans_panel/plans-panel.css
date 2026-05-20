@@ -209,11 +209,64 @@
 }
 
 .workbench-plans-manage__row-summary {
-    color: var(--blx-fg-muted);
-    font-size: 0.72rem;
     line-height: 1.35;
-    font-family: var(--blx-font-mono, monospace);
     overflow-wrap: anywhere;
+}
+
+.workbench-plans-manage__task-summary {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.28rem;
+}
+
+.workbench-plans-manage__task-stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.14rem;
+    padding: 0.08rem 0.28rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+.workbench-plans-manage__task-stat--zero {
+    opacity: 0.38;
+}
+
+.workbench-plans-manage__task-stat--total {
+    color: #c4cad4;
+    background: rgba(148, 163, 184, 0.12);
+}
+
+.workbench-plans-manage__task-stat--pending {
+    color: #d1d5db;
+    background: rgba(148, 163, 184, 0.14);
+}
+
+.workbench-plans-manage__task-stat--in-progress {
+    color: #8bc4ff;
+    background: rgba(88, 166, 255, 0.16);
+}
+
+.workbench-plans-manage__task-stat--blocked {
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.16);
+}
+
+.workbench-plans-manage__task-stat--completed {
+    color: #86efac;
+    background: rgba(34, 197, 94, 0.16);
+}
+
+.workbench-plans-manage__task-stat--cancelled {
+    color: #fca5a5;
+    background: rgba(239, 68, 68, 0.14);
+}
+
+.workbench-plans-manage__task-stat-count {
+    font-family: var(--blx-font-mono, monospace);
 }
 
 .workbench-plans-manage__row-action {
