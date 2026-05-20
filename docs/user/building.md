@@ -75,7 +75,7 @@ cargo tauri build
 
 Common Linux outputs include AppImage, Debian, and RPM bundles under `target/release/bundle/` (for example `deb/BLXCode_0.1.8_amd64.deb`, `rpm/BLXCode-0.1.8-1.x86_64.rpm`, `appimage/BLXCode_0.1.8_amd64.AppImage`).
 
-On Arch and other distros with newer binutils, AppImage bundling may fail during `linuxdeploy` strip with `.relr.dyn` errors. Use:
+On Arch and other distros with newer binutils, AppImage bundling may fail during `linuxdeploy` strip with `.relr.dyn` errors. Use [`scripts/release.sh`](../../scripts/release.sh) (sets the variables automatically) or:
 
 ```bash
 NO_STRIP=1 APPIMAGE_EXTRACT_AND_RUN=1 cargo tauri build --bundles appimage
@@ -147,6 +147,35 @@ cargo tauri build
 Windows bundle outputs usually include installer artifacts such as `.msi` or setup executables depending on the Tauri bundler configuration and installed tooling.
 
 Because BLXCode currently uses `"targets": "all"` in `src-tauri/tauri.conf.json`, MSI packaging may require the Windows VBSCRIPT optional feature. If the build fails around `light.exe`, enable VBSCRIPT from Windows Optional Features and try again.
+
+## Release script
+
+From the repository root, [`scripts/release.sh`](../../scripts/release.sh) automates version bumps, CHANGELOG updates, signed `cargo tauri build`, and GitHub release uploads.
+
+On Linux (including Arch), the script sets `NO_STRIP=1` and `APPIMAGE_EXTRACT_AND_RUN=1` so AppImage bundling avoids linuxdeploy strip errors with `.relr.dyn` sections.
+
+Optional signing variables live in `.env.release` at the repo root (gitignored). Without that file, pass `--allow-unsigned` for local test builds.
+
+```bash
+./scripts/release.sh --help
+
+# Signed local build (current OS bundles)
+./scripts/release.sh
+
+# New patch release: bump versions + CHANGELOG, build, draft upload
+./scripts/release.sh --bump patch --build --upload
+
+# Trigger CI for all platforms (after commit)
+./scripts/release.sh --bump patch --tag --push --no-build --commit
+
+# CI already created v0.1.10 — add Linux artifacts from Arch
+./scripts/release.sh --build --upload
+
+# Upload existing target/release/bundle files only
+./scripts/release.sh --upload-only
+```
+
+If a GitHub release or tag `v{X.Y.Z}` already exists for the version in `src-tauri/tauri.conf.json`, `--upload` attaches new bundle files only (skips duplicate asset names unless you pass `--clobber`).
 
 ## Cross-Platform Builds
 
