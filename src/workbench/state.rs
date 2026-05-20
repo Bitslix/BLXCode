@@ -1,4 +1,4 @@
-use crate::agent_wire::AgentContextItem;
+use crate::agent_wire::{AgentContextItem, AgentImageContextItem};
 use crate::config::{
     HARNESS_BROWSER_DEFAULT_URL, HARNESS_BROWSER_URL_KEY, HARNESS_WORKSPACE_ROOT_KEY,
     MEMORY_COLOR_PRESETS_STORAGE_KEY,
@@ -107,6 +107,25 @@ pub struct MemoryColorPreset {
     pub id: String,
     pub label: String,
     pub color: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AgentImageContextStatus {
+    Pending,
+    Read,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WorkspaceAgentImage {
+    pub item: AgentImageContextItem,
+    pub status: AgentImageContextStatus,
+}
+
+impl WorkspaceAgentImage {
+    #[must_use]
+    pub fn data_url(&self) -> String {
+        format!("data:{};base64,{}", self.item.mime, self.item.bytes_b64)
+    }
 }
 
 #[must_use]
@@ -656,6 +675,8 @@ pub struct WorkbenchService {
     /// full `terminal_key`.
     focused_terminal_by_workspace: RwSignal<HashMap<String, String>>,
     memory_color_presets: RwSignal<Vec<MemoryColorPreset>>,
+    /// Session-only image context; intentionally not part of WorkbenchSnapshot.
+    agent_image_context: RwSignal<HashMap<u64, Vec<WorkspaceAgentImage>>>,
 }
 
 /// Sidebar badge aggregate for one workspace row. A single total across
@@ -718,6 +739,7 @@ impl WorkbenchService {
             pending_clears: RwSignal::new(HashSet::new()),
             focused_terminal_by_workspace: RwSignal::new(HashMap::new()),
             memory_color_presets: RwSignal::new(memory_color_presets),
+            agent_image_context: RwSignal::new(HashMap::new()),
         }
     }
 
@@ -2024,6 +2046,98 @@ impl WorkbenchService {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
                 ws.agent_context_items.retain(|item| item.id != item_id);
+            }
+        });
+    }
+
+    #[must_use]
+    pub fn agent_images_for_workspace_untracked(
+        &self,
+        workspace_id: u64,
+    ) -> Vec<WorkspaceAgentImage> {
+        self.agent_image_context
+            .with_untracked(|by_ws| by_ws.get(&workspace_id).cloned().unwrap_or_default())
+    }
+
+    #[must_use]
+    pub fn pending_agent_images_for_workspace_untracked(
+        &self,
+        workspace_id: u64,
+    ) -> Vec<AgentImageContextItem> {
+        self.agent_image_context.with_untracked(|by_ws| {
+            by_ws
+                .get(&workspace_id)
+                .into_iter()
+                .flat_map(|items| items.iter())
+                .filter(|image| image.status == AgentImageContextStatus::Pending)
+                .map(|image| image.item.clone())
+                .collect()
+        })
+    }
+
+    #[must_use]
+    pub fn active_agent_images(&self) -> Vec<WorkspaceAgentImage> {
+        let Some(ws_id) = self.active_id.get() else {
+            return Vec::new();
+        };
+        self.agent_image_context
+            .with(|by_ws| by_ws.get(&ws_id).cloned().unwrap_or_default())
+    }
+
+    #[must_use]
+    pub fn active_agent_image_count(&self) -> usize {
+        let Some(ws_id) = self.active_id.get() else {
+            return 0;
+        };
+        self.agent_image_context
+            .with(|by_ws| by_ws.get(&ws_id).map(Vec::len).unwrap_or(0))
+    }
+
+    pub fn upsert_workspace_agent_image(&self, workspace_id: u64, item: AgentImageContextItem) {
+        self.agent_image_context.update(|by_ws| {
+            let images = by_ws.entry(workspace_id).or_default();
+            if let Some(existing) = images.iter_mut().find(|image| image.item.id == item.id) {
+                existing.item = item;
+                existing.status = AgentImageContextStatus::Pending;
+            } else {
+                images.push(WorkspaceAgentImage {
+                    item,
+                    status: AgentImageContextStatus::Pending,
+                });
+            }
+        });
+    }
+
+    pub fn remove_workspace_agent_image(&self, workspace_id: u64, image_id: &str) {
+        self.agent_image_context.update(|by_ws| {
+            if let Some(images) = by_ws.get_mut(&workspace_id) {
+                images.retain(|image| image.item.id != image_id);
+            }
+        });
+    }
+
+    pub fn reactivate_workspace_agent_image(&self, workspace_id: u64, image_id: &str) {
+        self.agent_image_context.update(|by_ws| {
+            if let Some(images) = by_ws.get_mut(&workspace_id) {
+                if let Some(image) = images.iter_mut().find(|image| image.item.id == image_id) {
+                    image.status = AgentImageContextStatus::Pending;
+                }
+            }
+        });
+    }
+
+    pub fn mark_workspace_agent_images_read(&self, workspace_id: u64, ids: &[String]) {
+        if ids.is_empty() {
+            return;
+        }
+        let ids: HashSet<&str> = ids.iter().map(String::as_str).collect();
+        self.agent_image_context.update(|by_ws| {
+            if let Some(images) = by_ws.get_mut(&workspace_id) {
+                for image in images {
+                    if ids.contains(image.item.id.as_str()) {
+                        image.status = AgentImageContextStatus::Read;
+                    }
+                }
             }
         });
     }

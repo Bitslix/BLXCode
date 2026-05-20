@@ -1,6 +1,7 @@
 //! Agent Composer: Prompt → Tauri-Orchestrierung, Drain der Event-Liste in die Ansicht.
 mod client_tools;
 mod context_list;
+mod image_context;
 mod task_list;
 mod timeline;
 mod voice_orb;
@@ -14,6 +15,10 @@ use crate::tauri_bridge::{
 };
 use crate::workbench::agent_panel::client_tools::maybe_handle_client_tool;
 use crate::workbench::agent_panel::context_list::ContextSection;
+use crate::workbench::agent_panel::image_context::{
+    clear_drop_state, handle_dom_drag_event, handle_dom_drop, install_agent_image_intake,
+    DropZoneState,
+};
 use crate::workbench::agent_panel::task_list::TaskSection;
 use crate::workbench::agent_panel::timeline::{
     apply_agent_event, compact_timeline, ChatLineIndexColumn, TimelineItem, TimelineRow,
@@ -39,6 +44,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     let status_line = RwSignal::new(Option::<String>::None);
     let tasks_open = RwSignal::new(false);
     let context_open = RwSignal::new(false);
+    let drop_state = RwSignal::new(DropZoneState::Inactive);
     let model_label = RwSignal::new(String::new());
     let chat_scroll_ref = NodeRef::<html::Article>::new();
     let voice_handle = VoiceOrbHandle::new();
@@ -124,11 +130,12 @@ pub fn AgentPanelDock() -> impl IntoView {
         let active = wb.active_id().get();
         let count = match active {
             Some(id) => wb.workspaces().with(|workspaces| {
-                workspaces
+                let memory_count = workspaces
                     .iter()
                     .find(|w| w.id == id)
                     .map(|w| w.agent_context_items.len())
-                    .unwrap_or(0)
+                    .unwrap_or(0);
+                memory_count + wb.active_agent_image_count()
             }),
             None => 0,
         };
@@ -145,6 +152,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     // Window-level PTT hotkey: install once on mount; listeners are removed
     // via on_cleanup inside install_ptt_hotkey.
     if is_tauri_shell() {
+        install_agent_image_intake(wb, drop_state, status_line);
         install_ptt_hotkey(voice_handle, i18n, move |text: String, auto_send: bool| {
             if auto_send {
                 draft.set(text);
@@ -169,7 +177,27 @@ pub fn AgentPanelDock() -> impl IntoView {
     }
 
     view! {
-        <section class="workbench-agent-pane" aria-label=move || i18n.tr(I18nKey::AgAriaPane)()>
+        <section
+            class=move || {
+                let mut class = "workbench-agent-pane".to_string();
+                match drop_state.get() {
+                    DropZoneState::Accept => class.push_str(" workbench-agent-pane--drop-active"),
+                    DropZoneState::Reject => class.push_str(" workbench-agent-pane--drop-reject"),
+                    DropZoneState::Inactive => {}
+                }
+                class
+            }
+            aria-label=move || i18n.tr(I18nKey::AgAriaPane)()
+            on:dragenter=move |ev| handle_dom_drag_event(ev, drop_state)
+            on:dragover=move |ev| handle_dom_drag_event(ev, drop_state)
+            on:dragleave=move |_| clear_drop_state(drop_state)
+            on:drop=move |ev| handle_dom_drop(ev, wb, drop_state, status_line)
+        >
+            <Show when=move || drop_state.get().is_active()>
+                <div class="agent-drop-overlay" aria-hidden="true">
+                    <span>{move || drop_state.get().message()}</span>
+                </div>
+            </Show>
             <header class="agent-hero">
                 <VoiceOrb
                     handle=voice_handle
@@ -433,6 +461,7 @@ fn submit_turn(
 
     let workspace_root = resolve_effective_workspace_root(&wb);
     let context_items = wb.agent_context_for_workspace_untracked(ws_id);
+    let image_context_items = wb.pending_agent_images_for_workspace_untracked(ws_id);
 
     timeline.update(|items| {
         items.push(TimelineItem::User {
@@ -460,6 +489,7 @@ fn submit_turn(
         workspace_root,
         voice_input,
         context_items,
+        image_context_items,
     };
 
     let busy_sig = busy;
@@ -483,6 +513,10 @@ fn submit_turn(
             for ev in &batch {
                 if matches!(ev, AgentEvent::VoiceReady { .. }) {
                     handle_voice_event(audio_ref, ev);
+                    continue;
+                }
+                if let AgentEvent::ImageContextConsumed { ids } = ev {
+                    wb_d.mark_workspace_agent_images_read(ws_capture, ids);
                     continue;
                 }
                 apply_agent_event(

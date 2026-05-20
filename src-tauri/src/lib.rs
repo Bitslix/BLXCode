@@ -83,6 +83,7 @@ pub fn run() {
             agent_abort,
             agent_clear_conversation,
             agent_provider_status,
+            agent_read_image_file,
             harness_ensure_default_sandbox,
             agent_settings_get,
             agent_settings_save,

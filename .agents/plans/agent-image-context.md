@@ -1,6 +1,6 @@
 # Agent Image Context Via Drag, Drop, And Paste
 
-**Status:** pending
+**Status:** implemented
 
 ## Summary
 

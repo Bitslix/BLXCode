@@ -1,8 +1,8 @@
 use crate::agent_wire::{AgentContextItem, AgentContextKind, AgentEvent};
 use crate::tauri_bridge::{agent_submit_tool_result, memory_list, pty_peek_output, pty_write};
 use crate::workbench::WorkbenchService;
-use js_sys::Date;
 use gloo_timers::future::TimeoutFuture;
+use js_sys::Date;
 use leptos::prelude::*;
 
 const PTY_READY_ATTEMPTS: u32 = 40;
@@ -29,6 +29,8 @@ pub fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
         "memory_context_list" => handle_memory_context_list(call_id, wb),
         "memory_context_attach" => handle_memory_context_attach(call_id, args.clone(), wb),
         "memory_context_detach" => handle_memory_context_detach(call_id, args.clone(), wb),
+        "image_context_list" => handle_image_context_list(call_id, wb),
+        "image_context_detach" => handle_image_context_detach(call_id, args.clone(), wb),
         _ => {}
     }
 }
@@ -66,12 +68,7 @@ fn handle_memory_category_list(call_id: String, wb: WorkbenchService) {
         })
         .collect();
     let body = serde_json::Value::Array(categories);
-    submit_async(
-        call_id,
-        true,
-        "listed memory categories".into(),
-        Some(body),
-    );
+    submit_async(call_id, true, "listed memory categories".into(), Some(body));
 }
 
 fn handle_memory_category_update(
@@ -100,8 +97,7 @@ fn handle_memory_category_update(
         );
         return;
     }
-    let mut settings =
-        wb.memory_category_settings_for_workspace_untracked(ws_id, category);
+    let mut settings = wb.memory_category_settings_for_workspace_untracked(ws_id, category);
     let fallback_color = settings.color.clone();
     if let Some(label) = args
         .as_ref()
@@ -158,7 +154,11 @@ fn handle_memory_context_list(call_id: String, wb: WorkbenchService) {
     submit_async(call_id, true, summary, Some(body));
 }
 
-fn handle_memory_context_detach(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+fn handle_memory_context_detach(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
     let Some(ws_id) = wb.active_id().get_untracked() else {
         submit_async(call_id, false, "no active workspace".into(), None);
         return;
@@ -173,6 +173,59 @@ fn handle_memory_context_detach(call_id: String, args: Option<serde_json::Value>
     };
     wb.remove_workspace_agent_context(ws_id, id);
     submit_async(call_id, true, format!("detached context {id}"), None);
+}
+
+fn handle_image_context_list(call_id: String, wb: WorkbenchService) {
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    let items = wb.agent_images_for_workspace_untracked(ws_id);
+    let body = serde_json::Value::Array(
+        items
+            .iter()
+            .map(|image| {
+                serde_json::json!({
+                    "id": image.item.id,
+                    "label": image.item.label,
+                    "mime": image.item.mime,
+                    "sizeBytes": image.item.size_bytes,
+                    "addedAt": image.item.added_at,
+                    "status": match &image.status {
+                        crate::workbench::AgentImageContextStatus::Pending => "pending",
+                        crate::workbench::AgentImageContextStatus::Read => "read",
+                    },
+                })
+            })
+            .collect(),
+    );
+    submit_async(
+        call_id,
+        true,
+        format!("{} image context item(s)", items.len()),
+        Some(body),
+    );
+}
+
+fn handle_image_context_detach(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    let Some(id) = args
+        .as_ref()
+        .and_then(|v| v.get("id"))
+        .and_then(|v| v.as_str())
+    else {
+        submit_async(call_id, false, "missing id".into(), None);
+        return;
+    };
+    wb.remove_workspace_agent_image(ws_id, id);
+    submit_async(call_id, true, format!("detached image context {id}"), None);
 }
 
 fn handle_memory_context_attach(

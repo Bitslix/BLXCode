@@ -41,6 +41,7 @@ pub fn dispatch_user_turn(
     let voice_input = turn.voice_input;
     let prompt = render_context_prompt(turn.prompt, &turn.context_items);
     let workspace_root = turn.workspace_root;
+    let image_context_items = turn.image_context_items;
     match settings.provider {
         AgentProviderKind::Anthropic => {
             async_runtime::spawn(async move {
@@ -49,6 +50,7 @@ pub fn dispatch_user_turn(
                     api_key,
                     settings,
                     prompt,
+                    image_context_items,
                     workspace_root,
                 )
                 .await;
@@ -67,6 +69,7 @@ pub fn dispatch_user_turn(
                     api_key,
                     settings,
                     prompt,
+                    image_context_items,
                     workspace_root,
                 )
                 .await;
