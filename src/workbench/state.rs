@@ -726,6 +726,9 @@ pub struct WorkbenchService {
     memory_color_presets: RwSignal<Vec<MemoryColorPreset>>,
     /// Session-only image context; intentionally not part of WorkbenchSnapshot.
     agent_image_context: RwSignal<HashMap<u64, Vec<WorkspaceAgentImage>>>,
+    /// Bumped when the active workspace repo root changes (e.g. inline configure
+    /// commit). Agent timeline/draft updates must not re-subscribe sidebar git checks.
+    sidebar_repo_epoch: RwSignal<u32>,
 }
 
 /// Sidebar badge aggregate for one workspace row. A single total across
@@ -789,7 +792,17 @@ impl WorkbenchService {
             focused_terminal_by_workspace: RwSignal::new(HashMap::new()),
             memory_color_presets: RwSignal::new(memory_color_presets),
             agent_image_context: RwSignal::new(HashMap::new()),
+            sidebar_repo_epoch: RwSignal::new(0),
         }
+    }
+
+    pub fn sidebar_repo_epoch(&self) -> RwSignal<u32> {
+        self.sidebar_repo_epoch
+    }
+
+    fn bump_sidebar_repo_epoch(&self) {
+        self.sidebar_repo_epoch
+            .update(|n| *n = n.wrapping_add(1));
     }
 
     pub fn notifications(&self) -> RwSignal<HashMap<String, u32>> {
@@ -2027,6 +2040,7 @@ impl WorkbenchService {
             m.remove(&id);
         });
         self.bump_terminal_layout();
+        self.bump_sidebar_repo_epoch();
         spawn_ensure_agents_layout(cwd_for_agents);
         // Grid cells mount on the next frame; delayed ticks retry agent
         // launch once xterm has real dimensions (plain shells don't need this).

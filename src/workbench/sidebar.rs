@@ -47,20 +47,31 @@ pub fn Sidebar() -> impl IntoView {
     let drag_from = RwSignal::new(None::<usize>);
     let drag_over = RwSignal::new(None::<usize>);
     let git_repo_available = RwSignal::new(None::<bool>);
+    let last_git_cwd = StoredValue::new(None::<String>);
 
+    // Re-check only when workspace selection, harness root, or repo path changes —
+    // not on every `workspaces` mutation (agent timeline, compose draft, etc.).
     Effect::new(move |_| {
         let _ = wb.active_id().get();
-        let _ = workspaces.get();
+        let _ = wb.harness_workspace_root().get();
+        let _ = wb.sidebar_repo_epoch().get();
         if !is_tauri_shell() {
             git_repo_available.set(Some(false));
+            last_git_cwd.set_value(None);
             return;
         }
         let cwd = wb.default_workspace_cwd();
         let Some(cwd) = cwd.filter(|c| !c.trim().is_empty()) else {
             git_repo_available.set(Some(false));
+            last_git_cwd.set_value(None);
             return;
         };
-        git_repo_available.set(None);
+        if last_git_cwd.with_value(|prev| prev.as_deref() == Some(cwd.as_str()))
+            && git_repo_available.get_untracked().is_some()
+        {
+            return;
+        }
+        last_git_cwd.set_value(Some(cwd.clone()));
         let cwd_check = cwd.clone();
         spawn_local(async move {
             let ok = git_is_repository(cwd_check).await.unwrap_or(false);

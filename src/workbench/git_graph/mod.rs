@@ -36,17 +36,38 @@ pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
 
     let reload = move || load_gen.update(|g| *g = g.wrapping_add(1));
 
+    let last_graph_cwd = StoredValue::new(None::<String>);
+    let last_load_gen = StoredValue::new(0u32);
+
     Effect::new(move |_| {
-        let _gen = load_gen.get();
-        if git_repo_available.get() != Some(true) {
-            layout.set(None);
-            error_kind.set(None);
-            return;
+        let gen = load_gen.get();
+        let force_reload = gen != last_load_gen.get_value();
+        last_load_gen.set_value(gen);
+        let _ = wb.sidebar_repo_epoch().get();
+        match git_repo_available.get() {
+            Some(true) => {}
+            Some(false) => {
+                layout.set(None);
+                error_kind.set(None);
+                last_graph_cwd.set_value(None);
+                return;
+            }
+            None => return,
         }
         let Some(cwd) = wb.default_workspace_cwd() else {
             return;
         };
         let cwd_load = cwd.clone();
+        let had_layout = layout.get_untracked().is_some();
+        let same_cwd = last_graph_cwd.with_value(|prev| prev.as_deref() == Some(cwd.as_str()));
+        if same_cwd && had_layout && !force_reload {
+            return;
+        }
+        last_graph_cwd.set_value(Some(cwd));
+        if !had_layout {
+            layout.set(None);
+            error_kind.set(None);
+        }
         spawn_local(async move {
             match git_commit_graph(cwd_load, Some(100)).await {
                 Ok(g) => {
