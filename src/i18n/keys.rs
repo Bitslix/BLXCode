@@ -80,6 +80,7 @@ pub enum I18nKey {
     MemGraphMode2d,
     MemGraphPreviewClose,
     MemGraphOpenInFiles,
+    MemShowInGraph,
     MemGraph3dLoadFailed,
     MemSearchPh,
     MemSearchFilterAll,

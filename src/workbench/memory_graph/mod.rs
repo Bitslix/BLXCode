@@ -9,7 +9,9 @@ use crate::workbench::memory_graph::graph_glue::{
     ensure_graph3d_script, graph3d_create, graph3d_dispose, graph3d_fly_to_node,
     graph3d_reset_view, graph3d_resize, graph3d_set_data, graph3d_zoom,
 };
-use crate::workbench::memory_panel::{load_note, refresh_graph, MemoryState, MemoryView};
+use crate::workbench::memory_panel::{
+    expand_files_group_for_path, load_note, refresh_graph, MemoryState, MemoryView,
+};
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
 use leptos::html;
@@ -90,7 +92,6 @@ pub fn MemoryGraphView(state: MemoryState) -> impl IntoView {
     let load_failed = RwSignal::new(false);
     let reset_tick = RwSignal::new(0_u32);
     let zoom_tick = RwSignal::new(0_i32);
-    let selected_node = RwSignal::new(None::<String>);
     let preview = GraphPreviewState::new();
 
     Effect::new({
@@ -114,10 +115,21 @@ pub fn MemoryGraphView(state: MemoryState) -> impl IntoView {
         }
     });
 
+    Effect::new({
+        let state = state.clone();
+        move |_| {
+            if state.graph_prefer_3d.get_untracked() {
+                mode.set(GraphMode::ThreeD);
+                load_failed.set(false);
+                state.graph_prefer_3d.set(false);
+            }
+        }
+    });
+
     let open_preview = Callback::new({
         let state = state.clone();
         move |path: String| {
-            open_graph_preview(state.clone(), preview, selected_node, path);
+            open_graph_preview(state.clone(), preview, path);
         }
     });
 
@@ -136,21 +148,24 @@ pub fn MemoryGraphView(state: MemoryState) -> impl IntoView {
                 }
             >
                 <GraphToolbar mode=mode reset_tick=reset_tick zoom_tick=zoom_tick />
-                <Show
-                    when=move || mode.get() == GraphMode::ThreeD && !load_failed.get()
-                    fallback={
-                        let state = state.clone();
-                        let i18n = i18n.clone();
-                        move || view! {
-                            {move || load_failed.get().then(|| view! {
-                                <p class="workbench-memory-graph__warning">
-                                    {move || i18n.tr(I18nKey::MemGraph3dLoadFailed)()}
-                                </p>
-                            })}
-                            <Graph2dView
-                                state=state.clone()
-                                wb=wb
-                                selected_node=selected_node
+                <div
+                    class="workbench-memory-graph__canvas"
+                    class:workbench-memory-graph__canvas--preview=move || preview.open.get()
+                >
+                    <Show
+                        when=move || mode.get() == GraphMode::ThreeD && !load_failed.get()
+                        fallback={
+                            let state = state.clone();
+                            let i18n = i18n.clone();
+                            move || view! {
+                                {move || load_failed.get().then(|| view! {
+                                    <p class="workbench-memory-graph__warning">
+                                        {move || i18n.tr(I18nKey::MemGraph3dLoadFailed)()}
+                                    </p>
+                                })}
+                                <Graph2dView
+                                    state=state.clone()
+                                    wb=wb
                                 reset_tick=reset_tick
                                 zoom_tick=zoom_tick
                                 open_preview=open_preview
@@ -161,14 +176,15 @@ pub fn MemoryGraphView(state: MemoryState) -> impl IntoView {
                     <Graph3dView
                         state=state.clone()
                         wb=wb
-                        selected_node=selected_node
                         reset_tick=reset_tick
                         zoom_tick=zoom_tick
                         open_preview=open_preview
                         load_failed=load_failed
+                        preview_open=preview.open
                     />
                 </Show>
-                <GraphPreviewPopover state=state preview=preview selected_node=selected_node open_preview=open_preview />
+                    <GraphPreviewPopover state=state preview=preview open_preview=open_preview />
+                </div>
                 <p class="workbench-memory-graph__legend">
                     {move || i18n.tr(I18nKey::MemGraphLegend)()}
                 </p>
@@ -249,11 +265,11 @@ fn GraphToolbar(
 fn Graph3dView(
     state: MemoryState,
     wb: WorkbenchService,
-    selected_node: RwSignal<Option<String>>,
     reset_tick: RwSignal<u32>,
     zoom_tick: RwSignal<i32>,
     open_preview: Callback<String>,
     load_failed: RwSignal<bool>,
+    preview_open: RwSignal<bool>,
 ) -> impl IntoView {
     let node_ref = NodeRef::<html::Div>::new();
     let graph_id = RwSignal::new(None::<f64>);
@@ -343,16 +359,39 @@ fn Graph3dView(
         }
     });
 
-    Effect::new(move |_| {
-        let Some(id) = graph_id.get() else {
-            return;
-        };
-        if let Some(node) = selected_node.get() {
-            graph3d_fly_to_node(id, &node, 800.0);
+    Effect::new({
+        let state = state.clone();
+        move |_| {
+            let _focus = state.graph_focus_generation.get();
+            let node = state.graph_selected_node.get();
+            let Some(id) = graph_id.get_untracked() else {
+                return;
+            };
+            let Some(node) = node else {
+                return;
+            };
+            let node = node.clone();
+            spawn_local(async move {
+                TimeoutFuture::new(60).await;
+                graph3d_fly_to_node(id, &node, 800.0);
+            });
         }
     });
 
-    let click_handle = window_event_listener_untyped("blxcode-graph3d-node-click", move |ev| {
+    Effect::new(move |_| {
+        let _ = preview_open.get();
+        let Some(id) = graph_id.get_untracked() else {
+            return;
+        };
+        spawn_local(async move {
+            TimeoutFuture::new(0).await;
+            graph3d_resize(id);
+        });
+    });
+
+    let click_handle = {
+        let state = state.clone();
+        window_event_listener_untyped("blxcode-graph3d-node-click", move |ev| {
         let Some(custom) = ev.dyn_ref::<web_sys::CustomEvent>() else {
             return;
         };
@@ -371,9 +410,10 @@ fn Graph3dView(
         else {
             return;
         };
-        selected_node.set(Some(node_id.clone()));
+        state.graph_selected_node.set(Some(node_id.clone()));
         open_preview.run(node_id);
-    });
+        })
+    };
 
     on_cleanup(move || {
         disposed.set(true);
@@ -394,7 +434,6 @@ fn Graph3dView(
 fn Graph2dView(
     state: MemoryState,
     wb: WorkbenchService,
-    selected_node: RwSignal<Option<String>>,
     reset_tick: RwSignal<u32>,
     zoom_tick: RwSignal<i32>,
     open_preview: Callback<String>,
@@ -479,16 +518,20 @@ fn Graph2dView(
         user_interacted.set(true);
     });
 
-    Effect::new(move |_| {
-        let Some(node) = selected_node.get() else {
-            return;
-        };
-        let pos = layout.get_untracked();
-        let Some((x, y)) = pos.get(&node).copied() else {
-            return;
-        };
-        let (_, _, vw, vh) = viewbox.get_untracked();
-        viewbox.set((x - vw * 0.5, y - vh * 0.5, vw, vh));
+    Effect::new({
+        let state = state.clone();
+        move |_| {
+            let _focus = state.graph_focus_generation.get();
+            let Some(node) = state.graph_selected_node.get() else {
+                return;
+            };
+            let pos = layout.get_untracked();
+            let Some((x, y)) = pos.get(&node).copied() else {
+                return;
+            };
+            let (_, _, vw, vh) = viewbox.get_untracked();
+            viewbox.set((x - vw * 0.5, y - vh * 0.5, vw, vh));
+        }
     });
 
     let on_wheel = move |ev: web_sys::WheelEvent| {
@@ -615,7 +658,7 @@ fn Graph2dView(
                             let degrees = compute_degrees(&nodes, &edges);
                             let neighbors = compute_neighbors(&edges);
                             let hov = hovered.get();
-                            let selected = selected_node.get();
+                            let selected = state.graph_selected_node.get();
                             let (_, _, vw, vh) = viewbox.get();
                             let zoom_scale = (vw * vh).sqrt();
                             let show_labels = zoom_scale < 900.0;
@@ -661,7 +704,7 @@ fn Graph2dView(
                                 Some(view! {
                                     <g class="workbench-memory-graph__node"
                                         on:click=move |_| {
-                                            selected_node.set(Some(id_for_click.clone()));
+                                            state.graph_selected_node.set(Some(id_for_click.clone()));
                                             open_preview.run(id_for_click.clone());
                                         }
                                         on:mouseenter=move |_| hovered.set(Some(id_for_enter.clone()))
@@ -699,16 +742,18 @@ fn Graph2dView(
 fn GraphPreviewPopover(
     state: MemoryState,
     preview: GraphPreviewState,
-    selected_node: RwSignal<Option<String>>,
     open_preview: Callback<String>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
-    let on_preview_click = move |ev: web_sys::MouseEvent| {
-        if let Some(DomNavHref::Memory(path)) = dom_click_nav_href(&ev) {
-            ev.prevent_default();
-            ev.stop_propagation();
-            selected_node.set(Some(path.clone()));
-            open_preview.run(path);
+    let on_preview_click = {
+        let state = state.clone();
+        move |ev: web_sys::MouseEvent| {
+            if let Some(DomNavHref::Memory(path)) = dom_click_nav_href(&ev) {
+                ev.prevent_default();
+                ev.stop_propagation();
+                state.graph_selected_node.set(Some(path.clone()));
+                open_preview.run(path);
+            }
         }
     };
     view! {
@@ -725,6 +770,8 @@ fn GraphPreviewPopover(
                             on:click=move |_| {
                                 let Some(ws) = state.workspace_cwd.get_untracked() else { return };
                                 let Some(path) = preview.path.get_untracked() else { return };
+                                expand_files_group_for_path(state.clone(), &path);
+                                preview.open.set(false);
                                 load_note(state.clone(), ws, path);
                                 state.view.set(MemoryView::Files);
                             }
@@ -758,13 +805,8 @@ fn GraphPreviewPopover(
     }
 }
 
-fn open_graph_preview(
-    state: MemoryState,
-    preview: GraphPreviewState,
-    selected_node: RwSignal<Option<String>>,
-    path: String,
-) {
-    selected_node.set(Some(path.clone()));
+fn open_graph_preview(state: MemoryState, preview: GraphPreviewState, path: String) {
+    state.graph_selected_node.set(Some(path.clone()));
     preview.open.set(true);
     preview.path.set(Some(path.clone()));
     preview.label.set(label_for_path(&state, &path));
@@ -1019,4 +1061,15 @@ fn force_layout(g: &GraphData, w: f32, h: f32, iters: u32) -> HashMap<String, (f
         .enumerate()
         .map(|(i, n)| (n.id.clone(), pos[i]))
         .collect()
+}
+
+/// Switch to Graph (3D), select `path`, and fly to that node when the graph is ready.
+pub fn navigate_to_graph_node(state: MemoryState, path: String) {
+    state.graph_selected_node.set(Some(path));
+    state.graph_focus_generation.update(|n| *n += 1);
+    state.graph_prefer_3d.set(true);
+    state.view.set(MemoryView::Graph);
+    if let Some(ws) = state.workspace_cwd.get_untracked() {
+        refresh_graph(state, ws);
+    }
 }

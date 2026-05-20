@@ -7,7 +7,7 @@ use crate::memory_paths::slug_to_filename;
 use crate::service::I18nService;
 use crate::tauri_bridge::{self, GraphData, NoteContent, NoteMeta, SearchHit};
 use crate::workbench::chat_markdown::render_markdown_to_html;
-use crate::workbench::memory_graph::MemoryGraphView;
+use crate::workbench::memory_graph::{navigate_to_graph_node, MemoryGraphView};
 use crate::workbench::state::MemoryCategorySettings;
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
@@ -46,6 +46,14 @@ pub(crate) struct MemoryState {
     pub(crate) graph: RwSignal<Option<GraphData>>,
     pub(crate) search_query: RwSignal<String>,
     pub(crate) search_results: RwSignal<Vec<SearchHit>>,
+    /// Expanded Memory/Learnings groups in the Files sidebar.
+    pub(crate) groups_open: RwSignal<HashSet<&'static str>>,
+    /// Selected graph node (API path); shared across Graph / Search / Files.
+    pub(crate) graph_selected_node: RwSignal<Option<String>>,
+    /// Bumped to re-run fly-to animation for the current selection.
+    pub(crate) graph_focus_generation: RwSignal<u32>,
+    /// When true, Graph tab should prefer 3D mode (e.g. jump from Search).
+    pub(crate) graph_prefer_3d: RwSignal<bool>,
 }
 
 impl MemoryState {
@@ -64,8 +72,24 @@ impl MemoryState {
             graph: RwSignal::new(None),
             search_query: RwSignal::new(String::new()),
             search_results: RwSignal::new(Vec::new()),
+            groups_open: RwSignal::new(HashSet::new()),
+            graph_selected_node: RwSignal::new(None),
+            graph_focus_generation: RwSignal::new(0),
+            graph_prefer_3d: RwSignal::new(false),
         }
     }
+}
+
+/// Ensure the Files sidebar group containing `path` is expanded.
+pub(crate) fn expand_files_group_for_path(state: MemoryState, path: &str) {
+    let key = if path.starts_with(LEARNINGS_API_PREFIX) {
+        "learnings"
+    } else {
+        "memory"
+    };
+    state.groups_open.update(|open| {
+        open.insert(key);
+    });
 }
 
 fn current_workspace_cwd(wb: WorkbenchService) -> Option<String> {
@@ -299,7 +323,7 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
     let renaming = RwSignal::new(None::<String>);
     let rename_input = RwSignal::new(String::new());
     let files_collapsed = RwSignal::new(false);
-    let groups_open = RwSignal::new(HashSet::<&'static str>::new());
+    let groups_open = state.groups_open;
     let context_menu = RwSignal::new(None::<MemoryContextMenu>);
     let editing_category = RwSignal::new(None::<&'static str>);
 
@@ -436,6 +460,22 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                                 move || if s.editor_dirty.get() { i.tr(I18nKey::MemDirty)().to_string() } else { String::new() }
                             }
                         </span>
+                        <button
+                            type="button"
+                            class="workbench-memory-editor__preview-btn"
+                            title=move || i18n.tr(I18nKey::MemShowInGraph)()
+                            aria-label=move || i18n.tr(I18nKey::MemShowInGraph)()
+                            on:click={
+                                let s = state.clone();
+                                move |_| {
+                                    if let Some(path) = s.active_path.get_untracked() {
+                                        navigate_to_graph_node(s.clone(), path);
+                                    }
+                                }
+                            }
+                        >
+                            <LxIcon icon=icondata::LuNetwork width="0.8rem" height="0.8rem" />
+                        </button>
                         <button
                             type="button"
                             class="workbench-memory-editor__preview-btn"
@@ -1443,36 +1483,16 @@ fn search_hit_category(path: &str) -> &'static str {
     }
 }
 
-fn search_filter_categories(hits: &[SearchHit]) -> Vec<String> {
-    let mut memory = false;
-    let mut learnings = false;
-    for h in hits {
-        match search_hit_category(&h.path) {
-            "learnings" => learnings = true,
-            _ => memory = true,
-        }
-    }
-    let mut out = Vec::new();
-    if memory {
-        out.push("memory".into());
-    }
-    if learnings {
-        out.push("learnings".into());
-    }
-    out
-}
-
-fn search_category_count(hits: &[SearchHit], category: &str) -> usize {
+fn memory_hit_count(hits: &[SearchHit]) -> usize {
     hits.iter()
-        .filter(|h| search_hit_category(&h.path) == category)
+        .filter(|h| search_hit_category(&h.path) == "memory")
         .count()
 }
 
-fn search_category_label(i18n: &I18nService, category: &str) -> String {
-    match category {
-        "learnings" => i18n.tr(I18nKey::MemFilesGroupLearnings)().to_string(),
-        _ => i18n.tr(I18nKey::MemFilesGroupMemory)().to_string(),
-    }
+fn learnings_hit_count(hits: &[SearchHit]) -> usize {
+    hits.iter()
+        .filter(|h| search_hit_category(&h.path) == "learnings")
+        .count()
 }
 
 fn filter_search_hits(hits: Vec<SearchHit>, filter: Option<String>) -> Vec<SearchHit> {
@@ -1535,7 +1555,7 @@ fn MemorySearchView(state: MemoryState) -> impl IntoView {
             <Show
                 when={
                     let s = state.clone();
-                    move || search_filter_categories(&s.search_results.get()).len() > 1
+                    move || !s.search_results.get().is_empty()
                 }
             >
                 <div class="workbench-memory-search__filters" role="group">
@@ -1551,38 +1571,44 @@ fn MemorySearchView(state: MemoryState) -> impl IntoView {
                             format!("{} ({n})", i18n.tr(I18nKey::MemSearchFilterAll)())
                         }}
                     </button>
-                    <For
-                        each={
-                            let s = state.clone();
-                            move || search_filter_categories(&s.search_results.get())
-                        }
-                        key=|cat| cat.clone()
-                        children={
-                            let i18n = i18n.clone();
-                            let state = state.clone();
-                            move |cat: String| {
-                                let i18n = i18n.clone();
-                                let state = state.clone();
-                                let cat_for_active = cat.clone();
-                                let cat_for_click = cat.clone();
-                                view! {
-                                    <button
-                                        type="button"
-                                        class="workbench-memory-search__filter"
-                                        class:workbench-memory-search__filter--active=move || {
-                                            search_filter.get() == Some(cat_for_active.clone())
-                                        }
-                                        on:click=move |_| search_filter.set(Some(cat_for_click.clone()))
-                                    >
-                                        {move || {
-                                            let n = search_category_count(&state.search_results.get(), &cat);
-                                            format!("{} ({n})", search_category_label(&i18n, &cat))
-                                        }}
-                                    </button>
-                                }
+                    <Show when={
+                        let s = state.clone();
+                        move || memory_hit_count(&s.search_results.get()) > 0
+                    }>
+                        <button
+                            type="button"
+                            class="workbench-memory-search__filter"
+                            class:workbench-memory-search__filter--active=move || {
+                                search_filter.get().as_deref() == Some("memory")
                             }
-                        }
-                    />
+                            on:click=move |_| search_filter.set(Some("memory".to_string()))
+                        >
+                            {move || {
+                                let s = state.clone();
+                                let n = memory_hit_count(&s.search_results.get());
+                                format!("{} ({n})", i18n.tr(I18nKey::MemFilesGroupMemory)())
+                            }}
+                        </button>
+                    </Show>
+                    <Show when={
+                        let s = state.clone();
+                        move || learnings_hit_count(&s.search_results.get()) > 0
+                    }>
+                        <button
+                            type="button"
+                            class="workbench-memory-search__filter"
+                            class:workbench-memory-search__filter--active=move || {
+                                search_filter.get().as_deref() == Some("learnings")
+                            }
+                            on:click=move |_| search_filter.set(Some("learnings".to_string()))
+                        >
+                            {move || {
+                                let s = state.clone();
+                                let n = learnings_hit_count(&s.search_results.get());
+                                format!("{} ({n})", i18n.tr(I18nKey::MemFilesGroupLearnings)())
+                            }}
+                        </button>
+                    </Show>
                 </div>
             </Show>
             <ul class="workbench-memory-search__results">
@@ -1607,12 +1633,22 @@ fn MemorySearchView(state: MemoryState) -> impl IntoView {
                                         class="workbench-memory-search__hit-btn"
                                         on:click=move |_| {
                                             let Some(ws) = s.workspace_cwd.get_untracked() else { return };
+                                            expand_files_group_for_path(s.clone(), &p);
                                             load_note(s.clone(), ws, p.clone());
                                             s.view.set(MemoryView::Files);
                                         }
                                     >
                                         <span class="workbench-memory-search__hit-path">{h.path.clone()}":"{h.line}</span>
                                         <span class="workbench-memory-search__hit-snippet">{h.snippet.clone()}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="workbench-memory-search__hit-graph"
+                                        title=move || i18n.tr(I18nKey::MemShowInGraph)()
+                                        aria-label=move || i18n.tr(I18nKey::MemShowInGraph)()
+                                        on:click=move |_| navigate_to_graph_node(s.clone(), p.clone())
+                                    >
+                                        <LxIcon icon=icondata::LuNetwork width="0.82rem" height="0.82rem" />
                                     </button>
                                 </li>
                             }

@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "Elfogadás",
         I18nKey::GitignorePromptTitle => "Hozzáadja a .blxcode-ot a .gitignore fájlhoz?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
         I18nKey::GitignorePromptYes => "Igen, add hozzá",
         I18nKey::GitignorePromptNo => "Most nem",
@@ -80,6 +80,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemGraphMode2d => "Váltás 2D grafikonra",
         I18nKey::MemGraphPreviewClose => "Előnézet bezárása",
         I18nKey::MemGraphOpenInFiles => "Nyissa meg a Fájlokban",
+        I18nKey::MemShowInGraph => "Megjelenítés grafikonon",
         I18nKey::MemGraph3dLoadFailed => "A 3D-s grafikont nem sikerült betölteni. 2D grafikon megjelenítése.",
         I18nKey::MemSearchPh => "Jegyzetek keresése…",
         I18nKey::MemSearchFilterAll => "Minden",

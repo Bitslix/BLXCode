@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "Принимать",
         I18nKey::GitignorePromptTitle => "Добавить .blxcode в .gitignore?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
         I18nKey::GitignorePromptYes => "Да, добавь",
         I18nKey::GitignorePromptNo => "Не сейчас",
@@ -80,6 +80,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemGraphMode2d => "Переключиться на 2D-график",
         I18nKey::MemGraphPreviewClose => "Закрыть предварительный просмотр",
         I18nKey::MemGraphOpenInFiles => "Открыть в файлах",
+        I18nKey::MemShowInGraph => "Показать на графике",
         I18nKey::MemGraph3dLoadFailed => "Не удалось загрузить 3D-график. Показан 2D-график.",
         I18nKey::MemSearchPh => "Поиск заметок…",
         I18nKey::MemSearchFilterAll => "Все",

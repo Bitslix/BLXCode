@@ -87,6 +87,7 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::MemGraphMode2d => "Switch to 2D graph",
         I18nKey::MemGraphPreviewClose => "Close preview",
         I18nKey::MemGraphOpenInFiles => "Open in Files",
+        I18nKey::MemShowInGraph => "Show in graph",
         I18nKey::MemGraph3dLoadFailed => "3D graph could not load. Showing 2D graph.",
         I18nKey::MemSearchPh => "Search notes…",
         I18nKey::MemSearchFilterAll => "All",

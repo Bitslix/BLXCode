@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "수용하다",
         I18nKey::GitignorePromptTitle => ".gitignore에 .blxcode를 추가하시겠습니까?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
         I18nKey::GitignorePromptYes => "예, 추가하세요",
         I18nKey::GitignorePromptNo => "지금은 아님",
@@ -76,6 +76,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemGraphMode2d => "2D 그래프로 전환",
         I18nKey::MemGraphPreviewClose => "미리보기 닫기",
         I18nKey::MemGraphOpenInFiles => "파일에서 열기",
+        I18nKey::MemShowInGraph => "그래프로 표시",
         I18nKey::MemGraph3dLoadFailed => "3D 그래프를 로드할 수 없습니다. 2D 그래프를 표시합니다.",
         I18nKey::MemSearchPh => "메모 검색…",
         I18nKey::MemSearchFilterAll => "모두",
