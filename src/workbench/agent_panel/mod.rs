@@ -16,7 +16,7 @@ use crate::workbench::agent_panel::client_tools::maybe_handle_client_tool;
 use crate::workbench::agent_panel::context_list::ContextSection;
 use crate::workbench::agent_panel::task_list::TaskSection;
 use crate::workbench::agent_panel::timeline::{
-    apply_agent_event, compact_timeline, TimelineItem, TimelineRow,
+    apply_agent_event, compact_timeline, ChatLineIndexColumn, TimelineItem, TimelineRow,
 };
 use crate::workbench::agent_panel::voice_orb::{
     handle_voice_event, install_ptt_hotkey, VoiceOrb, VoiceOrbHandle,
@@ -72,6 +72,15 @@ pub fn AgentPanelDock() -> impl IntoView {
             if let Ok(view) = agent_settings_get().await {
                 model_label.set(format!("{}/{}", view.provider.as_str(), view.model_id));
             }
+        });
+        Effect::new(move |_| {
+            let _ = wb.active_id().get();
+            let handle = voice_handle;
+            leptos::task::spawn_local(async move {
+                if let Ok(v) = crate::tauri_bridge::voice_settings_get().await {
+                    handle.settings.set(Some(v));
+                }
+            });
         });
     }
 
@@ -231,7 +240,11 @@ pub fn AgentPanelDock() -> impl IntoView {
                     when=move || !timeline.get().is_empty()
                     fallback=move || view! {
                         <div class="agent-chat-line agent-chat-line--agent">
-                            <span class="agent-chat-index">"01"</span>
+                            <ChatLineIndexColumn
+                                line_no="01".to_string()
+                                tts_text=Some(i18n.tr(I18nKey::AgWelcomeBody)().to_string())
+                                voice_handle=voice_handle
+                            />
                             <div class="agent-chat-body">
                                 <strong>"BLXCode"</strong>
                                 <p>{move || i18n.tr(I18nKey::AgWelcomeBody)()}</p>
@@ -245,7 +258,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                                 .into_iter()
                                 .enumerate()
                                 .map(|(idx, entry)| {
-                                    view! { <TimelineRow idx=idx entry=entry i18n=i18n thinking_open=thinking_open /> }
+                                    view! { <TimelineRow idx=idx entry=entry i18n=i18n thinking_open=thinking_open voice_handle=voice_handle /> }
                                 })
                                 .collect_view()
                         }}

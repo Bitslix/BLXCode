@@ -3,7 +3,9 @@ use crate::i18n::{lookup, I18nKey, Locale};
 use crate::service::I18nService;
 pub use crate::workbench::agent_timeline::TimelineItem;
 use crate::workbench::agent_timeline::{ActivityStatus, ToolActivity};
+use crate::workbench::agent_panel::voice_orb::{play_line_tts, tts_line_playback_available, VoiceOrbHandle};
 use crate::workbench::chat_markdown::render_markdown_to_html;
+use crate::tauri_bridge::{is_tauri_shell, voice_settings_get};
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
@@ -277,17 +279,66 @@ fn tool_icon(tool: &str) -> icondata::Icon {
 }
 
 #[component]
+pub fn ChatLineIndexColumn(
+    line_no: String,
+    tts_text: Option<String>,
+    voice_handle: VoiceOrbHandle,
+) -> impl IntoView {
+    let play_text = StoredValue::new(tts_text.clone().unwrap_or_default());
+    let show_play = move || {
+        is_tauri_shell()
+            && play_text
+                .with_value(|t| !t.trim().is_empty())
+            && tts_line_playback_available(voice_handle.settings.get().as_ref())
+    };
+    let voice_handle = voice_handle;
+    view! {
+        <div class="agent-chat-index-col">
+            <span class="agent-chat-index">{line_no}</span>
+            <Show when=show_play>
+                <button
+                    type="button"
+                    class="agent-chat-tts-btn"
+                    title="Play"
+                    aria-label="Play message audio"
+                    on:click=move |_| {
+                        let text = play_text.get_value();
+                        if text.trim().is_empty() {
+                            return;
+                        }
+                        let audio_ref = voice_handle.audio_ref;
+                        if let Some(settings) = voice_handle.settings.get_untracked() {
+                            play_line_tts(audio_ref, settings, text.clone());
+                            return;
+                        }
+                        leptos::task::spawn_local(async move {
+                            if let Ok(settings) = voice_settings_get().await {
+                                voice_handle.settings.set(Some(settings.clone()));
+                                play_line_tts(audio_ref, settings, text);
+                            }
+                        });
+                    }
+                >
+                    <LxIcon icon=icondata::LuPlay width="0.62rem" height="0.62rem" />
+                </button>
+            </Show>
+        </div>
+    }
+}
+
+#[component]
 pub fn TimelineRow(
     idx: usize,
     entry: DisplayTimelineItem,
     i18n: I18nService,
     thinking_open: RwSignal<HashMap<usize, bool>>,
+    voice_handle: VoiceOrbHandle,
 ) -> impl IntoView {
     let line_no = format!("{:02}", idx + 1);
     match entry {
         DisplayTimelineItem::User { text } => view! {
             <li class="agent-chat-line agent-chat-line--user">
-                <span class="agent-chat-index">{line_no.clone()}</span>
+                <ChatLineIndexColumn line_no=line_no.clone() tts_text=None voice_handle=voice_handle />
                 <div class="agent-chat-body">
                     <strong>{move || i18n.tr(I18nKey::AgYou)()}</strong>
                     <pre class="workbench-agent-transcript">{text}</pre>
@@ -295,22 +346,25 @@ pub fn TimelineRow(
             </li>
         }
         .into_any(),
-        DisplayTimelineItem::Assistant { text } => view! {
+        DisplayTimelineItem::Assistant { text } => {
+            let tts_text = text.clone();
+            view! {
             <li class="agent-chat-line agent-chat-line--agent">
-                <span class="agent-chat-index">{line_no.clone()}</span>
+                <ChatLineIndexColumn line_no=line_no.clone() tts_text=Some(tts_text) voice_handle=voice_handle />
                 <div class="agent-chat-body">
                     <strong>{move || i18n.tr(I18nKey::AgAssistant)()}</strong>
                     <div class="workbench-agent-markdown" inner_html=render_markdown_to_html(&text)></div>
                 </div>
             </li>
         }
-        .into_any(),
+            .into_any()
+        }
         DisplayTimelineItem::ToolGroup(entries) => view! {
-            <ToolActivityGroupRow line_no=line_no entries=entries />
+            <ToolActivityGroupRow line_no=line_no entries=entries voice_handle=voice_handle />
         }
         .into_any(),
         DisplayTimelineItem::Thinking { text, done } => view! {
-            <ThinkingRow idx=idx line_no=line_no text=text done=done thinking_open=thinking_open />
+            <ThinkingRow idx=idx line_no=line_no text=text done=done thinking_open=thinking_open voice_handle=voice_handle />
         }
         .into_any(),
     }
@@ -323,6 +377,7 @@ fn ThinkingRow(
     text: String,
     done: bool,
     thinking_open: RwSignal<HashMap<usize, bool>>,
+    voice_handle: VoiceOrbHandle,
 ) -> impl IntoView {
     let open = Memo::new(move |_| thinking_open.with(|m| m.get(&idx).copied().unwrap_or(false)));
     let has_content = !text.trim().is_empty();
@@ -330,7 +385,7 @@ fn ThinkingRow(
     let body = text.clone();
     view! {
         <li class="agent-chat-line agent-chat-line--thinking">
-            <span class="agent-chat-index">{line_no}</span>
+            <ChatLineIndexColumn line_no=line_no tts_text=None voice_handle=voice_handle />
             <div class="agent-chat-body">
                 <button
                     type="button"
@@ -372,10 +427,14 @@ fn ThinkingRow(
 }
 
 #[component]
-fn ToolActivityGroupRow(line_no: String, entries: Vec<ToolActivity>) -> impl IntoView {
+fn ToolActivityGroupRow(
+    line_no: String,
+    entries: Vec<ToolActivity>,
+    voice_handle: VoiceOrbHandle,
+) -> impl IntoView {
     view! {
         <li class="agent-chat-line agent-chat-line--tool">
-            <span class="agent-chat-index">{line_no}</span>
+            <ChatLineIndexColumn line_no=line_no tts_text=None voice_handle=voice_handle />
             <div class="agent-chat-body">
                 <strong>"Tool"</strong>
                 <div class="agent-tool-group">

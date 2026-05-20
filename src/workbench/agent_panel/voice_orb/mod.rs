@@ -8,7 +8,7 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     is_tauri_shell, voice_cancel_recording, voice_settings_get, voice_start_recording,
-    voice_stop_and_transcribe, PostSttFlow, SttLanguageMode, VoiceSettings,
+    voice_stop_and_transcribe, voice_tts_preview, PostSttFlow, SttLanguageMode, VoiceSettings,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use js_sys::Uint8Array;
@@ -243,6 +243,33 @@ pub fn handle_voice_event(audio_ref: NodeRef<html::Audio>, ev: &AgentEvent) {
     if let AgentEvent::VoiceReady { audio_b64, mime } = ev {
         play_audio_b64(audio_ref, audio_b64, mime);
     }
+}
+
+/// True when App voice settings have a non-empty TTS model (provider is always set).
+#[must_use]
+pub fn tts_line_playback_available(settings: Option<&VoiceSettings>) -> bool {
+    settings
+        .is_some_and(|s| !s.tts.model_id.trim().is_empty())
+}
+
+/// Synthesize and play one chat line via configured TTS (same API as voice settings preview).
+pub fn play_line_tts(
+    audio_ref: NodeRef<html::Audio>,
+    settings: VoiceSettings,
+    text: String,
+) {
+    let text = text.trim().to_owned();
+    if text.is_empty() {
+        return;
+    }
+    let provider = settings.tts.provider;
+    let model_id = settings.tts.model_id.clone();
+    let voice = settings.tts.voice.clone();
+    leptos::task::spawn_local(async move {
+        if let Ok(resp) = voice_tts_preview(provider, model_id, voice, text).await {
+            play_audio_b64(audio_ref, &resp.audio_b64, &resp.mime);
+        }
+    });
 }
 
 fn performance_now() -> f64 {

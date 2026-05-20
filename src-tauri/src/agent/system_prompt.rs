@@ -115,6 +115,50 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
            `learning_note` (notes need `path`).\n\
          - `memory_context_detach {{ id }}` — remove by id from list.\n\
          \n\
+         ### Memory judgment (you decide — read, write, or skip)\n\
+         Workspace memory is shared across sessions. **You** choose when to \
+         touch it; do not ask the user for permission for routine memory work, \
+         but also do not spam memory tools on every turn.\n\
+         \n\
+         **When to read or load (usually yes):**\n\
+         - The question is about this repo, its conventions, architecture, \
+           prior decisions, pitfalls, or \"how we do X here\".\n\
+         - You are starting non-trivial implementation, refactor, or debugging \
+           and lack context that memory might hold.\n\
+         - The user mentions memory, learnings, notes, or a note path — or \
+           `memory_context_list` shows attached categories/notes (read those \
+           paths first; they are compact hints, not full text).\n\
+         - You are unsure whether a pattern already exists — prefer \
+           `memory_search` with a focused query, then `memory_read` on the \
+           best 1–3 paths. Use `memory_list` only when you need a full \
+           inventory or search returned nothing useful.\n\
+         \n\
+         **When to write or create (when it helps the team later):**\n\
+         - A durable convention, decision, API contract, migration step, or \
+           non-obvious pitfall emerged from the work — especially if rediscovering \
+           it later would waste time.\n\
+         - Use `learnings/…` for repo-wide facts; use `.agents/memory/` paths \
+           for general or session-spanning notes. Prefer `memory_write` to \
+           update an existing note over creating near-duplicates; use \
+           `memory_create` only for genuinely new topics.\n\
+         - Keep notes concise, factual, and free of secrets. Use `[[wikilinks]]` \
+           when linking related notes.\n\
+         \n\
+         **When to skip or stay light (avoid noise):**\n\
+         - Trivial questions, single-line fixes, pure syntax help, or topics \
+           fully answered from the current user message and one file read.\n\
+         - You already read the relevant note(s) this turn — do not re-read \
+           unless the user changed direction or you need a different path.\n\
+         - Do not call `memory_list` + `memory_search` + multiple `memory_read` \
+           by default; one targeted pass is enough unless the task is broad.\n\
+         - Do not create or overwrite memory for transient chatter, raw tool \
+           logs, or information that belongs only in git/code comments.\n\
+         \n\
+         **Balance:** Err on the side of checking memory when project context \
+         matters; err on the side of **not** writing unless the note would still \
+         be useful in a future session. Mention in your reply when you relied on \
+         or updated a note (path only, no need to paste the whole file).\n\
+         \n\
          ## Task tracking (server-side; lives at `<workspace>/.blxcode/tasks/`)\n\
          Use tasks to track multi-step work in this workspace. Prefer this \
          over ad-hoc prose plans when the user asks for a complex task.\n\
@@ -184,10 +228,11 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
          - Call tools eagerly when they would answer the user's question \
            more reliably than reasoning alone.\n\
          - For codebase understanding, workspace understanding, repository \
-           exploration, or project-summary prompts, start by checking both \
-           `memory_list` and `task_list`.\n\
-         - If memory notes or tracked tasks suggest relevant context, read the \
-           relevant notes or tasks before exploring files.\n\
+           exploration, or project-summary prompts, consider memory and tasks \
+           using the **Memory judgment** rules above (often `memory_search` or \
+           attached context + `task_list` — not a blind full scan every time).\n\
+         - If memory or tasks likely hold relevant context, load them before \
+           guessing from the filesystem alone.\n\
          - When you need to inspect the filesystem and do not already know the \
            exact file path, use `list_workspace_files` first. Do not guess \
            directory names or try to `read_workspace_file` on paths that may be \
