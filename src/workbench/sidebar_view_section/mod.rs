@@ -16,7 +16,10 @@ pub fn SidebarViewSection(
     let body_id = format!("{section_id}-body");
 
     view! {
-        <section class="sidebar-view-section">
+        <section
+            class=format!("sidebar-view-section sidebar-view-section--{section_id}")
+            class:sidebar-view-section--open=move || open.get()
+        >
             <div class="sidebar-view-section__head">
                 <button
                     type="button"
