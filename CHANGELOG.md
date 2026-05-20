@@ -22,7 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Memory category context menu: right-click category headers to edit display name, category color, sidebar visibility, graph visibility, or send the category to the BLXCode Agent.
 - Memory note context menu: right-click individual Memory/Learnings entries to open them or send that single note to the BLXCode Agent.
 - BLXCode Settings → Memory: app-wide color preset management for Memory category colors, with add/edit/delete/reset controls.
-- Agent Panel **Context** section: collapsed-by-default list of attached Memory/Learnings categories and notes, with per-item remove controls.
+- Agent Panel **Context** section: list of attached Memory/Learnings categories and notes, with per-item remove controls.
+- BLXCode Agent **`list_tools`** server tool: returns JSON catalog of every registered tool (name, `server`/`client` site, description, parameters schema).
+- BLXCode Agent **memory management** server tools: `memory_delete`, `memory_rename` (move/rename within one root, optional wikilink rewrite), `memory_graph`, and `memory_backlinks`.
+- BLXCode Agent **memory UI** client tools: `memory_category_list`, `memory_category_update` (label, `#rrggbb` color, sidebar/graph visibility for `memory` / `learnings`), `memory_context_list`, `memory_context_attach`, and `memory_context_detach`.
 
 ### Changed
 
@@ -33,7 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - BLXCode Agent turns now include attached Memory context as compact path metadata before the user prompt, leaving file contents to existing workspace read tools.
 - Workspace memory and learnings now live under `.agents/memory/` and `.agents/learnings/` (unified Memory API with `learnings/…` paths). Legacy `.blxcode/memory/` is migrated automatically when the new memory folder is empty. Existing learnings Markdown index links are upgraded to `[[wikilinks]]` for the memory graph.
 - `.agents/` layout is bootstrapped when a workspace path is set (wizard commit, workspace switch, or workbench restore), not only when opening the Memory tab.
-- Agent system prompt and memory tool descriptions reference `.agents/memory/` and `.agents/learnings/`.
+- Agent system prompt and memory tool descriptions reference `.agents/memory/` and `.agents/learnings/`, document full memory CRUD/graph/category/context tools, and recommend `list_tools` when schemas are unclear.
+- Agent Panel **Tasks** and **Context** sections stay collapsed when empty and expand automatically when at least one task or context item is present (manual toggle still works until the count changes).
 - Agent memory pointer blocks list both memory and learnings roots.
 - Memory export/import uses `memory/` and `learnings/` subdirectories.
 - Developer docs (`architecture`, `tauri-ipc`, `getting-started`, `memory-and-tasks`) updated for the `.agents/` memory layout, `workspace_ensure_agents`, and memory-flow diagrams.

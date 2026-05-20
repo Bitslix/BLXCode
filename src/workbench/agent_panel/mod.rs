@@ -37,7 +37,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     let timeline = RwSignal::new(Vec::<TimelineItem>::new());
     let busy = RwSignal::new(false);
     let status_line = RwSignal::new(Option::<String>::None);
-    let tasks_open = RwSignal::new(true);
+    let tasks_open = RwSignal::new(false);
     let context_open = RwSignal::new(false);
     let model_label = RwSignal::new(String::new());
     let chat_scroll_ref = NodeRef::<html::Article>::new();
@@ -104,6 +104,26 @@ pub fn AgentPanelDock() -> impl IntoView {
             let _ = active;
             task_snapshot_sig.set(next);
         });
+    });
+
+    // Collapsed when empty; expanded when at least one task or context item.
+    Effect::new(move |_| {
+        let count = task_snapshot.get().tasks.len();
+        tasks_open.set(count > 0);
+    });
+    Effect::new(move |_| {
+        let active = wb.active_id().get();
+        let count = match active {
+            Some(id) => wb.workspaces().with(|workspaces| {
+                workspaces
+                    .iter()
+                    .find(|w| w.id == id)
+                    .map(|w| w.agent_context_items.len())
+                    .unwrap_or(0)
+            }),
+            None => 0,
+        };
+        context_open.set(count > 0);
     });
 
     Effect::new(move |_| {
