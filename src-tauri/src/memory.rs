@@ -330,6 +330,68 @@ pub fn memory_create(
     Ok(meta_from_abs(&roots, &path, &abs, file_root))
 }
 
+/// Marker file dropped into a freshly created empty category so it survives
+/// `git`/cleanup without any notes. `memory_list` ignores it because it's not `.md`.
+const CATEGORY_PLACEHOLDER: &str = ".gitkeep";
+
+fn is_reserved_category(name: &str) -> bool {
+    name.eq_ignore_ascii_case(TEMPLATES_DIRNAME)
+        || name.eq_ignore_ascii_case("memory")
+        || name.eq_ignore_ascii_case("learnings")
+}
+
+fn validate_category_name(name: &str) -> Result<String, String> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return err("empty category name");
+    }
+    if trimmed.contains('/') || trimmed.contains('\\') || trimmed.contains("..") {
+        return err("invalid category name");
+    }
+    if is_reserved_category(trimmed) {
+        return err(format!("reserved category name: {trimmed}"));
+    }
+    Ok(trimmed.to_owned())
+}
+
+#[tauri::command]
+pub fn memory_list_categories(workspace_cwd: String) -> Result<Vec<String>, String> {
+    let roots = ensure_workspace_memory(&workspace_cwd)?;
+    let mut out: Vec<String> = Vec::new();
+    let Ok(read) = fs::read_dir(roots.memory.as_path()) else {
+        return Ok(out);
+    };
+    for entry in read.flatten() {
+        let Ok(ft) = entry.file_type() else { continue };
+        if !ft.is_dir() {
+            continue;
+        }
+        let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+            continue;
+        };
+        if name.starts_with('.') || name.eq_ignore_ascii_case(TEMPLATES_DIRNAME) {
+            continue;
+        }
+        out.push(name);
+    }
+    out.sort_unstable_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn memory_create_category(workspace_cwd: String, name: String) -> Result<String, String> {
+    let roots = ensure_workspace_memory(&workspace_cwd)?;
+    let clean = validate_category_name(&name)?;
+    let dir = roots.memory.join(&clean);
+    if dir.exists() {
+        return err(format!("already exists: {clean}"));
+    }
+    fs::create_dir_all(&dir).map_err(|e| format!("mkdir: {e}"))?;
+    let placeholder = dir.join(CATEGORY_PLACEHOLDER);
+    let _ = fs::write(&placeholder, b"");
+    Ok(clean)
+}
+
 #[tauri::command]
 pub fn memory_delete(workspace_cwd: String, path: String) -> Result<(), String> {
     let roots = ensure_workspace_memory(&workspace_cwd)?;

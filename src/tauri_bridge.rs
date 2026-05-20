@@ -1010,6 +1010,27 @@ pub async fn memory_create(
     .await
 }
 
+pub async fn memory_list_categories(ws: &str) -> Result<Vec<String>, String> {
+    invoke_typed("memory_list_categories", WsArg { workspace_cwd: ws }).await
+}
+
+pub async fn memory_create_category(ws: &str, name: &str) -> Result<String, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        name: &'a str,
+    }
+    invoke_typed(
+        "memory_create_category",
+        A {
+            workspace_cwd: ws,
+            name,
+        },
+    )
+    .await
+}
+
 pub async fn memory_delete(ws: &str, path: &str) -> Result<(), String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]

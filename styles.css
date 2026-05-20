@@ -5503,6 +5503,31 @@ button {
   background: rgba(255, 255, 255, 0.04);
   color: rgba(238, 239, 245, 0.95);
 }
+.workbench-memory-files__group-add {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0;
+  color: rgba(160, 165, 180, 0.7);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.workbench-memory-files__group-head:hover .workbench-memory-files__group-add,
+.workbench-memory-files__group-head:focus-within .workbench-memory-files__group-add,
+.workbench-memory-files__group-add:focus-visible {
+  opacity: 1;
+}
+.workbench-memory-files__group-add:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(238, 239, 245, 0.95);
+}
 .workbench-memory-files__item {
   display: flex;
   align-items: center;

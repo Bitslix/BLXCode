@@ -23,6 +23,22 @@ const SAVE_DEBOUNCE_MS: u32 = 600;
 const LEARNINGS_API_PREFIX: &str = "learnings/";
 const LEARNINGS_INDEX_PATHS: &[&str] = &["learnings/LEARNINGS.md", "learnings/LEARNIGS.md"];
 const MEMORY_INDEX_PATHS: &[&str] = &["README.md", "MEMORY.md"];
+/// Built-in pseudo categories — top-level memory files and the learnings root.
+const CATEGORY_MEMORY: &str = "memory";
+const CATEGORY_LEARNINGS: &str = "learnings";
+
+/// Derive the category key for a given note API path.
+fn category_for_path(path: &str) -> String {
+    if path.starts_with(LEARNINGS_API_PREFIX) {
+        return CATEGORY_LEARNINGS.to_string();
+    }
+    if let Some((head, _)) = path.split_once('/') {
+        if !head.is_empty() {
+            return head.to_string();
+        }
+    }
+    CATEGORY_MEMORY.to_string()
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum MemoryView {
@@ -46,8 +62,10 @@ pub(crate) struct MemoryState {
     pub(crate) graph: RwSignal<Option<GraphData>>,
     pub(crate) search_query: RwSignal<String>,
     pub(crate) search_results: RwSignal<Vec<SearchHit>>,
-    /// Expanded Memory/Learnings groups in the Files sidebar.
-    pub(crate) groups_open: RwSignal<HashSet<&'static str>>,
+    /// Expanded category groups in the Files sidebar (dynamic keys).
+    pub(crate) groups_open: RwSignal<HashSet<String>>,
+    /// User-created categories that have no notes yet (subdirs under memory root).
+    pub(crate) empty_categories: RwSignal<Vec<String>>,
     /// Selected graph node (API path); shared across Graph / Search / Files.
     pub(crate) graph_selected_node: RwSignal<Option<String>>,
     /// Bumped to re-run fly-to animation for the current selection.
@@ -73,6 +91,7 @@ impl MemoryState {
             search_query: RwSignal::new(String::new()),
             search_results: RwSignal::new(Vec::new()),
             groups_open: RwSignal::new(HashSet::new()),
+            empty_categories: RwSignal::new(Vec::new()),
             graph_selected_node: RwSignal::new(None),
             graph_focus_generation: RwSignal::new(0),
             graph_prefer_3d: RwSignal::new(false),
@@ -82,11 +101,7 @@ impl MemoryState {
 
 /// Ensure the Files sidebar group containing `path` is expanded.
 pub(crate) fn expand_files_group_for_path(state: MemoryState, path: &str) {
-    let key = if path.starts_with(LEARNINGS_API_PREFIX) {
-        "learnings"
-    } else {
-        "memory"
-    };
+    let key = category_for_path(path);
     state.groups_open.update(|open| {
         open.insert(key);
     });
@@ -103,6 +118,7 @@ fn current_workspace_cwd(wb: WorkbenchService) -> Option<String> {
 }
 
 fn load_notes(state: MemoryState, ws: String) {
+    let ws_cat = ws.clone();
     spawn_local(async move {
         match tauri_bridge::memory_list(&ws).await {
             Ok(list) => {
@@ -110,6 +126,11 @@ fn load_notes(state: MemoryState, ws: String) {
                 state.error.set(None);
             }
             Err(e) => state.error.set(Some(e)),
+        }
+    });
+    spawn_local(async move {
+        if let Ok(list) = tauri_bridge::memory_list_categories(&ws_cat).await {
+            state.empty_categories.set(list);
         }
     });
 }
@@ -319,13 +340,14 @@ fn MemoryTabBtn(
 fn MemoryFilesView(state: MemoryState) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let wb = expect_context::<WorkbenchService>();
-    let new_note_input = RwSignal::new(String::new());
     let renaming = RwSignal::new(None::<String>);
     let rename_input = RwSignal::new(String::new());
     let files_collapsed = RwSignal::new(false);
     let groups_open = state.groups_open;
     let context_menu = RwSignal::new(None::<MemoryContextMenu>);
-    let editing_category = RwSignal::new(None::<&'static str>);
+    let editing_category = RwSignal::new(None::<String>);
+    let new_category_open = RwSignal::new(false);
+    let new_note_category = RwSignal::new(None::<String>);
 
     view! {
         <div
@@ -337,45 +359,19 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                 class="workbench-memory-files__tree"
                 class:workbench-memory-files__tree--collapsed=move || files_collapsed.get()
             >
-                <form
+                <div
                     class="workbench-memory-files__new"
                     class:workbench-memory-files__new--collapsed=move || files_collapsed.get()
-                    on:submit={
-                        let s = state.clone();
-                        move |ev: web_sys::SubmitEvent| {
-                            ev.prevent_default();
-                            let Some(ws) = s.workspace_cwd.get_untracked() else { return };
-                            let raw = new_note_input.get_untracked();
-                            if raw.trim().is_empty() { return; }
-                            let fname = slug_to_filename(&raw);
-                            let s2 = s.clone();
-                            spawn_local(async move {
-                                match tauri_bridge::memory_create(&ws, &fname, Some(&format!("# {}\n\n", strip_ext(&fname)))).await {
-                                    Ok(meta) => {
-                                        new_note_input.set(String::new());
-                                        load_notes(s2.clone(), ws.clone());
-                                        load_note(s2.clone(), ws, meta.path);
-                                    }
-                                    Err(e) => s2.error.set(Some(e)),
-                                }
-                            });
-                        }
-                    }
                 >
-                    <Show when=move || !files_collapsed.get()>
-                        <input
-                            type="text"
-                            class="workbench-memory-files__new-input"
-                            placeholder=move || i18n.tr(I18nKey::MemNewNotePh)()
-                            prop:value=move || new_note_input.get()
-                            on:input=move |ev| {
-                                if let Some(v) = input_value(ev) {
-                                    new_note_input.set(v);
-                                }
-                            }
-                        />
-                    </Show>
-                    <button type="submit" class="workbench-memory-files__new-btn" title=move || i18n.tr(I18nKey::MemNewNote)()>"+"</button>
+                    <button
+                        type="button"
+                        class="workbench-memory-files__new-btn"
+                        title=move || i18n.tr(I18nKey::MemNewCategory)()
+                        aria-label=move || i18n.tr(I18nKey::MemNewCategory)()
+                        on:click=move |_| new_category_open.set(true)
+                    >
+                        <LxIcon icon=icondata::LuFolderPlus width="0.82rem" height="0.82rem" />
+                    </button>
                     <button
                         type="button"
                         class="workbench-memory-files__collapse-btn"
@@ -407,17 +403,17 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                             <LxIcon icon=icondata::LuPanelLeftOpen width="0.82rem" height="0.82rem" />
                         </Show>
                     </button>
-                </form>
+                </div>
                 <ul class="workbench-memory-files__list">
                     <For
                         each={
                             let s = state.clone();
                             move || {
                                 let _ = wb.workspaces().get();
-                                memory_note_groups(s.notes.get())
+                                memory_note_groups(s.notes.get(), s.empty_categories.get())
                             }
                         }
-                        key=|g| g.key
+                        key=|g| g.key.clone()
                         children={
                             let state = state.clone();
                             move |group: MemoryNoteGroup| {
@@ -430,6 +426,7 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                                         renaming=renaming
                                         rename_input=rename_input
                                         context_menu=context_menu
+                                        new_note_category=new_note_category
                                     />
                                 }
                             }
@@ -598,6 +595,217 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                         })
                 }}
             </Show>
+            <Show when=move || new_category_open.get()>
+                <NewCategoryDialog
+                    state=state.clone()
+                    on_close=Callback::new(move |_| new_category_open.set(false))
+                />
+            </Show>
+            <Show when=move || new_note_category.get().is_some()>
+                {
+                    let state_for_dialog = state.clone();
+                    move || {
+                        new_note_category.get().map(|category| view! {
+                            <NewNoteDialog
+                                state=state_for_dialog.clone()
+                                category=category
+                                on_close=Callback::new(move |_| new_note_category.set(None))
+                            />
+                        })
+                    }
+                }
+            </Show>
+        </div>
+    }
+}
+
+#[component]
+fn NewCategoryDialog(state: MemoryState, on_close: Callback<()>) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let name = RwSignal::new(String::new());
+    let error = RwSignal::new(None::<String>);
+
+    let submit = Callback::new(move |()| {
+        let raw = name.get_untracked();
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            return;
+        }
+        let Some(ws) = state.workspace_cwd.get_untracked() else { return };
+        let cat = trimmed.to_string();
+        let state2 = state.clone();
+        spawn_local(async move {
+            match tauri_bridge::memory_create_category(&ws, &cat).await {
+                Ok(created) => {
+                    state2.groups_open.update(|s| {
+                        s.insert(created.clone());
+                    });
+                    load_notes(state2.clone(), ws);
+                    on_close.run(());
+                }
+                Err(e) => error.set(Some(e)),
+            }
+        });
+    });
+
+    view! {
+        <div class="workspace-rename-backdrop" on:click=move |_| on_close.run(())>
+            <section
+                class="workspace-rename-dialog"
+                role="dialog"
+                aria-modal="true"
+                on:click=move |ev| ev.stop_propagation()
+            >
+                <header class="workspace-rename-dialog__head">
+                    <h2>{move || i18n.tr(I18nKey::MemNewCategoryTitle)()}</h2>
+                    <button
+                        type="button"
+                        class="workspace-rename-dialog__close"
+                        on:click=move |_| on_close.run(())
+                    >"×"</button>
+                </header>
+                <div class="workspace-rename-dialog__body">
+                    <label class="workspace-rename-dialog__label" for="memory-new-category">
+                        {move || i18n.tr(I18nKey::MemNewCategoryLabel)()}
+                    </label>
+                    <input
+                        id="memory-new-category"
+                        type="text"
+                        class="workspace-rename-dialog__input"
+                        placeholder=move || i18n.tr(I18nKey::MemNewCategoryPh)()
+                        prop:value=move || name.get()
+                        on:input=move |ev| {
+                            if let Some(v) = input_value(ev) {
+                                name.set(v);
+                            }
+                        }
+                        on:keydown=move |ev| {
+                            if ev.key() == "Enter" {
+                                ev.prevent_default();
+                                submit.run(());
+                            }
+                        }
+                    />
+                    <Show when=move || error.get().is_some()>
+                        <p class="workspace-rename-dialog__error">{move || error.get().unwrap_or_default()}</p>
+                    </Show>
+                </div>
+                <footer class="workspace-rename-dialog__actions">
+                    <button
+                        type="button"
+                        class="workspace-rename-dialog__btn workspace-rename-dialog__btn--ghost"
+                        on:click=move |_| on_close.run(())
+                    >{move || i18n.tr(I18nKey::MemCancel)()}</button>
+                    <button
+                        type="button"
+                        class="workspace-rename-dialog__btn workspace-rename-dialog__btn--primary"
+                        disabled=move || name.get().trim().is_empty()
+                        on:click=move |_| submit.run(())
+                    >{move || i18n.tr(I18nKey::MemCreate)()}</button>
+                </footer>
+            </section>
+        </div>
+    }
+}
+
+#[component]
+fn NewNoteDialog(state: MemoryState, category: String, on_close: Callback<()>) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let title = RwSignal::new(String::new());
+    let error = RwSignal::new(None::<String>);
+    let header = {
+        let label = clean_memory_label(&category);
+        format!("{} – {label}", i18n.tr(I18nKey::MemNewNoteTitle)())
+    };
+    let category_for_submit = category.clone();
+
+    let submit = Callback::new(move |()| {
+        let raw = title.get_untracked();
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            return;
+        }
+        let Some(ws) = state.workspace_cwd.get_untracked() else { return };
+        let fname = slug_to_filename(trimmed);
+        let api_path = match category_for_submit.as_str() {
+            CATEGORY_MEMORY => fname.clone(),
+            CATEGORY_LEARNINGS => format!("{LEARNINGS_API_PREFIX}{fname}"),
+            other => format!("{other}/{fname}"),
+        };
+        let body = format!("# {}\n\n", strip_ext(&fname));
+        let state2 = state.clone();
+        let cat = category_for_submit.clone();
+        spawn_local(async move {
+            match tauri_bridge::memory_create(&ws, &api_path, Some(&body)).await {
+                Ok(meta) => {
+                    state2.groups_open.update(|s| {
+                        s.insert(cat.clone());
+                    });
+                    load_notes(state2.clone(), ws.clone());
+                    load_note(state2.clone(), ws, meta.path);
+                    on_close.run(());
+                }
+                Err(e) => error.set(Some(e)),
+            }
+        });
+    });
+
+    view! {
+        <div class="workspace-rename-backdrop" on:click=move |_| on_close.run(())>
+            <section
+                class="workspace-rename-dialog"
+                role="dialog"
+                aria-modal="true"
+                on:click=move |ev| ev.stop_propagation()
+            >
+                <header class="workspace-rename-dialog__head">
+                    <h2>{header}</h2>
+                    <button
+                        type="button"
+                        class="workspace-rename-dialog__close"
+                        on:click=move |_| on_close.run(())
+                    >"×"</button>
+                </header>
+                <div class="workspace-rename-dialog__body">
+                    <label class="workspace-rename-dialog__label" for="memory-new-note">
+                        {move || i18n.tr(I18nKey::MemNewNoteLabel)()}
+                    </label>
+                    <input
+                        id="memory-new-note"
+                        type="text"
+                        class="workspace-rename-dialog__input"
+                        placeholder=move || i18n.tr(I18nKey::MemNewNotePh)()
+                        prop:value=move || title.get()
+                        on:input=move |ev| {
+                            if let Some(v) = input_value(ev) {
+                                title.set(v);
+                            }
+                        }
+                        on:keydown=move |ev| {
+                            if ev.key() == "Enter" {
+                                ev.prevent_default();
+                                submit.run(());
+                            }
+                        }
+                    />
+                    <Show when=move || error.get().is_some()>
+                        <p class="workspace-rename-dialog__error">{move || error.get().unwrap_or_default()}</p>
+                    </Show>
+                </div>
+                <footer class="workspace-rename-dialog__actions">
+                    <button
+                        type="button"
+                        class="workspace-rename-dialog__btn workspace-rename-dialog__btn--ghost"
+                        on:click=move |_| on_close.run(())
+                    >{move || i18n.tr(I18nKey::MemCancel)()}</button>
+                    <button
+                        type="button"
+                        class="workspace-rename-dialog__btn workspace-rename-dialog__btn--primary"
+                        disabled=move || title.get().trim().is_empty()
+                        on:click=move |_| submit.run(())
+                    >{move || i18n.tr(I18nKey::MemCreate)()}</button>
+                </footer>
+            </section>
         </div>
     }
 }
@@ -615,29 +823,38 @@ fn strip_ext(s: &str) -> String {
 fn MemoryFileGroupHead(
     state: MemoryState,
     wb: WorkbenchService,
-    group_key: &'static str,
-    groups_open: RwSignal<HashSet<&'static str>>,
+    group_key: String,
+    groups_open: RwSignal<HashSet<String>>,
     files_collapsed: RwSignal<bool>,
     header_title: String,
     index_path: Option<String>,
     group_paths: Vec<String>,
     context_menu: RwSignal<Option<MemoryContextMenu>>,
+    new_note_category: RwSignal<Option<String>>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let index_active = index_path.clone();
     let index_open = index_path;
     let context_label = header_title.clone();
+    let key_for_settings = group_key.clone();
+    let key_for_color = group_key.clone();
+    let key_for_ctx = group_key.clone();
+    let key_for_chev_class = group_key.clone();
+    let key_for_aria_state = group_key.clone();
+    let key_for_aria_label = group_key.clone();
+    let key_for_click = group_key.clone();
+    let key_for_new = group_key.clone();
     view! {
         <li
             class="workbench-memory-files__group-head"
             class:workbench-memory-files__group-head--sidebar-hidden=move || {
-                !memory_category_settings(wb, group_key).show_in_sidebar
+                !memory_category_settings(wb, &key_for_settings).show_in_sidebar
             }
             class:workbench-memory-files__group-head--hidden=move || files_collapsed.get()
             class:workbench-memory-files__group-head--active=move || {
                 memory_group_index_active(&state, &index_active)
             }
-            style=move || format!("--memory-category-color: {}", memory_category_settings(wb, group_key).color)
+            style=move || format!("--memory-category-color: {}", memory_category_settings(wb, &key_for_color).color)
             on:contextmenu=move |ev: web_sys::MouseEvent| {
                 ev.prevent_default();
                 ev.stop_propagation();
@@ -645,7 +862,7 @@ fn MemoryFileGroupHead(
                     x: ev.client_x(),
                     y: ev.client_y(),
                     target: MemoryContextTarget::Category {
-                        key: group_key,
+                        key: key_for_ctx.clone(),
                         label: context_label.clone(),
                         paths: group_paths.clone(),
                     },
@@ -656,11 +873,11 @@ fn MemoryFileGroupHead(
                 type="button"
                 class="workbench-memory-files__group-chevron"
                 class:workbench-memory-files__group-chevron--open=move || {
-                    groups_open.with(|s| s.contains(group_key))
+                    groups_open.with(|s| s.contains(&key_for_chev_class))
                 }
-                aria-expanded=move || groups_open.with(|s| s.contains(group_key)).to_string()
+                aria-expanded=move || groups_open.with(|s| s.contains(&key_for_aria_state)).to_string()
                 aria-label=move || {
-                    if groups_open.with(|s| s.contains(group_key)) {
+                    if groups_open.with(|s| s.contains(&key_for_aria_label)) {
                         i18n.tr(I18nKey::MemFilesGroupCollapse)()
                     } else {
                         i18n.tr(I18nKey::MemFilesGroupExpand)()
@@ -669,10 +886,10 @@ fn MemoryFileGroupHead(
                 on:click=move |ev: web_sys::MouseEvent| {
                     ev.stop_propagation();
                     groups_open.update(|s| {
-                        if s.contains(group_key) {
-                            s.remove(group_key);
+                        if s.contains(&key_for_click) {
+                            s.remove(&key_for_click);
                         } else {
-                            s.insert(group_key);
+                            s.insert(key_for_click.clone());
                         }
                     });
                 }
@@ -684,6 +901,18 @@ fn MemoryFileGroupHead(
                 label=header_title
                 index_path=index_open
             />
+            <button
+                type="button"
+                class="workbench-memory-files__group-add"
+                title=move || i18n.tr(I18nKey::MemNewNoteInGroup)()
+                aria-label=move || i18n.tr(I18nKey::MemNewNoteInGroup)()
+                on:click=move |ev: web_sys::MouseEvent| {
+                    ev.stop_propagation();
+                    new_note_category.set(Some(key_for_new.clone()));
+                }
+            >
+                <LxIcon icon=icondata::LuPlus width="0.75rem" height="0.75rem" />
+            </button>
         </li>
     }
 }
@@ -711,24 +940,27 @@ fn MemoryFileGroupIndexButton(
 fn MemoryFileGroupSection(
     state: MemoryState,
     group: MemoryNoteGroup,
-    groups_open: RwSignal<HashSet<&'static str>>,
+    groups_open: RwSignal<HashSet<String>>,
     files_collapsed: RwSignal<bool>,
     renaming: RwSignal<Option<String>>,
     rename_input: RwSignal<String>,
     context_menu: RwSignal<Option<MemoryContextMenu>>,
+    new_note_category: RwSignal<Option<String>>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let wb = expect_context::<WorkbenchService>();
-    let group_key = group.key;
+    let group_key = group.key.clone();
     let header_title = memory_group_header_label(&group, &i18n, wb);
     let index_path = group.index.as_ref().map(|n| n.path.clone());
     let index = group.index;
     let group_notes = group.notes;
+    let key_for_show = group_key.clone();
+    let key_for_open_check = group_key.clone();
     let show_sidebar = move || {
         wb.active_id()
             .get()
             .map(|id| {
-                wb.memory_category_settings_for_workspace(id, group_key)
+                wb.memory_category_settings_for_workspace(id, &key_for_show)
                     .show_in_sidebar
             })
             .unwrap_or(true)
@@ -738,13 +970,14 @@ fn MemoryFileGroupSection(
         <MemoryFileGroupHead
             state=state
             wb=wb
-            group_key=group_key
+            group_key=group_key.clone()
             groups_open=groups_open
             files_collapsed=files_collapsed
             header_title=header_title
             index_path=index_path
             group_paths=memory_group_paths(&index, &group_notes)
             context_menu=context_menu
+            new_note_category=new_note_category
         />
         <For
             each=move || {
@@ -752,7 +985,7 @@ fn MemoryFileGroupSection(
                     Vec::new()
                 } else if files_collapsed.get() {
                     memory_group_collapsed_items(&index, &group_notes)
-                } else if groups_open.with(|s| s.contains(group_key)) {
+                } else if groups_open.with(|s| s.contains(&key_for_open_check)) {
                     group_notes.clone()
                 } else {
                     Vec::new()
@@ -993,7 +1226,7 @@ fn MemoryFileExpandedRow(
 fn MemoryContextMenuView(
     state: MemoryState,
     menu: RwSignal<Option<MemoryContextMenu>>,
-    editing_category: RwSignal<Option<&'static str>>,
+    editing_category: RwSignal<Option<String>>,
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     view! {
@@ -1005,7 +1238,8 @@ fn MemoryContextMenuView(
                 let style = format!("left: {}px; top: {}px", current.x, current.y);
                 match current.target {
                     MemoryContextTarget::Category { key, label, paths } => {
-                        let edit_key = key;
+                        let edit_key = key.clone();
+                        let send_key = key.clone();
                         let send_label = label.clone();
                         view! {
                             <div class="workspace-context-menu memory-context-menu" style=style on:click=move |ev| ev.stop_propagation()>
@@ -1014,14 +1248,14 @@ fn MemoryContextMenuView(
                                     class="workspace-context-menu__item"
                                     on:click=move |_| {
                                         menu.set(None);
-                                        editing_category.set(Some(edit_key));
+                                        editing_category.set(Some(edit_key.clone()));
                                     }
                                 >"Edit"</button>
                                 <button
                                     type="button"
                                     class="workspace-context-menu__item"
                                     on:click=move |_| {
-                                        add_category_agent_context(wb, edit_key, send_label.clone(), paths.clone());
+                                        add_category_agent_context(wb, &send_key, send_label.clone(), paths.clone());
                                         menu.set(None);
                                     }
                                 >"Send to BLXCode Agent"</button>
@@ -1064,18 +1298,19 @@ fn MemoryContextMenuView(
 }
 
 #[component]
-fn MemoryCategoryEditDialog(category: &'static str, on_close: Callback<()>) -> impl IntoView {
+fn MemoryCategoryEditDialog(category: String, on_close: Callback<()>) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let initial = wb
         .active_id()
         .get_untracked()
-        .map(|id| wb.memory_category_settings_for_workspace_untracked(id, category))
-        .unwrap_or_else(|| MemoryCategorySettings::for_category(category));
+        .map(|id| wb.memory_category_settings_for_workspace_untracked(id, &category))
+        .unwrap_or_else(|| MemoryCategorySettings::for_category(&category));
     let label = RwSignal::new(initial.label);
     let color = RwSignal::new(initial.color);
     let show_sidebar = RwSignal::new(initial.show_in_sidebar);
     let show_graph = RwSignal::new(initial.show_in_graph);
-    let title = format!("Edit {}", clean_memory_label(category));
+    let title = format!("Edit {}", clean_memory_label(&category));
+    let category_for_save = category.clone();
 
     view! {
         <div class="workspace-rename-backdrop" on:click=move |_| on_close.run(())>
@@ -1175,8 +1410,8 @@ fn MemoryCategoryEditDialog(category: &'static str, on_close: Callback<()>) -> i
                         class="workspace-rename-dialog__btn workspace-rename-dialog__btn--primary"
                         on:click=move |_| {
                             if let Some(ws_id) = wb.active_id().get_untracked() {
-                                let fallback = MemoryCategorySettings::for_category(category);
-                                wb.set_memory_category_settings(ws_id, category, MemoryCategorySettings {
+                                let fallback = MemoryCategorySettings::for_category(&category_for_save);
+                                wb.set_memory_category_settings(ws_id, &category_for_save, MemoryCategorySettings {
                                     label: label.get_untracked().trim().to_string(),
                                     color: normalize_memory_color(&color.get_untracked(), &fallback.color),
                                     show_in_sidebar: show_sidebar.get_untracked(),
@@ -1210,14 +1445,14 @@ fn memory_group_paths(index: &Option<NoteMeta>, notes: &[NoteMeta]) -> Vec<Strin
 
 fn add_category_agent_context(
     wb: WorkbenchService,
-    category: &'static str,
+    category: &str,
     label: String,
     paths: Vec<String>,
 ) {
     let Some(ws_id) = wb.active_id().get_untracked() else {
         return;
     };
-    let kind = if category == "learnings" {
+    let kind = if category == CATEGORY_LEARNINGS {
         AgentContextKind::LearningCategory
     } else {
         AgentContextKind::MemoryCategory
@@ -1272,7 +1507,7 @@ fn normalize_memory_color(raw: &str, fallback: &str) -> String {
 
 #[derive(Clone)]
 struct MemoryNoteGroup {
-    key: &'static str,
+    key: String,
     index: Option<NoteMeta>,
     notes: Vec<NoteMeta>,
 }
@@ -1280,7 +1515,7 @@ struct MemoryNoteGroup {
 #[derive(Clone, PartialEq)]
 enum MemoryContextTarget {
     Category {
-        key: &'static str,
+        key: String,
         label: String,
         paths: Vec<String>,
     },
@@ -1297,32 +1532,42 @@ struct MemoryContextMenu {
     target: MemoryContextTarget,
 }
 
-fn memory_note_groups(notes: Vec<NoteMeta>) -> Vec<MemoryNoteGroup> {
-    let mut memory = Vec::new();
-    let mut learnings = Vec::new();
+fn memory_note_groups(
+    notes: Vec<NoteMeta>,
+    empty_categories: Vec<String>,
+) -> Vec<MemoryNoteGroup> {
+    use std::collections::BTreeMap;
+    let mut buckets: BTreeMap<String, Vec<NoteMeta>> = BTreeMap::new();
     for n in notes {
-        if n.path.starts_with(LEARNINGS_API_PREFIX) {
-            learnings.push(n);
-        } else {
-            memory.push(n);
+        let key = category_for_path(&n.path);
+        buckets.entry(key).or_default().push(n);
+    }
+    for cat in empty_categories {
+        if cat == CATEGORY_MEMORY || cat == CATEGORY_LEARNINGS {
+            continue;
         }
+        buckets.entry(cat).or_default();
     }
+
+    // Preserve a stable ordering: memory first, learnings second, then alpha.
+    let mut keys: Vec<String> = buckets.keys().cloned().collect();
+    keys.sort_by(|a, b| match (a.as_str(), b.as_str()) {
+        (CATEGORY_MEMORY, _) => std::cmp::Ordering::Less,
+        (_, CATEGORY_MEMORY) => std::cmp::Ordering::Greater,
+        (CATEGORY_LEARNINGS, _) => std::cmp::Ordering::Less,
+        (_, CATEGORY_LEARNINGS) => std::cmp::Ordering::Greater,
+        _ => a.to_lowercase().cmp(&b.to_lowercase()),
+    });
+
     let mut groups = Vec::new();
-    let (mem_index, mem_notes) = split_group_index(memory, is_memory_index_note);
-    if mem_index.is_some() || !mem_notes.is_empty() {
-        groups.push(MemoryNoteGroup {
-            key: "memory",
-            index: mem_index,
-            notes: mem_notes,
-        });
-    }
-    let (learn_index, learn_notes) = split_group_index(learnings, is_learnings_index_note);
-    if learn_index.is_some() || !learn_notes.is_empty() {
-        groups.push(MemoryNoteGroup {
-            key: "learnings",
-            index: learn_index,
-            notes: learn_notes,
-        });
+    for key in keys {
+        let bucket = buckets.remove(&key).unwrap_or_default();
+        let (index, notes) = match key.as_str() {
+            CATEGORY_MEMORY => split_group_index(bucket, is_memory_index_note),
+            CATEGORY_LEARNINGS => split_group_index(bucket, is_learnings_index_note),
+            _ => (None, bucket),
+        };
+        groups.push(MemoryNoteGroup { key, index, notes });
     }
     groups
 }
@@ -1377,7 +1622,7 @@ fn memory_group_header_label(
     wb: WorkbenchService,
 ) -> String {
     if let Some(ws_id) = wb.active_id().get_untracked() {
-        let settings = wb.memory_category_settings_for_workspace_untracked(ws_id, group.key);
+        let settings = wb.memory_category_settings_for_workspace_untracked(ws_id, &group.key);
         if !settings.label.trim().is_empty() {
             return clean_memory_label(&settings.label);
         }
@@ -1385,9 +1630,10 @@ fn memory_group_header_label(
     if let Some(idx) = &group.index {
         return clean_memory_label(&idx.name);
     }
-    match group.key {
-        "learnings" => i18n.tr(I18nKey::MemFilesGroupLearnings)().to_string(),
-        _ => i18n.tr(I18nKey::MemFilesGroupMemory)().to_string(),
+    match group.key.as_str() {
+        CATEGORY_LEARNINGS => i18n.tr(I18nKey::MemFilesGroupLearnings)().to_string(),
+        CATEGORY_MEMORY => i18n.tr(I18nKey::MemFilesGroupMemory)().to_string(),
+        other => clean_memory_label(other),
     }
 }
 

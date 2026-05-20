@@ -140,6 +140,8 @@ pub fn run() {
             memory::memory_read,
             memory::memory_write,
             memory::memory_create,
+            memory::memory_list_categories,
+            memory::memory_create_category,
             memory::memory_delete,
             memory::memory_rename,
             memory::memory_graph,
