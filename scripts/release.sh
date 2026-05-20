@@ -152,9 +152,6 @@ if [[ "${RELEASE_UPLOAD_ONLY:-0}" == "1" ]]; then
 fi
 
 if [[ -n "$RELEASE_BUMP" ]]; then
-  if [[ "$existing_release" == "1" ]]; then
-    release_die "Release $tag_current exists; cannot --bump while pointing at this version"
-  fi
   release_bump_version "$RELEASE_BUMP"
   tag_current="v${RELEASE_VERSION}"
   if release_gh_release_exists "$tag_current" 2>/dev/null || release_remote_tag_exists "$tag_current"; then
@@ -171,18 +168,6 @@ if [[ "$RELEASE_DO_BUILD" == "1" ]]; then
   release_list_artifacts "$RELEASE_VERSION"
 fi
 
-if [[ "$RELEASE_DO_TAG" == "1" ]]; then
-  release_git_dirty_warn
-  if release_remote_tag_exists "$tag_current" || release_local_tag_exists "$tag_current"; then
-    release_warn "Tag $tag_current already exists; skipping git tag (use --upload to add assets)"
-  elif [[ "${RELEASE_DRY_RUN:-0}" == "1" ]]; then
-    release_info "Would: git tag -a $tag_current -m \"BLXCode $RELEASE_VERSION\""
-  else
-    git tag -a "$tag_current" -m "BLXCode $RELEASE_VERSION"
-    release_info "Created tag $tag_current"
-  fi
-fi
-
 if [[ "$RELEASE_DO_COMMIT" == "1" ]]; then
   if [[ "${RELEASE_DRY_RUN:-0}" == "1" ]]; then
     release_info "Would: git commit version + CHANGELOG"
@@ -193,6 +178,18 @@ if [[ "$RELEASE_DO_COMMIT" == "1" ]]; then
     fi
     git commit -m "chore: release v${RELEASE_VERSION}"
     release_info "Committed release files"
+  fi
+fi
+
+if [[ "$RELEASE_DO_TAG" == "1" ]]; then
+  release_git_dirty_warn
+  if release_remote_tag_exists "$tag_current" || release_local_tag_exists "$tag_current"; then
+    release_warn "Tag $tag_current already exists; skipping git tag (use --upload to add assets)"
+  elif [[ "${RELEASE_DRY_RUN:-0}" == "1" ]]; then
+    release_info "Would: git tag -a $tag_current -m \"BLXCode $RELEASE_VERSION\""
+  else
+    git tag -a "$tag_current" -m "BLXCode $RELEASE_VERSION"
+    release_info "Created tag $tag_current"
   fi
 fi
 

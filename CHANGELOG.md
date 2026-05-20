@@ -13,6 +13,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+### Removed
+
+
+## [0.1.13] - 2026-05-20
+
+### Added
+
+### Changed
+
+### Fixed
+
 - Right panel: native hover tooltips (`title`) on icon rail tabs and header tab strip (inactive tabs show icon-only).
 - Sidebar footer brand label is **BLXCode** (was lowercase `blxcode`).
 - Plans panel: `plans-panel.css` is now loaded via Trunk (was edited but never linked); task-summary gap/colors use `!important` so they override stale rules in `styles.css`.
