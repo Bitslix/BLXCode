@@ -10,7 +10,7 @@ Welcome to the BLXCode docs. This folder is split into user documentation for ru
 - [Voice](user/voice.md): configure and use speech-to-text, text-to-speech, microphone recording, and push-to-talk.
 - [Workspaces](user/workspaces.md): workspace creation, terminal grids, panes, browser tabs, and persistence.
 - [Agent Providers](user/agent-providers.md): provider selection, API keys, models, thinking levels, and hooks.
-- [Memory And Tasks](user/memory-and-tasks.md): project notes, backlinks, graph data, task storage, and agent tools.
+- [Memory And Tasks](user/memory-and-tasks.md): Memory panel (Files, Graph, Search), learnings, category display, backlinks, task storage, and agent memory tools.
 - [Troubleshooting](user/troubleshooting.md): common startup, build, browser, keyring, and terminal issues.
 
 ## Developer Docs

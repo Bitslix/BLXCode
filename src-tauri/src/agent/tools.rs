@@ -393,6 +393,29 @@ pub fn registry() -> Vec<ToolDef> {
             site: ToolSite::Client,
         },
         ToolDef {
+            name: "image_context_list",
+            description: "List image context items attached to the active BLXCode Agent workspace. Pending images are sent with the next turn; read images are visible but not sent again unless the user reactivates them in the UI.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "image_context_detach",
+            description: "Remove one attached image context item by id.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string" }
+                },
+                "required": ["id"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
             name: "task_list",
             description: "List tracked tasks under <workspace>/.blxcode/tasks/. Returns a stable JSON snapshot sorted by task position. Optional filters: `status` and `includeCompleted`.",
             parameters: json!({
@@ -950,15 +973,10 @@ fn tool_memory_rename(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOu
         Ok(s) => s,
         Err(out) => return out,
     };
-    match memory::memory_rename(
-        ws,
-        old_path.to_owned(),
-        new_path.to_owned(),
-        rewrite_links,
-    ) {
+    match memory::memory_rename(ws, old_path.to_owned(), new_path.to_owned(), rewrite_links) {
         Ok(report) => {
-            let body = serde_json::to_string(&report)
-                .unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
+            let body =
+                serde_json::to_string(&report).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
             ToolOutcome {
                 ok: true,
                 content: body,
@@ -1377,11 +1395,10 @@ mod tests {
             "memory_context_list",
             "memory_context_attach",
             "memory_context_detach",
+            "image_context_list",
+            "image_context_detach",
         ] {
-            assert!(
-                names.contains(&expected),
-                "missing tool {expected}"
-            );
+            assert!(names.contains(&expected), "missing tool {expected}");
         }
     }
 

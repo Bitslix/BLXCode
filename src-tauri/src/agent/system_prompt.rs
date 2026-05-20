@@ -114,6 +114,11 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
            `memory_category`, `learning_category`, `memory_note`, \
            `learning_note` (notes need `path`).\n\
          - `memory_context_detach {{ id }}` — remove by id from list.\n\
+         - `image_context_list` — list images attached to the active Agent \
+           context. Pending images are automatically included with the next \
+           user turn; read images are only visible metadata and are not sent \
+           again unless the user reactivates them in the UI.\n\
+         - `image_context_detach {{ id }}` — remove an attached image by id.\n\
          \n\
          ### Memory judgment (you decide — read, write, or skip)\n\
          Workspace memory is shared across sessions. **You** choose when to \

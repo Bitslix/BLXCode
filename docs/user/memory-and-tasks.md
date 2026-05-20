@@ -28,8 +28,37 @@ When you open a workspace, BLXCode calls `workspace_ensure_agents` to create `.a
 
 Paths are sandboxed per root. BLXCode rejects absolute paths, `..` escapes, and non-Markdown files for note operations.
 
+## Memory Panel
+
+Open the Memory panel from the right workbench rail (`Ctrl + Shift + M`). It has three tabs:
+
+| Tab | Purpose |
+|-----|---------|
+| **Files** | Browse **Memory** and **Learnings** groups, open notes in the editor, toggle Markdown preview, and manage backlinks. |
+| **Graph** | Explore note links as a 2D or 3D graph. Nodes are notes; edges are `[[wiki links]]`. Rotate, zoom, and pan to navigate. |
+| **Search** | Full-text search across all notes with line-level snippets; open a hit or jump to its node in the graph. |
+
 <p align="center">
-  <img src="../images/screenshot-2026-05-18_17-58-53.png" alt="Memory panel showing workspace note files" />
+  <img src="../images/screenshot-2026-05-20_03-16-03.png" alt="Memory Files tab with Learnings group expanded and a learning note open in the editor" />
+</p>
+
+Right-click a **Memory** or **Learnings** group header to **Edit** display settings or **Send to BLXCode Agent** (injects the whole category into agent context). Right-click an individual note for **Open** or **Send to BLXCode Agent**.
+
+<p align="center">
+  <img src="../images/screenshot-2026-05-20_03-16-26.png" alt="Memory note context menu with Open and Send to BLXCode Agent" />
+</p>
+
+### Category display
+
+**Edit** on a group opens a dialog where you can set:
+
+- **Display name** — sidebar and graph label (for example rename the default **Learnings** group).
+- **Color** — accent for sidebar rows and graph nodes (hex field or preset swatches).
+- **Show in sidebar** — hide the group from the Files tree while keeping files on disk.
+- **Show in graph** — omit the category from the graph without deleting notes.
+
+<p align="center">
+  <img src="../images/screenshot-2026-05-20_03-16-31.png" alt="Edit Learnings dialog with display name, color, and sidebar or graph visibility toggles" />
 </p>
 
 ## Note Links
@@ -46,10 +75,18 @@ Existing learnings that use Markdown index links (`[Title](topic.md)`) are upgra
 
 ## Graph And Search
 
-The backend can build graph data from notes, backlinks, and tags across both memory and learnings. It can also search notes and return line-level snippets.
+The backend builds graph data from notes, backlinks, and tags across both memory and learnings. Selecting a node in **Graph** can show a split preview of the note content alongside the graph. From **Search**, open a result or use the graph jump control to focus the matching node (3D mode is used when jumping from search).
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-18_17-58-47.png" alt="Memory graph showing linked notes in the workspace memory panel" />
+  <img src="../images/screenshot-2026-05-20_03-15-39.png" alt="Memory Graph tab with Learnings hub node linked to learning notes" />
+</p>
+
+<p align="center">
+  <img src="../images/screenshot-2026-05-20_03-16-13.png" alt="Memory Graph with split note preview for a selected learning" />
+</p>
+
+<p align="center">
+  <img src="../images/screenshot-2026-05-20_03-16-46.png" alt="Memory Search tab showing full-text hits across learning notes" />
 </p>
 
 ## Agent Memory Pointers
@@ -95,6 +132,14 @@ Supported statuses are:
 - `cancelled`
 
 Task writes are serialized through the backend and stored as pretty JSON. The store has a version number so future migrations can detect incompatible formats.
+
+## Agent Memory Tools
+
+The BLXCode agent can list, read, search, and create workspace notes through registered tools (`memory_list`, `memory_read`, `memory_search`, `memory_create`, and related file tools). Use **Send to BLXCode Agent** in the Memory panel to attach a note or whole category to the agent context without pasting paths manually.
+
+<p align="center">
+  <img src="../images/screenshot-2026-05-20_03-21-19.png" alt="BLXCode Agent panel in standby listing memory and file tools in the chat" />
+</p>
 
 <p align="center">
   <img src="../images/screenshot-2026-05-18_17-46-39.png" alt="Agent panel showing workspace task context and task-tool output" />

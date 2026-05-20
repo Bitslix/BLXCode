@@ -85,6 +85,23 @@ pub async fn agent_clear_conversation() -> Result<(), String> {
     invoke_unit_js("agent_clear_conversation", JsValue::UNDEFINED).await
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentImageFilePayload {
+    pub label: String,
+    pub mime: String,
+    pub bytes_b64: String,
+    pub size_bytes: u64,
+}
+
+pub async fn agent_read_image_file(path: String) -> Result<AgentImageFilePayload, String> {
+    #[derive(Serialize)]
+    struct Args {
+        path: String,
+    }
+    invoke_typed("agent_read_image_file", Args { path }).await
+}
+
 /// Idempotently creates `{app_data}/sandbox` and returns its absolute path.
 /// Used as the always-available workspace root fallback in Phase A.
 pub async fn harness_ensure_default_sandbox() -> Result<String, String> {

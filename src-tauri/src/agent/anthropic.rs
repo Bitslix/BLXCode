@@ -10,7 +10,7 @@
 //! contracts as the OpenAI-compatible path.
 
 use super::system_prompt::system_prompt;
-use crate::agent::protocol::AgentEvent;
+use crate::agent::protocol::{AgentEvent, AgentImageContextItem};
 use crate::agent::state::{AgentEngineState, ClientToolResult};
 use crate::agent::tools::{self, ToolSite, WorkspaceRootGuard};
 use crate::agent_settings::{AgentProviderSettings, ThinkingLevel};
@@ -73,6 +73,7 @@ pub async fn run_chat_turn(
     api_key: String,
     settings: AgentProviderSettings,
     prompt: String,
+    image_context_items: Vec<AgentImageContextItem>,
     workspace_root: Option<String>,
 ) {
     state.clear_cancel();
@@ -109,9 +110,13 @@ pub async fn run_chat_turn(
     // Anthropic stores `system` separately from `messages`. Persisted
     // history is `user` / `assistant` messages only.
     let mut messages: Vec<Value> = state.conversation_snapshot();
+    let consumed_image_ids = image_context_items
+        .iter()
+        .map(|item| item.id.clone())
+        .collect::<Vec<_>>();
     messages.push(json!({
         "role": "user",
-        "content": [{ "type": "text", "text": prompt }],
+        "content": anthropic_user_content(&prompt, &image_context_items),
     }));
 
     let mut tools_json = tools::render_for_anthropic();
@@ -159,15 +164,21 @@ pub async fn run_chat_turn(
             body["thinking"] = t.clone();
         }
 
-        let round_res = match run_one_round(&client, &api_key, &body, &state).await {
-            Ok(r) => r,
-            Err(e) => {
-                state.push(AgentEvent::Error { message: e });
-                state.push(AgentEvent::Done);
-                state.set_busy(false);
-                return;
-            }
+        let image_ids_for_round = if round == 0 {
+            Some(consumed_image_ids.as_slice())
+        } else {
+            None
         };
+        let round_res =
+            match run_one_round(&client, &api_key, &body, &state, image_ids_for_round).await {
+                Ok(r) => r,
+                Err(e) => {
+                    state.push(AgentEvent::Error { message: e });
+                    state.push(AgentEvent::Done);
+                    state.set_busy(false);
+                    return;
+                }
+            };
 
         // Assemble the assistant message in Anthropic's content-block form so
         // tool_use ids resolve on the next round.
@@ -260,7 +271,7 @@ pub async fn run_chat_turn(
         }
     }
 
-    state.set_conversation(messages);
+    state.set_conversation(sanitize_conversation_images(messages));
 
     state.push(AgentEvent::Done);
     state.set_busy(false);
@@ -388,6 +399,7 @@ async fn run_one_round(
     api_key: &str,
     body: &Value,
     state: &Arc<AgentEngineState>,
+    consumed_image_ids: Option<&[String]>,
 ) -> Result<RoundResult, String> {
     let resp = client
         .post(ANTHROPIC_URL)
@@ -412,6 +424,12 @@ async fn run_one_round(
             snippet
         };
         return Err(format!("provider HTTP {status}: {trimmed}"));
+    }
+
+    if let Some(ids) = consumed_image_ids {
+        if !ids.is_empty() {
+            state.push(AgentEvent::ImageContextConsumed { ids: ids.to_vec() });
+        }
     }
 
     let stream = resp.bytes_stream();
@@ -552,6 +570,83 @@ async fn run_one_round(
         .collect();
 
     Ok(acc)
+}
+
+fn anthropic_user_content(prompt: &str, images: &[AgentImageContextItem]) -> Value {
+    let mut blocks = Vec::with_capacity(images.len() + 1);
+    for image in images {
+        blocks.push(json!({
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": image.mime,
+                "data": image.bytes_b64,
+            },
+        }));
+    }
+    blocks.push(json!({ "type": "text", "text": prompt }));
+    Value::Array(blocks)
+}
+
+fn sanitize_conversation_images(mut messages: Vec<Value>) -> Vec<Value> {
+    for msg in &mut messages {
+        let Some(content) = msg.get_mut("content") else {
+            continue;
+        };
+        let Some(blocks) = content.as_array_mut() else {
+            continue;
+        };
+        for block in blocks {
+            if block.get("type").and_then(Value::as_str) == Some("image") {
+                *block = json!({
+                    "type": "text",
+                    "text": "[BLXCode image context was attached for the previous turn and is now marked read.]",
+                });
+            }
+        }
+    }
+    messages
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn image() -> AgentImageContextItem {
+        AgentImageContextItem {
+            id: "image:test".into(),
+            label: "test.png".into(),
+            mime: "image/png".into(),
+            bytes_b64: "aGVsbG8=".into(),
+            size_bytes: 5,
+            added_at: 1,
+        }
+    }
+
+    #[test]
+    fn anthropic_user_content_includes_image_then_text() {
+        let content = anthropic_user_content("look", &[image()]);
+        let blocks = content.as_array().expect("content array");
+        assert_eq!(blocks[0]["type"], "image");
+        assert_eq!(blocks[0]["source"]["type"], "base64");
+        assert_eq!(blocks[0]["source"]["media_type"], "image/png");
+        assert_eq!(blocks[0]["source"]["data"], "aGVsbG8=");
+        assert_eq!(blocks[1]["type"], "text");
+        assert_eq!(blocks[1]["text"], "look");
+    }
+
+    #[test]
+    fn anthropic_sanitizer_removes_image_base64() {
+        let messages = vec![json!({
+            "role": "user",
+            "content": anthropic_user_content("look", &[image()]),
+        })];
+        let sanitized = sanitize_conversation_images(messages);
+        let encoded = serde_json::to_string(&sanitized).unwrap();
+        assert!(!encoded.contains("aGVsbG8="));
+        assert!(!encoded.contains("\"image\""));
+        assert!(encoded.contains("marked read"));
+    }
 }
 
 async fn dispatch_tool(

@@ -1,11 +1,13 @@
 use crate::agent_wire::{AgentEvent, TaskSnapshot};
 use crate::i18n::{lookup, I18nKey, Locale};
 use crate::service::I18nService;
+use crate::tauri_bridge::{is_tauri_shell, voice_settings_get};
+use crate::workbench::agent_panel::voice_orb::{
+    play_line_tts, tts_line_playback_available, VoiceOrbHandle,
+};
 pub use crate::workbench::agent_timeline::TimelineItem;
 use crate::workbench::agent_timeline::{ActivityStatus, ToolActivity};
-use crate::workbench::agent_panel::voice_orb::{play_line_tts, tts_line_playback_available, VoiceOrbHandle};
 use crate::workbench::chat_markdown::render_markdown_to_html;
-use crate::tauri_bridge::{is_tauri_shell, voice_settings_get};
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
@@ -163,6 +165,9 @@ pub fn apply_agent_event(
         AgentEvent::VoiceReady { .. } => {
             // Voice playback is handled in the agent panel; no timeline mutation.
         }
+        AgentEvent::ImageContextConsumed { .. } => {
+            // Image context status is handled in the agent panel; no timeline mutation.
+        }
     }
 }
 
@@ -287,8 +292,7 @@ pub fn ChatLineIndexColumn(
     let play_text = StoredValue::new(tts_text.clone().unwrap_or_default());
     let show_play = move || {
         is_tauri_shell()
-            && play_text
-                .with_value(|t| !t.trim().is_empty())
+            && play_text.with_value(|t| !t.trim().is_empty())
             && tts_line_playback_available(voice_handle.settings.get().as_ref())
     };
     let voice_handle = voice_handle;

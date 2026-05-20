@@ -11,6 +11,8 @@ pub struct UserTurn {
     pub voice_input: bool,
     #[serde(default)]
     pub context_items: Vec<AgentContextItem>,
+    #[serde(default)]
+    pub image_context_items: Vec<AgentImageContextItem>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -30,6 +32,17 @@ pub struct AgentContextItem {
     pub label: String,
     pub source: String,
     pub paths: Vec<String>,
+    pub added_at: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentImageContextItem {
+    pub id: String,
+    pub label: String,
+    pub mime: String,
+    pub bytes_b64: String,
+    pub size_bytes: u64,
     pub added_at: i64,
 }
 
@@ -95,6 +108,8 @@ pub enum AgentEvent {
     },
     #[serde(rename = "task_snapshot")]
     TaskSnapshot { snapshot: TaskSnapshot },
+    #[serde(rename = "image_context_consumed")]
+    ImageContextConsumed { ids: Vec<String> },
     #[serde(rename = "done")]
     Done,
     #[serde(rename = "error")]

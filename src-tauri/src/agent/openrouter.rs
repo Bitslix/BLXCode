@@ -11,7 +11,7 @@
 //! Cancellation (`state.cancelled()`) is polled between SSE lines and
 //! between rounds; pending oneshots are dropped on cancel.
 
-use crate::agent::protocol::AgentEvent;
+use crate::agent::protocol::{AgentEvent, AgentImageContextItem};
 use crate::agent::state::{AgentEngineState, ClientToolResult};
 use crate::agent::system_prompt::system_prompt;
 use crate::agent::tools::{self, ToolSite, WorkspaceRootGuard};
@@ -150,6 +150,7 @@ pub async fn run_chat_turn(
     api_key: String,
     settings: AgentProviderSettings,
     prompt: String,
+    image_context_items: Vec<AgentImageContextItem>,
     workspace_root: Option<String>,
 ) {
     state.clear_cancel();
@@ -186,7 +187,14 @@ pub async fn run_chat_turn(
     messages.push(json!({ "role": "system", "content": sys }));
     // Carry prior turns so the model has multi-turn memory.
     messages.extend(state.conversation_snapshot());
-    messages.push(json!({ "role": "user", "content": prompt }));
+    let consumed_image_ids = image_context_items
+        .iter()
+        .map(|item| item.id.clone())
+        .collect::<Vec<_>>();
+    messages.push(json!({
+        "role": "user",
+        "content": openai_user_content(&prompt, &image_context_items),
+    }));
 
     let tools = tools::render_for_openai();
     let reasoning = reasoning_for(settings.thinking_level, endpoint);
@@ -222,7 +230,21 @@ pub async fn run_chat_turn(
             body[r.key] = r.value.clone();
         }
 
-        let round_res = match run_one_round(&client, endpoint, &api_key, &body, &state).await {
+        let image_ids_for_round = if round == 0 {
+            Some(consumed_image_ids.as_slice())
+        } else {
+            None
+        };
+        let round_res = match run_one_round(
+            &client,
+            endpoint,
+            &api_key,
+            &body,
+            &state,
+            image_ids_for_round,
+        )
+        .await
+        {
             Ok(r) => r,
             Err(e) => {
                 state.push(AgentEvent::Error { message: e });
@@ -299,7 +321,7 @@ pub async fn run_chat_turn(
 
     // Persist non-system messages so the next turn keeps multi-turn context.
     if messages.len() > 1 {
-        state.set_conversation(messages.split_off(1));
+        state.set_conversation(sanitize_conversation_images(messages.split_off(1)));
     }
 
     state.push(AgentEvent::Done);
@@ -330,6 +352,7 @@ async fn run_one_round(
     api_key: &str,
     body: &Value,
     state: &Arc<AgentEngineState>,
+    consumed_image_ids: Option<&[String]>,
 ) -> Result<RoundResult, String> {
     let mut req = client
         .post(endpoint.url())
@@ -360,6 +383,12 @@ async fn run_one_round(
             snippet
         };
         return Err(format!("provider HTTP {status}: {trimmed}"));
+    }
+
+    if let Some(ids) = consumed_image_ids {
+        if !ids.is_empty() {
+            state.push(AgentEvent::ImageContextConsumed { ids: ids.to_vec() });
+        }
     }
 
     let stream = resp.bytes_stream();
@@ -459,6 +488,43 @@ async fn run_one_round(
     Ok(acc)
 }
 
+fn openai_user_content(prompt: &str, images: &[AgentImageContextItem]) -> Value {
+    if images.is_empty() {
+        return Value::String(prompt.to_owned());
+    }
+    let mut blocks = Vec::with_capacity(images.len() + 1);
+    blocks.push(json!({ "type": "text", "text": prompt }));
+    for image in images {
+        blocks.push(json!({
+            "type": "image_url",
+            "image_url": {
+                "url": format!("data:{};base64,{}", image.mime, image.bytes_b64),
+            },
+        }));
+    }
+    Value::Array(blocks)
+}
+
+fn sanitize_conversation_images(mut messages: Vec<Value>) -> Vec<Value> {
+    for msg in &mut messages {
+        let Some(content) = msg.get_mut("content") else {
+            continue;
+        };
+        let Some(blocks) = content.as_array_mut() else {
+            continue;
+        };
+        for block in blocks {
+            if block.get("type").and_then(Value::as_str) == Some("image_url") {
+                *block = json!({
+                    "type": "text",
+                    "text": "[BLXCode image context was attached for the previous turn and is now marked read.]",
+                });
+            }
+        }
+    }
+    messages
+}
+
 async fn dispatch_tool(
     state: &Arc<AgentEngineState>,
     call_id: &str,
@@ -530,4 +596,46 @@ fn truncate_for_ui(s: &str) -> String {
     }
     let cut: String = s.chars().take(max).collect();
     format!("{cut}… (truncated)")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn image() -> AgentImageContextItem {
+        AgentImageContextItem {
+            id: "image:test".into(),
+            label: "test.png".into(),
+            mime: "image/png".into(),
+            bytes_b64: "aGVsbG8=".into(),
+            size_bytes: 5,
+            added_at: 1,
+        }
+    }
+
+    #[test]
+    fn openai_user_content_includes_text_then_image_url() {
+        let content = openai_user_content("look", &[image()]);
+        let blocks = content.as_array().expect("content array");
+        assert_eq!(blocks[0]["type"], "text");
+        assert_eq!(blocks[0]["text"], "look");
+        assert_eq!(blocks[1]["type"], "image_url");
+        assert_eq!(
+            blocks[1]["image_url"]["url"],
+            "data:image/png;base64,aGVsbG8="
+        );
+    }
+
+    #[test]
+    fn openai_sanitizer_removes_image_data_urls() {
+        let messages = vec![json!({
+            "role": "user",
+            "content": openai_user_content("look", &[image()]),
+        })];
+        let sanitized = sanitize_conversation_images(messages);
+        let encoded = serde_json::to_string(&sanitized).unwrap();
+        assert!(!encoded.contains("aGVsbG8="));
+        assert!(!encoded.contains("image_url"));
+        assert!(encoded.contains("marked read"));
+    }
 }

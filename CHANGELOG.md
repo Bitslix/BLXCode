@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Agent Panel image context: attach PNG, JPEG, WebP, or GIF images to the BLXCode Agent via OS/browser drag-and-drop or paste.
+- Agent Panel drop-zone feedback: dragging images over the Agent chat highlights the pane with a dashed border and helper text; unsupported drops show a rejection hint.
+- Agent Context image rows: attached images show Pending/Read status, remove controls, manual “use again” reactivation, and a preview dialog with close/remove actions.
+- BLXCode Agent multimodal provider integration: pending images are sent once through OpenAI/OpenRouter and Anthropic vision payloads, then marked read via an `ImageContextConsumed` event.
+- BLXCode Agent image context client tools: `image_context_list` and `image_context_detach`.
+- Native image file validation command for dropped files, including MIME detection and per-image size limits.
+
+### Changed
+
+- Agent conversation history now sanitizes image content after a turn so base64 image bytes are not persisted or resent on later text/voice turns.
+- Agent Chat reset moved from the compose action row into the Chat log header as an icon-only control with tooltip.
+
 ## [0.1.8] - 2026-05-20
 
 ### Added

@@ -24,8 +24,8 @@ pub use memory_panel::MemoryPanel;
 pub use right_panel::RightPanel;
 pub use sidebar::Sidebar;
 pub use state::{
-    BrowserEmbedSurface, HarnessUiService, LegacyStorageMigration, RightPanelTab, WorkbenchService,
-    WorkbenchSnapshot,
+    AgentImageContextStatus, BrowserEmbedSurface, HarnessUiService, LegacyStorageMigration,
+    RightPanelTab, WorkbenchService, WorkbenchSnapshot, WorkspaceAgentImage,
 };
 pub use workspace_panel::WorkspacePanel;
 
