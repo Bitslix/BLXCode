@@ -960,11 +960,12 @@ fn configured_graph(wb: WorkbenchService, graph: Option<GraphData>) -> Option<Gr
     let mut graph = graph?;
     graph.nodes.retain_mut(|node| {
         let category = graph_category_for_path(&node.id);
-        let settings = wb.memory_category_settings_for_workspace(ws_id, category);
+        let settings = wb.memory_category_settings_for_workspace(ws_id, &category);
         if !settings.show_in_graph {
             return false;
         }
         node.color = Some(settings.color);
+        node.category = Some(category);
         true
     });
     let visible: HashSet<String> = graph.nodes.iter().map(|node| node.id.clone()).collect();
@@ -974,12 +975,16 @@ fn configured_graph(wb: WorkbenchService, graph: Option<GraphData>) -> Option<Gr
     Some(graph)
 }
 
-fn graph_category_for_path(path: &str) -> &'static str {
+pub(crate) fn graph_category_for_path(path: &str) -> String {
     if path.starts_with("learnings/") {
-        "learnings"
-    } else {
-        "memory"
+        return "learnings".to_string();
     }
+    if let Some((head, _)) = path.split_once('/') {
+        if !head.is_empty() {
+            return head.to_string();
+        }
+    }
+    "memory".to_string()
 }
 
 fn cluster_color(tags: &[String], orphan: bool) -> String {
@@ -1041,7 +1046,25 @@ fn force_layout(g: &GraphData, w: f32, h: f32, iters: u32) -> HashMap<String, (f
         .collect();
     let k = (w * h / (n as f32 + 1.0)).sqrt().max(20.0);
     let mut t = w.min(h) * 0.1;
+    let categories: Vec<String> = g
+        .nodes
+        .iter()
+        .map(|node| {
+            node.category
+                .clone()
+                .unwrap_or_else(|| graph_category_for_path(&node.id))
+        })
+        .collect();
+    let cluster_strength = 0.04_f32;
     for _ in 0..iters {
+        // Per-category centroid (attracts same-category nodes toward each other).
+        let mut centroids: HashMap<&str, (f32, f32, u32)> = HashMap::new();
+        for i in 0..n {
+            let entry = centroids.entry(categories[i].as_str()).or_insert((0.0, 0.0, 0));
+            entry.0 += pos[i].0;
+            entry.1 += pos[i].1;
+            entry.2 += 1;
+        }
         let mut disp = vec![(0.0_f32, 0.0_f32); n];
         for i in 0..n {
             for j in 0..n {
@@ -1067,6 +1090,16 @@ fn force_layout(g: &GraphData, w: f32, h: f32, iters: u32) -> HashMap<String, (f
             disp[a].1 -= uy;
             disp[b].0 += ux;
             disp[b].1 += uy;
+        }
+        for i in 0..n {
+            if let Some(&(cx_sum, cy_sum, count)) = centroids.get(categories[i].as_str()) {
+                if count > 1 {
+                    let cx = cx_sum / count as f32;
+                    let cy = cy_sum / count as f32;
+                    disp[i].0 += (cx - pos[i].0) * cluster_strength * k;
+                    disp[i].1 += (cy - pos[i].1) * cluster_strength * k;
+                }
+            }
         }
         for i in 0..n {
             let d = (disp[i].0 * disp[i].0 + disp[i].1 * disp[i].1)

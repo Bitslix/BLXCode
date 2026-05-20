@@ -128,11 +128,14 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
          ## Workspace memory\n\
          Two on-disk roots: `.agents/memory/` (general notes) and \
          `.agents/learnings/` (durable repo learnings, API paths \
-         `learnings/…`). BLXCode exposes two sidebar **categories** — \
-         `memory` and `learnings` — for display color/label/visibility; \
-         organize notes with subfolders via API paths (e.g. \
-         `notes/project/foo.md`). There are no extra user-defined category \
-         keys beyond `memory` and `learnings`.\n\
+         `learnings/…`). BLXCode renders **dynamic categories** in the \
+         sidebar and graph: built-in `memory` (top-level files under \
+         `.agents/memory/`) and `learnings` (everything under `learnings/…`), \
+         plus any subdirectory of `.agents/memory/` which becomes its own \
+         category named after the folder. Notes inside such a folder use API \
+         paths like `<category>/<note>.md` (e.g. `projects/blxcode/setup.md` \
+         → category `projects`). Each category — built-in or user-created — \
+         has independent label/color/sidebar/graph settings.\n\
          \n\
          ### Note CRUD and graph (server-side)\n\
          - `memory_list` — list every note (up to 200), with size and \
@@ -145,16 +148,26 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
          - `memory_delete {{ path }}` — delete one note.\n\
          - `memory_rename {{ oldPath, newPath, rewriteLinks? }}` — rename or \
            move within the same root (`memory` ↔ `learnings` cross-root is \
-           rejected). Default `rewriteLinks:true` updates `[[wikilinks]]` in \
-           other notes.\n\
-         - `memory_graph` — graph nodes/edges/tags across both roots.\n\
+           rejected). Renaming across categories within `.agents/memory/` is \
+           allowed by changing the leading path segment. Default \
+           `rewriteLinks:true` updates `[[wikilinks]]` in other notes.\n\
+         - `memory_graph` — graph nodes/edges/tags across both roots; nodes \
+           are clustered by category (path prefix).\n\
          - `memory_backlinks {{ path }}` — notes linking to this path.\n\
+         - `memory_list_categories` — list every category currently present \
+           in the active workspace (built-in + user-created subfolders).\n\
+         - `memory_create_category {{ name }}` — create an empty category \
+           (subfolder under `.agents/memory/`). Use sparingly; only when the \
+           user explicitly asks for a new bucket. For ad-hoc grouping, just \
+           create the first note with a `<category>/<note>.md` path.\n\
          \n\
          ### Category UI + agent context (client-side; active workspace)\n\
-         - `memory_category_list` — current label/color/sidebar/graph flags.\n\
+         - `memory_category_list` — current label/color/sidebar/graph flags \
+           for every visible category (built-in + dynamic).\n\
          - `memory_category_update {{ category, label?, color?, \
-           showInSidebar?, showInGraph? }}` — `category` is `memory` or \
-           `learnings`; color as `#rrggbb`.\n\
+           showInSidebar?, showInGraph? }}` — `category` is any existing \
+           category key (`memory`, `learnings`, or a user-created folder \
+           name); color as `#rrggbb`.\n\
          - `memory_context_list` — items attached to BLXCode Agent context.\n\
          - `memory_context_attach {{ kind, path?, label? }}` — kinds: \
            `memory_category`, `learning_category`, `memory_note`, \

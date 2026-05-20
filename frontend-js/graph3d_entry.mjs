@@ -60,6 +60,7 @@ function normalizeGraphData(graphData) {
       tags: Array.isArray(node.tags) ? node.tags : [],
       orphan: Boolean(node.orphan),
       color: typeof node.color === "string" && node.color.trim() ? node.color : null,
+      category: typeof node.category === "string" && node.category.trim() ? node.category : null,
     })),
     links,
   };
@@ -295,7 +296,45 @@ function applyResponsiveForces(rec) {
     rec.graph.d3Force("link").distance(distance).strength(0.34);
     rec.graph.d3Force("charge").strength(charge).distanceMax(distance * 4.1);
     rec.graph.d3VelocityDecay(0.34);
+    rec.graph.d3Force("category", categoryClusterForce(rec));
   } catch (_) {}
+}
+
+function categoryClusterForce(rec) {
+  // Pulls each node toward the centroid of its category, so nodes from the
+  // same memory category cluster together. Strength scales with simulation
+  // alpha so it fades as the layout settles.
+  return (alpha) => {
+    const data = rec.graph.graphData();
+    const nodes = data?.nodes || [];
+    if (!nodes.length) return;
+    const centroids = new Map();
+    for (const node of nodes) {
+      const key = node.category;
+      if (!key) continue;
+      const entry = centroids.get(key) || { x: 0, y: 0, z: 0, count: 0 };
+      entry.x += node.x || 0;
+      entry.y += node.y || 0;
+      entry.z += node.z || 0;
+      entry.count += 1;
+      centroids.set(key, entry);
+    }
+    for (const entry of centroids.values()) {
+      if (entry.count > 0) {
+        entry.x /= entry.count;
+        entry.y /= entry.count;
+        entry.z /= entry.count;
+      }
+    }
+    const strength = 0.08 * alpha;
+    for (const node of nodes) {
+      const entry = node.category ? centroids.get(node.category) : null;
+      if (!entry || entry.count < 2) continue;
+      node.vx = (node.vx || 0) + (entry.x - (node.x || 0)) * strength;
+      node.vy = (node.vy || 0) + (entry.y - (node.y || 0)) * strength;
+      node.vz = (node.vz || 0) + (entry.z - (node.z || 0)) * strength;
+    }
+  };
 }
 
 window.__blxcodeGraph3d = {

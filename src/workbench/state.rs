@@ -103,20 +103,58 @@ impl MemoryCategorySettings {
     #[must_use]
     pub fn for_category(key: &str) -> Self {
         match key {
+            "memory" => Self {
+                label: "Memory".into(),
+                color: "#7dd3fc".into(),
+                show_in_sidebar: true,
+                show_in_graph: true,
+            },
             "learnings" => Self {
                 label: "Learnings".into(),
                 color: "#67e8f9".into(),
                 show_in_sidebar: true,
                 show_in_graph: true,
             },
-            _ => Self {
-                label: "Memory".into(),
-                color: "#7dd3fc".into(),
+            other => Self {
+                label: other.to_string(),
+                color: stable_category_color(other),
                 show_in_sidebar: true,
                 show_in_graph: true,
             },
         }
     }
+}
+
+/// Deterministic `#rrggbb` color for an arbitrary category name — same hash
+/// used for graph cluster colors so the sidebar accent matches the node fill.
+#[must_use]
+pub fn stable_category_color(key: &str) -> String {
+    let mut h: u32 = 0x811c_9dc5;
+    for b in key.as_bytes() {
+        h ^= u32::from(*b);
+        h = h.wrapping_mul(0x0100_0193);
+    }
+    let hue = (h % 360) as f32;
+    hsl_to_hex(hue, 70.0, 64.0)
+}
+
+fn hsl_to_hex(h: f32, s_pct: f32, l_pct: f32) -> String {
+    let s = s_pct / 100.0;
+    let l = l_pct / 100.0;
+    let c = (1.0 - (2.0 * l - 1.0).abs()) * s;
+    let hp = h / 60.0;
+    let x = c * (1.0 - ((hp % 2.0) - 1.0).abs());
+    let (r1, g1, b1) = match hp as i32 {
+        0 => (c, x, 0.0),
+        1 => (x, c, 0.0),
+        2 => (0.0, c, x),
+        3 => (0.0, x, c),
+        4 => (x, 0.0, c),
+        _ => (c, 0.0, x),
+    };
+    let m = l - c / 2.0;
+    let to_byte = |v: f32| ((v + m).clamp(0.0, 1.0) * 255.0).round() as u8;
+    format!("#{:02x}{:02x}{:02x}", to_byte(r1), to_byte(g1), to_byte(b1))
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

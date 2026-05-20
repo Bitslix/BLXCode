@@ -58,6 +58,22 @@ pub struct GraphNode {
     pub label: String,
     pub tags: Vec<String>,
     pub orphan: bool,
+    /// Category key derived from the API path (first segment under
+    /// `.agents/memory/`, or `learnings` for the learnings root, or
+    /// `memory` for top-level memory notes).
+    pub category: String,
+}
+
+fn graph_category_for(api_path: &str) -> String {
+    if api_path.starts_with(LEARNINGS_API_PREFIX) {
+        return "learnings".to_string();
+    }
+    if let Some((head, _)) = api_path.split_once('/') {
+        if !head.is_empty() {
+            return head.to_string();
+        }
+    }
+    "memory".to_string()
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -676,11 +692,13 @@ pub fn memory_graph(workspace_cwd: String) -> Result<GraphData, String> {
             .and_then(|s| s.to_str())
             .unwrap_or("")
             .to_owned();
+        let category = graph_category_for(rel);
         nodes.push(GraphNode {
             id: rel.clone(),
             label: stem,
             tags: node_tags,
             orphan: false,
+            category,
         });
         for raw in links {
             let lower = raw.to_ascii_lowercase();

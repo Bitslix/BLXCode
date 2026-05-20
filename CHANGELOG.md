@@ -9,7 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Dynamic memory categories**: any subdirectory under `.agents/memory/` is now a real category in the sidebar and graph (built-in `memory` / `learnings` keep their special handling). New Tauri commands `memory_list_categories` and `memory_create_category` (creates the folder and drops `.gitkeep` so empty categories persist). `MemoryNoteGroup.key` and `groups_open` switched from `&'static str` to `String`; grouping derives the category from the first API-path segment.
+- **Memory panel — Discord-style toolbar**: the top inline "note title…" input is gone. The toolbar holds a `+ Kategorie` button (`LuFolderPlus`) that opens `NewCategoryDialog`, plus the existing collapse button. Each category header gets a hover-revealed `+` button (`workbench-memory-files__group-add`) that opens `NewNoteDialog` prefilled with the clicked category.
+- **Dialogs**: `NewCategoryDialog` (name input → `memory_create_category`) and `NewNoteDialog` (title input → `memory_create` with `<category>/<note>.md` API path). Both reuse the `workspace-rename-dialog` styling and post errors inline.
+- **Graph clustering by category**: backend `GraphNode` carries a `category` string derived from the API path; the 2D force layout adds a per-iteration centroid attraction that pulls same-category nodes together, and the 3D bundle (`graph3d_entry.mjs`) installs a `categoryClusterForce` d3-force with matching behavior. Node fill comes from the category's color setting in both renderers.
+- **Per-category colors for any folder**: `MemoryCategorySettings::for_category` returns a deterministic `#rrggbb` (FNV-1a → HSL → hex) and uses the folder name as the label for user-created categories; built-in `memory` / `learnings` keep their existing colors. The sidebar accent stripe and graph node fill always match.
+- **Sidebar Project Files resize**: added `SidebarResizer` (drag handle with pointer capture) so the Project Files panel defaults to 50% of the sidebar height and is user-resizable; persisted as `blxcode_sidebar_explorer_height_pct_v1` (clamped 15–85%).
+- **System prompt — Workspace memory**: rewrote the section to document dynamic categories, the new `memory_list_categories` / `memory_create_category` tools, that `memory_rename` may cross categories within `.agents/memory/`, that `memory_category_update` accepts any existing category key, and that `memory_graph` nodes are clustered by category.
+- **i18n**: `MemNewCategory`, `MemNewCategoryTitle`, `MemNewCategoryLabel`, `MemNewCategoryPh`, `MemNewNoteTitle`, `MemNewNoteLabel`, `MemNewNoteInGroup`, `MemCreate` — added to all 14 locales (English fallbacks for non-`de_de`).
+
 ### Changed
+
+- `expand_files_group_for_path`, `MemoryFileGroupHead` / `MemoryFileGroupSection`, `MemoryContextTarget::Category::key`, `MemoryCategoryEditDialog`, `add_category_agent_context`, and `MemoryContextMenuView` all moved from `&'static str` category keys to owned `String` for dynamic categories.
+- `memory_note_groups` now derives groups from the active workspace's notes plus `state.empty_categories` (loaded via `memory_list_categories`), sorts with `memory` first, `learnings` second, then alphabetic.
 
 ### Fixed
 

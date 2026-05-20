@@ -893,6 +893,10 @@ pub struct GraphNode {
     pub orphan: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
+    /// Category key (derived from path prefix). Filled in by the frontend
+    /// after fetching, used by the renderer to cluster nodes per category.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
 }
 
 #[allow(dead_code)]
