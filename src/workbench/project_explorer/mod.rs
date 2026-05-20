@@ -4,12 +4,12 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{is_tauri_shell, list_path_entries, FsEntryBrief};
 use crate::workbench::sidebar_view_section::{SidebarSectionIconBtn, SidebarViewSection};
+use crate::workbench::state::WorkspaceEntry;
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
 use std::collections::HashSet;
-use std::path::Path;
 
 #[component]
 pub fn ProjectExplorerSection() -> impl IntoView {
@@ -17,23 +17,14 @@ pub fn ProjectExplorerSection() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let collapsed = wb.sidebar_collapsed();
 
-    let section_title = Memo::new(move |_| {
-        let fallback = i18n.tr(I18nKey::SbExplorerTitle)();
-        wb.with_active_workspace_entry()
-            .map(|w| {
-                let t = w.title.trim();
-                if t.is_empty() {
-                    Path::new(&w.cwd)
-                        .file_name()
-                        .and_then(|n| n.to_str())
-                        .unwrap_or(&fallback)
-                        .to_string()
-                } else {
-                    t.to_string()
-                }
-            })
-            .unwrap_or_else(|| fallback.to_string())
+    let active_workspace = Memo::new(move |_| {
+        let active_id = wb.active_id().get();
+        wb.workspaces()
+            .get()
+            .into_iter()
+            .find(|w| Some(w.id) == active_id)
     });
+    let section_title = Signal::derive(move || i18n.tr(I18nKey::SbExplorerTitle)().to_string());
 
     let explorer_open = RwSignal::new(wb.active_sidebar_explorer_open());
     let open_paths = RwSignal::new(HashSet::<String>::new());
@@ -42,7 +33,9 @@ pub fn ProjectExplorerSection() -> impl IntoView {
     let error_msg = RwSignal::new(None::<String>);
 
     Effect::new(move |_| {
-        let _ = wb.active_id().get();
+        let _ = active_workspace
+            .get()
+            .map(|w| (w.id, w.cwd, w.configuring));
         explorer_open.set(wb.active_sidebar_explorer_open());
         open_paths.set(
             wb.active_sidebar_explorer_expanded_paths()
@@ -70,15 +63,15 @@ pub fn ProjectExplorerSection() -> impl IntoView {
 
     let show_section = move || {
         !collapsed.get()
-            && wb
-                .with_active_workspace_entry()
+            && active_workspace
+                .get()
                 .is_some_and(|w| !w.configuring && !w.cwd.trim().is_empty())
     };
 
     view! {
         <Show when=show_section>
             <SidebarViewSection
-                title=Signal::derive(move || section_title.get())
+                title=section_title
                 section_id="sb-explorer"
                 open=explorer_open
                 toolbar=view! {
@@ -100,6 +93,7 @@ pub fn ProjectExplorerSection() -> impl IntoView {
                 }.into_any()
             >
                 <ProjectExplorerBody
+                    active_workspace=active_workspace
                     open_paths=open_paths
                     children_cache=children_cache
                     load_gen=load_gen
@@ -112,17 +106,20 @@ pub fn ProjectExplorerSection() -> impl IntoView {
 
 #[component]
 fn ProjectExplorerBody(
+    active_workspace: Memo<Option<WorkspaceEntry>>,
     open_paths: RwSignal<HashSet<String>>,
     children_cache: RwSignal<HashMap<String, Vec<FsEntryBrief>>>,
     load_gen: RwSignal<u32>,
     error_msg: RwSignal<Option<String>>,
 ) -> impl IntoView {
-    let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
 
     Effect::new(move |_| {
         let _gen = load_gen.get();
-        let Some(ws) = wb.with_active_workspace_entry() else {
+        let Some(ws) = active_workspace.get() else {
+            return;
+        };
+        if ws.configuring || ws.cwd.trim().is_empty() {
             return;
         };
         let root = ws.cwd.clone();

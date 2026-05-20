@@ -473,6 +473,7 @@ pub async fn list_path_entries(
     path: String,
 ) -> Result<Vec<FsEntryBrief>, String> {
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct A {
         workspace_root: String,
         path: String,

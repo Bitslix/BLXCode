@@ -51,7 +51,7 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::SbExpand => "Show sidebar",
         I18nKey::SbCollapse => "Hide sidebar",
         I18nKey::SbHeading => "Workspaces",
-        I18nKey::SbExplorerTitle => "Explorer",
+        I18nKey::SbExplorerTitle => "Project Files",
         I18nKey::SbGraphTitle => "Graph",
         I18nKey::SbSectionExpand => "Expand section",
         I18nKey::SbSectionCollapse => "Collapse section",
