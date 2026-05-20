@@ -6,6 +6,7 @@ mod memory_paths;
 mod open_http;
 mod quit;
 mod service;
+mod skills_rules_wire;
 mod tauri_bridge;
 mod workbench;
 

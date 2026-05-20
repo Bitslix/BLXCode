@@ -8,6 +8,7 @@ mod git_info;
 mod gitignore;
 mod memory;
 mod pty_host;
+mod skills_rules;
 mod tasks;
 mod voice;
 mod workbench_state;
