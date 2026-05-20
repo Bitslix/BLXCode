@@ -19,7 +19,7 @@ use leptos::task::spawn_local;
 use wasm_bindgen::JsCast;
 use web_sys::{DragEvent, HtmlInputElement};
 
-const APP_NAME: &str = "blxcode";
+const APP_NAME: &str = "BLXCode";
 const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn workspace_icon_label(title: &str, fallback_num: u64) -> String {

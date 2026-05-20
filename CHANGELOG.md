@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Sidebar footer brand label is **BLXCode** (was lowercase `blxcode`).
+- Plans panel: task-summary status chips and icons are larger and easier to read.
+
 ### Removed
 
 ## [0.1.12] - 2026-05-20
