@@ -1,7 +1,11 @@
 use crate::config::{
     SIDEBAR_EXPLORER_HEIGHT_PCT_DEFAULT, SIDEBAR_EXPLORER_HEIGHT_PCT_KEY,
     SIDEBAR_EXPLORER_HEIGHT_PCT_MAX, SIDEBAR_EXPLORER_HEIGHT_PCT_MIN,
+    SIDEBAR_PANELS_HEIGHT_PCT_DEFAULT, SIDEBAR_PANELS_HEIGHT_PCT_KEY,
+    SIDEBAR_PANELS_HEIGHT_PCT_MAX, SIDEBAR_PANELS_HEIGHT_PCT_MIN, SIDEBAR_WIDTH_PX_DEFAULT,
+    SIDEBAR_WIDTH_PX_MIN,
 };
+use crate::workbench::sidebar_resizer::SidebarResizerClamp;
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{git_is_repository, is_tauri_shell};
@@ -46,7 +50,11 @@ pub fn Sidebar() -> impl IntoView {
 
     let collapsed = wb.sidebar_collapsed();
     let workspaces = wb.workspaces();
+    let panels_height_pct = RwSignal::new(read_panels_height_pct());
     let explorer_height_pct = RwSignal::new(read_explorer_height_pct());
+    Effect::new(move |_| {
+        write_panels_height_pct(panels_height_pct.get());
+    });
     Effect::new(move |_| {
         write_explorer_height_pct(explorer_height_pct.get());
     });
@@ -114,6 +122,18 @@ pub fn Sidebar() -> impl IntoView {
                     c.push_str(" workbench-sidebar--collapsed");
                 }
                 c
+            }
+            style=move || {
+                if collapsed.get() {
+                    return String::new();
+                }
+                let w = wb.sidebar_width_px().get();
+                let w = if w.is_finite() {
+                    w.max(SIDEBAR_WIDTH_PX_MIN)
+                } else {
+                    SIDEBAR_WIDTH_PX_DEFAULT
+                };
+                format!("width:{w:.0}px;flex-shrink:0;")
             }
             aria-label=move || i18n.tr(I18nKey::SbAria)()
         >
@@ -332,7 +352,23 @@ pub fn Sidebar() -> impl IntoView {
             </nav>
 
             <Show when=move || !collapsed.get()>
-                <div class="workbench-sidebar__views">
+                <SidebarResizer
+                    height_pct=panels_height_pct
+                    container_selector=".workbench-sidebar"
+                    measure_from_bottom=true
+                    clamp=SidebarResizerClamp::PanelsInSidebar
+                    aria_key=I18nKey::SbPanelsResizeAria
+                    extra_class="workbench-sidebar__resizer--panels-boundary"
+                />
+                <div
+                    class="workbench-sidebar__panels"
+                    style=move || {
+                        format!(
+                            "flex: 0 0 {pct:.2}%; min-height: 0;",
+                            pct = panels_height_pct.get(),
+                        )
+                    }
+                >
                     <div
                         class="workbench-sidebar__explorer-slot"
                         style=move || {
@@ -346,7 +382,8 @@ pub fn Sidebar() -> impl IntoView {
                     </div>
                     <SidebarResizer
                         height_pct=explorer_height_pct
-                        container_selector=".workbench-sidebar__views"
+                        container_selector=".workbench-sidebar__panels"
+                        aria_key=I18nKey::SbExplorerResizeAria
                     />
                     <div class="workbench-sidebar__graph-slot">
                         <GitGraphSection git_repo_available=git_repo_available.read_only() />
@@ -497,6 +534,25 @@ struct WorkspaceContextMenu {
 #[derive(Clone, Copy, Debug)]
 struct RenameWorkspaceDialog {
     workspace_id: u64,
+}
+
+fn read_panels_height_pct() -> f64 {
+    let stored = web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten())
+        .and_then(|s| s.get_item(SIDEBAR_PANELS_HEIGHT_PCT_KEY).ok().flatten())
+        .and_then(|raw| raw.parse::<f64>().ok());
+    let pct = stored.unwrap_or(SIDEBAR_PANELS_HEIGHT_PCT_DEFAULT);
+    pct.max(SIDEBAR_PANELS_HEIGHT_PCT_MIN)
+        .min(SIDEBAR_PANELS_HEIGHT_PCT_MAX)
+}
+
+fn write_panels_height_pct(pct: f64) {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    if let Ok(Some(storage)) = window.local_storage() {
+        let _ = storage.set_item(SIDEBAR_PANELS_HEIGHT_PCT_KEY, &format!("{pct:.2}"));
+    }
 }
 
 fn read_explorer_height_pct() -> f64 {

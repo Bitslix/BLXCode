@@ -139,6 +139,26 @@ body {
   min-height: 0;
 }
 
+.workbench-left-slot {
+  display: flex;
+  flex-direction: row;
+  flex-shrink: 0;
+  align-items: stretch;
+  min-height: 0;
+}
+
+.workbench-left-slot--resizing {
+  cursor: col-resize;
+}
+
+.workbench-splitter--sidebar {
+  flex-shrink: 0;
+}
+
+.workbench-resize-shield--col {
+  cursor: col-resize !important;
+}
+
 .workbench-main {
   flex: 1;
   display: flex;
@@ -149,7 +169,7 @@ body {
 
 .workbench-sidebar {
   flex-shrink: 0;
-  width: clamp(216px, 22vw, 280px);
+  min-width: 200px;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -288,16 +308,16 @@ body {
 }
 
 .workbench-sidebar__nav {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-height: 0;
-  max-height: 32%;
   overflow-y: auto;
 }
 
-.workbench-sidebar__views {
-  flex: 1 1 auto;
-  margin-top: 0;
+.workbench-sidebar__panels {
+  flex: 0 0 50%;
+  max-height: 75%;
   min-height: 0;
+  margin-top: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -362,7 +382,8 @@ body {
   opacity: 1;
 }
 
-.workbench-sidebar--collapsed .workbench-sidebar__views {
+.workbench-sidebar--collapsed .workbench-sidebar__panels,
+.workbench-sidebar--collapsed .workbench-sidebar__resizer--panels-boundary {
   display: none;
 }
 
@@ -6717,7 +6738,7 @@ button {
   flex: 0 0 auto;
 }
 
-/* Slot wrappers in `.workbench-sidebar__views` control the section height now. */
+/* Slot wrappers in `.workbench-sidebar__panels` control the section height now. */
 .sidebar-view-section--sb-explorer,
 .sidebar-view-section--sb-graph {
   flex: 1 1 auto;
@@ -6845,6 +6866,20 @@ button {
 
 .project-explorer__row--file {
   cursor: default;
+}
+
+.project-explorer__row--dir {
+  cursor: pointer;
+}
+
+.project-explorer__row--dir:hover {
+  background: var(--bg-hover);
+}
+
+.sidebar-view-section__icon-btn--pressed {
+  color: var(--text);
+  background: var(--bg-hover);
+  border-color: var(--border);
 }
 
 .project-explorer__chev-btn {

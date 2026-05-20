@@ -41,7 +41,10 @@ pub use state::{
 };
 pub use workspace_panel::WorkspacePanel;
 
+use crate::config::{SIDEBAR_WIDTH_PX_KEY, SIDEBAR_WIDTH_PX_MIN};
+use crate::i18n::I18nKey;
 use crate::open_http::{dom_click_nav_href, DomNavHref};
+use crate::service::I18nService;
 use crate::tauri_bridge::{
     browser_embedding_kind, harness_ensure_default_sandbox, is_tauri_shell,
     workbench_extract_sessions_prefix, workbench_load_state, workbench_merge_sessions_workspace,
@@ -59,6 +62,23 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
+
+const SIDEBAR_WORKSPACE_MIN_PX: f64 = 240.0;
+
+fn viewport_width_px() -> f64 {
+    web_sys::window()
+        .and_then(|w| w.inner_width().ok())
+        .and_then(|v| v.as_f64())
+        .unwrap_or(1280.0)
+}
+
+fn sidebar_width_max_px(viewport_w: f64) -> f64 {
+    let max_by_ratio = viewport_w * 0.4;
+    let max_by_space = viewport_w - SIDEBAR_WORKSPACE_MIN_PX;
+    max_by_ratio
+        .max(SIDEBAR_WIDTH_PX_MIN)
+        .min(max_by_space.max(SIDEBAR_WIDTH_PX_MIN))
+}
 
 /// Debounce window before a dirty workbench gets flushed to disk. Short
 /// enough to feel "live", long enough to coalesce a burst of mutations
@@ -187,6 +207,7 @@ pub fn WorkbenchShell() -> impl IntoView {
         let _ = wb.active_id().get();
         let _ = wb.recent_workspaces().get();
         let _ = wb.sidebar_collapsed().get();
+        let _ = wb.sidebar_width_px().get();
         let _ = wb.right_collapsed().get();
         let _ = wb.right_width_px().get();
         let _ = wb.right_active_tab().get();
@@ -334,9 +355,90 @@ pub fn WorkbenchShell() -> impl IntoView {
         });
     });
 
+    let i18n = expect_context::<I18nService>();
+    let sidebar_resizing = RwSignal::new(false);
+    let sidebar_drag_anchor_x = RwSignal::new(0.0_f64);
+    let sidebar_drag_anchor_w = RwSignal::new(0.0_f64);
+
+    Effect::new(move |_| {
+        let w = wb.sidebar_width_px().get();
+        let Some(window) = web_sys::window() else {
+            return;
+        };
+        if let Ok(Some(storage)) = window.local_storage() {
+            let _ = storage.set_item(SIDEBAR_WIDTH_PX_KEY, &format!("{w:.0}"));
+        }
+    });
+
+    Effect::new(move |_| {
+        if !sidebar_resizing.get() {
+            return;
+        }
+        let width_sig = wb.sidebar_width_px();
+        let ax = sidebar_drag_anchor_x;
+        let aw = sidebar_drag_anchor_w;
+        let resizing_sig = sidebar_resizing;
+
+        let move_h = window_event_listener_untyped("mousemove", move |ev| {
+            let me = match ev.dyn_into::<web_sys::MouseEvent>() {
+                Ok(m) => m,
+                Err(_) => return,
+            };
+            let dx = f64::from(me.client_x()) - ax.get_untracked();
+            let viewport_w = viewport_width_px();
+            let next = (aw.get_untracked() + dx).clamp(
+                SIDEBAR_WIDTH_PX_MIN,
+                sidebar_width_max_px(viewport_w),
+            );
+            width_sig.set(next);
+        });
+
+        let up_h = window_event_listener_untyped("mouseup", move |_| {
+            resizing_sig.set(false);
+        });
+
+        on_cleanup(move || {
+            move_h.remove();
+            up_h.remove();
+        });
+    });
+
+    let on_sidebar_splitter_down = move |ev: web_sys::MouseEvent| {
+        if wb.sidebar_collapsed().get_untracked() {
+            return;
+        }
+        ev.prevent_default();
+        sidebar_drag_anchor_x.set(ev.client_x() as f64);
+        sidebar_drag_anchor_w.set(wb.sidebar_width_px().get_untracked());
+        sidebar_resizing.set(true);
+    };
+
     view! {
         <main class="container app-shell workbench-root">
-            <Sidebar />
+            <div
+                class=move || {
+                    let mut c = String::from("workbench-left-slot");
+                    if sidebar_resizing.get() {
+                        c.push_str(" workbench-left-slot--resizing");
+                    }
+                    c
+                }
+            >
+                <Sidebar />
+                <Show when=move || !wb.sidebar_collapsed().get()>
+                    <div
+                        class="workbench-splitter workbench-splitter--sidebar"
+                        role="separator"
+                        aria-orientation="vertical"
+                        aria-label=move || i18n.tr(I18nKey::SbWidthSplitterAria)()
+                        on:mousedown=on_sidebar_splitter_down
+                    >
+                    </div>
+                </Show>
+            </div>
+            <Show when=move || sidebar_resizing.get()>
+                <div class="workbench-resize-shield workbench-resize-shield--col" aria-hidden="true"></div>
+            </Show>
             <div class="workbench-main">
                 <WorkspacePanel />
                 <RightPanel />

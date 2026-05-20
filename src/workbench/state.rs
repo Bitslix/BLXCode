@@ -1,7 +1,7 @@
 use crate::agent_wire::{AgentContextItem, AgentImageContextItem};
 use crate::config::{
     HARNESS_BROWSER_DEFAULT_URL, HARNESS_BROWSER_URL_KEY, HARNESS_WORKSPACE_ROOT_KEY,
-    MEMORY_COLOR_PRESETS_STORAGE_KEY,
+    MEMORY_COLOR_PRESETS_STORAGE_KEY, SIDEBAR_WIDTH_PX_DEFAULT, SIDEBAR_WIDTH_PX_KEY,
 };
 use crate::tauri_bridge::{
     is_tauri_shell, skills_rules_bootstrap, workbench_drop_sessions,
@@ -84,6 +84,10 @@ pub struct WorkspaceEntry {
 
 fn default_sidebar_section_open() -> bool {
     true
+}
+
+fn default_sidebar_width_px() -> f64 {
+    SIDEBAR_WIDTH_PX_DEFAULT
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -688,6 +692,7 @@ pub struct WorkbenchService {
     active_id: RwSignal<Option<u64>>,
     recent_workspaces: RwSignal<Vec<RecentWorkspaceItem>>,
     sidebar_collapsed: RwSignal<bool>,
+    sidebar_width_px: RwSignal<f64>,
     right_collapsed: RwSignal<bool>,
     right_width_px: RwSignal<f64>,
     right_tab: RwSignal<RightPanelTab>,
@@ -757,11 +762,17 @@ impl WorkbenchService {
 
         let first_tab_id = 1_u64;
 
+        let sidebar_width_px = read_local_storage(SIDEBAR_WIDTH_PX_KEY)
+            .and_then(|s| s.parse::<f64>().ok())
+            .filter(|w| w.is_finite() && *w >= 120.0)
+            .unwrap_or(SIDEBAR_WIDTH_PX_DEFAULT);
+
         Self {
             workspaces: RwSignal::new(Vec::new()),
             active_id: RwSignal::new(None),
             recent_workspaces: RwSignal::new(Vec::new()),
             sidebar_collapsed: RwSignal::new(false),
+            sidebar_width_px: RwSignal::new(sidebar_width_px),
             right_collapsed: RwSignal::new(false),
             right_width_px: RwSignal::new(420.0),
             right_tab: RwSignal::new(RightPanelTab::Agent),
@@ -1538,6 +1549,10 @@ impl WorkbenchService {
     #[must_use]
     pub fn sidebar_collapsed(&self) -> RwSignal<bool> {
         self.sidebar_collapsed
+    }
+
+    pub fn sidebar_width_px(&self) -> RwSignal<f64> {
+        self.sidebar_width_px
     }
 
     pub fn toggle_sidebar(&self) {
@@ -2371,6 +2386,7 @@ impl WorkbenchService {
             active_id,
             workspace_next_id: self.workspace_next_id.get_untracked(),
             sidebar_collapsed: self.sidebar_collapsed.get_untracked(),
+            sidebar_width_px: self.sidebar_width_px.get_untracked(),
             right_collapsed: self.right_collapsed.get_untracked(),
             right_width_px: self.right_width_px.get_untracked(),
             right_tab: self.right_tab.get_untracked(),
@@ -2458,6 +2474,9 @@ impl WorkbenchService {
 
         // Panel chrome
         self.sidebar_collapsed.set(snap.sidebar_collapsed);
+        if snap.sidebar_width_px.is_finite() && snap.sidebar_width_px >= 120.0 {
+            self.sidebar_width_px.set(snap.sidebar_width_px);
+        }
         self.right_collapsed.set(snap.right_collapsed);
         if snap.right_width_px.is_finite() && snap.right_width_px > 120.0 {
             self.right_width_px.set(snap.right_width_px);
@@ -2498,6 +2517,8 @@ pub struct WorkbenchSnapshot {
     pub active_id: Option<u64>,
     pub workspace_next_id: u64,
     pub sidebar_collapsed: bool,
+    #[serde(default = "default_sidebar_width_px")]
+    pub sidebar_width_px: f64,
     pub right_collapsed: bool,
     pub right_width_px: f64,
     pub right_tab: RightPanelTab,

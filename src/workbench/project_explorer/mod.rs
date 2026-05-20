@@ -1,5 +1,6 @@
 //! Sidebar project file tree (workspace `cwd`).
 
+use crate::config::SIDEBAR_EXPLORER_SHOW_HIDDEN_KEY;
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{is_tauri_shell, list_path_entries, FsEntryBrief};
@@ -31,6 +32,7 @@ pub fn ProjectExplorerSection() -> impl IntoView {
     let children_cache = RwSignal::new(HashMap::<String, Vec<FsEntryBrief>>::new());
     let load_gen = RwSignal::new(0u32);
     let error_msg = RwSignal::new(None::<String>);
+    let show_hidden = RwSignal::new(read_explorer_show_hidden());
 
     Effect::new(move |_| {
         let _ = active_workspace
@@ -54,6 +56,10 @@ pub fn ProjectExplorerSection() -> impl IntoView {
     Effect::new(move |_| {
         let paths: Vec<String> = open_paths.get().into_iter().collect();
         wb.set_active_sidebar_explorer_expanded_paths(paths);
+    });
+
+    Effect::new(move |_| {
+        write_explorer_show_hidden(show_hidden.get());
     });
 
     let reload = move || {
@@ -81,15 +87,36 @@ pub fn ProjectExplorerSection() -> impl IntoView {
                     >
                         <LxIcon icon=icondata::LuRefreshCw width="0.75rem" height="0.75rem" />
                     </SidebarSectionIconBtn>
-                    <SidebarSectionIconBtn
-                        aria_key=I18nKey::SbExplorerCollapseAll
-                        on_click=Callback::new(move |_| {
-                            open_paths.set(HashSet::new());
-                            children_cache.set(HashMap::new());
-                        })
+                    <button
+                        type="button"
+                        class="sidebar-view-section__icon-btn"
+                        class:sidebar-view-section__icon-btn--pressed=move || show_hidden.get()
+                        aria-pressed=move || show_hidden.get().to_string()
+                        aria-label=move || {
+                            if show_hidden.get() {
+                                i18n.tr(I18nKey::SbExplorerHideHidden)()
+                            } else {
+                                i18n.tr(I18nKey::SbExplorerShowHidden)()
+                            }
+                        }
+                        title=move || {
+                            if show_hidden.get() {
+                                i18n.tr(I18nKey::SbExplorerHideHidden)()
+                            } else {
+                                i18n.tr(I18nKey::SbExplorerShowHidden)()
+                            }
+                        }
+                        on:click=move |_| show_hidden.update(|v| *v = !*v)
                     >
-                        <LxIcon icon=icondata::LuChevronsDownUp width="0.75rem" height="0.75rem" />
-                    </SidebarSectionIconBtn>
+                        <Show
+                            when=move || show_hidden.get()
+                            fallback=move || view! {
+                                <LxIcon icon=icondata::LuEye width="0.75rem" height="0.75rem" />
+                            }
+                        >
+                            <LxIcon icon=icondata::LuEyeOff width="0.75rem" height="0.75rem" />
+                        </Show>
+                    </button>
                 }.into_any()
             >
                 <ProjectExplorerBody
@@ -98,6 +125,7 @@ pub fn ProjectExplorerSection() -> impl IntoView {
                     children_cache=children_cache
                     load_gen=load_gen
                     error_msg=error_msg
+                    show_hidden=show_hidden
                 />
             </SidebarViewSection>
         </Show>
@@ -111,6 +139,7 @@ fn ProjectExplorerBody(
     children_cache: RwSignal<HashMap<String, Vec<FsEntryBrief>>>,
     load_gen: RwSignal<u32>,
     error_msg: RwSignal<Option<String>>,
+    show_hidden: RwSignal<bool>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
 
@@ -169,6 +198,7 @@ fn ProjectExplorerBody(
                             children_cache=children_cache
                             load_gen=load_gen
                             error_msg=error_msg
+                            show_hidden=show_hidden
                         />
                     </ul>
                 </Show>
@@ -185,16 +215,21 @@ fn ExplorerChildren(
     children_cache: RwSignal<HashMap<String, Vec<FsEntryBrief>>>,
     load_gen: RwSignal<u32>,
     error_msg: RwSignal<Option<String>>,
+    show_hidden: RwSignal<bool>,
 ) -> impl IntoView {
     let parent_rel = rel_path.clone();
     let entries = Memo::new({
         let parent_rel = parent_rel.clone();
         move |_| {
+            let show_h = show_hidden.get();
             children_cache
                 .get()
                 .get(&parent_rel)
                 .cloned()
                 .unwrap_or_default()
+                .into_iter()
+                .filter(|e| show_h || !e.hidden)
+                .collect::<Vec<_>>()
         }
     });
 
@@ -232,6 +267,7 @@ fn ExplorerChildren(
                         children_cache=children_cache
                         load_gen=load_gen
                         error_msg=error_msg
+                        show_hidden=show_hidden
                     />
                 }
             }
@@ -250,6 +286,7 @@ fn ExplorerNode(
     children_cache: RwSignal<HashMap<String, Vec<FsEntryBrief>>>,
     load_gen: RwSignal<u32>,
     error_msg: RwSignal<Option<String>>,
+    show_hidden: RwSignal<bool>,
 ) -> AnyView {
     let wb = expect_context::<WorkbenchService>();
     let name = entry.name.clone();
@@ -319,37 +356,26 @@ fn ExplorerNode(
         <li class="project-explorer__node" role="none">
             <div
                 class=move || {
-                    let mut c = String::from("project-explorer__row");
+                    let mut c = String::from("project-explorer__row project-explorer__row--dir");
                     if hidden { c.push_str(" project-explorer__row--hidden"); }
-                    if !is_dir { c.push_str(" project-explorer__row--file"); }
                     c
                 }
                 style=pad
                 role="treeitem"
                 aria-expanded=move || (is_dir && is_open.get()).to_string()
+                on:click=move |_| toggle.run(())
             >
                 <button
                     type="button"
                     class="project-explorer__chev-btn"
-                    class:project-explorer__chev-btn--spacer=move || !is_dir
-                    disabled=move || !is_dir
-                    aria-label=move || if is_dir {
-                        if is_open.get() { "Collapse" } else { "Expand" }
-                    } else {
-                        ""
+                    aria-label=move || if is_open.get() { "Collapse" } else { "Expand" }
+                    on:click=move |ev| {
+                        ev.stop_propagation();
+                        toggle.run(());
                     }
-                    on:click=move |_| toggle.run(())
                 >
                     <span class="project-explorer__chev" aria-hidden="true">
-                        {move || {
-                            if !is_dir {
-                                " "
-                            } else if is_open.get() {
-                                "▾"
-                            } else {
-                                "▸"
-                            }
-                        }}
+                        {move || if is_open.get() { "▾" } else { "▸" }}
                     </span>
                 </button>
                 <span class="project-explorer__icon" aria-hidden="true">
@@ -368,6 +394,7 @@ fn ExplorerNode(
                                 children_cache=children_cache
                                 load_gen=load_gen
                                 error_msg=error_msg
+                                show_hidden=show_hidden
                             />
                         </ul>
                     })
@@ -378,6 +405,25 @@ fn ExplorerNode(
         </li>
     }
     .into_any()
+}
+
+fn read_explorer_show_hidden() -> bool {
+    web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten())
+        .and_then(|s| s.get_item(SIDEBAR_EXPLORER_SHOW_HIDDEN_KEY).ok().flatten())
+        .is_some_and(|v| v == "1")
+}
+
+fn write_explorer_show_hidden(show: bool) {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    if let Ok(Some(storage)) = window.local_storage() {
+        let _ = storage.set_item(
+            SIDEBAR_EXPLORER_SHOW_HIDDEN_KEY,
+            if show { "1" } else { "0" },
+        );
+    }
 }
 
 use std::collections::HashMap;

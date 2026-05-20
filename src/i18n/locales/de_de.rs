@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "Annehmen",
         I18nKey::GitignorePromptTitle => ".blxcode zur .gitignore hinzufügen?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode speichert lokale Workspace-Daten (Aufgaben, Sitzungen) im Ordner `.blxcode`. \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nSoll dieser Eintrag in die `.gitignore` dieses Projekts aufgenommen werden, damit er nicht versehentlich committed wird?"
+            "BLXCode speichert lokale Workspace-Daten (Aufgaben, Sitzungen) im Ordner `.blxcode`. \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nSoll dieser Eintrag in die `.gitignore` dieses Projekts aufgenommen werden, damit er nicht versehentlich committed wird?"
         }
         I18nKey::GitignorePromptYes => "Ja, hinzufügen",
         I18nKey::GitignorePromptNo => "Nicht jetzt",
@@ -50,7 +50,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbSectionExpand => "Bereich aufklappen",
         I18nKey::SbSectionCollapse => "Bereich einklappen",
         I18nKey::SbExplorerRefresh => "Dateibaum aktualisieren",
-        I18nKey::SbExplorerCollapseAll => "Alle Ordner einklappen",
+        I18nKey::SbExplorerShowHidden => "Ausgeblendete Dateien anzeigen",
+        I18nKey::SbExplorerHideHidden => "Ausgeblendete Dateien verbergen",
+        I18nKey::SbExplorerResizeAria => "Projektdateien- und Graph-Bereich vergrößern",
+        I18nKey::SbPanelsResizeAria => "Workspaces- und unteren Bereich vergrößern",
+        I18nKey::SbWidthSplitterAria => "Sidebar-Breite",
         I18nKey::SbGraphRefresh => "Commit-Graph aktualisieren",
         I18nKey::SbExplorerNoCwd => "Lege einen Workspace-Ordner fest, um Dateien anzuzeigen.",
         I18nKey::SbExplorerTauriOnly => "Der Datei-Explorer ist nur in der Desktop-App verfügbar.",
@@ -169,7 +173,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppShortcutModeTmux => "Tmux-Stil (Ctrl+b, dann Taste)",
         I18nKey::AppShortcutModeLegacy => "Klassisch (Ctrl / Ctrl+Shift)",
         I18nKey::AppShortcutModeHint => {
-            "Tmux: Prefix Ctrl+b, dann zweite Taste (z. B. n für neues Terminal, : für Befehlspalette). \\\\\\\\\\\\\\\\\nKlassisch: Ctrl+O Schnell öffnen, Ctrl+` neues Terminal, Ctrl+Shift+P Palette."
+            "Tmux: Prefix Ctrl+b, dann zweite Taste (z. B. n für neues Terminal, : für Befehlspalette). \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nKlassisch: Ctrl+O Schnell öffnen, Ctrl+` neues Terminal, Ctrl+Shift+P Palette."
         }
         I18nKey::MemShowInGraph => "Im Graph zeigen",
         I18nKey::MemGraph3dLoadFailed => "3D-Grafik konnte nicht geladen werden. 2D-Grafik wird angezeigt.",

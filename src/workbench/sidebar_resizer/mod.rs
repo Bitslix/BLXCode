@@ -1,33 +1,65 @@
-//! Vertical drag handle that resizes the Project Explorer slot within the sidebar.
+//! Vertical drag handle that resizes stacked sidebar sections.
 //!
-//! Sits between two stacked sidebar sections (explorer above, graph below).
-//! Dragging it adjusts a percent value, clamped to a project-wide range.
+//! Sits between two stacked blocks (workspaces ↔ panels, or explorer ↔ graph).
+//! Dragging adjusts a percent value, clamped to a project-wide range.
 
-use crate::config::{SIDEBAR_EXPLORER_HEIGHT_PCT_MAX, SIDEBAR_EXPLORER_HEIGHT_PCT_MIN};
+use crate::config::{
+    SIDEBAR_EXPLORER_HEIGHT_PCT_MAX, SIDEBAR_EXPLORER_HEIGHT_PCT_MIN,
+    SIDEBAR_PANELS_HEIGHT_PCT_MAX, SIDEBAR_PANELS_HEIGHT_PCT_MIN,
+};
+use crate::i18n::I18nKey;
+use crate::service::I18nService;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{Element, PointerEvent};
 
+#[derive(Clone, Copy, Default)]
+pub enum SidebarResizerClamp {
+    #[default]
+    ExplorerInPanels,
+    PanelsInSidebar,
+}
+
+impl SidebarResizerClamp {
+    fn min_max(self) -> (f64, f64) {
+        match self {
+            Self::ExplorerInPanels => {
+                (SIDEBAR_EXPLORER_HEIGHT_PCT_MIN, SIDEBAR_EXPLORER_HEIGHT_PCT_MAX)
+            }
+            Self::PanelsInSidebar => {
+                (SIDEBAR_PANELS_HEIGHT_PCT_MIN, SIDEBAR_PANELS_HEIGHT_PCT_MAX)
+            }
+        }
+    }
+}
+
 #[component]
 pub fn SidebarResizer(
-    /// Current slot height as percent of the sidebar `__views` container.
+    /// Current slot height as percent of the container given by `container_selector`.
     height_pct: RwSignal<f64>,
     /// CSS selector used to look up the container whose height is the 100% basis.
     container_selector: &'static str,
+    /// When true, `height_pct` is the portion from the pointer down to the container bottom.
+    #[prop(default = false)]
+    measure_from_bottom: bool,
+    #[prop(default = SidebarResizerClamp::ExplorerInPanels)]
+    clamp: SidebarResizerClamp,
+    aria_key: I18nKey,
+    #[prop(default = "")]
+    extra_class: &'static str,
 ) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     let dragging = RwSignal::new(false);
 
     let on_pointer_down = move |ev: PointerEvent| {
         ev.prevent_default();
         dragging.set(true);
-        // Capture pointer so we keep receiving move events outside the handle.
         if let Some(target) = ev.target().and_then(|t| t.dyn_into::<Element>().ok()) {
             let _ = target.set_pointer_capture(ev.pointer_id());
         }
     };
 
-    // Global move/up listeners run only while dragging.
     let move_listener = window_event_listener_untyped("pointermove", move |ev| {
         if !dragging.get_untracked() {
             return;
@@ -47,11 +79,13 @@ pub fn SidebarResizer(
             return;
         }
         let offset = f64::from(pe.client_y()) - rect.top();
-        let pct = (offset / height) * 100.0;
-        let clamped = pct
-            .max(SIDEBAR_EXPLORER_HEIGHT_PCT_MIN)
-            .min(SIDEBAR_EXPLORER_HEIGHT_PCT_MAX);
-        height_pct.set(clamped);
+        let pct = if measure_from_bottom {
+            ((height - offset) / height) * 100.0
+        } else {
+            (offset / height) * 100.0
+        };
+        let (min_pct, max_pct) = clamp.min_max();
+        height_pct.set(pct.max(min_pct).min(max_pct));
     });
 
     let up_listener = window_event_listener_untyped("pointerup", move |_| {
@@ -69,6 +103,10 @@ pub fn SidebarResizer(
         <div
             class=move || {
                 let mut c = String::from("workbench-sidebar__resizer");
+                if !extra_class.is_empty() {
+                    c.push(' ');
+                    c.push_str(extra_class);
+                }
                 if dragging.get() {
                     c.push_str(" workbench-sidebar__resizer--active");
                 }
@@ -76,7 +114,7 @@ pub fn SidebarResizer(
             }
             role="separator"
             aria-orientation="horizontal"
-            aria-label="Resize project files panel"
+            aria-label=move || i18n.tr(aria_key)()
             on:pointerdown=on_pointer_down
         >
             <span class="workbench-sidebar__resizer-grip" aria-hidden="true"></span>

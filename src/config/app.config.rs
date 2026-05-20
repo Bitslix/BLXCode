@@ -48,12 +48,32 @@ pub const SHORTCUT_MODE_TMUX: &str = "tmux";
 /// Stored value for direct Ctrl/Ctrl+Shift shortcuts.
 pub const SHORTCUT_MODE_LEGACY: &str = "legacy";
 
-/// `localStorage` key for the sidebar Project Explorer slot height (percent of sidebar).
+/// `localStorage` key for the combined explorer+graph panel height (percent of sidebar).
+pub const SIDEBAR_PANELS_HEIGHT_PCT_KEY: &str = "blxcode_sidebar_panels_height_pct_v1";
+
+/// Default height of the explorer+graph block within the sidebar (percent).
+pub const SIDEBAR_PANELS_HEIGHT_PCT_DEFAULT: f64 = 50.0;
+
+pub const SIDEBAR_PANELS_HEIGHT_PCT_MIN: f64 = 25.0;
+pub const SIDEBAR_PANELS_HEIGHT_PCT_MAX: f64 = 75.0;
+
+/// `localStorage` key for the sidebar Project Explorer slot height (percent of panels block).
 pub const SIDEBAR_EXPLORER_HEIGHT_PCT_KEY: &str = "blxcode_sidebar_explorer_height_pct_v1";
 
-/// Default Project Explorer slot height (percent of the sidebar).
+/// Default Project Explorer slot height (percent of the panels block).
 pub const SIDEBAR_EXPLORER_HEIGHT_PCT_DEFAULT: f64 = 50.0;
 
-/// Min/max clamp range for the Project Explorer slot height (percent).
+/// Min/max clamp range for the Project Explorer slot height (percent of panels block).
 pub const SIDEBAR_EXPLORER_HEIGHT_PCT_MIN: f64 = 15.0;
 pub const SIDEBAR_EXPLORER_HEIGHT_PCT_MAX: f64 = 85.0;
+
+/// `localStorage` key for sidebar width in pixels.
+pub const SIDEBAR_WIDTH_PX_KEY: &str = "blxcode_sidebar_width_px_v1";
+
+/// Default sidebar width when expanded.
+pub const SIDEBAR_WIDTH_PX_DEFAULT: f64 = 260.0;
+
+pub const SIDEBAR_WIDTH_PX_MIN: f64 = 200.0;
+
+/// `localStorage` key for showing dot-hidden files in the project explorer (`1` / `0`).
+pub const SIDEBAR_EXPLORER_SHOW_HIDDEN_KEY: &str = "blxcode_sidebar_explorer_show_hidden_v1";

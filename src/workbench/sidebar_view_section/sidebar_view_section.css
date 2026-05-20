@@ -6,7 +6,7 @@
   flex: 0 0 auto;
 }
 
-/* Slot wrappers in `.workbench-sidebar__views` control the section height now. */
+/* Slot wrappers in `.workbench-sidebar__panels` control the section height now. */
 .sidebar-view-section--sb-explorer,
 .sidebar-view-section--sb-graph {
   flex: 1 1 auto;
