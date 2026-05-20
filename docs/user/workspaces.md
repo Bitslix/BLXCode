@@ -68,18 +68,51 @@ BLXCode injects a few environment variables into terminal sessions when needed:
 
 These values support session capture, notification hooks, and the terminal-agent context handoff feature.
 
+## Sidebar
+
+The left sidebar combines the workspace list with a resizable bottom panel for project tooling.
+
+<p align="center">
+  <img src="../images/sidebar-explorer-git.png" alt="Sidebar with Project Files tree and Git Commits graph" />
+</p>
+
+### Layout and resize
+
+- **Sidebar width** — drag the right edge of the sidebar (default **260px**, persisted as `blxcode_sidebar_width_px_v1`).
+- **Workspace list vs. bottom panel** — drag the horizontal handle between the workspace list and the combined Explorer/Git block (default **50%** of sidebar height, `blxcode_sidebar_panels_height_pct_v1`).
+- **Project Files vs. Git** — drag the inner handle between Explorer and graph (`blxcode_sidebar_explorer_height_pct_v1`, clamped 15–85%).
+
+### Project Files (Explorer)
+
+- Lazy file tree for the active workspace `cwd` (sandboxed under the workspace root).
+- **Refresh** toolbar action.
+- **Show/hide hidden files** — eye toggle for dot-prefixed entries (`blxcode_sidebar_explorer_show_hidden_v1`, default off).
+- Click a folder row to expand or collapse; chevron still works without double-toggling.
+
+### Git Commits
+
+- Swim-lane commit graph (up to 100 commits) when `.git` is present.
+- Ref badges and author/time metadata.
+- If `git` is not on `PATH`, the section stays visible with a hint instead of an empty graph.
+
+Explorer and Git section open/collapsed state restores per workspace after reload.
+
 ## Terminal Agent Context Handoff
 
-Each terminal cell exposes a small share icon in its titlebar (between the agent badge and the maximize button). Clicking it opens a dropdown listing every live terminal in the workspace plus a separator and a **"Send to BLXCode agent context"** entry.
+Each terminal cell exposes a share icon in its titlebar. The menu lists every live terminal in the workspace, a separator, and **Send to BLXCode Agent**.
 
-- **Pick a terminal** → BLXCode renders a Markdown context block (workspace root, attached Memory/Learnings/Notes, image metadata + exported on-disk paths) and writes it directly into that terminal's PTY. Image bytes are exported to `<workspace>/.blxcode/agent-context/images/`; base64 is never written into the prompt.
-- **"Send to BLXCode agent context"** (from a terminal titlebar) → attaches that terminal to the BLXCode Agent context: the terminal's captured title as the label and a short preview of the handoff block as the description (idempotent per slot).
+<p align="center">
+  <img src="../images/terminal-handoff.png" alt="Terminal titlebar handoff dropdown listing peer terminals" />
+</p>
 
-The same dropdown is also available from the Memory **Graph** note preview popover. From there, "Pick a terminal" sends ONLY the previewed note (auto-typed as `memory_note` or `learning_note`); the "Send to BLXCode agent context" entry attaches that single note to the BLXCode Agent.
+- **Pick a terminal** → BLXCode renders a Markdown context block and writes it into that terminal's PTY. The block can include workspace root, attached memory/plans/tasks, and image paths. Image bytes are exported to `<workspace>/.blxcode/agent-context/images/` with a JSON manifest; base64 is never written into the prompt.
+- **Send to BLXCode Agent** → attaches workspace context (from a terminal: slot title + preview; from Memory: selected note or category).
 
-The button briefly flips to a check or alert icon after action, and tints its border green or red (~2.8 s). Hover the button to see the last status message.
+The same menu is available from the Memory **Graph** note preview ([memory-graph-handoff.png](../images/memory-graph-handoff.png) in [Memory And Tasks](memory-and-tasks.md)).
 
-The BLXCode Agent itself can trigger the same handoff programmatically through the `harness.send_agent_context` tool (see [Agent Providers — Tools](agent-providers.md)).
+**Feedback:** successful handoffs show a bottom-right toast (optional) and optional short sound. Configure under **BLXCode Settings** → **App** → **Notifications** — see [Keyboard Shortcuts](keyboard-shortcuts.md). Errors always show an error toast.
+
+The BLXCode Agent can trigger handoff via `harness.send_agent_context` with optional `includeKinds`: `memory`, `plans`, `tasks`, `images` (default: all four). The rendered Markdown includes an **Attached plans / tasks** section when those kinds are included. See [Agent Providers](agent-providers.md).
 
 ## Session resume
 
@@ -132,3 +165,11 @@ Persisted state includes:
 - Agent timeline and compose draft.
 
 If a saved snapshot has an unsupported schema version, BLXCode ignores it and starts with defaults rather than crashing.
+
+## See also
+
+- [Memory And Tasks](memory-and-tasks.md) — memory panel and graph handoff
+- [Plans](plans.md) — plan files included in handoff
+- [Keyboard Shortcuts](keyboard-shortcuts.md) — tmux/legacy chords and notification settings
+- [Agent Providers](agent-providers.md) — `harness.send_agent_context`
+

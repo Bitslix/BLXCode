@@ -48,6 +48,8 @@ Update docs when a change affects:
 - User workflows.
 - Configuration.
 - File formats.
+
+When adding a new user-facing guide under `docs/user/`, link it from [docs/README.md](../README.md) and [getting-started.md](../user/getting-started.md) (or another hub page with a clear cross-link).
 - Tauri commands or permissions.
 - Provider behavior.
 - Memory/task storage.

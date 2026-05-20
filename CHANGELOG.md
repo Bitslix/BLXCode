@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Documentation**: expanded user guides (Plans, Rules & Skills, Keyboard Shortcuts), updated Memory/Workspaces/Agent docs, developer Architecture/IPC with Mermaid diagrams, refreshed README screenshots and doc hub links.
 - **Settings envelope round-trip fix**: `agent_settings_save` now preserves sibling envelope keys (`voice`, `image`) instead of clobbering them. `voice/settings.rs` was deduplicated to share `read_envelope`/`write_envelope` helpers with `agent_settings.rs`; this is the single source of truth for `agent_provider_settings.json`.
 - **Orchestrator TTS refactor**: `maybe_emit_tts` split into `emit_tts_for_text(app, state, text)` (general) and `maybe_emit_tts_for_last_assistant` (chat path). The image branch reuses `emit_tts_for_text` to play the confirmation phrase without touching the chat conversation history.
 - **Timeline persistence**: when a `GeneratedImage` row has a `saved_path`, its base64 preview is dropped before persisting to `sessions.json` (the image is rehydrated lazily via `generated_image_preview` on next render). Keeps the snapshot small.

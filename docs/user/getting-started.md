@@ -64,12 +64,30 @@ API keys are stored in the operating system keyring when available. On platforms
 Workspace-local data is stored inside the workspace folder:
 
 ```text
-.agents/memory/
-.agents/learnings/
-.blxcode/tasks/
+.agents/memory/          # notes; subfolders = categories
+.agents/learnings/      # repo learnings
+.agents/plans/           # Markdown plans + PLANS.md index
+.agents/rules/           # binding rule-*.md files
+.agents/skills/          # skill folders with SKILL.md
+.blxcode/tasks/          # task store (JSON)
+.blxcode/generated/      # images from Image mode (when saved)
+.blxcode/agent-context/  # handoff image exports + manifest
 ```
 
 Opening or switching to a workspace runs `workspace_ensure_agents`, which creates the `.agents/` layout and migrates legacy memory when needed.
+
+<p align="center">
+  <img src="../images/workspace-home.png" alt="BLXCode workbench with workspace sidebar and terminal grid" />
+</p>
+
+**Next steps:**
+
+- [Workspaces](workspaces.md) — terminals, sidebar explorer, handoff
+- [Memory And Tasks](memory-and-tasks.md) — notes, graph, categories
+- [Plans](plans.md) — plan Markdown and plan-linked tasks
+- [Rules And Skills](rules-and-skills.md) — workspace rules and installable skills
+- [Keyboard Shortcuts](keyboard-shortcuts.md) — tmux prefix vs legacy mode
+- [Image Mode](image.md) — generate images from the agent panel
 
 App layout, provider settings, and secrets live in platform-specific Tauri app config or app data directories.
 

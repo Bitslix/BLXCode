@@ -18,21 +18,82 @@ Frontend calls should go through `src/tauri_bridge.rs` rather than scattering ra
 
 ## Command Groups
 
-Current command groups include:
+Authoritative list from `src-tauri/src/lib.rs` (grouped for navigation):
 
-- App shell: `open_external_url`, `exit_app`.
-- Agent: `agent_submit_turn`, `agent_submit_tool_result`, `agent_poll_events`, `agent_abort`, `agent_clear_conversation`, `agent_provider_status`.
-- Agent settings: `agent_settings_get`, `agent_settings_save`, `agent_api_key_set`, `agent_api_key_delete`, `agent_provider_models`.
-- Browser host: `browser_sync_bounds`, `browser_navigate`, `browser_run_js`, `browser_embedding_kind`, `browser_check_iframable`, `browser_close_tab`.
-- Workspace navigation: `default_cwd`, `path_nav_exec_cmd`, `list_directory`, `create_directory`.
-- PTY: `pty_spawn`, `pty_write`, `pty_resize`, `pty_kill`, `pty_drain`, `pty_peek_output`.
-- Git: `git_branch`.
-- Hooks: `install_agent_hooks`, `agent_hooks_status`, `uninstall_agent_hooks`.
-- Workbench persistence: `workbench_save_state`, `workbench_load_state`, `workbench_sessions_path`, `workbench_load_sessions`, `workbench_drop_sessions`, `workbench_extract_sessions_prefix`, `workbench_merge_sessions_workspace`, `agent_session_exists`.
-- Workspace bootstrap: `workspace_ensure_agents` (creates `.agents/memory/`, `.agents/learnings/`, migrates legacy memory, upgrades learnings wikilinks).
-- Memory: `memory_root`, `memory_list`, `memory_read`, `memory_write`, `memory_create`, `memory_delete`, `memory_rename`, `memory_graph`, `memory_backlinks`, `memory_search`, `memory_export`, `memory_import`, `memory_install_pointers`, `memory_uninstall_pointers`, `memory_pointer_status`.
-- Tasks: `tasks_list`, `tasks_get`, `tasks_create`, `tasks_update`, `tasks_delete`, `tasks_reorder`.
-- Voice: `voice_start_recording`, `voice_stop_and_transcribe`, `voice_cancel_recording`, `voice_settings_get`, `voice_settings_save`, `voice_provider_voices`, `voice_tts_preview`.
+### App shell
+
+- `open_external_url`, `greet`, `exit_app`
+
+### Agent runtime
+
+- `agent_submit_turn`, `agent_submit_tool_result`, `agent_poll_events`, `agent_abort`, `agent_clear_conversation`, `agent_provider_status`
+- `agent_read_image_file`, `agent_export_context_images`
+
+### Agent settings and keys
+
+- `agent_settings_get`, `agent_settings_save`, `agent_api_key_set`, `agent_api_key_delete`, `agent_provider_models`
+- `harness_ensure_default_sandbox`
+
+### Image generation
+
+- `image_settings_get`, `image_settings_save`, `image_curated_models`, `generated_image_preview`
+
+### Browser host
+
+- `browser_sync_bounds`, `browser_navigate`, `browser_run_js`, `browser_embedding_kind`, `browser_check_iframable`, `browser_close_tab`
+
+### Workspace paths
+
+- `default_cwd`, `path_nav_exec_cmd`, `list_directory`, `create_directory`
+- `gitignore_append_blxcode`
+
+### PTY
+
+- `pty_spawn`, `pty_write`, `pty_resize`, `pty_kill`, `pty_drain`, `pty_drain_wait`, `pty_peek_output`
+
+### Git and explorer
+
+- `git_branch`
+- `git_is_repository`, `git_commit_graph` (`git_graph` module)
+- `list_path_entries` (`fs_entries` module)
+
+### Hooks
+
+- `install_agent_hooks`, `agent_hooks_status`, `uninstall_agent_hooks`
+
+### Workbench persistence
+
+- `workbench_save_state`, `workbench_load_state`
+- `workbench_sessions_path`, `workbench_load_sessions`, `workbench_drop_sessions`, `workbench_extract_sessions_prefix`, `workbench_merge_sessions_workspace`, `workbench_prune_sessions`
+- `workbench_notifications_path`, `workbench_load_notifications`, `workbench_clear_terminal_notifications`, `workbench_prune_notifications`
+- `agent_session_exists`, `agent_latest_session_id`
+
+### Workspace bootstrap and memory
+
+- `workspace_ensure_agents` — `.agents/memory`, `.agents/learnings`, `.agents/plans`, migration, wikilink upgrade
+- `memory_root`, `memory_list`, `memory_read`, `memory_write`, `memory_create`
+- `memory_list_categories`, `memory_create_category`
+- `memory_delete`, `memory_rename`, `memory_graph`, `memory_backlinks`, `memory_search`
+- `memory_export`, `memory_import`
+- `memory_install_pointers`, `memory_uninstall_pointers`, `memory_pointer_status`
+
+### Tasks and plans
+
+- `tasks_list`, `tasks_get`, `tasks_create`, `tasks_update`, `tasks_delete`, `tasks_reorder`
+- `plan_list`, `plan_read`, `plan_create`, `plan_write`, `plan_delete`, `plan_rename`, `plan_load`, `plan_sync_from_tasks`
+
+### Skills and rules
+
+- `rules_list`, `rules_read`, `rules_write`, `rules_set_enabled`, `rules_remove`
+- `skills_list`, `skills_read`, `skills_write`, `skills_set_enabled`, `skills_remove`, `skills_install`
+- `skills_rules_bootstrap`
+
+### Voice
+
+- `voice_start_recording`, `voice_stop_and_transcribe`, `voice_cancel_recording`
+- `voice_settings_get`, `voice_settings_save`, `voice_provider_voices`, `voice_tts_preview`
+
+Client-side agent tools (for example `memory_context_attach`, `plan_context_attach`, `harness.send_agent_context`) are registered in `src-tauri/src/agent/tools.rs` with site `client` and do not appear as Tauri commands.
 
 ## Command Design Guidelines
 
@@ -50,3 +111,8 @@ Tauri v2 denies capabilities by default. The current main-window capability is i
 - `opener:default`
 
 If a new plugin or API needs explicit permission, update capabilities and document the change.
+
+## See also
+
+- [Architecture](architecture.md) — subsystem diagrams and module layout
+- [Contributing](contributing.md) — register new commands in `lib.rs` and `tauri_bridge.rs`

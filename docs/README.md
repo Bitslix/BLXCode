@@ -1,27 +1,49 @@
 # BLXCode Documentation
 
-Welcome to the BLXCode docs. This folder is split into user documentation for running the app and developer documentation for building, modifying, and contributing to it.
+Welcome to the BLXCode docs. User guides explain how to run and use the app; developer guides explain how to build, extend, and contribute.
 
-## User Docs
+## Doc map
 
-- [Getting Started](user/getting-started.md): install prerequisites, run BLXCode, and create your first workspace.
-- [UI Language](user/language.md): supported locales, changing the UI language, first-launch detection, and EULA localization.
-- [Building](user/building.md): build BLXCode from source on Linux, macOS, and Windows.
-- [Voice](user/voice.md): configure and use speech-to-text, text-to-speech, microphone recording, and push-to-talk.
-- [Workspaces](user/workspaces.md): workspace creation, terminal grids, panes, browser tabs, and persistence.
-- [Agent Providers](user/agent-providers.md): provider selection, API keys, models, thinking levels, and hooks.
-- [Memory And Tasks](user/memory-and-tasks.md): Memory panel (Files, Graph, Search), learnings, category display, backlinks, task storage, and agent memory tools.
-- [Troubleshooting](user/troubleshooting.md): common startup, build, browser, keyring, and terminal issues.
+**Start here:** [Getting Started](user/getting-started.md) → [Workspaces](user/workspaces.md) → [Agent Providers](user/agent-providers.md)
 
-## Developer Docs
+| Topic | Guide |
+|-------|--------|
+| Workbench, terminals, sidebar, handoff | [Workspaces](user/workspaces.md) |
+| Memory, learnings, graph, categories | [Memory And Tasks](user/memory-and-tasks.md) |
+| Markdown plans and plan-linked tasks | [Plans](user/plans.md) |
+| Workspace rules and skills | [Rules And Skills](user/rules-and-skills.md) |
+| Tmux vs legacy shortcuts, notifications | [Keyboard Shortcuts](user/keyboard-shortcuts.md) |
+| Image generation mode | [Image Mode](user/image.md) |
+| Providers, API keys, agent tools | [Agent Providers](user/agent-providers.md) |
+| Voice STT/TTS | [Voice](user/voice.md) |
+| UI language and EULA | [UI Language](user/language.md) |
+| Build from source | [Building](user/building.md) |
+| Common issues | [Troubleshooting](user/troubleshooting.md) |
 
-- [Setup](developer/setup.md): local development environment and verification commands.
-- [Architecture](developer/architecture.md): frontend/backend split, important modules, data flow, and storage.
-- [Tauri IPC](developer/tauri-ipc.md): command registration, frontend wrappers, and command groups.
-- [Voice Architecture](developer/voice.md): backend voice modules, frontend orb, settings, STT/TTS flows, and command surface.
-- [Internationalization](developer/i18n.md): locales, EULA content, and translation workflow.
-- [Contributing](developer/contributing.md): code style, project rules, testing expectations, and pull request checklist.
+## User docs
 
-## Project Principles
+- [Getting Started](user/getting-started.md) — prerequisites, run BLXCode, first workspace, where data lives.
+- [Workspaces](user/workspaces.md) — creation, terminal grids, sidebar explorer, Git graph, handoff, persistence.
+- [Memory And Tasks](user/memory-and-tasks.md) — Memory panel (Files, Graph, Search), dynamic categories, tasks, agent memory tools.
+- [Plans](user/plans.md) — `.agents/plans/`, task syntax, Plans panel, plan-linked tasks, agent tools.
+- [Rules And Skills](user/rules-and-skills.md) — `.agents/rules/`, `.agents/skills/`, install dialog, agent checklist.
+- [Keyboard Shortcuts](user/keyboard-shortcuts.md) — tmux prefix vs legacy chords, notification toasts.
+- [Image Mode](user/image.md) — generate images from the agent panel, settings, limits, persistence.
+- [Agent Providers](user/agent-providers.md) — OpenRouter, Anthropic, OpenAI-compatible, context, tools, hooks.
+- [Voice](user/voice.md) — STT, TTS, microphone, push-to-talk.
+- [UI Language](user/language.md) — locales, language picker, EULA localization.
+- [Building](user/building.md) — Linux, macOS, Windows release builds.
+- [Troubleshooting](user/troubleshooting.md) — startup, build, browser, keyring, terminal issues.
 
-BLXCode is a local-first desktop workbench. The app should make it easy to keep workspaces, terminals, memory, tasks, and agent context close together without hiding where data lives. When behavior changes, update the docs beside the code so users and contributors can keep moving without reverse-engineering the app.
+## Developer docs
+
+- [Setup](developer/setup.md) — local environment and verification commands.
+- [Architecture](developer/architecture.md) — frontend/backend split, agent, memory, plans, handoff, diagrams.
+- [Tauri IPC](developer/tauri-ipc.md) — command registration, wrappers, command groups.
+- [Voice Architecture](developer/voice.md) — STT/TTS modules and flows.
+- [Internationalization](developer/i18n.md) — locales, EULA content, translation workflow.
+- [Contributing](developer/contributing.md) — code style, rules, testing, pull request checklist.
+
+## Project principles
+
+BLXCode is a local-first desktop workbench. Workspaces, terminals, memory, plans, tasks, and agent context stay close together without hiding where data lives on disk. When behavior changes, update the docs beside the code so users and contributors can move forward without reverse-engineering the app.

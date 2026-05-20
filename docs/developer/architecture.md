@@ -47,6 +47,31 @@ The frontend submits turns through `agent_submit_turn` and polls `agent_poll_eve
 
 Voice-originated turns set `voice_input=true`. After the provider turn finishes, the session orchestrator can synthesize the final assistant text and emit `AgentEvent::VoiceReady` for frontend playback.
 
+When `UserTurn.image_generate` is true, the orchestrator takes an early exit: calls `src-tauri/src/image/generate.rs`, saves to `<workspace>/.blxcode/generated/`, emits `AgentEvent::ImageGenerated`, and skips the tool loop. Image settings live in the `image` envelope of `agent_provider_settings.json` (`src-tauri/src/image/settings.rs`).
+
+```mermaid
+sequenceDiagram
+  participant UI as AgentPanel
+  participant IPC as Tauri
+  participant Orch as session_orchestrator
+  participant API as Provider
+
+  UI->>IPC: agent_submit_turn
+  IPC->>Orch: dispatch_user_turn
+  alt image_generate
+    Orch->>API: image API
+    Orch-->>UI: ImageGenerated + Done
+  else chat turn
+    Orch->>API: stream + tools
+    loop poll
+      UI->>IPC: agent_poll_events
+      IPC-->>UI: AgentEvent stream
+    end
+  end
+```
+
+Client-only tools (context attach, plan context, image context list) execute in the frontend; results return via `agent_submit_tool_result`.
+
 ## Voice Subsystem
 
 The voice subsystem lives under `src-tauri/src/voice/` with frontend support in `src/workbench/agent_panel/voice_orb/` and `src/workbench/harness_voice_pane/`.
@@ -69,34 +94,92 @@ Memory lives in `src-tauri/src/memory.rs` and `src-tauri/src/agents_layout.rs`. 
 flowchart LR
   subgraph frontend [Frontend]
     Panel[MemoryPanel]
+    PlansPanel[PlansPanel]
     Bridge[tauri_bridge.rs]
   end
   subgraph backend [Backend]
     Ensure[workspace_ensure_agents]
     MemCmd[memory_* commands]
+    PlanCmd[plan_* commands]
     Layout[agents_layout.rs]
     MemMod[memory.rs]
+    PlansMod[plans.rs]
   end
   subgraph storage [Workspace]
     MemDir[".agents/memory"]
     LearnDir[".agents/learnings"]
+    PlansDir[".agents/plans"]
     Legacy[".blxcode/memory"]
+    TasksJson[".blxcode/tasks"]
   end
   Panel --> Bridge
+  PlansPanel --> Bridge
   Bridge --> Ensure
   Bridge --> MemCmd
+  Bridge --> PlanCmd
   Ensure --> Layout
   MemCmd --> MemMod
+  PlanCmd --> PlansMod
   Layout --> MemDir
   Layout --> LearnDir
+  Layout --> PlansDir
   Layout -.->|migrate if empty| Legacy
   MemMod --> MemDir
   MemMod --> LearnDir
+  PlansMod --> PlansDir
+  PlansMod --> TasksJson
 ```
 
-Tasks live in `src-tauri/src/tasks.rs` and store JSON under `<workspace>/.blxcode/tasks/index.json`.
+Tasks live in `src-tauri/src/tasks.rs` and store JSON under `<workspace>/.blxcode/tasks/index.json`. `plan_load` replaces tasks matching a plan path; `tasks_update` can write status markers back into plan Markdown.
 
-Both modules validate workspace paths and sandbox file operations to workspace-local directories.
+```mermaid
+flowchart LR
+  PlanMd["plan.md ## Tasks"]
+  PlanLoad[plan_load]
+  TasksMod[tasks.rs]
+  TaskUpdate[tasks_update]
+  PlanMd --> PlanLoad
+  PlanLoad --> TasksMod
+  TasksMod --> TaskUpdate
+  TaskUpdate --> PlanMd
+```
+
+## Plans
+
+`src-tauri/src/plans.rs` parses and writes the canonical `## Tasks` / `## Todos` section. `PLANS.md` is protected. Path traversal is rejected relative to the plans root.
+
+## Skills And Rules
+
+`src-tauri/src/skills_rules/` implements list/read/write, enable flags in `index.json`, and install staging (`git`, `npm`, local). `skills_rules_bootstrap` runs on workspace open via `workspace_ensure_agents` / layout helpers.
+
+## Sidebar Explorer And Git Graph
+
+- `src-tauri/src/fs_entries.rs` — `list_path_entries` (sandboxed directory listing for the explorer tree).
+- `src-tauri/src/git_graph.rs` — `git_is_repository`, `git_commit_graph` (lane layout, unit-tested).
+
+Frontend: `src/workbench/sidebar_view_section/`, explorer and graph panels in the workbench sidebar.
+
+## Terminal Context Handoff
+
+- Frontend: `src/workbench/agent_context_handoff.rs` — `render_agent_context_block`, `HandoffMenu`, `perform_handoff` (single renderer for tool and UI).
+- Backend: `agent_export_context_images` writes `<workspace>/.blxcode/agent-context/images/` plus manifest JSON.
+- PTY env: `BLX_AGENT_CONTEXT_DIR`, `BLX_AGENT_CONTEXT_MANIFEST`.
+
+```mermaid
+flowchart LR
+  UI[HandoffMenu]
+  Bridge[tauri_bridge]
+  Export[agent_export_context_images]
+  Render[render_agent_context_block]
+  Pty[pty_write]
+  UI --> Bridge
+  Bridge --> Export
+  Bridge --> Render
+  Export --> Render
+  Render --> Pty
+```
+
+Both memory and plan modules validate workspace paths and sandbox file operations to workspace-local directories.
 
 ## Browser Embedding
 

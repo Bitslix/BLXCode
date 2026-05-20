@@ -2,7 +2,13 @@
 
 BLXCode's agent panel can generate images directly from a prompt. Toggle **Image mode** in the chat header, type what you want, and the agent produces an image instead of a chat reply.
 
+This is **not** the same as attaching images to agent **context** for vision or terminal handoff — see [Agent Providers — Agent context](agent-providers.md#agent-context).
+
 Image mode is available in the Tauri desktop app. It is not available in `trunk serve` mode because API keys and file writes are handled by the Tauri backend.
+
+<p align="center">
+  <img src="../images/agent-image-preview.png" alt="Agent chat with Image mode active and generated image preview in the timeline" />
+</p>
 
 ## Requirements
 
@@ -62,3 +68,9 @@ The chat timeline persists generated-image entries by their saved path, not by t
 - **"No API key set for the image provider."** — Open Settings → Agent Provider and store a key for OpenAI or OpenRouter; image mode reuses those keys.
 - **OpenRouter returns no image.** — Pick a model whose output modality includes `image` (Settings → Image → refresh, then choose one with "image" in the id).
 - **Image saved but not visible after reload.** — Confirm the file at the path shown under the image still exists.
+
+## See also
+
+- [Agent Providers](agent-providers.md) — text chat, context images, tools
+- [Getting Started](getting-started.md) — `.blxcode/generated/` in the data layout
+- [Workspaces](workspaces.md) — handoff exports under `.blxcode/agent-context/`
