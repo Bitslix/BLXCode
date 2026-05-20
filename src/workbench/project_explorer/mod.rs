@@ -34,11 +34,20 @@ pub fn ProjectExplorerSection() -> impl IntoView {
     let error_msg = RwSignal::new(None::<String>);
     let show_hidden = RwSignal::new(read_explorer_show_hidden());
 
+    // Re-sync section open state after hydrate / workspace list updates.
+    Effect::new(move |_| {
+        let _ = wb.active_id().get();
+        let _ = wb.workspaces().get();
+        let stored = wb.active_sidebar_explorer_open();
+        if explorer_open.get_untracked() != stored {
+            explorer_open.set(stored);
+        }
+    });
+
     Effect::new(move |_| {
         let _ = active_workspace
             .get()
             .map(|w| (w.id, w.cwd, w.configuring));
-        explorer_open.set(wb.active_sidebar_explorer_open());
         open_paths.set(
             wb.active_sidebar_explorer_expanded_paths()
                 .into_iter()
@@ -50,7 +59,9 @@ pub fn ProjectExplorerSection() -> impl IntoView {
 
     Effect::new(move |_| {
         let open = explorer_open.get();
-        wb.set_active_sidebar_explorer_open(open);
+        if open != wb.active_sidebar_explorer_open() {
+            wb.set_active_sidebar_explorer_open(open);
+        }
     });
 
     Effect::new(move |_| {

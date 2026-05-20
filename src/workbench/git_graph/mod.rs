@@ -27,11 +27,18 @@ pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
 
     Effect::new(move |_| {
         let _ = wb.active_id().get();
-        graph_open.set(wb.active_sidebar_graph_open());
+        let _ = wb.workspaces().get();
+        let stored = wb.active_sidebar_graph_open();
+        if graph_open.get_untracked() != stored {
+            graph_open.set(stored);
+        }
     });
 
     Effect::new(move |_| {
-        wb.set_active_sidebar_graph_open(graph_open.get());
+        let open = graph_open.get();
+        if open != wb.active_sidebar_graph_open() {
+            wb.set_active_sidebar_graph_open(open);
+        }
     });
 
     let reload = move || load_gen.update(|g| *g = g.wrapping_add(1));

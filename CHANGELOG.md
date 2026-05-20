@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Sidebar Project Explorer no longer occupies almost the full sidebar when the tree is empty: Explorer and graph are confined to the resizable bottom panel so the graph stays visible and the file tree does not “stick” at the top of an oversized slot.
+- **Project Files** and **Graph** section expand/collapse state now restores correctly after app restart or workbench hydrate (per workspace via `sidebar_explorer_open` / `sidebar_graph_open` on `WorkspaceEntry`; default open on first load).
 
 ### Removed
 
