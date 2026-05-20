@@ -117,6 +117,7 @@ jobs:
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
+            libasound2-dev \
             patchelf
 
       - name: Install Rust
@@ -144,6 +145,26 @@ jobs:
         run: |
           npm ci --prefix frontend-js
           npm --prefix frontend-js run build:graph3d
+
+      - name: Build WASM frontend (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          cargo install trunk --locked
+          trunk build
+
+      - name: Disable beforeBuildCommand on Windows
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          python3 <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("src-tauri/tauri.conf.json")
+          data = json.loads(p.read_text(encoding="utf-8"))
+          data.setdefault("build", {})["beforeBuildCommand"] = ""
+          p.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+          PY
 
       - name: Build bundles
         uses: tauri-apps/tauri-action@v0
