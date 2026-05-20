@@ -89,6 +89,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansTaskStatCompleted => "完全的",
         I18nKey::PlansTaskStatCancelled => "取消",
         I18nKey::PlansProtectedIndex => "PLANS.md 是受保護的索引檔。",
+        I18nKey::PlansListResizeAria => "Resize plan list",
         I18nKey::SrRulesEmpty => "此工作區中還沒有規則。",
         I18nKey::SrSkillsEmpty => "沒有安裝技能。",
         I18nKey::SrLoading => "載入中…",

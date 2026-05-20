@@ -91,6 +91,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansTaskStatCompleted => "Terminado",
         I18nKey::PlansTaskStatCancelled => "Cancelado",
         I18nKey::PlansProtectedIndex => "PLANS.md es el archivo de índice protegido.",
+        I18nKey::PlansListResizeAria => "Resize plan list",
         I18nKey::SrRulesEmpty => "Aún no hay reglas en este espacio de trabajo.",
         I18nKey::SrSkillsEmpty => "No hay habilidades instaladas.",
         I18nKey::SrLoading => "Cargando…",

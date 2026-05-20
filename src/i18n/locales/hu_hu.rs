@@ -91,6 +91,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansTaskStatCompleted => "Befejezve",
         I18nKey::PlansTaskStatCancelled => "Törölve",
         I18nKey::PlansProtectedIndex => "A PLANS.md a védett indexfájl.",
+        I18nKey::PlansListResizeAria => "Resize plan list",
         I18nKey::SrRulesEmpty => "Ezen a munkaterületen még nincsenek szabályok.",
         I18nKey::SrSkillsEmpty => "Nincsenek készségek telepítve.",
         I18nKey::SrLoading => "Terhelés…",

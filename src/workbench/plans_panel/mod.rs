@@ -7,6 +7,10 @@
 //! that calls `plan_load` and attaches the plan to shared context.
 
 use crate::agent_wire::{AgentContextItem, AgentContextKind};
+use crate::config::{
+    PLANS_LIST_WIDTH_PX_DEFAULT, PLANS_LIST_WIDTH_PX_KEY, PLANS_LIST_WIDTH_PX_MAX,
+    PLANS_LIST_WIDTH_PX_MIN,
+};
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
@@ -17,13 +21,43 @@ use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Date;
+use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
-use web_sys::HtmlInputElement;
+use web_sys::{HtmlInputElement, MouseEvent};
 
 const SAVE_DEBOUNCE_MS: u32 = 600;
+fn read_plans_list_width_px() -> f64 {
+    let stored = web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten())
+        .and_then(|s| s.get_item(PLANS_LIST_WIDTH_PX_KEY).ok().flatten())
+        .and_then(|raw| raw.parse::<f64>().ok());
+    let w = stored.unwrap_or(PLANS_LIST_WIDTH_PX_DEFAULT);
+    w.max(PLANS_LIST_WIDTH_PX_MIN)
+        .min(PLANS_LIST_WIDTH_PX_MAX)
+}
+
+fn write_plans_list_width_px(width: f64) {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    if let Ok(Some(storage)) = window.local_storage() {
+        let _ = storage.set_item(PLANS_LIST_WIDTH_PX_KEY, &format!("{width:.0}"));
+    }
+}
+
+fn plans_list_width_max_px() -> f64 {
+    let viewport = web_sys::window()
+        .and_then(|w| w.inner_width().ok())
+        .and_then(|v| v.as_f64())
+        .unwrap_or(900.0);
+    let by_viewport = viewport * 0.55;
+    by_viewport
+        .max(PLANS_LIST_WIDTH_PX_MIN)
+        .min(PLANS_LIST_WIDTH_PX_MAX)
+}
 
 #[derive(Clone, Copy)]
 struct PlansState {
@@ -238,15 +272,76 @@ fn PlansManageView(state: PlansState) -> impl IntoView {
     };
 
     let list_collapsed = RwSignal::new(false);
+    let list_width_px = RwSignal::new(read_plans_list_width_px());
+    let list_resizing = RwSignal::new(false);
+    let list_drag_anchor_x = RwSignal::new(0.0_f64);
+    let list_drag_anchor_w = RwSignal::new(0.0_f64);
+
+    Effect::new(move |_| {
+        let w = list_width_px.get();
+        write_plans_list_width_px(w);
+    });
+
+    Effect::new(move |_| {
+        if !list_resizing.get() {
+            return;
+        }
+        let width_sig = list_width_px;
+        let ax = list_drag_anchor_x;
+        let aw = list_drag_anchor_w;
+        let resizing_sig = list_resizing;
+
+        let move_h = window_event_listener_untyped("mousemove", move |ev| {
+            let me = match ev.dyn_into::<MouseEvent>() {
+                Ok(m) => m,
+                Err(_) => return,
+            };
+            let dx = f64::from(me.client_x()) - ax.get_untracked();
+            let max_w = plans_list_width_max_px();
+            let next = (aw.get_untracked() + dx).clamp(PLANS_LIST_WIDTH_PX_MIN, max_w);
+            width_sig.set(next);
+        });
+
+        let up_h = window_event_listener_untyped("mouseup", move |_| {
+            resizing_sig.set(false);
+        });
+
+        on_cleanup(move || {
+            move_h.remove();
+            up_h.remove();
+        });
+    });
+
+    let on_list_splitter_down = move |ev: MouseEvent| {
+        if list_collapsed.get_untracked() {
+            return;
+        }
+        ev.prevent_default();
+        list_drag_anchor_x.set(ev.client_x() as f64);
+        list_drag_anchor_w.set(list_width_px.get_untracked());
+        list_resizing.set(true);
+    };
 
     view! {
         <div
             class="workbench-plans-manage"
             class:workbench-plans-manage--collapsed=move || list_collapsed.get()
+            class:workbench-plans-manage--resizing=move || list_resizing.get()
         >
             <aside
                 class="workbench-plans-manage__tree"
                 class:workbench-plans-manage__tree--collapsed=move || list_collapsed.get()
+                style=move || {
+                    if list_collapsed.get() {
+                        String::new()
+                    } else {
+                        let w = list_width_px.get().clamp(
+                            PLANS_LIST_WIDTH_PX_MIN,
+                            plans_list_width_max_px(),
+                        );
+                        format!("width:{w:.0}px;flex:0 0 auto;max-width:none;")
+                    }
+                }
             >
                 <form
                     class="workbench-plans-manage__new"
@@ -336,6 +431,19 @@ fn PlansManageView(state: PlansState) -> impl IntoView {
                     />
                 </ul>
             </aside>
+            <Show when=move || !list_collapsed.get()>
+                <div
+                    class="workbench-splitter workbench-splitter--plans-list"
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label=move || i18n.tr(I18nKey::PlansListResizeAria)()
+                    on:mousedown=on_list_splitter_down
+                >
+                </div>
+            </Show>
+            <Show when=move || list_resizing.get()>
+                <div class="workbench-resize-shield" aria-hidden="true"></div>
+            </Show>
             <section class="workbench-plans-manage__editor">
                 <Show
                     when=move || state.active_path.get().is_some()

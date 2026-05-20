@@ -7095,16 +7095,13 @@ button {
 }
 
 .workbench-plans-manage {
-    display: grid;
-    grid-template-columns: minmax(13rem, 15.5rem) minmax(0, 1fr);
+    display: flex;
+    flex-direction: row;
     align-items: stretch;
     min-height: 0;
     flex: 1 1 auto;
     height: 100%;
-}
-
-.workbench-plans-manage--collapsed {
-    grid-template-columns: 3.8rem minmax(0, 1fr);
+    min-width: 0;
 }
 
 @media (max-width: 52rem) {
@@ -7206,11 +7203,11 @@ button {
 .workbench-plans-manage__row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto auto;
-    align-items: start;
-    gap: 0.35rem 0.4rem;
-    padding: 0.55rem 0.65rem;
-    border-bottom: 1px dashed var(--blx-border-subtle, #2c2f36);
-    font-size: 0.82rem;
+    align-items: center;
+    gap: 0.3rem 0.4rem;
+    padding: 0.42rem 0.55rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    font-size: 0.8rem;
     transition: background 0.1s ease;
 }
 

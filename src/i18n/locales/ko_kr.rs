@@ -89,6 +89,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansTaskStatCompleted => "완전한",
         I18nKey::PlansTaskStatCancelled => "취소",
         I18nKey::PlansProtectedIndex => "PLANS.md는 보호된 인덱스 파일입니다.",
+        I18nKey::PlansListResizeAria => "Resize plan list",
         I18nKey::SrRulesEmpty => "이 작업공간에는 아직 규칙이 없습니다.",
         I18nKey::SrSkillsEmpty => "설치된 스킬이 없습니다.",
         I18nKey::SrLoading => "로드 중…",

@@ -89,6 +89,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansTaskStatCompleted => "完了",
         I18nKey::PlansTaskStatCancelled => "キャンセル",
         I18nKey::PlansProtectedIndex => "PLANS.md は保護されたインデックス ファイルです。",
+        I18nKey::PlansListResizeAria => "Resize plan list",
         I18nKey::SrRulesEmpty => "このワークスペースにはまだルールがありません。",
         I18nKey::SrSkillsEmpty => "スキルはインストールされていません。",
         I18nKey::SrLoading => "読み込み中…",

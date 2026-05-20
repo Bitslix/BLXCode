@@ -95,6 +95,7 @@ pub enum I18nKey {
     PlansTaskStatCompleted,
     PlansTaskStatCancelled,
     PlansProtectedIndex,
+    PlansListResizeAria,
 
     // Skills & Rules panel
     SrRulesEmpty,
