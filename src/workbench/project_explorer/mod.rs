@@ -351,6 +351,7 @@ fn ExplorerNode(
                     }
                     style=pad.clone()
                     role="treeitem"
+                    on:click=|ev: web_sys::MouseEvent| ev.stop_propagation()
                 >
                     <span class="project-explorer__chev project-explorer__chev--spacer" aria-hidden="true"></span>
                     <span class="project-explorer__icon" aria-hidden="true">
@@ -374,7 +375,10 @@ fn ExplorerNode(
                 style=pad
                 role="treeitem"
                 aria-expanded=move || (is_dir && is_open.get()).to_string()
-                on:click=move |_| toggle.run(())
+                on:click=move |ev| {
+                    ev.stop_propagation();
+                    toggle.run(());
+                }
             >
                 <button
                     type="button"

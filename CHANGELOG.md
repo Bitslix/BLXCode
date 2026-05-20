@@ -39,6 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Sidebar Project Explorer no longer occupies almost the full sidebar when the tree is empty: Explorer and graph are confined to the resizable bottom panel so the graph stays visible and the file tree does not “stick” at the top of an oversized slot.
 - **Project Files** and **Graph** section expand/collapse state now restores correctly after app restart or workbench hydrate (per workspace via `sidebar_explorer_open` / `sidebar_graph_open` on `WorkspaceEntry`; default open on first load).
+- Project Explorer: nested folder clicks no longer bubble to parent rows (fixing “second level closes the tree”); row hover uses a visible highlight (`rgba` instead of undefined `--bg-hover`).
+- Plans panel: plan list rows show hover highlight; list/editor divider (`border-left` on the editor column) spans the full panel height; `.workbench-right-plans` dock fills the tab body so layout height propagates correctly.
+- Plans panel: collapsible plan list sidebar (same control as Memory — `LuPanelLeftClose` / `LuPanelLeftOpen`, narrow `3.8rem` rail with plan initials badges).
 
 ### Removed
 

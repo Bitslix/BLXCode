@@ -237,44 +237,89 @@ fn PlansManageView(state: PlansState) -> impl IntoView {
         });
     };
 
+    let list_collapsed = RwSignal::new(false);
+
     view! {
-        <div class="workbench-plans-manage">
-            <aside class="workbench-plans-manage__tree">
+        <div
+            class="workbench-plans-manage"
+            class:workbench-plans-manage--collapsed=move || list_collapsed.get()
+        >
+            <aside
+                class="workbench-plans-manage__tree"
+                class:workbench-plans-manage__tree--collapsed=move || list_collapsed.get()
+            >
                 <form
                     class="workbench-plans-manage__new"
+                    class:workbench-plans-manage__new--collapsed=move || list_collapsed.get()
                     on:submit=move |ev: web_sys::SubmitEvent| {
                         ev.prevent_default();
                         create_plan(());
                     }
                 >
-                    <input
-                        type="text"
-                        class="workbench-plans-manage__new-input"
-                        placeholder=move || i18n.tr(I18nKey::PlansNewPlanPh)()
-                        prop:value=move || state.new_plan_input.get()
-                        on:input=move |ev| {
-                            if let Some(v) = input_value(ev) {
-                                state.new_plan_input.set(v);
+                    <Show when=move || !list_collapsed.get()>
+                        <input
+                            type="text"
+                            class="workbench-plans-manage__new-input"
+                            placeholder=move || i18n.tr(I18nKey::PlansNewPlanPh)()
+                            prop:value=move || state.new_plan_input.get()
+                            on:input=move |ev| {
+                                if let Some(v) = input_value(ev) {
+                                    state.new_plan_input.set(v);
+                                }
                             }
-                        }
-                    />
+                        />
+                    </Show>
                     <button
                         type="submit"
                         class="workbench-plans-manage__new-btn"
                         title=move || i18n.tr(I18nKey::PlansNewPlan)()
+                        aria-label=move || i18n.tr(I18nKey::PlansNewPlan)()
                     >"+"</button>
+                    <Show when=move || !list_collapsed.get()>
+                        <button
+                            type="button"
+                            class="workbench-plans-manage__refresh"
+                            title=move || i18n.tr(I18nKey::PlansRefresh)()
+                            aria-label=move || i18n.tr(I18nKey::PlansRefresh)()
+                            on:click=move |_| {
+                                if let Some(ws) = state.workspace_cwd.get_untracked() {
+                                    load_plans_list(state, ws);
+                                }
+                            }
+                        >
+                            <LxIcon icon=icondata::LuRefreshCw width="0.82rem" height="0.82rem" />
+                        </button>
+                    </Show>
                     <button
                         type="button"
-                        class="workbench-plans-manage__refresh"
-                        title=move || i18n.tr(I18nKey::PlansRefresh)()
-                        aria-label=move || i18n.tr(I18nKey::PlansRefresh)()
-                        on:click=move |_| {
-                            if let Some(ws) = state.workspace_cwd.get_untracked() {
-                                load_plans_list(state, ws);
+                        class="workbench-plans-manage__collapse-btn"
+                        aria-label=move || {
+                            if list_collapsed.get() {
+                                i18n.tr(I18nKey::MemFilesExpand)()
+                            } else {
+                                i18n.tr(I18nKey::MemFilesCollapse)()
                             }
                         }
+                        title=move || {
+                            if list_collapsed.get() {
+                                i18n.tr(I18nKey::MemFilesExpand)()
+                            } else {
+                                i18n.tr(I18nKey::MemFilesCollapse)()
+                            }
+                        }
+                        on:click=move |_| {
+                            state.renaming.set(None);
+                            list_collapsed.update(|value| *value = !*value);
+                        }
                     >
-                        <LxIcon icon=icondata::LuRefreshCw width="0.82rem" height="0.82rem" />
+                        <Show
+                            when=move || list_collapsed.get()
+                            fallback=move || view! {
+                                <LxIcon icon=icondata::LuPanelLeftClose width="0.82rem" height="0.82rem" />
+                            }
+                        >
+                            <LxIcon icon=icondata::LuPanelLeftOpen width="0.82rem" height="0.82rem" />
+                        </Show>
                     </button>
                 </form>
                 <ul class="workbench-plans-manage__list">
@@ -282,7 +327,9 @@ fn PlansManageView(state: PlansState) -> impl IntoView {
                         each=move || state.plans.get()
                         key=|p| p.path.clone()
                         children=move |plan: PlanMeta| {
-                            view! { <PlansListRow state=state plan=plan /> }
+                            view! {
+                                <PlansListRow state=state plan=plan list_collapsed=list_collapsed />
+                            }
                         }
                     />
                 </ul>
@@ -427,7 +474,11 @@ fn PlansEditorToolbar(state: PlansState, wb: WorkbenchService) -> impl IntoView 
 }
 
 #[component]
-fn PlansListRow(state: PlansState, plan: PlanMeta) -> impl IntoView {
+fn PlansListRow(
+    state: PlansState,
+    plan: PlanMeta,
+    list_collapsed: RwSignal<bool>,
+) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let plan_path_active = plan.path.clone();
     let plan_path_rename_match = plan.path.clone();
@@ -448,81 +499,155 @@ fn PlansListRow(state: PlansState, plan: PlanMeta) -> impl IntoView {
         task_summary.cancelled
     );
 
+    let badge = plan_badge_text(&title);
+    let title_label = title.clone();
+    let summary_label = summary_text.clone();
+
     view! {
         <li
             class="workbench-plans-manage__row"
+            class:workbench-plans-manage__row--collapsed=move || list_collapsed.get()
             class:workbench-plans-manage__row--active=move || {
                 state.active_path.get().as_deref() == Some(plan_path_active.as_str())
             }
             class:workbench-plans-manage__row--index=is_index
         >
-            <button
-                type="button"
-                class="workbench-plans-manage__row-main"
-                on:click=move |_| {
-                    if let Some(ws) = state.workspace_cwd.get_untracked() {
-                        load_plan(state, ws, plan_path_select.clone());
-                    }
+            <Show
+                when=move || list_collapsed.get()
+                fallback=move || {
+                    let plan_path_select = plan_path_select.clone();
+                    let plan_path_rename = plan_path_rename.clone();
+                    let plan_path_delete = plan_path_delete.clone();
+                    let plan_path_rename_match = plan_path_rename_match.clone();
+                    let plan_path_for_rename_row = plan_path_for_rename_row.clone();
+                    view! {
+                        <>
+                            <button
+                                type="button"
+                                class="workbench-plans-manage__row-main"
+                                on:click=move |_| {
+                                    if let Some(ws) = state.workspace_cwd.get_untracked() {
+                                        load_plan(state, ws, plan_path_select.clone());
+                                    }
+                                }
+                            >
+                                <span class="workbench-plans-manage__row-title">{title_label.clone()}</span>
+                                <span class="workbench-plans-manage__row-summary" title=move || i18n.tr(I18nKey::PlansTaskSummary)()>
+                                    {summary_label.clone()}
+                                </span>
+                            </button>
+                            <Show when=move || !is_index>
+                                <button
+                                    type="button"
+                                    class="workbench-plans-manage__row-action"
+                                    title=move || i18n.tr(I18nKey::PlansRename)()
+                                    aria-label=move || i18n.tr(I18nKey::PlansRename)()
+                                    on:click={
+                                        let path = plan_path_rename.clone();
+                                        move |_| {
+                                            state.renaming.set(Some(path.clone()));
+                                            state.rename_input.set(path.clone());
+                                        }
+                                    }
+                                >
+                                    <LxIcon icon=icondata::LuPencil width="0.78rem" height="0.78rem" />
+                                </button>
+                                <button
+                                    type="button"
+                                    class="workbench-plans-manage__row-action"
+                                    title=move || i18n.tr(I18nKey::PlansDelete)()
+                                    aria-label=move || i18n.tr(I18nKey::PlansDelete)()
+                                    on:click={
+                                        let path = plan_path_delete.clone();
+                                        move |_| {
+                                            let Some(ws) = state.workspace_cwd.get_untracked() else { return };
+                                            let path = path.clone();
+                                            spawn_local(async move {
+                                                match plan_delete(&ws, &path).await {
+                                                    Ok(()) => {
+                                                        if state.active_path.get_untracked().as_deref()
+                                                            == Some(path.as_str())
+                                                        {
+                                                            state.active_path.set(None);
+                                                            state.editor_content.set(String::new());
+                                                        }
+                                                        load_plans_list(state, ws);
+                                                    }
+                                                    Err(e) => state.error.set(Some(e)),
+                                                }
+                                            });
+                                        }
+                                    }
+                                >
+                                    <LxIcon icon=icondata::LuTrash2 width="0.78rem" height="0.78rem" />
+                                </button>
+                            </Show>
+                            <Show when={
+                                let path = plan_path_rename_match.clone();
+                                move || state.renaming.get().as_deref() == Some(path.as_str())
+                            }>
+                                <PlansRenameRow state=state old_path=plan_path_for_rename_row.clone() />
+                            </Show>
+                        </>
+                    }.into_any()
                 }
             >
-                <span class="workbench-plans-manage__row-title">{title}</span>
-                <span class="workbench-plans-manage__row-summary" title=move || i18n.tr(I18nKey::PlansTaskSummary)()>
-                    {summary_text}
-                </span>
-            </button>
-            <Show when=move || !is_index>
-                <button
-                    type="button"
-                    class="workbench-plans-manage__row-action"
-                    title=move || i18n.tr(I18nKey::PlansRename)()
-                    aria-label=move || i18n.tr(I18nKey::PlansRename)()
-                    on:click={
-                        let path = plan_path_rename.clone();
-                        move |_| {
-                            state.renaming.set(Some(path.clone()));
-                            state.rename_input.set(path.clone());
-                        }
-                    }
-                >
-                    <LxIcon icon=icondata::LuPencil width="0.78rem" height="0.78rem" />
-                </button>
-                <button
-                    type="button"
-                    class="workbench-plans-manage__row-action"
-                    title=move || i18n.tr(I18nKey::PlansDelete)()
-                    aria-label=move || i18n.tr(I18nKey::PlansDelete)()
-                    on:click={
-                        let path = plan_path_delete.clone();
-                        move |_| {
-                            let Some(ws) = state.workspace_cwd.get_untracked() else { return };
-                            let path = path.clone();
-                            spawn_local(async move {
-                                match plan_delete(&ws, &path).await {
-                                    Ok(()) => {
-                                        if state.active_path.get_untracked().as_deref()
-                                            == Some(path.as_str())
-                                        {
-                                            state.active_path.set(None);
-                                            state.editor_content.set(String::new());
-                                        }
-                                        load_plans_list(state, ws);
-                                    }
-                                    Err(e) => state.error.set(Some(e)),
-                                }
-                            });
-                        }
-                    }
-                >
-                    <LxIcon icon=icondata::LuTrash2 width="0.78rem" height="0.78rem" />
-                </button>
-            </Show>
-            <Show when={
-                let path = plan_path_rename_match.clone();
-                move || state.renaming.get().as_deref() == Some(path.as_str())
-            }>
-                <PlansRenameRow state=state old_path=plan_path_for_rename_row.clone() />
+                <PlansListCollapsedRow
+                    state=state
+                    plan_path=plan_path_select.clone()
+                    badge=badge.clone()
+                    title=title_label
+                />
             </Show>
         </li>
+    }
+}
+
+#[component]
+fn PlansListCollapsedRow(
+    state: PlansState,
+    plan_path: String,
+    badge: String,
+    title: String,
+) -> impl IntoView {
+    view! {
+        <button
+            type="button"
+            class="workbench-plans-manage__badge"
+            title=title.clone()
+            aria-label=title
+            on:click=move |_| {
+                if let Some(ws) = state.workspace_cwd.get_untracked() {
+                    load_plan(state, ws, plan_path.clone());
+                }
+            }
+        >
+            {badge}
+        </button>
+    }
+}
+
+fn plan_badge_text(title: &str) -> String {
+    let mut out = String::new();
+    for part in title
+        .split(|ch: char| !ch.is_alphanumeric())
+        .filter(|part| !part.is_empty())
+    {
+        if let Some(ch) = part.chars().next() {
+            out.extend(ch.to_uppercase());
+        }
+        if out.chars().count() >= 2 {
+            break;
+        }
+    }
+    if out.is_empty() {
+        title
+            .chars()
+            .next()
+            .map(|ch| ch.to_uppercase().to_string())
+            .unwrap_or_else(|| "?".into())
+    } else {
+        out
     }
 }
 
