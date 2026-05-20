@@ -1,6 +1,6 @@
 # Skills & Rules Tabs für das RightPanel
 
-**Status:** pending
+**Status:** done
 
 ## Summary
 

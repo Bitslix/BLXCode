@@ -1,3 +1,8 @@
+// Step 2 of `.agents/plans/skills-rules-tabs.md` lands the disk-facing store +
+// install code. Tauri-command wrappers and frontend consumers wire up in the
+// remaining steps; keep the module warning-clean while it is in transit.
+#![allow(dead_code)]
+
 //! Skills & Rules: workspace-local manifests under `.agents/{skills,rules}/`.
 //!
 //! - `types`   — wire types (`RuleEntry`, `SkillEntry`) shared with the
@@ -9,12 +14,7 @@
 //! Schritt 1 of `.agents/plans/skills-rules-tabs.md` only lands `types`; the
 //! commands module and Tauri wrappers follow in Schritt 2.
 
+pub mod commands;
 pub mod install;
 pub mod store;
 pub mod types;
-
-pub use install::install_skill;
-pub use store::{
-    ensure_skills_rules_roots, list_rules, list_skills, read_rule, read_skill, remove_rule,
-    remove_skill, set_rule_enabled, set_skill_enabled, write_rule, write_skill,
-};

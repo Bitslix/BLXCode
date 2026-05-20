@@ -5,6 +5,7 @@
 //! incoming tool calls back through here.
 
 use crate::memory;
+use crate::skills_rules::{self, types::SkillSourceInput};
 use crate::tasks::{
     self, TaskCreateInput, TaskReorderInput, TaskSnapshot, TaskStatus, TaskUpdatePatch,
 };
@@ -525,6 +526,160 @@ pub fn registry() -> Vec<ToolDef> {
             site: ToolSite::Server,
         },
         ToolDef {
+            name: "rules_list",
+            description: "List `.agents/rules/*.md` files for the active workspace. Each entry has `name`, `title`, `summary`, `enabled`, `sizeBytes`, `updatedAt`. Disabled rules are returned too — ignore them when shaping behaviour.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "rules_read",
+            description: "Read the markdown body of one rule under `.agents/rules/`. `name` must look like `rule-foo.md`.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string", "description": "Filename, e.g. `rule-foo.md`." }
+                },
+                "required": ["name"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "rules_write",
+            description: "Create or overwrite one rule file under `.agents/rules/`. `name` MUST start with `rule-` and end with `.md`. New files default to enabled.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "name":    { "type": "string", "description": "Filename, e.g. `rule-foo.md`." },
+                    "content": { "type": "string" }
+                },
+                "required": ["name", "content"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "rules_set_enabled",
+            description: "Toggle a rule's `enabled` flag in `.agents/rules/index.json`. Disabled rules are kept on disk but should be treated as inactive.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "name":    { "type": "string" },
+                    "enabled": { "type": "boolean" }
+                },
+                "required": ["name", "enabled"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "rules_remove",
+            description: "Delete a rule file under `.agents/rules/` and clear its `index.json` entry.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string" }
+                },
+                "required": ["name"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "skills_list",
+            description: "List `.agents/skills/<name>/` skills for the active workspace. Each entry has `name`, `title`, `summary`, `enabled`, `source` ({kind, url?, ref?, package?, version?, path?}), `installedAt`, `updatedAt`, and `missingSkillMd` when `SKILL.md` is absent.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "skills_read",
+            description: "Read the `SKILL.md` body of one skill under `.agents/skills/<name>/`.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string" }
+                },
+                "required": ["name"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "skills_write",
+            description: "Create or overwrite `SKILL.md` for a skill (creates the folder if needed). Marks the skill as `agent-created` in the manifest.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "name":    { "type": "string", "description": "Skill folder name (lowercase a-z 0-9 - _)." },
+                    "content": { "type": "string" }
+                },
+                "required": ["name", "content"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "skills_set_enabled",
+            description: "Toggle a skill's `enabled` flag in `.agents/skills/index.json`.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "name":    { "type": "string" },
+                    "enabled": { "type": "boolean" }
+                },
+                "required": ["name", "enabled"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "skills_remove",
+            description: "Delete a skill folder under `.agents/skills/<name>/` and clear its `index.json` entry.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "name": { "type": "string" }
+                },
+                "required": ["name"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "skills_install",
+            description: "Install a new skill into `.agents/skills/<name>/`. Source kinds: `git` (clone via https/ssh url + optional ref), `npm` (npm pack of package@version), or `local` (copy from a workspace-relative path). The source folder MUST contain `SKILL.md` at the top level. Only call when the user explicitly asks to install a skill — confirm name + source back to the user.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "name":   { "type": "string", "description": "Lowercase a-z, 0-9, dash, underscore. Must not already exist." },
+                    "source": {
+                        "type": "object",
+                        "properties": {
+                            "kind":    { "type": "string", "enum": ["git", "npm", "local"] },
+                            "url":     { "type": "string", "description": "Required for kind=git." },
+                            "ref":     { "type": "string", "description": "Optional git ref (default `main`)." },
+                            "package": { "type": "string", "description": "Required for kind=npm." },
+                            "version": { "type": "string", "description": "Optional npm version." },
+                            "path":    { "type": "string", "description": "Required for kind=local; workspace-relative." }
+                        },
+                        "required": ["kind"],
+                        "additionalProperties": false
+                    }
+                },
+                "required": ["name", "source"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
             name: "harness.create_workspace",
             description: "Create and select a new workspace in the workbench. Defaults `cwd` to the active workspace cwd or the configured harness workspace root. `agentSlugs` maps one label per terminal slot and may contain `claude`, `codex`, `gemini`, `opencode`, `cursor`, or empty strings.",
             parameters: json!({
@@ -694,10 +849,258 @@ pub fn execute_server_tool(
         "task_update" => tool_task_update(args, root),
         "task_delete" => tool_task_delete(args, root),
         "task_reorder" => tool_task_reorder(args, root),
+        "rules_list" => tool_rules_list(root),
+        "rules_read" => tool_rules_read(args, root),
+        "rules_write" => tool_rules_write(args, root),
+        "rules_set_enabled" => tool_rules_set_enabled(args, root),
+        "rules_remove" => tool_rules_remove(args, root),
+        "skills_list" => tool_skills_list(root),
+        "skills_read" => tool_skills_read(args, root),
+        "skills_write" => tool_skills_write(args, root),
+        "skills_set_enabled" => tool_skills_set_enabled(args, root),
+        "skills_remove" => tool_skills_remove(args, root),
+        "skills_install" => tool_skills_install(args, root),
         other => ToolOutcome {
             ok: false,
             content: format!("unknown server tool: {other}"),
         },
+    }
+}
+
+// ---------------------------------------------------------------------
+// Skills & Rules dispatch
+
+fn need_str<'a>(args: &'a Value, key: &str) -> Result<&'a str, ToolOutcome> {
+    args.get(key).and_then(|v| v.as_str()).ok_or(ToolOutcome {
+        ok: false,
+        content: format!("missing {key}"),
+    })
+}
+
+fn need_bool(args: &Value, key: &str) -> Result<bool, ToolOutcome> {
+    args.get(key).and_then(|v| v.as_bool()).ok_or(ToolOutcome {
+        ok: false,
+        content: format!("missing {key}"),
+    })
+}
+
+fn json_outcome<T: Serialize>(value: &T) -> ToolOutcome {
+    match serde_json::to_string(value) {
+        Ok(body) => ToolOutcome {
+            ok: true,
+            content: body,
+        },
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: format!("serialize: {e}"),
+        },
+    }
+}
+
+fn err_outcome(e: String) -> ToolOutcome {
+    ToolOutcome {
+        ok: false,
+        content: e,
+    }
+}
+
+fn tool_rules_list(root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match skills_rules::store::list_rules(&ws) {
+        Ok(entries) => json_outcome(&entries),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_rules_read(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let name = match need_str(args, "name") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match skills_rules::store::read_rule(&ws, name) {
+        Ok(body) => ToolOutcome {
+            ok: true,
+            content: truncate_chars(&body, 4000),
+        },
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_rules_write(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let name = match need_str(args, "name") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let content = match need_str(args, "content") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match skills_rules::store::write_rule(&ws, name, content) {
+        Ok(entry) => json_outcome(&entry),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_rules_set_enabled(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let name = match need_str(args, "name") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let enabled = match need_bool(args, "enabled") {
+        Ok(b) => b,
+        Err(o) => return o,
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match skills_rules::store::set_rule_enabled(&ws, name, enabled) {
+        Ok(entry) => json_outcome(&entry),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_rules_remove(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let name = match need_str(args, "name") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match skills_rules::store::remove_rule(&ws, name) {
+        Ok(()) => ToolOutcome {
+            ok: true,
+            content: format!("removed rule {name}"),
+        },
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_skills_list(root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match skills_rules::store::list_skills(&ws) {
+        Ok(entries) => json_outcome(&entries),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_skills_read(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let name = match need_str(args, "name") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match skills_rules::store::read_skill(&ws, name) {
+        Ok(body) => ToolOutcome {
+            ok: true,
+            content: truncate_chars(&body, 4000),
+        },
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_skills_write(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let name = match need_str(args, "name") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let content = match need_str(args, "content") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match skills_rules::store::write_skill(&ws, name, content) {
+        Ok(entry) => json_outcome(&entry),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_skills_set_enabled(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let name = match need_str(args, "name") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let enabled = match need_bool(args, "enabled") {
+        Ok(b) => b,
+        Err(o) => return o,
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match skills_rules::store::set_skill_enabled(&ws, name, enabled) {
+        Ok(entry) => json_outcome(&entry),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_skills_remove(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let name = match need_str(args, "name") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match skills_rules::store::remove_skill(&ws, name) {
+        Ok(()) => ToolOutcome {
+            ok: true,
+            content: format!("removed skill {name}"),
+        },
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_skills_install(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let name = match need_str(args, "name") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let Some(source_val) = args.get("source") else {
+        return ToolOutcome {
+            ok: false,
+            content: "missing source".into(),
+        };
+    };
+    let source: SkillSourceInput = match serde_json::from_value(source_val.clone()) {
+        Ok(v) => v,
+        Err(e) => {
+            return ToolOutcome {
+                ok: false,
+                content: format!("invalid source: {e}"),
+            };
+        }
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match skills_rules::install::install_skill(&ws, name, source) {
+        Ok(entry) => json_outcome(&entry),
+        Err(e) => err_outcome(e),
     }
 }
 

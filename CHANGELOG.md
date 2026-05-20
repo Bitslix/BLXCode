@@ -15,11 +15,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - BLXCode Agent multimodal provider integration: pending images are sent once through OpenAI/OpenRouter and Anthropic vision payloads, then marked read via an `ImageContextConsumed` event.
 - BLXCode Agent image context client tools: `image_context_list` and `image_context_detach`.
 - Native image file validation command for dropped files, including MIME detection and per-image size limits.
+- Right panel **Rules** tab: cards for every `.agents/rules/rule-*.md` with title, summary, enabled/disabled pill, toggle, read, and remove controls; refresh button auto-loads on tab activation and workspace switch.
+- Right panel **Skills** tab: cards for every `.agents/skills/<name>/SKILL.md` with source badge (`git` / `npm` / `local` / `agent`), `SKILL.md missing` warn marker, toggle/remove controls, and an **Install skill** dialog.
+- Skill install dialog: segmented `Git` / `npm` / `Local` source picker with name + per-source fields; submits through the new `skills_install` Tauri command, shows progress and per-attempt error inline.
+- Tauri command surface for skills & rules: `rules_list`, `rules_read`, `rules_write`, `rules_set_enabled`, `rules_remove`, `skills_list`, `skills_read`, `skills_write`, `skills_set_enabled`, `skills_remove`, `skills_install`, and `skills_rules_bootstrap`.
+- On-disk manifests `.agents/rules/index.json` and `.agents/skills/index.json` tracking enabled state and (for skills) source provenance; atomic writes via tmp + rename, self-heal removes orphan entries at read time.
+- First-touch bootstrap: when a workspace is opened, the harness auto-creates `.agents/{rules,skills}/` and seeds each `index.json` from the on-disk content (every existing rule and skill folder enters as `enabled: true`, skills with `source.kind = "local"`); manually disabled entries survive subsequent bootstraps.
+- Skill install pipeline: `git clone --depth=1 --single-branch` for `git`, `npm pack` + `tar -xzf --strip-components=1` for `npm`, recursive copy for `local`; every install stages into `.install.<name>.tmp/`, validates that `SKILL.md` is present at the top level, and rolls the staging dir back on any failure.
+- BLXCode Agent server tools mirroring the Tauri commands: `rules_list`, `rules_read`, `rules_write`, `rules_set_enabled`, `rules_remove`, `skills_list`, `skills_read`, `skills_write`, `skills_set_enabled`, `skills_remove`, and `skills_install { name, source: { kind, url?, ref?, package?, version?, path? } }`.
+- System-prompt section for workspace skills & rules: active rules are declared **binding and non-negotiable** and outrank skill guidance; disabled entries must be treated as if they did not exist; install/remove require explicit user requests; `index.json` is harness-managed, not hand-edited.
+- i18n: new keys `TabRules`, `TabSkills`, `SrRulesEmpty`, `SrSkillsEmpty`, `SrEnable`, `SrDisable`, `SrInstallSkill`, install-dialog labels and placeholders, status pills (`enabled`/`disabled`), `SrMissingSkillMd`, and `SrNoWorkspace` — added to all 14 shipped locales.
 
 ### Changed
 
 - Agent conversation history now sanitizes image content after a turn so base64 image bytes are not persisted or resent on later text/voice turns.
 - Agent Chat reset moved from the compose action row into the Chat log header as an icon-only control with tooltip.
+- Right panel rail and open-tabstrip now carry five tabs (Agent / Browser / Memory / Rules / Skills) with `LuShield` and `LuPuzzle` icons for the two new entries.
+- `RightPanelTab` enum extended with `Rules` and `Skills` variants.
 
 ## [0.1.8] - 2026-05-20
 

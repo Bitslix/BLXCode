@@ -38,7 +38,12 @@ pub struct SkillsRulesRoots {
     pub skills: PathBuf,
 }
 
-/// Ensure `.agents/rules` and `.agents/skills` exist; idempotent.
+/// Ensure `.agents/rules` and `.agents/skills` exist and that each has an
+/// `index.json` manifest. Idempotent — on first touch, every existing
+/// `rule-*.md` is recorded as `enabled: true` and every `skills/<name>/`
+/// folder as `enabled: true` with `source: { kind: "local" }`. Once a
+/// manifest exists, it is the source of truth and only self-healed
+/// (orphan entries dropped) at read time.
 pub fn ensure_skills_rules_roots(ws: &str) -> Result<SkillsRulesRoots, String> {
     let ws_path = validate_workspace_cwd(ws)?;
     let agents = ws_path.join(AGENTS_REL);
@@ -47,7 +52,62 @@ pub fn ensure_skills_rules_roots(ws: &str) -> Result<SkillsRulesRoots, String> {
     fs::create_dir_all(&agents).map_err(|e| format!("create {AGENTS_REL}: {e}"))?;
     fs::create_dir_all(&rules).map_err(|e| format!("create {RULES_REL}: {e}"))?;
     fs::create_dir_all(&skills).map_err(|e| format!("create {SKILLS_REL}: {e}"))?;
+    bootstrap_rules_index(&rules)?;
+    bootstrap_skills_index(&skills)?;
     Ok(SkillsRulesRoots { rules, skills })
+}
+
+/// Write `.agents/rules/index.json` if it is missing. Pre-fills with every
+/// existing `rule-*.md` on disk, defaulting to `enabled: true`.
+fn bootstrap_rules_index(rules_dir: &Path) -> Result<(), String> {
+    let path = rules_index_path(rules_dir);
+    if path.exists() {
+        return Ok(());
+    }
+    let now = now_rfc3339();
+    let mut idx = RulesIndex::default();
+    for name in list_rule_files(rules_dir) {
+        idx.rules.insert(
+            name,
+            RuleIndexEntry {
+                enabled: true,
+                updated_at: now.clone(),
+            },
+        );
+    }
+    write_rules_index(rules_dir, &idx)
+}
+
+/// Write `.agents/skills/index.json` if it is missing. Pre-fills with every
+/// existing `<name>/` folder, defaulting to `enabled: true` and
+/// `source.kind = "local"` so the user can later edit the manifest if a
+/// folder came in via git/npm but predates this bootstrap.
+fn bootstrap_skills_index(skills_dir: &Path) -> Result<(), String> {
+    let path = skills_index_path(skills_dir);
+    if path.exists() {
+        return Ok(());
+    }
+    let now = now_rfc3339();
+    let mut idx = SkillsIndex::default();
+    for name in list_skill_dirs(skills_dir) {
+        idx.skills.insert(
+            name,
+            SkillIndexEntry {
+                enabled: true,
+                source: SkillSourceMeta {
+                    kind: SkillSourceKind::Local,
+                    url: None,
+                    git_ref: None,
+                    package: None,
+                    version: None,
+                    path: None,
+                },
+                installed_at: now.clone(),
+                updated_at: now.clone(),
+            },
+        );
+    }
+    write_skills_index(skills_dir, &idx)
 }
 
 // ===========================================================================
@@ -596,6 +656,7 @@ pub fn record_installed_skill(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::agents_layout::AGENTS_REL;
     use crate::skills_rules::types::SkillSourceKind;
 
     fn fresh_ws(tag: &str) -> PathBuf {
@@ -750,6 +811,48 @@ mod tests {
         assert!(read_rule(&ws_str(&ws), "../escape").is_err());
         assert!(write_skill(&ws_str(&ws), "../etc", "x").is_err());
         assert!(set_rule_enabled(&ws_str(&ws), "rule-a/b.md", true).is_err());
+        let _ = fs::remove_dir_all(&ws);
+    }
+
+    #[test]
+    fn bootstrap_writes_index_files_with_existing_content_enabled() {
+        let ws = fresh_ws("bootstrap");
+        // Seed `.agents/{rules,skills}/` BEFORE the first `ensure_*` call so
+        // the bootstrap step can pick them up.
+        let agents = ws.join(AGENTS_REL);
+        let rules_dir = ws.join(RULES_REL);
+        let skills_dir = ws.join(SKILLS_REL);
+        fs::create_dir_all(&agents).unwrap();
+        fs::create_dir_all(&rules_dir).unwrap();
+        fs::create_dir_all(&skills_dir).unwrap();
+        fs::write(rules_dir.join("rule-alpha.md"), "# Alpha").unwrap();
+        fs::write(rules_dir.join("rule-beta.md"), "# Beta").unwrap();
+        fs::create_dir_all(skills_dir.join("seed-a")).unwrap();
+        fs::write(skills_dir.join("seed-a/SKILL.md"), "# Seed A").unwrap();
+        fs::create_dir_all(skills_dir.join("seed-b")).unwrap();
+
+        // First touch — must materialise the manifests.
+        let _roots = ensure_skills_rules_roots(&ws_str(&ws)).unwrap();
+        assert!(rules_dir.join("index.json").is_file());
+        assert!(skills_dir.join("index.json").is_file());
+
+        let rules = list_rules(&ws_str(&ws)).unwrap();
+        assert_eq!(rules.len(), 2);
+        assert!(rules.iter().all(|r| r.enabled));
+        let skills = list_skills(&ws_str(&ws)).unwrap();
+        assert_eq!(skills.len(), 2);
+        assert!(skills.iter().all(|s| s.enabled));
+        assert!(skills
+            .iter()
+            .all(|s| matches!(s.source.kind, SkillSourceKind::Local)));
+
+        // A second touch must NOT clobber a manually-edited manifest:
+        // disable one, re-bootstrap, expect the disabled flag to survive.
+        set_rule_enabled(&ws_str(&ws), "rule-beta.md", false).unwrap();
+        let _ = ensure_skills_rules_roots(&ws_str(&ws)).unwrap();
+        let rules_after = list_rules(&ws_str(&ws)).unwrap();
+        let beta = rules_after.iter().find(|r| r.name == "rule-beta.md").unwrap();
+        assert!(!beta.enabled, "bootstrap must be a no-op when index exists");
         let _ = fs::remove_dir_all(&ws);
     }
 
