@@ -64,3 +64,10 @@ web-sys = { version = "0.3", features = [
 
 [workspace]
 members = ["src-tauri"]
+
+# Faster dev rebuilds: full debug info isn't needed for the WASM frontend, and
+# halves rustc link time on cold builds (Tauri's devUrl has a 180s timeout that
+# the default `debug = 2` would otherwise blow past on first compile).
+[profile.dev]
+debug = 1
+incremental = true

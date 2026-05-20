@@ -63,8 +63,23 @@ BLXCode injects a few environment variables into terminal sessions when needed:
 - `BLX_AGENT_SLUG`: assigned agent label for the slot.
 - `BLX_SESSIONS_PATH`: app-managed session mapping file path.
 - `BLX_NOTIFICATIONS_PATH`: app-managed unread counter file for agent completion hooks.
+- `BLX_AGENT_CONTEXT_DIR`: workspace-local directory (`<workspace>/.blxcode/agent-context`) where the handoff feature exports images and writes the manifest. Hooks may inspect this path; injection is **always** explicit via the BLXCode Agent or the titlebar dropdown.
+- `BLX_AGENT_CONTEXT_MANIFEST`: JSON manifest path (`<workspace>/.blxcode/agent-context/manifest.json`) listing the most recently exported images (id, label, mime, size, on-disk filename).
 
-These values support session capture and notification hooks for external coding tools.
+These values support session capture, notification hooks, and the terminal-agent context handoff feature.
+
+## Terminal Agent Context Handoff
+
+Each terminal cell exposes a small share icon in its titlebar (between the agent badge and the maximize button). Clicking it opens a dropdown listing every live terminal in the workspace plus a separator and a **"Send to BLXCode agent context"** entry.
+
+- **Pick a terminal** → BLXCode renders a Markdown context block (workspace root, attached Memory/Learnings/Notes, image metadata + exported on-disk paths) and writes it directly into that terminal's PTY. Image bytes are exported to `<workspace>/.blxcode/agent-context/images/`; base64 is never written into the prompt.
+- **"Send to BLXCode agent context"** → adds the workspace's Memory category to the BLXCode Agent's attached context (idempotent upsert), so the next agent turn sees it.
+
+The same dropdown is also available from the Memory **Graph** note preview popover. From there, "Pick a terminal" sends ONLY the previewed note (auto-typed as `memory_note` or `learning_note`); the "Send to BLXCode agent context" entry attaches that single note to the BLXCode Agent.
+
+The button briefly flips to a check or alert icon after action, and tints its border green or red (~2.8 s). Hover the button to see the last status message.
+
+The BLXCode Agent itself can trigger the same handoff programmatically through the `harness.send_agent_context` tool (see [Agent Providers — Tools](agent-providers.md)).
 
 ## Session resume
 

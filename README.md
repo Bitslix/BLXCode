@@ -19,6 +19,7 @@ The project is designed for people who want one focused local cockpit for agent-
 - **Agent panel** with OpenRouter, Anthropic, and OpenAI-compatible provider settings.
 - **Voice input and voice replies** with microphone STT, OpenAI/OpenRouter transcription, and OpenAI TTS playback.
 - **Sandbox-aware agent tools** for listing and reading workspace files.
+- **Terminal agent context handoff** — the BLXCode Agent can send the workspace's attached Memory/Learnings/Images into any live CLI agent (`claude` / `codex` / `gemini` / `opencode` / `cursor`) through the `harness.send_agent_context` tool, and users can trigger the same handoff manually from a dropdown in every terminal titlebar or from the memory graph note preview.
 - **Workspace memory** stored as Markdown notes under `.agents/memory`, with repo learnings under `.agents/learnings`.
 - **Workspace tasks** stored under `.blxcode/tasks`.
 - **Embedded browser** for links and research, with native child webviews on supported platforms and iframe fallback where needed.
@@ -84,6 +85,15 @@ cargo tauri dev
 ```
 
 The Tauri dev command starts Trunk automatically through `src-tauri/tauri.conf.json`. The frontend serves on `http://localhost:1420`.
+
+> **First-build tip:** Tauri's `devUrl` connection has a hard 180-second timeout. The cold WASM build (especially after a version bump, dep change, or `cargo clean`) can take longer than that on slower machines. If `cargo tauri dev` fails with *"Could not connect to `http://localhost:1420/` after 180s"*, warm the Trunk cache once, then re-run:
+>
+> ```bash
+> trunk build      # warms the WASM cache (no Tauri timeout)
+> cargo tauri dev  # now starts in seconds
+> ```
+>
+> The workspace `Cargo.toml` already pins `[profile.dev] debug = 1` and `incremental = true` to keep cold-build link time under that 180s budget on most machines.
 
 ### Build
 
