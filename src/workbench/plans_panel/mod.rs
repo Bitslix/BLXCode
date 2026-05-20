@@ -49,7 +49,7 @@ impl PlansState {
             active_path: RwSignal::new(None),
             editor_content: RwSignal::new(String::new()),
             editor_dirty: RwSignal::new(false),
-            show_preview: RwSignal::new(false),
+            show_preview: RwSignal::new(true),
             error: RwSignal::new(None),
             save_token: RwSignal::new(0),
             renaming: RwSignal::new(None),
@@ -394,6 +394,11 @@ fn PlansEditorToolbar(state: PlansState, wb: WorkbenchService) -> impl IntoView 
             <button
                 type="button"
                 class="workbench-plans-manage__btn"
+                aria-label=move || if state.show_preview.get() {
+                    i18n.tr(I18nKey::PlansEdit)()
+                } else {
+                    i18n.tr(I18nKey::PlansPreview)()
+                }
                 title=move || if state.show_preview.get() {
                     i18n.tr(I18nKey::PlansEdit)()
                 } else {
@@ -401,7 +406,14 @@ fn PlansEditorToolbar(state: PlansState, wb: WorkbenchService) -> impl IntoView 
                 }
                 on:click=move |_| state.show_preview.update(|v| *v = !*v)
             >
-                <LxIcon icon=icondata::LuEye width="0.82rem" height="0.82rem" />
+                <Show
+                    when=move || state.show_preview.get()
+                    fallback=move || view! {
+                        <LxIcon icon=icondata::LuEye width="0.82rem" height="0.82rem" />
+                    }
+                >
+                    <LxIcon icon=icondata::LuPencil width="0.82rem" height="0.82rem" />
+                </Show>
             </button>
             <button
                 type="button"

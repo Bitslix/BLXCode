@@ -7034,10 +7034,17 @@ button {
 
 .workbench-plans-manage {
     display: grid;
-    grid-template-columns: minmax(220px, 32%) 1fr;
+    grid-template-columns: minmax(12rem, 32%) 1fr;
     min-height: 0;
     flex: 1 1 auto;
     height: 100%;
+}
+
+@media (max-width: 52rem) {
+    .workbench-plans-manage {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(10rem, 38vh) 1fr;
+    }
 }
 
 .workbench-plans-manage__tree {
@@ -7091,20 +7098,16 @@ button {
 
 .workbench-plans-manage__row {
     display: grid;
-    grid-template-columns: 1fr auto auto;
-    align-items: center;
-    gap: 0.2rem;
-    padding: 0.3rem 0.45rem;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: start;
+    gap: 0.35rem 0.4rem;
+    padding: 0.55rem 0.65rem;
     border-bottom: 1px dashed var(--blx-border-subtle, #2c2f36);
     font-size: 0.82rem;
 }
 
 .workbench-plans-manage__row--active {
     background: rgba(125, 211, 252, 0.08);
-}
-
-.workbench-plans-manage__row--index .workbench-plans-manage__row-title::before {
-    content: "📑 ";
 }
 
 .workbench-plans-manage__row-main {
@@ -7115,12 +7118,14 @@ button {
     text-align: left;
     display: flex;
     flex-direction: column;
+    gap: 0.2rem;
     min-width: 0;
-    padding: 0;
+    padding: 0.1rem 0;
 }
 
 .workbench-plans-manage__row-title {
     font-weight: 600;
+    line-height: 1.35;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -7128,8 +7133,10 @@ button {
 
 .workbench-plans-manage__row-summary {
     color: var(--blx-fg-muted);
-    font-size: 0.7rem;
+    font-size: 0.72rem;
+    line-height: 1.35;
     font-family: var(--blx-font-mono, monospace);
+    overflow-wrap: anywhere;
 }
 
 .workbench-plans-manage__row-action {
@@ -7137,8 +7144,9 @@ button {
     border: 0;
     color: var(--blx-fg-muted);
     cursor: pointer;
-    padding: 0.2rem;
+    padding: 0.35rem;
     border-radius: 3px;
+    align-self: center;
 }
 
 .workbench-plans-manage__row-action:hover {
