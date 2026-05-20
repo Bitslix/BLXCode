@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Agent Image mode**: new image-generation toggle in the agent chat header (next to Reset). When active, your prompt produces an image instead of a chat reply. Generated images render inline with a Download button and, when a workspace is set, are saved to `<workspace>/.blxcode/generated/<unix-ms>-<slug>.<ext>`. Reference images attached to the chat are forwarded as img2img inputs (max 4 × 8 MiB, PNG/JPEG/GIF/WebP). The toggle is per-workspace and persisted across reloads.
+- **Image providers**: OpenAI (`/v1/images/generations` for text-only, `/v1/images/edits` multipart when references are attached) and OpenRouter (`/v1/chat/completions` with `modalities: ["image", "text"]`). API keys reuse the existing agent provider keyring entries.
+- **Settings → Image tab**: provider buttons (OpenAI / OpenRouter) and a model picker with refresh, filtered to image-shaped models (`dall-e`, `gpt-image`, `flux`, `stable-diffusion`, `sdxl`, `imagen`, anything matching `image`) with curated fallbacks per provider.
+- **Shared `ModelPicker` component** under `src/workbench/model_picker/` (datalist input + refresh button + entry count). Voice settings tab refactored to consume it; image settings tab uses the same component.
+- **Tauri commands**: `image_settings_get`, `image_settings_save`, `image_curated_models`, `generated_image_preview` (re-reads a saved image from disk for the timeline after a workspace reload — the snapshot stores `saved_path` only, never base64).
+- **Voice + image integration**: when an image-mode turn is submitted from voice input (PTT/hotkey) and TTS is enabled, BLXCode plays a short locale-aware confirmation phrase ("Bild erstellt." / "Image created.") after the image arrives. The image content itself is not narrated.
+- **Protocol**: `UserTurn.image_generate: bool` (default false) and `AgentEvent::ImageGenerated { prompt, mime, savedPath?, filename?, previewSrc }`. Mirrored in `src/agent_wire.rs`.
+- **i18n**: `HsCatImage`, `ImagePaneTitle`, `ImagePaneDescription`, `ImageProviderField`, `ImageModelField`, `ImageSettingsSaved`, `ImageModeToggleAria`, `ImageModeHint`, `ImageModeBadge`, `ImageGenerateUserPromptPrefix`, `ImageGenerateDownload`, `ImageGenerateOpenFolder`, `ImageGenerateNoWorkspaceWarn`, `ImageGenerateMissingKey`, `ImageGenerateFailed`, `ImageGenerateConfirmTts` — added to all 14 locales.
+- **Docs**: `docs/user/image.md` covering setup, generation flow, voice/image, limits, persistence and troubleshooting.
+- **Tests**: 8 new unit tests (`image::settings::tests`, `image::generate::tests`) covering the image-model heuristic, default settings, slug sanitisation, MIME→extension mapping and data-URL decoding.
 - **Dynamic memory categories**: any subdirectory under `.agents/memory/` is now a real category in the sidebar and graph (built-in `memory` / `learnings` keep their special handling). New Tauri commands `memory_list_categories` and `memory_create_category` (creates the folder and drops `.gitkeep` so empty categories persist). `MemoryNoteGroup.key` and `groups_open` switched from `&'static str` to `String`; grouping derives the category from the first API-path segment.
 - **Memory panel — Discord-style toolbar**: the top inline "note title…" input is gone. The toolbar holds a `+ Kategorie` button (`LuFolderPlus`) that opens `NewCategoryDialog`, plus the existing collapse button. Each category header gets a hover-revealed `+` button (`workbench-memory-files__group-add`) that opens `NewNoteDialog` prefilled with the clicked category.
 - **Dialogs**: `NewCategoryDialog` (name input → `memory_create_category`) and `NewNoteDialog` (title input → `memory_create` with `<category>/<note>.md` API path). Both reuse the `workspace-rename-dialog` styling and post errors inline.
@@ -20,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Settings envelope round-trip fix**: `agent_settings_save` now preserves sibling envelope keys (`voice`, `image`) instead of clobbering them. `voice/settings.rs` was deduplicated to share `read_envelope`/`write_envelope` helpers with `agent_settings.rs`; this is the single source of truth for `agent_provider_settings.json`.
+- **Orchestrator TTS refactor**: `maybe_emit_tts` split into `emit_tts_for_text(app, state, text)` (general) and `maybe_emit_tts_for_last_assistant` (chat path). The image branch reuses `emit_tts_for_text` to play the confirmation phrase without touching the chat conversation history.
+- **Timeline persistence**: when a `GeneratedImage` row has a `saved_path`, its base64 preview is dropped before persisting to `sessions.json` (the image is rehydrated lazily via `generated_image_preview` on next render). Keeps the snapshot small.
 - `expand_files_group_for_path`, `MemoryFileGroupHead` / `MemoryFileGroupSection`, `MemoryContextTarget::Category::key`, `MemoryCategoryEditDialog`, `add_category_agent_context`, and `MemoryContextMenuView` all moved from `&'static str` category keys to owned `String` for dynamic categories.
 - `memory_note_groups` now derives groups from the active workspace's notes plus `state.empty_categories` (loaded via `memory_list_categories`), sorts with `memory` first, `learnings` second, then alphabetic.
 
