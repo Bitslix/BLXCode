@@ -9,7 +9,7 @@ use tauri::webview::WebviewBuilder;
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl};
 use url::Url;
 
-pub const DEFAULT_HOME_URL: &str = "https://bitslix.com";
+pub const DEFAULT_HOME_URL: &str = "https://blxcode.com";
 
 /// Child-WebViews mit SPA-gestützten Bounds funktionieren zuverlässig nur dort,
 /// wo das Tauri-/wry-Backend eine echte Unter-WebView einpasst (Windows: HWND-Child,

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-05-20
+
 ### Added
 
 - One-time dialog after the EULA asking whether to append `.blxcode/` to the workspace `.gitignore` (answer stored in `blxcode_gitignore_prompt_v1`; skipped in non-Tauri builds).
@@ -15,7 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release CI workflow: `authorize` job — only the repository owner may run release builds (`workflow_dispatch` or `v*` tag push); org repos may set Actions variable `RELEASE_OWNER`.
 - Release CI **manual run**: choose build targets — **Alle**, **Linux (deb, rpm, AppImage)**, **Mac Universal**, or **Windows** (`plan` job sets the matrix). Tag pushes still build all platforms.
 - Memory **Files** sidebar: collapsible **Memory** / **Learnings** groups (chevron toggle, collapsed by default). Group headers open the category index note (`README.md` / `MEMORY.md` or `learnings/LEARNINGS.md`) and list other notes when expanded.
-- Memory **Search** view: dynamic category filter badges (pill style) between the query field and results — **All**, **Memory**, and **Learnings** with hit counts when both roots match; filters reset on a new query.
+- Memory **Search** view: category filter badges (pill style) between the query field and results — **All**, **Memory**, and **Learnings** with hit counts; filters appear whenever there are hits (not only when both roots match); filters reset on a new query.
+- Memory **Search** and note editor: **Show in graph** control jumps to the 3D graph, selects the note node, and flies the camera to it.
 - Memory **Graph** view: lazy-loaded offline 3D graph powered by a local `3d-force-graph` / Three.js bundle, with the existing SVG graph retained as the 2D fallback.
 - Memory **Graph** toolbar: icon-only controls for reset, zoom in/out, and 2D/3D mode switching; the selected graph mode is persisted locally.
 - Memory **Graph** preview flow: clicking a node stays in the Graph tab, flies/focuses to the node, and opens a markdown preview popover with close, “Open in Files”, and in-preview wikilink navigation.

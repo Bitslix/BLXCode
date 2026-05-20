@@ -73,7 +73,7 @@ cargo install trunk tauri-cli
 cargo tauri build
 ```
 
-Common Linux outputs include AppImage, Debian, and RPM bundles under `target/release/bundle/` (for example `deb/BLXCode_0.1.5_amd64.deb`, `rpm/BLXCode-0.1.5-1.x86_64.rpm`, `appimage/BLXCode_0.1.5_amd64.AppImage`).
+Common Linux outputs include AppImage, Debian, and RPM bundles under `target/release/bundle/` (for example `deb/BLXCode_0.1.8_amd64.deb`, `rpm/BLXCode-0.1.8-1.x86_64.rpm`, `appimage/BLXCode_0.1.8_amd64.AppImage`).
 
 On Arch and other distros with newer binutils, AppImage bundling may fail during `linuxdeploy` strip with `.relr.dyn` errors. Use:
 
@@ -121,7 +121,7 @@ cargo install trunk tauri-cli
 cargo tauri build --target universal-apple-darwin
 ```
 
-Typical outputs under `target/release/bundle/macos/` include `BLXCode.app` and, when enabled, a `.dmg` (names include the version, for example `BLXCode_0.1.5_universal.dmg`).
+Typical outputs under `target/release/bundle/macos/` include `BLXCode.app` and, when enabled, a `.dmg` (names include the version, for example `BLXCode_0.1.8_universal.dmg`).
 
 Unsigned local builds may be blocked or warned about by Gatekeeper on other Macs. Distribution builds should be signed and notarized with an Apple Developer account.
 

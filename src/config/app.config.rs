@@ -21,11 +21,11 @@ pub const MEMORY_COLOR_PRESETS_STORAGE_KEY: &str = "blxcode_memory_color_presets
 pub const HARNESS_WORKSPACE_ROOT_KEY: &str = "blxcode_harness_workspace_root_v1";
 
 /// Default URL for embedded browser tab.
-pub const HARNESS_BROWSER_DEFAULT_URL: &str = "https://bitslix.com";
+pub const HARNESS_BROWSER_DEFAULT_URL: &str = "https://blxcode.com";
 
 /// Schnellwahl auf der „Neuer Tab"-Seite (`(Label, Url)`).
 pub const NEW_TAB_BROWSER_SHORTLINKS: &[(&str, &str)] = &[
-    ("Bitslix", "https://bitslix.com"),
+    ("BLXCode", "https://blxcode.com"),
     ("GitHub", "https://github.com"),
     ("Rust", "https://doc.rust-lang.org"),
 ];
