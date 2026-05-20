@@ -135,6 +135,7 @@ pub fn RightPanel() -> impl IntoView {
                         class="workbench-icon-btn workbench-right-panel-toggle"
                         aria-expanded=move || (!collapsed.get()).to_string()
                         aria-label=move || if collapsed.get() { i18n.tr(I18nKey::RpExpand)() } else { i18n.tr(I18nKey::RpCollapse)() }
+                        title=move || if collapsed.get() { i18n.tr(I18nKey::RpExpand)() } else { i18n.tr(I18nKey::RpCollapse)() }
                         on:click=move |_| wb.toggle_right_panel()
                     >
                         <span class="workbench-right-panel-toggle__icon" aria-hidden="true">
@@ -155,6 +156,7 @@ pub fn RightPanel() -> impl IntoView {
                         class="workbench-right-rail-tab"
                         class:workbench-right-rail-tab--active=move || active_tab.get() == RightPanelTab::Agent
                         aria-label=move || i18n.tr(I18nKey::TabAgent)()
+                        title=move || i18n.tr(I18nKey::TabAgent)()
                         on:click=move |_| {
                             wb.set_right_tab(RightPanelTab::Agent);
                             if wb.right_collapsed().get_untracked() {
@@ -173,6 +175,7 @@ pub fn RightPanel() -> impl IntoView {
                         class="workbench-right-rail-tab"
                         class:workbench-right-rail-tab--active=move || active_tab.get() == RightPanelTab::Browser
                         aria-label=move || i18n.tr(I18nKey::TabBrowser)()
+                        title=move || i18n.tr(I18nKey::TabBrowser)()
                         on:click=move |_| {
                             wb.set_right_tab(RightPanelTab::Browser);
                             if wb.right_collapsed().get_untracked() {
@@ -191,6 +194,7 @@ pub fn RightPanel() -> impl IntoView {
                         class="workbench-right-rail-tab"
                         class:workbench-right-rail-tab--active=move || active_tab.get() == RightPanelTab::Plans
                         aria-label=move || i18n.tr(I18nKey::TabPlans)()
+                        title=move || i18n.tr(I18nKey::TabPlans)()
                         on:click=move |_| {
                             wb.set_right_tab(RightPanelTab::Plans);
                             if wb.right_collapsed().get_untracked() {
@@ -209,6 +213,7 @@ pub fn RightPanel() -> impl IntoView {
                         class="workbench-right-rail-tab"
                         class:workbench-right-rail-tab--active=move || active_tab.get() == RightPanelTab::Memory
                         aria-label=move || i18n.tr(I18nKey::TabMemory)()
+                        title=move || i18n.tr(I18nKey::TabMemory)()
                         on:click=move |_| {
                             wb.set_right_tab(RightPanelTab::Memory);
                             if wb.right_collapsed().get_untracked() {
@@ -227,6 +232,7 @@ pub fn RightPanel() -> impl IntoView {
                         class="workbench-right-rail-tab"
                         class:workbench-right-rail-tab--active=move || active_tab.get() == RightPanelTab::Rules
                         aria-label=move || i18n.tr(I18nKey::TabRules)()
+                        title=move || i18n.tr(I18nKey::TabRules)()
                         on:click=move |_| {
                             wb.set_right_tab(RightPanelTab::Rules);
                             if wb.right_collapsed().get_untracked() {
@@ -245,6 +251,7 @@ pub fn RightPanel() -> impl IntoView {
                         class="workbench-right-rail-tab"
                         class:workbench-right-rail-tab--active=move || active_tab.get() == RightPanelTab::Skills
                         aria-label=move || i18n.tr(I18nKey::TabSkills)()
+                        title=move || i18n.tr(I18nKey::TabSkills)()
                         on:click=move |_| {
                             wb.set_right_tab(RightPanelTab::Skills);
                             if wb.right_collapsed().get_untracked() {
@@ -282,6 +289,7 @@ pub fn RightPanel() -> impl IntoView {
                             class="workbench-icon-btn workbench-right-panel-toggle"
                             aria-expanded="true"
                             aria-label=move || i18n.tr(I18nKey::RpCollapse)()
+                            title=move || i18n.tr(I18nKey::RpCollapse)()
                             on:click=move |_| wb.toggle_right_panel()
                         >
                             <span class="workbench-right-panel-toggle__icon" aria-hidden="true">
@@ -295,6 +303,8 @@ pub fn RightPanel() -> impl IntoView {
                                 aria-selected=move || active_tab.get() == RightPanelTab::Agent
                                 class="workbench-right-tab"
                                 class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Agent
+                                aria-label=move || i18n.tr(I18nKey::TabAgent)()
+                                title=move || i18n.tr(I18nKey::TabAgent)()
                                 on:click=move |_| wb.set_right_tab(RightPanelTab::Agent)
                             >
                                 <span class="workbench-right-tab__icon" aria-hidden="true">
@@ -308,6 +318,8 @@ pub fn RightPanel() -> impl IntoView {
                                 aria-selected=move || active_tab.get() == RightPanelTab::Browser
                                 class="workbench-right-tab"
                                 class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Browser
+                                aria-label=move || i18n.tr(I18nKey::TabBrowser)()
+                                title=move || i18n.tr(I18nKey::TabBrowser)()
                                 on:click=move |_| wb.set_right_tab(RightPanelTab::Browser)
                             >
                                 <span class="workbench-right-tab__icon" aria-hidden="true">
@@ -321,6 +333,8 @@ pub fn RightPanel() -> impl IntoView {
                                 aria-selected=move || active_tab.get() == RightPanelTab::Plans
                                 class="workbench-right-tab"
                                 class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Plans
+                                aria-label=move || i18n.tr(I18nKey::TabPlans)()
+                                title=move || i18n.tr(I18nKey::TabPlans)()
                                 on:click=move |_| wb.set_right_tab(RightPanelTab::Plans)
                             >
                                 <span class="workbench-right-tab__icon" aria-hidden="true">
@@ -334,6 +348,8 @@ pub fn RightPanel() -> impl IntoView {
                                 aria-selected=move || active_tab.get() == RightPanelTab::Memory
                                 class="workbench-right-tab"
                                 class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Memory
+                                aria-label=move || i18n.tr(I18nKey::TabMemory)()
+                                title=move || i18n.tr(I18nKey::TabMemory)()
                                 on:click=move |_| wb.set_right_tab(RightPanelTab::Memory)
                             >
                                 <span class="workbench-right-tab__icon" aria-hidden="true">
@@ -347,6 +363,8 @@ pub fn RightPanel() -> impl IntoView {
                                 aria-selected=move || active_tab.get() == RightPanelTab::Rules
                                 class="workbench-right-tab"
                                 class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Rules
+                                aria-label=move || i18n.tr(I18nKey::TabRules)()
+                                title=move || i18n.tr(I18nKey::TabRules)()
                                 on:click=move |_| wb.set_right_tab(RightPanelTab::Rules)
                             >
                                 <span class="workbench-right-tab__icon" aria-hidden="true">
@@ -360,6 +378,8 @@ pub fn RightPanel() -> impl IntoView {
                                 aria-selected=move || active_tab.get() == RightPanelTab::Skills
                                 class="workbench-right-tab"
                                 class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Skills
+                                aria-label=move || i18n.tr(I18nKey::TabSkills)()
+                                title=move || i18n.tr(I18nKey::TabSkills)()
                                 on:click=move |_| wb.set_right_tab(RightPanelTab::Skills)
                             >
                                 <span class="workbench-right-tab__icon" aria-hidden="true">

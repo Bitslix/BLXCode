@@ -13,8 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Right panel: native hover tooltips (`title`) on icon rail tabs and header tab strip (inactive tabs show icon-only).
 - Sidebar footer brand label is **BLXCode** (was lowercase `blxcode`).
-- Plans panel: task-summary status chips and icons are larger and easier to read.
+- Plans panel: task-summary icons doubled (~1.64rem), vivid per-status colors on icon + pill, improved row/chip spacing, solid row dividers (no dashed).
 
 ### Removed
 
