@@ -13,6 +13,7 @@ mod notification_sound;
 mod path_nav;
 mod right_panel;
 mod sidebar;
+pub mod skills_rules_panel;
 pub mod state;
 mod terminal_cell;
 mod terminal_glue;
@@ -23,6 +24,7 @@ pub use browser_tab::{BrowserTabDock, EmbeddedBrowserGlue};
 pub use memory_panel::MemoryPanel;
 pub use right_panel::RightPanel;
 pub use sidebar::Sidebar;
+pub use skills_rules_panel::SkillsRulesService;
 pub use state::{
     AgentImageContextStatus, BrowserEmbedSurface, HarnessUiService, LegacyStorageMigration,
     RightPanelTab, WorkbenchService, WorkbenchSnapshot, WorkspaceAgentImage,
@@ -82,10 +84,12 @@ pub fn WorkbenchShell() -> impl IntoView {
     let wb = WorkbenchService::new();
     let harness = HarnessUiService::new();
     let embed_surface = BrowserEmbedSurface(RwSignal::new(None));
+    let skills_rules = SkillsRulesService::new();
 
     provide_context(wb);
     provide_context(harness);
     provide_context(embed_surface);
+    provide_context(skills_rules);
 
     // Hydrate from persisted snapshot before auto-save kicks in.
     let hydrated = RwSignal::new(false);

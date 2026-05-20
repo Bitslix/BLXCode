@@ -4,8 +4,9 @@ use crate::config::{
     MEMORY_COLOR_PRESETS_STORAGE_KEY,
 };
 use crate::tauri_bridge::{
-    is_tauri_shell, workbench_drop_sessions, workbench_extract_sessions_prefix,
-    workbench_merge_sessions_workspace, workspace_ensure_agents,
+    is_tauri_shell, skills_rules_bootstrap, workbench_drop_sessions,
+    workbench_extract_sessions_prefix, workbench_merge_sessions_workspace,
+    workspace_ensure_agents,
 };
 use crate::workbench::agent_timeline::TimelineItem;
 use gloo_timers::future::TimeoutFuture;
@@ -264,6 +265,9 @@ fn spawn_ensure_agents_layout(cwd: String) {
     let cwd = trimmed.to_owned();
     spawn_local(async move {
         let _ = workspace_ensure_agents(&cwd).await;
+        // First-touch bootstrap of `.agents/{rules,skills}/index.json` — runs
+        // after `workspace_ensure_agents` so the `.agents/` parent exists.
+        let _ = skills_rules_bootstrap(cwd).await;
     });
 }
 
@@ -400,6 +404,8 @@ pub enum RightPanelTab {
     Agent,
     Browser,
     Memory,
+    Rules,
+    Skills,
 }
 
 /// Kategorien in den Harness-Einstellungen (Befehlspalette).

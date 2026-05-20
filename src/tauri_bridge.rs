@@ -1,5 +1,6 @@
 //! Typisierte Aufrufe von Tauri `invoke` (vgl. `quit.rs`).
 use crate::agent_wire::{AgentEvent, BrowserBoundsPayload, TaskSnapshot, UserTurn};
+use crate::skills_rules_wire::{RuleEntry, SkillEntry, SkillSourceInput};
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Reflect;
 use serde::de::DeserializeOwned;
@@ -1029,6 +1030,144 @@ pub async fn memory_install_pointers(
     )
     .await
 }
+
+// ---------------------------------------------------------------------
+// Skills & Rules
+
+/// Idempotently creates `.agents/{rules,skills}/` and their `index.json`
+/// manifests, importing any pre-existing files as `enabled: true`. Safe
+/// to call on every workspace activation.
+pub async fn skills_rules_bootstrap(ws: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct A {
+        ws: String,
+    }
+    invoke_unit_js("skills_rules_bootstrap", args_value(A { ws })?).await
+}
+
+pub async fn rules_list(ws: String) -> Result<Vec<RuleEntry>, String> {
+    #[derive(Serialize)]
+    struct A {
+        ws: String,
+    }
+    invoke_typed("rules_list", A { ws }).await
+}
+
+#[allow(dead_code)]
+pub async fn rules_read(ws: String, name: String) -> Result<String, String> {
+    #[derive(Serialize)]
+    struct A {
+        ws: String,
+        name: String,
+    }
+    invoke_typed("rules_read", A { ws, name }).await
+}
+
+#[allow(dead_code)]
+pub async fn rules_write(ws: String, name: String, content: String) -> Result<RuleEntry, String> {
+    #[derive(Serialize)]
+    struct A {
+        ws: String,
+        name: String,
+        content: String,
+    }
+    invoke_typed("rules_write", A { ws, name, content }).await
+}
+
+pub async fn rules_set_enabled(
+    ws: String,
+    name: String,
+    enabled: bool,
+) -> Result<RuleEntry, String> {
+    #[derive(Serialize)]
+    struct A {
+        ws: String,
+        name: String,
+        enabled: bool,
+    }
+    invoke_typed("rules_set_enabled", A { ws, name, enabled }).await
+}
+
+pub async fn rules_remove(ws: String, name: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct A {
+        ws: String,
+        name: String,
+    }
+    invoke_unit_js("rules_remove", args_value(A { ws, name })?).await
+}
+
+pub async fn skills_list(ws: String) -> Result<Vec<SkillEntry>, String> {
+    #[derive(Serialize)]
+    struct A {
+        ws: String,
+    }
+    invoke_typed("skills_list", A { ws }).await
+}
+
+#[allow(dead_code)]
+pub async fn skills_read(ws: String, name: String) -> Result<String, String> {
+    #[derive(Serialize)]
+    struct A {
+        ws: String,
+        name: String,
+    }
+    invoke_typed("skills_read", A { ws, name }).await
+}
+
+#[allow(dead_code)]
+pub async fn skills_write(
+    ws: String,
+    name: String,
+    content: String,
+) -> Result<SkillEntry, String> {
+    #[derive(Serialize)]
+    struct A {
+        ws: String,
+        name: String,
+        content: String,
+    }
+    invoke_typed("skills_write", A { ws, name, content }).await
+}
+
+pub async fn skills_set_enabled(
+    ws: String,
+    name: String,
+    enabled: bool,
+) -> Result<SkillEntry, String> {
+    #[derive(Serialize)]
+    struct A {
+        ws: String,
+        name: String,
+        enabled: bool,
+    }
+    invoke_typed("skills_set_enabled", A { ws, name, enabled }).await
+}
+
+pub async fn skills_remove(ws: String, name: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct A {
+        ws: String,
+        name: String,
+    }
+    invoke_unit_js("skills_remove", args_value(A { ws, name })?).await
+}
+
+pub async fn skills_install(
+    ws: String,
+    name: String,
+    source: SkillSourceInput,
+) -> Result<SkillEntry, String> {
+    #[derive(Serialize)]
+    struct A {
+        ws: String,
+        name: String,
+        source: SkillSourceInput,
+    }
+    invoke_typed("skills_install", A { ws, name, source }).await
+}
+
+// ---------------------------------------------------------------------
 
 pub async fn git_branch(cwd: String) -> Result<Option<String>, String> {
     #[derive(Serialize)]

@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "skills": {
+    "create-agentsmd": {
+      "enabled": true,
+      "source": {
+        "kind": "local"
+      },
+      "installedAt": "2026-05-20T11:32:10Z",
+      "updatedAt": "2026-05-20T11:32:10Z"
+    },
+    "frontend-design": {
+      "enabled": true,
+      "source": {
+        "kind": "local"
+      },
+      "installedAt": "2026-05-20T11:32:10Z",
+      "updatedAt": "2026-05-20T11:32:10Z"
+    },
+    "gpt-image-2": {
+      "enabled": true,
+      "source": {
+        "kind": "local"
+      },
+      "installedAt": "2026-05-20T11:32:10Z",
+      "updatedAt": "2026-05-20T11:32:10Z"
+    },
+    "leptos-guide": {
+      "enabled": true,
+      "source": {
+        "kind": "local"
+      },
+      "installedAt": "2026-05-20T11:32:10Z",
+      "updatedAt": "2026-05-20T11:32:10Z"
+    },
+    "rust-async-patterns": {
+      "enabled": true,
+      "source": {
+        "kind": "local"
+      },
+      "installedAt": "2026-05-20T11:32:10Z",
+      "updatedAt": "2026-05-20T11:32:10Z"
+    },
+    "rust-best-practices": {
+      "enabled": true,
+      "source": {
+        "kind": "local"
+      },
+      "installedAt": "2026-05-20T11:32:10Z",
+      "updatedAt": "2026-05-20T11:32:10Z"
+    },
+    "tauri-v2": {
+      "enabled": true,
+      "source": {
+        "kind": "local"
+      },
+      "installedAt": "2026-05-20T11:32:10Z",
+      "updatedAt": "2026-05-20T11:32:10Z"
+    }
+  }
+}

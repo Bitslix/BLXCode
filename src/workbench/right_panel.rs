@@ -1,6 +1,7 @@
 //! Right inspector column: collapsible (default closed); width via splitter when open.
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
+use crate::workbench::skills_rules_panel::{RulesTabDock, SkillsTabDock};
 use crate::workbench::{
     AgentPanelDock, BrowserTabDock, MemoryPanel, RightPanelTab, WorkbenchService,
 };
@@ -192,6 +193,42 @@ pub fn RightPanel() -> impl IntoView {
                             <LxIcon icon=icondata::LuLayers width="1rem" height="1rem" />
                         </span>
                     </button>
+                    <button
+                        type="button"
+                        role="tab"
+                        aria-selected=move || active_tab.get() == RightPanelTab::Rules
+                        class="workbench-right-rail-tab"
+                        class:workbench-right-rail-tab--active=move || active_tab.get() == RightPanelTab::Rules
+                        aria-label=move || i18n.tr(I18nKey::TabRules)()
+                        on:click=move |_| {
+                            wb.set_right_tab(RightPanelTab::Rules);
+                            if wb.right_collapsed().get_untracked() {
+                                wb.toggle_right_panel();
+                            }
+                        }
+                    >
+                        <span class="workbench-right-rail-tab__icon" aria-hidden="true">
+                            <LxIcon icon=icondata::LuShield width="1rem" height="1rem" />
+                        </span>
+                    </button>
+                    <button
+                        type="button"
+                        role="tab"
+                        aria-selected=move || active_tab.get() == RightPanelTab::Skills
+                        class="workbench-right-rail-tab"
+                        class:workbench-right-rail-tab--active=move || active_tab.get() == RightPanelTab::Skills
+                        aria-label=move || i18n.tr(I18nKey::TabSkills)()
+                        on:click=move |_| {
+                            wb.set_right_tab(RightPanelTab::Skills);
+                            if wb.right_collapsed().get_untracked() {
+                                wb.toggle_right_panel();
+                            }
+                        }
+                    >
+                        <span class="workbench-right-rail-tab__icon" aria-hidden="true">
+                            <LxIcon icon=icondata::LuPuzzle width="1rem" height="1rem" />
+                        </span>
+                    </button>
                 </div>
             </div>
             <div
@@ -264,6 +301,32 @@ pub fn RightPanel() -> impl IntoView {
                                 </span>
                                 <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabMemory)()}</span>
                             </button>
+                            <button
+                                type="button"
+                                role="tab"
+                                aria-selected=move || active_tab.get() == RightPanelTab::Rules
+                                class="workbench-right-tab"
+                                class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Rules
+                                on:click=move |_| wb.set_right_tab(RightPanelTab::Rules)
+                            >
+                                <span class="workbench-right-tab__icon" aria-hidden="true">
+                                    <LxIcon icon=icondata::LuShield width="14px" height="14px" />
+                                </span>
+                                <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabRules)()}</span>
+                            </button>
+                            <button
+                                type="button"
+                                role="tab"
+                                aria-selected=move || active_tab.get() == RightPanelTab::Skills
+                                class="workbench-right-tab"
+                                class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Skills
+                                on:click=move |_| wb.set_right_tab(RightPanelTab::Skills)
+                            >
+                                <span class="workbench-right-tab__icon" aria-hidden="true">
+                                    <LxIcon icon=icondata::LuPuzzle width="14px" height="14px" />
+                                </span>
+                                <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabSkills)()}</span>
+                            </button>
                         </div>
                     </div>
                 </header>
@@ -276,6 +339,12 @@ pub fn RightPanel() -> impl IntoView {
                     </div>
                     <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Memory>
                         <MemoryTabDock />
+                    </div>
+                    <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Rules>
+                        <RulesTabDock />
+                    </div>
+                    <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Skills>
+                        <SkillsTabDock />
                     </div>
                 </div>
             </aside>

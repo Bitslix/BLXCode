@@ -6202,3 +6202,259 @@ button {
     color: rgba(255, 255, 255, 0.55);
     font-size: 0.85rem;
 }
+
+/* ===========================================================================
+   Skills & Rules right-panel tabs (see src/workbench/skills_rules_panel/)
+   =========================================================================== */
+.blx-sr-pane {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+.blx-sr-pane__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    gap: 0.5rem;
+}
+.blx-sr-pane__title {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgba(255, 255, 255, 0.7);
+}
+.blx-sr-pane__actions {
+    display: flex;
+    gap: 0.4rem;
+}
+.blx-sr-pane__body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.6rem 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+.blx-sr-pane__hint,
+.blx-sr-pane__err {
+    margin: 0;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.82rem;
+    color: rgba(255, 255, 255, 0.6);
+    border-radius: 0.35rem;
+}
+.blx-sr-pane__err {
+    background: rgba(220, 60, 60, 0.12);
+    color: #ffb1b1;
+    border: 1px solid rgba(220, 60, 60, 0.35);
+}
+
+.blx-sr-card {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 0.5rem;
+    padding: 0.55rem 0.65rem 0.5rem;
+    background: rgba(255, 255, 255, 0.025);
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    transition: border-color 120ms ease, background 120ms ease;
+}
+.blx-sr-card--off {
+    opacity: 0.55;
+    border-style: dashed;
+}
+.blx-sr-card__header {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+.blx-sr-card__title {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.blx-sr-card__status {
+    font-size: 0.65rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.blx-sr-card__status--on {
+    background: rgba(80, 200, 130, 0.18);
+    color: #92e9b6;
+}
+.blx-sr-card__status--off {
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.55);
+}
+.blx-sr-card__badge {
+    font-size: 0.65rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 0.3rem;
+    background: rgba(120, 160, 255, 0.18);
+    color: #bcd0ff;
+    text-transform: uppercase;
+}
+.blx-sr-card__summary {
+    margin: 0;
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.7);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.blx-sr-card__warn {
+    margin: 0;
+    font-size: 0.72rem;
+    color: #ffc04d;
+}
+.blx-sr-card__footer {
+    display: flex;
+    gap: 0.35rem;
+    margin-top: 0.15rem;
+}
+
+.blx-sr-btn {
+    background: rgba(120, 160, 255, 0.18);
+    border: 1px solid rgba(120, 160, 255, 0.3);
+    color: #d6e2ff;
+    border-radius: 0.35rem;
+    padding: 0.25rem 0.55rem;
+    font-size: 0.78rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    transition: background 120ms ease, border-color 120ms ease;
+}
+.blx-sr-btn:hover:not(:disabled) {
+    background: rgba(120, 160, 255, 0.3);
+}
+.blx-sr-btn:disabled {
+    opacity: 0.5;
+    cursor: progress;
+}
+.blx-sr-btn--ghost {
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.65);
+}
+.blx-sr-btn--ghost:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.05);
+}
+.blx-sr-btn--danger {
+    background: rgba(220, 60, 60, 0.16);
+    border-color: rgba(220, 60, 60, 0.35);
+    color: #ffb1b1;
+}
+.blx-sr-btn--danger:hover:not(:disabled) {
+    background: rgba(220, 60, 60, 0.28);
+}
+
+/* Install dialog */
+.blx-sr-dialog__backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 90;
+}
+.blx-sr-dialog {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(440px, calc(100vw - 2rem));
+    max-height: calc(100vh - 2rem);
+    background: #1a1f2b;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.6rem;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+    overflow: hidden;
+}
+.blx-sr-dialog__header {
+    padding: 0.7rem 0.9rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.blx-sr-dialog__header h2 {
+    margin: 0;
+    font-size: 0.95rem;
+}
+.blx-sr-dialog__body {
+    padding: 0.75rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    overflow-y: auto;
+}
+.blx-sr-dialog__row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.blx-sr-dialog__row label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: rgba(255, 255, 255, 0.55);
+}
+.blx-sr-dialog__row input {
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.35rem;
+    color: inherit;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.85rem;
+}
+.blx-sr-dialog__row input:focus {
+    outline: none;
+    border-color: #6aa1ff;
+    box-shadow: 0 0 0 2px rgba(106, 161, 255, 0.25);
+}
+.blx-sr-dialog__segmented {
+    display: inline-flex;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 0.4rem;
+    overflow: hidden;
+}
+.blx-sr-seg {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.65);
+    padding: 0.3rem 0.7rem;
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+.blx-sr-seg + .blx-sr-seg {
+    border-left: 1px solid rgba(255, 255, 255, 0.12);
+}
+.blx-sr-seg--active {
+    background: rgba(120, 160, 255, 0.25);
+    color: #ffffff;
+}
+.blx-sr-dialog__err {
+    margin: 0;
+    color: #ffb1b1;
+    font-size: 0.78rem;
+}
+.blx-sr-dialog__footer {
+    padding: 0.6rem 0.9rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.4rem;
+}
