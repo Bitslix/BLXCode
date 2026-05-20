@@ -6,7 +6,7 @@ RELEASE_EXIT_USER=1
 RELEASE_EXIT_BUILD=2
 
 RELEASE_DRY_RUN=0
-RELEASE_ALLOW_UNSIGNED=0
+RELEASE_REQUIRE_SIGNING=0
 RELEASE_NO_CHANGELOG=0
 RELEASE_CLOBBER=0
 RELEASE_DO_BUILD=0
@@ -52,7 +52,8 @@ Options:
   --upload                   Upload bundle artifacts to GitHub release
   --upload-only              Only upload (no bump/build/tag)
   --clobber                  Replace existing release assets with same name
-  --allow-unsigned           Build without TAURI_SIGNING_PRIVATE_KEY
+  --require-signing          Require TAURI_SIGNING_PRIVATE_KEY (default: unsigned OK)
+  --allow-unsigned           Alias for default unsigned build (no-op)
   --platform linux|macos|windows
   --linux-arch native|amd64|arm64|all
                              Linux only: deb/rpm/AppImage per arch (default: all)
@@ -65,7 +66,7 @@ Examples:
   ./scripts/release.sh --bump patch --tag --push --no-build
   ./scripts/release.sh --build --upload
   ./scripts/release.sh --upload-only
-  ./scripts/release.sh --allow-unsigned --linux-arch all   # amd64 + arm64 Linux bundles
+  ./scripts/release.sh --linux-arch all   # unsigned OK by default
 EOF
 }
 
@@ -92,7 +93,8 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --clobber) RELEASE_CLOBBER=1; shift ;;
-    --allow-unsigned) RELEASE_ALLOW_UNSIGNED=1; shift ;;
+    --require-signing) RELEASE_REQUIRE_SIGNING=1; shift ;;
+    --allow-unsigned) shift ;;
     --platform)
       RELEASE_PLATFORM_OVERRIDE="${2:?--platform requires linux|macos|windows}"
       shift 2

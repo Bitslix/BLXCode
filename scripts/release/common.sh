@@ -101,12 +101,14 @@ release_load_env() {
 }
 
 release_check_signing() {
-  if [[ "${RELEASE_ALLOW_UNSIGNED:-0}" == "1" ]]; then
-    release_warn "Building without TAURI_SIGNING_PRIVATE_KEY (--allow-unsigned)"
+  if [[ "${RELEASE_REQUIRE_SIGNING:-0}" == "1" ]]; then
+    if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
+      release_die "TAURI_SIGNING_PRIVATE_KEY is not set (--require-signing)"
+    fi
     return 0
   fi
   if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
-    release_die "TAURI_SIGNING_PRIVATE_KEY is not set. Create .env.release or pass --allow-unsigned"
+    release_warn "Unsigned build (no TAURI_SIGNING_PRIVATE_KEY; no Apple/Windows code signing required)"
   fi
 }
 

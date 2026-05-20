@@ -82,4 +82,4 @@ Module layout:
 
 - **`src/config/app.config.rs`** — localStorage keys, embedded-browser defaults.
 - **`BLX_ANTHROPIC_API_KEY`** env var — enables real Anthropic provider path (currently stub only).
-- **`tauri.conf.json`** — app identifier `com.bitslix.blxcode.app`, window size, CSP, bundle targets.
+- **`tauri.conf.json`** — app identifier `com.bitslix.blxcode`, window size, CSP, bundle targets.

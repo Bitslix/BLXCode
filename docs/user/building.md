@@ -162,8 +162,10 @@ On Linux (including Arch), the script sets `NO_STRIP=1` and `APPIMAGE_EXTRACT_AN
 For a **local bundle build only**, you do not need `.env.release`. Run:
 
 ```bash
-./scripts/release.sh --allow-unsigned
+./scripts/release.sh
 ```
+
+Builds are **unsigned by default** (no Apple/Windows code signing, no Tauri updater key). Use `--require-signing` only when `.env.release` has `TAURI_SIGNING_PRIVATE_KEY`.
 
 That builds Linux bundles for **amd64 and arm64** by default (`--linux-arch all`): native deb/rpm/AppImage on your CPU, cross-built deb/rpm for the other arch (AppImage for the non-native arch needs an ARM runner or CI — see below). macOS uses **`universal-apple-darwin`** (one `.app`/`.dmg` for Apple Silicon and Intel). Artifacts land under `target/**/release/bundle/`.
 
@@ -174,8 +176,8 @@ Optional signing and upload variables are documented in [`.env.release.example`]
 ```bash
 ./scripts/release.sh --help
 
-# Signed local build (requires .env.release with TAURI_SIGNING_PRIVATE_KEY)
-./scripts/release.sh
+# Signed bundles + .sig (requires .env.release)
+./scripts/release.sh --require-signing
 
 # New patch release: bump versions + CHANGELOG, build, draft upload
 ./scripts/release.sh --bump patch --build --upload
