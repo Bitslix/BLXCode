@@ -43,7 +43,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbExpand => "顯示側邊欄",
         I18nKey::SbCollapse => "隱藏側邊欄",
         I18nKey::SbHeading => "工作空間",
-        I18nKey::SbExplorerTitle => "探險家",
+        I18nKey::SbExplorerTitle => "專案檔案",
         I18nKey::SbGraphTitle => "圖形",
         I18nKey::SbSectionExpand => "展開部分",
         I18nKey::SbSectionCollapse => "折疊部分",

@@ -45,7 +45,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbExpand => "Mostrar barra lateral",
         I18nKey::SbCollapse => "Ocultar barra lateral",
         I18nKey::SbHeading => "Espaços de trabalho",
-        I18nKey::SbExplorerTitle => "Explorador",
+        I18nKey::SbExplorerTitle => "Arquivos do projeto",
         I18nKey::SbGraphTitle => "Gráfico",
         I18nKey::SbSectionExpand => "Expandir seção",
         I18nKey::SbSectionCollapse => "Recolher seção",

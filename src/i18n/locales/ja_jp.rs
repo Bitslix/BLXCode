@@ -43,7 +43,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbExpand => "サイドバーを表示",
         I18nKey::SbCollapse => "サイドバーを隠す",
         I18nKey::SbHeading => "ワークスペース",
-        I18nKey::SbExplorerTitle => "エクスプローラ",
+        I18nKey::SbExplorerTitle => "プロジェクトファイル",
         I18nKey::SbGraphTitle => "グラフ",
         I18nKey::SbSectionExpand => "セクションを展開する",
         I18nKey::SbSectionCollapse => "セクションを折りたたむ",

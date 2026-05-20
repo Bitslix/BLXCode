@@ -45,7 +45,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbExpand => "Oldalsáv megjelenítése",
         I18nKey::SbCollapse => "Oldalsáv elrejtése",
         I18nKey::SbHeading => "Munkaterületek",
-        I18nKey::SbExplorerTitle => "Felfedező",
+        I18nKey::SbExplorerTitle => "Projektfájlok",
         I18nKey::SbGraphTitle => "Grafikon",
         I18nKey::SbSectionExpand => "szakasz kibontása",
         I18nKey::SbSectionCollapse => "Szakasz összecsukása",

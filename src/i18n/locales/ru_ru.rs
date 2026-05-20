@@ -45,7 +45,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbExpand => "Показать боковую панель",
         I18nKey::SbCollapse => "Скрыть боковую панель",
         I18nKey::SbHeading => "Рабочие пространства",
-        I18nKey::SbExplorerTitle => "Исследователь",
+        I18nKey::SbExplorerTitle => "Файлы проекта",
         I18nKey::SbGraphTitle => "График",
         I18nKey::SbSectionExpand => "Развернуть раздел",
         I18nKey::SbSectionCollapse => "Свернуть раздел",

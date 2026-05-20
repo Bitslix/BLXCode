@@ -43,7 +43,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbExpand => "사이드바 표시",
         I18nKey::SbCollapse => "사이드바 숨기기",
         I18nKey::SbHeading => "작업공간",
-        I18nKey::SbExplorerTitle => "탐침",
+        I18nKey::SbExplorerTitle => "프로젝트 파일",
         I18nKey::SbGraphTitle => "그래프",
         I18nKey::SbSectionExpand => "섹션 펼치기",
         I18nKey::SbSectionCollapse => "섹션 접기",

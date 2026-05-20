@@ -45,7 +45,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbExpand => "Seitenleiste anzeigen",
         I18nKey::SbCollapse => "Seitenleiste ausblenden",
         I18nKey::SbHeading => "Arbeitsbereiche",
-        I18nKey::SbExplorerTitle => "Forscher",
+        I18nKey::SbExplorerTitle => "Projektdateien",
         I18nKey::SbGraphTitle => "Graph",
         I18nKey::SbSectionExpand => "Bereich aufklappen",
         I18nKey::SbSectionCollapse => "Bereich einklappen",

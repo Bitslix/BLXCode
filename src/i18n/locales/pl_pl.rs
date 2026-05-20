@@ -45,7 +45,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbExpand => "Pokaż pasek boczny",
         I18nKey::SbCollapse => "Ukryj pasek boczny",
         I18nKey::SbHeading => "Obszary robocze",
-        I18nKey::SbExplorerTitle => "Odkrywca",
+        I18nKey::SbExplorerTitle => "Pliki projektu",
         I18nKey::SbGraphTitle => "Wykres",
         I18nKey::SbSectionExpand => "Rozwiń sekcję",
         I18nKey::SbSectionCollapse => "Zwiń sekcję",
