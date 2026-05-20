@@ -12,6 +12,11 @@ use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
 use std::collections::HashMap;
 
+const LANE_PITCH: f64 = 14.0;
+const LANE_ORIGIN: f64 = 8.0;
+const ROW_H: f64 = 22.0;
+const NODE_Y: f64 = 11.0;
+
 #[component]
 pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
@@ -159,6 +164,15 @@ fn GitGraphBody(
     }
 }
 
+fn lane_x(lane: usize) -> f64 {
+    LANE_ORIGIN + f64::from(lane as u32) * LANE_PITCH
+}
+
+fn connector_path(x0: f64, y0: f64, x1: f64, y1: f64) -> String {
+    let mid_y = (y0 + y1) / 2.0;
+    format!("M {x0} {y0} C {x0} {mid_y}, {x1} {mid_y}, {x1} {y1}")
+}
+
 #[component]
 fn GitGraphList(layout: GitGraphLayout) -> impl IntoView {
     let row_by_oid: HashMap<String, GitGraphRow> = layout
@@ -169,7 +183,17 @@ fn GitGraphList(layout: GitGraphLayout) -> impl IntoView {
     let max_lane = layout
         .rows
         .iter()
-        .map(|r| r.lane)
+        .flat_map(|r| {
+            let mut lanes = vec![r.lane];
+            if let Some(m) = r.merge_from_lane {
+                lanes.push(m);
+            }
+            if let Some(b) = r.branch_from_lane {
+                lanes.push(b);
+            }
+            lanes.extend(r.pass_through_lanes.iter().copied());
+            lanes
+        })
         .max()
         .unwrap_or(0);
     let lane_count = max_lane + 1;
@@ -202,42 +226,80 @@ fn GitGraphRowView(
     let continues_up = row.as_ref().is_some_and(|r| r.continues_up);
     let continues_down = row.as_ref().is_some_and(|r| r.continues_down);
     let merge_from = row.as_ref().and_then(|r| r.merge_from_lane);
+    let branch_from = row.as_ref().and_then(|r| r.branch_from_lane);
+    let pass_through = row
+        .as_ref()
+        .map(|r| r.pass_through_lanes.clone())
+        .unwrap_or_default();
+    let is_merge = merge_from.is_some();
 
-    let svg_w = (lane_count.max(1) * 14 + 8) as f64;
-    let x = 8.0 + f64::from(lane as u32) * 14.0;
+    let svg_w = (lane_count.max(1) as f64 * LANE_PITCH + LANE_ORIGIN).max(22.0);
+    let x = lane_x(lane);
 
     view! {
         <li class="git-graph__row">
             <svg
                 class="git-graph__lanes"
                 width=format!("{svg_w}px")
-                height="22"
+                height=format!("{ROW_H}px")
                 aria-hidden="true"
             >
+                <For
+                    each=move || pass_through.clone()
+                    key=|lane| *lane
+                    children=move |pass_lane| {
+                        let px = lane_x(pass_lane);
+                        let pass_color = pass_lane % 6;
+                        view! {
+                            <line
+                                x1=px
+                                y1="0"
+                                x2=px
+                                y2=format!("{ROW_H}")
+                                class=format!("git-graph__line git-graph__line--c{pass_color}")
+                            />
+                        }
+                    }
+                />
                 {continues_up.then(|| view! {
                     <line
                         x1=x
                         y1="0"
                         x2=x
-                        y2="11"
+                        y2=format!("{NODE_Y}")
                         class=format!("git-graph__line git-graph__line--c{color_idx}")
                     />
                 })}
                 {continues_down.then(|| view! {
                     <line
                         x1=x
-                        y1="11"
+                        y1=format!("{NODE_Y}")
                         x2=x
-                        y2="22"
+                        y2=format!("{ROW_H}")
                         class=format!("git-graph__line git-graph__line--c{color_idx}")
                     />
                 })}
-                {merge_from.map(|from_lane| {
-                    let x0 = 8.0 + f64::from(from_lane as u32) * 14.0;
+                {branch_from.map(|from_lane| {
+                    let x0 = lane_x(from_lane);
+                    let from_color = from_lane % 6;
+                    let d = connector_path(x0, 0.0, x, NODE_Y);
                     view! {
                         <path
-                            d=format!("M {x0} 11 Q {} 11 {} 11", (x0 + x) / 2.0, x)
-                            class=format!("git-graph__merge git-graph__line--c{color_idx}")
+                            d=d
+                            class=format!("git-graph__connector git-graph__line--c{from_color}")
+                            fill="none"
+                            stroke-width="1.5"
+                        />
+                    }
+                })}
+                {merge_from.map(|from_lane| {
+                    let x0 = lane_x(from_lane);
+                    let from_color = from_lane % 6;
+                    let d = connector_path(x0, ROW_H, x, NODE_Y);
+                    view! {
+                        <path
+                            d=d
+                            class=format!("git-graph__connector git-graph__line--c{from_color}")
                             fill="none"
                             stroke-width="1.5"
                         />
@@ -245,10 +307,21 @@ fn GitGraphRowView(
                 })}
                 <circle
                     cx=x
-                    cy="11"
-                    r="3.5"
-                    class=format!("git-graph__dot git-graph__dot--c{color_idx}")
+                    cy=format!("{NODE_Y}")
+                    r=if is_merge { "4.5" } else { "3.5" }
+                    class=format!(
+                        "git-graph__dot git-graph__dot--c{color_idx}{}",
+                        if is_merge { " git-graph__dot--merge" } else { "" }
+                    )
                 />
+                {is_merge.then(|| view! {
+                    <circle
+                        cx=x
+                        cy=format!("{NODE_Y}")
+                        r="2"
+                        class="git-graph__dot-inner"
+                    />
+                })}
             </svg>
             <div class="git-graph__text">
                 <div class="git-graph__subject-line">

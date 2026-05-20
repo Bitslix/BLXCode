@@ -1507,6 +1507,8 @@ pub struct GitGraphRow {
     pub continues_up: bool,
     pub continues_down: bool,
     pub merge_from_lane: Option<usize>,
+    pub branch_from_lane: Option<usize>,
+    pub pass_through_lanes: Vec<usize>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]

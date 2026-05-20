@@ -2,7 +2,7 @@
 
 use crate::git_info::{find_git_dir, git_cli_available};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::process::Command;
 
@@ -36,6 +36,8 @@ pub struct GitGraphRow {
     pub continues_up: bool,
     pub continues_down: bool,
     pub merge_from_lane: Option<usize>,
+    pub branch_from_lane: Option<usize>,
+    pub pass_through_lanes: Vec<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -149,94 +151,130 @@ fn parse_decorations(raw: &str) -> Vec<GitRefDecoration> {
         .collect()
 }
 
-/// Swim-lane layout: `commits` are newest-first (git log order); rows match that order.
+/// Swim-lane layout: `commits` are newest-first (git log order).
 fn compute_lane_layout(commits: &[GitCommitNode]) -> Vec<GitGraphRow> {
     if commits.is_empty() {
         return Vec::new();
     }
-    let mut oid_to_idx: HashMap<&str, usize> = HashMap::new();
-    for (i, c) in commits.iter().enumerate() {
-        oid_to_idx.insert(c.oid.as_str(), i);
+
+    let mut children: HashMap<&str, Vec<&str>> = HashMap::new();
+    for c in commits {
+        for p in &c.parents {
+            children.entry(p.as_str()).or_default().push(c.oid.as_str());
+        }
     }
 
-    // Oldest-first for lane assignment
     let mut oldest_first: Vec<&GitCommitNode> = commits.iter().collect();
     oldest_first.reverse();
 
     let mut lane_of: HashMap<String, usize> = HashMap::new();
-    let mut active: Vec<Option<String>> = Vec::new();
     let mut merge_from: HashMap<String, usize> = HashMap::new();
+    let mut branch_from: HashMap<String, usize> = HashMap::new();
+    let mut next_lane: usize = 0;
+    let mut alloc_lane = || {
+        let l = next_lane;
+        next_lane += 1;
+        l
+    };
 
     for commit in oldest_first {
         let oid = commit.oid.clone();
-        let parent_lanes: Vec<usize> = commit
-            .parents
-            .iter()
-            .filter_map(|p| lane_of.get(p).copied())
-            .collect();
+        let parents: Vec<&str> = commit.parents.iter().map(|s| s.as_str()).collect();
 
-        let lane = if let Some(&pl) = parent_lanes.first() {
-            pl
+        let (lane, branch_from_lane) = if parents.is_empty() {
+            (alloc_lane(), None)
         } else {
-            let new_lane = active.len();
-            active.push(None);
-            new_lane
+            let p0 = parents[0];
+            match lane_of.get(p0).copied() {
+                Some(pl) => {
+                    let fork = children.get(p0).is_some_and(|kids| {
+                        kids.iter().any(|&other| {
+                            other != oid.as_str() && lane_of.contains_key(other)
+                        })
+                    });
+                    if fork {
+                        (alloc_lane(), Some(pl))
+                    } else {
+                        (pl, None)
+                    }
+                }
+                None => (alloc_lane(), None),
+            }
         };
 
         lane_of.insert(oid.clone(), lane);
-        active[lane] = Some(oid.clone());
-
-        if commit.parents.len() > 1 {
-            for parent in commit.parents.iter().skip(1) {
-                if let Some(&pl) = lane_of.get(parent.as_str()) {
-                    merge_from.insert(oid.clone(), pl);
-                } else {
-                    let new_lane = active.len();
-                    active.push(Some(parent.clone()));
-                    lane_of.insert(parent.clone(), new_lane);
-                    merge_from.insert(oid.clone(), new_lane);
-                }
-            }
+        if let Some(from) = branch_from_lane {
+            branch_from.insert(oid.clone(), from);
         }
 
-        // Close lanes that are not continued by any child
-        for (idx, tip) in active.iter_mut().enumerate() {
-            if let Some(tip_oid) = tip.clone() {
-                let continued = commits.iter().any(|c| {
-                    c.parents.contains(&tip_oid) && lane_of.get(c.oid.as_str()) == Some(&idx)
-                });
-                if !continued && tip_oid != oid {
-                    *tip = None;
+        if parents.len() > 1 {
+            for p in parents.iter().skip(1) {
+                if let Some(&pl) = lane_of.get(*p) {
+                    merge_from.insert(oid.clone(), pl);
+                } else {
+                    let nl = alloc_lane();
+                    lane_of.insert((*p).to_string(), nl);
+                    merge_from.insert(oid.clone(), nl);
                 }
             }
         }
     }
 
-    commits
-        .iter()
-        .enumerate()
-        .map(|(i, c)| {
-            let lane = lane_of.get(&c.oid).copied().unwrap_or(0);
-            let continues_down = i + 1 < commits.len()
-                && lane_of
-                    .get(commits[i + 1].oid.as_str())
-                    .map(|&l| l == lane)
-                    .unwrap_or(false);
-            let continues_up = i > 0
-                && lane_of
-                    .get(commits[i - 1].oid.as_str())
-                    .map(|&l| l == lane)
-                    .unwrap_or(false);
-            GitGraphRow {
-                oid: c.oid.clone(),
-                lane,
-                lane_color_index: lane % 6,
-                continues_up,
-                continues_down,
-                merge_from_lane: merge_from.get(&c.oid).copied(),
-            }
-        })
-        .collect()
+    let mut carry_lanes: HashSet<usize> = HashSet::new();
+    let mut rows = Vec::with_capacity(commits.len());
+
+    for (i, c) in commits.iter().enumerate() {
+        let lane = lane_of.get(&c.oid).copied().unwrap_or(0);
+        let merge_from_lane = merge_from.get(&c.oid).copied();
+        let branch_from_lane = branch_from.get(&c.oid).copied();
+
+        let pass_through_lanes: Vec<usize> = carry_lanes
+            .iter()
+            .copied()
+            .filter(|l| *l != lane)
+            .collect();
+
+        let continues_down = c
+            .parents
+            .first()
+            .and_then(|p| lane_of.get(p))
+            .map(|&pl| pl == lane)
+            .unwrap_or(false)
+            && i + 1 < commits.len();
+
+        let continues_up = i > 0
+            && commits[i - 1]
+                .parents
+                .first()
+                .map(|p| p == &c.oid)
+                .unwrap_or(false)
+            && lane_of.get(&commits[i - 1].oid).copied() == Some(lane);
+
+        rows.push(GitGraphRow {
+            oid: c.oid.clone(),
+            lane,
+            lane_color_index: lane % 6,
+            continues_up,
+            continues_down,
+            merge_from_lane,
+            branch_from_lane,
+            pass_through_lanes,
+        });
+
+        carry_lanes.clear();
+        if continues_down {
+            carry_lanes.insert(lane);
+        }
+        if let Some(mf) = merge_from_lane {
+            carry_lanes.insert(mf);
+        }
+        if let Some(bf) = branch_from_lane {
+            carry_lanes.insert(bf);
+            carry_lanes.insert(lane);
+        }
+    }
+
+    rows
 }
 
 #[cfg(test)]
@@ -252,6 +290,10 @@ mod tests {
             rel_time: "1 day ago".into(),
             decorations: Vec::new(),
         }
+    }
+
+    fn row_for<'a>(rows: &'a [GitGraphRow], oid: &str) -> &'a GitGraphRow {
+        rows.iter().find(|r| r.oid == oid).expect("row")
     }
 
     #[test]
@@ -273,7 +315,25 @@ mod tests {
         ];
         let rows = compute_lane_layout(&commits);
         assert_eq!(rows.len(), 4);
-        assert!(rows[0].merge_from_lane.is_some());
+        let m = row_for(&rows, "m");
+        assert!(m.merge_from_lane.is_some());
+        assert_ne!(m.lane, m.merge_from_lane.unwrap());
+    }
+
+    #[test]
+    fn lane_layout_fork_assigns_second_branch_lane() {
+        let commits = vec![
+            node("d", &["b"]),
+            node("b", &["r"]),
+            node("c", &["a"]),
+            node("a", &["r"]),
+            node("r", &[]),
+        ];
+        let rows = compute_lane_layout(&commits);
+        let b = row_for(&rows, "b");
+        let a = row_for(&rows, "a");
+        assert_ne!(b.lane, a.lane);
+        assert_eq!(b.branch_from_lane, Some(a.lane));
     }
 
     #[test]

@@ -363,6 +363,13 @@ pub fn Sidebar() -> impl IntoView {
                 <div
                     class="workbench-sidebar__panels"
                     style=move || {
+                        let _ = wb.workspaces().get();
+                        let _ = wb.active_id().get();
+                        let explorer_open = wb.active_sidebar_explorer_open();
+                        let graph_open = wb.active_sidebar_graph_open();
+                        if !explorer_open && !graph_open {
+                            return "flex: 0 0 auto; min-height: 0;".to_string();
+                        }
                         format!(
                             "flex: 0 0 {pct:.2}%; min-height: 0;",
                             pct = panels_height_pct.get(),
@@ -372,6 +379,14 @@ pub fn Sidebar() -> impl IntoView {
                     <div
                         class="workbench-sidebar__explorer-slot"
                         style=move || {
+                            let _ = wb.workspaces().get();
+                            let _ = wb.active_id().get();
+                            if !wb.active_sidebar_explorer_open() {
+                                return "flex: 0 0 auto; min-height: 0;".to_string();
+                            }
+                            if !wb.active_sidebar_graph_open() {
+                                return "flex: 1 1 auto; min-height: 0;".to_string();
+                            }
                             format!(
                                 "flex: 0 0 {pct:.2}%; min-height: 0;",
                                 pct = explorer_height_pct.get(),
@@ -380,12 +395,29 @@ pub fn Sidebar() -> impl IntoView {
                     >
                         <ProjectExplorerSection />
                     </div>
-                    <SidebarResizer
-                        height_pct=explorer_height_pct
-                        container_selector=".workbench-sidebar__panels"
-                        aria_key=I18nKey::SbExplorerResizeAria
-                    />
-                    <div class="workbench-sidebar__graph-slot">
+                    <Show when=move || {
+                        wb.active_sidebar_explorer_open() && wb.active_sidebar_graph_open()
+                    }>
+                        <SidebarResizer
+                            height_pct=explorer_height_pct
+                            container_selector=".workbench-sidebar__panels"
+                            aria_key=I18nKey::SbExplorerResizeAria
+                        />
+                    </Show>
+                    <div
+                        class="workbench-sidebar__graph-slot"
+                        style=move || {
+                            let _ = wb.workspaces().get();
+                            let _ = wb.active_id().get();
+                            if !wb.active_sidebar_graph_open() {
+                                return "flex: 0 0 auto; min-height: 0;".to_string();
+                            }
+                            if !wb.active_sidebar_explorer_open() {
+                                return "flex: 1 1 auto; min-height: 0;".to_string();
+                            }
+                            "flex: 1 1 auto; min-height: 0;".to_string()
+                        }
+                    >
                         <GitGraphSection git_repo_available=git_repo_available.read_only() />
                     </div>
                 </div>

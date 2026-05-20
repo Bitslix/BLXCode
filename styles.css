@@ -181,6 +181,8 @@ body {
 
 .workbench-sidebar--collapsed {
   width: 44px;
+  min-width: 44px;
+  max-width: 44px;
   border-right-color: var(--border-strong);
   overflow: hidden;
 }
@@ -314,13 +316,14 @@ body {
 }
 
 .workbench-sidebar__panels {
-  flex: 0 0 50%;
+  flex: 0 1 auto;
   max-height: 75%;
   min-height: 0;
-  margin-top: 0;
+  margin-top: auto;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
 }
 
 .workbench-sidebar__explorer-slot {
@@ -6749,7 +6752,13 @@ button {
 /* Slot wrappers in `.workbench-sidebar__panels` control the section height now. */
 .sidebar-view-section--sb-explorer,
 .sidebar-view-section--sb-graph {
+  flex: 0 0 auto;
+}
+
+.sidebar-view-section--sb-explorer.sidebar-view-section--open,
+.sidebar-view-section--sb-graph.sidebar-view-section--open {
   flex: 1 1 auto;
+  min-height: 0;
 }
 
 .sidebar-view-section__head {
@@ -6983,8 +6992,18 @@ button {
   fill: #89ddff;
 }
 
-.git-graph__merge {
+.git-graph__connector {
   stroke-width: 1.5;
+}
+
+.git-graph__dot--merge {
+  fill: transparent;
+  stroke-width: 1.5;
+}
+
+.git-graph__dot-inner {
+  fill: var(--bg, #1a1f2e);
+  stroke: none;
 }
 
 .git-graph__text {
