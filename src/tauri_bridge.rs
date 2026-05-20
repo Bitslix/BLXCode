@@ -494,6 +494,59 @@ pub async fn pty_spawn_with_env(cwd: String, env: Vec<(String, String)>) -> Resu
     invoke_typed("pty_spawn", PtySpawnArgs { cwd, env }).await
 }
 
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentContextImageInput {
+    pub id: String,
+    pub label: String,
+    pub mime: String,
+    pub bytes_b64: String,
+    pub size_bytes: u64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentContextImageExport {
+    pub id: String,
+    #[allow(dead_code)]
+    pub label: String,
+    #[allow(dead_code)]
+    pub mime: String,
+    #[allow(dead_code)]
+    pub size_bytes: u64,
+    pub path: String,
+    #[allow(dead_code)]
+    pub filename: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentContextExportReport {
+    pub dir: String,
+    pub manifest_path: String,
+    pub images: Vec<AgentContextImageExport>,
+}
+
+pub async fn agent_export_context_images(
+    workspace_cwd: String,
+    items: Vec<AgentContextImageInput>,
+) -> Result<AgentContextExportReport, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        workspace_cwd: String,
+        items: Vec<AgentContextImageInput>,
+    }
+    invoke_typed(
+        "agent_export_context_images",
+        Args {
+            workspace_cwd,
+            items,
+        },
+    )
+    .await
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PtyWriteArgs {

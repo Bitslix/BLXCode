@@ -278,6 +278,7 @@ fn tool_icon(tool: &str) -> icondata::Icon {
         "harness.open_terminal" => icondata::LuTerminal,
         "harness.list_terminals" => icondata::LuLayoutGrid,
         "harness.send_terminal_keys" => icondata::LuSendHorizonal,
+        "harness.send_agent_context" => icondata::LuShare2,
         "harness.read_terminal_output" => icondata::LuWrapText,
         _ => icondata::LuWrench,
     }

@@ -281,6 +281,17 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
            slot. Use this to ask a running CLI agent for status (`/status`, \
            `claude status`), to delegate work to it (paste a prompt + \
            submit), or to drive plain shells.\n\
+         - `harness.send_agent_context {{ slotId? | agentSlug?, instruction?, includeKinds?, submit? }}` — \
+           hand off BLXCode-attached context (workspace root, memory/learnings \
+           notes, image metadata + exported local paths) to a terminal CLI \
+           agent. Prefer this over raw `send_terminal_keys` when the other \
+           agent needs your context. Image bytes are exported to \
+           `<workspace>/.blxcode/agent-context/images/`; base64 is never \
+           written into the prompt. `includeKinds` defaults to both \
+           `[\"memory\", \"images\"]`. Use `slotId` whenever multiple slots \
+           could match. Call `harness.list_terminals` first if you are \
+           unsure which slot to target, and do not broadcast context to \
+           multiple agents unless the user explicitly asks.\n\
          - `harness.read_terminal_output {{ slotId? | agentSlug?, maxBytes? }}` — \
            non-destructively read the last bytes from the slot's rolling \
            tail buffer (cap 64 KiB). Use this AFTER `send_terminal_keys` \

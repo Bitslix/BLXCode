@@ -749,6 +749,8 @@ fn TerminalSlotSurface(
                         view! {
                             <WorkspaceTerminalCell
                                 workspace_id=workspace_id
+                                slot_id=slot_id
+                                pane_id=pane_id
                                 cwd=cwd.clone()
                                 grid_index=index
                                 agent_slug=agent_slug.clone()

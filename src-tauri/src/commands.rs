@@ -108,9 +108,203 @@ fn detect_supported_image_mime<'a>(bytes: &[u8], path: &std::path::Path) -> Opti
     }
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentContextImageInput {
+    pub id: String,
+    pub label: String,
+    pub mime: String,
+    pub bytes_b64: String,
+    #[serde(default)]
+    pub size_bytes: u64,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentContextImageExport {
+    pub id: String,
+    pub label: String,
+    pub mime: String,
+    pub size_bytes: u64,
+    pub path: String,
+    pub filename: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentContextExportReport {
+    pub dir: String,
+    pub manifest_path: String,
+    pub images: Vec<AgentContextImageExport>,
+}
+
+const AGENT_CONTEXT_REL_DIR: &str = ".blxcode/agent-context";
+const AGENT_CONTEXT_IMAGES_DIRNAME: &str = "images";
+const AGENT_CONTEXT_MANIFEST_NAME: &str = "manifest.json";
+
+/// Sanitize an image id + label into a stable, fs-safe basename suffix.
+/// Keeps `[A-Za-z0-9_-]`, replaces everything else with `_`, lowercases.
+fn sanitize_image_stem(id: &str, label: &str) -> String {
+    let candidate = if !id.trim().is_empty() {
+        id.trim()
+    } else if !label.trim().is_empty() {
+        label.trim()
+    } else {
+        "image"
+    };
+    let mut out = String::with_capacity(candidate.len());
+    for ch in candidate.chars() {
+        if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+            out.push(ch.to_ascii_lowercase());
+        } else {
+            out.push('_');
+        }
+    }
+    let trimmed = out.trim_matches('_').to_owned();
+    if trimmed.is_empty() {
+        "image".to_owned()
+    } else {
+        trimmed
+    }
+}
+
+fn extension_for_mime(mime: &str) -> &'static str {
+    match mime.trim().to_ascii_lowercase().as_str() {
+        "image/png" => "png",
+        "image/jpeg" | "image/jpg" => "jpg",
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        _ => "bin",
+    }
+}
+
+#[tauri::command]
+pub fn agent_export_context_images(
+    workspace_cwd: String,
+    items: Vec<AgentContextImageInput>,
+) -> Result<AgentContextExportReport, String> {
+    let workspace_cwd = workspace_cwd.trim();
+    if workspace_cwd.is_empty() {
+        return Err("workspace_cwd empty".into());
+    }
+    let ws_root = std::path::PathBuf::from(workspace_cwd);
+    if !ws_root.is_dir() {
+        return Err(format!("workspace not found: {workspace_cwd}"));
+    }
+    let base_dir = ws_root.join(AGENT_CONTEXT_REL_DIR);
+    let images_dir = base_dir.join(AGENT_CONTEXT_IMAGES_DIRNAME);
+    std::fs::create_dir_all(&images_dir)
+        .map_err(|e| format!("create context image dir: {e}"))?;
+
+    let mut exports: Vec<AgentContextImageExport> = Vec::with_capacity(items.len());
+    for item in items {
+        let bytes = BASE64
+            .decode(item.bytes_b64.as_bytes())
+            .map_err(|e| format!("decode image {}: {e}", item.id))?;
+        let stem = sanitize_image_stem(&item.id, &item.label);
+        let ext = extension_for_mime(&item.mime);
+        let mut filename = format!("{stem}.{ext}");
+        // Avoid clobbering an existing file (preserve idempotency for retries).
+        let mut suffix = 1;
+        while images_dir.join(&filename).exists() {
+            suffix += 1;
+            filename = format!("{stem}-{suffix}.{ext}");
+            if suffix > 999 {
+                return Err(format!("too many collisions for {stem}"));
+            }
+        }
+        let abs_path = images_dir.join(&filename);
+        std::fs::write(&abs_path, &bytes)
+            .map_err(|e| format!("write {}: {e}", abs_path.display()))?;
+        exports.push(AgentContextImageExport {
+            id: item.id,
+            label: item.label,
+            mime: item.mime,
+            size_bytes: if item.size_bytes > 0 {
+                item.size_bytes
+            } else {
+                bytes.len() as u64
+            },
+            path: abs_path.to_string_lossy().into_owned(),
+            filename,
+        });
+    }
+
+    let manifest_path = base_dir.join(AGENT_CONTEXT_MANIFEST_NAME);
+    let manifest_json = serde_json::json!({
+        "version": 1,
+        "writtenAt": chrono_iso_now(),
+        "imagesDir": images_dir.to_string_lossy(),
+        "images": exports
+            .iter()
+            .map(|i| serde_json::json!({
+                "id": i.id,
+                "label": i.label,
+                "mime": i.mime,
+                "sizeBytes": i.size_bytes,
+                "path": i.path,
+                "filename": i.filename,
+            }))
+            .collect::<Vec<_>>(),
+    });
+    let manifest_text = serde_json::to_string_pretty(&manifest_json)
+        .map_err(|e| format!("serialize manifest: {e}"))?;
+    std::fs::write(&manifest_path, manifest_text)
+        .map_err(|e| format!("write manifest {}: {e}", manifest_path.display()))?;
+
+    Ok(AgentContextExportReport {
+        dir: base_dir.to_string_lossy().into_owned(),
+        manifest_path: manifest_path.to_string_lossy().into_owned(),
+        images: exports,
+    })
+}
+
+/// RFC-3339 UTC timestamp without an extra dependency.
+fn chrono_iso_now() -> String {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let secs = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    // Lightweight UTC formatter (YYYY-MM-DDTHH:MM:SSZ).
+    let days = (secs / 86_400) as i64;
+    let mut year = 1970i64;
+    let mut remaining = days;
+    let is_leap = |y: i64| (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+    loop {
+        let year_days = if is_leap(year) { 366 } else { 365 };
+        if remaining < year_days {
+            break;
+        }
+        remaining -= year_days;
+        year += 1;
+    }
+    let months = [31u32, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let mut month = 1u32;
+    let mut day_of_year = remaining as u32;
+    for (i, &dm) in months.iter().enumerate() {
+        let dm = if i == 1 && is_leap(year) { 29 } else { dm };
+        if day_of_year < dm {
+            month = (i as u32) + 1;
+            break;
+        }
+        day_of_year -= dm;
+    }
+    let day = day_of_year + 1;
+    let hour = ((secs / 3600) % 24) as u32;
+    let minute = ((secs / 60) % 60) as u32;
+    let second = (secs % 60) as u32;
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
+}
+
 #[cfg(test)]
 mod tests {
     use super::detect_supported_image_mime;
+    use super::{
+        agent_export_context_images, sanitize_image_stem, AgentContextImageInput,
+        AGENT_CONTEXT_MANIFEST_NAME, AGENT_CONTEXT_REL_DIR,
+    };
+    use base64::Engine as _;
     use std::path::Path;
 
     #[test]
@@ -139,6 +333,82 @@ mod tests {
             detect_supported_image_mime(b"plain text", Path::new("x.txt")),
             None
         );
+    }
+
+    #[test]
+    fn sanitize_stem_normalizes_unsafe_chars() {
+        assert_eq!(sanitize_image_stem("Img:42", ""), "img_42");
+        assert_eq!(sanitize_image_stem("", "Hello World!"), "hello_world");
+        assert_eq!(sanitize_image_stem("    ", "  "), "image");
+        assert_eq!(sanitize_image_stem("safe-id_1", "anything"), "safe-id_1");
+    }
+
+    #[test]
+    fn export_writes_images_and_manifest() {
+        let tmp = tempdir_with_suffix("blx-ctx-export");
+        let ws = tmp.join("workspace with space");
+        std::fs::create_dir_all(&ws).unwrap();
+        let png = b"\x89PNG\r\n\x1a\nfake".to_vec();
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&png);
+        let items = vec![AgentContextImageInput {
+            id: "img:1".into(),
+            label: "Cover".into(),
+            mime: "image/png".into(),
+            bytes_b64: b64,
+            size_bytes: png.len() as u64,
+        }];
+        let report = agent_export_context_images(ws.to_string_lossy().into(), items)
+            .expect("export ok");
+        let dir = std::path::PathBuf::from(&report.dir);
+        assert!(dir.ends_with(AGENT_CONTEXT_REL_DIR));
+        let manifest = std::path::PathBuf::from(&report.manifest_path);
+        assert!(manifest.ends_with(AGENT_CONTEXT_MANIFEST_NAME));
+        assert_eq!(report.images.len(), 1);
+        let exported = std::path::PathBuf::from(&report.images[0].path);
+        assert!(exported.is_file());
+        assert!(exported.file_name().unwrap().to_string_lossy().ends_with(".png"));
+        let manifest_body = std::fs::read_to_string(&manifest).unwrap();
+        assert!(manifest_body.contains("\"images\""));
+        assert!(manifest_body.contains("img:1"));
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    #[test]
+    fn export_handles_collisions_with_suffix() {
+        let tmp = tempdir_with_suffix("blx-ctx-collide");
+        std::fs::create_dir_all(&tmp).unwrap();
+        let png = b"\x89PNG\r\n\x1a\nx".to_vec();
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&png);
+        let items = vec![
+            AgentContextImageInput {
+                id: "shared".into(),
+                label: "A".into(),
+                mime: "image/png".into(),
+                bytes_b64: b64.clone(),
+                size_bytes: 0,
+            },
+            AgentContextImageInput {
+                id: "shared".into(),
+                label: "B".into(),
+                mime: "image/png".into(),
+                bytes_b64: b64,
+                size_bytes: 0,
+            },
+        ];
+        let report = agent_export_context_images(tmp.to_string_lossy().into(), items).unwrap();
+        assert_eq!(report.images.len(), 2);
+        assert_ne!(report.images[0].path, report.images[1].path);
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    fn tempdir_with_suffix(tag: &str) -> std::path::PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let p = std::env::temp_dir().join(format!("{tag}-{nanos}"));
+        std::fs::create_dir_all(&p).unwrap();
+        p
     }
 }
 

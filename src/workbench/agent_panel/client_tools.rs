@@ -1,5 +1,8 @@
 use crate::agent_wire::{AgentContextItem, AgentContextKind, AgentEvent};
 use crate::tauri_bridge::{agent_submit_tool_result, memory_list, pty_peek_output, pty_write};
+use crate::workbench::agent_context_handoff::{
+    perform_handoff, HandoffRequest, WorkspaceTerminalTarget,
+};
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Date;
@@ -23,6 +26,7 @@ pub fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
         "harness.open_terminal" => handle_open_terminal(call_id, args.clone(), wb),
         "harness.list_terminals" => handle_list_terminals(call_id, wb),
         "harness.send_terminal_keys" => handle_send_keys(call_id, args.clone(), wb),
+        "harness.send_agent_context" => handle_send_agent_context(call_id, args.clone(), wb),
         "harness.read_terminal_output" => handle_read_output(call_id, args.clone(), wb),
         "memory_category_list" => handle_memory_category_list(call_id, wb),
         "memory_category_update" => handle_memory_category_update(call_id, args.clone(), wb),
@@ -705,3 +709,142 @@ fn handle_read_output(call_id: String, args: Option<serde_json::Value>, wb: Work
         }
     });
 }
+
+fn handle_send_agent_context(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let Some(workspace_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+
+    let include_memory;
+    let include_images;
+    match args
+        .as_ref()
+        .and_then(|v| v.get("includeKinds"))
+        .and_then(|v| v.as_array())
+    {
+        Some(arr) => {
+            let mut mem = false;
+            let mut img = false;
+            for entry in arr {
+                if let Some(s) = entry.as_str() {
+                    match s {
+                        "memory" => mem = true,
+                        "images" => img = true,
+                        _ => {}
+                    }
+                }
+            }
+            include_memory = mem;
+            include_images = img;
+        }
+        None => {
+            include_memory = true;
+            include_images = true;
+        }
+    }
+
+    let instruction = args
+        .as_ref()
+        .and_then(|v| v.get("instruction"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_owned());
+
+    let submit = args
+        .as_ref()
+        .and_then(|v| v.get("submit"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+
+    let workspace_root = wb.default_workspace_cwd();
+    let args_for_target = args.clone();
+
+    leptos::task::spawn_local(async move {
+        let (sid, pane) = match wait_for_target_session(wb, workspace_id, &args_for_target).await {
+            Ok(t) => t,
+            Err(e) => {
+                let hint = if matches!(
+                    e.as_str(),
+                    "no running terminal sessions in this workspace"
+                ) || e.starts_with("no running slot")
+                    || e.starts_with("slot ")
+                {
+                    format!("{e} — try `harness.list_terminals` to inspect slots")
+                } else {
+                    e
+                };
+                let _ = agent_submit_tool_result(call_id, false, Some(hint), None).await;
+                return;
+            }
+        };
+
+        let (slot_id, agent_slug_str) = resolve_slot_label(&wb, workspace_id, sid);
+        let target = WorkspaceTerminalTarget {
+            slot_id: slot_id.unwrap_or(0),
+            pane_id: pane,
+            session_id: sid,
+            agent_slug: agent_slug_str,
+            label: String::new(),
+        };
+
+        let req = HandoffRequest {
+            workspace_id,
+            workspace_root,
+            target,
+            context_items: None,
+            include_memory,
+            include_images,
+            instruction,
+            submit,
+        };
+
+        match perform_handoff(wb, req).await {
+            Ok(outcome) => {
+                let summary = format!(
+                    "wrote {} byte(s) of context to session {sid}{}",
+                    outcome.bytes_written,
+                    if outcome.submitted { " (submitted)" } else { "" }
+                );
+                let data = serde_json::json!({
+                    "sessionId": sid,
+                    "submitted": outcome.submitted,
+                    "bytes": outcome.bytes_written,
+                    "manifestPath": outcome.manifest_path,
+                    "imagesExported": outcome.images_exported,
+                });
+                let _ = agent_submit_tool_result(call_id, true, Some(summary), Some(data)).await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+/// Find `(slot_id, agent_slug)` for a live PTY session id in the workspace.
+fn resolve_slot_label(
+    wb: &WorkbenchService,
+    workspace_id: u64,
+    session_id: u64,
+) -> (Option<u64>, String) {
+    let sessions = wb.pty_sessions_for_workspace(workspace_id);
+    let slot = sessions
+        .iter()
+        .find(|(_, _, sid)| *sid == session_id)
+        .map(|(slot, _, _)| *slot);
+    let agent = wb.workspaces().with_untracked(|ws| {
+        ws.iter()
+            .find(|w| w.id == workspace_id)
+            .and_then(|w| {
+                slot.and_then(|s| w.slot_ids.iter().position(|id| *id == s))
+                    .and_then(|idx| w.slot_agent_labels.get(idx).cloned())
+            })
+            .unwrap_or_default()
+    });
+    (slot, agent)
+}
+

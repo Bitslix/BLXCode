@@ -6,6 +6,7 @@ use crate::tauri_bridge::{
     workbench_load_sessions, workbench_notifications_path, workbench_sessions_path,
 };
 use crate::workbench::agent_accent::agent_accent_class;
+use crate::workbench::agent_context_handoff::TerminalSlotHandoffButton;
 use crate::workbench::terminal_glue::{
     terminal_create, terminal_dispose, terminal_fit, terminal_request_fit,
     terminal_set_stdin_enabled, terminal_show_fallback, terminal_size_from_js,
@@ -54,6 +55,8 @@ struct CellState {
 #[component]
 pub fn WorkspaceTerminalCell(
     workspace_id: u64,
+    slot_id: u64,
+    pane_id: u64,
     cwd: String,
     grid_index: usize,
     agent_slug: String,
@@ -440,6 +443,12 @@ pub fn WorkspaceTerminalCell(
                 <Show when=move || !agent_label.get().is_empty()>
                     <span class="ws-term-cell__badge">{move || agent_label.get()}</span>
                 </Show>
+                <TerminalSlotHandoffButton
+                    slot_id=slot_id
+                    pane_id=pane_id
+                    agent_slug=agent_slug.clone()
+                    workspace_id=workspace_id
+                />
                 <button
                     type="button"
                     class="ws-term-cell__tool"
@@ -585,6 +594,17 @@ async fn bootstrap_terminal_cell(
         }
         if let Some(p) = notifications_path.as_ref() {
             env.push(("BLX_NOTIFICATIONS_PATH".into(), p.clone()));
+        }
+        let cwd_trimmed = cwd.trim().trim_end_matches(['/', '\\']);
+        if !cwd_trimmed.is_empty() {
+            env.push((
+                "BLX_AGENT_CONTEXT_DIR".into(),
+                format!("{cwd_trimmed}/.blxcode/agent-context"),
+            ));
+            env.push((
+                "BLX_AGENT_CONTEXT_MANIFEST".into(),
+                format!("{cwd_trimmed}/.blxcode/agent-context/manifest.json"),
+            ));
         }
         match pty_spawn_with_env(cwd.clone(), env).await {
             Ok(sid) => {

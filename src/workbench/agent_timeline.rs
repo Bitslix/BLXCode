@@ -70,6 +70,7 @@ fn friendly_label(tool: &str) -> &str {
         "harness.open_terminal" => "Open terminal",
         "harness.list_terminals" => "List terminals",
         "harness.send_terminal_keys" => "Send keys to terminal",
+        "harness.send_agent_context" => "Send agent context to terminal",
         "harness.read_terminal_output" => "Read terminal output",
         other => other,
     }
@@ -92,6 +93,7 @@ fn summarize_args(tool: &str, args: Option<&Value>) -> String {
         "task_create" => Some("title"),
         "harness.open_terminal" => Some("agentSlug"),
         "harness.send_terminal_keys" => Some("text"),
+        "harness.send_agent_context" => Some("instruction"),
         _ => None,
     };
     if let Some(key) = pick {

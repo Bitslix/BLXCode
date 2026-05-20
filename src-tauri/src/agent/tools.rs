@@ -728,6 +728,26 @@ pub fn registry() -> Vec<ToolDef> {
             site: ToolSite::Client,
         },
         ToolDef {
+            name: "harness.send_agent_context",
+            description: "Hand off the current BLXCode Agent context to a terminal CLI session (claude/codex/gemini/opencode/cursor). Renders a Markdown context block (workspace root, attached Memory/Learnings/Rules, image metadata, optional instruction), exports any selected images to `<workspace>/.blxcode/agent-context/images/`, and writes the block into the terminal's PTY. Address the slot by `slotId` (preferred) or unique `agentSlug`. Set `submit:false` to leave the block at the prompt without pressing Enter. `includeKinds` defaults to `[\"memory\", \"images\"]`. Use this instead of `harness.send_terminal_keys` when the terminal agent needs BLXCode-attached context — image base64 is never written into the prompt.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "slotId":      { "type": "integer", "minimum": 1, "description": "Preferred. Target terminal slot id from `harness.list_terminals`." },
+                    "agentSlug":   { "type": "string", "enum": ["claude", "codex", "gemini", "opencode", "cursor"], "description": "Fallback when `slotId` is omitted; resolves only if exactly one running slot matches." },
+                    "instruction": { "type": "string", "description": "Optional task or instruction appended after the rendered context block." },
+                    "includeKinds": {
+                        "type": "array",
+                        "items": { "type": "string", "enum": ["memory", "images"] },
+                        "description": "Which kinds of attached context to include. Defaults to both."
+                    },
+                    "submit":      { "type": "boolean", "description": "Append a carriage return after the block. Default true." }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
             name: "harness.read_terminal_output",
             description: "Read recent output from a terminal slot non-destructively (does not steal bytes from the user's view). Returns the last `maxBytes` of the slot's rolling tail buffer (cap 64 KiB). Use this AFTER `harness.send_terminal_keys` to see how the CLI agent responded.",
             parameters: json!({

@@ -5851,6 +5851,81 @@ button {
   color: rgba(160, 165, 180, 0.75);
 }
 
+/* --- Agent context handoff (graph preview + terminal titlebar) ----- */
+.workbench-handoff-anchor {
+  position: relative;
+  display: inline-flex;
+}
+.workbench-handoff-menu {
+  position: absolute;
+  top: calc(100% + 0.3rem);
+  right: 0;
+  min-width: 12rem;
+  max-width: 18rem;
+  background: rgba(20, 22, 28, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  padding: 0.35rem;
+  z-index: 40;
+  font-size: 0.78rem;
+}
+.workbench-handoff-menu__head {
+  padding: 0.2rem 0.4rem 0.35rem;
+  color: rgba(180, 185, 200, 0.75);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.workbench-handoff-menu__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.workbench-handoff-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(232, 234, 242, 0.92);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+.workbench-handoff-menu__item:hover,
+.workbench-handoff-menu__item:focus-visible {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+.workbench-handoff-menu__empty {
+  padding: 0.4rem 0.5rem;
+  color: rgba(170, 175, 190, 0.7);
+}
+.workbench-handoff-status {
+  padding: 0.3rem 0.7rem;
+  font-size: 0.72rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.workbench-handoff-status--ok {
+  color: rgba(140, 220, 160, 0.95);
+  background: rgba(45, 100, 60, 0.18);
+}
+.workbench-handoff-status--fail {
+  color: rgba(240, 160, 160, 0.95);
+  background: rgba(110, 50, 50, 0.18);
+}
+.ws-term-cell__tool--ok {
+  color: rgba(140, 220, 160, 0.95);
+  border-color: rgba(120, 200, 140, 0.45) !important;
+}
+
 /* --- Search view --------------------------------------------------- */
 .workbench-memory-search {
   flex: 1;

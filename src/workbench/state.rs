@@ -753,6 +753,13 @@ impl WorkbenchService {
         self.notifications
     }
 
+    /// Reactive accessor to the live PTY session map (`"{ws}:{slot}:{pane}" → session_id`).
+    /// UI components that want to react when terminals register or close
+    /// should `.get()` on this signal (cheap; the map is small).
+    pub fn pty_sessions_signal(&self) -> RwSignal<HashMap<String, u64>> {
+        self.pty_sessions
+    }
+
     /// All currently-live terminal keys (`"{ws}:{slot}:{pane}"`) across
     /// every open workspace. Used to prune stale entries from
     /// `notifications.json` after slots or panes are closed.
