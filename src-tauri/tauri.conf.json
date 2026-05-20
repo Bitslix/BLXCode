@@ -4,9 +4,9 @@
   "version": "0.1.11",
   "identifier": "com.bitslix.blxcode",
   "build": {
-    "beforeDevCommand": "node ../scripts/tauri-before-build.cjs --dev",
+    "beforeDevCommand": "node scripts/tauri-before-build.cjs --dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "node ../scripts/tauri-before-build.cjs",
+    "beforeBuildCommand": "node scripts/tauri-before-build.cjs",
     "frontendDist": "../dist"
   },
   "app": {
