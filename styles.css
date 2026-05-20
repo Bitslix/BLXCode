@@ -301,6 +301,7 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  justify-content: flex-end;
 }
 
 .workbench-sidebar--collapsed .workbench-sidebar__views {
