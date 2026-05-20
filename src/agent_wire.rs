@@ -9,6 +9,28 @@ pub struct UserTurn {
     pub workspace_root: Option<String>,
     #[serde(default)]
     pub voice_input: bool,
+    #[serde(default)]
+    pub context_items: Vec<AgentContextItem>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentContextKind {
+    MemoryCategory,
+    LearningCategory,
+    MemoryNote,
+    LearningNote,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentContextItem {
+    pub id: String,
+    pub kind: AgentContextKind,
+    pub label: String,
+    pub source: String,
+    pub paths: Vec<String>,
+    pub added_at: i64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

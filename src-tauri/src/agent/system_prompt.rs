@@ -65,7 +65,10 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
          \n\
          # Available tools\n\
          You can call the following tools (full JSON schemas are attached \
-         to this request as `tools[]`). Prefer tools over guessing.\n\
+         to this request as `tools[]`). Prefer tools over guessing. When \
+         unsure what exists, call `list_tools` first — it returns JSON with \
+         every tool name, site (`server` or `client`), description, and \
+         parameters schema.\n\
          \n\
          ## File access (server-side, executed in-process)\n\
          - `list_workspace_files {{ path?, recursive?, maxEntries? }}` — list \
@@ -76,21 +79,41 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
            the workspace root. Output is truncated at 4000 chars. Use this \
            whenever the user references a file in the project.\n\
          \n\
-         ## Workspace memory (server-side; `.agents/memory/` + `.agents/learnings/`)\n\
-         Markdown notes and learnings shared across all agent sessions. \
-         General notes use paths like `notes/topic.md`. Durable repo learnings \
-         use the `learnings/` prefix (e.g. `learnings/my-topic.md`). Read what's \
-         relevant before answering; propose writes when the team should remember.\n\
+         ## Workspace memory\n\
+         Two on-disk roots: `.agents/memory/` (general notes) and \
+         `.agents/learnings/` (durable repo learnings, API paths \
+         `learnings/…`). BLXCode exposes two sidebar **categories** — \
+         `memory` and `learnings` — for display color/label/visibility; \
+         organize notes with subfolders via API paths (e.g. \
+         `notes/project/foo.md`). There are no extra user-defined category \
+         keys beyond `memory` and `learnings`.\n\
+         \n\
+         ### Note CRUD and graph (server-side)\n\
          - `memory_list` — list every note (up to 200), with size and \
-           modified time. Cheap; call it first when you need an overview.\n\
-         - `memory_read {{ path }}` — read one note (`.md`, API path).\n\
-         - `memory_search {{ query }}` — full-text search across notes; \
-           returns up to 50 hits with line snippets.\n\
-         - `memory_create {{ path, content? }}` — create a *new* note. \
-           Path must be relative and end in `.md`; fails if it already exists. \
-           Content is capped at 32 KiB.\n\
-         - `memory_write {{ path, content }}` — overwrite an *existing* \
-           note. Same path/size rules.\n\
+           modified time. Cheap; call first for an overview.\n\
+         - `memory_read {{ path }}` — read one note (API path, `.md`).\n\
+         - `memory_search {{ query }}` — full-text search; up to 50 hits.\n\
+         - `memory_create {{ path, content? }}` — create a *new* note \
+           (32 KiB max). Path must end in `.md` and not exist.\n\
+         - `memory_write {{ path, content }}` — overwrite an existing note.\n\
+         - `memory_delete {{ path }}` — delete one note.\n\
+         - `memory_rename {{ oldPath, newPath, rewriteLinks? }}` — rename or \
+           move within the same root (`memory` ↔ `learnings` cross-root is \
+           rejected). Default `rewriteLinks:true` updates `[[wikilinks]]` in \
+           other notes.\n\
+         - `memory_graph` — graph nodes/edges/tags across both roots.\n\
+         - `memory_backlinks {{ path }}` — notes linking to this path.\n\
+         \n\
+         ### Category UI + agent context (client-side; active workspace)\n\
+         - `memory_category_list` — current label/color/sidebar/graph flags.\n\
+         - `memory_category_update {{ category, label?, color?, \
+           showInSidebar?, showInGraph? }}` — `category` is `memory` or \
+           `learnings`; color as `#rrggbb`.\n\
+         - `memory_context_list` — items attached to BLXCode Agent context.\n\
+         - `memory_context_attach {{ kind, path?, label? }}` — kinds: \
+           `memory_category`, `learning_category`, `memory_note`, \
+           `learning_note` (notes need `path`).\n\
+         - `memory_context_detach {{ id }}` — remove by id from list.\n\
          \n\
          ## Task tracking (server-side; lives at `<workspace>/.blxcode/tasks/`)\n\
          Use tasks to track multi-step work in this workspace. Prefer this \

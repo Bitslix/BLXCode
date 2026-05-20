@@ -1,5 +1,6 @@
 //! Agent Composer: Prompt → Tauri-Orchestrierung, Drain der Event-Liste in die Ansicht.
 mod client_tools;
+mod context_list;
 mod task_list;
 mod timeline;
 mod voice_orb;
@@ -12,6 +13,7 @@ use crate::tauri_bridge::{
     agent_submit_turn, is_tauri_shell, tasks_list as fetch_tasks_list,
 };
 use crate::workbench::agent_panel::client_tools::maybe_handle_client_tool;
+use crate::workbench::agent_panel::context_list::ContextSection;
 use crate::workbench::agent_panel::task_list::TaskSection;
 use crate::workbench::agent_panel::timeline::{
     apply_agent_event, compact_timeline, TimelineItem, TimelineRow,
@@ -36,6 +38,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     let busy = RwSignal::new(false);
     let status_line = RwSignal::new(Option::<String>::None);
     let tasks_open = RwSignal::new(true);
+    let context_open = RwSignal::new(false);
     let model_label = RwSignal::new(String::new());
     let chat_scroll_ref = NodeRef::<html::Article>::new();
     let voice_handle = VoiceOrbHandle::new();
@@ -177,6 +180,7 @@ pub fn AgentPanelDock() -> impl IntoView {
             </header>
 
             <TaskSection snapshot=task_snapshot busy=busy tasks_open=tasks_open />
+            <ContextSection context_open=context_open />
 
             <Show when=move || status_line.get().is_some()>
                 {move || {
@@ -395,6 +399,7 @@ fn submit_turn(
     }
 
     let workspace_root = resolve_effective_workspace_root(&wb);
+    let context_items = wb.agent_context_for_workspace_untracked(ws_id);
 
     timeline.update(|items| {
         items.push(TimelineItem::User {
@@ -421,6 +426,7 @@ fn submit_turn(
         prompt,
         workspace_root,
         voice_input,
+        context_items,
     };
 
     let busy_sig = busy;

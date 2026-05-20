@@ -1,6 +1,7 @@
-use crate::agent_wire::AgentEvent;
-use crate::tauri_bridge::{agent_submit_tool_result, pty_peek_output, pty_write};
+use crate::agent_wire::{AgentContextItem, AgentContextKind, AgentEvent};
+use crate::tauri_bridge::{agent_submit_tool_result, memory_list, pty_peek_output, pty_write};
 use crate::workbench::WorkbenchService;
+use js_sys::Date;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 
@@ -23,8 +24,275 @@ pub fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
         "harness.list_terminals" => handle_list_terminals(call_id, wb),
         "harness.send_terminal_keys" => handle_send_keys(call_id, args.clone(), wb),
         "harness.read_terminal_output" => handle_read_output(call_id, args.clone(), wb),
+        "memory_category_list" => handle_memory_category_list(call_id, wb),
+        "memory_category_update" => handle_memory_category_update(call_id, args.clone(), wb),
+        "memory_context_list" => handle_memory_context_list(call_id, wb),
+        "memory_context_attach" => handle_memory_context_attach(call_id, args.clone(), wb),
+        "memory_context_detach" => handle_memory_context_detach(call_id, args.clone(), wb),
         _ => {}
     }
+}
+
+const LEARNINGS_PREFIX: &str = "learnings/";
+
+fn normalize_hex_color(raw: &str, fallback: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.len() == 7
+        && trimmed.starts_with('#')
+        && trimmed.chars().skip(1).all(|ch| ch.is_ascii_hexdigit())
+    {
+        trimmed.to_ascii_lowercase()
+    } else {
+        fallback.to_string()
+    }
+}
+
+fn handle_memory_category_list(call_id: String, wb: WorkbenchService) {
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    let categories: Vec<serde_json::Value> = ["memory", "learnings"]
+        .into_iter()
+        .map(|key| {
+            let settings = wb.memory_category_settings_for_workspace_untracked(ws_id, key);
+            serde_json::json!({
+                "category": key,
+                "label": settings.label,
+                "color": settings.color,
+                "showInSidebar": settings.show_in_sidebar,
+                "showInGraph": settings.show_in_graph,
+            })
+        })
+        .collect();
+    let body = serde_json::Value::Array(categories);
+    submit_async(
+        call_id,
+        true,
+        "listed memory categories".into(),
+        Some(body),
+    );
+}
+
+fn handle_memory_category_update(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    let Some(category) = args
+        .as_ref()
+        .and_then(|v| v.get("category"))
+        .and_then(|v| v.as_str())
+    else {
+        submit_async(call_id, false, "missing category".into(), None);
+        return;
+    };
+    if category != "memory" && category != "learnings" {
+        submit_async(
+            call_id,
+            false,
+            "category must be memory or learnings".into(),
+            None,
+        );
+        return;
+    }
+    let mut settings =
+        wb.memory_category_settings_for_workspace_untracked(ws_id, category);
+    let fallback_color = settings.color.clone();
+    if let Some(label) = args
+        .as_ref()
+        .and_then(|v| v.get("label"))
+        .and_then(|v| v.as_str())
+    {
+        settings.label = label.trim().to_owned();
+    }
+    if let Some(color) = args
+        .as_ref()
+        .and_then(|v| v.get("color"))
+        .and_then(|v| v.as_str())
+    {
+        settings.color = normalize_hex_color(color, &fallback_color);
+    }
+    if let Some(show) = args
+        .as_ref()
+        .and_then(|v| v.get("showInSidebar"))
+        .and_then(|v| v.as_bool())
+    {
+        settings.show_in_sidebar = show;
+    }
+    if let Some(show) = args
+        .as_ref()
+        .and_then(|v| v.get("showInGraph"))
+        .and_then(|v| v.as_bool())
+    {
+        settings.show_in_graph = show;
+    }
+    wb.set_memory_category_settings(ws_id, category, settings.clone());
+    let data = serde_json::json!({
+        "category": category,
+        "label": settings.label,
+        "color": settings.color,
+        "showInSidebar": settings.show_in_sidebar,
+        "showInGraph": settings.show_in_graph,
+    });
+    submit_async(
+        call_id,
+        true,
+        format!("updated category {category}"),
+        Some(data),
+    );
+}
+
+fn handle_memory_context_list(call_id: String, wb: WorkbenchService) {
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    let items = wb.agent_context_for_workspace_untracked(ws_id);
+    let body = serde_json::to_value(&items).unwrap_or(serde_json::Value::Array(vec![]));
+    let summary = format!("{} context item(s)", items.len());
+    submit_async(call_id, true, summary, Some(body));
+}
+
+fn handle_memory_context_detach(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    let Some(id) = args
+        .as_ref()
+        .and_then(|v| v.get("id"))
+        .and_then(|v| v.as_str())
+    else {
+        submit_async(call_id, false, "missing id".into(), None);
+        return;
+    };
+    wb.remove_workspace_agent_context(ws_id, id);
+    submit_async(call_id, true, format!("detached context {id}"), None);
+}
+
+fn handle_memory_context_attach(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    let Some(kind_raw) = args
+        .as_ref()
+        .and_then(|v| v.get("kind"))
+        .and_then(|v| v.as_str())
+    else {
+        submit_async(call_id, false, "missing kind".into(), None);
+        return;
+    };
+    let kind = match kind_raw {
+        "memory_category" => AgentContextKind::MemoryCategory,
+        "learning_category" => AgentContextKind::LearningCategory,
+        "memory_note" => AgentContextKind::MemoryNote,
+        "learning_note" => AgentContextKind::LearningNote,
+        other => {
+            submit_async(call_id, false, format!("invalid kind: {other}"), None);
+            return;
+        }
+    };
+    let label_override = args
+        .as_ref()
+        .and_then(|v| v.get("label"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_owned());
+
+    let is_category = matches!(
+        kind,
+        AgentContextKind::MemoryCategory | AgentContextKind::LearningCategory
+    );
+    if is_category {
+        let category = match kind {
+            AgentContextKind::LearningCategory => "learnings",
+            _ => "memory",
+        };
+        let settings = wb.memory_category_settings_for_workspace_untracked(ws_id, category);
+        let label = label_override.unwrap_or_else(|| settings.label.clone());
+        let Some(cwd) = wb.default_workspace_cwd() else {
+            submit_async(call_id, false, "workspace has no folder".into(), None);
+            return;
+        };
+        leptos::task::spawn_local(async move {
+            match memory_list(&cwd).await {
+                Ok(notes) => {
+                    let paths: Vec<String> = notes
+                        .into_iter()
+                        .filter(|n| {
+                            if category == "learnings" {
+                                n.path.starts_with(LEARNINGS_PREFIX)
+                            } else {
+                                !n.path.starts_with(LEARNINGS_PREFIX)
+                            }
+                        })
+                        .map(|n| n.path)
+                        .collect();
+                    let count = paths.len();
+                    let item = AgentContextItem {
+                        id: format!("memory-category:{category}"),
+                        kind,
+                        label,
+                        source: format!("{count} memory paths"),
+                        paths,
+                        added_at: Date::now() as i64,
+                    };
+                    wb.upsert_workspace_agent_context(ws_id, item.clone());
+                    let _ = agent_submit_tool_result(
+                        call_id,
+                        true,
+                        Some(format!("attached {category} ({count} paths)")),
+                        Some(serde_json::to_value(&item).unwrap_or_default()),
+                    )
+                    .await;
+                }
+                Err(e) => {
+                    let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+                }
+            }
+        });
+        return;
+    }
+
+    let Some(path) = args
+        .as_ref()
+        .and_then(|v| v.get("path"))
+        .and_then(|v| v.as_str())
+    else {
+        submit_async(call_id, false, "missing path for note context".into(), None);
+        return;
+    };
+    let label = label_override.unwrap_or_else(|| {
+        path.rsplit('/')
+            .next()
+            .unwrap_or(path)
+            .trim_end_matches(".md")
+            .to_owned()
+    });
+    let item = AgentContextItem {
+        id: format!("memory-note:{path}"),
+        kind,
+        label,
+        source: path.to_owned(),
+        paths: vec![path.to_owned()],
+        added_at: Date::now() as i64,
+    };
+    wb.upsert_workspace_agent_context(ws_id, item.clone());
+    submit_async(
+        call_id,
+        true,
+        format!("attached note {path}"),
+        Some(serde_json::to_value(&item).unwrap_or_default()),
+    );
 }
 
 fn submit_async(call_id: String, ok: bool, message: String, data: Option<serde_json::Value>) {

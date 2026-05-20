@@ -10,6 +10,7 @@ use crate::workbench::memory_graph::graph_glue::{
     graph3d_reset_view, graph3d_resize, graph3d_set_data, graph3d_zoom,
 };
 use crate::workbench::memory_panel::{load_note, refresh_graph, MemoryState, MemoryView};
+use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
 use leptos::html;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
@@ -84,6 +85,7 @@ impl GraphPreviewState {
 #[component]
 pub fn MemoryGraphView(state: MemoryState) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let wb = expect_context::<WorkbenchService>();
     let mode = RwSignal::new(GraphMode::from_storage());
     let load_failed = RwSignal::new(false);
     let reset_tick = RwSignal::new(0_u32);
@@ -147,6 +149,7 @@ pub fn MemoryGraphView(state: MemoryState) -> impl IntoView {
                             })}
                             <Graph2dView
                                 state=state.clone()
+                                wb=wb
                                 selected_node=selected_node
                                 reset_tick=reset_tick
                                 zoom_tick=zoom_tick
@@ -157,6 +160,7 @@ pub fn MemoryGraphView(state: MemoryState) -> impl IntoView {
                 >
                     <Graph3dView
                         state=state.clone()
+                        wb=wb
                         selected_node=selected_node
                         reset_tick=reset_tick
                         zoom_tick=zoom_tick
@@ -244,6 +248,7 @@ fn GraphToolbar(
 #[component]
 fn Graph3dView(
     state: MemoryState,
+    wb: WorkbenchService,
     selected_node: RwSignal<Option<String>>,
     reset_tick: RwSignal<u32>,
     zoom_tick: RwSignal<i32>,
@@ -260,7 +265,7 @@ fn Graph3dView(
     Effect::new({
         let state = state.clone();
         move |_| {
-            let Some(graph) = state.graph.get() else {
+            let Some(graph) = configured_graph(wb, state.graph.get()) else {
                 return;
             };
             if graph_id.get_untracked().is_some() || bootstrap_inflight.get_untracked() {
@@ -305,7 +310,7 @@ fn Graph3dView(
             let Some(id) = graph_id.get() else {
                 return;
             };
-            let Some(graph) = state.graph.get() else {
+            let Some(graph) = configured_graph(wb, state.graph.get()) else {
                 return;
             };
             if graph3d_set_data(id, &graph).is_err() {
@@ -388,6 +393,7 @@ fn Graph3dView(
 #[component]
 fn Graph2dView(
     state: MemoryState,
+    wb: WorkbenchService,
     selected_node: RwSignal<Option<String>>,
     reset_tick: RwSignal<u32>,
     zoom_tick: RwSignal<i32>,
@@ -564,6 +570,7 @@ fn Graph2dView(
                         let s = state.clone();
                         move || {
                             let graph = s.graph.get();
+                            let graph = configured_graph(wb, graph);
                             let edges = graph.as_ref().map(|g| g.edges.clone()).unwrap_or_default();
                             let pos = layout.get();
                             let hov = hovered.get();
@@ -602,6 +609,7 @@ fn Graph2dView(
                         move || {
                             let pos = layout.get();
                             let graph = s.graph.get();
+                            let graph = configured_graph(wb, graph);
                             let nodes = graph.as_ref().map(|g| g.nodes.clone()).unwrap_or_default();
                             let edges = graph.as_ref().map(|g| g.edges.clone()).unwrap_or_default();
                             let degrees = compute_degrees(&nodes, &edges);
@@ -624,7 +632,7 @@ fn Graph2dView(
                                     }
                                     None => (NodeFocus::Normal, false),
                                 };
-                                let base_fill = cluster_color(&n.tags, n.orphan);
+                                let base_fill = n.color.clone().unwrap_or_else(|| cluster_color(&n.tags, n.orphan));
                                 let fill = match focus_state {
                                     NodeFocus::Dim => fade_color(&base_fill, 0.18),
                                     _ => base_fill,
@@ -879,6 +887,33 @@ fn compute_neighbors(edges: &[crate::tauri_bridge::GraphEdge]) -> HashMap<String
             .insert(e.source.clone());
     }
     m
+}
+
+fn configured_graph(wb: WorkbenchService, graph: Option<GraphData>) -> Option<GraphData> {
+    let ws_id = wb.active_id().get()?;
+    let mut graph = graph?;
+    graph.nodes.retain_mut(|node| {
+        let category = graph_category_for_path(&node.id);
+        let settings = wb.memory_category_settings_for_workspace(ws_id, category);
+        if !settings.show_in_graph {
+            return false;
+        }
+        node.color = Some(settings.color);
+        true
+    });
+    let visible: HashSet<String> = graph.nodes.iter().map(|node| node.id.clone()).collect();
+    graph
+        .edges
+        .retain(|edge| visible.contains(&edge.source) && visible.contains(&edge.target));
+    Some(graph)
+}
+
+fn graph_category_for_path(path: &str) -> &'static str {
+    if path.starts_with("learnings/") {
+        "learnings"
+    } else {
+        "memory"
+    }
 }
 
 fn cluster_color(tags: &[String], orphan: bool) -> String {

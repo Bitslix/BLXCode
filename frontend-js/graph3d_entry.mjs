@@ -59,12 +59,14 @@ function normalizeGraphData(graphData) {
       label: cleanLabel(node.label || node.id),
       tags: Array.isArray(node.tags) ? node.tags : [],
       orphan: Boolean(node.orphan),
+      color: typeof node.color === "string" && node.color.trim() ? node.color : null,
     })),
     links,
   };
 }
 
 function colorForNode(node) {
+  if (node.color) return node.color;
   if (node.orphan) return "#9aa3b8";
   const tag = node.tags?.[0] || "";
   let hash = 0;

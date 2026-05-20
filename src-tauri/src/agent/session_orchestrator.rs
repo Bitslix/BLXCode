@@ -3,7 +3,7 @@
 //! key/model is available.
 use crate::agent::anthropic::run_chat_turn as run_anthropic_turn;
 use crate::agent::openrouter::{run_chat_turn, Endpoint};
-use crate::agent::protocol::{AgentEvent, UserTurn};
+use crate::agent::protocol::{AgentContextItem, AgentEvent, UserTurn};
 use crate::agent::state::AgentEngineState;
 use crate::agent_settings::{load_settings_pub, provider_key_pub, AgentProviderKind};
 use crate::voice::{self, VoiceSettings};
@@ -39,7 +39,7 @@ pub fn dispatch_user_turn(
     let state = Arc::clone(agent);
     let app_handle = app.clone();
     let voice_input = turn.voice_input;
-    let prompt = turn.prompt;
+    let prompt = render_context_prompt(turn.prompt, &turn.context_items);
     let workspace_root = turn.workspace_root;
     match settings.provider {
         AgentProviderKind::Anthropic => {
@@ -77,6 +77,25 @@ pub fn dispatch_user_turn(
         }
     }
     Ok(())
+}
+
+fn render_context_prompt(prompt: String, context_items: &[AgentContextItem]) -> String {
+    if context_items.is_empty() {
+        return prompt;
+    }
+
+    let mut out = String::from("Attached BLXCode context (paths only; read files if needed):\n");
+    for item in context_items {
+        let paths = if item.paths.is_empty() {
+            item.source.clone()
+        } else {
+            item.paths.join(", ")
+        };
+        out.push_str(&format!("- {}: {}\n", item.label.trim(), paths));
+    }
+    out.push_str("\nUser prompt:\n");
+    out.push_str(&prompt);
+    out
 }
 
 fn spawn_settings_error(state: Arc<AgentEngineState>, err: String) {

@@ -792,6 +792,8 @@ pub struct GraphNode {
     pub label: String,
     pub tags: Vec<String>,
     pub orphan: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
 }
 
 #[allow(dead_code)]

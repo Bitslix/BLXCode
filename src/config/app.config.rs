@@ -14,6 +14,9 @@ pub const I18N_LOCALE_STORAGE_KEY: &str = "blxcode_locale_v1";
 /// `localStorage` key for memory graph rendering mode (`2d` / `3d`).
 pub const GRAPH_MODE_STORAGE_KEY: &str = "blxcode_memory_graph_mode_v1";
 
+/// `localStorage` key for reusable Memory category color presets.
+pub const MEMORY_COLOR_PRESETS_STORAGE_KEY: &str = "blxcode_memory_color_presets_v1";
+
 /// `localStorage` key for agent workspace root (tool sandbox).
 pub const HARNESS_WORKSPACE_ROOT_KEY: &str = "blxcode_harness_workspace_root_v1";
 

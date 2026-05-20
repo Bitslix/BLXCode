@@ -211,6 +211,12 @@ pub fn WorkbenchShell() -> impl IntoView {
         });
     on_cleanup(move || drop(beforeunload_handle));
 
+    let contextmenu_handle =
+        leptos::leptos_dom::helpers::window_event_listener_untyped("contextmenu", move |ev| {
+            ev.prevent_default();
+        });
+    on_cleanup(move || drop(contextmenu_handle));
+
     Effect::new(move |_| {
         if !is_tauri_shell() {
             embed_surface.0.set(Some("iframe_embed".into()));

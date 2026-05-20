@@ -1,5 +1,7 @@
+use crate::agent_wire::AgentContextItem;
 use crate::config::{
     HARNESS_BROWSER_DEFAULT_URL, HARNESS_BROWSER_URL_KEY, HARNESS_WORKSPACE_ROOT_KEY,
+    MEMORY_COLOR_PRESETS_STORAGE_KEY,
 };
 use crate::tauri_bridge::{
     is_tauri_shell, workbench_drop_sessions, workbench_extract_sessions_prefix,
@@ -62,6 +64,80 @@ pub struct WorkspaceEntry {
     /// Draft text in the agent compose field (same workspace binding).
     #[serde(default)]
     pub agent_compose_draft: String,
+    /// Memory/Learnings context attached to the next BLXCode Agent turns.
+    #[serde(default)]
+    pub agent_context_items: Vec<AgentContextItem>,
+    /// Display/color/visibility overrides for memory categories in this workspace.
+    #[serde(default)]
+    pub memory_category_settings: HashMap<String, MemoryCategorySettings>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryCategorySettings {
+    pub label: String,
+    pub color: String,
+    pub show_in_sidebar: bool,
+    pub show_in_graph: bool,
+}
+
+impl MemoryCategorySettings {
+    #[must_use]
+    pub fn for_category(key: &str) -> Self {
+        match key {
+            "learnings" => Self {
+                label: "Learnings".into(),
+                color: "#67e8f9".into(),
+                show_in_sidebar: true,
+                show_in_graph: true,
+            },
+            _ => Self {
+                label: "Memory".into(),
+                color: "#7dd3fc".into(),
+                show_in_sidebar: true,
+                show_in_graph: true,
+            },
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryColorPreset {
+    pub id: String,
+    pub label: String,
+    pub color: String,
+}
+
+#[must_use]
+pub fn default_memory_color_presets() -> Vec<MemoryColorPreset> {
+    vec![
+        MemoryColorPreset {
+            id: "memory-blue".into(),
+            label: "Memory Blue".into(),
+            color: "#7dd3fc".into(),
+        },
+        MemoryColorPreset {
+            id: "learnings-teal".into(),
+            label: "Learnings Teal".into(),
+            color: "#67e8f9".into(),
+        },
+        MemoryColorPreset {
+            id: "research-violet".into(),
+            label: "Research Violet".into(),
+            color: "#c4b5fd".into(),
+        },
+        MemoryColorPreset {
+            id: "tasks-amber".into(),
+            label: "Tasks Amber".into(),
+            color: "#fbbf24".into(),
+        },
+        MemoryColorPreset {
+            id: "archive-slate".into(),
+            label: "Archive Slate".into(),
+            color: "#9ca3af".into(),
+        },
+    ]
 }
 
 /// Per-slot terminal split state — survives a restart so the grid of
@@ -114,6 +190,8 @@ impl WorkspaceEntry {
             configuring: false,
             agent_timeline: Vec::new(),
             agent_compose_draft: String::new(),
+            agent_context_items: Vec::new(),
+            memory_category_settings: HashMap::new(),
         }
     }
 
@@ -311,6 +389,7 @@ pub enum HarnessSettingsCategory {
     App,
     Workspace,
     AgentProvider,
+    Memory,
     Voice,
 }
 
@@ -459,6 +538,19 @@ fn write_local_storage(key: &str, value: &str) {
     }
 }
 
+fn read_memory_color_presets() -> Vec<MemoryColorPreset> {
+    read_local_storage(MEMORY_COLOR_PRESETS_STORAGE_KEY)
+        .and_then(|raw| serde_json::from_str::<Vec<MemoryColorPreset>>(&raw).ok())
+        .filter(|presets| !presets.is_empty())
+        .unwrap_or_else(default_memory_color_presets)
+}
+
+fn write_memory_color_presets(presets: &[MemoryColorPreset]) {
+    if let Ok(raw) = serde_json::to_string(presets) {
+        write_local_storage(MEMORY_COLOR_PRESETS_STORAGE_KEY, &raw);
+    }
+}
+
 fn normalize_browser_url(raw: &str) -> String {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
@@ -563,6 +655,7 @@ pub struct WorkbenchService {
     /// `storage_key` (UUID). Survives workspace switches. The value is the
     /// full `terminal_key`.
     focused_terminal_by_workspace: RwSignal<HashMap<String, String>>,
+    memory_color_presets: RwSignal<Vec<MemoryColorPreset>>,
 }
 
 /// Sidebar badge aggregate for one workspace row. A single total across
@@ -586,6 +679,7 @@ impl WorkbenchService {
 
         let harness_workspace_root =
             read_local_storage(HARNESS_WORKSPACE_ROOT_KEY).unwrap_or_default();
+        let memory_color_presets = read_memory_color_presets();
 
         let first_tab_id = 1_u64;
 
@@ -623,6 +717,7 @@ impl WorkbenchService {
             notifications: RwSignal::new(HashMap::new()),
             pending_clears: RwSignal::new(HashSet::new()),
             focused_terminal_by_workspace: RwSignal::new(HashMap::new()),
+            memory_color_presets: RwSignal::new(memory_color_presets),
         }
     }
 
@@ -1050,6 +1145,8 @@ impl WorkbenchService {
                 configuring: false,
                 agent_timeline: Vec::new(),
                 agent_compose_draft: String::new(),
+                agent_context_items: Vec::new(),
+                memory_category_settings: HashMap::new(),
             });
         });
         Ok(id)
@@ -1601,6 +1698,8 @@ impl WorkbenchService {
             configuring: true,
             agent_timeline: Vec::new(),
             agent_compose_draft: String::new(),
+            agent_context_items: Vec::new(),
+            memory_category_settings: HashMap::new(),
         };
         self.active_id.set(Some(id));
         self.workspaces.update(|v| v.push(entry));
@@ -1886,6 +1985,108 @@ impl WorkbenchService {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
                 ws.agent_compose_draft = draft;
+            }
+        });
+    }
+
+    #[must_use]
+    pub fn agent_context_for_workspace_untracked(
+        &self,
+        workspace_id: u64,
+    ) -> Vec<AgentContextItem> {
+        self.workspaces.with_untracked(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.agent_context_items.clone())
+                .unwrap_or_default()
+        })
+    }
+
+    pub fn upsert_workspace_agent_context(&self, workspace_id: u64, item: AgentContextItem) {
+        self.workspaces.update(|workspaces| {
+            let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            if let Some(existing) = ws
+                .agent_context_items
+                .iter_mut()
+                .find(|it| it.id == item.id)
+            {
+                *existing = item;
+            } else {
+                ws.agent_context_items.push(item);
+            }
+        });
+    }
+
+    pub fn remove_workspace_agent_context(&self, workspace_id: u64, item_id: &str) {
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                ws.agent_context_items.retain(|item| item.id != item_id);
+            }
+        });
+    }
+
+    #[must_use]
+    pub fn memory_color_presets(&self) -> RwSignal<Vec<MemoryColorPreset>> {
+        self.memory_color_presets
+    }
+
+    pub fn set_memory_color_presets(&self, presets: Vec<MemoryColorPreset>) {
+        let presets = if presets.is_empty() {
+            default_memory_color_presets()
+        } else {
+            presets
+        };
+        write_memory_color_presets(&presets);
+        self.memory_color_presets.set(presets);
+    }
+
+    pub fn reset_memory_color_presets(&self) {
+        self.set_memory_color_presets(default_memory_color_presets());
+    }
+
+    #[must_use]
+    pub fn memory_category_settings_for_workspace_untracked(
+        &self,
+        workspace_id: u64,
+        category: &str,
+    ) -> MemoryCategorySettings {
+        self.workspaces.with_untracked(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .and_then(|w| w.memory_category_settings.get(category).cloned())
+                .unwrap_or_else(|| MemoryCategorySettings::for_category(category))
+        })
+    }
+
+    #[must_use]
+    pub fn memory_category_settings_for_workspace(
+        &self,
+        workspace_id: u64,
+        category: &str,
+    ) -> MemoryCategorySettings {
+        self.workspaces.with(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .and_then(|w| w.memory_category_settings.get(category).cloned())
+                .unwrap_or_else(|| MemoryCategorySettings::for_category(category))
+        })
+    }
+
+    pub fn set_memory_category_settings(
+        &self,
+        workspace_id: u64,
+        category: &str,
+        settings: MemoryCategorySettings,
+    ) {
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                ws.memory_category_settings
+                    .insert(category.to_string(), settings);
             }
         });
     }

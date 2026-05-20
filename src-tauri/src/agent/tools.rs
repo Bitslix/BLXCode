@@ -129,7 +129,8 @@ impl RelativePath {
 // ---------------------------------------------------------------------
 // Tool registry
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ToolSite {
     /// Executed in-process by the orchestrator.
     Server,
@@ -153,8 +154,34 @@ pub struct ToolOutcome {
     pub content: String,
 }
 
+/// JSON array of `{ name, description, site, parameters }` for every registered tool.
+pub fn catalog_json() -> Result<String, String> {
+    let items: Vec<Value> = registry()
+        .into_iter()
+        .map(|t| {
+            json!({
+                "name": t.name,
+                "description": t.description,
+                "site": t.site,
+                "parameters": t.parameters,
+            })
+        })
+        .collect();
+    serde_json::to_string(&items).map_err(|e| format!("serialize tool catalog: {e}"))
+}
+
 pub fn registry() -> Vec<ToolDef> {
     vec![
+        ToolDef {
+            name: "list_tools",
+            description: "Return a JSON array of every BLXCode Agent tool (name, description, server|client site, and parameters JSON Schema). Call when unsure which tools exist or what arguments they accept.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
         ToolDef {
             name: "read_workspace_file",
             description: "Read a UTF-8 text file under the workspace root. Path is relative to the workspace; absolute paths and `..` are rejected.",
@@ -245,6 +272,125 @@ pub fn registry() -> Vec<ToolDef> {
                 "additionalProperties": false
             }),
             site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "memory_delete",
+            description: "Delete one Markdown note (memory or `learnings/…` API path). Removes empty parent folders under the note root.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string", "description": "API path ending in .md." }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "memory_rename",
+            description: "Rename or move a note by changing its API path (same memory/learnings root only). Optionally rewrite `[[wikilinks]]` in other notes that pointed at the old path.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "oldPath": { "type": "string" },
+                    "newPath": { "type": "string" },
+                    "rewriteLinks": { "type": "boolean", "default": true }
+                },
+                "required": ["oldPath", "newPath"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "memory_graph",
+            description: "Build Obsidian-style graph data (nodes, edges, tags) across memory and learnings. Use to inspect link structure before editing notes.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "memory_backlinks",
+            description: "List API paths of notes that link to the given note (wikilinks / graph edges).",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "memory_category_list",
+            description: "List Memory sidebar categories (`memory`, `learnings`) with display label, color, and sidebar/graph visibility for the active workspace.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "memory_category_update",
+            description: "Update display settings for a Memory category (`memory` or `learnings`). Omitted fields stay unchanged. Color must be `#rrggbb`.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "category": { "type": "string", "enum": ["memory", "learnings"] },
+                    "label": { "type": "string" },
+                    "color": { "type": "string", "description": "Hex color, e.g. #7dd3fc" },
+                    "showInSidebar": { "type": "boolean" },
+                    "showInGraph": { "type": "boolean" }
+                },
+                "required": ["category"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "memory_context_list",
+            description: "List Memory/Learnings context items attached to the BLXCode Agent for the active workspace (sent with upcoming turns).",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "memory_context_attach",
+            description: "Attach a Memory category or note to BLXCode Agent context. Categories auto-include all note paths in that root.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "kind": {
+                        "type": "string",
+                        "enum": ["memory_category", "learning_category", "memory_note", "learning_note"]
+                    },
+                    "path": { "type": "string", "description": "Required for note kinds; API path ending in .md." },
+                    "label": { "type": "string", "description": "Optional display label; defaults from path or category." }
+                },
+                "required": ["kind"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "memory_context_detach",
+            description: "Remove one attached context item by id (from `memory_context_list`).",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string" }
+                },
+                "required": ["id"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
         },
         ToolDef {
             name: "task_list",
@@ -507,6 +653,7 @@ pub fn execute_server_tool(
     root: Option<&WorkspaceRootGuard>,
 ) -> ToolOutcome {
     match name {
+        "list_tools" => tool_list_tools(),
         "read_workspace_file" => tool_read_workspace_file(args, root),
         "list_workspace_files" => tool_list_workspace_files(args, root),
         "memory_list" => tool_memory_list(root),
@@ -514,6 +661,10 @@ pub fn execute_server_tool(
         "memory_search" => tool_memory_search(args, root),
         "memory_create" => tool_memory_create(args, root),
         "memory_write" => tool_memory_write(args, root),
+        "memory_delete" => tool_memory_delete(args, root),
+        "memory_rename" => tool_memory_rename(args, root),
+        "memory_graph" => tool_memory_graph(root),
+        "memory_backlinks" => tool_memory_backlinks(args, root),
         "task_list" => tool_task_list(args, root),
         "task_get" => tool_task_get(args, root),
         "task_create" => tool_task_create(args, root),
@@ -581,6 +732,19 @@ fn tool_list_workspace_files(args: &Value, root: Option<&WorkspaceRootGuard>) ->
         Err(e) => ToolOutcome {
             ok: false,
             content: e.to_string(),
+        },
+    }
+}
+
+fn tool_list_tools() -> ToolOutcome {
+    match catalog_json() {
+        Ok(body) => ToolOutcome {
+            ok: true,
+            content: body,
+        },
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e,
         },
     }
 }
@@ -735,6 +899,119 @@ fn tool_memory_write(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOut
             ok: true,
             content: format!("wrote {} ({} bytes)", note.path, note.content.len()),
         },
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e,
+        },
+    }
+}
+
+fn tool_memory_delete(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(path) = args.get("path").and_then(|v| v.as_str()) else {
+        return ToolOutcome {
+            ok: false,
+            content: "missing path".into(),
+        };
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match memory::memory_delete(ws, path.to_owned()) {
+        Ok(()) => ToolOutcome {
+            ok: true,
+            content: format!("deleted {path}"),
+        },
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e,
+        },
+    }
+}
+
+fn tool_memory_rename(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(old_path) = args.get("oldPath").and_then(|v| v.as_str()) else {
+        return ToolOutcome {
+            ok: false,
+            content: "missing oldPath".into(),
+        };
+    };
+    let Some(new_path) = args.get("newPath").and_then(|v| v.as_str()) else {
+        return ToolOutcome {
+            ok: false,
+            content: "missing newPath".into(),
+        };
+    };
+    let rewrite_links = args
+        .get("rewriteLinks")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match memory::memory_rename(
+        ws,
+        old_path.to_owned(),
+        new_path.to_owned(),
+        rewrite_links,
+    ) {
+        Ok(report) => {
+            let body = serde_json::to_string(&report)
+                .unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
+            ToolOutcome {
+                ok: true,
+                content: body,
+            }
+        }
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e,
+        },
+    }
+}
+
+fn tool_memory_graph(root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match memory::memory_graph(ws) {
+        Ok(graph) => {
+            let body =
+                serde_json::to_string(&graph).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
+            ToolOutcome {
+                ok: true,
+                content: body,
+            }
+        }
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e,
+        },
+    }
+}
+
+fn tool_memory_backlinks(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(path) = args.get("path").and_then(|v| v.as_str()) else {
+        return ToolOutcome {
+            ok: false,
+            content: "missing path".into(),
+        };
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match memory::memory_backlinks(ws, path.to_owned()) {
+        Ok(links) => {
+            let body =
+                serde_json::to_string(&links).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
+            ToolOutcome {
+                ok: true,
+                content: body,
+            }
+        }
         Err(e) => ToolOutcome {
             ok: false,
             content: e,
@@ -1080,4 +1357,39 @@ fn collect_entries(
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn catalog_lists_memory_management_tools() {
+        let names: Vec<_> = registry().iter().map(|t| t.name).collect();
+        for expected in [
+            "list_tools",
+            "memory_delete",
+            "memory_rename",
+            "memory_graph",
+            "memory_backlinks",
+            "memory_category_list",
+            "memory_category_update",
+            "memory_context_list",
+            "memory_context_attach",
+            "memory_context_detach",
+        ] {
+            assert!(
+                names.contains(&expected),
+                "missing tool {expected}"
+            );
+        }
+    }
+
+    #[test]
+    fn list_tools_returns_valid_json() {
+        let body = catalog_json().expect("catalog json");
+        let parsed: Vec<Value> = serde_json::from_str(&body).expect("parse catalog");
+        assert!(!parsed.is_empty());
+        assert!(parsed.iter().all(|entry| entry.get("name").is_some()));
+    }
 }

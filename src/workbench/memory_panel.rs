@@ -1,14 +1,17 @@
 //! Workspace-scoped Markdown memory panel — files/editor, backlinks,
 //! graph view, search, agent-pointer installer. Mirrors the Phase 1–5
 //! design discussed for blxcode's Obsidian-style memory feature.
+use crate::agent_wire::{AgentContextItem, AgentContextKind};
 use crate::i18n::I18nKey;
 use crate::memory_paths::slug_to_filename;
 use crate::service::I18nService;
 use crate::tauri_bridge::{self, GraphData, NoteContent, NoteMeta, SearchHit};
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::memory_graph::MemoryGraphView;
+use crate::workbench::state::MemoryCategorySettings;
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
+use js_sys::Date;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
@@ -291,16 +294,20 @@ fn MemoryTabBtn(
 #[component]
 fn MemoryFilesView(state: MemoryState) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let wb = expect_context::<WorkbenchService>();
     let new_note_input = RwSignal::new(String::new());
     let renaming = RwSignal::new(None::<String>);
     let rename_input = RwSignal::new(String::new());
     let files_collapsed = RwSignal::new(false);
     let groups_open = RwSignal::new(HashSet::<&'static str>::new());
+    let context_menu = RwSignal::new(None::<MemoryContextMenu>);
+    let editing_category = RwSignal::new(None::<&'static str>);
 
     view! {
         <div
             class="workbench-memory-files"
             class:workbench-memory-files--collapsed=move || files_collapsed.get()
+            on:click=move |_| context_menu.set(None)
         >
             <aside
                 class="workbench-memory-files__tree"
@@ -381,7 +388,10 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                     <For
                         each={
                             let s = state.clone();
-                            move || memory_note_groups(s.notes.get())
+                            move || {
+                                let _ = wb.workspaces().get();
+                                memory_note_groups(s.notes.get())
+                            }
                         }
                         key=|g| g.key
                         children={
@@ -395,6 +405,7 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                                         files_collapsed=files_collapsed
                                         renaming=renaming
                                         rename_input=rename_input
+                                        context_menu=context_menu
                                     />
                                 }
                             }
@@ -530,6 +541,23 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                     </footer>
                 </Show>
             </section>
+            <MemoryContextMenuView
+                state=state.clone()
+                menu=context_menu
+                editing_category=editing_category
+            />
+            <Show when=move || editing_category.get().is_some()>
+                {move || {
+                    editing_category
+                        .get()
+                        .map(|category| view! {
+                            <MemoryCategoryEditDialog
+                                category=category
+                                on_close=Callback::new(move |_| editing_category.set(None))
+                            />
+                        })
+                }}
+            </Show>
         </div>
     }
 }
@@ -546,22 +574,42 @@ fn strip_ext(s: &str) -> String {
 #[component]
 fn MemoryFileGroupHead(
     state: MemoryState,
+    wb: WorkbenchService,
     group_key: &'static str,
     groups_open: RwSignal<HashSet<&'static str>>,
     files_collapsed: RwSignal<bool>,
     header_title: String,
     index_path: Option<String>,
+    group_paths: Vec<String>,
+    context_menu: RwSignal<Option<MemoryContextMenu>>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let index_active = index_path.clone();
     let index_open = index_path;
-
+    let context_label = header_title.clone();
     view! {
         <li
             class="workbench-memory-files__group-head"
+            class:workbench-memory-files__group-head--sidebar-hidden=move || {
+                !memory_category_settings(wb, group_key).show_in_sidebar
+            }
             class:workbench-memory-files__group-head--hidden=move || files_collapsed.get()
             class:workbench-memory-files__group-head--active=move || {
                 memory_group_index_active(&state, &index_active)
+            }
+            style=move || format!("--memory-category-color: {}", memory_category_settings(wb, group_key).color)
+            on:contextmenu=move |ev: web_sys::MouseEvent| {
+                ev.prevent_default();
+                ev.stop_propagation();
+                context_menu.set(Some(MemoryContextMenu {
+                    x: ev.client_x(),
+                    y: ev.client_y(),
+                    target: MemoryContextTarget::Category {
+                        key: group_key,
+                        label: context_label.clone(),
+                        paths: group_paths.clone(),
+                    },
+                }));
             }
         >
             <button
@@ -627,26 +675,42 @@ fn MemoryFileGroupSection(
     files_collapsed: RwSignal<bool>,
     renaming: RwSignal<Option<String>>,
     rename_input: RwSignal<String>,
+    context_menu: RwSignal<Option<MemoryContextMenu>>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let wb = expect_context::<WorkbenchService>();
     let group_key = group.key;
-    let header_title = memory_group_header_label(&group, &i18n);
+    let header_title = memory_group_header_label(&group, &i18n, wb);
     let index_path = group.index.as_ref().map(|n| n.path.clone());
     let index = group.index;
     let group_notes = group.notes;
+    let show_sidebar = move || {
+        wb.active_id()
+            .get()
+            .map(|id| {
+                wb.memory_category_settings_for_workspace(id, group_key)
+                    .show_in_sidebar
+            })
+            .unwrap_or(true)
+    };
 
     view! {
         <MemoryFileGroupHead
             state=state
+            wb=wb
             group_key=group_key
             groups_open=groups_open
             files_collapsed=files_collapsed
             header_title=header_title
             index_path=index_path
+            group_paths=memory_group_paths(&index, &group_notes)
+            context_menu=context_menu
         />
         <For
             each=move || {
-                if files_collapsed.get() {
+                if !show_sidebar() {
+                    Vec::new()
+                } else if files_collapsed.get() {
                     memory_group_collapsed_items(&index, &group_notes)
                 } else if groups_open.with(|s| s.contains(group_key)) {
                     group_notes.clone()
@@ -679,10 +743,11 @@ fn MemoryFileGroupSection(
                                         note=expanded_note.clone()
                                         renaming=renaming
                                         rename_input=rename_input
+                                        context_menu=context_menu
                                     />
                                 }
                             >
-                                <MemoryFileCollapsedRow state=state note=collapsed_note.clone() />
+                                <MemoryFileCollapsedRow state=state note=collapsed_note.clone() context_menu=context_menu />
                             </Show>
                         </li>
                     }
@@ -693,10 +758,16 @@ fn MemoryFileGroupSection(
 }
 
 #[component]
-fn MemoryFileCollapsedRow(state: MemoryState, note: NoteMeta) -> impl IntoView {
-    let label = note.name.clone();
+fn MemoryFileCollapsedRow(
+    state: MemoryState,
+    note: NoteMeta,
+    context_menu: RwSignal<Option<MemoryContextMenu>>,
+) -> impl IntoView {
+    let label = clean_memory_label(&note.name);
     let badge = note_badge_text(&label);
     let path = note.path.clone();
+    let context_path = path.clone();
+    let context_label = label.clone();
 
     view! {
         <button
@@ -704,6 +775,18 @@ fn MemoryFileCollapsedRow(state: MemoryState, note: NoteMeta) -> impl IntoView {
             class="workbench-memory-files__badge"
             title=label.clone()
             aria-label=label
+            on:contextmenu=move |ev: web_sys::MouseEvent| {
+                ev.prevent_default();
+                ev.stop_propagation();
+                context_menu.set(Some(MemoryContextMenu {
+                    x: ev.client_x(),
+                    y: ev.client_y(),
+                    target: MemoryContextTarget::Note {
+                        path: context_path.clone(),
+                        label: context_label.clone(),
+                    },
+                }));
+            }
             on:click=move |_| {
                 let Some(ws) = state.workspace_cwd.get_untracked() else {
                     return;
@@ -722,9 +805,10 @@ fn MemoryFileExpandedRow(
     note: NoteMeta,
     renaming: RwSignal<Option<String>>,
     rename_input: RwSignal<String>,
+    context_menu: RwSignal<Option<MemoryContextMenu>>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
-    let label = note.name.clone();
+    let label = clean_memory_label(&note.name);
     let folder = memory_display_folder(&note.path);
     let note_path = note.path.clone();
     let path_for_select = note_path.clone();
@@ -799,6 +883,22 @@ fn MemoryFileExpandedRow(
                     <button
                         type="button"
                         class="workbench-memory-files__name"
+                        on:contextmenu={
+                            let p = path_for_select.clone();
+                            let l = label.clone();
+                            move |ev: web_sys::MouseEvent| {
+                                ev.prevent_default();
+                                ev.stop_propagation();
+                                context_menu.set(Some(MemoryContextMenu {
+                                    x: ev.client_x(),
+                                    y: ev.client_y(),
+                                    target: MemoryContextTarget::Note {
+                                        path: p.clone(),
+                                        label: l.clone(),
+                                    },
+                                }));
+                            }
+                        }
                         on:click=move |_| {
                             let Some(ws) = state.workspace_cwd.get_untracked() else {
                                 return;
@@ -849,11 +949,312 @@ fn MemoryFileExpandedRow(
     }
 }
 
+#[component]
+fn MemoryContextMenuView(
+    state: MemoryState,
+    menu: RwSignal<Option<MemoryContextMenu>>,
+    editing_category: RwSignal<Option<&'static str>>,
+) -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+    view! {
+        <Show when=move || menu.get().is_some()>
+            {move || {
+                let Some(current) = menu.get() else {
+                    return ().into_any();
+                };
+                let style = format!("left: {}px; top: {}px", current.x, current.y);
+                match current.target {
+                    MemoryContextTarget::Category { key, label, paths } => {
+                        let edit_key = key;
+                        let send_label = label.clone();
+                        view! {
+                            <div class="workspace-context-menu memory-context-menu" style=style on:click=move |ev| ev.stop_propagation()>
+                                <button
+                                    type="button"
+                                    class="workspace-context-menu__item"
+                                    on:click=move |_| {
+                                        menu.set(None);
+                                        editing_category.set(Some(edit_key));
+                                    }
+                                >"Edit"</button>
+                                <button
+                                    type="button"
+                                    class="workspace-context-menu__item"
+                                    on:click=move |_| {
+                                        add_category_agent_context(wb, edit_key, send_label.clone(), paths.clone());
+                                        menu.set(None);
+                                    }
+                                >"Send to BLXCode Agent"</button>
+                            </div>
+                        }
+                        .into_any()
+                    }
+                    MemoryContextTarget::Note { path, label } => {
+                        let open_path = path.clone();
+                        let send_path = path.clone();
+                        let send_label = label.clone();
+                        view! {
+                            <div class="workspace-context-menu memory-context-menu" style=style on:click=move |ev| ev.stop_propagation()>
+                                <button
+                                    type="button"
+                                    class="workspace-context-menu__item"
+                                    on:click=move |_| {
+                                        menu.set(None);
+                                        if let Some(ws) = current_workspace_cwd(wb) {
+                                            load_note(state, ws, open_path.clone());
+                                        }
+                                    }
+                                >"Open"</button>
+                                <button
+                                    type="button"
+                                    class="workspace-context-menu__item"
+                                    on:click=move |_| {
+                                        add_note_agent_context(wb, send_path.clone(), send_label.clone());
+                                        menu.set(None);
+                                    }
+                                >"Send to BLXCode Agent"</button>
+                            </div>
+                        }
+                        .into_any()
+                    }
+                }
+            }}
+        </Show>
+    }
+}
+
+#[component]
+fn MemoryCategoryEditDialog(category: &'static str, on_close: Callback<()>) -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+    let initial = wb
+        .active_id()
+        .get_untracked()
+        .map(|id| wb.memory_category_settings_for_workspace_untracked(id, category))
+        .unwrap_or_else(|| MemoryCategorySettings::for_category(category));
+    let label = RwSignal::new(initial.label);
+    let color = RwSignal::new(initial.color);
+    let show_sidebar = RwSignal::new(initial.show_in_sidebar);
+    let show_graph = RwSignal::new(initial.show_in_graph);
+    let title = format!("Edit {}", clean_memory_label(category));
+
+    view! {
+        <div class="workspace-rename-backdrop" on:click=move |_| on_close.run(())>
+            <section class="workspace-rename-dialog memory-category-dialog" on:click=move |ev| ev.stop_propagation()>
+                <header class="workspace-rename-dialog__head">
+                    <h2>{title}</h2>
+                    <button type="button" class="workspace-rename-dialog__close" on:click=move |_| on_close.run(())>"×"</button>
+                </header>
+                <div class="workspace-rename-dialog__body memory-category-dialog__body">
+                    <label class="workspace-rename-dialog__label" for="memory-category-label">"Display name"</label>
+                    <input
+                        id="memory-category-label"
+                        type="text"
+                        class="workspace-rename-dialog__input"
+                        prop:value=move || label.get()
+                        on:input=move |ev| {
+                            if let Some(v) = input_value(ev) {
+                                label.set(v);
+                            }
+                        }
+                    />
+                    <label class="workspace-rename-dialog__label" for="memory-category-color">"Color"</label>
+                    <div class="memory-category-dialog__color-row">
+                        <input
+                            id="memory-category-color"
+                            type="color"
+                            class="memory-category-dialog__color-input"
+                            prop:value=move || color.get()
+                            on:input=move |ev| {
+                                if let Some(v) = input_value(ev) {
+                                    color.set(v);
+                                }
+                            }
+                        />
+                        <input
+                            type="text"
+                            class="workspace-rename-dialog__input"
+                            prop:value=move || color.get()
+                            on:input=move |ev| {
+                                if let Some(v) = input_value(ev) {
+                                    color.set(v);
+                                }
+                            }
+                        />
+                    </div>
+                    <div class="memory-color-swatches" aria-label="Memory color presets">
+                        <For
+                            each=move || wb.memory_color_presets().get()
+                            key=|preset| preset.id.clone()
+                            children=move |preset| {
+                                let preset_color = preset.color.clone();
+                                view! {
+                                    <button
+                                        type="button"
+                                        class="memory-color-swatch"
+                                        title=preset.label
+                                        style=format!("--memory-swatch: {}", preset_color)
+                                        on:click=move |_| color.set(preset_color.clone())
+                                    ></button>
+                                }
+                            }
+                        />
+                    </div>
+                    <label class="memory-category-dialog__toggle">
+                        <input
+                            type="checkbox"
+                            prop:checked=move || show_sidebar.get()
+                            on:change=move |ev| {
+                                let checked = ev
+                                    .target()
+                                    .and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok())
+                                    .is_some_and(|input| input.checked());
+                                show_sidebar.set(checked);
+                            }
+                        />
+                        <span>"Show in sidebar"</span>
+                    </label>
+                    <label class="memory-category-dialog__toggle">
+                        <input
+                            type="checkbox"
+                            prop:checked=move || show_graph.get()
+                            on:change=move |ev| {
+                                let checked = ev
+                                    .target()
+                                    .and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok())
+                                    .is_some_and(|input| input.checked());
+                                show_graph.set(checked);
+                            }
+                        />
+                        <span>"Show in graph"</span>
+                    </label>
+                </div>
+                <footer class="workspace-rename-dialog__actions">
+                    <button type="button" class="workspace-rename-dialog__btn workspace-rename-dialog__btn--ghost" on:click=move |_| on_close.run(())>"Cancel"</button>
+                    <button
+                        type="button"
+                        class="workspace-rename-dialog__btn workspace-rename-dialog__btn--primary"
+                        on:click=move |_| {
+                            if let Some(ws_id) = wb.active_id().get_untracked() {
+                                let fallback = MemoryCategorySettings::for_category(category);
+                                wb.set_memory_category_settings(ws_id, category, MemoryCategorySettings {
+                                    label: label.get_untracked().trim().to_string(),
+                                    color: normalize_memory_color(&color.get_untracked(), &fallback.color),
+                                    show_in_sidebar: show_sidebar.get_untracked(),
+                                    show_in_graph: show_graph.get_untracked(),
+                                });
+                            }
+                            on_close.run(());
+                        }
+                    >"Save"</button>
+                </footer>
+            </section>
+        </div>
+    }
+}
+
+fn memory_category_settings(wb: WorkbenchService, category: &str) -> MemoryCategorySettings {
+    wb.active_id()
+        .get()
+        .map(|id| wb.memory_category_settings_for_workspace(id, category))
+        .unwrap_or_else(|| MemoryCategorySettings::for_category(category))
+}
+
+fn memory_group_paths(index: &Option<NoteMeta>, notes: &[NoteMeta]) -> Vec<String> {
+    let mut paths = Vec::new();
+    if let Some(index) = index {
+        paths.push(index.path.clone());
+    }
+    paths.extend(notes.iter().map(|note| note.path.clone()));
+    paths
+}
+
+fn add_category_agent_context(
+    wb: WorkbenchService,
+    category: &'static str,
+    label: String,
+    paths: Vec<String>,
+) {
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        return;
+    };
+    let kind = if category == "learnings" {
+        AgentContextKind::LearningCategory
+    } else {
+        AgentContextKind::MemoryCategory
+    };
+    let count = paths.len();
+    wb.upsert_workspace_agent_context(
+        ws_id,
+        AgentContextItem {
+            id: format!("memory-category:{category}"),
+            kind,
+            label,
+            source: format!("{count} memory paths"),
+            paths,
+            added_at: Date::now() as i64,
+        },
+    );
+}
+
+fn add_note_agent_context(wb: WorkbenchService, path: String, label: String) {
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        return;
+    };
+    let kind = if path.starts_with(LEARNINGS_API_PREFIX) {
+        AgentContextKind::LearningNote
+    } else {
+        AgentContextKind::MemoryNote
+    };
+    wb.upsert_workspace_agent_context(
+        ws_id,
+        AgentContextItem {
+            id: format!("memory-note:{path}"),
+            kind,
+            label,
+            source: path.clone(),
+            paths: vec![path],
+            added_at: Date::now() as i64,
+        },
+    );
+}
+
+fn normalize_memory_color(raw: &str, fallback: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.len() == 7
+        && trimmed.starts_with('#')
+        && trimmed.chars().skip(1).all(|ch| ch.is_ascii_hexdigit())
+    {
+        trimmed.to_ascii_lowercase()
+    } else {
+        fallback.to_string()
+    }
+}
+
 #[derive(Clone)]
 struct MemoryNoteGroup {
     key: &'static str,
     index: Option<NoteMeta>,
     notes: Vec<NoteMeta>,
+}
+
+#[derive(Clone, PartialEq)]
+enum MemoryContextTarget {
+    Category {
+        key: &'static str,
+        label: String,
+        paths: Vec<String>,
+    },
+    Note {
+        path: String,
+        label: String,
+    },
+}
+
+#[derive(Clone, PartialEq)]
+struct MemoryContextMenu {
+    x: i32,
+    y: i32,
+    target: MemoryContextTarget,
 }
 
 fn memory_note_groups(notes: Vec<NoteMeta>) -> Vec<MemoryNoteGroup> {
@@ -930,13 +1331,70 @@ fn memory_group_index_active(state: &MemoryState, index_path: &Option<String>) -
         .is_some_and(|p| state.active_path.get().as_deref() == Some(p))
 }
 
-fn memory_group_header_label(group: &MemoryNoteGroup, i18n: &I18nService) -> String {
+fn memory_group_header_label(
+    group: &MemoryNoteGroup,
+    i18n: &I18nService,
+    wb: WorkbenchService,
+) -> String {
+    if let Some(ws_id) = wb.active_id().get_untracked() {
+        let settings = wb.memory_category_settings_for_workspace_untracked(ws_id, group.key);
+        if !settings.label.trim().is_empty() {
+            return clean_memory_label(&settings.label);
+        }
+    }
     if let Some(idx) = &group.index {
-        return idx.name.clone();
+        return clean_memory_label(&idx.name);
     }
     match group.key {
         "learnings" => i18n.tr(I18nKey::MemFilesGroupLearnings)().to_string(),
         _ => i18n.tr(I18nKey::MemFilesGroupMemory)().to_string(),
+    }
+}
+
+fn clean_memory_label(raw: &str) -> String {
+    let tail = raw
+        .replace('\\', "/")
+        .split('/')
+        .filter(|part| !part.is_empty())
+        .last()
+        .unwrap_or(raw)
+        .trim_end_matches(".md")
+        .trim_end_matches(".MD")
+        .to_string();
+    let words: Vec<String> = tail
+        .split(|ch: char| matches!(ch, '-' | '_' | '.' | ' ') || ch.is_whitespace())
+        .filter(|word| !word.trim().is_empty())
+        .map(|word| {
+            let lower = word.to_ascii_lowercase();
+            if matches!(
+                lower.as_str(),
+                "api"
+                    | "ui"
+                    | "ux"
+                    | "url"
+                    | "http"
+                    | "https"
+                    | "json"
+                    | "css"
+                    | "html"
+                    | "js"
+                    | "ts"
+                    | "2d"
+                    | "3d"
+            ) {
+                return lower.to_ascii_uppercase();
+            }
+            let mut chars = lower.chars();
+            let Some(first) = chars.next() else {
+                return String::new();
+            };
+            format!("{}{}", first.to_ascii_uppercase(), chars.as_str())
+        })
+        .collect();
+    if words.is_empty() {
+        raw.to_string()
+    } else {
+        words.join(" ")
     }
 }
 
