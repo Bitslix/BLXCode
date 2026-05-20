@@ -75,8 +75,8 @@ cargo tauri build
 
 Common Linux outputs include AppImage, Debian, and RPM bundles under `target/release/bundle/` (per CPU arch), for example:
 
-- `deb/BLXCode_0.1.11_amd64.deb`, `rpm/BLXCode-0.1.11-1.x86_64.rpm`, `appimage/BLXCode_0.1.11_amd64.AppImage`
-- `deb/BLXCode_0.1.11_arm64.deb`, `rpm/BLXCode-0.1.11-1.aarch64.rpm`, `appimage/BLXCode_0.1.11_aarch64.AppImage` (native on ARM64 Linux or CI `ubuntu-24.04-arm`)
+- `deb/BLXCode_0.1.12_amd64.deb`, `rpm/BLXCode-0.1.12-1.x86_64.rpm`, `appimage/BLXCode_0.1.12_amd64.AppImage`
+- `deb/BLXCode_0.1.12_arm64.deb`, `rpm/BLXCode-0.1.12-1.aarch64.rpm`, `appimage/BLXCode_0.1.12_aarch64.AppImage` (native on ARM64 Linux or CI `ubuntu-24.04-arm`)
 
 Use `./scripts/release.sh --linux-arch amd64` or `--linux-arch arm64` to build only one architecture.
 

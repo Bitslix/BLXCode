@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+## [0.1.12] - 2026-05-20
+
+### Added
+
 - **Plan Manager**: durable Markdown plans under `<workspace>/.agents/plans/`, with `PLANS.md` as a protected index seeded on workspace bootstrap. Each plan can declare a canonical `## Tasks` (or `## Todos`) section using the syntax `- [ ] \`task-id\` - title` where the marker is one of `[ ] [>] [!] [x] [-]` (pending/in-progress/blocked/completed/cancelled).
 - **Plans tab** in the right panel (between Browser and Memory): list with per-plan task summary, Markdown editor with debounced auto-save, preview toggle, create/rename/delete, and a "Load into BLXCode Agent" action that syncs plan tasks into the task manager and attaches the plan to shared context. On workspace activation, the panel auto-opens the last-active plan via the persisted `activePlanPath`.
 - **Plan-linked tasks**: `TaskRecord` gains optional `planPath` / `planTaskId`; `TaskSnapshot` gains `activePlanPath`. `plan_load` replaces only tasks where `planPath == path` and leaves free tasks untouched. `task_update` on plan-linked tasks writes status changes back into the plan Markdown automatically. The Agent panel's task list groups plan-linked tasks by plan first, then renders a separate **Free Tasks** group.
