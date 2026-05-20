@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "Aceptar",
         I18nKey::GitignorePromptTitle => "¿Agregar .blxcode a .gitignore?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
         I18nKey::GitignorePromptYes => "Sí, agrégalo",
         I18nKey::GitignorePromptNo => "Ahora no",
@@ -73,6 +73,14 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemBacklinks => "Vínculos de retroceso",
         I18nKey::MemGraphEmpty => "Aún no hay notas: cree una en Archivos.",
         I18nKey::MemGraphLegend => "Nodos = notas · bordes = [[enlaces wiki]]",
+        I18nKey::MemGraphReset => "Restablecer vista de gráfico",
+        I18nKey::MemGraphZoomIn => "Dar un golpe de zoom",
+        I18nKey::MemGraphZoomOut => "alejar",
+        I18nKey::MemGraphMode3d => "Cambiar a gráfico 3D",
+        I18nKey::MemGraphMode2d => "Cambiar a gráfico 2D",
+        I18nKey::MemGraphPreviewClose => "Cerrar vista previa",
+        I18nKey::MemGraphOpenInFiles => "Abrir en archivos",
+        I18nKey::MemGraph3dLoadFailed => "No se pudo cargar el gráfico 3D. Mostrando gráfico 2D.",
         I18nKey::MemSearchPh => "Notas de búsqueda...",
         I18nKey::MemSearchFilterAll => "Todo",
         I18nKey::MemFilesExpand => "Expandir lista de archivos",
@@ -307,7 +315,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::VoiceSttLangFollowApp => "Seguir el idioma de la aplicación",
         I18nKey::VoiceSttLangAutoDetect => "Detección automática",
         I18nKey::VoiceSttLangManual => "Manual",
-        I18nKey::VoicePttEnabled => "Habilitar la tecla de acceso rápido \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"pulsar para hablar\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"",
+        I18nKey::VoicePttEnabled => {
+            "Habilitar la tecla de acceso rápido \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\"pulsar para hablar\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\""
+        }
         I18nKey::VoicePttHotkey => "tecla de acceso rápido",
         I18nKey::VoicePttRecorderHint => "Presione una tecla…",
         I18nKey::VoicePttConflictWarn => "Entra en conflicto con otro acceso directo a la aplicación.",

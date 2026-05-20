@@ -7,6 +7,7 @@ mod chat_markdown;
 mod create_workspace_wizard;
 mod harness_ui;
 mod harness_voice_pane;
+mod memory_graph;
 mod memory_panel;
 mod notification_sound;
 mod path_nav;

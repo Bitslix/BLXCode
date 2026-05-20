@@ -133,6 +133,13 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend-js/package-lock.json
+
       - name: Add macOS Rust targets
         if: matrix.platform == 'macos-latest'
         run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
@@ -141,6 +148,11 @@ jobs:
         run: |
           cargo install trunk --locked
           cargo install tauri-cli --version "^2" --locked
+
+      - name: Build Graph 3D bundle
+        run: |
+          npm ci --prefix frontend-js
+          npm --prefix frontend-js run build:graph3d
 
       - name: Build bundles
         uses: tauri-apps/tauri-action@v0

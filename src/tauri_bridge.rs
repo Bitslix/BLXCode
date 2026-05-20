@@ -98,9 +98,7 @@ pub async fn gitignore_append_blxcode(workspace_cwd: &str) -> Result<(), String>
     }
     invoke_unit_js(
         "gitignore_append_blxcode",
-        args_value(Args {
-            workspace_cwd,
-        })?,
+        args_value(Args { workspace_cwd })?,
     )
     .await
 }
@@ -763,10 +761,7 @@ pub async fn agent_latest_session_id(agent: String, cwd: String) -> Result<Optio
 // Memory (workspace-scoped Markdown notes, Obsidian-style)
 
 pub async fn workspace_ensure_agents(ws: &str) -> Result<(), String> {
-    invoke_typed("workspace_ensure_agents", WsArg {
-        workspace_cwd: ws,
-    })
-    .await
+    invoke_typed("workspace_ensure_agents", WsArg { workspace_cwd: ws }).await
 }
 
 #[allow(dead_code)]
@@ -790,7 +785,7 @@ pub struct NoteContent {
 }
 
 #[allow(dead_code)]
-#[derive(Clone, Debug, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphNode {
     pub id: String,
@@ -800,7 +795,7 @@ pub struct GraphNode {
 }
 
 #[allow(dead_code)]
-#[derive(Clone, Debug, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphEdge {
     pub source: String,
@@ -808,7 +803,7 @@ pub struct GraphEdge {
 }
 
 #[allow(dead_code)]
-#[derive(Clone, Debug, serde::Deserialize)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GraphData {
     pub nodes: Vec<GraphNode>,

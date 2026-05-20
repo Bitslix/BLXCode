@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "受け入れる",
         I18nKey::GitignorePromptTitle => ".blxcode を .gitignore に追加しますか?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
         I18nKey::GitignorePromptYes => "はい、追加します",
         I18nKey::GitignorePromptNo => "今じゃない",
@@ -69,6 +69,14 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemBacklinks => "バックリンク",
         I18nKey::MemGraphEmpty => "まだメモはありません。ファイルでメモを作成してください。",
         I18nKey::MemGraphLegend => "ノード = ノート · エッジ = [[wiki リンク]]",
+        I18nKey::MemGraphReset => "グラフビューをリセット",
+        I18nKey::MemGraphZoomIn => "ズームイン",
+        I18nKey::MemGraphZoomOut => "ズームアウト",
+        I18nKey::MemGraphMode3d => "3Dグラフに切り替える",
+        I18nKey::MemGraphMode2d => "2D グラフに切り替える",
+        I18nKey::MemGraphPreviewClose => "プレビューを閉じる",
+        I18nKey::MemGraphOpenInFiles => "ファイルで開く",
+        I18nKey::MemGraph3dLoadFailed => "3D グラフを読み込めませんでした。 2D グラフを表示します。",
         I18nKey::MemSearchPh => "メモを検索…",
         I18nKey::MemSearchFilterAll => "全て",
         I18nKey::MemFilesExpand => "ファイルリストを展開する",

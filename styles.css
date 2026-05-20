@@ -5360,17 +5360,31 @@ button {
   flex-direction: column;
   min-height: 0;
   padding: 0.5rem 0.55rem;
+  position: relative;
 }
-.workbench-memory-graph__svg {
+.workbench-memory-graph__stage {
   flex: 1;
   min-height: 0;
-  width: 100%;
-  background: rgba(255, 255, 255, 0.02);
+  position: relative;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 45%, rgba(91, 157, 255, 0.08), rgba(255, 255, 255, 0.015) 42%, rgba(0, 0, 0, 0.08));
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 6px;
+}
+.workbench-memory-graph__3d {
+  position: absolute;
+  inset: 0;
+  min-height: 240px;
+}
+.workbench-memory-graph__svg {
+  height: 100%;
+  width: 100%;
+  background: transparent;
+  border: 0;
   cursor: grab;
   user-select: none;
   touch-action: none;
+  display: block;
 }
 .workbench-memory-graph__svg:active {
   cursor: grabbing;
@@ -5379,18 +5393,34 @@ button {
   display: flex;
   gap: 0.35rem;
   padding: 0 0 0.4rem 0;
+  align-items: center;
 }
 .workbench-memory-graph__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
   background: rgba(255, 255, 255, 0.04);
   color: rgba(238, 239, 245, 0.85);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 4px;
-  padding: 0.2rem 0.55rem;
+  padding: 0;
   font-size: 0.72rem;
   cursor: pointer;
 }
 .workbench-memory-graph__btn:hover {
   background: rgba(255, 255, 255, 0.08);
+}
+.workbench-memory-graph__btn--active {
+  color: rgba(255, 255, 255, 0.96);
+  border-color: rgba(91, 157, 255, 0.42);
+  background: rgba(91, 157, 255, 0.14);
+}
+.workbench-memory-graph__warning {
+  margin: 0 0 0.4rem;
+  color: rgba(255, 214, 150, 0.9);
+  font-size: 0.72rem;
 }
 .workbench-memory-graph__empty {
   flex: 1;
@@ -5404,6 +5434,72 @@ button {
   padding: 0.4rem 0.2rem 0;
   font-size: 0.72rem;
   color: rgba(160, 165, 180, 0.6);
+}
+.workbench-memory-graph-preview {
+  position: absolute;
+  left: 0.85rem;
+  right: 0.85rem;
+  bottom: 2rem;
+  max-height: min(52%, 22rem);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: rgba(18, 20, 27, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(18px);
+  z-index: 2;
+}
+.workbench-memory-graph-preview__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.workbench-memory-graph-preview__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(238, 239, 245, 0.94);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+.workbench-memory-graph-preview__actions {
+  display: flex;
+  gap: 0.3rem;
+  flex: 0 0 auto;
+}
+.workbench-memory-graph-preview__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(238, 239, 245, 0.84);
+  cursor: pointer;
+}
+.workbench-memory-graph-preview__btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.96);
+}
+.workbench-memory-graph-preview__body {
+  padding: 0.75rem 0.85rem 0.9rem;
+  overflow: auto;
+  font-size: 0.78rem;
+}
+.workbench-memory-graph-preview__body > div > :first-child {
+  margin-top: 0;
+}
+.workbench-memory-graph-preview__loading {
+  margin: 0;
+  color: rgba(160, 165, 180, 0.75);
 }
 
 /* --- Search view --------------------------------------------------- */

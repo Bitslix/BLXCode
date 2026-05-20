@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "Annehmen",
         I18nKey::GitignorePromptTitle => ".blxcode zur .gitignore hinzufügen?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode speichert lokale Workspace-Daten (Aufgaben, Sitzungen) im Ordner `.blxcode`. \\\\\\\\\\\\\\\\\nSoll dieser Eintrag in die `.gitignore` dieses Projekts aufgenommen werden, damit er nicht \\\\\\\\\\\\\\\\\nversehentlich committed wird?"
+            "BLXCode speichert lokale Workspace-Daten (Aufgaben, Sitzungen) im Ordner `.blxcode`. \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nSoll dieser Eintrag in die `.gitignore` dieses Projekts aufgenommen werden, damit er nicht \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nversehentlich committed wird?"
         }
         I18nKey::GitignorePromptYes => "Ja, hinzufügen",
         I18nKey::GitignorePromptNo => "Nicht jetzt",
@@ -73,6 +73,14 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemBacklinks => "Backlinks",
         I18nKey::MemGraphEmpty => "Noch keine Notizen – erstellen Sie eine in „Dateien“.",
         I18nKey::MemGraphLegend => "Knoten = Notizen · Kanten = [[Wiki-Links]]",
+        I18nKey::MemGraphReset => "Diagrammansicht zurücksetzen",
+        I18nKey::MemGraphZoomIn => "Vergrößern",
+        I18nKey::MemGraphZoomOut => "Herauszoomen",
+        I18nKey::MemGraphMode3d => "Wechseln Sie zur 3D-Grafik",
+        I18nKey::MemGraphMode2d => "Wechseln Sie zum 2D-Diagramm",
+        I18nKey::MemGraphPreviewClose => "Vorschau schließen",
+        I18nKey::MemGraphOpenInFiles => "In Dateien öffnen",
+        I18nKey::MemGraph3dLoadFailed => "3D-Grafik konnte nicht geladen werden. 2D-Grafik wird angezeigt.",
         I18nKey::MemSearchPh => "Notizen durchsuchen…",
         I18nKey::MemSearchFilterAll => "Alle",
         I18nKey::MemFilesExpand => "Dateiliste erweitern",

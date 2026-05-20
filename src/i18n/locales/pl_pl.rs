@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "Przyjąć",
         I18nKey::GitignorePromptTitle => "Dodać .blxcode do .gitignore?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
         I18nKey::GitignorePromptYes => "Tak, dodaj to",
         I18nKey::GitignorePromptNo => "Nie teraz",
@@ -73,6 +73,14 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemBacklinks => "Linki zwrotne",
         I18nKey::MemGraphEmpty => "Nie masz jeszcze żadnych notatek — utwórz je w Plikach.",
         I18nKey::MemGraphLegend => "Węzły = notatki · krawędzie = [[linki wiki]]",
+        I18nKey::MemGraphReset => "Zresetuj widok wykresu",
+        I18nKey::MemGraphZoomIn => "Powiększ",
+        I18nKey::MemGraphZoomOut => "Pomniejsz",
+        I18nKey::MemGraphMode3d => "Przełącz na wykres 3D",
+        I18nKey::MemGraphMode2d => "Przełącz na wykres 2D",
+        I18nKey::MemGraphPreviewClose => "Zamknij podgląd",
+        I18nKey::MemGraphOpenInFiles => "Otwórz w Plikach",
+        I18nKey::MemGraph3dLoadFailed => "Nie można wczytać wykresu 3D. Wyświetlanie wykresu 2D.",
         I18nKey::MemSearchPh => "Wyszukaj notatki…",
         I18nKey::MemSearchFilterAll => "Wszystko",
         I18nKey::MemFilesExpand => "Rozwiń listę plików",

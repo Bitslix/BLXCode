@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "接受",
         I18nKey::GitignorePromptTitle => "將 .blxcode 加入 .gitignore 中？",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
         I18nKey::GitignorePromptYes => "是的，添加它",
         I18nKey::GitignorePromptNo => "現在不要",
@@ -69,6 +69,14 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemBacklinks => "反向連結",
         I18nKey::MemGraphEmpty => "還沒有註釋 - 在“文件”中建立一個註釋。",
         I18nKey::MemGraphLegend => "節點 = 註解 · 邊 = [[wiki 連結]]",
+        I18nKey::MemGraphReset => "重置圖表視圖",
+        I18nKey::MemGraphZoomIn => "放大",
+        I18nKey::MemGraphZoomOut => "縮小",
+        I18nKey::MemGraphMode3d => "切換到 3D 圖表",
+        I18nKey::MemGraphMode2d => "切換到二維圖",
+        I18nKey::MemGraphPreviewClose => "關閉預覽",
+        I18nKey::MemGraphOpenInFiles => "在文件中開啟",
+        I18nKey::MemGraph3dLoadFailed => "3D 圖表無法載入。顯示 2D 圖表。",
         I18nKey::MemSearchPh => "搜尋筆記...",
         I18nKey::MemSearchFilterAll => "全部",
         I18nKey::MemFilesExpand => "展開文件列表",

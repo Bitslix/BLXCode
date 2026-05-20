@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "Принимать",
         I18nKey::GitignorePromptTitle => "Добавить .blxcode в .gitignore?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
+            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\nAdd it to this project's `.gitignore` so it is not committed by mistake?"
         }
         I18nKey::GitignorePromptYes => "Да, добавь",
         I18nKey::GitignorePromptNo => "Не сейчас",
@@ -73,6 +73,14 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::MemBacklinks => "Обратные ссылки",
         I18nKey::MemGraphEmpty => "Заметок пока нет — создайте их в Файлах.",
         I18nKey::MemGraphLegend => "Узлы = примечания · края = [[вики-ссылки]]",
+        I18nKey::MemGraphReset => "Сбросить вид графика",
+        I18nKey::MemGraphZoomIn => "Увеличить масштаб",
+        I18nKey::MemGraphZoomOut => "Уменьшить масштаб",
+        I18nKey::MemGraphMode3d => "Переключиться на 3D-график",
+        I18nKey::MemGraphMode2d => "Переключиться на 2D-график",
+        I18nKey::MemGraphPreviewClose => "Закрыть предварительный просмотр",
+        I18nKey::MemGraphOpenInFiles => "Открыть в файлах",
+        I18nKey::MemGraph3dLoadFailed => "Не удалось загрузить 3D-график. Показан 2D-график.",
         I18nKey::MemSearchPh => "Поиск заметок…",
         I18nKey::MemSearchFilterAll => "Все",
         I18nKey::MemFilesExpand => "Развернуть список файлов",

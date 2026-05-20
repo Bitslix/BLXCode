@@ -4,9 +4,9 @@
   "version": "0.1.5",
   "identifier": "com.bitslix.blxcode.app",
   "build": {
-    "beforeDevCommand": "env -u NO_COLOR PATH=\"$HOME/.cargo/bin:$PATH\" trunk serve",
+    "beforeDevCommand": "sh -c 'ROOT=\"$PWD\"; [ -f \"$ROOT/frontend-js/package.json\" ] || ROOT=\"$PWD/..\"; npm --prefix \"$ROOT/frontend-js\" run build:graph3d && cd \"$ROOT\" && env -u NO_COLOR PATH=\"$HOME/.cargo/bin:$PATH\" trunk serve'",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "env -u NO_COLOR PATH=\"$HOME/.cargo/bin:$PATH\" trunk build",
+    "beforeBuildCommand": "sh -c 'ROOT=\"$PWD\"; [ -f \"$ROOT/frontend-js/package.json\" ] || ROOT=\"$PWD/..\"; npm --prefix \"$ROOT/frontend-js\" run build:graph3d && cd \"$ROOT\" && env -u NO_COLOR PATH=\"$HOME/.cargo/bin:$PATH\" trunk build'",
     "frontendDist": "../dist"
   },
   "app": {
