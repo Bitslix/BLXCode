@@ -90,45 +90,20 @@ jobs:
             }
             core.setFailed("Unauthorized release actor");
 
-  plan:
-    needs: authorize
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.targets.outputs.matrix }}
-    steps:
-      - name: Select build matrix
-        id: targets
-        env:
-          PLATFORMS: ${{ github.event_name == 'workflow_dispatch' && inputs.platforms || 'Alle' }}
-        run: |
-          case "$PLATFORMS" in
-            Alle)
-              matrix='[{"platform":"ubuntu-22.04"},{"platform":"macos-latest","args":"--target universal-apple-darwin"},{"platform":"windows-latest"}]'
-              ;;
-            "Linux (deb, rpm, AppImage)")
-              matrix='[{"platform":"ubuntu-22.04"}]'
-              ;;
-            "Mac Universal")
-              matrix='[{"platform":"macos-latest","args":"--target universal-apple-darwin"}]'
-              ;;
-            Windows)
-              matrix='[{"platform":"windows-latest"}]'
-              ;;
-            *)
-              echo "::error::Unknown platforms choice: $PLATFORMS"
-              exit 1
-              ;;
-          esac
-          echo "Selected: $PLATFORMS"
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
-
   build:
-    needs: plan
+    needs: authorize
     permissions:
       contents: write
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+      matrix:
+        include:
+          - platform: ubuntu-22.04
+            args: ""
+          - platform: macos-latest
+            args: --target universal-apple-darwin
+          - platform: windows-latest
+            args: ""
 
     runs-on: ${{ matrix.platform }}
     steps:
