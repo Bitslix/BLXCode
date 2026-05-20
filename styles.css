@@ -1592,6 +1592,38 @@ button.workbench-shortcut-row--action:focus-visible {
   line-height: 1;
 }
 
+.agent-chat-head__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  flex-shrink: 0;
+}
+
+.agent-chat-head__reset {
+  display: inline-grid;
+  place-items: center;
+  width: 1.42rem;
+  height: 1.42rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.agent-chat-head__reset:hover,
+.agent-chat-head__reset:focus-visible {
+  color: var(--text);
+  border-color: var(--border);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.agent-chat-head__reset:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
 .agent-section--tasks {
   flex-shrink: 0;
 }

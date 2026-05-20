@@ -254,15 +254,50 @@ pub fn AgentPanelDock() -> impl IntoView {
                 aria-live="polite"
                 aria-label=move || i18n.tr(I18nKey::AgChatArticleAria)()
             >
-                <div class="agent-section__head">
+                <div class="agent-section__head agent-chat-head">
                     <h3>{move || i18n.tr(I18nKey::AgChatHeading)()}</h3>
-                    <span>{move || {
-                        if timeline.get().is_empty() {
-                            i18n.tr(I18nKey::AgBadgeReady)().to_string()
-                        } else {
-                            i18n.tr(I18nKey::AgBadgeLive)().to_string()
-                        }
-                    }}</span>
+                    <div class="agent-chat-head__actions">
+                        <span>{move || {
+                            if timeline.get().is_empty() {
+                                i18n.tr(I18nKey::AgBadgeReady)().to_string()
+                            } else {
+                                i18n.tr(I18nKey::AgBadgeLive)().to_string()
+                            }
+                        }}</span>
+                        <button
+                            type="button"
+                            class="agent-chat-head__reset"
+                            prop:disabled=move || busy.get() || !is_tauri_shell()
+                            title=move || i18n.tr(I18nKey::AgResetChat)()
+                            aria-label=move || i18n.tr(I18nKey::AgResetChatAria)()
+                            on:click=move |_| {
+                                let wb = wb;
+                                let status_line = status_line;
+                                let timeline = timeline;
+                                let draft = draft;
+                                let thinking_open = thinking_open;
+                                leptos::task::spawn_local(async move {
+                                    let Some(ws_id) = wb.active_id().get_untracked() else {
+                                        status_line.set(Some("Select a workspace tab first.".into()));
+                                        return;
+                                    };
+                                    match agent_clear_conversation().await {
+                                        Ok(()) => {
+                                            timeline.set(Vec::new());
+                                            thinking_open.set(HashMap::new());
+                                            draft.set(String::new());
+                                            wb.set_workspace_agent_timeline(ws_id, Vec::new());
+                                            wb.set_workspace_agent_compose_draft(ws_id, String::new());
+                                            status_line.set(None);
+                                        }
+                                        Err(msg) => status_line.set(Some(msg)),
+                                    }
+                                });
+                            }
+                        >
+                            <LxIcon icon=icondata::LuEraser width="0.86rem" height="0.86rem" />
+                        </button>
+                    </div>
                 </div>
                 <Show
                     when=move || !timeline.get().is_empty()
@@ -348,40 +383,6 @@ pub fn AgentPanelDock() -> impl IntoView {
                     >
                         <LxIcon icon=icondata::LuX width="0.9rem" height="0.9rem" />
                         <span>{move || i18n.tr(I18nKey::AgCancel)()}</span>
-                    </button>
-
-                    <button
-                        type="button"
-                        class="workbench-mini-btn agent-reset-chat-btn"
-                        prop:disabled=move || busy.get() || !is_tauri_shell()
-                        aria-label=move || i18n.tr(I18nKey::AgResetChatAria)()
-                        on:click=move |_| {
-                            let wb = wb;
-                            let status_line = status_line;
-                            let timeline = timeline;
-                            let draft = draft;
-                            let thinking_open = thinking_open;
-                            leptos::task::spawn_local(async move {
-                                let Some(ws_id) = wb.active_id().get_untracked() else {
-                                    status_line.set(Some("Select a workspace tab first.".into()));
-                                    return;
-                                };
-                                match agent_clear_conversation().await {
-                                    Ok(()) => {
-                                        timeline.set(Vec::new());
-                                        thinking_open.set(HashMap::new());
-                                        draft.set(String::new());
-                                        wb.set_workspace_agent_timeline(ws_id, Vec::new());
-                                        wb.set_workspace_agent_compose_draft(ws_id, String::new());
-                                        status_line.set(None);
-                                    }
-                                    Err(msg) => status_line.set(Some(msg)),
-                                }
-                            });
-                        }
-                    >
-                        <LxIcon icon=icondata::LuEraser width="0.9rem" height="0.9rem" />
-                        <span>{move || i18n.tr(I18nKey::AgResetChat)()}</span>
                     </button>
                 </div>
             </form>
