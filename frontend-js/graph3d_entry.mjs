@@ -5,6 +5,46 @@ import SpriteText from "three-spritetext";
 const instances = new Map();
 let nextId = 1;
 
+function cleanLabel(raw) {
+  const tail = String(raw || "")
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter(Boolean)
+    .pop() || "";
+  const withoutExt = tail.replace(/\.[a-z0-9]+$/i, "");
+  const words = withoutExt
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .split(/[-_\s.]+/)
+    .map((word) => word.trim())
+    .filter(Boolean);
+  const acronyms = new Set(["api", "ui", "ux", "url", "http", "https", "json", "css", "html", "js", "ts", "2d", "3d"]);
+  const label = words
+    .map((word) => {
+      const lower = word.toLowerCase();
+      if (acronyms.has(lower)) return lower.toUpperCase();
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
+    })
+    .join(" ");
+  return label || String(raw || "");
+}
+
+function wrapLabel(label) {
+  const words = String(label).split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    const next = line ? `${line} ${word}` : word;
+    if (next.length > 24 && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  return lines.slice(0, 2).join("\n");
+}
+
 function normalizeGraphData(graphData) {
   const nodes = Array.isArray(graphData?.nodes) ? graphData.nodes : [];
   const links = Array.isArray(graphData?.edges)
@@ -16,7 +56,7 @@ function normalizeGraphData(graphData) {
   return {
     nodes: nodes.map((node) => ({
       id: String(node.id),
-      label: String(node.label || node.id),
+      label: cleanLabel(node.label || node.id),
       tags: Array.isArray(node.tags) ? node.tags : [],
       orphan: Boolean(node.orphan),
     })),
@@ -55,7 +95,7 @@ function makeNodeObject(node) {
       depthWrite: false,
     }),
   );
-  const label = new SpriteText(node.label || node.id);
+  const label = new SpriteText(wrapLabel(node.label || node.id));
   label.color = "rgba(238,239,245,0.92)";
   label.backgroundColor = "rgba(8,10,16,0.58)";
   label.borderColor = "rgba(255,255,255,0.14)";
@@ -63,13 +103,133 @@ function makeNodeObject(node) {
   label.borderRadius = 2;
   label.padding = 2.6;
   label.textHeight = 4.2;
-  label.position.set(11.5, 0.5, 0);
+  label.center.set(0, 0.5);
+  label.position.set(12.5, 0, 0);
   label.material.depthWrite = false;
+  label.material.depthTest = false;
   label.renderOrder = 10;
   group.add(halo);
   group.add(sphere);
   group.add(label);
   return group;
+}
+
+function nowMs() {
+  return performance.now();
+}
+
+function linkWobble(link) {
+  if (link._dragCurve != null) return link._dragCurve;
+  const spring = link._spring;
+  if (!spring) return 0;
+  const t = (nowMs() - spring.started) / 1000;
+  const duration = 1.05;
+  if (t >= duration) {
+    link._spring = null;
+    return 0;
+  }
+  const decay = Math.pow(1 - t / duration, 2.1);
+  return Math.sin(t * 9.5 + spring.phase) * spring.amplitude * decay;
+}
+
+function linkRotation(link) {
+  if (link._dragRotation != null) return link._dragRotation;
+  return link._spring?.rotation || 0;
+}
+
+function pluckLink(rec, link, amplitude = 0.1, rotation = Math.random() * Math.PI) {
+  if (!link) return;
+  link._spring = {
+    started: nowMs(),
+    amplitude,
+    phase: Math.random() * Math.PI * 2,
+    rotation,
+  };
+  startWobbleLoop(rec);
+}
+
+function pluckIncidentLinks(rec, node, amplitude = 0.06) {
+  const nodeId = String(node?.id || "");
+  if (!nodeId) return;
+  for (const link of rec.links) {
+    const source = typeof link.source === "object" ? link.source.id : link.source;
+    const target = typeof link.target === "object" ? link.target.id : link.target;
+    if (String(source) === nodeId || String(target) === nodeId) {
+      pluckLink(rec, link, amplitude);
+    }
+  }
+}
+
+function refreshLinks(rec) {
+  rec.graph.linkCurvature((link) => linkWobble(link));
+  rec.graph.linkCurveRotation((link) => linkRotation(link));
+  rec.graph.refresh?.();
+}
+
+function startWobbleLoop(rec) {
+  if (rec.wobbleFrame) return;
+  const tick = () => {
+    rec.wobbleFrame = 0;
+    let active = Boolean(rec.draggedLink);
+    for (const link of rec.links) {
+      if (link._spring || link._dragCurve != null) {
+        active = true;
+        break;
+      }
+    }
+    refreshLinks(rec);
+    if (active) {
+      rec.wobbleFrame = requestAnimationFrame(tick);
+    }
+  };
+  rec.wobbleFrame = requestAnimationFrame(tick);
+}
+
+function installLinkDrag(rec) {
+  const onPointerDown = (event) => {
+    if (!rec.hoveredLink) return;
+    event.preventDefault();
+    rec.draggedLink = rec.hoveredLink;
+    rec.dragStart = { x: event.clientX, y: event.clientY };
+    rec.draggedLink._spring = null;
+    rec.draggedLink._dragCurve = 0.001;
+    rec.draggedLink._dragRotation = 0;
+    try {
+      rec.graph.controls().enabled = false;
+    } catch (_) {}
+    startWobbleLoop(rec);
+  };
+  const onPointerMove = (event) => {
+    if (!rec.draggedLink || !rec.dragStart) return;
+    const dx = event.clientX - rec.dragStart.x;
+    const dy = event.clientY - rec.dragStart.y;
+    const pull = Math.min(0.22, Math.hypot(dx, dy) / 220);
+    rec.draggedLink._dragCurve = pull * (dy < 0 ? -1 : 1);
+    rec.draggedLink._dragRotation = Math.atan2(dy, dx);
+    refreshLinks(rec);
+  };
+  const onPointerUp = (event) => {
+    if (!rec.draggedLink) return;
+    const link = rec.draggedLink;
+    const amplitude = Math.max(0.045, Math.min(0.14, Math.abs(link._dragCurve || 0)));
+    const rotation = link._dragRotation || 0;
+    link._dragCurve = null;
+    link._dragRotation = null;
+    rec.draggedLink = null;
+    rec.dragStart = null;
+    try {
+      rec.graph.controls().enabled = true;
+    } catch (_) {}
+    pluckLink(rec, link, amplitude, rotation || Math.atan2(event.movementY || 1, event.movementX || 1));
+  };
+  rec.container.addEventListener("pointerdown", onPointerDown);
+  window.addEventListener("pointermove", onPointerMove);
+  window.addEventListener("pointerup", onPointerUp);
+  return () => {
+    rec.container.removeEventListener("pointerdown", onPointerDown);
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+  };
 }
 
 function replayPendingFlyTo(id, rec) {
@@ -110,6 +270,30 @@ function resize(id) {
   const rect = rec.container.getBoundingClientRect();
   if (rect.width <= 1 || rect.height <= 1) return;
   rec.graph.width(rect.width).height(rect.height);
+  applyResponsiveForces(rec);
+  if (rec.layoutReady) {
+    rec.graph.zoomToFit(320, fitPadding(rec));
+  }
+}
+
+function fitPadding(rec) {
+  const rect = rec.container.getBoundingClientRect();
+  const minSide = Math.min(rect.width || 480, rect.height || 360);
+  return Math.max(44, Math.min(92, minSide * 0.11));
+}
+
+function applyResponsiveForces(rec) {
+  const rect = rec.container.getBoundingClientRect();
+  const minSide = Math.max(280, Math.min(rect.width || 480, rect.height || 360));
+  const nodeCount = Math.max(1, rec.nodesById.size || 1);
+  const densityFactor = Math.max(0.62, Math.min(1, 8 / Math.max(8, nodeCount)));
+  const distance = Math.max(58, Math.min(116, minSide * 0.12 * densityFactor));
+  const charge = -Math.max(120, Math.min(300, distance * 2.15 + nodeCount * 8));
+  try {
+    rec.graph.d3Force("link").distance(distance).strength(0.34);
+    rec.graph.d3Force("charge").strength(charge).distanceMax(distance * 4.1);
+    rec.graph.d3VelocityDecay(0.34);
+  } catch (_) {}
 }
 
 window.__blxcodeGraph3d = {
@@ -123,6 +307,18 @@ window.__blxcodeGraph3d = {
       .linkColor(() => "rgba(190,205,235,0.28)")
       .linkOpacity(0.34)
       .linkWidth(1)
+      .linkCurvature((link) => linkWobble(link))
+      .linkCurveRotation((link) => linkRotation(link))
+      .onLinkHover((link) => {
+        const rec = instances.get(id);
+        if (!rec || rec.draggedLink) return;
+        rec.hoveredLink = link || null;
+        container.style.cursor = link ? "grab" : "";
+      })
+      .onLinkClick((link) => {
+        const rec = instances.get(id);
+        if (rec) pluckLink(rec, link, 0.11);
+      })
       .onNodeClick((node) => {
         window.dispatchEvent(
           new CustomEvent("blxcode-graph3d-node-click", {
@@ -130,10 +326,22 @@ window.__blxcodeGraph3d = {
           }),
         );
       })
+      .onNodeDrag((node) => {
+        const rec = instances.get(id);
+        if (rec) pluckIncidentLinks(rec, node, 0.035);
+      })
+      .onNodeDragEnd((node) => {
+        const rec = instances.get(id);
+        if (rec) pluckIncidentLinks(rec, node, 0.1);
+      })
       .onEngineStop(() => {
         const rec = instances.get(id);
         if (!rec) return;
         rec.layoutReady = true;
+        if (rec.autoFitPending && rec.pendingFlyTo.length === 0) {
+          rec.graph.zoomToFit(520, fitPadding(rec));
+        }
+        rec.autoFitPending = false;
         replayPendingFlyTo(id, rec);
       });
 
@@ -144,7 +352,16 @@ window.__blxcodeGraph3d = {
       layoutReady: false,
       pendingFlyTo: [],
       resizeObserver: null,
+      links: [],
+      hoveredLink: null,
+      draggedLink: null,
+      dragStart: null,
+      wobbleFrame: 0,
+      removeLinkDrag: null,
+      autoFitPending: true,
     };
+    applyResponsiveForces(rec);
+    rec.removeLinkDrag = installLinkDrag(rec);
     rec.resizeObserver = new ResizeObserver(() => resize(id));
     rec.resizeObserver.observe(container);
     instances.set(id, rec);
@@ -158,6 +375,10 @@ window.__blxcodeGraph3d = {
       rec.resizeObserver?.disconnect();
     } catch (_) {}
     try {
+      rec.removeLinkDrag?.();
+    } catch (_) {}
+    if (rec.wobbleFrame) cancelAnimationFrame(rec.wobbleFrame);
+    try {
       rec.graph._destructor?.();
     } catch (_) {}
     instances.delete(id);
@@ -168,6 +389,11 @@ window.__blxcodeGraph3d = {
     const data = normalizeGraphData(graphData);
     rec.layoutReady = false;
     rec.nodesById = new Map(data.nodes.map((node) => [node.id, node]));
+    rec.links = data.links;
+    rec.hoveredLink = null;
+    rec.draggedLink = null;
+    rec.autoFitPending = true;
+    applyResponsiveForces(rec);
     rec.graph.graphData(data);
     resize(id);
     return true;

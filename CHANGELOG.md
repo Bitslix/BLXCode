@@ -16,10 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Release CI **manual run**: choose build targets — **Alle**, **Linux (deb, rpm, AppImage)**, **Mac Universal**, or **Windows** (`plan` job sets the matrix). Tag pushes still build all platforms.
 - Memory **Files** sidebar: collapsible **Memory** / **Learnings** groups (chevron toggle, collapsed by default). Group headers open the category index note (`README.md` / `MEMORY.md` or `learnings/LEARNINGS.md`) and list other notes when expanded.
 - Memory **Search** view: dynamic category filter badges (pill style) between the query field and results — **All**, **Memory**, and **Learnings** with hit counts when both roots match; filters reset on a new query.
+- Memory **Graph** view: lazy-loaded offline 3D graph powered by a local `3d-force-graph` / Three.js bundle, with the existing SVG graph retained as the 2D fallback.
+- Memory **Graph** toolbar: icon-only controls for reset, zoom in/out, and 2D/3D mode switching; the selected graph mode is persisted locally.
+- Memory **Graph** preview flow: clicking a node stays in the Graph tab, flies/focuses to the node, and opens a markdown preview popover with close, “Open in Files”, and in-preview wikilink navigation.
 
 ### Changed
 
 - Memory file list no longer repeats the `learnings/` folder label on every row; notes are grouped under their category instead.
+- Memory graph labels are cleaned up for display (`tanstack-start-api-routes` → `Tanstack Start API Routes`) in 3D, 2D fallback, and preview titles.
+- Memory graph spacing and interaction feel more physical: 3D nodes spread farther apart, links curve subtly, and connected lines wobble when nodes or links are dragged/released.
 - Workspace memory and learnings now live under `.agents/memory/` and `.agents/learnings/` (unified Memory API with `learnings/…` paths). Legacy `.blxcode/memory/` is migrated automatically when the new memory folder is empty. Existing learnings Markdown index links are upgraded to `[[wikilinks]]` for the memory graph.
 - `.agents/` layout is bootstrapped when a workspace path is set (wizard commit, workspace switch, or workbench restore), not only when opening the Memory tab.
 - Agent system prompt and memory tool descriptions reference `.agents/memory/` and `.agents/learnings/`.

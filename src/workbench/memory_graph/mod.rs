@@ -649,7 +649,7 @@ fn Graph2dView(
                                 let label_force_visible = is_hovered || is_selected;
                                 let id_for_click = n.id.clone();
                                 let id_for_enter = n.id.clone();
-                                let label = n.label.clone();
+                                let label = clean_display_label(&n.label);
                                 Some(view! {
                                     <g class="workbench-memory-graph__node"
                                         on:click=move |_| {
@@ -790,9 +790,58 @@ fn label_for_path(state: &MemoryState, path: &str) -> String {
             g.nodes
                 .iter()
                 .find(|node| node.id == path)
-                .map(|node| node.label.clone())
+                .map(|node| clean_display_label(&node.label))
         })
-        .unwrap_or_else(|| path.to_string())
+        .unwrap_or_else(|| clean_display_label(path))
+}
+
+fn clean_display_label(raw: &str) -> String {
+    let tail = raw
+        .replace('\\', "/")
+        .split('/')
+        .filter(|part| !part.is_empty())
+        .last()
+        .unwrap_or(raw)
+        .trim_end_matches(".md")
+        .trim_end_matches(".MD")
+        .to_string();
+    let words: Vec<String> = tail
+        .split(|ch: char| matches!(ch, '-' | '_' | '.' | ' ') || ch.is_whitespace())
+        .filter(|word| !word.trim().is_empty())
+        .map(format_label_word)
+        .collect();
+    if words.is_empty() {
+        raw.to_string()
+    } else {
+        words.join(" ")
+    }
+}
+
+fn format_label_word(word: &str) -> String {
+    let lower = word.to_ascii_lowercase();
+    if matches!(
+        lower.as_str(),
+        "api"
+            | "ui"
+            | "ux"
+            | "url"
+            | "http"
+            | "https"
+            | "json"
+            | "css"
+            | "html"
+            | "js"
+            | "ts"
+            | "2d"
+            | "3d"
+    ) {
+        return lower.to_ascii_uppercase();
+    }
+    let mut chars = lower.chars();
+    let Some(first) = chars.next() else {
+        return String::new();
+    };
+    format!("{}{}", first.to_ascii_uppercase(), chars.as_str())
 }
 
 #[derive(Clone, Copy)]
