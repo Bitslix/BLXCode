@@ -3,6 +3,10 @@
 # Linux AppImage on Ubuntu CI does not need NO_STRIP; use it on Arch when building locally.
 name: Release
 
+permissions:
+  contents: write
+  actions: read
+
 on:
   push:
     tags: ["v*"]
@@ -50,9 +54,12 @@ jobs:
               });
               releaseOwner = data.value ?? "";
             } catch (error) {
-              if (error.status !== 404) {
+              if (error.status !== 404 && error.status !== 403) {
                 throw error;
               }
+              core.warning(
+                `Could not read RELEASE_OWNER (HTTP ${error.status}); set the variable or use the org owner account.`
+              );
             }
 
             if (releaseOwner && actor === releaseOwner) {
