@@ -169,7 +169,7 @@ Builds are **unsigned by default** (no Apple/Windows code signing, no Tauri upda
 
 That builds Linux bundles for **amd64 and arm64** by default (`--linux-arch all`): native deb/rpm/AppImage on your CPU, cross-built deb/rpm for the other arch (AppImage for the non-native arch needs an ARM runner or CI — see below). macOS uses **`universal-apple-darwin`** (one `.app`/`.dmg` for Apple Silicon and Intel). Artifacts land under `target/**/release/bundle/`.
 
-On Arch amd64, install the cross linker for arm64 deb/rpm: `sudo pacman -S aarch64-linux-gnu-gcc`. For x86_64 cross from arm64: `x86_64-linux-gnu-gcc`.
+For cross-built Linux bundles, the cross linker alone is not enough for GTK/WebKit apps. You also need a target pkg-config sysroot or wrapper with target `.pc` files for `glib-2.0`, `gobject-2.0`, `gio-2.0`, `gtk+-3.0`, and `webkit2gtk-4.1`. On Arch amd64, `sudo pacman -S aarch64-linux-gnu-gcc` installs the linker, but you still need an arm64 sysroot or an `aarch64-linux-gnu-pkg-config` wrapper that resolves the arm64 GTK/WebKit packages. Without that, the release script skips arm64 and prints the missing pkg-config setup instead of failing after the native build.
 
 Optional signing and upload variables are documented in [`.env.release.example`](../../.env.release.example) at the repo root (copy to `.env.release`, which is gitignored).
 

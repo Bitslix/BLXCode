@@ -18,6 +18,46 @@ release_linux_cross_linker_ready() {
   esac
 }
 
+release_linux_cross_pkg_config_ready() {
+  local triple="$1"
+  local label="$2"
+  local pkg_config_wrapper=""
+  local pkg_config_libdir=""
+  local -a required=(glib-2.0 gobject-2.0 gio-2.0 gtk+-3.0 webkit2gtk-4.1)
+
+  case "$triple" in
+    aarch64-unknown-linux-gnu)
+      pkg_config_wrapper="aarch64-linux-gnu-pkg-config"
+      pkg_config_libdir="/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig"
+      ;;
+    x86_64-unknown-linux-gnu)
+      pkg_config_wrapper="x86_64-linux-gnu-pkg-config"
+      pkg_config_libdir="/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig"
+      ;;
+    *) return 1 ;;
+  esac
+
+  if command -v "$pkg_config_wrapper" >/dev/null 2>&1; then
+    if "$pkg_config_wrapper" --exists "${required[@]}" >/dev/null 2>&1; then
+      export PKG_CONFIG="$pkg_config_wrapper"
+      export PKG_CONFIG_ALLOW_CROSS=1
+      return 0
+    fi
+  fi
+
+  if [[ -d "${pkg_config_libdir%%:*}" ]]; then
+    if PKG_CONFIG_ALLOW_CROSS=1 PKG_CONFIG_LIBDIR="$pkg_config_libdir" pkg-config --exists "${required[@]}" >/dev/null 2>&1; then
+      export PKG_CONFIG_ALLOW_CROSS=1
+      export PKG_CONFIG_LIBDIR="$pkg_config_libdir"
+      return 0
+    fi
+  fi
+
+  release_warn "Skipping $label cross build: pkg-config sysroot for $triple is not configured"
+  release_warn "Need target .pc files for: ${required[*]}"
+  return 1
+}
+
 release_linux_export_appimage_env() {
   export NO_STRIP=1
   export APPIMAGE_EXTRACT_AND_RUN=1
@@ -53,6 +93,9 @@ release_linux_build_cross() {
   local label="$2"
   if ! release_linux_cross_linker_ready "$triple"; then
     release_warn "Skipping $label cross build: linker for $triple not found (install cross gcc)"
+    return 0
+  fi
+  if ! release_linux_cross_pkg_config_ready "$triple" "$label"; then
     return 0
   fi
   release_info "Linux cross build ($label / $triple): deb, rpm"
