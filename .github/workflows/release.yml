@@ -99,10 +99,16 @@ jobs:
       matrix:
         include:
           - platform: ubuntu-22.04
+            linux_arch: amd64
+            args: ""
+          - platform: ubuntu-24.04-arm
+            linux_arch: arm64
             args: ""
           - platform: macos-latest
+            linux_arch: ""
             args: --target universal-apple-darwin
           - platform: windows-latest
+            linux_arch: ""
             args: ""
 
     runs-on: ${{ matrix.platform }}
@@ -110,7 +116,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
+        if: startsWith(matrix.platform, 'ubuntu-')
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -134,7 +140,9 @@ jobs:
 
       - name: Add macOS Rust targets
         if: matrix.platform == 'macos-latest'
-        run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+        run: |
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          echo "macOS universal build: Apple Silicon (aarch64) + Intel (x86_64)"
 
       - name: Install Trunk and Tauri CLI
         run: |

@@ -73,7 +73,12 @@ cargo install trunk tauri-cli
 cargo tauri build
 ```
 
-Common Linux outputs include AppImage, Debian, and RPM bundles under `target/release/bundle/` (for example `deb/BLXCode_0.1.8_amd64.deb`, `rpm/BLXCode-0.1.8-1.x86_64.rpm`, `appimage/BLXCode_0.1.8_amd64.AppImage`).
+Common Linux outputs include AppImage, Debian, and RPM bundles under `target/release/bundle/` (per CPU arch), for example:
+
+- `deb/BLXCode_0.1.11_amd64.deb`, `rpm/BLXCode-0.1.11-1.x86_64.rpm`, `appimage/BLXCode_0.1.11_amd64.AppImage`
+- `deb/BLXCode_0.1.11_arm64.deb`, `rpm/BLXCode-0.1.11-1.aarch64.rpm`, `appimage/BLXCode_0.1.11_aarch64.AppImage` (native on ARM64 Linux or CI `ubuntu-24.04-arm`)
+
+Use `./scripts/release.sh --linux-arch amd64` or `--linux-arch arm64` to build only one architecture.
 
 On Arch and other distros with newer binutils, AppImage bundling may fail during `linuxdeploy` strip with `.relr.dyn` errors. Use [`scripts/release.sh`](../../scripts/release.sh) (sets the variables automatically) or:
 
@@ -154,12 +159,22 @@ From the repository root, [`scripts/release.sh`](../../scripts/release.sh) autom
 
 On Linux (including Arch), the script sets `NO_STRIP=1` and `APPIMAGE_EXTRACT_AND_RUN=1` so AppImage bundling avoids linuxdeploy strip errors with `.relr.dyn` sections.
 
-Optional signing variables live in `.env.release` at the repo root (gitignored). Without that file, pass `--allow-unsigned` for local test builds.
+For a **local bundle build only**, you do not need `.env.release`. Run:
+
+```bash
+./scripts/release.sh --allow-unsigned
+```
+
+That builds Linux bundles for **amd64 and arm64** by default (`--linux-arch all`): native deb/rpm/AppImage on your CPU, cross-built deb/rpm for the other arch (AppImage for the non-native arch needs an ARM runner or CI — see below). macOS uses **`universal-apple-darwin`** (one `.app`/`.dmg` for Apple Silicon and Intel). Artifacts land under `target/**/release/bundle/`.
+
+On Arch amd64, install the cross linker for arm64 deb/rpm: `sudo pacman -S aarch64-linux-gnu-gcc`. For x86_64 cross from arm64: `x86_64-linux-gnu-gcc`.
+
+Optional signing and upload variables are documented in [`.env.release.example`](../../.env.release.example) at the repo root (copy to `.env.release`, which is gitignored).
 
 ```bash
 ./scripts/release.sh --help
 
-# Signed local build (current OS bundles)
+# Signed local build (requires .env.release with TAURI_SIGNING_PRIVATE_KEY)
 ./scripts/release.sh
 
 # New patch release: bump versions + CHANGELOG, build, draft upload

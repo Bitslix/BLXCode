@@ -18,6 +18,7 @@ RELEASE_DO_COMMIT=0
 RELEASE_BUMP=""
 RELEASE_BUNDLES=""
 RELEASE_PLATFORM_OVERRIDE=""
+RELEASE_LINUX_ARCH="${RELEASE_LINUX_ARCH:-all}"
 RELEASE_VERSION=""
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -53,6 +54,8 @@ Options:
   --clobber                  Replace existing release assets with same name
   --allow-unsigned           Build without TAURI_SIGNING_PRIVATE_KEY
   --platform linux|macos|windows
+  --linux-arch native|amd64|arm64|all
+                             Linux only: deb/rpm/AppImage per arch (default: all)
   --dry-run                  Print planned actions only
   -h, --help                 Show this help
 
@@ -62,6 +65,7 @@ Examples:
   ./scripts/release.sh --bump patch --tag --push --no-build
   ./scripts/release.sh --build --upload
   ./scripts/release.sh --upload-only
+  ./scripts/release.sh --allow-unsigned --linux-arch all   # amd64 + arm64 Linux bundles
 EOF
 }
 
@@ -91,6 +95,10 @@ while [[ $# -gt 0 ]]; do
     --allow-unsigned) RELEASE_ALLOW_UNSIGNED=1; shift ;;
     --platform)
       RELEASE_PLATFORM_OVERRIDE="${2:?--platform requires linux|macos|windows}"
+      shift 2
+      ;;
+    --linux-arch)
+      RELEASE_LINUX_ARCH="${2:?--linux-arch requires native|amd64|arm64|all}"
       shift 2
       ;;
     --dry-run) RELEASE_DRY_RUN=1; shift ;;
