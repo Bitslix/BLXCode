@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "rules": {
+    "rule-no-monolith-structure.md": {
+      "enabled": true,
+      "updatedAt": "2026-05-20T11:32:10Z"
+    },
+    "rule-reusable-components.md": {
+      "enabled": true,
+      "updatedAt": "2026-05-20T11:32:10Z"
+    }
+  }
+}
