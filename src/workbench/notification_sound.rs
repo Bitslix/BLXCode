@@ -11,6 +11,11 @@ use leptos::prelude::GetUntracked;
 
 const NOTIFY_POLL_MS: u32 = 1000;
 
+/// Play a brief success beep for explicit user actions (handoff, attach, etc.).
+pub fn play_action_success_sound() {
+    play_notification_beep();
+}
+
 /// Play a brief sine beep (~150 ms) via Web Audio in the page context.
 pub fn play_notification_beep() {
     let _ = js_sys::eval(

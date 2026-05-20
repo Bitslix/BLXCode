@@ -5913,22 +5913,64 @@ button {
   margin: 0.35rem -0.1rem;
   background: rgba(255, 255, 255, 0.08);
 }
-.workbench-handoff-status {
-  padding: 0.3rem 0.7rem;
+.blx-toast-host {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 9400;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-width: min(22rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+.blx-toast {
+  padding: 0.55rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+  animation: blx-toast-in 0.22s ease-out;
+  pointer-events: auto;
+}
+.blx-toast--success {
+  color: rgba(210, 245, 215, 0.96);
+  background: rgba(28, 52, 38, 0.96);
+  border-color: rgba(100, 180, 120, 0.35);
+}
+.blx-toast--error {
+  color: rgba(255, 210, 210, 0.96);
+  background: rgba(52, 28, 28, 0.96);
+  border-color: rgba(200, 100, 100, 0.35);
+}
+@keyframes blx-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.35rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.app-prefs-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.45rem;
+  font-size: 0.82rem;
+  color: rgba(232, 234, 242, 0.92);
+  cursor: pointer;
+}
+.app-prefs-toggle input {
+  accent-color: rgba(120, 180, 255, 0.85);
+}
+.app-prefs-hint {
+  margin: 0.2rem 0 0 1.35rem;
   font-size: 0.72rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-.workbench-handoff-status--ok {
-  color: rgba(140, 220, 160, 0.95);
-  background: rgba(45, 100, 60, 0.18);
-}
-.workbench-handoff-status--fail {
-  color: rgba(240, 160, 160, 0.95);
-  background: rgba(110, 50, 50, 0.18);
-}
-.ws-term-cell__tool--ok {
-  color: rgba(140, 220, 160, 0.95);
-  border-color: rgba(120, 200, 140, 0.45) !important;
+  color: rgba(170, 175, 190, 0.75);
+  line-height: 1.35;
 }
 
 /* --- Search view --------------------------------------------------- */

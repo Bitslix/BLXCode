@@ -1,6 +1,7 @@
 //! Three-pane editor shell: collapsible sidebar, workspace, resizable right column.
 mod agent_accent;
 mod agent_context_handoff;
+mod app_prefs;
 mod agent_panel;
 mod agent_timeline;
 mod browser_tab;
@@ -18,6 +19,7 @@ pub mod skills_rules_panel;
 pub mod state;
 mod terminal_cell;
 mod terminal_glue;
+mod toast;
 mod workspace_panel;
 
 pub use agent_panel::AgentPanelDock;
@@ -39,7 +41,9 @@ use crate::tauri_bridge::{
     workbench_prune_notifications, workbench_prune_sessions, workbench_save_state,
 };
 use gloo_timers::future::TimeoutFuture;
+use app_prefs::AppPrefsService;
 use harness_ui::HarnessHost;
+use toast::{ToastHost, ToastService};
 use js_sys;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -86,11 +90,15 @@ pub fn WorkbenchShell() -> impl IntoView {
     let harness = HarnessUiService::new();
     let embed_surface = BrowserEmbedSurface(RwSignal::new(None));
     let skills_rules = SkillsRulesService::new();
+    let app_prefs = AppPrefsService::new();
+    let toast = ToastService::new();
 
     provide_context(wb);
     provide_context(harness);
     provide_context(embed_surface);
     provide_context(skills_rules);
+    provide_context(app_prefs);
+    provide_context(toast);
 
     // Hydrate from persisted snapshot before auto-save kicks in.
     let hydrated = RwSignal::new(false);
@@ -329,5 +337,6 @@ pub fn WorkbenchShell() -> impl IntoView {
         </main>
         <EmbeddedBrowserGlue />
         <HarnessHost />
+        <ToastHost />
     }
 }

@@ -12,9 +12,11 @@ use crate::agent_wire::{AgentContextItem, AgentContextKind};
 use crate::tauri_bridge::{
     agent_export_context_images, pty_write, AgentContextExportReport, AgentContextImageInput,
 };
+use crate::workbench::app_prefs::AppPrefsService;
+use crate::workbench::notification_sound::play_action_success_sound;
 use crate::workbench::state::{AgentImageContextStatus, WorkbenchService, WorkspaceAgentImage};
+use crate::workbench::toast::ToastService;
 use base64::Engine;
-use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
@@ -79,6 +81,7 @@ pub fn render_agent_context_block(input: &RenderInputs) -> String {
                     AgentContextKind::LearningCategory => "learnings category",
                     AgentContextKind::MemoryNote => "memory note",
                     AgentContextKind::LearningNote => "learning note",
+                    AgentContextKind::TerminalSession => "terminal session",
                 };
                 out.push_str(&format!("- [{kind}] {} — {}\n", item.label, item.source));
                 if !item.paths.is_empty() && item.paths.len() <= 12 {
@@ -182,6 +185,105 @@ pub fn list_workspace_terminal_targets(
             }
         })
         .collect()
+}
+
+fn slot_agent_slug(wb: &WorkbenchService, workspace_id: u64, slot_id: u64) -> String {
+    wb.workspaces().with_untracked(|all| {
+        let Some(w) = all.iter().find(|w| w.id == workspace_id) else {
+            return String::new();
+        };
+        w.slot_ids
+            .iter()
+            .position(|sid| *sid == slot_id)
+            .and_then(|idx| w.slot_agent_labels.get(idx).cloned())
+            .unwrap_or_default()
+    })
+}
+
+const HANDOFF_EXCERPT_MAX: usize = 220;
+
+/// Short preview of the Markdown block that would be written on PTY handoff.
+#[must_use]
+pub fn preview_handoff_excerpt(
+    wb: &WorkbenchService,
+    workspace_id: u64,
+    slot_id: u64,
+    agent_slug: &str,
+) -> String {
+    let context_items = wb.agent_context_for_workspace_untracked(workspace_id);
+    let images_meta: Vec<RenderImageMeta> = wb
+        .agent_images_for_workspace_untracked(workspace_id)
+        .iter()
+        .map(|img| RenderImageMeta {
+            id: img.item.id.clone(),
+            label: img.item.label.clone(),
+            mime: img.item.mime.clone(),
+            size_bytes: img.item.size_bytes,
+            status: match img.status {
+                AgentImageContextStatus::Pending => "pending",
+                AgentImageContextStatus::Read => "read",
+            },
+            exported_path: None,
+        })
+        .collect();
+    let include_images = !images_meta.is_empty();
+    let block = render_agent_context_block(&RenderInputs {
+        workspace_root: wb.default_workspace_cwd(),
+        slot_id: Some(slot_id),
+        agent_slug: if agent_slug.is_empty() {
+            None
+        } else {
+            Some(agent_slug.to_owned())
+        },
+        context_items,
+        images: images_meta,
+        include_memory: true,
+        include_images,
+        ..Default::default()
+    });
+    excerpt_handoff_block(&block, HANDOFF_EXCERPT_MAX)
+}
+
+fn excerpt_handoff_block(block: &str, max_len: usize) -> String {
+    let flat: String = block
+        .lines()
+        .map(str::trim)
+        .filter(|line| {
+            !line.is_empty()
+                && !line.starts_with('⟪')
+                && *line != "## Session"
+                && !line.starts_with("- Workspace:")
+                && !line.starts_with("- Target terminal:")
+        })
+        .collect::<Vec<_>>()
+        .join(" · ");
+    if flat.chars().count() <= max_len {
+        flat
+    } else {
+        let mut out = String::new();
+        for ch in flat.chars().take(max_len.saturating_sub(1)) {
+            out.push(ch);
+        }
+        out.push('…');
+        out
+    }
+}
+
+/// Attach the terminal that opened the handoff menu to BLXCode Agent context.
+#[must_use]
+pub fn terminal_session_context_item(
+    slot_id: u64,
+    title: &str,
+    handoff_excerpt: &str,
+) -> AgentContextItem {
+    AgentContextItem {
+        id: format!("terminal-slot:{slot_id}"),
+        kind: AgentContextKind::TerminalSession,
+        label: title.trim().to_owned(),
+        source: handoff_excerpt.to_owned(),
+        paths: Vec::new(),
+        added_at: context_now_ms(),
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -318,20 +420,22 @@ pub async fn perform_handoff(
 ///
 /// - `note_path` (optional): when `Some`, the per-terminal handoff sends ONLY
 ///   this note as a one-shot `memory_note` / `learning_note` context item,
-///   and the BLXCode-Agent entry attaches that note. When `None`, the
-///   terminal handoff sends the workspace's full attached context, and the
-///   BLXCode-Agent entry attaches the workspace's memory category (no-op if
-///   already attached — idempotent).
+///   and the BLXCode-Agent entry attaches that note.
+/// - `source_slot` (optional): when `Some`, "Send to BLXCode agent context"
+///   attaches that terminal (title + handoff excerpt) instead of Memory.
 /// - `label` is the visible name used for the rendered/attached item.
 #[component]
 pub fn HandoffMenu(
     wb: WorkbenchService,
     label: Signal<String>,
     note_path: Signal<Option<String>>,
+    source_slot: Signal<Option<u64>>,
+    source_terminal_title: Signal<String>,
     on_close: Callback<()>,
-    on_status: Callback<(bool, String)>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let toast = expect_context::<ToastService>();
+    let prefs = expect_context::<AppPrefsService>();
     let targets = Memo::new(move |_| {
         // Re-run when the workspace list OR the live PTY session map changes.
         let _ = wb.workspaces().get();
@@ -342,10 +446,21 @@ pub fn HandoffMenu(
         list_workspace_terminal_targets(&wb, ws_id)
     });
 
+    let notify_success = {
+        let toast = toast;
+        let prefs = prefs;
+        move |message: String| {
+            toast.success(message);
+            if prefs.success_sound_enabled().get_untracked() {
+                play_action_success_sound();
+            }
+        }
+    };
+
     let send_to = move |t: WorkspaceTerminalTarget| {
         on_close.run(());
         let Some(ws_id) = wb.active_id().get_untracked() else {
-            on_status.run((false, "no active workspace".into()));
+            toast.error(i18n.tr(I18nKey::HandoffNoActiveWorkspace)());
             return;
         };
         let label_str = label.get_untracked();
@@ -363,23 +478,20 @@ pub fn HandoffMenu(
             instruction: None,
             submit: true,
         };
-        let on_status = on_status;
+        let notify_success = notify_success;
         let i18n_for_status = i18n;
         spawn_local(async move {
             match perform_handoff(wb, req).await {
-                Ok(outcome) => on_status.run((
-                    true,
-                    format!(
-                        "{} → {} ({} bytes{})",
-                        i18n_for_status.tr(I18nKey::HandoffOkSent)(),
-                        t.label,
-                        outcome.bytes_written,
-                        if outcome.submitted { ", submitted" } else { "" }
-                    ),
+                Ok(outcome) => notify_success(format!(
+                    "{} → {} ({} bytes{})",
+                    i18n_for_status.tr(I18nKey::HandoffOkSent)(),
+                    t.label,
+                    outcome.bytes_written,
+                    if outcome.submitted { ", submitted" } else { "" }
                 )),
-                Err(e) => on_status.run((
-                    false,
-                    format!("{}: {e}", i18n_for_status.tr(I18nKey::HandoffFailed)()),
+                Err(e) => toast.error(format!(
+                    "{}: {e}",
+                    i18n_for_status.tr(I18nKey::HandoffFailed)()
                 )),
             }
         });
@@ -388,35 +500,40 @@ pub fn HandoffMenu(
     let attach_to_agent = move |_| {
         on_close.run(());
         let Some(ws_id) = wb.active_id().get_untracked() else {
-            on_status.run((false, "no active workspace".into()));
+            toast.error(i18n.tr(I18nKey::HandoffNoActiveWorkspace)());
             return;
         };
         let label_str = label.get_untracked();
         let path = note_path.get_untracked();
+        let slot = source_slot.get_untracked();
         let item = match path {
             Some(p) => note_context_item(&p, &label_str),
-            None => {
-                // No specific source — attach the workspace's "memory" category as
-                // a coarse default. Idempotent: existing entry is upserted.
-                AgentContextItem {
+            None => match slot {
+                Some(slot_id) => {
+                    let mut title = source_terminal_title.get_untracked();
+                    if title.trim().is_empty() {
+                        title = format!("Slot {slot_id}");
+                    }
+                    let slug = slot_agent_slug(&wb, ws_id, slot_id);
+                    let excerpt = preview_handoff_excerpt(&wb, ws_id, slot_id, &slug);
+                    terminal_session_context_item(slot_id, &title, &excerpt)
+                }
+                None => AgentContextItem {
                     id: "memory-category:memory".into(),
                     kind: AgentContextKind::MemoryCategory,
                     label: "Memory".into(),
                     source: "memory category".into(),
                     paths: Vec::new(),
-                    added_at: 0,
-                }
-            }
+                    added_at: context_now_ms(),
+                },
+            },
         };
         let attach_label = item.label.clone();
         wb.upsert_workspace_agent_context(ws_id, item);
-        on_status.run((
-            true,
-            format!(
-                "{} → BLXCode agent · {}",
-                i18n.tr(I18nKey::HandoffOkSent)(),
-                attach_label
-            ),
+        notify_success(format!(
+            "{} · {}",
+            i18n.tr(I18nKey::HandoffOkAttached)(),
+            attach_label
         ));
     };
 
@@ -482,78 +599,52 @@ pub fn TerminalSlotHandoffButton(
     pane_id: u64,
     #[allow(unused_variables)] agent_slug: String,
     workspace_id: u64,
+    terminal_title: Signal<String>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let wb = expect_context::<WorkbenchService>();
-    let status = RwSignal::new(None::<(bool, String)>);
     let open = RwSignal::new(false);
     let _ = (slot_id, pane_id, workspace_id, agent_slug);
-
-    let icon = move || match status.get() {
-        Some((true, _)) => view! {
-            <LxIcon icon=icondata::LuCheck width="0.82rem" height="0.82rem" />
-        }
-        .into_any(),
-        Some((false, _)) => view! {
-            <LxIcon icon=icondata::LuAlertTriangle width="0.82rem" height="0.82rem" />
-        }
-        .into_any(),
-        None => view! {
-            <LxIcon icon=icondata::LuShare2 width="0.82rem" height="0.82rem" />
-        }
-        .into_any(),
-    };
 
     view! {
         <div class="workbench-handoff-anchor">
             <button
                 type="button"
-                class=move || {
-                    let mut c = String::from("ws-term-cell__tool");
-                    match status.get() {
-                        Some((true, _)) => c.push_str(" ws-term-cell__tool--ok"),
-                        Some((false, _)) => c.push_str(" ws-term-cell__tool--danger"),
-                        None => {}
-                    }
-                    c
-                }
-                title=move || {
-                    status
-                        .with(|s| s.as_ref().map(|(_, msg)| msg.clone()))
-                        .unwrap_or_else(|| i18n.tr(I18nKey::HandoffSendContext)().to_string())
-                }
+                class="ws-term-cell__tool"
+                title=move || i18n.tr(I18nKey::HandoffSendContext)().to_string()
                 aria-label=move || i18n.tr(I18nKey::HandoffSendContext)()
                 aria-haspopup="menu"
                 aria-expanded=move || if open.get() { "true" } else { "false" }
                 on:click=move |ev| {
                     ev.stop_propagation();
-                    status.set(None);
                     open.update(|v| *v = !*v);
                 }
             >
-                {icon}
+                <LxIcon icon=icondata::LuShare2 width="0.82rem" height="0.82rem" />
             </button>
             <Show when=move || open.get()>
                 <HandoffMenu
                     wb=wb
-                    label=Signal::derive(move || String::from("Workspace context"))
+                    label=terminal_title
                     note_path=Signal::derive(move || None::<String>)
+                    source_slot=Signal::derive(move || Some(slot_id))
+                    source_terminal_title=terminal_title
                     on_close=Callback::new(move |_| open.set(false))
-                    on_status=Callback::new(move |s: (bool, String)| {
-                        status.set(Some(s));
-                        schedule_status_clear(status);
-                    })
                 />
             </Show>
         </div>
     }
 }
 
-fn schedule_status_clear(status: RwSignal<Option<(bool, String)>>) {
-    spawn_local(async move {
-        TimeoutFuture::new(2800).await;
-        status.set(None);
-    });
+fn context_now_ms() -> i64 {
+    #[cfg(target_arch = "wasm32")]
+    {
+        js_sys::Date::now() as i64
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        0
+    }
 }
 
 /// Build a one-shot `AgentContextItem` representing a single memory or
@@ -571,7 +662,7 @@ pub fn note_context_item(path: &str, label: &str) -> AgentContextItem {
         label: label.to_owned(),
         source: path.to_owned(),
         paths: vec![path.to_owned()],
-        added_at: 0,
+        added_at: context_now_ms(),
     }
 }
 
@@ -673,5 +764,23 @@ mod tests {
         assert_eq!(mem.kind, AgentContextKind::MemoryNote);
         let learning = note_context_item("learnings/bar.md", "Bar");
         assert_eq!(learning.kind, AgentContextKind::LearningNote);
+    }
+
+    #[test]
+    fn terminal_session_item_uses_title_and_excerpt() {
+        let item = terminal_session_context_item(3, "Chat Pal", "## Attached memory · (none)");
+        assert_eq!(item.kind, AgentContextKind::TerminalSession);
+        assert_eq!(item.label, "Chat Pal");
+        assert_eq!(item.source, "## Attached memory · (none)");
+        assert_eq!(item.id, "terminal-slot:3");
+    }
+
+    #[test]
+    fn excerpt_skips_session_header_lines() {
+        let block = "⟪ BLXCode attached context for this terminal agent ⟫\n\n## Session\n- Workspace: `/tmp`\n- Target terminal: slot 1\n\n## Attached memory / learnings / notes\n- (none)\n";
+        let ex = excerpt_handoff_block(block, 200);
+        assert!(!ex.contains("Workspace:"));
+        assert!(ex.contains("Attached memory"));
+        assert!(ex.contains("(none)"));
     }
 }

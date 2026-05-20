@@ -1,6 +1,7 @@
 //! Befehlspalette (`Ctrl+Shift+P`) und Harness‑Einstellungen (kategorisiert).
 //!
 //! Shortcut ist im Haupt-Webview gebunden ([`HarnessHost`]).
+use super::app_prefs::AppPrefsService;
 use super::browser_tab::sync_embedded_browser_layer;
 use super::state::{
     workspace_entry_has_folder, BrowserEmbedSurface, HarnessSettingsCategory, HarnessUiService,
@@ -546,6 +547,13 @@ fn input_str(ev: &web_sys::Event) -> Option<String> {
         .dyn_into::<web_sys::HtmlInputElement>()
         .ok()
         .map(|i| i.value())
+}
+
+fn checkbox_checked(ev: &web_sys::Event) -> Option<bool> {
+    ev.target()?
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .ok()
+        .map(|i| i.checked())
 }
 
 fn textarea_str(ev: &web_sys::Event) -> Option<String> {
@@ -1107,6 +1115,7 @@ fn LocalePicker() -> impl IntoView {
 #[component]
 fn AppSettingsPane() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let prefs = expect_context::<AppPrefsService>();
     view! {
         <article class="harness-pane">
             <h3 class="harness-pane-title">
@@ -1138,6 +1147,40 @@ fn AppSettingsPane() -> impl IntoView {
                 </span>
                 <LocalePicker />
             </label>
+            <section class="harness-subpane">
+                <h4 class="harness-pane-subhead">
+                    <span class="harness-pane-subhead__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuBell width="0.82rem" height="0.82rem" />
+                    </span>
+                    <span>{move || i18n.tr(I18nKey::AppNotifHeading)()}</span>
+                </h4>
+                <label class="app-prefs-toggle">
+                    <input
+                        type="checkbox"
+                        prop:checked=move || prefs.success_toast_enabled().get()
+                        on:change=move |ev| {
+                            if let Some(checked) = checkbox_checked(&ev) {
+                                prefs.set_success_toast(checked);
+                            }
+                        }
+                    />
+                    <span>{move || i18n.tr(I18nKey::AppNotifToasts)()}</span>
+                </label>
+                <p class="app-prefs-hint">{move || i18n.tr(I18nKey::AppNotifToastsHint)()}</p>
+                <label class="app-prefs-toggle">
+                    <input
+                        type="checkbox"
+                        prop:checked=move || prefs.success_sound_enabled().get()
+                        on:change=move |ev| {
+                            if let Some(checked) = checkbox_checked(&ev) {
+                                prefs.set_success_sound(checked);
+                            }
+                        }
+                    />
+                    <span>{move || i18n.tr(I18nKey::AppNotifSound)()}</span>
+                </label>
+                <p class="app-prefs-hint">{move || i18n.tr(I18nKey::AppNotifSoundHint)()}</p>
+            </section>
             <section class="harness-subpane">
                 <AgentHooksPanel />
             </section>

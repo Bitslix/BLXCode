@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "Annehmen",
         I18nKey::GitignorePromptTitle => ".blxcode zur .gitignore hinzufügen?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode speichert lokale Workspace-Daten (Aufgaben, Sitzungen) im Ordner `.blxcode`. \\\nSoll dieser Eintrag in die `.gitignore` dieses Projekts aufgenommen werden, damit er nicht versehentlich committed wird?"
+            "BLXCode speichert lokale Workspace-Daten (Aufgaben, Sitzungen) im Ordner `.blxcode`. \\\\\nSoll dieser Eintrag in die `.gitignore` dieses Projekts aufgenommen werden, damit er nicht versehentlich committed wird?"
         }
         I18nKey::GitignorePromptYes => "Ja, hinzufügen",
         I18nKey::GitignorePromptNo => "Nicht jetzt",
@@ -121,8 +121,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HandoffPickTerminal => "Terminal wählen",
         I18nKey::HandoffNoTerminals => "Keine laufenden Terminals im Workspace",
         I18nKey::HandoffOkSent => "Kontext gesendet",
+        I18nKey::HandoffOkAttached => "An BLXCode-Agent angehängt",
         I18nKey::HandoffFailed => "Übergabe fehlgeschlagen",
-        I18nKey::HandoffToAgentContext => "An BLXCode-Agent-Kontext anhängen",
+        I18nKey::HandoffNoActiveWorkspace => "Kein aktiver Workspace",
+        I18nKey::HandoffToAgentContext => "An BLXCode-Agent senden",
+        I18nKey::AppNotifHeading => "Benachrichtigungen",
+        I18nKey::AppNotifToasts => "Erfolgs-Toasts anzeigen",
+        I18nKey::AppNotifToastsHint => "Kurze Bestätigung beim Senden oder Anhängen von Kontext.",
+        I18nKey::AppNotifSound => "Erfolgs-Ton abspielen",
+        I18nKey::AppNotifSoundHint => "Kurzer Ton bei erfolgreichen Handoff-Aktionen.",
         I18nKey::MemShowInGraph => "Im Graph zeigen",
         I18nKey::MemGraph3dLoadFailed => "3D-Grafik konnte nicht geladen werden. 2D-Grafik wird angezeigt.",
         I18nKey::MemSearchPh => "Notizen durchsuchen…",

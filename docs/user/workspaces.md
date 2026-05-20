@@ -73,7 +73,7 @@ These values support session capture, notification hooks, and the terminal-agent
 Each terminal cell exposes a small share icon in its titlebar (between the agent badge and the maximize button). Clicking it opens a dropdown listing every live terminal in the workspace plus a separator and a **"Send to BLXCode agent context"** entry.
 
 - **Pick a terminal** → BLXCode renders a Markdown context block (workspace root, attached Memory/Learnings/Notes, image metadata + exported on-disk paths) and writes it directly into that terminal's PTY. Image bytes are exported to `<workspace>/.blxcode/agent-context/images/`; base64 is never written into the prompt.
-- **"Send to BLXCode agent context"** → adds the workspace's Memory category to the BLXCode Agent's attached context (idempotent upsert), so the next agent turn sees it.
+- **"Send to BLXCode agent context"** (from a terminal titlebar) → attaches that terminal to the BLXCode Agent context: the terminal's captured title as the label and a short preview of the handoff block as the description (idempotent per slot).
 
 The same dropdown is also available from the Memory **Graph** note preview popover. From there, "Pick a terminal" sends ONLY the previewed note (auto-typed as `memory_note` or `learning_note`); the "Send to BLXCode agent context" entry attaches that single note to the BLXCode Agent.
 

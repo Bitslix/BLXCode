@@ -448,6 +448,7 @@ pub fn WorkspaceTerminalCell(
                     pane_id=pane_id
                     agent_slug=agent_slug.clone()
                     workspace_id=workspace_id
+                    terminal_title=Signal::derive(move || dynamic_title.get())
                 />
                 <button
                     type="button"

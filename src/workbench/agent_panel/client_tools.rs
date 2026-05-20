@@ -254,6 +254,7 @@ fn handle_memory_context_attach(
         "learning_category" => AgentContextKind::LearningCategory,
         "memory_note" => AgentContextKind::MemoryNote,
         "learning_note" => AgentContextKind::LearningNote,
+        "terminal_session" => AgentContextKind::TerminalSession,
         other => {
             submit_async(call_id, false, format!("invalid kind: {other}"), None);
             return;

@@ -748,7 +748,6 @@ fn GraphPreviewPopover(
     let i18n = expect_context::<I18nService>();
     let wb_for_handoff = expect_context::<WorkbenchService>();
     let handoff_open = RwSignal::new(false);
-    let handoff_status = RwSignal::new(None::<(bool, String)>);
     let on_preview_click = {
         let state = state.clone();
         move |ev: web_sys::MouseEvent| {
@@ -772,10 +771,7 @@ fn GraphPreviewPopover(
                                 class="workbench-memory-graph-preview__btn"
                                 title=move || i18n.tr(I18nKey::MemGraphSendToTerminal)()
                                 aria-label=move || i18n.tr(I18nKey::MemGraphSendToTerminal)()
-                                on:click=move |_| {
-                                    handoff_status.set(None);
-                                    handoff_open.update(|v| *v = !*v);
-                                }
+                                on:click=move |_| handoff_open.update(|v| *v = !*v)
                             >
                                 <LxIcon icon=icondata::LuTerminalSquare width="0.82rem" height="0.82rem" />
                             </button>
@@ -784,8 +780,9 @@ fn GraphPreviewPopover(
                                     wb=wb_for_handoff
                                     label=Signal::derive(move || preview.label.get())
                                     note_path=Signal::derive(move || preview.path.get())
+                                    source_slot=Signal::derive(|| None::<u64>)
+                                    source_terminal_title=Signal::derive(String::new)
                                     on_close=Callback::new(move |_| handoff_open.set(false))
-                                    on_status=Callback::new(move |s: (bool, String)| handoff_status.set(Some(s)))
                                 />
                             </Show>
                         </div>
@@ -816,16 +813,6 @@ fn GraphPreviewPopover(
                         </button>
                     </div>
                 </header>
-                <Show when=move || handoff_status.with(Option::is_some)>
-                    <div
-                        class=move || handoff_status.with(|s| match s.as_ref().map(|(ok, _)| *ok) {
-                            Some(true) => "workbench-handoff-status workbench-handoff-status--ok",
-                            _ => "workbench-handoff-status workbench-handoff-status--fail",
-                        })
-                    >
-                        {move || handoff_status.with(|s| s.as_ref().map(|(_, msg)| msg.clone()).unwrap_or_default())}
-                    </div>
-                </Show>
                 <div
                     class="workbench-memory-graph-preview__body workbench-memory-editor__preview"
                     on:click=on_preview_click

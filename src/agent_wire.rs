@@ -22,6 +22,7 @@ pub enum AgentContextKind {
     LearningCategory,
     MemoryNote,
     LearningNote,
+    TerminalSession,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
