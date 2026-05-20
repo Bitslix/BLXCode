@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Success **toasts** for terminal/memory handoff actions: a lightweight toast stack (bottom-right) confirms when context is sent to a terminal or attached to the BLXCode Agent; errors always show an error toast regardless of the success-toast toggle.
+- Optional **success sound** on handoff (short Web Audio beep, same timbre as terminal-hook notifications) — independent of the toast toggle.
+- **BLXCode Settings → App → Notifications**: checkboxes to enable/disable success toasts and success sounds (`blxcode_success_toast_v1` / `blxcode_success_sound_v1` in `localStorage`, default on).
+- Frontend modules `toast` (`ToastService`, `ToastHost`) and `app_prefs` (`AppPrefsService`) wired in `WorkbenchShell`.
+- i18n: `HandoffOkAttached`, `HandoffNoActiveWorkspace`, `AppNotifHeading`, `AppNotifToasts`, `AppNotifToastsHint`, `AppNotifSound`, `AppNotifSoundHint` — added to all 14 locales; `HandoffToAgentContext` shortened to **Send to BLXCode Agent** (German: *An BLXCode-Agent senden*).
+
+### Changed
+
+- Handoff feedback is **centralized in `HandoffMenu`**: Graph preview no longer shows an inline green/red status strip under the titlebar; the terminal titlebar handoff button no longer flips to check/alert icons — both rely on global toasts (+ optional sound) instead.
+- `note_context_item` and workspace Memory-category attach now set `added_at` from `Date::now()` (consistent with the Memory panel context menu).
+
 ## [0.1.10] - 2026-05-20
 
 ### Added
