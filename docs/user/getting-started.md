@@ -35,6 +35,10 @@ On first launch, BLXCode shows the EULA gate in your detected UI language. Accep
 
 After accepting, the workbench opens. In the desktop shell, BLXCode also creates a default sandbox folder under the app data directory so the agent always has a writable fallback workspace.
 
+<p align="center">
+  <img src="../images/screenshot-2026-05-18_17-45-25.png" alt="BLXCode welcome screen with recent workspaces and keyboard shortcuts" />
+</p>
+
 ## Create A Workspace
 
 1. Open the workspace creation flow from the sidebar.

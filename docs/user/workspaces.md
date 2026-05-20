@@ -20,6 +20,18 @@ The supported fleet labels are:
 - `opencode`
 - `cursor`
 
+<p align="center">
+  <img src="../images/screenshot-2026-05-18_17-45-40.png" alt="Create workspace step 1: name, working directory, and terminal grid preset" />
+</p>
+
+<p align="center">
+  <img src="../images/screenshot-2026-05-18_17-45-53.png" alt="Create workspace step 2: assign coding agents to terminal slots" />
+</p>
+
+<p align="center">
+  <img src="../images/screenshot-2026-05-18_17-46-07.png" alt="New workspace with a 2x2 terminal grid running Claude Code in each slot" />
+</p>
+
 ## Terminal Grids And Panes
 
 Each workspace has a top-level terminal grid. Preset counts map to balanced grid dimensions:
