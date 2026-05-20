@@ -3,9 +3,10 @@
 //! key/model is available.
 use crate::agent::anthropic::run_chat_turn as run_anthropic_turn;
 use crate::agent::openrouter::{run_chat_turn, Endpoint};
-use crate::agent::protocol::{AgentContextItem, AgentEvent, UserTurn};
+use crate::agent::protocol::{AgentContextItem, AgentContextKind, AgentEvent, UserTurn};
 use crate::agent::state::AgentEngineState;
 use crate::agent_settings::{load_settings_pub, provider_key_pub, AgentProviderKind};
+use crate::plans;
 use crate::voice::{self, VoiceSettings};
 use std::sync::Arc;
 use tauri::{async_runtime, AppHandle};
@@ -39,7 +40,11 @@ pub fn dispatch_user_turn(
     let state = Arc::clone(agent);
     let app_handle = app.clone();
     let voice_input = turn.voice_input;
-    let prompt = render_context_prompt(turn.prompt, &turn.context_items);
+    let prompt = render_context_prompt(
+        turn.prompt,
+        &turn.context_items,
+        turn.workspace_root.as_deref(),
+    );
     let workspace_root = turn.workspace_root;
     let image_context_items = turn.image_context_items;
     match settings.provider {
@@ -82,20 +87,89 @@ pub fn dispatch_user_turn(
     Ok(())
 }
 
-fn render_context_prompt(prompt: String, context_items: &[AgentContextItem]) -> String {
+fn render_context_prompt(
+    prompt: String,
+    context_items: &[AgentContextItem],
+    workspace_root: Option<&str>,
+) -> String {
     if context_items.is_empty() {
         return prompt;
     }
 
-    let mut out = String::from("Attached BLXCode context (paths only; read files if needed):\n");
-    for item in context_items {
-        let paths = if item.paths.is_empty() {
-            item.source.clone()
-        } else {
-            item.paths.join(", ")
-        };
-        out.push_str(&format!("- {}: {}\n", item.label.trim(), paths));
+    let (plans, memory_like): (Vec<_>, Vec<_>) = context_items.iter().partition(|item| {
+        matches!(
+            item.kind,
+            AgentContextKind::PlanIndex
+                | AgentContextKind::PlanFile
+                | AgentContextKind::PlanTaskGroup
+        )
+    });
+
+    let mut out = String::new();
+
+    if !memory_like.is_empty() {
+        out.push_str("Attached BLXCode context (paths only; read files if needed):\n");
+        for item in &memory_like {
+            let paths = if item.paths.is_empty() {
+                item.source.clone()
+            } else {
+                item.paths.join(", ")
+            };
+            out.push_str(&format!("- {}: {}\n", item.label.trim(), paths));
+        }
     }
+
+    if !plans.is_empty() {
+        if !memory_like.is_empty() {
+            out.push('\n');
+        }
+        out.push_str("Attached plans (call `plan_read` for details, `plan_load` to sync tasks):\n");
+        for item in &plans {
+            match item.kind {
+                AgentContextKind::PlanIndex => {
+                    out.push_str(&format!(
+                        "- plan index: {} — see `.agents/plans/PLANS.md`\n",
+                        item.label.trim()
+                    ));
+                }
+                AgentContextKind::PlanFile => {
+                    let plan_path = item
+                        .paths
+                        .first()
+                        .cloned()
+                        .unwrap_or_else(|| item.source.clone());
+                    let mut line = format!(
+                        "- plan `{plan_path}`: {label}",
+                        label = item.label.trim()
+                    );
+                    if let Some(ws) = workspace_root {
+                        if let Some(meta) = plans::plan_meta_for(ws, &plan_path) {
+                            line.push_str(&format!(
+                                " — tasks total {}, pending {}, in_progress {}, blocked {}, completed {}, cancelled {}",
+                                meta.task_summary.total,
+                                meta.task_summary.pending,
+                                meta.task_summary.in_progress,
+                                meta.task_summary.blocked,
+                                meta.task_summary.completed,
+                                meta.task_summary.cancelled
+                            ));
+                        }
+                    }
+                    line.push('\n');
+                    out.push_str(&line);
+                }
+                AgentContextKind::PlanTaskGroup => {
+                    out.push_str(&format!(
+                        "- plan tasks: {} ({})\n",
+                        item.label.trim(),
+                        item.source
+                    ));
+                }
+                _ => {}
+            }
+        }
+    }
+
     out.push_str("\nUser prompt:\n");
     out.push_str(&prompt);
     out

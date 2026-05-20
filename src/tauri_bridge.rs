@@ -1113,6 +1113,199 @@ pub async fn memory_install_pointers(
 }
 
 // ---------------------------------------------------------------------
+// Plans (workspace-scoped Markdown plans under .agents/plans/)
+
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanTaskSummaryWire {
+    pub total: u32,
+    pub pending: u32,
+    pub in_progress: u32,
+    pub blocked: u32,
+    pub completed: u32,
+    pub cancelled: u32,
+}
+
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanMeta {
+    pub path: String,
+    pub name: String,
+    pub title: String,
+    pub size: u64,
+    pub modified: i64,
+    pub is_index: bool,
+    pub task_summary: PlanTaskSummaryWire,
+}
+
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanContent {
+    pub path: String,
+    pub content: String,
+    #[allow(dead_code)]
+    pub modified: i64,
+    pub is_index: bool,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanLoadReport {
+    pub path: String,
+    pub tasks_replaced: u32,
+    pub tasks_added: u32,
+    pub free_tasks_kept: u32,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanSyncReport {
+    pub path: String,
+    pub tasks_written: u32,
+}
+
+pub async fn plan_list(ws: &str) -> Result<Vec<PlanMeta>, String> {
+    invoke_typed("plan_list", WsArg { workspace_cwd: ws }).await
+}
+
+pub async fn plan_read(ws: &str, path: &str) -> Result<PlanContent, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        path: &'a str,
+    }
+    invoke_typed(
+        "plan_read",
+        A {
+            workspace_cwd: ws,
+            path,
+        },
+    )
+    .await
+}
+
+pub async fn plan_write(ws: &str, path: &str, content: &str) -> Result<PlanContent, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        path: &'a str,
+        content: &'a str,
+    }
+    invoke_typed(
+        "plan_write",
+        A {
+            workspace_cwd: ws,
+            path,
+            content,
+        },
+    )
+    .await
+}
+
+pub async fn plan_create(
+    ws: &str,
+    path: &str,
+    content: Option<&str>,
+) -> Result<PlanMeta, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        path: &'a str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        content: Option<&'a str>,
+    }
+    invoke_typed(
+        "plan_create",
+        A {
+            workspace_cwd: ws,
+            path,
+            content,
+        },
+    )
+    .await
+}
+
+pub async fn plan_delete(ws: &str, path: &str) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        path: &'a str,
+    }
+    invoke_unit_js(
+        "plan_delete",
+        args_value(A {
+            workspace_cwd: ws,
+            path,
+        })?,
+    )
+    .await
+}
+
+pub async fn plan_rename(
+    ws: &str,
+    old_path: &str,
+    new_path: &str,
+) -> Result<PlanMeta, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        old_path: &'a str,
+        new_path: &'a str,
+    }
+    invoke_typed(
+        "plan_rename",
+        A {
+            workspace_cwd: ws,
+            old_path,
+            new_path,
+        },
+    )
+    .await
+}
+
+pub async fn plan_load(ws: &str, path: &str) -> Result<PlanLoadReport, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        path: &'a str,
+    }
+    invoke_typed(
+        "plan_load",
+        A {
+            workspace_cwd: ws,
+            path,
+        },
+    )
+    .await
+}
+
+#[allow(dead_code)]
+pub async fn plan_sync_from_tasks(ws: &str, path: &str) -> Result<PlanSyncReport, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        path: &'a str,
+    }
+    invoke_typed(
+        "plan_sync_from_tasks",
+        A {
+            workspace_cwd: ws,
+            path,
+        },
+    )
+    .await
+}
+
+// ---------------------------------------------------------------------
 // Skills & Rules
 
 /// Idempotently creates `.agents/{rules,skills}/` and their `index.json`

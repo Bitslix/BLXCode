@@ -41,6 +41,13 @@ pub struct TaskRecord {
     pub completed_at: Option<i64>,
     pub parent_id: Option<String>,
     pub notes: Option<String>,
+    /// Relative path under `.agents/plans/` if this task is plan-linked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan_path: Option<String>,
+    /// Stable task id used inside the plan Markdown (e.g. `t-1`). Distinct
+    /// from `id` (the store-internal id).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan_task_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -48,6 +55,9 @@ pub struct TaskRecord {
 pub struct TaskSnapshot {
     pub tasks: Vec<TaskRecord>,
     pub active_task_id: Option<String>,
+    /// Plan whose tasks are currently the focus (set by `plan_load`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_plan_path: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -90,6 +100,8 @@ pub struct TaskReorderInput {
 struct TaskStore {
     version: u32,
     tasks: Vec<TaskRecord>,
+    #[serde(default)]
+    active_plan_path: Option<String>,
 }
 
 impl Default for TaskStore {
@@ -97,6 +109,7 @@ impl Default for TaskStore {
         Self {
             version: TASK_STORE_VERSION,
             tasks: Vec::new(),
+            active_plan_path: None,
         }
     }
 }
@@ -249,6 +262,7 @@ fn snapshot_from_store(store: &TaskStore) -> TaskSnapshot {
             .iter()
             .find(|task| matches!(task.status, TaskStatus::InProgress))
             .map(|task| task.id.clone()),
+        active_plan_path: store.active_plan_path.clone(),
     }
 }
 
@@ -290,6 +304,8 @@ pub fn tasks_create_inner(
         completed_at: None,
         parent_id,
         notes: input.notes.filter(|s| !s.trim().is_empty()),
+        plan_path: None,
+        plan_task_id: None,
     };
     let mut task = task;
     apply_status(&mut task, status, now);
@@ -325,16 +341,20 @@ pub fn tasks_update_inner(
     };
 
     let now = now_secs();
+    let mut status_changed_to: Option<TaskStatus> = None;
+    let mut title_changed: Option<String> = None;
     {
         let task = &mut store.tasks[task_idx];
         if let Some(title) = patch.title {
             task.title = validate_title(&title)?;
+            title_changed = Some(task.title.clone());
         }
         if let Some(description) = patch.description {
             task.description = description;
         }
-        if let Some(status) = patch.status {
-            apply_status(task, status, now);
+        if let Some(status) = patch.status.clone() {
+            apply_status(task, status.clone(), now);
+            status_changed_to = Some(status);
         }
         if parent_id_supplied {
             task.parent_id = new_parent_id;
@@ -347,13 +367,147 @@ pub fn tasks_update_inner(
     if matches!(store.tasks[task_idx].status, TaskStatus::InProgress) {
         demote_other_in_progress(&mut store.tasks, id, now);
     }
+    let plan_link = (
+        store.tasks[task_idx].plan_path.clone(),
+        store.tasks[task_idx].plan_task_id.clone(),
+    );
     normalize_store(&mut store);
     write_store(&root, &store)?;
+
+    // Write back to plan markdown when the task is plan-linked.
+    if let (Some(plan_path), Some(plan_task_id)) = plan_link {
+        if status_changed_to.is_some() || title_changed.is_some() {
+            let _ = crate::plans::plan_write_back_task_status(
+                workspace_cwd,
+                &plan_path,
+                &plan_task_id,
+                store.tasks[task_idx].status.clone(),
+            );
+        }
+    }
+
     store
         .tasks
         .into_iter()
         .find(|task| task.id == id)
         .ok_or_else(|| format!("task not found after update: {id}"))
+}
+
+/// Replace every plan-linked task whose `plan_path == path` with the parsed
+/// plan tasks. Free tasks and tasks linked to other plans stay untouched.
+/// Also sets `active_plan_path` to `path` on the store.
+pub struct ReplacePlanReport {
+    pub replaced: u32,
+    pub added: u32,
+}
+
+pub fn tasks_replace_plan_set(
+    workspace_cwd: &str,
+    plan_path: &str,
+    plan_tasks: &[crate::plans::PlanTask],
+) -> Result<ReplacePlanReport, String> {
+    let root = ensure_tasks_root(workspace_cwd)?;
+    let mut store = load_store(&root)?;
+    let now = now_secs();
+
+    let before = store.tasks.len();
+    store
+        .tasks
+        .retain(|t| t.plan_path.as_deref() != Some(plan_path));
+    let removed = (before - store.tasks.len()) as u32;
+
+    let mut added = 0u32;
+    for (idx, pt) in plan_tasks.iter().enumerate() {
+        let id = format!("plan-{}-{}-{}", sanitize_plan_id(plan_path), pt.id, now);
+        let mut rec = TaskRecord {
+            id,
+            title: if pt.title.trim().is_empty() {
+                pt.id.clone()
+            } else {
+                pt.title.clone()
+            },
+            description: String::new(),
+            status: pt.status.clone(),
+            position: (store.tasks.len() + idx) as u32,
+            created_at: now,
+            updated_at: now,
+            completed_at: None,
+            parent_id: None,
+            notes: None,
+            plan_path: Some(plan_path.to_owned()),
+            plan_task_id: Some(pt.id.clone()),
+        };
+        if matches!(rec.status, TaskStatus::Completed) {
+            rec.completed_at = Some(now);
+        }
+        store.tasks.push(rec);
+        added += 1;
+    }
+    // Ensure only one in-progress globally.
+    if let Some(active_id) = store
+        .tasks
+        .iter()
+        .find(|t| matches!(t.status, TaskStatus::InProgress))
+        .map(|t| t.id.clone())
+    {
+        demote_other_in_progress(&mut store.tasks, &active_id, now);
+    }
+    store.active_plan_path = Some(plan_path.to_owned());
+    normalize_store(&mut store);
+    write_store(&root, &store)?;
+    Ok(ReplacePlanReport {
+        replaced: removed,
+        added,
+    })
+}
+
+fn sanitize_plan_id(plan_path: &str) -> String {
+    plan_path
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect()
+}
+
+/// Rewrite `plan_path` references on every task linked to `old_path`.
+pub fn tasks_rewrite_plan_path(
+    workspace_cwd: &str,
+    old_path: &str,
+    new_path: &str,
+) -> Result<(), String> {
+    if old_path == new_path || old_path.is_empty() || new_path.is_empty() {
+        return Ok(());
+    }
+    let root = ensure_tasks_root(workspace_cwd)?;
+    let mut store = load_store(&root)?;
+    let mut changed = false;
+    for t in &mut store.tasks {
+        if t.plan_path.as_deref() == Some(old_path) {
+            t.plan_path = Some(new_path.to_owned());
+            t.updated_at = now_secs();
+            changed = true;
+        }
+    }
+    if store.active_plan_path.as_deref() == Some(old_path) {
+        store.active_plan_path = Some(new_path.to_owned());
+        changed = true;
+    }
+    if changed {
+        write_store(&root, &store)?;
+    }
+    Ok(())
+}
+
+/// Clear `active_plan_path` (e.g. when the panel detaches the plan).
+#[allow(dead_code)]
+pub fn tasks_clear_active_plan(workspace_cwd: &str) -> Result<(), String> {
+    let root = ensure_tasks_root(workspace_cwd)?;
+    let mut store = load_store(&root)?;
+    if store.active_plan_path.is_none() {
+        return Ok(());
+    }
+    store.active_plan_path = None;
+    write_store(&root, &store)?;
+    Ok(())
 }
 
 pub fn tasks_delete_inner(workspace_cwd: &str, id: &str) -> Result<TaskSnapshot, String> {

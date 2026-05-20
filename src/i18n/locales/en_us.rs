@@ -73,6 +73,36 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::TabMemory => "Memory",
         I18nKey::TabRules => "Rules",
         I18nKey::TabSkills => "Skills",
+
+        I18nKey::TabPlans => "Plans",
+
+        I18nKey::PlansEmptyTitle => "Plans live here",
+
+        I18nKey::PlansEmptyLead => "Open a workspace to see and create plans.",
+
+        I18nKey::PlansNewPlan => "New plan",
+
+        I18nKey::PlansNewPlanPh => "plan-filename.md",
+
+        I18nKey::PlansRename => "Rename",
+
+        I18nKey::PlansDelete => "Delete",
+
+        I18nKey::PlansSelectPlan => "Select a plan to view it.",
+
+        I18nKey::PlansEdit => "Edit",
+
+        I18nKey::PlansPreview => "Preview",
+
+        I18nKey::PlansLoadIntoAgent => "Load into BLXCode Agent",
+
+        I18nKey::PlansLoaded => "Plan loaded into Agent",
+
+        I18nKey::PlansRefresh => "Refresh plans",
+
+        I18nKey::PlansTaskSummary => "Task summary",
+
+        I18nKey::PlansProtectedIndex => "PLANS.md is the protected index file.",
         I18nKey::SrRulesEmpty => "No rules in this workspace yet.",
         I18nKey::SrSkillsEmpty => "No skills installed.",
         I18nKey::SrLoading => "Loading…",

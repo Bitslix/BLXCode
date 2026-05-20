@@ -723,6 +723,8 @@ fn handle_send_agent_context(
 
     let include_memory;
     let include_images;
+    let include_plans;
+    let include_tasks;
     match args
         .as_ref()
         .and_then(|v| v.get("includeKinds"))
@@ -731,21 +733,29 @@ fn handle_send_agent_context(
         Some(arr) => {
             let mut mem = false;
             let mut img = false;
+            let mut pl = false;
+            let mut tk = false;
             for entry in arr {
                 if let Some(s) = entry.as_str() {
                     match s {
                         "memory" => mem = true,
                         "images" => img = true,
+                        "plans" => pl = true,
+                        "tasks" => tk = true,
                         _ => {}
                     }
                 }
             }
             include_memory = mem;
             include_images = img;
+            include_plans = pl;
+            include_tasks = tk;
         }
         None => {
             include_memory = true;
             include_images = true;
+            include_plans = true;
+            include_tasks = true;
         }
     }
 
@@ -799,6 +809,8 @@ fn handle_send_agent_context(
             context_items: None,
             include_memory,
             include_images,
+            include_plans,
+            include_tasks,
             instruction,
             submit,
         };

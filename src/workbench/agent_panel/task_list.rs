@@ -1,5 +1,6 @@
 use crate::agent_wire::{AgentTask, TaskSnapshot, TaskStatus};
 use leptos::prelude::*;
+use std::collections::BTreeMap;
 
 #[component]
 pub fn TaskSection(
@@ -25,36 +26,81 @@ pub fn TaskSection(
                 </span>
             </button>
             <Show when=move || tasks_open.get()>
-                <ol id="agent-task-list" class="agent-task-list">
+                <div id="agent-task-list" class="agent-task-list">
                     {move || {
                         let snapshot = snapshot.get();
                         if snapshot.tasks.is_empty() {
                             return view! {
-                                <li class="agent-task agent-task--empty">
-                                    <div>
-                                        <strong>"No tracked tasks yet"</strong>
-                                        <small>"Complex work will appear here once the agent starts planning and updating tasks."</small>
-                                    </div>
-                                </li>
+                                <ol class="agent-task-list__group">
+                                    <li class="agent-task agent-task--empty">
+                                        <div>
+                                            <strong>"No tracked tasks yet"</strong>
+                                            <small>"Complex work will appear here once the agent starts planning and updating tasks."</small>
+                                        </div>
+                                    </li>
+                                </ol>
                             }
                             .into_any();
                         }
+                        let mut by_plan: BTreeMap<String, Vec<AgentTask>> = BTreeMap::new();
+                        let mut free_tasks: Vec<AgentTask> = Vec::new();
+                        for task in snapshot.tasks {
+                            if let Some(path) = task.plan_path.clone() {
+                                by_plan.entry(path).or_default().push(task);
+                            } else {
+                                free_tasks.push(task);
+                            }
+                        }
+                        let active = snapshot.active_task_id.clone();
                         view! {
                             <>
-                                {snapshot
-                                    .tasks
+                                {by_plan
                                     .into_iter()
-                                    .map(|task| {
-                                        let active = snapshot.active_task_id.as_deref() == Some(task.id.as_str())
-                                            || matches!(task.status, TaskStatus::InProgress);
-                                        view! { <TaskRow task=task active=active /> }
+                                    .map(|(plan_path, tasks)| {
+                                        let title = format!("Plan: {plan_path}");
+                                        view! {
+                                            <div class="agent-task-list__group-block">
+                                                <h4 class="agent-task-list__group-title">{title}</h4>
+                                                <ol class="agent-task-list__group">
+                                                    {tasks
+                                                        .into_iter()
+                                                        .map(|task| {
+                                                            let is_active = active.as_deref() == Some(task.id.as_str())
+                                                                || matches!(task.status, TaskStatus::InProgress);
+                                                            view! { <TaskRow task=task active=is_active /> }
+                                                        })
+                                                        .collect_view()}
+                                                </ol>
+                                            </div>
+                                        }
                                     })
                                     .collect_view()}
+                                {if free_tasks.is_empty() {
+                                    ().into_any()
+                                } else {
+                                    let active = active.clone();
+                                    view! {
+                                        <div class="agent-task-list__group-block">
+                                            <h4 class="agent-task-list__group-title">"Free Tasks"</h4>
+                                            <ol class="agent-task-list__group">
+                                                {free_tasks
+                                                    .into_iter()
+                                                    .map(|task| {
+                                                        let is_active = active.as_deref() == Some(task.id.as_str())
+                                                            || matches!(task.status, TaskStatus::InProgress);
+                                                        view! { <TaskRow task=task active=is_active /> }
+                                                    })
+                                                    .collect_view()}
+                                            </ol>
+                                        </div>
+                                    }
+                                    .into_any()
+                                }}
                             </>
                         }
                         .into_any()
                     }}
-                </ol>
+                </div>
             </Show>
         </section>
     }

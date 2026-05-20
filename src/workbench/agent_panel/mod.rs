@@ -51,6 +51,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     let task_snapshot = RwSignal::new(TaskSnapshot {
         tasks: Vec::new(),
         active_task_id: None,
+        active_plan_path: None,
     });
     // Open/closed state per thinking item, keyed by its position in the
     // display timeline. Lives on the parent so streaming rerenders do not
@@ -97,6 +98,7 @@ pub fn AgentPanelDock() -> impl IntoView {
             task_snapshot.set(TaskSnapshot {
                 tasks: Vec::new(),
                 active_task_id: None,
+                active_plan_path: None,
             });
             return;
         }
@@ -109,14 +111,23 @@ pub fn AgentPanelDock() -> impl IntoView {
                         .unwrap_or(TaskSnapshot {
                             tasks: Vec::new(),
                             active_task_id: None,
+                            active_plan_path: None,
                         })
                 }
                 None => TaskSnapshot {
                     tasks: Vec::new(),
                     active_task_id: None,
+                    active_plan_path: None,
                 },
             };
-            let _ = active;
+            // Prime the handoff renderer cache so terminal handoffs after
+            // a workspace reload see the restored plan-task state.
+            if let Some(ws_id) = active {
+                crate::workbench::agent_context_handoff::store_task_snapshot(
+                    ws_id,
+                    next.clone(),
+                );
+            }
             task_snapshot_sig.set(next);
         });
     });

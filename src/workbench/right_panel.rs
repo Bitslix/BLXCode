@@ -3,7 +3,7 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::workbench::skills_rules_panel::{RulesTabDock, SkillsTabDock};
 use crate::workbench::{
-    AgentPanelDock, BrowserTabDock, MemoryPanel, RightPanelTab, WorkbenchService,
+    AgentPanelDock, BrowserTabDock, MemoryPanel, PlansPanel, RightPanelTab, WorkbenchService,
 };
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
@@ -41,6 +41,15 @@ fn MemoryTabDock() -> impl IntoView {
     view! {
         <div class="workbench-right-memory" role="region">
             <MemoryPanel />
+        </div>
+    }
+}
+
+#[component]
+fn PlansTabDock() -> impl IntoView {
+    view! {
+        <div class="workbench-right-plans" role="region">
+            <PlansPanel />
         </div>
     }
 }
@@ -178,6 +187,24 @@ pub fn RightPanel() -> impl IntoView {
                     <button
                         type="button"
                         role="tab"
+                        aria-selected=move || active_tab.get() == RightPanelTab::Plans
+                        class="workbench-right-rail-tab"
+                        class:workbench-right-rail-tab--active=move || active_tab.get() == RightPanelTab::Plans
+                        aria-label=move || i18n.tr(I18nKey::TabPlans)()
+                        on:click=move |_| {
+                            wb.set_right_tab(RightPanelTab::Plans);
+                            if wb.right_collapsed().get_untracked() {
+                                wb.toggle_right_panel();
+                            }
+                        }
+                    >
+                        <span class="workbench-right-rail-tab__icon" aria-hidden="true">
+                            <LxIcon icon=icondata::LuClipboardList width="1rem" height="1rem" />
+                        </span>
+                    </button>
+                    <button
+                        type="button"
+                        role="tab"
                         aria-selected=move || active_tab.get() == RightPanelTab::Memory
                         class="workbench-right-rail-tab"
                         class:workbench-right-rail-tab--active=move || active_tab.get() == RightPanelTab::Memory
@@ -291,6 +318,19 @@ pub fn RightPanel() -> impl IntoView {
                             <button
                                 type="button"
                                 role="tab"
+                                aria-selected=move || active_tab.get() == RightPanelTab::Plans
+                                class="workbench-right-tab"
+                                class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Plans
+                                on:click=move |_| wb.set_right_tab(RightPanelTab::Plans)
+                            >
+                                <span class="workbench-right-tab__icon" aria-hidden="true">
+                                    <LxIcon icon=icondata::LuClipboardList width="14px" height="14px" />
+                                </span>
+                                <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabPlans)()}</span>
+                            </button>
+                            <button
+                                type="button"
+                                role="tab"
                                 aria-selected=move || active_tab.get() == RightPanelTab::Memory
                                 class="workbench-right-tab"
                                 class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Memory
@@ -336,6 +376,9 @@ pub fn RightPanel() -> impl IntoView {
                     </div>
                     <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Browser>
                         <BrowserTabDock />
+                    </div>
+                    <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Plans>
+                        <PlansTabDock />
                     </div>
                     <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Memory>
                         <MemoryTabDock />

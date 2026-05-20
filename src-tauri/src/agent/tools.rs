@@ -5,6 +5,7 @@
 //! incoming tool calls back through here.
 
 use crate::memory;
+use crate::plans;
 use crate::skills_rules::{self, types::SkillSourceInput};
 use crate::tasks::{
     self, TaskCreateInput, TaskReorderInput, TaskSnapshot, TaskStatus, TaskUpdatePatch,
@@ -394,6 +395,147 @@ pub fn registry() -> Vec<ToolDef> {
             site: ToolSite::Client,
         },
         ToolDef {
+            name: "plan_list",
+            description: "List Markdown plans in `<workspace>/.agents/plans/`. Each entry has `path`, `name`, `title`, `size`, `modified`, `isIndex`, and `taskSummary` ({ total, pending, inProgress, blocked, completed, cancelled }). Call before guessing about plans.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "plan_read",
+            description: "Read the Markdown body of one plan in `.agents/plans/` (path ends in `.md`). Returns `{ path, content, modified, isIndex }`. Output is truncated at 6000 chars.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string", "description": "Plan path relative to `.agents/plans/`." }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "plan_create",
+            description: "Create a new plan under `.agents/plans/`. Path must end in `.md` and not exist. If `content` is omitted, the plan is seeded with `# <name>` and an empty `## Tasks` section. Content capped at 64 KiB.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path":    { "type": "string" },
+                    "content": { "type": "string" }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "plan_write",
+            description: "Overwrite an existing plan Markdown file. Content capped at 64 KiB. Use `plan_sync_from_tasks` if you just want to update the task section.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path":    { "type": "string" },
+                    "content": { "type": "string" }
+                },
+                "required": ["path", "content"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "plan_delete",
+            description: "Delete a plan Markdown file (cannot delete `PLANS.md`).",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "plan_rename",
+            description: "Rename or move a plan within `.agents/plans/`. Cannot rename `PLANS.md`. Task records pointing at the old path are rewritten to the new path.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "oldPath": { "type": "string" },
+                    "newPath": { "type": "string" }
+                },
+                "required": ["oldPath", "newPath"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "plan_load",
+            description: "Parse a plan's `## Tasks` (or `## Todos`) section and load it into the workspace task manager. Replaces only tasks where `planPath == path`; free tasks stay untouched. Sets the snapshot's `activePlanPath` to this plan. Call after writing a plan or whenever you want to act from a plan.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "plan_sync_from_tasks",
+            description: "Write the current state of plan-linked tasks back into the plan Markdown's `## Tasks` section. Use after re-ordering or batch-status-changing plan tasks via `task_*` tools.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "plan_context_list",
+            description: "List plans currently attached to BLXCode Agent context for the active workspace.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "plan_context_attach",
+            description: "Attach a plan file to BLXCode Agent context (kind `plan_file`). Use `plan_load` first if you also want the plan's tasks in the task manager.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path":  { "type": "string", "description": "Plan path relative to `.agents/plans/`." },
+                    "label": { "type": "string" }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "plan_context_detach",
+            description: "Remove one attached plan context item by id (from `plan_context_list`).",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string" }
+                },
+                "required": ["id"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
             name: "image_context_list",
             description: "List image context items attached to the active BLXCode Agent workspace. Pending images are sent with the next turn; read images are visible but not sent again unless the user reactivates them in the UI.",
             parameters: json!({
@@ -729,7 +871,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "harness.send_agent_context",
-            description: "Hand off the current BLXCode Agent context to a terminal CLI session (claude/codex/gemini/opencode/cursor). Renders a Markdown context block (workspace root, attached Memory/Learnings/Rules, image metadata, optional instruction), exports any selected images to `<workspace>/.blxcode/agent-context/images/`, and writes the block into the terminal's PTY. Address the slot by `slotId` (preferred) or unique `agentSlug`. Set `submit:false` to leave the block at the prompt without pressing Enter. `includeKinds` defaults to `[\"memory\", \"images\"]`. Use this instead of `harness.send_terminal_keys` when the terminal agent needs BLXCode-attached context — image base64 is never written into the prompt.",
+            description: "Hand off the current BLXCode Agent context to a terminal CLI session (claude/codex/gemini/opencode/cursor). Renders a Markdown context block (workspace root, attached Memory/Learnings/Rules, attached plans + plan-linked tasks, image metadata, optional instruction), exports any selected images to `<workspace>/.blxcode/agent-context/images/`, and writes the block into the terminal's PTY. Address the slot by `slotId` (preferred) or unique `agentSlug`. Set `submit:false` to leave the block at the prompt without pressing Enter. `includeKinds` defaults to `[\"memory\", \"plans\", \"tasks\", \"images\"]`. Image base64 is never written into the prompt.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -738,8 +880,8 @@ pub fn registry() -> Vec<ToolDef> {
                     "instruction": { "type": "string", "description": "Optional task or instruction appended after the rendered context block." },
                     "includeKinds": {
                         "type": "array",
-                        "items": { "type": "string", "enum": ["memory", "images"] },
-                        "description": "Which kinds of attached context to include. Defaults to both."
+                        "items": { "type": "string", "enum": ["memory", "plans", "tasks", "images"] },
+                        "description": "Which kinds of attached context to include. Defaults to all four."
                     },
                     "submit":      { "type": "boolean", "description": "Append a carriage return after the block. Default true." }
                 },
@@ -869,6 +1011,14 @@ pub fn execute_server_tool(
         "task_update" => tool_task_update(args, root),
         "task_delete" => tool_task_delete(args, root),
         "task_reorder" => tool_task_reorder(args, root),
+        "plan_list" => tool_plan_list(root),
+        "plan_read" => tool_plan_read(args, root),
+        "plan_create" => tool_plan_create(args, root),
+        "plan_write" => tool_plan_write(args, root),
+        "plan_delete" => tool_plan_delete(args, root),
+        "plan_rename" => tool_plan_rename(args, root),
+        "plan_load" => tool_plan_load(args, root),
+        "plan_sync_from_tasks" => tool_plan_sync_from_tasks(args, root),
         "rules_list" => tool_rules_list(root),
         "rules_read" => tool_rules_read(args, root),
         "rules_write" => tool_rules_write(args, root),
@@ -1750,6 +1900,162 @@ fn tool_task_reorder(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOut
     }
 }
 
+const PLAN_WRITE_MAX_BYTES: usize = 64 * 1024;
+
+fn tool_plan_list(root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match plans::plan_list_inner(&ws) {
+        Ok(entries) => json_outcome(&entries),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_plan_read(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let path = match need_str(args, "path") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match plans::plan_read_inner(&ws, path) {
+        Ok(content) => ToolOutcome {
+            ok: true,
+            content: truncate_chars(&content.content, 6000),
+        },
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_plan_create(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let path = match need_str(args, "path") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let content = args.get("content").and_then(|v| v.as_str());
+    if let Some(c) = content {
+        if c.len() > PLAN_WRITE_MAX_BYTES {
+            return ToolOutcome {
+                ok: false,
+                content: format!(
+                    "content exceeds {PLAN_WRITE_MAX_BYTES} byte limit ({} bytes)",
+                    c.len()
+                ),
+            };
+        }
+    }
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match plans::plan_create_inner(&ws, path, content) {
+        Ok(meta) => json_outcome(&meta),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_plan_write(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let path = match need_str(args, "path") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let content = match need_str(args, "content") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    if content.len() > PLAN_WRITE_MAX_BYTES {
+        return ToolOutcome {
+            ok: false,
+            content: format!(
+                "content exceeds {PLAN_WRITE_MAX_BYTES} byte limit ({} bytes)",
+                content.len()
+            ),
+        };
+    }
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match plans::plan_write_inner(&ws, path, content) {
+        Ok(c) => ToolOutcome {
+            ok: true,
+            content: format!("wrote {} ({} bytes)", c.path, c.content.len()),
+        },
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_plan_delete(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let path = match need_str(args, "path") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match plans::plan_delete_inner(&ws, path) {
+        Ok(()) => ToolOutcome {
+            ok: true,
+            content: format!("deleted plan {path}"),
+        },
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_plan_rename(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let old_path = match need_str(args, "oldPath") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let new_path = match need_str(args, "newPath") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match plans::plan_rename_inner(&ws, old_path, new_path) {
+        Ok(meta) => json_outcome(&meta),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_plan_load(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let path = match need_str(args, "path") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match plans::plan_load_inner(&ws, path) {
+        Ok(report) => json_outcome(&report),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_plan_sync_from_tasks(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let path = match need_str(args, "path") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match plans::plan_sync_from_tasks_inner(&ws, path) {
+        Ok(report) => json_outcome(&report),
+        Err(e) => err_outcome(e),
+    }
+}
+
 fn truncate_chars(s: &str, max: usize) -> String {
     if s.chars().count() <= max {
         return s.to_string();
@@ -1820,6 +2126,17 @@ mod tests {
             "memory_context_detach",
             "image_context_list",
             "image_context_detach",
+            "plan_list",
+            "plan_read",
+            "plan_create",
+            "plan_write",
+            "plan_delete",
+            "plan_rename",
+            "plan_load",
+            "plan_sync_from_tasks",
+            "plan_context_list",
+            "plan_context_attach",
+            "plan_context_detach",
         ] {
             assert!(names.contains(&expected), "missing tool {expected}");
         }

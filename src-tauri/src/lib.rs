@@ -9,6 +9,7 @@ mod git_graph;
 mod git_info;
 mod gitignore;
 mod memory;
+mod plans;
 mod pty_host;
 mod skills_rules;
 mod tasks;
@@ -155,6 +156,14 @@ pub fn run() {
             tasks::tasks_update,
             tasks::tasks_delete,
             tasks::tasks_reorder,
+            plans::plan_list,
+            plans::plan_read,
+            plans::plan_create,
+            plans::plan_write,
+            plans::plan_delete,
+            plans::plan_rename,
+            plans::plan_load,
+            plans::plan_sync_from_tasks,
             skills_rules::commands::rules_list,
             skills_rules::commands::rules_read,
             skills_rules::commands::rules_write,

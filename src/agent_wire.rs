@@ -23,6 +23,9 @@ pub enum AgentContextKind {
     MemoryNote,
     LearningNote,
     TerminalSession,
+    PlanIndex,
+    PlanFile,
+    PlanTaskGroup,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -70,6 +73,10 @@ pub struct AgentTask {
     pub completed_at: Option<i64>,
     pub parent_id: Option<String>,
     pub notes: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan_task_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -77,6 +84,8 @@ pub struct AgentTask {
 pub struct TaskSnapshot {
     pub tasks: Vec<AgentTask>,
     pub active_task_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_plan_path: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

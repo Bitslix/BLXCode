@@ -9,7 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Plan Manager**: durable Markdown plans under `<workspace>/.agents/plans/`, with `PLANS.md` as a protected index seeded on workspace bootstrap. Each plan can declare a canonical `## Tasks` (or `## Todos`) section using the syntax `- [ ] \`task-id\` - title` where the marker is one of `[ ] [>] [!] [x] [-]` (pending/in-progress/blocked/completed/cancelled).
+- **Plans tab** in the right panel (between Browser and Memory): list with per-plan task summary, Markdown editor with debounced auto-save, preview toggle, create/rename/delete, and a "Load into BLXCode Agent" action that syncs plan tasks into the task manager and attaches the plan to shared context. On workspace activation, the panel auto-opens the last-active plan via the persisted `activePlanPath`.
+- **Plan-linked tasks**: `TaskRecord` gains optional `planPath` / `planTaskId`; `TaskSnapshot` gains `activePlanPath`. `plan_load` replaces only tasks where `planPath == path` and leaves free tasks untouched. `task_update` on plan-linked tasks writes status changes back into the plan Markdown automatically. The Agent panel's task list groups plan-linked tasks by plan first, then renders a separate **Free Tasks** group.
+- **Agent tools**: `plan_list`, `plan_read`, `plan_create`, `plan_write`, `plan_delete`, `plan_rename`, `plan_load`, `plan_sync_from_tasks` (server-side), and `plan_context_list`, `plan_context_attach`, `plan_context_detach` (client-side).
+- **Tauri commands**: `plan_list`, `plan_read`, `plan_create`, `plan_write`, `plan_delete`, `plan_rename`, `plan_load`, `plan_sync_from_tasks` under `src-tauri/src/plans.rs`.
+- **Shared context kinds**: `AgentContextKind::{PlanIndex, PlanFile, PlanTaskGroup}` (mirrored in `src/agent_wire.rs`). `render_context_prompt` renders attached plans separately from memory, citing per-plan task counts.
+- **Terminal handoff**: `harness.send_agent_context.includeKinds` accepts `"memory" | "plans" | "tasks" | "images"` (default: all four). Renderer adds a new `## Attached plans / tasks` section with per-plan status counts, the active/in-progress task title, and a compact task list. The handoff renderer is primed by a per-workspace task-snapshot cache populated by the Plans/Agent panels on workspace activation so the synchronous renderer surfaces restored plan state immediately after a reload.
+- **System prompt — mandatory Turn checklist**: explicit ordered steps at the top of the prompt that the agent must run every turn — (1) `rules_list` + `rules_read` on relevant active rules as a binding first step, (2) `skills_list` + `skills_read` on matching skills when the task warrants, (3) **Resume check** that recognises continuation directives in English (*continue, keep going, resume, proceed*) and German (*weiter, fortsetzen, weitermachen, mach weiter*) and resumes from `task_list` / `activePlanPath`, (4) memory/project context as needed, (5) execute. Trivial conversational turns may skip steps 1–2.
+- **Workspace plans system-prompt section**: explains plan tooling, `## Tasks` line syntax, the `task_*` vs. `plan_*` separation, automatic status write-back, and that plan files and the task store survive workspace reload / harness restart / OS exit — so `plan_list` + `task_list` reconstruct in-flight work authoritatively after a restart.
+- **i18n**: `TabPlans` plus 14 Plans-panel keys (`PlansEmptyTitle`, `PlansEmptyLead`, `PlansNewPlan`, `PlansNewPlanPh`, `PlansRename`, `PlansDelete`, `PlansSelectPlan`, `PlansEdit`, `PlansPreview`, `PlansLoadIntoAgent`, `PlansLoaded`, `PlansRefresh`, `PlansTaskSummary`, `PlansProtectedIndex`) added to all 13 locales; `TabPlans` is localised, the rest fall back to English.
+- **Tests**: 11 new plan tests covering CRUD round-trip, `PLANS.md` protection, path-traversal sandboxing, parser status markers + `## Todos` alias, `plan_load` replace-only-plan-tasks semantics, `task_update` status write-back to plan Markdown, `plan_sync_from_tasks` round-trip preserving non-Task sections. New handoff-renderer tests for the plans/tasks section. New system-prompt tests verifying the mandatory Turn checklist, all continuation keywords, and the persistence guarantee.
+
 ### Changed
+
+- `ensure_agents_layout` now also creates `.agents/plans/` and seeds `PLANS.md` if missing; `WorkspaceRoots` gains a `plans` field.
+- `RightPanelTab` adds a `Plans` variant; the right-panel rail and tabstrip render it before Memory.
+- `harness.send_agent_context` tool description updated: default `includeKinds` is `["memory", "plans", "tasks", "images"]`; the rendered Markdown block includes attached plans and plan-linked task state.
 
 ### Fixed
 

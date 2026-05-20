@@ -34,8 +34,35 @@ pub struct RenderInputs {
     pub instruction: Option<String>,
     pub include_memory: bool,
     pub include_images: bool,
+    pub include_plans: bool,
+    pub include_tasks: bool,
     pub manifest_path: Option<String>,
     pub images_dir: Option<String>,
+    /// Plan-linked task snapshot (status counts + active/in-progress task).
+    pub plan_task_summary: Vec<PlanTaskSummaryLine>,
+    /// Compact list of plan tasks (rendered when `include_tasks`).
+    pub plan_task_lines: Vec<PlanTaskLine>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct PlanTaskSummaryLine {
+    pub plan_path: String,
+    pub plan_label: String,
+    pub total: u32,
+    pub pending: u32,
+    pub in_progress: u32,
+    pub blocked: u32,
+    pub completed: u32,
+    pub cancelled: u32,
+    pub active_task_title: Option<String>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct PlanTaskLine {
+    pub plan_path: String,
+    pub status: &'static str,
+    pub id: String,
+    pub title: String,
 }
 
 #[derive(Clone, Debug)]
@@ -72,16 +99,31 @@ pub fn render_agent_context_block(input: &RenderInputs) -> String {
 
     if input.include_memory {
         out.push_str("\n## Attached memory / learnings / notes\n");
-        if input.context_items.is_empty() {
+        let memory_items: Vec<&AgentContextItem> = input
+            .context_items
+            .iter()
+            .filter(|item| {
+                !matches!(
+                    item.kind,
+                    AgentContextKind::PlanIndex
+                        | AgentContextKind::PlanFile
+                        | AgentContextKind::PlanTaskGroup
+                )
+            })
+            .collect();
+        if memory_items.is_empty() {
             out.push_str("- (none)\n");
         } else {
-            for item in &input.context_items {
+            for item in memory_items {
                 let kind = match item.kind {
                     AgentContextKind::MemoryCategory => "memory category",
                     AgentContextKind::LearningCategory => "learnings category",
                     AgentContextKind::MemoryNote => "memory note",
                     AgentContextKind::LearningNote => "learning note",
                     AgentContextKind::TerminalSession => "terminal session",
+                    AgentContextKind::PlanIndex
+                    | AgentContextKind::PlanFile
+                    | AgentContextKind::PlanTaskGroup => continue,
                 };
                 out.push_str(&format!("- [{kind}] {} — {}\n", item.label, item.source));
                 if !item.paths.is_empty() && item.paths.len() <= 12 {
@@ -90,6 +132,82 @@ pub fn render_agent_context_block(input: &RenderInputs) -> String {
                     }
                 } else if item.paths.len() > 12 {
                     out.push_str(&format!("  - ({} paths — see manifest)\n", item.paths.len()));
+                }
+            }
+        }
+    }
+
+    if input.include_plans || input.include_tasks {
+        out.push_str("\n## Attached plans / tasks\n");
+        let plan_items: Vec<&AgentContextItem> = input
+            .context_items
+            .iter()
+            .filter(|item| {
+                matches!(
+                    item.kind,
+                    AgentContextKind::PlanIndex
+                        | AgentContextKind::PlanFile
+                        | AgentContextKind::PlanTaskGroup
+                )
+            })
+            .collect();
+        if plan_items.is_empty() && input.plan_task_summary.is_empty() {
+            out.push_str("- (none)\n");
+        } else {
+            if input.include_plans {
+                for item in plan_items {
+                    let kind = match item.kind {
+                        AgentContextKind::PlanIndex => "plan index",
+                        AgentContextKind::PlanFile => "plan",
+                        AgentContextKind::PlanTaskGroup => "plan tasks",
+                        _ => "plan",
+                    };
+                    out.push_str(&format!("- [{kind}] {} — {}\n", item.label, item.source));
+                    if !item.paths.is_empty() && item.paths.len() <= 8 {
+                        for p in &item.paths {
+                            out.push_str(&format!("  - `{p}`\n"));
+                        }
+                    }
+                }
+            }
+            if input.include_tasks {
+                for summary in &input.plan_task_summary {
+                    out.push_str(&format!(
+                        "- plan `{}` — {} ({} task{}: pending {}, in_progress {}, blocked {}, completed {}, cancelled {})",
+                        summary.plan_path,
+                        summary.plan_label,
+                        summary.total,
+                        if summary.total == 1 { "" } else { "s" },
+                        summary.pending,
+                        summary.in_progress,
+                        summary.blocked,
+                        summary.completed,
+                        summary.cancelled
+                    ));
+                    if let Some(title) = summary.active_task_title.as_deref() {
+                        out.push_str(&format!(" — active: {title}"));
+                    }
+                    out.push('\n');
+                }
+                if !input.plan_task_lines.is_empty() {
+                    let mut current_plan: Option<&str> = None;
+                    for line in &input.plan_task_lines {
+                        if current_plan != Some(line.plan_path.as_str()) {
+                            out.push_str(&format!("  Tasks in `{}`:\n", line.plan_path));
+                            current_plan = Some(line.plan_path.as_str());
+                        }
+                        let mark = match line.status {
+                            "in_progress" => ">",
+                            "blocked" => "!",
+                            "completed" => "x",
+                            "cancelled" => "-",
+                            _ => " ",
+                        };
+                        out.push_str(&format!(
+                            "    - [{}] `{}` - {}\n",
+                            mark, line.id, line.title
+                        ));
+                    }
                 }
             }
         }
@@ -239,6 +357,8 @@ pub fn preview_handoff_excerpt(
         images: images_meta,
         include_memory: true,
         include_images,
+        include_plans: true,
+        include_tasks: true,
         ..Default::default()
     });
     excerpt_handoff_block(&block, HANDOFF_EXCERPT_MAX)
@@ -297,6 +417,8 @@ pub struct HandoffRequest {
     pub context_items: Option<Vec<AgentContextItem>>,
     pub include_memory: bool,
     pub include_images: bool,
+    pub include_plans: bool,
+    pub include_tasks: bool,
     pub instruction: Option<String>,
     pub submit: bool,
 }
@@ -323,14 +445,39 @@ pub async fn perform_handoff(
         context_items,
         include_memory,
         include_images,
+        include_plans,
+        include_tasks,
         instruction,
         submit,
     } = req;
 
-    let context_items = if include_memory {
-        context_items.unwrap_or_else(|| wb.agent_context_for_workspace_untracked(workspace_id))
+    // Pull workspace-attached context once. We keep plan items separate from
+    // memory-style items so the kind filters can be respected.
+    let attached = context_items
+        .unwrap_or_else(|| wb.agent_context_for_workspace_untracked(workspace_id));
+    let mut effective_items: Vec<AgentContextItem> = Vec::new();
+    for item in attached {
+        let is_plan = matches!(
+            item.kind,
+            AgentContextKind::PlanIndex
+                | AgentContextKind::PlanFile
+                | AgentContextKind::PlanTaskGroup
+        );
+        if is_plan {
+            if include_plans {
+                effective_items.push(item);
+            }
+        } else if include_memory {
+            effective_items.push(item);
+        }
+    }
+    let context_items = effective_items;
+
+    // Plan task summary lines come from the snapshot when include_tasks.
+    let (plan_task_summary, plan_task_lines) = if include_tasks {
+        build_plan_task_snapshot(&wb, workspace_id, &context_items)
     } else {
-        Vec::new()
+        (Vec::new(), Vec::new())
     };
 
     let images_full: Vec<WorkspaceAgentImage> = if include_images {
@@ -394,8 +541,12 @@ pub async fn perform_handoff(
         instruction,
         include_memory,
         include_images,
+        include_plans,
+        include_tasks,
         manifest_path: export_report.as_ref().map(|r| r.manifest_path.clone()),
         images_dir: export_report.as_ref().map(|r| r.dir.clone()),
+        plan_task_summary,
+        plan_task_lines,
     };
 
     let block = render_agent_context_block(&inputs);
@@ -475,6 +626,8 @@ pub fn HandoffMenu(
             context_items,
             include_memory: true,
             include_images: path.is_none(),
+            include_plans: true,
+            include_tasks: true,
             instruction: None,
             submit: true,
         };
@@ -647,6 +800,135 @@ fn context_now_ms() -> i64 {
     }
 }
 
+use crate::agent_wire::{AgentTask, TaskSnapshot, TaskStatus};
+use crate::tauri_bridge::tasks_list;
+
+/// Read the task snapshot and produce per-plan summary + line items used
+/// when rendering the "Attached plans / tasks" handoff section.
+fn build_plan_task_snapshot(
+    wb: &WorkbenchService,
+    workspace_id: u64,
+    context_items: &[AgentContextItem],
+) -> (Vec<PlanTaskSummaryLine>, Vec<PlanTaskLine>) {
+    let _ = wb;
+    let _ = workspace_id;
+    let Some(cwd) = wb.default_workspace_cwd() else {
+        return (Vec::new(), Vec::new());
+    };
+    // Snapshot read is synchronous via Tauri; we cannot block here, so we
+    // schedule the read for the next call. As a pragmatic synchronous
+    // alternative, we accept that the very first handoff in a session may
+    // miss plan tasks unless the panel has been opened. The Plans panel
+    // primes the snapshot on workspace activation.
+    let snapshot = match cached_task_snapshot(workspace_id) {
+        Some(s) => s,
+        None => {
+            // Best-effort: schedule a refresh so the next call has data.
+            let cwd_clone = cwd.clone();
+            let workspace_id_clone = workspace_id;
+            leptos::task::spawn_local(async move {
+                if let Ok(snap) = tasks_list(cwd_clone).await {
+                    store_task_snapshot(workspace_id_clone, snap);
+                }
+            });
+            return (Vec::new(), Vec::new());
+        }
+    };
+
+    let attached_plans: std::collections::HashSet<String> = context_items
+        .iter()
+        .filter(|i| {
+            matches!(
+                i.kind,
+                AgentContextKind::PlanFile | AgentContextKind::PlanTaskGroup
+            )
+        })
+        .flat_map(|i| {
+            if i.paths.is_empty() {
+                vec![i.source.clone()]
+            } else {
+                i.paths.clone()
+            }
+        })
+        .collect();
+
+    let mut buckets: std::collections::BTreeMap<String, Vec<AgentTask>> = Default::default();
+    for task in &snapshot.tasks {
+        if let Some(path) = task.plan_path.as_deref() {
+            if attached_plans.is_empty() || attached_plans.contains(path) {
+                buckets.entry(path.to_owned()).or_default().push(task.clone());
+            }
+        }
+    }
+
+    let mut summaries = Vec::new();
+    let mut lines = Vec::new();
+    for (path, tasks) in buckets {
+        let label = context_items
+            .iter()
+            .find(|i| {
+                matches!(
+                    i.kind,
+                    AgentContextKind::PlanFile | AgentContextKind::PlanTaskGroup
+                ) && i.paths.iter().any(|p| p == &path)
+            })
+            .map(|i| i.label.clone())
+            .unwrap_or_else(|| path.clone());
+
+        let mut summary = PlanTaskSummaryLine {
+            plan_path: path.clone(),
+            plan_label: label,
+            total: tasks.len() as u32,
+            ..Default::default()
+        };
+        for t in &tasks {
+            match t.status {
+                TaskStatus::Pending => summary.pending += 1,
+                TaskStatus::InProgress => {
+                    summary.in_progress += 1;
+                    summary.active_task_title = Some(t.title.clone());
+                }
+                TaskStatus::Blocked => summary.blocked += 1,
+                TaskStatus::Completed => summary.completed += 1,
+                TaskStatus::Cancelled => summary.cancelled += 1,
+            }
+            let status = match t.status {
+                TaskStatus::Pending => "pending",
+                TaskStatus::InProgress => "in_progress",
+                TaskStatus::Blocked => "blocked",
+                TaskStatus::Completed => "completed",
+                TaskStatus::Cancelled => "cancelled",
+            };
+            lines.push(PlanTaskLine {
+                plan_path: path.clone(),
+                status,
+                id: t.plan_task_id.clone().unwrap_or_else(|| t.id.clone()),
+                title: t.title.clone(),
+            });
+        }
+        summaries.push(summary);
+    }
+    (summaries, lines)
+}
+
+// A tiny per-workspace task snapshot cache keyed by workspace_id, populated
+// from the Plans/Agent panels when they refresh their data. Lets the
+// (synchronous) handoff renderer surface plan tasks without blocking on IPC.
+thread_local! {
+    static TASK_SNAPSHOT_CACHE: std::cell::RefCell<std::collections::HashMap<u64, TaskSnapshot>> =
+        std::cell::RefCell::new(std::collections::HashMap::new());
+}
+
+pub fn store_task_snapshot(workspace_id: u64, snapshot: TaskSnapshot) {
+    TASK_SNAPSHOT_CACHE.with(|c| {
+        c.borrow_mut().insert(workspace_id, snapshot);
+    });
+}
+
+fn cached_task_snapshot(workspace_id: u64) -> Option<TaskSnapshot> {
+    TASK_SNAPSHOT_CACHE.with(|c| c.borrow().get(&workspace_id).cloned())
+}
+
 /// Build a one-shot `AgentContextItem` representing a single memory or
 /// learnings note path. Used by the graph preview "send to terminal" button.
 #[must_use]
@@ -773,6 +1055,80 @@ mod tests {
         assert_eq!(item.label, "Chat Pal");
         assert_eq!(item.source, "## Attached memory · (none)");
         assert_eq!(item.id, "terminal-slot:3");
+    }
+
+    #[test]
+    fn renders_plans_section() {
+        let plan_item = AgentContextItem {
+            id: "plan-file:plan-manager.md".into(),
+            kind: AgentContextKind::PlanFile,
+            label: "Plan Manager".into(),
+            source: "plan-manager.md".into(),
+            paths: vec!["plan-manager.md".into()],
+            added_at: 0,
+        };
+        let inputs = RenderInputs {
+            workspace_root: Some("/repo".into()),
+            include_memory: false,
+            include_images: false,
+            include_plans: true,
+            include_tasks: true,
+            context_items: vec![plan_item],
+            plan_task_summary: vec![PlanTaskSummaryLine {
+                plan_path: "plan-manager.md".into(),
+                plan_label: "Plan Manager".into(),
+                total: 2,
+                pending: 1,
+                completed: 1,
+                active_task_title: None,
+                ..Default::default()
+            }],
+            plan_task_lines: vec![
+                PlanTaskLine {
+                    plan_path: "plan-manager.md".into(),
+                    status: "pending",
+                    id: "t-1".into(),
+                    title: "Draft schema".into(),
+                },
+                PlanTaskLine {
+                    plan_path: "plan-manager.md".into(),
+                    status: "completed",
+                    id: "t-2".into(),
+                    title: "Land backend".into(),
+                },
+            ],
+            ..Default::default()
+        };
+        let out = render_agent_context_block(&inputs);
+        assert!(out.contains("## Attached plans / tasks"));
+        assert!(out.contains("[plan] Plan Manager"));
+        assert!(out.contains("`plan-manager.md`"));
+        assert!(out.contains("pending 1"));
+        assert!(out.contains("completed 1"));
+        assert!(out.contains("- [ ] `t-1` - Draft schema"));
+        assert!(out.contains("- [x] `t-2` - Land backend"));
+    }
+
+    #[test]
+    fn renders_plans_only_when_include_kinds_request() {
+        let plan_item = AgentContextItem {
+            id: "plan-file:p.md".into(),
+            kind: AgentContextKind::PlanFile,
+            label: "P".into(),
+            source: "p.md".into(),
+            paths: vec!["p.md".into()],
+            added_at: 0,
+        };
+        let inputs = RenderInputs {
+            include_memory: false,
+            include_images: false,
+            include_plans: false,
+            include_tasks: false,
+            context_items: vec![plan_item],
+            ..Default::default()
+        };
+        let out = render_agent_context_block(&inputs);
+        assert!(!out.contains("## Attached plans"));
     }
 
     #[test]

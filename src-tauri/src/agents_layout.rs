@@ -6,12 +6,30 @@ use std::path::{Path, PathBuf};
 pub const AGENTS_REL: &str = ".agents";
 pub const MEMORY_REL: &str = ".agents/memory";
 pub const LEARNINGS_REL: &str = ".agents/learnings";
+pub const PLANS_REL: &str = ".agents/plans";
 pub const LEGACY_MEMORY_REL: &str = ".blxcode/memory";
 pub const LEARNINGS_API_PREFIX: &str = "learnings/";
+pub const PLANS_INDEX: &str = "PLANS.md";
 const TEMPLATES_DIRNAME: &str = "_templates";
 
 const LEARNINGS_INDEX: &str = "LEARNINGS.md";
 const LEARNINGS_INDEX_TYPO: &str = "LEARNIGS.md";
+
+const PLANS_SEED: &str = r#"# Plans
+
+This directory holds durable Markdown plans for AI coding agents working on
+this repository. Each plan lives in its own Markdown file under
+`.agents/plans/`. Plans are the structured Markdown counterpart to the
+short-lived task list — they are checked into git and survive across
+sessions.
+
+Keep this file as the overview and index. Reference each plan with a
+relative Markdown link, one line per plan.
+
+## Index
+
+_(Add plans here as `[Short title](plan-filename.md)` — one line per plan.)_
+"#;
 
 const LEARNINGS_SEED: &str = r#"# Learnings
 
@@ -31,6 +49,7 @@ _(Add learnings here as `[[learnings/topic-filename|Short title]]` — one line 
 pub struct WorkspaceRoots {
     pub memory: PathBuf,
     pub learnings: PathBuf,
+    pub plans: PathBuf,
 }
 
 pub fn validate_workspace_cwd(ws: &str) -> Result<PathBuf, String> {
@@ -54,19 +73,34 @@ pub fn ensure_agents_layout(ws: &str) -> Result<WorkspaceRoots, String> {
     let agents = ws_path.join(AGENTS_REL);
     let memory = ws_path.join(MEMORY_REL);
     let learnings = ws_path.join(LEARNINGS_REL);
+    let plans = ws_path.join(PLANS_REL);
     let templates = memory.join(TEMPLATES_DIRNAME);
 
     fs::create_dir_all(&agents).map_err(|e| format!("create {AGENTS_REL}: {e}"))?;
     fs::create_dir_all(&memory).map_err(|e| format!("create {MEMORY_REL}: {e}"))?;
     fs::create_dir_all(&templates).map_err(|e| format!("create templates: {e}"))?;
     fs::create_dir_all(&learnings).map_err(|e| format!("create {LEARNINGS_REL}: {e}"))?;
+    fs::create_dir_all(&plans).map_err(|e| format!("create {PLANS_REL}: {e}"))?;
 
     migrate_legacy_memory(&ws_path, &memory)?;
     seed_learnings_index_if_empty(&learnings)?;
     fix_learnings_index_typo(&learnings)?;
     upgrade_learnings_graph_links(&learnings)?;
+    seed_plans_index_if_missing(&plans)?;
 
-    Ok(WorkspaceRoots { memory, learnings })
+    Ok(WorkspaceRoots {
+        memory,
+        learnings,
+        plans,
+    })
+}
+
+fn seed_plans_index_if_missing(plans: &Path) -> Result<(), String> {
+    let index = plans.join(PLANS_INDEX);
+    if index.exists() {
+        return Ok(());
+    }
+    fs::write(&index, PLANS_SEED.as_bytes()).map_err(|e| format!("write {PLANS_INDEX}: {e}"))
 }
 
 fn dir_has_any_md(dir: &Path) -> bool {

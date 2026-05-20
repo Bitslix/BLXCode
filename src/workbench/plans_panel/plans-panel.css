@@ -1,0 +1,272 @@
+.workbench-plans {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    color: var(--blx-fg);
+}
+
+.workbench-plans__error {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.4rem 0.6rem;
+    background: rgba(248, 113, 113, 0.08);
+    border-bottom: 1px solid rgba(248, 113, 113, 0.25);
+    font-size: 0.78rem;
+    color: #f87171;
+}
+
+.workbench-plans__error-dismiss {
+    background: transparent;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0 0.2rem;
+}
+
+.workbench-plans__placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 2rem 1rem;
+    text-align: center;
+    color: var(--blx-fg-muted);
+}
+
+.workbench-plans__placeholder-title {
+    font-weight: 600;
+    margin: 0;
+}
+
+.workbench-plans__placeholder-lead {
+    margin: 0;
+    font-size: 0.85rem;
+}
+
+.workbench-plans-manage {
+    display: grid;
+    grid-template-columns: minmax(220px, 32%) 1fr;
+    min-height: 0;
+    flex: 1 1 auto;
+    height: 100%;
+}
+
+.workbench-plans-manage__tree {
+    border-right: 1px solid var(--blx-border-subtle, #2c2f36);
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.workbench-plans-manage__new {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.4rem;
+    border-bottom: 1px solid var(--blx-border-subtle, #2c2f36);
+}
+
+.workbench-plans-manage__new-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    background: var(--blx-bg-elev, #1e2128);
+    border: 1px solid var(--blx-border-subtle, #2c2f36);
+    border-radius: 4px;
+    color: var(--blx-fg);
+    padding: 0.25rem 0.4rem;
+    font-size: 0.8rem;
+}
+
+.workbench-plans-manage__new-btn,
+.workbench-plans-manage__refresh {
+    background: transparent;
+    border: 1px solid var(--blx-border-subtle, #2c2f36);
+    border-radius: 4px;
+    color: var(--blx-fg);
+    cursor: pointer;
+    padding: 0.2rem 0.45rem;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.workbench-plans-manage__list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    overflow-y: auto;
+    flex: 1 1 auto;
+}
+
+.workbench-plans-manage__row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.3rem 0.45rem;
+    border-bottom: 1px dashed var(--blx-border-subtle, #2c2f36);
+    font-size: 0.82rem;
+}
+
+.workbench-plans-manage__row--active {
+    background: rgba(125, 211, 252, 0.08);
+}
+
+.workbench-plans-manage__row--index .workbench-plans-manage__row-title::before {
+    content: "📑 ";
+}
+
+.workbench-plans-manage__row-main {
+    background: transparent;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    padding: 0;
+}
+
+.workbench-plans-manage__row-title {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.workbench-plans-manage__row-summary {
+    color: var(--blx-fg-muted);
+    font-size: 0.7rem;
+    font-family: var(--blx-font-mono, monospace);
+}
+
+.workbench-plans-manage__row-action {
+    background: transparent;
+    border: 0;
+    color: var(--blx-fg-muted);
+    cursor: pointer;
+    padding: 0.2rem;
+    border-radius: 3px;
+}
+
+.workbench-plans-manage__row-action:hover {
+    color: var(--blx-fg);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.workbench-plans-manage__rename {
+    grid-column: 1 / -1;
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+    padding-top: 0.25rem;
+}
+
+.workbench-plans-manage__rename-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    background: var(--blx-bg-elev, #1e2128);
+    border: 1px solid var(--blx-border-subtle, #2c2f36);
+    border-radius: 3px;
+    color: var(--blx-fg);
+    padding: 0.2rem 0.35rem;
+    font-size: 0.78rem;
+}
+
+.workbench-plans-manage__rename-btn {
+    background: transparent;
+    border: 1px solid var(--blx-border-subtle, #2c2f36);
+    border-radius: 3px;
+    color: inherit;
+    cursor: pointer;
+    padding: 0.15rem 0.4rem;
+    font-size: 0.78rem;
+}
+
+.workbench-plans-manage__editor {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.workbench-plans-manage__editor-empty {
+    margin: auto;
+    color: var(--blx-fg-muted);
+    font-size: 0.9rem;
+    padding: 1rem;
+}
+
+.workbench-plans-manage__toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.5rem;
+    border-bottom: 1px solid var(--blx-border-subtle, #2c2f36);
+    font-size: 0.78rem;
+}
+
+.workbench-plans-manage__path {
+    color: var(--blx-fg-muted);
+    font-family: var(--blx-font-mono, monospace);
+}
+
+.workbench-plans-manage__protected {
+    color: #fbbf24;
+    font-size: 0.72rem;
+}
+
+.workbench-plans-manage__spacer {
+    flex: 1 1 auto;
+}
+
+.workbench-plans-manage__btn {
+    background: transparent;
+    border: 1px solid var(--blx-border-subtle, #2c2f36);
+    border-radius: 4px;
+    color: var(--blx-fg);
+    cursor: pointer;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.78rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.workbench-plans-manage__btn--primary {
+    background: rgba(125, 211, 252, 0.12);
+    border-color: rgba(125, 211, 252, 0.4);
+}
+
+.workbench-plans-manage__btn--primary:hover {
+    background: rgba(125, 211, 252, 0.22);
+}
+
+.workbench-plans-manage__textarea {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    background: var(--blx-bg-elev, #1e2128);
+    color: var(--blx-fg);
+    border: 0;
+    padding: 0.6rem 0.8rem;
+    font-family: var(--blx-font-mono, monospace);
+    font-size: 0.85rem;
+    resize: none;
+    outline: none;
+}
+
+.workbench-plans-manage__preview {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 0.6rem 0.8rem;
+}

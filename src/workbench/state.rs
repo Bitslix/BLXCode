@@ -419,6 +419,7 @@ fn rewrite_sessions_terminals_json(raw: &str, old_key: &str, new_key: &str) -> S
 pub enum RightPanelTab {
     Agent,
     Browser,
+    Plans,
     Memory,
     Rules,
     Skills,

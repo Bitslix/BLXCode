@@ -66,8 +66,25 @@ pub enum I18nKey {
     TabAgent,
     TabBrowser,
     TabMemory,
+    TabPlans,
     TabRules,
     TabSkills,
+
+    // Plans panel
+    PlansEmptyTitle,
+    PlansEmptyLead,
+    PlansNewPlan,
+    PlansNewPlanPh,
+    PlansRename,
+    PlansDelete,
+    PlansSelectPlan,
+    PlansEdit,
+    PlansPreview,
+    PlansLoadIntoAgent,
+    PlansLoaded,
+    PlansRefresh,
+    PlansTaskSummary,
+    PlansProtectedIndex,
 
     // Skills & Rules panel
     SrRulesEmpty,

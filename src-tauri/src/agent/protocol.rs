@@ -26,6 +26,12 @@ pub enum AgentContextKind {
     MemoryNote,
     LearningNote,
     TerminalSession,
+    /// Aggregate pointer to `PLANS.md` (plans index).
+    PlanIndex,
+    /// One specific plan Markdown file in `.agents/plans/`.
+    PlanFile,
+    /// Plan-linked task subset (no on-disk file).
+    PlanTaskGroup,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
