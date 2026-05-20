@@ -1,7 +1,9 @@
-//! Befehlspalette (`Ctrl+Shift+P`) und Harness‑Einstellungen (kategorisiert).
+//! Befehlspalette und Harness‑Einstellungen (kategorisiert).
 //!
-//! Shortcut ist im Haupt-Webview gebunden ([`HarnessHost`]).
-use super::app_prefs::AppPrefsService;
+//! Tastenkürzel (tmux-Standard: `Ctrl+b` + zweite Taste; Legacy in App-Einstellungen)
+//! sind im Haupt-Webview gebunden ([`HarnessHost`] → [`super::harness_chords`]).
+use super::app_prefs::{AppPrefsService, ShortcutMode};
+use super::harness_chords::handle_harness_keydown;
 use super::browser_tab::sync_embedded_browser_layer;
 use super::state::{
     workspace_entry_has_folder, BrowserEmbedSurface, HarnessSettingsCategory, HarnessUiService,
@@ -97,81 +99,14 @@ pub fn HarnessHost() -> impl IntoView {
     let ui = expect_context::<HarnessUiService>();
     let wb = expect_context::<WorkbenchService>();
     let embed = expect_context::<BrowserEmbedSurface>();
+    let prefs = expect_context::<AppPrefsService>();
 
     Effect::new(move |_| {
         let handle = window_event_listener_untyped("keydown", move |ev| {
             let Ok(ke) = ev.dyn_into::<web_sys::KeyboardEvent>() else {
                 return;
             };
-
-            let blocked = ui.palette_open().get_untracked()
-                || ui.settings_open().get_untracked()
-                || ui.quick_open_open().get_untracked();
-            let ctrl_or_meta = ke.ctrl_key() || ke.meta_key();
-            let key = ke.key();
-            // Physical key (US QWERTY position); helps when `key` is a dead key / layout symbol.
-            let code = ke.code();
-
-            if ctrl_or_meta && ke.shift_key() {
-                match key.as_str() {
-                    "p" | "P" => {
-                        ke.prevent_default();
-                        ui.toggle_command_palette();
-                        return;
-                    }
-                    "a" | "A" | "b" | "B" | "m" | "M" if !blocked => {
-                        ke.prevent_default();
-                        let tab = match key.as_str() {
-                            "a" | "A" => RightPanelTab::Agent,
-                            "b" | "B" => RightPanelTab::Browser,
-                            "m" | "M" => RightPanelTab::Memory,
-                            _ => return,
-                        };
-                        if wb.right_collapsed().get_untracked() {
-                            wb.toggle_right_panel();
-                        }
-                        wb.set_right_tab(tab);
-                        defer_browser_bounds(wb, embed);
-                        return;
-                    }
-                    _ => {}
-                }
-            }
-
-            if ctrl_or_meta && !ke.shift_key() && !blocked {
-                let open_agent_tab =
-                    matches!(key.as_str(), "`" | "Backquote") || code.as_str() == "Backquote";
-                if open_agent_tab {
-                    ke.prevent_default();
-                    if wb.right_collapsed().get_untracked() {
-                        wb.toggle_right_panel();
-                    }
-                    wb.set_right_tab(RightPanelTab::Agent);
-                    defer_browser_bounds(wb, embed);
-                    return;
-                }
-                match key.as_str() {
-                    "p" | "P" => {
-                        ke.prevent_default();
-                        wb.toggle_right_panel();
-                        defer_browser_bounds(wb, embed);
-                        return;
-                    }
-                    "o" | "O" => {
-                        ke.prevent_default();
-                        ui.toggle_quick_open();
-                        return;
-                    }
-                    _ => {}
-                }
-            }
-
-            if blocked && key.as_str() == "Escape" {
-                ke.prevent_default();
-                ui.close_command_palette();
-                ui.close_settings();
-                ui.close_quick_open();
-            }
+            let _ = handle_harness_keydown(&ke, prefs, ui, wb, embed);
         });
 
         on_cleanup(move || handle.remove());
@@ -1116,6 +1051,7 @@ fn LocalePicker() -> impl IntoView {
 fn AppSettingsPane() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let prefs = expect_context::<AppPrefsService>();
+    let ui = expect_context::<HarnessUiService>();
     view! {
         <article class="harness-pane">
             <h3 class="harness-pane-title">
@@ -1147,6 +1083,41 @@ fn AppSettingsPane() -> impl IntoView {
                 </span>
                 <LocalePicker />
             </label>
+            <section class="harness-subpane">
+                <h4 class="harness-pane-subhead">
+                    <span class="harness-pane-subhead__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuKeyboard width="0.82rem" height="0.82rem" />
+                    </span>
+                    <span>{move || i18n.tr(I18nKey::AppShortcutHeading)()}</span>
+                </h4>
+                <fieldset class="app-prefs-shortcut-modes">
+                    <label class="app-prefs-radio">
+                        <input
+                            type="radio"
+                            name="shortcut-mode"
+                            prop:checked=move || prefs.shortcut_mode().get() == ShortcutMode::Tmux
+                            on:change=move |_| {
+                                prefs.set_shortcut_mode(ShortcutMode::Tmux);
+                                ui.clear_prefix();
+                            }
+                        />
+                        <span>{move || i18n.tr(I18nKey::AppShortcutModeTmux)()}</span>
+                    </label>
+                    <label class="app-prefs-radio">
+                        <input
+                            type="radio"
+                            name="shortcut-mode"
+                            prop:checked=move || prefs.shortcut_mode().get() == ShortcutMode::Legacy
+                            on:change=move |_| {
+                                prefs.set_shortcut_mode(ShortcutMode::Legacy);
+                                ui.clear_prefix();
+                            }
+                        />
+                        <span>{move || i18n.tr(I18nKey::AppShortcutModeLegacy)()}</span>
+                    </label>
+                </fieldset>
+                <p class="app-prefs-hint">{move || i18n.tr(I18nKey::AppShortcutModeHint)()}</p>
+            </section>
             <section class="harness-subpane">
                 <h4 class="harness-pane-subhead">
                     <span class="harness-pane-subhead__icon" aria-hidden="true">

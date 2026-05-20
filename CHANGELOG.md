@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Tmux-style keyboard shortcuts** (default): prefix `Ctrl+b`, then a second key — `o` quick open, `p` toggle right panel, `a` / `b` / `m` agent / browser / memory tabs, `n` new terminal slot (active workspace only), `:` command palette. Prefix times out after 1.5 s; `Esc` cancels an armed prefix.
+- **Classic (legacy) shortcut mode**: restores direct chords (`Ctrl+O`, `Ctrl+P`, `Ctrl+Shift+A/B/M/P`, `` Ctrl+` `` new terminal, `Ctrl+Shift+P` palette). Selectable in **BLXCode Settings → App → Keyboard shortcuts**; persisted as `blxcode_shortcut_mode_v1` (`tmux` | `legacy`, default `tmux`).
+- Frontend module `harness_chords` (`handle_harness_keydown`, `dispatch_shortcut_action`, `open_new_terminal`, `ShortcutKeys` display helpers) wired from `HarnessHost`; welcome-screen shortcut list reflects the active mode (`Ctrl+b` **then** key vs. combined keys).
+- i18n: `WsKwThen`, `AppShortcutHeading`, `AppShortcutModeTmux`, `AppShortcutModeLegacy`, `AppShortcutModeHint` — added to all 14 locales (German fully translated for shortcut settings).
 - Success **toasts** for terminal/memory handoff actions: a lightweight toast stack (bottom-right) confirms when context is sent to a terminal or attached to the BLXCode Agent; errors always show an error toast regardless of the success-toast toggle.
 - Optional **success sound** on handoff (short Web Audio beep, same timbre as terminal-hook notifications) — independent of the toast toggle.
 - **BLXCode Settings → App → Notifications**: checkboxes to enable/disable success toasts and success sounds (`blxcode_success_toast_v1` / `blxcode_success_sound_v1` in `localStorage`, default on).
@@ -17,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `` Ctrl+` `` (legacy) and **Ctrl+b** `n` (tmux) now open a **new terminal slot** via `append_terminal_slot` and focus it — no longer only reveal the Agent tab.
+- In tmux mode, `Ctrl+b` is not intercepted while a workspace terminal has focus (PTY/shell keeps the prefix).
 - Handoff feedback is **centralized in `HandoffMenu`**: Graph preview no longer shows an inline green/red status strip under the titlebar; the terminal titlebar handoff button no longer flips to check/alert icons — both rely on global toasts (+ optional sound) instead.
 - `note_context_item` and workspace Memory-category attach now set `added_at` from `Date::now()` (consistent with the Memory panel context menu).
 

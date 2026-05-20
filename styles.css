@@ -1075,6 +1075,35 @@ button.workbench-shortcut-row--action:focus-visible {
   user-select: none;
 }
 
+.workbench-kbd-chord-gap {
+  color: var(--text-faint);
+  font-size: 0.68rem;
+  padding: 0 0.2rem;
+  user-select: none;
+}
+
+.app-prefs-shortcut-modes {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.app-prefs-radio {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  cursor: pointer;
+  font-size: 0.88rem;
+  color: rgba(218, 221, 232, 0.9);
+}
+
+.app-prefs-radio input {
+  accent-color: var(--accent);
+}
+
 .workbench-right-slot {
   display: flex;
   flex-direction: row;

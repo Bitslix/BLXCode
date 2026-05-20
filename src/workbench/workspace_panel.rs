@@ -2,6 +2,10 @@ use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
 use crate::workbench::browser_tab::sync_embedded_browser_layer;
 use crate::workbench::create_workspace_wizard::WorkspaceConfigurator;
+use crate::workbench::app_prefs::AppPrefsService;
+use crate::workbench::harness_chords::{
+    dispatch_shortcut_action, HarnessShortcutAction, ShortcutKeys,
+};
 use crate::workbench::state::{
     workspace_entry_has_folder, BrowserEmbedSurface, HarnessUiService, RightPanelTab,
     TerminalSplitAxis, WorkspaceEntry,
@@ -381,20 +385,10 @@ fn WorkspaceEmptyState() -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let ui = expect_context::<HarnessUiService>();
     let embed = expect_context::<BrowserEmbedSurface>();
+    let prefs = expect_context::<AppPrefsService>();
     let i18n = expect_context::<I18nService>();
 
-    let reveal_agent = Callback::new(move |()| {
-        if wb.right_collapsed().get_untracked() {
-            wb.toggle_right_panel();
-        }
-        wb.set_right_tab(RightPanelTab::Agent);
-        let wb_c = wb;
-        let embed_c = embed;
-        leptos::task::spawn_local(async move {
-            TimeoutFuture::new(48).await;
-            let _ = sync_embedded_browser_layer(wb_c, embed_c).await;
-        });
-    });
+    let shortcut_mode = move || prefs.shortcut_mode().get();
 
     view! {
         <div class="workbench-empty-editor">
@@ -490,105 +484,134 @@ fn WorkspaceEmptyState() -> impl IntoView {
                 <ShortcutActionRow
                     icon=icondata::LuFolderSearch
                     label=I18nKey::WsKwQuickOpen
-                    keys=vec!["Ctrl", "O"]
-                    on_activate=Callback::new({
-                        let ui = ui;
-                        move |()| ui.open_quick_open()
-                    })
+                    keys=move || ShortcutKeys::quick_open(shortcut_mode())
+                    on_activate=shortcut_cb(
+                        HarnessShortcutAction::OpenQuickOpen,
+                        ui,
+                        wb,
+                        embed,
+                    )
                 />
                 <ShortcutActionRow
                     icon=icondata::LuPanelRight
                     label=I18nKey::WsKwSidePanel
-                    keys=vec!["Ctrl", "P"]
-                    on_activate=Callback::new({
-                        let wb = wb;
-                        let embed = embed;
-                        move |()| {
-                            wb.toggle_right_panel();
-                            let wb_c = wb;
-                            let embed_c = embed;
-                            leptos::task::spawn_local(async move {
-                                TimeoutFuture::new(48).await;
-                                let _ = sync_embedded_browser_layer(wb_c, embed_c).await;
-                            });
-                        }
-                    })
+                    keys=move || ShortcutKeys::side_panel(shortcut_mode())
+                    on_activate=shortcut_cb(
+                        HarnessShortcutAction::ToggleRightPanel,
+                        ui,
+                        wb,
+                        embed,
+                    )
                 />
                 <li class="workbench-shortcut-row workbench-shortcut-row--spacer" aria-hidden="true"></li>
                 <ShortcutActionRow
                     icon=icondata::LuSparkles
                     label=I18nKey::WsKwAgent
-                    keys=vec!["Ctrl", "Shift", "A"]
-                    on_activate=reveal_agent
+                    keys=move || ShortcutKeys::agent(shortcut_mode())
+                    on_activate=shortcut_cb(
+                        HarnessShortcutAction::RightTab(RightPanelTab::Agent),
+                        ui,
+                        wb,
+                        embed,
+                    )
                 />
                 <ShortcutActionRow
                     icon=icondata::LuGlobe
                     label=I18nKey::WsKwBrowser
-                    keys=vec!["Ctrl", "Shift", "B"]
-                    on_activate=Callback::new({
-                        let wb = wb;
-                        let embed = embed;
-                        move |()| {
-                            if wb.right_collapsed().get_untracked() {
-                                wb.toggle_right_panel();
-                            }
-                            wb.set_right_tab(RightPanelTab::Browser);
-                            let wb_c = wb;
-                            let embed_c = embed;
-                            leptos::task::spawn_local(async move {
-                                TimeoutFuture::new(48).await;
-                                let _ = sync_embedded_browser_layer(wb_c, embed_c).await;
-                            });
-                        }
-                    })
+                    keys=move || ShortcutKeys::browser(shortcut_mode())
+                    on_activate=shortcut_cb(
+                        HarnessShortcutAction::RightTab(RightPanelTab::Browser),
+                        ui,
+                        wb,
+                        embed,
+                    )
                 />
                 <ShortcutActionRow
                     icon=icondata::LuLayers
                     label=I18nKey::WsKwMemory
-                    keys=vec!["Ctrl", "Shift", "M"]
-                    on_activate=Callback::new({
-                        let wb = wb;
-                        let embed = embed;
-                        move |()| {
-                            if wb.right_collapsed().get_untracked() {
-                                wb.toggle_right_panel();
-                            }
-                            wb.set_right_tab(RightPanelTab::Memory);
-                            let wb_c = wb;
-                            let embed_c = embed;
-                            leptos::task::spawn_local(async move {
-                                TimeoutFuture::new(48).await;
-                                let _ = sync_embedded_browser_layer(wb_c, embed_c).await;
-                            });
-                        }
-                    })
+                    keys=move || ShortcutKeys::memory(shortcut_mode())
+                    on_activate=shortcut_cb(
+                        HarnessShortcutAction::RightTab(RightPanelTab::Memory),
+                        ui,
+                        wb,
+                        embed,
+                    )
                 />
                 <li class="workbench-shortcut-row workbench-shortcut-row--spacer" aria-hidden="true"></li>
                 <ShortcutActionRow
                     icon=icondata::LuTerminal
                     label=I18nKey::WsKwTerminal
-                    keys=vec!["Ctrl", "`"]
-                    on_activate=reveal_agent
+                    keys=move || ShortcutKeys::terminal(shortcut_mode())
+                    on_activate=shortcut_cb(
+                        HarnessShortcutAction::OpenNewTerminal,
+                        ui,
+                        wb,
+                        embed,
+                    )
                 />
                 <ShortcutActionRow
                     icon=icondata::LuCommand
                     label=I18nKey::WsKwCmdPalette
-                    keys=vec!["Ctrl", "Shift", "P"]
-                    on_activate=Callback::new({
-                        let ui = ui;
-                        move |()| ui.toggle_command_palette()
-                    })
+                    keys=move || ShortcutKeys::command_palette(shortcut_mode())
+                    on_activate=shortcut_cb(
+                        HarnessShortcutAction::ToggleCommandPalette,
+                        ui,
+                        wb,
+                        embed,
+                    )
                 />
             </ul>
         </div>
     }
 }
 
+fn render_shortcut_keys(keys: ShortcutKeys, i18n: I18nService) -> impl IntoView {
+    match keys {
+        ShortcutKeys::Combo(parts) => view! {
+            {parts
+                .iter()
+                .enumerate()
+                .map(|(i, key)| view! {
+                    <Show when=move || i != 0>
+                        <span class="workbench-kbd-gap">"+"</span>
+                    </Show>
+                    <kbd class="workbench-kbd">{*key}</kbd>
+                })
+                .collect_view()}
+        }
+        .into_any(),
+        ShortcutKeys::Chord { prefix, second } => view! {
+            {prefix
+                .iter()
+                .enumerate()
+                .map(|(i, key)| view! {
+                    <Show when=move || i != 0>
+                        <span class="workbench-kbd-gap">"+"</span>
+                    </Show>
+                    <kbd class="workbench-kbd">{*key}</kbd>
+                })
+                .collect_view()}
+            <span class="workbench-kbd-chord-gap">{move || i18n.tr(I18nKey::WsKwThen)()}</span>
+            <kbd class="workbench-kbd">{second}</kbd>
+        }
+        .into_any(),
+    }
+}
+
+fn shortcut_cb(
+    action: HarnessShortcutAction,
+    ui: HarnessUiService,
+    wb: WorkbenchService,
+    embed: BrowserEmbedSurface,
+) -> Callback<(), ()> {
+    Callback::new(move |()| dispatch_shortcut_action(action, ui, wb, embed))
+}
+
 #[component]
 fn ShortcutActionRow(
     icon: icondata::Icon,
     label: I18nKey,
-    keys: Vec<&'static str>,
+    keys: impl Fn() -> ShortcutKeys + Send + Sync + 'static,
     on_activate: Callback<(), ()>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
@@ -606,15 +629,7 @@ fn ShortcutActionRow(
                     <span class="workbench-shortcut-row__label">{move || i18n.tr(label)()}</span>
                 </span>
                 <span class="workbench-shortcut-row__keys">
-                    {keys.into_iter()
-                        .enumerate()
-                        .map(|(i, key)| view! {
-                            <Show when=move || { i > 0 }>
-                                <span class="workbench-kbd-gap">"+"</span>
-                            </Show>
-                            <kbd class="workbench-kbd">{key}</kbd>
-                        })
-                        .collect_view()}
+                    {move || render_shortcut_keys(keys(), i18n).into_any()}
                 </span>
             </button>
         </li>

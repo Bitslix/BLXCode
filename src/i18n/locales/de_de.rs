@@ -7,7 +7,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::Accept => "Annehmen",
         I18nKey::GitignorePromptTitle => ".blxcode zur .gitignore hinzufügen?",
         I18nKey::GitignorePromptBody => {
-            "BLXCode speichert lokale Workspace-Daten (Aufgaben, Sitzungen) im Ordner `.blxcode`. \\\\\nSoll dieser Eintrag in die `.gitignore` dieses Projekts aufgenommen werden, damit er nicht versehentlich committed wird?"
+            "BLXCode speichert lokale Workspace-Daten (Aufgaben, Sitzungen) im Ordner `.blxcode`. \\\\\\\\\nSoll dieser Eintrag in die `.gitignore` dieses Projekts aufgenommen werden, damit er nicht versehentlich committed wird?"
         }
         I18nKey::GitignorePromptYes => "Ja, hinzufügen",
         I18nKey::GitignorePromptNo => "Nicht jetzt",
@@ -27,6 +27,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsKwBrowser => "Browser",
         I18nKey::WsKwMemory => "Gedächtnis",
         I18nKey::WsKwTerminal => "Terminal",
+        I18nKey::WsKwThen => "dann",
         I18nKey::WsResizeTermCols => "Größe der Terminalspalten ändern",
         I18nKey::WsResizeTermRows => "Größe der Anschlusszeilen ändern",
         I18nKey::QkTitle => "Schnell geöffnet",
@@ -130,6 +131,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppNotifToastsHint => "Kurze Bestätigung beim Senden oder Anhängen von Kontext.",
         I18nKey::AppNotifSound => "Erfolgs-Ton abspielen",
         I18nKey::AppNotifSoundHint => "Kurzer Ton bei erfolgreichen Handoff-Aktionen.",
+        I18nKey::AppShortcutHeading => "Tastenkürzel",
+        I18nKey::AppShortcutModeTmux => "Tmux-Stil (Ctrl+b, dann Taste)",
+        I18nKey::AppShortcutModeLegacy => "Klassisch (Ctrl / Ctrl+Shift)",
+        I18nKey::AppShortcutModeHint => {
+            "Tmux: Prefix Ctrl+b, dann zweite Taste (z. B. n für neues Terminal, : für Befehlspalette). \\\nKlassisch: Ctrl+O Schnell öffnen, Ctrl+` neues Terminal, Ctrl+Shift+P Palette."
+        }
         I18nKey::MemShowInGraph => "Im Graph zeigen",
         I18nKey::MemGraph3dLoadFailed => "3D-Grafik konnte nicht geladen werden. 2D-Grafik wird angezeigt.",
         I18nKey::MemSearchPh => "Notizen durchsuchen…",

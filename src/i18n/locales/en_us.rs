@@ -31,6 +31,7 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::WsKwBrowser => "Browser",
         I18nKey::WsKwMemory => "Memory",
         I18nKey::WsKwTerminal => "Terminal",
+        I18nKey::WsKwThen => "then",
         I18nKey::WsResizeTermCols => "Resize terminal columns",
         I18nKey::WsResizeTermRows => "Resize terminal rows",
 
@@ -137,6 +138,13 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::AppNotifToastsHint => "Brief confirmation when context is sent or attached.",
         I18nKey::AppNotifSound => "Play success sound",
         I18nKey::AppNotifSoundHint => "Short tone on successful handoff actions.",
+        I18nKey::AppShortcutHeading => "Keyboard shortcuts",
+        I18nKey::AppShortcutModeTmux => "Tmux style (Ctrl+b, then key)",
+        I18nKey::AppShortcutModeLegacy => "Classic (Ctrl / Ctrl+Shift)",
+        I18nKey::AppShortcutModeHint => {
+            "Tmux: prefix Ctrl+b then a second key (e.g. n for new terminal, : for command palette). \
+Classic: Ctrl+O quick open, Ctrl+` new terminal, Ctrl+Shift+P palette."
+        }
         I18nKey::MemShowInGraph => "Show in graph",
         I18nKey::MemGraph3dLoadFailed => "3D graph could not load. Showing 2D graph.",
         I18nKey::MemSearchPh => "Search notes…",

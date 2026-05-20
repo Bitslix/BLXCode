@@ -428,6 +428,9 @@ pub struct HarnessUiService {
     quick_open_query: RwSignal<String>,
     quick_open_selection: RwSignal<usize>,
     settings_category: RwSignal<HarnessSettingsCategory>,
+    /// Tmux-style prefix (`Ctrl+b`) armed; second key pending.
+    prefix_armed: RwSignal<bool>,
+    prefix_gen: RwSignal<u32>,
 }
 
 impl HarnessUiService {
@@ -442,7 +445,31 @@ impl HarnessUiService {
             quick_open_query: RwSignal::new(String::new()),
             quick_open_selection: RwSignal::new(0),
             settings_category: RwSignal::new(HarnessSettingsCategory::App),
+            prefix_armed: RwSignal::new(false),
+            prefix_gen: RwSignal::new(0),
         }
+    }
+
+    pub fn prefix_armed(&self) -> RwSignal<bool> {
+        self.prefix_armed
+    }
+
+    pub fn arm_prefix(&self) {
+        self.prefix_armed.set(true);
+        let gen = self.prefix_gen.get_untracked().wrapping_add(1);
+        self.prefix_gen.set(gen);
+        let ui = *self;
+        leptos::task::spawn_local(async move {
+            gloo_timers::future::TimeoutFuture::new(1500).await;
+            if ui.prefix_gen.get_untracked() == gen {
+                ui.prefix_armed.set(false);
+            }
+        });
+    }
+
+    pub fn clear_prefix(&self) {
+        self.prefix_armed.set(false);
+        self.prefix_gen.update(|g| *g = g.wrapping_add(1));
     }
 
     #[must_use]
