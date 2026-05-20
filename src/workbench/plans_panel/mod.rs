@@ -492,7 +492,7 @@ fn PlanTaskStatChip(
             title=move || format!("{}: {count}", i18n.tr(label_key)())
         >
             <span class="workbench-plans-manage__task-stat-icon" aria-hidden="true">
-                <LxIcon icon=icon width="1.64rem" height="1.64rem" />
+                <LxIcon icon=icon width="0.8rem" height="0.8rem" />
             </span>
             <span class="workbench-plans-manage__task-stat-count">{count}</span>
         </span>

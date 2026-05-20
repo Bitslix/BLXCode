@@ -7254,10 +7254,7 @@ button {
 }
 
 .workbench-plans-manage__row-summary {
-    color: var(--blx-fg-muted);
-    font-size: 0.72rem;
     line-height: 1.35;
-    font-family: var(--blx-font-mono, monospace);
     overflow-wrap: anywhere;
 }
 
