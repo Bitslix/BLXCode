@@ -4,6 +4,8 @@ mod agent_settings;
 mod agents_layout;
 mod browser_host;
 mod commands;
+mod fs_entries;
+mod git_graph;
 mod git_info;
 mod gitignore;
 mod memory;
@@ -110,6 +112,9 @@ pub fn run() {
             pty_drain_wait,
             pty_peek_output,
             git_branch,
+            git_graph::git_is_repository,
+            git_graph::git_commit_graph,
+            fs_entries::list_path_entries,
             install_agent_hooks,
             agent_hooks_status,
             uninstall_agent_hooks,

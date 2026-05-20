@@ -20,7 +20,40 @@ pub fn current_branch(start: &Path) -> Option<String> {
     }
 }
 
-fn find_git_dir(start: &Path) -> Option<PathBuf> {
+/// Returns true when `start` is inside a Git work tree (`.git` file or directory).
+#[must_use]
+pub fn is_git_repository(start: &Path) -> bool {
+    find_git_dir(start).is_some()
+}
+
+/// Whether the `git` executable runs successfully (`git --version`).
+#[must_use]
+pub fn git_cli_available() -> bool {
+    std::process::Command::new("git")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn is_git_repository_detects_dot_git() {
+        let tmp = std::env::temp_dir().join(format!("blx_git_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        assert!(!is_git_repository(&tmp));
+        fs::create_dir_all(tmp.join(".git")).unwrap();
+        assert!(is_git_repository(&tmp));
+        let _ = fs::remove_dir_all(&tmp);
+    }
+}
+
+pub(crate) fn find_git_dir(start: &Path) -> Option<PathBuf> {
     let mut cur: Option<&Path> = Some(start);
     while let Some(p) = cur {
         let candidate = p.join(".git");

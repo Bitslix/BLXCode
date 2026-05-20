@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Sidebar Explorer & Git graph** (VS Code–style view sections): collapsible panels at the bottom of the left sidebar (above the version footer), with the workspace list scrolling independently above.
+- **Project Explorer** section: lazy file tree for the active workspace `cwd` (directories and files via Tauri `list_path_entries`, sandboxed under the workspace root); refresh and collapse-all toolbar actions; expanded paths and open/collapsed state persisted per workspace.
+- **Git graph** section: commit history with swim-lane SVG layout, ref badges, and author/time metadata from `git_commit_graph` (up to 100 commits, `git log --topo-order`); shown only when `.git` is detected (`git_is_repository`); if Git is not on `PATH`, the section stays visible with an i18n hint (`SbGraphGitMissing`) instead of an empty graph.
+- Reusable Leptos component `SidebarViewSection` (`src/workbench/sidebar_view_section/`) with optional toolbar row (hover-reveal) and persisted `sidebar_explorer_open` / `sidebar_graph_open` on `WorkspaceEntry`.
+- Tauri: `list_path_entries`, `git_is_repository`, `git_commit_graph`; backend modules `fs_entries` and `git_graph` (lane layout unit-tested).
+- i18n: `SbExplorerTitle`, `SbGraphTitle`, `SbSectionExpand`, `SbSectionCollapse`, `SbExplorerRefresh`, `SbExplorerCollapseAll`, `SbGraphRefresh`, `SbExplorerNoCwd`, `SbExplorerTauriOnly`, `SbGraphLoadError`, `SbGraphGitMissing` — added to all 14 locales (German fully translated for sidebar explorer/graph strings).
 - **Tmux-style keyboard shortcuts** (default): prefix `Ctrl+b`, then a second key — `o` quick open, `p` toggle right panel, `a` / `b` / `m` agent / browser / memory tabs, `n` new terminal slot (active workspace only), `:` command palette. Prefix times out after 1.5 s; `Esc` cancels an armed prefix.
 - **Classic (legacy) shortcut mode**: restores direct chords (`Ctrl+O`, `Ctrl+P`, `Ctrl+Shift+A/B/M/P`, `` Ctrl+` `` new terminal, `Ctrl+Shift+P` palette). Selectable in **BLXCode Settings → App → Keyboard shortcuts**; persisted as `blxcode_shortcut_mode_v1` (`tmux` | `legacy`, default `tmux`).
 - Frontend module `harness_chords` (`handle_harness_keydown`, `dispatch_shortcut_action`, `open_new_terminal`, `ShortcutKeys` display helpers) wired from `HarnessHost`; welcome-screen shortcut list reflects the active mode (`Ctrl+b` **then** key vs. combined keys).

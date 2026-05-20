@@ -71,6 +71,19 @@ pub struct WorkspaceEntry {
     /// Display/color/visibility overrides for memory categories in this workspace.
     #[serde(default)]
     pub memory_category_settings: HashMap<String, MemoryCategorySettings>,
+    /// Sidebar explorer section expanded (bottom panel).
+    #[serde(default = "default_sidebar_section_open")]
+    pub sidebar_explorer_open: bool,
+    /// Sidebar git graph section expanded.
+    #[serde(default = "default_sidebar_section_open")]
+    pub sidebar_graph_open: bool,
+    /// Relative paths (from `cwd`) expanded in the project explorer tree.
+    #[serde(default)]
+    pub sidebar_explorer_expanded_paths: Vec<String>,
+}
+
+fn default_sidebar_section_open() -> bool {
+    true
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -212,6 +225,9 @@ impl WorkspaceEntry {
             agent_compose_draft: String::new(),
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
+            sidebar_explorer_open: true,
+            sidebar_graph_open: true,
+            sidebar_explorer_expanded_paths: Vec::new(),
         }
     }
 
@@ -1130,6 +1146,56 @@ impl WorkbenchService {
         (!root.is_empty()).then(|| root.to_string())
     }
 
+    pub fn active_sidebar_explorer_open(&self) -> bool {
+        self.with_active_workspace(|w| w.sidebar_explorer_open)
+            .unwrap_or(true)
+    }
+
+    pub fn set_active_sidebar_explorer_open(&self, open: bool) {
+        self.update_active_workspace(|w| w.sidebar_explorer_open = open);
+    }
+
+    pub fn active_sidebar_graph_open(&self) -> bool {
+        self.with_active_workspace(|w| w.sidebar_graph_open)
+            .unwrap_or(true)
+    }
+
+    pub fn set_active_sidebar_graph_open(&self, open: bool) {
+        self.update_active_workspace(|w| w.sidebar_graph_open = open);
+    }
+
+    pub fn active_sidebar_explorer_expanded_paths(&self) -> Vec<String> {
+        self.with_active_workspace(|w| w.sidebar_explorer_expanded_paths.clone())
+            .unwrap_or_default()
+    }
+
+    pub fn set_active_sidebar_explorer_expanded_paths(&self, paths: Vec<String>) {
+        self.update_active_workspace(|w| w.sidebar_explorer_expanded_paths = paths);
+    }
+
+    #[must_use]
+    pub fn with_active_workspace_entry(&self) -> Option<WorkspaceEntry> {
+        self.with_active_workspace(|w| w.clone())
+    }
+
+    fn with_active_workspace<R>(&self, f: impl FnOnce(&WorkspaceEntry) -> R) -> Option<R> {
+        let id = self.active_id.get_untracked()?;
+        self.workspaces.with_untracked(|ws| {
+            ws.iter().find(|w| w.id == id).map(f)
+        })
+    }
+
+    fn update_active_workspace(&self, f: impl FnOnce(&mut WorkspaceEntry)) {
+        let Some(id) = self.active_id.get_untracked() else {
+            return;
+        };
+        self.workspaces.update(|ws| {
+            if let Some(w) = ws.iter_mut().find(|w| w.id == id) {
+                f(w);
+            }
+        });
+    }
+
     pub fn rename_workspace(&self, id: u64, title: String) {
         let title = title.trim();
         if title.is_empty() {
@@ -1209,6 +1275,9 @@ impl WorkbenchService {
                 agent_compose_draft: String::new(),
                 agent_context_items: Vec::new(),
                 memory_category_settings: HashMap::new(),
+                sidebar_explorer_open: true,
+                sidebar_graph_open: true,
+                sidebar_explorer_expanded_paths: Vec::new(),
             });
         });
         Ok(id)
@@ -1762,6 +1831,9 @@ impl WorkbenchService {
             agent_compose_draft: String::new(),
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
+            sidebar_explorer_open: true,
+            sidebar_graph_open: true,
+            sidebar_explorer_expanded_paths: Vec::new(),
         };
         self.active_id.set(Some(id));
         self.workspaces.update(|v| v.push(entry));

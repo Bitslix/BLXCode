@@ -460,6 +460,33 @@ pub struct DirEntryBrief {
     pub hidden: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FsEntryBrief {
+    pub name: String,
+    pub is_dir: bool,
+    pub hidden: bool,
+}
+
+pub async fn list_path_entries(
+    workspace_root: String,
+    path: String,
+) -> Result<Vec<FsEntryBrief>, String> {
+    #[derive(Serialize)]
+    struct A {
+        workspace_root: String,
+        path: String,
+    }
+    invoke_typed(
+        "list_path_entries",
+        A {
+            workspace_root,
+            path,
+        },
+    )
+    .await
+}
+
 pub async fn list_directory(path: String) -> Result<Vec<DirEntryBrief>, String> {
     #[derive(Serialize)]
     struct A {
@@ -1228,6 +1255,64 @@ pub async fn git_branch(cwd: String) -> Result<Option<String>, String> {
         cwd: String,
     }
     invoke_typed("git_branch", Args { cwd }).await
+}
+
+pub async fn git_is_repository(cwd: String) -> Result<bool, String> {
+    #[derive(Serialize)]
+    struct Args {
+        cwd: String,
+    }
+    invoke_typed("git_is_repository", Args { cwd }).await
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitRefDecoration {
+    pub label: String,
+    pub kind: String,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCommitNode {
+    pub oid: String,
+    pub parents: Vec<String>,
+    pub subject: String,
+    pub author: String,
+    pub rel_time: String,
+    pub decorations: Vec<GitRefDecoration>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitGraphRow {
+    pub oid: String,
+    pub lane: usize,
+    pub lane_color_index: usize,
+    pub continues_up: bool,
+    pub continues_down: bool,
+    pub merge_from_lane: Option<usize>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitGraphLayout {
+    pub commits: Vec<GitCommitNode>,
+    pub rows: Vec<GitGraphRow>,
+}
+
+pub const GIT_MISSING_CODE: &str = "git_missing";
+
+pub async fn git_commit_graph(
+    cwd: String,
+    limit: Option<u32>,
+) -> Result<GitGraphLayout, String> {
+    #[derive(Serialize)]
+    struct Args {
+        cwd: String,
+        limit: Option<u32>,
+    }
+    invoke_typed("git_commit_graph", Args { cwd, limit }).await
 }
 
 pub async fn pty_kill(session_id: u64) -> Result<(), String> {

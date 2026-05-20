@@ -1,8 +1,12 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
+use crate::tauri_bridge::{git_is_repository, is_tauri_shell};
+use crate::workbench::git_graph::GitGraphSection;
+use crate::workbench::project_explorer::ProjectExplorerSection;
 use crate::workbench::WorkbenchService;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
+use leptos::task::spawn_local;
 use wasm_bindgen::JsCast;
 use web_sys::{DragEvent, HtmlInputElement};
 
@@ -42,6 +46,27 @@ pub fn Sidebar() -> impl IntoView {
     let rename_input = RwSignal::new(String::new());
     let drag_from = RwSignal::new(None::<usize>);
     let drag_over = RwSignal::new(None::<usize>);
+    let git_repo_available = RwSignal::new(None::<bool>);
+
+    Effect::new(move |_| {
+        let _ = wb.active_id().get();
+        let _ = workspaces.get();
+        if !is_tauri_shell() {
+            git_repo_available.set(Some(false));
+            return;
+        }
+        let cwd = wb.default_workspace_cwd();
+        let Some(cwd) = cwd.filter(|c| !c.trim().is_empty()) else {
+            git_repo_available.set(Some(false));
+            return;
+        };
+        git_repo_available.set(None);
+        let cwd_check = cwd.clone();
+        spawn_local(async move {
+            let ok = git_is_repository(cwd_check).await.unwrap_or(false);
+            git_repo_available.set(Some(ok));
+        });
+    });
 
     let close_menu_click = window_event_listener_untyped("click", move |_| {
         context_menu.set(None);
@@ -285,6 +310,13 @@ pub fn Sidebar() -> impl IntoView {
                     </div>
                 </Show>
             </nav>
+
+            <Show when=move || !collapsed.get()>
+                <div class="workbench-sidebar__views">
+                    <ProjectExplorerSection />
+                    <GitGraphSection git_repo_available=git_repo_available.read_only() />
+                </div>
+            </Show>
 
             <div class="workbench-sidebar__footer">
                 <div class="sidebar-app-brand" aria-label=APP_NAME>
