@@ -1626,16 +1626,20 @@ fn MemorySearchView(state: MemoryState) -> impl IntoView {
                         move |h: SearchHit| {
                             let s = state.clone();
                             let p = h.path.clone();
+                            let p_graph = p.clone();
                             view! {
                                 <li class="workbench-memory-search__hit">
                                     <button
                                         type="button"
                                         class="workbench-memory-search__hit-btn"
-                                        on:click=move |_| {
-                                            let Some(ws) = s.workspace_cwd.get_untracked() else { return };
-                                            expand_files_group_for_path(s.clone(), &p);
-                                            load_note(s.clone(), ws, p.clone());
-                                            s.view.set(MemoryView::Files);
+                                        on:click={
+                                            let p = p.clone();
+                                            move |_| {
+                                                let Some(ws) = s.workspace_cwd.get_untracked() else { return };
+                                                expand_files_group_for_path(s.clone(), &p);
+                                                load_note(s.clone(), ws, p.clone());
+                                                s.view.set(MemoryView::Files);
+                                            }
                                         }
                                     >
                                         <span class="workbench-memory-search__hit-path">{h.path.clone()}":"{h.line}</span>
@@ -1646,7 +1650,10 @@ fn MemorySearchView(state: MemoryState) -> impl IntoView {
                                         class="workbench-memory-search__hit-graph"
                                         title=move || i18n.tr(I18nKey::MemShowInGraph)()
                                         aria-label=move || i18n.tr(I18nKey::MemShowInGraph)()
-                                        on:click=move |_| navigate_to_graph_node(s.clone(), p.clone())
+                                        on:click={
+                                            let p_graph = p_graph.clone();
+                                            move |_| navigate_to_graph_node(s.clone(), p_graph.clone())
+                                        }
                                     >
                                         <LxIcon icon=icondata::LuNetwork width="0.82rem" height="0.82rem" />
                                     </button>
