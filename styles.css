@@ -301,7 +301,65 @@ body {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+}
+
+.workbench-sidebar__explorer-slot {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workbench-sidebar__explorer-slot > .sidebar-view-section {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.workbench-sidebar__graph-slot {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workbench-sidebar__graph-slot > .sidebar-view-section {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.workbench-sidebar__resizer {
+  flex: 0 0 6px;
+  cursor: row-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid transparent;
+  touch-action: none;
+  user-select: none;
+}
+
+.workbench-sidebar__resizer:hover,
+.workbench-sidebar__resizer--active {
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom-color: var(--border);
+}
+
+.workbench-sidebar__resizer-grip {
+  width: 24px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--border);
+  opacity: 0.6;
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+
+.workbench-sidebar__resizer:hover .workbench-sidebar__resizer-grip,
+.workbench-sidebar__resizer--active .workbench-sidebar__resizer-grip {
+  background: var(--accent, var(--text));
+  opacity: 1;
 }
 
 .workbench-sidebar--collapsed .workbench-sidebar__views {
@@ -6634,16 +6692,10 @@ button {
   flex: 0 0 auto;
 }
 
-.sidebar-view-section--sb-explorer.sidebar-view-section--open {
-  flex: 1 1 auto;
-}
-
+/* Slot wrappers in `.workbench-sidebar__views` control the section height now. */
+.sidebar-view-section--sb-explorer,
 .sidebar-view-section--sb-graph {
-  flex: 0 1 auto;
-}
-
-.sidebar-view-section--sb-graph.sidebar-view-section--open {
-  flex: 1 1 45%;
+  flex: 1 1 auto;
 }
 
 .sidebar-view-section__head {

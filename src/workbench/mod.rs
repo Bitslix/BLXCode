@@ -19,6 +19,7 @@ mod right_panel;
 mod git_graph;
 mod project_explorer;
 mod sidebar;
+mod sidebar_resizer;
 mod sidebar_view_section;
 pub mod skills_rules_panel;
 pub mod state;

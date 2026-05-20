@@ -6,16 +6,10 @@
   flex: 0 0 auto;
 }
 
-.sidebar-view-section--sb-explorer.sidebar-view-section--open {
-  flex: 1 1 auto;
-}
-
+/* Slot wrappers in `.workbench-sidebar__views` control the section height now. */
+.sidebar-view-section--sb-explorer,
 .sidebar-view-section--sb-graph {
-  flex: 0 1 auto;
-}
-
-.sidebar-view-section--sb-graph.sidebar-view-section--open {
-  flex: 1 1 45%;
+  flex: 1 1 auto;
 }
 
 .sidebar-view-section__head {

@@ -47,3 +47,13 @@ pub const SHORTCUT_MODE_TMUX: &str = "tmux";
 
 /// Stored value for direct Ctrl/Ctrl+Shift shortcuts.
 pub const SHORTCUT_MODE_LEGACY: &str = "legacy";
+
+/// `localStorage` key for the sidebar Project Explorer slot height (percent of sidebar).
+pub const SIDEBAR_EXPLORER_HEIGHT_PCT_KEY: &str = "blxcode_sidebar_explorer_height_pct_v1";
+
+/// Default Project Explorer slot height (percent of the sidebar).
+pub const SIDEBAR_EXPLORER_HEIGHT_PCT_DEFAULT: f64 = 50.0;
+
+/// Min/max clamp range for the Project Explorer slot height (percent).
+pub const SIDEBAR_EXPLORER_HEIGHT_PCT_MIN: f64 = 15.0;
+pub const SIDEBAR_EXPLORER_HEIGHT_PCT_MAX: f64 = 85.0;

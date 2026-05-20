@@ -1,0 +1,33 @@
+.workbench-sidebar__resizer {
+  flex: 0 0 6px;
+  cursor: row-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid transparent;
+  touch-action: none;
+  user-select: none;
+}
+
+.workbench-sidebar__resizer:hover,
+.workbench-sidebar__resizer--active {
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom-color: var(--border);
+}
+
+.workbench-sidebar__resizer-grip {
+  width: 24px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--border);
+  opacity: 0.6;
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+
+.workbench-sidebar__resizer:hover .workbench-sidebar__resizer-grip,
+.workbench-sidebar__resizer--active .workbench-sidebar__resizer-grip {
+  background: var(--accent, var(--text));
+  opacity: 1;
+}

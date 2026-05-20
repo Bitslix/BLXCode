@@ -1,8 +1,13 @@
+use crate::config::{
+    SIDEBAR_EXPLORER_HEIGHT_PCT_DEFAULT, SIDEBAR_EXPLORER_HEIGHT_PCT_KEY,
+    SIDEBAR_EXPLORER_HEIGHT_PCT_MAX, SIDEBAR_EXPLORER_HEIGHT_PCT_MIN,
+};
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{git_is_repository, is_tauri_shell};
 use crate::workbench::git_graph::GitGraphSection;
 use crate::workbench::project_explorer::ProjectExplorerSection;
+use crate::workbench::sidebar_resizer::SidebarResizer;
 use crate::workbench::WorkbenchService;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
@@ -41,6 +46,10 @@ pub fn Sidebar() -> impl IntoView {
 
     let collapsed = wb.sidebar_collapsed();
     let workspaces = wb.workspaces();
+    let explorer_height_pct = RwSignal::new(read_explorer_height_pct());
+    Effect::new(move |_| {
+        write_explorer_height_pct(explorer_height_pct.get());
+    });
     let context_menu = RwSignal::new(None::<WorkspaceContextMenu>);
     let rename_dialog = RwSignal::new(None::<RenameWorkspaceDialog>);
     let rename_input = RwSignal::new(String::new());
@@ -324,8 +333,24 @@ pub fn Sidebar() -> impl IntoView {
 
             <Show when=move || !collapsed.get()>
                 <div class="workbench-sidebar__views">
-                    <ProjectExplorerSection />
-                    <GitGraphSection git_repo_available=git_repo_available.read_only() />
+                    <div
+                        class="workbench-sidebar__explorer-slot"
+                        style=move || {
+                            format!(
+                                "flex: 0 0 {pct:.2}%; min-height: 0;",
+                                pct = explorer_height_pct.get(),
+                            )
+                        }
+                    >
+                        <ProjectExplorerSection />
+                    </div>
+                    <SidebarResizer
+                        height_pct=explorer_height_pct
+                        container_selector=".workbench-sidebar__views"
+                    />
+                    <div class="workbench-sidebar__graph-slot">
+                        <GitGraphSection git_repo_available=git_repo_available.read_only() />
+                    </div>
                 </div>
             </Show>
 
@@ -472,4 +497,23 @@ struct WorkspaceContextMenu {
 #[derive(Clone, Copy, Debug)]
 struct RenameWorkspaceDialog {
     workspace_id: u64,
+}
+
+fn read_explorer_height_pct() -> f64 {
+    let stored = web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten())
+        .and_then(|s| s.get_item(SIDEBAR_EXPLORER_HEIGHT_PCT_KEY).ok().flatten())
+        .and_then(|raw| raw.parse::<f64>().ok());
+    let pct = stored.unwrap_or(SIDEBAR_EXPLORER_HEIGHT_PCT_DEFAULT);
+    pct.max(SIDEBAR_EXPLORER_HEIGHT_PCT_MIN)
+        .min(SIDEBAR_EXPLORER_HEIGHT_PCT_MAX)
+}
+
+fn write_explorer_height_pct(pct: f64) {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    if let Ok(Some(storage)) = window.local_storage() {
+        let _ = storage.set_item(SIDEBAR_EXPLORER_HEIGHT_PCT_KEY, &format!("{pct:.2}"));
+    }
 }
