@@ -1,0 +1,63 @@
+/* Per-row metrics strip rendered under Assistant / Tool / ModelDecision
+   / Subagent-tool rows. Compact, monospace-leaning, low-contrast — must
+   not compete with the row's primary content. */
+
+.turn-metrics-bar {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.25rem;
+    padding: 0.1rem 0;
+    font-family: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
+    font-size: 0.7rem;
+    line-height: 1.2;
+    color: var(--text-muted, #8a8f98);
+}
+
+.turn-metrics-bar__cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+}
+
+.turn-metrics-bar__cell strong {
+    color: var(--text, #c9cdd4);
+    font-weight: 500;
+}
+
+.turn-metrics-bar__cell--cost strong {
+    /* Subtle accent so the operator can scan for cost when monitoring
+       a long chat. Tied to the existing accent variable when present. */
+    color: var(--accent, #7dd3fc);
+}
+
+.turn-metrics-bar__sep {
+    opacity: 0.45;
+}
+
+/* Variant: rendered inside a subagent card. Slightly tighter spacing so
+   it doesn't shove the per-tool rows around. */
+.subagent-card .turn-metrics-bar {
+    margin-top: 0.15rem;
+    font-size: 0.66rem;
+}
+
+/* The new synthetic "decision" row for tool-only model rounds —
+   essentially just the metrics bar with a tiny prefix. */
+.agent-chat-line--decision {
+    padding-left: 0;
+}
+
+.agent-chat-line--decision .agent-chat-body {
+    padding: 0.05rem 0 0.05rem 0.1rem;
+}
+
+.agent-chat-decision-label {
+    display: inline-block;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted, #8a8f98);
+    margin-right: 0.4rem;
+}

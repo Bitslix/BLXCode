@@ -11,6 +11,7 @@ use crate::workbench::agent_timeline::{
     SubagentCard, SubagentGroup, SubagentStepRow, ToolActivity,
 };
 use crate::workbench::agent_panel::ask_user_card::AskUserCard;
+use crate::workbench::agent_panel::turn_metrics_bar::{BarContext, TurnMetricsBar};
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
@@ -26,8 +27,12 @@ pub enum DisplayTimelineItem {
         /// the "Redo" button's payload. `None` for the welcome/system bubble
         /// and for any assistant block that has no preceding user turn.
         prev_user: Option<String>,
+        metrics: TurnMetrics,
     },
-    ToolGroup(Vec<ToolActivity>),
+    Tool(ToolActivity),
+    /// Synthetic row for a tool-only model round — renders nothing but a
+    /// `TurnMetricsBar` so the round's cost still surfaces.
+    ModelDecision { metrics: TurnMetrics },
     SubagentGroup(SubagentGroup),
     Thinking { text: String, done: bool },
     GeneratedImage {
@@ -654,41 +659,29 @@ fn synthesize_completion_message(rows: &[TimelineItem]) -> Option<String> {
 }
 
 pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
-    let mut out = Vec::new();
-    let mut pending_tools = Vec::new();
+    let mut out = Vec::with_capacity(items.len());
     let mut last_user_text: Option<String> = None;
-
-    let flush_tools = |out: &mut Vec<DisplayTimelineItem>,
-                       pending_tools: &mut Vec<ToolActivity>| {
-        if !pending_tools.is_empty() {
-            out.push(DisplayTimelineItem::ToolGroup(std::mem::take(
-                pending_tools,
-            )));
-        }
-    };
 
     for item in items {
         match item {
             TimelineItem::User { text } => {
-                flush_tools(&mut out, &mut pending_tools);
                 last_user_text = Some(text.clone());
                 out.push(DisplayTimelineItem::User { text });
             }
-            TimelineItem::Assistant { text, .. } => {
-                flush_tools(&mut out, &mut pending_tools);
+            TimelineItem::Assistant { text, metrics } => {
                 out.push(DisplayTimelineItem::Assistant {
                     text,
                     prev_user: last_user_text.clone(),
+                    metrics,
                 });
             }
-            TimelineItem::ModelDecision { .. } => {
-                // Synthetic decision row is rendered inline by the
-                // `frontend-apply` task once routing lands; for now it
-                // surfaces as nothing to the existing UI.
+            TimelineItem::ModelDecision { metrics } => {
+                out.push(DisplayTimelineItem::ModelDecision { metrics });
             }
-            TimelineItem::Tool(tool) => pending_tools.push(tool),
+            TimelineItem::Tool(tool) => {
+                out.push(DisplayTimelineItem::Tool(tool));
+            }
             TimelineItem::Thinking { text, done } => {
-                flush_tools(&mut out, &mut pending_tools);
                 out.push(DisplayTimelineItem::Thinking { text, done });
             }
             TimelineItem::GeneratedImage {
@@ -698,7 +691,6 @@ pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
                 saved_path,
                 filename,
             } => {
-                flush_tools(&mut out, &mut pending_tools);
                 out.push(DisplayTimelineItem::GeneratedImage {
                     prompt,
                     mime,
@@ -708,7 +700,6 @@ pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
                 });
             }
             TimelineItem::SubagentGroup(group) => {
-                flush_tools(&mut out, &mut pending_tools);
                 out.push(DisplayTimelineItem::SubagentGroup(group));
             }
             TimelineItem::AskUser {
@@ -720,7 +711,6 @@ pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
                 allow_other,
                 state,
             } => {
-                flush_tools(&mut out, &mut pending_tools);
                 out.push(DisplayTimelineItem::AskUser {
                     call_id,
                     question,
@@ -734,7 +724,6 @@ pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
         }
     }
 
-    flush_tools(&mut out, &mut pending_tools);
     out
 }
 
@@ -842,7 +831,7 @@ pub fn TimelineRow(
             </li>
         }
         .into_any(),
-        DisplayTimelineItem::Assistant { text, prev_user } => {
+        DisplayTimelineItem::Assistant { text, prev_user, metrics } => {
             let tts_text = text.clone();
             let copy_text = text.clone();
             let redo_text = prev_user.clone();
@@ -901,13 +890,24 @@ pub fn TimelineRow(
                             </button>
                         </Show>
                     </div>
+                    <TurnMetricsBar metrics=metrics context=BarContext::Main />
                 </div>
             </li>
         }
             .into_any()
         }
-        DisplayTimelineItem::ToolGroup(entries) => view! {
-            <ToolActivityGroupRow line_no=line_no entries=entries voice_handle=voice_handle />
+        DisplayTimelineItem::Tool(tool) => view! {
+            <ToolActivityRow line_no=line_no tool=tool voice_handle=voice_handle />
+        }
+        .into_any(),
+        DisplayTimelineItem::ModelDecision { metrics } => view! {
+            <li class="agent-chat-line agent-chat-line--decision">
+                <ChatLineIndexColumn line_no=line_no.clone() tts_text=None voice_handle=voice_handle />
+                <div class="agent-chat-body">
+                    <span class="agent-chat-decision-label">"model round"</span>
+                    <TurnMetricsBar metrics=metrics context=BarContext::Main />
+                </div>
+            </li>
         }
         .into_any(),
         DisplayTimelineItem::SubagentGroup(group) => {
@@ -932,8 +932,9 @@ pub fn TimelineRow(
                             let live_thinking = card.live_thinking.clone();
                             let thinking_done = card.thinking_done;
                             let is_running = status_raw == "running";
+                            let card_metrics = card.metrics;
                             view! {
-                                <details class="agent-subagent-card" open>
+                                <details class="agent-subagent-card subagent-card" open>
                                     <summary class="agent-subagent-card__summary">
                                         <span class="agent-subagent-card__name">{name}</span>
                                         <span class="agent-subagent-card__status">{status}</span>
@@ -942,6 +943,7 @@ pub fn TimelineRow(
                                                 <span></span><span></span><span></span>
                                             </span>
                                         </Show>
+                                        <TurnMetricsBar metrics=card_metrics context=BarContext::Subagent />
                                     </summary>
                                     {(!live_thinking.is_empty()).then(|| {
                                         let class = if thinking_done {
@@ -963,20 +965,13 @@ pub fn TimelineRow(
                                         <p class="agent-subagent-card__summary-text">{summary}</p>
                                     })}
                                     <ul class="agent-subagent-card__tools">
-                                        {merge_consecutive_tools(card.tools).into_iter().map(|run| {
-                                            let label = run.first()
-                                                .map(|t| t.label.clone())
-                                                .unwrap_or_default();
-                                            let count = run.len();
-                                            let multiple = count > 1;
+                                        {card.tools.into_iter().map(|tool| {
+                                            let label = tool.label.clone();
+                                            let metrics = tool.metrics;
                                             view! {
                                                 <li>
                                                     <span>{label}</span>
-                                                    <Show when=move || multiple>
-                                                        <span class="agent-subagent-card__tools-count">
-                                                            {format!("\u{00d7}{count}")}
-                                                        </span>
-                                                    </Show>
+                                                    <TurnMetricsBar metrics=metrics context=BarContext::Subagent />
                                                 </li>
                                             }
                                         }).collect_view()}
@@ -1194,202 +1189,68 @@ fn ThinkingRow(
     }
 }
 
-/// Collapse consecutive `ToolActivity` entries with the same tool name into a
-/// single visual row carrying a `×N` badge. Each merged run keeps the original
-/// invocations so the expanded view can show per-call args + details.
-fn merge_consecutive_tools(entries: Vec<ToolActivity>) -> Vec<Vec<ToolActivity>> {
-    let mut groups: Vec<Vec<ToolActivity>> = Vec::new();
-    for entry in entries {
-        match groups.last_mut() {
-            Some(group) if group.last().map(|t| t.tool.as_str()) == Some(entry.tool.as_str()) => {
-                group.push(entry);
-            }
-            _ => groups.push(vec![entry]),
-        }
-    }
-    groups
-}
-
-fn aggregate_status(entries: &[ToolActivity]) -> ActivityStatus {
-    if entries.iter().any(|e| e.status == ActivityStatus::Pending) {
-        ActivityStatus::Pending
-    } else if entries.iter().any(|e| e.status == ActivityStatus::Fail) {
-        ActivityStatus::Fail
-    } else {
-        ActivityStatus::Ok
-    }
-}
-
 #[component]
-fn ToolActivityGroupRow(
+fn ToolActivityRow(
     line_no: String,
-    entries: Vec<ToolActivity>,
+    tool: ToolActivity,
     voice_handle: VoiceOrbHandle,
 ) -> impl IntoView {
-    let runs = merge_consecutive_tools(entries);
-    view! {
-        <li class="agent-chat-line agent-chat-line--tool">
-            <ChatLineIndexColumn line_no=line_no tts_text=None voice_handle=voice_handle />
-            <div class="agent-chat-body">
-                <strong>"Tool"</strong>
-                <div class="agent-tool-group">
-                    {runs
-                        .into_iter()
-                        .enumerate()
-                        .map(|(idx, run)| view! { <ToolActivityRow idx=idx run=run /> })
-                        .collect_view()}
-                </div>
-            </div>
-        </li>
-    }
-}
-
-#[component]
-fn ToolActivityRow(idx: usize, run: Vec<ToolActivity>) -> impl IntoView {
-    let _ = idx;
-    let count = run.len();
-    let head = run.first().cloned().expect("merge_consecutive_tools yields non-empty runs");
-    let agg = aggregate_status(&run);
-    let status_class = match agg {
+    let status_class = match tool.status {
         ActivityStatus::Pending => "agent-tool-row--pending",
         ActivityStatus::Ok => "agent-tool-row--ok",
         ActivityStatus::Fail => "agent-tool-row--fail",
     };
-    let status_icon = match agg {
+    let status_icon = match tool.status {
         ActivityStatus::Pending => icondata::LuLoader,
         ActivityStatus::Ok => icondata::LuCheck,
         ActivityStatus::Fail => icondata::LuTriangleAlert,
     };
 
-    // Single invocation: keep the previous compact layout (no badge, no list).
-    if count <= 1 {
-        let detail_open = RwSignal::new(false);
-        let has_detail = head.detail.as_ref().is_some_and(|s| !s.is_empty());
-        let detail_text = head.detail.clone().unwrap_or_default();
-        let label = head.label.clone();
-        let summary = head.args_summary.clone();
-        let tool_name_for_title = head.tool.clone();
-        return view! {
-            <div class=format!("agent-tool-row {status_class}") title=tool_name_for_title>
-                <button
-                    type="button"
-                    class="agent-tool-row__head"
-                    aria-expanded=move || detail_open.get().to_string()
-                    prop:disabled=move || !has_detail
-                    on:click=move |_| {
-                        if has_detail {
-                            detail_open.update(|o| *o = !*o);
-                        }
-                    }
-                >
-                    <span class="agent-tool-row__icon" aria-hidden="true">
-                        <LxIcon icon=tool_icon(&head.tool) width="0.82rem" height="0.82rem" />
-                    </span>
-                    <span class="agent-tool-row__label">{label}</span>
-                    <Show when={
-                        let s = summary.clone();
-                        move || !s.is_empty()
-                    }>
-                        <span class="agent-tool-row__arg">{summary.clone()}</span>
-                    </Show>
-                    <span class="agent-tool-row__status" aria-hidden="true">
-                        <LxIcon icon=status_icon width="0.78rem" height="0.78rem" />
-                    </span>
-                </button>
-                <Show when=move || has_detail && detail_open.get()>
-                    <pre class="agent-tool-row__detail">{detail_text.clone()}</pre>
-                </Show>
-            </div>
-        }
-        .into_any();
-    }
-
-    // Merged run: counter badge + expandable per-invocation list.
-    let any_detail = run
-        .iter()
-        .any(|e| e.detail.as_ref().is_some_and(|s| !s.is_empty()));
-    let any_arg = run.iter().any(|e| !e.args_summary.is_empty());
-    let expandable = any_detail || any_arg;
-    let open = RwSignal::new(false);
-    let label = head.label.clone();
-    let tool_for_icon = head.tool.clone();
-    let tool_name_for_title = head.tool.clone();
-    let count_badge = format!("×{count}");
-    let invocations = run.clone();
+    let detail_open = RwSignal::new(false);
+    let has_detail = tool.detail.as_ref().is_some_and(|s| !s.is_empty());
+    let detail_text = tool.detail.clone().unwrap_or_default();
+    let label = tool.label.clone();
+    let summary = tool.args_summary.clone();
+    let tool_name_for_title = tool.tool.clone();
+    let metrics = tool.metrics;
 
     view! {
-        <div class=format!("agent-tool-row agent-tool-row--merged {status_class}") title=tool_name_for_title>
-            <button
-                type="button"
-                class="agent-tool-row__head"
-                aria-expanded=move || open.get().to_string()
-                prop:disabled=move || !expandable
-                on:click=move |_| {
-                    if expandable {
-                        open.update(|o| *o = !*o);
-                    }
-                }
-            >
-                <span class="agent-tool-row__icon" aria-hidden="true">
-                    <LxIcon icon=tool_icon(&tool_for_icon) width="0.82rem" height="0.82rem" />
-                </span>
-                <span class="agent-tool-row__label">{label}</span>
-                <span class="agent-tool-row__count" aria-label=format!("{count} calls")>{count_badge}</span>
-                <Show when=move || expandable>
-                    <span class="agent-tool-row__chevron" aria-hidden="true">
-                        {move || if open.get() {
-                            view! { <LxIcon icon=icondata::LuChevronUp width="0.72rem" height="0.72rem" /> }
-                        } else {
-                            view! { <LxIcon icon=icondata::LuChevronDown width="0.72rem" height="0.72rem" /> }
-                        }}
-                    </span>
-                </Show>
-                <span class="agent-tool-row__status" aria-hidden="true">
-                    <LxIcon icon=status_icon width="0.78rem" height="0.78rem" />
-                </span>
-            </button>
-            <Show when=move || expandable && open.get()>
-                <ul class="agent-tool-row__sublist">
-                    {invocations
-                        .iter()
-                        .cloned()
-                        .enumerate()
-                        .map(|(i, entry)| {
-                            let sub_status = match entry.status {
-                                ActivityStatus::Pending => "agent-tool-row__sub--pending",
-                                ActivityStatus::Ok => "agent-tool-row__sub--ok",
-                                ActivityStatus::Fail => "agent-tool-row__sub--fail",
-                            };
-                            let sub_icon = match entry.status {
-                                ActivityStatus::Pending => icondata::LuLoader,
-                                ActivityStatus::Ok => icondata::LuCheck,
-                                ActivityStatus::Fail => icondata::LuTriangleAlert,
-                            };
-                            let arg = entry.args_summary.clone();
-                            let detail = entry.detail.clone().unwrap_or_default();
-                            let has_detail_i = !detail.is_empty();
-                            view! {
-                                <li class=format!("agent-tool-row__sub {sub_status}")>
-                                    <span class="agent-tool-row__sub-index">{format!("{:02}", i + 1)}</span>
-                                    <span class="agent-tool-row__sub-status" aria-hidden="true">
-                                        <LxIcon icon=sub_icon width="0.7rem" height="0.7rem" />
-                                    </span>
-                                    <Show when={
-                                        let a = arg.clone();
-                                        move || !a.is_empty()
-                                    }>
-                                        <span class="agent-tool-row__sub-arg">{arg.clone()}</span>
-                                    </Show>
-                                    <Show when=move || has_detail_i>
-                                        <pre class="agent-tool-row__sub-detail">{detail.clone()}</pre>
-                                    </Show>
-                                </li>
+        <li class="agent-chat-line agent-chat-line--tool">
+            <ChatLineIndexColumn line_no=line_no tts_text=None voice_handle=voice_handle />
+            <div class="agent-chat-body">
+                <div class=format!("agent-tool-row {status_class}") title=tool_name_for_title>
+                    <button
+                        type="button"
+                        class="agent-tool-row__head"
+                        aria-expanded=move || detail_open.get().to_string()
+                        prop:disabled=move || !has_detail
+                        on:click=move |_| {
+                            if has_detail {
+                                detail_open.update(|o| *o = !*o);
                             }
-                        })
-                        .collect_view()}
-                </ul>
-            </Show>
-        </div>
+                        }
+                    >
+                        <span class="agent-tool-row__icon" aria-hidden="true">
+                            <LxIcon icon=tool_icon(&tool.tool) width="0.82rem" height="0.82rem" />
+                        </span>
+                        <span class="agent-tool-row__label">{label}</span>
+                        <Show when={
+                            let s = summary.clone();
+                            move || !s.is_empty()
+                        }>
+                            <span class="agent-tool-row__arg">{summary.clone()}</span>
+                        </Show>
+                        <span class="agent-tool-row__status" aria-hidden="true">
+                            <LxIcon icon=status_icon width="0.78rem" height="0.78rem" />
+                        </span>
+                    </button>
+                    <Show when=move || has_detail && detail_open.get()>
+                        <pre class="agent-tool-row__detail">{detail_text.clone()}</pre>
+                    </Show>
+                </div>
+                <TurnMetricsBar metrics=metrics context=BarContext::Main />
+            </div>
+        </li>
     }
-    .into_any()
 }
+
