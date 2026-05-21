@@ -26,6 +26,7 @@
   },
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": "all",
     "icon": [
       "icons/32x32.png",
@@ -44,5 +45,16 @@
       "../content/hooks/cursor_title.py",
       "../content/hooks/cursor_session_capture.py"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDI5NjRCQUQ5RkVBNTJDODYKUldTR0xLWCsyYnBrS1l6Y0FIbWZIbk1LeUdPSmEyNUF0bXgxcFc5VVNGK21wUmViMVdVZ0I0NHAK",
+      "endpoints": [
+        "https://github.com/Bitslix/BLXCode/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

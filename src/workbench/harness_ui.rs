@@ -3,12 +3,13 @@
 //! Tastenkürzel (tmux-Standard: `Ctrl+b` + zweite Taste; Legacy in App-Einstellungen)
 //! sind im Haupt-Webview gebunden ([`HarnessHost`] → [`super::harness_chords`]).
 use super::app_prefs::{AppPrefsService, ShortcutMode};
-use super::harness_chords::handle_harness_keydown;
 use super::browser_tab::sync_embedded_browser_layer;
+use super::harness_chords::handle_harness_keydown;
 use super::state::{
     workspace_entry_has_folder, BrowserEmbedSurface, HarnessSettingsCategory, HarnessUiService,
     MemoryColorPreset, RecentWorkspaceItem, RightPanelTab, WorkbenchService,
 };
+use super::update_service::{UpdateService, UpdateUiStatus};
 use crate::config::{EULA_STORAGE_KEY, HARNESS_BROWSER_DEFAULT_URL};
 use crate::i18n::{lookup, I18nKey, Locale, APP_LOCALES};
 use crate::service::I18nService;
@@ -17,8 +18,8 @@ use crate::tauri_bridge::{
     agent_settings_get, agent_settings_save, agent_web_api_key_delete, agent_web_api_key_set,
     agent_web_settings_get, agent_web_settings_save, install_agent_hooks, is_tauri_shell,
     uninstall_agent_hooks, AgentHooksReport, AgentProviderKind, AgentProviderSettingsView,
-    AgentWebSettingsView, ProviderModelEntry, ProviderModelsResponse, ThinkingLevel,
-    WebKeyStatus, WebProviderKind,
+    AgentWebSettingsView, ProviderModelEntry, ProviderModelsResponse, ThinkingLevel, WebKeyStatus,
+    WebProviderKind,
 };
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Date;
@@ -1059,6 +1060,7 @@ fn AppSettingsPane() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let prefs = expect_context::<AppPrefsService>();
     let ui = expect_context::<HarnessUiService>();
+    let updates = expect_context::<UpdateService>();
     view! {
         <article class="harness-pane">
             <h3 class="harness-pane-title">
@@ -1158,6 +1160,66 @@ fn AppSettingsPane() -> impl IntoView {
                     <span>{move || i18n.tr(I18nKey::AppNotifSound)()}</span>
                 </label>
                 <p class="app-prefs-hint">{move || i18n.tr(I18nKey::AppNotifSoundHint)()}</p>
+            </section>
+            <section class="harness-subpane">
+                <h4 class="harness-pane-subhead">
+                    <span class="harness-pane-subhead__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuRefreshCw width="0.82rem" height="0.82rem" />
+                    </span>
+                    <span>{move || i18n.tr(I18nKey::AppUpdateHeading)()}</span>
+                </h4>
+                <label class="app-prefs-toggle">
+                    <input
+                        type="checkbox"
+                        prop:checked=move || prefs.update_auto_check_enabled().get()
+                        on:change=move |ev| {
+                            if let Some(checked) = checkbox_checked(&ev) {
+                                prefs.set_update_auto_check(checked);
+                            }
+                        }
+                    />
+                    <span>{move || i18n.tr(I18nKey::AppUpdateAutoCheck)()}</span>
+                </label>
+                <p class="app-prefs-hint">{move || i18n.tr(I18nKey::AppUpdateAutoCheckHint)()}</p>
+                <label class="harness-stack">
+                    <span class="harness-field-label">
+                        <span class="harness-field-label__icon" aria-hidden="true">
+                            <LxIcon icon=icondata::LuBadgeInfo width="0.82rem" height="0.82rem" />
+                        </span>
+                        <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AppUpdateCurrentVersion)()}</span>
+                    </span>
+                    <input
+                        class="workbench-plain-input"
+                        type="text"
+                        prop:readonly=true
+                        prop:value=move || updates.current_version().get()
+                    />
+                </label>
+                <button
+                    type="button"
+                    class="workbench-mini-btn workbench-mini-btn--primary"
+                    on:click=move |_| updates.check_manual()
+                    prop:disabled=move || updates.status().get() == UpdateUiStatus::Checking
+                >
+                    <span class="harness-btn-inline">
+                        <LxIcon icon=icondata::LuSearch width="0.82rem" height="0.82rem" />
+                        <span>{move || {
+                            if updates.status().get() == UpdateUiStatus::Checking {
+                                i18n.tr(I18nKey::AppUpdateChecking)()
+                            } else {
+                                i18n.tr(I18nKey::AppUpdateCheck)()
+                            }
+                        }}</span>
+                    </span>
+                </button>
+                <p class="app-prefs-hint">
+                    {move || match updates.status().get() {
+                        UpdateUiStatus::UpToDate => i18n.tr(I18nKey::AppUpdateUpToDate)().to_string(),
+                        UpdateUiStatus::DevUnavailable => i18n.tr(I18nKey::AppUpdateDevUnavailable)().to_string(),
+                        UpdateUiStatus::Error => updates.message().get().unwrap_or_default(),
+                        _ => String::new(),
+                    }}
+                </p>
             </section>
             <section class="harness-subpane">
                 <AgentHooksPanel />
@@ -2240,16 +2302,22 @@ fn web_provider_from_value(value: &str) -> WebProviderKind {
     }
 }
 
-fn web_key_entry<'a>(view: Option<&'a AgentWebSettingsView>, kind: &str) -> Option<&'a WebKeyStatus> {
+fn web_key_entry<'a>(
+    view: Option<&'a AgentWebSettingsView>,
+    kind: &str,
+) -> Option<&'a WebKeyStatus> {
     view?.key_statuses.iter().find(|k| k.kind == kind)
 }
 
 fn web_key_mask(view: Option<AgentWebSettingsView>, kind: &str) -> Option<String> {
-    web_key_entry(view.as_ref(), kind)
-        .and_then(|k| k.masked_value.clone())
+    web_key_entry(view.as_ref(), kind).and_then(|k| k.masked_value.clone())
 }
 
-fn web_key_status_text(i18n: &I18nService, view: Option<AgentWebSettingsView>, kind: &str) -> String {
+fn web_key_status_text(
+    i18n: &I18nService,
+    view: Option<AgentWebSettingsView>,
+    kind: &str,
+) -> String {
     match web_key_entry(view.as_ref(), kind) {
         Some(k) if k.configured => k
             .masked_value

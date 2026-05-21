@@ -13,3 +13,4 @@
 /public/graph3d.bundle.mjs
 frontend-js/node_modules/
 .env.release
+/.tauri/

@@ -121,5 +121,38 @@ function Invoke-ReleaseUploadArtifacts {
         Stop-Release "gh release upload failed"
     }
     Write-ReleaseInfo "Uploaded $($toUpload.Count) file(s) to $tag on $script:RELEASE_GH_REPO"
+    Publish-ReleaseLatestJson -Tag $tag -Version $Version -Artifacts $artifacts
 }
 
+function Publish-ReleaseLatestJson {
+    param(
+        [Parameter(Mandatory = $true)][string]$Tag,
+        [Parameter(Mandatory = $true)][string]$Version,
+        [Parameter(Mandatory = $true)][string[]]$Artifacts
+    )
+
+    $signatures = @($Artifacts | Where-Object { $_.EndsWith(".sig") })
+    if ($signatures.Count -eq 0) {
+        Write-ReleaseWarn "No updater signatures found; skipping latest.json upload"
+        return
+    }
+
+    Assert-ReleaseCommand "python"
+    if ($script:RELEASE_DRY_RUN -eq 1) {
+        Write-ReleaseInfo "Would: merge and upload latest.json for $Tag"
+        return
+    }
+
+    $latestPath = Join-Path $script:RELEASE_ROOT "target\latest.json"
+    & python (Join-Path $script:RELEASE_ROOT "scripts\release\merge_latest_json.py") `
+        --repo $script:RELEASE_GH_REPO `
+        --tag $Tag `
+        --version $Version `
+        --output $latestPath `
+        @signatures
+    if ($LASTEXITCODE -ne 0) { Stop-Release "latest.json merge failed" }
+
+    & gh release upload $Tag -R $script:RELEASE_GH_REPO --clobber $latestPath
+    if ($LASTEXITCODE -ne 0) { Stop-Release "latest.json upload failed" }
+    Write-ReleaseInfo "Uploaded canonical latest.json to $Tag"
+}

@@ -8,7 +8,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::GitignorePromptTitle => ".blxcode zur .gitignore hinzufügen?",
         I18nKey::GitignorePromptBody => {
             "BLXCode speichert lokale Workspace-Daten (Aufgaben, Sitzungen) im Ordner `.blxcode`. \nSoll dieser Eintrag in die `.gitignore` dieses Projekts aufgenommen werden, damit er nicht versehentlich committed wird?"
-        }
+        },
         I18nKey::GitignorePromptYes => "Ja, hinzufügen",
         I18nKey::GitignorePromptNo => "Nicht jetzt",
         I18nKey::BtnClose => "Schließen",
@@ -192,6 +192,28 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppNotifToastsHint => "Kurze Bestätigung beim Senden oder Anhängen von Kontext.",
         I18nKey::AppNotifSound => "Erfolgs-Ton abspielen",
         I18nKey::AppNotifSoundHint => "Kurzer Ton bei erfolgreichen Handoff-Aktionen.",
+        I18nKey::AppUpdateHeading => "App-Updates",
+        I18nKey::AppUpdateAutoCheck => "Beim Start nach Updates suchen",
+        I18nKey::AppUpdateAutoCheckHint => {
+            "BLXCode prueft GitHub Releases still und zeigt einen Banner, wenn ein Update bereitsteht."
+        }
+        I18nKey::AppUpdateCurrentVersion => "Aktuelle Version",
+        I18nKey::AppUpdateCheck => "Nach Updates suchen",
+        I18nKey::AppUpdateChecking => "Pruefe...",
+        I18nKey::AppUpdateUpToDate => "BLXCode ist aktuell.",
+        I18nKey::AppUpdateDevUnavailable => "Der Updater ist in Entwicklungs-Builds deaktiviert.",
+        I18nKey::UpdateBannerTitle => "Update verfuegbar",
+        I18nKey::UpdateBannerAction => "Update anzeigen",
+        I18nKey::UpdateDialogTitle => "BLXCode-Update",
+        I18nKey::UpdateDialogInstall => "Update installieren",
+        I18nKey::UpdateDialogLater => "Spaeter",
+        I18nKey::UpdateDialogDownloading => "Laedt herunter",
+        I18nKey::UpdateDialogInstalling => "Installiert",
+        I18nKey::UpdateDialogDone => "Bereit zum Neustart",
+        I18nKey::UpdateDialogRelaunch => "Neu starten",
+        I18nKey::UpdateDialogRetry => "Erneut versuchen",
+        I18nKey::UpdateDialogError => "Update fehlgeschlagen",
+        I18nKey::UpdateDialogNotes => "Release Notes",
         I18nKey::AppShortcutHeading => "Tastenkürzel",
         I18nKey::AppShortcutModeTmux => "Tmux-Stil (Ctrl+b, dann Taste)",
         I18nKey::AppShortcutModeLegacy => "Klassisch (Ctrl / Ctrl+Shift)",
