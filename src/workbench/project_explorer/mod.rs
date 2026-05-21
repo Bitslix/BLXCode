@@ -5,7 +5,6 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{is_tauri_shell, list_path_entries, FsEntryBrief};
 use crate::workbench::sidebar_view_section::{SidebarSectionIconBtn, SidebarViewSection};
-use crate::workbench::state::WorkspaceEntry;
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -18,12 +17,18 @@ pub fn ProjectExplorerSection() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let collapsed = wb.sidebar_collapsed();
 
-    let active_workspace = Memo::new(move |_| {
+    // Narrow projection of the active workspace to just the identity-relevant
+    // fields (id, cwd, configuring). Memo equality on this tuple ensures the
+    // file browser doesn't re-render or invalidate its cache when unrelated
+    // workspace state (e.g. the agent chat timeline) changes — that previously
+    // caused the left tree to flicker on every right-side chat update.
+    let active_workspace: Memo<Option<(u64, String, bool)>> = Memo::new(move |_| {
         let active_id = wb.active_id().get();
         wb.workspaces()
             .get()
             .into_iter()
             .find(|w| Some(w.id) == active_id)
+            .map(|w| (w.id, w.cwd, w.configuring))
     });
     let section_title = Signal::derive(move || i18n.tr(I18nKey::SbExplorerTitle)().to_string());
 
@@ -45,9 +50,7 @@ pub fn ProjectExplorerSection() -> impl IntoView {
     });
 
     Effect::new(move |_| {
-        let _ = active_workspace
-            .get()
-            .map(|w| (w.id, w.cwd, w.configuring));
+        let _ = active_workspace.get();
         open_paths.set(
             wb.active_sidebar_explorer_expanded_paths()
                 .into_iter()
@@ -82,7 +85,7 @@ pub fn ProjectExplorerSection() -> impl IntoView {
         !collapsed.get()
             && active_workspace
                 .get()
-                .is_some_and(|w| !w.configuring && !w.cwd.trim().is_empty())
+                .is_some_and(|(_, cwd, configuring)| !configuring && !cwd.trim().is_empty())
     };
 
     view! {
@@ -145,7 +148,7 @@ pub fn ProjectExplorerSection() -> impl IntoView {
 
 #[component]
 fn ProjectExplorerBody(
-    active_workspace: Memo<Option<WorkspaceEntry>>,
+    active_workspace: Memo<Option<(u64, String, bool)>>,
     open_paths: RwSignal<HashSet<String>>,
     children_cache: RwSignal<HashMap<String, Vec<FsEntryBrief>>>,
     load_gen: RwSignal<u32>,
@@ -156,13 +159,13 @@ fn ProjectExplorerBody(
 
     Effect::new(move |_| {
         let _gen = load_gen.get();
-        let Some(ws) = active_workspace.get() else {
+        let Some((_, cwd, configuring)) = active_workspace.get() else {
             return;
         };
-        if ws.configuring || ws.cwd.trim().is_empty() {
+        if configuring || cwd.trim().is_empty() {
             return;
         };
-        let root = ws.cwd.clone();
+        let root = cwd;
         if !is_tauri_shell() {
             error_msg.set(Some(i18n.tr(I18nKey::SbExplorerTauriOnly)().to_string()));
             return;

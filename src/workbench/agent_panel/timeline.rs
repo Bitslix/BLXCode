@@ -763,22 +763,49 @@ fn ThinkingRow(
     }
 }
 
+/// Collapse consecutive `ToolActivity` entries with the same tool name into a
+/// single visual row carrying a `×N` badge. Each merged run keeps the original
+/// invocations so the expanded view can show per-call args + details.
+fn merge_consecutive_tools(entries: Vec<ToolActivity>) -> Vec<Vec<ToolActivity>> {
+    let mut groups: Vec<Vec<ToolActivity>> = Vec::new();
+    for entry in entries {
+        match groups.last_mut() {
+            Some(group) if group.last().map(|t| t.tool.as_str()) == Some(entry.tool.as_str()) => {
+                group.push(entry);
+            }
+            _ => groups.push(vec![entry]),
+        }
+    }
+    groups
+}
+
+fn aggregate_status(entries: &[ToolActivity]) -> ActivityStatus {
+    if entries.iter().any(|e| e.status == ActivityStatus::Pending) {
+        ActivityStatus::Pending
+    } else if entries.iter().any(|e| e.status == ActivityStatus::Fail) {
+        ActivityStatus::Fail
+    } else {
+        ActivityStatus::Ok
+    }
+}
+
 #[component]
 fn ToolActivityGroupRow(
     line_no: String,
     entries: Vec<ToolActivity>,
     voice_handle: VoiceOrbHandle,
 ) -> impl IntoView {
+    let runs = merge_consecutive_tools(entries);
     view! {
         <li class="agent-chat-line agent-chat-line--tool">
             <ChatLineIndexColumn line_no=line_no tts_text=None voice_handle=voice_handle />
             <div class="agent-chat-body">
                 <strong>"Tool"</strong>
                 <div class="agent-tool-group">
-                    {entries
+                    {runs
                         .into_iter()
                         .enumerate()
-                        .map(|(tool_idx, entry)| view! { <ToolActivityRow idx=tool_idx entry=entry /> })
+                        .map(|(idx, run)| view! { <ToolActivityRow idx=idx run=run /> })
                         .collect_view()}
                 </div>
             </div>
@@ -787,55 +814,142 @@ fn ToolActivityGroupRow(
 }
 
 #[component]
-fn ToolActivityRow(idx: usize, entry: ToolActivity) -> impl IntoView {
-    let status_class = match entry.status {
+fn ToolActivityRow(idx: usize, run: Vec<ToolActivity>) -> impl IntoView {
+    let _ = idx;
+    let count = run.len();
+    let head = run.first().cloned().expect("merge_consecutive_tools yields non-empty runs");
+    let agg = aggregate_status(&run);
+    let status_class = match agg {
         ActivityStatus::Pending => "agent-tool-row--pending",
         ActivityStatus::Ok => "agent-tool-row--ok",
         ActivityStatus::Fail => "agent-tool-row--fail",
     };
-    let status_icon = match entry.status {
+    let status_icon = match agg {
         ActivityStatus::Pending => icondata::LuLoader,
         ActivityStatus::Ok => icondata::LuCheck,
         ActivityStatus::Fail => icondata::LuTriangleAlert,
     };
-    let detail_open = RwSignal::new(false);
-    let has_detail = entry.detail.as_ref().is_some_and(|s| !s.is_empty());
-    let detail_text = entry.detail.clone().unwrap_or_default();
-    let label = entry.label.clone();
-    let summary = entry.args_summary.clone();
-    let tool_name_for_title = entry.tool.clone();
-    let _ = idx;
+
+    // Single invocation: keep the previous compact layout (no badge, no list).
+    if count <= 1 {
+        let detail_open = RwSignal::new(false);
+        let has_detail = head.detail.as_ref().is_some_and(|s| !s.is_empty());
+        let detail_text = head.detail.clone().unwrap_or_default();
+        let label = head.label.clone();
+        let summary = head.args_summary.clone();
+        let tool_name_for_title = head.tool.clone();
+        return view! {
+            <div class=format!("agent-tool-row {status_class}") title=tool_name_for_title>
+                <button
+                    type="button"
+                    class="agent-tool-row__head"
+                    aria-expanded=move || detail_open.get().to_string()
+                    prop:disabled=move || !has_detail
+                    on:click=move |_| {
+                        if has_detail {
+                            detail_open.update(|o| *o = !*o);
+                        }
+                    }
+                >
+                    <span class="agent-tool-row__icon" aria-hidden="true">
+                        <LxIcon icon=tool_icon(&head.tool) width="0.82rem" height="0.82rem" />
+                    </span>
+                    <span class="agent-tool-row__label">{label}</span>
+                    <Show when={
+                        let s = summary.clone();
+                        move || !s.is_empty()
+                    }>
+                        <span class="agent-tool-row__arg">{summary.clone()}</span>
+                    </Show>
+                    <span class="agent-tool-row__status" aria-hidden="true">
+                        <LxIcon icon=status_icon width="0.78rem" height="0.78rem" />
+                    </span>
+                </button>
+                <Show when=move || has_detail && detail_open.get()>
+                    <pre class="agent-tool-row__detail">{detail_text.clone()}</pre>
+                </Show>
+            </div>
+        }
+        .into_any();
+    }
+
+    // Merged run: counter badge + expandable per-invocation list.
+    let any_detail = run
+        .iter()
+        .any(|e| e.detail.as_ref().is_some_and(|s| !s.is_empty()));
+    let any_arg = run.iter().any(|e| !e.args_summary.is_empty());
+    let expandable = any_detail || any_arg;
+    let open = RwSignal::new(false);
+    let label = head.label.clone();
+    let tool_for_icon = head.tool.clone();
+    let tool_name_for_title = head.tool.clone();
+    let count_badge = format!("×{count}");
+    let invocations = run.clone();
 
     view! {
-        <div class=format!("agent-tool-row {status_class}") title=tool_name_for_title>
+        <div class=format!("agent-tool-row agent-tool-row--merged {status_class}") title=tool_name_for_title>
             <button
                 type="button"
                 class="agent-tool-row__head"
-                aria-expanded=move || detail_open.get().to_string()
-                prop:disabled=move || !has_detail
+                aria-expanded=move || open.get().to_string()
+                prop:disabled=move || !expandable
                 on:click=move |_| {
-                    if has_detail {
-                        detail_open.update(|o| *o = !*o);
+                    if expandable {
+                        open.update(|o| *o = !*o);
                     }
                 }
             >
                 <span class="agent-tool-row__icon" aria-hidden="true">
-                    <LxIcon icon=tool_icon(&entry.tool) width="0.82rem" height="0.82rem" />
+                    <LxIcon icon=tool_icon(&tool_for_icon) width="0.82rem" height="0.82rem" />
                 </span>
                 <span class="agent-tool-row__label">{label}</span>
-                <Show when={
-                    let s = summary.clone();
-                    move || !s.is_empty()
-                }>
-                    <span class="agent-tool-row__arg">{summary.clone()}</span>
-                </Show>
+                <span class="agent-tool-row__count" aria-label=format!("{count} calls")>{count_badge}</span>
                 <span class="agent-tool-row__status" aria-hidden="true">
                     <LxIcon icon=status_icon width="0.78rem" height="0.78rem" />
                 </span>
             </button>
-            <Show when=move || has_detail && detail_open.get()>
-                <pre class="agent-tool-row__detail">{detail_text.clone()}</pre>
+            <Show when=move || expandable && open.get()>
+                <ul class="agent-tool-row__sublist">
+                    {invocations
+                        .iter()
+                        .cloned()
+                        .enumerate()
+                        .map(|(i, entry)| {
+                            let sub_status = match entry.status {
+                                ActivityStatus::Pending => "agent-tool-row__sub--pending",
+                                ActivityStatus::Ok => "agent-tool-row__sub--ok",
+                                ActivityStatus::Fail => "agent-tool-row__sub--fail",
+                            };
+                            let sub_icon = match entry.status {
+                                ActivityStatus::Pending => icondata::LuLoader,
+                                ActivityStatus::Ok => icondata::LuCheck,
+                                ActivityStatus::Fail => icondata::LuTriangleAlert,
+                            };
+                            let arg = entry.args_summary.clone();
+                            let detail = entry.detail.clone().unwrap_or_default();
+                            let has_detail_i = !detail.is_empty();
+                            view! {
+                                <li class=format!("agent-tool-row__sub {sub_status}")>
+                                    <span class="agent-tool-row__sub-index">{format!("{:02}", i + 1)}</span>
+                                    <span class="agent-tool-row__sub-status" aria-hidden="true">
+                                        <LxIcon icon=sub_icon width="0.7rem" height="0.7rem" />
+                                    </span>
+                                    <Show when={
+                                        let a = arg.clone();
+                                        move || !a.is_empty()
+                                    }>
+                                        <span class="agent-tool-row__sub-arg">{arg.clone()}</span>
+                                    </Show>
+                                    <Show when=move || has_detail_i>
+                                        <pre class="agent-tool-row__sub-detail">{detail.clone()}</pre>
+                                    </Show>
+                                </li>
+                            }
+                        })
+                        .collect_view()}
+                </ul>
             </Show>
         </div>
     }
+    .into_any()
 }

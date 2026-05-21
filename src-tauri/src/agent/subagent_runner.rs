@@ -125,8 +125,14 @@ pub async fn run_one_subagent(
 
     let root_guard = workspace_root.and_then(|r| WorkspaceRootGuard::parse(r).ok().flatten());
     let ws = workspace_root.unwrap_or("<no workspace>");
-    let system =
-        subagent_prompts::subagent_system_prompt(ws, role, display_name, task, success_criteria);
+    let system = subagent_prompts::subagent_system_prompt(
+        ws,
+        role,
+        display_name,
+        task,
+        success_criteria,
+        groups,
+    );
 
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(180))

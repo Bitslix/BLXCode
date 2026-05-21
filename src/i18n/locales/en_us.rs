@@ -211,7 +211,7 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::AppShortcutModeTmux => "Tmux style (Ctrl+b, then key)",
         I18nKey::AppShortcutModeLegacy => "Classic (Ctrl / Ctrl+Shift)",
         I18nKey::AppShortcutModeHint => {
-            "Tmux: prefix Ctrl+b then a second key (e.g. n for new terminal, : for command palette). \
+            "Tmux: prefix Ctrl+b then a second key (e.g. n for new terminal, p for command palette). \
 Classic: Ctrl+O quick open, Ctrl+` new terminal, Ctrl+Shift+P palette."
         }
         I18nKey::MemShowInGraph => "Show in graph",

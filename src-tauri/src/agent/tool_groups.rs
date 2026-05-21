@@ -201,6 +201,31 @@ pub fn registry_filtered(groups: &[ToolGroup], web_enabled: bool) -> Vec<ToolDef
         .collect()
 }
 
+/// Sanitize a tool name for OpenAI/Azure: Azure rejects names that don't match
+/// `^[a-zA-Z0-9_-]+$`, so we replace dots with underscores. The reverse
+/// mapping is performed by [`openai_tool_name_to_internal`] on the inbound
+/// `tool_calls` so internal dispatch keeps the dotted names.
+#[must_use]
+pub fn sanitize_openai_tool_name(name: &str) -> String {
+    name.replace('.', "_")
+}
+
+/// Look up the internal (dotted) tool name from a sanitized name returned by
+/// the OpenAI-compatible provider. Falls back to the input when there is no
+/// dotted tool whose sanitized form matches.
+#[must_use]
+pub fn openai_tool_name_to_internal(sanitized: &str) -> String {
+    if !sanitized.contains('_') {
+        return sanitized.to_string();
+    }
+    for t in registry() {
+        if t.name.contains('.') && sanitize_openai_tool_name(t.name) == sanitized {
+            return t.name.to_string();
+        }
+    }
+    sanitized.to_string()
+}
+
 pub fn render_for_openai_filtered(groups: &[ToolGroup], web_enabled: bool) -> Value {
     let items: Vec<Value> = registry_filtered(groups, web_enabled)
         .into_iter()
@@ -208,7 +233,7 @@ pub fn render_for_openai_filtered(groups: &[ToolGroup], web_enabled: bool) -> Va
             json!({
                 "type": "function",
                 "function": {
-                    "name": t.name,
+                    "name": sanitize_openai_tool_name(t.name),
                     "description": t.description,
                     "parameters": t.parameters,
                 }

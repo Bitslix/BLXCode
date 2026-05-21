@@ -15,6 +15,7 @@ use crate::agent::protocol::{AgentEvent, AgentImageContextItem};
 use crate::agent::state::AgentEngineState;
 use crate::agent::system_prompt::system_prompt;
 use crate::agent::tool_dispatch::{dispatch_tool, DispatchContext};
+use crate::agent::tool_groups::openai_tool_name_to_internal;
 use crate::agent::tools::WorkspaceRootGuard;
 use crate::agent_settings::{AgentProviderKind, AgentProviderSettings, ThinkingLevel};
 use crate::tasks;
@@ -289,28 +290,31 @@ pub async fn run_chat_turn(
         }
 
         // Execute each tool call sequentially and append the result.
+        // Provider sees sanitized names (no dots, Azure-compatible) but the
+        // registry and UI work with the internal dotted form.
         for call in round_res.tool_calls {
             if state.cancelled() {
                 emit_aborted(&state);
                 return;
             }
+            let internal_name = openai_tool_name_to_internal(&call.name);
             let args_val: Value = serde_json::from_str(&call.arguments).unwrap_or(json!({}));
             let outcome = dispatch_tool(
                 &state,
                 &call.id,
-                &call.name,
+                &internal_name,
                 &args_val,
                 root_guard.as_ref(),
                 Some(&dispatch_ctx),
             )
             .await;
 
-            if outcome.ok && call.name.starts_with("task_") {
+            if outcome.ok && internal_name.starts_with("task_") {
                 maybe_emit_task_snapshot(&state, root_guard.as_ref());
             }
 
             state.push(AgentEvent::ToolResult {
-                tool: call.name.clone(),
+                tool: internal_name,
                 ok: outcome.ok,
                 message: Some(truncate_for_ui(&outcome.content)),
             });
