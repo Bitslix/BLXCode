@@ -576,32 +576,65 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
             class:blx-sr-card--open=move || expanded.get()
             data-state=bucket.key()
         >
-            <button
-                type="button"
-                class="blx-sr-card__row"
-                aria-expanded=move || if expanded.get() { "true" } else { "false" }
-                on:click=on_toggle_card
-            >
-                <span class="blx-sr-card__chevron" aria-hidden="true">
-                    <LxIcon icon=icondata::LuChevronRight width="14px" height="14px" />
-                </span>
-                <span class="blx-sr-card__icon" aria-hidden="true">
-                    <LxIcon icon=icondata::LuClipboardList width="16px" height="16px" />
-                </span>
-                <span class="blx-sr-card__main">
-                    <span class="blx-sr-card__title-row">
-                        <span class="blx-sr-card__title">{title}</span>
-                        <span class="blx-sr-card__badge" data-kind="plan">"plan"</span>
-                        {is_index.then(|| view! {
-                            <span class="blx-plans-card__protected">{i18n.tr(I18nKey::PlansProtectedIndex)}</span>
-                        })}
+            <div class="blx-sr-card__row blx-plans-card__row">
+                <button
+                    type="button"
+                    class="blx-plans-card__row-main"
+                    aria-expanded=move || if expanded.get() { "true" } else { "false" }
+                    on:click=on_toggle_card
+                >
+                    <span class="blx-sr-card__chevron" aria-hidden="true">
+                        <LxIcon icon=icondata::LuChevronRight width="14px" height="14px" />
                     </span>
-                    <span class="blx-sr-card__summary blx-plans-card__summary">
-                        <span class="blx-plans-card__path">{path.clone()}</span>
-                        <PlanTaskSummaryIcons summary=summary.clone() />
+                    <span class="blx-sr-card__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuClipboardList width="16px" height="16px" />
                     </span>
-                </span>
-            </button>
+                    <span class="blx-sr-card__main">
+                        <span class="blx-sr-card__title-row">
+                            <span class="blx-sr-card__title">{title}</span>
+                            <span class="blx-sr-card__badge" data-kind="plan">"plan"</span>
+                            {is_index.then(|| view! {
+                                <span class="blx-plans-card__protected">{i18n.tr(I18nKey::PlansProtectedIndex)}</span>
+                            })}
+                        </span>
+                        <span class="blx-sr-card__summary blx-plans-card__summary">
+                            <span class="blx-plans-card__path">{path.clone()}</span>
+                            <PlanTaskSummaryIcons summary=summary.clone() />
+                        </span>
+                    </span>
+                </button>
+                <button
+                    type="button"
+                    class="blx-sr-btn blx-sr-btn--icon blx-plans-card__edit-toggle"
+                    disabled=move || body_loading.get() || saving.get()
+                    aria-label=move || {
+                        if editing.get() {
+                            i18n.tr(I18nKey::PlansPreview)()
+                        } else {
+                            i18n.tr(I18nKey::PlansEdit)()
+                        }
+                    }
+                    title=move || {
+                        if editing.get() {
+                            i18n.tr(I18nKey::PlansPreview)()
+                        } else {
+                            i18n.tr(I18nKey::PlansEdit)()
+                        }
+                    }
+                    on:click=move |ev: web_sys::MouseEvent| {
+                        ev.stop_propagation();
+                        toggle_plan_edit_from_header(state, card_path.get_value(), expanded, editing, body, draft, body_loading);
+                    }
+                >
+                    {move || {
+                        if editing.get() {
+                            view! { <LxIcon icon=icondata::LuEye width="13px" height="13px" /> }.into_any()
+                        } else {
+                            view! { <LxIcon icon=icondata::LuPencil width="13px" height="13px" /> }.into_any()
+                        }
+                    }}
+                </button>
+            </div>
 
             {move || expanded.get().then(|| {
                 let is_loading = body_loading.get();
@@ -699,19 +732,6 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
                                 view! {
                                     <button
                                         type="button"
-                                        class="blx-sr-btn"
-                                        disabled=!has_body
-                                        on:click=move |ev: web_sys::MouseEvent| {
-                                            ev.stop_propagation();
-                                            draft.set(body.with(|b| b.clone().unwrap_or_default()));
-                                            editing.set(true);
-                                        }
-                                    >
-                                        <LxIcon icon=icondata::LuPencil width="13px" height="13px" />
-                                        <span>{i18n.tr(I18nKey::SrEdit)}</span>
-                                    </button>
-                                    <button
-                                        type="button"
                                         class="blx-sr-btn blx-sr-btn--primary"
                                         on:click=move |ev: web_sys::MouseEvent| {
                                             ev.stop_propagation();
@@ -774,6 +794,47 @@ fn read_plan_into(
         match plan_read(&ws, &path).await {
             Ok(PlanContent { content, .. }) => {
                 body.set(Some(content));
+                state.error.set(None);
+            }
+            Err(e) => state.error.set(Some(e)),
+        }
+        loading.set(false);
+    });
+}
+
+fn toggle_plan_edit_from_header(
+    state: PlansState,
+    path: String,
+    expanded: RwSignal<bool>,
+    editing: RwSignal<bool>,
+    body: RwSignal<Option<String>>,
+    draft: RwSignal<String>,
+    loading: RwSignal<bool>,
+) {
+    expanded.set(true);
+    if editing.get_untracked() {
+        draft.set(body.with_untracked(|b| b.clone().unwrap_or_default()));
+        editing.set(false);
+        return;
+    }
+    if let Some(content) = body.get_untracked() {
+        draft.set(content);
+        editing.set(true);
+        return;
+    }
+    if loading.get_untracked() {
+        return;
+    }
+    let Some(ws) = state.workspace_cwd.get_untracked() else {
+        return;
+    };
+    loading.set(true);
+    spawn_local(async move {
+        match plan_read(&ws, &path).await {
+            Ok(PlanContent { content, .. }) => {
+                draft.set(content.clone());
+                body.set(Some(content));
+                editing.set(true);
                 state.error.set(None);
             }
             Err(e) => state.error.set(Some(e)),
