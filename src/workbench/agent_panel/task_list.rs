@@ -1,5 +1,7 @@
 use crate::agent_wire::{AgentTask, TaskSnapshot, TaskStatus};
+use icondata::Icon;
 use leptos::prelude::*;
+use leptos_icons::Icon as LxIcon;
 use std::collections::BTreeMap;
 
 #[component]
@@ -60,7 +62,7 @@ pub fn TaskSection(
                                         let title = format!("Plan: {plan_path}");
                                         view! {
                                             <div class="agent-task-list__group-block">
-                                                <h4 class="agent-task-list__group-title">{title}</h4>
+                                                <TaskGroupTitle icon=icondata::LuClipboardList label=title />
                                                 <ol class="agent-task-list__group">
                                                     {tasks
                                                         .into_iter()
@@ -81,7 +83,7 @@ pub fn TaskSection(
                                     let active = active.clone();
                                     view! {
                                         <div class="agent-task-list__group-block">
-                                            <h4 class="agent-task-list__group-title">"Free Tasks"</h4>
+                                            <TaskGroupTitle icon=icondata::LuListTodo label="Free Tasks".to_string() />
                                             <ol class="agent-task-list__group">
                                                 {free_tasks
                                                     .into_iter()
@@ -103,6 +105,18 @@ pub fn TaskSection(
                 </div>
             </Show>
         </section>
+    }
+}
+
+#[component]
+fn TaskGroupTitle(icon: Icon, label: String) -> impl IntoView {
+    view! {
+        <h4 class="agent-task-list__group-title">
+            <span class="agent-task-list__group-icon" aria-hidden="true">
+                <LxIcon icon=icon width="13px" height="13px" />
+            </span>
+            {label}
+        </h4>
     }
 }
 
