@@ -1,6 +1,5 @@
-# Build release bundles on all three desktop OSes.
+# Build release bundles on macOS and Windows (no Linux CI).
 # macOS .app/.dmg require a macOS runner (Intel + Apple Silicon via universal target).
-# Linux AppImage on Ubuntu CI does not need NO_STRIP; use it on Arch when building locally.
 name: Release
 
 permissions:
@@ -23,7 +22,6 @@ on:
         default: Alle
         options:
           - Alle
-          - Linux (deb, rpm, AppImage)
           - Mac Universal
           - Windows
 
@@ -98,33 +96,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: ubuntu-22.04
-            linux_arch: amd64
-            args: ""
-          - platform: ubuntu-24.04-arm
-            linux_arch: arm64
-            args: ""
           - platform: macos-latest
-            linux_arch: ""
             args: --target universal-apple-darwin
           - platform: windows-latest
-            linux_arch: ""
             args: ""
 
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Linux dependencies
-        if: startsWith(matrix.platform, 'ubuntu-')
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            libasound2-dev \
-            patchelf
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable

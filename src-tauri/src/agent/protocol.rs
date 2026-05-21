@@ -162,26 +162,105 @@ pub enum AgentEvent {
         status: String,
         summary: String,
     },
-    /// Per-turn usage stats emitted just before `Done`. The UI accumulates
-    /// these across the conversation and renders a footer line with
-    /// totals, decode speed (output_tokens/s) and time-to-first-token.
+    /// Per-round / per-tool usage stats. One event per `ModelRound`
+    /// (provider call) and one per `ToolExec` (server tool dispatch).
+    /// The UI attaches metrics to the matching timeline row and updates
+    /// the session cost total in the chat header.
     #[serde(rename = "turn_usage")]
     TurnUsage {
-        /// Tokens billed for the prompt (system + history + this user turn,
-        /// including any tool results). When the provider doesn't emit
-        /// usage, this is `None` and the UI shows `—`.
+        /// Whether this event reports a provider round or a tool execution.
+        kind: TurnUsageKind,
+        /// `None` for the main agent; `Some(id)` for events emitted from
+        /// inside a subagent run (routed to the subagent card).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        agent_id: Option<String>,
+        /// Provider call id for `ToolExec` events — used to correlate
+        /// the metric back to the originating tool row.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        call_id: Option<String>,
+        /// Zero-based round index within this user turn for `ModelRound`.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        round_index: Option<u32>,
+        /// Monotonic counter incremented on `agent_clear_conversation`.
+        /// The frontend drops `TurnUsage` events whose generation is
+        /// older than the current one to avoid late events from a
+        /// cancelled turn polluting a fresh chat.
+        turn_generation: u64,
+        /// Prompt / input tokens reported for this round (or this tool's
+        /// internal usage, if applicable). `None` when not available.
         #[serde(skip_serializing_if = "Option::is_none")]
         input_tokens: Option<u64>,
-        /// Tokens billed for the model's output across all rounds of this
-        /// turn.
+        /// Completion / output tokens reported for this round.
         #[serde(skip_serializing_if = "Option::is_none")]
         output_tokens: Option<u64>,
-        /// Wall-clock milliseconds from request send to first streamed
-        /// content/thinking delta of the first round.
+        /// Wall-clock ms from round start to first streamed delta.
+        /// `None` for tool-only rounds or `ToolExec` events.
         #[serde(skip_serializing_if = "Option::is_none")]
         ttft_ms: Option<u64>,
-        /// Wall-clock milliseconds for the whole turn (all rounds, all
-        /// tool calls, until `Done`).
+        /// Wall-clock ms spent in this round or tool execution.
         elapsed_ms: u64,
+        /// Resolved USD cost for this round / tool. `None` when no
+        /// pricing data is available; the UI then shows `—`.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cost_usd: Option<f64>,
     },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TurnUsageKind {
+    /// One provider round (one HTTP request → streamed reply, possibly
+    /// followed by tool calls in the next round).
+    ModelRound,
+    /// One in-process tool dispatch invoked by the model.
+    ToolExec,
+}
+
+/// Per-row metric bundle attached to assistant / tool / subagent rows in
+/// the timeline. Mirrored on the frontend in `agent_wire.rs`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TurnMetrics {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ttft_ms: Option<u64>,
+    pub elapsed_ms: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cost_usd: Option<f64>,
+}
+
+impl TurnMetrics {
+    /// Returns `true` when no field carries meaningful data — the UI uses
+    /// this to skip rendering an empty metrics bar.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.input_tokens.is_none()
+            && self.output_tokens.is_none()
+            && self.ttft_ms.is_none()
+            && self.elapsed_ms == 0
+            && self.cost_usd.is_none()
+    }
+
+    /// Accumulate another metric burst into this one (used for subagent
+    /// cards where multiple `ModelRound` events fold into one header).
+    pub fn merge(&mut self, other: &TurnMetrics) {
+        if let Some(v) = other.input_tokens {
+            self.input_tokens = Some(self.input_tokens.unwrap_or(0).saturating_add(v));
+        }
+        if let Some(v) = other.output_tokens {
+            self.output_tokens = Some(self.output_tokens.unwrap_or(0).saturating_add(v));
+        }
+        if let Some(v) = other.ttft_ms {
+            // For aggregated metrics we keep the first TTFT sample —
+            // averaging across rounds would mislead.
+            self.ttft_ms.get_or_insert(v);
+        }
+        self.elapsed_ms = self.elapsed_ms.saturating_add(other.elapsed_ms);
+        if let Some(v) = other.cost_usd {
+            self.cost_usd = Some(self.cost_usd.unwrap_or(0.0) + v);
+        }
+    }
 }

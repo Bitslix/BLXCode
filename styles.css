@@ -2080,6 +2080,29 @@ button.workbench-shortcut-row--action:focus-visible {
   flex-shrink: 0;
 }
 
+.agent-chat-head__cost {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  margin-left: 0.6rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(125, 211, 252, 0.08);
+  font-family: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
+  font-size: 0.7rem;
+  line-height: 1.2;
+  color: var(--text-muted, #8a8f98);
+}
+
+.agent-chat-head__cost strong {
+  color: var(--accent, #7dd3fc);
+  font-weight: 600;
+}
+
+.agent-chat-head__cost-sep {
+  opacity: 0.5;
+}
+
 .agent-chat-head__icon-btn,
 .agent-chat-head__reset {
   display: inline-grid;

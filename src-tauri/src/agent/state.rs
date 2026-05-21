@@ -24,6 +24,11 @@ pub struct AgentEngineState {
     /// Conversation history across user turns (non-system messages only).
     /// The system prompt is rebuilt fresh per turn from the current workspace.
     conversation: Mutex<Vec<Value>>,
+    /// Monotonic counter bumped each time the conversation is cleared.
+    /// Stamped onto every `TurnUsage` event so the frontend can drop
+    /// late events from a cancelled / cleared turn instead of polluting
+    /// the next chat's running totals.
+    turn_generation: std::sync::atomic::AtomicU64,
 }
 
 impl AgentEngineState {
@@ -34,7 +39,15 @@ impl AgentEngineState {
             cancel: AtomicBool::new(false),
             pending_client_tools: Mutex::new(HashMap::new()),
             conversation: Mutex::new(Vec::new()),
+            turn_generation: std::sync::atomic::AtomicU64::new(0),
         })
+    }
+
+    /// Current generation. Stamp this onto every `TurnUsage` event the
+    /// agent loop emits so the frontend can drop stale ones.
+    pub fn turn_generation(&self) -> u64 {
+        self.turn_generation
+            .load(std::sync::atomic::Ordering::SeqCst)
     }
 
     /// Returns the persisted conversation (non-system messages) so the next
@@ -61,6 +74,10 @@ impl AgentEngineState {
             .lock()
             .expect("conversation lock poisoned")
             .clear();
+        // Bump the generation so any TurnUsage events still in flight
+        // from the prior turn are recognised as stale by the frontend.
+        self.turn_generation
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     }
 
     pub fn push_batch(&self, evs: impl IntoIterator<Item = AgentEvent>) {

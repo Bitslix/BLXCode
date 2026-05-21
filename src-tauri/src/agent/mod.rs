@@ -6,6 +6,7 @@ mod anthropic;
 mod environment;
 mod git_agent;
 mod openrouter;
+pub(crate) mod pricing;
 mod provider;
 mod session_orchestrator;
 mod shell_exec;

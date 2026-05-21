@@ -1,6 +1,6 @@
 # Per-Turn Chat Metrics & Session Cost
 
-**Status:** planned
+**Status:** done
 
 ## Summary
 

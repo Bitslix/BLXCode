@@ -288,6 +288,19 @@ pub struct ProviderModelEntry {
     pub id: String,
     pub label: String,
     pub description: Option<String>,
+    /// USD-per-token rates from OpenRouter `/models`. Direct-provider
+    /// entries leave this `None`; the backend resolves their cost via
+    /// the id-mapping table in `agent/pricing.rs`.
+    #[serde(default)]
+    pub pricing: Option<ModelPricing>,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelPricing {
+    pub prompt: f64,
+    pub completion: f64,
 }
 
 #[derive(Clone, Debug, serde::Deserialize)]

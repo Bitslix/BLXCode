@@ -89,6 +89,44 @@ def rust_escape(s: str) -> str:
     return "".join(out)
 
 
+def _unescape_rust_string(s: str) -> str:
+    """Reverse the work of `rust_escape`. Critical for round-trip safety:
+    `parse → emit → parse → emit` MUST be a fixed point. The previous
+    implementation only converted `\\n` to a newline, leaving every other
+    escape (`\\\\`, `\\"`, `\\t`, `\\r`) raw — so each parse-emit cycle
+    re-escaped the already-escaped backslashes and the file size doubled
+    on every `--patch-english-matches` run."""
+    out: list[str] = []
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if ch == "\\" and i + 1 < len(s):
+            nxt = s[i + 1]
+            if nxt == "\\":
+                out.append("\\")
+                i += 2
+                continue
+            if nxt == '"':
+                out.append('"')
+                i += 2
+                continue
+            if nxt == "n":
+                out.append("\n")
+                i += 2
+                continue
+            if nxt == "r":
+                out.append("\r")
+                i += 2
+                continue
+            if nxt == "t":
+                out.append("\t")
+                i += 2
+                continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
 def parse_locale_rs(path: Path) -> list[tuple[str, str]]:
     """Extract (variant, string) in source order from a locales/*.rs msg() file."""
     text = path.read_text(encoding="utf-8")
@@ -101,7 +139,7 @@ def parse_locale_rs(path: Path) -> list[tuple[str, str]]:
         key = m.group(1)
         braced, inline = m.group(2), m.group(3)
         s = braced if braced is not None else (inline or "")
-        out.append((key, s.replace("\\n", "\n")))
+        out.append((key, _unescape_rust_string(s)))
     return out
 
 
@@ -114,6 +152,11 @@ def emit_locale_rs(pairs: list[tuple[str, str]]) -> str:
         "    match key {",
     ]
     for k, tr in pairs:
+        if tr is None:
+            raise SystemExit(
+                f"emit_locale_rs: translation for I18nKey::{k} is None — "
+                "translator returned no result and the fallback didn't kick in"
+            )
         esc = rust_escape(tr)
         if "\n" in tr or len(tr) > 100:
             lines.append(f"        I18nKey::{k} => {{")
@@ -145,6 +188,15 @@ def translate_one(
             time.sleep(0.1)
         try:
             translated = translator.translate(text)
+            # Recent deep-translator versions can return `None` (e.g. when
+            # the upstream API responds with no translations for short
+            # tokens like "in", "out", "ttft", or a literal glyph like
+            # "—"). Treat that as "no translation available" and fall
+            # back to the source string so we never cache `None`.
+            if not translated:
+                with cache_lock:
+                    cache[text] = text
+                return text
             with cache_lock:
                 cache[text] = translated
             return translated

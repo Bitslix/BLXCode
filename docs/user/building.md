@@ -220,8 +220,8 @@ For the least painful path, build each platform on that platform:
 
 Cross-compiling Tauri desktop bundles from Linux to macOS is **not supported** for release artifacts. Use a Mac or the repository **Release** workflow to produce binaries in CI:
 
-- **Tag push** (`v*`) — builds all platforms (Linux, macOS universal, Windows).
-- **Manual run** (`workflow_dispatch`) — choose **Alle**, **Linux (deb, rpm, AppImage)**, **Mac Universal**, or **Windows**.
+- **Tag push** (`v*`) — builds macOS universal and Windows.
+- **Manual run** (`workflow_dispatch`) — choose **Alle**, **Mac Universal**, or **Windows**.
 
 Only the **repository owner** may trigger that workflow (on org-owned repos, set the Actions variable `RELEASE_OWNER` to the allowed GitHub login).
 

@@ -13,7 +13,7 @@ use futures_util::TryStreamExt;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::io::AsyncBufReadExt;
 
 const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/messages";
@@ -91,14 +91,24 @@ struct OpenAiDeltaFn {
 #[derive(Debug, Deserialize, Default)]
 struct OpenAiUsage {
     #[serde(default)]
+    prompt_tokens: Option<u64>,
+    #[serde(default)]
     completion_tokens: Option<u64>,
+    /// OpenRouter-native USD cost (when `usage: { include: true }` is set).
+    #[serde(default)]
+    cost: Option<f64>,
 }
 
 #[derive(Default)]
 struct OpenAiRoundResult {
     text: String,
     tool_calls: Vec<OpenAiAggregatedCall>,
+    prompt_tokens: Option<u64>,
     completion_tokens: Option<u64>,
+    /// Wall-clock ms from request send to first content / reasoning delta.
+    ttft_ms: Option<u64>,
+    /// OpenRouter-native cost for this round when the provider returned one.
+    cost_usd: Option<f64>,
 }
 
 #[derive(Default, Clone, Debug)]
@@ -188,11 +198,15 @@ pub async fn run_one_subagent(
 
     match provider {
         SubagentProvider::OpenAi(endpoint) => {
+            let provider_kind = match endpoint {
+                Endpoint::Openrouter => AgentProviderKind::Openrouter,
+                Endpoint::Openai => AgentProviderKind::Openai,
+            };
             let mut messages = vec![
                 json!({ "role": "system", "content": system }),
                 json!({ "role": "user", "content": task }),
             ];
-            for _round in 0..MAX_SUBAGENT_ROUNDS {
+            for round_idx in 0..MAX_SUBAGENT_ROUNDS {
                 if state.cancelled() {
                     crate::agent::shell_exec::kill_all_children();
                     let result = blocked_result(role, display_name, "cancelled");
@@ -200,12 +214,17 @@ pub async fn run_one_subagent(
                     return result;
                 }
                 iterations += 1;
-                let body = json!({
+                let mut body = json!({
                     "model": ctx.settings.model_id,
                     "messages": messages,
                     "tools": tools_openai,
                     "stream": true,
+                    "stream_options": { "include_usage": true },
                 });
+                if matches!(endpoint, Endpoint::Openrouter) {
+                    body["usage"] = json!({ "include": true });
+                }
+                let round_start = Instant::now();
                 let round = match stream_openai_subagent_round(
                     state, &client, endpoint, &ctx.api_key, &body, agent_id,
                 )
@@ -218,6 +237,29 @@ pub async fn run_one_subagent(
                         return result;
                     }
                 };
+                let round_elapsed_ms =
+                    round_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+                let round_cost = round.cost_usd.or_else(|| {
+                    crate::agent::pricing::resolve_cost(
+                        &ctx.settings,
+                        provider_kind,
+                        &ctx.settings.model_id,
+                        round.prompt_tokens,
+                        round.completion_tokens,
+                    )
+                });
+                state.push(AgentEvent::TurnUsage {
+                    kind: crate::agent::protocol::TurnUsageKind::ModelRound,
+                    agent_id: Some(agent_id.to_owned()),
+                    call_id: None,
+                    round_index: Some(round_idx),
+                    turn_generation: state.turn_generation(),
+                    input_tokens: round.prompt_tokens,
+                    output_tokens: round.completion_tokens,
+                    ttft_ms: round.ttft_ms,
+                    elapsed_ms: round_elapsed_ms,
+                    cost_usd: round_cost,
+                });
                 if let Some(u) = round.completion_tokens {
                     output_estimate = output_estimate.saturating_add(u as usize);
                 } else {
@@ -291,12 +333,30 @@ pub async fn run_one_subagent(
                         ToolCallOutcome::NotSubmit => {
                             let args: Value =
                                 serde_json::from_str(&tc.arguments).unwrap_or(json!({}));
+                            let tool_start = Instant::now();
                             let outcome = execute_subagent_tool(
                                 &internal_name,
                                 &args,
                                 groups,
                                 root_guard.as_ref(),
                             );
+                            let tool_elapsed_ms = tool_start
+                                .elapsed()
+                                .as_millis()
+                                .min(u64::MAX as u128)
+                                as u64;
+                            state.push(AgentEvent::TurnUsage {
+                                kind: crate::agent::protocol::TurnUsageKind::ToolExec,
+                                agent_id: Some(agent_id.to_owned()),
+                                call_id: Some(tc.id.clone()),
+                                round_index: Some(round_idx),
+                                turn_generation: state.turn_generation(),
+                                input_tokens: None,
+                                output_tokens: None,
+                                ttft_ms: None,
+                                elapsed_ms: tool_elapsed_ms,
+                                cost_usd: None,
+                            });
                             messages.push(json!({
                                 "role": "tool",
                                 "tool_call_id": tc.id,
@@ -315,7 +375,7 @@ pub async fn run_one_subagent(
                 "role": "user",
                 "content": task,
             })];
-            for _round in 0..MAX_SUBAGENT_ROUNDS {
+            for round_idx in 0..MAX_SUBAGENT_ROUNDS {
                 if state.cancelled() {
                     crate::agent::shell_exec::kill_all_children();
                     let result = blocked_result(role, display_name, "cancelled");
@@ -331,6 +391,7 @@ pub async fn run_one_subagent(
                     "tools": tools_anthropic,
                     "stream": true,
                 });
+                let round_start = Instant::now();
                 let round = match stream_anthropic_subagent_round(
                     state, &client, &ctx.api_key, &body, agent_id,
                 )
@@ -343,6 +404,27 @@ pub async fn run_one_subagent(
                         return result;
                     }
                 };
+                let round_elapsed_ms =
+                    round_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+                let round_cost = crate::agent::pricing::resolve_cost(
+                    &ctx.settings,
+                    AgentProviderKind::Anthropic,
+                    &ctx.settings.model_id,
+                    round.input_tokens,
+                    round.output_tokens,
+                );
+                state.push(AgentEvent::TurnUsage {
+                    kind: crate::agent::protocol::TurnUsageKind::ModelRound,
+                    agent_id: Some(agent_id.to_owned()),
+                    call_id: None,
+                    round_index: Some(round_idx),
+                    turn_generation: state.turn_generation(),
+                    input_tokens: round.input_tokens,
+                    output_tokens: round.output_tokens,
+                    ttft_ms: round.ttft_ms,
+                    elapsed_ms: round_elapsed_ms,
+                    cost_usd: round_cost,
+                });
                 if let Some(u) = round.output_tokens {
                     output_estimate = output_estimate.saturating_add(u as usize);
                 } else {
@@ -394,8 +476,26 @@ pub async fn run_one_subagent(
                         }
                         ToolCallOutcome::NotSubmit => {
                             let args: Value = serde_json::from_str(&args_str).unwrap_or(json!({}));
+                            let tool_start = Instant::now();
                             let outcome =
                                 execute_subagent_tool(&name, &args, groups, root_guard.as_ref());
+                            let tool_elapsed_ms = tool_start
+                                .elapsed()
+                                .as_millis()
+                                .min(u64::MAX as u128)
+                                as u64;
+                            state.push(AgentEvent::TurnUsage {
+                                kind: crate::agent::protocol::TurnUsageKind::ToolExec,
+                                agent_id: Some(agent_id.to_owned()),
+                                call_id: Some(id.clone()),
+                                round_index: Some(round_idx),
+                                turn_generation: state.turn_generation(),
+                                input_tokens: None,
+                                output_tokens: None,
+                                ttft_ms: None,
+                                elapsed_ms: tool_elapsed_ms,
+                                cost_usd: None,
+                            });
                             result_blocks.push(json!({
                                 "type": "tool_result",
                                 "tool_use_id": id,
@@ -595,6 +695,12 @@ fn blocked_result(role: SubagentRole, display_name: &str, summary: &str) -> Valu
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum AnthroStreamEvent {
+    /// First event in the stream — carries the initial usage block with
+    /// `input_tokens` (prompt) and a partial `output_tokens` count.
+    MessageStart {
+        #[serde(default)]
+        message: Option<AnthroMessageStartInner>,
+    },
     ContentBlockStart {
         index: u32,
         content_block: AnthroBlockStart,
@@ -614,6 +720,12 @@ enum AnthroStreamEvent {
     },
     #[serde(other)]
     Other,
+}
+
+#[derive(Deserialize, Default)]
+struct AnthroMessageStartInner {
+    #[serde(default)]
+    usage: Option<AnthroStreamUsage>,
 }
 
 #[derive(Deserialize)]
@@ -666,6 +778,8 @@ struct AnthroMessageDeltaInner {
 #[derive(Deserialize, Default)]
 struct AnthroStreamUsage {
     #[serde(default)]
+    input_tokens: Option<u64>,
+    #[serde(default)]
     output_tokens: Option<u64>,
 }
 
@@ -693,7 +807,10 @@ struct AnthropicRoundResult {
     assistant_blocks: Vec<Value>,
     tool_uses: Vec<(String, String, String)>,
     stop_reason: Option<String>,
+    input_tokens: Option<u64>,
     output_tokens: Option<u64>,
+    /// Wall-clock ms from request send to first content / thinking delta.
+    ttft_ms: Option<u64>,
 }
 
 async fn stream_anthropic_subagent_round(
@@ -727,6 +844,7 @@ async fn stream_anthropic_subagent_round(
         return Err(format!("HTTP {status}: {trimmed}"));
     }
 
+    let req_start = Instant::now();
     let stream = resp.bytes_stream();
     let reader = tokio_util::io::StreamReader::new(
         stream.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string())),
@@ -766,6 +884,13 @@ async fn stream_anthropic_subagent_round(
             Err(_) => continue,
         };
         match event {
+            AnthroStreamEvent::MessageStart { message } => {
+                if let Some(usage) = message.and_then(|m| m.usage) {
+                    if let Some(p) = usage.input_tokens {
+                        acc.input_tokens = Some(p);
+                    }
+                }
+            }
             AnthroStreamEvent::ContentBlockStart {
                 index,
                 content_block,
@@ -810,6 +935,11 @@ async fn stream_anthropic_subagent_round(
                                     agent_id: agent_id.to_owned(),
                                 });
                             }
+                            if acc.ttft_ms.is_none() {
+                                acc.ttft_ms = Some(
+                                    req_start.elapsed().as_millis().min(u64::MAX as u128) as u64,
+                                );
+                            }
                             state.push(AgentEvent::SubagentAssistantDelta {
                                 agent_id: agent_id.to_owned(),
                                 delta: text.clone(),
@@ -820,6 +950,11 @@ async fn stream_anthropic_subagent_round(
                     }
                     AnthroBlockDelta::ThinkingDelta { thinking } => {
                         if !thinking.is_empty() {
+                            if acc.ttft_ms.is_none() {
+                                acc.ttft_ms = Some(
+                                    req_start.elapsed().as_millis().min(u64::MAX as u128) as u64,
+                                );
+                            }
                             state.push(AgentEvent::SubagentThinkingDelta {
                                 agent_id: agent_id.to_owned(),
                                 delta: thinking,
@@ -930,6 +1065,7 @@ async fn stream_openai_subagent_round(
         return Err(format!("HTTP {status}: {trimmed}"));
     }
 
+    let req_start = Instant::now();
     let stream = resp.bytes_stream();
     let reader = tokio_util::io::StreamReader::new(
         stream.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string())),
@@ -968,14 +1104,27 @@ async fn stream_openai_subagent_round(
             Ok(c) => c,
             Err(_) => continue,
         };
-        if let Some(u) = chunk.usage.and_then(|u| u.completion_tokens) {
-            acc.completion_tokens = Some(u);
+        if let Some(u) = chunk.usage {
+            if let Some(p) = u.prompt_tokens {
+                acc.prompt_tokens = Some(p);
+            }
+            if let Some(c) = u.completion_tokens {
+                acc.completion_tokens = Some(c);
+            }
+            if let Some(cost) = u.cost {
+                acc.cost_usd = Some(cost);
+            }
         }
         for choice in chunk.choices {
             let reasoning_chunk = choice.delta.reasoning.or(choice.delta.reasoning_content);
             if let Some(reasoning) = reasoning_chunk {
                 if !reasoning.is_empty() {
                     thinking_active = true;
+                    if acc.ttft_ms.is_none() {
+                        acc.ttft_ms = Some(
+                            req_start.elapsed().as_millis().min(u64::MAX as u128) as u64,
+                        );
+                    }
                     state.push(AgentEvent::SubagentThinkingDelta {
                         agent_id: agent_id.to_owned(),
                         delta: reasoning,
@@ -989,6 +1138,11 @@ async fn stream_openai_subagent_round(
                         state.push(AgentEvent::SubagentThinkingDone {
                             agent_id: agent_id.to_owned(),
                         });
+                    }
+                    if acc.ttft_ms.is_none() {
+                        acc.ttft_ms = Some(
+                            req_start.elapsed().as_millis().min(u64::MAX as u128) as u64,
+                        );
                     }
                     state.push(AgentEvent::SubagentAssistantDelta {
                         agent_id: agent_id.to_owned(),

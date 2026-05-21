@@ -25,7 +25,7 @@ pub const WORKSPACE_FLEET_AGENT_SLUGS: [&str; 5] =
     ["claude", "codex", "gemini", "opencode", "cursor"];
 
 /// One workspace open in the sidebar; shared across center and right panel via [`WorkbenchService`].
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct WorkspaceEntry {
     pub id: u64,
     /// Stable, globally-unique identifier (UUID v4 hex, no dashes) used as
@@ -93,32 +93,42 @@ fn default_sidebar_section_open() -> bool {
     true
 }
 
-/// Aggregated token / latency stats for a workspace's agent chat. Each
-/// `AgentEvent::TurnUsage` from the backend updates these running totals.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+/// Aggregated token / cost stats for a workspace's agent chat. Each
+/// `AgentEvent::TurnUsage` (ModelRound or ToolExec) updates these running
+/// totals. Per-row metrics live on the timeline items themselves; this
+/// struct only carries what the chat header needs.
+///
+/// Legacy fields `ttft_sum_ms` / `ttft_sample_count` were removed when
+/// TTFT moved to per-row metrics. Older `workbench.json` snapshots ignore
+/// the removed fields on deserialize (Serde default behaviour) and rewrite
+/// without them on the next save.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatUsageStats {
-    /// Sum of input/prompt tokens reported by the provider across all turns.
+    /// Sum of input/prompt tokens across all rounds and subagents.
     #[serde(default)]
     pub total_input_tokens: u64,
-    /// Sum of output/completion tokens across all turns.
+    /// Sum of output/completion tokens across all rounds and subagents.
     #[serde(default)]
     pub total_output_tokens: u64,
-    /// Sum of wall-clock ms across all turns (used as denominator for the
-    /// average decode speed). Includes time spent in tool execution.
+    /// Sum of wall-clock ms across all rounds and tool executions.
     #[serde(default)]
     pub total_elapsed_ms: u64,
-    /// Sum of TTFT samples — divide by `ttft_sample_count` for the mean.
+    /// Total resolved USD cost across all rounds and tool executions.
+    /// Missing pricing data is treated as zero contribution (no flag).
     #[serde(default)]
-    pub ttft_sum_ms: u64,
-    /// Count of turns that produced a TTFT measurement (the model streamed
-    /// at least one delta).
-    #[serde(default)]
-    pub ttft_sample_count: u32,
-    /// Total number of turns the user submitted (whether or not usage data
-    /// arrived). Used to display "N turns" in the footer.
+    pub total_cost_usd: f64,
+    /// Total number of accounted events (`ModelRound` + `ToolExec` across
+    /// main agent and subagents). Rendered as `N turns` in the chat header.
     #[serde(default)]
     pub turn_count: u32,
+    /// Highest `turn_generation` observed in a `TurnUsage` event for this
+    /// workspace. Events stamped with a lower generation are dropped — they
+    /// belong to a turn that was cancelled by `agent_clear_conversation`.
+    /// Bumped locally on chat reset as well so we don't credit anything
+    /// emitted before the reset to the fresh chat.
+    #[serde(default)]
+    pub current_turn_generation: u64,
 }
 
 fn default_sidebar_width_px() -> f64 {
@@ -444,7 +454,7 @@ pub fn fleet_counts_to_slot_labels(n: usize, counts: &[u8; 5]) -> Vec<String> {
     out
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RecentWorkspaceItem {
     pub workspace: WorkspaceEntry,
     /// JSON object string: map of terminal_key → SessionStart payload.
@@ -2225,18 +2235,32 @@ impl WorkbenchService {
         })
     }
 
-    /// Accumulate one turn's usage report into the workspace's running totals.
+    /// Accumulate one `TurnUsage` event (ModelRound or ToolExec, from main
+    /// agent or a subagent) into the workspace's running totals.
+    ///
+    /// Returns `true` when the event was applied. Events whose
+    /// `turn_generation` is below the workspace's `current_turn_generation`
+    /// are dropped — they belong to a turn that was cancelled by a chat
+    /// reset and would otherwise pollute the fresh chat's totals.
     pub fn record_chat_turn_usage(
         &self,
         workspace_id: u64,
+        turn_generation: u64,
         input_tokens: Option<u64>,
         output_tokens: Option<u64>,
-        ttft_ms: Option<u64>,
         elapsed_ms: u64,
-    ) {
+        cost_usd: Option<f64>,
+    ) -> bool {
+        let mut applied = false;
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
                 let u = &mut ws.agent_chat_usage;
+                if turn_generation < u.current_turn_generation {
+                    return;
+                }
+                if turn_generation > u.current_turn_generation {
+                    u.current_turn_generation = turn_generation;
+                }
                 u.turn_count = u.turn_count.saturating_add(1);
                 if let Some(p) = input_tokens {
                     u.total_input_tokens = u.total_input_tokens.saturating_add(p);
@@ -2244,20 +2268,28 @@ impl WorkbenchService {
                 if let Some(c) = output_tokens {
                     u.total_output_tokens = u.total_output_tokens.saturating_add(c);
                 }
-                if let Some(t) = ttft_ms {
-                    u.ttft_sum_ms = u.ttft_sum_ms.saturating_add(t);
-                    u.ttft_sample_count = u.ttft_sample_count.saturating_add(1);
-                }
                 u.total_elapsed_ms = u.total_elapsed_ms.saturating_add(elapsed_ms);
+                if let Some(c) = cost_usd {
+                    u.total_cost_usd += c;
+                }
+                applied = true;
             }
         });
+        applied
     }
 
     /// Reset the chat-usage aggregate (call alongside `agent_clear_conversation`).
+    /// Bumps `current_turn_generation` past whatever it was before so any
+    /// in-flight `TurnUsage` events from the cancelled turn are dropped
+    /// when they arrive.
     pub fn clear_chat_usage(&self, workspace_id: u64) {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
-                ws.agent_chat_usage = ChatUsageStats::default();
+                let next_gen = ws.agent_chat_usage.current_turn_generation.saturating_add(1);
+                ws.agent_chat_usage = ChatUsageStats {
+                    current_turn_generation: next_gen,
+                    ..ChatUsageStats::default()
+                };
             }
         });
     }

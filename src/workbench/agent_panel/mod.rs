@@ -6,6 +6,7 @@ mod image_context;
 mod subagent_debounce;
 mod task_list;
 mod timeline;
+pub(crate) mod turn_metrics_bar;
 mod voice_orb;
 
 use crate::agent_wire::{AgentEvent, TaskSnapshot, UserTurn};
@@ -287,6 +288,7 @@ pub fn AgentPanelDock() -> impl IntoView {
             >
                 <div class="agent-section__head agent-chat-head">
                     <h3>{move || i18n.tr(I18nKey::AgChatHeading)()}</h3>
+                    <SessionCostChip wb=wb />
                     <div class="agent-chat-head__actions">
                         <span>{move || {
                             if timeline.get().is_empty() {
@@ -422,7 +424,6 @@ pub fn AgentPanelDock() -> impl IntoView {
                             }}
                         </ol>
                     </Show>
-                    <ChatUsageFooter wb=wb />
                 </div>
             </article>
 
@@ -658,11 +659,13 @@ fn submit_turn(
     });
 }
 
-/// Aggregated token / latency footer shown at the bottom of the chat list.
-/// Hidden until the first turn produces usage data so an empty chat stays
-/// visually clean.
+/// Compact session-cost chip rendered in the chat header. Replaces the
+/// retired `ChatUsageFooter`. Shows the resolved USD total + turn count;
+/// hidden until the first `TurnUsage` event lands.
 #[component]
-fn ChatUsageFooter(wb: WorkbenchService) -> impl IntoView {
+fn SessionCostChip(wb: WorkbenchService) -> impl IntoView {
+    use crate::workbench::agent_panel::turn_metrics_bar::fmt_cost;
+    let i18n = expect_context::<I18nService>();
     let stats = Memo::new(move |_| {
         let id = wb.active_id().get()?;
         let s = wb.chat_usage_for_workspace(id);
@@ -673,59 +676,26 @@ fn ChatUsageFooter(wb: WorkbenchService) -> impl IntoView {
         }
     });
 
+    let aria = move || lookup(i18n.locale().get(), I18nKey::AgSessionCostAria).to_string();
     view! {
         <Show when=move || stats.with(|s| s.is_some())>
-            <div class="agent-chat-usage" aria-label="Chat usage statistics">
+            <div class="agent-chat-head__cost" aria-label=aria>
                 {move || {
                     let s = stats.get().expect("Show gate");
-                    let in_tok = fmt_compact_int(s.total_input_tokens);
-                    let out_tok = fmt_compact_int(s.total_output_tokens);
-                    // Output-decode speed: completion tokens divided by total
-                    // wall-clock seconds across all turns. Includes the time
-                    // spent in tool calls — that's the right number for the
-                    // operator because the user-visible "how fast is this"
-                    // includes those waits.
-                    let speed = if s.total_elapsed_ms > 0 && s.total_output_tokens > 0 {
-                        let tps = (s.total_output_tokens as f64) * 1000.0
-                            / (s.total_elapsed_ms as f64);
-                        format!("{tps:.1} tok/s")
-                    } else {
-                        "—".to_string()
-                    };
-                    let ttft = if s.ttft_sample_count > 0 {
-                        let mean = s.ttft_sum_ms / (s.ttft_sample_count as u64);
-                        if mean >= 1000 {
-                            format!("{:.2}s", (mean as f64) / 1000.0)
-                        } else {
-                            format!("{mean}ms")
-                        }
-                    } else {
-                        "—".to_string()
-                    };
+                    let cost = fmt_cost(s.total_cost_usd);
                     let turns = s.turn_count;
+                    let loc = i18n.locale().get();
+                    let turn_label = lookup(
+                        loc,
+                        if turns == 1 { I18nKey::AgMetricsTurnsOne } else { I18nKey::AgMetricsTurnsMany },
+                    );
                     view! {
-                        <span class="agent-chat-usage__turns">{format!("{turns} turn{}", if turns == 1 { "" } else { "s" })}</span>
-                        <span class="agent-chat-usage__sep">"·"</span>
-                        <span title="Input/prompt tokens">"in " <strong>{in_tok}</strong></span>
-                        <span class="agent-chat-usage__sep">"·"</span>
-                        <span title="Output/completion tokens">"out " <strong>{out_tok}</strong></span>
-                        <span class="agent-chat-usage__sep">"·"</span>
-                        <span title="Average output decode speed">{speed}</span>
-                        <span class="agent-chat-usage__sep">"·"</span>
-                        <span title="Average time to first token">"ttft " {ttft}</span>
+                        <strong>{cost}</strong>
+                        <span class="agent-chat-head__cost-sep">"·"</span>
+                        <span>{format!("{turns} {turn_label}")}</span>
                     }
                 }}
             </div>
         </Show>
-    }
-}
-
-fn fmt_compact_int(n: u64) -> String {
-    if n >= 1_000_000 {
-        format!("{:.1}M", (n as f64) / 1_000_000.0)
-    } else if n >= 1_000 {
-        format!("{:.1}k", (n as f64) / 1_000.0)
-    } else {
-        n.to_string()
     }
 }
