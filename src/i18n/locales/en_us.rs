@@ -114,6 +114,9 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
 
         I18nKey::PlansProtectedIndex => "PLANS.md is the protected index file.",
         I18nKey::PlansListResizeAria => "Resize plan list",
+        I18nKey::SrSkillsTabCore => "Core",
+        I18nKey::SrSkillsTabUser => "User",
+        I18nKey::SrSourceCore => "core",
         I18nKey::SrRulesEmpty => "No rules in this workspace yet.",
         I18nKey::SrSkillsEmpty => "No skills installed.",
         I18nKey::SrLoading => "Loading…",

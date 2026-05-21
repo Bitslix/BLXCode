@@ -98,6 +98,9 @@ pub enum I18nKey {
     PlansListResizeAria,
 
     // Skills & Rules panel
+    SrSkillsTabCore,
+    SrSkillsTabUser,
+    SrSourceCore,
     SrRulesEmpty,
     SrSkillsEmpty,
     SrLoading,

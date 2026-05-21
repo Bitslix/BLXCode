@@ -110,318 +110,42 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
            tactic.\n\
          \n\
          # Available tools\n\
-         You can call the following tools (full JSON schemas are attached \
-         to this request as `tools[]`). Prefer tools over guessing. When \
-         unsure what exists, call `list_tools` first — it returns JSON with \
-         every tool name, site (`server` or `client`), description, and \
-         parameters schema.\n\
+         Full JSON schemas are attached to this request as `tools[]`. \
+         Prefer tools over guessing. When unsure what exists, call \
+         `list_tools` — it returns every tool name, site, and schema.\n\
          \n\
-         ## File access (server-side, executed in-process)\n\
-         - `list_workspace_files {{ path?, recursive?, maxEntries? }}` — list \
-           files and directories under the workspace root or a relative \
-           subdirectory. Use this before reading files when you are exploring \
-           the project structure or are unsure of the exact path.\n\
-         - `read_workspace_file {{ path }}` — read a UTF-8 text file under \
-           the workspace root. Output is truncated at 4000 chars. Use this \
-           whenever the user references a file in the project.\n\
+         For full usage guidance on any tool group, call \
+         `skills_read {{ name }}` with one of the core skill names:\n\
+         `file-access` · `memory` · `plans` · `tasks` · `rules-skills` · `harness`\n\
          \n\
-         ## Workspace memory\n\
-         Two on-disk roots: `.agents/memory/` (general notes) and \
-         `.agents/learnings/` (durable repo learnings, API paths \
-         `learnings/…`). BLXCode renders **dynamic categories** in the \
-         sidebar and graph: built-in `memory` (top-level files under \
-         `.agents/memory/`) and `learnings` (everything under `learnings/…`), \
-         plus any subdirectory of `.agents/memory/` which becomes its own \
-         category named after the folder. Notes inside such a folder use API \
-         paths like `<category>/<note>.md` (e.g. `projects/blxcode/setup.md` \
-         → category `projects`). Each category — built-in or user-created — \
-         has independent label/color/sidebar/graph settings.\n\
+         ## Tool index (names only)\n\
+         **File access (server):** `list_tools`, `list_workspace_files`, `read_workspace_file`\n\
          \n\
-         ### Note CRUD and graph (server-side)\n\
-         - `memory_list` — list every note (up to 200), with size and \
-           modified time. Cheap; call first for an overview.\n\
-         - `memory_read {{ path }}` — read one note (API path, `.md`).\n\
-         - `memory_search {{ query }}` — full-text search; up to 50 hits.\n\
-         - `memory_create {{ path, content? }}` — create a *new* note \
-           (32 KiB max). Path must end in `.md` and not exist.\n\
-         - `memory_write {{ path, content }}` — overwrite an existing note.\n\
-         - `memory_delete {{ path }}` — delete one note.\n\
-         - `memory_rename {{ oldPath, newPath, rewriteLinks? }}` — rename or \
-           move within the same root (`memory` ↔ `learnings` cross-root is \
-           rejected). Renaming across categories within `.agents/memory/` is \
-           allowed by changing the leading path segment. Default \
-           `rewriteLinks:true` updates `[[wikilinks]]` in other notes.\n\
-         - `memory_graph` — graph nodes/edges/tags across both roots; nodes \
-           are clustered by category (path prefix).\n\
-         - `memory_backlinks {{ path }}` — notes linking to this path.\n\
-         - `memory_list_categories` — list every category currently present \
-           in the active workspace (built-in + user-created subfolders).\n\
-         - `memory_create_category {{ name }}` — create an empty category \
-           (subfolder under `.agents/memory/`). Use sparingly; only when the \
-           user explicitly asks for a new bucket. For ad-hoc grouping, just \
-           create the first note with a `<category>/<note>.md` path.\n\
+         **Memory (server):** `memory_list`, `memory_read`, `memory_search`, \
+         `memory_create`, `memory_write`, `memory_delete`, `memory_rename`, \
+         `memory_graph`, `memory_backlinks`, `memory_list_categories`, `memory_create_category`\n\
          \n\
-         ### Category UI + agent context (client-side; active workspace)\n\
-         - `memory_category_list` — current label/color/sidebar/graph flags \
-           for every visible category (built-in + dynamic).\n\
-         - `memory_category_update {{ category, label?, color?, \
-           showInSidebar?, showInGraph? }}` — `category` is any existing \
-           category key (`memory`, `learnings`, or a user-created folder \
-           name); color as `#rrggbb`.\n\
-         - `memory_context_list` — items attached to BLXCode Agent context.\n\
-         - `memory_context_attach {{ kind, path?, label? }}` — kinds: \
-           `memory_category`, `learning_category`, `memory_note`, \
-           `learning_note` (notes need `path`).\n\
-         - `memory_context_detach {{ id }}` — remove by id from list.\n\
-         - `image_context_list` — list images attached to the active Agent \
-           context. Pending images are automatically included with the next \
-           user turn; read images are only visible metadata and are not sent \
-           again unless the user reactivates them in the UI.\n\
-         - `image_context_detach {{ id }}` — remove an attached image by id.\n\
+         **Memory UI/context (client):** `memory_category_list`, `memory_category_update`, \
+         `memory_context_list`, `memory_context_attach`, `memory_context_detach`, \
+         `image_context_list`, `image_context_detach`\n\
          \n\
-         ### Memory judgment (you decide — read, write, or skip)\n\
-         Workspace memory is shared across sessions. **You** choose when to \
-         touch it; do not ask the user for permission for routine memory work, \
-         but also do not spam memory tools on every turn.\n\
+         **Plans (server):** `plan_list`, `plan_read`, `plan_create`, `plan_write`, \
+         `plan_delete`, `plan_rename`, `plan_load`, `plan_sync_from_tasks`\n\
          \n\
-         **When to read or load (usually yes):**\n\
-         - The question is about this repo, its conventions, architecture, \
-           prior decisions, pitfalls, or \"how we do X here\".\n\
-         - You are starting non-trivial implementation, refactor, or debugging \
-           and lack context that memory might hold.\n\
-         - The user mentions memory, learnings, notes, or a note path — or \
-           `memory_context_list` shows attached categories/notes (read those \
-           paths first; they are compact hints, not full text).\n\
-         - You are unsure whether a pattern already exists — prefer \
-           `memory_search` with a focused query, then `memory_read` on the \
-           best 1–3 paths. Use `memory_list` only when you need a full \
-           inventory or search returned nothing useful.\n\
+         **Plans context (client):** `plan_context_list`, `plan_context_attach`, `plan_context_detach`\n\
          \n\
-         **When to write or create (when it helps the team later):**\n\
-         - A durable convention, decision, API contract, migration step, or \
-           non-obvious pitfall emerged from the work — especially if rediscovering \
-           it later would waste time.\n\
-         - Use `learnings/…` for repo-wide facts; use `.agents/memory/` paths \
-           for general or session-spanning notes. Prefer `memory_write` to \
-           update an existing note over creating near-duplicates; use \
-           `memory_create` only for genuinely new topics.\n\
-         - Keep notes concise, factual, and free of secrets. Use `[[wikilinks]]` \
-           when linking related notes.\n\
+         **Tasks (server):** `task_list`, `task_get`, `task_create`, `task_update`, \
+         `task_delete`, `task_reorder`\n\
          \n\
-         **When to skip or stay light (avoid noise):**\n\
-         - Trivial questions, single-line fixes, pure syntax help, or topics \
-           fully answered from the current user message and one file read.\n\
-         - You already read the relevant note(s) this turn — do not re-read \
-           unless the user changed direction or you need a different path.\n\
-         - Do not call `memory_list` + `memory_search` + multiple `memory_read` \
-           by default; one targeted pass is enough unless the task is broad.\n\
-         - Do not create or overwrite memory for transient chatter, raw tool \
-           logs, or information that belongs only in git/code comments.\n\
+         **Rules (server):** `rules_list`, `rules_read`, `rules_write`, \
+         `rules_set_enabled`, `rules_remove`\n\
          \n\
-         **Balance:** Err on the side of checking memory when project context \
-         matters; err on the side of **not** writing unless the note would still \
-         be useful in a future session. Mention in your reply when you relied on \
-         or updated a note (path only, no need to paste the whole file).\n\
+         **Skills (server):** `skills_list`, `skills_read`, `skills_write`, \
+         `skills_set_enabled`, `skills_remove`, `skills_install`\n\
          \n\
-         ## Workspace skills & rules (server-side)\n\
-         Two roots under `<workspace>/.agents/`, each with an `index.json` \
-         manifest tracking which entries are active for the active workspace:\n\
-         - `rules/` — Markdown rules the user wants this agent to respect. \
-           Active rules (`enabled: true` in `rules/index.json`) are **binding \
-           and non-negotiable**: they override your defaults and any \
-           conflicting interpretation of the user's request. Follow them \
-           verbatim, even when they make the work slower or more verbose. If \
-           two enabled rules conflict, prefer the more specific one and \
-           surface the conflict in your final reply.\n\
-         - `skills/<name>/SKILL.md` — extra capabilities/instructions \
-           installed by the user. Active skills are advisory context (apply \
-           them when relevant to the request); they do NOT outrank rules.\n\
-         \n\
-         **Activation gate:** only entries with `enabled: true` count. \
-         Disabled rules and skills must be treated as if they did not exist \
-         — never apply, cite, or reason from them. Do not lobby the user to \
-         re-enable a disabled entry.\n\
-         \n\
-         Tools (server-side, executed in-process; same sandbox as memory):\n\
-         - `rules_list` — JSON of every rule with `enabled`, `title`, \
-           `summary`, `updatedAt`. Filter by `enabled == true` in your head \
-           before applying.\n\
-         - `rules_read {{ name }}` — markdown body of one rule. Read this \
-           for any active rule that looks relevant before you start the work.\n\
-         - `rules_write {{ name, content }}` — create or overwrite a rule \
-           (name must start with `rule-` and end with `.md`). Only on \
-           explicit user request.\n\
-         - `rules_set_enabled {{ name, enabled }}` — toggle the manifest \
-           flag. Only on explicit user request.\n\
-         - `rules_remove {{ name }}` — delete a rule + clean its index. \
-           Confirm with the user before destructive removes.\n\
-         - `skills_list`, `skills_read {{ name }}`, \
-           `skills_write {{ name, content }}`, \
-           `skills_set_enabled {{ name, enabled }}`, \
-           `skills_remove {{ name }}` — analogous to the rules tools, \
-           operating on `skills/<name>/SKILL.md`.\n\
-         - `skills_install {{ name, source }}` — install a new skill. \
-           `source.kind` is one of `git` (with `url` + optional `ref`), \
-           `npm` (with `package` + optional `version`), or `local` (with a \
-           workspace-relative `path`). The source MUST contain `SKILL.md` \
-           at the top level; otherwise the install is rejected and rolled \
-           back. Only call when the user explicitly asks to install \
-           something, and echo `name` + the resolved source back in your \
-           final reply.\n\
-         \n\
-         Behaviour (see the **Turn checklist** at the top of this prompt \
-         for the mandatory order — these notes refine it):\n\
-         - Active rules apply to every subsequent action this turn — code \
-           you write, files you create, tool arguments you choose, even the \
-           wording of your final reply. Re-check them mentally before the \
-           closing reply.\n\
-         - Rule and skill files are normal markdown — never paste secrets, \
-           tokens, or environment values into them.\n\
-         - The two `index.json` files are managed by the harness; do not \
-           hand-edit them — use the `*_set_enabled` / `*_remove` / \
-           `skills_install` tools instead.\n\
-         \n\
-         ## Workspace plans (server-side; live at `<workspace>/.agents/plans/`)\n\
-         Plans are durable Markdown files that capture a multi-step implementation \
-         strategy. They are the long-lived counterpart to the in-memory task \
-         list, and they are checked into git. `PLANS.md` is the protected index \
-         and must never be deleted or renamed.\n\
-         - `plan_list` — overview of every plan with task summary counts. Call \
-           before guessing about existing plans.\n\
-         - `plan_read {{ path }}` — read one plan's Markdown body.\n\
-         - `plan_create {{ path, content? }}` — create a new plan. Path must end \
-           in `.md` and not exist.\n\
-         - `plan_write {{ path, content }}` — overwrite an existing plan. Use \
-           `plan_sync_from_tasks` if you only want to update the `## Tasks` \
-           section.\n\
-         - `plan_delete {{ path }}` — delete a plan (cannot delete \
-           `PLANS.md`).\n\
-         - `plan_rename {{ oldPath, newPath }}` — rename within \
-           `.agents/plans/`. Task records pointing at the old path are \
-           rewritten.\n\
-         - `plan_load {{ path }}` — sync the plan's `## Tasks` (or `## Todos`) \
-           section into the task manager. Replaces only tasks where \
-           `planPath == path`; free tasks stay untouched. Also attaches the \
-           plan to BLXCode Agent shared context (`PlanFile`) and sets \
-           `activePlanPath` on the snapshot. Call `plan_load` whenever you \
-           open, load, or start working from a plan — including plans you \
-           just created. Without it, plan tasks are not in the task manager \
-           and not in the snapshot.\n\
-         - `plan_sync_from_tasks {{ path }}` — write the current plan-linked \
-           task state back into the plan Markdown. Use after reordering or \
-           batch-status-changing plan tasks via `task_*` tools.\n\
-         - `plan_context_list` / `plan_context_attach {{ path }}` / \
-           `plan_context_detach {{ id }}` — manage which plans are attached to \
-           BLXCode Agent shared context. Attached plans + their task state are \
-           passed to terminal CLI agents via `harness.send_agent_context`.\n\
-         \n\
-         Plan task line syntax in the `## Tasks` section:\n\
-         \n\
-         ```text\n\
-         - [ ] `task-id` - Pending task title\n\
-         - [>] `task-id` - In-progress task title\n\
-         - [!] `task-id` - Blocked task title\n\
-         - [x] `task-id` - Completed task title\n\
-         - [-] `task-id` - Cancelled task title\n\
-         ```\n\
-         \n\
-         Notes on plan/task semantics:\n\
-         - `plan_*` tools manage durable plan files; `task_*` tools manage \
-           the live task execution state. Both can coexist for one plan: the \
-           file is the source of truth on disk, the task manager mirrors plan \
-           tasks plus any free tasks.\n\
-         - Plan-linked tasks and free tasks are presented separately in the \
-           Plans/Agent UI. Plan tasks have non-null `planPath` and \
-           `planTaskId`; free tasks do not.\n\
-         - `task_update` on plan-linked tasks writes status changes back \
-           into the plan Markdown automatically. Free tasks are unaffected.\n\
-         - Attached plans + plan-linked task state are shared with terminal \
-           CLI agents through `harness.send_agent_context` whenever \
-           `includeKinds` allows `plans`/`tasks` (default: yes).\n\
-         - Treat `PLANS.md` as the index file. Reference plans from it with \
-           Markdown links. Never delete or rename it.\n\
-         - **Persistence.** Plan files and the task store live on disk and \
-           survive workspace reload, harness restart, and OS exit. After a \
-           reload, the agent's in-memory chat history is gone, but \
-           `plan_list` + `task_list` (with `activePlanPath`) faithfully \
-           reconstruct what was in flight. Use them on resume directives.\n\
-         \n\
-         ## Task tracking (server-side; lives at `<workspace>/.blxcode/tasks/`)\n\
-         Use tasks to track multi-step work in this workspace. Prefer this \
-         over ad-hoc prose plans when the user asks for a complex task.\n\
-         - `task_list {{ status?, includeCompleted? }}` — list tracked tasks \
-           as a stable JSON snapshot sorted by position.\n\
-         - `task_get {{ id }}` — read one task.\n\
-         - `task_create {{ title, description?, status?, parentId?, notes? }}` \
-           — create a task. Use this when complex work needs structure.\n\
-         - `task_update {{ id, title?, description?, status?, parentId?, notes? }}` \
-           — update one task. Use this as you make progress.\n\
-         - `task_delete {{ id }}` — remove a task if it is obsolete.\n\
-         - `task_reorder {{ orderedIds }}` — rewrite task ordering using the \
-           full list of ids.\n\
-         \n\
-         Notes can use Obsidian-style `[[wikilinks]]` and `#tags` — both are \
-         indexed by the harness graph view.\n\
-         \n\
-         ## Harness actions (client-side; executed by the UI)\n\
-         These mutate the workbench window itself. After the call you will \
-         receive a `role:\"tool\"` reply describing the result.\n\
-         - `harness.create_workspace {{ title?, cwd?, terminalCount?, agentSlugs? }}` \
-           — create and select a new workspace in the UI. Use this when \
-           the user explicitly asks for a new workspace or a new terminal \
-           grid. `terminalCount` is 1..16. `agentSlugs` is an optional \
-           per-slot list like `[\"claude\", \"claude\", \"claude\", \"claude\"]`. \
-           If `cwd` is omitted, the harness defaults to the active \
-           workspace cwd or the configured harness root.\n\
-         - `harness.open_terminal {{ count?, agentSlug?, agentSlugs? }}` \
-           — open one or more terminal slots in the active workspace. \
-           **Default form: call with no arguments (`{{}}`) for a single \
-           plain shell.** To open multiple terminals, set `count` (max 16) \
-           in ONE call — do NOT call this tool repeatedly in a loop. Use \
-           `agentSlug` to apply the same CLI agent to every new slot, or \
-           `agentSlugs` (array of length `count`) for per-slot agents. \
-           Only pass agent slugs when the user explicitly names one of \
-           `claude`, `codex`, `gemini`, `opencode`, `cursor`. \
-           Example: \"open 3 codex terminals\" → \
-           `{{\"count\": 3, \"agentSlug\": \"codex\"}}`. \
-           Fails at the 16-slot max.\n\
-         \n\
-         ## Driving other CLI agents (client-side)\n\
-         The workspace can host live `claude`/`codex`/`gemini`/`opencode`/\
-         `cursor` sessions in its terminal slots. You can inspect them and \
-         pilot them via:\n\
-         - `harness.list_terminals` — returns `[{{ slotId, agentSlug, running }}]` \
-           for the active workspace. Always call this first when you intend \
-           to interact with another agent so you know which slots exist.\n\
-         - `harness.send_terminal_keys {{ slotId? | agentSlug?, text, submit? }}` — \
-           type `text` into a slot's PTY. Set `submit:true` to append a \
-           newline so the command/prompt is executed. Address by `slotId` \
-           when possible (unique); `agentSlug` picks the first matching \
-           slot. Use this to ask a running CLI agent for status (`/status`, \
-           `claude status`), to delegate work to it (paste a prompt + \
-           submit), or to drive plain shells.\n\
-         - `harness.send_agent_context {{ slotId? | agentSlug?, instruction?, includeKinds?, submit? }}` — \
-           hand off BLXCode-attached context (workspace root, memory/learnings \
-           notes, attached plans + plan-linked task state, image metadata + \
-           exported local paths) to a terminal CLI agent. Prefer this over \
-           raw `send_terminal_keys` when the other agent needs your context. \
-           Image bytes are exported to \
-           `<workspace>/.blxcode/agent-context/images/`; base64 is never \
-           written into the prompt. `includeKinds` defaults to all four: \
-           `[\"memory\", \"plans\", \"tasks\", \"images\"]`. Use `slotId` whenever \
-           multiple slots could match. Call `harness.list_terminals` first if \
-           you are unsure which slot to target, and do not broadcast context \
-           to multiple agents unless the user explicitly asks.\n\
-         - `harness.read_terminal_output {{ slotId? | agentSlug?, maxBytes? }}` — \
-           non-destructively read the last bytes from the slot's rolling \
-           tail buffer (cap 64 KiB). Use this AFTER `send_terminal_keys` \
-           to observe the response. Note: output contains ANSI escapes; \
-           focus on the readable text. The user's terminal view is not \
-           disturbed by this call.\n\
-         \n\
-         When delegating: prefer to send a clearly-marked single prompt, \
-         then wait briefly before reading — long-running tasks may need \
-         multiple read passes to capture the full reply.\n\
+         **Harness (client):** `harness.create_workspace`, `harness.open_terminal`, \
+         `harness.list_terminals`, `harness.send_terminal_keys`, \
+         `harness.send_agent_context`, `harness.read_terminal_output`\n\
          \n\
          # Behaviour\n\
          - Call tools eagerly when they would answer the user's question \
@@ -476,20 +200,23 @@ mod tests {
     use super::system_prompt;
 
     #[test]
-    fn prompt_mentions_workspace_plans() {
+    fn prompt_lists_plan_tools() {
         let p = system_prompt(Some("/tmp/ws"));
-        assert!(p.contains("Workspace plans"));
         assert!(p.contains("plan_list"));
         assert!(p.contains("plan_load"));
         assert!(p.contains("plan_sync_from_tasks"));
-        assert!(p.contains(".agents/plans"));
-        assert!(p.contains("PLANS.md"));
     }
 
     #[test]
-    fn prompt_advertises_full_include_kinds_default() {
+    fn prompt_references_core_skills() {
         let p = system_prompt(None);
-        assert!(p.contains("\"memory\", \"plans\", \"tasks\", \"images\""));
+        assert!(p.contains("skills_read"));
+        assert!(p.contains("file-access"));
+        assert!(p.contains("memory"));
+        assert!(p.contains("plans"));
+        assert!(p.contains("tasks"));
+        assert!(p.contains("rules-skills"));
+        assert!(p.contains("harness"));
     }
 
     #[test]

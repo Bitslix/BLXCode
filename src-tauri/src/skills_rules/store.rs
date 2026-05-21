@@ -23,6 +23,19 @@ use crate::skills_rules::types::{
 pub const RULES_REL: &str = ".agents/rules";
 pub const SKILLS_REL: &str = ".agents/skills";
 
+/// Built-in harness skills embedded in the binary.
+/// Each entry is `(name, markdown_content)`.
+pub const CORE_SKILLS: &[(&str, &str)] = &[
+    ("file-access", include_str!("../agent/harness_skills/file-access.md")),
+    ("memory", include_str!("../agent/harness_skills/memory.md")),
+    ("plans", include_str!("../agent/harness_skills/plans.md")),
+    ("tasks", include_str!("../agent/harness_skills/tasks.md")),
+    ("rules-skills", include_str!("../agent/harness_skills/rules-skills.md")),
+    ("harness", include_str!("../agent/harness_skills/harness.md")),
+];
+
+const CORE_INSTALLED_AT: &str = "2026-01-01T00:00:00Z";
+
 const RULES_INDEX_FILE: &str = "index.json";
 const SKILLS_INDEX_FILE: &str = "index.json";
 const SKILL_DOC: &str = "SKILL.md";
@@ -461,12 +474,15 @@ pub fn list_skills(ws: &str) -> Result<Vec<SkillEntry>, String> {
     let dirs = list_skill_dirs(&roots.skills);
     let mut idx = read_skills_index(&roots.skills);
 
-    // Self-heal: drop entries with no corresponding directory.
+    // Self-heal: drop user-skill entries with no corresponding directory.
+    // Core skill names are excluded from the self-heal check.
+    let core_names: std::collections::BTreeSet<&str> =
+        CORE_SKILLS.iter().map(|(n, _)| *n).collect();
     let known: std::collections::BTreeSet<_> = dirs.iter().cloned().collect();
     let stale: Vec<_> = idx
         .skills
         .keys()
-        .filter(|k| !known.contains(*k))
+        .filter(|k| !known.contains(*k) && !core_names.contains(k.as_str()))
         .cloned()
         .collect();
     let dirty = !stale.is_empty();
@@ -477,7 +493,38 @@ pub fn list_skills(ws: &str) -> Result<Vec<SkillEntry>, String> {
         let _ = write_skills_index(&roots.skills, &idx);
     }
 
-    let mut entries = Vec::with_capacity(dirs.len());
+    // Prepend core skills.
+    let core_source = SkillSourceMeta {
+        kind: SkillSourceKind::Core,
+        url: None,
+        git_ref: None,
+        package: None,
+        version: None,
+        path: None,
+    };
+    let mut entries: Vec<SkillEntry> = CORE_SKILLS
+        .iter()
+        .map(|(name, content)| {
+            let (title, summary) = extract_title_and_summary(content, name);
+            let enabled = idx
+                .skills
+                .get(*name)
+                .map(|e| e.enabled)
+                .unwrap_or(true);
+            SkillEntry {
+                name: name.to_string(),
+                title,
+                summary,
+                enabled,
+                source: core_source.clone(),
+                installed_at: CORE_INSTALLED_AT.to_string(),
+                updated_at: CORE_INSTALLED_AT.to_string(),
+                missing_skill_md: false,
+            }
+        })
+        .collect();
+
+    // Append user-installed skills.
     for name in dirs {
         let dir = roots.skills.join(&name);
         let doc_path = dir.join(SKILL_DOC);
@@ -529,8 +576,12 @@ pub fn list_skills(ws: &str) -> Result<Vec<SkillEntry>, String> {
 }
 
 pub fn read_skill(ws: &str, name: &str) -> Result<String, String> {
-    let roots = ensure_skills_rules_roots(ws)?;
     validate_skill_name(name)?;
+    // Serve core skill content from embedded binary.
+    if let Some((_, content)) = CORE_SKILLS.iter().find(|(n, _)| *n == name) {
+        return Ok(content.to_string());
+    }
+    let roots = ensure_skills_rules_roots(ws)?;
     let path = roots.skills.join(name).join(SKILL_DOC);
     fs::read_to_string(&path).map_err(|e| format!("read skill: {e}"))
 }
@@ -574,9 +625,10 @@ pub fn write_skill(ws: &str, name: &str, content: &str) -> Result<SkillEntry, St
 }
 
 pub fn set_skill_enabled(ws: &str, name: &str, enabled: bool) -> Result<SkillEntry, String> {
-    let roots = ensure_skills_rules_roots(ws)?;
     validate_skill_name(name)?;
-    if !roots.skills.join(name).is_dir() {
+    let roots = ensure_skills_rules_roots(ws)?;
+    let is_core = CORE_SKILLS.iter().any(|(n, _)| *n == name);
+    if !is_core && !roots.skills.join(name).is_dir() {
         return Err(format!("skill not found: {name}"));
     }
     let mut idx = read_skills_index(&roots.skills);
@@ -608,8 +660,11 @@ pub fn set_skill_enabled(ws: &str, name: &str, enabled: bool) -> Result<SkillEnt
 }
 
 pub fn remove_skill(ws: &str, name: &str) -> Result<(), String> {
-    let roots = ensure_skills_rules_roots(ws)?;
     validate_skill_name(name)?;
+    if CORE_SKILLS.iter().any(|(n, _)| *n == name) {
+        return Err(format!("core skill '{name}' cannot be removed"));
+    }
+    let roots = ensure_skills_rules_roots(ws)?;
     let dir = roots.skills.join(name);
     if dir.is_dir() {
         fs::remove_dir_all(&dir).map_err(|e| format!("remove skill dir: {e}"))?;
@@ -707,7 +762,13 @@ mod tests {
         let rules = list_rules(&ws_str(&ws)).unwrap();
         let skills = list_skills(&ws_str(&ws)).unwrap();
         assert!(rules.is_empty());
-        assert!(skills.is_empty());
+        // Only core skills are present; no user-installed skills.
+        let user_skills: Vec<_> = skills
+            .iter()
+            .filter(|s| !matches!(s.source.kind, SkillSourceKind::Core))
+            .collect();
+        assert!(user_skills.is_empty());
+        assert_eq!(skills.len(), CORE_SKILLS.len());
         let _ = fs::remove_dir_all(&ws);
     }
 
@@ -768,10 +829,11 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("SKILL.md"), "# Leptos Guide\n\nhints").unwrap();
         let list = list_skills(&ws_str(&ws)).unwrap();
-        assert_eq!(list.len(), 1);
-        assert!(list[0].enabled);
-        assert!(matches!(list[0].source.kind, SkillSourceKind::Local));
-        assert!(!list[0].missing_skill_md);
+        assert_eq!(list.len(), CORE_SKILLS.len() + 1);
+        let user = list.iter().find(|s| s.name == "leptos-guide").unwrap();
+        assert!(user.enabled);
+        assert!(matches!(user.source.kind, SkillSourceKind::Local));
+        assert!(!user.missing_skill_md);
         let _ = fs::remove_dir_all(&ws);
     }
 
@@ -781,8 +843,9 @@ mod tests {
         let roots = ensure_skills_rules_roots(&ws_str(&ws)).unwrap();
         fs::create_dir_all(roots.skills.join("foo")).unwrap();
         let list = list_skills(&ws_str(&ws)).unwrap();
-        assert_eq!(list.len(), 1);
-        assert!(list[0].missing_skill_md);
+        assert_eq!(list.len(), CORE_SKILLS.len() + 1);
+        let user = list.iter().find(|s| s.name == "foo").unwrap();
+        assert!(user.missing_skill_md);
         let _ = fs::remove_dir_all(&ws);
     }
 
@@ -801,7 +864,13 @@ mod tests {
         write_skill(&ws_str(&ws), "skill-a", "# a").unwrap();
         remove_skill(&ws_str(&ws), "skill-a").unwrap();
         let list = list_skills(&ws_str(&ws)).unwrap();
-        assert!(list.is_empty());
+        // Only core skills remain after removing the user skill.
+        let user_skills: Vec<_> = list
+            .iter()
+            .filter(|s| !matches!(s.source.kind, SkillSourceKind::Core))
+            .collect();
+        assert!(user_skills.is_empty());
+        assert_eq!(list.len(), CORE_SKILLS.len());
         let _ = fs::remove_dir_all(&ws);
     }
 
@@ -840,9 +909,14 @@ mod tests {
         assert_eq!(rules.len(), 2);
         assert!(rules.iter().all(|r| r.enabled));
         let skills = list_skills(&ws_str(&ws)).unwrap();
-        assert_eq!(skills.len(), 2);
-        assert!(skills.iter().all(|s| s.enabled));
-        assert!(skills
+        // Core skills are always prepended; user-installed skills follow.
+        let user_skills: Vec<_> = skills
+            .iter()
+            .filter(|s| !matches!(s.source.kind, SkillSourceKind::Core))
+            .collect();
+        assert_eq!(user_skills.len(), 2);
+        assert!(user_skills.iter().all(|s| s.enabled));
+        assert!(user_skills
             .iter()
             .all(|s| matches!(s.source.kind, SkillSourceKind::Local)));
 

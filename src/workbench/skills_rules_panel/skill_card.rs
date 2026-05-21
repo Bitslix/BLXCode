@@ -21,7 +21,9 @@ pub fn SkillCard(entry: SkillEntry) -> impl IntoView {
     let title = entry.title.clone();
     let summary = entry.summary.clone();
     let missing_skill_md = entry.missing_skill_md;
+    let is_core = entry.source.kind == SkillSourceKind::Core;
     let source_badge = match entry.source.kind {
+        SkillSourceKind::Core => "core",
         SkillSourceKind::Git => "git",
         SkillSourceKind::Npm => "npm",
         SkillSourceKind::Local => "local",
@@ -55,11 +57,17 @@ pub fn SkillCard(entry: SkillEntry) -> impl IntoView {
         i18n.tr(I18nKey::SrEnable)
     };
 
+    let badge_class = if is_core {
+        "blx-sr-card__badge blx-sr-card__badge--core"
+    } else {
+        "blx-sr-card__badge"
+    };
+
     view! {
         <article class="blx-sr-card" class:blx-sr-card--off=move || !enabled>
             <header class="blx-sr-card__header">
                 <h3 class="blx-sr-card__title">{title}</h3>
-                <span class="blx-sr-card__badge">{source_badge}</span>
+                <span class=badge_class>{source_badge}</span>
                 <span class=pill_class>{pill_text}</span>
             </header>
             <p class="blx-sr-card__summary">{summary}</p>
@@ -68,9 +76,11 @@ pub fn SkillCard(entry: SkillEntry) -> impl IntoView {
             })}
             <footer class="blx-sr-card__footer">
                 <button type="button" class="blx-sr-btn" on:click=on_toggle>{toggle_label}</button>
-                <button type="button" class="blx-sr-btn blx-sr-btn--danger" on:click=on_remove>
-                    {i18n.tr(I18nKey::SrRemove)}
-                </button>
+                {(!is_core).then(|| view! {
+                    <button type="button" class="blx-sr-btn blx-sr-btn--danger" on:click=on_remove>
+                        {i18n.tr(I18nKey::SrRemove)}
+                    </button>
+                })}
             </footer>
         </article>
     }

@@ -1,15 +1,22 @@
 //! Right-panel tab body for `.agents/skills/<name>/`. Contains the install
-//! button which opens [`SkillInstallDialog`].
+//! button which opens [`SkillInstallDialog`], and a Core/User sub-tab strip.
 
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
+use crate::skills_rules_wire::SkillSourceKind;
 use crate::workbench::skills_rules_panel::install_dialog::SkillInstallDialog;
 use crate::workbench::skills_rules_panel::skill_card::SkillCard;
 use crate::workbench::skills_rules_panel::SkillsRulesService;
 use crate::workbench::{RightPanelTab, WorkbenchService};
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SkillsView {
+    Core,
+    User,
+}
 
 #[component]
 pub fn SkillsTabDock() -> impl IntoView {
@@ -23,6 +30,7 @@ pub fn SkillsTabDock() -> impl IntoView {
     let active_tab = wb.right_active_tab();
     let active_id = wb.active_id();
     let install_open = RwSignal::new(false);
+    let view_mode = RwSignal::new(SkillsView::Core);
 
     Effect::new(move |_| {
         if active_tab.get() == RightPanelTab::Skills {
@@ -31,19 +39,34 @@ pub fn SkillsTabDock() -> impl IntoView {
         }
     });
 
+    let filtered_skills = Signal::derive(move || {
+        let mode = view_mode.get();
+        skills.with(|list| {
+            list.iter()
+                .filter(|s| match mode {
+                    SkillsView::Core => s.source.kind == SkillSourceKind::Core,
+                    SkillsView::User => s.source.kind != SkillSourceKind::Core,
+                })
+                .cloned()
+                .collect::<Vec<_>>()
+        })
+    });
+
     view! {
         <div class="blx-sr-pane" role="region" aria-label=move || i18n.tr(I18nKey::TabSkills)()>
             <header class="blx-sr-pane__header">
                 <h2 class="blx-sr-pane__title">{i18n.tr(I18nKey::TabSkills)}</h2>
                 <div class="blx-sr-pane__actions">
-                    <button
-                        type="button"
-                        class="blx-sr-btn"
-                        on:click=move |_| install_open.set(true)
-                    >
-                        <LxIcon icon=icondata::LuPlus width="14px" height="14px" />
-                        <span>{i18n.tr(I18nKey::SrInstallSkill)}</span>
-                    </button>
+                    {move || (view_mode.get() == SkillsView::User).then(|| view! {
+                        <button
+                            type="button"
+                            class="blx-sr-btn"
+                            on:click=move |_| install_open.set(true)
+                        >
+                            <LxIcon icon=icondata::LuPlus width="14px" height="14px" />
+                            <span>{i18n.tr(I18nKey::SrInstallSkill)}</span>
+                        </button>
+                    })}
                     <button
                         type="button"
                         class="blx-sr-btn blx-sr-btn--ghost"
@@ -54,19 +77,38 @@ pub fn SkillsTabDock() -> impl IntoView {
                     </button>
                 </div>
             </header>
+            <div class="blx-sr-pane__subtabs">
+                <button
+                    type="button"
+                    class="blx-sr-subtab"
+                    class:blx-sr-subtab--active=move || view_mode.get() == SkillsView::Core
+                    on:click=move |_| view_mode.set(SkillsView::Core)
+                >
+                    {i18n.tr(I18nKey::SrSkillsTabCore)}
+                </button>
+                <button
+                    type="button"
+                    class="blx-sr-subtab"
+                    class:blx-sr-subtab--active=move || view_mode.get() == SkillsView::User
+                    on:click=move |_| view_mode.set(SkillsView::User)
+                >
+                    {i18n.tr(I18nKey::SrSkillsTabUser)}
+                </button>
+            </div>
             <div class="blx-sr-pane__body">
                 {move || error.get().map(|e| view! { <p class="blx-sr-pane__err">{e}</p> })}
                 {move || {
+                    let visible = filtered_skills.get();
                     if loading.get() && skills.with(|r| r.is_empty()) {
                         view! { <p class="blx-sr-pane__hint">{i18n.tr(I18nKey::SrLoading)}</p> }
                             .into_any()
-                    } else if skills.with(|r| r.is_empty()) {
+                    } else if visible.is_empty() && view_mode.get() == SkillsView::User {
                         view! { <p class="blx-sr-pane__hint">{i18n.tr(I18nKey::SrSkillsEmpty)}</p> }
                             .into_any()
                     } else {
                         view! {
                             <For
-                                each=move || skills.get()
+                                each=move || filtered_skills.get()
                                 key=|s| s.name.clone()
                                 children=move |entry| view! { <SkillCard entry=entry /> }
                             />

@@ -38,6 +38,8 @@ pub struct SkillEntry {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum SkillSourceKind {
+    /// Built-in harness skill embedded in the binary.
+    Core,
     Git,
     Npm,
     Local,

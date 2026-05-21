@@ -42,6 +42,9 @@ pub fn install_skill(ws: &str, name: &str, source: SkillSourceInput) -> Result<S
             SkillSourceKind::AgentCreated => {
                 Err("agent-created skills must use skills_write, not skills_install".into())
             }
+            SkillSourceKind::Core => {
+                Err("core skills are built-in and cannot be installed".into())
+            }
         }
     })();
 
