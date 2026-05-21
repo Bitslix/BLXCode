@@ -57,12 +57,24 @@ Update docs when a change affects:
 - User workflows.
 - Configuration.
 - File formats.
-
-When adding a new user-facing guide under `docs/user/`, link it from [docs/README.md](../README.md) and [getting-started.md](../user/getting-started.md) (or another hub page with a clear cross-link).
 - Tauri commands or permissions.
 - Provider behavior.
 - Memory/task storage.
 - Development setup.
+
+When adding a new user-facing guide under `docs/user/`, link it from [docs/README.md](../README.md) and [getting-started.md](../user/getting-started.md) (or another hub page with a clear cross-link).
+
+## Publishing docs to GitHub Wiki
+
+User and developer guides under `docs/` are mirrored to the [BLXCode GitHub Wiki](https://github.com/Bitslix/BLXCode/wiki) by CI (`.github/workflows/wiki-sync.yml`) when `main` changes under `docs/**`.
+
+- **Source of truth:** edit Markdown only in this repository (`docs/user/`, `docs/developer/`, `docs/README.md`).
+- **Do not edit the wiki in the browser** — the next sync overwrites wiki pages.
+- **First-time setup:** enable Wiki under **Settings → Features → Wiki**. If `git clone …BLXCode.wiki.git` fails with “repository not found”, create any one page once in the Wiki tab (for example **Home**), then run **Actions → Wiki Sync → Run workflow** or merge a `docs/**` change to `main`.
+- **Local dry-run:** `./scripts/sync_github_wiki.sh --dry-run`
+- **Local push** (maintainers): `./scripts/sync_github_wiki.sh` with `git` credentials or `WIKI_SYNC_TOKEN` set.
+
+Wiki page names use `User-*` and `Developer-*` prefixes (for example `docs/user/plans.md` → `User-Plans`). Screenshots stay in `docs/images/` and are linked via `raw.githubusercontent.com`.
 
 ## Pull Request Checklist
 

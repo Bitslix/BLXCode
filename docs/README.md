@@ -2,6 +2,8 @@
 
 Welcome to the BLXCode docs. User guides explain how to run and use the app; developer guides explain how to build, extend, and contribute.
 
+**Published copy:** [GitHub Wiki](https://github.com/Bitslix/BLXCode/wiki) (auto-synced from this folder on pushes to `main` that touch `docs/**`). Edit documentation here in the repository, not in the wiki web UI.
+
 ## Doc map
 
 **Start here:** [Getting Started](user/getting-started.md) → [Workspaces](user/workspaces.md) → [Agent Harness](user/agent-harness.md)

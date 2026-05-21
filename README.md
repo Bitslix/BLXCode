@@ -66,7 +66,7 @@ The project is designed for people who want one focused local cockpit for agent-
 - Kanban board view for plan tasks; expandable Rules/Skills cards and rule creation
 - Leptos **0.8**; `scripts/setup/` for Linux/macOS/Windows; PR [`cargo check`](.github/workflows/pr-check.yml) workflow
 
-Details: [CHANGELOG.md](CHANGELOG.md) · [Documentation](docs/README.md)
+Details: [CHANGELOG.md](CHANGELOG.md) · [Documentation](docs/README.md) · [Wiki (GitHub)](https://github.com/Bitslix/BLXCode/wiki)
 
 ## Internationalization
 
