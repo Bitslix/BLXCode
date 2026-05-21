@@ -19,12 +19,12 @@ use crate::tasks;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::io::AsyncBufReadExt;
 
 const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
-const MAX_ROUNDS: u32 = 12;
+const MAX_ROUNDS: u32 = 36;
 const DEFAULT_MAX_TOKENS: u64 = 8192;
 
 /// Anthropic restricts tool names to `^[a-zA-Z0-9_-]{1,64}$` — no dots.
@@ -66,6 +66,12 @@ struct RoundResult {
     thinking_signature: Option<String>,
     tool_calls: Vec<AggregatedToolCall>,
     stop_reason: Option<String>,
+    /// Wall-clock ms from request send to first delta of this round.
+    ttft_ms: Option<u64>,
+    /// `usage.input_tokens` reported in `message_start`.
+    input_tokens: Option<u64>,
+    /// `usage.output_tokens` reported in `message_delta`.
+    output_tokens: Option<u64>,
 }
 
 pub async fn run_chat_turn(
@@ -151,6 +157,12 @@ pub async fn run_chat_turn(
         }
     };
 
+    let turn_start = Instant::now();
+    let mut total_input_tokens: u64 = 0;
+    let mut total_output_tokens: u64 = 0;
+    let mut any_token_usage = false;
+    let mut first_ttft_ms: Option<u64> = None;
+
     for round in 0..MAX_ROUNDS {
         if state.cancelled() {
             emit_aborted(&state);
@@ -184,6 +196,18 @@ pub async fn run_chat_turn(
                     return;
                 }
             };
+
+        if let Some(p) = round_res.input_tokens {
+            total_input_tokens = total_input_tokens.saturating_add(p);
+            any_token_usage = true;
+        }
+        if let Some(c) = round_res.output_tokens {
+            total_output_tokens = total_output_tokens.saturating_add(c);
+            any_token_usage = true;
+        }
+        if first_ttft_ms.is_none() {
+            first_ttft_ms = round_res.ttft_ms;
+        }
 
         // Assemble the assistant message in Anthropic's content-block form so
         // tool_use ids resolve on the next round.
@@ -286,6 +310,13 @@ pub async fn run_chat_turn(
 
     state.set_conversation(sanitize_conversation_images(messages));
 
+    let elapsed_ms = turn_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+    state.push(AgentEvent::TurnUsage {
+        input_tokens: if any_token_usage { Some(total_input_tokens) } else { None },
+        output_tokens: if any_token_usage { Some(total_output_tokens) } else { None },
+        ttft_ms: first_ttft_ms,
+        elapsed_ms,
+    });
     state.push(AgentEvent::Done);
     state.set_busy(false);
 }
@@ -325,6 +356,9 @@ fn truncate_for_ui(s: &str) -> String {
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum StreamEvent {
+    MessageStart {
+        message: MessageStartInner,
+    },
     ContentBlockStart {
         index: u32,
         content_block: BlockStart,
@@ -339,9 +373,25 @@ enum StreamEvent {
     },
     MessageDelta {
         delta: MessageDeltaInner,
+        #[serde(default)]
+        usage: Option<StreamUsage>,
     },
     #[serde(other)]
     Other,
+}
+
+#[derive(Deserialize, Default)]
+struct MessageStartInner {
+    #[serde(default)]
+    usage: Option<StreamUsage>,
+}
+
+#[derive(Deserialize, Default)]
+struct StreamUsage {
+    #[serde(default)]
+    input_tokens: Option<u64>,
+    #[serde(default)]
+    output_tokens: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -415,6 +465,7 @@ async fn run_one_round(
     state: &Arc<AgentEngineState>,
     consumed_image_ids: Option<&[String]>,
 ) -> Result<RoundResult, String> {
+    let request_sent = Instant::now();
     let resp = client
         .post(ANTHROPIC_URL)
         .header("x-api-key", api_key)
@@ -487,6 +538,16 @@ async fn run_one_round(
         };
 
         match event {
+            StreamEvent::MessageStart { message } => {
+                if let Some(u) = message.usage {
+                    if let Some(p) = u.input_tokens {
+                        acc.input_tokens = Some(p);
+                    }
+                    if let Some(c) = u.output_tokens {
+                        acc.output_tokens = Some(c);
+                    }
+                }
+            }
             StreamEvent::ContentBlockStart {
                 index,
                 content_block,
@@ -527,6 +588,11 @@ async fn run_one_round(
                 match delta {
                     BlockDelta::TextDelta { text } => {
                         if !text.is_empty() {
+                            if acc.ttft_ms.is_none() {
+                                acc.ttft_ms = Some(
+                                    request_sent.elapsed().as_millis().min(u64::MAX as u128) as u64,
+                                );
+                            }
                             if thinking_active && !thinking_closed {
                                 thinking_closed = true;
                                 state.push(AgentEvent::ThinkingDone);
@@ -539,6 +605,11 @@ async fn run_one_round(
                     }
                     BlockDelta::ThinkingDelta { thinking } => {
                         if !thinking.is_empty() {
+                            if acc.ttft_ms.is_none() {
+                                acc.ttft_ms = Some(
+                                    request_sent.elapsed().as_millis().min(u64::MAX as u128) as u64,
+                                );
+                            }
                             state.push(AgentEvent::ThinkingDelta {
                                 delta: thinking.clone(),
                             });
@@ -556,9 +627,19 @@ async fn run_one_round(
                 }
             }
             StreamEvent::ContentBlockStop { .. } => {}
-            StreamEvent::MessageDelta { delta } => {
+            StreamEvent::MessageDelta { delta, usage } => {
                 if let Some(reason) = delta.stop_reason {
                     acc.stop_reason = Some(reason);
+                }
+                if let Some(u) = usage {
+                    if let Some(c) = u.output_tokens {
+                        acc.output_tokens = Some(c);
+                    }
+                    if let Some(p) = u.input_tokens {
+                        if acc.input_tokens.is_none() {
+                            acc.input_tokens = Some(p);
+                        }
+                    }
                 }
             }
             StreamEvent::Other => {}

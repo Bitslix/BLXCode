@@ -22,12 +22,12 @@ use crate::tasks;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::io::AsyncBufReadExt;
 
 /// Hard upper bound on tool-call rounds per turn. Stops runaway loops if
 /// the model keeps invoking tools without ever finishing.
-const MAX_ROUNDS: u32 = 12;
+const MAX_ROUNDS: u32 = 36;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Endpoint {
@@ -83,6 +83,18 @@ fn reasoning_for(level: ThinkingLevel, endpoint: Endpoint) -> Option<ReasoningPa
 struct StreamChunk {
     #[serde(default)]
     choices: Vec<StreamChoice>,
+    /// Final chunk in OpenAI-compatible streams when `stream_options.include_usage`
+    /// is set carries the usage block. OpenRouter mirrors this convention.
+    #[serde(default)]
+    usage: Option<StreamUsage>,
+}
+
+#[derive(Deserialize, Default)]
+struct StreamUsage {
+    #[serde(default)]
+    prompt_tokens: Option<u64>,
+    #[serde(default)]
+    completion_tokens: Option<u64>,
 }
 
 #[derive(Deserialize, Default)]
@@ -136,6 +148,13 @@ struct RoundResult {
     text: String,
     tool_calls: Vec<AggregatedToolCall>,
     finish_reason: Option<String>,
+    /// Wall-clock ms from request send to first content/thinking delta.
+    /// `None` when the round produced no streamed text (e.g. tool-only).
+    ttft_ms: Option<u64>,
+    /// Cumulative prompt_tokens reported by the provider for this round.
+    prompt_tokens: Option<u64>,
+    /// Cumulative completion_tokens reported by the provider for this round.
+    completion_tokens: Option<u64>,
 }
 
 #[derive(Default, Clone, Debug)]
@@ -219,6 +238,12 @@ pub async fn run_chat_turn(
         }
     };
 
+    let turn_start = Instant::now();
+    let mut total_input_tokens: u64 = 0;
+    let mut total_output_tokens: u64 = 0;
+    let mut any_token_usage = false;
+    let mut first_ttft_ms: Option<u64> = None;
+
     for round in 0..MAX_ROUNDS {
         if state.cancelled() {
             emit_aborted(&state);
@@ -229,6 +254,7 @@ pub async fn run_chat_turn(
             "model": settings.model_id,
             "messages": messages,
             "stream": true,
+            "stream_options": { "include_usage": true },
             "tools": tools,
         });
         if let Some(r) = &reasoning {
@@ -258,6 +284,19 @@ pub async fn run_chat_turn(
                 return;
             }
         };
+
+        // Carry forward usage + first-round TTFT for the final TurnUsage event.
+        if let Some(p) = round_res.prompt_tokens {
+            total_input_tokens = total_input_tokens.saturating_add(p);
+            any_token_usage = true;
+        }
+        if let Some(c) = round_res.completion_tokens {
+            total_output_tokens = total_output_tokens.saturating_add(c);
+            any_token_usage = true;
+        }
+        if first_ttft_ms.is_none() {
+            first_ttft_ms = round_res.ttft_ms;
+        }
 
         // Record the assistant message verbatim — providers require the
         // exact tool_calls block on the assistant turn before tool replies.
@@ -339,6 +378,13 @@ pub async fn run_chat_turn(
         state.set_conversation(sanitize_conversation_images(messages.split_off(1)));
     }
 
+    let elapsed_ms = turn_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+    state.push(AgentEvent::TurnUsage {
+        input_tokens: if any_token_usage { Some(total_input_tokens) } else { None },
+        output_tokens: if any_token_usage { Some(total_output_tokens) } else { None },
+        ttft_ms: first_ttft_ms,
+        elapsed_ms,
+    });
     state.push(AgentEvent::Done);
     state.set_busy(false);
 }
@@ -381,6 +427,7 @@ async fn run_one_round(
             .header("X-Title", "blxcode");
     }
 
+    let request_sent = Instant::now();
     let resp = req
         .json(body)
         .send()
@@ -446,16 +493,30 @@ async fn run_one_round(
             Ok(c) => c,
             Err(_) => continue,
         };
+        if let Some(u) = chunk.usage {
+            if let Some(p) = u.prompt_tokens {
+                acc.prompt_tokens = Some(p);
+            }
+            if let Some(c) = u.completion_tokens {
+                acc.completion_tokens = Some(c);
+            }
+        }
         for choice in chunk.choices {
             let reasoning_chunk = choice.delta.reasoning.or(choice.delta.reasoning_content);
             if let Some(reasoning) = reasoning_chunk {
                 if !reasoning.is_empty() {
+                    if acc.ttft_ms.is_none() {
+                        acc.ttft_ms = Some(request_sent.elapsed().as_millis().min(u64::MAX as u128) as u64);
+                    }
                     thinking_active = true;
                     state.push(AgentEvent::ThinkingDelta { delta: reasoning });
                 }
             }
             if let Some(text) = choice.delta.content {
                 if !text.is_empty() {
+                    if acc.ttft_ms.is_none() {
+                        acc.ttft_ms = Some(request_sent.elapsed().as_millis().min(u64::MAX as u128) as u64);
+                    }
                     if thinking_active && !thinking_closed {
                         thinking_closed = true;
                         state.push(AgentEvent::ThinkingDone);

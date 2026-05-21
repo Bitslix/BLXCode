@@ -74,6 +74,10 @@ pub struct WorkspaceEntry {
     /// Display/color/visibility overrides for memory categories in this workspace.
     #[serde(default)]
     pub memory_category_settings: HashMap<String, MemoryCategorySettings>,
+    /// Aggregated token / latency stats for this workspace's agent chat.
+    /// Accumulates across turns; reset on chat clear.
+    #[serde(default)]
+    pub agent_chat_usage: ChatUsageStats,
     /// Sidebar explorer section expanded (bottom panel).
     #[serde(default = "default_sidebar_section_open")]
     pub sidebar_explorer_open: bool,
@@ -87,6 +91,34 @@ pub struct WorkspaceEntry {
 
 fn default_sidebar_section_open() -> bool {
     true
+}
+
+/// Aggregated token / latency stats for a workspace's agent chat. Each
+/// `AgentEvent::TurnUsage` from the backend updates these running totals.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatUsageStats {
+    /// Sum of input/prompt tokens reported by the provider across all turns.
+    #[serde(default)]
+    pub total_input_tokens: u64,
+    /// Sum of output/completion tokens across all turns.
+    #[serde(default)]
+    pub total_output_tokens: u64,
+    /// Sum of wall-clock ms across all turns (used as denominator for the
+    /// average decode speed). Includes time spent in tool execution.
+    #[serde(default)]
+    pub total_elapsed_ms: u64,
+    /// Sum of TTFT samples — divide by `ttft_sample_count` for the mean.
+    #[serde(default)]
+    pub ttft_sum_ms: u64,
+    /// Count of turns that produced a TTFT measurement (the model streamed
+    /// at least one delta).
+    #[serde(default)]
+    pub ttft_sample_count: u32,
+    /// Total number of turns the user submitted (whether or not usage data
+    /// arrived). Used to display "N turns" in the footer.
+    #[serde(default)]
+    pub turn_count: u32,
 }
 
 fn default_sidebar_width_px() -> f64 {
@@ -271,6 +303,7 @@ impl WorkspaceEntry {
             agent_image_mode: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
+            agent_chat_usage: ChatUsageStats::default(),
             sidebar_explorer_open: true,
             sidebar_graph_open: true,
             sidebar_explorer_expanded_paths: Vec::new(),
@@ -1354,6 +1387,7 @@ impl WorkbenchService {
                 agent_image_mode: false,
                 agent_context_items: Vec::new(),
                 memory_category_settings: HashMap::new(),
+                agent_chat_usage: ChatUsageStats::default(),
                 sidebar_explorer_open: true,
                 sidebar_graph_open: true,
                 sidebar_explorer_expanded_paths: Vec::new(),
@@ -1915,6 +1949,7 @@ impl WorkbenchService {
             agent_image_mode: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
+            agent_chat_usage: ChatUsageStats::default(),
             sidebar_explorer_open: true,
             sidebar_graph_open: true,
             sidebar_explorer_expanded_paths: Vec::new(),
@@ -2174,6 +2209,55 @@ impl WorkbenchService {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
                 ws.agent_timeline = items;
+            }
+        });
+    }
+
+    /// Read the live chat-usage aggregate for a workspace.
+    #[must_use]
+    pub fn chat_usage_for_workspace(&self, workspace_id: u64) -> ChatUsageStats {
+        self.workspaces.with(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.agent_chat_usage.clone())
+                .unwrap_or_default()
+        })
+    }
+
+    /// Accumulate one turn's usage report into the workspace's running totals.
+    pub fn record_chat_turn_usage(
+        &self,
+        workspace_id: u64,
+        input_tokens: Option<u64>,
+        output_tokens: Option<u64>,
+        ttft_ms: Option<u64>,
+        elapsed_ms: u64,
+    ) {
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                let u = &mut ws.agent_chat_usage;
+                u.turn_count = u.turn_count.saturating_add(1);
+                if let Some(p) = input_tokens {
+                    u.total_input_tokens = u.total_input_tokens.saturating_add(p);
+                }
+                if let Some(c) = output_tokens {
+                    u.total_output_tokens = u.total_output_tokens.saturating_add(c);
+                }
+                if let Some(t) = ttft_ms {
+                    u.ttft_sum_ms = u.ttft_sum_ms.saturating_add(t);
+                    u.ttft_sample_count = u.ttft_sample_count.saturating_add(1);
+                }
+                u.total_elapsed_ms = u.total_elapsed_ms.saturating_add(elapsed_ms);
+            }
+        });
+    }
+
+    /// Reset the chat-usage aggregate (call alongside `agent_clear_conversation`).
+    pub fn clear_chat_usage(&self, workspace_id: u64) {
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                ws.agent_chat_usage = ChatUsageStats::default();
             }
         });
     }

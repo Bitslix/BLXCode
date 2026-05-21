@@ -415,6 +415,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                         }}
                     </ol>
                 </Show>
+                <ChatUsageFooter wb=wb />
             </article>
 
             <form
@@ -540,6 +541,7 @@ fn submit_turn(
                     timeline.set(Vec::new());
                     thinking_open.set(HashMap::new());
                     wb.set_workspace_agent_timeline(ws_id, Vec::new());
+                    wb.clear_chat_usage(ws_id);
                     status_line.set(None);
                 }
                 Err(msg) => status_line.set(Some(msg)),
@@ -646,4 +648,76 @@ fn submit_turn(
         }
         busy_sig.set(false);
     });
+}
+
+/// Aggregated token / latency footer shown at the bottom of the chat list.
+/// Hidden until the first turn produces usage data so an empty chat stays
+/// visually clean.
+#[component]
+fn ChatUsageFooter(wb: WorkbenchService) -> impl IntoView {
+    let stats = Memo::new(move |_| {
+        let id = wb.active_id().get()?;
+        let s = wb.chat_usage_for_workspace(id);
+        if s.turn_count == 0 {
+            None
+        } else {
+            Some(s)
+        }
+    });
+
+    view! {
+        <Show when=move || stats.with(|s| s.is_some())>
+            <div class="agent-chat-usage" aria-label="Chat usage statistics">
+                {move || {
+                    let s = stats.get().expect("Show gate");
+                    let in_tok = fmt_compact_int(s.total_input_tokens);
+                    let out_tok = fmt_compact_int(s.total_output_tokens);
+                    // Output-decode speed: completion tokens divided by total
+                    // wall-clock seconds across all turns. Includes the time
+                    // spent in tool calls — that's the right number for the
+                    // operator because the user-visible "how fast is this"
+                    // includes those waits.
+                    let speed = if s.total_elapsed_ms > 0 && s.total_output_tokens > 0 {
+                        let tps = (s.total_output_tokens as f64) * 1000.0
+                            / (s.total_elapsed_ms as f64);
+                        format!("{tps:.1} tok/s")
+                    } else {
+                        "—".to_string()
+                    };
+                    let ttft = if s.ttft_sample_count > 0 {
+                        let mean = s.ttft_sum_ms / (s.ttft_sample_count as u64);
+                        if mean >= 1000 {
+                            format!("{:.2}s", (mean as f64) / 1000.0)
+                        } else {
+                            format!("{mean}ms")
+                        }
+                    } else {
+                        "—".to_string()
+                    };
+                    let turns = s.turn_count;
+                    view! {
+                        <span class="agent-chat-usage__turns">{format!("{turns} turn{}", if turns == 1 { "" } else { "s" })}</span>
+                        <span class="agent-chat-usage__sep">"·"</span>
+                        <span title="Input/prompt tokens">"in " <strong>{in_tok}</strong></span>
+                        <span class="agent-chat-usage__sep">"·"</span>
+                        <span title="Output/completion tokens">"out " <strong>{out_tok}</strong></span>
+                        <span class="agent-chat-usage__sep">"·"</span>
+                        <span title="Average output decode speed">{speed}</span>
+                        <span class="agent-chat-usage__sep">"·"</span>
+                        <span title="Average time to first token">"ttft " {ttft}</span>
+                    }
+                }}
+            </div>
+        </Show>
+    }
+}
+
+fn fmt_compact_int(n: u64) -> String {
+    if n >= 1_000_000 {
+        format!("{:.1}M", (n as f64) / 1_000_000.0)
+    } else if n >= 1_000 {
+        format!("{:.1}k", (n as f64) / 1_000.0)
+    } else {
+        n.to_string()
+    }
 }

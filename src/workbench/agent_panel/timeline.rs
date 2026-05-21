@@ -235,6 +235,22 @@ pub fn apply_agent_event(
             });
             persist_agent_timeline(persist, timeline);
         }
+        AgentEvent::TurnUsage {
+            input_tokens,
+            output_tokens,
+            ttft_ms,
+            elapsed_ms,
+        } => {
+            if let Some((wb, workspace_id)) = persist.clone() {
+                wb.record_chat_turn_usage(
+                    workspace_id,
+                    *input_tokens,
+                    *output_tokens,
+                    *ttft_ms,
+                    *elapsed_ms,
+                );
+            }
+        }
         AgentEvent::SubagentAssistantDelta { agent_id, delta } => {
             timeline.update(|rows| {
                 if let Some(card) = find_subagent_card_mut(rows, agent_id) {

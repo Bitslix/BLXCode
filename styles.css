@@ -2741,6 +2741,33 @@ button.workbench-shortcut-row--action:focus-visible {
   border-color: rgba(255, 120, 120, 0.4);
 }
 
+.agent-chat-usage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.32rem;
+  padding: 0.42rem 0.6rem 0.32rem;
+  margin-top: 0.18rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--text-faint, rgba(241, 242, 245, 0.55));
+}
+
+.agent-chat-usage strong {
+  color: rgba(241, 242, 245, 0.88);
+  font-weight: 600;
+}
+
+.agent-chat-usage__turns {
+  color: rgba(143, 217, 196, 0.85);
+  font-weight: 600;
+}
+
+.agent-chat-usage__sep {
+  color: rgba(241, 242, 245, 0.28);
+}
+
 .agent-tool-row__chevron {
   display: inline-flex;
   align-items: center;

@@ -174,6 +174,16 @@ pub enum AgentEvent {
         status: String,
         summary: String,
     },
+    #[serde(rename = "turn_usage")]
+    TurnUsage {
+        #[serde(default)]
+        input_tokens: Option<u64>,
+        #[serde(default)]
+        output_tokens: Option<u64>,
+        #[serde(default)]
+        ttft_ms: Option<u64>,
+        elapsed_ms: u64,
+    },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -18,7 +18,7 @@ use tokio::io::AsyncBufReadExt;
 
 const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
-const MAX_SUBAGENT_ROUNDS: u32 = 8;
+const MAX_SUBAGENT_ROUNDS: u32 = 24;
 const MAX_OUTPUT_TOKENS_ESTIMATE: usize = 20_000;
 
 #[derive(Clone, Copy)]
