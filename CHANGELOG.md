@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+
+## [0.1.14] - 2026-05-21
+
+### Added
+
 - **Agent Image mode**: new image-generation toggle in the agent chat header (next to Reset). When active, your prompt produces an image instead of a chat reply. Generated images render inline with a Download button and, when a workspace is set, are saved to `<workspace>/.blxcode/generated/<unix-ms>-<slug>.<ext>`. Reference images attached to the chat are forwarded as img2img inputs (max 4 × 8 MiB, PNG/JPEG/GIF/WebP). The toggle is per-workspace and persisted across reloads.
 - **Image providers**: OpenAI (`/v1/images/generations` for text-only, `/v1/images/edits` multipart when references are attached) and OpenRouter (`/v1/chat/completions` with `modalities: ["image", "text"]`). API keys reuse the existing agent provider keyring entries.
 - **Settings → Image tab**: provider buttons (OpenAI / OpenRouter) and a model picker with refresh, filtered to image-shaped models (`dall-e`, `gpt-image`, `flux`, `stable-diffusion`, `sdxl`, `imagen`, anything matching `image`) with curated fallbacks per provider.
