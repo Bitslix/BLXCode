@@ -64,7 +64,10 @@ pub fn start(
     let device = host
         .default_input_device()
         .ok_or_else(|| "Kein Default-Audio-Eingang gefunden.".to_string())?;
-    let device_name = device.name().unwrap_or_else(|_| "unknown".into());
+    let device_name = device
+        .description()
+        .map(|description| description.name().to_string())
+        .unwrap_or_else(|_| "unknown".into());
     let supported = device
         .default_input_config()
         .map_err(|e| format!("default_input_config({device_name}): {e}"))?;
