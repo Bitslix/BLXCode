@@ -180,6 +180,22 @@ pub fn parse_allowed_groups(names: &[String]) -> Vec<ToolGroup> {
         .collect()
 }
 
+/// Like [`parse_allowed_groups`] but also returns the strings that failed to
+/// parse, so the caller can warn the user (or the model) about typos
+/// instead of silently producing an empty toolset.
+#[must_use]
+pub fn parse_allowed_groups_strict(names: &[String]) -> (Vec<ToolGroup>, Vec<String>) {
+    let mut ok = Vec::with_capacity(names.len());
+    let mut bad = Vec::new();
+    for s in names {
+        match ToolGroup::parse(s) {
+            Some(g) => ok.push(g),
+            None => bad.push(s.clone()),
+        }
+    }
+    (ok, bad)
+}
+
 fn allowed_names(groups: &[ToolGroup], web_enabled: bool) -> HashSet<&'static str> {
     let mut set = HashSet::new();
     for g in groups {
@@ -201,6 +217,31 @@ pub fn registry_filtered(groups: &[ToolGroup], web_enabled: bool) -> Vec<ToolDef
         .collect()
 }
 
+/// Sanitize a tool name for OpenAI/Azure: Azure rejects names that don't match
+/// `^[a-zA-Z0-9_-]+$`, so we replace dots with underscores. The reverse
+/// mapping is performed by [`openai_tool_name_to_internal`] on the inbound
+/// `tool_calls` so internal dispatch keeps the dotted names.
+#[must_use]
+pub fn sanitize_openai_tool_name(name: &str) -> String {
+    name.replace('.', "_")
+}
+
+/// Look up the internal (dotted) tool name from a sanitized name returned by
+/// the OpenAI-compatible provider. Falls back to the input when there is no
+/// dotted tool whose sanitized form matches.
+#[must_use]
+pub fn openai_tool_name_to_internal(sanitized: &str) -> String {
+    if !sanitized.contains('_') {
+        return sanitized.to_string();
+    }
+    for t in registry() {
+        if t.name.contains('.') && sanitize_openai_tool_name(t.name) == sanitized {
+            return t.name.to_string();
+        }
+    }
+    sanitized.to_string()
+}
+
 pub fn render_for_openai_filtered(groups: &[ToolGroup], web_enabled: bool) -> Value {
     let items: Vec<Value> = registry_filtered(groups, web_enabled)
         .into_iter()
@@ -208,7 +249,7 @@ pub fn render_for_openai_filtered(groups: &[ToolGroup], web_enabled: bool) -> Va
             json!({
                 "type": "function",
                 "function": {
-                    "name": t.name,
+                    "name": sanitize_openai_tool_name(t.name),
                     "description": t.description,
                     "parameters": t.parameters,
                 }
@@ -255,5 +296,70 @@ mod tests {
         let names: HashSet<_> = reg.iter().map(|t| t.name).collect();
         assert!(names.contains("submit_result"));
         assert!(!names.contains("subagents.run"));
+    }
+
+    #[test]
+    fn parse_allowed_groups_strict_separates_known_from_unknown() {
+        let input = vec![
+            "workspace_read".to_string(),
+            "file_access".to_string(),     // bogus
+            "git_read".to_string(),
+            "shell".to_string(),           // bogus (correct names are shell_read/shell_write)
+        ];
+        let (ok, bad) = parse_allowed_groups_strict(&input);
+        assert_eq!(ok, vec![ToolGroup::WorkspaceRead, ToolGroup::GitRead]);
+        assert_eq!(bad, vec!["file_access".to_string(), "shell".to_string()]);
+    }
+
+    #[test]
+    fn no_subagent_reachable_group_contains_dotted_tool_names() {
+        // Invariant: subagent toolsets never contain dotted tool names
+        // (`subagents.run`, `harness.*`). If this ever flips, the Azure
+        // sanitization in `render_for_openai_filtered` would start renaming
+        // tools inside the subagent catalog and we'd need to add a matching
+        // reverse-map in the subagent loop. Currently the bidirectional
+        // mapping only exists in the coordinator path.
+        let all_coordinator_controllable_strings = [
+            "environment_read",
+            "workspace_read",
+            "diff_read",
+            "git_read",
+            "git_write",
+            "shell_read",
+            "shell_write",
+            "web_read",
+            "memory_read",
+            "memory_write",
+            "plans_read",
+            "plans_write",
+            "tasks_read",
+            "tasks_write",
+            "rules_skills_read",
+            "rules_skills_write",
+        ];
+        for s in all_coordinator_controllable_strings {
+            let g = ToolGroup::parse(s).expect("known group");
+            for tool in g.tool_names() {
+                assert!(
+                    !tool.contains('.'),
+                    "group {s:?} exposes dotted tool {tool:?} — would conflict with Azure sanitizer"
+                );
+            }
+        }
+        // SubagentSubmit is force-pushed onto every subagent's group list.
+        for tool in ToolGroup::SubagentSubmit.tool_names() {
+            assert!(!tool.contains('.'), "SubagentSubmit tool {tool:?} must be dotless");
+        }
+    }
+
+    #[test]
+    fn parse_allowed_groups_strict_returns_empty_when_all_unknown() {
+        // The pathological case the subagents fix is built to catch: a
+        // coordinator that invents toolgroup names. Parser returns empty
+        // ok-list so the caller can detect the situation and fall back.
+        let input = vec!["files".into(), "file_system".into(), "workspace".into()];
+        let (ok, bad) = parse_allowed_groups_strict(&input);
+        assert!(ok.is_empty());
+        assert_eq!(bad.len(), 3);
     }
 }

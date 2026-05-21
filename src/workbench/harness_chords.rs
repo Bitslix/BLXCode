@@ -45,7 +45,7 @@ impl ShortcutKeys {
         match mode {
             ShortcutMode::Tmux => Self::Chord {
                 prefix: PREFIX_KEYS,
-                second: "p",
+                second: "r",
             },
             ShortcutMode::Legacy => Self::Combo(&["Ctrl", "P"]),
         }
@@ -100,7 +100,7 @@ impl ShortcutKeys {
         match mode {
             ShortcutMode::Tmux => Self::Chord {
                 prefix: PREFIX_KEYS,
-                second: ":",
+                second: "p",
             },
             ShortcutMode::Legacy => Self::Combo(&["Ctrl", "Shift", "P"]),
         }
@@ -307,12 +307,12 @@ fn handle_legacy_keydown(
 fn tmux_second_key_action(key: &str) -> Option<HarnessShortcutAction> {
     match key {
         "o" | "O" => Some(HarnessShortcutAction::OpenQuickOpen),
-        "p" | "P" => Some(HarnessShortcutAction::ToggleRightPanel),
+        "r" | "R" => Some(HarnessShortcutAction::ToggleRightPanel),
         "a" | "A" => Some(HarnessShortcutAction::RightTab(RightPanelTab::Agent)),
         "b" | "B" => Some(HarnessShortcutAction::RightTab(RightPanelTab::Browser)),
         "m" | "M" => Some(HarnessShortcutAction::RightTab(RightPanelTab::Memory)),
         "n" | "N" => Some(HarnessShortcutAction::OpenNewTerminal),
-        ":" => Some(HarnessShortcutAction::ToggleCommandPalette),
+        "p" | "P" => Some(HarnessShortcutAction::ToggleCommandPalette),
         _ => None,
     }
 }

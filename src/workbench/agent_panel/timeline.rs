@@ -19,7 +19,13 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, PartialEq)]
 pub enum DisplayTimelineItem {
     User { text: String },
-    Assistant { text: String },
+    Assistant {
+        text: String,
+        /// Latest user-message text preceding this assistant block — used as
+        /// the "Redo" button's payload. `None` for the welcome/system bubble
+        /// and for any assistant block that has no preceding user turn.
+        prev_user: Option<String>,
+    },
     ToolGroup(Vec<ToolActivity>),
     SubagentGroup(SubagentGroup),
     Thinking { text: String, done: bool },
@@ -183,6 +189,9 @@ pub fn apply_agent_event(
                     summary: String::new(),
                     steps: Vec::new(),
                     tools: Vec::new(),
+                    live_text: String::new(),
+                    live_thinking: String::new(),
+                    thinking_done: false,
                 };
                 if let Some(TimelineItem::SubagentGroup(group)) = rows.last_mut() {
                     group.agents.push(card);
@@ -232,6 +241,47 @@ pub fn apply_agent_event(
             });
             persist_agent_timeline(persist, timeline);
         }
+        AgentEvent::TurnUsage {
+            input_tokens,
+            output_tokens,
+            ttft_ms,
+            elapsed_ms,
+        } => {
+            if let Some((wb, workspace_id)) = persist.clone() {
+                wb.record_chat_turn_usage(
+                    workspace_id,
+                    *input_tokens,
+                    *output_tokens,
+                    *ttft_ms,
+                    *elapsed_ms,
+                );
+            }
+        }
+        AgentEvent::SubagentAssistantDelta { agent_id, delta } => {
+            timeline.update(|rows| {
+                if let Some(card) = find_subagent_card_mut(rows, agent_id) {
+                    card.live_text.push_str(delta);
+                }
+            });
+            persist_agent_timeline(persist, timeline);
+        }
+        AgentEvent::SubagentThinkingDelta { agent_id, delta } => {
+            timeline.update(|rows| {
+                if let Some(card) = find_subagent_card_mut(rows, agent_id) {
+                    card.live_thinking.push_str(delta);
+                    card.thinking_done = false;
+                }
+            });
+            persist_agent_timeline(persist, timeline);
+        }
+        AgentEvent::SubagentThinkingDone { agent_id } => {
+            timeline.update(|rows| {
+                if let Some(card) = find_subagent_card_mut(rows, agent_id) {
+                    card.thinking_done = true;
+                }
+            });
+            persist_agent_timeline(persist, timeline);
+        }
         AgentEvent::SubagentFinished {
             agent_id,
             status,
@@ -241,6 +291,12 @@ pub fn apply_agent_event(
                 if let Some(card) = find_subagent_card_mut(rows, agent_id) {
                     card.status = status.clone();
                     card.summary = summary.clone();
+                    // Drop live buffers once the subagent finishes — `summary`
+                    // is now the authoritative output. Keeping the buffers
+                    // would double-render the same text in the card.
+                    card.live_text.clear();
+                    card.live_thinking.clear();
+                    card.thinking_done = true;
                 }
             });
             persist_agent_timeline(persist, timeline);
@@ -372,6 +428,7 @@ fn synthesize_completion_message(rows: &[TimelineItem]) -> Option<String> {
 pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
     let mut out = Vec::new();
     let mut pending_tools = Vec::new();
+    let mut last_user_text: Option<String> = None;
 
     let flush_tools = |out: &mut Vec<DisplayTimelineItem>,
                        pending_tools: &mut Vec<ToolActivity>| {
@@ -386,11 +443,15 @@ pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
         match item {
             TimelineItem::User { text } => {
                 flush_tools(&mut out, &mut pending_tools);
+                last_user_text = Some(text.clone());
                 out.push(DisplayTimelineItem::User { text });
             }
             TimelineItem::Assistant { text } => {
                 flush_tools(&mut out, &mut pending_tools);
-                out.push(DisplayTimelineItem::Assistant { text });
+                out.push(DisplayTimelineItem::Assistant {
+                    text,
+                    prev_user: last_user_text.clone(),
+                });
             }
             TimelineItem::Tool(tool) => pending_tools.push(tool),
             TimelineItem::Thinking { text, done } => {
@@ -513,6 +574,7 @@ pub fn TimelineRow(
     i18n: I18nService,
     thinking_open: RwSignal<HashMap<usize, bool>>,
     voice_handle: VoiceOrbHandle,
+    on_redo: Callback<String>,
 ) -> impl IntoView {
     let line_no = format!("{:02}", idx + 1);
     match entry {
@@ -526,14 +588,65 @@ pub fn TimelineRow(
             </li>
         }
         .into_any(),
-        DisplayTimelineItem::Assistant { text } => {
+        DisplayTimelineItem::Assistant { text, prev_user } => {
             let tts_text = text.clone();
+            let copy_text = text.clone();
+            let redo_text = prev_user.clone();
+            let copied = RwSignal::new(false);
             view! {
             <li class="agent-chat-line agent-chat-line--agent">
                 <ChatLineIndexColumn line_no=line_no.clone() tts_text=Some(tts_text) voice_handle=voice_handle />
                 <div class="agent-chat-body">
                     <strong>{move || i18n.tr(I18nKey::AgAssistant)()}</strong>
                     <div class="workbench-agent-markdown" inner_html=render_markdown_to_html(&text)></div>
+                    <div class="agent-chat-actions">
+                        <button
+                            type="button"
+                            class="agent-chat-action"
+                            title="Copy answer to clipboard"
+                            aria-label="Copy answer"
+                            on:click=move |_| {
+                                let text = copy_text.clone();
+                                copied.set(true);
+                                leptos::task::spawn_local(async move {
+                                    if let Some(win) = web_sys::window() {
+                                        let clipboard = win.navigator().clipboard();
+                                        let promise = clipboard.write_text(&text);
+                                        let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
+                                    }
+                                    gloo_timers::future::TimeoutFuture::new(1400).await;
+                                    copied.set(false);
+                                });
+                            }
+                        >
+                            {move || if copied.get() {
+                                view! { <LxIcon icon=icondata::LuCheck width="0.78rem" height="0.78rem" /> }
+                            } else {
+                                view! { <LxIcon icon=icondata::LuCopy width="0.78rem" height="0.78rem" /> }
+                            }}
+                        </button>
+                        <Show when={
+                            let r = redo_text.clone();
+                            move || r.as_ref().is_some_and(|s| !s.trim().is_empty())
+                        }>
+                            <button
+                                type="button"
+                                class="agent-chat-action"
+                                title="Redo this turn (resubmit the same prompt)"
+                                aria-label="Redo"
+                                on:click={
+                                    let r = redo_text.clone();
+                                    move |_| {
+                                        if let Some(text) = r.clone() {
+                                            on_redo.run(text);
+                                        }
+                                    }
+                                }
+                            >
+                                <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
+                            </button>
+                        </Show>
+                    </div>
                 </div>
             </li>
         }
@@ -561,19 +674,57 @@ pub fn TimelineRow(
                                 card.display_name.clone()
                             };
                             let summary = card.summary.clone();
+                            let live_text = card.live_text.clone();
+                            let live_thinking = card.live_thinking.clone();
+                            let thinking_done = card.thinking_done;
+                            let is_running = status_raw == "running";
                             view! {
                                 <details class="agent-subagent-card" open>
                                     <summary class="agent-subagent-card__summary">
                                         <span class="agent-subagent-card__name">{name}</span>
                                         <span class="agent-subagent-card__status">{status}</span>
+                                        <Show when=move || is_running>
+                                            <span class="agent-subagent-card__pulse" aria-hidden="true">
+                                                <span></span><span></span><span></span>
+                                            </span>
+                                        </Show>
                                     </summary>
+                                    {(!live_thinking.is_empty()).then(|| {
+                                        let class = if thinking_done {
+                                            "agent-subagent-card__thinking agent-subagent-card__thinking--done"
+                                        } else {
+                                            "agent-subagent-card__thinking"
+                                        };
+                                        view! {
+                                            <details class=class>
+                                                <summary>"Thinking"{(!thinking_done).then(|| "…")}</summary>
+                                                <pre class="agent-subagent-card__thinking-body">{live_thinking}</pre>
+                                            </details>
+                                        }
+                                    })}
+                                    {(!live_text.is_empty()).then(|| view! {
+                                        <pre class="agent-subagent-card__live-text">{live_text}</pre>
+                                    })}
                                     {(!summary.is_empty()).then(|| view! {
                                         <p class="agent-subagent-card__summary-text">{summary}</p>
                                     })}
                                     <ul class="agent-subagent-card__tools">
-                                        {card.tools.into_iter().map(|t| {
-                                            let label = t.label.clone();
-                                            view! { <li>{label}</li> }
+                                        {merge_consecutive_tools(card.tools).into_iter().map(|run| {
+                                            let label = run.first()
+                                                .map(|t| t.label.clone())
+                                                .unwrap_or_default();
+                                            let count = run.len();
+                                            let multiple = count > 1;
+                                            view! {
+                                                <li>
+                                                    <span>{label}</span>
+                                                    <Show when=move || multiple>
+                                                        <span class="agent-subagent-card__tools-count">
+                                                            {format!("\u{00d7}{count}")}
+                                                        </span>
+                                                    </Show>
+                                                </li>
+                                            }
                                         }).collect_view()}
                                     </ul>
                                 </details>
@@ -763,22 +914,49 @@ fn ThinkingRow(
     }
 }
 
+/// Collapse consecutive `ToolActivity` entries with the same tool name into a
+/// single visual row carrying a `×N` badge. Each merged run keeps the original
+/// invocations so the expanded view can show per-call args + details.
+fn merge_consecutive_tools(entries: Vec<ToolActivity>) -> Vec<Vec<ToolActivity>> {
+    let mut groups: Vec<Vec<ToolActivity>> = Vec::new();
+    for entry in entries {
+        match groups.last_mut() {
+            Some(group) if group.last().map(|t| t.tool.as_str()) == Some(entry.tool.as_str()) => {
+                group.push(entry);
+            }
+            _ => groups.push(vec![entry]),
+        }
+    }
+    groups
+}
+
+fn aggregate_status(entries: &[ToolActivity]) -> ActivityStatus {
+    if entries.iter().any(|e| e.status == ActivityStatus::Pending) {
+        ActivityStatus::Pending
+    } else if entries.iter().any(|e| e.status == ActivityStatus::Fail) {
+        ActivityStatus::Fail
+    } else {
+        ActivityStatus::Ok
+    }
+}
+
 #[component]
 fn ToolActivityGroupRow(
     line_no: String,
     entries: Vec<ToolActivity>,
     voice_handle: VoiceOrbHandle,
 ) -> impl IntoView {
+    let runs = merge_consecutive_tools(entries);
     view! {
         <li class="agent-chat-line agent-chat-line--tool">
             <ChatLineIndexColumn line_no=line_no tts_text=None voice_handle=voice_handle />
             <div class="agent-chat-body">
                 <strong>"Tool"</strong>
                 <div class="agent-tool-group">
-                    {entries
+                    {runs
                         .into_iter()
                         .enumerate()
-                        .map(|(tool_idx, entry)| view! { <ToolActivityRow idx=tool_idx entry=entry /> })
+                        .map(|(idx, run)| view! { <ToolActivityRow idx=idx run=run /> })
                         .collect_view()}
                 </div>
             </div>
@@ -787,55 +965,151 @@ fn ToolActivityGroupRow(
 }
 
 #[component]
-fn ToolActivityRow(idx: usize, entry: ToolActivity) -> impl IntoView {
-    let status_class = match entry.status {
+fn ToolActivityRow(idx: usize, run: Vec<ToolActivity>) -> impl IntoView {
+    let _ = idx;
+    let count = run.len();
+    let head = run.first().cloned().expect("merge_consecutive_tools yields non-empty runs");
+    let agg = aggregate_status(&run);
+    let status_class = match agg {
         ActivityStatus::Pending => "agent-tool-row--pending",
         ActivityStatus::Ok => "agent-tool-row--ok",
         ActivityStatus::Fail => "agent-tool-row--fail",
     };
-    let status_icon = match entry.status {
+    let status_icon = match agg {
         ActivityStatus::Pending => icondata::LuLoader,
         ActivityStatus::Ok => icondata::LuCheck,
         ActivityStatus::Fail => icondata::LuTriangleAlert,
     };
-    let detail_open = RwSignal::new(false);
-    let has_detail = entry.detail.as_ref().is_some_and(|s| !s.is_empty());
-    let detail_text = entry.detail.clone().unwrap_or_default();
-    let label = entry.label.clone();
-    let summary = entry.args_summary.clone();
-    let tool_name_for_title = entry.tool.clone();
-    let _ = idx;
+
+    // Single invocation: keep the previous compact layout (no badge, no list).
+    if count <= 1 {
+        let detail_open = RwSignal::new(false);
+        let has_detail = head.detail.as_ref().is_some_and(|s| !s.is_empty());
+        let detail_text = head.detail.clone().unwrap_or_default();
+        let label = head.label.clone();
+        let summary = head.args_summary.clone();
+        let tool_name_for_title = head.tool.clone();
+        return view! {
+            <div class=format!("agent-tool-row {status_class}") title=tool_name_for_title>
+                <button
+                    type="button"
+                    class="agent-tool-row__head"
+                    aria-expanded=move || detail_open.get().to_string()
+                    prop:disabled=move || !has_detail
+                    on:click=move |_| {
+                        if has_detail {
+                            detail_open.update(|o| *o = !*o);
+                        }
+                    }
+                >
+                    <span class="agent-tool-row__icon" aria-hidden="true">
+                        <LxIcon icon=tool_icon(&head.tool) width="0.82rem" height="0.82rem" />
+                    </span>
+                    <span class="agent-tool-row__label">{label}</span>
+                    <Show when={
+                        let s = summary.clone();
+                        move || !s.is_empty()
+                    }>
+                        <span class="agent-tool-row__arg">{summary.clone()}</span>
+                    </Show>
+                    <span class="agent-tool-row__status" aria-hidden="true">
+                        <LxIcon icon=status_icon width="0.78rem" height="0.78rem" />
+                    </span>
+                </button>
+                <Show when=move || has_detail && detail_open.get()>
+                    <pre class="agent-tool-row__detail">{detail_text.clone()}</pre>
+                </Show>
+            </div>
+        }
+        .into_any();
+    }
+
+    // Merged run: counter badge + expandable per-invocation list.
+    let any_detail = run
+        .iter()
+        .any(|e| e.detail.as_ref().is_some_and(|s| !s.is_empty()));
+    let any_arg = run.iter().any(|e| !e.args_summary.is_empty());
+    let expandable = any_detail || any_arg;
+    let open = RwSignal::new(false);
+    let label = head.label.clone();
+    let tool_for_icon = head.tool.clone();
+    let tool_name_for_title = head.tool.clone();
+    let count_badge = format!("×{count}");
+    let invocations = run.clone();
 
     view! {
-        <div class=format!("agent-tool-row {status_class}") title=tool_name_for_title>
+        <div class=format!("agent-tool-row agent-tool-row--merged {status_class}") title=tool_name_for_title>
             <button
                 type="button"
                 class="agent-tool-row__head"
-                aria-expanded=move || detail_open.get().to_string()
-                prop:disabled=move || !has_detail
+                aria-expanded=move || open.get().to_string()
+                prop:disabled=move || !expandable
                 on:click=move |_| {
-                    if has_detail {
-                        detail_open.update(|o| *o = !*o);
+                    if expandable {
+                        open.update(|o| *o = !*o);
                     }
                 }
             >
                 <span class="agent-tool-row__icon" aria-hidden="true">
-                    <LxIcon icon=tool_icon(&entry.tool) width="0.82rem" height="0.82rem" />
+                    <LxIcon icon=tool_icon(&tool_for_icon) width="0.82rem" height="0.82rem" />
                 </span>
                 <span class="agent-tool-row__label">{label}</span>
-                <Show when={
-                    let s = summary.clone();
-                    move || !s.is_empty()
-                }>
-                    <span class="agent-tool-row__arg">{summary.clone()}</span>
+                <span class="agent-tool-row__count" aria-label=format!("{count} calls")>{count_badge}</span>
+                <Show when=move || expandable>
+                    <span class="agent-tool-row__chevron" aria-hidden="true">
+                        {move || if open.get() {
+                            view! { <LxIcon icon=icondata::LuChevronUp width="0.72rem" height="0.72rem" /> }
+                        } else {
+                            view! { <LxIcon icon=icondata::LuChevronDown width="0.72rem" height="0.72rem" /> }
+                        }}
+                    </span>
                 </Show>
                 <span class="agent-tool-row__status" aria-hidden="true">
                     <LxIcon icon=status_icon width="0.78rem" height="0.78rem" />
                 </span>
             </button>
-            <Show when=move || has_detail && detail_open.get()>
-                <pre class="agent-tool-row__detail">{detail_text.clone()}</pre>
+            <Show when=move || expandable && open.get()>
+                <ul class="agent-tool-row__sublist">
+                    {invocations
+                        .iter()
+                        .cloned()
+                        .enumerate()
+                        .map(|(i, entry)| {
+                            let sub_status = match entry.status {
+                                ActivityStatus::Pending => "agent-tool-row__sub--pending",
+                                ActivityStatus::Ok => "agent-tool-row__sub--ok",
+                                ActivityStatus::Fail => "agent-tool-row__sub--fail",
+                            };
+                            let sub_icon = match entry.status {
+                                ActivityStatus::Pending => icondata::LuLoader,
+                                ActivityStatus::Ok => icondata::LuCheck,
+                                ActivityStatus::Fail => icondata::LuTriangleAlert,
+                            };
+                            let arg = entry.args_summary.clone();
+                            let detail = entry.detail.clone().unwrap_or_default();
+                            let has_detail_i = !detail.is_empty();
+                            view! {
+                                <li class=format!("agent-tool-row__sub {sub_status}")>
+                                    <span class="agent-tool-row__sub-index">{format!("{:02}", i + 1)}</span>
+                                    <span class="agent-tool-row__sub-status" aria-hidden="true">
+                                        <LxIcon icon=sub_icon width="0.7rem" height="0.7rem" />
+                                    </span>
+                                    <Show when={
+                                        let a = arg.clone();
+                                        move || !a.is_empty()
+                                    }>
+                                        <span class="agent-tool-row__sub-arg">{arg.clone()}</span>
+                                    </Show>
+                                    <Show when=move || has_detail_i>
+                                        <pre class="agent-tool-row__sub-detail">{detail.clone()}</pre>
+                                    </Show>
+                                </li>
+                            }
+                        })
+                        .collect_view()}
+                </ul>
             </Show>
         </div>
     }
+    .into_any()
 }

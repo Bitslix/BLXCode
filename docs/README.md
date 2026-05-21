@@ -27,8 +27,8 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 - [Getting Started](user/getting-started.md) — prerequisites, run BLXCode, first workspace, where data lives.
 - [Workspaces](user/workspaces.md) — creation, terminal grids, sidebar explorer, Git graph, handoff, persistence.
 - [Memory And Tasks](user/memory-and-tasks.md) — Memory panel (Files, Graph, Search), dynamic categories, tasks, agent memory tools.
-- [Plans](user/plans.md) — `.agents/plans/`, task syntax, Plans panel, plan-linked tasks, agent tools.
-- [Rules And Skills](user/rules-and-skills.md) — `.agents/rules/`, `.agents/skills/`, core vs user skills, install dialog.
+- [Plans](user/plans.md) — `.agents/plans/`, Kanban board, task syntax, Plans panel, agent tools.
+- [Rules And Skills](user/rules-and-skills.md) — expandable rule/skill cards, core vs user skills, install dialog.
 - [Agent Harness](user/agent-harness.md) — core skills, slim prompt, environment/shell/git/web, web API keys.
 - [Subagents](user/subagents.md) — parallel runs, roles, timeline, tool groups, limits.
 - [Keyboard Shortcuts](user/keyboard-shortcuts.md) — tmux prefix vs legacy chords, notification toasts.

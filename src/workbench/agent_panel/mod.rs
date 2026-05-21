@@ -55,6 +55,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     // Synced on workspace switch and on toggle (writer also persists to the
     // workspace entry so the flag survives reloads).
     let image_mode = RwSignal::new(false);
+    let chat_maximized = RwSignal::new(false);
     let chat_scroll_ref = NodeRef::<html::Article>::new();
     let voice_handle = VoiceOrbHandle::new();
     let task_snapshot = RwSignal::new(TaskSnapshot {
@@ -202,6 +203,9 @@ pub fn AgentPanelDock() -> impl IntoView {
         <section
             class=move || {
                 let mut class = "workbench-agent-pane".to_string();
+                if chat_maximized.get() {
+                    class.push_str(" workbench-agent-pane--chat-maximized");
+                }
                 match drop_state.get() {
                     DropZoneState::Accept => class.push_str(" workbench-agent-pane--drop-active"),
                     DropZoneState::Reject => class.push_str(" workbench-agent-pane--drop-reject"),
@@ -220,7 +224,13 @@ pub fn AgentPanelDock() -> impl IntoView {
                     <span>{move || drop_state.get().message()}</span>
                 </div>
             </Show>
-            <header class="agent-hero">
+            <header class=move || {
+                if chat_maximized.get() {
+                    "agent-hero agent-hero--compact".to_string()
+                } else {
+                    "agent-hero".to_string()
+                }
+            }>
                 <VoiceOrb
                     handle=voice_handle
                     on_transcript=move |text: String, auto_send: bool| {
@@ -311,6 +321,34 @@ pub fn AgentPanelDock() -> impl IntoView {
                         </button>
                         <button
                             type="button"
+                            class="agent-chat-head__icon-btn"
+                            aria-pressed=move || if chat_maximized.get() { "true" } else { "false" }
+                            title=move || {
+                                if chat_maximized.get() {
+                                    i18n.tr(I18nKey::AgChatRestore)().to_string()
+                                } else {
+                                    i18n.tr(I18nKey::AgChatMaximize)().to_string()
+                                }
+                            }
+                            aria-label=move || {
+                                if chat_maximized.get() {
+                                    i18n.tr(I18nKey::AgChatRestore)().to_string()
+                                } else {
+                                    i18n.tr(I18nKey::AgChatMaximize)().to_string()
+                                }
+                            }
+                            on:click=move |_| chat_maximized.update(|v| *v = !*v)
+                        >
+                            {move || {
+                                if chat_maximized.get() {
+                                    view! { <LxIcon icon=icondata::LuMinimize2 width="0.86rem" height="0.86rem" /> }.into_any()
+                                } else {
+                                    view! { <LxIcon icon=icondata::LuMaximize2 width="0.86rem" height="0.86rem" /> }.into_any()
+                                }
+                            }}
+                        </button>
+                        <button
+                            type="button"
                             class="agent-chat-head__reset"
                             prop:disabled=move || busy.get() || !is_tauri_shell()
                             title=move || i18n.tr(I18nKey::AgResetChat)()
@@ -367,16 +405,24 @@ pub fn AgentPanelDock() -> impl IntoView {
                 >
                     <ol class="agent-chat-list" aria-label=move || i18n.tr(I18nKey::AgTimelineAria)()>
                         {move || {
+                            let on_redo = Callback::new(move |text: String| {
+                                draft.set(text);
+                                submit_turn(
+                                    wb, i18n, draft, busy, status_line,
+                                    timeline, task_snapshot, thinking_open, voice_handle,
+                                );
+                            });
                             compact_timeline(timeline.get())
                                 .into_iter()
                                 .enumerate()
                                 .map(|(idx, entry)| {
-                                    view! { <TimelineRow idx=idx entry=entry i18n=i18n thinking_open=thinking_open voice_handle=voice_handle /> }
+                                    view! { <TimelineRow idx=idx entry=entry i18n=i18n thinking_open=thinking_open voice_handle=voice_handle on_redo=on_redo /> }
                                 })
                                 .collect_view()
                         }}
                     </ol>
                 </Show>
+                <ChatUsageFooter wb=wb />
             </article>
 
             <form
@@ -502,6 +548,7 @@ fn submit_turn(
                     timeline.set(Vec::new());
                     thinking_open.set(HashMap::new());
                     wb.set_workspace_agent_timeline(ws_id, Vec::new());
+                    wb.clear_chat_usage(ws_id);
                     status_line.set(None);
                 }
                 Err(msg) => status_line.set(Some(msg)),
@@ -608,4 +655,76 @@ fn submit_turn(
         }
         busy_sig.set(false);
     });
+}
+
+/// Aggregated token / latency footer shown at the bottom of the chat list.
+/// Hidden until the first turn produces usage data so an empty chat stays
+/// visually clean.
+#[component]
+fn ChatUsageFooter(wb: WorkbenchService) -> impl IntoView {
+    let stats = Memo::new(move |_| {
+        let id = wb.active_id().get()?;
+        let s = wb.chat_usage_for_workspace(id);
+        if s.turn_count == 0 {
+            None
+        } else {
+            Some(s)
+        }
+    });
+
+    view! {
+        <Show when=move || stats.with(|s| s.is_some())>
+            <div class="agent-chat-usage" aria-label="Chat usage statistics">
+                {move || {
+                    let s = stats.get().expect("Show gate");
+                    let in_tok = fmt_compact_int(s.total_input_tokens);
+                    let out_tok = fmt_compact_int(s.total_output_tokens);
+                    // Output-decode speed: completion tokens divided by total
+                    // wall-clock seconds across all turns. Includes the time
+                    // spent in tool calls — that's the right number for the
+                    // operator because the user-visible "how fast is this"
+                    // includes those waits.
+                    let speed = if s.total_elapsed_ms > 0 && s.total_output_tokens > 0 {
+                        let tps = (s.total_output_tokens as f64) * 1000.0
+                            / (s.total_elapsed_ms as f64);
+                        format!("{tps:.1} tok/s")
+                    } else {
+                        "—".to_string()
+                    };
+                    let ttft = if s.ttft_sample_count > 0 {
+                        let mean = s.ttft_sum_ms / (s.ttft_sample_count as u64);
+                        if mean >= 1000 {
+                            format!("{:.2}s", (mean as f64) / 1000.0)
+                        } else {
+                            format!("{mean}ms")
+                        }
+                    } else {
+                        "—".to_string()
+                    };
+                    let turns = s.turn_count;
+                    view! {
+                        <span class="agent-chat-usage__turns">{format!("{turns} turn{}", if turns == 1 { "" } else { "s" })}</span>
+                        <span class="agent-chat-usage__sep">"·"</span>
+                        <span title="Input/prompt tokens">"in " <strong>{in_tok}</strong></span>
+                        <span class="agent-chat-usage__sep">"·"</span>
+                        <span title="Output/completion tokens">"out " <strong>{out_tok}</strong></span>
+                        <span class="agent-chat-usage__sep">"·"</span>
+                        <span title="Average output decode speed">{speed}</span>
+                        <span class="agent-chat-usage__sep">"·"</span>
+                        <span title="Average time to first token">"ttft " {ttft}</span>
+                    }
+                }}
+            </div>
+        </Show>
+    }
+}
+
+fn fmt_compact_int(n: u64) -> String {
+    if n >= 1_000_000 {
+        format!("{:.1}M", (n as f64) / 1_000_000.0)
+    } else if n >= 1_000 {
+        format!("{:.1}k", (n as f64) / 1_000.0)
+    } else {
+        n.to_string()
+    }
 }

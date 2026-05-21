@@ -1,6 +1,6 @@
 //! Role profiles and subagent system prompts.
 
-use crate::agent::tool_groups::{parse_allowed_groups, ToolGroup};
+use crate::agent::tool_groups::{self, parse_allowed_groups, ToolGroup};
 use serde_json::Value;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -62,12 +62,78 @@ pub fn display_name_en(role: SubagentRole) -> &'static str {
     }
 }
 
+/// Render the tool inventory that the subagent will actually receive in this
+/// run, grouped by purpose. Listing tools explicitly in the system prompt
+/// stops weaker models from claiming "I don't have file-system access" and
+/// surrendering before they try the schema they were just handed.
+fn render_tool_inventory(groups: &[ToolGroup]) -> String {
+    let names: std::collections::HashSet<&'static str> =
+        tool_groups::registry_filtered(groups, true)
+            .into_iter()
+            .map(|t| t.name)
+            .collect();
+
+    let buckets: &[(&str, &[&str])] = &[
+        ("Workspace (read repo files)", &[
+            "list_workspace_files",
+            "read_workspace_file",
+            "workspace_search",
+        ]),
+        ("Diffs", &["workspace_git_status", "workspace_diff"]),
+        ("Git", &[
+            "git_status",
+            "git_diff",
+            "git_log",
+            "git_show",
+            "git_branch_info",
+            "git_ls_files",
+        ]),
+        ("Environment / shell", &["environment_detect", "shell_exec"]),
+        ("Memory", &[
+            "memory_list",
+            "memory_read",
+            "memory_search",
+            "memory_graph",
+            "memory_backlinks",
+            "memory_category_list",
+            "memory_context_list",
+        ]),
+        ("Plans", &["plan_list", "plan_read", "plan_load", "plan_context_list"]),
+        ("Tasks", &["task_list", "task_get"]),
+        ("Rules & Skills", &[
+            "rules_list",
+            "rules_read",
+            "skills_list",
+            "skills_read",
+        ]),
+        ("Web", &["web_search", "web_fetch"]),
+    ];
+
+    let mut lines = Vec::new();
+    for (heading, candidates) in buckets {
+        let available: Vec<&str> = candidates
+            .iter()
+            .copied()
+            .filter(|n| names.contains(n))
+            .collect();
+        if available.is_empty() {
+            continue;
+        }
+        lines.push(format!("- {heading}: {}", available.join(", ")));
+    }
+    if lines.is_empty() {
+        return String::from("- (no tools provisioned)");
+    }
+    lines.join("\n")
+}
+
 pub fn subagent_system_prompt(
     workspace_root: &str,
     role: SubagentRole,
     display_name: &str,
     task: &str,
     success_criteria: &[String],
+    groups: &[ToolGroup],
 ) -> String {
     let role_line = match role {
         SubagentRole::Scout => "exploring codebase structure, files, rules, and skills",
@@ -88,15 +154,39 @@ pub fn subagent_system_prompt(
                 .join("\n")
         )
     };
+    let inventory = render_tool_inventory(groups);
+    let has_workspace_read = groups.iter().any(|g| matches!(g, ToolGroup::WorkspaceRead));
+    let mandatory_first = if has_workspace_read {
+        "Your FIRST tool call MUST be `list_workspace_files` with `{\"path\": \".\"}` to enumerate the workspace root. \
+         This is non-negotiable — do not skip it, do not call `submit_result` first."
+    } else {
+        ""
+    };
     format!(
         "You are {display_name}, a BLXCode subagent specialized in {role_line}.\n\
          Workspace: {workspace_root}\n\
          Task: {task}\n\
          {criteria}\n\
-         You MUST finish by calling the `submit_result` tool exactly once with structured JSON. \
-         Free-form assistant text is ignored.\n\
-         Call `environment_detect` before shell or git tools.\n\
-         Do not call `subagents.run`.\n"
+         # Tools (these ARE provisioned and CALLABLE right now)\n\
+         {inventory}\n\
+         \n\
+         # Required execution flow\n\
+         1. {mandatory_first}\n\
+         2. After confirming access, call any other tools above as the task requires.\n\
+         3. Call `environment_detect` before any `shell_exec` or `git_*` tool.\n\
+         4. Finish by calling `submit_result` exactly once with structured JSON \
+         (free-form assistant text is ignored).\n\
+         \n\
+         # Forbidden behaviors\n\
+         - Do NOT claim the workspace/file-access tools are missing. They are listed above \
+         AND present in the tool schema you were handed. If you cannot see them, your context \
+         is malformed — report that exact diagnostic in `submit_result.summary`, but only after \
+         attempting `list_workspace_files`.\n\
+         - Do NOT call `submit_result` with `status: \"blocked\"` before attempting at least \
+         one workspace read.\n\
+         - Do NOT call `subagents.run` (recursion is disabled for subagents).\n\
+         - When a tool errors, report the exact error string in `submit_result.summary`; do not \
+         paraphrase it as 'tools unavailable'.\n"
     )
 }
 

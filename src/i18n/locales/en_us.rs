@@ -114,6 +114,13 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
 
         I18nKey::PlansProtectedIndex => "PLANS.md is the protected index file.",
         I18nKey::PlansListResizeAria => "Resize plan list",
+        I18nKey::PlansFilterAll => "All",
+        I18nKey::PlansFilterActive => "Active",
+        I18nKey::PlansFilterEmpty => "Empty",
+        I18nKey::PlansTitlePh => "Plan title",
+        I18nKey::PlansBodyPh => "Write the plan in Markdown...",
+        I18nKey::PlansTitleRequired => "Give the plan a title first.",
+        I18nKey::PlansNoFilteredPlans => "No plans for this filter.",
         I18nKey::SrSkillsTabCore => "Core",
         I18nKey::SrSkillsTabUser => "User",
         I18nKey::SrSourceCore => "core",
@@ -211,7 +218,7 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::AppShortcutModeTmux => "Tmux style (Ctrl+b, then key)",
         I18nKey::AppShortcutModeLegacy => "Classic (Ctrl / Ctrl+Shift)",
         I18nKey::AppShortcutModeHint => {
-            "Tmux: prefix Ctrl+b then a second key (e.g. n for new terminal, : for command palette). \
+            "Tmux: prefix Ctrl+b then a second key (e.g. n for new terminal, p for command palette). \
 Classic: Ctrl+O quick open, Ctrl+` new terminal, Ctrl+Shift+P palette."
         }
         I18nKey::MemShowInGraph => "Show in graph",
@@ -238,6 +245,8 @@ Classic: Ctrl+O quick open, Ctrl+` new terminal, Ctrl+Shift+P palette."
         I18nKey::AgResetChatAria => {
             "Clear the chat view and the model conversation history on the server"
         }
+        I18nKey::AgChatMaximize => "Expand chat (minimize voice area)",
+        I18nKey::AgChatRestore => "Restore voice area",
         I18nKey::AgErrNeedPrompt => "Please enter a prompt.",
         I18nKey::AgYou => "You",
         I18nKey::AgAssistant => "Agent",

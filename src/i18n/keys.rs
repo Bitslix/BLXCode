@@ -96,6 +96,13 @@ pub enum I18nKey {
     PlansTaskStatCancelled,
     PlansProtectedIndex,
     PlansListResizeAria,
+    PlansFilterAll,
+    PlansFilterActive,
+    PlansFilterEmpty,
+    PlansTitlePh,
+    PlansBodyPh,
+    PlansTitleRequired,
+    PlansNoFilteredPlans,
 
     // Skills & Rules panel
     SrSkillsTabCore,
@@ -213,6 +220,8 @@ pub enum I18nKey {
     AgCancel,
     AgResetChat,
     AgResetChatAria,
+    AgChatMaximize,
+    AgChatRestore,
     AgErrNeedPrompt,
     AgYou,
     AgAssistant,

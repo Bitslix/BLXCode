@@ -142,10 +142,46 @@ pub enum AgentEvent {
         #[serde(skip_serializing_if = "Option::is_none")]
         args: Option<serde_json::Value>,
     },
+    /// Streamed assistant text from a subagent's current round. The UI
+    /// appends successive deltas to a per-agent buffer so the operator can
+    /// watch the subagent's reasoning in real time.
+    #[serde(rename = "subagent_assistant_delta")]
+    SubagentAssistantDelta { agent_id: String, delta: String },
+    /// Streamed reasoning text from a subagent (provider's "thinking" /
+    /// "reasoning" channel). Treated the same as `AssistantDelta` but kept
+    /// separate so the UI can style it as collapsed thinking.
+    #[serde(rename = "subagent_thinking_delta")]
+    SubagentThinkingDelta { agent_id: String, delta: String },
+    /// Marks the end of a thinking burst so the UI can collapse the
+    /// thinking block once the subagent moves on to tool calls or text.
+    #[serde(rename = "subagent_thinking_done")]
+    SubagentThinkingDone { agent_id: String },
     #[serde(rename = "subagent_finished")]
     SubagentFinished {
         agent_id: String,
         status: String,
         summary: String,
+    },
+    /// Per-turn usage stats emitted just before `Done`. The UI accumulates
+    /// these across the conversation and renders a footer line with
+    /// totals, decode speed (output_tokens/s) and time-to-first-token.
+    #[serde(rename = "turn_usage")]
+    TurnUsage {
+        /// Tokens billed for the prompt (system + history + this user turn,
+        /// including any tool results). When the provider doesn't emit
+        /// usage, this is `None` and the UI shows `—`.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        input_tokens: Option<u64>,
+        /// Tokens billed for the model's output across all rounds of this
+        /// turn.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        output_tokens: Option<u64>,
+        /// Wall-clock milliseconds from request send to first streamed
+        /// content/thinking delta of the first round.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        ttft_ms: Option<u64>,
+        /// Wall-clock milliseconds for the whole turn (all rounds, all
+        /// tool calls, until `Done`).
+        elapsed_ms: u64,
     },
 }

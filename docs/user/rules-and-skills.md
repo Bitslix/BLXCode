@@ -23,11 +23,17 @@ Do not hand-edit `index.json` unless you know what you are doing; use the UI or 
 
 Open **Rules** from the right workbench rail (`LuShield` icon).
 
-Each card shows:
+Each rule is an **expandable card** (same pattern as Skills):
 
-- Title and summary from the rule file
-- **Enabled** / **Disabled** pill
-- Toggle, read, and remove controls
+| Collapsed | Expanded |
+|-----------|----------|
+| Title, summary, **Enabled** / **Disabled** pill, enable toggle | Full rule body (Markdown), inline **edit** and save, remove |
+
+Use **Create rule** at the top of the tab to add a new `rule-*.md` file. The form validates name and body before writing to `.agents/rules/`.
+
+<p align="center">
+  <img src="../images/rules-panel.png" alt="Rules panel with create-rule form and expandable rule cards" />
+</p>
 
 Disabled rules are invisible to the agent — the system prompt treats them as if they did not exist.
 
@@ -38,7 +44,7 @@ Active rules are **binding and non-negotiable**; they outrank skill guidance whe
 Open **Skills** from the right workbench rail (`LuPuzzle` icon).
 
 <p align="center">
-  <img src="../images/skills-panel.png" alt="Skills panel with install dialog and skill cards showing source badges" />
+  <img src="../images/skills-panel.png" alt="Skills panel with Core and User tabs and expandable skill cards" />
 </p>
 
 ### Core vs User tabs
@@ -54,10 +60,14 @@ Core skills show a **core** badge. You can enable or disable them per workspace,
 
 The **web** core skill may show **disabled_no_key** when no Tavily/Brave API key is configured — configure keys under Harness settings → Agent → Web Tools ([Agent Harness](agent-harness.md)). The **subagents** core skill documents `subagents.run` — see [Subagents](subagents.md).
 
-Each card shows:
+Use the **Core** / **User** pill tabs at the top of the panel (counts per tab).
 
-- Skill name and summary
-- Source badge: `core`, `git`, `npm`, `local`, or `agent`
+Each skill is an **expandable card**:
+
+| Collapsed | Expanded |
+|-----------|----------|
+| Name, summary, source badge (`core`, `git`, `npm`, `local`, `agent`), enable switch | Lazy-loaded `SKILL.md` body on first expand |
+
 - **SKILL.md missing** warning (user skills only) when the folder has no top-level `SKILL.md`
 - Enable/disable; **remove** only for non-core skills
 
