@@ -1,4 +1,4 @@
-use crate::agent_wire::{AgentEvent, TaskSnapshot};
+use crate::agent_wire::{AgentEvent, TaskSnapshot, TurnMetrics, TurnUsageKind};
 use crate::i18n::{lookup, I18nKey, Locale};
 use crate::service::I18nService;
 use crate::tauri_bridge::{is_tauri_shell, voice_settings_get};
@@ -173,9 +173,10 @@ pub fn apply_agent_event(
     match ev {
         AgentEvent::AssistantDelta { delta } => {
             timeline.update(|rows| match rows.last_mut() {
-                Some(TimelineItem::Assistant { text }) => text.push_str(delta),
+                Some(TimelineItem::Assistant { text, .. }) => text.push_str(delta),
                 _ => rows.push(TimelineItem::Assistant {
                     text: delta.clone(),
+                    metrics: TurnMetrics::default(),
                 }),
             });
             persist_agent_timeline(persist, timeline);
@@ -234,7 +235,8 @@ pub fn apply_agent_event(
                 // user at least sees something landed. The client_tools.rs
                 // dispatcher will short-circuit the result with ok=false.
             }
-            let entry = ToolActivity::from_call(tool, args.as_ref(), loc);
+            let entry =
+                ToolActivity::from_call_with_id(tool, args.as_ref(), loc, call_id.clone());
             timeline.update(|rows| rows.push(TimelineItem::Tool(entry)));
             persist_agent_timeline(persist, timeline);
         }
@@ -273,6 +275,8 @@ pub fn apply_agent_event(
                             ActivityStatus::Fail
                         },
                         detail: message.clone().filter(|m| !m.is_empty()),
+                        call_id: None,
+                        metrics: TurnMetrics::default(),
                     }));
                 }
             });
@@ -292,6 +296,7 @@ pub fn apply_agent_event(
                     summary: String::new(),
                     steps: Vec::new(),
                     tools: Vec::new(),
+                    metrics: TurnMetrics::default(),
                     live_text: String::new(),
                     live_thinking: String::new(),
                     thinking_done: false,
@@ -345,18 +350,28 @@ pub fn apply_agent_event(
             persist_agent_timeline(persist, timeline);
         }
         AgentEvent::TurnUsage {
+            kind: _,
+            agent_id: _,
+            call_id: _,
+            round_index: _,
+            turn_generation: _,
             input_tokens,
             output_tokens,
-            ttft_ms,
+            ttft_ms: _,
             elapsed_ms,
+            cost_usd,
         } => {
+            // Per-row routing (Assistant / Tool / ModelDecision / Subagent)
+            // lives in the `frontend-apply` task. For now just update the
+            // session-wide aggregate so the existing footer / future chat
+            // header stays in sync.
             if let Some((wb, workspace_id)) = persist.clone() {
                 wb.record_chat_turn_usage(
                     workspace_id,
                     *input_tokens,
                     *output_tokens,
-                    *ttft_ms,
                     *elapsed_ms,
+                    *cost_usd,
                 );
             }
         }
@@ -412,6 +427,7 @@ pub fn apply_agent_event(
                 if let Some(message) = synthesize_completion_message(rows) {
                     rows.push(TimelineItem::Assistant {
                         text: format!("{message}\n"),
+                        metrics: TurnMetrics::default(),
                     });
                     return;
                 }
@@ -427,6 +443,7 @@ pub fn apply_agent_event(
                 if let Some(message) = fallback {
                     rows.push(TimelineItem::Assistant {
                         text: format!("{message}\n"),
+                        metrics: TurnMetrics::default(),
                     });
                 }
             });
@@ -436,7 +453,7 @@ pub fn apply_agent_event(
             let prefix = lookup(loc, I18nKey::AgErrColon);
             let line = format!("{prefix} {message}");
             timeline.update(|rows| match rows.last_mut() {
-                Some(TimelineItem::Assistant { text }) => {
+                Some(TimelineItem::Assistant { text, .. }) => {
                     if !text.is_empty() && !text.ends_with('\n') {
                         text.push('\n');
                     }
@@ -445,6 +462,7 @@ pub fn apply_agent_event(
                 }
                 _ => rows.push(TimelineItem::Assistant {
                     text: format!("{line}\n"),
+                    metrics: TurnMetrics::default(),
                 }),
             });
             persist_agent_timeline(persist, timeline);
@@ -483,7 +501,7 @@ fn synthesize_completion_message(rows: &[TimelineItem]) -> Option<String> {
 
     let has_assistant_after_user = rows[last_user_idx + 1..]
         .iter()
-        .any(|entry| matches!(entry, TimelineItem::Assistant { text } if !text.trim().is_empty()));
+        .any(|entry| matches!(entry, TimelineItem::Assistant { text, .. } if !text.trim().is_empty()));
     if has_assistant_after_user {
         return None;
     }
@@ -549,12 +567,17 @@ pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
                 last_user_text = Some(text.clone());
                 out.push(DisplayTimelineItem::User { text });
             }
-            TimelineItem::Assistant { text } => {
+            TimelineItem::Assistant { text, .. } => {
                 flush_tools(&mut out, &mut pending_tools);
                 out.push(DisplayTimelineItem::Assistant {
                     text,
                     prev_user: last_user_text.clone(),
                 });
+            }
+            TimelineItem::ModelDecision { .. } => {
+                // Synthetic decision row is rendered inline by the
+                // `frontend-apply` task once routing lands; for now it
+                // surfaces as nothing to the existing UI.
             }
             TimelineItem::Tool(tool) => pending_tools.push(tool),
             TimelineItem::Thinking { text, done } => {

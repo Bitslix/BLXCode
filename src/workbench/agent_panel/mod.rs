@@ -692,16 +692,10 @@ fn ChatUsageFooter(wb: WorkbenchService) -> impl IntoView {
                     } else {
                         "—".to_string()
                     };
-                    let ttft = if s.ttft_sample_count > 0 {
-                        let mean = s.ttft_sum_ms / (s.ttft_sample_count as u64);
-                        if mean >= 1000 {
-                            format!("{:.2}s", (mean as f64) / 1000.0)
-                        } else {
-                            format!("{mean}ms")
-                        }
-                    } else {
-                        "—".to_string()
-                    };
+                    // TTFT moved to per-row metrics (task `frontend-apply`).
+                    // This session-wide footer is slated for removal in the
+                    // `ui-per-row` task — until then we show a dash.
+                    let ttft = "—".to_string();
                     let turns = s.turn_count;
                     view! {
                         <span class="agent-chat-usage__turns">{format!("{turns} turn{}", if turns == 1 { "" } else { "s" })}</span>

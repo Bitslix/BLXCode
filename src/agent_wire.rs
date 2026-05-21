@@ -176,6 +176,15 @@ pub enum AgentEvent {
     },
     #[serde(rename = "turn_usage")]
     TurnUsage {
+        kind: TurnUsageKind,
+        #[serde(default)]
+        agent_id: Option<String>,
+        #[serde(default)]
+        call_id: Option<String>,
+        #[serde(default)]
+        round_index: Option<u32>,
+        #[serde(default)]
+        turn_generation: u64,
         #[serde(default)]
         input_tokens: Option<u64>,
         #[serde(default)]
@@ -183,7 +192,59 @@ pub enum AgentEvent {
         #[serde(default)]
         ttft_ms: Option<u64>,
         elapsed_ms: u64,
+        #[serde(default)]
+        cost_usd: Option<f64>,
     },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TurnUsageKind {
+    ModelRound,
+    ToolExec,
+}
+
+/// Per-row metric bundle (mirror of backend `TurnMetrics`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TurnMetrics {
+    #[serde(default)]
+    pub input_tokens: Option<u64>,
+    #[serde(default)]
+    pub output_tokens: Option<u64>,
+    #[serde(default)]
+    pub ttft_ms: Option<u64>,
+    #[serde(default)]
+    pub elapsed_ms: u64,
+    #[serde(default)]
+    pub cost_usd: Option<f64>,
+}
+
+impl TurnMetrics {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.input_tokens.is_none()
+            && self.output_tokens.is_none()
+            && self.ttft_ms.is_none()
+            && self.elapsed_ms == 0
+            && self.cost_usd.is_none()
+    }
+
+    pub fn merge(&mut self, other: &TurnMetrics) {
+        if let Some(v) = other.input_tokens {
+            self.input_tokens = Some(self.input_tokens.unwrap_or(0).saturating_add(v));
+        }
+        if let Some(v) = other.output_tokens {
+            self.output_tokens = Some(self.output_tokens.unwrap_or(0).saturating_add(v));
+        }
+        if let Some(v) = other.ttft_ms {
+            self.ttft_ms.get_or_insert(v);
+        }
+        self.elapsed_ms = self.elapsed_ms.saturating_add(other.elapsed_ms);
+        if let Some(v) = other.cost_usd {
+            self.cost_usd = Some(self.cost_usd.unwrap_or(0.0) + v);
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

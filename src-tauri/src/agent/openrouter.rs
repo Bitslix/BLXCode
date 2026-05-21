@@ -379,11 +379,21 @@ pub async fn run_chat_turn(
     }
 
     let elapsed_ms = turn_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+    // Legacy aggregated emission — the `backend-emit-main` task splits this
+    // into per-`ModelRound` + per-`ToolExec` events. Kept here as a single
+    // `ModelRound` so the new wire shape compiles end-to-end during the
+    // staged rollout.
     state.push(AgentEvent::TurnUsage {
+        kind: crate::agent::protocol::TurnUsageKind::ModelRound,
+        agent_id: None,
+        call_id: None,
+        round_index: None,
+        turn_generation: 0,
         input_tokens: if any_token_usage { Some(total_input_tokens) } else { None },
         output_tokens: if any_token_usage { Some(total_output_tokens) } else { None },
         ttft_ms: first_ttft_ms,
         elapsed_ms,
+        cost_usd: None,
     });
     state.push(AgentEvent::Done);
     state.set_busy(false);

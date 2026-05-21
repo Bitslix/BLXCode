@@ -1,6 +1,7 @@
 //! Reine Datenstrukturen für die Agent-Chat-Timeline (serde-fähig, ohne Leptos).
 //! Wird von [`crate::workbench::state::WorkspaceEntry`] und [`agent_panel::timeline`] genutzt.
 
+use crate::agent_wire::TurnMetrics;
 use crate::i18n::{lookup, I18nKey, Locale};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -13,13 +14,21 @@ pub enum ActivityStatus {
     Fail,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ToolActivity {
     pub tool: String,
     pub label: String,
     pub args_summary: String,
     pub status: ActivityStatus,
     pub detail: Option<String>,
+    /// Provider-issued call id (echoed from `AgentEvent::ToolCall`). Used to
+    /// correlate `TurnUsage { kind: ToolExec, .. }` events back to the
+    /// matching row. Optional for legacy / mock events.
+    #[serde(default)]
+    pub call_id: Option<String>,
+    /// Per-row metrics — populated by a matching `TurnUsage` event.
+    #[serde(default)]
+    pub metrics: TurnMetrics,
 }
 
 impl ToolActivity {
@@ -30,7 +39,20 @@ impl ToolActivity {
             args_summary: summarize_args(tool, args),
             status: ActivityStatus::Pending,
             detail: None,
+            call_id: None,
+            metrics: TurnMetrics::default(),
         }
+    }
+
+    pub fn from_call_with_id(
+        tool: &str,
+        args: Option<&Value>,
+        loc: Locale,
+        call_id: Option<String>,
+    ) -> Self {
+        let mut row = Self::from_call(tool, args, loc);
+        row.call_id = call_id;
+        row
     }
 }
 
@@ -135,7 +157,7 @@ pub struct SubagentStepRow {
     pub note: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SubagentCard {
     pub agent_id: String,
     pub role: String,
@@ -146,6 +168,10 @@ pub struct SubagentCard {
     pub steps: Vec<SubagentStepRow>,
     #[serde(default)]
     pub tools: Vec<ToolActivity>,
+    /// Aggregated metrics across the subagent's model rounds. Tool-execution
+    /// metrics live per-row in `tools[..].metrics`.
+    #[serde(default)]
+    pub metrics: TurnMetrics,
     /// Live assistant text streamed from the subagent. Cleared when the
     /// subagent finishes and the `summary` takes over.
     #[serde(default)]
@@ -160,7 +186,7 @@ pub struct SubagentCard {
     pub thinking_done: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SubagentGroup {
     #[serde(default)]
     pub agents: Vec<SubagentCard>,
@@ -185,13 +211,27 @@ pub enum AskUserState {
     Cancelled,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum TimelineItem {
     User { text: String },
-    Assistant { text: String },
+    Assistant {
+        text: String,
+        /// Per-row metrics aggregated from `ModelRound` events whose visible
+        /// output landed in this assistant block. Empty until the first
+        /// `TurnUsage` arrives.
+        #[serde(default)]
+        metrics: TurnMetrics,
+    },
     Tool(ToolActivity),
     Thinking { text: String, done: bool },
     SubagentGroup(SubagentGroup),
+    /// Synthetic row inserted for tool-only model rounds (no assistant
+    /// text was emitted). Carries the round's metrics so cost / tokens
+    /// still surface to the operator instead of vanishing under the tools.
+    ModelDecision {
+        #[serde(default)]
+        metrics: TurnMetrics,
+    },
     /// Output of an image-mode turn. `preview_src` is a data URL suitable
     /// for `<img src>`; after a workspace reload we hydrate it lazily from
     /// `saved_path` via the `generated_image_preview` Tauri command.
