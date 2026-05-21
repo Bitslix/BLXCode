@@ -165,6 +165,58 @@ impl SkillsRulesService {
         });
     }
 
+    /// Reads a rule markdown body and writes it into the given signal.
+    /// Errors are surfaced through the shared rules_error signal so the panel
+    /// renders them in its standard error slot.
+    pub fn read_rule_into(
+        self,
+        wb: WorkbenchService,
+        name: String,
+        body: RwSignal<Option<String>>,
+        loading: RwSignal<bool>,
+    ) {
+        let Some(cwd) = Self::workspace_cwd(&wb) else {
+            return;
+        };
+        loading.set(true);
+        let err = self.rules_error;
+        spawn_local(async move {
+            match tauri_bridge::rules_read(cwd, name).await {
+                Ok(content) => body.set(Some(content)),
+                Err(e) => err.set(Some(e)),
+            }
+            loading.set(false);
+        });
+    }
+
+    pub fn write_rule(
+        self,
+        wb: WorkbenchService,
+        name: String,
+        content: String,
+        body: RwSignal<Option<String>>,
+        editing: RwSignal<bool>,
+        saving: RwSignal<bool>,
+    ) {
+        let Some(cwd) = Self::workspace_cwd(&wb) else {
+            return;
+        };
+        saving.set(true);
+        let err = self.rules_error;
+        let svc = self;
+        spawn_local(async move {
+            match tauri_bridge::rules_write(cwd, name, content.clone()).await {
+                Ok(_) => {
+                    body.set(Some(content));
+                    editing.set(false);
+                    svc.refresh_rules(wb);
+                }
+                Err(e) => err.set(Some(e)),
+            }
+            saving.set(false);
+        });
+    }
+
     /// Reads a skill's `SKILL.md` body and writes it into the given signal.
     /// Errors are surfaced through the shared skills_error signal so the panel
     /// renders them in its standard error slot.

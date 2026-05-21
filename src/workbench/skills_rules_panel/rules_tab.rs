@@ -33,15 +33,23 @@ pub fn RulesTabDock() -> impl IntoView {
     view! {
         <div class="blx-sr-pane" role="region" aria-label=move || i18n.tr(I18nKey::TabRules)()>
             <header class="blx-sr-pane__header">
-                <h2 class="blx-sr-pane__title">{i18n.tr(I18nKey::TabRules)}</h2>
-                <button
-                    type="button"
-                    class="blx-sr-btn blx-sr-btn--ghost"
-                    aria-label=move || i18n.tr(I18nKey::SrRefresh)()
-                    on:click=move |_| svc.refresh_rules(wb)
-                >
-                    <LxIcon icon=icondata::LuRefreshCw width="14px" height="14px" />
-                </button>
+                <div class="blx-sr-pane__title-wrap">
+                    <span class="blx-sr-pane__title-icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuShield width="14px" height="14px" />
+                    </span>
+                    <h2 class="blx-sr-pane__title">{i18n.tr(I18nKey::TabRules)}</h2>
+                </div>
+                <div class="blx-sr-pane__actions">
+                    <button
+                        type="button"
+                        class="blx-sr-btn blx-sr-btn--icon"
+                        aria-label=move || i18n.tr(I18nKey::SrRefresh)()
+                        title=move || i18n.tr(I18nKey::SrRefresh)()
+                        on:click=move |_| svc.refresh_rules(wb)
+                    >
+                        <LxIcon icon=icondata::LuRefreshCw width="13px" height="13px" />
+                    </button>
+                </div>
             </header>
             <div class="blx-sr-pane__body">
                 {move || error.get().map(|e| view! { <p class="blx-sr-pane__err">{e}</p> })}

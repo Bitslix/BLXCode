@@ -6856,6 +6856,11 @@ button {
     color: var(--accent-cool);
     border-color: rgba(88, 166, 255, 0.3);
 }
+.blx-sr-card__badge[data-kind="rule"] {
+    background: var(--accent-soft);
+    color: var(--accent-cool);
+    border-color: rgba(88, 166, 255, 0.3);
+}
 .blx-sr-card__badge[data-kind="git"] {
     background: rgba(242, 163, 255, 0.12);
     color: #f2a3ff;
@@ -6947,6 +6952,26 @@ button {
 .blx-sr-card__md pre code { background: transparent; padding: 0; }
 .blx-sr-card__md a { color: var(--accent); text-decoration: none; }
 .blx-sr-card__md a:hover { text-decoration: underline; }
+.blx-sr-card__editor {
+    width: 100%;
+    min-height: 260px;
+    max-height: 360px;
+    resize: vertical;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid var(--border);
+    border-radius: 0.45rem;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.8rem;
+    line-height: 1.55;
+    padding: 0.65rem 0.75rem;
+}
+.blx-sr-card__editor:focus {
+    outline: none;
+    border-color: rgba(88, 166, 255, 0.56);
+    box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.18);
+}
 .blx-sr-card__actions {
     display: flex;
     justify-content: flex-end;
