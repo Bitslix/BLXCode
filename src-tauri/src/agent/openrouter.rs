@@ -17,6 +17,7 @@ use crate::agent::system_prompt::system_prompt;
 use crate::agent::tool_dispatch::{dispatch_tool, DispatchContext};
 use crate::agent::tool_groups::openai_tool_name_to_internal;
 use crate::agent::tools::WorkspaceRootGuard;
+use crate::agent::pricing;
 use crate::agent_settings::{AgentProviderKind, AgentProviderSettings, ThinkingLevel};
 use crate::tasks;
 use serde::Deserialize;
@@ -95,6 +96,11 @@ struct StreamUsage {
     prompt_tokens: Option<u64>,
     #[serde(default)]
     completion_tokens: Option<u64>,
+    /// OpenRouter-native USD cost. Only present when the request set
+    /// `usage: { include: true }`. Falls back to local token×price math
+    /// when missing.
+    #[serde(default)]
+    cost: Option<f64>,
 }
 
 #[derive(Deserialize, Default)]
@@ -155,6 +161,8 @@ struct RoundResult {
     prompt_tokens: Option<u64>,
     /// Cumulative completion_tokens reported by the provider for this round.
     completion_tokens: Option<u64>,
+    /// OpenRouter-native cost for this round when the provider returned one.
+    cost_usd: Option<f64>,
 }
 
 #[derive(Default, Clone, Debug)]
@@ -238,11 +246,10 @@ pub async fn run_chat_turn(
         }
     };
 
-    let turn_start = Instant::now();
-    let mut total_input_tokens: u64 = 0;
-    let mut total_output_tokens: u64 = 0;
-    let mut any_token_usage = false;
-    let mut first_ttft_ms: Option<u64> = None;
+    let provider_kind = match endpoint {
+        Endpoint::Openrouter => AgentProviderKind::Openrouter,
+        Endpoint::Openai => AgentProviderKind::Openai,
+    };
 
     for round in 0..MAX_ROUNDS {
         if state.cancelled() {
@@ -257,6 +264,12 @@ pub async fn run_chat_turn(
             "stream_options": { "include_usage": true },
             "tools": tools,
         });
+        // OpenRouter exposes a native `usage.cost` field but only when the
+        // request opts in via `usage: { include: true }`. Cheaper than
+        // computing locally and avoids drift when models reprice.
+        if matches!(endpoint, Endpoint::Openrouter) {
+            body["usage"] = json!({ "include": true });
+        }
         if let Some(r) = &reasoning {
             body[r.key] = r.value.clone();
         }
@@ -266,6 +279,7 @@ pub async fn run_chat_turn(
         } else {
             None
         };
+        let round_start = Instant::now();
         let round_res = match run_one_round(
             &client,
             endpoint,
@@ -284,19 +298,38 @@ pub async fn run_chat_turn(
                 return;
             }
         };
+        let round_elapsed_ms =
+            round_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
 
-        // Carry forward usage + first-round TTFT for the final TurnUsage event.
-        if let Some(p) = round_res.prompt_tokens {
-            total_input_tokens = total_input_tokens.saturating_add(p);
-            any_token_usage = true;
-        }
-        if let Some(c) = round_res.completion_tokens {
-            total_output_tokens = total_output_tokens.saturating_add(c);
-            any_token_usage = true;
-        }
-        if first_ttft_ms.is_none() {
-            first_ttft_ms = round_res.ttft_ms;
-        }
+        // Resolve USD cost: prefer OpenRouter's native number, fall back
+        // to local token×price math via the cached pricing table.
+        let round_cost = round_res.cost_usd.or_else(|| {
+            pricing::resolve_cost(
+                &settings,
+                provider_kind,
+                &settings.model_id,
+                round_res.prompt_tokens,
+                round_res.completion_tokens,
+            )
+        });
+
+        // Per-round metric — UI attaches to the assistant block produced
+        // by this round, or to a synthetic `ModelDecision` row when the
+        // round was tool-only.
+        state.push(AgentEvent::TurnUsage {
+            kind: crate::agent::protocol::TurnUsageKind::ModelRound,
+            agent_id: None,
+            call_id: None,
+            round_index: Some(round),
+            // Placeholder — replaced by a real monotonic counter in the
+            // `late-event-guard` task.
+            turn_generation: 0,
+            input_tokens: round_res.prompt_tokens,
+            output_tokens: round_res.completion_tokens,
+            ttft_ms: round_res.ttft_ms,
+            elapsed_ms: round_elapsed_ms,
+            cost_usd: round_cost,
+        });
 
         // Record the assistant message verbatim — providers require the
         // exact tool_calls block on the assistant turn before tool replies.
@@ -338,6 +371,7 @@ pub async fn run_chat_turn(
             }
             let internal_name = openai_tool_name_to_internal(&call.name);
             let args_val: Value = serde_json::from_str(&call.arguments).unwrap_or(json!({}));
+            let tool_start = Instant::now();
             let outcome = dispatch_tool(
                 &state,
                 &call.id,
@@ -347,15 +381,32 @@ pub async fn run_chat_turn(
                 Some(&dispatch_ctx),
             )
             .await;
+            let tool_elapsed_ms =
+                tool_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
 
             if outcome.ok && internal_name.starts_with("task_") {
                 maybe_emit_task_snapshot(&state, root_guard.as_ref());
             }
 
             state.push(AgentEvent::ToolResult {
-                tool: internal_name,
+                tool: internal_name.clone(),
                 ok: outcome.ok,
                 message: Some(truncate_for_ui(&outcome.content)),
+            });
+
+            // Per-tool metric — `cost_usd` stays `None` because tool
+            // dispatch happens in-process and carries no provider cost.
+            state.push(AgentEvent::TurnUsage {
+                kind: crate::agent::protocol::TurnUsageKind::ToolExec,
+                agent_id: None,
+                call_id: Some(call.id.clone()),
+                round_index: Some(round),
+                turn_generation: 0,
+                input_tokens: None,
+                output_tokens: None,
+                ttft_ms: None,
+                elapsed_ms: tool_elapsed_ms,
+                cost_usd: None,
             });
 
             messages.push(json!({
@@ -378,23 +429,8 @@ pub async fn run_chat_turn(
         state.set_conversation(sanitize_conversation_images(messages.split_off(1)));
     }
 
-    let elapsed_ms = turn_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
-    // Legacy aggregated emission — the `backend-emit-main` task splits this
-    // into per-`ModelRound` + per-`ToolExec` events. Kept here as a single
-    // `ModelRound` so the new wire shape compiles end-to-end during the
-    // staged rollout.
-    state.push(AgentEvent::TurnUsage {
-        kind: crate::agent::protocol::TurnUsageKind::ModelRound,
-        agent_id: None,
-        call_id: None,
-        round_index: None,
-        turn_generation: 0,
-        input_tokens: if any_token_usage { Some(total_input_tokens) } else { None },
-        output_tokens: if any_token_usage { Some(total_output_tokens) } else { None },
-        ttft_ms: first_ttft_ms,
-        elapsed_ms,
-        cost_usd: None,
-    });
+    // Per-round + per-tool `TurnUsage` events were emitted inside the
+    // round loop. Nothing aggregated to send here.
     state.push(AgentEvent::Done);
     state.set_busy(false);
 }
@@ -509,6 +545,9 @@ async fn run_one_round(
             }
             if let Some(c) = u.completion_tokens {
                 acc.completion_tokens = Some(c);
+            }
+            if let Some(cost) = u.cost {
+                acc.cost_usd = Some(cost);
             }
         }
         for choice in chunk.choices {

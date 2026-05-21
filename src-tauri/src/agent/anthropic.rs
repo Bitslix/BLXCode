@@ -14,7 +14,8 @@ use crate::agent::protocol::{AgentEvent, AgentImageContextItem};
 use crate::agent::state::AgentEngineState;
 use crate::agent::tool_dispatch::{dispatch_tool, DispatchContext};
 use crate::agent::tools::{self, WorkspaceRootGuard};
-use crate::agent_settings::{AgentProviderSettings, ThinkingLevel};
+use crate::agent::pricing;
+use crate::agent_settings::{AgentProviderKind, AgentProviderSettings, ThinkingLevel};
 use crate::tasks;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -157,12 +158,6 @@ pub async fn run_chat_turn(
         }
     };
 
-    let turn_start = Instant::now();
-    let mut total_input_tokens: u64 = 0;
-    let mut total_output_tokens: u64 = 0;
-    let mut any_token_usage = false;
-    let mut first_ttft_ms: Option<u64> = None;
-
     for round in 0..MAX_ROUNDS {
         if state.cancelled() {
             emit_aborted(&state);
@@ -186,6 +181,7 @@ pub async fn run_chat_turn(
         } else {
             None
         };
+        let round_start = Instant::now();
         let round_res =
             match run_one_round(&client, &api_key, &body, &state, image_ids_for_round).await {
                 Ok(r) => r,
@@ -196,18 +192,34 @@ pub async fn run_chat_turn(
                     return;
                 }
             };
+        let round_elapsed_ms =
+            round_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
 
-        if let Some(p) = round_res.input_tokens {
-            total_input_tokens = total_input_tokens.saturating_add(p);
-            any_token_usage = true;
-        }
-        if let Some(c) = round_res.output_tokens {
-            total_output_tokens = total_output_tokens.saturating_add(c);
-            any_token_usage = true;
-        }
-        if first_ttft_ms.is_none() {
-            first_ttft_ms = round_res.ttft_ms;
-        }
+        // Anthropic's `/v1/messages` doesn't surface a cost field — always
+        // fall back to local token×price math via the static id-mapping
+        // in `pricing.rs`.
+        let round_cost = pricing::resolve_cost(
+            &settings,
+            AgentProviderKind::Anthropic,
+            &settings.model_id,
+            round_res.input_tokens,
+            round_res.output_tokens,
+        );
+
+        state.push(AgentEvent::TurnUsage {
+            kind: crate::agent::protocol::TurnUsageKind::ModelRound,
+            agent_id: None,
+            call_id: None,
+            round_index: Some(round),
+            // Placeholder — replaced by a real monotonic counter in the
+            // `late-event-guard` task.
+            turn_generation: 0,
+            input_tokens: round_res.input_tokens,
+            output_tokens: round_res.output_tokens,
+            ttft_ms: round_res.ttft_ms,
+            elapsed_ms: round_elapsed_ms,
+            cost_usd: round_cost,
+        });
 
         // Assemble the assistant message in Anthropic's content-block form so
         // tool_use ids resolve on the next round.
@@ -262,6 +274,7 @@ pub async fn run_chat_turn(
             }
             let args_val: Value =
                 serde_json::from_str(&call.arguments).unwrap_or_else(|_| json!({}));
+            let tool_start = Instant::now();
             let outcome =
                 dispatch_tool(
                     &state,
@@ -272,6 +285,8 @@ pub async fn run_chat_turn(
                     Some(&dispatch_ctx),
                 )
                 .await;
+            let tool_elapsed_ms =
+                tool_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
 
             if outcome.ok && call.name.starts_with("task_") {
                 maybe_emit_task_snapshot(&state, root_guard.as_ref());
@@ -281,6 +296,19 @@ pub async fn run_chat_turn(
                 tool: call.name.clone(),
                 ok: outcome.ok,
                 message: Some(truncate_for_ui(&outcome.content)),
+            });
+
+            state.push(AgentEvent::TurnUsage {
+                kind: crate::agent::protocol::TurnUsageKind::ToolExec,
+                agent_id: None,
+                call_id: Some(call.id.clone()),
+                round_index: Some(round),
+                turn_generation: 0,
+                input_tokens: None,
+                output_tokens: None,
+                ttft_ms: None,
+                elapsed_ms: tool_elapsed_ms,
+                cost_usd: None,
             });
 
             tool_result_blocks.push(json!({
@@ -310,21 +338,8 @@ pub async fn run_chat_turn(
 
     state.set_conversation(sanitize_conversation_images(messages));
 
-    let elapsed_ms = turn_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
-    // Legacy aggregated emission — replaced with per-round events by the
-    // `backend-emit-main` task. Carries the new wire shape for compat.
-    state.push(AgentEvent::TurnUsage {
-        kind: crate::agent::protocol::TurnUsageKind::ModelRound,
-        agent_id: None,
-        call_id: None,
-        round_index: None,
-        turn_generation: 0,
-        input_tokens: if any_token_usage { Some(total_input_tokens) } else { None },
-        output_tokens: if any_token_usage { Some(total_output_tokens) } else { None },
-        ttft_ms: first_ttft_ms,
-        elapsed_ms,
-        cost_usd: None,
-    });
+    // Per-round + per-tool `TurnUsage` events were emitted inside the
+    // round loop. Nothing aggregated to send here.
     state.push(AgentEvent::Done);
     state.set_busy(false);
 }
