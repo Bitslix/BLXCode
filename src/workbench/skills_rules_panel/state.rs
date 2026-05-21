@@ -217,6 +217,40 @@ impl SkillsRulesService {
         });
     }
 
+    pub fn create_rule(
+        self,
+        wb: WorkbenchService,
+        name: String,
+        content: String,
+        saving: RwSignal<bool>,
+        on_done: impl Fn(Result<(), String>) + 'static,
+    ) {
+        let Some(cwd) = Self::workspace_cwd(&wb) else {
+            on_done(Err("no workspace selected".into()));
+            return;
+        };
+        saving.set(true);
+        let err = self.rules_error;
+        let svc = self;
+        spawn_local(async move {
+            // `rules_write` writes the file and records/updates the rule in
+            // `.agents/rules/index.json`, so creation stays index-aware.
+            let result = tauri_bridge::rules_write(cwd, name, content).await;
+            saving.set(false);
+            match result {
+                Ok(_) => {
+                    err.set(None);
+                    svc.refresh_rules(wb);
+                    on_done(Ok(()));
+                }
+                Err(e) => {
+                    err.set(Some(e.clone()));
+                    on_done(Err(e));
+                }
+            }
+        });
+    }
+
     /// Reads a skill's `SKILL.md` body and writes it into the given signal.
     /// Errors are surfaced through the shared skills_error signal so the panel
     /// renders them in its standard error slot.

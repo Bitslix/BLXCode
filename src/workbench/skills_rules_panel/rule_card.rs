@@ -152,7 +152,7 @@ pub fn RuleCard(entry: RuleEntry) -> impl IntoView {
                                         }
                                     >
                                         <LxIcon icon=icondata::LuSave width="13px" height="13px" />
-                                        <span>"Save"</span>
+                                        <span>{i18n.tr(I18nKey::BtnSave)}</span>
                                     </button>
                                 }.into_any()
                             } else {
@@ -168,7 +168,7 @@ pub fn RuleCard(entry: RuleEntry) -> impl IntoView {
                                         }
                                     >
                                         <LxIcon icon=icondata::LuPencil width="13px" height="13px" />
-                                        <span>"Edit"</span>
+                                        <span>{i18n.tr(I18nKey::SrEdit)}</span>
                                     </button>
                                     <button
                                         type="button"
