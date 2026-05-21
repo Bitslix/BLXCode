@@ -22,5 +22,61 @@
     <script type="module" src="/public/terminal_bootstrap.mjs"></script>
     <link data-trunk rel="rust" data-wasm-opt="z" />
   </head>
-  <body></body>
+  <body>
+    <section
+      id="blx-static-boot"
+      class="blx-boot blx-boot--static app-shell app-shell--boot"
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <div class="blx-boot__grid" aria-hidden="true"></div>
+      <div class="blx-boot__frame">
+        <div class="blx-boot__brand">
+          <div class="blx-boot__mark-wrap" aria-hidden="true">
+            <img
+              class="blx-boot__mark"
+              src="/public/blxcode.png"
+              alt=""
+              width="128"
+              height="128"
+              decoding="async"
+            />
+          </div>
+          <div class="blx-boot__copy">
+            <p class="blx-boot__eyebrow">Starting BLXCode</p>
+            <h1 class="blx-boot__title">BLXCode</h1>
+            <p class="blx-boot__status">Preparing the interface</p>
+          </div>
+        </div>
+
+        <div class="blx-boot__preview" aria-hidden="true">
+          <div class="blx-boot__preview-sidebar">
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+          <div class="blx-boot__preview-main">
+            <div class="blx-boot__preview-toolbar"></div>
+            <div class="blx-boot__preview-workspace">
+              <span></span>
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+          <div class="blx-boot__preview-panel">
+            <span></span>
+            <span></span>
+            <span></span>
+          </div>
+        </div>
+
+        <div class="blx-boot__rail" aria-hidden="true">
+          <span></span>
+        </div>
+      </div>
+    </section>
+  </body>
 </html>

@@ -1,25 +1,25 @@
 //! Three-pane editor shell: collapsible sidebar, workspace, resizable right column.
 mod agent_accent;
 mod agent_context_handoff;
-mod app_prefs;
 mod agent_panel;
 mod agent_timeline;
+mod app_prefs;
 mod browser_tab;
 mod chat_markdown;
 mod create_workspace_wizard;
+mod git_graph;
 mod harness_chords;
-mod harness_ui;
 mod harness_image_pane;
+mod harness_ui;
 mod harness_voice_pane;
 mod memory_graph;
-mod model_picker;
 mod memory_panel;
+mod model_picker;
 mod notification_sound;
 mod path_nav;
 mod plans_panel;
-mod right_panel;
-mod git_graph;
 mod project_explorer;
+mod right_panel;
 mod sidebar;
 mod sidebar_resizer;
 mod sidebar_view_section;
@@ -43,6 +43,7 @@ pub use state::{
 };
 pub use workspace_panel::WorkspacePanel;
 
+use crate::boot_loading::{BootLoadingScreen, BootPhase};
 use crate::config::{SIDEBAR_WIDTH_PX_KEY, SIDEBAR_WIDTH_PX_MIN};
 use crate::i18n::I18nKey;
 use crate::open_http::{dom_click_nav_href, DomNavHref};
@@ -52,16 +53,16 @@ use crate::tauri_bridge::{
     workbench_extract_sessions_prefix, workbench_load_state, workbench_merge_sessions_workspace,
     workbench_prune_notifications, workbench_prune_sessions, workbench_save_state,
 };
-use gloo_timers::future::TimeoutFuture;
 use app_prefs::AppPrefsService;
+use gloo_timers::future::TimeoutFuture;
 use harness_ui::HarnessHost;
-use toast::{ToastHost, ToastService};
 use js_sys;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use send_wrapper::SendWrapper;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use toast::{ToastHost, ToastService};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
 
@@ -388,10 +389,8 @@ pub fn WorkbenchShell() -> impl IntoView {
             };
             let dx = f64::from(me.client_x()) - ax.get_untracked();
             let viewport_w = viewport_width_px();
-            let next = (aw.get_untracked() + dx).clamp(
-                SIDEBAR_WIDTH_PX_MIN,
-                sidebar_width_max_px(viewport_w),
-            );
+            let next = (aw.get_untracked() + dx)
+                .clamp(SIDEBAR_WIDTH_PX_MIN, sidebar_width_max_px(viewport_w));
             width_sig.set(next);
         });
 
@@ -416,38 +415,43 @@ pub fn WorkbenchShell() -> impl IntoView {
     };
 
     view! {
-        <main class="container app-shell workbench-root">
-            <div
-                class=move || {
-                    let mut c = String::from("workbench-left-slot");
-                    if sidebar_resizing.get() {
-                        c.push_str(" workbench-left-slot--resizing");
+        <Show
+            when=move || hydrated.get()
+            fallback=|| view! { <BootLoadingScreen phase=BootPhase::RestoringWorkspace/> }
+        >
+            <main class="container app-shell workbench-root">
+                <div
+                    class=move || {
+                        let mut c = String::from("workbench-left-slot");
+                        if sidebar_resizing.get() {
+                            c.push_str(" workbench-left-slot--resizing");
+                        }
+                        c
                     }
-                    c
-                }
-            >
-                <Sidebar />
-                <Show when=move || !wb.sidebar_collapsed().get()>
-                    <div
-                        class="workbench-splitter workbench-splitter--sidebar"
-                        role="separator"
-                        aria-orientation="vertical"
-                        aria-label=move || i18n.tr(I18nKey::SbWidthSplitterAria)()
-                        on:mousedown=on_sidebar_splitter_down
-                    >
-                    </div>
+                >
+                    <Sidebar />
+                    <Show when=move || !wb.sidebar_collapsed().get()>
+                        <div
+                            class="workbench-splitter workbench-splitter--sidebar"
+                            role="separator"
+                            aria-orientation="vertical"
+                            aria-label=move || i18n.tr(I18nKey::SbWidthSplitterAria)()
+                            on:mousedown=on_sidebar_splitter_down
+                        >
+                        </div>
+                    </Show>
+                </div>
+                <Show when=move || sidebar_resizing.get()>
+                    <div class="workbench-resize-shield workbench-resize-shield--col" aria-hidden="true"></div>
                 </Show>
-            </div>
-            <Show when=move || sidebar_resizing.get()>
-                <div class="workbench-resize-shield workbench-resize-shield--col" aria-hidden="true"></div>
-            </Show>
-            <div class="workbench-main">
-                <WorkspacePanel />
-                <RightPanel />
-            </div>
-        </main>
-        <EmbeddedBrowserGlue />
-        <HarnessHost />
-        <ToastHost />
+                <div class="workbench-main">
+                    <WorkspacePanel />
+                    <RightPanel />
+                </div>
+            </main>
+            <EmbeddedBrowserGlue />
+            <HarnessHost />
+            <ToastHost />
+        </Show>
     }
 }

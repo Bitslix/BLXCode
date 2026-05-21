@@ -1,3 +1,4 @@
+use crate::boot_loading::{BootLoadingScreen, BootPhase};
 use crate::config::{
     EULA_STORAGE_KEY, GITIGNORE_PROMPT_ANSWER_NO, GITIGNORE_PROMPT_ANSWER_YES,
     GITIGNORE_PROMPT_STORAGE_KEY, HARNESS_WORKSPACE_ROOT_KEY,
@@ -19,6 +20,10 @@ pub fn App() -> impl IntoView {
     provide_context(i18n);
 
     Effect::new(move |_| {
+        remove_static_boot_screen();
+    });
+
+    Effect::new(move |_| {
         let lang = i18n.locale().get().as_str();
         if let Some(w) = web_sys::window() {
             if let Some(doc) = w.document() {
@@ -30,6 +35,7 @@ pub fn App() -> impl IntoView {
     });
 
     let (ui_ready, set_ui_ready) = signal(false);
+    let (app_boot_phase, set_app_boot_phase) = signal(BootPhase::Starting);
     let (eula_ok, set_eula_ok) = signal(false);
     let (gitignore_gate_ok, set_gitignore_gate_ok) = signal(false);
     let (gitignore_busy, set_gitignore_busy) = signal(false);
@@ -40,9 +46,9 @@ pub fn App() -> impl IntoView {
             .and_then(|s| s.get_item(EULA_STORAGE_KEY).ok().flatten());
 
         set_eula_ok.set(stored.as_deref() == Some("1"));
-        set_gitignore_gate_ok.set(
-            gitignore_prompt_was_answered() || !crate::tauri_bridge::is_tauri_shell(),
-        );
+        set_gitignore_gate_ok
+            .set(gitignore_prompt_was_answered() || !crate::tauri_bridge::is_tauri_shell());
+        set_app_boot_phase.set(BootPhase::OpeningWorkbench);
         set_ui_ready.set(true);
     });
 
@@ -148,7 +154,7 @@ pub fn App() -> impl IntoView {
     view! {
         <Show
             when=move || ui_ready.get()
-            fallback=|| view! { <div class="app-shell app-shell--boot" aria-busy="true"></div> }
+            fallback=move || view! { <BootLoadingScreen phase=app_boot_phase.get()/> }
         >
             <Show when=show_workbench fallback=move || view! {
                 <Show
@@ -220,6 +226,15 @@ pub fn App() -> impl IntoView {
                 <WorkbenchShell/>
             </Show>
         </Show>
+    }
+}
+
+fn remove_static_boot_screen() {
+    let Some(doc) = web_sys::window().and_then(|w| w.document()) else {
+        return;
+    };
+    if let Some(el) = doc.get_element_by_id("blx-static-boot") {
+        el.remove();
     }
 }
 
