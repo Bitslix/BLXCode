@@ -114,6 +114,11 @@ def emit_locale_rs(pairs: list[tuple[str, str]]) -> str:
         "    match key {",
     ]
     for k, tr in pairs:
+        if tr is None:
+            raise SystemExit(
+                f"emit_locale_rs: translation for I18nKey::{k} is None — "
+                "translator returned no result and the fallback didn't kick in"
+            )
         esc = rust_escape(tr)
         if "\n" in tr or len(tr) > 100:
             lines.append(f"        I18nKey::{k} => {{")
@@ -145,6 +150,15 @@ def translate_one(
             time.sleep(0.1)
         try:
             translated = translator.translate(text)
+            # Recent deep-translator versions can return `None` (e.g. when
+            # the upstream API responds with no translations for short
+            # tokens like "in", "out", "ttft", or a literal glyph like
+            # "—"). Treat that as "no translation available" and fall
+            # back to the source string so we never cache `None`.
+            if not translated:
+                with cache_lock:
+                    cache[text] = text
+                return text
             with cache_lock:
                 cache[text] = translated
             return translated
