@@ -1,0 +1,58 @@
+name: Wiki Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "scripts/sync_github_wiki.py"
+      - "scripts/sync_github_wiki.sh"
+      - ".github/workflows/wiki-sync.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-wiki:
+    name: Sync docs to GitHub Wiki
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Transform docs to wiki pages
+        run: |
+          OUT="$(mktemp -d)"
+          python3 scripts/sync_github_wiki.py \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --output-dir "$OUT" \
+            --owner Bitslix \
+            --repo BLXCode \
+            --branch main
+          echo "WIKI_OUT=$OUT" >> "$GITHUB_ENV"
+
+      - name: Push to wiki repository
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          WIKI_DIR="$(mktemp -d)"
+          git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/Bitslix/BLXCode.wiki.git" "$WIKI_DIR"
+          find "$WIKI_DIR" -maxdepth 1 -name '*.md' -delete
+          cp "$WIKI_OUT"/*.md "$WIKI_DIR/"
+          cd "$WIKI_DIR"
+          git add -A
+          if git diff --staged --quiet; then
+            echo "Wiki already up to date."
+            exit 0
+          fi
+          git -c user.name="github-actions[bot]" \
+              -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+              commit -m "docs: sync from BLXCode@${GITHUB_SHA}"
+          git push "https://x-access-token:${GITHUB_TOKEN}@github.com/Bitslix/BLXCode.wiki.git" HEAD
+
+      - name: Wiki push failed hint
+        if: failure()
+        run: |
+          echo "::error::Wiki sync failed. Ensure Wiki is enabled (Settings → Features → Wiki)."
+          echo "If GITHUB_TOKEN cannot push the wiki repo, add a WIKI_SYNC_TOKEN secret and update this workflow."

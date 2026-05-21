@@ -56,7 +56,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     // workspace entry so the flag survives reloads).
     let image_mode = RwSignal::new(false);
     let chat_maximized = RwSignal::new(false);
-    let chat_scroll_ref = NodeRef::<html::Article>::new();
+    let chat_scroll_ref = NodeRef::<html::Div>::new();
     let voice_handle = VoiceOrbHandle::new();
     let task_snapshot = RwSignal::new(TaskSnapshot {
         tasks: Vec::new(),
@@ -167,8 +167,8 @@ pub fn AgentPanelDock() -> impl IntoView {
 
     Effect::new(move |_| {
         let _ = timeline.get().len();
-        if let Some(article) = chat_scroll_ref.get() {
-            article.set_scroll_top(article.scroll_height());
+        if let Some(log) = chat_scroll_ref.get() {
+            log.set_scroll_top(log.scroll_height());
         }
     });
 
@@ -281,9 +281,7 @@ pub fn AgentPanelDock() -> impl IntoView {
             </Show>
 
             <article
-                node_ref=chat_scroll_ref
                 class="workbench-agent-scroll"
-                aria-live="polite"
                 aria-label=move || i18n.tr(I18nKey::AgChatArticleAria)()
             >
                 <div class="agent-section__head agent-chat-head">
@@ -387,42 +385,44 @@ pub fn AgentPanelDock() -> impl IntoView {
                         {move || i18n.tr(I18nKey::ImageModeHint)()}
                     </p>
                 </Show>
-                <Show
-                    when=move || !timeline.get().is_empty()
-                    fallback=move || view! {
-                        <div class="agent-chat-line agent-chat-line--agent">
-                            <ChatLineIndexColumn
-                                line_no="01".to_string()
-                                tts_text=Some(i18n.tr(I18nKey::AgWelcomeBody)().to_string())
-                                voice_handle=voice_handle
-                            />
-                            <div class="agent-chat-body">
-                                <strong>"BLXCode"</strong>
-                                <p>{move || i18n.tr(I18nKey::AgWelcomeBody)()}</p>
+                <div class="workbench-agent-chat-log" node_ref=chat_scroll_ref aria-live="polite">
+                    <Show
+                        when=move || !timeline.get().is_empty()
+                        fallback=move || view! {
+                            <div class="agent-chat-line agent-chat-line--agent">
+                                <ChatLineIndexColumn
+                                    line_no="01".to_string()
+                                    tts_text=Some(i18n.tr(I18nKey::AgWelcomeBody)().to_string())
+                                    voice_handle=voice_handle
+                                />
+                                <div class="agent-chat-body">
+                                    <strong>"BLXCode"</strong>
+                                    <p>{move || i18n.tr(I18nKey::AgWelcomeBody)()}</p>
+                                </div>
                             </div>
-                        </div>
-                    }
-                >
-                    <ol class="agent-chat-list" aria-label=move || i18n.tr(I18nKey::AgTimelineAria)()>
-                        {move || {
-                            let on_redo = Callback::new(move |text: String| {
-                                draft.set(text);
-                                submit_turn(
-                                    wb, i18n, draft, busy, status_line,
-                                    timeline, task_snapshot, thinking_open, voice_handle,
-                                );
-                            });
-                            compact_timeline(timeline.get())
-                                .into_iter()
-                                .enumerate()
-                                .map(|(idx, entry)| {
-                                    view! { <TimelineRow idx=idx entry=entry i18n=i18n thinking_open=thinking_open voice_handle=voice_handle on_redo=on_redo /> }
-                                })
-                                .collect_view()
-                        }}
-                    </ol>
-                </Show>
-                <ChatUsageFooter wb=wb />
+                        }
+                    >
+                        <ol class="agent-chat-list" aria-label=move || i18n.tr(I18nKey::AgTimelineAria)()>
+                            {move || {
+                                let on_redo = Callback::new(move |text: String| {
+                                    draft.set(text);
+                                    submit_turn(
+                                        wb, i18n, draft, busy, status_line,
+                                        timeline, task_snapshot, thinking_open, voice_handle,
+                                    );
+                                });
+                                compact_timeline(timeline.get())
+                                    .into_iter()
+                                    .enumerate()
+                                    .map(|(idx, entry)| {
+                                        view! { <TimelineRow idx=idx entry=entry i18n=i18n thinking_open=thinking_open voice_handle=voice_handle on_redo=on_redo /> }
+                                    })
+                                    .collect_view()
+                            }}
+                        </ol>
+                    </Show>
+                    <ChatUsageFooter wb=wb />
+                </div>
             </article>
 
             <form
