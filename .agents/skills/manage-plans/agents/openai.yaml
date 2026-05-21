@@ -1,0 +1,4 @@
+interface:
+  display_name: "Manage Plans"
+  short_description: "Create and maintain BLXCode Markdown plans."
+  default_prompt: "Create or update a BLXCode plan under .agents/plans using the repository plan format."
