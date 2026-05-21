@@ -2741,6 +2741,45 @@ button.workbench-shortcut-row--action:focus-visible {
   border-color: rgba(255, 120, 120, 0.4);
 }
 
+.agent-chat-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.32rem;
+  margin-top: 0.36rem;
+  opacity: 0.55;
+  transition: opacity 140ms ease;
+}
+
+.agent-chat-line--agent:hover .agent-chat-actions {
+  opacity: 1;
+}
+
+.agent-chat-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.4rem;
+  background: rgba(255, 255, 255, 0.025);
+  color: rgba(241, 242, 245, 0.72);
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.agent-chat-action:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: rgba(241, 242, 245, 0.95);
+}
+
+.agent-chat-action:focus-visible {
+  outline: 2px solid rgba(143, 217, 196, 0.6);
+  outline-offset: 1px;
+}
+
 .agent-chat-usage {
   display: flex;
   flex-wrap: wrap;

@@ -405,11 +405,18 @@ pub fn AgentPanelDock() -> impl IntoView {
                 >
                     <ol class="agent-chat-list" aria-label=move || i18n.tr(I18nKey::AgTimelineAria)()>
                         {move || {
+                            let on_redo = Callback::new(move |text: String| {
+                                draft.set(text);
+                                submit_turn(
+                                    wb, i18n, draft, busy, status_line,
+                                    timeline, task_snapshot, thinking_open, voice_handle,
+                                );
+                            });
                             compact_timeline(timeline.get())
                                 .into_iter()
                                 .enumerate()
                                 .map(|(idx, entry)| {
-                                    view! { <TimelineRow idx=idx entry=entry i18n=i18n thinking_open=thinking_open voice_handle=voice_handle /> }
+                                    view! { <TimelineRow idx=idx entry=entry i18n=i18n thinking_open=thinking_open voice_handle=voice_handle on_redo=on_redo /> }
                                 })
                                 .collect_view()
                         }}

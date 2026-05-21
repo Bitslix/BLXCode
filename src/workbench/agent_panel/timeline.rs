@@ -19,7 +19,13 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, PartialEq)]
 pub enum DisplayTimelineItem {
     User { text: String },
-    Assistant { text: String },
+    Assistant {
+        text: String,
+        /// Latest user-message text preceding this assistant block — used as
+        /// the "Redo" button's payload. `None` for the welcome/system bubble
+        /// and for any assistant block that has no preceding user turn.
+        prev_user: Option<String>,
+    },
     ToolGroup(Vec<ToolActivity>),
     SubagentGroup(SubagentGroup),
     Thinking { text: String, done: bool },
@@ -422,6 +428,7 @@ fn synthesize_completion_message(rows: &[TimelineItem]) -> Option<String> {
 pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
     let mut out = Vec::new();
     let mut pending_tools = Vec::new();
+    let mut last_user_text: Option<String> = None;
 
     let flush_tools = |out: &mut Vec<DisplayTimelineItem>,
                        pending_tools: &mut Vec<ToolActivity>| {
@@ -436,11 +443,15 @@ pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
         match item {
             TimelineItem::User { text } => {
                 flush_tools(&mut out, &mut pending_tools);
+                last_user_text = Some(text.clone());
                 out.push(DisplayTimelineItem::User { text });
             }
             TimelineItem::Assistant { text } => {
                 flush_tools(&mut out, &mut pending_tools);
-                out.push(DisplayTimelineItem::Assistant { text });
+                out.push(DisplayTimelineItem::Assistant {
+                    text,
+                    prev_user: last_user_text.clone(),
+                });
             }
             TimelineItem::Tool(tool) => pending_tools.push(tool),
             TimelineItem::Thinking { text, done } => {
@@ -563,6 +574,7 @@ pub fn TimelineRow(
     i18n: I18nService,
     thinking_open: RwSignal<HashMap<usize, bool>>,
     voice_handle: VoiceOrbHandle,
+    on_redo: Callback<String>,
 ) -> impl IntoView {
     let line_no = format!("{:02}", idx + 1);
     match entry {
@@ -576,14 +588,65 @@ pub fn TimelineRow(
             </li>
         }
         .into_any(),
-        DisplayTimelineItem::Assistant { text } => {
+        DisplayTimelineItem::Assistant { text, prev_user } => {
             let tts_text = text.clone();
+            let copy_text = text.clone();
+            let redo_text = prev_user.clone();
+            let copied = RwSignal::new(false);
             view! {
             <li class="agent-chat-line agent-chat-line--agent">
                 <ChatLineIndexColumn line_no=line_no.clone() tts_text=Some(tts_text) voice_handle=voice_handle />
                 <div class="agent-chat-body">
                     <strong>{move || i18n.tr(I18nKey::AgAssistant)()}</strong>
                     <div class="workbench-agent-markdown" inner_html=render_markdown_to_html(&text)></div>
+                    <div class="agent-chat-actions">
+                        <button
+                            type="button"
+                            class="agent-chat-action"
+                            title="Copy answer to clipboard"
+                            aria-label="Copy answer"
+                            on:click=move |_| {
+                                let text = copy_text.clone();
+                                copied.set(true);
+                                leptos::task::spawn_local(async move {
+                                    if let Some(win) = web_sys::window() {
+                                        let clipboard = win.navigator().clipboard();
+                                        let promise = clipboard.write_text(&text);
+                                        let _ = wasm_bindgen_futures::JsFuture::from(promise).await;
+                                    }
+                                    gloo_timers::future::TimeoutFuture::new(1400).await;
+                                    copied.set(false);
+                                });
+                            }
+                        >
+                            {move || if copied.get() {
+                                view! { <LxIcon icon=icondata::LuCheck width="0.78rem" height="0.78rem" /> }
+                            } else {
+                                view! { <LxIcon icon=icondata::LuCopy width="0.78rem" height="0.78rem" /> }
+                            }}
+                        </button>
+                        <Show when={
+                            let r = redo_text.clone();
+                            move || r.as_ref().is_some_and(|s| !s.trim().is_empty())
+                        }>
+                            <button
+                                type="button"
+                                class="agent-chat-action"
+                                title="Redo this turn (resubmit the same prompt)"
+                                aria-label="Redo"
+                                on:click={
+                                    let r = redo_text.clone();
+                                    move |_| {
+                                        if let Some(text) = r.clone() {
+                                            on_redo.run(text);
+                                        }
+                                    }
+                                }
+                            >
+                                <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
+                            </button>
+                        </Show>
+                    </div>
                 </div>
             </li>
         }
