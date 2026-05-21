@@ -46,11 +46,16 @@ pub struct SkillEntry {
     /// the UI uses this to surface a warn badge.
     #[serde(default)]
     pub missing_skill_md: bool,
+    /// Runtime-only hint for core skills (e.g. `disabled_no_key` for `web`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub availability: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum SkillSourceKind {
+    /// Built-in harness skill embedded in the binary.
+    Core,
     Git,
     Npm,
     Local,
@@ -195,6 +200,7 @@ mod tests {
             installed_at: "2026-05-20T11:00:00Z".into(),
             updated_at: "2026-05-20T11:00:00Z".into(),
             missing_skill_md: false,
+            availability: None,
         };
         let json = serde_json::to_string(&entry).unwrap();
         // kebab-case for the source kind

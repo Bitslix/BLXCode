@@ -17,7 +17,10 @@ mod tasks;
 mod voice;
 mod workbench_state;
 
-use agent::AgentEngineState;
+use agent::{
+    agent_environment_invalidate, agent_web_api_key_delete, agent_web_api_key_set,
+    agent_web_settings_get, agent_web_settings_save, AgentEngineState,
+};
 use agent_hooks::{agent_hooks_status, install_agent_hooks, uninstall_agent_hooks};
 use agent_settings::{
     agent_api_key_delete, agent_api_key_set, agent_provider_models, agent_settings_get,
@@ -206,6 +209,11 @@ pub fn run() {
             voice_tts_preview,
             image_settings_get,
             image_settings_save,
+            agent_web_settings_get,
+            agent_web_settings_save,
+            agent_web_api_key_set,
+            agent_web_api_key_delete,
+            agent_environment_invalidate,
             image_curated_models,
             crate::image::commands::generated_image_preview,
         ])

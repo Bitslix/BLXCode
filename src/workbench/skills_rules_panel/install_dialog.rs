@@ -64,7 +64,7 @@ pub fn SkillInstallDialog(open: RwSignal<bool>) -> impl IntoView {
                 version: None,
                 path: Some(local_path.get().trim().to_owned()),
             },
-            SkillSourceKind::AgentCreated => return,
+            SkillSourceKind::AgentCreated | SkillSourceKind::Core => return,
         };
         svc.install_skill(wb, n, source, move |result| {
             if result.is_ok() {
@@ -125,7 +125,7 @@ pub fn SkillInstallDialog(open: RwSignal<bool>) -> impl IntoView {
                 />
             </div>
         }.into_any(),
-        SkillSourceKind::AgentCreated => view! { <></> }.into_any(),
+        SkillSourceKind::AgentCreated | SkillSourceKind::Core => view! { <></> }.into_any(),
     };
 
     view! {

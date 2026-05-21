@@ -41,6 +41,28 @@ On Linux, make sure a secret service such as GNOME Keyring or KWallet is availab
 
 Open provider settings, select the provider you want to use, paste an API key, save it, and retry the agent turn. Provider keys are stored per provider, so saving an Anthropic key does not configure OpenRouter or OpenAI.
 
+## Web Search Or Fetch Unavailable
+
+`web_search` and `web_fetch` are omitted from the tool list until a web backend is configured.
+
+1. Open Harness settings → **Agent** → **Web Tools**.
+2. Choose **Tavily** or **Brave**, save the provider choice, and set the matching API key (or set `BLX_TAVILY_API_KEY` / `BLX_BRAVE_API_KEY` in the environment before launch).
+3. Enable the **web** core skill in the Skills panel if it was disabled.
+
+See [Agent Harness](agent-harness.md).
+
+## Shell Or Git Tool Says Call environment_detect First
+
+The agent must run `environment_detect` once per workspace session before `shell_exec` or Git tools. Switching workspaces clears the cache — start a new turn after switching so the agent can detect again.
+
+If the error persists in the same workspace, send a short prompt such as “detect environment for this workspace” and retry.
+
+## Subagents Not Appearing
+
+Subagents run only when you **explicitly** ask (for example “use subagents to review …”). The coordinator does not spawn them automatically. You need a configured provider key and a model that supports tool calling.
+
+Full behaviour, roles, and limits: [Subagents](subagents.md).
+
 ## Voice Recording Cannot Start
 
 Check that your system has a default input device and that BLXCode has microphone permission. In development, your OS may grant microphone permission to the terminal, shell, or built app wrapper rather than to a named BLXCode release bundle.

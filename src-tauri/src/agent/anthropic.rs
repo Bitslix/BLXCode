@@ -11,8 +11,9 @@
 
 use super::system_prompt::system_prompt;
 use crate::agent::protocol::{AgentEvent, AgentImageContextItem};
-use crate::agent::state::{AgentEngineState, ClientToolResult};
-use crate::agent::tools::{self, ToolSite, WorkspaceRootGuard};
+use crate::agent::state::AgentEngineState;
+use crate::agent::tool_dispatch::{dispatch_tool, DispatchContext};
+use crate::agent::tools::{self, WorkspaceRootGuard};
 use crate::agent_settings::{AgentProviderSettings, ThinkingLevel};
 use crate::tasks;
 use serde::Deserialize;
@@ -20,7 +21,6 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::AsyncBufReadExt;
-use tokio::sync::oneshot;
 
 const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
@@ -30,11 +30,11 @@ const DEFAULT_MAX_TOKENS: u64 = 8192;
 /// Anthropic restricts tool names to `^[a-zA-Z0-9_-]{1,64}$` — no dots.
 /// Our harness tools use dotted names (`harness.open_terminal`), so we
 /// translate `.` ↔ `__` at the API boundary.
-fn to_anthropic_name(name: &str) -> String {
+pub(crate) fn to_anthropic_name(name: &str) -> String {
     name.replace('.', "__")
 }
 
-fn from_anthropic_name(name: &str) -> String {
+pub(crate) fn from_anthropic_name(name: &str) -> String {
     name.replace("__", ".")
 }
 
@@ -130,6 +130,11 @@ pub async fn run_chat_turn(
     }
     let thinking_cfg = thinking_budget(settings.thinking_level)
         .map(|budget| json!({ "type": "enabled", "budget_tokens": budget }));
+
+    let dispatch_ctx = DispatchContext {
+        settings: settings.clone(),
+        api_key: api_key.clone(),
+    };
 
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(180))
@@ -234,7 +239,15 @@ pub async fn run_chat_turn(
             let args_val: Value =
                 serde_json::from_str(&call.arguments).unwrap_or_else(|_| json!({}));
             let outcome =
-                dispatch_tool(&state, &call.id, &call.name, &args_val, root_guard.as_ref()).await;
+                dispatch_tool(
+                    &state,
+                    &call.id,
+                    &call.name,
+                    &args_val,
+                    root_guard.as_ref(),
+                    Some(&dispatch_ctx),
+                )
+                .await;
 
             if outcome.ok && call.name.starts_with("task_") {
                 maybe_emit_task_snapshot(&state, root_guard.as_ref());
@@ -287,6 +300,7 @@ fn maybe_emit_task_snapshot(state: &Arc<AgentEngineState>, root: Option<&Workspa
 }
 
 fn emit_aborted(state: &Arc<AgentEngineState>) {
+    crate::agent::shell_exec::kill_all_children();
     state.push(AgentEvent::AssistantDelta {
         delta: "\n_Abgebrochen._\n".into(),
     });
@@ -646,67 +660,5 @@ mod tests {
         assert!(!encoded.contains("aGVsbG8="));
         assert!(!encoded.contains("\"image\""));
         assert!(encoded.contains("marked read"));
-    }
-}
-
-async fn dispatch_tool(
-    state: &Arc<AgentEngineState>,
-    call_id: &str,
-    name: &str,
-    args: &Value,
-    root: Option<&WorkspaceRootGuard>,
-) -> tools::ToolOutcome {
-    state.push(AgentEvent::ToolCall {
-        tool: name.to_owned(),
-        call_id: Some(call_id.to_owned()),
-        args: Some(args.clone()),
-    });
-
-    let Some(def) = tools::find(name) else {
-        return tools::ToolOutcome {
-            ok: false,
-            content: format!("unknown tool: {name}"),
-        };
-    };
-
-    match def.site {
-        ToolSite::Server => tools::execute_server_tool(name, args, root),
-        ToolSite::Client => wait_for_client_tool(state, call_id, name).await,
-    }
-}
-
-async fn wait_for_client_tool(
-    state: &Arc<AgentEngineState>,
-    call_id: &str,
-    name: &str,
-) -> tools::ToolOutcome {
-    let (tx, rx) = oneshot::channel::<ClientToolResult>();
-    state.register_client_tool(call_id.to_owned(), tx);
-
-    match rx.await {
-        Ok(res) => {
-            let mut body = res.message.unwrap_or_default();
-            if let Some(data) = res.data {
-                if !body.is_empty() {
-                    body.push('\n');
-                }
-                body.push_str(&data.to_string());
-            }
-            if body.is_empty() {
-                body = if res.ok {
-                    format!("{name} ok")
-                } else {
-                    format!("{name} failed")
-                };
-            }
-            tools::ToolOutcome {
-                ok: res.ok,
-                content: body,
-            }
-        }
-        Err(_) => tools::ToolOutcome {
-            ok: false,
-            content: format!("{name}: tool result channel closed"),
-        },
     }
 }

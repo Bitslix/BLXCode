@@ -5,31 +5,36 @@ Requires: pip install deep-translator (use a venv).
 
 Run from repo root:
   # Default: translate only I18nKey rows missing from each locale file (new keys in en_us.rs)
-  python scripts/render_i18n_locales_from_en.py
+  python scripts/tools/render_i18n_locales_from_en.py
 
   # Also re-translate rows that still match English verbatim (use sparingly)
-  python scripts/render_i18n_locales_from_en.py --patch-english-matches
+  python scripts/tools/render_i18n_locales_from_en.py --patch-english-matches
+
+  # Parallel API calls (e.g. four workers)
+  python scripts/tools/render_i18n_locales_from_en.py --patch-english-matches -j 4
 
   # Only specific keys (comma-separated variant names)
-  python scripts/render_i18n_locales_from_en.py --keys GitignorePromptTitle,GitignorePromptBody
+  python scripts/tools/render_i18n_locales_from_en.py --keys GitignorePromptTitle,GitignorePromptBody
 
   # Full rewrite of every non-English locale (all strings — slow, overwrites good rows)
-  python scripts/render_i18n_locales_from_en.py --full
+  python scripts/tools/render_i18n_locales_from_en.py --full
 
   # Limit to some locale files (basename without .rs)
-  python scripts/render_i18n_locales_from_en.py --locales es_es,ja_jp
+  python scripts/tools/render_i18n_locales_from_en.py --locales es_es,ja_jp
 """
 from __future__ import annotations
 
 import argparse
 import re
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from deep_translator import GoogleTranslator
 from deep_translator.exceptions import TranslationNotFound
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 EN_US = ROOT / "src/i18n/locales/en_us.rs"
 LOCALES_DIR = ROOT / "src/i18n/locales"
 
@@ -47,6 +52,23 @@ TARGETS: list[tuple[str, str, str]] = [
     ("zh_cn.rs", "zh-CN", "zh-CN"),
     ("zh_tw.rs", "zh-TW", "zh-TW"),
 ]
+
+
+class RateLimiter:
+    """Serialize minimum spacing between outbound translate requests."""
+
+    def __init__(self, interval: float = 0.1) -> None:
+        self._interval = interval
+        self._lock = threading.Lock()
+        self._last = 0.0
+
+    def wait(self) -> None:
+        with self._lock:
+            now = time.monotonic()
+            delay = self._interval - (now - self._last)
+            if delay > 0:
+                time.sleep(delay)
+            self._last = time.monotonic()
 
 
 def rust_escape(s: str) -> str:
@@ -105,27 +127,78 @@ def emit_locale_rs(pairs: list[tuple[str, str]]) -> str:
     return "\n".join(lines)
 
 
-def translate_cached(
-    translator: GoogleTranslator, cache: dict[str, str], text: str
+def translate_one(
+    translator: GoogleTranslator,
+    cache: dict[str, str],
+    cache_lock: threading.Lock,
+    rate_limiter: RateLimiter | None,
+    text: str,
 ) -> str:
-    if text in cache:
-        return cache[text]
+    with cache_lock:
+        if text in cache:
+            return cache[text]
+
     for attempt in range(4):
-        try:
-            t = translator.translate(text)
-            cache[text] = t
+        if rate_limiter is not None:
+            rate_limiter.wait()
+        else:
             time.sleep(0.1)
-            return t
+        try:
+            translated = translator.translate(text)
+            with cache_lock:
+                cache[text] = translated
+            return translated
         except TranslationNotFound:
-            cache[text] = text
+            with cache_lock:
+                cache[text] = text
             return text
         except Exception:  # noqa: BLE001 — network flakiness
             if attempt == 3:
-                cache[text] = text
+                with cache_lock:
+                    cache[text] = text
                 return text
             time.sleep(0.6 * (attempt + 1))
-    cache[text] = text
+
+    with cache_lock:
+        cache[text] = text
     return text
+
+
+def translate_cached(
+    translator: GoogleTranslator, cache: dict[str, str], text: str
+) -> str:
+    return translate_one(translator, cache, threading.Lock(), None, text)
+
+
+def translate_texts_parallel(
+    translator: GoogleTranslator,
+    texts: list[str],
+    jobs: int,
+) -> dict[str, str]:
+    """Translate unique strings; returns english -> translation map."""
+    unique = list(dict.fromkeys(texts))
+    if not unique:
+        return {}
+
+    cache: dict[str, str] = {}
+    cache_lock = threading.Lock()
+
+    if jobs <= 1:
+        for text in unique:
+            translate_one(translator, cache, cache_lock, None, text)
+        return cache
+
+    rate_limiter = RateLimiter(0.1)
+    with ThreadPoolExecutor(max_workers=jobs) as pool:
+        list(
+            pool.map(
+                lambda t: translate_one(
+                    translator, cache, cache_lock, rate_limiter, t
+                ),
+                unique,
+            )
+        )
+    return cache
 
 
 def resolve_targets(locale_filter: str | None) -> list[tuple[str, str, str]]:
@@ -142,20 +215,19 @@ def resolve_targets(locale_filter: str | None) -> list[tuple[str, str, str]]:
     return out
 
 
-def run_full_regen(targets: list[tuple[str, str, str]]) -> None:
+def run_full_regen(targets: list[tuple[str, str, str]], jobs: int) -> None:
     pairs = parse_locale_rs(EN_US)
     if len(pairs) < 180:
         raise SystemExit(f"parse too few keys: {len(pairs)}")
+
     for filename, tgt_code, _label in targets:
         translator = GoogleTranslator(source="en", target=tgt_code)
-        cache: dict[str, str] = {}
-        merged: list[tuple[str, str]] = []
-        for k, en in pairs:
-            merged.append((k, translate_cached(translator, cache, en)))
-        body = emit_locale_rs(merged)
+        en_texts = [en for _, en in pairs]
+        cache = translate_texts_parallel(translator, en_texts, jobs)
+        merged = [(k, cache[en]) for k, en in pairs]
         path = LOCALES_DIR / filename
-        path.write_text(body, encoding="utf-8")
-        print(f"wrote {path} ({len(cache)} unique strings translated)")
+        path.write_text(emit_locale_rs(merged), encoding="utf-8")
+        print(f"wrote {path} ({len(cache)} unique strings translated, jobs={jobs})")
     print("done")
 
 
@@ -183,6 +255,7 @@ def run_selective_translate(
     patch_english: bool,
     keys: set[str] | None,
     targets: list[tuple[str, str, str]],
+    jobs: int,
 ) -> None:
     en_pairs = parse_locale_rs(EN_US)
     if len(en_pairs) < 180:
@@ -198,7 +271,7 @@ def run_selective_translate(
         if keys
         else ("missing + english-matches" if patch_english else "missing keys only")
     )
-    print(f"mode: {mode}")
+    print(f"mode: {mode} (jobs={jobs})")
 
     total_translated = 0
     total_english_untranslated = 0
@@ -212,9 +285,7 @@ def run_selective_translate(
         total_english_untranslated += len(english_untranslated)
 
         translator = GoogleTranslator(source="en", target=tgt_code)
-        cache: dict[str, str] = {}
-        merged: list[tuple[str, str]] = []
-        translated_rows = 0
+        pending_en: list[str] = []
         for k, en in en_pairs:
             cur = loc_map.get(k, en)
             if should_translate_row(
@@ -225,8 +296,23 @@ def run_selective_translate(
                 explicit_keys=keys,
                 patch_english=patch_english,
             ):
-                cur = translate_cached(translator, cache, en)
-                translated_rows += 1
+                pending_en.append(en)
+
+        cache = translate_texts_parallel(translator, pending_en, jobs)
+        translated_rows = len(pending_en)
+
+        merged: list[tuple[str, str]] = []
+        for k, en in en_pairs:
+            cur = loc_map.get(k, en)
+            if should_translate_row(
+                k,
+                en,
+                cur,
+                loc_map,
+                explicit_keys=keys,
+                patch_english=patch_english,
+            ):
+                cur = cache[en]
             merged.append((k, cur))
         total_translated += translated_rows
 
@@ -241,7 +327,7 @@ def run_selective_translate(
         path.write_text(body, encoding="utf-8")
         print(
             f"wrote {path} ({translated_rows} rows translated, "
-            f"{len(cache)} unique strings in cache)"
+            f"{len(cache)} unique strings in cache, jobs={jobs})"
         )
 
     if total_translated == 0:
@@ -287,20 +373,33 @@ def main() -> None:
         default="",
         help="Optional comma list of locale basenames (es_es, ja_jp, …). Default: all targets.",
     )
+    ap.add_argument(
+        "-j",
+        "--jobs",
+        type=int,
+        default=1,
+        metavar="N",
+        help="Parallel translation workers per locale (default: 1).",
+    )
     args = ap.parse_args()
+
+    if args.jobs < 1:
+        raise SystemExit("--jobs must be >= 1")
+
     targets = resolve_targets(args.locales.strip() or None)
     key_set = {x.strip() for x in args.keys.split(",") if x.strip()}
 
     if args.full:
         if args.patch_english_matches or key_set:
             raise SystemExit("--full cannot be combined with --patch-english-matches or --keys")
-        run_full_regen(targets)
+        run_full_regen(targets, args.jobs)
         return
 
     run_selective_translate(
         patch_english=args.patch_english_matches,
         keys=key_set or None,
         targets=targets,
+        jobs=args.jobs,
     )
 
 

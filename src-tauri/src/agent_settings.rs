@@ -221,7 +221,7 @@ pub(crate) fn write_envelope(
 
 /// List of envelope keys reserved by sibling subsystems. The agent-settings
 /// writer must preserve these on every save.
-const RESERVED_SIBLING_KEYS: &[&str] = &["voice", "image"];
+const RESERVED_SIBLING_KEYS: &[&str] = &["voice", "image", "web"];
 
 fn load_settings(app: &AppHandle) -> Result<AgentProviderSettings, String> {
     let envelope = read_envelope(app)?;
@@ -798,6 +798,10 @@ pub fn provider_status_json() -> serde_json::Value {
         "defaultProvider": AgentProviderKind::Openrouter.as_str(),
         "keyStatuses": key_statuses,
     })
+}
+
+pub(crate) fn mask_secret_pub(secret: &str) -> Option<String> {
+    mask_secret(secret)
 }
 
 fn mask_secret(secret: &str) -> Option<String> {

@@ -148,6 +148,12 @@ pub struct ToolDef {
     pub site: ToolSite,
 }
 
+/// Options for server-tool execution (shell write mode, etc.).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ToolExecOpts {
+    pub shell_writes: bool,
+}
+
 /// Output of an in-process server-tool execution.
 pub struct ToolOutcome {
     pub ok: bool,
@@ -173,7 +179,7 @@ pub fn catalog_json() -> Result<String, String> {
 }
 
 pub fn registry() -> Vec<ToolDef> {
-    vec![
+    let mut out = vec![
         ToolDef {
             name: "list_tools",
             description: "Return a JSON array of every BLXCode Agent tool (name, description, server|client site, and parameters JSON Schema). Call when unsure which tools exist or what arguments they accept.",
@@ -935,7 +941,9 @@ pub fn registry() -> Vec<ToolDef> {
             }),
             site: ToolSite::Client,
         },
-    ]
+    ];
+    out.extend(crate::agent::tools_extra::extra_tool_defs());
+    out
 }
 
 /// Find a tool definition by name. Tool names from the model are matched
@@ -949,40 +957,22 @@ pub fn find(name: &str) -> Option<&'static ToolDef> {
     reg.iter().find(|t| t.name == name)
 }
 
-/// Render every tool in the registry as an OpenAI Chat Completions `tools[]` entry.
+/// Render coordinator tool catalog as OpenAI Chat Completions `tools[]`.
 pub fn render_for_openai() -> Value {
-    let reg = registry();
-    let items: Vec<Value> = reg
-        .into_iter()
-        .map(|t| {
-            json!({
-                "type": "function",
-                "function": {
-                    "name": t.name,
-                    "description": t.description,
-                    "parameters": t.parameters,
-                }
-            })
-        })
-        .collect();
-    Value::Array(items)
+    let web = crate::agent::web_tools::web_tools_enabled();
+    crate::agent::tool_groups::render_for_openai_filtered(
+        &crate::agent::tool_groups::coordinator_groups(web),
+        web,
+    )
 }
 
-/// Render every tool in the registry as an Anthropic Messages API `tools[]` entry.
-/// Anthropic uses `input_schema` (vs. OpenAI's `parameters`) and a flat shape.
+/// Render coordinator tool catalog as Anthropic Messages API `tools[]`.
 pub fn render_for_anthropic() -> Value {
-    let reg = registry();
-    let items: Vec<Value> = reg
-        .into_iter()
-        .map(|t| {
-            json!({
-                "name": t.name,
-                "description": t.description,
-                "input_schema": t.parameters,
-            })
-        })
-        .collect();
-    Value::Array(items)
+    let web = crate::agent::web_tools::web_tools_enabled();
+    crate::agent::tool_groups::render_for_anthropic_filtered(
+        &crate::agent::tool_groups::coordinator_groups(web),
+        web,
+    )
 }
 
 /// Execute a server-tool synchronously. Returns the textual `content`
@@ -991,8 +981,26 @@ pub fn execute_server_tool(
     name: &str,
     args: &Value,
     root: Option<&WorkspaceRootGuard>,
+    opts: Option<ToolExecOpts>,
 ) -> ToolOutcome {
+    let shell_writes = opts.map(|o| o.shell_writes).unwrap_or(false);
     match name {
+        "environment_detect" => crate::agent::environment::tool_environment_detect(root),
+        "shell_exec" => crate::agent::shell_exec::tool_shell_exec(args, root, shell_writes),
+        "workspace_search" => crate::agent::workspace_agent::tool_workspace_search(args, root),
+        "workspace_git_status" => crate::agent::git_agent::tool_workspace_git_status(root),
+        "workspace_diff" => crate::agent::git_agent::tool_workspace_diff(args, root),
+        "git_status" => crate::agent::git_agent::tool_git_status(args, root),
+        "git_diff" => crate::agent::git_agent::tool_git_diff(args, root),
+        "git_log" => crate::agent::git_agent::tool_git_log(args, root),
+        "git_show" => crate::agent::git_agent::tool_git_show(args, root),
+        "git_branch_info" => crate::agent::git_agent::tool_git_branch_info(root),
+        "git_ls_files" => crate::agent::git_agent::tool_git_ls_files(args, root),
+        "git_apply_patch" => crate::agent::git_agent::tool_git_apply_patch(args, root),
+        "git_add" => crate::agent::git_agent::tool_git_add(args, root),
+        "git_commit" => crate::agent::git_agent::tool_git_commit(args, root),
+        "web_search" => crate::agent::web_tools::tool_web_search(args, root),
+        "web_fetch" => crate::agent::web_tools::tool_web_fetch(args, root),
         "list_tools" => tool_list_tools(),
         "read_workspace_file" => tool_read_workspace_file(args, root),
         "list_workspace_files" => tool_list_workspace_files(args, root),

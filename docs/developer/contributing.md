@@ -23,6 +23,15 @@ Read the repository rules in `.agents/rules/`:
 
 For larger UI additions, prefer a component folder with colocated component-specific styling when appropriate. Global tokens and broad app styles can remain in `styles.css`, but feature-specific styles should be easy to find.
 
+## Agent harness changes
+
+When you change agent tools, core skills, subagents, or web settings:
+
+- Update `src-tauri/src/agent/harness_skills/*.md` and `CORE_SKILLS` if adding core documentation.
+- Mirror protocol changes in `src/agent_wire.rs`.
+- Add `I18nKey` entries to **all** locale files when UI labels change.
+- Update [Agent Harness](../developer/agent-harness.md) / [Subagents](../developer/subagents.md) (and matching user docs) when behaviour is user-visible.
+
 ## Testing And Checks
 
 Run the narrowest useful check while developing:

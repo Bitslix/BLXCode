@@ -2,6 +2,7 @@
 mod client_tools;
 mod context_list;
 mod image_context;
+mod subagent_debounce;
 mod task_list;
 mod timeline;
 mod voice_orb;
@@ -20,9 +21,13 @@ use crate::workbench::agent_panel::image_context::{
     DropZoneState,
 };
 use crate::workbench::agent_panel::task_list::TaskSection;
+use crate::workbench::agent_panel::subagent_debounce::{
+    is_subagent_timeline_event, SubagentEventDebounce,
+};
 use crate::workbench::agent_panel::timeline::{
     apply_agent_event, compact_timeline, ChatLineIndexColumn, TimelineItem, TimelineRow,
 };
+use std::rc::Rc;
 use crate::workbench::agent_panel::voice_orb::{
     handle_voice_event, install_ptt_hotkey, VoiceOrb, VoiceOrbHandle,
 };
@@ -559,6 +564,19 @@ fn submit_turn(
 
         let i18n_d = i18n;
         let wb_d = wb;
+        let subagent_debounce = SubagentEventDebounce::new();
+        let flush_subagent = Rc::new(move |debounced: Vec<AgentEvent>| {
+            let loc_now = i18n_d.locale().get_untracked();
+            for ev in &debounced {
+                apply_agent_event(
+                    ev,
+                    timeline_sig,
+                    task_snapshot_sig,
+                    loc_now,
+                    Some((wb_d, ws_capture)),
+                );
+            }
+        });
         if let Err(msg) = agent_drain_turn_opts(voice_input, move |batch| {
             let loc_now = i18n_d.locale().get_untracked();
             for ev in &batch {
@@ -570,6 +588,10 @@ fn submit_turn(
                     wb_d.mark_workspace_agent_images_read(ws_capture, ids);
                     continue;
                 }
+                if is_subagent_timeline_event(ev) {
+                    subagent_debounce.push(ev.clone(), flush_subagent.clone());
+                    continue;
+                }
                 apply_agent_event(
                     ev,
                     timeline_sig,
@@ -579,7 +601,6 @@ fn submit_turn(
                 );
                 maybe_handle_client_tool(ev, wb_d);
             }
-            let _ = batch;
         })
         .await
         {

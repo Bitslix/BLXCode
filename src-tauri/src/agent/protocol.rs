@@ -118,4 +118,34 @@ pub enum AgentEvent {
     Error { message: String },
     #[serde(rename = "voice_ready")]
     VoiceReady { audio_b64: String, mime: String },
+    #[serde(rename = "subagent_started")]
+    SubagentStarted {
+        agent_id: String,
+        role: String,
+        display_name: String,
+    },
+    #[serde(rename = "subagent_step")]
+    SubagentStep {
+        agent_id: String,
+        step_id: String,
+        title: String,
+        status: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        note: Option<String>,
+    },
+    #[serde(rename = "subagent_tool_call")]
+    SubagentToolCall {
+        agent_id: String,
+        tool: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        call_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        args: Option<serde_json::Value>,
+    },
+    #[serde(rename = "subagent_finished")]
+    SubagentFinished {
+        agent_id: String,
+        status: String,
+        summary: String,
+    },
 }

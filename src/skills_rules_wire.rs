@@ -33,11 +33,15 @@ pub struct SkillEntry {
     pub updated_at: String,
     #[serde(default)]
     pub missing_skill_md: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub availability: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum SkillSourceKind {
+    /// Built-in harness skill embedded in the binary.
+    Core,
     Git,
     Npm,
     Local,

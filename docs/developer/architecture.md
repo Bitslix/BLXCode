@@ -33,17 +33,26 @@ Leptos UI
 
 ## Agent Subsystem
 
-The agent subsystem lives under `src-tauri/src/agent/`.
+The agent subsystem lives under `src-tauri/src/agent/`. See [Agent Harness](agent-harness.md) for Better Harness; [Subagents](subagents.md) for coordinated parallel runs.
+
+### Core runtime
 
 - `state.rs`: shared event queue, busy/cancel flags, provider environment status, and conversation state.
-- `protocol.rs`: `UserTurn` and `AgentEvent` types.
-- `session_orchestrator.rs`: loads provider settings/key and dispatches the turn.
-- `openrouter.rs`: OpenRouter and OpenAI-compatible streaming/tool-call loop.
-- `anthropic.rs`: native Anthropic Messages API streaming/tool-call loop.
-- `tools.rs`: model tool registry and sandboxed server-side tool execution.
-- `system_prompt.rs`: shared system prompt for all providers.
+- `protocol.rs`: `UserTurn` and `AgentEvent` types (including subagent events).
+- `session_orchestrator.rs`: loads provider settings/key, `note_workspace_change`, dispatches the turn.
+- `openrouter.rs` / `anthropic.rs`: streaming tool-call loops via `tool_dispatch.rs`.
+- `tools.rs`: full tool registry and sandboxed `execute_server_tool`.
+- `system_prompt.rs`: slim shared prompt (checklist + tool name index; docs in core skills).
 
-The frontend submits turns through `agent_submit_turn` and polls `agent_poll_events`. Tool results that need client execution are returned through `agent_submit_tool_result`.
+### Harness extensions
+
+- `harness_skills/*.md`: eleven embedded core skill documents.
+- `tool_groups.rs` / `tool_dispatch.rs`: filtered catalogs for coordinator vs subagents.
+- `environment.rs`, `shell_exec.rs`, `git_agent.rs`, `workspace_agent.rs`: server tools.
+- `web_settings.rs`, `web_tools.rs`, `web_commands.rs`: Tavily/Brave keys and search.
+- `subagents.rs`, `subagent_runner.rs`, `subagent_prompts.rs`: parallel subagent runs — [Subagents](subagents.md).
+
+The frontend submits turns through `agent_submit_turn` and polls `agent_poll_events`. Subagent timeline updates are debounced 50 ms ([Subagents](subagents.md)). Tool results that need client execution are returned through `agent_submit_tool_result`.
 
 Voice-originated turns set `voice_input=true`. After the provider turn finishes, the session orchestrator can synthesize the final assistant text and emit `AgentEvent::VoiceReady` for frontend playback.
 
@@ -150,7 +159,7 @@ flowchart LR
 
 ## Skills And Rules
 
-`src-tauri/src/skills_rules/` implements list/read/write, enable flags in `index.json`, and install staging (`git`, `npm`, local). `skills_rules_bootstrap` runs on workspace open via `workspace_ensure_agents` / layout helpers.
+`src-tauri/src/skills_rules/` implements list/read/write, enable flags in `index.json`, and install staging (`git`, `npm`, local). **Core skills** are embedded via `CORE_SKILLS` in `store.rs` (`SkillSourceKind::Core`) and merged into `skills_list` on every workspace. `skills_rules_bootstrap` runs on workspace open via `workspace_ensure_agents` / layout helpers.
 
 ## Sidebar Explorer And Git Graph
 
