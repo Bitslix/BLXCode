@@ -2741,6 +2741,16 @@ button.workbench-shortcut-row--action:focus-visible {
   border-color: rgba(255, 120, 120, 0.4);
 }
 
+.agent-tool-row__chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0.9rem;
+  height: 0.9rem;
+  color: var(--text-faint, rgba(241, 242, 245, 0.55));
+  flex: 0 0 auto;
+}
+
 .agent-tool-row__sublist {
   list-style: none;
   margin: 0;
@@ -2826,6 +2836,81 @@ button.workbench-shortcut-row--action:focus-visible {
   font-size: 0.62rem;
   color: var(--text-faint, rgba(241, 242, 245, 0.55));
   text-transform: lowercase;
+}
+
+.agent-subagent-card__pulse {
+  display: inline-flex;
+  gap: 0.18rem;
+  align-self: center;
+  margin-left: 0.18rem;
+}
+
+.agent-subagent-card__pulse > span {
+  width: 0.28rem;
+  height: 0.28rem;
+  border-radius: 50%;
+  background: rgba(160, 180, 255, 0.85);
+  animation: agent-subagent-pulse 1.1s ease-in-out infinite;
+}
+
+.agent-subagent-card__pulse > span:nth-child(2) {
+  animation-delay: 0.18s;
+}
+
+.agent-subagent-card__pulse > span:nth-child(3) {
+  animation-delay: 0.36s;
+}
+
+@keyframes agent-subagent-pulse {
+  0%, 80%, 100% { opacity: 0.25; }
+  40% { opacity: 1; }
+}
+
+.agent-subagent-card__thinking {
+  margin: 0.18rem 0 0.24rem 0.9rem;
+  font-size: 0.66rem;
+  color: rgba(160, 180, 255, 0.78);
+}
+
+.agent-subagent-card__thinking summary {
+  cursor: pointer;
+  list-style: none;
+  font-style: italic;
+  color: rgba(160, 180, 255, 0.85);
+}
+
+.agent-subagent-card__thinking summary::-webkit-details-marker {
+  display: none;
+}
+
+.agent-subagent-card__thinking--done summary {
+  color: rgba(241, 242, 245, 0.55);
+}
+
+.agent-subagent-card__thinking-body {
+  margin: 0.18rem 0 0 0;
+  padding: 0.32rem 0.48rem;
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  line-height: 1.45;
+  color: rgba(241, 242, 245, 0.7);
+  background: rgba(140, 170, 255, 0.06);
+  border-left: 2px solid rgba(140, 170, 255, 0.32);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.agent-subagent-card__live-text {
+  margin: 0.18rem 0 0.24rem 0.9rem;
+  padding: 0.28rem 0.46rem;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  line-height: 1.5;
+  color: rgba(241, 242, 245, 0.82);
+  background: rgba(255, 255, 255, 0.025);
+  border-radius: 0.32rem;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .agent-subagent-card__summary-text {

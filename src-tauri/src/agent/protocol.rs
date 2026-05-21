@@ -142,6 +142,20 @@ pub enum AgentEvent {
         #[serde(skip_serializing_if = "Option::is_none")]
         args: Option<serde_json::Value>,
     },
+    /// Streamed assistant text from a subagent's current round. The UI
+    /// appends successive deltas to a per-agent buffer so the operator can
+    /// watch the subagent's reasoning in real time.
+    #[serde(rename = "subagent_assistant_delta")]
+    SubagentAssistantDelta { agent_id: String, delta: String },
+    /// Streamed reasoning text from a subagent (provider's "thinking" /
+    /// "reasoning" channel). Treated the same as `AssistantDelta` but kept
+    /// separate so the UI can style it as collapsed thinking.
+    #[serde(rename = "subagent_thinking_delta")]
+    SubagentThinkingDelta { agent_id: String, delta: String },
+    /// Marks the end of a thinking burst so the UI can collapse the
+    /// thinking block once the subagent moves on to tool calls or text.
+    #[serde(rename = "subagent_thinking_done")]
+    SubagentThinkingDone { agent_id: String },
     #[serde(rename = "subagent_finished")]
     SubagentFinished {
         agent_id: String,

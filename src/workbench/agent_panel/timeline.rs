@@ -183,6 +183,9 @@ pub fn apply_agent_event(
                     summary: String::new(),
                     steps: Vec::new(),
                     tools: Vec::new(),
+                    live_text: String::new(),
+                    live_thinking: String::new(),
+                    thinking_done: false,
                 };
                 if let Some(TimelineItem::SubagentGroup(group)) = rows.last_mut() {
                     group.agents.push(card);
@@ -232,6 +235,31 @@ pub fn apply_agent_event(
             });
             persist_agent_timeline(persist, timeline);
         }
+        AgentEvent::SubagentAssistantDelta { agent_id, delta } => {
+            timeline.update(|rows| {
+                if let Some(card) = find_subagent_card_mut(rows, agent_id) {
+                    card.live_text.push_str(delta);
+                }
+            });
+            persist_agent_timeline(persist, timeline);
+        }
+        AgentEvent::SubagentThinkingDelta { agent_id, delta } => {
+            timeline.update(|rows| {
+                if let Some(card) = find_subagent_card_mut(rows, agent_id) {
+                    card.live_thinking.push_str(delta);
+                    card.thinking_done = false;
+                }
+            });
+            persist_agent_timeline(persist, timeline);
+        }
+        AgentEvent::SubagentThinkingDone { agent_id } => {
+            timeline.update(|rows| {
+                if let Some(card) = find_subagent_card_mut(rows, agent_id) {
+                    card.thinking_done = true;
+                }
+            });
+            persist_agent_timeline(persist, timeline);
+        }
         AgentEvent::SubagentFinished {
             agent_id,
             status,
@@ -241,6 +269,12 @@ pub fn apply_agent_event(
                 if let Some(card) = find_subagent_card_mut(rows, agent_id) {
                     card.status = status.clone();
                     card.summary = summary.clone();
+                    // Drop live buffers once the subagent finishes — `summary`
+                    // is now the authoritative output. Keeping the buffers
+                    // would double-render the same text in the card.
+                    card.live_text.clear();
+                    card.live_thinking.clear();
+                    card.thinking_done = true;
                 }
             });
             persist_agent_timeline(persist, timeline);
@@ -561,12 +595,37 @@ pub fn TimelineRow(
                                 card.display_name.clone()
                             };
                             let summary = card.summary.clone();
+                            let live_text = card.live_text.clone();
+                            let live_thinking = card.live_thinking.clone();
+                            let thinking_done = card.thinking_done;
+                            let is_running = status_raw == "running";
                             view! {
                                 <details class="agent-subagent-card" open>
                                     <summary class="agent-subagent-card__summary">
                                         <span class="agent-subagent-card__name">{name}</span>
                                         <span class="agent-subagent-card__status">{status}</span>
+                                        <Show when=move || is_running>
+                                            <span class="agent-subagent-card__pulse" aria-hidden="true">
+                                                <span></span><span></span><span></span>
+                                            </span>
+                                        </Show>
                                     </summary>
+                                    {(!live_thinking.is_empty()).then(|| {
+                                        let class = if thinking_done {
+                                            "agent-subagent-card__thinking agent-subagent-card__thinking--done"
+                                        } else {
+                                            "agent-subagent-card__thinking"
+                                        };
+                                        view! {
+                                            <details class=class>
+                                                <summary>"Thinking"{(!thinking_done).then(|| "…")}</summary>
+                                                <pre class="agent-subagent-card__thinking-body">{live_thinking}</pre>
+                                            </details>
+                                        }
+                                    })}
+                                    {(!live_text.is_empty()).then(|| view! {
+                                        <pre class="agent-subagent-card__live-text">{live_text}</pre>
+                                    })}
                                     {(!summary.is_empty()).then(|| view! {
                                         <p class="agent-subagent-card__summary-text">{summary}</p>
                                     })}
@@ -904,6 +963,15 @@ fn ToolActivityRow(idx: usize, run: Vec<ToolActivity>) -> impl IntoView {
                 </span>
                 <span class="agent-tool-row__label">{label}</span>
                 <span class="agent-tool-row__count" aria-label=format!("{count} calls")>{count_badge}</span>
+                <Show when=move || expandable>
+                    <span class="agent-tool-row__chevron" aria-hidden="true">
+                        {move || if open.get() {
+                            view! { <LxIcon icon=icondata::LuChevronUp width="0.72rem" height="0.72rem" /> }
+                        } else {
+                            view! { <LxIcon icon=icondata::LuChevronDown width="0.72rem" height="0.72rem" /> }
+                        }}
+                    </span>
+                </Show>
                 <span class="agent-tool-row__status" aria-hidden="true">
                     <LxIcon icon=status_icon width="0.78rem" height="0.78rem" />
                 </span>

@@ -5,14 +5,16 @@ use crate::agent::openrouter::Endpoint;
 use crate::agent::protocol::AgentEvent;
 use crate::agent::state::AgentEngineState;
 use crate::agent::subagent_prompts::{self, SubagentRole, truncate_submit_result};
-use crate::agent::tool_groups::ToolGroup;
+use crate::agent::tool_groups::{openai_tool_name_to_internal, ToolGroup};
 use crate::agent::tools::{self, WorkspaceRootGuard};
 use crate::agent::tool_dispatch::DispatchContext;
 use crate::agent_settings::AgentProviderKind;
+use futures_util::TryStreamExt;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::io::AsyncBufReadExt;
 
 const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
@@ -35,72 +37,75 @@ impl SubagentProvider {
     }
 }
 
-#[derive(Debug, Deserialize)]
-struct OpenAiCompletion {
-    choices: Vec<OpenAiChoice>,
+/// Streaming SSE chunk shape used by OpenAI-compatible providers
+/// (OpenRouter, OpenAI, Azure-routed). We only model the subset we need:
+/// per-choice `delta.content` text, `delta.tool_calls` partials, and the
+/// `reasoning` / `reasoning_content` channels used by some providers when
+/// extended thinking is enabled.
+#[derive(Deserialize, Default)]
+struct OpenAiStreamChunk {
+    #[serde(default)]
+    choices: Vec<OpenAiStreamChoice>,
     #[serde(default)]
     usage: Option<OpenAiUsage>,
 }
 
-#[derive(Debug, Deserialize)]
-struct OpenAiChoice {
-    message: OpenAiMessage,
+#[derive(Deserialize, Default)]
+struct OpenAiStreamChoice {
+    #[serde(default)]
+    delta: OpenAiStreamDelta,
+    #[serde(default)]
+    finish_reason: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-struct OpenAiMessage {
+#[derive(Deserialize, Default)]
+struct OpenAiStreamDelta {
     #[serde(default)]
     content: Option<String>,
     #[serde(default)]
-    tool_calls: Vec<OpenAiToolCall>,
+    tool_calls: Vec<OpenAiDeltaToolCall>,
+    #[serde(default)]
+    reasoning: Option<String>,
+    #[serde(default)]
+    reasoning_content: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-struct OpenAiToolCall {
-    id: String,
-    function: OpenAiFn,
+#[derive(Deserialize, Default)]
+struct OpenAiDeltaToolCall {
+    #[serde(default)]
+    index: u32,
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(default)]
+    function: OpenAiDeltaFn,
 }
 
-#[derive(Debug, Deserialize)]
-struct OpenAiFn {
-    name: String,
-    arguments: String,
+#[derive(Deserialize, Default)]
+struct OpenAiDeltaFn {
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    arguments: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default)]
 struct OpenAiUsage {
     #[serde(default)]
     completion_tokens: Option<u64>,
 }
 
-#[derive(Debug, Deserialize)]
-struct AnthropicMessage {
-    #[serde(default)]
-    content: Vec<AnthropicBlock>,
-    #[serde(default)]
-    stop_reason: Option<String>,
-    #[serde(default)]
-    usage: Option<AnthropicUsage>,
+#[derive(Default)]
+struct OpenAiRoundResult {
+    text: String,
+    tool_calls: Vec<OpenAiAggregatedCall>,
+    completion_tokens: Option<u64>,
 }
 
-#[derive(Debug, Deserialize)]
-struct AnthropicUsage {
-    #[serde(default)]
-    output_tokens: Option<u64>,
-}
-
-#[derive(Debug, Deserialize)]
-struct AnthropicBlock {
-    #[serde(rename = "type")]
-    kind: String,
-    #[serde(default)]
-    text: Option<String>,
-    #[serde(default)]
-    id: Option<String>,
-    #[serde(default)]
-    name: Option<String>,
-    #[serde(default)]
-    input: Option<Value>,
+#[derive(Default, Clone, Debug)]
+struct OpenAiAggregatedCall {
+    id: String,
+    name: String,
+    arguments: String,
 }
 
 pub async fn run_one_subagent(
@@ -168,49 +173,24 @@ pub async fn run_one_subagent(
                     "model": ctx.settings.model_id,
                     "messages": messages,
                     "tools": tools_openai,
-                    "stream": false,
+                    "stream": true,
                 });
-                let mut req = client
-                    .post(endpoint.url())
-                    .bearer_auth(&ctx.api_key)
-                    .header("Content-Type", "application/json");
-                if matches!(endpoint, Endpoint::Openrouter) {
-                    req = req
-                        .header("HTTP-Referer", "https://bitslix.com/blxcode")
-                        .header("X-Title", "blxcode");
-                }
-                let text = match req.json(&body).send().await.and_then(|r| r.error_for_status()) {
-                    Ok(r) => match r.text().await {
-                        Ok(t) => t,
-                        Err(e) => {
-                            let result = blocked_result(role, display_name, &format!("read body: {e}"));
-                            finish_subagent(state, agent_id, &result);
-                            return result;
-                        }
-                    },
+                let round = match stream_openai_subagent_round(
+                    state, &client, endpoint, &ctx.api_key, &body, agent_id,
+                )
+                .await
+                {
+                    Ok(r) => r,
                     Err(e) => {
-                        let result = blocked_result(role, display_name, &format!("request failed: {e}"));
+                        let result = blocked_result(role, display_name, &format!("stream: {e}"));
                         finish_subagent(state, agent_id, &result);
                         return result;
                     }
                 };
-                let parsed: OpenAiCompletion = match serde_json::from_str(&text) {
-                    Ok(p) => p,
-                    Err(e) => {
-                        let result = blocked_result(role, display_name, &format!("parse response: {e}"));
-                        finish_subagent(state, agent_id, &result);
-                        return result;
-                    }
-                };
-                let Some(choice) = parsed.choices.into_iter().next() else {
-                    let result = blocked_result(role, display_name, "empty choices");
-                    finish_subagent(state, agent_id, &result);
-                    return result;
-                };
-                if let Some(u) = parsed.usage.and_then(|u| u.completion_tokens) {
+                if let Some(u) = round.completion_tokens {
                     output_estimate = output_estimate.saturating_add(u as usize);
-                } else if let Some(c) = &choice.message.content {
-                    output_estimate += c.len().div_ceil(4);
+                } else {
+                    output_estimate += round.text.len().div_ceil(4);
                 }
                 if output_estimate > MAX_OUTPUT_TOKENS_ESTIMATE {
                     let result = blocked_result(role, display_name, "output token cap reached");
@@ -218,34 +198,39 @@ pub async fn run_one_subagent(
                     return result;
                 }
                 let mut assistant = json!({ "role": "assistant" });
-                if let Some(c) = &choice.message.content {
-                    assistant["content"] = Value::String(c.clone());
+                if !round.text.is_empty() {
+                    assistant["content"] = Value::String(round.text.clone());
                 }
-                if !choice.message.tool_calls.is_empty() {
+                if !round.tool_calls.is_empty() {
                     assistant["tool_calls"] = Value::Array(
-                        choice.message.tool_calls.iter().map(|tc| {
+                        round.tool_calls.iter().map(|tc| {
                             json!({
                                 "id": tc.id,
                                 "type": "function",
                                 "function": {
-                                    "name": tc.function.name,
-                                    "arguments": tc.function.arguments,
+                                    "name": tc.name,
+                                    "arguments": if tc.arguments.is_empty() {
+                                        "{}".to_string()
+                                    } else {
+                                        tc.arguments.clone()
+                                    },
                                 }
                             })
                         }).collect(),
                     );
                 }
                 messages.push(assistant);
-                if choice.message.tool_calls.is_empty() {
+                if round.tool_calls.is_empty() {
                     break;
                 }
-                for tc in choice.message.tool_calls {
+                for tc in round.tool_calls {
+                    let internal_name = openai_tool_name_to_internal(&tc.name);
                     if handle_tool_call(
                         state,
                         agent_id,
                         &tc.id,
-                        &tc.function.name,
-                        &tc.function.arguments,
+                        &internal_name,
+                        &tc.arguments,
                         groups,
                         root_guard.as_ref(),
                         &mut final_submit,
@@ -258,8 +243,8 @@ pub async fn run_one_subagent(
                         break;
                     }
                     let args: Value =
-                        serde_json::from_str(&tc.function.arguments).unwrap_or(json!({}));
-                    let outcome = execute_subagent_tool(&tc.function.name, &args, groups, root_guard.as_ref());
+                        serde_json::from_str(&tc.arguments).unwrap_or(json!({}));
+                    let outcome = execute_subagent_tool(&internal_name, &args, groups, root_guard.as_ref());
                     messages.push(json!({
                         "role": "tool",
                         "tool_call_id": tc.id,
@@ -290,87 +275,38 @@ pub async fn run_one_subagent(
                     "system": system,
                     "messages": messages,
                     "tools": tools_anthropic,
+                    "stream": true,
                 });
-                let resp = client
-                    .post(ANTHROPIC_URL)
-                    .header("x-api-key", &ctx.api_key)
-                    .header("anthropic-version", ANTHROPIC_VERSION)
-                    .header("Content-Type", "application/json")
-                    .json(&body)
-                    .send()
-                    .await;
-                let text = match resp.and_then(|r| r.error_for_status()) {
-                    Ok(r) => match r.text().await {
-                        Ok(t) => t,
-                        Err(e) => {
-                            let result = blocked_result(role, display_name, &format!("read body: {e}"));
-                            finish_subagent(state, agent_id, &result);
-                            return result;
-                        }
-                    },
+                let round = match stream_anthropic_subagent_round(
+                    state, &client, &ctx.api_key, &body, agent_id,
+                )
+                .await
+                {
+                    Ok(r) => r,
                     Err(e) => {
-                        let result = blocked_result(role, display_name, &format!("request failed: {e}"));
+                        let result = blocked_result(role, display_name, &format!("stream: {e}"));
                         finish_subagent(state, agent_id, &result);
                         return result;
                     }
                 };
-                let parsed: AnthropicMessage = match serde_json::from_str(&text) {
-                    Ok(p) => p,
-                    Err(e) => {
-                        let result = blocked_result(role, display_name, &format!("parse response: {e}"));
-                        finish_subagent(state, agent_id, &result);
-                        return result;
-                    }
-                };
-                if let Some(u) = parsed.usage.and_then(|u| u.output_tokens) {
+                if let Some(u) = round.output_tokens {
                     output_estimate = output_estimate.saturating_add(u as usize);
+                } else {
+                    output_estimate += round.text.len().div_ceil(4);
                 }
                 if output_estimate > MAX_OUTPUT_TOKENS_ESTIMATE {
                     let result = blocked_result(role, display_name, "output token cap reached");
                     finish_subagent(state, agent_id, &result);
                     return result;
                 }
-                let mut tool_uses: Vec<(String, String, String)> = Vec::new();
-                let mut assistant_blocks: Vec<Value> = Vec::new();
-                for block in &parsed.content {
-                    match block.kind.as_str() {
-                        "text" => {
-                            if let Some(t) = &block.text {
-                                assistant_blocks.push(json!({ "type": "text", "text": t }));
-                                output_estimate += t.len().div_ceil(4);
-                            }
-                        }
-                        "tool_use" => {
-                            let id = block.id.clone().unwrap_or_default();
-                            let name = block
-                                .name
-                                .as_ref()
-                                .map(|n| from_anthropic_name(n))
-                                .unwrap_or_default();
-                            let args = block
-                                .input
-                                .clone()
-                                .map(|v| v.to_string())
-                                .unwrap_or_else(|| "{}".into());
-                            tool_uses.push((id.clone(), name.clone(), args.clone()));
-                            assistant_blocks.push(json!({
-                                "type": "tool_use",
-                                "id": id,
-                                "name": to_anthropic_name(&name),
-                                "input": block.input.clone().unwrap_or(json!({})),
-                            }));
-                        }
-                        _ => {}
-                    }
+                if !round.assistant_blocks.is_empty() {
+                    messages.push(json!({ "role": "assistant", "content": round.assistant_blocks }));
                 }
-                if !assistant_blocks.is_empty() {
-                    messages.push(json!({ "role": "assistant", "content": assistant_blocks }));
-                }
-                if tool_uses.is_empty() {
+                if round.tool_uses.is_empty() {
                     break;
                 }
                 let mut result_blocks: Vec<Value> = Vec::new();
-                for (id, name, args_str) in tool_uses {
+                for (id, name, args_str) in round.tool_uses {
                     if handle_tool_call(
                         state,
                         agent_id,
@@ -401,7 +337,7 @@ pub async fn run_one_subagent(
                 if final_submit.is_some() {
                     break;
                 }
-                if parsed.stop_reason.as_deref() == Some("end_turn") {
+                if round.stop_reason.as_deref() == Some("end_turn") {
                     break;
                 }
             }
@@ -502,4 +438,449 @@ fn blocked_result(role: SubagentRole, display_name: &str, summary: &str) -> Valu
         "artifacts": [],
         "recommendedNextActions": [],
     })
+}
+
+/// Anthropic Messages-API SSE event shapes. Only the subset we need to drive
+/// per-agent deltas + reconstruct the assistant message blocks for the next
+/// round of the loop.
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum AnthroStreamEvent {
+    ContentBlockStart {
+        index: u32,
+        content_block: AnthroBlockStart,
+    },
+    ContentBlockDelta {
+        index: u32,
+        delta: AnthroBlockDelta,
+    },
+    #[allow(dead_code)]
+    ContentBlockStop {
+        index: u32,
+    },
+    MessageDelta {
+        delta: AnthroMessageDeltaInner,
+        #[serde(default)]
+        usage: Option<AnthroStreamUsage>,
+    },
+    #[serde(other)]
+    Other,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum AnthroBlockStart {
+    Text {
+        #[serde(default)]
+        #[allow(dead_code)]
+        text: String,
+    },
+    Thinking {
+        #[serde(default)]
+        #[allow(dead_code)]
+        thinking: String,
+    },
+    ToolUse {
+        id: String,
+        name: String,
+    },
+    #[serde(other)]
+    Other,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum AnthroBlockDelta {
+    TextDelta {
+        text: String,
+    },
+    ThinkingDelta {
+        thinking: String,
+    },
+    #[allow(dead_code)]
+    SignatureDelta {
+        signature: String,
+    },
+    InputJsonDelta {
+        partial_json: String,
+    },
+    #[serde(other)]
+    Other,
+}
+
+#[derive(Deserialize, Default)]
+struct AnthroMessageDeltaInner {
+    #[serde(default)]
+    stop_reason: Option<String>,
+}
+
+#[derive(Deserialize, Default)]
+struct AnthroStreamUsage {
+    #[serde(default)]
+    output_tokens: Option<u64>,
+}
+
+#[derive(Default)]
+struct AnthroBlockState {
+    kind: AnthroBlockKind,
+    text: String,
+    tool_id: String,
+    tool_name: String,
+    tool_args: String,
+}
+
+#[derive(Default, PartialEq, Eq)]
+enum AnthroBlockKind {
+    #[default]
+    Unknown,
+    Text,
+    Thinking,
+    Tool,
+}
+
+#[derive(Default)]
+struct AnthropicRoundResult {
+    text: String,
+    assistant_blocks: Vec<Value>,
+    tool_uses: Vec<(String, String, String)>,
+    stop_reason: Option<String>,
+    output_tokens: Option<u64>,
+}
+
+async fn stream_anthropic_subagent_round(
+    state: &Arc<AgentEngineState>,
+    client: &reqwest::Client,
+    api_key: &str,
+    body: &Value,
+    agent_id: &str,
+) -> Result<AnthropicRoundResult, String> {
+    let resp = client
+        .post(ANTHROPIC_URL)
+        .header("x-api-key", api_key)
+        .header("anthropic-version", ANTHROPIC_VERSION)
+        .header("accept", "text/event-stream")
+        .header("content-type", "application/json")
+        .json(body)
+        .send()
+        .await
+        .map_err(|e| format!("request: {e}"))?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let snippet = resp
+            .text()
+            .await
+            .unwrap_or_else(|e| format!("(body read failed: {e})"));
+        let trimmed = if snippet.len() > 400 {
+            format!("{}…", &snippet[..400])
+        } else {
+            snippet
+        };
+        return Err(format!("HTTP {status}: {trimmed}"));
+    }
+
+    let stream = resp.bytes_stream();
+    let reader = tokio_util::io::StreamReader::new(
+        stream.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string())),
+    );
+    let mut lines = tokio::io::BufReader::new(reader).lines();
+
+    let mut acc = AnthropicRoundResult::default();
+    let mut blocks: Vec<AnthroBlockState> = Vec::new();
+    let mut thinking_active = false;
+    let mut thinking_closed = false;
+
+    loop {
+        if state.cancelled() {
+            return Err("cancelled".into());
+        }
+        let line = match lines
+            .next_line()
+            .await
+            .map_err(|e| format!("stream read: {e}"))?
+        {
+            Some(l) => l,
+            None => break,
+        };
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let Some(payload) = trimmed.strip_prefix("data:") else {
+            continue;
+        };
+        let payload = payload.trim();
+        if payload == "[DONE]" {
+            break;
+        }
+        let event: AnthroStreamEvent = match serde_json::from_str(payload) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        match event {
+            AnthroStreamEvent::ContentBlockStart {
+                index,
+                content_block,
+            } => {
+                let idx = index as usize;
+                while blocks.len() <= idx {
+                    blocks.push(AnthroBlockState::default());
+                }
+                let slot = &mut blocks[idx];
+                match content_block {
+                    AnthroBlockStart::Text { .. } => slot.kind = AnthroBlockKind::Text,
+                    AnthroBlockStart::Thinking { .. } => {
+                        slot.kind = AnthroBlockKind::Thinking;
+                        thinking_active = true;
+                    }
+                    AnthroBlockStart::ToolUse { id, name } => {
+                        slot.kind = AnthroBlockKind::Tool;
+                        slot.tool_id = id;
+                        slot.tool_name = from_anthropic_name(&name);
+                        if thinking_active && !thinking_closed {
+                            thinking_closed = true;
+                            state.push(AgentEvent::SubagentThinkingDone {
+                                agent_id: agent_id.to_owned(),
+                            });
+                        }
+                    }
+                    AnthroBlockStart::Other => {}
+                }
+            }
+            AnthroStreamEvent::ContentBlockDelta { index, delta } => {
+                let idx = index as usize;
+                if idx >= blocks.len() {
+                    continue;
+                }
+                let slot = &mut blocks[idx];
+                match delta {
+                    AnthroBlockDelta::TextDelta { text } => {
+                        if !text.is_empty() {
+                            if thinking_active && !thinking_closed {
+                                thinking_closed = true;
+                                state.push(AgentEvent::SubagentThinkingDone {
+                                    agent_id: agent_id.to_owned(),
+                                });
+                            }
+                            state.push(AgentEvent::SubagentAssistantDelta {
+                                agent_id: agent_id.to_owned(),
+                                delta: text.clone(),
+                            });
+                            slot.text.push_str(&text);
+                            acc.text.push_str(&text);
+                        }
+                    }
+                    AnthroBlockDelta::ThinkingDelta { thinking } => {
+                        if !thinking.is_empty() {
+                            state.push(AgentEvent::SubagentThinkingDelta {
+                                agent_id: agent_id.to_owned(),
+                                delta: thinking,
+                            });
+                        }
+                    }
+                    AnthroBlockDelta::SignatureDelta { .. } => {}
+                    AnthroBlockDelta::InputJsonDelta { partial_json } => {
+                        slot.tool_args.push_str(&partial_json);
+                    }
+                    AnthroBlockDelta::Other => {}
+                }
+            }
+            AnthroStreamEvent::ContentBlockStop { .. } => {}
+            AnthroStreamEvent::MessageDelta { delta, usage } => {
+                if let Some(reason) = delta.stop_reason {
+                    acc.stop_reason = Some(reason);
+                }
+                if let Some(u) = usage.and_then(|u| u.output_tokens) {
+                    acc.output_tokens = Some(u);
+                }
+            }
+            AnthroStreamEvent::Other => {}
+        }
+    }
+
+    if thinking_active && !thinking_closed {
+        state.push(AgentEvent::SubagentThinkingDone {
+            agent_id: agent_id.to_owned(),
+        });
+    }
+
+    for slot in blocks {
+        match slot.kind {
+            AnthroBlockKind::Text => {
+                if !slot.text.is_empty() {
+                    acc.assistant_blocks
+                        .push(json!({ "type": "text", "text": slot.text }));
+                }
+            }
+            AnthroBlockKind::Tool => {
+                let input: Value = if slot.tool_args.trim().is_empty() {
+                    json!({})
+                } else {
+                    serde_json::from_str(&slot.tool_args).unwrap_or(json!({}))
+                };
+                acc.assistant_blocks.push(json!({
+                    "type": "tool_use",
+                    "id": slot.tool_id,
+                    "name": to_anthropic_name(&slot.tool_name),
+                    "input": input.clone(),
+                }));
+                let args_str = if slot.tool_args.trim().is_empty() {
+                    "{}".to_string()
+                } else {
+                    slot.tool_args
+                };
+                acc.tool_uses.push((slot.tool_id, slot.tool_name, args_str));
+            }
+            AnthroBlockKind::Thinking | AnthroBlockKind::Unknown => {
+                // Thinking blocks must be echoed back in some Anthropic flows,
+                // but the subagent loop never needs to replay them — discard.
+            }
+        }
+    }
+
+    Ok(acc)
+}
+
+/// Stream one OpenAI-compatible chat-completion round and emit per-agent
+/// `SubagentAssistantDelta` / `SubagentThinkingDelta` events as the bytes
+/// arrive. Returns the aggregated text + tool calls so the caller can
+/// replay them into the next round of the conversation.
+async fn stream_openai_subagent_round(
+    state: &Arc<AgentEngineState>,
+    client: &reqwest::Client,
+    endpoint: Endpoint,
+    api_key: &str,
+    body: &Value,
+    agent_id: &str,
+) -> Result<OpenAiRoundResult, String> {
+    let mut req = client
+        .post(endpoint.url())
+        .bearer_auth(api_key)
+        .header("Accept", "text/event-stream")
+        .header("Content-Type", "application/json");
+    if matches!(endpoint, Endpoint::Openrouter) {
+        req = req
+            .header("HTTP-Referer", "https://bitslix.com/blxcode")
+            .header("X-Title", "blxcode");
+    }
+    let resp = req
+        .json(body)
+        .send()
+        .await
+        .map_err(|e| format!("request: {e}"))?;
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let snippet = resp
+            .text()
+            .await
+            .unwrap_or_else(|e| format!("(body read failed: {e})"));
+        let trimmed = if snippet.len() > 400 {
+            format!("{}…", &snippet[..400])
+        } else {
+            snippet
+        };
+        return Err(format!("HTTP {status}: {trimmed}"));
+    }
+
+    let stream = resp.bytes_stream();
+    let reader = tokio_util::io::StreamReader::new(
+        stream.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string())),
+    );
+    let mut lines = tokio::io::BufReader::new(reader).lines();
+
+    let mut acc = OpenAiRoundResult::default();
+    let mut tool_by_index: Vec<OpenAiAggregatedCall> = Vec::new();
+    let mut thinking_active = false;
+    let mut thinking_closed = false;
+
+    loop {
+        if state.cancelled() {
+            return Err("cancelled".into());
+        }
+        let line = match lines
+            .next_line()
+            .await
+            .map_err(|e| format!("stream read: {e}"))?
+        {
+            Some(l) => l,
+            None => break,
+        };
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let Some(payload) = trimmed.strip_prefix("data:") else {
+            continue;
+        };
+        let payload = payload.trim();
+        if payload == "[DONE]" {
+            break;
+        }
+        let chunk: OpenAiStreamChunk = match serde_json::from_str(payload) {
+            Ok(c) => c,
+            Err(_) => continue,
+        };
+        if let Some(u) = chunk.usage.and_then(|u| u.completion_tokens) {
+            acc.completion_tokens = Some(u);
+        }
+        for choice in chunk.choices {
+            let reasoning_chunk = choice.delta.reasoning.or(choice.delta.reasoning_content);
+            if let Some(reasoning) = reasoning_chunk {
+                if !reasoning.is_empty() {
+                    thinking_active = true;
+                    state.push(AgentEvent::SubagentThinkingDelta {
+                        agent_id: agent_id.to_owned(),
+                        delta: reasoning,
+                    });
+                }
+            }
+            if let Some(text) = choice.delta.content {
+                if !text.is_empty() {
+                    if thinking_active && !thinking_closed {
+                        thinking_closed = true;
+                        state.push(AgentEvent::SubagentThinkingDone {
+                            agent_id: agent_id.to_owned(),
+                        });
+                    }
+                    state.push(AgentEvent::SubagentAssistantDelta {
+                        agent_id: agent_id.to_owned(),
+                        delta: text.clone(),
+                    });
+                    acc.text.push_str(&text);
+                }
+            }
+            for tc in choice.delta.tool_calls {
+                let idx = tc.index as usize;
+                while tool_by_index.len() <= idx {
+                    tool_by_index.push(OpenAiAggregatedCall::default());
+                }
+                let slot = &mut tool_by_index[idx];
+                if let Some(id) = tc.id {
+                    if !id.is_empty() {
+                        slot.id = id;
+                    }
+                }
+                if let Some(name) = tc.function.name {
+                    if !name.is_empty() {
+                        slot.name = name;
+                    }
+                }
+                if let Some(args) = tc.function.arguments {
+                    slot.arguments.push_str(&args);
+                }
+            }
+            let _ = choice.finish_reason;
+        }
+    }
+
+    if thinking_active && !thinking_closed {
+        state.push(AgentEvent::SubagentThinkingDone {
+            agent_id: agent_id.to_owned(),
+        });
+    }
+
+    acc.tool_calls = tool_by_index
+        .into_iter()
+        .filter(|c| !c.name.is_empty())
+        .collect();
+    Ok(acc)
 }

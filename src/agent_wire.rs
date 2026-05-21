@@ -162,6 +162,12 @@ pub enum AgentEvent {
         #[serde(default)]
         args: Option<Value>,
     },
+    #[serde(rename = "subagent_assistant_delta")]
+    SubagentAssistantDelta { agent_id: String, delta: String },
+    #[serde(rename = "subagent_thinking_delta")]
+    SubagentThinkingDelta { agent_id: String, delta: String },
+    #[serde(rename = "subagent_thinking_done")]
+    SubagentThinkingDone { agent_id: String },
     #[serde(rename = "subagent_finished")]
     SubagentFinished {
         agent_id: String,

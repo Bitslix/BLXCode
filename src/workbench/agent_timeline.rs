@@ -146,6 +146,18 @@ pub struct SubagentCard {
     pub steps: Vec<SubagentStepRow>,
     #[serde(default)]
     pub tools: Vec<ToolActivity>,
+    /// Live assistant text streamed from the subagent. Cleared when the
+    /// subagent finishes and the `summary` takes over.
+    #[serde(default)]
+    pub live_text: String,
+    /// Live reasoning text streamed from the subagent. Rendered as a
+    /// collapsed "thinking" block.
+    #[serde(default)]
+    pub live_thinking: String,
+    /// When true, the model's current thinking burst is complete and the
+    /// thinking block can be collapsed in the UI.
+    #[serde(default)]
+    pub thinking_done: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
