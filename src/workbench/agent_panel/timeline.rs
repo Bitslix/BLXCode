@@ -163,6 +163,78 @@ fn find_subagent_card_mut<'a>(
     })
 }
 
+/// Attach `ModelRound` metrics from the main agent to the right timeline
+/// row. Walks backwards from the tail:
+///
+/// - If the last row is `Assistant` → merge metrics there (the model
+///   produced visible text this round).
+/// - Else if the tail is a contiguous run of `Tool` rows (a tool-only
+///   round) → insert a synthetic `ModelDecision { metrics }` just before
+///   the first tool of that run.
+/// - Else (nothing visible at all) → append a `ModelDecision` row at the
+///   end so the metric still surfaces.
+fn attach_main_model_round(rows: &mut Vec<TimelineItem>, metrics: TurnMetrics) {
+    if metrics.is_empty() {
+        return;
+    }
+    // Last row is the assistant block this round produced — merge there.
+    if let Some(TimelineItem::Assistant { metrics: m, .. }) = rows.last_mut() {
+        m.merge(&metrics);
+        return;
+    }
+    // Walk back over a trailing run of Tool rows to find where the
+    // tool-only round started.
+    let mut insert_at = rows.len();
+    while insert_at > 0 {
+        match &rows[insert_at - 1] {
+            TimelineItem::Tool(_) => insert_at -= 1,
+            _ => break,
+        }
+    }
+    if insert_at < rows.len() {
+        rows.insert(insert_at, TimelineItem::ModelDecision { metrics });
+    } else {
+        rows.push(TimelineItem::ModelDecision { metrics });
+    }
+}
+
+/// Attach `ToolExec` metrics for a main-agent tool. Walks backwards for
+/// the matching `call_id` (the typical match is the most recent row).
+fn attach_main_tool_exec(rows: &mut [TimelineItem], call_id: &str, metrics: TurnMetrics) {
+    if metrics.is_empty() {
+        return;
+    }
+    for row in rows.iter_mut().rev() {
+        if let TimelineItem::Tool(tool) = row {
+            if tool.call_id.as_deref() == Some(call_id) {
+                tool.metrics.merge(&metrics);
+                return;
+            }
+        }
+    }
+}
+
+/// Attach `ToolExec` metrics for a subagent tool, scoped to the matching
+/// `(agent_id, call_id)`.
+fn attach_subagent_tool_exec(
+    rows: &mut [TimelineItem],
+    agent_id: &str,
+    call_id: &str,
+    metrics: TurnMetrics,
+) {
+    if metrics.is_empty() {
+        return;
+    }
+    if let Some(card) = find_subagent_card_mut(rows, agent_id) {
+        for tool in card.tools.iter_mut().rev() {
+            if tool.call_id.as_deref() == Some(call_id) {
+                tool.metrics.merge(&metrics);
+                return;
+            }
+        }
+    }
+}
+
 pub fn apply_agent_event(
     ev: &AgentEvent,
     timeline: RwSignal<Vec<TimelineItem>>,
@@ -350,31 +422,65 @@ pub fn apply_agent_event(
             persist_agent_timeline(persist, timeline);
         }
         AgentEvent::TurnUsage {
-            kind: _,
-            agent_id: _,
-            call_id: _,
+            kind,
+            agent_id,
+            call_id,
             round_index: _,
             turn_generation,
             input_tokens,
             output_tokens,
-            ttft_ms: _,
+            ttft_ms,
             elapsed_ms,
             cost_usd,
         } => {
-            // Per-row routing (Assistant / Tool / ModelDecision / Subagent)
-            // lives in the `frontend-apply` task. For now just update the
-            // session-wide aggregate so the existing footer / future chat
-            // header stays in sync.
-            if let Some((wb, workspace_id)) = persist.clone() {
-                wb.record_chat_turn_usage(
-                    workspace_id,
+            // 1) Update the workspace-level session aggregate first. If
+            //    the event is stale (lower generation than the workspace's
+            //    high-water-mark) `record_chat_turn_usage` drops it and we
+            //    also skip the per-row routing below.
+            let applied = match persist.as_ref() {
+                Some((wb, workspace_id)) => wb.record_chat_turn_usage(
+                    *workspace_id,
                     *turn_generation,
                     *input_tokens,
                     *output_tokens,
                     *elapsed_ms,
                     *cost_usd,
-                );
+                ),
+                None => true,
+            };
+            if !applied {
+                return;
             }
+
+            let metrics = TurnMetrics {
+                input_tokens: *input_tokens,
+                output_tokens: *output_tokens,
+                ttft_ms: *ttft_ms,
+                elapsed_ms: *elapsed_ms,
+                cost_usd: *cost_usd,
+            };
+
+            // 2) Per-row routing — the 4 cases from the plan.
+            timeline.update(|rows| match (*kind, agent_id.as_deref(), call_id.as_deref()) {
+                (TurnUsageKind::ToolExec, None, Some(call_id)) => {
+                    attach_main_tool_exec(rows, call_id, metrics);
+                }
+                (TurnUsageKind::ToolExec, Some(agent_id), Some(call_id)) => {
+                    attach_subagent_tool_exec(rows, agent_id, call_id, metrics);
+                }
+                (TurnUsageKind::ModelRound, None, _) => {
+                    attach_main_model_round(rows, metrics);
+                }
+                (TurnUsageKind::ModelRound, Some(agent_id), _) => {
+                    if let Some(card) = find_subagent_card_mut(rows, agent_id) {
+                        card.metrics.merge(&metrics);
+                    }
+                }
+                // ToolExec without a call_id is malformed — nothing to
+                // route to, the session aggregate above still counted it.
+                (TurnUsageKind::ToolExec, _, None) => {}
+            });
+            persist_agent_timeline(persist, timeline);
         }
         AgentEvent::SubagentAssistantDelta { agent_id, delta } => {
             timeline.update(|rows| {
