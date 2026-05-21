@@ -154,6 +154,12 @@ pub async fn run_one_subagent(
     let mut output_estimate = 0usize;
     let mut iterations = 0u32;
     let mut final_submit: Option<Value> = None;
+    // Names of all non-`submit_result` tool calls the subagent has actually
+    // made in this run. Used by `validate_submit` to detect "blocked without
+    // trying", where a model returns `status:"blocked"` claiming missing
+    // workspace tools without ever calling `list_workspace_files` etc.
+    let mut tools_called: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let has_workspace_read = groups.iter().any(|g| matches!(g, ToolGroup::WorkspaceRead));
 
     match provider {
         SubagentProvider::OpenAi(endpoint) => {
@@ -223,9 +229,10 @@ pub async fn run_one_subagent(
                 if round.tool_calls.is_empty() {
                     break;
                 }
+                let mut accepted_submit = false;
                 for tc in round.tool_calls {
                     let internal_name = openai_tool_name_to_internal(&tc.name);
-                    if handle_tool_call(
+                    match handle_tool_call(
                         state,
                         agent_id,
                         &tc.id,
@@ -233,25 +240,47 @@ pub async fn run_one_subagent(
                         &tc.arguments,
                         groups,
                         root_guard.as_ref(),
+                        &mut tools_called,
+                        has_workspace_read,
                         &mut final_submit,
                     ) {
-                        messages.push(json!({
-                            "role": "tool",
-                            "tool_call_id": tc.id,
-                            "content": "submit_result accepted",
-                        }));
-                        break;
+                        ToolCallOutcome::SubmitAccepted => {
+                            messages.push(json!({
+                                "role": "tool",
+                                "tool_call_id": tc.id,
+                                "content": "submit_result accepted",
+                            }));
+                            accepted_submit = true;
+                            break;
+                        }
+                        ToolCallOutcome::SubmitRejected(message) => {
+                            messages.push(json!({
+                                "role": "tool",
+                                "tool_call_id": tc.id,
+                                "content": message,
+                            }));
+                            // Loop continues so the model retries with a real
+                            // workspace probe before re-submitting.
+                            continue;
+                        }
+                        ToolCallOutcome::NotSubmit => {
+                            let args: Value =
+                                serde_json::from_str(&tc.arguments).unwrap_or(json!({}));
+                            let outcome = execute_subagent_tool(
+                                &internal_name,
+                                &args,
+                                groups,
+                                root_guard.as_ref(),
+                            );
+                            messages.push(json!({
+                                "role": "tool",
+                                "tool_call_id": tc.id,
+                                "content": outcome.content,
+                            }));
+                        }
                     }
-                    let args: Value =
-                        serde_json::from_str(&tc.arguments).unwrap_or(json!({}));
-                    let outcome = execute_subagent_tool(&internal_name, &args, groups, root_guard.as_ref());
-                    messages.push(json!({
-                        "role": "tool",
-                        "tool_call_id": tc.id,
-                        "content": outcome.content,
-                    }));
                 }
-                if final_submit.is_some() {
+                if accepted_submit {
                     break;
                 }
             }
@@ -306,8 +335,9 @@ pub async fn run_one_subagent(
                     break;
                 }
                 let mut result_blocks: Vec<Value> = Vec::new();
+                let mut accepted_submit = false;
                 for (id, name, args_str) in round.tool_uses {
-                    if handle_tool_call(
+                    match handle_tool_call(
                         state,
                         agent_id,
                         &id,
@@ -315,26 +345,43 @@ pub async fn run_one_subagent(
                         &args_str,
                         groups,
                         root_guard.as_ref(),
+                        &mut tools_called,
+                        has_workspace_read,
                         &mut final_submit,
                     ) {
-                        result_blocks.push(json!({
-                            "type": "tool_result",
-                            "tool_use_id": id,
-                            "content": "submit_result accepted",
-                        }));
-                        break;
+                        ToolCallOutcome::SubmitAccepted => {
+                            result_blocks.push(json!({
+                                "type": "tool_result",
+                                "tool_use_id": id,
+                                "content": "submit_result accepted",
+                            }));
+                            accepted_submit = true;
+                            break;
+                        }
+                        ToolCallOutcome::SubmitRejected(message) => {
+                            result_blocks.push(json!({
+                                "type": "tool_result",
+                                "tool_use_id": id,
+                                "content": message,
+                                "is_error": true,
+                            }));
+                            continue;
+                        }
+                        ToolCallOutcome::NotSubmit => {
+                            let args: Value = serde_json::from_str(&args_str).unwrap_or(json!({}));
+                            let outcome =
+                                execute_subagent_tool(&name, &args, groups, root_guard.as_ref());
+                            result_blocks.push(json!({
+                                "type": "tool_result",
+                                "tool_use_id": id,
+                                "content": outcome.content,
+                                "is_error": !outcome.ok,
+                            }));
+                        }
                     }
-                    let args: Value = serde_json::from_str(&args_str).unwrap_or(json!({}));
-                    let outcome = execute_subagent_tool(&name, &args, groups, root_guard.as_ref());
-                    result_blocks.push(json!({
-                        "type": "tool_result",
-                        "tool_use_id": id,
-                        "content": outcome.content,
-                        "is_error": !outcome.ok,
-                    }));
                 }
                 messages.push(json!({ "role": "user", "content": result_blocks }));
-                if final_submit.is_some() {
+                if accepted_submit {
                     break;
                 }
                 if round.stop_reason.as_deref() == Some("end_turn") {
@@ -364,6 +411,21 @@ pub async fn run_one_subagent(
     result
 }
 
+/// Outcome reported back by [`handle_tool_call`] so the caller knows whether
+/// to finalize the loop, inject a corrective tool response, or proceed to
+/// regular tool execution.
+#[derive(Debug)]
+enum ToolCallOutcome {
+    /// `submit_result` accepted — caller should record it and break the loop.
+    SubmitAccepted,
+    /// `submit_result` rejected by [`validate_submit`]; caller must push the
+    /// embedded message back to the model as the tool response and keep
+    /// looping so the model retries.
+    SubmitRejected(String),
+    /// Not a `submit_result` call — caller should run the regular tool.
+    NotSubmit,
+}
+
 fn handle_tool_call(
     state: &Arc<AgentEngineState>,
     agent_id: &str,
@@ -372,8 +434,10 @@ fn handle_tool_call(
     args_str: &str,
     groups: &[ToolGroup],
     root: Option<&WorkspaceRootGuard>,
+    tools_called: &mut std::collections::HashSet<String>,
+    has_workspace_read: bool,
     final_submit: &mut Option<Value>,
-) -> bool {
+) -> ToolCallOutcome {
     state.push(AgentEvent::SubagentToolCall {
         agent_id: agent_id.to_owned(),
         tool: name.to_owned(),
@@ -382,11 +446,20 @@ fn handle_tool_call(
     });
     if name == "submit_result" {
         let args: Value = serde_json::from_str(args_str).unwrap_or(json!({}));
-        *final_submit = Some(truncate_submit_result(args));
-        return true;
+        match validate_submit(&args, tools_called, has_workspace_read) {
+            SubmitVerdict::Accept => {
+                *final_submit = Some(truncate_submit_result(args));
+                ToolCallOutcome::SubmitAccepted
+            }
+            SubmitVerdict::RejectBlockedWithoutTrying { message } => {
+                ToolCallOutcome::SubmitRejected(message)
+            }
+        }
+    } else {
+        tools_called.insert(name.to_owned());
+        let _ = (groups, root);
+        ToolCallOutcome::NotSubmit
     }
-    let _ = (groups, root);
-    false
 }
 
 fn execute_subagent_tool(
@@ -425,6 +498,57 @@ fn finish_subagent(state: &Arc<AgentEngineState>, agent_id: &str, result: &Value
             .unwrap_or("")
             .to_owned(),
     });
+}
+
+/// Names of workspace-read tools whose use proves the subagent actually
+/// attempted to access the file system before submitting a result.
+const WORKSPACE_READ_TOOLS: &[&str] = &[
+    "list_workspace_files",
+    "read_workspace_file",
+    "workspace_search",
+];
+
+/// Verdict for a candidate `submit_result` call from a subagent.
+#[derive(Debug, PartialEq, Eq)]
+enum SubmitVerdict {
+    /// Accept this submission as the final result.
+    Accept,
+    /// Reject because the subagent claimed "blocked" without ever attempting
+    /// a workspace read. `message` is fed back to the model as the tool
+    /// response so it tries again instead of finalizing the run.
+    RejectBlockedWithoutTrying { message: String },
+}
+
+/// Decide whether a `submit_result` payload should be accepted or sent back
+/// to the model for another attempt. The only currently-enforced rule is
+/// the "blocked without trying" guard: if the role had `workspace_read`
+/// provisioned but the subagent never called any of the workspace tools
+/// and now wants to return `status:"blocked"`, we reject so the model can
+/// be forced to verify access first.
+fn validate_submit(
+    args: &Value,
+    tools_called: &std::collections::HashSet<String>,
+    has_workspace_read: bool,
+) -> SubmitVerdict {
+    let status = args.get("status").and_then(|v| v.as_str()).unwrap_or("");
+    if status != "blocked" || !has_workspace_read {
+        return SubmitVerdict::Accept;
+    }
+    let attempted = WORKSPACE_READ_TOOLS
+        .iter()
+        .any(|t| tools_called.contains(*t));
+    if attempted {
+        return SubmitVerdict::Accept;
+    }
+    SubmitVerdict::RejectBlockedWithoutTrying {
+        message: "Rejected: you submitted status:\"blocked\" without ever calling \
+            list_workspace_files, read_workspace_file, or workspace_search. These tools \
+            ARE provisioned in this run and ARE present in your tool schema. \
+            Call `list_workspace_files` with {\"path\":\".\"} now to verify access, \
+            then proceed with the task. Do not return a blocked status until you have \
+            actually attempted a workspace read and reported the concrete error string."
+            .to_owned(),
+    }
 }
 
 fn blocked_result(role: SubagentRole, display_name: &str, summary: &str) -> Value {

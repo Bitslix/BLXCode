@@ -31,6 +31,10 @@ Each rule is an **expandable card** (same pattern as Skills):
 
 Use **Create rule** at the top of the tab to add a new `rule-*.md` file. The form validates name and body before writing to `.agents/rules/`.
 
+<p align="center">
+  <img src="../images/rules-panel.png" alt="Rules panel with create-rule form and expandable rule cards" />
+</p>
+
 Disabled rules are invisible to the agent — the system prompt treats them as if they did not exist.
 
 Active rules are **binding and non-negotiable**; they outrank skill guidance when both apply.
@@ -40,7 +44,7 @@ Active rules are **binding and non-negotiable**; they outrank skill guidance whe
 Open **Skills** from the right workbench rail (`LuPuzzle` icon).
 
 <p align="center">
-  <img src="../images/skills-panel.png" alt="Skills panel with install dialog and skill cards showing source badges" />
+  <img src="../images/skills-panel.png" alt="Skills panel with Core and User tabs and expandable skill cards" />
 </p>
 
 ### Core vs User tabs
