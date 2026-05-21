@@ -5,12 +5,23 @@
 }
 
 .blx-plans-tabs {
-    overflow-x: auto;
-    scrollbar-width: thin;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.3rem;
+    overflow: visible;
 }
 
 .blx-plans-tabs .blx-sr-tab {
-    flex: 0 0 auto;
+    justify-content: center;
+    min-width: 0;
+    padding-inline: 0.45rem;
+}
+
+.blx-plans-tabs .blx-sr-tab > span:not(.blx-sr-tab__count) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .blx-sr-card__badge[data-kind="plan"] {
