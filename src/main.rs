@@ -1,5 +1,6 @@
 mod agent_wire;
 mod app;
+mod boot_loading;
 mod config;
 mod i18n;
 mod memory_paths;

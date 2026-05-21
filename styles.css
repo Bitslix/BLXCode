@@ -128,6 +128,312 @@ body {
   );
 }
 
+/* --- BLXCode boot screen --- */
+
+@keyframes blx-boot-frame-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes blx-boot-rail {
+  0% {
+    transform: translateX(-60%) scaleX(0.28);
+  }
+  45% {
+    transform: translateX(20%) scaleX(0.58);
+  }
+  100% {
+    transform: translateX(155%) scaleX(0.34);
+  }
+}
+
+@keyframes blx-boot-sheen {
+  from {
+    transform: translateX(-120%);
+  }
+  to {
+    transform: translateX(120%);
+  }
+}
+
+.blx-boot {
+  position: fixed;
+  inset: 0;
+  z-index: 8500;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  padding: 1rem;
+  overflow: hidden;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 50% 40%, rgba(88, 166, 255, 0.12), transparent 32rem),
+    linear-gradient(165deg, #17181d 0%, var(--bg-app) 44%, #050608 100%);
+}
+
+.blx-boot--static {
+  z-index: 9500;
+}
+
+.blx-boot__grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.32;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.042) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(circle at center, black, transparent 72%);
+  pointer-events: none;
+}
+
+.blx-boot__frame {
+  position: relative;
+  width: min(100%, 48rem);
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(21, 23, 29, 0.93), rgba(12, 13, 18, 0.93)),
+    rgba(9, 10, 13, 0.95);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  animation: blx-boot-frame-enter 0.28s ease-out both;
+}
+
+.blx-boot__frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border-top: 1px solid rgba(155, 211, 255, 0.22);
+  pointer-events: none;
+}
+
+.blx-boot__brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.blx-boot__mark-wrap {
+  width: 5.75rem;
+  height: 5.75rem;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.01)),
+    rgba(9, 10, 13, 0.58);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.blx-boot__mark {
+  width: 4.35rem;
+  height: 4.35rem;
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.48));
+}
+
+.blx-boot__copy {
+  min-width: 0;
+}
+
+.blx-boot__eyebrow,
+.blx-boot__status {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.blx-boot__eyebrow {
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-cool);
+}
+
+.blx-boot__title {
+  margin: 0.18rem 0 0.1rem;
+  font-size: 1.65rem;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.blx-boot__status {
+  font-size: 0.86rem;
+}
+
+.blx-boot__preview {
+  display: grid;
+  grid-template-columns: minmax(5rem, 0.7fr) minmax(11rem, 2fr) minmax(5rem, 0.9fr);
+  gap: 0.45rem;
+  min-height: 10rem;
+  padding: 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(5, 6, 8, 0.42);
+}
+
+.blx-boot__preview-sidebar,
+.blx-boot__preview-main,
+.blx-boot__preview-panel {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  border-radius: 4px;
+  background: rgba(16, 17, 22, 0.74);
+  overflow: hidden;
+}
+
+.blx-boot__preview-sidebar,
+.blx-boot__preview-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.48rem;
+  padding: 0.6rem;
+}
+
+.blx-boot__preview-main {
+  display: flex;
+  flex-direction: column;
+}
+
+.blx-boot__preview-toolbar {
+  height: 1.9rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel-header);
+}
+
+.blx-boot__preview-workspace {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  padding: 0.6rem;
+}
+
+.blx-boot__preview span,
+.blx-boot__preview-workspace span {
+  position: relative;
+  display: block;
+  min-height: 0.72rem;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.055);
+  overflow: hidden;
+}
+
+.blx-boot__preview-sidebar span:nth-child(1) {
+  width: 58%;
+}
+
+.blx-boot__preview-sidebar span:nth-child(2) {
+  width: 82%;
+}
+
+.blx-boot__preview-sidebar span:nth-child(3) {
+  width: 68%;
+}
+
+.blx-boot__preview-sidebar span:nth-child(4) {
+  width: 74%;
+}
+
+.blx-boot__preview-panel span:nth-child(1) {
+  width: 86%;
+}
+
+.blx-boot__preview-panel span:nth-child(2) {
+  width: 66%;
+}
+
+.blx-boot__preview-panel span:nth-child(3) {
+  width: 78%;
+}
+
+.blx-boot__preview span::after,
+.blx-boot__preview-workspace span::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(155, 211, 255, 0.16),
+    transparent
+  );
+  animation: blx-boot-sheen 1.9s ease-in-out infinite;
+}
+
+.blx-boot__rail {
+  height: 0.22rem;
+  overflow: hidden;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.blx-boot__rail span {
+  display: block;
+  width: 45%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--syntax-type), var(--accent), var(--syntax-keyword));
+  transform-origin: left center;
+  animation: blx-boot-rail 1.35s ease-in-out infinite;
+}
+
+@media (max-width: 680px) {
+  .blx-boot {
+    padding: 0.75rem;
+  }
+
+  .blx-boot__brand {
+    align-items: flex-start;
+  }
+
+  .blx-boot__mark-wrap {
+    width: 4.6rem;
+    height: 4.6rem;
+  }
+
+  .blx-boot__mark {
+    width: 3.45rem;
+    height: 3.45rem;
+  }
+
+  .blx-boot__preview {
+    grid-template-columns: 3.25rem minmax(0, 1fr);
+  }
+
+  .blx-boot__preview-panel {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blx-boot__frame,
+  .blx-boot__rail span,
+  .blx-boot__preview span::after,
+  .blx-boot__preview-workspace span::after {
+    animation: none;
+  }
+}
+
 /* --- Workbench (sidebar | workspace | right) --- */
 
 .workbench-root {
