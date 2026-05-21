@@ -1,51 +1,39 @@
 //! Web search/fetch tools (Tavily / Brave).
 
 use crate::agent::tools::{ToolOutcome, WorkspaceRootGuard};
+use crate::agent::web_settings::{self, WebProviderKind};
 use serde_json::Value;
 
 pub fn web_tools_enabled() -> bool {
-    web_api_key().is_some()
-}
-
-pub fn web_api_key() -> Option<String> {
-    std::env::var("BLX_TAVILY_API_KEY")
-        .ok()
-        .filter(|s| !s.is_empty())
-        .or_else(|| {
-            std::env::var("BLX_BRAVE_API_KEY")
-                .ok()
-                .filter(|s| !s.is_empty())
-        })
+    web_settings::web_tools_enabled()
 }
 
 pub fn tool_web_search(args: &Value, _root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
-    let Some(key) = web_api_key() else {
-        return ToolOutcome {
-            ok: false,
-            content: "web tools disabled: set BLX_TAVILY_API_KEY or BLX_BRAVE_API_KEY".into(),
-        };
-    };
     let query = match args.get("query").and_then(|v| v.as_str()) {
-        Some(s) => s,
-        None => {
+        Some(s) if !s.is_empty() => s,
+        _ => {
             return ToolOutcome {
                 ok: false,
                 content: "missing query".into(),
             };
         }
     };
-    // Prefer Tavily when its key is set.
-    if std::env::var("BLX_TAVILY_API_KEY")
-        .ok()
-        .filter(|s| !s.is_empty())
-        .is_some()
-    {
-        tavily_search(query, &key)
-    } else {
-        ToolOutcome {
+    let Some((provider, key)) = web_settings::resolve_active_key() else {
+        return ToolOutcome {
             ok: false,
-            content: "Brave web search not implemented in v1; set BLX_TAVILY_API_KEY".into(),
-        }
+            content: "web tools disabled: configure API keys in Settings → Agent → Web Tools".into(),
+        };
+    };
+    match provider {
+        WebProviderKind::Tavily => tavily_search(query, &key),
+        WebProviderKind::Brave => ToolOutcome {
+            ok: false,
+            content: "Brave search not implemented in v1; select Tavily in Web Tools settings".into(),
+        },
+        WebProviderKind::None => ToolOutcome {
+            ok: false,
+            content: "no web provider selected".into(),
+        },
     }
 }
 
@@ -55,27 +43,21 @@ fn tavily_search(query: &str, api_key: &str) -> ToolOutcome {
         "query": query,
         "max_results": 5,
     });
-    let resp = std::process::Command::new("curl")
-        .args([
-            "-sS",
-            "-X",
-            "POST",
-            "https://api.tavily.com/search",
-            "-H",
-            "Content-Type: application/json",
-            "-d",
-            &body.to_string(),
-        ])
-        .output();
-    match resp {
-        Ok(o) if o.status.success() => ToolOutcome {
-            ok: true,
-            content: String::from_utf8_lossy(&o.stdout).into_owned(),
-        },
-        Ok(o) => ToolOutcome {
-            ok: false,
-            content: String::from_utf8_lossy(&o.stderr).into_owned(),
-        },
+    let result: Result<(bool, String), String> = tokio::task::block_in_place(|| {
+        tokio::runtime::Handle::current().block_on(async {
+            let resp = reqwest::Client::new()
+                .post("https://api.tavily.com/search")
+                .json(&body)
+                .send()
+                .await
+                .map_err(|e| e.to_string())?;
+            let ok = resp.status().is_success();
+            let text = resp.text().await.map_err(|e| e.to_string())?;
+            Ok((ok, text))
+        })
+    });
+    match result {
+        Ok((ok, text)) => ToolOutcome { ok, content: text },
         Err(e) => ToolOutcome {
             ok: false,
             content: format!("web_search failed: {e}"),
@@ -84,8 +66,8 @@ fn tavily_search(query: &str, api_key: &str) -> ToolOutcome {
 }
 
 pub fn tool_web_fetch(args: &Value, _root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
-    let _key = match web_api_key() {
-        Some(k) => k,
+    let _key = match web_settings::resolve_active_key() {
+        Some((_, k)) => k,
         None => {
             return ToolOutcome {
                 ok: false,

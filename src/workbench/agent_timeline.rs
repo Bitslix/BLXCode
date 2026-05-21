@@ -1,6 +1,7 @@
 //! Reine Datenstrukturen für die Agent-Chat-Timeline (serde-fähig, ohne Leptos).
 //! Wird von [`crate::workbench::state::WorkspaceEntry`] und [`agent_panel::timeline`] genutzt.
 
+use crate::i18n::{lookup, I18nKey, Locale};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -22,15 +23,107 @@ pub struct ToolActivity {
 }
 
 impl ToolActivity {
-    pub fn from_call(tool: &str, args: Option<&Value>) -> Self {
+    pub fn from_call(tool: &str, args: Option<&Value>, loc: Locale) -> Self {
         Self {
             tool: tool.to_owned(),
-            label: friendly_label(tool).to_owned(),
+            label: tool_label(tool, loc),
             args_summary: summarize_args(tool, args),
             status: ActivityStatus::Pending,
             detail: None,
         }
     }
+}
+
+/// Lokalisiertes Kurzlabel für einen Tool-Namen in der Timeline.
+#[must_use]
+pub fn tool_label(tool: &str, loc: Locale) -> String {
+    let key = match tool {
+        "environment_detect" => Some(I18nKey::AgToolEnvironmentDetect),
+        "shell_exec" => Some(I18nKey::AgToolShellExec),
+        "workspace_search" => Some(I18nKey::AgToolWorkspaceSearch),
+        "workspace_git_status" => Some(I18nKey::AgToolWorkspaceGitStatus),
+        "workspace_diff" => Some(I18nKey::AgToolWorkspaceDiff),
+        "git_status" => Some(I18nKey::AgToolGitStatus),
+        "git_diff" => Some(I18nKey::AgToolGitDiff),
+        "git_log" => Some(I18nKey::AgToolGitLog),
+        "git_show" => Some(I18nKey::AgToolGitShow),
+        "git_branch_info" => Some(I18nKey::AgToolGitBranch),
+        "git_ls_files" => Some(I18nKey::AgToolGitLsFiles),
+        "git_apply_patch" => Some(I18nKey::AgToolGitApplyPatch),
+        "git_add" => Some(I18nKey::AgToolGitAdd),
+        "git_commit" => Some(I18nKey::AgToolGitCommit),
+        "web_search" => Some(I18nKey::AgToolWebSearch),
+        "web_fetch" => Some(I18nKey::AgToolWebFetch),
+        "subagents.run" => Some(I18nKey::AgToolSubagentsRun),
+        "submit_result" => Some(I18nKey::AgToolSubmitResult),
+        _ => None,
+    };
+    if let Some(k) = key {
+        return lookup(loc, k).to_string();
+    }
+    legacy_tool_label(tool)
+}
+
+fn legacy_tool_label(tool: &str) -> String {
+    match tool {
+        "harness.create_workspace" => "Create workspace",
+        "list_workspace_files" => "List files",
+        "read_workspace_file" => "Read file",
+        "memory_list" => "List memory notes",
+        "memory_read" => "Read memory note",
+        "memory_search" => "Search memory",
+        "memory_create" => "Create memory note",
+        "memory_write" => "Update memory note",
+        "memory_delete" => "Delete memory note",
+        "memory_rename" => "Rename memory note",
+        "memory_graph" => "Memory graph",
+        "memory_backlinks" => "Memory backlinks",
+        "memory_category_list" => "List memory categories",
+        "memory_category_update" => "Update memory category",
+        "memory_context_list" => "List agent context",
+        "memory_context_attach" => "Attach memory context",
+        "memory_context_detach" => "Detach memory context",
+        "list_tools" => "List tools",
+        "task_list" => "List tasks",
+        "task_get" => "Read task",
+        "task_create" => "Create task",
+        "task_update" => "Update task",
+        "task_delete" => "Delete task",
+        "task_reorder" => "Reorder tasks",
+        "harness.open_terminal" => "Open terminal",
+        "harness.list_terminals" => "List terminals",
+        "harness.send_terminal_keys" => "Send keys to terminal",
+        "harness.send_agent_context" => "Send agent context to terminal",
+        "harness.read_terminal_output" => "Read terminal output",
+        other => return other.to_string(),
+    }
+    .to_string()
+}
+
+/// Lokalisiertes Subagent-Status-Label (`running`, `completed`, …).
+#[must_use]
+pub fn subagent_status_label(loc: Locale, status: &str) -> String {
+    let key = match status {
+        "running" => I18nKey::AgSubagentStatusRunning,
+        "completed" => I18nKey::AgSubagentStatusCompleted,
+        "blocked" => I18nKey::AgSubagentStatusBlocked,
+        "failed" => I18nKey::AgSubagentStatusFailed,
+        _ => return status.to_string(),
+    };
+    lookup(loc, key).to_string()
+}
+
+/// Lokalisiertes Rollen-Label (`scout`, `review`, …).
+#[must_use]
+pub fn subagent_role_label(loc: Locale, role: &str) -> String {
+    let key = match role {
+        "scout" => Some(I18nKey::AgRoleScout),
+        "review" => Some(I18nKey::AgRoleReview),
+        "security_analyst" => Some(I18nKey::AgRoleSecurityAnalyst),
+        _ => None,
+    };
+    key.map(|k| lookup(loc, k).to_string())
+        .unwrap_or_else(|| role.to_string())
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -78,59 +171,6 @@ pub enum TimelineItem {
         saved_path: Option<String>,
         filename: Option<String>,
     },
-}
-
-fn friendly_label(tool: &str) -> &str {
-    match tool {
-        "harness.create_workspace" => "Create workspace",
-        "list_workspace_files" => "List files",
-        "read_workspace_file" => "Read file",
-        "memory_list" => "List memory notes",
-        "memory_read" => "Read memory note",
-        "memory_search" => "Search memory",
-        "memory_create" => "Create memory note",
-        "memory_write" => "Update memory note",
-        "memory_delete" => "Delete memory note",
-        "memory_rename" => "Rename memory note",
-        "memory_graph" => "Memory graph",
-        "memory_backlinks" => "Memory backlinks",
-        "memory_category_list" => "List memory categories",
-        "memory_category_update" => "Update memory category",
-        "memory_context_list" => "List agent context",
-        "memory_context_attach" => "Attach memory context",
-        "memory_context_detach" => "Detach memory context",
-        "list_tools" => "List tools",
-        "task_list" => "List tasks",
-        "task_get" => "Read task",
-        "task_create" => "Create task",
-        "task_update" => "Update task",
-        "task_delete" => "Delete task",
-        "task_reorder" => "Reorder tasks",
-        "harness.open_terminal" => "Open terminal",
-        "harness.list_terminals" => "List terminals",
-        "harness.send_terminal_keys" => "Send keys to terminal",
-        "harness.send_agent_context" => "Send agent context to terminal",
-        "harness.read_terminal_output" => "Read terminal output",
-        "environment_detect" => "Detect environment",
-        "shell_exec" => "Shell",
-        "workspace_search" => "Search workspace",
-        "workspace_git_status" => "Git status",
-        "workspace_diff" => "Diff",
-        "git_status" => "Git status",
-        "git_diff" => "Git diff",
-        "git_log" => "Git log",
-        "git_show" => "Git show",
-        "git_branch_info" => "Git branches",
-        "git_ls_files" => "Git ls-files",
-        "git_apply_patch" => "Git apply patch",
-        "git_add" => "Git add",
-        "git_commit" => "Git commit",
-        "web_search" => "Web search",
-        "web_fetch" => "Web fetch",
-        "subagents.run" => "Run subagents",
-        "submit_result" => "Submit result",
-        other => other,
-    }
 }
 
 fn summarize_args(tool: &str, args: Option<&Value>) -> String {

@@ -383,6 +383,111 @@ pub async fn agent_api_key_set(
     .await
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WebProviderKind {
+    None,
+    Tavily,
+    Brave,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebKeyStatus {
+    pub kind: String,
+    pub configured: bool,
+    pub masked_value: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentWebSettings {
+    pub provider: WebProviderKind,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentWebSettingsView {
+    pub settings: AgentWebSettings,
+    pub key_statuses: Vec<WebKeyStatus>,
+}
+
+pub async fn agent_web_settings_get() -> Result<AgentWebSettingsView, String> {
+    invoke_typed("agent_web_settings_get", serde_json::json!({})).await
+}
+
+pub async fn agent_web_settings_save(
+    provider: WebProviderKind,
+) -> Result<AgentWebSettingsView, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        patch: Patch,
+    }
+
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Patch {
+        provider: WebProviderKind,
+    }
+
+    invoke_typed(
+        "agent_web_settings_save",
+        Args {
+            patch: Patch { provider },
+        },
+    )
+    .await
+}
+
+pub async fn agent_web_api_key_set(
+    kind: &str,
+    api_key: String,
+) -> Result<AgentWebSettingsView, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        payload: Payload,
+    }
+
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Payload {
+        kind: String,
+        api_key: String,
+    }
+
+    invoke_typed(
+        "agent_web_api_key_set",
+        Args {
+            payload: Payload {
+                kind: kind.to_string(),
+                api_key,
+            },
+        },
+    )
+    .await
+}
+
+pub async fn agent_web_api_key_delete(kind: &str) -> Result<AgentWebSettingsView, String> {
+    #[derive(Serialize)]
+    struct Args {
+        kind: String,
+    }
+
+    invoke_typed(
+        "agent_web_api_key_delete",
+        Args {
+            kind: kind.to_string(),
+        },
+    )
+    .await
+}
+
+pub async fn agent_environment_invalidate() -> Result<(), String> {
+    invoke_unit_js("agent_environment_invalidate", JsValue::NULL).await
+}
+
 pub async fn agent_api_key_delete(
     provider: AgentProviderKind,
 ) -> Result<AgentProviderSettingsView, String> {

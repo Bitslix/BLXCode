@@ -123,7 +123,7 @@ pub fn tool_shell_exec(
     };
 
     let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
-    let mut child = match Command::new(shell)
+    let child = match Command::new(shell)
         .args(&shell_arg)
         .current_dir(root.as_str())
         .stdout(Stdio::piped())

@@ -8,7 +8,6 @@ use std::sync::{Mutex, OnceLock};
 #[derive(Clone, Debug)]
 struct CacheEntry {
     workspace: String,
-    snapshot: Value,
 }
 
 static ENV_CACHE: OnceLock<Mutex<Option<CacheEntry>>> = OnceLock::new();
@@ -20,6 +19,20 @@ fn cache() -> &'static Mutex<Option<CacheEntry>> {
 pub fn invalidate_cache() {
     if let Ok(mut g) = cache().lock() {
         *g = None;
+    }
+}
+
+/// Call when the active workspace changes or a new turn starts with a different root.
+pub fn note_workspace_change(workspace: Option<&str>) {
+    let ws = workspace.unwrap_or("").trim();
+    let mut g = match cache().lock() {
+        Ok(g) => g,
+        Err(_) => return,
+    };
+    match g.as_ref() {
+        None => {}
+        Some(entry) if entry.workspace == ws => {}
+        Some(_) => *g = None,
     }
 }
 
@@ -100,7 +113,6 @@ pub fn tool_environment_detect(root: Option<&WorkspaceRootGuard>) -> ToolOutcome
     if let Ok(mut g) = cache().lock() {
         *g = Some(CacheEntry {
             workspace: ws.clone(),
-            snapshot: snapshot.clone(),
         });
     }
     match serde_json::to_string(&snapshot) {

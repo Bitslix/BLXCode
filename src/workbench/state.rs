@@ -4,7 +4,7 @@ use crate::config::{
     MEMORY_COLOR_PRESETS_STORAGE_KEY, SIDEBAR_WIDTH_PX_DEFAULT, SIDEBAR_WIDTH_PX_KEY,
 };
 use crate::tauri_bridge::{
-    is_tauri_shell, skills_rules_bootstrap, workbench_drop_sessions,
+    agent_environment_invalidate, is_tauri_shell, skills_rules_bootstrap, workbench_drop_sessions,
     workbench_extract_sessions_prefix, workbench_merge_sessions_workspace,
     workspace_ensure_agents,
 };
@@ -1184,6 +1184,16 @@ impl WorkbenchService {
         if let Some(cwd) = self.workspace_cwd_for(id) {
             spawn_ensure_agents_layout(cwd);
         }
+        Self::invalidate_agent_environment_cache();
+    }
+
+    fn invalidate_agent_environment_cache() {
+        if !is_tauri_shell() {
+            return;
+        }
+        leptos::task::spawn_local(async {
+            let _ = agent_environment_invalidate().await;
+        });
     }
 
     fn workspace_cwd_for(&self, id: u64) -> Option<String> {

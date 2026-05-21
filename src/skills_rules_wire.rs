@@ -33,6 +33,8 @@ pub struct SkillEntry {
     pub updated_at: String,
     #[serde(default)]
     pub missing_skill_md: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub availability: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

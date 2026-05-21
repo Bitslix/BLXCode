@@ -41,6 +41,14 @@ pub const CORE_SKILLS: &[(&str, &str)] = &[
 
 const CORE_INSTALLED_AT: &str = "2026-01-01T00:00:00Z";
 
+fn core_skill_availability(name: &str) -> Option<String> {
+    if name == "web" && !crate::agent::web_settings::web_tools_enabled() {
+        Some("disabled_no_key".into())
+    } else {
+        None
+    }
+}
+
 const RULES_INDEX_FILE: &str = "index.json";
 const SKILLS_INDEX_FILE: &str = "index.json";
 const SKILL_DOC: &str = "SKILL.md";
@@ -525,6 +533,7 @@ pub fn list_skills(ws: &str) -> Result<Vec<SkillEntry>, String> {
                 installed_at: CORE_INSTALLED_AT.to_string(),
                 updated_at: CORE_INSTALLED_AT.to_string(),
                 missing_skill_md: false,
+                availability: core_skill_availability(name),
             }
         })
         .collect();
@@ -575,6 +584,7 @@ pub fn list_skills(ws: &str) -> Result<Vec<SkillEntry>, String> {
             installed_at,
             updated_at,
             missing_skill_md: missing,
+            availability: None,
         });
     }
     Ok(entries)

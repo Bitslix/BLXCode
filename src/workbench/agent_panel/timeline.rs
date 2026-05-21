@@ -7,7 +7,8 @@ use crate::workbench::agent_panel::voice_orb::{
 };
 pub use crate::workbench::agent_timeline::TimelineItem;
 use crate::workbench::agent_timeline::{
-    ActivityStatus, SubagentCard, SubagentGroup, SubagentStepRow, ToolActivity,
+    subagent_role_label, subagent_status_label, ActivityStatus, SubagentCard, SubagentGroup,
+    SubagentStepRow, ToolActivity,
 };
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::WorkbenchService;
@@ -130,7 +131,7 @@ pub fn apply_agent_event(
             persist_agent_timeline(persist, timeline);
         }
         AgentEvent::ToolCall { tool, args, .. } => {
-            let entry = ToolActivity::from_call(tool, args.as_ref());
+            let entry = ToolActivity::from_call(tool, args.as_ref(), loc);
             timeline.update(|rows| rows.push(TimelineItem::Tool(entry)));
             persist_agent_timeline(persist, timeline);
         }
@@ -152,7 +153,7 @@ pub fn apply_agent_event(
                     };
                     row.detail = message.clone().filter(|m| !m.is_empty());
                 } else {
-                    let stub = ToolActivity::from_call(tool, None);
+                    let stub = ToolActivity::from_call(tool, None, loc);
                     rows.push(TimelineItem::Tool(ToolActivity {
                         tool: tool.clone(),
                         label: stub.label,
@@ -223,7 +224,7 @@ pub fn apply_agent_event(
             persist_agent_timeline(persist, timeline);
         }
         AgentEvent::SubagentToolCall { agent_id, tool, args, .. } => {
-            let entry = ToolActivity::from_call(tool, args.as_ref());
+            let entry = ToolActivity::from_call(tool, args.as_ref(), loc);
             timeline.update(|rows| {
                 if let Some(card) = find_subagent_card_mut(rows, agent_id) {
                     card.tools.push(entry);
@@ -544,14 +545,21 @@ pub fn TimelineRow(
         .into_any(),
         DisplayTimelineItem::SubagentGroup(group) => {
             let agents = group.agents.clone();
+            let loc = i18n.locale().get_untracked();
             view! {
                 <li class="agent-chat-line agent-chat-line--subagents">
                     <ChatLineIndexColumn line_no=line_no.clone() tts_text=None voice_handle=voice_handle />
                     <div class="agent-chat-body agent-subagent-group">
-                        <strong>"Subagents"</strong>
+                        <strong>{lookup(loc, I18nKey::AgSubagentGroupTitle)}</strong>
                         {agents.into_iter().map(|card| {
-                            let status = card.status.clone();
-                            let name = card.display_name.clone();
+                            let status_raw = card.status.clone();
+                            let status = subagent_status_label(loc, &status_raw);
+                            let role_hint = subagent_role_label(loc, &card.role);
+                            let name = if card.display_name.is_empty() {
+                                role_hint
+                            } else {
+                                card.display_name.clone()
+                            };
                             let summary = card.summary.clone();
                             view! {
                                 <details class="agent-subagent-card" open>

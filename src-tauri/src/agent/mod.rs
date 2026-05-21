@@ -10,13 +10,21 @@ mod provider;
 mod session_orchestrator;
 mod shell_exec;
 mod subagent_prompts;
+mod subagent_runner;
 mod subagents;
+mod web_commands;
+pub(crate) mod web_settings;
 mod system_prompt;
 mod tool_dispatch;
 mod tool_groups;
 mod tools_extra;
 mod web_tools;
 mod workspace_agent;
+
+pub use web_commands::{
+    agent_environment_invalidate, agent_web_api_key_delete, agent_web_api_key_set,
+    agent_web_settings_get, agent_web_settings_save,
+};
 
 pub use protocol::{AgentEvent, UserTurn};
 pub use session_orchestrator::dispatch_user_turn;

@@ -57,7 +57,9 @@ pub fn dispatch_user_turn(
         &turn.context_items,
         turn.workspace_root.as_deref(),
     );
-    let workspace_root = turn.workspace_root;
+    let workspace_root = turn.workspace_root.clone();
+    crate::agent::environment::note_workspace_change(workspace_root.as_deref());
+    crate::agent::web_settings::refresh_runtime_from_app(app);
     let image_context_items = turn.image_context_items;
     match settings.provider {
         AgentProviderKind::Anthropic => {

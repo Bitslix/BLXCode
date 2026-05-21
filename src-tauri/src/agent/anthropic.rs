@@ -30,11 +30,11 @@ const DEFAULT_MAX_TOKENS: u64 = 8192;
 /// Anthropic restricts tool names to `^[a-zA-Z0-9_-]{1,64}$` — no dots.
 /// Our harness tools use dotted names (`harness.open_terminal`), so we
 /// translate `.` ↔ `__` at the API boundary.
-fn to_anthropic_name(name: &str) -> String {
+pub(crate) fn to_anthropic_name(name: &str) -> String {
     name.replace('.', "__")
 }
 
-fn from_anthropic_name(name: &str) -> String {
+pub(crate) fn from_anthropic_name(name: &str) -> String {
     name.replace("__", ".")
 }
 
