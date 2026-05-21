@@ -9,7 +9,7 @@ $WithBundle = $false
 $Warnings = New-Object System.Collections.Generic.List[string]
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Root = Split-Path -Parent $ScriptDir
+$Root = Split-Path -Parent (Split-Path -Parent $ScriptDir)
 
 function Show-Usage {
     @"
