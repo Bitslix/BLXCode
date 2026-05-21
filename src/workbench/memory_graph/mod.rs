@@ -773,7 +773,7 @@ fn GraphPreviewPopover(
                                 aria-label=move || i18n.tr(I18nKey::MemGraphSendToTerminal)()
                                 on:click=move |_| handoff_open.update(|v| *v = !*v)
                             >
-                                <LxIcon icon=icondata::LuTerminalSquare width="0.82rem" height="0.82rem" />
+                                <LxIcon icon=icondata::LuSquareTerminal width="0.82rem" height="0.82rem" />
                             </button>
                             <Show when=move || handoff_open.get()>
                                 <HandoffMenu

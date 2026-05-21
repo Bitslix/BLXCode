@@ -336,9 +336,9 @@ fn tool_icon(tool: &str) -> icondata::Icon {
         "memory_read" => icondata::LuBookOpen,
         "memory_search" => icondata::LuSearch,
         "memory_create" => icondata::LuFilePlus,
-        "memory_write" => icondata::LuFileEdit,
+        "memory_write" => icondata::LuFilePenLine,
         "memory_delete" => icondata::LuTrash2,
-        "memory_rename" => icondata::LuFileEdit,
+        "memory_rename" => icondata::LuFilePenLine,
         "memory_graph" => icondata::LuShare2,
         "memory_backlinks" => icondata::LuLink,
         "memory_category_list" => icondata::LuPalette,
@@ -349,13 +349,13 @@ fn tool_icon(tool: &str) -> icondata::Icon {
         "list_tools" => icondata::LuWrench,
         "task_list" => icondata::LuListTodo,
         "task_get" => icondata::LuClipboardList,
-        "task_create" => icondata::LuPlusCircle,
+        "task_create" => icondata::LuCirclePlus,
         "task_update" => icondata::LuListChecks,
         "task_delete" => icondata::LuTrash2,
         "task_reorder" => icondata::LuArrowUpDown,
         "harness.open_terminal" => icondata::LuTerminal,
         "harness.list_terminals" => icondata::LuLayoutGrid,
-        "harness.send_terminal_keys" => icondata::LuSendHorizonal,
+        "harness.send_terminal_keys" => icondata::LuSendHorizontal,
         "harness.send_agent_context" => icondata::LuShare2,
         "harness.read_terminal_output" => icondata::LuWrapText,
         _ => icondata::LuWrench,
@@ -658,7 +658,7 @@ fn ToolActivityRow(idx: usize, entry: ToolActivity) -> impl IntoView {
     let status_icon = match entry.status {
         ActivityStatus::Pending => icondata::LuLoader,
         ActivityStatus::Ok => icondata::LuCheck,
-        ActivityStatus::Fail => icondata::LuAlertTriangle,
+        ActivityStatus::Fail => icondata::LuTriangleAlert,
     };
     let detail_open = RwSignal::new(false);
     let has_detail = entry.detail.as_ref().is_some_and(|s| !s.is_empty());

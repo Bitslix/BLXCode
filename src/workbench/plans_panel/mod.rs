@@ -628,25 +628,25 @@ fn PlanTaskSummaryIcons(summary: PlanTaskSummaryWire) -> impl IntoView {
                 label_key=I18nKey::PlansTaskStatPending
             />
             <PlanTaskStatChip
-                icon=icondata::LuPlayCircle
+                icon=icondata::LuCirclePlay
                 count=summary.in_progress
                 modifier="in-progress"
                 label_key=I18nKey::PlansTaskStatInProgress
             />
             <PlanTaskStatChip
-                icon=icondata::LuAlertCircle
+                icon=icondata::LuCircleAlert
                 count=summary.blocked
                 modifier="blocked"
                 label_key=I18nKey::PlansTaskStatBlocked
             />
             <PlanTaskStatChip
-                icon=icondata::LuCheckCircle
+                icon=icondata::LuCircleCheck
                 count=summary.completed
                 modifier="completed"
                 label_key=I18nKey::PlansTaskStatCompleted
             />
             <PlanTaskStatChip
-                icon=icondata::LuMinusCircle
+                icon=icondata::LuCircleMinus
                 count=summary.cancelled
                 modifier="cancelled"
                 label_key=I18nKey::PlansTaskStatCancelled
