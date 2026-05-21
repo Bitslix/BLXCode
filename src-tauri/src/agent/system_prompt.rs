@@ -116,7 +116,8 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
          \n\
          For full usage guidance on any tool group, call \
          `skills_read {{ name }}` with one of the core skill names:\n\
-         `file-access` · `memory` · `plans` · `tasks` · `rules-skills` · `harness`\n\
+         `file-access` · `memory` · `plans` · `tasks` · `rules-skills` · `harness` · \
+         `environment` · `shell` · `git` · `web` · `subagents`\n\
          \n\
          ## Tool index (names only)\n\
          **File access (server):** `list_tools`, `list_workspace_files`, `read_workspace_file`\n\
@@ -146,6 +147,17 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
          **Harness (client):** `harness.create_workspace`, `harness.open_terminal`, \
          `harness.list_terminals`, `harness.send_terminal_keys`, \
          `harness.send_agent_context`, `harness.read_terminal_output`\n\
+         \n\
+         **Environment / shell / git (server):** `environment_detect`, `shell_exec`, \
+         `workspace_search`, `workspace_git_status`, `workspace_diff`, \
+         `git_status`, `git_diff`, `git_log`, `git_show`, `git_branch_info`, \
+         `git_ls_files`, `git_apply_patch`, `git_add`, `git_commit`\n\
+         \n\
+         **Web (server, when API key configured):** `web_search`, `web_fetch`\n\
+         \n\
+         **Subagents (server):** `subagents.run` — only when the user explicitly \
+         asks for subagents, parallel review, or a named role (scout / review / \
+         security_analyst). Default: work alone. Parallel runs cost extra API usage.\n\
          \n\
          # Behaviour\n\
          - Call tools eagerly when they would answer the user's question \

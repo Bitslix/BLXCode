@@ -34,11 +34,40 @@ impl ToolActivity {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubagentStepRow {
+    pub id: String,
+    pub title: String,
+    pub status: String,
+    #[serde(default)]
+    pub note: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubagentCard {
+    pub agent_id: String,
+    pub role: String,
+    pub display_name: String,
+    pub status: String,
+    pub summary: String,
+    #[serde(default)]
+    pub steps: Vec<SubagentStepRow>,
+    #[serde(default)]
+    pub tools: Vec<ToolActivity>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SubagentGroup {
+    #[serde(default)]
+    pub agents: Vec<SubagentCard>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TimelineItem {
     User { text: String },
     Assistant { text: String },
     Tool(ToolActivity),
     Thinking { text: String, done: bool },
+    SubagentGroup(SubagentGroup),
     /// Output of an image-mode turn. `preview_src` is a data URL suitable
     /// for `<img src>`; after a workspace reload we hydrate it lazily from
     /// `saved_path` via the `generated_image_preview` Tauri command.
@@ -82,6 +111,24 @@ fn friendly_label(tool: &str) -> &str {
         "harness.send_terminal_keys" => "Send keys to terminal",
         "harness.send_agent_context" => "Send agent context to terminal",
         "harness.read_terminal_output" => "Read terminal output",
+        "environment_detect" => "Detect environment",
+        "shell_exec" => "Shell",
+        "workspace_search" => "Search workspace",
+        "workspace_git_status" => "Git status",
+        "workspace_diff" => "Diff",
+        "git_status" => "Git status",
+        "git_diff" => "Git diff",
+        "git_log" => "Git log",
+        "git_show" => "Git show",
+        "git_branch_info" => "Git branches",
+        "git_ls_files" => "Git ls-files",
+        "git_apply_patch" => "Git apply patch",
+        "git_add" => "Git add",
+        "git_commit" => "Git commit",
+        "web_search" => "Web search",
+        "web_fetch" => "Web fetch",
+        "subagents.run" => "Run subagents",
+        "submit_result" => "Submit result",
         other => other,
     }
 }
@@ -104,6 +151,11 @@ fn summarize_args(tool: &str, args: Option<&Value>) -> String {
         "harness.open_terminal" => Some("agentSlug"),
         "harness.send_terminal_keys" => Some("text"),
         "harness.send_agent_context" => Some("instruction"),
+        "workspace_search" | "web_search" => Some("query"),
+        "shell_exec" => Some("command"),
+        "git_show" => Some("rev"),
+        "git_commit" => Some("message"),
+        "web_fetch" => Some("url"),
         _ => None,
     };
     if let Some(key) = pick {

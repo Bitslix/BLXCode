@@ -32,6 +32,11 @@ pub const CORE_SKILLS: &[(&str, &str)] = &[
     ("tasks", include_str!("../agent/harness_skills/tasks.md")),
     ("rules-skills", include_str!("../agent/harness_skills/rules-skills.md")),
     ("harness", include_str!("../agent/harness_skills/harness.md")),
+    ("environment", include_str!("../agent/harness_skills/environment.md")),
+    ("shell", include_str!("../agent/harness_skills/shell.md")),
+    ("git", include_str!("../agent/harness_skills/git.md")),
+    ("web", include_str!("../agent/harness_skills/web.md")),
+    ("subagents", include_str!("../agent/harness_skills/subagents.md")),
 ];
 
 const CORE_INSTALLED_AT: &str = "2026-01-01T00:00:00Z";

@@ -6,7 +6,9 @@ use crate::workbench::agent_panel::voice_orb::{
     play_line_tts, tts_line_playback_available, VoiceOrbHandle,
 };
 pub use crate::workbench::agent_timeline::TimelineItem;
-use crate::workbench::agent_timeline::{ActivityStatus, ToolActivity};
+use crate::workbench::agent_timeline::{
+    ActivityStatus, SubagentCard, SubagentGroup, SubagentStepRow, ToolActivity,
+};
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
@@ -18,6 +20,7 @@ pub enum DisplayTimelineItem {
     User { text: String },
     Assistant { text: String },
     ToolGroup(Vec<ToolActivity>),
+    SubagentGroup(SubagentGroup),
     Thinking { text: String, done: bool },
     GeneratedImage {
         prompt: String,
@@ -64,6 +67,19 @@ fn persist_agent_timeline(
             .collect::<Vec<_>>();
         wb.set_workspace_agent_timeline(workspace_id, sanitized);
     }
+}
+
+fn find_subagent_card_mut<'a>(
+    rows: &'a mut [TimelineItem],
+    agent_id: &str,
+) -> Option<&'a mut SubagentCard> {
+    rows.iter_mut().rev().find_map(|entry| match entry {
+        TimelineItem::SubagentGroup(group) => group
+            .agents
+            .iter_mut()
+            .find(|c| c.agent_id == agent_id),
+        _ => None,
+    })
 }
 
 pub fn apply_agent_event(
@@ -148,6 +164,82 @@ pub fn apply_agent_event(
                         },
                         detail: message.clone().filter(|m| !m.is_empty()),
                     }));
+                }
+            });
+            persist_agent_timeline(persist, timeline);
+        }
+        AgentEvent::SubagentStarted {
+            agent_id,
+            role,
+            display_name,
+        } => {
+            timeline.update(|rows| {
+                let card = SubagentCard {
+                    agent_id: agent_id.clone(),
+                    role: role.clone(),
+                    display_name: display_name.clone(),
+                    status: "running".into(),
+                    summary: String::new(),
+                    steps: Vec::new(),
+                    tools: Vec::new(),
+                };
+                if let Some(TimelineItem::SubagentGroup(group)) = rows.last_mut() {
+                    group.agents.push(card);
+                } else {
+                    rows.push(TimelineItem::SubagentGroup(SubagentGroup {
+                        agents: vec![card],
+                    }));
+                }
+            });
+            persist_agent_timeline(persist, timeline);
+        }
+        AgentEvent::SubagentStep {
+            agent_id,
+            step_id,
+            title,
+            status,
+            note,
+        } => {
+            timeline.update(|rows| {
+                if let Some(card) = find_subagent_card_mut(rows, agent_id) {
+                    if let Some(step) = card
+                        .steps
+                        .iter_mut()
+                        .find(|s| s.id == *step_id)
+                    {
+                        step.title = title.clone();
+                        step.status = status.clone();
+                        step.note = note.clone();
+                    } else {
+                        card.steps.push(SubagentStepRow {
+                            id: step_id.clone(),
+                            title: title.clone(),
+                            status: status.clone(),
+                            note: note.clone(),
+                        });
+                    }
+                }
+            });
+            persist_agent_timeline(persist, timeline);
+        }
+        AgentEvent::SubagentToolCall { agent_id, tool, args, .. } => {
+            let entry = ToolActivity::from_call(tool, args.as_ref());
+            timeline.update(|rows| {
+                if let Some(card) = find_subagent_card_mut(rows, agent_id) {
+                    card.tools.push(entry);
+                }
+            });
+            persist_agent_timeline(persist, timeline);
+        }
+        AgentEvent::SubagentFinished {
+            agent_id,
+            status,
+            summary,
+        } => {
+            timeline.update(|rows| {
+                if let Some(card) = find_subagent_card_mut(rows, agent_id) {
+                    card.status = status.clone();
+                    card.summary = summary.clone();
                 }
             });
             persist_agent_timeline(persist, timeline);
@@ -320,6 +412,10 @@ pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
                     filename,
                 });
             }
+            TimelineItem::SubagentGroup(group) => {
+                flush_tools(&mut out, &mut pending_tools);
+                out.push(DisplayTimelineItem::SubagentGroup(group));
+            }
         }
     }
 
@@ -446,6 +542,40 @@ pub fn TimelineRow(
             <ToolActivityGroupRow line_no=line_no entries=entries voice_handle=voice_handle />
         }
         .into_any(),
+        DisplayTimelineItem::SubagentGroup(group) => {
+            let agents = group.agents.clone();
+            view! {
+                <li class="agent-chat-line agent-chat-line--subagents">
+                    <ChatLineIndexColumn line_no=line_no.clone() tts_text=None voice_handle=voice_handle />
+                    <div class="agent-chat-body agent-subagent-group">
+                        <strong>"Subagents"</strong>
+                        {agents.into_iter().map(|card| {
+                            let status = card.status.clone();
+                            let name = card.display_name.clone();
+                            let summary = card.summary.clone();
+                            view! {
+                                <details class="agent-subagent-card" open>
+                                    <summary class="agent-subagent-card__summary">
+                                        <span class="agent-subagent-card__name">{name}</span>
+                                        <span class="agent-subagent-card__status">{status}</span>
+                                    </summary>
+                                    {(!summary.is_empty()).then(|| view! {
+                                        <p class="agent-subagent-card__summary-text">{summary}</p>
+                                    })}
+                                    <ul class="agent-subagent-card__tools">
+                                        {card.tools.into_iter().map(|t| {
+                                            let label = t.label.clone();
+                                            view! { <li>{label}</li> }
+                                        }).collect_view()}
+                                    </ul>
+                                </details>
+                            }
+                        }).collect_view()}
+                    </div>
+                </li>
+            }
+            .into_any()
+        }
         DisplayTimelineItem::Thinking { text, done } => view! {
             <ThinkingRow idx=idx line_no=line_no text=text done=done thinking_open=thinking_open voice_handle=voice_handle />
         }

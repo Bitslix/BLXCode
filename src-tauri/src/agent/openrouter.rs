@@ -12,9 +12,10 @@
 //! between rounds; pending oneshots are dropped on cancel.
 
 use crate::agent::protocol::{AgentEvent, AgentImageContextItem};
-use crate::agent::state::{AgentEngineState, ClientToolResult};
+use crate::agent::state::AgentEngineState;
 use crate::agent::system_prompt::system_prompt;
-use crate::agent::tools::{self, ToolSite, WorkspaceRootGuard};
+use crate::agent::tool_dispatch::{dispatch_tool, DispatchContext};
+use crate::agent::tools::WorkspaceRootGuard;
 use crate::agent_settings::{AgentProviderKind, AgentProviderSettings, ThinkingLevel};
 use crate::tasks;
 use serde::Deserialize;
@@ -22,7 +23,6 @@ use serde_json::{json, Value};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::AsyncBufReadExt;
-use tokio::sync::oneshot;
 
 /// Hard upper bound on tool-call rounds per turn. Stops runaway loops if
 /// the model keeps invoking tools without ever finishing.
@@ -35,7 +35,7 @@ pub enum Endpoint {
 }
 
 impl Endpoint {
-    fn url(self) -> &'static str {
+    pub(crate) fn url(self) -> &'static str {
         match self {
             Self::Openrouter => "https://openrouter.ai/api/v1/chat/completions",
             Self::Openai => "https://api.openai.com/v1/chat/completions",
@@ -196,8 +196,12 @@ pub async fn run_chat_turn(
         "content": openai_user_content(&prompt, &image_context_items),
     }));
 
-    let tools = tools::render_for_openai();
+    let tools = crate::agent::tools::render_for_openai();
     let reasoning = reasoning_for(settings.thinking_level, endpoint);
+    let dispatch_ctx = DispatchContext {
+        settings: settings.clone(),
+        api_key: api_key.clone(),
+    };
 
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(180))
@@ -291,8 +295,15 @@ pub async fn run_chat_turn(
                 return;
             }
             let args_val: Value = serde_json::from_str(&call.arguments).unwrap_or(json!({}));
-            let outcome =
-                dispatch_tool(&state, &call.id, &call.name, &args_val, root_guard.as_ref()).await;
+            let outcome = dispatch_tool(
+                &state,
+                &call.id,
+                &call.name,
+                &args_val,
+                root_guard.as_ref(),
+                Some(&dispatch_ctx),
+            )
+            .await;
 
             if outcome.ok && call.name.starts_with("task_") {
                 maybe_emit_task_snapshot(&state, root_guard.as_ref());
@@ -338,6 +349,7 @@ fn maybe_emit_task_snapshot(state: &Arc<AgentEngineState>, root: Option<&Workspa
 }
 
 fn emit_aborted(state: &Arc<AgentEngineState>) {
+    crate::agent::shell_exec::kill_all_children();
     state.push(AgentEvent::AssistantDelta {
         delta: "\n_Abgebrochen._\n".into(),
     });
@@ -523,70 +535,6 @@ fn sanitize_conversation_images(mut messages: Vec<Value>) -> Vec<Value> {
         }
     }
     messages
-}
-
-async fn dispatch_tool(
-    state: &Arc<AgentEngineState>,
-    call_id: &str,
-    name: &str,
-    args: &Value,
-    root: Option<&WorkspaceRootGuard>,
-) -> tools::ToolOutcome {
-    // Always announce the call to the UI so the user sees what the model
-    // is doing — including server-side tools.
-    state.push(AgentEvent::ToolCall {
-        tool: name.to_owned(),
-        call_id: Some(call_id.to_owned()),
-        args: Some(args.clone()),
-    });
-
-    let Some(def) = tools::find(name) else {
-        return tools::ToolOutcome {
-            ok: false,
-            content: format!("unknown tool: {name}"),
-        };
-    };
-
-    match def.site {
-        ToolSite::Server => tools::execute_server_tool(name, args, root),
-        ToolSite::Client => wait_for_client_tool(state, call_id, name).await,
-    }
-}
-
-async fn wait_for_client_tool(
-    state: &Arc<AgentEngineState>,
-    call_id: &str,
-    name: &str,
-) -> tools::ToolOutcome {
-    let (tx, rx) = oneshot::channel::<ClientToolResult>();
-    state.register_client_tool(call_id.to_owned(), tx);
-
-    match rx.await {
-        Ok(res) => {
-            let mut body = res.message.unwrap_or_default();
-            if let Some(data) = res.data {
-                if !body.is_empty() {
-                    body.push('\n');
-                }
-                body.push_str(&data.to_string());
-            }
-            if body.is_empty() {
-                body = if res.ok {
-                    format!("{name}: ok")
-                } else {
-                    format!("{name}: failed")
-                };
-            }
-            tools::ToolOutcome {
-                ok: res.ok,
-                content: body,
-            }
-        }
-        Err(_) => tools::ToolOutcome {
-            ok: false,
-            content: format!("{name}: cancelled before result"),
-        },
-    }
 }
 
 fn truncate_for_ui(s: &str) -> String {
