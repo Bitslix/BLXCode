@@ -9,7 +9,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::GitignorePromptBody => {
             "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \
 Add it to this project's `.gitignore` so it is not committed by mistake?"
-        }
+        },
         I18nKey::GitignorePromptYes => "Yes, add it",
         I18nKey::GitignorePromptNo => "Not now",
         I18nKey::BtnClose => "Close",
@@ -214,6 +214,28 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
         I18nKey::AppNotifToastsHint => "Brief confirmation when context is sent or attached.",
         I18nKey::AppNotifSound => "Play success sound",
         I18nKey::AppNotifSoundHint => "Short tone on successful handoff actions.",
+        I18nKey::AppUpdateHeading => "App updates",
+        I18nKey::AppUpdateAutoCheck => "Check for updates on startup",
+        I18nKey::AppUpdateAutoCheckHint => {
+            "BLXCode checks GitHub Releases silently and shows a banner when an update is ready."
+        }
+        I18nKey::AppUpdateCurrentVersion => "Current version",
+        I18nKey::AppUpdateCheck => "Check for updates",
+        I18nKey::AppUpdateChecking => "Checking...",
+        I18nKey::AppUpdateUpToDate => "BLXCode is up to date.",
+        I18nKey::AppUpdateDevUnavailable => "Updater is disabled in development builds.",
+        I18nKey::UpdateBannerTitle => "Update available",
+        I18nKey::UpdateBannerAction => "View update",
+        I18nKey::UpdateDialogTitle => "BLXCode update",
+        I18nKey::UpdateDialogInstall => "Install update",
+        I18nKey::UpdateDialogLater => "Later",
+        I18nKey::UpdateDialogDownloading => "Downloading",
+        I18nKey::UpdateDialogInstalling => "Installing",
+        I18nKey::UpdateDialogDone => "Ready to restart",
+        I18nKey::UpdateDialogRelaunch => "Restart",
+        I18nKey::UpdateDialogRetry => "Retry",
+        I18nKey::UpdateDialogError => "Update failed",
+        I18nKey::UpdateDialogNotes => "Release notes",
         I18nKey::AppShortcutHeading => "Keyboard shortcuts",
         I18nKey::AppShortcutModeTmux => "Tmux style (Ctrl+b, then key)",
         I18nKey::AppShortcutModeLegacy => "Classic (Ctrl / Ctrl+Shift)",

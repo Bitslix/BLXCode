@@ -28,6 +28,8 @@ pub mod state;
 mod terminal_cell;
 mod terminal_glue;
 mod toast;
+mod update_dialog;
+mod update_service;
 mod workspace_panel;
 
 pub use agent_panel::AgentPanelDock;
@@ -63,6 +65,8 @@ use send_wrapper::SendWrapper;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use toast::{ToastHost, ToastService};
+use update_dialog::{UpdateBanner, UpdateDialog};
+use update_service::UpdateService;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
 
@@ -122,6 +126,7 @@ pub fn WorkbenchShell() -> impl IntoView {
     let skills_rules = SkillsRulesService::new();
     let app_prefs = AppPrefsService::new();
     let toast = ToastService::new();
+    let updates = UpdateService::new();
 
     provide_context(wb);
     provide_context(harness);
@@ -129,6 +134,7 @@ pub fn WorkbenchShell() -> impl IntoView {
     provide_context(skills_rules);
     provide_context(app_prefs);
     provide_context(toast);
+    provide_context(updates);
 
     // Hydrate from persisted snapshot before auto-save kicks in.
     let hydrated = RwSignal::new(false);
@@ -190,6 +196,12 @@ pub fn WorkbenchShell() -> impl IntoView {
         spawn_local(async move {
             let _ = workbench_prune_sessions(live_keys_for_sessions).await;
         });
+    });
+
+    Effect::new(move |_| {
+        if hydrated.get() && app_prefs.update_auto_check_enabled().get() {
+            updates.check_silent();
+        }
     });
 
     let notification_poller_started = RwSignal::new(false);
@@ -450,6 +462,8 @@ pub fn WorkbenchShell() -> impl IntoView {
                 </div>
             </main>
             <EmbeddedBrowserGlue />
+            <UpdateBanner />
+            <UpdateDialog />
             <HarnessHost />
             <ToastHost />
         </Show>

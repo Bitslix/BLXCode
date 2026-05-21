@@ -94,6 +94,7 @@ jobs:
       contents: write
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         include:
           - platform: macos-latest
@@ -132,6 +133,8 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # Unsigned installers (no Apple / Windows code-signing cert in CI).
           CI: true
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -144,3 +147,22 @@ jobs:
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args || '' }}
+
+      - name: Merge updater latest.json
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mapfile -t signatures < <(find target -path '*/release/bundle/*' -name '*.sig' -type f)
+          if [[ ${#signatures[@]} -eq 0 ]]; then
+            echo "No updater signatures found; skipping latest.json"
+            exit 0
+          fi
+          version="${GITHUB_REF_NAME#v}"
+          python scripts/release/merge_latest_json.py \
+            --repo "${{ github.repository }}" \
+            --tag "${{ github.ref_name }}" \
+            --version "$version" \
+            --output target/latest.json \
+            "${signatures[@]}"
+          gh release upload "${{ github.ref_name }}" -R "${{ github.repository }}" --clobber target/latest.json

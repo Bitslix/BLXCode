@@ -110,4 +110,42 @@ release_upload_artifacts() {
   fi
   "${gh_args[@]}" "${to_upload[@]}"
   release_info "Uploaded ${#to_upload[@]} file(s) to $tag on $RELEASE_GH_REPO"
+  release_upload_latest_json "$tag" "$version" "${artifacts[@]}"
+}
+
+release_upload_latest_json() {
+  local tag="$1"
+  local version="$2"
+  shift 2
+  local -a artifacts=("$@")
+  local -a signatures=()
+  local f
+
+  for f in "${artifacts[@]}"; do
+    if [[ "$f" == *.sig ]]; then
+      signatures+=("$f")
+    fi
+  done
+
+  if [[ ${#signatures[@]} -eq 0 ]]; then
+    release_warn "No updater signatures found; skipping latest.json upload"
+    return 0
+  fi
+
+  release_require_cmd python3
+  if [[ "${RELEASE_DRY_RUN:-0}" == "1" ]]; then
+    release_info "Would: merge and upload latest.json for $tag"
+    return 0
+  fi
+
+  local latest_path="$RELEASE_ROOT/target/latest.json"
+  python3 "$RELEASE_ROOT/scripts/release/merge_latest_json.py" \
+    --repo "$RELEASE_GH_REPO" \
+    --tag "$tag" \
+    --version "$version" \
+    --output "$latest_path" \
+    "${signatures[@]}"
+
+  gh release upload "$tag" -R "$RELEASE_GH_REPO" --clobber "$latest_path"
+  release_info "Uploaded canonical latest.json to $tag"
 }

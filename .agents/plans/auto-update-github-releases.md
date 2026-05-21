@@ -8,7 +8,7 @@ UI: **eigener Leptos-Dialog** im BLXCode-Look (Theme-Tokens, Lucide-Icons, Forts
 
 Updates greifen erst, wenn ein GitHub-Release **manuell veroeffentlicht** wurde (CI erzeugt weiterhin **Draft**-Releases).
 
-**Ops-Blocker:** Signing-Keys und GitHub Secret muessen **vor dem ersten nutzbaren Release** stehen — ohne `.sig` + `pubkey` schlaegt der Updater in Produktion fehl.
+**Release-Voraussetzung:** Der lokale Signing-Key liegt ignoriert unter `.tauri/blxcode.key`, der passende `pubkey` ist in `tauri.conf.json` gesetzt, und `TAURI_SIGNING_PRIVATE_KEY` ist als GitHub Secret hinterlegt. Lokale Release-Builds koennen `TAURI_SIGNING_PRIVATE_KEY_PATH=.tauri/blxcode.key` nutzen.
 
 ## Decisions
 
@@ -17,7 +17,7 @@ Updates greifen erst, wenn ein GitHub-Release **manuell veroeffentlicht** wurde 
 - `dialog: false` — **Leptos-Modal** fuer i18n, Release-Notes, Fortschritt, MB/s.
 - **Draft-Releases bleiben**; Endnutzer-Updates erst nach manuellem „Publish release“ auf GitHub.
 - **Signing ist Pflicht** (`createUpdaterArtifacts`, `.sig`, `TAURI_SIGNING_PRIVATE_KEY` in CI). Private Key nie committen.
-- Linux-Updater-Artifact: **AppImage** in `latest.json`; deb/rpm bleiben zusaetzliche manuelle Downloads (nach erstem signierten Release JSON-Keys verifizieren).
+- Linux-Updater-Artifact: **AppImage** in `latest.json`; deb/rpm bleiben zusaetzliche manuelle Downloads (kein apt/dnf-Repo im MVP).
 - Startup: Auto-Check (Default an), bei Update nur **Banner** — kein Auto-Install.
 - Dev/`cargo tauri dev`: Updater deaktiviert oder graceful no-op mit Hinweis in Settings.
 - **Cancel:** Dialog schliessen versteckt UI; Download-Task kann im Hintergrund weiterlaufen — `busy`-Flag verhindert Doppelstart bis Task endet.
@@ -62,14 +62,14 @@ sequenceDiagram
 - IPC: `app_version`, `updater_check`, `updater_install_start`, `updater_poll_progress`, `app_relaunch`
 - Progress-Callback: `Started` (total_bytes), `Progress` (chunk), `Finished` → `Downloading` / `Installing` / `Done` / `Error`
 - `capabilities/default.json`: `updater:default`, `process:default`
-- macOS universal: `.custom_target("darwin-universal")` beim `check()` falls `latest.json` diesen Key nutzt — **Acceptance-Check** nach erstem signierten Release
+- macOS universal: `target("darwin-universal")` beim `check()`; `latest.json` nutzt denselben Key — **Acceptance-Check** nach erstem signierten Release
 - Windows: optional `on_before_exit` + Dialog-Hinweis (Workbench speichern vor Installer)
 
 ### Release-Pipeline
 
-- `.github/workflows/release.yml`: `TAURI_SIGNING_PRIVATE_KEY`, `tauri-action` mit `uploadUpdaterJson: true`
-- `docs/user/building.md`: Signing, `latest.json`, **Publish draft** vor Nutzer-Updates
-- `scripts/release.sh`: bei `--require-signing` auch `latest.json` hochladen
+- `.github/workflows/release.yml`: `TAURI_SIGNING_PRIVATE_KEY`, macOS/Windows-Artefakte, danach Merge/Upload von canonical `latest.json`
+- `docs/user/building.md`: Signing, `latest.json`, **Publish draft** vor Nutzer-Updates; OS-Code-Signing separat von Tauri-Updater-Signing
+- `scripts/release.sh` + `scripts/release.ps1`: signierte lokale Linux-Artefakte hochladen; deb/rpm als Downloads, AppImage-Updater-Payload in `latest.json` mergen
 
 ### Frontend — Service & IPC
 
@@ -114,7 +114,7 @@ stateDiagram-v2
 
 ### i18n
 
-`I18nKey` in `keys.rs` + alle `locales/*.rs` (mindestens `en_us`, `de_de`; Rest via `scripts/render_i18n_locales_from_en.py`):
+`I18nKey` in `keys.rs` + alle `locales/*.rs` (mindestens `en_us`, `de_de`; Rest via `scripts/tools/render_i18n_locales_from_en.py`):
 
 - Settings: Heading, Version, Auto-Check, Check-Button, Status-Chips
 - Dialog: Titel, Notes, Phasen, Buttons
@@ -133,9 +133,9 @@ stateDiagram-v2
 
 ## Tasks
 
-- [ ] `signing-keys` - Signer-Keys erzeugen (Ops), pubkey in tauri.conf.json, GitHub Secret TAURI_SIGNING_PRIVATE_KEY — vor erstem nutzbaren Release
-- [ ] `tauri-updater-plugin` - tauri-plugin-updater + process, UpdaterState mit pending Update-Handle, IPC, Progress-Callback
-- [ ] `ci-latest-json` - release.yml Signing + uploadUpdaterJson; building.md Draft publish; latest.json Platform-Keys verifizieren
-- [ ] `frontend-update-service` - updater_wire, tauri_bridge, UpdateService, Startup-Check, AppSettingsPane, UpdateBanner
-- [ ] `update-dialog-ui` - update_dialog.rs + CSS: themed sheet, icons, progress/speed, banner, a11y, reduced-motion
-- [ ] `i18n-update-keys` - I18nKey + alle locale-Dateien fuer Update-UI
+- [x] `signing-keys` - Signer-Key lokal unter `.tauri/blxcode.key` erzeugt und ignoriert; pubkey in tauri.conf.json gesetzt; GitHub Secret TAURI_SIGNING_PRIVATE_KEY gesetzt
+- [x] `tauri-updater-plugin` - tauri-plugin-updater + process, UpdaterState mit pending Update-Handle, IPC, Progress-Callback
+- [x] `ci-latest-json` - release.yml Signing + canonical latest.json Merge; building.md Draft publish; latest.json Platform-Keys verifizieren
+- [x] `frontend-update-service` - tauri_bridge, UpdateService, Startup-Check, AppSettingsPane, UpdateBanner
+- [x] `update-dialog-ui` - update_dialog.rs + CSS: themed sheet, icons, progress/speed, banner, a11y, reduced-motion
+- [x] `i18n-update-keys` - I18nKey + alle locale-Dateien fuer Update-UI

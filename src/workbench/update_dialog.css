@@ -1,0 +1,116 @@
+.blx-update-banner {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  max-width: min(34rem, calc(100vw - 2rem));
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--bg-panel);
+  color: var(--fg-main);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.42);
+}
+
+.blx-update-banner__icon {
+  display: inline-grid;
+  place-items: center;
+  color: var(--accent);
+}
+
+.blx-update-banner__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.82rem;
+}
+
+.harness-sheet--update {
+  width: min(34rem, calc(100vw - 2rem));
+  max-height: min(42rem, calc(100vh - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.blx-update-dialog__head,
+.blx-update-actions,
+.blx-update-progress__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.blx-update-version {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-subtle);
+  font-size: 0.86rem;
+}
+
+.blx-update-notes {
+  max-height: 12rem;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.7rem;
+  background: var(--bg-raised);
+}
+
+.blx-update-notes h3 {
+  margin: 0 0 0.45rem;
+  font-size: 0.78rem;
+  color: var(--fg-muted);
+}
+
+.blx-update-notes p,
+.blx-update-error {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.blx-update-error {
+  color: #ff7b72;
+}
+
+.blx-update-progress {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.blx-update-progress__row {
+  color: var(--fg-muted);
+  font-size: 0.76rem;
+}
+
+.blx-update-progress__track {
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-raised);
+}
+
+.blx-update-progress__bar {
+  height: 100%;
+  min-width: 1.5rem;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--accent-cool));
+  transition: width 160ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blx-update-progress__bar {
+    transition: none;
+  }
+}

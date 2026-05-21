@@ -178,9 +178,11 @@ For a **local bundle build only**, you do not need `.env.release`. Run:
 ./scripts/release.sh
 ```
 
-Builds are **unsigned by default** (no Apple/Windows code signing, no Tauri updater key). Use `--require-signing` only when `.env.release` has `TAURI_SIGNING_PRIVATE_KEY`.
+Updater-capable release builds need `TAURI_SIGNING_PRIVATE_KEY` or `TAURI_SIGNING_PRIVATE_KEY_PATH`; this is separate from Apple/Microsoft installer certificates. Apple/Windows code signing can remain unset for now, but the Tauri updater cannot install artifacts without the generated `.sig` files and the matching public key in `src-tauri/tauri.conf.json`. This repository keeps the local private key at `.tauri/blxcode.key`, and `.tauri/` is gitignored.
 
 That builds Linux bundles for **amd64 and arm64** by default (`--linux-arch all`): native deb/rpm/AppImage on your CPU, cross-built deb/rpm for the other arch (AppImage for the non-native arch needs an ARM runner or CI — see below). macOS uses **`universal-apple-darwin`** (one `.app`/`.dmg` for Apple Silicon and Intel). Artifacts land under `target/**/release/bundle/`.
+
+For GitHub Releases, `.deb` and `.rpm` remain manual download assets. The in-app updater uses only the Tauri updater payloads and signatures: Linux AppImage, macOS `.app.tar.gz`, and Windows installer payloads. After upload, the release scripts merge those signed artifacts into one canonical `latest.json` on the draft release.
 
 For cross-built Linux bundles, the cross linker alone is not enough for GTK/WebKit apps. You also need a target pkg-config sysroot or wrapper with target `.pc` files for `glib-2.0`, `gobject-2.0`, `gio-2.0`, `gtk+-3.0`, and `webkit2gtk-4.1`. On Arch amd64, `sudo pacman -S aarch64-linux-gnu-gcc` installs the linker, but you still need an arm64 sysroot or an `aarch64-linux-gnu-pkg-config` wrapper that resolves the arm64 GTK/WebKit packages. Without that, the release script skips arm64 and prints the missing pkg-config setup instead of failing after the native build.
 

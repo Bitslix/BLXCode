@@ -109,6 +109,50 @@ pub async fn harness_ensure_default_sandbox() -> Result<String, String> {
     invoke_typed("harness_ensure_default_sandbox", serde_json::json!({})).await
 }
 
+pub async fn app_version() -> Result<String, String> {
+    invoke_typed("app_version", serde_json::json!({})).await
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateCheckResponse {
+    pub status: String,
+    pub current_version: String,
+    pub available_version: Option<String>,
+    pub notes: Option<String>,
+    pub date: Option<String>,
+    pub target: Option<String>,
+    pub download_url: Option<String>,
+    pub message: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateProgress {
+    pub phase: String,
+    pub busy: bool,
+    pub downloaded_bytes: u64,
+    pub total_bytes: Option<u64>,
+    pub error: Option<String>,
+    pub updated_at_ms: u64,
+}
+
+pub async fn updater_check() -> Result<UpdateCheckResponse, String> {
+    invoke_typed("updater_check", serde_json::json!({})).await
+}
+
+pub async fn updater_install_start() -> Result<UpdateProgress, String> {
+    invoke_typed("updater_install_start", serde_json::json!({})).await
+}
+
+pub async fn updater_poll_progress() -> Result<UpdateProgress, String> {
+    invoke_typed("updater_poll_progress", serde_json::json!({})).await
+}
+
+pub async fn app_relaunch() -> Result<(), String> {
+    invoke_unit_js("app_relaunch", JsValue::UNDEFINED).await
+}
+
 pub async fn gitignore_append_blxcode(workspace_cwd: &str) -> Result<(), String> {
     #[derive(Serialize)]
     struct Args<'a> {
@@ -1349,11 +1393,7 @@ pub async fn plan_write(ws: &str, path: &str, content: &str) -> Result<PlanConte
     .await
 }
 
-pub async fn plan_create(
-    ws: &str,
-    path: &str,
-    content: Option<&str>,
-) -> Result<PlanMeta, String> {
+pub async fn plan_create(ws: &str, path: &str, content: Option<&str>) -> Result<PlanMeta, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct A<'a> {
@@ -1390,11 +1430,7 @@ pub async fn plan_delete(ws: &str, path: &str) -> Result<(), String> {
     .await
 }
 
-pub async fn plan_rename(
-    ws: &str,
-    old_path: &str,
-    new_path: &str,
-) -> Result<PlanMeta, String> {
+pub async fn plan_rename(ws: &str, old_path: &str, new_path: &str) -> Result<PlanMeta, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct A<'a> {
@@ -1533,11 +1569,7 @@ pub async fn skills_read(ws: String, name: String) -> Result<String, String> {
 }
 
 #[allow(dead_code)]
-pub async fn skills_write(
-    ws: String,
-    name: String,
-    content: String,
-) -> Result<SkillEntry, String> {
+pub async fn skills_write(ws: String, name: String, content: String) -> Result<SkillEntry, String> {
     #[derive(Serialize)]
     struct A {
         ws: String,
@@ -1642,10 +1674,7 @@ pub struct GitGraphLayout {
 
 pub const GIT_MISSING_CODE: &str = "git_missing";
 
-pub async fn git_commit_graph(
-    cwd: String,
-    limit: Option<u32>,
-) -> Result<GitGraphLayout, String> {
+pub async fn git_commit_graph(cwd: String, limit: Option<u32>) -> Result<GitGraphLayout, String> {
     #[derive(Serialize)]
     struct Args {
         cwd: String,
@@ -2095,7 +2124,9 @@ pub async fn image_curated_models(
     .await
 }
 
-pub async fn generated_image_preview(path: String) -> Result<GeneratedImagePreviewResponse, String> {
+pub async fn generated_image_preview(
+    path: String,
+) -> Result<GeneratedImagePreviewResponse, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Args {

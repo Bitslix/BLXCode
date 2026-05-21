@@ -2,7 +2,7 @@
 
 use crate::config::{
     SHORTCUT_MODE_LEGACY, SHORTCUT_MODE_STORAGE_KEY, SHORTCUT_MODE_TMUX, SUCCESS_SOUND_STORAGE_KEY,
-    SUCCESS_TOAST_STORAGE_KEY,
+    SUCCESS_TOAST_STORAGE_KEY, UPDATE_AUTO_CHECK_KEY,
 };
 use leptos::prelude::*;
 
@@ -35,6 +35,7 @@ pub struct AppPrefsService {
     success_toast: RwSignal<bool>,
     success_sound: RwSignal<bool>,
     shortcut_mode: RwSignal<ShortcutMode>,
+    update_auto_check: RwSignal<bool>,
 }
 
 impl AppPrefsService {
@@ -46,6 +47,7 @@ impl AppPrefsService {
             success_toast: RwSignal::new(read_bool_storage(SUCCESS_TOAST_STORAGE_KEY, true)),
             success_sound: RwSignal::new(read_bool_storage(SUCCESS_SOUND_STORAGE_KEY, true)),
             shortcut_mode: RwSignal::new(shortcut_mode),
+            update_auto_check: RwSignal::new(read_bool_storage(UPDATE_AUTO_CHECK_KEY, true)),
         }
     }
 
@@ -61,6 +63,10 @@ impl AppPrefsService {
         self.shortcut_mode
     }
 
+    pub fn update_auto_check_enabled(&self) -> RwSignal<bool> {
+        self.update_auto_check
+    }
+
     pub fn set_success_toast(&self, enabled: bool) {
         self.success_toast.set(enabled);
         write_bool_storage(SUCCESS_TOAST_STORAGE_KEY, enabled);
@@ -74,6 +80,11 @@ impl AppPrefsService {
     pub fn set_shortcut_mode(&self, mode: ShortcutMode) {
         self.shortcut_mode.set(mode);
         write_string_storage(SHORTCUT_MODE_STORAGE_KEY, mode.storage_value());
+    }
+
+    pub fn set_update_auto_check(&self, enabled: bool) {
+        self.update_auto_check.set(enabled);
+        write_bool_storage(UPDATE_AUTO_CHECK_KEY, enabled);
     }
 }
 

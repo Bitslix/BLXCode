@@ -14,6 +14,7 @@ mod plans;
 mod pty_host;
 mod skills_rules;
 mod tasks;
+mod updater;
 mod voice;
 mod workbench_state;
 
@@ -28,9 +29,13 @@ use agent_settings::{
 };
 use browser_host::BrowserHost;
 use commands::*;
+use image::{image_curated_models, image_settings_get, image_settings_save};
 use pty_host::PtyManager;
 use tauri_plugin_opener::OpenerExt;
-use image::{image_curated_models, image_settings_get, image_settings_save};
+use updater::{
+    app_relaunch, app_version, updater_check, updater_install_start, updater_poll_progress,
+    BlxUpdaterState,
+};
 use voice::{
     voice_cancel_recording, voice_provider_voices, voice_settings_get, voice_settings_save,
     voice_start_recording, voice_stop_and_transcribe, voice_tts_preview, VoiceRecorderState,
@@ -94,7 +99,10 @@ pub fn run() {
     init_keyring_store();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AgentEngineState::new())
+        .manage(BlxUpdaterState::default())
         .manage(BrowserHost::default())
         .manage(PtyManager::default())
         .manage(VoiceRecorderState::new())
@@ -103,6 +111,11 @@ pub fn run() {
             open_external_url,
             greet,
             exit_app,
+            app_version,
+            updater_check,
+            updater_install_start,
+            updater_poll_progress,
+            app_relaunch,
             agent_submit_turn,
             agent_submit_tool_result,
             agent_poll_events,
