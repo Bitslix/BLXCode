@@ -6,8 +6,10 @@
 
 .blx-plans-tabs {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.3rem;
+    grid-template-columns: repeat(4, auto);
+    justify-content: center;
+    justify-items: center;
+    gap: 0.35rem 0.65rem;
     overflow: visible;
 }
 
