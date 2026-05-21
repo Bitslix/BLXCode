@@ -247,6 +247,22 @@ pub enum I18nKey {
     AgAskUserCancelled,
     AgAskUserAnswered,
 
+    // Per-turn metrics bar + session-cost chip (per-turn-chat-metrics plan)
+    AgMetricsIn,
+    AgMetricsOut,
+    AgMetricsTtft,
+    AgMetricsCostUnknown,
+    AgMetricsTurnsOne,
+    AgMetricsTurnsMany,
+    AgMetricsTooltipIn,
+    AgMetricsTooltipOut,
+    AgMetricsTooltipTtft,
+    AgMetricsTooltipSpeed,
+    AgMetricsTooltipCost,
+    AgMetricsBarAria,
+    AgMetricsModelRound,
+    AgSessionCostAria,
+
     BrToolbarAria,
     BrBack,
     BrFwd,

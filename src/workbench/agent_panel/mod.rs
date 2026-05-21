@@ -665,6 +665,7 @@ fn submit_turn(
 #[component]
 fn SessionCostChip(wb: WorkbenchService) -> impl IntoView {
     use crate::workbench::agent_panel::turn_metrics_bar::fmt_cost;
+    let i18n = expect_context::<I18nService>();
     let stats = Memo::new(move |_| {
         let id = wb.active_id().get()?;
         let s = wb.chat_usage_for_workspace(id);
@@ -675,14 +676,19 @@ fn SessionCostChip(wb: WorkbenchService) -> impl IntoView {
         }
     });
 
+    let aria = move || lookup(i18n.locale().get(), I18nKey::AgSessionCostAria).to_string();
     view! {
         <Show when=move || stats.with(|s| s.is_some())>
-            <div class="agent-chat-head__cost" aria-label="Session cost and turn count">
+            <div class="agent-chat-head__cost" aria-label=aria>
                 {move || {
                     let s = stats.get().expect("Show gate");
                     let cost = fmt_cost(s.total_cost_usd);
                     let turns = s.turn_count;
-                    let turn_label = if turns == 1 { "turn" } else { "turns" };
+                    let loc = i18n.locale().get();
+                    let turn_label = lookup(
+                        loc,
+                        if turns == 1 { I18nKey::AgMetricsTurnsOne } else { I18nKey::AgMetricsTurnsMany },
+                    );
                     view! {
                         <strong>{cost}</strong>
                         <span class="agent-chat-head__cost-sep">"·"</span>

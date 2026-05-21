@@ -900,16 +900,20 @@ pub fn TimelineRow(
             <ToolActivityRow line_no=line_no tool=tool voice_handle=voice_handle />
         }
         .into_any(),
-        DisplayTimelineItem::ModelDecision { metrics } => view! {
-            <li class="agent-chat-line agent-chat-line--decision">
-                <ChatLineIndexColumn line_no=line_no.clone() tts_text=None voice_handle=voice_handle />
-                <div class="agent-chat-body">
-                    <span class="agent-chat-decision-label">"model round"</span>
-                    <TurnMetricsBar metrics=metrics context=BarContext::Main />
-                </div>
-            </li>
+        DisplayTimelineItem::ModelDecision { metrics } => {
+            let loc = i18n.locale().get_untracked();
+            let label = lookup(loc, I18nKey::AgMetricsModelRound).to_string();
+            view! {
+                <li class="agent-chat-line agent-chat-line--decision">
+                    <ChatLineIndexColumn line_no=line_no.clone() tts_text=None voice_handle=voice_handle />
+                    <div class="agent-chat-body">
+                        <span class="agent-chat-decision-label">{label}</span>
+                        <TurnMetricsBar metrics=metrics context=BarContext::Main />
+                    </div>
+                </li>
+            }
+            .into_any()
         }
-        .into_any(),
         DisplayTimelineItem::SubagentGroup(group) => {
             let agents = group.agents.clone();
             let loc = i18n.locale().get_untracked();

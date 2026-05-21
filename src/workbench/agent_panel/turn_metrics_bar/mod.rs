@@ -3,11 +3,10 @@
 //! Rendered under Assistant rows, Tool rows, ModelDecision rows and
 //! Subagent-tool rows. The component is intentionally side-effect free:
 //! it reads a `TurnMetrics` snapshot and produces a single line.
-//!
-//! i18n strings are still English literals here — they get swapped to
-//! `I18nKey::AgMetrics*` by the `i18n-keys` task that follows.
 
 use crate::agent_wire::TurnMetrics;
+use crate::i18n::{lookup, I18nKey};
+use crate::service::I18nService;
 use leptos::prelude::*;
 
 /// Where the bar is rendered. Currently only changes the wrapping CSS
@@ -25,24 +24,40 @@ pub fn TurnMetricsBar(metrics: TurnMetrics, context: BarContext) -> impl IntoVie
     if metrics.is_empty() {
         return view! { <></> }.into_any();
     }
+    let i18n = use_context::<I18nService>();
+    let loc = i18n
+        .as_ref()
+        .map(|s| s.locale().get_untracked())
+        .unwrap_or_default();
+    let dash = lookup(loc, I18nKey::AgMetricsCostUnknown).to_string();
 
     let in_tok = metrics
         .input_tokens
         .map(fmt_compact_int)
-        .unwrap_or_else(em_dash);
+        .unwrap_or_else(|| dash.clone());
     let out_tok = metrics
         .output_tokens
         .map(fmt_compact_int)
-        .unwrap_or_else(em_dash);
+        .unwrap_or_else(|| dash.clone());
     let speed = match (metrics.output_tokens, metrics.elapsed_ms) {
         (Some(out), ms) if ms > 0 && out > 0 => {
             let tps = (out as f64) * 1000.0 / (ms as f64);
             format!("{tps:.1} tok/s")
         }
-        _ => em_dash(),
+        _ => dash.clone(),
     };
-    let ttft = metrics.ttft_ms.map(fmt_ms).unwrap_or_else(em_dash);
-    let cost = metrics.cost_usd.map(fmt_cost).unwrap_or_else(em_dash);
+    let ttft = metrics.ttft_ms.map(fmt_ms).unwrap_or_else(|| dash.clone());
+    let cost = metrics.cost_usd.map(fmt_cost).unwrap_or_else(|| dash.clone());
+
+    let label_in = lookup(loc, I18nKey::AgMetricsIn);
+    let label_out = lookup(loc, I18nKey::AgMetricsOut);
+    let label_ttft = lookup(loc, I18nKey::AgMetricsTtft);
+    let tt_in = lookup(loc, I18nKey::AgMetricsTooltipIn);
+    let tt_out = lookup(loc, I18nKey::AgMetricsTooltipOut);
+    let tt_ttft = lookup(loc, I18nKey::AgMetricsTooltipTtft);
+    let tt_speed = lookup(loc, I18nKey::AgMetricsTooltipSpeed);
+    let tt_cost = lookup(loc, I18nKey::AgMetricsTooltipCost);
+    let bar_aria = lookup(loc, I18nKey::AgMetricsBarAria);
 
     let wrap_class = match context {
         BarContext::Main => "turn-metrics-bar turn-metrics-bar--main",
@@ -50,33 +65,29 @@ pub fn TurnMetricsBar(metrics: TurnMetrics, context: BarContext) -> impl IntoVie
     };
 
     view! {
-        <div class=wrap_class aria-label="Turn metrics">
-            <span class="turn-metrics-bar__cell" title="Input / prompt tokens">
-                "in " <strong>{in_tok}</strong>
+        <div class=wrap_class aria-label=bar_aria>
+            <span class="turn-metrics-bar__cell" title=tt_in>
+                {label_in} " " <strong>{in_tok}</strong>
             </span>
             <span class="turn-metrics-bar__sep">"·"</span>
-            <span class="turn-metrics-bar__cell" title="Output / completion tokens">
-                "out " <strong>{out_tok}</strong>
+            <span class="turn-metrics-bar__cell" title=tt_out>
+                {label_out} " " <strong>{out_tok}</strong>
             </span>
             <span class="turn-metrics-bar__sep">"·"</span>
-            <span class="turn-metrics-bar__cell" title="Output decode speed">
+            <span class="turn-metrics-bar__cell" title=tt_speed>
                 <strong>{speed}</strong>
             </span>
             <span class="turn-metrics-bar__sep">"·"</span>
-            <span class="turn-metrics-bar__cell" title="Time to first token">
-                "ttft " <strong>{ttft}</strong>
+            <span class="turn-metrics-bar__cell" title=tt_ttft>
+                {label_ttft} " " <strong>{ttft}</strong>
             </span>
             <span class="turn-metrics-bar__sep">"·"</span>
-            <span class="turn-metrics-bar__cell turn-metrics-bar__cell--cost" title="Resolved USD cost">
+            <span class="turn-metrics-bar__cell turn-metrics-bar__cell--cost" title=tt_cost>
                 <strong>{cost}</strong>
             </span>
         </div>
     }
     .into_any()
-}
-
-fn em_dash() -> String {
-    "—".to_string()
 }
 
 fn fmt_compact_int(n: u64) -> String {
