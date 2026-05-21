@@ -41,14 +41,27 @@ Open **Skills** from the right workbench rail (`LuPuzzle` icon).
   <img src="../images/skills-panel.png" alt="Skills panel with install dialog and skill cards showing source badges" />
 </p>
 
+### Core vs User tabs
+
+BLXCode ships **core harness skills** inside the app (Better Harness). They are not files on disk in your workspace — they are embedded Markdown the agent reads via `skills_read`.
+
+| Tab | Contents |
+|-----|----------|
+| **Core** | Built-in guides: `file-access`, `memory`, `plans`, `tasks`, `rules-skills`, `harness`, `environment`, `shell`, `git`, `web`, `subagents` |
+| **User** | Skills under `<workspace>/.agents/skills/` that you install or author |
+
+Core skills show a **core** badge. You can enable or disable them per workspace, but you cannot remove them. **Install skill** appears only on the **User** tab.
+
+The **web** core skill may show **disabled_no_key** when no Tavily/Brave API key is configured — configure keys under Harness settings → Agent → Web Tools ([Agent Harness](agent-harness.md)). The **subagents** core skill documents `subagents.run` — see [Subagents](subagents.md).
+
 Each card shows:
 
 - Skill name and summary
-- Source badge: `git`, `npm`, `local`, or `agent`
-- **SKILL.md missing** warning when the folder has no top-level `SKILL.md`
-- Enable/disable and remove controls
+- Source badge: `core`, `git`, `npm`, `local`, or `agent`
+- **SKILL.md missing** warning (user skills only) when the folder has no top-level `SKILL.md`
+- Enable/disable; **remove** only for non-core skills
 
-Use **Install skill** to add a skill from:
+Use **Install skill** (User tab) to add a skill from:
 
 | Source | Fields |
 |--------|--------|
@@ -72,7 +85,7 @@ When a workspace path is set (wizard, switch, or workbench restore), BLXCode run
 Every non-trivial agent turn should follow this order (documented in the system prompt):
 
 1. `rules_list` + `rules_read` on relevant **active** rules
-2. `skills_list` + `skills_read` on matching skills when the task warrants it
+2. `skills_list` + `skills_read` on matching skills when the task warrants it (including **core** skills such as `git` or `shell` when using those tools)
 3. **Resume check** — continue from `task_list` / `activePlanPath` when the user says *continue*, *resume*, *weiter*, *fortsetzen*, and similar
 4. Memory, plans, and project context as needed
 5. Execute
@@ -106,6 +119,8 @@ flowchart LR
 
 ## See also
 
+- [Agent Harness](agent-harness.md) — core skills, environment/shell/git/web tools
+- [Subagents](subagents.md) — coordinated parallel agents
 - [Agent Providers](agent-providers.md) — provider settings, context, and `list_tools`
 - [Plans](plans.md) — plan files and task sync
 - [Getting Started](getting-started.md) — `.agents/` layout overview

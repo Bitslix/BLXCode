@@ -64,30 +64,36 @@ Conversation history strips image bytes after a turn so large payloads are not p
 For non-trivial work, the system prompt requires this order:
 
 1. `rules_list` + `rules_read` on active rules
-2. `skills_list` + `skills_read` when relevant
+2. `skills_list` + `skills_read` when relevant (including **core** harness skills — see [Agent Harness](agent-harness.md))
 3. Resume from `task_list` / `activePlanPath` on continuation phrases (*continue*, *resume*, *weiter*, *fortsetzen*, …)
 4. Memory, plans, and project context
 5. Execute
 
 See [Rules And Skills](rules-and-skills.md) for rule/skill behavior.
 
-## Agent tools (grouped)
+## Agent tools (overview)
+
+The system prompt sends a **compact tool name index** only. Full parameter docs live in core skills (`skills_read file-access`, `skills_read git`, etc.).
 
 Call `list_tools` for the full JSON catalog (name, server/client site, schema).
 
 | Group | Examples |
 |-------|-----------|
-| Workspace files | `list_workspace_files`, `read_workspace_file` |
-| Memory | `memory_list`, `memory_read`, `memory_create`, `memory_graph`, `memory_context_*`, `memory_list_categories`, … |
+| Workspace files | `list_workspace_files`, `read_workspace_file`, `workspace_search` |
+| Memory | `memory_list`, `memory_read`, `memory_create`, `memory_graph`, `memory_context_*`, … |
 | Tasks | `task_list`, `task_create`, `task_update`, … |
 | Plans | `plan_list`, `plan_read`, `plan_load`, `plan_context_*`, … |
-| Rules | `rules_list`, `rules_read`, `rules_set_enabled`, … |
-| Skills | `skills_list`, `skills_read`, `skills_install`, … |
-| Harness | `harness.send_terminal_keys`, `harness.send_agent_context` |
+| Rules / skills | `rules_*`, `skills_*` |
+| Harness (client) | `harness.send_terminal_keys`, `harness.send_agent_context`, … |
+| Environment / shell / git (server) | `environment_detect`, `shell_exec`, `git_*`, `workspace_diff`, … |
+| Web (server, if configured) | `web_search`, `web_fetch` |
+| Subagents (server) | `subagents.run` — only on explicit user request — [Subagents guide](subagents.md) |
 
 `harness.send_agent_context` prefers explicit single-terminal targets; default `includeKinds` is `["memory","plans","tasks","images"]`.
 
-Workspace file and memory paths are sandboxed to the workspace root.
+**Web tools** need Tavily or Brave keys in Agent settings → Web Tools. **Shell/Git** need `environment_detect` once per workspace session.
+
+See [Agent Harness](agent-harness.md) for core skills and web keys; [Subagents](subagents.md) for roles, timeline, and tool groups.
 
 ## Conversation flow
 
@@ -128,6 +134,8 @@ If the selected provider has no configured API key, the agent panel reports the 
 
 ## See also
 
+- [Agent Harness](agent-harness.md) — core skills, web/shell/git tools
+- [Subagents](subagents.md) — parallel subagent runs
 - [Image Mode](image.md) — chat image generation toggle
 - [Plans](plans.md) — plan tools and context
 - [Workspaces](workspaces.md) — handoff and terminals

@@ -32,6 +32,8 @@ Authoritative list from `src-tauri/src/lib.rs` (grouped for navigation):
 ### Agent settings and keys
 
 - `agent_settings_get`, `agent_settings_save`, `agent_api_key_set`, `agent_api_key_delete`, `agent_provider_models`
+- `agent_web_settings_get`, `agent_web_settings_save`, `agent_web_api_key_set`, `agent_web_api_key_delete`
+- `agent_environment_invalidate` — clears `environment_detect` session cache (also triggered from UI on workspace switch)
 - `harness_ensure_default_sandbox`
 
 ### Image generation
@@ -92,6 +94,8 @@ Authoritative list from `src-tauri/src/lib.rs` (grouped for navigation):
 
 - `voice_start_recording`, `voice_stop_and_transcribe`, `voice_cancel_recording`
 - `voice_settings_get`, `voice_settings_save`, `voice_provider_voices`, `voice_tts_preview`
+
+Server-side agent tools (`environment_detect`, `shell_exec`, `git_*`, `web_*`, `subagents.run`, …) run inside provider/subagent HTTP loops, not as separate Tauri commands. See [Agent Harness](agent-harness.md) and [Subagents](subagents.md).
 
 Client-side agent tools (for example `memory_context_attach`, `plan_context_attach`, `harness.send_agent_context`) are registered in `src-tauri/src/agent/tools.rs` with site `client` and do not appear as Tauri commands.
 

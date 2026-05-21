@@ -59,6 +59,8 @@ Open the agent/provider settings in the right panel. BLXCode supports provider s
 
 API keys are stored in the operating system keyring when available. On platforms where keyring storage is unavailable, BLXCode falls back to a private app-config file.
 
+Optional **Web Tools** (search/fetch) use separate Tavily or Brave keys in the same Agent settings pane. The agent also ships **core harness skills** (built-in tool guides) — see [Agent Harness](agent-harness.md).
+
 ## Where Data Lives
 
 Workspace-local data is stored inside the workspace folder:
@@ -85,7 +87,9 @@ Opening or switching to a workspace runs `workspace_ensure_agents`, which create
 - [Workspaces](workspaces.md) — terminals, sidebar explorer, handoff
 - [Memory And Tasks](memory-and-tasks.md) — notes, graph, categories
 - [Plans](plans.md) — plan Markdown and plan-linked tasks
-- [Rules And Skills](rules-and-skills.md) — workspace rules and installable skills
+- [Rules And Skills](rules-and-skills.md) — workspace rules and skills (core + user)
+- [Agent Harness](agent-harness.md) — core skills, shell/git/web tools
+- [Subagents](subagents.md) — parallel agent runs
 - [Keyboard Shortcuts](keyboard-shortcuts.md) — tmux prefix vs legacy mode
 - [Image Mode](image.md) — generate images from the agent panel
 

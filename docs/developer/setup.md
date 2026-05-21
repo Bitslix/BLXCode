@@ -113,4 +113,11 @@ The Bash pipeline remains the Linux/macOS path. The PowerShell pipeline mirrors 
 
 ## Generated Or External Assets
 
-Bundled hook scripts live under `content/hooks/` and are included as Tauri bundle resources. EULA markdown lives under `content/eula/` and is compiled into the frontend.
+Bundled hook scripts live under `content/hooks/` and are included as Tauri bundle resources. EULA markdown lives under `content/eula/` and is compiled into the frontend. Core harness skill Markdown lives under `src-tauri/src/agent/harness_skills/` — see [Agent Harness](agent-harness.md).
+
+## See also
+
+- [Architecture](architecture.md)
+- [Agent Harness](agent-harness.md)
+- [Subagents](subagents.md)
+- [Tauri IPC](tauri-ipc.md)
