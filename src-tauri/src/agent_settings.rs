@@ -49,6 +49,22 @@ pub struct ProviderModelEntry {
     pub label: String,
     #[serde(default)]
     pub description: Option<String>,
+    /// USD-per-token pricing. Populated from OpenRouter's `/models`
+    /// payload when available; `None` for direct providers (resolved at
+    /// cost-lookup time via the static id-mapping table in `pricing.rs`).
+    #[serde(default)]
+    pub pricing: Option<ModelPricing>,
+}
+
+/// USD per-token pricing for one model. OpenRouter exposes both numbers
+/// as decimal strings — we parse them into `f64` once at fetch time.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelPricing {
+    /// USD per input/prompt token.
+    pub prompt: f64,
+    /// USD per output/completion token.
+    pub completion: f64,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -361,16 +377,19 @@ fn curated_models(provider: AgentProviderKind) -> Vec<ProviderModelEntry> {
                 id: "openai/gpt-5".into(),
                 label: "GPT-5".into(),
                 description: Some("Default via OpenRouter".into()),
+                pricing: None,
             },
             ProviderModelEntry {
                 id: "anthropic/claude-sonnet-4.5".into(),
                 label: "Claude Sonnet 4.5".into(),
                 description: Some("Anthropic via OpenRouter".into()),
+                pricing: None,
             },
             ProviderModelEntry {
                 id: "google/gemini-2.5-pro".into(),
                 label: "Gemini 2.5 Pro".into(),
                 description: Some("Google via OpenRouter".into()),
+                pricing: None,
             },
         ],
         AgentProviderKind::Anthropic => vec![
@@ -378,11 +397,13 @@ fn curated_models(provider: AgentProviderKind) -> Vec<ProviderModelEntry> {
                 id: "claude-sonnet-4-5".into(),
                 label: "Claude Sonnet 4.5".into(),
                 description: Some("Balanced model".into()),
+                pricing: None,
             },
             ProviderModelEntry {
                 id: "claude-opus-4-1".into(),
                 label: "Claude Opus 4.1".into(),
                 description: Some("Highest capability".into()),
+                pricing: None,
             },
         ],
         AgentProviderKind::Openai => vec![
@@ -390,11 +411,13 @@ fn curated_models(provider: AgentProviderKind) -> Vec<ProviderModelEntry> {
                 id: "gpt-5".into(),
                 label: "GPT-5".into(),
                 description: Some("Reasoning flagship".into()),
+                pricing: None,
             },
             ProviderModelEntry {
                 id: "gpt-5-mini".into(),
                 label: "GPT-5 Mini".into(),
                 description: Some("Faster/cost-lean variant".into()),
+                pricing: None,
             },
         ],
     }
@@ -472,6 +495,28 @@ struct OpenrouterModel {
     name: Option<String>,
     #[serde(default)]
     description: Option<String>,
+    /// OpenRouter encodes pricing as decimal strings. Missing fields are
+    /// treated as free (e.g. `request` or `image` for text-only models).
+    #[serde(default)]
+    pricing: Option<OpenrouterModelPricing>,
+}
+
+#[derive(Deserialize)]
+struct OpenrouterModelPricing {
+    #[serde(default)]
+    prompt: Option<String>,
+    #[serde(default)]
+    completion: Option<String>,
+}
+
+fn parse_openrouter_pricing(p: Option<OpenrouterModelPricing>) -> Option<ModelPricing> {
+    let p = p?;
+    let prompt = p.prompt.as_deref().and_then(|s| s.parse::<f64>().ok())?;
+    let completion = p
+        .completion
+        .as_deref()
+        .and_then(|s| s.parse::<f64>().ok())?;
+    Some(ModelPricing { prompt, completion })
 }
 
 #[derive(Deserialize)]
@@ -526,6 +571,7 @@ async fn fetch_models_live(
                     label: entry.name.clone().unwrap_or_else(|| entry.id.clone()),
                     id: entry.id,
                     description: entry.description,
+                    pricing: parse_openrouter_pricing(entry.pricing),
                 })
                 .collect::<Vec<_>>();
             items.sort_by(|a, b| a.label.cmp(&b.label));
@@ -552,6 +598,7 @@ async fn fetch_models_live(
                     label: entry.id.clone(),
                     id: entry.id,
                     description: None,
+                    pricing: None,
                 })
                 .collect::<Vec<_>>();
             items.sort_by(|a, b| a.label.cmp(&b.label));
@@ -583,6 +630,7 @@ async fn fetch_models_live(
                         .unwrap_or_else(|| entry.id.clone()),
                     id: entry.id,
                     description: None,
+                    pricing: None,
                 })
                 .collect::<Vec<_>>();
             items.sort_by(|a, b| a.label.cmp(&b.label));
