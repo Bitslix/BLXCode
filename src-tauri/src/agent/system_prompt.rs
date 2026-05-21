@@ -146,7 +146,8 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
          \n\
          **Harness (client):** `harness.create_workspace`, `harness.open_terminal`, \
          `harness.list_terminals`, `harness.send_terminal_keys`, \
-         `harness.send_agent_context`, `harness.read_terminal_output`\n\
+         `harness.send_agent_context`, `harness.read_terminal_output`, \
+         `harness.ask_user`\n\
          \n\
          **Environment / shell / git (server):** `environment_detect`, `shell_exec`, \
          `workspace_search`, `workspace_git_status`, `workspace_diff`, \
@@ -203,7 +204,14 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
            when that snippet should appear expanded immediately; omit \
            `blx-open` when collapsed-by-default is acceptable.\n\
          - Keep replies tight; this is a developer-tool chat panel, not a \
-           tutoring session.\n"
+           tutoring session.\n\
+         - **Clarifying questions:** When a single decision between 2–4 \
+           distinct options would unblock you, call `harness.ask_user` — \
+           the UI renders the question as a card with buttons and returns \
+           the user's selection as a tool result. Do NOT use it for \
+           confirmations, yes/no questions, free-form prompts, or anything \
+           you can decide yourself from context. Never ask the same \
+           question in prose when `harness.ask_user` fits.\n"
     )
 }
 

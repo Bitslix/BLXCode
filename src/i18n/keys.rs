@@ -238,6 +238,15 @@ pub enum I18nKey {
     AgBadgeLive,
     AgWelcomeBody,
 
+    AgAskUserTitle,
+    AgAskUserChooseOne,
+    AgAskUserChooseMultiple,
+    AgAskUserOtherPlaceholder,
+    AgAskUserSend,
+    AgAskUserCancel,
+    AgAskUserCancelled,
+    AgAskUserAnswered,
+
     BrToolbarAria,
     BrBack,
     BrFwd,

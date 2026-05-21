@@ -265,6 +265,15 @@ Classic: Ctrl+O quick open, Ctrl+` new terminal, Ctrl+Shift+P palette."
             "Hi — I'm the BLXCode agent. I can read files, manage workspace tasks, search workspace memory, and open terminals for you. Send a prompt to get started."
         },
 
+        I18nKey::AgAskUserTitle => "Agent question",
+        I18nKey::AgAskUserChooseOne => "Choose one option",
+        I18nKey::AgAskUserChooseMultiple => "Choose one or more options",
+        I18nKey::AgAskUserOtherPlaceholder => "Other (free text) …",
+        I18nKey::AgAskUserSend => "Send",
+        I18nKey::AgAskUserCancel => "Cancel",
+        I18nKey::AgAskUserCancelled => "Cancelled by user",
+        I18nKey::AgAskUserAnswered => "Answered",
+
         I18nKey::BrToolbarAria => "Embedded browser",
         I18nKey::BrBack => "Back",
         I18nKey::BrFwd => "Forward",

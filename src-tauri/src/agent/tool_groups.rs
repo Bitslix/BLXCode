@@ -137,6 +137,7 @@ impl ToolGroup {
                 "harness.send_terminal_keys",
                 "harness.send_agent_context",
                 "harness.read_terminal_output",
+                "harness.ask_user",
             ],
             Self::CoordinatorMeta => &["list_tools"],
             Self::SubagentsRun => &["subagents.run"],
