@@ -89,6 +89,44 @@ def rust_escape(s: str) -> str:
     return "".join(out)
 
 
+def _unescape_rust_string(s: str) -> str:
+    """Reverse the work of `rust_escape`. Critical for round-trip safety:
+    `parse → emit → parse → emit` MUST be a fixed point. The previous
+    implementation only converted `\\n` to a newline, leaving every other
+    escape (`\\\\`, `\\"`, `\\t`, `\\r`) raw — so each parse-emit cycle
+    re-escaped the already-escaped backslashes and the file size doubled
+    on every `--patch-english-matches` run."""
+    out: list[str] = []
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if ch == "\\" and i + 1 < len(s):
+            nxt = s[i + 1]
+            if nxt == "\\":
+                out.append("\\")
+                i += 2
+                continue
+            if nxt == '"':
+                out.append('"')
+                i += 2
+                continue
+            if nxt == "n":
+                out.append("\n")
+                i += 2
+                continue
+            if nxt == "r":
+                out.append("\r")
+                i += 2
+                continue
+            if nxt == "t":
+                out.append("\t")
+                i += 2
+                continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
 def parse_locale_rs(path: Path) -> list[tuple[str, str]]:
     """Extract (variant, string) in source order from a locales/*.rs msg() file."""
     text = path.read_text(encoding="utf-8")
@@ -101,7 +139,7 @@ def parse_locale_rs(path: Path) -> list[tuple[str, str]]:
         key = m.group(1)
         braced, inline = m.group(2), m.group(3)
         s = braced if braced is not None else (inline or "")
-        out.append((key, s.replace("\\n", "\n")))
+        out.append((key, _unescape_rust_string(s)))
     return out
 
 
