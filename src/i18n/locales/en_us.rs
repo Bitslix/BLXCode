@@ -238,6 +238,8 @@ Classic: Ctrl+O quick open, Ctrl+` new terminal, Ctrl+Shift+P palette."
         I18nKey::AgResetChatAria => {
             "Clear the chat view and the model conversation history on the server"
         }
+        I18nKey::AgChatMaximize => "Expand chat (minimize voice area)",
+        I18nKey::AgChatRestore => "Restore voice area",
         I18nKey::AgErrNeedPrompt => "Please enter a prompt.",
         I18nKey::AgYou => "You",
         I18nKey::AgAssistant => "Agent",

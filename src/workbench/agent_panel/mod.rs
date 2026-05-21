@@ -55,6 +55,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     // Synced on workspace switch and on toggle (writer also persists to the
     // workspace entry so the flag survives reloads).
     let image_mode = RwSignal::new(false);
+    let chat_maximized = RwSignal::new(false);
     let chat_scroll_ref = NodeRef::<html::Article>::new();
     let voice_handle = VoiceOrbHandle::new();
     let task_snapshot = RwSignal::new(TaskSnapshot {
@@ -202,6 +203,9 @@ pub fn AgentPanelDock() -> impl IntoView {
         <section
             class=move || {
                 let mut class = "workbench-agent-pane".to_string();
+                if chat_maximized.get() {
+                    class.push_str(" workbench-agent-pane--chat-maximized");
+                }
                 match drop_state.get() {
                     DropZoneState::Accept => class.push_str(" workbench-agent-pane--drop-active"),
                     DropZoneState::Reject => class.push_str(" workbench-agent-pane--drop-reject"),
@@ -220,7 +224,13 @@ pub fn AgentPanelDock() -> impl IntoView {
                     <span>{move || drop_state.get().message()}</span>
                 </div>
             </Show>
-            <header class="agent-hero">
+            <header class=move || {
+                if chat_maximized.get() {
+                    "agent-hero agent-hero--compact".to_string()
+                } else {
+                    "agent-hero".to_string()
+                }
+            }>
                 <VoiceOrb
                     handle=voice_handle
                     on_transcript=move |text: String, auto_send: bool| {
@@ -308,6 +318,34 @@ pub fn AgentPanelDock() -> impl IntoView {
                             }
                         >
                             <LxIcon icon=icondata::LuImagePlus width="0.86rem" height="0.86rem" />
+                        </button>
+                        <button
+                            type="button"
+                            class="agent-chat-head__icon-btn"
+                            aria-pressed=move || if chat_maximized.get() { "true" } else { "false" }
+                            title=move || {
+                                if chat_maximized.get() {
+                                    i18n.tr(I18nKey::AgChatRestore)().to_string()
+                                } else {
+                                    i18n.tr(I18nKey::AgChatMaximize)().to_string()
+                                }
+                            }
+                            aria-label=move || {
+                                if chat_maximized.get() {
+                                    i18n.tr(I18nKey::AgChatRestore)().to_string()
+                                } else {
+                                    i18n.tr(I18nKey::AgChatMaximize)().to_string()
+                                }
+                            }
+                            on:click=move |_| chat_maximized.update(|v| *v = !*v)
+                        >
+                            {move || {
+                                if chat_maximized.get() {
+                                    view! { <LxIcon icon=icondata::LuMinimize2 width="0.86rem" height="0.86rem" /> }.into_any()
+                                } else {
+                                    view! { <LxIcon icon=icondata::LuMaximize2 width="0.86rem" height="0.86rem" /> }.into_any()
+                                }
+                            }}
                         </button>
                         <button
                             type="button"

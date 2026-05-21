@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Subagent protocol & UI**: new `AgentEvent::Subagent{Started,Step,ToolCall,Finished}` events, `TimelineItem::SubagentGroup` (tolerant serde for older `sessions.json`), inline subcards with live steps and compact tool-call icons, ~50 ms debounce for parallel event bursts.
 - **Core skills**: embedded harness skills `subagents.md`, `environment.md`, `shell.md`, `git.md`, `web.md` plus updated `file-access.md` / `harness.md` (harness-vs-shell boundary). `system_prompt.rs` skill/tool index expanded with subagent activation triggers.
 - **i18n**: subagent UI states, role display names (Scout / Review / Security Analyst with auto-suffix on conflict), all new tool/environment/shell/git/web labels and the web-disabled hint added to every locale.
+- **Agent chat maximize**: new maximize/minimize icon button in the agent chat header (before Reset). Toggles a compact voice hero (`agent-hero--compact`) inside the Agent right-panel tab only — smaller orb and status line, tagline hidden — so the chat log gains vertical space while Tasks, Context and compose stay visible. Session-local `chat_maximized` state (not persisted per workspace). i18n: `AgChatMaximize`, `AgChatRestore` in all locales.
 
 ### Changed
 

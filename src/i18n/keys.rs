@@ -213,6 +213,8 @@ pub enum I18nKey {
     AgCancel,
     AgResetChat,
     AgResetChatAria,
+    AgChatMaximize,
+    AgChatRestore,
     AgErrNeedPrompt,
     AgYou,
     AgAssistant,
