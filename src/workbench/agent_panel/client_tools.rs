@@ -28,6 +28,7 @@ pub fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
         "harness.send_terminal_keys" => handle_send_keys(call_id, args.clone(), wb),
         "harness.send_agent_context" => handle_send_agent_context(call_id, args.clone(), wb),
         "harness.read_terminal_output" => handle_read_output(call_id, args.clone(), wb),
+        "harness.ask_user" => handle_ask_user(call_id, args.clone()),
         "memory_category_list" => handle_memory_category_list(call_id, wb),
         "memory_category_update" => handle_memory_category_update(call_id, args.clone(), wb),
         "memory_context_list" => handle_memory_context_list(call_id, wb),
@@ -357,6 +358,27 @@ fn submit_async(call_id: String, ok: bool, message: String, data: Option<serde_j
     leptos::task::spawn_local(async move {
         let _ = agent_submit_tool_result(call_id, ok, Some(message), data).await;
     });
+}
+
+/// `harness.ask_user` is rendered as a chat bubble (see `ask_user_card`). This
+/// handler only validates the payload — the bubble itself submits the user's
+/// answer (or cancellation) via `agent_submit_tool_result`. Malformed payloads
+/// short-circuit with `ok=false` so the agent loop doesn't hang.
+fn handle_ask_user(call_id: String, args: Option<serde_json::Value>) {
+    let Some(args) = args else {
+        submit_async(call_id, false, "missing args".into(), None);
+        return;
+    };
+    if crate::workbench::agent_panel::timeline::parse_ask_user_args(&args).is_none() {
+        submit_async(
+            call_id,
+            false,
+            "invalid ask_user args: need question + 2–4 options with labels".into(),
+            None,
+        );
+    }
+    // Valid: do nothing here — the AskUserCard owns the call_id and will
+    // submit when the user answers or dismisses the card.
 }
 
 fn handle_open_terminal(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {

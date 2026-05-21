@@ -941,6 +941,59 @@ pub fn registry() -> Vec<ToolDef> {
             }),
             site: ToolSite::Client,
         },
+        ToolDef {
+            name: "harness.ask_user",
+            description: "Ask the user a clarifying multiple-choice question when 2–4 distinct options would unblock you. Do NOT use this for confirmations, yes/no questions, free-form prose questions, or anything you can decide yourself from context. The UI renders the question as a card with selectable buttons; the result is returned as JSON with the user's selection(s), any free-text input, and a `cancelled` flag. If the user dismisses the card, the call returns `ok=false` with `{ \"cancelled\": true }`.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "question": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "The complete question to ask the user. Should be clear, specific, and end with a question mark."
+                    },
+                    "header": {
+                        "type": "string",
+                        "maxLength": 12,
+                        "description": "Optional short chip label (max 12 chars) shown above the question, e.g. \"Scope\" or \"Approach\"."
+                    },
+                    "options": {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 4,
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "label": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "description": "Concise display text (1–5 words) for this option."
+                                },
+                                "description": {
+                                    "type": "string",
+                                    "description": "Optional explanation of the option's implication or trade-off."
+                                }
+                            },
+                            "required": ["label"],
+                            "additionalProperties": false
+                        }
+                    },
+                    "multiSelect": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "When true, the user may pick multiple options and submits explicitly."
+                    },
+                    "allowOther": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "When true, the card includes a free-text \"Other\" field the user can fill in alongside (or instead of) a button choice."
+                    }
+                },
+                "required": ["question", "options"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
     ];
     out.extend(crate::agent::tools_extra::extra_tool_defs());
     out

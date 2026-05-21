@@ -7,9 +7,10 @@ use crate::workbench::agent_panel::voice_orb::{
 };
 pub use crate::workbench::agent_timeline::TimelineItem;
 use crate::workbench::agent_timeline::{
-    subagent_role_label, subagent_status_label, ActivityStatus, SubagentCard, SubagentGroup,
-    SubagentStepRow, ToolActivity,
+    subagent_role_label, subagent_status_label, ActivityStatus, AskUserOption, AskUserState,
+    SubagentCard, SubagentGroup, SubagentStepRow, ToolActivity,
 };
+use crate::workbench::agent_panel::ask_user_card::AskUserCard;
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
@@ -36,6 +37,15 @@ pub enum DisplayTimelineItem {
         saved_path: Option<String>,
         filename: Option<String>,
     },
+    AskUser {
+        call_id: String,
+        question: String,
+        header: Option<String>,
+        options: Vec<AskUserOption>,
+        multi_select: bool,
+        allow_other: bool,
+        state: AskUserState,
+    },
 }
 
 #[inline]
@@ -50,6 +60,16 @@ fn persist_agent_timeline(
         let sanitized = timeline
             .get_untracked()
             .into_iter()
+            // Open ask-user bubbles cannot be resumed after a reload — the
+            // backend agent loop awaiting the response is already dead. Drop
+            // them from the persisted snapshot so they don't linger as
+            // permanently disabled cards.
+            .filter(|item| {
+                !matches!(
+                    item,
+                    TimelineItem::AskUser { state: AskUserState::Open, .. }
+                )
+            })
             .map(|item| match item {
                 TimelineItem::GeneratedImage {
                     prompt,
@@ -74,6 +94,60 @@ fn persist_agent_timeline(
             .collect::<Vec<_>>();
         wb.set_workspace_agent_timeline(workspace_id, sanitized);
     }
+}
+
+pub(super) struct ParsedAskUserArgs {
+    pub question: String,
+    pub header: Option<String>,
+    pub options: Vec<AskUserOption>,
+    pub multi_select: bool,
+    pub allow_other: bool,
+}
+
+pub(super) fn parse_ask_user_args(value: &serde_json::Value) -> Option<ParsedAskUserArgs> {
+    let obj = value.as_object()?;
+    let question = obj.get("question")?.as_str()?.trim().to_string();
+    if question.is_empty() {
+        return None;
+    }
+    let header = obj
+        .get("header")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+    let options_raw = obj.get("options")?.as_array()?;
+    if options_raw.len() < 2 || options_raw.len() > 4 {
+        return None;
+    }
+    let mut options = Vec::with_capacity(options_raw.len());
+    for raw in options_raw {
+        let o = raw.as_object()?;
+        let label = o.get("label")?.as_str()?.trim().to_string();
+        if label.is_empty() {
+            return None;
+        }
+        let description = o
+            .get("description")
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty());
+        options.push(AskUserOption { label, description });
+    }
+    let multi_select = obj
+        .get("multiSelect")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let allow_other = obj
+        .get("allowOther")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    Some(ParsedAskUserArgs {
+        question,
+        header,
+        options,
+        multi_select,
+        allow_other,
+    })
 }
 
 fn find_subagent_card_mut<'a>(
@@ -136,12 +210,41 @@ pub fn apply_agent_event(
             });
             persist_agent_timeline(persist, timeline);
         }
-        AgentEvent::ToolCall { tool, args, .. } => {
+        AgentEvent::ToolCall { tool, args, call_id } => {
+            if tool == "harness.ask_user" {
+                if let Some((call_id, ask)) = call_id
+                    .clone()
+                    .zip(args.as_ref().and_then(parse_ask_user_args))
+                {
+                    timeline.update(|rows| {
+                        rows.push(TimelineItem::AskUser {
+                            call_id,
+                            question: ask.question,
+                            header: ask.header,
+                            options: ask.options,
+                            multi_select: ask.multi_select,
+                            allow_other: ask.allow_other,
+                            state: AskUserState::Open,
+                        });
+                    });
+                    persist_agent_timeline(persist, timeline);
+                    return;
+                }
+                // Malformed payload — fall through to normal Tool row so the
+                // user at least sees something landed. The client_tools.rs
+                // dispatcher will short-circuit the result with ok=false.
+            }
             let entry = ToolActivity::from_call(tool, args.as_ref(), loc);
             timeline.update(|rows| rows.push(TimelineItem::Tool(entry)));
             persist_agent_timeline(persist, timeline);
         }
         AgentEvent::ToolResult { tool, ok, message } => {
+            if tool == "harness.ask_user" {
+                // The AskUser bubble already reflects the user's action; do
+                // not append a phantom Tool row for the result event.
+                persist_agent_timeline(persist, timeline);
+                return;
+            }
             timeline.update(|rows| {
                 let slot = rows.iter_mut().rev().find_map(|entry| match entry {
                     TimelineItem::Tool(row)
@@ -478,6 +581,26 @@ pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
                 flush_tools(&mut out, &mut pending_tools);
                 out.push(DisplayTimelineItem::SubagentGroup(group));
             }
+            TimelineItem::AskUser {
+                call_id,
+                question,
+                header,
+                options,
+                multi_select,
+                allow_other,
+                state,
+            } => {
+                flush_tools(&mut out, &mut pending_tools);
+                out.push(DisplayTimelineItem::AskUser {
+                    call_id,
+                    question,
+                    header,
+                    options,
+                    multi_select,
+                    allow_other,
+                    state,
+                });
+            }
         }
     }
 
@@ -575,6 +698,7 @@ pub fn TimelineRow(
     thinking_open: RwSignal<HashMap<usize, bool>>,
     voice_handle: VoiceOrbHandle,
     on_redo: Callback<String>,
+    timeline: RwSignal<Vec<TimelineItem>>,
 ) -> impl IntoView {
     let line_no = format!("{:02}", idx + 1);
     match entry {
@@ -755,6 +879,32 @@ pub fn TimelineRow(
                 filename=filename
                 voice_handle=voice_handle
             />
+        }
+        .into_any(),
+        DisplayTimelineItem::AskUser {
+            call_id,
+            question,
+            header,
+            options,
+            multi_select,
+            allow_other,
+            state,
+        } => view! {
+            <li class="agent-chat-line agent-chat-line--ask-user">
+                <ChatLineIndexColumn line_no=line_no.clone() tts_text=None voice_handle=voice_handle />
+                <div class="agent-chat-body">
+                    <AskUserCard
+                        call_id=call_id
+                        question=question
+                        header=header
+                        options=options
+                        multi_select=multi_select
+                        allow_other=allow_other
+                        state=state
+                        timeline=timeline
+                    />
+                </div>
+            </li>
         }
         .into_any(),
     }

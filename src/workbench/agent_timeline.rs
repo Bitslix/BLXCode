@@ -167,6 +167,25 @@ pub struct SubagentGroup {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AskUserOption {
+    pub label: String,
+    #[serde(default)]
+    pub description: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum AskUserState {
+    Open,
+    Answered {
+        selected: Vec<String>,
+        #[serde(default)]
+        other: Option<String>,
+    },
+    Cancelled,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TimelineItem {
     User { text: String },
     Assistant { text: String },
@@ -183,6 +202,27 @@ pub enum TimelineItem {
         saved_path: Option<String>,
         filename: Option<String>,
     },
+    /// Interactive clarifying question emitted by the agent via the
+    /// `harness.ask_user` client-tool. The UI renders this as a card with
+    /// selectable buttons; on user action the answer is sent back through
+    /// `agent_submit_tool_result` and `state` transitions away from `Open`.
+    AskUser {
+        call_id: String,
+        question: String,
+        #[serde(default)]
+        header: Option<String>,
+        options: Vec<AskUserOption>,
+        #[serde(default)]
+        multi_select: bool,
+        #[serde(default)]
+        allow_other: bool,
+        #[serde(default = "ask_user_state_default")]
+        state: AskUserState,
+    },
+}
+
+fn ask_user_state_default() -> AskUserState {
+    AskUserState::Cancelled
 }
 
 fn summarize_args(tool: &str, args: Option<&Value>) -> String {

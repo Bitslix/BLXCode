@@ -1,4 +1,5 @@
 //! Agent Composer: Prompt → Tauri-Orchestrierung, Drain der Event-Liste in die Ansicht.
+mod ask_user_card;
 mod client_tools;
 mod context_list;
 mod image_context;
@@ -415,7 +416,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                                     .into_iter()
                                     .enumerate()
                                     .map(|(idx, entry)| {
-                                        view! { <TimelineRow idx=idx entry=entry i18n=i18n thinking_open=thinking_open voice_handle=voice_handle on_redo=on_redo /> }
+                                        view! { <TimelineRow idx=idx entry=entry i18n=i18n thinking_open=thinking_open voice_handle=voice_handle on_redo=on_redo timeline=timeline /> }
                                     })
                                     .collect_view()
                             }}
