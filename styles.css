@@ -7066,6 +7066,9 @@ button {
     flex-direction: column;
     gap: 0.5rem;
 }
+.blx-sr-pane__body > * {
+    flex-shrink: 0;
+}
 .blx-sr-pane__hint,
 .blx-sr-pane__err {
     margin: 0;

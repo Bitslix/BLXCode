@@ -242,6 +242,7 @@ fn open_plan_composer(
     spawn_local(async move {
         TimeoutFuture::new(0).await;
         scroll_plans_body_to_top();
+        focus_plan_composer_title();
     });
 }
 
@@ -254,6 +255,19 @@ fn scroll_plans_body_to_top() {
     };
     if let Ok(el) = node.dyn_into::<web_sys::HtmlElement>() {
         el.set_scroll_top(0);
+    }
+}
+
+fn focus_plan_composer_title() {
+    let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+        return;
+    };
+    let Ok(Some(node)) = document.query_selector(".blx-plans-pane [data-plan-composer-title]")
+    else {
+        return;
+    };
+    if let Ok(input) = node.dyn_into::<web_sys::HtmlInputElement>() {
+        let _ = input.focus();
     }
 }
 
@@ -433,6 +447,7 @@ pub fn PlansPanel() -> impl IntoView {
                                         <span class="blx-sr-card__title-row">
                                             <input
                                                 class="blx-sr-card__title-input"
+                                                data-plan-composer-title="true"
                                                 type="text"
                                                 placeholder=move || i18n.tr(I18nKey::PlansTitlePh)()
                                                 prop:value=move || draft_title.get()
