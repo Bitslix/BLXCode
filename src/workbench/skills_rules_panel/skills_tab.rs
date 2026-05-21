@@ -1,5 +1,6 @@
 //! Right-panel tab body for `.agents/skills/<name>/`. Contains the install
-//! button which opens [`SkillInstallDialog`], and a Core/User sub-tab strip.
+//! button which opens [`SkillInstallDialog`], and a Core/User segmented tab
+//! strip styled as a modern pill switcher.
 
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
@@ -52,49 +53,80 @@ pub fn SkillsTabDock() -> impl IntoView {
         })
     });
 
+    let core_count = Signal::derive(move || {
+        skills.with(|list| {
+            list.iter()
+                .filter(|s| s.source.kind == SkillSourceKind::Core)
+                .count()
+        })
+    });
+    let user_count = Signal::derive(move || {
+        skills.with(|list| {
+            list.iter()
+                .filter(|s| s.source.kind != SkillSourceKind::Core)
+                .count()
+        })
+    });
+
     view! {
         <div class="blx-sr-pane" role="region" aria-label=move || i18n.tr(I18nKey::TabSkills)()>
             <header class="blx-sr-pane__header">
-                <h2 class="blx-sr-pane__title">{i18n.tr(I18nKey::TabSkills)}</h2>
+                <div class="blx-sr-pane__title-wrap">
+                    <span class="blx-sr-pane__title-icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuSparkles width="14px" height="14px" />
+                    </span>
+                    <h2 class="blx-sr-pane__title">{i18n.tr(I18nKey::TabSkills)}</h2>
+                </div>
                 <div class="blx-sr-pane__actions">
                     {move || (view_mode.get() == SkillsView::User).then(|| view! {
                         <button
                             type="button"
-                            class="blx-sr-btn"
+                            class="blx-sr-btn blx-sr-btn--primary"
                             on:click=move |_| install_open.set(true)
                         >
-                            <LxIcon icon=icondata::LuPlus width="14px" height="14px" />
+                            <LxIcon icon=icondata::LuPlus width="13px" height="13px" />
                             <span>{i18n.tr(I18nKey::SrInstallSkill)}</span>
                         </button>
                     })}
                     <button
                         type="button"
-                        class="blx-sr-btn blx-sr-btn--ghost"
+                        class="blx-sr-btn blx-sr-btn--icon"
                         aria-label=move || i18n.tr(I18nKey::SrRefresh)()
+                        title=move || i18n.tr(I18nKey::SrRefresh)()
                         on:click=move |_| svc.refresh_skills(wb)
                     >
-                        <LxIcon icon=icondata::LuRefreshCw width="14px" height="14px" />
+                        <LxIcon icon=icondata::LuRefreshCw width="13px" height="13px" />
                     </button>
                 </div>
             </header>
-            <div class="blx-sr-pane__subtabs">
+
+            <div class="blx-sr-tabs" role="tablist">
                 <button
                     type="button"
-                    class="blx-sr-subtab"
-                    class:blx-sr-subtab--active=move || view_mode.get() == SkillsView::Core
+                    role="tab"
+                    class="blx-sr-tab"
+                    class:blx-sr-tab--active=move || view_mode.get() == SkillsView::Core
+                    aria-selected=move || if view_mode.get() == SkillsView::Core { "true" } else { "false" }
                     on:click=move |_| view_mode.set(SkillsView::Core)
                 >
-                    {i18n.tr(I18nKey::SrSkillsTabCore)}
+                    <LxIcon icon=icondata::LuBox width="13px" height="13px" />
+                    <span>{i18n.tr(I18nKey::SrSkillsTabCore)}</span>
+                    <span class="blx-sr-tab__count">{move || core_count.get()}</span>
                 </button>
                 <button
                     type="button"
-                    class="blx-sr-subtab"
-                    class:blx-sr-subtab--active=move || view_mode.get() == SkillsView::User
+                    role="tab"
+                    class="blx-sr-tab"
+                    class:blx-sr-tab--active=move || view_mode.get() == SkillsView::User
+                    aria-selected=move || if view_mode.get() == SkillsView::User { "true" } else { "false" }
                     on:click=move |_| view_mode.set(SkillsView::User)
                 >
-                    {i18n.tr(I18nKey::SrSkillsTabUser)}
+                    <LxIcon icon=icondata::LuUser width="13px" height="13px" />
+                    <span>{i18n.tr(I18nKey::SrSkillsTabUser)}</span>
+                    <span class="blx-sr-tab__count">{move || user_count.get()}</span>
                 </button>
             </div>
+
             <div class="blx-sr-pane__body">
                 {move || error.get().map(|e| view! { <p class="blx-sr-pane__err">{e}</p> })}
                 {move || {
@@ -103,8 +135,23 @@ pub fn SkillsTabDock() -> impl IntoView {
                         view! { <p class="blx-sr-pane__hint">{i18n.tr(I18nKey::SrLoading)}</p> }
                             .into_any()
                     } else if visible.is_empty() && view_mode.get() == SkillsView::User {
-                        view! { <p class="blx-sr-pane__hint">{i18n.tr(I18nKey::SrSkillsEmpty)}</p> }
-                            .into_any()
+                        view! {
+                            <div class="blx-sr-empty">
+                                <span class="blx-sr-empty__icon" aria-hidden="true">
+                                    <LxIcon icon=icondata::LuPackagePlus width="22px" height="22px" />
+                                </span>
+                                <p class="blx-sr-empty__text">{i18n.tr(I18nKey::SrSkillsEmpty)}</p>
+                                <button
+                                    type="button"
+                                    class="blx-sr-btn blx-sr-btn--primary"
+                                    on:click=move |_| install_open.set(true)
+                                >
+                                    <LxIcon icon=icondata::LuPlus width="13px" height="13px" />
+                                    <span>{i18n.tr(I18nKey::SrInstallSkill)}</span>
+                                </button>
+                            </div>
+                        }
+                        .into_any()
                     } else {
                         view! {
                             <For

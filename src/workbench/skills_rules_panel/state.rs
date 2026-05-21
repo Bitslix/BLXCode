@@ -165,6 +165,30 @@ impl SkillsRulesService {
         });
     }
 
+    /// Reads a skill's `SKILL.md` body and writes it into the given signal.
+    /// Errors are surfaced through the shared skills_error signal so the panel
+    /// renders them in its standard error slot.
+    pub fn read_skill_into(
+        self,
+        wb: WorkbenchService,
+        name: String,
+        body: RwSignal<Option<String>>,
+        loading: RwSignal<bool>,
+    ) {
+        let Some(cwd) = Self::workspace_cwd(&wb) else {
+            return;
+        };
+        loading.set(true);
+        let err = self.skills_error;
+        spawn_local(async move {
+            match tauri_bridge::skills_read(cwd, name).await {
+                Ok(content) => body.set(Some(content)),
+                Err(e) => err.set(Some(e)),
+            }
+            loading.set(false);
+        });
+    }
+
     pub fn remove_skill(self, wb: WorkbenchService, name: String) {
         let Some(cwd) = Self::workspace_cwd(&wb) else {
             return;
