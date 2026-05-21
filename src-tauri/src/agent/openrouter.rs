@@ -321,9 +321,7 @@ pub async fn run_chat_turn(
             agent_id: None,
             call_id: None,
             round_index: Some(round),
-            // Placeholder — replaced by a real monotonic counter in the
-            // `late-event-guard` task.
-            turn_generation: 0,
+            turn_generation: state.turn_generation(),
             input_tokens: round_res.prompt_tokens,
             output_tokens: round_res.completion_tokens,
             ttft_ms: round_res.ttft_ms,
@@ -401,7 +399,7 @@ pub async fn run_chat_turn(
                 agent_id: None,
                 call_id: Some(call.id.clone()),
                 round_index: Some(round),
-                turn_generation: 0,
+                turn_generation: state.turn_generation(),
                 input_tokens: None,
                 output_tokens: None,
                 ttft_ms: None,

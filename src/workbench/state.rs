@@ -122,6 +122,13 @@ pub struct ChatUsageStats {
     /// main agent and subagents). Rendered as `N turns` in the chat header.
     #[serde(default)]
     pub turn_count: u32,
+    /// Highest `turn_generation` observed in a `TurnUsage` event for this
+    /// workspace. Events stamped with a lower generation are dropped — they
+    /// belong to a turn that was cancelled by `agent_clear_conversation`.
+    /// Bumped locally on chat reset as well so we don't credit anything
+    /// emitted before the reset to the fresh chat.
+    #[serde(default)]
+    pub current_turn_generation: u64,
 }
 
 fn default_sidebar_width_px() -> f64 {
@@ -2230,17 +2237,30 @@ impl WorkbenchService {
 
     /// Accumulate one `TurnUsage` event (ModelRound or ToolExec, from main
     /// agent or a subagent) into the workspace's running totals.
+    ///
+    /// Returns `true` when the event was applied. Events whose
+    /// `turn_generation` is below the workspace's `current_turn_generation`
+    /// are dropped — they belong to a turn that was cancelled by a chat
+    /// reset and would otherwise pollute the fresh chat's totals.
     pub fn record_chat_turn_usage(
         &self,
         workspace_id: u64,
+        turn_generation: u64,
         input_tokens: Option<u64>,
         output_tokens: Option<u64>,
         elapsed_ms: u64,
         cost_usd: Option<f64>,
-    ) {
+    ) -> bool {
+        let mut applied = false;
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
                 let u = &mut ws.agent_chat_usage;
+                if turn_generation < u.current_turn_generation {
+                    return;
+                }
+                if turn_generation > u.current_turn_generation {
+                    u.current_turn_generation = turn_generation;
+                }
                 u.turn_count = u.turn_count.saturating_add(1);
                 if let Some(p) = input_tokens {
                     u.total_input_tokens = u.total_input_tokens.saturating_add(p);
@@ -2252,15 +2272,24 @@ impl WorkbenchService {
                 if let Some(c) = cost_usd {
                     u.total_cost_usd += c;
                 }
+                applied = true;
             }
         });
+        applied
     }
 
     /// Reset the chat-usage aggregate (call alongside `agent_clear_conversation`).
+    /// Bumps `current_turn_generation` past whatever it was before so any
+    /// in-flight `TurnUsage` events from the cancelled turn are dropped
+    /// when they arrive.
     pub fn clear_chat_usage(&self, workspace_id: u64) {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
-                ws.agent_chat_usage = ChatUsageStats::default();
+                let next_gen = ws.agent_chat_usage.current_turn_generation.saturating_add(1);
+                ws.agent_chat_usage = ChatUsageStats {
+                    current_turn_generation: next_gen,
+                    ..ChatUsageStats::default()
+                };
             }
         });
     }

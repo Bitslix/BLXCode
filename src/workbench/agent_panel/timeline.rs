@@ -354,7 +354,7 @@ pub fn apply_agent_event(
             agent_id: _,
             call_id: _,
             round_index: _,
-            turn_generation: _,
+            turn_generation,
             input_tokens,
             output_tokens,
             ttft_ms: _,
@@ -368,6 +368,7 @@ pub fn apply_agent_event(
             if let Some((wb, workspace_id)) = persist.clone() {
                 wb.record_chat_turn_usage(
                     workspace_id,
+                    *turn_generation,
                     *input_tokens,
                     *output_tokens,
                     *elapsed_ms,
