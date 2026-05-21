@@ -75,15 +75,5 @@ pub const SIDEBAR_WIDTH_PX_DEFAULT: f64 = 260.0;
 
 pub const SIDEBAR_WIDTH_PX_MIN: f64 = 200.0;
 
-/// `localStorage` key for Plans panel plan-list column width (pixels).
-pub const PLANS_LIST_WIDTH_PX_KEY: &str = "blxcode_plans_list_width_px_v1";
-
-/// Default width of the plan list column in the Plans panel.
-pub const PLANS_LIST_WIDTH_PX_DEFAULT: f64 = 320.0;
-
-pub const PLANS_LIST_WIDTH_PX_MIN: f64 = 200.0;
-
-pub const PLANS_LIST_WIDTH_PX_MAX: f64 = 520.0;
-
 /// `localStorage` key for showing dot-hidden files in the project explorer (`1` / `0`).
 pub const SIDEBAR_EXPLORER_SHOW_HIDDEN_KEY: &str = "blxcode_sidebar_explorer_show_hidden_v1";

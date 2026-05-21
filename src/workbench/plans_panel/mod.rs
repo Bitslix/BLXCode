@@ -1,16 +1,8 @@
-//! Workspace plans panel — list, edit, preview, rename/delete, and load
-//! plans from `<workspace>/.agents/plans/` into the BLXCode Agent.
-//!
-//! Mirrors the design of `memory_panel/MemoryFilesView` (list + selected
-//! Markdown editor + preview toggle) but stays focused on plan-specific
-//! actions: a single Manage view, plus a "Load into BLXCode Agent" button
-//! that calls `plan_load` and attaches the plan to shared context.
+//! Workspace plans panel rendered with the same expandable card flow as the
+//! Rules tab: create, view, edit, rename, remove, and load plans from
+//! `<workspace>/.agents/plans/` into the BLXCode Agent.
 
 use crate::agent_wire::{AgentContextItem, AgentContextKind};
-use crate::config::{
-    PLANS_LIST_WIDTH_PX_DEFAULT, PLANS_LIST_WIDTH_PX_KEY, PLANS_LIST_WIDTH_PX_MAX,
-    PLANS_LIST_WIDTH_PX_MIN,
-};
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
@@ -18,61 +10,19 @@ use crate::tauri_bridge::{
     PlanContent, PlanMeta, PlanTaskSummaryWire,
 };
 use crate::workbench::chat_markdown::render_markdown_to_html;
-use crate::workbench::WorkbenchService;
-use gloo_timers::future::TimeoutFuture;
+use crate::workbench::{RightPanelTab, WorkbenchService};
 use js_sys::Date;
-use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
-use web_sys::{HtmlInputElement, MouseEvent};
-
-const SAVE_DEBOUNCE_MS: u32 = 600;
-fn read_plans_list_width_px() -> f64 {
-    let stored = web_sys::window()
-        .and_then(|w| w.local_storage().ok().flatten())
-        .and_then(|s| s.get_item(PLANS_LIST_WIDTH_PX_KEY).ok().flatten())
-        .and_then(|raw| raw.parse::<f64>().ok());
-    let w = stored.unwrap_or(PLANS_LIST_WIDTH_PX_DEFAULT);
-    w.max(PLANS_LIST_WIDTH_PX_MIN)
-        .min(PLANS_LIST_WIDTH_PX_MAX)
-}
-
-fn write_plans_list_width_px(width: f64) {
-    let Some(window) = web_sys::window() else {
-        return;
-    };
-    if let Ok(Some(storage)) = window.local_storage() {
-        let _ = storage.set_item(PLANS_LIST_WIDTH_PX_KEY, &format!("{width:.0}"));
-    }
-}
-
-fn plans_list_width_max_px() -> f64 {
-    let viewport = web_sys::window()
-        .and_then(|w| w.inner_width().ok())
-        .and_then(|v| v.as_f64())
-        .unwrap_or(900.0);
-    let by_viewport = viewport * 0.55;
-    by_viewport
-        .max(PLANS_LIST_WIDTH_PX_MIN)
-        .min(PLANS_LIST_WIDTH_PX_MAX)
-}
 
 #[derive(Clone, Copy)]
 struct PlansState {
     workspace_cwd: RwSignal<Option<String>>,
     plans: RwSignal<Vec<PlanMeta>>,
-    active_path: RwSignal<Option<String>>,
-    editor_content: RwSignal<String>,
-    editor_dirty: RwSignal<bool>,
-    show_preview: RwSignal<bool>,
+    loading: RwSignal<bool>,
     error: RwSignal<Option<String>>,
-    save_token: RwSignal<u32>,
-    renaming: RwSignal<Option<String>>,
-    rename_input: RwSignal<String>,
-    new_plan_input: RwSignal<String>,
-    is_index: RwSignal<bool>,
 }
 
 impl PlansState {
@@ -80,18 +30,129 @@ impl PlansState {
         Self {
             workspace_cwd: RwSignal::new(None),
             plans: RwSignal::new(Vec::new()),
-            active_path: RwSignal::new(None),
-            editor_content: RwSignal::new(String::new()),
-            editor_dirty: RwSignal::new(false),
-            show_preview: RwSignal::new(true),
+            loading: RwSignal::new(false),
             error: RwSignal::new(None),
-            save_token: RwSignal::new(0),
-            renaming: RwSignal::new(None),
-            rename_input: RwSignal::new(String::new()),
-            new_plan_input: RwSignal::new(String::new()),
-            is_index: RwSignal::new(false),
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PlanBucket {
+    Blocked,
+    InProgress,
+    Pending,
+    Completed,
+    Cancelled,
+    Empty,
+}
+
+impl PlanBucket {
+    const ALL: [Self; 6] = [
+        Self::Blocked,
+        Self::InProgress,
+        Self::Pending,
+        Self::Completed,
+        Self::Cancelled,
+        Self::Empty,
+    ];
+
+    fn key(self) -> &'static str {
+        match self {
+            Self::Blocked => "blocked",
+            Self::InProgress => "in-progress",
+            Self::Pending => "pending",
+            Self::Completed => "completed",
+            Self::Cancelled => "cancelled",
+            Self::Empty => "empty",
+        }
+    }
+
+    fn icon(self) -> icondata::Icon {
+        match self {
+            Self::Blocked => icondata::LuCircleAlert,
+            Self::InProgress => icondata::LuCirclePlay,
+            Self::Pending => icondata::LuCircle,
+            Self::Completed => icondata::LuCircleCheck,
+            Self::Cancelled => icondata::LuCircleMinus,
+            Self::Empty => icondata::LuCircleDashed,
+        }
+    }
+
+    fn label_key(self) -> I18nKey {
+        match self {
+            Self::Blocked => I18nKey::PlansTaskStatBlocked,
+            Self::InProgress => I18nKey::PlansTaskStatInProgress,
+            Self::Pending => I18nKey::PlansTaskStatPending,
+            Self::Completed => I18nKey::PlansTaskStatCompleted,
+            Self::Cancelled => I18nKey::PlansTaskStatCancelled,
+            Self::Empty => I18nKey::PlansFilterEmpty,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PlanFilter {
+    All,
+    Active,
+    Blocked,
+    Pending,
+    Completed,
+    Cancelled,
+    Empty,
+}
+
+impl PlanFilter {
+    const ALL: [Self; 7] = [
+        Self::All,
+        Self::Active,
+        Self::Blocked,
+        Self::Pending,
+        Self::Completed,
+        Self::Cancelled,
+        Self::Empty,
+    ];
+
+    fn key(self) -> &'static str {
+        match self {
+            Self::All => "all",
+            Self::Active => "active",
+            Self::Blocked => "blocked",
+            Self::Pending => "pending",
+            Self::Completed => "completed",
+            Self::Cancelled => "cancelled",
+            Self::Empty => "empty",
+        }
+    }
+
+    fn icon(self) -> icondata::Icon {
+        match self {
+            Self::All => icondata::LuLayers,
+            Self::Active => icondata::LuCirclePlay,
+            Self::Blocked => icondata::LuCircleAlert,
+            Self::Pending => icondata::LuCircle,
+            Self::Completed => icondata::LuCircleCheck,
+            Self::Cancelled => icondata::LuCircleMinus,
+            Self::Empty => icondata::LuCircleDashed,
+        }
+    }
+
+    fn label_key(self) -> I18nKey {
+        match self {
+            Self::All => I18nKey::PlansFilterAll,
+            Self::Active => I18nKey::PlansFilterActive,
+            Self::Blocked => I18nKey::PlansTaskStatBlocked,
+            Self::Pending => I18nKey::PlansTaskStatPending,
+            Self::Completed => I18nKey::PlansTaskStatCompleted,
+            Self::Cancelled => I18nKey::PlansTaskStatCancelled,
+            Self::Empty => I18nKey::PlansFilterEmpty,
+        }
+    }
+}
+
+#[derive(Clone)]
+struct PlanGroup {
+    bucket: PlanBucket,
+    plans: Vec<PlanMeta>,
 }
 
 fn current_workspace_cwd(wb: WorkbenchService) -> Option<String> {
@@ -105,6 +166,7 @@ fn current_workspace_cwd(wb: WorkbenchService) -> Option<String> {
 }
 
 fn load_plans_list(state: PlansState, ws: String) {
+    state.loading.set(true);
     spawn_local(async move {
         match plan_list(&ws).await {
             Ok(list) => {
@@ -113,74 +175,61 @@ fn load_plans_list(state: PlansState, ws: String) {
             }
             Err(e) => state.error.set(Some(e)),
         }
+        state.loading.set(false);
     });
 }
 
-/// Read the persisted task snapshot and, if `activePlanPath` is set,
-/// auto-select that plan in the editor. Used on workspace activation
-/// so a user closing+reopening the harness lands back on the plan they
-/// were working with.
-fn restore_active_plan(state: PlansState, ws: String) {
-    spawn_local(async move {
-        if let Ok(snap) = crate::tauri_bridge::tasks_list(ws.clone()).await {
-            if let Some(path) = snap.active_plan_path.clone() {
-                if state.active_path.get_untracked().is_none() {
-                    load_plan(state, ws, path);
-                }
-            }
-        }
-    });
+fn plan_bucket(summary: &PlanTaskSummaryWire) -> PlanBucket {
+    if summary.blocked > 0 {
+        PlanBucket::Blocked
+    } else if summary.in_progress > 0 {
+        PlanBucket::InProgress
+    } else if summary.pending > 0 {
+        PlanBucket::Pending
+    } else if summary.completed > 0 {
+        PlanBucket::Completed
+    } else if summary.cancelled > 0 {
+        PlanBucket::Cancelled
+    } else {
+        PlanBucket::Empty
+    }
 }
 
-fn load_plan(state: PlansState, ws: String, path: String) {
-    spawn_local(async move {
-        match plan_read(&ws, &path).await {
-            Ok(PlanContent {
-                content,
-                path,
-                is_index,
-                ..
-            }) => {
-                state.editor_content.set(content);
-                state.editor_dirty.set(false);
-                state.active_path.set(Some(path));
-                state.is_index.set(is_index);
-                state.error.set(None);
-            }
-            Err(e) => state.error.set(Some(e)),
-        }
-    });
+fn filter_matches(filter: PlanFilter, plan: &PlanMeta) -> bool {
+    let bucket = plan_bucket(&plan.task_summary);
+    match filter {
+        PlanFilter::All => true,
+        PlanFilter::Active => matches!(bucket, PlanBucket::InProgress | PlanBucket::Pending),
+        PlanFilter::Blocked => bucket == PlanBucket::Blocked,
+        PlanFilter::Pending => bucket == PlanBucket::Pending,
+        PlanFilter::Completed => bucket == PlanBucket::Completed,
+        PlanFilter::Cancelled => bucket == PlanBucket::Cancelled,
+        PlanFilter::Empty => bucket == PlanBucket::Empty,
+    }
 }
 
-fn schedule_save(state: PlansState, ws: String) {
-    let token = state.save_token.get_untracked().wrapping_add(1);
-    state.save_token.set(token);
-    spawn_local(async move {
-        TimeoutFuture::new(SAVE_DEBOUNCE_MS).await;
-        if state.save_token.get_untracked() != token {
-            return;
-        }
-        let Some(path) = state.active_path.get_untracked() else {
-            return;
-        };
-        if !state.editor_dirty.get_untracked() {
-            return;
-        }
-        let content = state.editor_content.get_untracked();
-        match plan_write(&ws, &path, &content).await {
-            Ok(_) => {
-                state.editor_dirty.set(false);
-                load_plans_list(state, ws);
-            }
-            Err(e) => state.error.set(Some(e)),
-        }
-    });
+fn filter_count(filter: PlanFilter, plans: &[PlanMeta]) -> usize {
+    plans
+        .iter()
+        .filter(|plan| filter_matches(filter, plan))
+        .count()
 }
 
-fn input_value(ev: web_sys::Event) -> Option<String> {
-    ev.target()
-        .and_then(|t| t.dyn_into::<HtmlInputElement>().ok())
-        .map(|el| el.value())
+fn grouped_plans(plans: &[PlanMeta]) -> Vec<PlanGroup> {
+    PlanBucket::ALL
+        .into_iter()
+        .filter_map(|bucket| {
+            let grouped = plans
+                .iter()
+                .filter(|plan| plan_bucket(&plan.task_summary) == bucket)
+                .cloned()
+                .collect::<Vec<_>>();
+            (!grouped.is_empty()).then_some(PlanGroup {
+                bucket,
+                plans: grouped,
+            })
+        })
+        .collect()
 }
 
 #[component]
@@ -188,399 +237,652 @@ pub fn PlansPanel() -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
     let state = PlansState::new();
+    let active_tab = wb.right_active_tab();
+    let active_id = wb.active_id();
+    let filter = RwSignal::new(PlanFilter::All);
+    let composer_open = RwSignal::new(false);
+    let draft_title = RwSignal::new(String::new());
+    let draft_body = RwSignal::new(String::new());
+    let draft_error = RwSignal::<Option<String>>::new(None);
+    let saving = RwSignal::new(false);
 
     Effect::new(move |_| {
+        if active_tab.get() != RightPanelTab::Plans {
+            return;
+        }
         let cwd = current_workspace_cwd(wb);
         let prev = state.workspace_cwd.get_untracked();
+        let _ = active_id.get();
         if cwd != prev {
             state.workspace_cwd.set(cwd.clone());
-            state.active_path.set(None);
-            state.editor_content.set(String::new());
-            state.editor_dirty.set(false);
             state.plans.set(Vec::new());
-            if let Some(ws) = cwd {
-                load_plans_list(state, ws.clone());
-                restore_active_plan(state, ws);
-            }
         }
-    });
-
-    view! {
-        <div class="workbench-plans" role="region">
-            <Show when=move || state.error.get().is_some()>
-                {move || view! {
-                    <div class="workbench-plans__error" role="alert">
-                        <span>{move || state.error.get().unwrap_or_default()}</span>
-                        <button
-                            type="button"
-                            class="workbench-plans__error-dismiss"
-                            on:click=move |_| state.error.set(None)
-                        >
-                            "×"
-                        </button>
-                    </div>
-                }}
-            </Show>
-            <Show
-                when=move || state.workspace_cwd.get().is_some()
-                fallback=move || view! {
-                    <div class="workbench-plans__placeholder">
-                        <p class="workbench-plans__placeholder-title">
-                            {move || i18n.tr(I18nKey::PlansEmptyTitle)()}
-                        </p>
-                        <p class="workbench-plans__placeholder-lead">
-                            {move || i18n.tr(I18nKey::PlansEmptyLead)()}
-                        </p>
-                    </div>
-                }
-            >
-                <PlansManageView state=state />
-            </Show>
-        </div>
-    }
-}
-
-#[component]
-fn PlansManageView(state: PlansState) -> impl IntoView {
-    let i18n = expect_context::<I18nService>();
-    let wb = expect_context::<WorkbenchService>();
-
-    let create_plan = move |_| {
-        let raw = state.new_plan_input.get_untracked();
-        let trimmed = raw.trim().to_owned();
-        if trimmed.is_empty() {
-            return;
-        }
-        let path = if trimmed.to_lowercase().ends_with(".md") {
-            trimmed
+        if let Some(ws) = cwd {
+            load_plans_list(state, ws);
         } else {
-            format!("{trimmed}.md")
-        };
+            state.error.set(None);
+            state.loading.set(false);
+        }
+    });
+
+    let reset_composer = move || {
+        draft_title.set(String::new());
+        draft_body.set(String::new());
+        draft_error.set(None);
+        composer_open.set(false);
+    };
+
+    let preview_name = Signal::derive(move || {
+        let existing = state.plans.get();
+        next_plan_name(&draft_title.get(), &existing)
+    });
+
+    let submit_new_plan = move |_| {
+        let title = draft_title.get().trim().to_owned();
+        if title.is_empty() {
+            draft_error.set(Some(i18n.tr(I18nKey::PlansTitleRequired)().to_string()));
+            return;
+        }
         let Some(ws) = state.workspace_cwd.get_untracked() else {
+            state
+                .error
+                .set(Some(i18n.tr(I18nKey::SrNoWorkspace)().to_string()));
             return;
         };
+        let body = draft_body.get();
+        let content = normalize_plan_content(&title, &body);
+        let path = preview_name.get();
+        saving.set(true);
         spawn_local(async move {
-            match plan_create(&ws, &path, None).await {
-                Ok(meta) => {
-                    state.new_plan_input.set(String::new());
-                    load_plans_list(state, ws.clone());
-                    load_plan(state, ws, meta.path);
+            match plan_create(&ws, &path, Some(&content)).await {
+                Ok(_) => {
+                    reset_composer();
+                    load_plans_list(state, ws);
                 }
-                Err(e) => state.error.set(Some(e)),
+                Err(e) => {
+                    draft_error.set(Some(e.clone()));
+                    state.error.set(Some(e));
+                }
             }
+            saving.set(false);
         });
     };
 
-    let list_collapsed = RwSignal::new(false);
-    let list_width_px = RwSignal::new(read_plans_list_width_px());
-    let list_resizing = RwSignal::new(false);
-    let list_drag_anchor_x = RwSignal::new(0.0_f64);
-    let list_drag_anchor_w = RwSignal::new(0.0_f64);
-
-    Effect::new(move |_| {
-        let w = list_width_px.get();
-        write_plans_list_width_px(w);
+    let visible_plans = Signal::derive(move || {
+        let mode = filter.get();
+        state.plans.with(|plans| {
+            plans
+                .iter()
+                .filter(|p| filter_matches(mode, p))
+                .cloned()
+                .collect()
+        })
     });
-
-    Effect::new(move |_| {
-        if !list_resizing.get() {
-            return;
-        }
-        let width_sig = list_width_px;
-        let ax = list_drag_anchor_x;
-        let aw = list_drag_anchor_w;
-        let resizing_sig = list_resizing;
-
-        let move_h = window_event_listener_untyped("mousemove", move |ev| {
-            let me = match ev.dyn_into::<MouseEvent>() {
-                Ok(m) => m,
-                Err(_) => return,
-            };
-            let dx = f64::from(me.client_x()) - ax.get_untracked();
-            let max_w = plans_list_width_max_px();
-            let next = (aw.get_untracked() + dx).clamp(PLANS_LIST_WIDTH_PX_MIN, max_w);
-            width_sig.set(next);
-        });
-
-        let up_h = window_event_listener_untyped("mouseup", move |_| {
-            resizing_sig.set(false);
-        });
-
-        on_cleanup(move || {
-            move_h.remove();
-            up_h.remove();
-        });
-    });
-
-    let on_list_splitter_down = move |ev: MouseEvent| {
-        if list_collapsed.get_untracked() {
-            return;
-        }
-        ev.prevent_default();
-        list_drag_anchor_x.set(ev.client_x() as f64);
-        list_drag_anchor_w.set(list_width_px.get_untracked());
-        list_resizing.set(true);
-    };
+    let visible_groups = Signal::derive(move || grouped_plans(&state.plans.get()));
 
     view! {
-        <div
-            class="workbench-plans-manage"
-            class:workbench-plans-manage--collapsed=move || list_collapsed.get()
-            class:workbench-plans-manage--resizing=move || list_resizing.get()
-        >
-            <aside
-                class="workbench-plans-manage__tree"
-                class:workbench-plans-manage__tree--collapsed=move || list_collapsed.get()
-                style=move || {
-                    if list_collapsed.get() {
-                        String::new()
-                    } else {
-                        let w = list_width_px.get().clamp(
-                            PLANS_LIST_WIDTH_PX_MIN,
-                            plans_list_width_max_px(),
-                        );
-                        format!("width:{w:.0}px;flex:0 0 auto;max-width:none;")
-                    }
-                }
-            >
-                <form
-                    class="workbench-plans-manage__new"
-                    class:workbench-plans-manage__new--collapsed=move || list_collapsed.get()
-                    on:submit=move |ev: web_sys::SubmitEvent| {
-                        ev.prevent_default();
-                        create_plan(());
-                    }
-                >
-                    <Show when=move || !list_collapsed.get()>
-                        <input
-                            type="text"
-                            class="workbench-plans-manage__new-input"
-                            placeholder=move || i18n.tr(I18nKey::PlansNewPlanPh)()
-                            prop:value=move || state.new_plan_input.get()
-                            on:input=move |ev| {
-                                if let Some(v) = input_value(ev) {
-                                    state.new_plan_input.set(v);
-                                }
-                            }
-                        />
-                    </Show>
-                    <button
-                        type="submit"
-                        class="workbench-plans-manage__new-btn"
-                        title=move || i18n.tr(I18nKey::PlansNewPlan)()
-                        aria-label=move || i18n.tr(I18nKey::PlansNewPlan)()
-                    >
-                        <LxIcon icon=icondata::LuPlus width="0.82rem" height="0.82rem" />
-                    </button>
-                    <Show when=move || !list_collapsed.get()>
-                        <button
-                            type="button"
-                            class="workbench-plans-manage__refresh"
-                            title=move || i18n.tr(I18nKey::PlansRefresh)()
-                            aria-label=move || i18n.tr(I18nKey::PlansRefresh)()
-                            on:click=move |_| {
-                                if let Some(ws) = state.workspace_cwd.get_untracked() {
-                                    load_plans_list(state, ws);
-                                }
-                            }
-                        >
-                            <LxIcon icon=icondata::LuRefreshCw width="0.82rem" height="0.82rem" />
-                        </button>
-                    </Show>
+        <div class="blx-sr-pane blx-plans-pane" role="region" aria-label=move || i18n.tr(I18nKey::TabPlans)()>
+            <header class="blx-sr-pane__header">
+                <div class="blx-sr-pane__title-wrap">
+                    <span class="blx-sr-pane__title-icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuClipboardList width="14px" height="14px" />
+                    </span>
+                    <h2 class="blx-sr-pane__title">{i18n.tr(I18nKey::TabPlans)}</h2>
+                </div>
+                <div class="blx-sr-pane__actions">
                     <button
                         type="button"
-                        class="workbench-plans-manage__collapse-btn"
-                        aria-label=move || {
-                            if list_collapsed.get() {
-                                i18n.tr(I18nKey::MemFilesExpand)()
-                            } else {
-                                i18n.tr(I18nKey::MemFilesCollapse)()
-                            }
-                        }
-                        title=move || {
-                            if list_collapsed.get() {
-                                i18n.tr(I18nKey::MemFilesExpand)()
-                            } else {
-                                i18n.tr(I18nKey::MemFilesCollapse)()
-                            }
-                        }
+                        class="blx-sr-btn blx-sr-btn--primary blx-sr-btn--icon"
+                        aria-label=move || i18n.tr(I18nKey::PlansNewPlan)()
+                        title=move || i18n.tr(I18nKey::PlansNewPlan)()
                         on:click=move |_| {
-                            state.renaming.set(None);
-                            list_collapsed.update(|value| *value = !*value);
+                            composer_open.set(true);
+                            draft_error.set(None);
                         }
                     >
-                        <Show
-                            when=move || list_collapsed.get()
-                            fallback=move || view! {
-                                <LxIcon icon=icondata::LuPanelLeftClose width="0.82rem" height="0.82rem" />
-                            }
-                        >
-                            <LxIcon icon=icondata::LuPanelLeftOpen width="0.82rem" height="0.82rem" />
-                        </Show>
+                        <LxIcon icon=icondata::LuPlus width="13px" height="13px" />
                     </button>
-                </form>
-                <ul class="workbench-plans-manage__list">
-                    <For
-                        each=move || state.plans.get()
-                        key=|p| p.path.clone()
-                        children=move |plan: PlanMeta| {
-                            view! {
-                                <PlansListRow state=state plan=plan list_collapsed=list_collapsed />
+                    <button
+                        type="button"
+                        class="blx-sr-btn blx-sr-btn--icon"
+                        aria-label=move || i18n.tr(I18nKey::PlansRefresh)()
+                        title=move || i18n.tr(I18nKey::PlansRefresh)()
+                        on:click=move |_| {
+                            if let Some(ws) = state.workspace_cwd.get_untracked() {
+                                load_plans_list(state, ws);
                             }
                         }
-                    />
-                </ul>
-            </aside>
-            <Show when=move || !list_collapsed.get()>
-                <div
-                    class="workbench-splitter workbench-splitter--plans-list"
-                    role="separator"
-                    aria-orientation="vertical"
-                    aria-label=move || i18n.tr(I18nKey::PlansListResizeAria)()
-                    on:mousedown=on_list_splitter_down
-                >
+                    >
+                        <LxIcon icon=icondata::LuRefreshCw width="13px" height="13px" />
+                    </button>
                 </div>
-            </Show>
-            <Show when=move || list_resizing.get()>
-                <div class="workbench-resize-shield" aria-hidden="true"></div>
-            </Show>
-            <section class="workbench-plans-manage__editor">
+            </header>
+
+            <div class="blx-sr-tabs blx-plans-tabs" role="tablist">
+                <For
+                    each=move || PlanFilter::ALL
+                    key=|mode| mode.key()
+                    children=move |mode| view! {
+                        <button
+                            type="button"
+                            role="tab"
+                            class="blx-sr-tab"
+                            class:blx-sr-tab--active=move || filter.get() == mode
+                            aria-selected=move || if filter.get() == mode { "true" } else { "false" }
+                            on:click=move |_| filter.set(mode)
+                        >
+                            <LxIcon icon=mode.icon() width="13px" height="13px" />
+                            <span>{i18n.tr(mode.label_key())}</span>
+                            <span class="blx-sr-tab__count">
+                                {move || state.plans.with(|plans| filter_count(mode, plans))}
+                            </span>
+                        </button>
+                    }
+                />
+            </div>
+
+            <div class="blx-sr-pane__body">
+                {move || state.error.get().map(|e| view! { <p class="blx-sr-pane__err">{e}</p> })}
                 <Show
-                    when=move || state.active_path.get().is_some()
+                    when=move || state.workspace_cwd.get().is_some()
                     fallback=move || view! {
-                        <div class="workbench-plans-manage__editor-empty">
-                            <p>{move || i18n.tr(I18nKey::PlansSelectPlan)()}</p>
+                        <div class="blx-sr-empty">
+                            <span class="blx-sr-empty__icon" aria-hidden="true">
+                                <LxIcon icon=icondata::LuClipboardList width="22px" height="22px" />
+                            </span>
+                            <p class="blx-sr-empty__text">{i18n.tr(I18nKey::PlansEmptyLead)}</p>
                         </div>
                     }
                 >
-                    <PlansEditorToolbar state=state wb=wb />
-                    <Show
-                        when=move || !state.show_preview.get()
-                        fallback=move || view! {
-                            <div
-                                class="workbench-plans-manage__preview chat-md"
-                                inner_html=move || render_markdown_to_html(
-                                    &state.editor_content.get(),
-                                )
-                            ></div>
+                    {move || composer_open.get().then(|| {
+                        let is_saving = saving.get();
+                        view! {
+                            <article class="blx-sr-card blx-sr-card--open blx-sr-card--composer blx-plans-card">
+                                <div class="blx-sr-card__row blx-sr-card__row--static">
+                                    <span class="blx-sr-card__chevron" aria-hidden="true">
+                                        <LxIcon icon=icondata::LuSparkles width="14px" height="14px" />
+                                    </span>
+                                    <span class="blx-sr-card__icon" aria-hidden="true">
+                                        <LxIcon icon=icondata::LuClipboardPlus width="16px" height="16px" />
+                                    </span>
+                                    <span class="blx-sr-card__main">
+                                        <span class="blx-sr-card__title-row">
+                                            <input
+                                                class="blx-sr-card__title-input"
+                                                type="text"
+                                                placeholder=move || i18n.tr(I18nKey::PlansTitlePh)()
+                                                prop:value=move || draft_title.get()
+                                                on:input=move |ev| {
+                                                    draft_title.set(input_value(&ev));
+                                                    draft_error.set(None);
+                                                }
+                                            />
+                                            <span class="blx-sr-card__badge" data-kind="plan">{i18n.tr(I18nKey::SrRuleBadgeNew)}</span>
+                                        </span>
+                                        <span class="blx-sr-card__summary">{move || preview_name.get()}</span>
+                                    </span>
+                                </div>
+
+                                <section class="blx-sr-card__body">
+                                    <textarea
+                                        class="blx-sr-card__editor"
+                                        spellcheck="false"
+                                        placeholder=move || i18n.tr(I18nKey::PlansBodyPh)()
+                                        prop:value=move || draft_body.get()
+                                        on:input=move |ev| draft_body.set(textarea_value(&ev))
+                                    ></textarea>
+                                    {move || draft_error.get().map(|e| view! {
+                                        <p class="blx-sr-card__error">{e}</p>
+                                    })}
+                                    <div class="blx-sr-card__actions">
+                                        <button
+                                            type="button"
+                                            class="blx-sr-btn blx-sr-btn--ghost"
+                                            disabled=is_saving
+                                            on:click=move |_| reset_composer()
+                                        >
+                                            <span>{i18n.tr(I18nKey::SrCancel)}</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="blx-sr-btn blx-sr-btn--primary"
+                                            disabled=is_saving
+                                            on:click=submit_new_plan
+                                        >
+                                            <LxIcon icon=icondata::LuSave width="13px" height="13px" />
+                                            <span>{i18n.tr(I18nKey::BtnSave)}</span>
+                                        </button>
+                                    </div>
+                                </section>
+                            </article>
                         }
-                    >
-                        <textarea
-                            class="workbench-plans-manage__textarea"
-                            prop:value=move || state.editor_content.get()
-                            on:input=move |ev| {
-                                let target = ev
-                                    .target()
-                                    .and_then(|t| t.dyn_into::<web_sys::HtmlTextAreaElement>().ok());
-                                if let Some(el) = target {
-                                    state.editor_content.set(el.value());
-                                    state.editor_dirty.set(true);
-                                    if let Some(ws) = state.workspace_cwd.get_untracked() {
-                                        schedule_save(state, ws);
+                    })}
+
+                    {move || {
+                        if state.loading.get() && state.plans.with(|plans| plans.is_empty()) {
+                            view! { <p class="blx-sr-pane__hint">{i18n.tr(I18nKey::SrLoading)}</p> }.into_any()
+                        } else if state.plans.with(|plans| plans.is_empty()) && !composer_open.get() {
+                            view! {
+                                <div class="blx-sr-empty">
+                                    <span class="blx-sr-empty__icon" aria-hidden="true">
+                                        <LxIcon icon=icondata::LuClipboardPlus width="22px" height="22px" />
+                                    </span>
+                                    <p class="blx-sr-empty__text">{i18n.tr(I18nKey::PlansEmptyTitle)}</p>
+                                    <button
+                                        type="button"
+                                        class="blx-sr-btn blx-sr-btn--primary"
+                                        on:click=move |_| composer_open.set(true)
+                                    >
+                                        <LxIcon icon=icondata::LuPlus width="13px" height="13px" />
+                                        <span>{i18n.tr(I18nKey::PlansNewPlan)}</span>
+                                    </button>
+                                </div>
+                            }.into_any()
+                        } else if filter.get() == PlanFilter::All {
+                            view! {
+                                <For
+                                    each=move || visible_groups.get()
+                                    key=|group| group.bucket.key()
+                                    children=move |group| view! {
+                                        <PlanGroupView state=state group=group />
                                     }
-                                }
+                                />
+                            }.into_any()
+                        } else {
+                            let visible: Vec<PlanMeta> = visible_plans.get();
+                            if visible.is_empty() {
+                                view! { <p class="blx-sr-pane__hint">{i18n.tr(I18nKey::PlansNoFilteredPlans)}</p> }.into_any()
+                            } else {
+                                view! {
+                                    <For
+                                        each=move || visible_plans.get()
+                                        key=|plan| plan.path.clone()
+                                        children=move |plan| view! { <PlanCard state=state plan=plan /> }
+                                    />
+                                }.into_any()
                             }
-                        ></textarea>
-                    </Show>
+                        }
+                    }}
                 </Show>
-            </section>
+            </div>
         </div>
     }
 }
 
 #[component]
-fn PlansEditorToolbar(state: PlansState, wb: WorkbenchService) -> impl IntoView {
+fn PlanGroupView(state: PlansState, group: PlanGroup) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let bucket = group.bucket;
+    let plans = group.plans;
+    view! {
+        <section class="blx-plans-group" data-state=bucket.key()>
+            <header class="blx-plans-group__header">
+                <span class="blx-plans-group__icon" aria-hidden="true">
+                    <LxIcon icon=bucket.icon() width="13px" height="13px" />
+                </span>
+                <span class="blx-plans-group__title">{i18n.tr(bucket.label_key())}</span>
+                <span class="blx-plans-group__count">{plans.len()}</span>
+            </header>
+            <div class="blx-plans-group__cards">
+                <For
+                    each=move || plans.clone()
+                    key=|plan| plan.path.clone()
+                    children=move |plan| view! { <PlanCard state=state plan=plan /> }
+                />
+            </div>
+        </section>
+    }
+}
 
-    let on_load = move |_| {
-        let Some(path) = state.active_path.get_untracked() else {
-            return;
-        };
-        let Some(ws) = state.workspace_cwd.get_untracked() else {
-            return;
-        };
-        let Some(ws_id) = wb.active_id().get_untracked() else {
-            return;
-        };
-        spawn_local(async move {
-            match plan_load(&ws, &path).await {
-                Ok(report) => {
-                    // Attach plan to shared context.
-                    let label = state
-                        .plans
-                        .get_untracked()
-                        .into_iter()
-                        .find(|m| m.path == report.path)
-                        .map(|m| m.title)
-                        .unwrap_or_else(|| report.path.clone());
-                    let summary = format!(
-                        "{} task(s) — kept {} free task(s)",
-                        report.tasks_added, report.free_tasks_kept
-                    );
-                    let item = AgentContextItem {
-                        id: format!("plan-file:{}", report.path),
-                        kind: AgentContextKind::PlanFile,
-                        label,
-                        source: summary,
-                        paths: vec![report.path.clone()],
-                        added_at: Date::now() as i64,
-                    };
-                    wb.upsert_workspace_agent_context(ws_id, item);
-                    // Refresh task snapshot for downstream rendering.
-                    if let Ok(snap) = tauri_bridge::tasks_list(ws.clone()).await {
-                        crate::workbench::agent_context_handoff::store_task_snapshot(ws_id, snap);
-                    }
-                    state.error.set(None);
-                }
-                Err(e) => state.error.set(Some(e)),
-            }
-        });
+#[component]
+fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+    let i18n = expect_context::<I18nService>();
+    let path = plan.path.clone();
+    let path_for_read = path.clone();
+    let path_for_save = path.clone();
+    let path_for_delete = path.clone();
+    let path_for_load = path.clone();
+    let title = plan.title.clone();
+    let summary = plan.task_summary.clone();
+    let is_index = plan.is_index;
+    let bucket = plan_bucket(&summary);
+    let card_path = StoredValue::new(path.clone());
+
+    let expanded = RwSignal::new(false);
+    let editing = RwSignal::new(false);
+    let renaming = RwSignal::new(false);
+    let rename_input = RwSignal::new(path.clone());
+    let body = RwSignal::<Option<String>>::new(None);
+    let draft = RwSignal::new(String::new());
+    let body_loading = RwSignal::new(false);
+    let saving = RwSignal::new(false);
+
+    let on_toggle_card = move |_| {
+        let next = !expanded.get();
+        expanded.set(next);
+        if next && body.with(|b| b.is_none()) && !body_loading.get() {
+            read_plan_into(state, path_for_read.clone(), body, body_loading);
+        }
     };
 
+    let on_save = StoredValue::new(path_for_save);
+    let on_delete = StoredValue::new(path_for_delete);
+    let on_load = StoredValue::new(path_for_load);
+
     view! {
-        <header class="workbench-plans-manage__toolbar">
-            <span class="workbench-plans-manage__path">
-                {move || state.active_path.get().unwrap_or_default()}
-            </span>
-            <Show when=move || state.is_index.get()>
-                <span class="workbench-plans-manage__protected">
-                    {move || i18n.tr(I18nKey::PlansProtectedIndex)()}
+        <article
+            class="blx-sr-card blx-plans-card"
+            class:blx-sr-card--open=move || expanded.get()
+            data-state=bucket.key()
+        >
+            <button
+                type="button"
+                class="blx-sr-card__row"
+                aria-expanded=move || if expanded.get() { "true" } else { "false" }
+                on:click=on_toggle_card
+            >
+                <span class="blx-sr-card__chevron" aria-hidden="true">
+                    <LxIcon icon=icondata::LuChevronRight width="14px" height="14px" />
                 </span>
-            </Show>
-            <span class="workbench-plans-manage__spacer"></span>
-            <button
-                type="button"
-                class="workbench-plans-manage__btn"
-                aria-label=move || if state.show_preview.get() {
-                    i18n.tr(I18nKey::PlansEdit)()
-                } else {
-                    i18n.tr(I18nKey::PlansPreview)()
-                }
-                title=move || if state.show_preview.get() {
-                    i18n.tr(I18nKey::PlansEdit)()
-                } else {
-                    i18n.tr(I18nKey::PlansPreview)()
-                }
-                on:click=move |_| state.show_preview.update(|v| *v = !*v)
-            >
-                <Show
-                    when=move || state.show_preview.get()
-                    fallback=move || view! {
-                        <LxIcon icon=icondata::LuEye width="0.82rem" height="0.82rem" />
-                    }
-                >
-                    <LxIcon icon=icondata::LuPencil width="0.82rem" height="0.82rem" />
-                </Show>
+                <span class="blx-sr-card__icon" aria-hidden="true">
+                    <LxIcon icon=icondata::LuClipboardList width="16px" height="16px" />
+                </span>
+                <span class="blx-sr-card__main">
+                    <span class="blx-sr-card__title-row">
+                        <span class="blx-sr-card__title">{title}</span>
+                        <span class="blx-sr-card__badge" data-kind="plan">"plan"</span>
+                        {is_index.then(|| view! {
+                            <span class="blx-plans-card__protected">{i18n.tr(I18nKey::PlansProtectedIndex)}</span>
+                        })}
+                    </span>
+                    <span class="blx-sr-card__summary blx-plans-card__summary">
+                        <span class="blx-plans-card__path">{path.clone()}</span>
+                        <PlanTaskSummaryIcons summary=summary.clone() />
+                    </span>
+                </span>
             </button>
-            <button
-                type="button"
-                class="workbench-plans-manage__btn workbench-plans-manage__btn--primary"
-                on:click=on_load
-            >
-                {move || i18n.tr(I18nKey::PlansLoadIntoAgent)()}
-            </button>
-        </header>
+
+            {move || expanded.get().then(|| {
+                let is_loading = body_loading.get();
+                let is_saving = saving.get();
+                let has_body = body.with(|b| b.is_some());
+                let is_editing = editing.get();
+                let is_renaming = renaming.get();
+                view! {
+                    <section class="blx-sr-card__body">
+                        {if is_loading && !has_body {
+                            view! { <p class="blx-sr-card__hint">{i18n.tr(I18nKey::SrLoading)}</p> }.into_any()
+                        } else if is_editing {
+                            view! {
+                                <textarea
+                                    class="blx-sr-card__editor"
+                                    spellcheck="false"
+                                    prop:value=move || draft.get()
+                                    on:input=move |ev| draft.set(textarea_value(&ev))
+                                ></textarea>
+                            }.into_any()
+                        } else {
+                            view! {
+                                <div
+                                    class="blx-sr-card__md"
+                                    inner_html=move || body.with(|b| {
+                                        b.as_deref().map(render_markdown_to_html).unwrap_or_default()
+                                    })
+                                />
+                            }.into_any()
+                        }}
+
+                        {is_renaming.then(|| view! {
+                            <form
+                                class="blx-plans-card__rename"
+                                on:submit=move |ev: web_sys::SubmitEvent| {
+                                    ev.prevent_default();
+                                    submit_rename(state, card_path.get_value(), rename_input.get_untracked(), renaming);
+                                }
+                            >
+                                <input
+                                    type="text"
+                                    class="blx-plans-card__rename-input"
+                                    prop:value=move || rename_input.get()
+                                    on:input=move |ev| rename_input.set(input_value(&ev))
+                                />
+                                <button type="submit" class="blx-sr-btn blx-sr-btn--primary">
+                                    <span>{i18n.tr(I18nKey::PlansRename)}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="blx-sr-btn blx-sr-btn--ghost"
+                                    on:click=move |_| renaming.set(false)
+                                >
+                                    <span>{i18n.tr(I18nKey::SrCancel)}</span>
+                                </button>
+                            </form>
+                        })}
+
+                        <div class="blx-sr-card__actions">
+                            {if is_editing {
+                                view! {
+                                    <button
+                                        type="button"
+                                        class="blx-sr-btn blx-sr-btn--ghost"
+                                        disabled=is_saving
+                                        on:click=move |ev: web_sys::MouseEvent| {
+                                            ev.stop_propagation();
+                                            draft.set(body.with(|b| b.clone().unwrap_or_default()));
+                                            editing.set(false);
+                                        }
+                                    >
+                                        <span>{i18n.tr(I18nKey::SrCancel)}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="blx-sr-btn blx-sr-btn--primary"
+                                        disabled=is_saving
+                                        on:click=move |ev: web_sys::MouseEvent| {
+                                            ev.stop_propagation();
+                                            write_plan_body(
+                                                state,
+                                                on_save.get_value(),
+                                                draft.get_untracked(),
+                                                body,
+                                                editing,
+                                                saving,
+                                            );
+                                        }
+                                    >
+                                        <LxIcon icon=icondata::LuSave width="13px" height="13px" />
+                                        <span>{i18n.tr(I18nKey::BtnSave)}</span>
+                                    </button>
+                                }.into_any()
+                            } else {
+                                view! {
+                                    <button
+                                        type="button"
+                                        class="blx-sr-btn"
+                                        disabled=!has_body
+                                        on:click=move |ev: web_sys::MouseEvent| {
+                                            ev.stop_propagation();
+                                            draft.set(body.with(|b| b.clone().unwrap_or_default()));
+                                            editing.set(true);
+                                        }
+                                    >
+                                        <LxIcon icon=icondata::LuPencil width="13px" height="13px" />
+                                        <span>{i18n.tr(I18nKey::SrEdit)}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="blx-sr-btn blx-sr-btn--primary"
+                                        on:click=move |ev: web_sys::MouseEvent| {
+                                            ev.stop_propagation();
+                                            load_plan_into_agent(state, wb, on_load.get_value());
+                                        }
+                                    >
+                                        <LxIcon icon=icondata::LuBot width="13px" height="13px" />
+                                        <span>{i18n.tr(I18nKey::PlansLoadIntoAgent)}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="blx-sr-btn"
+                                        disabled=is_index
+                                        on:click=move |ev: web_sys::MouseEvent| {
+                                            ev.stop_propagation();
+                                            rename_input.set(card_path.get_value());
+                                            renaming.update(|open| *open = !*open);
+                                        }
+                                    >
+                                        <LxIcon icon=icondata::LuFilePenLine width="13px" height="13px" />
+                                        <span>{i18n.tr(I18nKey::PlansRename)}</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="blx-sr-btn blx-sr-btn--danger"
+                                        disabled=is_index
+                                        on:click=move |ev: web_sys::MouseEvent| {
+                                            ev.stop_propagation();
+                                            let msg = i18n.tr(I18nKey::SrConfirmRemove)();
+                                            if confirm_window(&msg) {
+                                                remove_plan(state, on_delete.get_value());
+                                            }
+                                        }
+                                    >
+                                        <LxIcon icon=icondata::LuTrash2 width="13px" height="13px" />
+                                        <span>{i18n.tr(I18nKey::SrRemove)}</span>
+                                    </button>
+                                }.into_any()
+                            }}
+                        </div>
+                    </section>
+                }
+            })}
+            <PlanStateLine summary=summary />
+        </article>
     }
+}
+
+fn read_plan_into(
+    state: PlansState,
+    path: String,
+    body: RwSignal<Option<String>>,
+    loading: RwSignal<bool>,
+) {
+    let Some(ws) = state.workspace_cwd.get_untracked() else {
+        return;
+    };
+    loading.set(true);
+    spawn_local(async move {
+        match plan_read(&ws, &path).await {
+            Ok(PlanContent { content, .. }) => {
+                body.set(Some(content));
+                state.error.set(None);
+            }
+            Err(e) => state.error.set(Some(e)),
+        }
+        loading.set(false);
+    });
+}
+
+fn write_plan_body(
+    state: PlansState,
+    path: String,
+    content: String,
+    body: RwSignal<Option<String>>,
+    editing: RwSignal<bool>,
+    saving: RwSignal<bool>,
+) {
+    let Some(ws) = state.workspace_cwd.get_untracked() else {
+        return;
+    };
+    saving.set(true);
+    spawn_local(async move {
+        match plan_write(&ws, &path, &content).await {
+            Ok(_) => {
+                body.set(Some(content));
+                editing.set(false);
+                state.error.set(None);
+                load_plans_list(state, ws);
+            }
+            Err(e) => state.error.set(Some(e)),
+        }
+        saving.set(false);
+    });
+}
+
+fn submit_rename(state: PlansState, old_path: String, raw: String, renaming: RwSignal<bool>) {
+    let new_path = normalize_plan_path(&raw);
+    if new_path.trim().is_empty() || new_path == old_path {
+        renaming.set(false);
+        return;
+    }
+    let Some(ws) = state.workspace_cwd.get_untracked() else {
+        return;
+    };
+    spawn_local(async move {
+        match plan_rename(&ws, &old_path, &new_path).await {
+            Ok(_) => {
+                renaming.set(false);
+                state.error.set(None);
+                load_plans_list(state, ws);
+            }
+            Err(e) => state.error.set(Some(e)),
+        }
+    });
+}
+
+fn remove_plan(state: PlansState, path: String) {
+    let Some(ws) = state.workspace_cwd.get_untracked() else {
+        return;
+    };
+    spawn_local(async move {
+        match plan_delete(&ws, &path).await {
+            Ok(()) => {
+                state.error.set(None);
+                load_plans_list(state, ws);
+            }
+            Err(e) => state.error.set(Some(e)),
+        }
+    });
+}
+
+fn load_plan_into_agent(state: PlansState, wb: WorkbenchService, path: String) {
+    let Some(ws) = state.workspace_cwd.get_untracked() else {
+        return;
+    };
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        return;
+    };
+    spawn_local(async move {
+        match plan_load(&ws, &path).await {
+            Ok(report) => {
+                let label = state
+                    .plans
+                    .get_untracked()
+                    .into_iter()
+                    .find(|m| m.path == report.path)
+                    .map(|m| m.title)
+                    .unwrap_or_else(|| report.path.clone());
+                let summary = format!(
+                    "{} task(s) - kept {} free task(s)",
+                    report.tasks_added, report.free_tasks_kept
+                );
+                let item = AgentContextItem {
+                    id: format!("plan-file:{}", report.path),
+                    kind: AgentContextKind::PlanFile,
+                    label,
+                    source: summary,
+                    paths: vec![report.path.clone()],
+                    added_at: Date::now() as i64,
+                };
+                wb.upsert_workspace_agent_context(ws_id, item);
+                if let Ok(snap) = tauri_bridge::tasks_list(ws.clone()).await {
+                    crate::workbench::agent_context_handoff::store_task_snapshot(ws_id, snap);
+                }
+                state.error.set(None);
+                load_plans_list(state, ws);
+            }
+            Err(e) => state.error.set(Some(e)),
+        }
+    });
 }
 
 #[component]
@@ -593,274 +895,125 @@ fn PlanTaskStatChip(
     let i18n = expect_context::<I18nService>();
     view! {
         <span
-            class=format!(
-                "workbench-plans-manage__task-stat workbench-plans-manage__task-stat--{modifier}"
-            )
-            class:workbench-plans-manage__task-stat--zero=move || count == 0
+            class=format!("blx-plans-task-stat blx-plans-task-stat--{modifier}")
+            class:blx-plans-task-stat--zero=move || count == 0
             title=move || format!("{}: {count}", i18n.tr(label_key)())
         >
-            <span class="workbench-plans-manage__task-stat-icon" aria-hidden="true">
-                <LxIcon icon=icon width="0.8rem" height="0.8rem" />
-            </span>
-            <span class="workbench-plans-manage__task-stat-count">{count}</span>
+            <LxIcon icon=icon width="12px" height="12px" />
+            <span>{count}</span>
         </span>
     }
 }
 
 #[component]
 fn PlanTaskSummaryIcons(summary: PlanTaskSummaryWire) -> impl IntoView {
-    let i18n = expect_context::<I18nService>();
     view! {
-        <span
-            class="workbench-plans-manage__task-summary"
-            aria-label=move || i18n.tr(I18nKey::PlansTaskSummary)()
-        >
-            <PlanTaskStatChip
-                icon=icondata::LuListTodo
-                count=summary.total
-                modifier="total"
-                label_key=I18nKey::PlansTaskStatTotal
-            />
-            <PlanTaskStatChip
-                icon=icondata::LuCircle
-                count=summary.pending
-                modifier="pending"
-                label_key=I18nKey::PlansTaskStatPending
-            />
-            <PlanTaskStatChip
-                icon=icondata::LuCirclePlay
-                count=summary.in_progress
-                modifier="in-progress"
-                label_key=I18nKey::PlansTaskStatInProgress
-            />
-            <PlanTaskStatChip
-                icon=icondata::LuCircleAlert
-                count=summary.blocked
-                modifier="blocked"
-                label_key=I18nKey::PlansTaskStatBlocked
-            />
-            <PlanTaskStatChip
-                icon=icondata::LuCircleCheck
-                count=summary.completed
-                modifier="completed"
-                label_key=I18nKey::PlansTaskStatCompleted
-            />
-            <PlanTaskStatChip
-                icon=icondata::LuCircleMinus
-                count=summary.cancelled
-                modifier="cancelled"
-                label_key=I18nKey::PlansTaskStatCancelled
-            />
+        <span class="blx-plans-task-summary">
+            <PlanTaskStatChip icon=icondata::LuListTodo count=summary.total modifier="total" label_key=I18nKey::PlansTaskStatTotal />
+            <PlanTaskStatChip icon=icondata::LuCircle count=summary.pending modifier="pending" label_key=I18nKey::PlansTaskStatPending />
+            <PlanTaskStatChip icon=icondata::LuCirclePlay count=summary.in_progress modifier="in-progress" label_key=I18nKey::PlansTaskStatInProgress />
+            <PlanTaskStatChip icon=icondata::LuCircleAlert count=summary.blocked modifier="blocked" label_key=I18nKey::PlansTaskStatBlocked />
+            <PlanTaskStatChip icon=icondata::LuCircleCheck count=summary.completed modifier="completed" label_key=I18nKey::PlansTaskStatCompleted />
+            <PlanTaskStatChip icon=icondata::LuCircleMinus count=summary.cancelled modifier="cancelled" label_key=I18nKey::PlansTaskStatCancelled />
         </span>
     }
 }
 
 #[component]
-fn PlansListRow(
-    state: PlansState,
-    plan: PlanMeta,
-    list_collapsed: RwSignal<bool>,
-) -> impl IntoView {
-    let plan_path_active = plan.path.clone();
-    let plan_expanded = plan.clone();
-    let plan_collapsed = plan.clone();
-
+fn PlanStateLine(summary: PlanTaskSummaryWire) -> impl IntoView {
+    let pending = state_line_class("pending", summary.pending > 0);
+    let in_progress = state_line_class("in-progress", summary.in_progress > 0);
+    let blocked = state_line_class("blocked", summary.blocked > 0);
+    let completed = state_line_class("completed", summary.completed > 0);
+    let cancelled = state_line_class("cancelled", summary.cancelled > 0);
     view! {
-        <li
-            class="workbench-plans-manage__row"
-            class:workbench-plans-manage__row--collapsed=move || list_collapsed.get()
-            class:workbench-plans-manage__row--active=move || {
-                state.active_path.get().as_deref() == Some(plan_path_active.as_str())
-            }
-            class:workbench-plans-manage__row--index=plan.is_index
-        >
-            <Show
-                when=move || list_collapsed.get()
-                fallback=move || view! {
-                    <PlansListRowExpanded state=state plan=plan_expanded.clone() />
-                }
-            >
-                <PlansListRowCollapsed state=state plan=plan_collapsed.clone() />
-            </Show>
-        </li>
+        <div class="blx-plans-state-line" aria-hidden="true">
+            <span class=pending></span>
+            <span class=in_progress></span>
+            <span class=blocked></span>
+            <span class=completed></span>
+            <span class=cancelled></span>
+        </div>
     }
 }
 
-#[component]
-fn PlansListRowCollapsed(state: PlansState, plan: PlanMeta) -> impl IntoView {
-    let badge = plan_badge_text(&plan.title);
-    view! {
-        <button
-            type="button"
-            class="workbench-plans-manage__badge"
-            title=plan.title.clone()
-            aria-label=plan.title.clone()
-            on:click=move |_| {
-                if let Some(ws) = state.workspace_cwd.get_untracked() {
-                    load_plan(state, ws, plan.path.clone());
-                }
-            }
-        >
-            {badge}
-        </button>
+fn state_line_class(kind: &str, active: bool) -> String {
+    let mut class = format!("blx-plans-state-line__seg blx-plans-state-line__seg--{kind}");
+    if active {
+        class.push_str(" blx-plans-state-line__seg--active");
     }
+    class
 }
 
-#[component]
-fn PlansListRowExpanded(state: PlansState, plan: PlanMeta) -> impl IntoView {
-    let i18n = expect_context::<I18nService>();
-    let plan_path_select = plan.path.clone();
-    let plan_path_rename = plan.path.clone();
-    let plan_path_delete = plan.path.clone();
-    let plan_path_rename_match = plan.path.clone();
-    let plan_path_for_rename_row = plan.path.clone();
-    let title = plan.title.clone();
-    let is_index = plan.is_index;
-    let task_summary = plan.task_summary;
-
-    view! {
-        <button
-            type="button"
-            class="workbench-plans-manage__row-main"
-            on:click=move |_| {
-                if let Some(ws) = state.workspace_cwd.get_untracked() {
-                    load_plan(state, ws, plan_path_select.clone());
-                }
-            }
-        >
-            <span class="workbench-plans-manage__row-title">{title}</span>
-            <span class="workbench-plans-manage__row-summary">
-                <PlanTaskSummaryIcons summary=task_summary />
-            </span>
-        </button>
-        <Show when=move || !is_index>
-            <button
-                type="button"
-                class="workbench-plans-manage__row-action"
-                title=move || i18n.tr(I18nKey::PlansRename)()
-                aria-label=move || i18n.tr(I18nKey::PlansRename)()
-                on:click={
-                    let path = plan_path_rename.clone();
-                    move |_| {
-                        state.renaming.set(Some(path.clone()));
-                        state.rename_input.set(path.clone());
-                    }
-                }
-            >
-                <LxIcon icon=icondata::LuPencil width="0.78rem" height="0.78rem" />
-            </button>
-            <button
-                type="button"
-                class="workbench-plans-manage__row-action"
-                title=move || i18n.tr(I18nKey::PlansDelete)()
-                aria-label=move || i18n.tr(I18nKey::PlansDelete)()
-                on:click={
-                    let path = plan_path_delete.clone();
-                    move |_| {
-                        let Some(ws) = state.workspace_cwd.get_untracked() else { return };
-                        let path = path.clone();
-                        spawn_local(async move {
-                            match plan_delete(&ws, &path).await {
-                                Ok(()) => {
-                                    if state.active_path.get_untracked().as_deref()
-                                        == Some(path.as_str())
-                                    {
-                                        state.active_path.set(None);
-                                        state.editor_content.set(String::new());
-                                    }
-                                    load_plans_list(state, ws);
-                                }
-                                Err(e) => state.error.set(Some(e)),
-                            }
-                        });
-                    }
-                }
-            >
-                <LxIcon icon=icondata::LuTrash2 width="0.78rem" height="0.78rem" />
-            </button>
-        </Show>
-        <Show when=move || {
-            state.renaming.get().as_deref() == Some(plan_path_rename_match.as_str())
-        }>
-            <PlansRenameRow state=state old_path=plan_path_for_rename_row.clone() />
-        </Show>
-    }
-}
-
-fn plan_badge_text(title: &str) -> String {
-    let mut out = String::new();
-    for part in title
-        .split(|ch: char| !ch.is_alphanumeric())
-        .filter(|part| !part.is_empty())
-    {
-        if let Some(ch) = part.chars().next() {
-            out.extend(ch.to_uppercase());
-        }
-        if out.chars().count() >= 2 {
-            break;
-        }
-    }
-    if out.is_empty() {
-        title
-            .chars()
-            .next()
-            .map(|ch| ch.to_uppercase().to_string())
-            .unwrap_or_else(|| "?".into())
+fn normalize_plan_content(title: &str, body: &str) -> String {
+    if body.trim().is_empty() {
+        format!("# {title}\n\n## Tasks\n\n")
+    } else if body.trim_start().starts_with('#') {
+        body.to_owned()
     } else {
-        out
+        format!("# {title}\n\n{body}")
     }
 }
 
-#[component]
-fn PlansRenameRow(state: PlansState, old_path: String) -> impl IntoView {
-    let i18n = expect_context::<I18nService>();
-    let cancel = move |_| {
-        state.renaming.set(None);
-    };
-    let submit = {
-        let old_path = old_path.clone();
-        move |ev: web_sys::SubmitEvent| {
-            ev.prevent_default();
-            let new_raw = state.rename_input.get_untracked();
-            let new_path = if new_raw.to_lowercase().ends_with(".md") {
-                new_raw
-            } else {
-                format!("{new_raw}.md")
-            };
-            if new_path.trim().is_empty() || new_path == old_path {
-                state.renaming.set(None);
-                return;
-            }
-            let Some(ws) = state.workspace_cwd.get_untracked() else {
-                return;
-            };
-            let old_path = old_path.clone();
-            spawn_local(async move {
-                match plan_rename(&ws, &old_path, &new_path).await {
-                    Ok(meta) => {
-                        state.renaming.set(None);
-                        load_plans_list(state, ws.clone());
-                        load_plan(state, ws, meta.path);
-                    }
-                    Err(e) => state.error.set(Some(e)),
-                }
-            });
-        }
-    };
-    view! {
-        <form class="workbench-plans-manage__rename" on:submit=submit>
-            <input
-                type="text"
-                class="workbench-plans-manage__rename-input"
-                prop:value=move || state.rename_input.get()
-                on:input=move |ev| {
-                    if let Some(v) = input_value(ev) {
-                        state.rename_input.set(v);
-                    }
-                }
-            />
-            <button type="submit" class="workbench-plans-manage__rename-btn">{move || i18n.tr(I18nKey::PlansRename)()}</button>
-            <button type="button" class="workbench-plans-manage__rename-btn" on:click=cancel>"×"</button>
-        </form>
+fn normalize_plan_path(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.to_ascii_lowercase().ends_with(".md") {
+        trimmed.to_owned()
+    } else {
+        format!("{trimmed}.md")
     }
+}
+
+fn next_plan_name(title: &str, existing: &[PlanMeta]) -> String {
+    let base = slugify_title(title);
+    let mut name = format!("{base}.md");
+    let mut i = 2;
+    while existing.iter().any(|plan| plan.path == name) {
+        name = format!("{base}-{i}.md");
+        i += 1;
+    }
+    name
+}
+
+fn slugify_title(title: &str) -> String {
+    let mut slug = String::new();
+    let mut last_dash = false;
+    for ch in title.trim().chars() {
+        let lower = ch.to_ascii_lowercase();
+        if lower.is_ascii_alphanumeric() || lower == '_' {
+            slug.push(lower);
+            last_dash = false;
+        } else if !last_dash && !slug.is_empty() {
+            slug.push('-');
+            last_dash = true;
+        }
+    }
+    while slug.ends_with('-') {
+        slug.pop();
+    }
+    if slug.is_empty() {
+        "new-plan".into()
+    } else {
+        slug.chars().take(80).collect()
+    }
+}
+
+fn input_value(ev: &web_sys::Event) -> String {
+    ev.target()
+        .and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok())
+        .map(|i| i.value())
+        .unwrap_or_default()
+}
+
+fn textarea_value(ev: &web_sys::Event) -> String {
+    ev.target()
+        .and_then(|t| t.dyn_into::<web_sys::HtmlTextAreaElement>().ok())
+        .map(|i| i.value())
+        .unwrap_or_default()
+}
+
+fn confirm_window(msg: &str) -> bool {
+    web_sys::window()
+        .and_then(|w| w.confirm_with_message(msg).ok())
+        .unwrap_or(true)
 }

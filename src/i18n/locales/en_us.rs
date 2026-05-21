@@ -114,6 +114,13 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
 
         I18nKey::PlansProtectedIndex => "PLANS.md is the protected index file.",
         I18nKey::PlansListResizeAria => "Resize plan list",
+        I18nKey::PlansFilterAll => "All",
+        I18nKey::PlansFilterActive => "Active",
+        I18nKey::PlansFilterEmpty => "Empty",
+        I18nKey::PlansTitlePh => "Plan title",
+        I18nKey::PlansBodyPh => "Write the plan in Markdown...",
+        I18nKey::PlansTitleRequired => "Give the plan a title first.",
+        I18nKey::PlansNoFilteredPlans => "No plans for this filter.",
         I18nKey::SrSkillsTabCore => "Core",
         I18nKey::SrSkillsTabUser => "User",
         I18nKey::SrSourceCore => "core",
