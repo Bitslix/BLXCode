@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Boot loading screen**: new branded loading experience that paints before the WASM bundle is ready and stays on screen until the workbench is mounted. `index.html` ships a static `#blx-static-boot` section (logo, eyebrow, faux workbench preview, animated rail) so the first paint happens immediately on Trunk-served HTML; once Leptos mounts, the static node is removed and `BootLoadingScreen` (`src/boot_loading.rs`) takes over with phased copy (`Starting BLXCode` → `Restoring workspace` → `Opening workbench`). 306 lines of dedicated CSS in `styles.css` add the radial-gradient backdrop, frame-enter / sheen / rail keyframes, and the sidebar/main/panel preview skeleton. The `App` boot fallback now renders `<BootLoadingScreen phase=app_boot_phase.get()/>` instead of the prior empty `app-shell--boot` div.
+
 ### Changed
 
 ### Fixed
