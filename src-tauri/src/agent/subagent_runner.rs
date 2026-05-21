@@ -1008,3 +1008,52 @@ async fn stream_openai_subagent_round(
         .collect();
     Ok(acc)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    #[test]
+    fn validate_submit_rejects_blocked_without_workspace_attempt() {
+        let args = json!({ "status": "blocked", "summary": "no tools" });
+        let called: HashSet<String> = HashSet::new();
+        assert!(matches!(
+            validate_submit(&args, &called, true),
+            SubmitVerdict::RejectBlockedWithoutTrying { .. }
+        ));
+    }
+
+    #[test]
+    fn validate_submit_accepts_blocked_after_workspace_attempt() {
+        let args = json!({ "status": "blocked", "summary": "denied" });
+        let mut called: HashSet<String> = HashSet::new();
+        called.insert("list_workspace_files".into());
+        assert_eq!(
+            validate_submit(&args, &called, true),
+            SubmitVerdict::Accept
+        );
+    }
+
+    #[test]
+    fn validate_submit_accepts_completed_regardless() {
+        let args = json!({ "status": "completed", "summary": "done" });
+        let called: HashSet<String> = HashSet::new();
+        assert_eq!(
+            validate_submit(&args, &called, true),
+            SubmitVerdict::Accept
+        );
+    }
+
+    #[test]
+    fn validate_submit_accepts_when_role_has_no_workspace_read() {
+        // If the role was never given workspace_read, a "blocked" claim
+        // about missing tools is honest — accept it.
+        let args = json!({ "status": "blocked", "summary": "no workspace tools" });
+        let called: HashSet<String> = HashSet::new();
+        assert_eq!(
+            validate_submit(&args, &called, false),
+            SubmitVerdict::Accept
+        );
+    }
+}
