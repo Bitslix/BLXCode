@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Plans panel new-plan composer**: fixed a flexbox collapse where pressing `+` could render only the dashed composer outline while clipping the title input, Markdown editor, and actions. Composer rows now keep their intrinsic height inside the scrollable Plans body, and the title input is focused after opening.
+
 ### Removed
 
 
