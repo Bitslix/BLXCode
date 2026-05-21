@@ -312,6 +312,47 @@ mod tests {
     }
 
     #[test]
+    fn no_subagent_reachable_group_contains_dotted_tool_names() {
+        // Invariant: subagent toolsets never contain dotted tool names
+        // (`subagents.run`, `harness.*`). If this ever flips, the Azure
+        // sanitization in `render_for_openai_filtered` would start renaming
+        // tools inside the subagent catalog and we'd need to add a matching
+        // reverse-map in the subagent loop. Currently the bidirectional
+        // mapping only exists in the coordinator path.
+        let all_coordinator_controllable_strings = [
+            "environment_read",
+            "workspace_read",
+            "diff_read",
+            "git_read",
+            "git_write",
+            "shell_read",
+            "shell_write",
+            "web_read",
+            "memory_read",
+            "memory_write",
+            "plans_read",
+            "plans_write",
+            "tasks_read",
+            "tasks_write",
+            "rules_skills_read",
+            "rules_skills_write",
+        ];
+        for s in all_coordinator_controllable_strings {
+            let g = ToolGroup::parse(s).expect("known group");
+            for tool in g.tool_names() {
+                assert!(
+                    !tool.contains('.'),
+                    "group {s:?} exposes dotted tool {tool:?} — would conflict with Azure sanitizer"
+                );
+            }
+        }
+        // SubagentSubmit is force-pushed onto every subagent's group list.
+        for tool in ToolGroup::SubagentSubmit.tool_names() {
+            assert!(!tool.contains('.'), "SubagentSubmit tool {tool:?} must be dotless");
+        }
+    }
+
+    #[test]
     fn parse_allowed_groups_strict_returns_empty_when_all_unknown() {
         // The pathological case the subagents fix is built to catch: a
         // coordinator that invents toolgroup names. Parser returns empty
