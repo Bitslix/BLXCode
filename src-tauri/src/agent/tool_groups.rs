@@ -180,6 +180,22 @@ pub fn parse_allowed_groups(names: &[String]) -> Vec<ToolGroup> {
         .collect()
 }
 
+/// Like [`parse_allowed_groups`] but also returns the strings that failed to
+/// parse, so the caller can warn the user (or the model) about typos
+/// instead of silently producing an empty toolset.
+#[must_use]
+pub fn parse_allowed_groups_strict(names: &[String]) -> (Vec<ToolGroup>, Vec<String>) {
+    let mut ok = Vec::with_capacity(names.len());
+    let mut bad = Vec::new();
+    for s in names {
+        match ToolGroup::parse(s) {
+            Some(g) => ok.push(g),
+            None => bad.push(s.clone()),
+        }
+    }
+    (ok, bad)
+}
+
 fn allowed_names(groups: &[ToolGroup], web_enabled: bool) -> HashSet<&'static str> {
     let mut set = HashSet::new();
     for g in groups {
@@ -280,5 +296,29 @@ mod tests {
         let names: HashSet<_> = reg.iter().map(|t| t.name).collect();
         assert!(names.contains("submit_result"));
         assert!(!names.contains("subagents.run"));
+    }
+
+    #[test]
+    fn parse_allowed_groups_strict_separates_known_from_unknown() {
+        let input = vec![
+            "workspace_read".to_string(),
+            "file_access".to_string(),     // bogus
+            "git_read".to_string(),
+            "shell".to_string(),           // bogus (correct names are shell_read/shell_write)
+        ];
+        let (ok, bad) = parse_allowed_groups_strict(&input);
+        assert_eq!(ok, vec![ToolGroup::WorkspaceRead, ToolGroup::GitRead]);
+        assert_eq!(bad, vec!["file_access".to_string(), "shell".to_string()]);
+    }
+
+    #[test]
+    fn parse_allowed_groups_strict_returns_empty_when_all_unknown() {
+        // The pathological case the subagents fix is built to catch: a
+        // coordinator that invents toolgroup names. Parser returns empty
+        // ok-list so the caller can detect the situation and fall back.
+        let input = vec!["files".into(), "file_system".into(), "workspace".into()];
+        let (ok, bad) = parse_allowed_groups_strict(&input);
+        assert!(ok.is_empty());
+        assert_eq!(bad.len(), 3);
     }
 }

@@ -128,6 +128,31 @@ pub async fn run_one_subagent(
         display_name: display_name.to_owned(),
     });
 
+    // Diagnostic: surface what tools this subagent was actually provisioned
+    // with as the first step. When models claim "tools not in schema", the
+    // operator can immediately compare against this list and tell whether
+    // the model is hallucinating or the provisioning really is empty.
+    let provisioned: Vec<&'static str> =
+        crate::agent::tool_groups::registry_filtered(groups, true)
+            .into_iter()
+            .map(|t| t.name)
+            .collect();
+    state.push(AgentEvent::SubagentStep {
+        agent_id: agent_id.to_owned(),
+        step_id: "provisioned-tools".into(),
+        title: format!(
+            "Provisioned {} tool(s): {}",
+            provisioned.len(),
+            if provisioned.is_empty() {
+                "(none — coordinator passed an unusable allowedToolGroups)".to_string()
+            } else {
+                provisioned.join(", ")
+            }
+        ),
+        status: "info".into(),
+        note: None,
+    });
+
     let root_guard = workspace_root.and_then(|r| WorkspaceRootGuard::parse(r).ok().flatten());
     let ws = workspace_root.unwrap_or("<no workspace>");
     let system = subagent_prompts::subagent_system_prompt(

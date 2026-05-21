@@ -220,7 +220,24 @@ pub fn extra_tool_defs() -> Vec<ToolDef> {
                                 "title": { "type": "string" },
                                 "task": { "type": "string" },
                                 "successCriteria": { "type": "array", "items": { "type": "string" } },
-                                "allowedToolGroups": { "type": "array", "items": { "type": "string" } }
+                                "allowedToolGroups": {
+                                    "type": "array",
+                                    "description": "Optional override of the role's default toolgroups. Must be drawn from this exact list — unknown strings are rejected. Omit (or pass an empty array) to use the role's default toolgroups.",
+                                    "items": {
+                                        "type": "string",
+                                        "enum": [
+                                            "environment_read",
+                                            "workspace_read",
+                                            "diff_read",
+                                            "git_read",
+                                            "memory_read",
+                                            "plans_read",
+                                            "tasks_read",
+                                            "rules_skills_read",
+                                            "web_read"
+                                        ]
+                                    }
+                                }
                             },
                             "required": ["id", "role", "task"]
                         }

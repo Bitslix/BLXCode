@@ -4,7 +4,8 @@ use crate::agent::subagent_prompts::{self, SubagentRole};
 use crate::agent::subagent_runner::{run_one_subagent, SubagentProvider};
 use crate::agent::state::AgentEngineState;
 use crate::agent::tool_dispatch::DispatchContext;
-use crate::agent::tool_groups::{self, parse_allowed_groups, ToolGroup};
+use crate::agent::tool_groups::{self, parse_allowed_groups_strict, ToolGroup};
+use crate::agent::protocol::AgentEvent;
 use crate::agent::tools::{ToolOutcome, WorkspaceRootGuard};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -103,12 +104,46 @@ pub async fn run(
             .get(idx)
             .cloned()
             .unwrap_or_else(|| subagent_prompts::display_name_en(role).to_owned());
-        let groups = if agent.allowed_tool_groups.is_empty() {
+        // Build the subagent's toolgroup set. When the coordinator passes
+        // `allowedToolGroups` with strings that don't match any known group
+        // (typo, made-up name), we used to silently end up with an empty
+        // toolset and the subagent rightly reported "no tools provisioned".
+        // Now: report the typos via a SubagentStep and fall back to the
+        // role's defaults so the run can still make progress.
+        let mut groups = if agent.allowed_tool_groups.is_empty() {
             role.default_groups()
         } else {
-            parse_allowed_groups(&agent.allowed_tool_groups)
+            let (parsed, unknown) = parse_allowed_groups_strict(&agent.allowed_tool_groups);
+            if !unknown.is_empty() {
+                state.push(AgentEvent::SubagentStep {
+                    agent_id: agent.id.clone(),
+                    step_id: "toolgroups-unknown".into(),
+                    title: format!(
+                        "Ignored {} unknown toolgroup name(s) from coordinator: {}",
+                        unknown.len(),
+                        unknown.join(", ")
+                    ),
+                    status: "warning".into(),
+                    note: Some(
+                        "Valid names: environment_read, workspace_read, diff_read, git_read, \
+                         memory_read, plans_read, tasks_read, rules_skills_read, web_read."
+                            .into(),
+                    ),
+                });
+            }
+            if parsed.is_empty() {
+                state.push(AgentEvent::SubagentStep {
+                    agent_id: agent.id.clone(),
+                    step_id: "toolgroups-fallback".into(),
+                    title: "All coordinator-provided toolgroups were invalid — falling back to role defaults".into(),
+                    status: "warning".into(),
+                    note: None,
+                });
+                role.default_groups()
+            } else {
+                parsed
+            }
         };
-        let mut groups = groups;
         groups.push(ToolGroup::SubagentSubmit);
         groups.retain(|g| !matches!(g, ToolGroup::SubagentsRun | ToolGroup::ShellWrite));
 
