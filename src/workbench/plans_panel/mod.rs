@@ -11,6 +11,7 @@ use crate::tauri_bridge::{
 };
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::{RightPanelTab, WorkbenchService};
+use gloo_timers::future::TimeoutFuture;
 use js_sys::Date;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -232,6 +233,30 @@ fn grouped_plans(plans: &[PlanMeta]) -> Vec<PlanGroup> {
         .collect()
 }
 
+fn open_plan_composer(
+    composer_open: RwSignal<bool>,
+    draft_error: RwSignal<Option<String>>,
+) {
+    composer_open.set(true);
+    draft_error.set(None);
+    spawn_local(async move {
+        TimeoutFuture::new(0).await;
+        scroll_plans_body_to_top();
+    });
+}
+
+fn scroll_plans_body_to_top() {
+    let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+        return;
+    };
+    let Ok(Some(node)) = document.query_selector(".blx-plans-pane .blx-sr-pane__body") else {
+        return;
+    };
+    if let Ok(el) = node.dyn_into::<web_sys::HtmlElement>() {
+        el.set_scroll_top(0);
+    }
+}
+
 #[component]
 pub fn PlansPanel() -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
@@ -336,8 +361,7 @@ pub fn PlansPanel() -> impl IntoView {
                         aria-label=move || i18n.tr(I18nKey::PlansNewPlan)()
                         title=move || i18n.tr(I18nKey::PlansNewPlan)()
                         on:click=move |_| {
-                            composer_open.set(true);
-                            draft_error.set(None);
+                            open_plan_composer(composer_open, draft_error);
                         }
                     >
                         <LxIcon icon=icondata::LuPlus width="13px" height="13px" />
@@ -471,7 +495,7 @@ pub fn PlansPanel() -> impl IntoView {
                                     <button
                                         type="button"
                                         class="blx-sr-btn blx-sr-btn--primary"
-                                        on:click=move |_| composer_open.set(true)
+                                        on:click=move |_| open_plan_composer(composer_open, draft_error)
                                     >
                                         <LxIcon icon=icondata::LuPlus width="13px" height="13px" />
                                         <span>{i18n.tr(I18nKey::PlansNewPlan)}</span>
