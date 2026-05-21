@@ -62,6 +62,18 @@ The panel provides:
 
 On workspace activation, BLXCode restores the last active plan path (`activePlanPath` in the workbench snapshot).
 
+## Kanban board view
+
+Switch the Plans toolbar to **Kanban** (alongside **Editor** and **Preview**).
+
+- Aggregates tasks from all plan files in the workspace (`PLANS.md` index is excluded).
+- **Free tasks** without `planPath` stay in the Agent task list only — not on the board.
+- Columns match task statuses: pending, in progress, blocked, completed, cancelled.
+- **Drag cards** between columns to change status; BLXCode writes the matching `[ ]` / `[>]` / `[!]` / `[x]` / `[-]` marker back into the plan Markdown.
+- **Drag columns** to reorder; hide or show empty columns. Layout persists in `.blxcode/kanban/index.json`.
+
+Quick-add and delete actions on cards keep the board and plan files in sync. When a card’s task is mirrored in `.blxcode/tasks/`, status updates best-effort sync there too.
+
 ## Plan-linked tasks
 
 Tasks in `.blxcode/tasks/index.json` can reference a plan:
