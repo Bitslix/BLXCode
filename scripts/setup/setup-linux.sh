@@ -10,7 +10,7 @@ WITH_BUNDLE=0
 WARNINGS=()
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 if [[ -t 1 ]] && command -v tput >/dev/null 2>&1; then
   BOLD="$(tput bold)"
@@ -32,7 +32,7 @@ fi
 
 usage() {
   cat <<'EOF'
-Usage: ./scripts/setup-linux.sh [options]
+Usage: ./scripts/setup/setup-linux.sh [options]
 
 Set up BLXCode after a git clone on Linux. Supports apt, dnf, and pacman.
 

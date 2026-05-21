@@ -7,13 +7,14 @@ $SkipSystem = $false
 $NoVerify = $false
 $WithBundle = $false
 $Warnings = New-Object System.Collections.Generic.List[string]
+$MinVerifyFreeBytes = [int64](10GB)
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Root = Split-Path -Parent $ScriptDir
+$Root = Split-Path -Parent (Split-Path -Parent $ScriptDir)
 
 function Show-Usage {
     @"
-Usage: powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1 [options]
+Usage: powershell -ExecutionPolicy Bypass -File scripts/setup/setup-windows.ps1 [options]
 
 Set up BLXCode after a git clone on Windows.
 
@@ -75,6 +76,34 @@ function Confirm-Step([string]$Prompt) {
 
 function Test-Command([string]$Name) {
     return $null -ne (Get-Command $Name -ErrorAction SilentlyContinue)
+}
+
+function Format-ByteSize([int64]$Bytes) {
+    if ($Bytes -ge 1GB) {
+        return "{0:N1} GiB" -f ($Bytes / 1GB)
+    }
+    if ($Bytes -ge 1MB) {
+        return "{0:N0} MiB" -f ($Bytes / 1MB)
+    }
+    return "$Bytes bytes"
+}
+
+function Assert-FreeDiskSpace([string]$Path, [int64]$MinBytes, [string]$Purpose) {
+    $Resolved = Resolve-Path -LiteralPath $Path -ErrorAction Stop
+    $Qualifier = Split-Path -Qualifier $Resolved.Path
+    if (-not $Qualifier) {
+        return
+    }
+    $DriveName = $Qualifier.TrimEnd(":\")
+    $Drive = Get-PSDrive -Name $DriveName -ErrorAction SilentlyContinue
+    if ($null -eq $Drive) {
+        return
+    }
+    if ($Drive.Free -lt $MinBytes) {
+        $FreeText = Format-ByteSize $Drive.Free
+        $NeedText = Format-ByteSize $MinBytes
+        throw "Not enough free disk space for $Purpose on $Qualifier. Free: $FreeText; required: $NeedText. Run 'cargo clean', delete old build artifacts, or re-run with --no-verify after installing prerequisites."
+    }
 }
 
 function Invoke-Step([string]$Description, [scriptblock]$Action) {
@@ -301,6 +330,10 @@ function Run-Verification {
     if ($NoVerify) {
         Write-WarningLine "Skipping verification (--no-verify)."
         return
+    }
+
+    if (-not $script:CheckOnly) {
+        Assert-FreeDiskSpace $Root $script:MinVerifyFreeBytes "cargo/trunk verification"
     }
 
     Push-Location $Root

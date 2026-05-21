@@ -76,12 +76,12 @@ BLXCode is early-stage open source. Core desktop, workspace, memory, plans, task
 After cloning, run the setup script for your platform:
 
 ```bash
-./scripts/setup-linux.sh
-./scripts/setup-macos.sh
+./scripts/setup/setup-linux.sh
+./scripts/setup/setup-macos.sh
 ```
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1
+powershell -ExecutionPolicy Bypass -File scripts/setup/setup-windows.ps1
 ```
 
 Use `--check-only` to inspect missing prerequisites without installing anything, or `--with-bundle` to run `cargo tauri build` after the default checks.
@@ -121,6 +121,22 @@ The Tauri dev command starts Trunk automatically through `src-tauri/tauri.conf.j
 ```bash
 cargo tauri build
 ```
+
+### Release Automation
+
+Use the release scripts for local bundle builds, version bumps, changelog finalization, tags, and GitHub release uploads:
+
+```bash
+./scripts/release.sh
+./scripts/release-macos.sh
+```
+
+```powershell
+scripts\release.cmd
+powershell -ExecutionPolicy Bypass -File scripts/release.ps1 --platform windows
+```
+
+Release scripts are unsigned by default for local builds. Copy `.env.release.example` to `.env.release` only when you need signing keys, notarization credentials, or GitHub upload overrides.
 
 ### Useful Checks
 

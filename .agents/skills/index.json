@@ -33,6 +33,14 @@
       "installedAt": "2026-05-20T11:32:10Z",
       "updatedAt": "2026-05-20T11:32:10Z"
     },
+    "manage-plans": {
+      "enabled": true,
+      "source": {
+        "kind": "local"
+      },
+      "installedAt": "2026-05-21T00:00:00Z",
+      "updatedAt": "2026-05-21T00:00:00Z"
+    },
     "rust-async-patterns": {
       "enabled": true,
       "source": {

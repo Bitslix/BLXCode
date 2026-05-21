@@ -9,7 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Interactive setup scripts**: platform-specific post-clone setup helpers under `scripts/setup/` for Linux, macOS and Windows. They install/check Rust, `wasm32-unknown-unknown`, Trunk, Tauri CLI, Node/npm frontend assets, OS-native Tauri dependencies, and optional verification/bundle builds.
+- **Native release script counterparts**: PowerShell and Command Prompt release entrypoints (`scripts/release.ps1`, `scripts/release.cmd`, `scripts/release-windows.*`) plus a macOS launcher (`scripts/release-macos.sh`). The PowerShell modules under `scripts/release/*.ps1` mirror the Bash release pipeline for version bumps, CHANGELOG finalization, Tauri builds, artifact discovery, and GitHub uploads.
+
 ### Changed
+
+- **Docs**: README, developer setup, build guide, and `.env.release.example` now document the setup and cross-platform release automation paths.
 
 ### Fixed
 

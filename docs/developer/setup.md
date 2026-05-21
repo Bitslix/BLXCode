@@ -12,12 +12,12 @@ BLXCode is a two-crate Rust workspace:
 After cloning, you can let the platform setup script install/check the local toolchain and run the default verification:
 
 ```bash
-./scripts/setup-linux.sh
-./scripts/setup-macos.sh
+./scripts/setup/setup-linux.sh
+./scripts/setup/setup-macos.sh
 ```
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1
+powershell -ExecutionPolicy Bypass -File scripts/setup/setup-windows.ps1
 ```
 
 Useful options are `--check-only`, `--skip-system`, `--no-verify`, and `--with-bundle`.
@@ -85,6 +85,22 @@ cargo tauri build
 ```
 
 Bundle configuration lives in `src-tauri/tauri.conf.json`.
+
+## Release Automation
+
+Release helpers live at the repo root under `scripts/` and share the same option set where possible:
+
+```bash
+./scripts/release.sh --help
+./scripts/release-macos.sh --help
+```
+
+```powershell
+scripts\release.cmd --help
+powershell -ExecutionPolicy Bypass -File scripts/release.ps1 --help
+```
+
+The Bash pipeline remains the Linux/macOS path. The PowerShell pipeline mirrors it for native Windows releases and is split into matching modules under `scripts/release/*.ps1` for common helpers, version bumping, changelog finalization, build preparation, Linux target handling, and GitHub uploads.
 
 ## Important Config Files
 
