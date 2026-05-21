@@ -630,9 +630,22 @@ pub fn TimelineRow(
                                         <p class="agent-subagent-card__summary-text">{summary}</p>
                                     })}
                                     <ul class="agent-subagent-card__tools">
-                                        {card.tools.into_iter().map(|t| {
-                                            let label = t.label.clone();
-                                            view! { <li>{label}</li> }
+                                        {merge_consecutive_tools(card.tools).into_iter().map(|run| {
+                                            let label = run.first()
+                                                .map(|t| t.label.clone())
+                                                .unwrap_or_default();
+                                            let count = run.len();
+                                            let multiple = count > 1;
+                                            view! {
+                                                <li>
+                                                    <span>{label}</span>
+                                                    <Show when=move || multiple>
+                                                        <span class="agent-subagent-card__tools-count">
+                                                            {format!("\u{00d7}{count}")}
+                                                        </span>
+                                                    </Show>
+                                                </li>
+                                            }
                                         }).collect_view()}
                                     </ul>
                                 </details>
