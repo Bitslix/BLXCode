@@ -258,8 +258,8 @@ fn save_settings(app: &AppHandle, settings: &AgentProviderSettings) -> Result<()
     Ok(())
 }
 
-fn keyring_entry(provider: AgentProviderKind) -> Result<keyring::Entry, String> {
-    keyring::Entry::new(KEYRING_SERVICE, &provider.keyring_account())
+fn keyring_entry(provider: AgentProviderKind) -> Result<keyring_core::Entry, String> {
+    keyring_core::Entry::new(KEYRING_SERVICE, &provider.keyring_account())
         .map_err(|e| format!("keyring init {}: {e}", provider.as_str()))
 }
 
@@ -325,7 +325,7 @@ fn key_masked_value(
     let entry = keyring_entry(provider)?;
     match entry.get_password() {
         Ok(secret) => Ok(mask_secret(&secret)),
-        Err(keyring::Error::NoEntry) => {
+        Err(keyring_core::Error::NoEntry) => {
             Ok(read_fallback_secret(app, provider)?.and_then(|secret| mask_secret(&secret)))
         }
         Err(_) if cfg!(target_os = "linux") => {
@@ -346,7 +346,7 @@ fn provider_key(app: &AppHandle, provider: AgentProviderKind) -> Result<String, 
         Ok(secret) if !secret.trim().is_empty() => Ok(secret),
         Ok(_) => read_fallback_secret(app, provider)?
             .ok_or_else(|| format!("keyring get {}: empty secret", provider.as_str())),
-        Err(keyring::Error::NoEntry) => read_fallback_secret(app, provider)?
+        Err(keyring_core::Error::NoEntry) => read_fallback_secret(app, provider)?
             .ok_or_else(|| format!("keyring get {}: no stored secret", provider.as_str())),
         Err(_) if cfg!(target_os = "linux") => read_fallback_secret(app, provider)?
             .ok_or_else(|| format!("keyring get {}: no stored secret", provider.as_str())),
@@ -688,7 +688,7 @@ pub fn agent_api_key_delete(
 ) -> Result<AgentProviderSettingsView, String> {
     let entry = keyring_entry(payload.provider)?;
     match entry.delete_credential() {
-        Ok(()) | Err(keyring::Error::NoEntry) => {}
+        Ok(()) | Err(keyring_core::Error::NoEntry) => {}
         Err(_) if cfg!(target_os = "linux") => {}
         Err(e) => return Err(format!("keyring delete {}: {e}", payload.provider.as_str())),
     }
@@ -702,7 +702,7 @@ pub fn agent_api_key_delete(
                 ));
             }
         }
-        Err(keyring::Error::NoEntry) => {}
+        Err(keyring_core::Error::NoEntry) => {}
         Err(_) if cfg!(target_os = "linux") => {}
         Err(e) => {
             return Err(format!(

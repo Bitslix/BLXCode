@@ -69,7 +69,7 @@ pub fn start(
         .default_input_config()
         .map_err(|e| format!("default_input_config({device_name}): {e}"))?;
 
-    let input_rate = supported.sample_rate().0;
+    let input_rate = supported.sample_rate();
     let channels = supported.channels() as usize;
     let target_path = path.clone();
 

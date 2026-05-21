@@ -69,9 +69,26 @@ fn apply_linux_webkit_workarounds() {
 #[cfg(not(target_os = "linux"))]
 fn apply_linux_webkit_workarounds() {}
 
+fn init_keyring_store() {
+    #[cfg(target_os = "windows")]
+    keyring::use_windows_native_store(&std::collections::HashMap::new())
+        .expect("failed to initialize Windows credential store");
+    #[cfg(target_os = "macos")]
+    keyring::use_apple_keychain_store(&std::collections::HashMap::new())
+        .expect("failed to initialize macOS keychain store");
+    #[cfg(target_os = "linux")]
+    {
+        if keyring::use_linux_keyutils_store(&std::collections::HashMap::new()).is_err() {
+            keyring::use_dbus_secret_service_store(&std::collections::HashMap::new())
+                .expect("failed to initialize Linux credential store");
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     apply_linux_webkit_workarounds();
+    init_keyring_store();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(AgentEngineState::new())

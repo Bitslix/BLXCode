@@ -9,6 +9,19 @@ BLXCode is a two-crate Rust workspace:
 
 ## Prerequisites
 
+After cloning, you can let the platform setup script install/check the local toolchain and run the default verification:
+
+```bash
+./scripts/setup-linux.sh
+./scripts/setup-macos.sh
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1
+```
+
+Useful options are `--check-only`, `--skip-system`, `--no-verify`, and `--with-bundle`.
+
 Install:
 
 - Rust stable.

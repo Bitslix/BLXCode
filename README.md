@@ -73,6 +73,19 @@ BLXCode is early-stage open source. Core desktop, workspace, memory, plans, task
 
 ## Quick Start
 
+After cloning, run the setup script for your platform:
+
+```bash
+./scripts/setup-linux.sh
+./scripts/setup-macos.sh
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1
+```
+
+Use `--check-only` to inspect missing prerequisites without installing anything, or `--with-bundle` to run `cargo tauri build` after the default checks.
+
 ### Prerequisites
 
 - Rust stable and Cargo.

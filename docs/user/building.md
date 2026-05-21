@@ -155,7 +155,20 @@ Because BLXCode currently uses `"targets": "all"` in `src-tauri/tauri.conf.json`
 
 ## Release script
 
-From the repository root, [`scripts/release.sh`](../../scripts/release.sh) automates version bumps, CHANGELOG updates, signed `cargo tauri build`, and GitHub release uploads.
+From the repository root, [`scripts/release.sh`](../../scripts/release.sh) automates version bumps, CHANGELOG updates, signed `cargo tauri build`, and GitHub release uploads. Windows also has native PowerShell and Command Prompt entrypoints:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/release.ps1 --platform windows
+scripts\release.cmd --platform windows
+scripts\release-windows.cmd
+```
+
+macOS can use the generic Bash script or the explicit macOS launcher:
+
+```bash
+./scripts/release.sh --platform macos
+./scripts/release-macos.sh
+```
 
 On Linux (including Arch), the script sets `NO_STRIP=1` and `APPIMAGE_EXTRACT_AND_RUN=1` so AppImage bundling avoids linuxdeploy strip errors with `.relr.dyn` sections.
 
@@ -175,12 +188,15 @@ Optional signing and upload variables are documented in [`.env.release.example`]
 
 ```bash
 ./scripts/release.sh --help
+powershell -ExecutionPolicy Bypass -File scripts/release.ps1 --help
 
 # Signed bundles + .sig (requires .env.release)
 ./scripts/release.sh --require-signing
+scripts\release.cmd --require-signing
 
 # New patch release: bump versions + CHANGELOG, build, draft upload
 ./scripts/release.sh --bump patch --build --upload
+scripts\release.cmd --bump patch --build --upload
 
 # Trigger CI for all platforms (after commit)
 ./scripts/release.sh --bump patch --tag --push --no-build --commit
