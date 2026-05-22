@@ -10,6 +10,7 @@ Persistent plans for multi-step work on **blxcode**. Individual plans live as Ma
 | planned | [coordinated-subagents.md](coordinated-subagents.md) | Coordinated Subagents: Rollen, i18n Subcards, Provider-Reuse, Environment/Shell/Git/Web-Tools, scoped Toolgruppen, Inline-Timeline |
 | planned | [kanban-board-view.md](kanban-board-view.md) | Kanban-View im Plans-Panel: Status-Spalten, DnD fuer Karten/Spalten, Spalten ein-/ausblenden, Markdown-Writeback |
 | planned | [terminal-grid-drag-drop.md](terminal-grid-drag-drop.md) | Terminal-Slots per Drag-Handle im Grid umsortieren; Cross-Workspace-Transfer per Sidebar-Drop mit PTY-Erhalt, Session- und Notification-Migration |
+| planned | [file-browser-rich-preview.md](file-browser-rich-preview.md) | File-Browser-Preview: Bilder (SVG/Raster), Video, gerendertes Markdown, Mermaid; neue Topbar mit Datei-Metadaten und sandboxed Backend-Commands |
 | done | [agent-chat-maximize.md](agent-chat-maximize.md) | Agent-Tab: Chat-Maximize-Toggle vor Reset; Voice-Hero kompakt, mehr Platz fuer Chat-Verlauf |
 | done | [agent-image-context.md](agent-image-context.md) | Bilder per Drag/Drop und Paste an Agent-Kontext; Drop-Zone, Preview-Dialog, einmaliges Senden, dann read |
 | done | [agent-image-modus.md](agent-image-modus.md) | Agent Image-Modus: Chat-Toggle, Settings-Tab Image, Referenzbilder, Generierung via OpenAI/OpenRouter, Workspace-Speicherung und Download |

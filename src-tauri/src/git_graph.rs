@@ -261,12 +261,11 @@ fn compute_lane_layout(commits: &[GitCommitNode]) -> Vec<GitGraphRow> {
             pass_through_lanes,
         });
 
+        // Lanes carried into the next (older) row. A merge closes the incoming branch
+        // lane here — only the mainline (first-parent lane) may continue below.
         carry_lanes.clear();
         if continues_down {
             carry_lanes.insert(lane);
-        }
-        if let Some(mf) = merge_from_lane {
-            carry_lanes.insert(mf);
         }
         if let Some(bf) = branch_from_lane {
             carry_lanes.insert(bf);
@@ -334,6 +333,27 @@ mod tests {
         let a = row_for(&rows, "a");
         assert_ne!(b.lane, a.lane);
         assert_eq!(b.branch_from_lane, Some(a.lane));
+    }
+
+    #[test]
+    fn lane_layout_merge_closes_side_lane_below() {
+        let commits = vec![
+            node("m", &["a", "f"]),
+            node("f", &["r"]),
+            node("a", &["r"]),
+            node("r", &[]),
+        ];
+        let rows = compute_lane_layout(&commits);
+        let f_lane = row_for(&rows, "f").lane;
+        let m = row_for(&rows, "m");
+        assert_eq!(m.merge_from_lane, Some(f_lane));
+        for oid in ["a", "r"] {
+            let row = row_for(&rows, oid);
+            assert!(
+                !row.pass_through_lanes.contains(&f_lane),
+                "lane {f_lane} should close at merge, still pass-through on {oid}"
+            );
+        }
     }
 
     #[test]
