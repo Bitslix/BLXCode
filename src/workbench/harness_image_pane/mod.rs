@@ -54,8 +54,9 @@ async fn fetch_image_models(
     out.set(entries);
 }
 
+/// Image model settings column (BLXCode Agent grid, middle).
 #[component]
-pub fn ImagePane() -> impl IntoView {
+pub fn AgentImageColumn() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let settings = RwSignal::new(Option::<ImageSettings>::None);
     let status = RwSignal::new(Option::<String>::None);
@@ -79,7 +80,7 @@ pub fn ImagePane() -> impl IntoView {
             match image_settings_save(patch).await {
                 Ok(s) => {
                     settings.set(Some(s));
-                    status.set(Some("saved".into()));
+                    status.set(Some(i18n.tr(I18nKey::ApiKeysSaved)().to_string()));
                 }
                 Err(e) => status.set(Some(e)),
             }
@@ -93,14 +94,14 @@ pub fn ImagePane() -> impl IntoView {
     };
 
     view! {
-        <section class="harness-settings-pane image-pane" aria-labelledby="image-pane-title">
-            <header class="harness-settings-pane__head">
-                <h2 id="image-pane-title">
-                    <LxIcon icon=icondata::LuImage width="1.1rem" height="1.1rem" />
-                    <span>{move || i18n.tr(I18nKey::ImagePaneTitle)()}</span>
-                </h2>
-                <p class="image-pane__lede">{move || i18n.tr(I18nKey::ImagePaneDescription)()}</p>
-            </header>
+        <>
+            <h4 class="harness-pane-subhead agent-provider-pane__col-title">
+                <span class="harness-pane-subhead__icon" aria-hidden="true">
+                    <LxIcon icon=icondata::LuImage width="0.82rem" height="0.82rem" />
+                </span>
+                <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::AgColumnImage)()}</span>
+            </h4>
+            <p class="app-prefs-hint">{move || i18n.tr(I18nKey::ImagePaneDescription)()}</p>
 
             <Show
                 when=move || settings.get().is_some()
@@ -176,7 +177,25 @@ pub fn ImagePane() -> impl IntoView {
             <Show when=move || status.get().is_some()>
                 <p class="image-pane__status">{move || status.get().unwrap_or_default()}</p>
             </Show>
-        </section>
+        </>
+    }
+}
+
+#[component]
+pub fn ImagePane() -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    view! {
+        <article class="harness-pane image-pane-standalone">
+            <h3 class="harness-pane-title">
+                <span class="harness-pane-title__icon" aria-hidden="true">
+                    <LxIcon icon=icondata::LuImage width="1.02rem" height="1.02rem" />
+                </span>
+                <span class="harness-pane-title__text">{move || i18n.tr(I18nKey::ImagePaneTitle)()}</span>
+            </h3>
+            <div class="agent-provider-pane__col agent-provider-pane__col--standalone">
+                <AgentImageColumn />
+            </div>
+        </article>
     }
 }
 

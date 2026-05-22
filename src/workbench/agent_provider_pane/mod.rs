@@ -804,97 +804,104 @@ pub fn AgentProviderPane() -> impl IntoView {
                 <span class="harness-pane-title__text">{move || i18n.tr(I18nKey::AgProviderHeading)()}</span>
             </h3>
 
-            <section class="harness-subpane">
-                <h4 class="harness-pane-subhead">
-                    <span class="harness-pane-subhead__icon" aria-hidden="true">
-                        <LxIcon icon=icondata::LuPlug width="0.82rem" height="0.82rem" />
-                    </span>
-                    <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::AgSectionInference)()}</span>
-                </h4>
-                <div class="agent-provider-pane__picker-grid">
-                    <label class="agent-provider-pane__field">
-                        <span class="harness-field-label">
-                            <span class="harness-field-label__icon" aria-hidden="true">
-                                <LxIcon icon=icondata::LuPlug width="0.82rem" height="0.82rem" />
-                            </span>
-                            <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgProviderField)()}</span>
+            <div class="agent-provider-pane__grid">
+                <div class="agent-provider-pane__col">
+                    <h4 class="harness-pane-subhead agent-provider-pane__col-title">
+                        <span class="harness-pane-subhead__icon" aria-hidden="true">
+                            <LxIcon icon=icondata::LuMessageSquare width="0.82rem" height="0.82rem" />
                         </span>
-                        <ProviderPicker
-                            selected_provider=selected_provider
-                            settings=settings
+                        <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::AgColumnText)()}</span>
+                    </h4>
+                    <div class="agent-provider-pane__picker-grid agent-provider-pane__picker-grid--stacked">
+                        <label class="agent-provider-pane__field">
+                            <span class="harness-field-label">
+                                <span class="harness-field-label__icon" aria-hidden="true">
+                                    <LxIcon icon=icondata::LuPlug width="0.82rem" height="0.82rem" />
+                                </span>
+                                <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgProviderField)()}</span>
+                            </span>
+                            <ProviderPicker
+                                selected_provider=selected_provider
+                                settings=settings
+                                model_entries=model_entries
+                                provider_refresh_request=provider_refresh_request
+                            />
+                        </label>
+                        <label class="agent-provider-pane__field">
+                            <span class="harness-field-label">
+                                <span class="harness-field-label__icon" aria-hidden="true">
+                                    <LxIcon icon=icondata::LuGauge width="0.82rem" height="0.82rem" />
+                                </span>
+                                <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgThinkingField)()}</span>
+                            </span>
+                            <ThinkingLevelPicker selected=thinking_level />
+                        </label>
+                    </div>
+                    <div class="agent-provider-pane__key-row harness-muted">
+                        <span>{move || i18n.tr(I18nKey::ApiKeysManageHint)()}</span>
+                        <span class="agent-provider-pane__key-status">
+                            {move || {
+                                settings
+                                    .get()
+                                    .map(|view| provider_key_status_text(&i18n, &view, selected_provider.get()))
+                                    .unwrap_or_else(|| i18n.tr(I18nKey::AgApiKeyMissing)().to_string())
+                            }}
+                        </span>
+                    </div>
+                    <label class="harness-stack">
+                        <span class="harness-field-label">
+                            <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgModelField)()}</span>
+                        </span>
+                        <AgentModelPicker
+                            model_id=custom_model
                             model_entries=model_entries
-                            provider_refresh_request=provider_refresh_request
+                            loading_models=loading_models
                         />
                     </label>
-                    <label class="agent-provider-pane__field">
-                        <span class="harness-field-label">
-                            <span class="harness-field-label__icon" aria-hidden="true">
-                                <LxIcon icon=icondata::LuGauge width="0.82rem" height="0.82rem" />
+                    <div class="agent-provider-pane__actions">
+                        <button
+                            type="button"
+                            class="workbench-mini-btn"
+                            disabled=move || loading_models.get() || !is_tauri_shell()
+                            on:click=move |_| refresh_models(selected_provider.get_untracked())
+                        >
+                            <span class="harness-btn-inline">
+                                <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
+                                <span>{move || if loading_models.get() {
+                                    i18n.tr(I18nKey::AgModelsLoading)().to_string()
+                                } else {
+                                    i18n.tr(I18nKey::AgModelsRefresh)().to_string()
+                                }}</span>
                             </span>
-                            <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgThinkingField)()}</span>
-                        </span>
-                        <ThinkingLevelPicker selected=thinking_level />
-                    </label>
+                        </button>
+                        <small class="harness-muted">
+                            {move || match models_source.get().as_str() {
+                                "live" => i18n.tr(I18nKey::AgModelsSourceLive)().to_string(),
+                                "cache" => i18n.tr(I18nKey::AgModelsSourceCache)().to_string(),
+                                "curated" | "fallback" => i18n.tr(I18nKey::AgModelsSourceCurated)().to_string(),
+                                _ => String::new(),
+                            }}
+                        </small>
+                    </div>
+                    <Show when=move || models_message.get().is_some()>
+                        <p class="harness-muted">{move || models_message.get().unwrap_or_default()}</p>
+                    </Show>
                 </div>
-                <div class="agent-provider-pane__key-row harness-muted">
-                    <span>{move || i18n.tr(I18nKey::ApiKeysManageHint)()}</span>
-                    <span class="agent-provider-pane__key-status">
-                        {move || {
-                            settings
-                                .get()
-                                .map(|view| provider_key_status_text(&i18n, &view, selected_provider.get()))
-                                .unwrap_or_else(|| i18n.tr(I18nKey::AgApiKeyMissing)().to_string())
-                        }}
-                    </span>
-                </div>
-            </section>
 
-            <section class="harness-subpane">
-                <h4 class="harness-pane-subhead">
-                    <span class="harness-pane-subhead__icon" aria-hidden="true">
-                        <LxIcon icon=icondata::LuPackage2 width="0.82rem" height="0.82rem" />
-                    </span>
-                    <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::AgSectionModel)()}</span>
-                </h4>
-                <label class="harness-stack">
-                    <span class="harness-field-label">
-                        <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgModelField)()}</span>
-                    </span>
-                    <AgentModelPicker
-                        model_id=custom_model
-                        model_entries=model_entries
-                        loading_models=loading_models
-                    />
-                </label>
-                <div class="agent-provider-pane__actions">
-                    <button
-                        type="button"
-                        class="workbench-mini-btn"
-                        disabled=move || loading_models.get() || !is_tauri_shell()
-                        on:click=move |_| refresh_models(selected_provider.get_untracked())
-                    >
-                        <span class="harness-btn-inline">
-                            <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
-                            <span>{move || if loading_models.get() {
-                                i18n.tr(I18nKey::AgModelsLoading)().to_string()
-                            } else {
-                                i18n.tr(I18nKey::AgModelsRefresh)().to_string()
-                            }}</span>
-                        </span>
-                    </button>
-                    <small class="harness-muted">
-                        {move || match models_source.get().as_str() {
-                            "live" => i18n.tr(I18nKey::AgModelsSourceLive)().to_string(),
-                            "cache" => i18n.tr(I18nKey::AgModelsSourceCache)().to_string(),
-                            "curated" | "fallback" => i18n.tr(I18nKey::AgModelsSourceCurated)().to_string(),
-                            _ => String::new(),
-                        }}
-                    </small>
+                <div class="agent-provider-pane__col">
+                    <crate::workbench::harness_image_pane::AgentImageColumn />
                 </div>
-                <Show when=move || models_message.get().is_some()>
-                    <p class="harness-muted">{move || models_message.get().unwrap_or_default()}</p>
-                </Show>
-            </section>
+
+                <div class="agent-provider-pane__col agent-provider-pane__col--placeholder">
+                    <h4 class="harness-pane-subhead agent-provider-pane__col-title">
+                        <span class="harness-pane-subhead__icon" aria-hidden="true">
+                            <LxIcon icon=icondata::LuMic width="0.82rem" height="0.82rem" />
+                        </span>
+                        <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::AgColumnVoice)()}</span>
+                    </h4>
+                    <p class="app-prefs-hint">{move || i18n.tr(I18nKey::AgColumnVoiceSoon)()}</p>
+                </div>
+            </div>
 
             <section class="harness-subpane">
                 <h4 class="harness-pane-subhead">
