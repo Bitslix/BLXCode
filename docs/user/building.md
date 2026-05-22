@@ -232,6 +232,7 @@ Only the **repository owner** may trigger that workflow (on org-owned repos, set
 - **Node 22** on `PATH`; **Rust** optional (workflow installs `stable-msvc` + `wasm32-unknown-unknown` via rustup if missing on the runner account)
 - **MSVC Build Tools** (Desktop C++) for linking — see Windows section above
 - **GitHub Actions runner** v2.320+ recommended (older runners fail on `tauri-action@v0` node24; `main` pins `@v0.5.20`)
+- **VBSCRIPT** optional feature for WiX MSI (`light.exe` fails silently when disabled). The Release workflow tries `dism /online /Enable-Feature /FeatureName:VBSCRIPT` before build; if that needs elevation, enable it once on the runner PC: **Settings → Apps → Optional features → More Windows features → VBSCRIPT**. Without VBSCRIPT, CI falls back to NSIS-only (`-setup.exe`).
 
 If **Install Rust** fails with „Windows-Subsystem für Linux … keine Distributionen“, pull `main` (workflow avoids WSL). **`rustup default` / `static.rust-lang.org` / error 10054** — firewall or proxy on the runner PC blocks Rust CDN; allow `https://static.rust-lang.org` or run once interactively as the runner user: `rustup default stable-msvc` and `rustup target add wasm32-unknown-unknown` (then CI reuses the toolchain).
 
