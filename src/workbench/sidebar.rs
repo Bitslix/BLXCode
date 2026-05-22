@@ -5,13 +5,13 @@ use crate::config::{
     SIDEBAR_PANELS_HEIGHT_PCT_MAX, SIDEBAR_PANELS_HEIGHT_PCT_MIN, SIDEBAR_WIDTH_PX_DEFAULT,
     SIDEBAR_WIDTH_PX_MIN,
 };
-use crate::workbench::sidebar_resizer::SidebarResizerClamp;
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{git_is_repository, is_tauri_shell};
 use crate::workbench::git_graph::GitGraphSection;
 use crate::workbench::project_explorer::ProjectExplorerSection;
 use crate::workbench::sidebar_resizer::SidebarResizer;
+use crate::workbench::sidebar_resizer::SidebarResizerClamp;
 use crate::workbench::WorkbenchService;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
@@ -316,7 +316,7 @@ pub fn Sidebar() -> impl IntoView {
                                             {icon_label}
                                         </span>
                                         <span class="workbench-sidebar__color-dot" aria-hidden="true"></span>
-                                        <Show when=move || !collapsed.get() && terminal_slot_count.get() > 1>
+                                        <Show when=move || !collapsed.get() && (terminal_slot_count.get() > 1)>
                                             {move || {
                                                 let count = terminal_slot_count.get();
                                                 let aria = i18n

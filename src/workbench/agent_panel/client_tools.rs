@@ -789,10 +789,8 @@ fn handle_send_agent_context(
         let (sid, pane) = match wait_for_target_session(wb, workspace_id, &args_for_target).await {
             Ok(t) => t,
             Err(e) => {
-                let hint = if matches!(
-                    e.as_str(),
-                    "no running terminal sessions in this workspace"
-                ) || e.starts_with("no running slot")
+                let hint = if matches!(e.as_str(), "no running terminal sessions in this workspace")
+                    || e.starts_with("no running slot")
                     || e.starts_with("slot ")
                 {
                     format!("{e} — try `harness.list_terminals` to inspect slots")
@@ -831,7 +829,11 @@ fn handle_send_agent_context(
                 let summary = format!(
                     "wrote {} byte(s) of context to session {sid}{}",
                     outcome.bytes_written,
-                    if outcome.submitted { " (submitted)" } else { "" }
+                    if outcome.submitted {
+                        " (submitted)"
+                    } else {
+                        ""
+                    }
                 );
                 let data = serde_json::json!({
                     "sessionId": sid,

@@ -631,7 +631,9 @@ fn NewCategoryDialog(state: MemoryState, on_close: Callback<()>) -> impl IntoVie
         if trimmed.is_empty() {
             return;
         }
-        let Some(ws) = state.workspace_cwd.get_untracked() else { return };
+        let Some(ws) = state.workspace_cwd.get_untracked() else {
+            return;
+        };
         let cat = trimmed.to_string();
         let state2 = state.clone();
         spawn_local(async move {
@@ -725,7 +727,9 @@ fn NewNoteDialog(state: MemoryState, category: String, on_close: Callback<()>) -
         if trimmed.is_empty() {
             return;
         }
-        let Some(ws) = state.workspace_cwd.get_untracked() else { return };
+        let Some(ws) = state.workspace_cwd.get_untracked() else {
+            return;
+        };
         let fname = slug_to_filename(trimmed);
         let api_path = match category_for_submit.as_str() {
             CATEGORY_MEMORY => fname.clone(),
@@ -1520,10 +1524,7 @@ struct MemoryContextMenu {
     target: MemoryContextTarget,
 }
 
-fn memory_note_groups(
-    notes: Vec<NoteMeta>,
-    empty_categories: Vec<String>,
-) -> Vec<MemoryNoteGroup> {
+fn memory_note_groups(notes: Vec<NoteMeta>, empty_categories: Vec<String>) -> Vec<MemoryNoteGroup> {
     use std::collections::BTreeMap;
     let mut buckets: BTreeMap<String, Vec<NoteMeta>> = BTreeMap::new();
     for n in notes {

@@ -1,8 +1,8 @@
 //! Workspace settings — memory category color presets.
 
-use crate::workbench::state::{normalize_hex_color, MemoryColorPreset, WorkbenchService};
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
+use crate::workbench::state::{normalize_hex_color, MemoryColorPreset, WorkbenchService};
 use js_sys::Date;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;

@@ -389,6 +389,7 @@ impl WorkspaceEntry {
             id,
             storage_key: Self::new_storage_key(),
             title: String::new(),
+            color: "#7dd3fc".into(),
             cwd: String::new(),
             terminal_count: 1,
             grid_rows: 1,
@@ -963,8 +964,7 @@ impl WorkbenchService {
 
         let harness_workspace_root =
             read_local_storage(HARNESS_WORKSPACE_ROOT_KEY).unwrap_or_default();
-        let default_project_dir =
-            read_local_storage(DEFAULT_PROJECT_DIR_KEY).unwrap_or_default();
+        let default_project_dir = read_local_storage(DEFAULT_PROJECT_DIR_KEY).unwrap_or_default();
         let memory_color_presets = read_memory_color_presets();
 
         let first_tab_id = 1_u64;
@@ -1567,18 +1567,6 @@ impl WorkbenchService {
         self.workspaces.update(|ws| {
             if let Some(w) = ws.iter_mut().find(|w| w.id == id) {
                 f(w);
-            }
-        });
-    }
-
-    pub fn rename_workspace(&self, id: u64, title: String) {
-        let title = title.trim();
-        if title.is_empty() {
-            return;
-        }
-        self.workspaces.update(|workspaces| {
-            if let Some(workspace) = workspaces.iter_mut().find(|w| w.id == id) {
-                workspace.title = title.to_string();
             }
         });
     }

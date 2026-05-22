@@ -2,14 +2,15 @@
 
 ## Summary
 
-Workspaces erhalten ein persistentes `color`-Feld (analog Memory-Kategorien), änderbar über den bestehenden Kontextmenü-Dialog. In der Sidebar erscheinen ein Farbpunkt links, eine Terminal-Slot-Zahl vor dem Namen (nur bei mehr als einem Slot) und ein farblich passendes Unread-Badge rechts. Persistenz über `workbench.json`; keine Backend-Änderungen.
+Workspaces erhalten ein persistentes `color`-Feld, dessen Startwert rotierend aus **Settings → Workspace → Category colors** kommt. Die Farbe ist über den bestehenden Kontextmenü-Dialog änderbar. In der Sidebar erscheinen ein Farbpunkt links, eine Terminal-Slot-Zahl vor dem Namen (nur bei mehr als einem Slot) und ein farblich passendes Unread-Badge rechts. Persistenz über `workbench.json`; keine Backend-Änderungen.
 
 ## Decisions
 
 - **Terminal-Zahl:** zählt Terminal-Slots (`slot_ids.len()`), nicht Split-Panes oder laufende PTY-Sessions.
 - **Anzeige Terminal-Badge:** nur wenn `slot_ids.len() > 1` (bei einem Slot ausblenden).
-- **Default-Farbe:** `stable_category_color(&storage_key)` für neue und backgefüllte Workspaces.
-- **Farb-Presets:** bestehende `memory_color_presets()` wiederverwenden (kein neuer localStorage-Key).
+- **Default-Farbe:** neue und backgefüllte Workspaces rotieren durch `memory_color_presets()`; Fallback ist die Default-Preset-Liste.
+- **Farb-Presets:** bestehende `memory_color_presets()` aus Settings → Workspace wiederverwenden (kein neuer localStorage-Key).
+- **Preset-Bindung:** Workspace-Farben speichern den ausgewählten Hex-Wert; spätere Preset-Änderungen überschreiben bestehende Workspaces nicht.
 - **Kontextmenü:** Rename-Dialog wird zu „Workspace bearbeiten" mit Name + Farbe (wie `MemoryCategoryEditDialog`).
 - **Terminal-Badge-Farbe:** fest orange `#e8954a` (Mockup); Unread-Badge rechts nutzt Workspace-Farbe.
 
@@ -18,11 +19,11 @@ Workspaces erhalten ein persistentes `color`-Feld (analog Memory-Kategorien), ä
 ### Datenmodell — [`src/workbench/state.rs`](../../src/workbench/state.rs)
 
 - `WorkspaceEntry.color: String` mit `#[serde(default)]` (leer = noch nicht gesetzt).
-- `workspace_effective_color(entry)` — gespeicherte Farbe oder `stable_category_color(&entry.storage_key)`.
-- Backfill leerer `color`-Felder beim Laden (`backfill_workspace_colors()` oder in `backfill_storage_keys()`).
-- `create_workspace`: initiale Farbe setzen.
-- Setter: `set_workspace_display(id, title, color)` oder `rename_workspace` + `set_workspace_color` erweitern.
-- `normalize_memory_color` aus [`memory_panel.rs`](../../src/workbench/memory_panel.rs) nach shared Modul (`state.rs` oder `color_util.rs`) verschieben.
+- `workspace_color_from_presets(presets, index)` — rotierende Preset-Farbe mit Default-Preset-Fallback.
+- Backfill leerer/ungültiger `color`-Felder beim Hydrieren.
+- `create_workspace`, `start_inline_configure` und Workspace-Commit setzen initiale Farbe.
+- Setter: `set_workspace_display(id, title, color)`.
+- `normalize_hex_color` liegt shared in `state.rs` und wird von Memory-/Workspace-Farbpfaden genutzt.
 
 ### Kontextmenü & Dialog — [`src/workbench/sidebar.rs`](../../src/workbench/sidebar.rs)
 
@@ -50,12 +51,12 @@ Neue/angepasste Klassen: `__color-dot`, `__terminal-count`, dynamisches `__badge
 
 ### i18n — [`src/i18n/keys.rs`](../../src/i18n/keys.rs) + alle `locales/*.rs`
 
-Neue Keys: `SbEditMenu`, `SbEditTitle`, `SbEditSubmit`, `SbColorLabel`, `SbTerminalCountAria`.
+Neue/angepasste Keys: bestehende Rename-Keys zeigen „Edit/Save“-Text; zusätzlich `SbWorkspaceColorLabel`, `SbTerminalCountAria`.
 
 ## Tests
 
-- Neuer Workspace: Farbpunkt sichtbar, persistiert nach Neustart.
-- Bestehende Workspaces ohne `color` in JSON: Backfill weist stabile Farbe zu.
+- Neuer Workspace: Farbpunkt sichtbar, nutzt die nächste Preset-Farbe und persistiert nach Neustart.
+- Bestehende Workspaces ohne `color` in JSON: Backfill weist rotierende Preset-Farben zu.
 - Kontextmenü → Bearbeiten → Farbe ändern → Neustart → Farbe bleibt.
 - Terminal-Slots hinzufügen/entfernen: Zahl vor Name aktualisiert sich reaktiv.
 - Unread-Badge rechts nutzt Workspace-Farbe.
@@ -68,9 +69,9 @@ cargo test --workspace
 
 ## Tasks
 
-- [ ] `model-color` - WorkspaceEntry.color, workspace_effective_color, Backfill und Setter in state.rs
-- [ ] `shared-color-util` - normalize_hex_color aus memory_panel extrahieren und gemeinsam nutzen
-- [ ] `edit-dialog` - Rename-Dialog in sidebar.rs zu Edit-Dialog mit Color-Picker und Presets erweitern
-- [ ] `sidebar-ui` - Farbpunkt, Terminal-Slot-Badge und farbiges Unread-Badge rendern
-- [ ] `css` - Neue Sidebar-Klassen in styles.css; Active-State mit Workspace-Farbe
-- [ ] `i18n` - Neue I18nKeys in keys.rs und allen locales/*.rs
+- [x] `model-color` - WorkspaceEntry.color, rotierender Preset-Backfill und Setter in state.rs
+- [x] `shared-color-util` - normalize_hex_color aus memory_panel extrahieren und gemeinsam nutzen
+- [x] `edit-dialog` - Rename-Dialog in sidebar.rs zu Edit-Dialog mit Color-Picker und Presets erweitern
+- [x] `sidebar-ui` - Farbpunkt, Terminal-Slot-Badge und farbiges Unread-Badge rendern
+- [x] `css` - Neue Sidebar-Klassen in styles.css; Active-State mit Workspace-Farbe
+- [x] `i18n` - Neue I18nKeys in keys.rs und allen locales/*.rs
