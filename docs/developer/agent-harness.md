@@ -34,7 +34,8 @@ src-tauri/src/agent/
 src/skills_rules/store.rs   # CORE_SKILLS, core SkillSourceKind, availability
 src-tauri/src/api_keys.rs     # Central key catalog, resolve, api_keys_status/apply
 src/workbench/
-  harness_ui.rs               # SettingsDock, App/Appearance panes
+  harness_ui.rs               # SettingsDock, App pane
+  appearance_settings_pane/   # Theme picker (Settings → Appearance)
   agent_provider_pane/        # BLXCode Agent grid (text, web footer)
   harness_image_pane/         # AgentImageColumn
   harness_voice_pane/         # AgentVoiceColumn

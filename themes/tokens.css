@@ -1,0 +1,904 @@
+/*
+ * blxcode — global theme tokens (12 app themes)
+ * Default / blxcode-dark matches styles.css :root color tokens 1:1; extended tokens complete the set.
+ */
+
+:root,
+[data-theme="blxcode-dark"] {
+  color-scheme: dark;
+
+  --bg-app: #090a0d;
+  --bg-raised: #101116;
+  --bg-panel: #15171d;
+  --bg-panel-header: #191b21;
+
+  --border: rgba(255, 255, 255, 0.085);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --border-focus: #58a6ff;
+
+  --text: #f1f2f5;
+  --text-muted: #a3a7b3;
+  --text-faint: #676c78;
+  --text-bright: #ffffff;
+
+  --accent: #58a6ff;
+  --accent-hover: #7ab8ff;
+  --accent-soft: rgba(88, 166, 255, 0.16);
+  --accent-cool: #9bd3ff;
+  --accent-cool-soft: rgba(88, 166, 255, 0.12);
+
+  --syntax-type: #63e6be;
+  --syntax-keyword: #f2a3ff;
+
+  --font-mono: "JetBrains Mono", "SF Mono", ui-monospace, monospace;
+
+  --overlay-1: rgba(255, 255, 255, 0.04);
+  --overlay-2: rgba(255, 255, 255, 0.07);
+  --overlay-3: rgba(255, 255, 255, 0.1);
+  --overlay-4: rgba(255, 255, 255, 0.14);
+  --overlay-5: rgba(255, 255, 255, 0.2);
+  --overlay-6: rgba(255, 255, 255, 0.28);
+
+  --danger: #f85149;
+  --danger-soft: rgba(248, 81, 73, 0.18);
+  --warning: #d4a017;
+  --success: #3fb950;
+
+  --term-fg: #f1f2f5;
+  --term-bg: #090a0d;
+  --term-surface: #15171d;
+  --term-cursor: #58a6ff;
+
+  --on-accent: #0a0b0e;
+  --scrim-bg: rgba(0, 0, 0, 0.55);
+
+  --agent-claude: #d97757;
+  --agent-codex: #10a37f;
+  --agent-gemini: #4285f4;
+  --agent-copilot: #6e40c9;
+  --agent-cursor: #a78bfa;
+
+  --git-lane-0: #58a6ff;
+  --git-lane-1: #a371f7;
+  --git-lane-2: #3fb950;
+  --git-lane-3: #d4a017;
+  --git-lane-4: #f85149;
+  --git-lane-5: #79c0ff;
+
+  --fg-main: var(--text);
+
+  --text-secondary: rgba(232, 234, 242, 0.92);
+  --text-hint: rgba(170, 175, 190, 0.75);
+  --accent-control: rgba(120, 180, 255, 0.85);
+  --success-surface: rgba(104, 220, 159, 0.08);
+  --success-border: rgba(104, 220, 159, 0.35);
+  --success-text: #86e7b2;
+  --danger-surface: rgba(255, 122, 122, 0.08);
+  --danger-border-soft: rgba(255, 122, 122, 0.32);
+  --danger-text-soft: #ff9a9a;
+  --hook-brand-bg: rgba(255, 255, 255, 0.92);
+  --hook-brand-fg: #14161d;
+}
+
+[data-theme="blxcode-light"] {
+  color-scheme: light;
+
+  --bg-app: #f6f8fc;
+  --bg-raised: #eef0f4;
+  --bg-panel: #ffffff;
+  --bg-panel-header: #e8ebf1;
+
+  --border: rgba(0, 0, 0, 0.085);
+  --border-strong: rgba(0, 0, 0, 0.14);
+  --border-focus: #0969da;
+
+  --text: #1a1d24;
+  --text-muted: #656b76;
+  --text-faint: #8b909a;
+  --text-bright: #0d0f14;
+
+  --accent: #0969da;
+  --accent-hover: #0550ae;
+  --accent-soft: rgba(9, 105, 218, 0.12);
+  --accent-cool: #4da0ff;
+  --accent-cool-soft: rgba(9, 105, 218, 0.08);
+
+  --syntax-type: #0d7d6b;
+  --syntax-keyword: #a21caf;
+
+  --overlay-1: rgba(0, 0, 0, 0.03);
+  --overlay-2: rgba(0, 0, 0, 0.055);
+  --overlay-3: rgba(0, 0, 0, 0.08);
+  --overlay-4: rgba(0, 0, 0, 0.11);
+  --overlay-5: rgba(0, 0, 0, 0.15);
+  --overlay-6: rgba(0, 0, 0, 0.22);
+
+  --danger: #cf222e;
+  --danger-soft: rgba(207, 34, 46, 0.12);
+  --warning: #9a6700;
+  --success: #1a7f37;
+
+  --term-fg: #1a1d24;
+  --term-bg: #ffffff;
+  --term-surface: #f6f8fc;
+  --term-cursor: #0969da;
+
+  --on-accent: #ffffff;
+  --scrim-bg: rgba(0, 0, 0, 0.35);
+
+  --agent-claude: #b45309;
+  --agent-codex: #047857;
+  --agent-gemini: #1a73e8;
+  --agent-copilot: #5b21b6;
+  --agent-cursor: #6d28d9;
+
+  --git-lane-0: #0969da;
+  --git-lane-1: #8250df;
+  --git-lane-2: #1a7f37;
+  --git-lane-3: #9a6700;
+  --git-lane-4: #cf222e;
+  --git-lane-5: #0d7d6b;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 90%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 12%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: var(--success);
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
+  --danger-text-soft: var(--danger);
+  --hook-brand-bg: var(--bg-panel);
+  --hook-brand-fg: var(--text);
+}
+
+
+/* Dracula — https://draculatheme.com */
+[data-theme="dracula"] {
+  color-scheme: dark;
+
+  --bg-app: #191a21;
+  --bg-raised: #21222c;
+  --bg-panel: #282a36;
+  --bg-panel-header: #2f3142;
+
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.15);
+  --border-focus: #bd93f9;
+
+  --text: #f8f8f2;
+  --text-muted: #bfbfc7;
+  --text-faint: #6272a4;
+  --text-bright: #ffffff;
+
+  --accent: #bd93f9;
+  --accent-hover: #d4b5ff;
+  --accent-soft: rgba(189, 147, 249, 0.18);
+  --accent-cool: #8be9fd;
+  --accent-cool-soft: rgba(139, 233, 253, 0.12);
+
+  --syntax-type: #8be9fd;
+  --syntax-keyword: #ff79c6;
+
+  --overlay-1: rgba(255, 255, 255, 0.04);
+  --overlay-2: rgba(255, 255, 255, 0.07);
+  --overlay-3: rgba(255, 255, 255, 0.1);
+  --overlay-4: rgba(255, 255, 255, 0.14);
+  --overlay-5: rgba(255, 255, 255, 0.2);
+  --overlay-6: rgba(255, 255, 255, 0.28);
+
+  --danger: #ff5555;
+  --danger-soft: rgba(255, 85, 85, 0.2);
+  --warning: #ffb86c;
+  --success: #50fa7b;
+
+  --term-fg: #f8f8f2;
+  --term-bg: #191a21;
+  --term-surface: #282a36;
+  --term-cursor: #bd93f9;
+
+  --on-accent: #191a21;
+  --scrim-bg: rgba(0, 0, 0, 0.55);
+
+  --agent-claude: #ffb86c;
+  --agent-codex: #50fa7b;
+  --agent-gemini: #8be9fd;
+  --agent-copilot: #bd93f9;
+  --agent-cursor: #ff79c6;
+
+  --git-lane-0: #bd93f9;
+  --git-lane-1: #8be9fd;
+  --git-lane-2: #50fa7b;
+  --git-lane-3: #ffb86c;
+  --git-lane-4: #ff5555;
+  --git-lane-5: #f1fa8c;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 88%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 10%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: color-mix(in srgb, var(--success) 75%, var(--text));
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 32%, transparent);
+  --danger-text-soft: color-mix(in srgb, var(--danger) 70%, var(--text));
+  --hook-brand-bg: color-mix(in srgb, var(--text-bright) 92%, transparent);
+  --hook-brand-fg: var(--bg-app);
+}
+
+
+/* Gruvbox Dark — https://github.com/morhetz/gruvbox */
+[data-theme="gruvbox-dark"] {
+  color-scheme: dark;
+
+  --bg-app: #1d2021;
+  --bg-raised: #282828;
+  --bg-panel: #282828;
+  --bg-panel-header: #32302f;
+
+  --border: rgba(251, 241, 199, 0.08);
+  --border-strong: rgba(251, 241, 199, 0.14);
+  --border-focus: #fe8019;
+
+  --text: #ebdbb2;
+  --text-muted: #bdae93;
+  --text-faint: #928374;
+  --text-bright: #fbf1c7;
+
+  --accent: #fe8019;
+  --accent-hover: #fabd2f;
+  --accent-soft: rgba(254, 128, 25, 0.18);
+  --accent-cool: #83a598;
+  --accent-cool-soft: rgba(131, 165, 152, 0.14);
+
+  --syntax-type: #83a598;
+  --syntax-keyword: #fb4934;
+
+  --overlay-1: rgba(251, 241, 199, 0.04);
+  --overlay-2: rgba(251, 241, 199, 0.07);
+  --overlay-3: rgba(251, 241, 199, 0.1);
+  --overlay-4: rgba(251, 241, 199, 0.13);
+  --overlay-5: rgba(251, 241, 199, 0.18);
+  --overlay-6: rgba(251, 241, 199, 0.26);
+
+  --danger: #fb4934;
+  --danger-soft: rgba(251, 73, 52, 0.2);
+  --warning: #fabd2f;
+  --success: #b8bb26;
+
+  --term-fg: #ebdbb2;
+  --term-bg: #1d2021;
+  --term-surface: #282828;
+  --term-cursor: #fe8019;
+
+  --on-accent: #1d2021;
+  --scrim-bg: rgba(0, 0, 0, 0.55);
+
+  --agent-claude: #d79921;
+  --agent-codex: #689d6a;
+  --agent-gemini: #458588;
+  --agent-copilot: #b16286;
+  --agent-cursor: #fabd2f;
+
+  --git-lane-0: #fe8019;
+  --git-lane-1: #83a598;
+  --git-lane-2: #b8bb26;
+  --git-lane-3: #fabd2f;
+  --git-lane-4: #fb4934;
+  --git-lane-5: #d3869b;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 88%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 10%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: color-mix(in srgb, var(--success) 75%, var(--text));
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 32%, transparent);
+  --danger-text-soft: color-mix(in srgb, var(--danger) 70%, var(--text));
+  --hook-brand-bg: color-mix(in srgb, var(--text-bright) 92%, transparent);
+  --hook-brand-fg: var(--bg-app);
+}
+
+
+/* Gruvbox Light */
+[data-theme="gruvbox-light"] {
+  color-scheme: light;
+
+  --bg-app: #f9f5d7;
+  --bg-raised: #ebdbb2;
+  --bg-panel: #fbf1c7;
+  --bg-panel-header: #ece2bd;
+
+  --border: rgba(60, 56, 54, 0.1);
+  --border-strong: rgba(60, 56, 54, 0.16);
+  --border-focus: #af3a03;
+
+  --text: #3c3836;
+  --text-muted: #665c54;
+  --text-faint: #928374;
+  --text-bright: #282828;
+
+  --accent: #af3a03;
+  --accent-hover: #9d0006;
+  --accent-soft: rgba(175, 58, 3, 0.12);
+  --accent-cool: #076678;
+  --accent-cool-soft: rgba(7, 102, 120, 0.1);
+
+  --syntax-type: #076678;
+  --syntax-keyword: #9d0006;
+
+  --overlay-1: rgba(0, 0, 0, 0.035);
+  --overlay-2: rgba(0, 0, 0, 0.065);
+  --overlay-3: rgba(0, 0, 0, 0.095);
+  --overlay-4: rgba(0, 0, 0, 0.12);
+  --overlay-5: rgba(0, 0, 0, 0.17);
+  --overlay-6: rgba(0, 0, 0, 0.24);
+
+  --danger: #9d0006;
+  --danger-soft: rgba(157, 0, 6, 0.12);
+  --warning: #b57614;
+  --success: #79740e;
+
+  --term-fg: #3c3836;
+  --term-bg: #fbf1c7;
+  --term-surface: #f9f5d7;
+  --term-cursor: #af3a03;
+
+  --on-accent: #fbf1c7;
+  --scrim-bg: rgba(60, 56, 54, 0.35);
+
+  --agent-claude: #af3a03;
+  --agent-codex: #427b58;
+  --agent-gemini: #076678;
+  --agent-copilot: #8f3f71;
+  --agent-cursor: #79740e;
+
+  --git-lane-0: #076678;
+  --git-lane-1: #8f3f71;
+  --git-lane-2: #79740e;
+  --git-lane-3: #b57614;
+  --git-lane-4: #9d0006;
+  --git-lane-5: #427b58;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 90%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 12%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: var(--success);
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
+  --danger-text-soft: var(--danger);
+  --hook-brand-bg: var(--bg-panel);
+  --hook-brand-fg: var(--text);
+}
+
+
+/* Solarized Dark — ethanschoonover.com/solarized */
+[data-theme="solarized-dark"] {
+  color-scheme: dark;
+
+  --bg-app: #001a22;
+  --bg-raised: #00212b;
+  --bg-panel: #002b36;
+  --bg-panel-header: #073642;
+
+  --border: rgba(253, 246, 227, 0.07);
+  --border-strong: rgba(253, 246, 227, 0.12);
+  --border-focus: #268bd2;
+
+  --text: #839496;
+  --text-muted: #586e75;
+  --text-faint: #657b83;
+  --text-bright: #eee8d5;
+
+  --accent: #268bd2;
+  --accent-hover: #2aa198;
+  --accent-soft: rgba(38, 139, 210, 0.18);
+  --accent-cool: #2aa198;
+  --accent-cool-soft: rgba(42, 161, 152, 0.14);
+
+  --syntax-type: #2aa198;
+  --syntax-keyword: #859900;
+
+  --overlay-1: rgba(253, 246, 227, 0.04);
+  --overlay-2: rgba(253, 246, 227, 0.07);
+  --overlay-3: rgba(253, 246, 227, 0.1);
+  --overlay-4: rgba(253, 246, 227, 0.13);
+  --overlay-5: rgba(253, 246, 227, 0.18);
+  --overlay-6: rgba(253, 246, 227, 0.26);
+
+  --danger: #dc322f;
+  --danger-soft: rgba(220, 50, 47, 0.2);
+  --warning: #b58900;
+  --success: #859900;
+
+  --term-fg: #839496;
+  --term-bg: #001a22;
+  --term-surface: #002b36;
+  --term-cursor: #268bd2;
+
+  --on-accent: #fdf6e3;
+  --scrim-bg: rgba(0, 0, 0, 0.55);
+
+  --agent-claude: #cb4b16;
+  --agent-codex: #859900;
+  --agent-gemini: #268bd2;
+  --agent-copilot: #6c71c4;
+  --agent-cursor: #2aa198;
+
+  --git-lane-0: #268bd2;
+  --git-lane-1: #6c71c4;
+  --git-lane-2: #859900;
+  --git-lane-3: #b58900;
+  --git-lane-4: #dc322f;
+  --git-lane-5: #2aa198;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 88%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 10%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: color-mix(in srgb, var(--success) 75%, var(--text));
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 32%, transparent);
+  --danger-text-soft: color-mix(in srgb, var(--danger) 70%, var(--text));
+  --hook-brand-bg: color-mix(in srgb, var(--text-bright) 92%, transparent);
+  --hook-brand-fg: var(--bg-app);
+}
+
+
+/* Solarized Light */
+[data-theme="solarized-light"] {
+  color-scheme: light;
+
+  --bg-app: #eee8d5;
+  --bg-raised: #e9e4cf;
+  --bg-panel: #fdf6e3;
+  --bg-panel-header: #e7e0c9;
+
+  --border: rgba(0, 43, 54, 0.1);
+  --border-strong: rgba(0, 43, 54, 0.14);
+  --border-focus: #268bd2;
+
+  --text: #657b83;
+  --text-muted: #586e75;
+  --text-faint: #93a1a1;
+  --text-bright: #002b36;
+
+  --accent: #268bd2;
+  --accent-hover: #227dbc;
+  --accent-soft: rgba(38, 139, 210, 0.12);
+  --accent-cool: #2aa198;
+  --accent-cool-soft: rgba(42, 161, 152, 0.1);
+
+  --syntax-type: #2aa198;
+  --syntax-keyword: #859900;
+
+  --overlay-1: rgba(0, 43, 54, 0.03);
+  --overlay-2: rgba(0, 43, 54, 0.056);
+  --overlay-3: rgba(0, 43, 54, 0.082);
+  --overlay-4: rgba(0, 43, 54, 0.11);
+  --overlay-5: rgba(0, 43, 54, 0.15);
+  --overlay-6: rgba(0, 43, 54, 0.21);
+
+  --danger: #dc322f;
+  --danger-soft: rgba(220, 50, 47, 0.12);
+  --warning: #b58900;
+  --success: #859900;
+
+  --term-fg: #586e75;
+  --term-bg: #fdf6e3;
+  --term-surface: #eee8d5;
+  --term-cursor: #268bd2;
+
+  --on-accent: #fdf6e3;
+  --scrim-bg: rgba(0, 43, 54, 0.32);
+
+  --agent-claude: #cb4b16;
+  --agent-codex: #859900;
+  --agent-gemini: #268bd2;
+  --agent-copilot: #6c71c4;
+  --agent-cursor: #2aa198;
+
+  --git-lane-0: #268bd2;
+  --git-lane-1: #6c71c4;
+  --git-lane-2: #859900;
+  --git-lane-3: #b58900;
+  --git-lane-4: #dc322f;
+  --git-lane-5: #2aa198;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 90%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 12%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: var(--success);
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
+  --danger-text-soft: var(--danger);
+  --hook-brand-bg: var(--bg-panel);
+  --hook-brand-fg: var(--text);
+}
+
+
+/* Nord — https://www.nordtheme.com */
+[data-theme="nord"] {
+  color-scheme: dark;
+
+  --bg-app: #2e3440;
+  --bg-raised: #3b4252;
+  --bg-panel: #3b4252;
+  --bg-panel-header: #434c5e;
+
+  --border: rgba(236, 239, 244, 0.08);
+  --border-strong: rgba(236, 239, 244, 0.14);
+  --border-focus: #88c0d0;
+
+  --text: #eceff4;
+  --text-muted: #d8dee9;
+  --text-faint: #4c566a;
+  --text-bright: #ffffff;
+
+  --accent: #88c0d0;
+  --accent-hover: #8fbcbb;
+  --accent-soft: rgba(136, 192, 208, 0.18);
+  --accent-cool: #81a1c1;
+  --accent-cool-soft: rgba(129, 161, 193, 0.14);
+
+  --syntax-type: #8fbcbb;
+  --syntax-keyword: #81a1c1;
+
+  --overlay-1: rgba(236, 239, 244, 0.04);
+  --overlay-2: rgba(236, 239, 244, 0.07);
+  --overlay-3: rgba(236, 239, 244, 0.1);
+  --overlay-4: rgba(236, 239, 244, 0.13);
+  --overlay-5: rgba(236, 239, 244, 0.18);
+  --overlay-6: rgba(236, 239, 244, 0.26);
+
+  --danger: #bf616a;
+  --danger-soft: rgba(191, 97, 106, 0.2);
+  --warning: #ebcb8b;
+  --success: #a3be8c;
+
+  --term-fg: #eceff4;
+  --term-bg: #2e3440;
+  --term-surface: #3b4252;
+  --term-cursor: #88c0d0;
+
+  --on-accent: #2e3440;
+  --scrim-bg: rgba(20, 24, 32, 0.58);
+
+  --agent-claude: #d08770;
+  --agent-codex: #a3be8c;
+  --agent-gemini: #5e81ac;
+  --agent-copilot: #b48ead;
+  --agent-cursor: #88c0d0;
+
+  --git-lane-0: #88c0d0;
+  --git-lane-1: #81a1c1;
+  --git-lane-2: #a3be8c;
+  --git-lane-3: #ebcb8b;
+  --git-lane-4: #bf616a;
+  --git-lane-5: #b48ead;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 88%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 10%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: color-mix(in srgb, var(--success) 75%, var(--text));
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 32%, transparent);
+  --danger-text-soft: color-mix(in srgb, var(--danger) 70%, var(--text));
+  --hook-brand-bg: color-mix(in srgb, var(--text-bright) 92%, transparent);
+  --hook-brand-fg: var(--bg-app);
+}
+
+
+/* One Dark — Atom baseline palette */
+[data-theme="one-dark"] {
+  color-scheme: dark;
+
+  --bg-app: #21252b;
+  --bg-raised: #282c34;
+  --bg-panel: #282c34;
+  --bg-panel-header: #353b45;
+
+  --border: rgba(171, 178, 191, 0.08);
+  --border-strong: rgba(171, 178, 191, 0.15);
+  --border-focus: #61afef;
+
+  --text: #abb2bf;
+  --text-muted: #828997;
+  --text-faint: #5c6370;
+  --text-bright: #dcdfe4;
+
+  --accent: #61afef;
+  --accent-hover: #73b6f2;
+  --accent-soft: rgba(97, 175, 239, 0.18);
+  --accent-cool: #56b6c2;
+  --accent-cool-soft: rgba(86, 182, 194, 0.14);
+
+  --syntax-type: #56b6c2;
+  --syntax-keyword: #c678dd;
+
+  --overlay-1: rgba(255, 255, 255, 0.035);
+  --overlay-2: rgba(255, 255, 255, 0.06);
+  --overlay-3: rgba(255, 255, 255, 0.085);
+  --overlay-4: rgba(255, 255, 255, 0.12);
+  --overlay-5: rgba(255, 255, 255, 0.17);
+  --overlay-6: rgba(255, 255, 255, 0.24);
+
+  --danger: #e06c75;
+  --danger-soft: rgba(224, 108, 117, 0.2);
+  --warning: #e5c07b;
+  --success: #98c379;
+
+  --term-fg: #abb2bf;
+  --term-bg: #21252b;
+  --term-surface: #282c34;
+  --term-cursor: #61afef;
+
+  --on-accent: #21252b;
+  --scrim-bg: rgba(0, 0, 0, 0.55);
+
+  --agent-claude: #d19a66;
+  --agent-codex: #98c379;
+  --agent-gemini: #61afef;
+  --agent-copilot: #c678dd;
+  --agent-cursor: #56b6c2;
+
+  --git-lane-0: #61afef;
+  --git-lane-1: #c678dd;
+  --git-lane-2: #98c379;
+  --git-lane-3: #e5c07b;
+  --git-lane-4: #e06c75;
+  --git-lane-5: #56b6c2;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 88%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 10%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: color-mix(in srgb, var(--success) 75%, var(--text));
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 32%, transparent);
+  --danger-text-soft: color-mix(in srgb, var(--danger) 70%, var(--text));
+  --hook-brand-bg: color-mix(in srgb, var(--text-bright) 92%, transparent);
+  --hook-brand-fg: var(--bg-app);
+}
+
+
+/* Catppuccin Mocha — github.com/catppuccin/catppuccin */
+[data-theme="catppuccin-mocha"] {
+  color-scheme: dark;
+
+  --bg-app: #181825;
+  --bg-raised: #181825;
+  --bg-panel: #1e1e2e;
+  --bg-panel-header: #262637;
+
+  --border: rgba(205, 214, 244, 0.08);
+  --border-strong: rgba(205, 214, 244, 0.14);
+  --border-focus: #cba6f7;
+
+  --text: #cdd6f4;
+  --text-muted: #bac2de;
+  --text-faint: #6c7086;
+  --text-bright: #f5e0dc;
+
+  --accent: #cba6f7;
+  --accent-hover: #d4b4f9;
+  --accent-soft: rgba(203, 166, 247, 0.18);
+  --accent-cool: #89dceb;
+  --accent-cool-soft: rgba(137, 220, 235, 0.12);
+
+  --syntax-type: #94e2d5;
+  --syntax-keyword: #f38ba8;
+
+  --overlay-1: rgba(205, 214, 244, 0.04);
+  --overlay-2: rgba(205, 214, 244, 0.07);
+  --overlay-3: rgba(205, 214, 244, 0.1);
+  --overlay-4: rgba(205, 214, 244, 0.13);
+  --overlay-5: rgba(205, 214, 244, 0.18);
+  --overlay-6: rgba(205, 214, 244, 0.26);
+
+  --danger: #f38ba8;
+  --danger-soft: rgba(243, 139, 168, 0.2);
+  --warning: #f9e2af;
+  --success: #a6e3a1;
+
+  --term-fg: #cdd6f4;
+  --term-bg: #181825;
+  --term-surface: #1e1e2e;
+  --term-cursor: #cba6f7;
+
+  --on-accent: #181825;
+  --scrim-bg: rgba(0, 0, 0, 0.55);
+
+  --agent-claude: #fab387;
+  --agent-codex: #a6e3a1;
+  --agent-gemini: #89b4fa;
+  --agent-copilot: #cba6f7;
+  --agent-cursor: #f5c2e7;
+
+  --git-lane-0: #89b4fa;
+  --git-lane-1: #cba6f7;
+  --git-lane-2: #a6e3a1;
+  --git-lane-3: #f9e2af;
+  --git-lane-4: #f38ba8;
+  --git-lane-5: #94e2d5;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 88%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 10%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: color-mix(in srgb, var(--success) 75%, var(--text));
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 32%, transparent);
+  --danger-text-soft: color-mix(in srgb, var(--danger) 70%, var(--text));
+  --hook-brand-bg: color-mix(in srgb, var(--text-bright) 92%, transparent);
+  --hook-brand-fg: var(--bg-app);
+}
+
+
+[data-theme="catppuccin-latte"] {
+  color-scheme: light;
+
+  --bg-app: #e6e9ef;
+  --bg-raised: #dce0e8;
+  --bg-panel: #eff1f5;
+  --bg-panel-header: #dce0e8;
+
+  --border: rgba(76, 79, 105, 0.1);
+  --border-strong: rgba(76, 79, 105, 0.15);
+  --border-focus: #8839ef;
+
+  --text: #4c4f69;
+  --text-muted: #5c5f77;
+  --text-faint: #8c8fa1;
+  --text-bright: #181825;
+
+  --accent: #8839ef;
+  --accent-hover: #7838d8;
+  --accent-soft: rgba(136, 57, 239, 0.12);
+  --accent-cool: #209fb5;
+  --accent-cool-soft: rgba(32, 159, 181, 0.1);
+
+  --syntax-type: #179299;
+  --syntax-keyword: #d20f39;
+
+  --overlay-1: rgba(0, 0, 0, 0.03);
+  --overlay-2: rgba(0, 0, 0, 0.055);
+  --overlay-3: rgba(0, 0, 0, 0.08);
+  --overlay-4: rgba(0, 0, 0, 0.11);
+  --overlay-5: rgba(0, 0, 0, 0.15);
+  --overlay-6: rgba(0, 0, 0, 0.22);
+
+  --danger: #d20f39;
+  --danger-soft: rgba(210, 15, 57, 0.12);
+  --warning: #df8e1d;
+  --success: #40a02b;
+
+  --term-fg: #4c4f69;
+  --term-bg: #eff1f5;
+  --term-surface: #e6e9ef;
+  --term-cursor: #8839ef;
+
+  --on-accent: #eff1f5;
+  --scrim-bg: rgba(76, 79, 105, 0.35);
+
+  --agent-claude: #dc8a78;
+  --agent-codex: #40a02b;
+  --agent-gemini: #209fb5;
+  --agent-copilot: #8839ef;
+  --agent-cursor: #8839ef;
+
+  --git-lane-0: #1e66f5;
+  --git-lane-1: #8839ef;
+  --git-lane-2: #40a02b;
+  --git-lane-3: #df8e1d;
+  --git-lane-4: #d20f39;
+  --git-lane-5: #179299;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 90%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 12%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: var(--success);
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
+  --danger-text-soft: var(--danger);
+  --hook-brand-bg: var(--bg-panel);
+  --hook-brand-fg: var(--text);
+}
+
+
+/* Tokyo Night — github.com/folke/tokyonight.nvim */
+[data-theme="tokyo-night"] {
+  color-scheme: dark;
+
+  --bg-app: #16161e;
+  --bg-raised: #16161e;
+  --bg-panel: #1a1b26;
+  --bg-panel-header: #1f2335;
+
+  --border: rgba(192, 202, 245, 0.08);
+  --border-strong: rgba(192, 202, 245, 0.14);
+  --border-focus: #7aa2f7;
+
+  --text: #c0caf5;
+  --text-muted: #a9b1d6;
+  --text-faint: #565f89;
+  --text-bright: #e0eaf8;
+
+  --accent: #7aa2f7;
+  --accent-hover: #8db0f9;
+  --accent-soft: rgba(122, 162, 247, 0.18);
+  --accent-cool: #7dcfff;
+  --accent-cool-soft: rgba(125, 207, 255, 0.12);
+
+  --syntax-type: #7dcfff;
+  --syntax-keyword: #bb9af7;
+
+  --overlay-1: rgba(192, 202, 245, 0.04);
+  --overlay-2: rgba(192, 202, 245, 0.07);
+  --overlay-3: rgba(192, 202, 245, 0.1);
+  --overlay-4: rgba(192, 202, 245, 0.13);
+  --overlay-5: rgba(192, 202, 245, 0.18);
+  --overlay-6: rgba(192, 202, 245, 0.26);
+
+  --danger: #f7768e;
+  --danger-soft: rgba(247, 118, 142, 0.2);
+  --warning: #e0af68;
+  --success: #9ece6a;
+
+  --term-fg: #c0caf5;
+  --term-bg: #16161e;
+  --term-surface: #1a1b26;
+  --term-cursor: #7aa2f7;
+
+  --on-accent: #16161e;
+  --scrim-bg: rgba(0, 0, 0, 0.56);
+
+  --agent-claude: #ff9e64;
+  --agent-codex: #9ece6a;
+  --agent-gemini: #7aa2f7;
+  --agent-copilot: #bb9af7;
+  --agent-cursor: #7dcfff;
+
+  --git-lane-0: #7aa2f7;
+  --git-lane-1: #bb9af7;
+  --git-lane-2: #9ece6a;
+  --git-lane-3: #e0af68;
+  --git-lane-4: #f7768e;
+  --git-lane-5: #73daca;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 88%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 10%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: color-mix(in srgb, var(--success) 75%, var(--text));
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 32%, transparent);
+  --danger-text-soft: color-mix(in srgb, var(--danger) 70%, var(--text));
+  --hook-brand-bg: color-mix(in srgb, var(--text-bright) 92%, transparent);
+  --hook-brand-fg: var(--bg-app);
+}
+

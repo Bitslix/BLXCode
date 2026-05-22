@@ -13,7 +13,7 @@
 
 .workbench-sidebar__resizer:hover,
 .workbench-sidebar__resizer--active {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--overlay-1);
   border-bottom-color: var(--border);
 }
 
@@ -28,6 +28,6 @@
 
 .workbench-sidebar__resizer:hover .workbench-sidebar__resizer-grip,
 .workbench-sidebar__resizer--active .workbench-sidebar__resizer-grip {
-  background: var(--accent, var(--text));
+  background: var(--accent);
   opacity: 1;
 }

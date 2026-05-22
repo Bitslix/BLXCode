@@ -7,12 +7,25 @@ BLXCode opens settings in a **center workbench tab** (not a modal). The command 
 | Category | What it configures |
 |----------|-------------------|
 | **App** | UI language, STT language + push-to-talk, keyboard shortcut mode, notifications, terminal hooks, app updates |
-| **Appearance** | Placeholder (themes planned) |
+| **Appearance** | App themes — 12 presets, search, Dark/Light filters; see [Appearance & Themes](appearance-themes.md) |
 | **API Keys** | All provider secrets in one pane — see below |
 | **Workspace** | Default project directory, agent sandbox root, embedded browser URL, **category colors** for Memory |
 | **BLXCode Agent** | Text, image, and voice inference — see below |
 
 Legacy saved categories (`Image`, `Voice`, `Memory`) still open the correct pane.
+
+## Appearance
+
+**Settings → Appearance** lets you pick an app theme:
+
+- **BLXCode** (default) — the original dark workbench look
+- Eleven additional dark/light presets (Dracula, Gruvbox, Solarized, Nord, One Dark, Catppuccin, Tokyo Night, BLXCode Light)
+- Search and **All / Dark / Light** filters
+- Instant preview on each card; choice persists across restarts
+
+Themes affect sidebar, panels, terminals, graphs, and settings chrome. Embedded web pages, native webviews, and your Memory category color swatches are documented exceptions.
+
+Full guide: [Appearance & Themes](appearance-themes.md).
 
 ## API Keys
 

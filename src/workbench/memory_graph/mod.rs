@@ -14,6 +14,7 @@ use crate::workbench::memory_panel::{
     expand_files_group_for_path, load_note, refresh_graph, MemoryState, MemoryView,
 };
 use crate::workbench::WorkbenchService;
+use crate::workbench::ThemeService;
 use gloo_timers::future::TimeoutFuture;
 use leptos::html;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
@@ -446,6 +447,7 @@ fn Graph2dView(
     let user_interacted = RwSignal::new(false);
     let last_node_set: RwSignal<Vec<String>> = RwSignal::new(Vec::new());
     let hovered: RwSignal<Option<String>> = RwSignal::new(None);
+    let theme_svc = expect_context::<ThemeService>();
     let last_zoom_tick = RwSignal::new(zoom_tick.get_untracked());
     let last_reset_tick = RwSignal::new(reset_tick.get_untracked());
 
@@ -612,13 +614,18 @@ fn Graph2dView(
                 <g class="workbench-memory-graph__edges" fill="none">
                     {
                         let s = state.clone();
+                        let theme_svc = theme_svc;
                         move || {
+                            let _theme = theme_svc.active_theme_id().get();
+                            let edge_default = read_css_var("--overlay-3");
+                            let edge_active = read_css_var("--accent-cool");
+                            let edge_dim = read_css_var("--overlay-1");
                             let graph = s.graph.get();
                             let graph = configured_graph(wb, graph);
                             let edges = graph.as_ref().map(|g| g.edges.clone()).unwrap_or_default();
                             let pos = layout.get();
                             let hov = hovered.get();
-                            edges.into_iter().filter_map(|e| {
+                            edges.into_iter().filter_map(move |e| {
                                 let (sx, sy) = *pos.get(&e.source)?;
                                 let (tx, ty) = *pos.get(&e.target)?;
                                 let incident = match hov.as_deref() {
@@ -626,11 +633,11 @@ fn Graph2dView(
                                     None => true,
                                 };
                                 let (stroke, width) = if hov.is_none() {
-                                    ("rgba(255,255,255,0.18)", "1")
+                                    (edge_default.clone(), "1".to_string())
                                 } else if incident {
-                                    ("rgba(180,210,255,0.85)", "1.6")
+                                    (edge_active.clone(), "1.6".to_string())
                                 } else {
-                                    ("rgba(255,255,255,0.04)", "1")
+                                    (edge_dim.clone(), "1".to_string())
                                 };
                                 Some(view! {
                                     <line
@@ -650,7 +657,13 @@ fn Graph2dView(
                 <g class="workbench-memory-graph__nodes">
                     {
                         let s = state.clone();
+                        let theme_svc = theme_svc;
                         move || {
+                            let _theme = theme_svc.active_theme_id().get();
+                            let stroke_bright = read_css_var("--text-bright");
+                            let stroke_muted = read_css_var("--text-muted");
+                            let stroke_faint = read_css_var("--text-faint");
+                            let label_color = read_css_var("--text");
                             let pos = layout.get();
                             let graph = s.graph.get();
                             let graph = configured_graph(wb, graph);
@@ -682,13 +695,13 @@ fn Graph2dView(
                                     _ => base_fill,
                                 };
                                 let stroke = if is_selected {
-                                    "rgba(255,255,255,1)"
+                                    stroke_bright.clone()
                                 } else {
                                     match focus_state {
-                                        NodeFocus::Hovered => "rgba(255,255,255,0.95)",
-                                        NodeFocus::Neighbor => "rgba(255,255,255,0.6)",
-                                        NodeFocus::Dim => "rgba(255,255,255,0.08)",
-                                        NodeFocus::Normal => "rgba(255,255,255,0.4)",
+                                        NodeFocus::Hovered => stroke_bright.clone(),
+                                        NodeFocus::Neighbor => stroke_muted.clone(),
+                                        NodeFocus::Dim => fade_color(&stroke_faint, 0.35),
+                                        NodeFocus::Normal => fade_color(&stroke_muted, 0.65),
                                     }
                                 };
                                 let stroke_width = if is_selected || matches!(focus_state, NodeFocus::Hovered) { "1.6" } else { "0.5" };
@@ -724,7 +737,7 @@ fn Graph2dView(
                                                 x=(x + radius + 3.0).to_string()
                                                 y=(y + 3.0).to_string()
                                                 font-size="9"
-                                                fill="rgba(238,239,245,0.95)"
+                                                fill=label_color.clone()
                                                 opacity=label_opacity.to_string()
                                             >{label}</text>
                                         })}
@@ -987,9 +1000,32 @@ pub(crate) fn graph_category_for_path(path: &str) -> String {
     "memory".to_string()
 }
 
+fn read_css_var(name: &str) -> String {
+    let Some(window) = web_sys::window() else {
+        return String::new();
+    };
+    let Some(document) = window.document() else {
+        return String::new();
+    };
+    let Some(root) = document.document_element() else {
+        return String::new();
+    };
+    let Ok(Some(style)) = window.get_computed_style(&root) else {
+        return String::new();
+    };
+    let Ok(value) = style.get_property_value(name) else {
+        return String::new();
+    };
+    value.trim().to_string()
+}
+
 fn cluster_color(tags: &[String], orphan: bool) -> String {
     if orphan {
-        return "rgba(170,170,185,0.55)".to_string();
+        let faint = read_css_var("--text-faint");
+        if faint.is_empty() {
+            return "rgba(170,170,185,0.55)".to_string();
+        }
+        return fade_color(&faint, 0.55);
     }
     let hue = tags.first().map_or(215.0, |tag| stable_hue(tag));
     format!("hsla({hue:.0}, 70%, 64%, 0.9)")

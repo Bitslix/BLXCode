@@ -11,8 +11,8 @@
   border: 1px solid var(--border-strong);
   border-radius: 4px;
   background: var(--bg-panel);
-  color: var(--fg-main);
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.42);
+  color: var(--text);
+  box-shadow: 0 18px 60px var(--scrim-bg);
 }
 
 .blx-update-banner__icon {
@@ -53,7 +53,7 @@
   padding: 0.6rem 0.7rem;
   border: 1px solid var(--border);
   border-radius: 4px;
-  background: var(--bg-subtle);
+  background: var(--bg-raised);
   font-size: 0.86rem;
 }
 
@@ -69,7 +69,7 @@
 .blx-update-notes h3 {
   margin: 0 0 0.45rem;
   font-size: 0.78rem;
-  color: var(--fg-muted);
+  color: var(--text-muted);
 }
 
 .blx-update-notes p,
@@ -81,7 +81,7 @@
 }
 
 .blx-update-error {
-  color: #ff7b72;
+  color: var(--danger);
 }
 
 .blx-update-progress {
@@ -90,7 +90,7 @@
 }
 
 .blx-update-progress__row {
-  color: var(--fg-muted);
+  color: var(--text-muted);
   font-size: 0.76rem;
 }
 
