@@ -83,6 +83,25 @@ impl Locale {
         }
     }
 
+    /// Map a stored STT manual code (ISO-639-1 or BCP-47) to a built-in UI locale.
+    #[must_use]
+    pub fn from_iso639_1(code: &str) -> Self {
+        let trimmed = code.trim();
+        if trimmed.is_empty() {
+            return Self::default();
+        }
+        if let Some(loc) = Self::parse_bcp47(trimmed) {
+            return loc;
+        }
+        let lower = trimmed.to_ascii_lowercase();
+        for (loc, _) in APP_LOCALES {
+            if loc.iso639_1() == lower {
+                return *loc;
+            }
+        }
+        Self::default()
+    }
+
     /// Parse persisted or `<option>` BCP-47 tags (ASCII case-insensitive).
     #[must_use]
     pub fn parse_bcp47(raw: &str) -> Option<Self> {
@@ -218,6 +237,13 @@ mod tests {
     fn parse_bcp47_hungarian() {
         assert_eq!(Locale::parse_bcp47("hu-HU"), Some(Locale::HuHu));
         assert_eq!(Locale::parse_bcp47("hu"), Some(Locale::HuHu));
+    }
+
+    #[test]
+    fn from_iso639_1_maps_builtin_codes() {
+        assert_eq!(Locale::from_iso639_1("de"), Locale::DeDe);
+        assert_eq!(Locale::from_iso639_1("ja"), Locale::JaJp);
+        assert_eq!(Locale::from_iso639_1("zh-TW"), Locale::ZhTw);
     }
 
     #[test]
