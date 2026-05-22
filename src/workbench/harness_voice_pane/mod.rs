@@ -151,6 +151,7 @@ pub fn AgentVoiceColumn() -> impl IntoView {
     }
 
     let save = move |patch: VoiceSettings| {
+        voice_provider.set(patch.stt.provider);
         if !is_tauri_shell() {
             settings.set(Some(patch));
             return;
@@ -158,6 +159,7 @@ pub fn AgentVoiceColumn() -> impl IntoView {
         leptos::task::spawn_local(async move {
             match voice_settings_save(patch).await {
                 Ok(v) => {
+                    voice_provider.set(v.stt.provider);
                     settings.set(Some(v));
                     status.set(Some(i18n.tr(I18nKey::ApiKeysSaved)().to_string()));
                 }
