@@ -52,20 +52,22 @@ pub fn ThemePreviewCard(
                     <LxIcon icon=icondata::LuCheck width="0.85rem" height="0.85rem" />
                 </span>
             </div>
-            <span class="theme-card__name">
-                {move || {
-                    theme_name_key(theme_id_for_style)
-                        .map(|k| i18n.tr(k)().to_string())
-                        .unwrap_or_else(|| theme_id_for_style.to_string())
-                }}
-            </span>
-            <span class="theme-card__desc">
-                {move || {
-                    theme_desc_key(theme_id_for_style)
-                        .map(|k| i18n.tr(k)().to_string())
-                        .unwrap_or_default()
-                }}
-            </span>
+            <div class="theme-card__meta">
+                <span class="theme-card__name">
+                    {move || {
+                        theme_name_key(theme_id_for_style)
+                            .map(|k| i18n.tr(k)().to_string())
+                            .unwrap_or_else(|| theme_id_for_style.to_string())
+                    }}
+                </span>
+                <span class="theme-card__desc">
+                    {move || {
+                        theme_desc_key(theme_id_for_style)
+                            .map(|k| i18n.tr(k)().to_string())
+                            .unwrap_or_default()
+                    }}
+                </span>
+            </div>
         </button>
     }
 }

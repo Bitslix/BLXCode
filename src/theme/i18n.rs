@@ -15,6 +15,14 @@ pub fn theme_name_key(theme_id: &str) -> Option<I18nKey> {
         "catppuccin-mocha" => I18nKey::ThemeNameCatppuccinMocha,
         "catppuccin-latte" => I18nKey::ThemeNameCatppuccinLatte,
         "tokyo-night" => I18nKey::ThemeNameTokyoNight,
+        "rose-pine" => I18nKey::ThemeNameRosePine,
+        "rose-pine-dawn" => I18nKey::ThemeNameRosePineDawn,
+        "everforest-dark" => I18nKey::ThemeNameEverforestDark,
+        "kanagawa" => I18nKey::ThemeNameKanagawa,
+        "github-dark" => I18nKey::ThemeNameGithubDark,
+        "night-owl" => I18nKey::ThemeNameNightOwl,
+        "ayu-mirage" => I18nKey::ThemeNameAyuMirage,
+        "catppuccin-frappe" => I18nKey::ThemeNameCatppuccinFrappe,
         _ => return None,
     })
 }
@@ -34,6 +42,14 @@ pub fn theme_desc_key(theme_id: &str) -> Option<I18nKey> {
         "catppuccin-mocha" => I18nKey::ThemeDescCatppuccinMocha,
         "catppuccin-latte" => I18nKey::ThemeDescCatppuccinLatte,
         "tokyo-night" => I18nKey::ThemeDescTokyoNight,
+        "rose-pine" => I18nKey::ThemeDescRosePine,
+        "rose-pine-dawn" => I18nKey::ThemeDescRosePineDawn,
+        "everforest-dark" => I18nKey::ThemeDescEverforestDark,
+        "kanagawa" => I18nKey::ThemeDescKanagawa,
+        "github-dark" => I18nKey::ThemeDescGithubDark,
+        "night-owl" => I18nKey::ThemeDescNightOwl,
+        "ayu-mirage" => I18nKey::ThemeDescAyuMirage,
+        "catppuccin-frappe" => I18nKey::ThemeDescCatppuccinFrappe,
         _ => return None,
     })
 }

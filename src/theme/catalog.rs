@@ -143,6 +143,86 @@ pub const THEMES: &[AppTheme] = &[
             text: "#c0caf5",
         },
     },
+    AppTheme {
+        id: "rose-pine",
+        mode: ThemeMode::Dark,
+        preview: ThemePreviewColors {
+            sidebar: "#191724",
+            background: "#1f1d2e",
+            accent: "#c4a7e7",
+            text: "#e0def4",
+        },
+    },
+    AppTheme {
+        id: "rose-pine-dawn",
+        mode: ThemeMode::Light,
+        preview: ThemePreviewColors {
+            sidebar: "#f2e9e1",
+            background: "#faf4ed",
+            accent: "#286983",
+            text: "#575279",
+        },
+    },
+    AppTheme {
+        id: "everforest-dark",
+        mode: ThemeMode::Dark,
+        preview: ThemePreviewColors {
+            sidebar: "#2d353b",
+            background: "#343f44",
+            accent: "#a7c080",
+            text: "#d3c6aa",
+        },
+    },
+    AppTheme {
+        id: "kanagawa",
+        mode: ThemeMode::Dark,
+        preview: ThemePreviewColors {
+            sidebar: "#16161d",
+            background: "#1f1f28",
+            accent: "#7e9cd8",
+            text: "#dcd7ba",
+        },
+    },
+    AppTheme {
+        id: "github-dark",
+        mode: ThemeMode::Dark,
+        preview: ThemePreviewColors {
+            sidebar: "#0d1117",
+            background: "#161b22",
+            accent: "#58a6ff",
+            text: "#e6edf3",
+        },
+    },
+    AppTheme {
+        id: "night-owl",
+        mode: ThemeMode::Dark,
+        preview: ThemePreviewColors {
+            sidebar: "#011627",
+            background: "#011627",
+            accent: "#82aaff",
+            text: "#d6deeb",
+        },
+    },
+    AppTheme {
+        id: "ayu-mirage",
+        mode: ThemeMode::Dark,
+        preview: ThemePreviewColors {
+            sidebar: "#1a1f29",
+            background: "#1f2430",
+            accent: "#5ccfe6",
+            text: "#cbccc6",
+        },
+    },
+    AppTheme {
+        id: "catppuccin-frappe",
+        mode: ThemeMode::Dark,
+        preview: ThemePreviewColors {
+            sidebar: "#232634",
+            background: "#303446",
+            accent: "#ca9ee6",
+            text: "#c6d0f5",
+        },
+    },
 ];
 
 #[must_use]
