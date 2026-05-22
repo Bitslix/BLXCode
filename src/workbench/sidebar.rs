@@ -61,6 +61,7 @@ pub fn Sidebar() -> impl IntoView {
     let context_menu = RwSignal::new(None::<WorkspaceContextMenu>);
     let rename_dialog = RwSignal::new(None::<RenameWorkspaceDialog>);
     let rename_input = RwSignal::new(String::new());
+    let workspace_color_input = RwSignal::new(String::new());
     let drag_from = RwSignal::new(None::<usize>);
     let drag_over = RwSignal::new(None::<usize>);
     let git_repo_available = RwSignal::new(None::<bool>);
@@ -204,6 +205,22 @@ pub fn Sidebar() -> impl IntoView {
                                 })
                             });
                             let title_str = move || title_signal.get();
+                            let color_signal = Memo::new(move |_| {
+                                workspaces.with(|list| {
+                                    list.iter()
+                                        .find(|w| w.id == id)
+                                        .map(|w| w.color.clone())
+                                        .unwrap_or_else(|| wb.workspace_color_for_new_index(idx))
+                                })
+                            });
+                            let terminal_slot_count = Memo::new(move |_| {
+                                workspaces.with(|list| {
+                                    list.iter()
+                                        .find(|w| w.id == id)
+                                        .map(|w| w.slot_ids.len())
+                                        .unwrap_or(0)
+                                })
+                            });
                             let icon_label = move || {
                                 workspace_icon_label(&title_signal.get(), id)
                             };
@@ -280,12 +297,16 @@ pub fn Sidebar() -> impl IntoView {
                                             }
                                             c
                                         }
+                                        style=move || {
+                                            format!("--workspace-color: {};", color_signal.get())
+                                        }
                                         on:click=move |_| wb.select_workspace(id)
                                         on:contextmenu=move |ev| {
                                             ev.prevent_default();
                                             context_menu.set(Some(WorkspaceContextMenu {
                                                 workspace_id: id,
                                                 title: title_signal.get(),
+                                                color: color_signal.get(),
                                                 x: ev.client_x(),
                                                 y: ev.client_y(),
                                             }));
@@ -294,8 +315,26 @@ pub fn Sidebar() -> impl IntoView {
                                         <span class="workbench-sidebar__icon" aria-hidden="true">
                                             {icon_label}
                                         </span>
+                                        <span class="workbench-sidebar__color-dot" aria-hidden="true"></span>
+                                        <Show when=move || !collapsed.get() && terminal_slot_count.get() > 1>
+                                            {move || {
+                                                let count = terminal_slot_count.get();
+                                                let aria = i18n
+                                                    .tr(I18nKey::SbTerminalCountAria)()
+                                                    .replace("{n}", &count.to_string());
+                                                let title = aria.clone();
+                                                view! {
+                                                    <span
+                                                        class="workbench-sidebar__terminal-count"
+                                                        aria-label=aria
+                                                        title=title
+                                                    >
+                                                        {count.to_string()}
+                                                    </span>
+                                                }
+                                            }}
+                                        </Show>
                                         <span class="workbench-sidebar__label">
-                                            <span class="workbench-sidebar__bullet">"▸ "</span>
                                             {move || title_signal.get()}
                                         </span>
                                         <Show when=move || {
@@ -312,6 +351,9 @@ pub fn Sidebar() -> impl IntoView {
                                                             class="workbench-sidebar__badge workbench-sidebar__badge--total"
                                                             aria-label=aria
                                                             title=move || total.to_string()
+                                                            style=move || {
+                                                                format!("background-color: {};", color_signal.get())
+                                                            }
                                                         >
                                                             {total.to_string()}
                                                         </span>
@@ -448,6 +490,7 @@ pub fn Sidebar() -> impl IntoView {
                                 on:click=move |_| {
                                     context_menu.set(None);
                                     rename_input.set(menu.title.clone());
+                                    workspace_color_input.set(menu.color.clone());
                                     rename_dialog.set(Some(RenameWorkspaceDialog {
                                         workspace_id: menu.workspace_id,
                                     }));
@@ -479,7 +522,11 @@ pub fn Sidebar() -> impl IntoView {
                     let save = move || {
                         let next = rename_input.get_untracked();
                         if !next.trim().is_empty() {
-                            wb.rename_workspace(dialog.workspace_id, next);
+                            wb.set_workspace_display(
+                                dialog.workspace_id,
+                                next,
+                                workspace_color_input.get_untracked(),
+                            );
                         }
                         rename_dialog.set(None);
                     };
@@ -527,6 +574,64 @@ pub fn Sidebar() -> impl IntoView {
                                             }
                                         }
                                     />
+                                    <label class="workspace-rename-dialog__label" for="workspace-color-input">
+                                        {move || i18n.tr(I18nKey::SbWorkspaceColorLabel)()}
+                                    </label>
+                                    <div class="workspace-edit-dialog__color-row">
+                                        <input
+                                            id="workspace-color-input"
+                                            class="workspace-edit-dialog__color-input"
+                                            type="color"
+                                            prop:value=move || workspace_color_input.get()
+                                            on:input=move |ev| {
+                                                let Some(input) = ev
+                                                    .target()
+                                                    .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
+                                                else {
+                                                    return;
+                                                };
+                                                workspace_color_input.set(input.value());
+                                            }
+                                        />
+                                        <input
+                                            class="workspace-rename-dialog__input"
+                                            type="text"
+                                            prop:value=move || workspace_color_input.get()
+                                            on:input=move |ev| {
+                                                let Some(input) = ev
+                                                    .target()
+                                                    .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
+                                                else {
+                                                    return;
+                                                };
+                                                workspace_color_input.set(input.value());
+                                            }
+                                            on:keydown=move |ev| {
+                                                if ev.key() == "Enter" {
+                                                    ev.prevent_default();
+                                                    save();
+                                                }
+                                            }
+                                        />
+                                    </div>
+                                    <div class="memory-color-swatches" aria-label=move || i18n.tr(I18nKey::WsSectionCategoryColors)()>
+                                        <For
+                                            each=move || wb.memory_color_presets().get()
+                                            key=|preset| preset.id.clone()
+                                            children=move |preset| {
+                                                let preset_color = preset.color.clone();
+                                                view! {
+                                                    <button
+                                                        type="button"
+                                                        class="memory-color-swatch"
+                                                        title=preset.label
+                                                        style=format!("--memory-swatch: {}", preset_color)
+                                                        on:click=move |_| workspace_color_input.set(preset_color.clone())
+                                                    ></button>
+                                                }
+                                            }
+                                        />
+                                    </div>
                                 </div>
                                 <footer class="workspace-rename-dialog__actions">
                                     <button
@@ -559,6 +664,7 @@ pub fn Sidebar() -> impl IntoView {
 struct WorkspaceContextMenu {
     workspace_id: u64,
     title: String,
+    color: String,
     x: i32,
     y: i32,
 }

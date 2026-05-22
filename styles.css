@@ -712,6 +712,34 @@ body {
   padding: 0.45rem 1.85rem 0.45rem 0.75rem;
   cursor: pointer;
   border-left: 2px solid transparent;
+  --workspace-color: var(--accent);
+}
+
+.workbench-sidebar__color-dot {
+  flex: 0 0 auto;
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 999px;
+  background: var(--workspace-color);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--workspace-color) 40%, transparent);
+}
+
+.workbench-sidebar__terminal-count {
+  flex: 0 0 auto;
+  min-width: 1.12rem;
+  height: 1.12rem;
+  padding: 0 0.28rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--text-bright);
+  background: #e8954a;
+  box-shadow: 0 0 0 1px var(--scrim-bg);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: 0;
 }
 
 .workbench-sidebar__badges {
@@ -813,13 +841,18 @@ body {
   border: 1px solid transparent;
 }
 
+.workbench-sidebar--collapsed .workbench-sidebar__color-dot,
+.workbench-sidebar--collapsed .workbench-sidebar__terminal-count {
+  display: none;
+}
+
 .workbench-sidebar--collapsed .workbench-sidebar__row:hover {
   border-color: var(--border);
 }
 
 .workbench-sidebar--collapsed .workbench-sidebar__row--active {
-  border-color: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px var(--accent-soft);
+  border-color: color-mix(in srgb, var(--workspace-color) 75%, var(--border));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--workspace-color) 45%, transparent);
 }
 
 .workbench-sidebar--collapsed .workbench-sidebar__icon {
@@ -830,7 +863,8 @@ body {
   height: 1.55rem;
   border-radius: 4px;
   color: var(--text);
-  background: var(--overlay-2);
+  background: color-mix(in srgb, var(--workspace-color) 22%, var(--overlay-2));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--workspace-color) 55%, transparent);
   font-family: var(--font-mono);
   font-size: 0.68rem;
   font-weight: 700;
@@ -838,7 +872,7 @@ body {
 }
 
 .workbench-sidebar--collapsed .workbench-sidebar__row--active .workbench-sidebar__icon {
-  background: var(--accent);
+  background: var(--workspace-color);
   color: white;
 }
 
@@ -882,13 +916,9 @@ body {
 }
 
 .workbench-sidebar__row--active {
-  background: var(--accent-soft);
-  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--workspace-color) 18%, transparent);
+  border-left-color: var(--workspace-color);
   color: var(--text);
-}
-
-.workbench-sidebar__bullet {
-  color: var(--text-faint);
 }
 
 .workbench-sidebar__footer {
@@ -1022,6 +1052,10 @@ body {
   padding: 0.95rem;
 }
 
+.workspace-rename-dialog__body > * + .workspace-rename-dialog__label {
+  margin-top: 0.8rem;
+}
+
 .workspace-rename-dialog__label {
   display: block;
   margin-bottom: 0.35rem;
@@ -1047,6 +1081,27 @@ body {
 .workspace-rename-dialog__input:focus {
   border-color: var(--accent-soft);
   box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.workspace-edit-dialog__color-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.workspace-edit-dialog__color-input {
+  flex: 0 0 auto;
+  width: 2.35rem;
+  height: 2.35rem;
+  padding: 0.18rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--scrim-bg);
+  cursor: pointer;
+}
+
+.workspace-edit-dialog__color-row + .memory-color-swatches {
+  margin-top: 0.55rem;
 }
 
 .workspace-rename-dialog__actions {

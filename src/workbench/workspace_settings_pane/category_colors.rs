@@ -1,6 +1,6 @@
 //! Workspace settings — memory category color presets.
 
-use crate::workbench::state::{MemoryColorPreset, WorkbenchService};
+use crate::workbench::state::{normalize_hex_color, MemoryColorPreset, WorkbenchService};
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use js_sys::Date;
@@ -12,18 +12,6 @@ fn input_value(ev: web_sys::Event) -> Option<String> {
     ev.target()
         .and_then(|target| target.dyn_into::<web_sys::HtmlInputElement>().ok())
         .map(|input| input.value())
-}
-
-fn normalize_settings_color(raw: &str) -> String {
-    let trimmed = raw.trim();
-    if trimmed.len() == 7
-        && trimmed.starts_with('#')
-        && trimmed.chars().skip(1).all(|ch| ch.is_ascii_hexdigit())
-    {
-        trimmed.to_ascii_lowercase()
-    } else {
-        "#7dd3fc".into()
-    }
 }
 
 fn update_memory_preset(
@@ -38,7 +26,7 @@ fn update_memory_preset(
             preset.label = label;
         }
         if let Some(color) = color {
-            preset.color = normalize_settings_color(&color);
+            preset.color = normalize_hex_color(&color, "#7dd3fc");
         }
     }
     wb.set_memory_color_presets(presets);
@@ -118,7 +106,7 @@ pub fn WorkspaceCategoryColorsSection(wb: WorkbenchService) -> impl IntoView {
                     presets.push(MemoryColorPreset {
                         id: format!("custom-{}", Date::now() as i64),
                         label: name,
-                        color: normalize_settings_color(&new_color.get_untracked()),
+                        color: normalize_hex_color(&new_color.get_untracked(), "#7dd3fc"),
                     });
                     wb.set_memory_color_presets(presets);
                     new_label.set(String::new());

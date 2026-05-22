@@ -40,6 +40,10 @@ pub struct WorkspaceEntry {
     #[serde(default)]
     pub storage_key: String,
     pub title: String,
+    /// Sidebar accent color. Empty values come from older snapshots and are
+    /// backfilled from the Workspace settings category-color presets.
+    #[serde(default)]
+    pub color: String,
     pub cwd: String,
     pub terminal_count: u8,
     pub grid_rows: u8,
@@ -239,6 +243,19 @@ pub fn stable_category_color(key: &str) -> String {
     hsl_to_hex(hue, 70.0, 64.0)
 }
 
+#[must_use]
+pub fn normalize_hex_color(raw: &str, fallback: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.len() == 7
+        && trimmed.starts_with('#')
+        && trimmed.chars().skip(1).all(|ch| ch.is_ascii_hexdigit())
+    {
+        trimmed.to_ascii_lowercase()
+    } else {
+        fallback.to_string()
+    }
+}
+
 fn hsl_to_hex(h: f32, s_pct: f32, l_pct: f32) -> String {
     let s = s_pct / 100.0;
     let l = l_pct / 100.0;
@@ -314,6 +331,23 @@ pub fn default_memory_color_presets() -> Vec<MemoryColorPreset> {
             color: "#9ca3af".into(),
         },
     ]
+}
+
+#[must_use]
+pub fn workspace_color_from_presets(presets: &[MemoryColorPreset], index: usize) -> String {
+    let valid: Vec<String> = presets
+        .iter()
+        .map(|preset| normalize_hex_color(&preset.color, ""))
+        .filter(|color| !color.is_empty())
+        .collect();
+    if valid.is_empty() {
+        let defaults = default_memory_color_presets();
+        return defaults
+            .get(index % defaults.len())
+            .map(|preset| normalize_hex_color(&preset.color, "#7dd3fc"))
+            .unwrap_or_else(|| "#7dd3fc".into());
+    }
+    valid[index % valid.len()].clone()
 }
 
 /// Per-slot terminal split state — survives a restart so the grid of
@@ -1549,6 +1583,27 @@ impl WorkbenchService {
         });
     }
 
+    pub fn set_workspace_display(&self, id: u64, title: String, color: String) {
+        let title = title.trim();
+        if title.is_empty() {
+            return;
+        }
+        let fallback = self.workspace_color_for_new_index(
+            self.workspaces
+                .get_untracked()
+                .iter()
+                .position(|w| w.id == id)
+                .unwrap_or(0),
+        );
+        let color = normalize_hex_color(&color, &fallback);
+        self.workspaces.update(|workspaces| {
+            if let Some(workspace) = workspaces.iter_mut().find(|w| w.id == id) {
+                workspace.title = title.to_string();
+                workspace.color = color;
+            }
+        });
+    }
+
     /// Moves the workspace at `from_index` to `to_index` (indices in the
     /// list **before** the move). Order is persisted with the workbench snapshot.
     pub fn reorder_workspaces(&self, from_index: usize, to_index: usize) {
@@ -1598,11 +1653,13 @@ impl WorkbenchService {
             .unwrap_or_else(|| format!("Workspace {id}"));
 
         self.active_id.set(Some(id));
+        let color = self.workspace_color_for_new_index(self.workspaces.get_untracked().len());
         self.workspaces.update(|workspaces| {
             workspaces.push(WorkspaceEntry {
                 id,
                 storage_key: WorkspaceEntry::new_storage_key(),
                 title,
+                color,
                 cwd,
                 terminal_count,
                 grid_rows,
@@ -2182,10 +2239,12 @@ impl WorkbenchService {
             project_root
         };
 
+        let color = self.workspace_color_for_new_index(self.workspaces.get_untracked().len());
         let entry = WorkspaceEntry {
             id,
             storage_key: WorkspaceEntry::new_storage_key(),
             title: format!("Workspace {id}"),
+            color,
             cwd: String::new(),
             terminal_count: 1,
             grid_rows: 1,
@@ -2383,6 +2442,9 @@ impl WorkbenchService {
             };
             ensure_center_tabs(ws);
             ws.title = title;
+            if ws.color.trim().is_empty() {
+                ws.color = self.workspace_color_for_new_index(0);
+            }
             ws.cwd = cwd;
             ws.terminal_count = draft.terminal_count;
             ws.grid_rows = gr;
@@ -2742,6 +2804,11 @@ impl WorkbenchService {
     }
 
     #[must_use]
+    pub fn workspace_color_for_new_index(&self, index: usize) -> String {
+        workspace_color_from_presets(&self.memory_color_presets.get_untracked(), index)
+    }
+
+    #[must_use]
     pub fn memory_category_settings_for_workspace_untracked(
         &self,
         workspace_id: u64,
@@ -2845,12 +2912,14 @@ impl WorkbenchService {
         if snap.version != WORKBENCH_SNAPSHOT_VERSION {
             return false;
         }
+        let color_presets = self.memory_color_presets.get_untracked();
         let max_snap_workspace_id = snap.workspaces.iter().map(|w| w.id).max().unwrap_or(0);
         let workspaces: Vec<WorkspaceEntry> = snap
             .workspaces
             .into_iter()
             .filter(|w| workspace_entry_has_folder(w))
-            .map(|mut w| {
+            .enumerate()
+            .map(|(idx, mut w)| {
                 // Safety net for callers that did not run
                 // `WorkbenchSnapshot::backfill_storage_keys` before hydrate.
                 // The normal Tauri startup path backfills first so matching
@@ -2858,6 +2927,8 @@ impl WorkbenchService {
                 if w.storage_key.trim().is_empty() {
                     w.storage_key = WorkspaceEntry::new_storage_key();
                 }
+                let fallback = workspace_color_from_presets(&color_presets, idx);
+                w.color = normalize_hex_color(&w.color, &fallback);
                 ensure_center_tabs(&mut w);
                 w
             })
@@ -2866,10 +2937,13 @@ impl WorkbenchService {
             .recent_workspaces
             .into_iter()
             .filter(|r| workspace_entry_has_folder(&r.workspace))
-            .map(|mut r| {
+            .enumerate()
+            .map(|(idx, mut r)| {
                 if r.workspace.storage_key.trim().is_empty() {
                     r.workspace.storage_key = WorkspaceEntry::new_storage_key();
                 }
+                let fallback = workspace_color_from_presets(&color_presets, idx);
+                r.workspace.color = normalize_hex_color(&r.workspace.color, &fallback);
                 r
             })
             .collect();

@@ -3,6 +3,7 @@ use crate::tauri_bridge::{agent_submit_tool_result, memory_list, pty_peek_output
 use crate::workbench::agent_context_handoff::{
     perform_handoff, HandoffRequest, WorkspaceTerminalTarget,
 };
+use crate::workbench::state::normalize_hex_color;
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Date;
@@ -41,18 +42,6 @@ pub fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
 }
 
 const LEARNINGS_PREFIX: &str = "learnings/";
-
-fn normalize_hex_color(raw: &str, fallback: &str) -> String {
-    let trimmed = raw.trim();
-    if trimmed.len() == 7
-        && trimmed.starts_with('#')
-        && trimmed.chars().skip(1).all(|ch| ch.is_ascii_hexdigit())
-    {
-        trimmed.to_ascii_lowercase()
-    } else {
-        fallback.to_string()
-    }
-}
 
 fn handle_memory_category_list(call_id: String, wb: WorkbenchService) {
     let Some(ws_id) = wb.active_id().get_untracked() else {
@@ -882,4 +871,3 @@ fn resolve_slot_label(
     });
     (slot, agent)
 }
-

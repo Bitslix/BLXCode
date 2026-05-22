@@ -8,7 +8,7 @@ use crate::service::I18nService;
 use crate::tauri_bridge::{self, GraphData, NoteContent, NoteMeta, SearchHit};
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::memory_graph::{navigate_to_graph_node, MemoryGraphView};
-use crate::workbench::state::MemoryCategorySettings;
+use crate::workbench::state::{normalize_hex_color, MemoryCategorySettings};
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Date;
@@ -1413,7 +1413,7 @@ fn MemoryCategoryEditDialog(category: String, on_close: Callback<()>) -> impl In
                                 let fallback = MemoryCategorySettings::for_category(&category_for_save);
                                 wb.set_memory_category_settings(ws_id, &category_for_save, MemoryCategorySettings {
                                     label: label.get_untracked().trim().to_string(),
-                                    color: normalize_memory_color(&color.get_untracked(), &fallback.color),
+                                    color: normalize_hex_color(&color.get_untracked(), &fallback.color),
                                     show_in_sidebar: show_sidebar.get_untracked(),
                                     show_in_graph: show_graph.get_untracked(),
                                 });
@@ -1491,18 +1491,6 @@ fn add_note_agent_context(wb: WorkbenchService, path: String, label: String) {
             added_at: Date::now() as i64,
         },
     );
-}
-
-fn normalize_memory_color(raw: &str, fallback: &str) -> String {
-    let trimmed = raw.trim();
-    if trimmed.len() == 7
-        && trimmed.starts_with('#')
-        && trimmed.chars().skip(1).all(|ch| ch.is_ascii_hexdigit())
-    {
-        trimmed.to_ascii_lowercase()
-    } else {
-        fallback.to_string()
-    }
 }
 
 #[derive(Clone)]

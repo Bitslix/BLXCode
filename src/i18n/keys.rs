@@ -468,11 +468,13 @@ pub enum I18nKey {
 
     SbRenameTitle,
     SbRenameNameLabel,
+    SbWorkspaceColorLabel,
     SbRenameCloseAria,
     SbRenameSubmit,
     SbRenameMenu,
     SbCloseWorkspaceMenu,
     SbBadgeTotalAria,
+    SbTerminalCountAria,
 
     EulaAccepted,
     EulaUnknown,
