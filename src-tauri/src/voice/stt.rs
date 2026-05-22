@@ -21,6 +21,7 @@ fn base_url(provider: VoiceProviderKind) -> &'static str {
     match provider {
         VoiceProviderKind::Openai => "https://api.openai.com/v1",
         VoiceProviderKind::Openrouter => "https://openrouter.ai/api/v1",
+        VoiceProviderKind::Aws => unreachable!("handled above"),
     }
 }
 
@@ -31,6 +32,12 @@ pub async fn transcribe_wav(
     wav_path: &Path,
     language: Option<&str>,
 ) -> Result<String, String> {
+    if provider == VoiceProviderKind::Aws {
+        let _ = (model, api_key, wav_path, language);
+        return Err(
+            "AWS Transcribe STT ist in den Einstellungen wählbar; die Laufzeit-Anbindung folgt.".into(),
+        );
+    }
     let bytes = tokio::fs::read(wav_path)
         .await
         .map_err(|e| format!("read {}: {e}", wav_path.display()))?;

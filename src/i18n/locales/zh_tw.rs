@@ -315,6 +315,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::ApiKeysSearchSubhead => "搜尋供應商",
         I18nKey::ApiKeysImageVideoSubhead => "Image / video & voice",
         I18nKey::AgProviderFal => "fal.ai",
+        I18nKey::AgProviderAws => "AWS",
         I18nKey::ApiKeysSaved => "已儲存。",
         I18nKey::ApiKeysDiscard => "捨棄",
         I18nKey::ApiKeysUnsaved => "未儲存的變更",

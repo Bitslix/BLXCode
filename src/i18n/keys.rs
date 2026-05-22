@@ -370,6 +370,7 @@ pub enum I18nKey {
     AgProviderAnthropic,
     AgProviderOpenai,
     AgProviderFal,
+    AgProviderAws,
     AgModelField,
     AgModelCustomField,
     AgThinkingField,

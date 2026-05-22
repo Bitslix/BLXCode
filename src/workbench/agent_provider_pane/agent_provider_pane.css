@@ -30,7 +30,17 @@
 
 .agent-provider-pane__voice-provider {
     grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
     margin: 0 0 0.15rem;
+}
+
+.agent-provider-pane__voice-inner .voice-pane__section--speech {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    min-width: 0;
 }
 
 @media (max-width: 900px) {

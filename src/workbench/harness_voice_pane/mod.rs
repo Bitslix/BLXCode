@@ -4,10 +4,11 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_provider_models, is_tauri_shell, voice_provider_voices, voice_settings_get,
-    voice_settings_save, voice_tts_preview, AgentProviderKind, PostSttFlow, ProviderModelEntry,
-    SttSettings, TtsSettings, VoiceEntry, VoiceGender,
-    VoiceProviderKind, VoiceSettings,
+    agent_provider_models, agent_settings_get, api_keys_status, is_tauri_shell,
+    voice_provider_voices, voice_settings_get, voice_settings_save, voice_tts_preview,
+    AgentProviderKind, AgentProviderSettingsView, ApiKeyEntry, ApiKeysStatus, PostSttFlow,
+    ProviderModelEntry, SttSettings, TtsSettings, VoiceEntry, VoiceGender, VoiceProviderKind,
+    VoiceSettings,
 };
 use crate::workbench::agent_model_picker::AgentModelPicker;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
@@ -34,10 +35,86 @@ impl ModelKind {
     }
 }
 
-fn voice_to_agent_provider(v: VoiceProviderKind) -> AgentProviderKind {
+fn voice_to_agent_provider(v: VoiceProviderKind) -> Option<AgentProviderKind> {
     match v {
-        VoiceProviderKind::Openai => AgentProviderKind::Openai,
-        VoiceProviderKind::Openrouter => AgentProviderKind::Openrouter,
+        VoiceProviderKind::Openai => Some(AgentProviderKind::Openai),
+        VoiceProviderKind::Openrouter => Some(AgentProviderKind::Openrouter),
+        VoiceProviderKind::Aws => None,
+    }
+}
+
+fn voice_model_entry(id: &str, label: &str, description: &str) -> ProviderModelEntry {
+    ProviderModelEntry {
+        id: id.into(),
+        label: label.into(),
+        description: Some(description.into()),
+        pricing: None,
+    }
+}
+
+fn curated_voice_models(provider: VoiceProviderKind, kind: ModelKind) -> Vec<ProviderModelEntry> {
+    if provider != VoiceProviderKind::Aws {
+        return Vec::new();
+    }
+    match kind {
+        ModelKind::Stt => vec![voice_model_entry(
+            "amazon-transcribe",
+            "Amazon Transcribe",
+            "AWS speech-to-text (curated list).",
+        )],
+        ModelKind::Tts => vec![
+            voice_model_entry("neural", "Polly Neural", "Neural TTS engine."),
+            voice_model_entry("standard", "Polly Standard", "Standard TTS engine."),
+        ],
+    }
+}
+
+fn media_key_entry<'a>(api_keys: &'a ApiKeysStatus, kind: &str) -> Option<&'a ApiKeyEntry> {
+    api_keys.entries.iter().find(|e| e.kind == kind)
+}
+
+fn voice_provider_key_status(
+    i18n: &I18nService,
+    agent_settings: Option<&AgentProviderSettingsView>,
+    api_keys: Option<&ApiKeysStatus>,
+    provider: VoiceProviderKind,
+) -> String {
+    if provider == VoiceProviderKind::Aws {
+        let Some(entry) = api_keys.and_then(|s| media_key_entry(s, "aws_polly")) else {
+            return i18n.tr(I18nKey::AgApiKeyMissing)().to_string();
+        };
+        if entry.configured {
+            if let Some(mask) = entry.masked_value.as_ref() {
+                format!("{} ({mask})", i18n.tr(I18nKey::AgApiKeyConfigured)())
+            } else {
+                i18n.tr(I18nKey::AgApiKeyConfigured)().to_string()
+            }
+        } else {
+            i18n.tr(I18nKey::AgApiKeyMissing)().to_string()
+        }
+    } else if let (Some(view), Some(agent)) = (agent_settings, voice_to_agent_provider(provider)) {
+        let configured = view
+            .key_statuses
+            .iter()
+            .find(|s| s.provider == agent)
+            .map(|s| s.configured)
+            .unwrap_or(false);
+        if configured {
+            let mask = view
+                .key_statuses
+                .iter()
+                .find(|s| s.provider == agent)
+                .and_then(|s| s.masked_value.clone());
+            if let Some(mask) = mask {
+                format!("{} ({mask})", i18n.tr(I18nKey::AgApiKeyConfigured)())
+            } else {
+                i18n.tr(I18nKey::AgApiKeyConfigured)().to_string()
+            }
+        } else {
+            i18n.tr(I18nKey::AgApiKeyMissing)().to_string()
+        }
+    } else {
+        i18n.tr(I18nKey::AgApiKeyMissing)().to_string()
     }
 }
 
@@ -46,7 +123,14 @@ async fn fetch_models_for(
     kind: ModelKind,
     out: RwSignal<Vec<ProviderModelEntry>>,
 ) {
-    let agent_provider = voice_to_agent_provider(provider);
+    if provider == VoiceProviderKind::Aws {
+        out.set(curated_voice_models(provider, kind));
+        return;
+    }
+    let Some(agent_provider) = voice_to_agent_provider(provider) else {
+        out.set(Vec::new());
+        return;
+    };
     let all = match agent_provider_models(agent_provider).await {
         Ok(resp) => resp.entries,
         Err(_) => Vec::new(),
@@ -84,14 +168,19 @@ impl GenderFilter {
     }
 }
 
-fn voice_providers() -> [VoiceProviderKind; 2] {
-    [VoiceProviderKind::Openai, VoiceProviderKind::Openrouter]
+fn voice_providers() -> [VoiceProviderKind; 3] {
+    [
+        VoiceProviderKind::Openai,
+        VoiceProviderKind::Openrouter,
+        VoiceProviderKind::Aws,
+    ]
 }
 
 fn voice_provider_icon_url(provider: VoiceProviderKind) -> &'static str {
     match provider {
         VoiceProviderKind::Openai => "/public/brand-icons/openai.svg",
         VoiceProviderKind::Openrouter => "/public/brand-icons/openrouter.svg",
+        VoiceProviderKind::Aws => "/public/brand-icons/aws.svg",
     }
 }
 
@@ -99,8 +188,29 @@ fn voice_provider_label(i18n: &I18nService, provider: VoiceProviderKind) -> Stri
     let key = match provider {
         VoiceProviderKind::Openai => I18nKey::AgProviderOpenai,
         VoiceProviderKind::Openrouter => I18nKey::AgProviderOpenrouter,
+        VoiceProviderKind::Aws => I18nKey::AgProviderAws,
     };
     i18n.tr(key)().to_string()
+}
+
+fn apply_voice_provider_defaults(next: &mut VoiceSettings, provider: VoiceProviderKind) {
+    if provider == VoiceProviderKind::Aws {
+        if !next.stt.model_id.contains("transcribe") {
+            next.stt.model_id = "amazon-transcribe".into();
+        }
+        if !matches!(next.tts.model_id.as_str(), "neural" | "standard") {
+            next.tts.model_id = "neural".into();
+        }
+        if next.tts.voice.is_empty() || openai_voice_ids().contains(&next.tts.voice.as_str()) {
+            next.tts.voice = "Joanna".into();
+        }
+    }
+}
+
+fn openai_voice_ids() -> &'static [&'static str] {
+    &[
+        "alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer",
+    ]
 }
 
 fn focus_voice_provider_option(provider: VoiceProviderKind) {
@@ -129,6 +239,8 @@ fn prev_voice_provider(provider: VoiceProviderKind) -> VoiceProviderKind {
 pub fn AgentVoiceColumn() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let settings = RwSignal::new(Option::<VoiceSettings>::None);
+    let agent_settings = RwSignal::new(Option::<AgentProviderSettingsView>::None);
+    let api_keys = RwSignal::new(Option::<ApiKeysStatus>::None);
     let voices = RwSignal::new(Vec::<VoiceEntry>::new());
     let gender_filter = RwSignal::new(GenderFilter::All);
     let status = RwSignal::new(Option::<String>::None);
@@ -142,6 +254,12 @@ pub fn AgentVoiceColumn() -> impl IntoView {
 
     if is_tauri_shell() {
         leptos::task::spawn_local(async move {
+            if let Ok(view) = agent_settings_get().await {
+                agent_settings.set(Some(view));
+            }
+            if let Ok(keys) = api_keys_status().await {
+                api_keys.set(Some(keys));
+            }
             if let Ok(v) = voice_settings_get().await {
                 voice_provider.set(v.stt.provider);
                 stt_model_id.set(v.stt.model_id.clone());
@@ -234,6 +352,9 @@ pub fn AgentVoiceColumn() -> impl IntoView {
                             let mut next = current.clone();
                             next.stt.provider = p;
                             next.tts.provider = p;
+                            apply_voice_provider_defaults(&mut next, p);
+                            stt_model_id.set(next.stt.model_id.clone());
+                            tts_model_id.set(next.tts.model_id.clone());
                             save(next);
                             reload_all_for_provider(p);
                         }
@@ -241,18 +362,33 @@ pub fn AgentVoiceColumn() -> impl IntoView {
 
                     view! {
                         <div class="agent-provider-pane__voice-inner">
-                            <label class="agent-provider-pane__field agent-provider-pane__voice-provider">
-                                <span class="harness-field-label">
-                                    <span class="harness-field-label__icon" aria-hidden="true">
-                                        <LxIcon icon=icondata::LuPlug width="0.82rem" height="0.82rem" />
+                            <div class="agent-provider-pane__voice-provider">
+                                <label class="agent-provider-pane__field">
+                                    <span class="harness-field-label">
+                                        <span class="harness-field-label__icon" aria-hidden="true">
+                                            <LxIcon icon=icondata::LuPlug width="0.82rem" height="0.82rem" />
+                                        </span>
+                                        <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgProviderField)()}</span>
                                     </span>
-                                    <span class="harness-field-label__text">{move || i18n.tr(I18nKey::VoiceProviderField)()}</span>
-                                </span>
-                                <VoiceProviderPicker
-                                    selected_provider=voice_provider
-                                    on_select=Callback::new(on_voice_provider)
-                                />
-                            </label>
+                                    <VoiceProviderPicker
+                                        selected_provider=voice_provider
+                                        on_select=Callback::new(on_voice_provider)
+                                    />
+                                </label>
+                                <div class="agent-provider-pane__key-row harness-muted">
+                                    <span>{move || i18n.tr(I18nKey::ApiKeysManageHint)()}</span>
+                                    <span class="agent-provider-pane__key-status">
+                                        {move || {
+                                            voice_provider_key_status(
+                                                &i18n,
+                                                agent_settings.get().as_ref(),
+                                                api_keys.get().as_ref(),
+                                                voice_provider.get(),
+                                            )
+                                        }}
+                                    </span>
+                                </div>
+                            </div>
 
                             <SpeechSection
                                 settings=settings
@@ -493,16 +629,25 @@ where
         save(next);
     };
 
+    let models_source_hint = move || {
+        if voice_provider.get() == VoiceProviderKind::Aws {
+            i18n.tr(I18nKey::AgModelsSourceCurated)().to_string()
+        } else {
+            i18n.tr(I18nKey::AgModelsSourceLive)().to_string()
+        }
+    };
+
     view! {
         <section class="voice-pane__section voice-pane__section--speech">
-            <h3>{move || i18n.tr(I18nKey::VoiceSttSection)()}</h3>
-
-            <label class="harness-stack voice-pane__model-block">
+            <label class="harness-stack">
                 <span class="harness-field-label">
-                    <span class="harness-field-label__icon" aria-hidden="true">
-                        <LxIcon icon=icondata::LuAudioLines width="0.82rem" height="0.82rem" />
+                    <span class="harness-field-label__text">
+                        {move || format!(
+                            "{} — {}",
+                            i18n.tr(I18nKey::AgModelField)(),
+                            i18n.tr(I18nKey::VoiceSttSection)()
+                        )}
                     </span>
-                    <span class="harness-field-label__text">{move || i18n.tr(I18nKey::VoiceSttSection)()}</span>
                 </span>
                 <AgentModelPicker
                     model_id=stt_model_id
@@ -511,41 +656,35 @@ where
                     option_id_prefix="voice-stt-model"
                     on_change=on_stt_model
                 />
-                <div class="agent-provider-pane__actions">
-                    <button
-                        type="button"
-                        class="workbench-mini-btn"
-                        disabled=move || stt_loading_models.get() || !is_tauri_shell()
-                        on:click=move |_| reload_stt_models(voice_provider.get_untracked())
-                    >
-                        <span class="harness-btn-inline">
-                            <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
-                            <span>{move || if stt_loading_models.get() {
-                                i18n.tr(I18nKey::AgModelsLoading)().to_string()
-                            } else {
-                                i18n.tr(I18nKey::AgModelsRefresh)().to_string()
-                            }}</span>
-                        </span>
-                    </button>
-                    <small class="harness-muted">
-                        {move || {
-                            let n = stt_models.get().len();
-                            if n == 0 {
-                                String::new()
-                            } else {
-                                format!("{n} entries")
-                            }
-                        }}
-                    </small>
-                </div>
             </label>
-
-            <label class="harness-stack voice-pane__model-block">
-                <span class="harness-field-label">
-                    <span class="harness-field-label__icon" aria-hidden="true">
-                        <LxIcon icon=icondata::LuVolume2 width="0.82rem" height="0.82rem" />
+            <div class="agent-provider-pane__actions">
+                <button
+                    type="button"
+                    class="workbench-mini-btn"
+                    disabled=move || stt_loading_models.get() || !is_tauri_shell()
+                    on:click=move |_| reload_stt_models(voice_provider.get_untracked())
+                >
+                    <span class="harness-btn-inline">
+                        <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
+                        <span>{move || if stt_loading_models.get() {
+                            i18n.tr(I18nKey::AgModelsLoading)().to_string()
+                        } else {
+                            i18n.tr(I18nKey::AgModelsRefresh)().to_string()
+                        }}</span>
                     </span>
-                    <span class="harness-field-label__text">{move || i18n.tr(I18nKey::VoiceTtsSection)()}</span>
+                </button>
+                <small class="harness-muted">{models_source_hint}</small>
+            </div>
+
+            <label class="harness-stack">
+                <span class="harness-field-label">
+                    <span class="harness-field-label__text">
+                        {move || format!(
+                            "{} — {}",
+                            i18n.tr(I18nKey::AgModelField)(),
+                            i18n.tr(I18nKey::VoiceTtsSection)()
+                        )}
+                    </span>
                 </span>
                 <AgentModelPicker
                     model_id=tts_model_id
@@ -554,34 +693,25 @@ where
                     option_id_prefix="voice-tts-model"
                     on_change=on_tts_model
                 />
-                <div class="agent-provider-pane__actions">
-                    <button
-                        type="button"
-                        class="workbench-mini-btn"
-                        disabled=move || tts_loading_models.get() || !is_tauri_shell()
-                        on:click=move |_| reload_tts_models(voice_provider.get_untracked())
-                    >
-                        <span class="harness-btn-inline">
-                            <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
-                            <span>{move || if tts_loading_models.get() {
-                                i18n.tr(I18nKey::AgModelsLoading)().to_string()
-                            } else {
-                                i18n.tr(I18nKey::AgModelsRefresh)().to_string()
-                            }}</span>
-                        </span>
-                    </button>
-                    <small class="harness-muted">
-                        {move || {
-                            let n = tts_models.get().len();
-                            if n == 0 {
-                                String::new()
-                            } else {
-                                format!("{n} entries")
-                            }
-                        }}
-                    </small>
-                </div>
             </label>
+            <div class="agent-provider-pane__actions">
+                <button
+                    type="button"
+                    class="workbench-mini-btn"
+                    disabled=move || tts_loading_models.get() || !is_tauri_shell()
+                    on:click=move |_| reload_tts_models(voice_provider.get_untracked())
+                >
+                    <span class="harness-btn-inline">
+                        <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
+                        <span>{move || if tts_loading_models.get() {
+                            i18n.tr(I18nKey::AgModelsLoading)().to_string()
+                        } else {
+                            i18n.tr(I18nKey::AgModelsRefresh)().to_string()
+                        }}</span>
+                    </span>
+                </button>
+                <small class="harness-muted">{models_source_hint}</small>
+            </div>
 
             <div class="voice-pane__field">
                 <label>{move || i18n.tr(I18nKey::VoiceQualityField)()}</label>

@@ -361,6 +361,7 @@ Classic: Ctrl+O quick open, Ctrl+` new terminal, Ctrl+Shift+P palette."
         I18nKey::ApiKeysSearchSubhead => "Search Providers",
         I18nKey::ApiKeysImageVideoSubhead => "Image / video & voice",
         I18nKey::AgProviderFal => "fal.ai",
+        I18nKey::AgProviderAws => "AWS",
         I18nKey::ApiKeysSaved => "Saved.",
         I18nKey::ApiKeysDiscard => "Discard",
         I18nKey::ApiKeysUnsaved => "Unsaved changes",

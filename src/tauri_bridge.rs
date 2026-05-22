@@ -1770,6 +1770,7 @@ pub async fn agent_drain_turn_opts(
 pub enum VoiceProviderKind {
     Openai,
     Openrouter,
+    Aws,
 }
 
 impl VoiceProviderKind {
@@ -1778,6 +1779,7 @@ impl VoiceProviderKind {
         match self {
             Self::Openai => "openai",
             Self::Openrouter => "openrouter",
+            Self::Aws => "aws",
         }
     }
 }

@@ -14,6 +14,11 @@ pub async fn synthesize(
     text: &str,
     api_key: &str,
 ) -> Result<Vec<u8>, String> {
+    if provider == VoiceProviderKind::Aws {
+        return Err(
+            "AWS Polly TTS ist in den Einstellungen wählbar; die Laufzeit-Anbindung folgt.".into(),
+        );
+    }
     if !matches!(provider, VoiceProviderKind::Openai) {
         return Err(format!(
             "TTS provider {} ist (noch) nicht unterstützt.",

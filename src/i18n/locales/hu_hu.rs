@@ -323,6 +323,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::ApiKeysSearchSubhead => "Keresőszolgáltatók",
         I18nKey::ApiKeysImageVideoSubhead => "Image / video & voice",
         I18nKey::AgProviderFal => "fal.ai",
+        I18nKey::AgProviderAws => "AWS",
         I18nKey::ApiKeysSaved => "Mentve.",
         I18nKey::ApiKeysDiscard => "Elvetés",
         I18nKey::ApiKeysUnsaved => "Nem mentett módosítások",

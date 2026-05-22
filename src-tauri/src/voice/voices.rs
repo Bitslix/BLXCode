@@ -26,6 +26,7 @@ pub fn voices_for(provider: VoiceProviderKind) -> Vec<VoiceEntry> {
     match provider {
         VoiceProviderKind::Openai => openai_voices(),
         VoiceProviderKind::Openrouter => Vec::new(),
+        VoiceProviderKind::Aws => aws_polly_voices(),
     }
 }
 
@@ -41,6 +42,28 @@ fn openai_voices() -> Vec<VoiceEntry> {
         ("onyx", "Onyx", VoiceGender::Male),
         ("sage", "Sage", VoiceGender::Female),
         ("shimmer", "Shimmer", VoiceGender::Female),
+    ];
+    raw.iter()
+        .map(|(id, label, gender)| VoiceEntry {
+            id: (*id).to_string(),
+            label: (*label).to_string(),
+            gender: *gender,
+        })
+        .collect()
+}
+
+fn aws_polly_voices() -> Vec<VoiceEntry> {
+    let raw: &[(&str, &str, VoiceGender)] = &[
+        ("Joanna", "Joanna", VoiceGender::Female),
+        ("Matthew", "Matthew", VoiceGender::Male),
+        ("Amy", "Amy", VoiceGender::Female),
+        ("Brian", "Brian", VoiceGender::Male),
+        ("Ivy", "Ivy", VoiceGender::Female),
+        ("Justin", "Justin", VoiceGender::Male),
+        ("Kendra", "Kendra", VoiceGender::Female),
+        ("Kimberly", "Kimberly", VoiceGender::Female),
+        ("Salli", "Salli", VoiceGender::Female),
+        ("Joey", "Joey", VoiceGender::Male),
     ];
     raw.iter()
         .map(|(id, label, gender)| VoiceEntry {
