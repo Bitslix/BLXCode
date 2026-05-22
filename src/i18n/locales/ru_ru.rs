@@ -590,6 +590,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermRestoreSize => "Восстановить размер терминала",
         I18nKey::WsTermPaneTitleSingle => "{роль} · {термин} {n}",
         I18nKey::WsTermPaneTitleMulti => "{роль} · {термин} {слот}.{панель}",
+        I18nKey::WsTermDragHandleAria => "Drag to reorder terminal",
+        I18nKey::WsTermDropCreateNewAria => "Drop to add terminal slot",
+        I18nKey::WsTermDragMaxSlots => "Maximum terminal slots reached (16)",
         I18nKey::WsTermBootstrapFailed => {
             "Не удалось загрузить пользовательский интерфейс терминала. Проверьте консоль браузера; сценарий начальной загрузки или xterm CDN могут быть заблокированы."
         }

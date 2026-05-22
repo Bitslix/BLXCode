@@ -5952,6 +5952,79 @@ button {
   display: none;
 }
 
+.ws-term-slot--drag-source {
+  opacity: 0.55;
+}
+
+.ws-term-slot--drag-over {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.ws-term-grid--drag-active .ws-term-slot:not(.ws-term-slot--drag-source) .ws-term-cell__xterm {
+  pointer-events: none;
+}
+
+.ws-term-grid--drag-active {
+  overflow: visible;
+}
+
+.ws-term-slot-ghost {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0.55;
+  border: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg-raised));
+  border-radius: 4px;
+  padding: 6px 8px;
+  transition:
+    left 60ms ease-out,
+    top 60ms ease-out,
+    width 60ms ease-out,
+    height 60ms ease-out;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.ws-term-slot-ghost__title {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ws-term-slot-ghost__badge {
+  flex-shrink: 0;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.ws-term-cell__drag-handle {
+  cursor: grab;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0 4px;
+  margin-right: 2px;
+  opacity: 0.55;
+  color: var(--text-muted);
+}
+
+.ws-term-cell__drag-handle:hover {
+  opacity: 0.9;
+  color: var(--text);
+}
+
+.ws-term-cell__drag-handle:active {
+  cursor: grabbing;
+}
+
 .ws-term-cell {
   position: relative;
   flex: 1;

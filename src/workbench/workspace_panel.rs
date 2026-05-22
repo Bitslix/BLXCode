@@ -16,6 +16,10 @@ use crate::workbench::terminal_cell::WorkspaceTerminalCell;
 use crate::workbench::terminal_glue::{
     terminal_observe_workspace_grid, terminal_unobserve_workspace_grid,
 };
+use crate::workbench::terminal_slot_dnd::{
+    drag_event_data_transfer, ghost_style, is_terminal_drag, read_drag_payload, GhostPos,
+    TerminalSlotDragService,
+};
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
 use leptos::callback::Callback;
@@ -23,7 +27,7 @@ use leptos::html;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
-use web_sys::{HtmlElement, MouseEvent};
+use web_sys::{DragEvent, HtmlElement, MouseEvent};
 
 #[derive(Clone, Copy)]
 enum GridResizeAxis {
@@ -197,6 +201,14 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
 
     let is_configuring =
         Memo::new(move |_| workspace.get().map(|w| w.configuring).unwrap_or(false));
+    let slot_dnd = TerminalSlotDragService::new();
+    provide_context(slot_dnd);
+
+    let slot_drag_enabled = Memo::new(move |_| {
+        !is_configuring.get()
+            && !wb.sidebar_collapsed().get()
+            && full_size_terminal.get().is_none()
+    });
     let term_grid_ref = NodeRef::<html::Div>::new();
 
     Effect::new({
@@ -264,7 +276,13 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                         class:workspace-center-panel--hidden=move || active_center_tab_id.get() != CENTER_TERMINALS_TAB_ID
                     >
                         <div
-                            class="ws-term-grid"
+                            class=move || {
+                                let mut class = String::from("ws-term-grid");
+                                if slot_dnd.active.get().is_some() {
+                                    class.push_str(" ws-term-grid--drag-active");
+                                }
+                                class
+                            }
                             node_ref=term_grid_ref
                             style=move || {
                                 let full = full_size_terminal.get().is_some();
@@ -322,6 +340,7 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                                             index=index
                                             cwd=cwd
                                             agent_slug=slug
+                                            slot_drag_enabled=slot_drag_enabled
                                             is_workspace_active=Signal::derive(move || {
                                                 wb.active_id().get() == Some(workspace_id)
                                                     && active_center_tab_id.get() == CENTER_TERMINALS_TAB_ID
@@ -337,6 +356,9 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                                     }
                                 }
                             />
+                            <Show when=move || slot_dnd.active.get().is_some()>
+                                <TerminalSlotGhost slot_dnd=slot_dnd />
+                            </Show>
                             <Show when=move || full_size_terminal.get().is_none()>
                                 <For
                                     each=move || {
@@ -813,6 +835,7 @@ fn TerminalSlotSurface(
     index: usize,
     cwd: String,
     agent_slug: String,
+    slot_drag_enabled: Memo<bool>,
     is_workspace_active: Signal<bool>,
     hidden: Signal<bool>,
     is_full_size: Signal<bool>,
@@ -820,6 +843,7 @@ fn TerminalSlotSurface(
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
+    let slot_dnd = expect_context::<TerminalSlotDragService>();
     // Hydrate split layout from persisted workspace state so a restart
     // preserves the user's exact pane grid.
     let persisted = wb.slot_panes(workspace_id, slot_id);
@@ -846,7 +870,122 @@ fn TerminalSlotSurface(
                 if hidden.get() {
                     class.push_str(" ws-term-slot--hidden");
                 }
+                if slot_dnd
+                    .active
+                    .get()
+                    .is_some_and(|meta| meta.slot_id == slot_id)
+                {
+                    class.push_str(" ws-term-slot--drag-source");
+                }
+                if slot_dnd
+                    .ghost
+                    .get()
+                    .is_some_and(|g| g.index == index)
+                    && slot_dnd
+                        .active
+                        .get()
+                        .is_some_and(|m| m.slot_id != slot_id)
+                {
+                    class.push_str(" ws-term-slot--drag-over");
+                }
                 class
+            }
+            on:dragenter=move |ev| {
+                if !slot_drag_enabled.get_untracked() {
+                    return;
+                }
+                let Some(de) = ev.dyn_ref::<DragEvent>() else {
+                    return;
+                };
+                let Some(dt) = drag_event_data_transfer(de) else {
+                    return;
+                };
+                if is_terminal_drag(&dt)
+                    || slot_dnd.session_active()
+                    || slot_dnd.active.get_untracked().is_some()
+                {
+                    de.prevent_default();
+                }
+            }
+            on:dragover=move |ev| {
+                if !slot_drag_enabled.get_untracked() {
+                    return;
+                }
+                let Some(de) = ev.dyn_ref::<DragEvent>() else {
+                    return;
+                };
+                let Some(dt) = drag_event_data_transfer(de) else {
+                    return;
+                };
+                if !is_terminal_drag(&dt)
+                    && !slot_dnd.session_active()
+                    && slot_dnd.active.get_untracked().is_none()
+                {
+                    return;
+                }
+                de.prevent_default();
+                let _ = dt.set_drop_effect("move");
+                let payload = read_drag_payload(&dt).or_else(|| {
+                    slot_dnd.active.get().map(|meta| {
+                        crate::workbench::terminal_slot_dnd::TerminalSlotDragPayload {
+                            workspace_id: meta.workspace_id,
+                            slot_id: meta.slot_id,
+                            from_index: meta.from_index,
+                        }
+                    })
+                });
+                let Some(payload) = payload else {
+                    return;
+                };
+                if payload.workspace_id != workspace_id || payload.slot_id == slot_id {
+                    return;
+                }
+                let (rows, cols) = wb.workspaces().with_untracked(|list| {
+                    list.iter()
+                        .find(|w| w.id == workspace_id)
+                        .map(|w| (w.grid_rows, w.grid_cols))
+                        .unwrap_or((1, 1))
+                });
+                slot_dnd.ghost.set(Some(GhostPos {
+                    index,
+                    rows,
+                    cols,
+                }));
+            }
+            on:drop=move |ev| {
+                ev.prevent_default();
+                ev.stop_propagation();
+                if !slot_drag_enabled.get_untracked() {
+                    slot_dnd.clear();
+                    return;
+                }
+                let payload = ev
+                    .dyn_ref::<DragEvent>()
+                    .and_then(|de| de.data_transfer())
+                    .and_then(|dt| read_drag_payload(&dt))
+                    .or_else(|| {
+                        slot_dnd.active.get().map(|meta| {
+                            crate::workbench::terminal_slot_dnd::TerminalSlotDragPayload {
+                                workspace_id: meta.workspace_id,
+                                slot_id: meta.slot_id,
+                                from_index: meta.from_index,
+                            }
+                        })
+                    });
+                if let Some(payload) = payload {
+                    if payload.workspace_id == workspace_id && payload.slot_id != slot_id {
+                        let from_index = wb.workspaces().with_untracked(|list| {
+                            list.iter()
+                                .find(|w| w.id == workspace_id)
+                                .and_then(|w| w.slot_ids.iter().position(|&id| id == payload.slot_id))
+                                .unwrap_or(payload.from_index)
+                        });
+                        if from_index != index {
+                            wb.reorder_terminal_slots(workspace_id, from_index, index);
+                        }
+                    }
+                }
+                slot_dnd.clear();
             }
         >
             <div
@@ -949,6 +1088,7 @@ fn TerminalSlotSurface(
                                 on_split_horizontal=on_split_horizontal
                                 on_close=on_close
                                 can_close=can_close
+                                slot_drag_enabled=Signal::derive(move || slot_drag_enabled.get())
                             />
                         }
                     }
@@ -980,6 +1120,50 @@ fn pane_grid_style(axis: TerminalSplitAxis, count: usize) -> String {
         TerminalSplitAxis::Horizontal => format!(
             "display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:repeat({count},minmax(0,1fr));gap:4px;flex:1;min-width:0;min-height:0;"
         ),
+    }
+}
+
+#[component]
+fn TerminalSlotGhost(slot_dnd: TerminalSlotDragService) -> impl IntoView {
+    view! {
+        <Show when=move || slot_dnd.ghost.get().is_some() && slot_dnd.active.get().is_some()>
+            <div
+                class="ws-term-slot-ghost"
+                style=move || {
+                    slot_dnd
+                        .ghost
+                        .get()
+                        .map(|g| ghost_style(&g))
+                        .unwrap_or_default()
+                }
+            >
+                <span class="ws-term-slot-ghost__title">
+                    {move || {
+                        slot_dnd
+                            .active
+                            .get()
+                            .map(|m| m.title)
+                            .unwrap_or_default()
+                    }}
+                </span>
+                <Show when=move || {
+                    slot_dnd
+                        .active
+                        .get()
+                        .is_some_and(|m| !m.agent_label.is_empty())
+                }>
+                    <span class="ws-term-slot-ghost__badge">
+                        {move || {
+                            slot_dnd
+                                .active
+                                .get()
+                                .map(|m| m.agent_label)
+                                .unwrap_or_default()
+                        }}
+                    </span>
+                </Show>
+            </div>
+        </Show>
     }
 }
 

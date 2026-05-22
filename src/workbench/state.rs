@@ -2067,6 +2067,18 @@ impl WorkbenchService {
         }
     }
 
+    /// Reorders terminal slots within a workspace. `to_index` is the
+    /// insertion position in the list **after** removing `from_index`
+    /// (same semantics as [`Self::reorder_workspaces`]).
+    pub fn reorder_terminal_slots(&self, workspace_id: u64, from_index: usize, to_index: usize) {
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            reorder_workspace_slots(workspace, from_index, to_index);
+        });
+    }
+
     #[must_use]
     pub fn sidebar_collapsed(&self) -> RwSignal<bool> {
         self.sidebar_collapsed
@@ -3300,6 +3312,29 @@ pub fn derive_workspace_name(path: &str) -> Option<String> {
     Some(last.to_string())
 }
 
+fn reorder_workspace_slots(workspace: &mut WorkspaceEntry, from_index: usize, to_index: usize) {
+    if from_index == to_index {
+        return;
+    }
+    let n = workspace.slot_ids.len();
+    if from_index >= n || to_index >= n {
+        return;
+    }
+    let id = workspace.slot_ids.remove(from_index);
+    let label = workspace.slot_agent_labels.remove(from_index);
+    let pane = if from_index < workspace.slot_pane_states.len() {
+        workspace.slot_pane_states.remove(from_index)
+    } else {
+        SlotPaneState::default_for_slot(id)
+    };
+    let insert_at = to_index.min(workspace.slot_ids.len());
+    workspace.slot_ids.insert(insert_at, id);
+    workspace.slot_agent_labels.insert(insert_at, label);
+    workspace
+        .slot_pane_states
+        .insert(insert_at.min(workspace.slot_pane_states.len()), pane);
+}
+
 #[cfg(test)]
 mod center_tab_tests {
     use super::*;
@@ -3384,5 +3419,69 @@ mod center_tab_tests {
         ws.configuring = false;
         ws.cwd = "/tmp/x".into();
         assert!(!is_shell_workspace(&ws));
+    }
+}
+
+#[cfg(test)]
+mod terminal_slot_tests {
+    use super::*;
+
+    fn mk_slots(n: u8) -> WorkspaceEntry {
+        let slot_ids: Vec<u64> = (1..=n as u64).collect();
+        let slot_pane_states: Vec<SlotPaneState> = slot_ids
+            .iter()
+            .copied()
+            .map(SlotPaneState::default_for_slot)
+            .collect();
+        let (grid_rows, grid_cols) = WorkspaceEntry::grid_dims_for_count(n);
+        WorkspaceEntry {
+            id: 1,
+            storage_key: "ws-storage".into(),
+            title: "Test".into(),
+            color: "#7dd3fc".into(),
+            cwd: "/tmp".into(),
+            terminal_count: n,
+            grid_rows,
+            grid_cols,
+            next_terminal_id: n as u64 + 1,
+            slot_ids,
+            slot_agent_labels: (0..n as usize).map(|i| format!("label{i}")).collect(),
+            slot_pane_states,
+            configuring: false,
+            agent_timeline: Vec::new(),
+            agent_compose_draft: String::new(),
+            agent_image_mode: false,
+            agent_context_items: Vec::new(),
+            memory_category_settings: HashMap::new(),
+            agent_chat_usage: ChatUsageStats::default(),
+            sidebar_explorer_open: true,
+            sidebar_graph_open: true,
+            sidebar_explorer_expanded_paths: Vec::new(),
+            center_tabs: default_center_tabs(),
+            center_active_tab_id: default_center_active_tab_id(),
+            center_next_tab_id: default_center_next_tab_id(),
+        }
+    }
+
+    #[test]
+    fn reorder_permutes_parallel_vectors() {
+        let mut ws = mk_slots(3);
+        reorder_workspace_slots(&mut ws, 1, 2);
+        assert_eq!(ws.slot_ids, vec![1, 3, 2]);
+        assert_eq!(ws.slot_agent_labels, vec!["label0", "label2", "label1"]);
+    }
+
+    #[test]
+    fn reorder_noop_on_same_index() {
+        let mut ws = mk_slots(2);
+        reorder_workspace_slots(&mut ws, 0, 0);
+        assert_eq!(ws.slot_ids, vec![1, 2]);
+    }
+
+    #[test]
+    fn reorder_moves_first_slot_to_second() {
+        let mut ws = mk_slots(2);
+        reorder_workspace_slots(&mut ws, 0, 1);
+        assert_eq!(ws.slot_ids, vec![2, 1]);
     }
 }

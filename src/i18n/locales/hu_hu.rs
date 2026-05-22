@@ -592,6 +592,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermRestoreSize => "A terminál méretének visszaállítása",
         I18nKey::WsTermPaneTitleSingle => "{role} · {term} {n}",
         I18nKey::WsTermPaneTitleMulti => "{role} · {term} {slot}.{pane}",
+        I18nKey::WsTermDragHandleAria => "Drag to reorder terminal",
+        I18nKey::WsTermDropCreateNewAria => "Drop to add terminal slot",
+        I18nKey::WsTermDragMaxSlots => "Maximum terminal slots reached (16)",
         I18nKey::WsTermBootstrapFailed => {
             "Nem sikerült betölteni a terminál felhasználói felületét. Ellenőrizze a böngésző konzolját; a bootstrap szkript vagy az xterm CDN blokkolva lehet."
         }

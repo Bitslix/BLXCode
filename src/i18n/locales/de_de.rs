@@ -592,6 +592,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermRestoreSize => "Terminalgröße wiederherstellen",
         I18nKey::WsTermPaneTitleSingle => "{Rolle} · {Begriff} {n}",
         I18nKey::WsTermPaneTitleMulti => "{role} · {term} {slot}.{pane}",
+        I18nKey::WsTermDragHandleAria => "Terminal zum Umsortieren ziehen",
+        I18nKey::WsTermDropCreateNewAria => "Ablegen, um Terminal-Slot hinzuzufügen",
+        I18nKey::WsTermDragMaxSlots => "Maximale Terminal-Slots erreicht (16)",
         I18nKey::WsTermBootstrapFailed => {
             "Die Terminal-Benutzeroberfläche konnte nicht geladen werden. Überprüfen Sie die Browserkonsole. Das Bootstrap-Skript oder das xterm-CDN sind möglicherweise blockiert."
         }

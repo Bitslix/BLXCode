@@ -590,6 +590,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermRestoreSize => "Ripristina le dimensioni del terminale",
         I18nKey::WsTermPaneTitleSingle => "{ruolo} · {termine} {n}",
         I18nKey::WsTermPaneTitleMulti => "{ruolo} · {termine} {slot}.{riquadro}",
+        I18nKey::WsTermDragHandleAria => "Drag to reorder terminal",
+        I18nKey::WsTermDropCreateNewAria => "Drop to add terminal slot",
+        I18nKey::WsTermDragMaxSlots => "Maximum terminal slots reached (16)",
         I18nKey::WsTermBootstrapFailed => {
             "Impossibile caricare l'interfaccia utente del terminale. Controlla la console del browser; lo script bootstrap o il CDN xterm potrebbero essere bloccati."
         }
