@@ -23,7 +23,7 @@
 
 .agent-provider-pane__voice-inner {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.35fr);
     gap: 0.85rem;
     align-items: start;
 }
@@ -53,6 +53,18 @@
     font-weight: 600;
     color: var(--text-muted);
     letter-spacing: 0.02em;
+}
+
+.agent-provider-pane__voice-inner .voice-pane__model-block {
+    gap: 0.4rem;
+}
+
+.agent-provider-pane__voice-inner .voice-pane__model-block + .voice-pane__model-block {
+    margin-top: 0.55rem;
+}
+
+.agent-provider-pane__voice-inner .voice-pane__field {
+    margin-top: 0.65rem;
 }
 
 .agent-provider-pane__col {

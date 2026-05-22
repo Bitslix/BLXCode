@@ -20,6 +20,7 @@ use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
 
+#[allow(dead_code)]
 #[component]
 pub fn ModelPicker<F, R>(
     label_key: I18nKey,
