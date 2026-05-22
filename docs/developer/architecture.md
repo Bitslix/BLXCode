@@ -176,11 +176,12 @@ Frontend:
 - `src/workbench/file_preview/` — center-tab preview dispatcher:
   - `mod.rs` loads `FileMeta` once and routes to `ImageView` / `VideoView` / `MarkdownView` / `MermaidView` / `CodeView` (used for both `FileKind::Code` and `FileKind::Text`) / `UnsupportedView`.
   - `header.rs` renders the topbar (icon, name, path, size, mtime, Copy path, Refresh).
-  - `code_view.rs` two-column layout: `<div class="code-view__row" data-line="N">` rows with a line-number gutter on the left and `inner_html` highlighted code on the right. Per-row clicks bubble through event delegation on the container (`closest("[data-line]")`) and toggle the selected line stored in `RwSignal<Option<usize>>`. Plain-text files share the same layout but skip the highlight call. Lines are pre-rendered into a `Vec<View>` (no per-line `<For>` clone cost on large files).
+  - `code_view.rs` two-column layout: `<div class="code-view__row" data-line="N">` rows with a line-number gutter on the left and `inner_html` highlighted code on the right. Selection is stored as `RwSignal<Option<(usize, usize)>>` (1-based, inclusive range, always ordered low..=high). `mousedown` captures a `drag_anchor` and seeds `Some((N, N))`; `mousemove` extends the range while the anchor is set; a window-level `mouseup` listener (installed once, cleaned up via `on_cleanup`) ends drags even when the cursor leaves the gutter. A pure click without drag still toggles the single-line case. `on:contextmenu` opens the right-click menu (see `code_context_menu.rs`) at the click position; if the click lands outside the current range the selection is first replaced with that single line. Window-level `mousedown` and `keydown=Escape` listeners close the menu. The component also caches a `plain_lines: Arc<Vec<String>>` (raw `\n`-split source) parallel to the HTML lines so snippet builders never have to re-read the file. Plain-text files share the same layout but skip the highlight call. Lines are pre-rendered into a `Vec<View>` (no per-line `<For>` clone cost on large files). `.code-view` gets `user-select: none` so the drag never fights native text selection.
+  - `code_context_menu.rs` renders the four-section right-click menu (`Snippet → Insert into terminal`, `Full context block → Insert into terminal`, `Snippet → Attach to agent`, `Clipboard`). Terminal sections list every workspace with at least one live PTY session — grouped by workspace, with the preview's own workspace pinned to the top and tagged with a localized **current** badge. The menu is purely view-layer: the parent owns `RwSignal<Option<CodeContextMenuState>>` and a `Callback<CodeMenuAction>` that runs the actual side effects (`pty_write`, `upsert_workspace_agent_context`, `navigator.clipboard.writeText`).
   - `hljs_glue.rs` lazy-loads the vendored highlight.js 11 common bundle `public/vendor/highlight/highlight.min.js`, polls `globalThis.hljs` for up to 5 s, and exposes `highlight(code, language)` over `hljs.highlight(code, { language, ignoreIllegals: true })`. Same lazy-script pattern as `mermaid_glue.rs`.
   - `markdown_view.rs` runs `pulldown-cmark` (tables, strikethrough, task lists, footnotes, smart-punctuation), detects ```` ```mermaid ```` fences and replaces them with `<pre class="mermaid">` sentinels that the post-mount effect hands to `mermaid.run({ nodes })`.
   - `mermaid_glue.rs` lazy-loads the vendored bundle `public/vendor/mermaid/mermaid.min.js`, calls `mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'dark' })`, and exposes `run_mermaid_on(&[HtmlElement])`.
-  - `util.rs` ships `format_bytes`, `format_mtime` (`js_sys::Date.to_locale_string`), `icon_for_kind`, `hljs_lang_for_ext` (extension → highlight.js alias map), `html_escape`, `split_highlighted_into_lines` (UTF-8-safe HTML splitter that balances open `<span>`s across `\n`), allowlist-based `sanitize_svg` + `sanitize_markdown_html` (strips `<script>` / `<style>` / `<iframe>` / `<object>` / `<embed>` / `<foreignObject>` blocks, `on*=` event handlers, and `javascript:` / `vbscript:` URIs while preserving multi-byte UTF-8), plus a shared `FilePreviewError` enum (`NoTauri` / `WorkspaceNotFound` / `TooLarge(u64)` / `Failed(String)`) and `render_load_error(i18n, failed_label, error)` helper used by every renderer for consistent localized banners.
+  - `util.rs` ships `format_bytes`, `format_mtime` (`js_sys::Date.to_locale_string`), `icon_for_kind`, `hljs_lang_for_ext` (extension → highlight.js alias map), `html_escape`, `split_highlighted_into_lines` (UTF-8-safe HTML splitter that balances open `<span>`s across `\n`), `build_file_snippet_block(rel_path, language, plain_lines, range, source_workspace_for_header)` (fenced markdown emitter — clamps out-of-range indices, prefixes the header with the source workspace when crossing workspaces), allowlist-based `sanitize_svg` + `sanitize_markdown_html` (strips `<script>` / `<style>` / `<iframe>` / `<object>` / `<embed>` / `<foreignObject>` blocks, `on*=` event handlers, and `javascript:` / `vbscript:` URIs while preserving multi-byte UTF-8), plus a shared `FilePreviewError` enum (`NoTauri` / `WorkspaceNotFound` / `TooLarge(u64)` / `Failed(String)`) and `render_load_error(i18n, failed_label, error)` helper used by every renderer for consistent localized banners.
 
 ```mermaid
 flowchart LR
@@ -205,22 +206,34 @@ flowchart LR
 
 ## Terminal Context Handoff
 
-- Frontend: `src/workbench/agent_context_handoff.rs` — `render_agent_context_block`, `HandoffMenu`, `perform_handoff` (single renderer for tool and UI).
-- Backend: `agent_export_context_images` writes `<workspace>/.blxcode/agent-context/images/` plus manifest JSON.
+- Frontend: `src/workbench/agent_context_handoff.rs` — full-block path: `render_agent_context_block`, `HandoffMenu`, `perform_handoff` (single renderer for tool and UI). Lightweight path for file-preview snippets: `render_file_snippet_envelope` emits the same `⟪ BLXCode attached context ⟫` delimiters with just a Session header + File snippet section.
+- Cross-workspace terminal enumeration: `list_terminal_targets_all_workspaces(&wb, Some(preferred_workspace_id))` iterates every workspace (filtering shell workspaces via `state::is_shell_workspace`), groups live PTY sessions per workspace, and moves the preferred (preview-owning) workspace to the front. `WorkspaceTerminalGroup` carries the workspace id + label + the per-workspace `WorkspaceTerminalTarget` list.
+- `AgentContextItem` (mirrored in `src/agent_wire.rs` and `src-tauri/src/agent/protocol.rs`) has an optional `content: Option<String>` field and a `FileSnippet` kind. `file_snippet_context_item(rel_path, start, end, language, label, snippet, source_workspace)` is the canonical constructor used by the file preview's "Attach to agent" action.
+- Backend prompt renderer `render_context_prompt` in `src-tauri/src/agent/session_orchestrator.rs` partitions `FileSnippet` items into a dedicated `Attached file snippets (verbatim, line-numbered headers):` section and embeds each item's inline `content` directly. `render_agent_context_block` mirrors this with a `## Attached file snippets` section (memory/plans filters skip snippet items).
+- Backend: `agent_export_context_images` writes `<workspace>/.blxcode/agent-context/images/` plus manifest JSON (full-block path only — file-preview snippets ride entirely inline).
 - PTY env: `BLX_AGENT_CONTEXT_DIR`, `BLX_AGENT_CONTEXT_MANIFEST`.
 
 ```mermaid
 flowchart LR
   UI[HandoffMenu]
+  CodeMenu[CodeContextMenu]
   Bridge[tauri_bridge]
   Export[agent_export_context_images]
-  Render[render_agent_context_block]
+  RenderFull[render_agent_context_block]
+  RenderSnip[render_file_snippet_envelope]
+  BuildSnip[build_file_snippet_block]
+  AgentCtx[upsert_workspace_agent_context FileSnippet]
   Pty[pty_write]
   UI --> Bridge
   Bridge --> Export
-  Bridge --> Render
-  Export --> Render
-  Render --> Pty
+  Bridge --> RenderFull
+  Export --> RenderFull
+  RenderFull --> Pty
+  CodeMenu --> BuildSnip
+  CodeMenu --> AgentCtx
+  BuildSnip --> RenderSnip
+  BuildSnip --> Pty
+  RenderSnip --> Pty
 ```
 
 Both memory and plan modules validate workspace paths and sandbox file operations to workspace-local directories.
