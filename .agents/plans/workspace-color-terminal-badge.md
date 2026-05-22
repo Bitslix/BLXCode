@@ -1,5 +1,7 @@
 # Workspace-Farbe und Terminal-Badge in der Sidebar
 
+**Status:** done
+
 ## Summary
 
 Workspaces erhalten ein persistentes `color`-Feld, dessen Startwert rotierend aus **Settings → Workspace → Category colors** kommt. Die Farbe ist über den bestehenden Kontextmenü-Dialog änderbar. In der Sidebar erscheinen ein Farbpunkt links, eine Terminal-Slot-Zahl vor dem Namen (nur bei mehr als einem Slot) und ein farblich passendes Unread-Badge rechts. Persistenz über `workbench.json`; keine Backend-Änderungen.
