@@ -20,3 +20,4 @@ Persistent plans for multi-step work on **blxcode**. Individual plans live as Ma
 | done | [better-harness.md](better-harness.md) | BetterHarness: Shrink system prompt by extracting tool docs into 6 embedded Core Skills; Skills tab gets Core/User sub-tabs |
 | done | [agent-chat-maximize.md](agent-chat-maximize.md) | Agent-Tab: Chat-Maximize-Toggle vor Reset; Voice-Hero kompakt (`agent-hero--compact`), mehr Platz fuer Chat-Verlauf |
 | planned | [workspace-color-terminal-badge.md](workspace-color-terminal-badge.md) | Workspace-Farbe persistent in Sidebar (Dot, farbiges Unread-Badge), Terminal-Slot-Zahl vor Name, aenderbar via Kontextmenue-Dialog |
+| planned | [api-keys-centralized.md](api-keys-centralized.md) | API-Schlüssel zentral unter Settings → API Keys; Backend-Katalog + resolve; Agent-Tab ohne Key-Felder; Coming-soon-Provider mit CRUD |
