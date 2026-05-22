@@ -346,6 +346,8 @@ pub enum I18nKey {
     AppLanguage,
     AppHooksHeading,
     WsHeading,
+    WsSectionPaths,
+    WsSectionBrowser,
     LayBrowserUrl,
     WsBrowserDefault,
     WsRootLabel,

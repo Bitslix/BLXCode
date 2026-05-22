@@ -332,6 +332,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppLanguage => "UI言語",
         I18nKey::AppHooksHeading => "端子フック",
         I18nKey::WsHeading => "ワークスペース",
+        I18nKey::WsSectionPaths => "パスとサンドボックス",
+        I18nKey::WsSectionBrowser => "埋め込みブラウザ",
         I18nKey::LayBrowserUrl => "デフォルトの埋め込みブラウザ URL",
         I18nKey::WsBrowserDefault => "プリセット：",
         I18nKey::WsRootLabel => "ワークスペース/サンドボックスのルート",

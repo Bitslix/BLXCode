@@ -338,6 +338,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppLanguage => "UI nyelv",
         I18nKey::AppHooksHeading => "Terminál horgok",
         I18nKey::WsHeading => "Munkaterület",
+        I18nKey::WsSectionPaths => "Útvonalak és sandbox",
+        I18nKey::WsSectionBrowser => "Beágyazott böngésző",
         I18nKey::LayBrowserUrl => "Alapértelmezett beágyazott böngésző URL",
         I18nKey::WsBrowserDefault => "Előre beállított:",
         I18nKey::WsRootLabel => "Munkaterület / sandbox gyökér",

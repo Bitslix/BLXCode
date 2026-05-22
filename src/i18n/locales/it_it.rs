@@ -338,6 +338,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppLanguage => "Lingua dell'interfaccia utente",
         I18nKey::AppHooksHeading => "Ganci terminali",
         I18nKey::WsHeading => "Spazio di lavoro",
+        I18nKey::WsSectionPaths => "Percorsi e sandbox",
+        I18nKey::WsSectionBrowser => "Browser incorporato",
         I18nKey::LayBrowserUrl => "URL del browser incorporato predefinito",
         I18nKey::WsBrowserDefault => "Preimpostazione:",
         I18nKey::WsRootLabel => "Radice dell'area di lavoro/sandbox",

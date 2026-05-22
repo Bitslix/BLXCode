@@ -336,6 +336,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppLanguage => "язык пользовательского интерфейса",
         I18nKey::AppHooksHeading => "Терминальные крючки",
         I18nKey::WsHeading => "Рабочая область",
+        I18nKey::WsSectionPaths => "Пути и песочница",
+        I18nKey::WsSectionBrowser => "Встроенный браузер",
         I18nKey::LayBrowserUrl => "URL-адрес встроенного браузера по умолчанию",
         I18nKey::WsBrowserDefault => "Предустановка:",
         I18nKey::WsRootLabel => "Корень рабочей области/песочницы",

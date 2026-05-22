@@ -4,6 +4,7 @@ mod agent_context_handoff;
 mod agent_panel;
 mod agent_timeline;
 mod api_keys_pane;
+mod workspace_settings_pane;
 mod app_prefs;
 mod browser_tab;
 mod chat_markdown;
@@ -35,6 +36,7 @@ mod workspace_panel;
 
 pub use agent_panel::AgentPanelDock;
 pub use api_keys_pane::ApiKeysPane;
+pub use workspace_settings_pane::WorkspaceSettingsPane;
 pub use browser_tab::{BrowserTabDock, EmbeddedBrowserGlue};
 pub use memory_panel::MemoryPanel;
 pub use plans_panel::PlansPanel;

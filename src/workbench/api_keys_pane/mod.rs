@@ -180,7 +180,7 @@ pub fn ApiKeysPane() -> impl IntoView {
                 <p class="harness-error">{move || error_msg.get().unwrap_or_default()}</p>
             </Show>
 
-            <footer class="api-keys-footer harness-row-gap">
+            <footer class="settings-pane-footer harness-row-gap">
                 <button
                     type="button"
                     class="workbench-mini-btn workbench-mini-btn--primary"
@@ -204,7 +204,7 @@ pub fn ApiKeysPane() -> impl IntoView {
                     </span>
                 </button>
                 <Show when=move || dirty.get()>
-                    <span class="api-keys-dirty harness-muted">{move || i18n.tr(I18nKey::ApiKeysUnsaved)()}</span>
+                    <span class="settings-pane-dirty harness-muted">{move || i18n.tr(I18nKey::ApiKeysUnsaved)()}</span>
                 </Show>
             </footer>
         </article>
@@ -288,7 +288,7 @@ fn ApiKeyRow(entry: ApiKeyEntry, drafts: RwSignal<DraftMap>) -> impl IntoView {
 
     view! {
         <li
-            class="api-keys-row"
+            class="settings-field-card api-keys-row"
             class:api-keys-row--coming-soon=move || coming_soon
             class:api-keys-row--marked-delete=move || marked_delete.get()
         >

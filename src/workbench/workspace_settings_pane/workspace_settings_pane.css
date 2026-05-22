@@ -1,0 +1,38 @@
+/* Workspace settings — shared field cards with API Keys pane. */
+
+.workspace-settings-pane .settings-field-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.settings-field-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.settings-field-card__input {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 0.82rem;
+}
+
+.settings-pane-footer {
+  margin-top: 0.85rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.settings-pane-dirty {
+  margin-left: 0.35rem;
+  font-size: 0.75rem;
+}

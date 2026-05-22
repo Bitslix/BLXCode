@@ -336,6 +336,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppLanguage => "Język interfejsu",
         I18nKey::AppHooksHeading => "Haki końcowe",
         I18nKey::WsHeading => "Obszar roboczy",
+        I18nKey::WsSectionPaths => "Ścieżki i piaskownica",
+        I18nKey::WsSectionBrowser => "Wbudowana przeglądarka",
         I18nKey::LayBrowserUrl => "Domyślny adres URL wbudowanej przeglądarki",
         I18nKey::WsBrowserDefault => "Ustawienie wstępne:",
         I18nKey::WsRootLabel => "Katalog główny obszaru roboczego/piaskownicy",

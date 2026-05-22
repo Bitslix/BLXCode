@@ -376,6 +376,8 @@ Classic: Ctrl+O quick open, Ctrl+` new terminal, Ctrl+Shift+P palette."
         I18nKey::AppLanguage => "UI language",
         I18nKey::AppHooksHeading => "Terminal hooks",
         I18nKey::WsHeading => "Workspace",
+        I18nKey::WsSectionPaths => "Paths & sandbox",
+        I18nKey::WsSectionBrowser => "Embedded browser",
         I18nKey::LayBrowserUrl => "Default embedded browser URL",
         I18nKey::WsBrowserDefault => "Preset:",
         I18nKey::WsRootLabel => "Agent sandbox root",

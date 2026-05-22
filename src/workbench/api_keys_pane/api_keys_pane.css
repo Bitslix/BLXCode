@@ -10,15 +10,7 @@
     gap: 0.6rem;
 }
 
-.api-keys-row {
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    padding: 0.55rem 0.65rem;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-}
+/* Card chrome: .settings-field-card in workspace_settings_pane.css */
 
 .api-keys-row--coming-soon {
     opacity: 0.55;
@@ -82,14 +74,8 @@
     font-size: 0.72rem;
 }
 
-.api-keys-footer {
-    margin-top: 0.85rem;
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-}
+/* Footer/dirty: see workspace_settings_pane.css (.settings-pane-footer). */
 
-.api-keys-dirty {
-    margin-left: 0.35rem;
-    font-size: 0.75rem;
+.api-keys-pane .settings-pane-footer {
+    margin-top: 0.85rem;
 }

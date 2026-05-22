@@ -330,6 +330,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppLanguage => "用户界面语言",
         I18nKey::AppHooksHeading => "端子挂钩",
         I18nKey::WsHeading => "工作空间",
+        I18nKey::WsSectionPaths => "路径与沙箱",
+        I18nKey::WsSectionBrowser => "嵌入式浏览器",
         I18nKey::LayBrowserUrl => "默认嵌入浏览器 URL",
         I18nKey::WsBrowserDefault => "预设：",
         I18nKey::WsRootLabel => "工作区/沙箱根目录",

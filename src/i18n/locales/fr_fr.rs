@@ -340,6 +340,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppLanguage => "Langue de l'interface utilisateur",
         I18nKey::AppHooksHeading => "Crochets de borne",
         I18nKey::WsHeading => "Espace de travail",
+        I18nKey::WsSectionPaths => "Chemins et sandbox",
+        I18nKey::WsSectionBrowser => "Navigateur intégré",
         I18nKey::LayBrowserUrl => "URL du navigateur intégré par défaut",
         I18nKey::WsBrowserDefault => "Préréglage :",
         I18nKey::WsRootLabel => "Racine de l'espace de travail/bac à sable",

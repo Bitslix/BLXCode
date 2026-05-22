@@ -712,7 +712,7 @@ pub fn SettingsDock(
                         <ApiKeysSettingsPane />
                     }.into_any(),
                     HarnessSettingsCategory::Workspace => view! {
-                        <WorkspaceSettingsPane ui=ui wb=wb embed=embed />
+                        <crate::workbench::WorkspaceSettingsPane wb=wb embed=embed />
                     }.into_any(),
                     HarnessSettingsCategory::AgentProvider => view! {
                         <AgentProviderPane />
@@ -942,7 +942,7 @@ fn AppSettingsPane() -> impl IntoView {
     let ui = expect_context::<HarnessUiService>();
     let updates = expect_context::<UpdateService>();
     view! {
-        <article class="harness-pane">
+        <article class="harness-pane app-settings-pane">
             <h3 class="harness-pane-title">
                 <span class="harness-pane-title__icon" aria-hidden="true">
                     <LxIcon icon=icondata::LuLayoutDashboard width="1.02rem" height="1.02rem" />
@@ -1292,138 +1292,6 @@ fn normalize_settings_color(raw: &str) -> String {
         trimmed.to_ascii_lowercase()
     } else {
         "#7dd3fc".into()
-    }
-}
-
-#[component]
-fn WorkspaceSettingsPane(
-    ui: HarnessUiService,
-    wb: WorkbenchService,
-    embed: BrowserEmbedSurface,
-) -> impl IntoView {
-    let i18n = expect_context::<I18nService>();
-    view! {
-        <article class="harness-pane">
-            <h3 class="harness-pane-title">
-                <span class="harness-pane-title__icon" aria-hidden="true">
-                    <LxIcon icon=icondata::LuFolderOpen width="1.02rem" height="1.02rem" />
-                </span>
-                <span class="harness-pane-title__text">{move || i18n.tr(I18nKey::WsHeading)()}</span>
-            </h3>
-            <label class="harness-stack">
-                <span class="harness-field-label">
-                    <span class="harness-field-label__icon" aria-hidden="true">
-                        <LxIcon icon=icondata::LuFolderGit2 width="0.82rem" height="0.82rem" />
-                    </span>
-                    <span class="harness-field-label__text">{move || i18n.tr(I18nKey::WsDefaultProjectDirLabel)()}</span>
-                </span>
-                <input
-                    class="workbench-plain-input"
-                    type="text"
-                    placeholder=move || i18n.tr(I18nKey::WsDefaultProjectDirPlaceholder)()
-                    prop:value=move || wb.default_project_dir().get()
-                    on:input=move |ev| {
-                        if let Some(txt) = input_str(&ev) {
-                            wb.set_default_project_dir_text(txt);
-                        }
-                    }
-                />
-                <small class="harness-muted">
-                    {move || i18n.tr(I18nKey::WsDefaultProjectDirHint)()}
-                </small>
-            </label>
-            <div class="harness-row-gap">
-                <button
-                    type="button"
-                    class="workbench-mini-btn workbench-mini-btn--primary"
-                    on:click=move |_| {
-                        let trimmed = wb.default_project_dir().get_untracked().trim().to_owned();
-                        wb.persist_default_project_dir(trimmed);
-                    }
-                >
-                    <span class="harness-btn-inline">
-                        <LxIcon icon=icondata::LuSave width="0.78rem" height="0.78rem" />
-                        <span>{move || i18n.tr(I18nKey::BtnSave)()}</span>
-                    </span>
-                </button>
-            </div>
-            <label class="harness-stack">
-                <span class="harness-field-label">
-                    <span class="harness-field-label__icon" aria-hidden="true">
-                        <LxIcon icon=icondata::LuFolderTree width="0.82rem" height="0.82rem" />
-                    </span>
-                    <span class="harness-field-label__text">{move || i18n.tr(I18nKey::WsRootLabel)()}</span>
-                </span>
-                <input
-                    class="workbench-plain-input"
-                    type="text"
-                    placeholder=move || i18n.tr(I18nKey::WsRootPlaceholder)()
-                    prop:value=move || wb.harness_workspace_root().get()
-                    on:input=move |ev| {
-                        if let Some(txt) = input_str(&ev) {
-                            wb.set_harness_workspace_root_text(txt);
-                        }
-                    }
-                />
-                <small class="harness-muted">
-                    {move || i18n.tr(I18nKey::WsRootHint)()}
-                </small>
-            </label>
-            <div class="harness-row-gap">
-                <button
-                    type="button"
-                    class="workbench-mini-btn workbench-mini-btn--primary"
-                    on:click=move |_| {
-                        let trimmed = wb.harness_workspace_root().get_untracked().trim().to_owned();
-                        wb.persist_harness_workspace_root(trimmed);
-                        let w = wb;
-                        let surf = embed;
-                        leptos::task::spawn_local(async move {
-                            TimeoutFuture::new(8).await;
-                            sync_embedded_browser_layer(w, surf).await;
-                        });
-                    }
-                >
-                    <span class="harness-btn-inline">
-                        <LxIcon icon=icondata::LuSave width="0.78rem" height="0.78rem" />
-                        <span>{move || i18n.tr(I18nKey::BtnSave)()}</span>
-                    </span>
-                </button>
-            </div>
-            <label class="harness-stack">
-                <span class="harness-field-label">
-                    <span class="harness-field-label__icon" aria-hidden="true">
-                        <LxIcon icon=icondata::LuGlobe width="0.82rem" height="0.82rem" />
-                    </span>
-                    <span class="harness-field-label__text">{move || i18n.tr(I18nKey::LayBrowserUrl)()}</span>
-                </span>
-                <input
-                    class="workbench-plain-input"
-                    type="url"
-                    prop:value=move || wb.browser_url().get()
-                    on:input=move |ev| {
-                        if let Some(txt) = input_str(&ev) {
-                            wb.set_browser_url_text(txt);
-                        }
-                    }
-                />
-            </label>
-            <div class="harness-row-gap">
-                <button
-                    type="button"
-                    class="workbench-mini-btn workbench-mini-btn--primary"
-                    on:click=move |_| persist_browser_defaults(wb, ui, embed)
-                >
-                    <span class="harness-btn-inline">
-                        <LxIcon icon=icondata::LuCheck width="0.78rem" height="0.78rem" />
-                        <span>{move || i18n.tr(I18nKey::BtnApply)()}</span>
-                    </span>
-                </button>
-                <small class="harness-muted">
-                    {move || format!("{} {}", i18n.tr(I18nKey::WsBrowserDefault)(), HARNESS_BROWSER_DEFAULT_URL)}
-                </small>
-            </div>
-        </article>
     }
 }
 
@@ -2183,24 +2051,4 @@ fn AgentHooksPanel() -> impl IntoView {
             </Show>
         </section>
     }
-}
-
-fn persist_browser_defaults(
-    wb: WorkbenchService,
-    ui: HarnessUiService,
-    embed: BrowserEmbedSurface,
-) {
-    let mut trimmed = wb.browser_url().get_untracked().trim().to_owned();
-    if trimmed.is_empty() {
-        trimmed = HARNESS_BROWSER_DEFAULT_URL.into();
-    }
-    wb.persist_browser_url_from_input(trimmed.clone());
-    let wclone = wb;
-    let aid = wb.embedded_browser_active_id().get_untracked();
-    leptos::task::spawn_local(async move {
-        let _ = crate::tauri_bridge::browser_navigate(aid, trimmed.as_str()).await;
-        TimeoutFuture::new(12).await;
-        sync_embedded_browser_layer(wclone, embed).await;
-    });
-    ui.close_settings();
 }

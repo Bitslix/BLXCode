@@ -332,6 +332,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppLanguage => "UI 언어",
         I18nKey::AppHooksHeading => "단자 후크",
         I18nKey::WsHeading => "작업공간",
+        I18nKey::WsSectionPaths => "경로 및 샌드박스",
+        I18nKey::WsSectionBrowser => "내장 브라우저",
         I18nKey::LayBrowserUrl => "기본 내장 브라우저 URL",
         I18nKey::WsBrowserDefault => "사전 설정:",
         I18nKey::WsRootLabel => "작업공간/샌드박스 루트",
