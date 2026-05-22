@@ -19,3 +19,4 @@ Persistent plans for multi-step work on **blxcode**. Individual plans live as Ma
 | done | [coordinated-subagents.md](coordinated-subagents.md) | Coordinated Subagents fuer BLXCode Agent mit Rollen, i18n Live-Subcards, Provider-Reuse, Environment Detection, Shell/Git/Web Toolsets und scoped Toolgruppen |
 | done | [better-harness.md](better-harness.md) | BetterHarness: Shrink system prompt by extracting tool docs into 6 embedded Core Skills; Skills tab gets Core/User sub-tabs |
 | done | [agent-chat-maximize.md](agent-chat-maximize.md) | Agent-Tab: Chat-Maximize-Toggle vor Reset; Voice-Hero kompakt (`agent-hero--compact`), mehr Platz fuer Chat-Verlauf |
+| planned | [workspace-color-terminal-badge.md](workspace-color-terminal-badge.md) | Workspace-Farbe persistent in Sidebar (Dot, farbiges Unread-Badge), Terminal-Slot-Zahl vor Name, aenderbar via Kontextmenue-Dialog |
