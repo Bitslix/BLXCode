@@ -5,6 +5,29 @@ import SpriteText from "three-spritetext";
 const instances = new Map();
 let nextId = 1;
 
+function readCssVar(name, fallback = "") {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function applyGraph3dTheme(rec) {
+  if (!rec?.graph) return;
+  rec.graph.backgroundColor("rgba(0,0,0,0)");
+  rec.graph.linkColor(() => readCssVar("--overlay-4", "rgba(255,255,255,0.14)"));
+  rec.graph.nodeThreeObject(makeNodeObject);
+  rec.graph.refresh();
+}
+
+window.addEventListener("blxcode-theme-changed", () => {
+  for (const rec of instances.values()) {
+    applyGraph3dTheme(rec);
+  }
+});
+
 function cleanLabel(raw) {
   const tail = String(raw || "")
     .replace(/\\/g, "/")
@@ -99,9 +122,9 @@ function makeNodeObject(node) {
     }),
   );
   const label = new SpriteText(wrapLabel(node.label || node.id));
-  label.color = "rgba(238,239,245,0.92)";
-  label.backgroundColor = "rgba(8,10,16,0.58)";
-  label.borderColor = "rgba(255,255,255,0.14)";
+  label.color = readCssVar("--text", "rgba(238,239,245,0.92)");
+  label.backgroundColor = readCssVar("--scrim-bg", "rgba(8,10,16,0.58)");
+  label.borderColor = readCssVar("--overlay-4", "rgba(255,255,255,0.14)");
   label.borderWidth = 0.25;
   label.borderRadius = 2;
   label.padding = 2.6;
@@ -345,7 +368,7 @@ window.__blxcodeGraph3d = {
       .nodeId("id")
       .nodeLabel("label")
       .nodeThreeObject(makeNodeObject)
-      .linkColor(() => "rgba(190,205,235,0.28)")
+      .linkColor(() => readCssVar("--overlay-4", "rgba(255,255,255,0.14)"))
       .linkOpacity(0.34)
       .linkWidth(1)
       .linkCurvature((link) => linkWobble(link))

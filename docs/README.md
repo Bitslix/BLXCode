@@ -10,7 +10,7 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 
 | Topic | Guide |
 |-------|--------|
-| Settings (API Keys, BLXCode Agent, Workspace) | [Settings](user/settings.md) |
+| Settings (API Keys, BLXCode Agent, Workspace, **Appearance / themes**) | [Settings](user/settings.md) · [Appearance & Themes](user/appearance-themes.md) |
 | Workbench, terminals, sidebar, handoff | [Workspaces](user/workspaces.md) |
 | Memory, learnings, graph, categories | [Memory And Tasks](user/memory-and-tasks.md) |
 | Markdown plans and plan-linked tasks | [Plans](user/plans.md) |
@@ -28,7 +28,8 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 ## User docs
 
 - [Getting Started](user/getting-started.md) — prerequisites, run BLXCode, first workspace, where data lives.
-- [Settings](user/settings.md) — docked center-tab settings, API Keys, BLXCode Agent grid, Workspace.
+- [Settings](user/settings.md) — docked center-tab settings, API Keys, BLXCode Agent grid, Workspace, **Appearance / themes**.
+- [Appearance & Themes](user/appearance-themes.md) — theme picker, presets, persistence, exceptions.
 - [Workspaces](user/workspaces.md) — creation, terminal grids, sidebar explorer, Git graph, handoff, persistence.
 - [Memory And Tasks](user/memory-and-tasks.md) — Memory panel (Files, Graph, Search), dynamic categories, tasks, agent memory tools.
 - [Plans](user/plans.md) — `.agents/plans/`, Kanban board, task syntax, Plans panel, agent tools.
@@ -52,6 +53,7 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 - [Tauri IPC](developer/tauri-ipc.md) — command registration, wrappers, command groups.
 - [Voice Architecture](developer/voice.md) — STT/TTS modules and flows.
 - [Internationalization](developer/i18n.md) — locales, EULA content, translation workflow.
+- [Themes](developer/themes.md) — tokens, `ThemeService`, adding themes, lint rules.
 - [Contributing](developer/contributing.md) — code style, rules, testing, pull request checklist.
 
 ## Project principles

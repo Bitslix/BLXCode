@@ -154,8 +154,8 @@
   margin: 0;
   padding: 0.5rem 0.6rem;
   border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  background: var(--overlay-1);
   font-size: 0.74rem;
   line-height: 1.45;
 }
@@ -178,13 +178,13 @@
   gap: 0.35rem 0.65rem;
   font-size: 0.75rem;
   line-height: 1.35;
-  color: var(--text-muted, rgba(170, 175, 190, 0.72));
+  color: var(--text-muted);
 }
 
 .agent-provider-pane__key-status {
   font-family: var(--font-mono);
   font-size: 0.72rem;
-  color: var(--text-muted, rgba(170, 175, 190, 0.65));
+  color: var(--text-muted);
 }
 
 .agent-provider-pane__actions {

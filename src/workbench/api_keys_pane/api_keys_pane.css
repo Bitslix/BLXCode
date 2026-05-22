@@ -16,8 +16,8 @@
     gap: 0.35rem;
     padding: 0.55rem 0.65rem;
     border-radius: 6px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: var(--overlay-1);
+    border: 1px solid var(--border);
 }
 
 .api-keys-row--coming-soon {
@@ -25,8 +25,8 @@
 }
 
 .api-keys-row--marked-delete {
-    border-color: rgba(248, 113, 113, 0.45);
-    background: rgba(248, 113, 113, 0.06);
+    border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+    background: var(--danger-soft);
 }
 
 .api-keys-row__head {
@@ -51,13 +51,13 @@
     display: grid;
     place-items: center;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.92);
+    background: var(--text-bright);
     overflow: hidden;
 }
 
 .api-keys-row__brand--fallback {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text-muted, rgba(255, 255, 255, 0.65));
+    background: var(--overlay-2);
+    color: var(--text-muted);
 }
 
 .api-keys-row__brand-img {
@@ -72,7 +72,7 @@
 }
 
 .api-keys-row__masked {
-    font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+    font-family: var(--font-mono);
     font-size: 0.78rem;
     opacity: 0.82;
 }
@@ -81,17 +81,17 @@
     font-size: 0.72rem;
     padding: 0.1rem 0.45rem;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--overlay-2);
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
 
 .api-keys-row__badge--warn {
-    background: rgba(248, 113, 113, 0.18);
+    background: var(--danger-soft);
 }
 
 .api-keys-row__badge--muted {
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--overlay-1);
     opacity: 0.7;
 }
 

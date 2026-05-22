@@ -692,7 +692,7 @@ pub fn SettingsDock(
                         <AppSettingsPane />
                     }.into_any(),
                     HarnessSettingsCategory::Appearance => view! {
-                        <AppearanceSettingsPane />
+                        <crate::workbench::AppearanceSettingsPane />
                     }.into_any(),
                     HarnessSettingsCategory::ApiKeys => view! {
                         <ApiKeysSettingsPane />
@@ -1104,21 +1104,6 @@ fn AppSettingsPane() -> impl IntoView {
                     }}
                 </p>
             </section>
-        </article>
-    }
-}
-
-#[component]
-fn AppearanceSettingsPane() -> impl IntoView {
-    let i18n = expect_context::<I18nService>();
-    view! {
-        <article class="harness-pane">
-            <h3 class="harness-pane-title">
-                <span class="harness-pane-title__icon" aria-hidden="true">
-                    <LxIcon icon=icondata::LuSunMoon width="1.02rem" height="1.02rem" />
-                </span>
-                <span class="harness-pane-title__text">{move || i18n.tr(I18nKey::AppearanceHeading)()}</span>
-            </h3>
         </article>
     }
 }

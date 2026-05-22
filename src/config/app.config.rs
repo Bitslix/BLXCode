@@ -11,6 +11,9 @@ pub const GITIGNORE_PROMPT_ANSWER_NO: &str = "no";
 /// `localStorage` key for UI locale (BCP-47, e.g. `de-DE`, `en-US`).
 pub const I18N_LOCALE_STORAGE_KEY: &str = "blxcode_locale_v1";
 
+/// `localStorage` key for the active app theme id (e.g. `blxcode-dark`).
+pub const THEME_STORAGE_KEY: &str = "blxcode_theme_v1";
+
 /// `localStorage` key for memory graph rendering mode (`2d` / `3d`).
 pub const GRAPH_MODE_STORAGE_KEY: &str = "blxcode_memory_graph_mode_v1";
 

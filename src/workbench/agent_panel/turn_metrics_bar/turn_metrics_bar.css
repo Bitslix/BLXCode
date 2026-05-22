@@ -12,7 +12,7 @@
     font-family: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
     font-size: 0.7rem;
     line-height: 1.2;
-    color: var(--text-muted, #8a8f98);
+    color: var(--text-muted);
 }
 
 .turn-metrics-bar__cell {
@@ -22,14 +22,14 @@
 }
 
 .turn-metrics-bar__cell strong {
-    color: var(--text, #c9cdd4);
+    color: var(--text);
     font-weight: 500;
 }
 
 .turn-metrics-bar__cell--cost strong {
     /* Subtle accent so the operator can scan for cost when monitoring
        a long chat. Tied to the existing accent variable when present. */
-    color: var(--accent, #7dd3fc);
+    color: var(--accent);
 }
 
 .turn-metrics-bar__sep {
@@ -58,6 +58,6 @@
     font-size: 0.65rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: var(--text-muted, #8a8f98);
+    color: var(--text-muted);
     margin-right: 0.4rem;
 }

@@ -7,6 +7,7 @@ use crate::i18n::{localized_eula_html, I18nKey};
 use crate::open_http::dom_click_http_url_from_mouse_event;
 use crate::quit::request_app_quit;
 use crate::service::I18nService;
+use crate::workbench::ThemeService;
 use crate::workbench::WorkbenchShell;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -17,7 +18,9 @@ use wasm_bindgen::JsCast;
 #[component]
 pub fn App() -> impl IntoView {
     let i18n = I18nService::new();
+    let theme = ThemeService::new();
     provide_context(i18n);
+    provide_context(theme);
 
     Effect::new(move |_| {
         remove_static_boot_screen();

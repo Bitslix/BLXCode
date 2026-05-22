@@ -1,8 +1,10 @@
 # Settings-Refactor: Tabs + Theme-System
 
+**Status: done** (2026-05-22)
+
 ## Summary
 
-Refactor der BLXCode Settings von Modal-Overlay zu einem **dynamischen Tab-System** in der Workbench-Mitte: Main-Tab (fix, Terminals/Workspaces), Settings als schliessbarer Singleton-Tab, und vorbereitete **File-Tabs** (Explorer-Klick oeffnet Tab mit Stub-Editor). Settings blendet nur das Right Panel aus; linke Sidebar bleibt immer sichtbar. Neuer Appearance/Theme-Tab mit ~12 App-Themes, Suche, Dark/Light-Filter und Preview-Karten. Default-Theme `blxcode-dark` (Anzeigename „BLXCode“) ist der heutige Look 1:1.
+Refactor der BLXCode Settings von Modal-Overlay zu einem **dynamischen Tab-System** in der Workbench-Mitte: Main-Tab (fix, Terminals/Workspaces), Settings als schliessbarer Singleton-Tab, und vorbereitete **File-Tabs** (Explorer-Klick oeffnet Tab mit Stub-Editor). Settings blendet nur das Right Panel aus; linke Sidebar bleibt immer sichtbar. Neuer Appearance/Theme-Tab mit **20 App-Themes**, Suche, Dark/Light-Filter und Preview-Karten. Default-Theme `blxcode-dark` (Anzeigename „BLXCode“) ist der heutige Look 1:1.
 
 ## Decisions
 
@@ -11,7 +13,7 @@ Refactor der BLXCode Settings von Modal-Overlay zu einem **dynamischen Tab-Syste
 - File-Tabs: schliessbar, **Dedupe** bei gleichem `(workspace_id, rel_path)` solange Tab offen ist; Editor-Inhalt ist initial ein Stub (Follow-up: echter Editor).
 - Settings ist **Singleton** — erneutes Oeffnen fokussiert bestehenden Tab.
 - Main-Tab ist **fix** (Index 0, nicht schliessbar).
-- **~12 Starter-Themes** im ersten Release.
+- **~20 Starter-Themes** im ersten Release (12 MVP + 8 moderne Ergaenzungen: Rosé Pine, Rosé Pine Dawn, Everforest Dark, Kanagawa, GitHub Dark, Night Owl, Ayu Mirage, Catppuccin Frappé).
 - Default-Theme: **`blxcode-dark`** (Anzeigename **„BLXCode“**). Erststart und fehlender localStorage-Eintrag → immer dieses Theme; kein visueller Regressions-Diff.
 - `:root`-Tokens werden **1:1** nach `[data-theme="blxcode-dark"]` kopiert; `:root` bleibt als Fallback.
 - Workbench-Tab-Zustand ist **session-only** (nicht in `WorkbenchSnapshot`).
@@ -181,10 +183,10 @@ Terminal: `public/terminal_bootstrap.mjs` — Theme-Map + `blxcode-theme-changed
 
 ## Tasks
 
-- [ ] `tab-infra` - Dynamisches Tab-Modell (Main/Settings/File), CRUD-API, TabStrip/Host, FileTabPane-Stub, Explorer-Hook, RightPanel nur bei Settings ausblenden
-- [ ] `settings-inline` - SettingsChrome aus Modal extrahieren → settings/ Modul; HarnessHost bereinigen; open_settings → Tab oeffnen; Escape/Chords anpassen
-- [ ] `theme-tokens` - themes/tokens.css mit 12 Theme-Sets; blxcode-dark 1:1 aus aktuellem :root; data-theme auf html; THEME_STORAGE_KEY + ThemeService; Boot-Script in index.html
-- [ ] `theme-pane-ui` - HarnessSettingsCategory::Appearance + ThemePane mit Suche, Dark/Light-Filter, Preview-Grid; i18n fuer alle Locales
-- [ ] `terminal-theme-sync` - terminal_bootstrap.mjs: Theme-Map + blxcode-theme-changed Event fuer live xterm-Updates
-- [ ] `css-polish` - Tab-Strip mit Scroll, Settings-Inline, Theme-Grid CSS; kritische hardcoded Farben tokenisieren
-- [ ] `manual-qa` - Abnahme: dynamische Tabs, Dedupe, Main nicht schliessbar, Settings/File/Theme-Flows, Sidebar sichtbar, wasm32 check
+- [x] `tab-infra` - Dynamisches Tab-Modell (Main/Settings/File), CRUD-API, TabStrip/Host, FileTabPane-Stub, Explorer-Hook, RightPanel nur bei Settings ausblenden
+- [x] `settings-inline` - SettingsChrome aus Modal extrahieren → settings/ Modul; HarnessHost bereinigen; open_settings → Tab oeffnen; Escape/Chords anpassen
+- [x] `theme-tokens` - themes/tokens.css mit 20 Theme-Sets; blxcode-dark 1:1 aus aktuellem :root; data-theme auf html; THEME_STORAGE_KEY + ThemeService; Boot-Script in index.html
+- [x] `theme-pane-ui` - HarnessSettingsCategory::Appearance + ThemePane mit Suche, Dark/Light-Filter, Preview-Grid; i18n fuer alle Locales
+- [x] `terminal-theme-sync` - terminal_bootstrap.mjs: Theme-Map + blxcode-theme-changed Event fuer live xterm-Updates
+- [x] `css-polish` - Tab-Strip mit Scroll, Settings-Inline, Theme-Grid CSS; kritische hardcoded Farben tokenisieren
+- [x] `manual-qa` - Abnahme: dynamische Tabs, Dedupe, Main nicht schliessbar, Settings/File/Theme-Flows, Sidebar sichtbar, wasm32 check

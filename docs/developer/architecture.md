@@ -15,7 +15,7 @@ Leptos UI
 ## Frontend Entry Points
 
 - `src/main.rs`: mounts the Leptos app.
-- `src/app.rs`: sets up i18n, EULA gating, and renders `WorkbenchShell`.
+- `src/app.rs`: sets up i18n, **ThemeService**, EULA gating, and renders `WorkbenchShell`.
 - `src/workbench/mod.rs`: workbench context, state hydration, auto-save, embedded browser event handling.
 - `src/workbench/state.rs`: workspace state, snapshots, workspace creation draft, layout and browser state.
 - `src/tauri_bridge.rs`: typed wrappers around Tauri `invoke()` calls.
@@ -197,6 +197,12 @@ The browser host supports native child webviews on platforms where Tauri's unsta
 ## Internationalization
 
 The i18n service lives under `src/i18n/` and `src/service/`. Locale tables are Rust source files, while EULA source content is Markdown under `content/eula/`.
+
+## Theming
+
+Themes are frontend-only. `ThemeService` (`src/workbench/theme_service.rs`) sets `html[data-theme]` from `themes/tokens.css` and persists to `localStorage`. The Appearance settings pane reads the catalog from `src/theme/catalog.rs`. JavaScript subsystems (xterm, 3D memory graph) listen for `blxcode-theme-changed` and read computed CSS variables.
+
+See [Themes](themes.md) and [Theme exceptions](../THEME_EXCEPTIONS.md).
 
 ## Boundaries To Preserve
 

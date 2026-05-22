@@ -5,6 +5,53 @@ import { WebLinksAddon } from "https://esm.sh/@xterm/addon-web-links@0.11.0?deps
 const instances = new Map();
 let nextId = 1;
 
+function readCssVar(name, fallback = "") {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function xtermThemeFromDom() {
+  return {
+    background: "rgba(0,0,0,0)",
+    foreground: readCssVar("--term-fg", "#f1f2f5"),
+    cursor: readCssVar("--term-cursor", "#58a6ff"),
+    cursorAccent: readCssVar("--term-cursor", "#58a6ff"),
+    selectionBackground: readCssVar("--accent-soft", "rgba(88, 166, 255, 0.16)"),
+    black: readCssVar("--bg-app", "#090a0d"),
+    red: readCssVar("--danger", "#f85149"),
+    green: readCssVar("--success", "#3fb950"),
+    yellow: readCssVar("--warning", "#d4a017"),
+    blue: readCssVar("--accent", "#58a6ff"),
+    magenta: readCssVar("--syntax-keyword", "#f2a3ff"),
+    cyan: readCssVar("--syntax-type", "#63e6be"),
+    white: readCssVar("--text", "#f1f2f5"),
+    brightBlack: readCssVar("--text-faint", "#676c78"),
+    brightRed: readCssVar("--danger", "#f85149"),
+    brightGreen: readCssVar("--success", "#3fb950"),
+    brightYellow: readCssVar("--warning", "#d4a017"),
+    brightBlue: readCssVar("--accent-hover", "#7ab8ff"),
+    brightMagenta: readCssVar("--syntax-keyword", "#f2a3ff"),
+    brightCyan: readCssVar("--accent-cool", "#9bd3ff"),
+    brightWhite: readCssVar("--text-bright", "#ffffff"),
+  };
+}
+
+function applyThemeToAllTerminals() {
+  const theme = xtermThemeFromDom();
+  for (const rec of instances.values()) {
+    try {
+      rec.term.options.theme = theme;
+      scheduleRefresh(rec);
+    } catch (_) {}
+  }
+}
+
+window.addEventListener("blxcode-theme-changed", applyThemeToAllTerminals);
+
 function forceLayout(rec) {
   try {
     void rec.container.getBoundingClientRect();
@@ -177,7 +224,7 @@ window.__blxcodeTerminal = {
       fontFamily: "JetBrains Mono, ui-monospace, monospace",
       fontSize: 12,
       allowTransparency: true,
-      theme: { background: "rgba(0,0,0,0)", foreground: "#e8e8ec" },
+      theme: xtermThemeFromDom(),
       disableStdin: false,
     });
     const fit = new FitAddon();

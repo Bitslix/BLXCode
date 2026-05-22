@@ -10,6 +10,34 @@
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
       rel="stylesheet"
     />
+    <script>
+      (function () {
+        var KEY = "blxcode_theme_v1";
+        var DEFAULT = "blxcode-dark";
+        var VALID = {
+          "blxcode-dark": 1,
+          "blxcode-light": 1,
+          dracula: 1,
+          "gruvbox-dark": 1,
+          "gruvbox-light": 1,
+          "solarized-dark": 1,
+          "solarized-light": 1,
+          nord: 1,
+          "one-dark": 1,
+          "catppuccin-mocha": 1,
+          "catppuccin-latte": 1,
+          "tokyo-night": 1,
+        };
+        try {
+          var stored = localStorage.getItem(KEY);
+          var theme = stored && VALID[stored] ? stored : DEFAULT;
+          document.documentElement.setAttribute("data-theme", theme);
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", DEFAULT);
+        }
+      })();
+    </script>
+    <link data-trunk rel="css" href="themes/tokens.css" />
     <link data-trunk rel="css" href="styles.css" />
     <link data-trunk rel="css" href="src/workbench/plans_panel/plans-panel.css" />
     <link data-trunk rel="css" href="src/workbench/update_dialog.css" />
@@ -19,6 +47,8 @@
     <link data-trunk rel="css" href="src/workbench/agent_provider_pane/agent_provider_pane.css" />
     <link data-trunk rel="css" href="src/workbench/agent_panel/ask_user_card/ask_user_card.css" />
     <link data-trunk rel="css" href="src/workbench/agent_panel/turn_metrics_bar/turn_metrics_bar.css" />
+    <link data-trunk rel="css" href="src/workbench/appearance_settings_pane/appearance_settings_pane.css" />
+    <link data-trunk rel="css" href="src/workbench/sidebar_resizer/sidebar-resizer.css" />
     <link data-trunk rel="copy-dir" href="public" />
     <link
       rel="stylesheet"
