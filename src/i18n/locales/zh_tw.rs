@@ -298,6 +298,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CmdBrowseSub => "同步嵌入的網頁視圖",
         I18nKey::CmdMemoryTitle => "右側選項卡：內存",
         I18nKey::CmdMemorySub => "預留面板",
+        I18nKey::CmdTermTitle => "終端機",
+        I18nKey::CmdTermSub => "在目前工作區顯示終端機網格",
+
+        I18nKey::CenterTabCloseTerminalsTitle => "關閉工作區？",
+        I18nKey::CenterTabCloseTerminalsBody => "此工作區中所有執行中的終端機都將被終止，工作區將被儲存並關閉。此工作區中開啟的設定或檔案分頁也會關閉。",
+        I18nKey::CenterTabCloseTerminalsConfirm => "關閉 ({seconds} 秒)",
+        I18nKey::CenterTabCloseTerminalsCancel => "取消",
+        I18nKey::CenterTabCloseAria => "關閉分頁",
+
         I18nKey::HsCloseSettingsAria => "關閉設定",
         I18nKey::HsTitle => "BLX 代碼設定",
         I18nKey::HsAriaCats => "類別",

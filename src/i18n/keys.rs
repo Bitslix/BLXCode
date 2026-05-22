@@ -313,6 +313,14 @@ pub enum I18nKey {
     CmdBrowseSub,
     CmdMemoryTitle,
     CmdMemorySub,
+    CmdTermTitle,
+    CmdTermSub,
+
+    CenterTabCloseTerminalsTitle,
+    CenterTabCloseTerminalsBody,
+    CenterTabCloseTerminalsConfirm,
+    CenterTabCloseTerminalsCancel,
+    CenterTabCloseAria,
 
     HsCloseSettingsAria,
     HsTitle,

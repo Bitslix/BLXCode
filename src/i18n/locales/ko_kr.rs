@@ -300,6 +300,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CmdBrowseSub => "내장된 WebView 동기화",
         I18nKey::CmdMemoryTitle => "오른쪽 탭: 메모리",
         I18nKey::CmdMemorySub => "예약된 패널",
+        I18nKey::CmdTermTitle => "터미널",
+        I18nKey::CmdTermSub => "활성 워크스페이스에 터미널 그리드 표시",
+
+        I18nKey::CenterTabCloseTerminalsTitle => "워크스페이스를 닫으시겠습니까?",
+        I18nKey::CenterTabCloseTerminalsBody => "이 워크스페이스에서 실행 중인 모든 터미널이 종료되고 워크스페이스가 저장 후 닫힙니다. 이 워크스페이스의 열린 설정 또는 파일 탭도 함께 닫힙니다.",
+        I18nKey::CenterTabCloseTerminalsConfirm => "닫기 ({seconds}초)",
+        I18nKey::CenterTabCloseTerminalsCancel => "취소",
+        I18nKey::CenterTabCloseAria => "탭 닫기",
+
         I18nKey::HsCloseSettingsAria => "설정 닫기",
         I18nKey::HsTitle => "BLX코드 설정",
         I18nKey::HsAriaCats => "카테고리",

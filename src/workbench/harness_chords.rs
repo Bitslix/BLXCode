@@ -135,6 +135,11 @@ pub fn open_new_terminal(wb: WorkbenchService) {
     let Some(workspace_id) = wb.active_id().get_untracked() else {
         return;
     };
+    // The user may have closed the Terminals tab earlier (e.g. opened
+    // Settings, then triggered the new-terminal shortcut). Restore the
+    // Terminals tab before appending a slot so the new PTY actually has a
+    // surface to render into.
+    wb.open_center_terminals_tab(workspace_id);
     match wb.append_terminal_slot(workspace_id, None) {
         Ok(slot_id) => {
             let terminal_key = wb.workspaces().with_untracked(|list| {
@@ -162,17 +167,24 @@ pub fn handle_harness_keydown(
     let blocked = ui.palette_open().get_untracked()
         || ui.settings_open().get_untracked()
         || ui.quick_open_open().get_untracked();
+    // While the Terminals-close countdown is active we swallow every
+    // shortcut except Escape (which dismisses the dialog) so the user
+    // can't accidentally rebind keys to other workspace actions.
+    let close_terminals_open = ui.close_terminals_confirm().get_untracked().is_some();
     let key = ke.key();
 
-    if blocked && key.as_str() == "Escape" {
+    if (blocked || close_terminals_open) && key.as_str() == "Escape" {
         ke.prevent_default();
+        if close_terminals_open {
+            ui.dismiss_close_terminals_confirm();
+        }
         ui.close_command_palette();
         ui.close_settings();
         ui.close_quick_open();
         return true;
     }
 
-    if blocked {
+    if blocked || close_terminals_open {
         return false;
     }
 

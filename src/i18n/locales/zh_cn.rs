@@ -298,6 +298,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CmdBrowseSub => "同步嵌入的网页视图",
         I18nKey::CmdMemoryTitle => "右侧选项卡：内存",
         I18nKey::CmdMemorySub => "预留面板",
+        I18nKey::CmdTermTitle => "终端",
+        I18nKey::CmdTermSub => "在当前工作区中显示终端网格",
+
+        I18nKey::CenterTabCloseTerminalsTitle => "关闭工作区？",
+        I18nKey::CenterTabCloseTerminalsBody => "此工作区中所有正在运行的终端都将被终止，工作区将被保存并关闭。此工作区中打开的设置或文件标签页也会关闭。",
+        I18nKey::CenterTabCloseTerminalsConfirm => "关闭 ({seconds} 秒)",
+        I18nKey::CenterTabCloseTerminalsCancel => "取消",
+        I18nKey::CenterTabCloseAria => "关闭标签页",
+
         I18nKey::HsCloseSettingsAria => "关闭设置",
         I18nKey::HsTitle => "BLX 代码设置",
         I18nKey::HsAriaCats => "类别",

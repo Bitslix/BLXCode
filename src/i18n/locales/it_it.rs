@@ -306,6 +306,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CmdBrowseSub => "Sincronizza la visualizzazione web incorporata",
         I18nKey::CmdMemoryTitle => "Scheda destra: Memoria",
         I18nKey::CmdMemorySub => "Pannello riservato",
+        I18nKey::CmdTermTitle => "Terminali",
+        I18nKey::CmdTermSub => "Mostra la griglia dei terminali nel workspace attivo",
+
+        I18nKey::CenterTabCloseTerminalsTitle => "Chiudere il workspace?",
+        I18nKey::CenterTabCloseTerminalsBody => "Tutti i terminali in esecuzione in questo workspace saranno terminati e il workspace verrà salvato e chiuso. Anche le schede di impostazioni o file aperte in questo workspace verranno chiuse.",
+        I18nKey::CenterTabCloseTerminalsConfirm => "Chiudi ({seconds}s)",
+        I18nKey::CenterTabCloseTerminalsCancel => "Annulla",
+        I18nKey::CenterTabCloseAria => "Chiudi scheda",
+
         I18nKey::HsCloseSettingsAria => "Chiudi le impostazioni",
         I18nKey::HsTitle => "Impostazioni del codice BLX",
         I18nKey::HsAriaCats => "Categorie",

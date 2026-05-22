@@ -12,6 +12,7 @@ use crate::workbench::git_graph::GitGraphSection;
 use crate::workbench::project_explorer::ProjectExplorerSection;
 use crate::workbench::sidebar_resizer::SidebarResizer;
 use crate::workbench::sidebar_resizer::SidebarResizerClamp;
+use crate::workbench::state::is_shell_workspace;
 use crate::workbench::WorkbenchService;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
@@ -187,9 +188,14 @@ pub fn Sidebar() -> impl IntoView {
                 <ul id="workbench-workspace-list" class="workbench-sidebar__list">
                     <For
                         each=move || {
+                            // Shell workspaces host the Settings tab when
+                            // no real workspace is open; they are
+                            // ephemeral and must not show up in the
+                            // sidebar list.
                             workspaces
                                 .get()
                                 .into_iter()
+                                .filter(|ws| !is_shell_workspace(ws))
                                 .enumerate()
                                 .collect::<Vec<_>>()
                         }

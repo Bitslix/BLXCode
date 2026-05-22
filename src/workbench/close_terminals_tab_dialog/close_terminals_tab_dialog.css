@@ -1,0 +1,36 @@
+.harness-sheet--close-terminals {
+  width: min(28rem, calc(100vw - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.blx-close-terminals__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.blx-close-terminals__body {
+  margin: 0;
+  line-height: 1.45;
+  font-size: 0.86rem;
+  color: var(--text);
+}
+
+.blx-close-terminals__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.blx-close-terminals__actions .workbench-mini-btn--primary {
+  background: var(--danger, var(--accent));
+  color: var(--text-on-accent, #fff);
+  border-color: transparent;
+}
+
+.blx-close-terminals__actions .workbench-mini-btn--primary:disabled {
+  background: var(--bg-raised);
+  color: var(--text-muted);
+}

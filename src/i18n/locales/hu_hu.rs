@@ -306,6 +306,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CmdBrowseSub => "A beágyazott webnézet szinkronizálása",
         I18nKey::CmdMemoryTitle => "Jobb oldali fül: Memória",
         I18nKey::CmdMemorySub => "Fenntartott panel",
+        I18nKey::CmdTermTitle => "Terminálok",
+        I18nKey::CmdTermSub => "Terminál rács megjelenítése az aktív munkaterületen",
+
+        I18nKey::CenterTabCloseTerminalsTitle => "Munkaterület bezárása?",
+        I18nKey::CenterTabCloseTerminalsBody => "A munkaterületen futó összes terminál leáll, és a munkaterület mentésre kerül és bezárul. A megnyitott beállítások és fájl fülek ebben a munkaterületen szintén bezárulnak.",
+        I18nKey::CenterTabCloseTerminalsConfirm => "Bezárás ({seconds}s)",
+        I18nKey::CenterTabCloseTerminalsCancel => "Mégse",
+        I18nKey::CenterTabCloseAria => "Lap bezárása",
+
         I18nKey::HsCloseSettingsAria => "Zárja be a beállításokat",
         I18nKey::HsTitle => "BLXCode beállítások",
         I18nKey::HsAriaCats => "Kategóriák",

@@ -224,6 +224,15 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
     let active_center_tab_id =
         Memo::new(move |_| wb.active_center_tab_id_for_workspace(workspace_id));
 
+    // The terminal grid only mounts when a Terminals tab is actually
+    // active in this workspace. While the user is on Settings (or a
+    // FilePreview), or while the inline configurator is showing instead
+    // of the grid, we keep the PTY surface unmounted so XTerm doesn't try
+    // to fit into a hidden 0x0 container.
+    let show_terminal_grid = Memo::new(move |_| {
+        !is_configuring.get() && active_center_tab_id.get() == CENTER_TERMINALS_TAB_ID
+    });
+
     view! {
         <div
             class=move || {
@@ -234,12 +243,17 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                 class
             }
         >
-            <Show when=move || is_configuring.get()>
-                <WorkspaceConfigurator workspace_id=workspace_id />
-            </Show>
-            <Show when=move || !is_configuring.get()>
-                <CenterTabStrip workspace_id=workspace_id active_tab_id=active_center_tab_id />
-                <div class="workspace-center-tab-body">
+            // Tab strip is always present so the user can switch to
+            // Settings (or close the Terminals tab) even while the
+            // configurator is up.
+            <CenterTabStrip workspace_id=workspace_id active_tab_id=active_center_tab_id />
+            <div class="workspace-center-tab-body">
+                <Show when=move || is_configuring.get() && active_center_tab_id.get() == CENTER_TERMINALS_TAB_ID>
+                    <div class="workspace-center-panel">
+                        <WorkspaceConfigurator workspace_id=workspace_id />
+                    </div>
+                </Show>
+                <Show when=move || show_terminal_grid.get()>
                     <div
                         class="workspace-center-panel"
                         class:workspace-center-panel--hidden=move || active_center_tab_id.get() != CENTER_TERMINALS_TAB_ID
@@ -388,9 +402,9 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                             </Show>
                         </div>
                     </div>
-                    <DynamicCenterPanels workspace_id=workspace_id active_tab_id=active_center_tab_id />
-                </div>
-            </Show>
+                </Show>
+                <DynamicCenterPanels workspace_id=workspace_id active_tab_id=active_center_tab_id />
+            </div>
         </div>
     }
 }
@@ -423,10 +437,16 @@ fn CenterTabStrip(workspace_id: u64, active_tab_id: Memo<u64>) -> impl IntoView 
 #[component]
 fn CenterTabButton(workspace_id: u64, tab: CenterTab, active_tab_id: Memo<u64>) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
+    let ui = expect_context::<HarnessUiService>();
+    let i18n = expect_context::<I18nService>();
     let id = tab.id;
     let title = tab.title.clone();
-    let closeable = tab.closeable();
     let icon = center_tab_icon(&tab.kind);
+    // Terminals tabs route their close action through the confirmation
+    // dialog; every other tab type closes immediately. The Terminals close
+    // button is always visible — closing it is what triggers the "close
+    // workspace" flow.
+    let is_terminals = matches!(tab.kind, CenterTabKind::Terminals);
 
     view! {
         <button
@@ -442,30 +462,36 @@ fn CenterTabButton(workspace_id: u64, tab: CenterTab, active_tab_id: Memo<u64>) 
                 <LxIcon icon=icon width="14px" height="14px" />
             </span>
             <span class="workspace-center-tab__label">{title.clone()}</span>
-            <Show when=move || closeable>
-                <span
-                    role="button"
-                    tabindex="0"
-                    class="workspace-center-tab__close"
-                    aria-label="Close tab"
-                    title="Close tab"
-                    on:click=move |ev: MouseEvent| {
-                        ev.prevent_default();
-                        ev.stop_propagation();
+            <span
+                role="button"
+                tabindex="0"
+                class="workspace-center-tab__close"
+                aria-label=move || i18n.tr(I18nKey::CenterTabCloseAria)()
+                title=move || i18n.tr(I18nKey::CenterTabCloseAria)()
+                on:click=move |ev: MouseEvent| {
+                    ev.prevent_default();
+                    ev.stop_propagation();
+                    if is_terminals {
+                        ui.request_close_terminals_tab(workspace_id);
+                    } else {
                         wb.close_center_tab(workspace_id, id);
                     }
-                    on:keydown=move |ev: web_sys::KeyboardEvent| {
-                        let key = ev.key();
-                        if key == "Enter" || key == " " {
-                            ev.prevent_default();
-                            ev.stop_propagation();
+                }
+                on:keydown=move |ev: web_sys::KeyboardEvent| {
+                    let key = ev.key();
+                    if key == "Enter" || key == " " {
+                        ev.prevent_default();
+                        ev.stop_propagation();
+                        if is_terminals {
+                            ui.request_close_terminals_tab(workspace_id);
+                        } else {
                             wb.close_center_tab(workspace_id, id);
                         }
                     }
-                >
-                    <LxIcon icon=icondata::LuX width="12px" height="12px" />
-                </span>
-            </Show>
+                }
+            >
+                <LxIcon icon=icondata::LuX width="12px" height="12px" />
+            </span>
         </button>
     }
 }
