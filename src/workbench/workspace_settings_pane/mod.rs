@@ -1,4 +1,4 @@
-//! Workspace settings pane — same harness layout as App / API Keys.
+//! Workspace settings pane — same row/list layout as API Keys (`api-keys-row`).
 
 use super::browser_tab::sync_embedded_browser_layer;
 use super::state::{BrowserEmbedSurface, WorkbenchService};
@@ -104,6 +104,22 @@ pub fn WorkspaceSettingsPane(
         status_msg.set(None);
     };
 
+    let on_project_input = move |ev: web_sys::Event| {
+        if let Some(txt) = input_str(&ev) {
+            wb.set_default_project_dir_text(txt);
+        }
+    };
+    let on_sandbox_input = move |ev: web_sys::Event| {
+        if let Some(txt) = input_str(&ev) {
+            wb.set_harness_workspace_root_text(txt);
+        }
+    };
+    let on_browser_input = move |ev: web_sys::Event| {
+        if let Some(txt) = input_str(&ev) {
+            wb.set_browser_url_text(txt);
+        }
+    };
+
     view! {
         <article class="harness-pane workspace-settings-pane">
             <h3 class="harness-pane-title">
@@ -120,95 +136,74 @@ pub fn WorkspaceSettingsPane(
                     </span>
                     <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::WsSectionPaths)()}</span>
                 </h4>
-                <div class="settings-field-list">
-                    <div class="settings-field-card">
-                        <label class="harness-stack">
-                            <span class="harness-field-label">
-                                <span class="harness-field-label__icon" aria-hidden="true">
-                                    <LxIcon icon=icondata::LuFolderGit2 width="0.82rem" height="0.82rem" />
-                                </span>
-                                <span class="harness-field-label__text">
-                                    {move || i18n.tr(I18nKey::WsDefaultProjectDirLabel)()}
-                                </span>
-                            </span>
+                <ul class="api-keys-list">
+                    <li class="settings-field-card api-keys-row">
+                        <div class="api-keys-row__head">
+                            <span class="api-keys-row__label">{move || i18n.tr(I18nKey::WsDefaultProjectDirLabel)()}</span>
+                        </div>
+                        <div class="api-keys-row__body harness-row-gap">
                             <input
-                                class="workbench-plain-input settings-field-card__input"
+                                class="workbench-plain-input api-keys-row__input workspace-field-row__input"
                                 type="text"
                                 placeholder=move || i18n.tr(I18nKey::WsDefaultProjectDirPlaceholder)()
                                 prop:value=move || wb.default_project_dir().get()
-                                on:input=move |ev| {
-                                    if let Some(txt) = input_str(&ev) {
-                                        wb.set_default_project_dir_text(txt);
-                                    }
-                                }
+                                on:input=on_project_input
                             />
-                            <small class="harness-muted">
-                                {move || i18n.tr(I18nKey::WsDefaultProjectDirHint)()}
-                            </small>
-                        </label>
-                    </div>
-                    <div class="settings-field-card">
-                        <label class="harness-stack">
-                            <span class="harness-field-label">
-                                <span class="harness-field-label__icon" aria-hidden="true">
-                                    <LxIcon icon=icondata::LuShield width="0.82rem" height="0.82rem" />
-                                </span>
-                                <span class="harness-field-label__text">
-                                    {move || i18n.tr(I18nKey::WsRootLabel)()}
-                                </span>
-                            </span>
+                            <span></span>
+                        </div>
+                        <p class="harness-muted api-keys-row__hint">{move || i18n.tr(I18nKey::WsDefaultProjectDirHint)()}</p>
+                    </li>
+                    <li class="settings-field-card api-keys-row">
+                        <div class="api-keys-row__head">
+                            <span class="api-keys-row__label">{move || i18n.tr(I18nKey::WsRootLabel)()}</span>
+                        </div>
+                        <div class="api-keys-row__body harness-row-gap">
                             <input
-                                class="workbench-plain-input settings-field-card__input"
+                                class="workbench-plain-input api-keys-row__input workspace-field-row__input"
                                 type="text"
                                 placeholder=move || i18n.tr(I18nKey::WsRootPlaceholder)()
                                 prop:value=move || wb.harness_workspace_root().get()
-                                on:input=move |ev| {
-                                    if let Some(txt) = input_str(&ev) {
-                                        wb.set_harness_workspace_root_text(txt);
-                                    }
-                                }
+                                on:input=on_sandbox_input
                             />
-                            <small class="harness-muted">{move || i18n.tr(I18nKey::WsRootHint)()}</small>
-                        </label>
-                    </div>
-                </div>
+                            <span></span>
+                        </div>
+                        <p class="harness-muted api-keys-row__hint">{move || i18n.tr(I18nKey::WsRootHint)()}</p>
+                    </li>
+                </ul>
             </section>
 
             <section class="harness-subpane">
                 <h4 class="harness-pane-subhead">
                     <span class="harness-pane-subhead__icon" aria-hidden="true">
-                        <LxIcon icon=icondata::LuGlobe width="0.82rem" height="0.82rem" />
+                        <LxIcon icon=icondata::LuGlobe width="0.9rem" height="0.9rem" />
                     </span>
                     <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::WsSectionBrowser)()}</span>
                 </h4>
-                <div class="settings-field-list">
-                    <div class="settings-field-card">
-                        <label class="harness-stack">
-                            <span class="harness-field-label">
-                                <span class="harness-field-label__text">
-                                    {move || i18n.tr(I18nKey::LayBrowserUrl)()}
-                                </span>
-                            </span>
+                <ul class="api-keys-list">
+                    <li class="settings-field-card api-keys-row">
+                        <div class="api-keys-row__head">
+                            <span class="api-keys-row__label">{move || i18n.tr(I18nKey::LayBrowserUrl)()}</span>
+                        </div>
+                        <div class="api-keys-row__body harness-row-gap">
                             <input
-                                class="workbench-plain-input settings-field-card__input"
+                                class="workbench-plain-input api-keys-row__input"
                                 type="url"
                                 prop:value=move || wb.browser_url().get()
-                                on:input=move |ev| {
-                                    if let Some(txt) = input_str(&ev) {
-                                        wb.set_browser_url_text(txt);
-                                    }
-                                }
+                                on:input=on_browser_input
                             />
-                            <small class="harness-muted">
-                                {move || format!(
+                            <span></span>
+                        </div>
+                        <p class="harness-muted api-keys-row__hint">
+                            {move || {
+                                format!(
                                     "{} {}",
                                     i18n.tr(I18nKey::WsBrowserDefault)(),
                                     HARNESS_BROWSER_DEFAULT_URL
-                                )}
-                            </small>
-                        </label>
-                    </div>
-                </div>
+                                )
+                            }}
+                        </p>
+                    </li>
+                </ul>
             </section>
 
             <Show when=move || status_msg.with(|m| m.is_some())>

@@ -1,15 +1,24 @@
 /* Centralized API keys pane (Settings → API Keys). Layout only —
    global tokens live in the project-wide styles. */
 
-.api-keys-pane .api-keys-list {
+.api-keys-list {
     list-style: none;
     margin: 0;
     padding: 0;
     display: flex;
     flex-direction: column;
+    gap: 0.6rem;
 }
 
-/* Card chrome: .settings-field-card in workspace_settings_pane.css */
+.settings-field-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
 
 .api-keys-row--coming-soon {
     opacity: 0.55;
