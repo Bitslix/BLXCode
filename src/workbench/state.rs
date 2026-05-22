@@ -1,12 +1,12 @@
 use crate::agent_wire::{AgentContextItem, AgentImageContextItem};
 use crate::config::{
-    HARNESS_BROWSER_DEFAULT_URL, HARNESS_BROWSER_URL_KEY, HARNESS_WORKSPACE_ROOT_KEY,
-    MEMORY_COLOR_PRESETS_STORAGE_KEY, SIDEBAR_WIDTH_PX_DEFAULT, SIDEBAR_WIDTH_PX_KEY,
+    DEFAULT_PROJECT_DIR_KEY, HARNESS_BROWSER_DEFAULT_URL, HARNESS_BROWSER_URL_KEY,
+    HARNESS_WORKSPACE_ROOT_KEY, MEMORY_COLOR_PRESETS_STORAGE_KEY, SIDEBAR_WIDTH_PX_DEFAULT,
+    SIDEBAR_WIDTH_PX_KEY,
 };
 use crate::tauri_bridge::{
     agent_environment_invalidate, is_tauri_shell, skills_rules_bootstrap, workbench_drop_sessions,
-    workbench_extract_sessions_prefix, workbench_merge_sessions_workspace,
-    workspace_ensure_agents,
+    workbench_extract_sessions_prefix, workbench_merge_sessions_workspace, workspace_ensure_agents,
 };
 use crate::workbench::agent_timeline::TimelineItem;
 use gloo_timers::future::TimeoutFuture;
@@ -87,10 +87,66 @@ pub struct WorkspaceEntry {
     /// Relative paths (from `cwd`) expanded in the project explorer tree.
     #[serde(default)]
     pub sidebar_explorer_expanded_paths: Vec<String>,
+    /// Center editor tabs for this workspace. The terminal grid is a pinned
+    /// default tab; other tabs are opened dynamically from the UI.
+    #[serde(default = "default_center_tabs")]
+    pub center_tabs: Vec<CenterTab>,
+    /// Currently selected center tab.
+    #[serde(default = "default_center_active_tab_id")]
+    pub center_active_tab_id: u64,
+    /// Next id for dynamically-created center tabs.
+    #[serde(default = "default_center_next_tab_id")]
+    pub center_next_tab_id: u64,
 }
 
 fn default_sidebar_section_open() -> bool {
     true
+}
+
+pub const CENTER_TERMINALS_TAB_ID: u64 = 1;
+
+fn default_center_active_tab_id() -> u64 {
+    CENTER_TERMINALS_TAB_ID
+}
+
+fn default_center_next_tab_id() -> u64 {
+    CENTER_TERMINALS_TAB_ID + 1
+}
+
+fn default_center_tabs() -> Vec<CenterTab> {
+    vec![CenterTab::terminals()]
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CenterTab {
+    pub id: u64,
+    pub title: String,
+    pub kind: CenterTabKind,
+}
+
+impl CenterTab {
+    #[must_use]
+    pub fn terminals() -> Self {
+        Self {
+            id: CENTER_TERMINALS_TAB_ID,
+            title: "Terminals".into(),
+            kind: CenterTabKind::Terminals,
+        }
+    }
+
+    #[must_use]
+    pub fn closeable(&self) -> bool {
+        !matches!(self.kind, CenterTabKind::Terminals)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum CenterTabKind {
+    Terminals,
+    Settings,
+    FilePreview { rel_path: String },
 }
 
 /// Aggregated token / cost stats for a workspace's agent chat. Each
@@ -317,6 +373,9 @@ impl WorkspaceEntry {
             sidebar_explorer_open: true,
             sidebar_graph_open: true,
             sidebar_explorer_expanded_paths: Vec::new(),
+            center_tabs: default_center_tabs(),
+            center_active_tab_id: default_center_active_tab_id(),
+            center_next_tab_id: default_center_next_tab_id(),
         }
     }
 
@@ -348,6 +407,33 @@ impl WorkspaceEntry {
         self.grid_rows = rows;
         self.grid_cols = cols;
     }
+}
+
+fn ensure_center_tabs(workspace: &mut WorkspaceEntry) {
+    if !workspace
+        .center_tabs
+        .iter()
+        .any(|tab| matches!(tab.kind, CenterTabKind::Terminals))
+    {
+        workspace.center_tabs.insert(0, CenterTab::terminals());
+    }
+    if !workspace
+        .center_tabs
+        .iter()
+        .any(|tab| tab.id == workspace.center_active_tab_id)
+    {
+        workspace.center_active_tab_id = CENTER_TERMINALS_TAB_ID;
+    }
+    let max_id = workspace
+        .center_tabs
+        .iter()
+        .map(|tab| tab.id)
+        .max()
+        .unwrap_or(CENTER_TERMINALS_TAB_ID);
+    workspace.center_next_tab_id = workspace
+        .center_next_tab_id
+        .max(max_id.saturating_add(1))
+        .max(default_center_next_tab_id());
 }
 
 #[inline]
@@ -515,7 +601,7 @@ pub enum RightPanelTab {
 }
 
 /// Kategorien in den Harness-Einstellungen (Befehlspalette).
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HarnessSettingsCategory {
     App,
     Workspace,
@@ -660,13 +746,6 @@ impl HarnessUiService {
         }
     }
 
-    pub fn open_settings(&self, cat: HarnessSettingsCategory) {
-        self.settings_category.set(cat);
-        self.close_command_palette();
-        self.close_quick_open();
-        self.settings_open.set(true);
-    }
-
     pub fn close_settings(&self) {
         self.settings_open.set(false);
     }
@@ -788,6 +867,10 @@ pub struct WorkbenchService {
     embedded_browser_active_id: RwSignal<u64>,
     embedded_browser_next_id: RwSignal<u64>,
     harness_workspace_root: RwSignal<String>,
+    /// Default project / development directory used to seed new workspace
+    /// cwds. Sandbox path above is reserved for BLXCode Agent sandbox
+    /// actions only; this is what regular workspaces start from.
+    default_project_dir: RwSignal<String>,
     workspace_next_id: RwSignal<u64>,
     /// Drafts for workspaces currently in inline-configuration mode,
     /// keyed by workspace id. Entries are removed on commit or cancel.
@@ -844,6 +927,8 @@ impl WorkbenchService {
 
         let harness_workspace_root =
             read_local_storage(HARNESS_WORKSPACE_ROOT_KEY).unwrap_or_default();
+        let default_project_dir =
+            read_local_storage(DEFAULT_PROJECT_DIR_KEY).unwrap_or_default();
         let memory_color_presets = read_memory_color_presets();
 
         let first_tab_id = 1_u64;
@@ -879,6 +964,7 @@ impl WorkbenchService {
             embedded_browser_active_id: RwSignal::new(first_tab_id),
             embedded_browser_next_id: RwSignal::new(first_tab_id + 1),
             harness_workspace_root: RwSignal::new(harness_workspace_root),
+            default_project_dir: RwSignal::new(default_project_dir),
             workspace_next_id: RwSignal::new(1),
             workspace_drafts: RwSignal::new(HashMap::new()),
             workspace_config_steps: RwSignal::new(HashMap::new()),
@@ -899,8 +985,7 @@ impl WorkbenchService {
     }
 
     fn bump_sidebar_repo_epoch(&self) {
-        self.sidebar_repo_epoch
-            .update(|n| *n = n.wrapping_add(1));
+        self.sidebar_repo_epoch.update(|n| *n = n.wrapping_add(1));
     }
 
     pub fn notifications(&self) -> RwSignal<HashMap<String, u32>> {
@@ -1295,15 +1380,148 @@ impl WorkbenchService {
     }
 
     #[must_use]
+    pub fn center_tabs_for_workspace(&self, workspace_id: u64) -> Vec<CenterTab> {
+        self.workspaces.with(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| {
+                    let mut clone = w.clone();
+                    ensure_center_tabs(&mut clone);
+                    clone.center_tabs
+                })
+                .unwrap_or_else(default_center_tabs)
+        })
+    }
+
+    #[must_use]
+    pub fn active_center_tab_id_for_workspace(&self, workspace_id: u64) -> u64 {
+        self.workspaces.with(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.center_active_tab_id)
+                .unwrap_or(CENTER_TERMINALS_TAB_ID)
+        })
+    }
+
+    pub fn set_active_center_tab(&self, workspace_id: u64, tab_id: u64) {
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            ensure_center_tabs(workspace);
+            if workspace.center_tabs.iter().any(|tab| tab.id == tab_id) {
+                workspace.center_active_tab_id = tab_id;
+            }
+        });
+        self.bump_terminal_layout();
+    }
+
+    pub fn close_center_tab(&self, workspace_id: u64, tab_id: u64) {
+        if tab_id == CENTER_TERMINALS_TAB_ID {
+            return;
+        }
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            ensure_center_tabs(workspace);
+            let Some(index) = workspace
+                .center_tabs
+                .iter()
+                .position(|tab| tab.id == tab_id)
+            else {
+                return;
+            };
+            if !workspace.center_tabs[index].closeable() {
+                return;
+            }
+            workspace.center_tabs.remove(index);
+            if workspace.center_active_tab_id == tab_id {
+                workspace.center_active_tab_id = workspace
+                    .center_tabs
+                    .get(index)
+                    .or_else(|| {
+                        index
+                            .checked_sub(1)
+                            .and_then(|i| workspace.center_tabs.get(i))
+                    })
+                    .map(|tab| tab.id)
+                    .unwrap_or(CENTER_TERMINALS_TAB_ID);
+            }
+            ensure_center_tabs(workspace);
+        });
+        self.bump_terminal_layout();
+    }
+
+    pub fn open_center_settings_tab(&self, cat: HarnessSettingsCategory) {
+        let Some(workspace_id) = self.active_id.get_untracked() else {
+            return;
+        };
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            ensure_center_tabs(workspace);
+            if let Some(tab) = workspace
+                .center_tabs
+                .iter()
+                .find(|tab| matches!(tab.kind, CenterTabKind::Settings))
+            {
+                workspace.center_active_tab_id = tab.id;
+                return;
+            }
+            let id = workspace
+                .center_next_tab_id
+                .max(default_center_next_tab_id());
+            workspace.center_next_tab_id = id.saturating_add(1);
+            workspace.center_tabs.push(CenterTab {
+                id,
+                title: settings_tab_title(cat).into(),
+                kind: CenterTabKind::Settings,
+            });
+            workspace.center_active_tab_id = id;
+        });
+        self.bump_terminal_layout();
+    }
+
+    pub fn open_center_file_tab(&self, workspace_id: u64, rel_path: String) {
+        let rel_path = rel_path.trim().trim_start_matches(['/', '\\']).to_string();
+        if rel_path.is_empty() {
+            return;
+        }
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            ensure_center_tabs(workspace);
+            if let Some(tab) = workspace.center_tabs.iter().find(|tab| {
+                matches!(&tab.kind, CenterTabKind::FilePreview { rel_path: existing } if existing == &rel_path)
+            }) {
+                workspace.center_active_tab_id = tab.id;
+                return;
+            }
+            let id = workspace.center_next_tab_id.max(default_center_next_tab_id());
+            workspace.center_next_tab_id = id.saturating_add(1);
+            workspace.center_tabs.push(CenterTab {
+                id,
+                title: file_tab_title(&rel_path),
+                kind: CenterTabKind::FilePreview { rel_path },
+            });
+            workspace.center_active_tab_id = id;
+        });
+    }
+
+    #[must_use]
     pub fn with_active_workspace_entry(&self) -> Option<WorkspaceEntry> {
         self.with_active_workspace(|w| w.clone())
     }
 
     fn with_active_workspace<R>(&self, f: impl FnOnce(&WorkspaceEntry) -> R) -> Option<R> {
         let id = self.active_id.get_untracked()?;
-        self.workspaces.with_untracked(|ws| {
-            ws.iter().find(|w| w.id == id).map(f)
-        })
+        self.workspaces
+            .with_untracked(|ws| ws.iter().find(|w| w.id == id).map(f))
     }
 
     fn update_active_workspace(&self, f: impl FnOnce(&mut WorkspaceEntry)) {
@@ -1401,6 +1619,9 @@ impl WorkbenchService {
                 sidebar_explorer_open: true,
                 sidebar_graph_open: true,
                 sidebar_explorer_expanded_paths: Vec::new(),
+                center_tabs: default_center_tabs(),
+                center_active_tab_id: default_center_active_tab_id(),
+                center_next_tab_id: default_center_next_tab_id(),
             });
         });
         Ok(id)
@@ -1893,6 +2114,20 @@ impl WorkbenchService {
         self.harness_workspace_root.set(path);
     }
 
+    #[must_use]
+    pub fn default_project_dir(&self) -> RwSignal<String> {
+        self.default_project_dir
+    }
+
+    pub fn set_default_project_dir_text(&self, path: String) {
+        self.default_project_dir.set(path);
+    }
+
+    pub fn persist_default_project_dir(&self, path: String) {
+        write_local_storage(DEFAULT_PROJECT_DIR_KEY, &path);
+        self.default_project_dir.set(path);
+    }
+
     // --- Inline workspace configuration ---
 
     #[must_use]
@@ -1937,9 +2172,13 @@ impl WorkbenchService {
     pub fn start_inline_configure(&self) -> u64 {
         let id = self.allocate_workspace_id();
 
-        let root = self.harness_workspace_root.get_untracked();
+        let project_root = self.default_project_dir.get_untracked();
         let mut draft = CreateWorkspaceDraft::default();
-        draft.cwd_display = root;
+        draft.cwd_display = if project_root.trim().is_empty() {
+            self.harness_workspace_root.get_untracked()
+        } else {
+            project_root
+        };
 
         let entry = WorkspaceEntry {
             id,
@@ -1963,6 +2202,9 @@ impl WorkbenchService {
             sidebar_explorer_open: true,
             sidebar_graph_open: true,
             sidebar_explorer_expanded_paths: Vec::new(),
+            center_tabs: default_center_tabs(),
+            center_active_tab_id: default_center_active_tab_id(),
+            center_next_tab_id: default_center_next_tab_id(),
         };
         self.active_id.set(Some(id));
         self.workspaces.update(|v| v.push(entry));
@@ -2137,6 +2379,7 @@ impl WorkbenchService {
             let Some(ws) = v.iter_mut().find(|w| w.id == id) else {
                 return;
             };
+            ensure_center_tabs(ws);
             ws.title = title;
             ws.cwd = cwd;
             ws.terminal_count = draft.terminal_count;
@@ -2285,7 +2528,10 @@ impl WorkbenchService {
     pub fn clear_chat_usage(&self, workspace_id: u64) {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
-                let next_gen = ws.agent_chat_usage.current_turn_generation.saturating_add(1);
+                let next_gen = ws
+                    .agent_chat_usage
+                    .current_turn_generation
+                    .saturating_add(1);
                 ws.agent_chat_usage = ChatUsageStats {
                     current_turn_generation: next_gen,
                     ..ChatUsageStats::default()
@@ -2610,6 +2856,7 @@ impl WorkbenchService {
                 if w.storage_key.trim().is_empty() {
                     w.storage_key = WorkspaceEntry::new_storage_key();
                 }
+                ensure_center_tabs(&mut w);
                 w
             })
             .collect();
@@ -2628,14 +2875,21 @@ impl WorkbenchService {
         // workspace persisted in configuring state — drafts are transient
         // and not serialised, so without this the configurator would
         // render against an empty draft.
-        let root = self.harness_workspace_root.get_untracked();
+        let project_root = {
+            let p = self.default_project_dir.get_untracked();
+            if p.trim().is_empty() {
+                self.harness_workspace_root.get_untracked()
+            } else {
+                p
+            }
+        };
         self.workspace_drafts.update(|m| {
             m.clear();
             for ws in &workspaces {
                 if ws.configuring {
                     let mut d = CreateWorkspaceDraft::default();
-                    if !root.is_empty() {
-                        d.cwd_display.clone_from(&root);
+                    if !project_root.is_empty() {
+                        d.cwd_display.clone_from(&project_root);
                     }
                     m.insert(ws.id, d);
                 }
@@ -2696,6 +2950,19 @@ impl WorkbenchService {
         }
         true
     }
+}
+
+fn settings_tab_title(_cat: HarnessSettingsCategory) -> &'static str {
+    "Settings"
+}
+
+fn file_tab_title(rel_path: &str) -> String {
+    rel_path
+        .rsplit(['/', '\\'])
+        .next()
+        .filter(|name| !name.is_empty())
+        .unwrap_or(rel_path)
+        .to_string()
 }
 
 /// On-disk schema for the workbench layout. Versioned via

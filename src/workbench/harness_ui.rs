@@ -10,7 +10,7 @@ use super::state::{
     MemoryColorPreset, RecentWorkspaceItem, RightPanelTab, WorkbenchService,
 };
 use super::update_service::{UpdateService, UpdateUiStatus};
-use crate::config::{EULA_STORAGE_KEY, HARNESS_BROWSER_DEFAULT_URL};
+use crate::config::HARNESS_BROWSER_DEFAULT_URL;
 use crate::i18n::{lookup, I18nKey, Locale, APP_LOCALES};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
@@ -23,7 +23,6 @@ use crate::tauri_bridge::{
 };
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Date;
-use leptos::html;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
@@ -121,9 +120,6 @@ pub fn HarnessHost() -> impl IntoView {
         </Show>
         <Show when=move || ui.palette_open().get()>
             <PaletteChrome ui=ui wb=wb embed=embed />
-        </Show>
-        <Show when=move || ui.settings_open().get()>
-            <SettingsChrome ui=ui wb=wb embed=embed />
         </Show>
     }
 }
@@ -494,13 +490,6 @@ fn checkbox_checked(ev: &web_sys::Event) -> Option<bool> {
         .map(|i| i.checked())
 }
 
-fn textarea_str(ev: &web_sys::Event) -> Option<String> {
-    ev.target()?
-        .dyn_into::<web_sys::HtmlTextAreaElement>()
-        .ok()
-        .map(|i| i.value())
-}
-
 fn select_str(ev: &web_sys::Event) -> Option<String> {
     ev.target()?
         .dyn_into::<web_sys::HtmlSelectElement>()
@@ -636,7 +625,9 @@ fn palette_run(
             ui.open_quick_open();
         }
         PaletteAction::OpenSettings => {
-            ui.open_settings(HarnessSettingsCategory::App);
+            ui.close_command_palette();
+            ui.settings_category().set(HarnessSettingsCategory::App);
+            wb.open_center_settings_tab(HarnessSettingsCategory::App);
         }
         PaletteAction::ToggleRightPanel => {
             wb.toggle_right_panel();
@@ -676,41 +667,6 @@ fn defer_browser_bounds(wb: WorkbenchService, embed: BrowserEmbedSurface) {
     });
 }
 
-fn focus_first_settings_control(section_ref: NodeRef<html::Section>) {
-    leptos::task::spawn_local(async move {
-        TimeoutFuture::new(24).await;
-        let Some(section) = section_ref.get() else {
-            return;
-        };
-        let selector = "button:not([disabled]):not([tabindex='-1']), input:not([disabled]), select:not([disabled]), textarea:not([disabled])";
-        let Ok(Some(node)) = section.query_selector(selector) else {
-            return;
-        };
-        let Ok(el) = node.dyn_into::<web_sys::HtmlElement>() else {
-            return;
-        };
-        let _ = el.focus();
-    });
-}
-
-fn settings_focusables(section: &web_sys::HtmlElement) -> Vec<web_sys::HtmlElement> {
-    let selector = "button:not([disabled]):not([tabindex='-1']), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [role='option']:not([disabled])";
-    let Ok(list) = section.query_selector_all(selector) else {
-        return Vec::new();
-    };
-    let mut out = Vec::new();
-    let len = list.length();
-    for idx in 0..len {
-        let Some(node) = list.item(idx) else {
-            continue;
-        };
-        if let Ok(el) = node.dyn_into::<web_sys::HtmlElement>() {
-            out.push(el);
-        }
-    }
-    out
-}
-
 fn harness_settings_cat_icon(cat: HarnessSettingsCategory) -> icondata::Icon {
     match cat {
         HarnessSettingsCategory::App => icondata::LuLayoutDashboard,
@@ -722,132 +678,47 @@ fn harness_settings_cat_icon(cat: HarnessSettingsCategory) -> icondata::Icon {
     }
 }
 
-fn trap_settings_tab(section_ref: NodeRef<html::Section>, ev: web_sys::KeyboardEvent) {
-    let key = ev.key();
-    if key != "Tab" {
-        return;
-    }
-    let Some(section) = section_ref.get() else {
-        return;
-    };
-    let section: web_sys::HtmlElement = section.into();
-    let focusables = settings_focusables(&section);
-    if focusables.is_empty() {
-        return;
-    }
-    let Some(active) = web_sys::window()
-        .and_then(|w| w.document())
-        .and_then(|doc| doc.active_element())
-        .and_then(|el| el.dyn_into::<web_sys::HtmlElement>().ok())
-    else {
-        return;
-    };
-    let current_idx = focusables
-        .iter()
-        .position(|el| el.is_same_node(Some(&active)))
-        .unwrap_or(0);
-    let next_idx = if ev.shift_key() {
-        if current_idx == 0 {
-            focusables.len().saturating_sub(1)
-        } else {
-            current_idx - 1
-        }
-    } else if current_idx + 1 >= focusables.len() {
-        0
-    } else {
-        current_idx + 1
-    };
-    ev.prevent_default();
-    let _ = focusables[next_idx].focus();
-}
-
 #[component]
-fn SettingsChrome(
+pub fn SettingsDock(
     ui: HarnessUiService,
     wb: WorkbenchService,
     embed: BrowserEmbedSurface,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
-    let section_ref = NodeRef::<html::Section>::new();
-
-    Effect::new(move |_| {
-        if ui.settings_open().get() {
-            focus_first_settings_control(section_ref);
-        }
-    });
 
     view! {
-        <div class="harness-overlay harness-overlay--modal" role="presentation">
-            <button
-                type="button"
-                class="harness-scrim"
-                tabindex="-1"
-                aria-label=move || i18n.tr(I18nKey::HsCloseSettingsAria)()
-                on:click=move |_| ui.close_settings()
-            ></button>
+        <div class="harness-settings-grid harness-settings-grid--docked">
+            <nav class="harness-settings-cats" aria-label=move || i18n.tr(I18nKey::HsAriaCats)()>
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::App label=I18nKey::HsCatApp />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Workspace label=I18nKey::HsCatWorkspace />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::AgentProvider label=I18nKey::HsCatProvider />
+                <HarnessCatStaticBtn ui=ui cat=HarnessSettingsCategory::Memory label="Memory" />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Voice label=I18nKey::HsCatVoice />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Image label=I18nKey::HsCatImage />
+            </nav>
 
-            <section
-                class="harness-sheet harness-sheet--settings"
-                role="dialog"
-                aria-modal="true"
-                node_ref=section_ref
-                on:keydown=move |ev: web_sys::KeyboardEvent| {
-                    if ev.key() == "Escape" {
-                        ev.prevent_default();
-                        ui.close_settings();
-                        return;
-                    }
-                    trap_settings_tab(section_ref, ev);
-                }
-            >
-                <header class="harness-settings-head">
-                    <h2 class="harness-settings-title">
-                        <span class="harness-settings-title__icon" aria-hidden="true">
-                            <LxIcon icon=icondata::LuSettings2 width="1.05rem" height="1.05rem" />
-                        </span>
-                        <span class="harness-settings-title__text">{move || i18n.tr(I18nKey::HsTitle)()}</span>
-                    </h2>
-                    <button type="button" class="workbench-mini-btn harness-settings-close" on:click=move |_| ui.close_settings()>
-                        <span class="harness-btn-inline">
-                            <LxIcon icon=icondata::LuX width="0.82rem" height="0.82rem" />
-                            <span>{move || i18n.tr(I18nKey::BtnClose)()}</span>
-                        </span>
-                    </button>
-                </header>
-                <div class="harness-settings-grid">
-                    <nav class="harness-settings-cats" aria-label=move || i18n.tr(I18nKey::HsAriaCats)()>
-                        <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::App label=I18nKey::HsCatApp />
-                        <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Workspace label=I18nKey::HsCatWorkspace />
-                        <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::AgentProvider label=I18nKey::HsCatProvider />
-                        <HarnessCatStaticBtn ui=ui cat=HarnessSettingsCategory::Memory label="Memory" />
-                        <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Voice label=I18nKey::HsCatVoice />
-                        <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Image label=I18nKey::HsCatImage />
-                    </nav>
-
-                    <div class="harness-settings-detail">
-                        {move || match ui.settings_category().get() {
-                            HarnessSettingsCategory::App => view! {
-                                <AppSettingsPane />
-                            }.into_any(),
-                            HarnessSettingsCategory::Workspace => view! {
-                                <WorkspaceSettingsPane ui=ui wb=wb embed=embed />
-                            }.into_any(),
-                            HarnessSettingsCategory::AgentProvider => view! {
-                                <AgentProviderPane />
-                            }.into_any(),
-                            HarnessSettingsCategory::Memory => view! {
-                                <MemorySettingsPane wb=wb />
-                            }.into_any(),
-                            HarnessSettingsCategory::Voice => view! {
-                                <crate::workbench::harness_voice_pane::VoicePane />
-                            }.into_any(),
-                            HarnessSettingsCategory::Image => view! {
-                                <crate::workbench::harness_image_pane::ImagePane />
-                            }.into_any(),
-                        }}
-                    </div>
-                </div>
-            </section>
+            <div class="harness-settings-detail">
+                {move || match ui.settings_category().get() {
+                    HarnessSettingsCategory::App => view! {
+                        <AppSettingsPane />
+                    }.into_any(),
+                    HarnessSettingsCategory::Workspace => view! {
+                        <WorkspaceSettingsPane ui=ui wb=wb embed=embed />
+                    }.into_any(),
+                    HarnessSettingsCategory::AgentProvider => view! {
+                        <AgentProviderPane />
+                    }.into_any(),
+                    HarnessSettingsCategory::Memory => view! {
+                        <MemorySettingsPane wb=wb />
+                    }.into_any(),
+                    HarnessSettingsCategory::Voice => view! {
+                        <crate::workbench::harness_voice_pane::VoicePane />
+                    }.into_any(),
+                    HarnessSettingsCategory::Image => view! {
+                        <crate::workbench::harness_image_pane::ImagePane />
+                    }.into_any(),
+                }}
+            </div>
         </div>
     }
 }
@@ -1072,20 +943,6 @@ fn AppSettingsPane() -> impl IntoView {
             <label class="harness-stack">
                 <span class="harness-field-label">
                     <span class="harness-field-label__icon" aria-hidden="true">
-                        <LxIcon icon=icondata::LuScale width="0.82rem" height="0.82rem" />
-                    </span>
-                    <span class="harness-field-label__text">{move || i18n.tr(I18nKey::GenEulaStatus)()}</span>
-                </span>
-                <input
-                    class="workbench-plain-input"
-                    type="text"
-                    prop:readonly=true
-                    prop:value=move || eula_preview(i18n.locale().get())
-                />
-            </label>
-            <label class="harness-stack">
-                <span class="harness-field-label">
-                    <span class="harness-field-label__icon" aria-hidden="true">
                         <LxIcon icon=icondata::LuLanguages width="0.82rem" height="0.82rem" />
                     </span>
                     <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AppLanguage)()}</span>
@@ -1099,7 +956,7 @@ fn AppSettingsPane() -> impl IntoView {
                     </span>
                     <span>{move || i18n.tr(I18nKey::AppShortcutHeading)()}</span>
                 </h4>
-                <fieldset class="app-prefs-shortcut-modes">
+                <fieldset class="app-prefs-shortcut-modes app-prefs-shortcut-modes--grid">
                     <label class="app-prefs-radio">
                         <input
                             type="radio"
@@ -1134,32 +991,41 @@ fn AppSettingsPane() -> impl IntoView {
                     </span>
                     <span>{move || i18n.tr(I18nKey::AppNotifHeading)()}</span>
                 </h4>
-                <label class="app-prefs-toggle">
-                    <input
-                        type="checkbox"
-                        prop:checked=move || prefs.success_toast_enabled().get()
-                        on:change=move |ev| {
-                            if let Some(checked) = checkbox_checked(&ev) {
-                                prefs.set_success_toast(checked);
-                            }
-                        }
-                    />
-                    <span>{move || i18n.tr(I18nKey::AppNotifToasts)()}</span>
-                </label>
-                <p class="app-prefs-hint">{move || i18n.tr(I18nKey::AppNotifToastsHint)()}</p>
-                <label class="app-prefs-toggle">
-                    <input
-                        type="checkbox"
-                        prop:checked=move || prefs.success_sound_enabled().get()
-                        on:change=move |ev| {
-                            if let Some(checked) = checkbox_checked(&ev) {
-                                prefs.set_success_sound(checked);
-                            }
-                        }
-                    />
-                    <span>{move || i18n.tr(I18nKey::AppNotifSound)()}</span>
-                </label>
-                <p class="app-prefs-hint">{move || i18n.tr(I18nKey::AppNotifSoundHint)()}</p>
+                <div class="app-prefs-toggle-grid">
+                    <div class="app-prefs-toggle-cell">
+                        <label class="app-prefs-toggle">
+                            <input
+                                type="checkbox"
+                                prop:checked=move || prefs.success_toast_enabled().get()
+                                on:change=move |ev| {
+                                    if let Some(checked) = checkbox_checked(&ev) {
+                                        prefs.set_success_toast(checked);
+                                    }
+                                }
+                            />
+                            <span>{move || i18n.tr(I18nKey::AppNotifToasts)()}</span>
+                        </label>
+                        <p class="app-prefs-hint">{move || i18n.tr(I18nKey::AppNotifToastsHint)()}</p>
+                    </div>
+                    <div class="app-prefs-toggle-cell">
+                        <label class="app-prefs-toggle">
+                            <input
+                                type="checkbox"
+                                prop:checked=move || prefs.success_sound_enabled().get()
+                                on:change=move |ev| {
+                                    if let Some(checked) = checkbox_checked(&ev) {
+                                        prefs.set_success_sound(checked);
+                                    }
+                                }
+                            />
+                            <span>{move || i18n.tr(I18nKey::AppNotifSound)()}</span>
+                        </label>
+                        <p class="app-prefs-hint">{move || i18n.tr(I18nKey::AppNotifSoundHint)()}</p>
+                    </div>
+                </div>
+            </section>
+            <section class="harness-subpane">
+                <AgentHooksPanel />
             </section>
             <section class="harness-subpane">
                 <h4 class="harness-pane-subhead">
@@ -1181,20 +1047,31 @@ fn AppSettingsPane() -> impl IntoView {
                     <span>{move || i18n.tr(I18nKey::AppUpdateAutoCheck)()}</span>
                 </label>
                 <p class="app-prefs-hint">{move || i18n.tr(I18nKey::AppUpdateAutoCheckHint)()}</p>
-                <label class="harness-stack">
-                    <span class="harness-field-label">
-                        <span class="harness-field-label__icon" aria-hidden="true">
-                            <LxIcon icon=icondata::LuBadgeInfo width="0.82rem" height="0.82rem" />
-                        </span>
-                        <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AppUpdateCurrentVersion)()}</span>
-                    </span>
-                    <input
-                        class="workbench-plain-input"
-                        type="text"
-                        prop:readonly=true
-                        prop:value=move || updates.current_version().get()
-                    />
-                </label>
+                <dl class="app-prefs-version">
+                    <div class="app-prefs-version__row">
+                        <dt>
+                            <span class="harness-field-label__icon" aria-hidden="true">
+                                <LxIcon icon=icondata::LuBadgeInfo width="0.82rem" height="0.82rem" />
+                            </span>
+                            <span>{move || i18n.tr(I18nKey::AppUpdateCurrentVersion)()}</span>
+                        </dt>
+                        <dd>{move || {
+                            let v = updates.current_version().get();
+                            if v.is_empty() { "—".to_string() } else { v }
+                        }}</dd>
+                    </div>
+                    <Show when=move || updates.available_version().get().is_some()>
+                        <div class="app-prefs-version__row app-prefs-version__row--available">
+                            <dt>
+                                <span class="harness-field-label__icon" aria-hidden="true">
+                                    <LxIcon icon=icondata::LuCircleArrowUp width="0.82rem" height="0.82rem" />
+                                </span>
+                                <span>{move || i18n.tr(I18nKey::AppUpdateAvailableVersion)()}</span>
+                            </dt>
+                            <dd>{move || updates.available_version().get().unwrap_or_default()}</dd>
+                        </div>
+                    </Show>
+                </dl>
                 <button
                     type="button"
                     class="workbench-mini-btn workbench-mini-btn--primary"
@@ -1220,9 +1097,6 @@ fn AppSettingsPane() -> impl IntoView {
                         _ => String::new(),
                     }}
                 </p>
-            </section>
-            <section class="harness-subpane">
-                <AgentHooksPanel />
             </section>
         </article>
     }
@@ -1406,21 +1280,61 @@ fn WorkspaceSettingsPane(
             <label class="harness-stack">
                 <span class="harness-field-label">
                     <span class="harness-field-label__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuFolderGit2 width="0.82rem" height="0.82rem" />
+                    </span>
+                    <span class="harness-field-label__text">{move || i18n.tr(I18nKey::WsDefaultProjectDirLabel)()}</span>
+                </span>
+                <input
+                    class="workbench-plain-input"
+                    type="text"
+                    placeholder=move || i18n.tr(I18nKey::WsDefaultProjectDirPlaceholder)()
+                    prop:value=move || wb.default_project_dir().get()
+                    on:input=move |ev| {
+                        if let Some(txt) = input_str(&ev) {
+                            wb.set_default_project_dir_text(txt);
+                        }
+                    }
+                />
+                <small class="harness-muted">
+                    {move || i18n.tr(I18nKey::WsDefaultProjectDirHint)()}
+                </small>
+            </label>
+            <div class="harness-row-gap">
+                <button
+                    type="button"
+                    class="workbench-mini-btn workbench-mini-btn--primary"
+                    on:click=move |_| {
+                        let trimmed = wb.default_project_dir().get_untracked().trim().to_owned();
+                        wb.persist_default_project_dir(trimmed);
+                    }
+                >
+                    <span class="harness-btn-inline">
+                        <LxIcon icon=icondata::LuSave width="0.78rem" height="0.78rem" />
+                        <span>{move || i18n.tr(I18nKey::BtnSave)()}</span>
+                    </span>
+                </button>
+            </div>
+            <label class="harness-stack">
+                <span class="harness-field-label">
+                    <span class="harness-field-label__icon" aria-hidden="true">
                         <LxIcon icon=icondata::LuFolderTree width="0.82rem" height="0.82rem" />
                     </span>
                     <span class="harness-field-label__text">{move || i18n.tr(I18nKey::WsRootLabel)()}</span>
                 </span>
-                <textarea
-                    class="workbench-plain-textarea"
-                    rows="3"
+                <input
+                    class="workbench-plain-input"
+                    type="text"
                     placeholder=move || i18n.tr(I18nKey::WsRootPlaceholder)()
                     prop:value=move || wb.harness_workspace_root().get()
                     on:input=move |ev| {
-                        if let Some(txt) = textarea_str(&ev) {
+                        if let Some(txt) = input_str(&ev) {
                             wb.set_harness_workspace_root_text(txt);
                         }
                     }
-                ></textarea>
+                />
+                <small class="harness-muted">
+                    {move || i18n.tr(I18nKey::WsRootHint)()}
+                </small>
             </label>
             <div class="harness-row-gap">
                 <button
@@ -2390,7 +2304,7 @@ fn AgentHooksPanel() -> impl IntoView {
                 <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::AgHooksHeading)()}</span>
             </h4>
             <p class="harness-muted">{move || i18n.tr(I18nKey::AgHooksDesc)()}</p>
-            <ul class="harness-hooks__list" role="list">
+            <ul class="harness-hooks__list harness-hooks__list--grid" role="list">
                 {move || {
                     let rendered = report.get();
                     let installed_label = i18n.tr(I18nKey::AgHooksStatusInstalled)().to_string();
@@ -2494,17 +2408,6 @@ fn AgentHooksPanel() -> impl IntoView {
             </Show>
         </section>
     }
-}
-
-fn eula_preview(loc: Locale) -> String {
-    web_sys::window()
-        .and_then(|w| w.local_storage().ok().flatten())
-        .and_then(|s| s.get_item(EULA_STORAGE_KEY).ok().flatten())
-        .map(|v| match v.as_str() {
-            "1" => lookup(loc, I18nKey::EulaAccepted).to_string(),
-            other => format!("„{other}“"),
-        })
-        .unwrap_or_else(|| lookup(loc, I18nKey::EulaUnknown).to_string())
 }
 
 fn persist_browser_defaults(

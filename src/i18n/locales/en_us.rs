@@ -220,6 +220,7 @@ Add it to this project's `.gitignore` so it is not committed by mistake?"
             "BLXCode checks GitHub Releases silently and shows a banner when an update is ready."
         }
         I18nKey::AppUpdateCurrentVersion => "Current version",
+        I18nKey::AppUpdateAvailableVersion => "Available version",
         I18nKey::AppUpdateCheck => "Check for updates",
         I18nKey::AppUpdateChecking => "Checking...",
         I18nKey::AppUpdateUpToDate => "BLXCode is up to date.",
@@ -358,8 +359,12 @@ Classic: Ctrl+O quick open, Ctrl+` new terminal, Ctrl+Shift+P palette."
         I18nKey::WsHeading => "Workspace",
         I18nKey::LayBrowserUrl => "Default embedded browser URL",
         I18nKey::WsBrowserDefault => "Preset:",
-        I18nKey::WsRootLabel => "Workspace / sandbox root",
-        I18nKey::WsRootPlaceholder => "/abs/path/to/repo",
+        I18nKey::WsRootLabel => "Agent sandbox root",
+        I18nKey::WsRootPlaceholder => "/abs/path/to/sandbox",
+        I18nKey::WsRootHint => "Used only by BLXCode Agent for sandboxed file actions.",
+        I18nKey::WsDefaultProjectDirLabel => "Default project directory",
+        I18nKey::WsDefaultProjectDirPlaceholder => "$HOME",
+        I18nKey::WsDefaultProjectDirHint => "Pre-fills the working directory for new workspaces.",
         I18nKey::AgProviderHeading => "BLXCode Agent Provider",
         I18nKey::AgProviderField => "Provider",
         I18nKey::AgProviderOpenrouter => "OpenRouter",

@@ -8,7 +8,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::GitignorePromptTitle => ".blxcode zur .gitignore hinzufügen?",
         I18nKey::GitignorePromptBody => {
             "BLXCode speichert lokale Workspace-Daten (Aufgaben, Sitzungen) im Ordner `.blxcode`. \nSoll dieser Eintrag in die `.gitignore` dieses Projekts aufgenommen werden, damit er nicht versehentlich committed wird?"
-        },
+        }
         I18nKey::GitignorePromptYes => "Ja, hinzufügen",
         I18nKey::GitignorePromptNo => "Nicht jetzt",
         I18nKey::BtnClose => "Schließen",
@@ -194,10 +194,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppNotifSoundHint => "Kurzer Ton bei erfolgreichen Handoff-Aktionen.",
         I18nKey::AppUpdateHeading => "App-Updates",
         I18nKey::AppUpdateAutoCheck => "Beim Start nach Updates suchen",
-        I18nKey::AppUpdateAutoCheckHint => {
-            "BLXCode prueft GitHub Releases still und zeigt einen Banner, wenn ein Update bereitsteht."
-        }
+        I18nKey::AppUpdateAutoCheckHint => "BLXCode prueft GitHub Releases still und zeigt einen Banner, wenn ein Update bereitsteht.",
         I18nKey::AppUpdateCurrentVersion => "Aktuelle Version",
+        I18nKey::AppUpdateAvailableVersion => "Verfügbare Version",
         I18nKey::AppUpdateCheck => "Nach Updates suchen",
         I18nKey::AppUpdateChecking => "Pruefe...",
         I18nKey::AppUpdateUpToDate => "BLXCode ist aktuell.",
@@ -324,6 +323,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsBrowserDefault => "Voreinstellung:",
         I18nKey::WsRootLabel => "Arbeitsbereich/Sandbox-Root",
         I18nKey::WsRootPlaceholder => "/abs/path/to/repo",
+        I18nKey::WsRootHint => "Wird nur vom BLXCode-Agenten für Sandbox-Dateiaktionen verwendet.",
+        I18nKey::WsDefaultProjectDirLabel => "Standardprojektverzeichnis",
+        I18nKey::WsDefaultProjectDirPlaceholder => "$HOME",
+        I18nKey::WsDefaultProjectDirHint => "Füllt das Arbeitsverzeichnis für neue Arbeitsbereiche vorab aus.",
         I18nKey::AgProviderHeading => "BLXCode-Agent-Anbieter",
         I18nKey::AgProviderField => "Anbieter",
         I18nKey::AgProviderOpenrouter => "OpenRouter",

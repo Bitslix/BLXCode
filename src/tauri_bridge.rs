@@ -109,6 +109,12 @@ pub async fn harness_ensure_default_sandbox() -> Result<String, String> {
     invoke_typed("harness_ensure_default_sandbox", serde_json::json!({})).await
 }
 
+/// Returns the user's home directory. Default for the "default project
+/// directory" setting that seeds new workspace cwds.
+pub async fn harness_user_home_dir() -> Result<String, String> {
+    invoke_typed("harness_user_home_dir", serde_json::json!({})).await
+}
+
 pub async fn app_version() -> Result<String, String> {
     invoke_typed("app_version", serde_json::json!({})).await
 }
@@ -642,6 +648,34 @@ pub async fn list_path_entries(
     }
     invoke_typed(
         "list_path_entries",
+        A {
+            workspace_root,
+            path,
+        },
+    )
+    .await
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextFilePreview {
+    pub content: String,
+    pub truncated: bool,
+    pub byte_len: u64,
+}
+
+pub async fn read_workspace_text_file(
+    workspace_root: String,
+    path: String,
+) -> Result<TextFilePreview, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        workspace_root: String,
+        path: String,
+    }
+    invoke_typed(
+        "read_workspace_text_file",
         A {
             workspace_root,
             path,

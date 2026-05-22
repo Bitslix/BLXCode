@@ -431,6 +431,17 @@ pub fn agent_submit_tool_result(
     agent.deliver_client_tool_result(&payload.call_id, payload.ok, payload.message, payload.data)
 }
 
+/// Returns the user's home directory as a string. Used as the default for
+/// the "default project directory" setting that seeds new workspace cwds.
+#[tauri::command]
+pub fn harness_user_home_dir(app: AppHandle) -> Result<String, String> {
+    let home = app
+        .path()
+        .home_dir()
+        .map_err(|e| format!("home dir unavailable: {e}"))?;
+    Ok(home.to_string_lossy().into_owned())
+}
+
 /// Returns (and idempotently creates) the default sandbox directory under
 /// the app data dir. Used as a guaranteed-non-empty fallback workspace
 /// root so the agent always has a writable scope to play in.
