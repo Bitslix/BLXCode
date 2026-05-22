@@ -32,19 +32,17 @@ fn api_key_brand_icon_url(kind: &str) -> Option<&'static str> {
         "openrouter" => Some("/public/brand-icons/openrouter.svg"),
         "anthropic" => Some("/public/brand-icons/anthropic.svg"),
         "openai" => Some("/public/brand-icons/openai.svg"),
-        "google" => Some("/public/brand-icons/gemini.svg"),
+        "google" => Some("/public/brand-icons/google.svg"),
+        "mistral" => Some("/public/brand-icons/mistral.svg"),
+        "groq" => Some("/public/brand-icons/groq.svg"),
+        "tavily" => Some("/public/brand-icons/tavily.svg"),
+        "brave" => Some("/public/brand-icons/brave.svg"),
         _ => None,
     }
 }
 
-fn api_key_icon_fallback(kind: &str) -> icondata::Icon {
-    match kind {
-        "mistral" => icondata::LuSparkles,
-        "groq" => icondata::LuZap,
-        "tavily" => icondata::LuSearch,
-        "brave" => icondata::LuShield,
-        _ => icondata::LuKeyRound,
-    }
+fn api_key_icon_fallback(_kind: &str) -> icondata::Icon {
+    icondata::LuKeyRound
 }
 
 fn input_str(ev: &web_sys::Event) -> Option<String> {
