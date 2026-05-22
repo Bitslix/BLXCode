@@ -10,7 +10,6 @@ use super::state::{
     MemoryColorPreset, RecentWorkspaceItem, RightPanelTab, WorkbenchService,
 };
 use super::update_service::{UpdateService, UpdateUiStatus};
-use crate::config::HARNESS_BROWSER_DEFAULT_URL;
 use crate::i18n::{lookup, I18nKey, Locale, APP_LOCALES};
 use crate::service::I18nService;
 use crate::tauri_bridge::{

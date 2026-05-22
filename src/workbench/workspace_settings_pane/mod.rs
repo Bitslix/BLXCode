@@ -77,12 +77,13 @@ pub fn WorkspaceSettingsPane(
         if project != b.project_dir {
             wb.persist_default_project_dir(project);
         }
-        if sandbox != b.sandbox_root {
+        let sandbox_changed = sandbox != b.sandbox_root;
+        if sandbox_changed {
             wb.persist_harness_workspace_root(sandbox);
         }
         if browser != b.browser_url {
             apply_browser_url(wb, embed, browser);
-        } else if sandbox != b.sandbox_root {
+        } else if sandbox_changed {
             let w = wb;
             leptos::task::spawn_local(async move {
                 TimeoutFuture::new(8).await;
