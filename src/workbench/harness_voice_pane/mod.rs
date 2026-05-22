@@ -83,8 +83,9 @@ impl GenderFilter {
     }
 }
 
+/// Voice settings column (BLXCode Agent grid, bottom row spanning both columns).
 #[component]
-pub fn VoicePane() -> impl IntoView {
+pub fn AgentVoiceColumn() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let settings = RwSignal::new(Option::<VoiceSettings>::None);
     let voices = RwSignal::new(Vec::<VoiceEntry>::new());
@@ -93,7 +94,6 @@ pub fn VoicePane() -> impl IntoView {
     let stt_models = RwSignal::new(Vec::<ProviderModelEntry>::new());
     let tts_models = RwSignal::new(Vec::<ProviderModelEntry>::new());
 
-    // Load current settings + initial voice catalogue + model lists.
     if is_tauri_shell() {
         leptos::task::spawn_local(async move {
             if let Ok(v) = voice_settings_get().await {
@@ -116,7 +116,7 @@ pub fn VoicePane() -> impl IntoView {
             match voice_settings_save(patch).await {
                 Ok(v) => {
                     settings.set(Some(v));
-                    status.set(Some("saved".into()));
+                    status.set(Some(i18n.tr(I18nKey::ApiKeysSaved)().to_string()));
                 }
                 Err(e) => status.set(Some(e)),
             }
@@ -139,13 +139,13 @@ pub fn VoicePane() -> impl IntoView {
     };
 
     view! {
-        <section class="harness-settings-pane voice-pane" aria-labelledby="voice-pane-title">
-            <header class="harness-settings-pane__head">
-                <h2 id="voice-pane-title">
-                    <LxIcon icon=icondata::LuMic width="1.1rem" height="1.1rem" />
-                    <span>{move || i18n.tr(I18nKey::VoicePaneTitle)()}</span>
-                </h2>
-            </header>
+        <>
+            <h4 class="harness-pane-subhead agent-provider-pane__col-title">
+                <span class="harness-pane-subhead__icon" aria-hidden="true">
+                    <LxIcon icon=icondata::LuMic width="0.82rem" height="0.82rem" />
+                </span>
+                <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::AgColumnVoice)()}</span>
+            </h4>
 
             <Show
                 when=move || settings.get().is_some()
@@ -168,32 +168,34 @@ pub fn VoicePane() -> impl IntoView {
                     let tts_enabled = current.tts.enabled;
 
                     view! {
-                        <SttSection
-                            current=current.clone()
-                            stt_provider=stt_provider
-                            stt_model=stt_model.clone()
-                            sample_rate=sample_rate
-                            models=stt_models
-                            save=save
-                            reload_models=reload_stt_models
-                        />
-                        <TtsSection
-                            current=current.clone()
-                            tts_provider=tts_provider
-                            tts_model=tts_model.clone()
-                            voice_id=voice_id.clone()
-                            voices=voices
-                            gender_filter=gender_filter
-                            tts_enabled=tts_enabled
-                            models=tts_models
-                            save=save
-                            reload_voices=reload_voices
-                        />
-                        <BehaviorSection
-                            current=current.clone()
-                            post_flow=post_flow
-                            save=save
-                        />
+                        <div class="agent-provider-pane__voice-inner">
+                            <SttSection
+                                current=current.clone()
+                                stt_provider=stt_provider
+                                stt_model=stt_model.clone()
+                                sample_rate=sample_rate
+                                models=stt_models
+                                save=save
+                                reload_models=reload_stt_models
+                            />
+                            <TtsSection
+                                current=current.clone()
+                                tts_provider=tts_provider
+                                tts_model=tts_model.clone()
+                                voice_id=voice_id.clone()
+                                voices=voices
+                                gender_filter=gender_filter
+                                tts_enabled=tts_enabled
+                                models=tts_models
+                                save=save
+                                reload_voices=reload_voices
+                            />
+                            <BehaviorSection
+                                current=current.clone()
+                                post_flow=post_flow
+                                save=save
+                            />
+                        </div>
                     }.into_any()
                 }}
             </Show>
@@ -201,6 +203,24 @@ pub fn VoicePane() -> impl IntoView {
             <Show when=move || status.get().is_some()>
                 <p class="voice-pane__status">{move || status.get().unwrap_or_default()}</p>
             </Show>
+        </>
+    }
+}
+
+#[component]
+pub fn VoicePane() -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    view! {
+        <section class="harness-settings-pane voice-pane" aria-labelledby="voice-pane-title">
+            <header class="harness-settings-pane__head">
+                <h2 id="voice-pane-title">
+                    <LxIcon icon=icondata::LuMic width="1.1rem" height="1.1rem" />
+                    <span>{move || i18n.tr(I18nKey::VoicePaneTitle)()}</span>
+                </h2>
+            </header>
+            <div class="agent-provider-pane__col agent-provider-pane__col--standalone voice-pane-standalone">
+                <AgentVoiceColumn />
+            </div>
         </section>
     }
 }

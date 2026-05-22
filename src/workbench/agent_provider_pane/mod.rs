@@ -655,14 +655,8 @@ pub fn AgentProviderPane() -> impl IntoView {
                     <crate::workbench::harness_image_pane::AgentImageColumn />
                 </div>
 
-                <div class="agent-provider-pane__col agent-provider-pane__col--placeholder">
-                    <h4 class="harness-pane-subhead agent-provider-pane__col-title">
-                        <span class="harness-pane-subhead__icon" aria-hidden="true">
-                            <LxIcon icon=icondata::LuMic width="0.82rem" height="0.82rem" />
-                        </span>
-                        <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::AgColumnVoice)()}</span>
-                    </h4>
-                    <p class="app-prefs-hint">{move || i18n.tr(I18nKey::AgColumnVoiceSoon)()}</p>
+                <div class="agent-provider-pane__col agent-provider-pane__col--span-2">
+                    <crate::workbench::harness_voice_pane::AgentVoiceColumn />
                 </div>
             </div>
 
