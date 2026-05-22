@@ -1,9 +1,14 @@
 //! Sandboxed directory listing for the sidebar project explorer.
 
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine as _;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
 
 const MAX_TEXT_PREVIEW_BYTES: u64 = 512 * 1024;
+const MAX_IMAGE_PREVIEW_BYTES: u64 = 16 * 1024 * 1024;
+const MAX_VIDEO_PREVIEW_BYTES: u64 = 64 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -19,6 +24,93 @@ pub struct TextFilePreview {
     pub content: String,
     pub truncated: bool,
     pub byte_len: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FileKind {
+    Image,
+    Video,
+    Markdown,
+    Mermaid,
+    Text,
+    Binary,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileMeta {
+    pub name: String,
+    pub rel_path: String,
+    pub byte_len: u64,
+    pub modified_ms: Option<i64>,
+    pub kind: FileKind,
+    pub mime: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BinaryFilePreview {
+    pub base64: String,
+    pub mime: String,
+    pub byte_len: u64,
+    pub truncated: bool,
+}
+
+/// Lowercased extension or empty string for files without a suffix.
+fn ext_lower(path: &Path) -> String {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase())
+        .unwrap_or_default()
+}
+
+/// Maps a lowercased extension to a [`FileKind`] used by the preview dispatcher.
+fn classify_kind(ext: &str) -> FileKind {
+    match ext {
+        "png" | "jpg" | "jpeg" | "webp" | "gif" | "avif" | "bmp" | "ico" | "svg" => FileKind::Image,
+        "mp4" | "webm" | "mov" | "m4v" | "mkv" => FileKind::Video,
+        "md" | "markdown" => FileKind::Markdown,
+        "mmd" | "mermaid" => FileKind::Mermaid,
+        "txt" | "log" | "rs" | "ts" | "tsx" | "js" | "jsx" | "json" | "toml" | "yaml" | "yml"
+        | "html" | "css" | "scss" | "py" | "go" | "java" | "c" | "h" | "cpp" | "hpp" | "rb"
+        | "sh" | "bash" | "zsh" | "fish" | "ps1" | "sql" | "xml" | "ini" | "conf" | "env"
+        | "lock" | "gitignore" | "dockerfile" => FileKind::Text,
+        _ => FileKind::Binary,
+    }
+}
+
+/// Best-effort MIME guess from the lowercased extension.
+fn mime_for_ext(ext: &str) -> Option<&'static str> {
+    Some(match ext {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "webp" => "image/webp",
+        "gif" => "image/gif",
+        "avif" => "image/avif",
+        "bmp" => "image/bmp",
+        "ico" => "image/x-icon",
+        "svg" => "image/svg+xml",
+        "mp4" | "m4v" => "video/mp4",
+        "webm" => "video/webm",
+        "mov" => "video/quicktime",
+        "mkv" => "video/x-matroska",
+        "md" | "markdown" => "text/markdown",
+        "mmd" | "mermaid" => "text/vnd.mermaid",
+        "json" => "application/json",
+        "html" => "text/html",
+        "css" => "text/css",
+        "js" | "mjs" => "text/javascript",
+        "xml" => "application/xml",
+        "txt" | "log" | "ini" | "conf" | "env" => "text/plain",
+        _ => return None,
+    })
+}
+
+fn modified_ms(meta: &fs::Metadata) -> Option<i64> {
+    let modified = meta.modified().ok()?;
+    let dur = modified.duration_since(UNIX_EPOCH).ok()?;
+    i64::try_from(dur.as_millis()).ok()
 }
 
 fn canonical_root(workspace_root: &str) -> Result<PathBuf, String> {
@@ -117,6 +209,91 @@ pub fn read_workspace_text_file(
     })
 }
 
+/// Lightweight metadata for the file preview topbar.
+/// Returns name, relative path (as supplied by the caller), byte size,
+/// modification timestamp (Unix ms, if available), classified [`FileKind`]
+/// and a best-effort MIME guess. Errors mirror the existing sandbox path.
+#[tauri::command]
+pub fn stat_workspace_file(workspace_root: String, path: String) -> Result<FileMeta, String> {
+    let root = canonical_root(&workspace_root)?;
+    let file = resolve_under_root(&root, &path)?;
+    if !file.is_file() {
+        return Err("not a file".into());
+    }
+    let meta = fs::metadata(&file).map_err(|e| e.to_string())?;
+    let ext = ext_lower(&file);
+    let kind = classify_kind(&ext);
+    let mime = mime_for_ext(&ext).map(str::to_string);
+    let name = file
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| path.clone());
+    Ok(FileMeta {
+        name,
+        rel_path: path,
+        byte_len: meta.len(),
+        modified_ms: modified_ms(&meta),
+        kind,
+        mime,
+    })
+}
+
+fn read_binary_with_cap(file: &Path, cap: u64) -> Result<BinaryFilePreview, String> {
+    if !file.is_file() {
+        return Err("not a file".into());
+    }
+    let meta = fs::metadata(file).map_err(|e| e.to_string())?;
+    let byte_len = meta.len();
+    let truncated = byte_len > cap;
+    let mut bytes = fs::read(file).map_err(|e| e.to_string())?;
+    if truncated {
+        bytes.truncate(cap as usize);
+    }
+    let ext = ext_lower(file);
+    let mime = mime_for_ext(&ext)
+        .map(str::to_string)
+        .unwrap_or_else(|| "application/octet-stream".to_string());
+    let base64 = BASE64_STANDARD.encode(&bytes);
+    Ok(BinaryFilePreview {
+        base64,
+        mime,
+        byte_len,
+        truncated,
+    })
+}
+
+/// Reads an image file under `workspace_root` and returns it as base64 plus
+/// an extension-derived MIME. Capped at [`MAX_IMAGE_PREVIEW_BYTES`].
+#[tauri::command]
+pub fn read_workspace_image_file(
+    workspace_root: String,
+    path: String,
+) -> Result<BinaryFilePreview, String> {
+    let root = canonical_root(&workspace_root)?;
+    let file = resolve_under_root(&root, &path)?;
+    let ext = ext_lower(&file);
+    if !matches!(classify_kind(&ext), FileKind::Image) {
+        return Err("not an image file".into());
+    }
+    read_binary_with_cap(&file, MAX_IMAGE_PREVIEW_BYTES)
+}
+
+/// Reads a video file under `workspace_root` and returns it as base64 plus
+/// an extension-derived MIME. Capped at [`MAX_VIDEO_PREVIEW_BYTES`].
+#[tauri::command]
+pub fn read_workspace_video_file(
+    workspace_root: String,
+    path: String,
+) -> Result<BinaryFilePreview, String> {
+    let root = canonical_root(&workspace_root)?;
+    let file = resolve_under_root(&root, &path)?;
+    let ext = ext_lower(&file);
+    if !matches!(classify_kind(&ext), FileKind::Video) {
+        return Err("not a video file".into());
+    }
+    read_binary_with_cap(&file, MAX_VIDEO_PREVIEW_BYTES)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,6 +356,76 @@ mod tests {
         let root = tmp.to_string_lossy().into_owned();
         let err = read_workspace_text_file(root, "missing.txt".into()).expect_err("missing");
         assert!(err.contains("path not found"));
+        let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn classify_kind_covers_expected_extensions() {
+        assert!(matches!(classify_kind("png"), FileKind::Image));
+        assert!(matches!(classify_kind("svg"), FileKind::Image));
+        assert!(matches!(classify_kind("mp4"), FileKind::Video));
+        assert!(matches!(classify_kind("md"), FileKind::Markdown));
+        assert!(matches!(classify_kind("markdown"), FileKind::Markdown));
+        assert!(matches!(classify_kind("mmd"), FileKind::Mermaid));
+        assert!(matches!(classify_kind("mermaid"), FileKind::Mermaid));
+        assert!(matches!(classify_kind("rs"), FileKind::Text));
+        assert!(matches!(classify_kind("unknown"), FileKind::Binary));
+    }
+
+    #[test]
+    fn stat_workspace_file_returns_metadata() {
+        let tmp = std::env::temp_dir().join(format!("blx_fs_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("hello.md"), b"# hi").unwrap();
+        let root = tmp.to_string_lossy().into_owned();
+        let meta = stat_workspace_file(root, "hello.md".into()).unwrap();
+        assert_eq!(meta.name, "hello.md");
+        assert_eq!(meta.byte_len, 4);
+        assert!(matches!(meta.kind, FileKind::Markdown));
+        assert_eq!(meta.mime.as_deref(), Some("text/markdown"));
+        assert!(meta.modified_ms.is_some());
+        let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn read_workspace_image_file_returns_base64() {
+        let tmp = std::env::temp_dir().join(format!("blx_fs_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&tmp).unwrap();
+        // Minimal valid 1x1 PNG signature + IHDR + IDAT + IEND not required for the test;
+        // we only verify base64 round-trip and MIME classification.
+        let bytes: &[u8] = &[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
+        fs::write(tmp.join("pixel.png"), bytes).unwrap();
+        let root = tmp.to_string_lossy().into_owned();
+        let preview = read_workspace_image_file(root, "pixel.png".into()).unwrap();
+        assert_eq!(preview.mime, "image/png");
+        assert_eq!(preview.byte_len, bytes.len() as u64);
+        assert!(!preview.truncated);
+        let decoded = BASE64_STANDARD.decode(&preview.base64).unwrap();
+        assert_eq!(decoded, bytes);
+        let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn read_workspace_image_file_rejects_non_image() {
+        let tmp = std::env::temp_dir().join(format!("blx_fs_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("a.txt"), b"hi").unwrap();
+        let root = tmp.to_string_lossy().into_owned();
+        let err =
+            read_workspace_image_file(root, "a.txt".into()).expect_err("non-image should fail");
+        assert!(err.contains("not an image"));
+        let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn read_workspace_video_file_rejects_non_video() {
+        let tmp = std::env::temp_dir().join(format!("blx_fs_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("a.png"), b"x").unwrap();
+        let root = tmp.to_string_lossy().into_owned();
+        let err =
+            read_workspace_video_file(root, "a.png".into()).expect_err("non-video should fail");
+        assert!(err.contains("not a video"));
         let _ = fs::remove_dir_all(tmp);
     }
 }
