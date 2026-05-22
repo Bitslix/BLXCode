@@ -187,6 +187,10 @@ jobs:
           rustc -V
           cargo -V
 
+      - name: Export Rust PATH (Windows)
+        if: matrix.platform_id == 'windows'
+        run: echo PATH=%USERPROFILE%\.cargo\bin;%PATH%>>%GITHUB_ENV%
+
       - name: Install Node
         uses: actions/setup-node@v4
         with:
