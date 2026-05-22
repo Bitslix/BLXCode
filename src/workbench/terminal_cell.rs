@@ -448,7 +448,6 @@ pub fn WorkspaceTerminalCell(
                         on:dragstart={
                             let workspace_id = workspace_id;
                             let slot_id = slot_id;
-                            let grid_index = grid_index;
                             let title_snap = dynamic_title;
                             let agent_snap = agent_label;
                             move |ev: DragEvent| {
@@ -466,22 +465,18 @@ pub fn WorkspaceTerminalCell(
                                 let payload = TerminalSlotDragPayload {
                                     workspace_id,
                                     slot_id,
-                                    from_index: grid_index,
                                 };
                                 set_drag_payload(&dt, &payload);
-                                dnd.begin_session();
-                                // Defer ghost/active UI so the drag session is
-                                // established before Leptos re-renders the grid.
+                                let gen = dnd.begin_session();
                                 let meta = TerminalDragMeta {
                                     workspace_id,
                                     slot_id,
-                                    from_index: grid_index,
                                     title: title_snap.get_untracked(),
                                     agent_label: agent_snap.get_untracked(),
                                 };
                                 leptos::task::spawn_local(async move {
                                     TimeoutFuture::new(0).await;
-                                    dnd.active.set(Some(meta));
+                                    dnd.try_set_active(gen, meta);
                                 });
                             }
                         }

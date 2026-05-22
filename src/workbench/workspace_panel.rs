@@ -880,7 +880,7 @@ fn TerminalSlotSurface(
                 if slot_dnd
                     .ghost
                     .get()
-                    .is_some_and(|g| g.index == index)
+                    .is_some_and(|g| g.target_slot_id == slot_id)
                     && slot_dnd
                         .active
                         .get()
@@ -930,7 +930,6 @@ fn TerminalSlotSurface(
                         crate::workbench::terminal_slot_dnd::TerminalSlotDragPayload {
                             workspace_id: meta.workspace_id,
                             slot_id: meta.slot_id,
-                            from_index: meta.from_index,
                         }
                     })
                 });
@@ -947,7 +946,7 @@ fn TerminalSlotSurface(
                         .unwrap_or((1, 1))
                 });
                 slot_dnd.ghost.set(Some(GhostPos {
-                    index,
+                    target_slot_id: slot_id,
                     rows,
                     cols,
                 }));
@@ -968,20 +967,23 @@ fn TerminalSlotSurface(
                             crate::workbench::terminal_slot_dnd::TerminalSlotDragPayload {
                                 workspace_id: meta.workspace_id,
                                 slot_id: meta.slot_id,
-                                from_index: meta.from_index,
                             }
                         })
                     });
                 if let Some(payload) = payload {
                     if payload.workspace_id == workspace_id && payload.slot_id != slot_id {
-                        let from_index = wb.workspaces().with_untracked(|list| {
-                            list.iter()
-                                .find(|w| w.id == workspace_id)
-                                .and_then(|w| w.slot_ids.iter().position(|&id| id == payload.slot_id))
-                                .unwrap_or(payload.from_index)
-                        });
-                        if from_index != index {
-                            wb.reorder_terminal_slots(workspace_id, from_index, index);
+                        let Some(from_index) =
+                            wb.terminal_slot_index(workspace_id, payload.slot_id)
+                        else {
+                            slot_dnd.clear();
+                            return;
+                        };
+                        let Some(to_index) = wb.terminal_slot_index(workspace_id, slot_id) else {
+                            slot_dnd.clear();
+                            return;
+                        };
+                        if from_index != to_index {
+                            wb.reorder_terminal_slots(workspace_id, from_index, to_index);
                         }
                     }
                 }
@@ -1125,16 +1127,22 @@ fn pane_grid_style(axis: TerminalSplitAxis, count: usize) -> String {
 
 #[component]
 fn TerminalSlotGhost(slot_dnd: TerminalSlotDragService) -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
     view! {
         <Show when=move || slot_dnd.ghost.get().is_some() && slot_dnd.active.get().is_some()>
             <div
                 class="ws-term-slot-ghost"
                 style=move || {
-                    slot_dnd
-                        .ghost
-                        .get()
-                        .map(|g| ghost_style(&g))
-                        .unwrap_or_default()
+                    let Some(ghost) = slot_dnd.ghost.get() else {
+                        return String::new();
+                    };
+                    let Some(meta) = slot_dnd.active.get() else {
+                        return String::new();
+                    };
+                    let idx = wb
+                        .terminal_slot_index(meta.workspace_id, ghost.target_slot_id)
+                        .unwrap_or(0);
+                    ghost_style(&ghost, idx)
                 }
             >
                 <span class="ws-term-slot-ghost__title">

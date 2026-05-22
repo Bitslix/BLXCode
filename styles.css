@@ -5957,7 +5957,8 @@ button {
 }
 
 .ws-term-slot--drag-over {
-  box-shadow: inset 0 0 0 2px var(--accent);
+  outline: 3px dashed var(--accent);
+  outline-offset: -3px;
 }
 
 .ws-term-grid--drag-active .ws-term-slot:not(.ws-term-slot--drag-source) .ws-term-cell__xterm {
@@ -5972,7 +5973,7 @@ button {
   position: absolute;
   pointer-events: none;
   opacity: 0.55;
-  border: 1px solid var(--accent);
+  border: 2px dashed var(--accent);
   background: color-mix(in srgb, var(--accent) 18%, var(--bg-raised));
   border-radius: 4px;
   padding: 6px 8px;

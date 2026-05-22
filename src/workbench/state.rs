@@ -2079,6 +2079,15 @@ impl WorkbenchService {
         });
     }
 
+    /// Live index of `slot_id` in the workspace grid (after any reorders).
+    pub fn terminal_slot_index(&self, workspace_id: u64, slot_id: u64) -> Option<usize> {
+        self.workspaces.with_untracked(|list| {
+            list.iter()
+                .find(|w| w.id == workspace_id)
+                .and_then(|w| w.slot_ids.iter().position(|&id| id == slot_id))
+        })
+    }
+
     #[must_use]
     pub fn sidebar_collapsed(&self) -> RwSignal<bool> {
         self.sidebar_collapsed

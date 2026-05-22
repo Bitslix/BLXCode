@@ -10,12 +10,11 @@ pub const TERMINAL_SLOT_MIME: &str = "application/x-blxcode-terminal-slot";
 pub struct TerminalSlotDragPayload {
     pub workspace_id: u64,
     pub slot_id: u64,
-    pub from_index: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct GhostPos {
-    pub index: usize,
+    pub target_slot_id: u64,
     pub rows: u8,
     pub cols: u8,
 }
@@ -24,15 +23,15 @@ pub struct GhostPos {
 pub struct TerminalDragMeta {
     pub workspace_id: u64,
     pub slot_id: u64,
-    pub from_index: usize,
     pub title: String,
     pub agent_label: String,
 }
 
 #[derive(Clone, Copy)]
 pub struct TerminalSlotDragService {
-    /// Non-reactive: set on dragstart so dragover works without re-rendering.
     session: StoredValue<bool>,
+    /// Bumped on begin/clear so deferred UI updates cannot resurrect stale drags.
+    session_gen: StoredValue<u64>,
     pub active: RwSignal<Option<TerminalDragMeta>>,
     pub ghost: RwSignal<Option<GhostPos>>,
 }
@@ -42,21 +41,33 @@ impl TerminalSlotDragService {
     pub fn new() -> Self {
         Self {
             session: StoredValue::new(false),
+            session_gen: StoredValue::new(0),
             active: RwSignal::new(None),
             ghost: RwSignal::new(None),
         }
     }
 
-    pub fn begin_session(&self) {
+    pub fn begin_session(&self) -> u64 {
         self.session.set_value(true);
+        let gen = self.session_gen.get_value().wrapping_add(1);
+        self.session_gen.set_value(gen);
+        gen
     }
 
     pub fn session_active(&self) -> bool {
         self.session.get_value()
     }
 
+    pub fn try_set_active(&self, gen: u64, meta: TerminalDragMeta) {
+        if self.session.get_value() && self.session_gen.get_value() == gen {
+            self.active.set(Some(meta));
+        }
+    }
+
     pub fn clear(&self) {
         self.session.set_value(false);
+        self.session_gen
+            .set_value(self.session_gen.get_value().wrapping_add(1));
         self.active.set(None);
         self.ghost.set(None);
     }
@@ -86,11 +97,11 @@ pub fn is_terminal_drag(dt: &DataTransfer) -> bool {
     false
 }
 
-pub fn ghost_style(pos: &GhostPos) -> String {
+pub fn ghost_style(pos: &GhostPos, target_index: usize) -> String {
     let rows = pos.rows.max(1) as f64;
     let cols = pos.cols.max(1) as f64;
-    let row = (pos.index as f64 / cols).floor();
-    let col = pos.index as f64 % cols;
+    let row = (target_index as f64 / cols).floor();
+    let col = target_index as f64 % cols;
     format!(
         "left:{:.4}%;top:{:.4}%;width:{:.4}%;height:{:.4}%;",
         (col / cols) * 100.0,
