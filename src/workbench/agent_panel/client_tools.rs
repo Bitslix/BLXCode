@@ -293,6 +293,7 @@ fn handle_memory_context_attach(
                         source: format!("{count} memory paths"),
                         paths,
                         added_at: Date::now() as i64,
+                        content: None,
                     };
                     wb.upsert_workspace_agent_context(ws_id, item.clone());
                     let _ = agent_submit_tool_result(
@@ -333,6 +334,7 @@ fn handle_memory_context_attach(
         source: path.to_owned(),
         paths: vec![path.to_owned()],
         added_at: Date::now() as i64,
+        content: None,
     };
     wb.upsert_workspace_agent_context(ws_id, item.clone());
     submit_async(

@@ -37,6 +37,10 @@ pub enum AgentContextKind {
     PlanFile,
     /// Plan-linked task subset (no on-disk file).
     PlanTaskGroup,
+    /// Inline snippet of a file (line range) attached from the file preview's
+    /// right-click context menu. The `content` field carries the fenced
+    /// markdown block; `paths` holds the workspace-relative file path.
+    FileSnippet,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -48,6 +52,11 @@ pub struct AgentContextItem {
     pub source: String,
     pub paths: Vec<String>,
     pub added_at: i64,
+    /// Inline content for items that ship their payload alongside the
+    /// metadata (currently only `FileSnippet`). Older items lack this field,
+    /// so it must be optional and skipped on serialization when empty.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -217,7 +226,10 @@ pub enum TurnUsageKind {
 }
 
 /// Per-row metric bundle attached to assistant / tool / subagent rows in
-/// the timeline. Mirrored on the frontend in `agent_wire.rs`.
+/// the timeline. Mirrored on the frontend in `agent_wire.rs` — the
+/// active consumer lives there, so the Tauri-side definition exists only
+/// as a wire-format spec / future-server hook.
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TurnMetrics {
@@ -232,6 +244,7 @@ pub struct TurnMetrics {
     pub cost_usd: Option<f64>,
 }
 
+#[allow(dead_code)]
 impl TurnMetrics {
     /// Returns `true` when no field carries meaningful data — the UI uses
     /// this to skip rendering an empty metrics bar.

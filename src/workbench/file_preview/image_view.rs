@@ -28,22 +28,21 @@ pub fn ImageView(
 
     let rel_for_effect = rel_path.clone();
     Effect::new(move |_| {
+        // Only refetch on explicit reload. See FilePreviewDock for context.
         let _ = reload_tick.get();
         payload.set(None);
         if !is_tauri_shell() {
             payload.set(Some(Err(FilePreviewError::NoTauri)));
             return;
         }
-        let Some(ws) = wb
-            .workspaces()
-            .get()
-            .into_iter()
-            .find(|w| w.id == workspace_id)
-        else {
+        let Some(root) = wb.workspaces().with_untracked(|list| {
+            list.iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.cwd.clone())
+        }) else {
             payload.set(Some(Err(FilePreviewError::WorkspaceNotFound)));
             return;
         };
-        let root = ws.cwd;
         let rel = rel_for_effect.clone();
         let is_svg = rel.to_ascii_lowercase().ends_with(".svg");
         spawn_local(async move {

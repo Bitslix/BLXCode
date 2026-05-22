@@ -5483,6 +5483,8 @@ button {
   --code-view-selection-bg: color-mix(in srgb, var(--accent) 18%, transparent);
   --code-view-selection-bar: var(--accent);
   --code-view-hover-bg: color-mix(in srgb, var(--text) 5%, transparent);
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .code-view__row {
@@ -5527,6 +5529,101 @@ button {
   padding: 0 0.85rem;
   white-space: pre;
   min-height: 1.55em;
+}
+
+.code-context-menu {
+  position: fixed;
+  z-index: 1100;
+  min-width: 16rem;
+  max-width: 22rem;
+  padding: 0.25rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--bg-panel);
+  box-shadow: 0 16px 40px var(--scrim-bg);
+  font-size: 0.78rem;
+  color: var(--text);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.code-context-menu__section + .code-context-menu__section {
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.code-context-menu__section-head {
+  padding: 0.3rem 0.55rem 0.15rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.code-context-menu__empty {
+  padding: 0.4rem 0.55rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.code-context-menu__list,
+.code-context-menu__sublist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.code-context-menu__group + .code-context-menu__group {
+  margin-top: 0.15rem;
+}
+
+.code-context-menu__group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.55rem 0.1rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text);
+  opacity: 0.75;
+}
+
+.code-context-menu__badge {
+  padding: 0 0.32rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent);
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.code-context-menu__sublist {
+  padding-left: 0.5rem;
+}
+
+.code-context-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  border: 0;
+  border-radius: 4px;
+  padding: 0.35rem 0.55rem;
+  text-align: left;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--text);
+  background: transparent;
+  cursor: pointer;
+}
+
+.code-context-menu__item:hover,
+.code-context-menu__item:focus-visible {
+  background: var(--overlay-2);
 }
 
 /* highlight.js token color mapping (works for both blxcode-dark and -light

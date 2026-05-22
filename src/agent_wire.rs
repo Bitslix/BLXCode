@@ -28,6 +28,9 @@ pub enum AgentContextKind {
     PlanIndex,
     PlanFile,
     PlanTaskGroup,
+    /// Inline file snippet (line range) attached from the file preview's
+    /// right-click menu. `content` carries the fenced markdown block.
+    FileSnippet,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -39,6 +42,8 @@ pub struct AgentContextItem {
     pub source: String,
     pub paths: Vec<String>,
     pub added_at: i64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

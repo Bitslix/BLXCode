@@ -108,6 +108,7 @@ pub fn render_agent_context_block(input: &RenderInputs) -> String {
                     AgentContextKind::PlanIndex
                         | AgentContextKind::PlanFile
                         | AgentContextKind::PlanTaskGroup
+                        | AgentContextKind::FileSnippet
                 )
             })
             .collect();
@@ -123,7 +124,8 @@ pub fn render_agent_context_block(input: &RenderInputs) -> String {
                     AgentContextKind::TerminalSession => "terminal session",
                     AgentContextKind::PlanIndex
                     | AgentContextKind::PlanFile
-                    | AgentContextKind::PlanTaskGroup => continue,
+                    | AgentContextKind::PlanTaskGroup
+                    | AgentContextKind::FileSnippet => continue,
                 };
                 out.push_str(&format!("- [{kind}] {} — {}\n", item.label, item.source));
                 if !item.paths.is_empty() && item.paths.len() <= 12 {
@@ -132,6 +134,25 @@ pub fn render_agent_context_block(input: &RenderInputs) -> String {
                     }
                 } else if item.paths.len() > 12 {
                     out.push_str(&format!("  - ({} paths — see manifest)\n", item.paths.len()));
+                }
+            }
+        }
+    }
+
+    let snippet_items: Vec<&AgentContextItem> = input
+        .context_items
+        .iter()
+        .filter(|item| matches!(item.kind, AgentContextKind::FileSnippet))
+        .collect();
+    if !snippet_items.is_empty() {
+        out.push_str("\n## Attached file snippets\n");
+        for item in snippet_items {
+            out.push_str(&format!("- {}\n", item.label));
+            if let Some(body) = item.content.as_deref().filter(|s| !s.is_empty()) {
+                let trimmed = body.trim_end();
+                out.push_str(trimmed);
+                if !trimmed.ends_with('\n') {
+                    out.push('\n');
                 }
             }
         }
@@ -265,6 +286,21 @@ pub struct WorkspaceTerminalTarget {
     pub label: String,
 }
 
+/// Cross-workspace bundle returned by [`list_terminal_targets_all_workspaces`].
+/// Used by file-preview right-click menu to group running terminals by workspace.
+#[derive(Clone, Debug)]
+pub struct WorkspaceTerminalGroup {
+    pub workspace_id: u64,
+    /// Human-visible workspace title (already stripped of leading/trailing whitespace).
+    pub workspace_label: String,
+    /// Absolute workspace root path (or empty when unconfigured). Currently
+    /// resolved on demand from `WorkbenchService`, kept here for future
+    /// label decoration / debugging hooks.
+    #[allow(dead_code)]
+    pub workspace_root: String,
+    pub terminals: Vec<WorkspaceTerminalTarget>,
+}
+
 #[must_use]
 pub fn list_workspace_terminal_targets(
     wb: &WorkbenchService,
@@ -303,6 +339,115 @@ pub fn list_workspace_terminal_targets(
             }
         })
         .collect()
+}
+
+/// Enumerate **every** workspace's live terminals, grouped by workspace.
+/// Ephemeral shell workspaces (Settings dock host) and workspaces with no
+/// open PTY sessions are excluded. Groups are returned in the same order
+/// as [`WorkbenchService::workspaces`], with `preferred_workspace_id` (when
+/// provided) moved to the front so the file-preview menu lists the preview's
+/// own workspace first.
+#[must_use]
+pub fn list_terminal_targets_all_workspaces(
+    wb: &WorkbenchService,
+    preferred_workspace_id: Option<u64>,
+) -> Vec<WorkspaceTerminalGroup> {
+    let metas: Vec<(u64, String, String)> = wb.workspaces().with_untracked(|all| {
+        all.iter()
+            .filter(|w| !crate::workbench::state::is_shell_workspace(w))
+            .map(|w| {
+                let title = if w.title.trim().is_empty() {
+                    w.cwd.clone()
+                } else {
+                    w.title.trim().to_owned()
+                };
+                (w.id, title, w.cwd.clone())
+            })
+            .collect()
+    });
+
+    let mut groups: Vec<WorkspaceTerminalGroup> = metas
+        .into_iter()
+        .filter_map(|(ws_id, label, root)| {
+            let terminals = list_workspace_terminal_targets(wb, ws_id);
+            if terminals.is_empty() {
+                None
+            } else {
+                Some(WorkspaceTerminalGroup {
+                    workspace_id: ws_id,
+                    workspace_label: label,
+                    workspace_root: root,
+                    terminals,
+                })
+            }
+        })
+        .collect();
+
+    if let Some(pref) = preferred_workspace_id {
+        if let Some(idx) = groups.iter().position(|g| g.workspace_id == pref) {
+            let pref_group = groups.remove(idx);
+            groups.insert(0, pref_group);
+        }
+    }
+
+    groups
+}
+
+/// Render a leightweight handoff envelope wrapping a single file snippet.
+/// Reuses the existing `⟪ BLXCode attached context ⟫` delimiters so the
+/// receiving terminal CLI parses it the same way as a full handoff block.
+///
+/// `target_workspace_root` is the workspace the terminal lives in;
+/// `source_workspace_label` is set when the snippet originates from a
+/// different workspace so the model can disambiguate.
+#[must_use]
+pub fn render_file_snippet_envelope(
+    target_workspace_root: Option<&str>,
+    target_slot_id: Option<u64>,
+    target_agent_slug: Option<&str>,
+    rel_path: &str,
+    range: (u32, u32),
+    language: Option<&str>,
+    snippet: &str,
+    source_workspace_label: Option<&str>,
+) -> String {
+    let mut out = String::new();
+    out.push_str("⟪ BLXCode attached context for this terminal agent ⟫\n");
+
+    out.push_str("\n## Session\n");
+    match target_workspace_root.filter(|s| !s.is_empty()) {
+        Some(root) => out.push_str(&format!("- Workspace: `{root}`\n")),
+        None => out.push_str("- Workspace: <not set>\n"),
+    }
+    match (target_slot_id, target_agent_slug.filter(|s| !s.is_empty())) {
+        (Some(sid), Some(slug)) => {
+            out.push_str(&format!("- Target terminal: slot {sid} (agent={slug})\n"));
+        }
+        (Some(sid), None) => out.push_str(&format!("- Target terminal: slot {sid}\n")),
+        (None, Some(slug)) => out.push_str(&format!("- Target terminal: agent={slug}\n")),
+        (None, None) => {}
+    }
+
+    out.push_str("\n## File snippet\n");
+    let (start, end) = range;
+    let lang_label = language.unwrap_or("text");
+    match source_workspace_label.filter(|s| !s.is_empty()) {
+        Some(ws) => out.push_str(&format!(
+            "- source workspace: `{ws}` · `{rel_path}` (lines {start}-{end}, {lang_label})\n"
+        )),
+        None => out.push_str(&format!(
+            "- `{rel_path}` (lines {start}-{end}, {lang_label})\n"
+        )),
+    }
+
+    let trimmed = snippet.trim_end();
+    out.push_str(trimmed);
+    if !trimmed.ends_with('\n') {
+        out.push('\n');
+    }
+
+    out.push_str("\n⟪ end BLXCode context ⟫\n");
+    out
 }
 
 fn slot_agent_slug(wb: &WorkbenchService, workspace_id: u64, slot_id: u64) -> String {
@@ -403,6 +548,7 @@ pub fn terminal_session_context_item(
         source: handoff_excerpt.to_owned(),
         paths: Vec::new(),
         added_at: context_now_ms(),
+        content: None,
     }
 }
 
@@ -463,10 +609,15 @@ pub async fn perform_handoff(
                 | AgentContextKind::PlanFile
                 | AgentContextKind::PlanTaskGroup
         );
+        let is_snippet = matches!(item.kind, AgentContextKind::FileSnippet);
         if is_plan {
             if include_plans {
                 effective_items.push(item);
             }
+        } else if is_snippet {
+            // File snippets always carry their content inline; surface them
+            // in the rendered block regardless of include_memory.
+            effective_items.push(item);
         } else if include_memory {
             effective_items.push(item);
         }
@@ -678,6 +829,7 @@ pub fn HandoffMenu(
                     source: "memory category".into(),
                     paths: Vec::new(),
                     added_at: context_now_ms(),
+                    content: None,
                 },
             },
         };
@@ -945,6 +1097,41 @@ pub fn note_context_item(path: &str, label: &str) -> AgentContextItem {
         source: path.to_owned(),
         paths: vec![path.to_owned()],
         added_at: context_now_ms(),
+        content: None,
+    }
+}
+
+/// Build a one-shot `AgentContextItem` for a file-preview line range.
+///
+/// `label` is what appears in the Agent panel's context list (e.g.
+/// `"Snippet · src/foo.rs:42-58"`); `snippet` is the already-rendered
+/// fenced markdown block ready to be embedded into the model prompt.
+#[must_use]
+pub fn file_snippet_context_item(
+    rel_path: &str,
+    start: u32,
+    end: u32,
+    language: Option<&str>,
+    label: &str,
+    snippet: &str,
+    source_workspace: Option<&str>,
+) -> AgentContextItem {
+    let id = match source_workspace {
+        Some(ws) if !ws.is_empty() => format!("file-snippet:{ws}:{rel_path}:{start}-{end}"),
+        _ => format!("file-snippet:{rel_path}:{start}-{end}"),
+    };
+    let source = format!(
+        "{} · lines {start}-{end}",
+        language.unwrap_or("text")
+    );
+    AgentContextItem {
+        id,
+        kind: AgentContextKind::FileSnippet,
+        label: label.to_owned(),
+        source,
+        paths: vec![rel_path.to_owned()],
+        added_at: context_now_ms(),
+        content: Some(snippet.to_owned()),
     }
 }
 
@@ -1066,6 +1253,7 @@ mod tests {
             source: "plan-manager.md".into(),
             paths: vec!["plan-manager.md".into()],
             added_at: 0,
+            content: None,
         };
         let inputs = RenderInputs {
             workspace_root: Some("/repo".into()),
@@ -1118,6 +1306,7 @@ mod tests {
             source: "p.md".into(),
             paths: vec!["p.md".into()],
             added_at: 0,
+            content: None,
         };
         let inputs = RenderInputs {
             include_memory: false,
@@ -1138,5 +1327,115 @@ mod tests {
         assert!(!ex.contains("Workspace:"));
         assert!(ex.contains("Attached memory"));
         assert!(ex.contains("(none)"));
+    }
+
+    #[test]
+    fn file_snippet_item_constructor_carries_inline_content() {
+        let snippet = "**`src/foo.rs:42-58`**\n```rust\nlet x = 1;\n```\n";
+        let item = file_snippet_context_item(
+            "src/foo.rs",
+            42,
+            58,
+            Some("rust"),
+            "Snippet · src/foo.rs:42-58",
+            snippet,
+            None,
+        );
+        assert_eq!(item.kind, AgentContextKind::FileSnippet);
+        assert_eq!(item.id, "file-snippet:src/foo.rs:42-58");
+        assert_eq!(item.label, "Snippet · src/foo.rs:42-58");
+        assert!(item.source.contains("rust"));
+        assert!(item.source.contains("lines 42-58"));
+        assert_eq!(item.paths, vec!["src/foo.rs".to_string()]);
+        assert_eq!(item.content.as_deref(), Some(snippet));
+    }
+
+    #[test]
+    fn file_snippet_item_id_includes_workspace_when_provided() {
+        let item = file_snippet_context_item(
+            "src/foo.rs",
+            1,
+            1,
+            None,
+            "S",
+            "x",
+            Some("Demo"),
+        );
+        assert_eq!(item.id, "file-snippet:Demo:src/foo.rs:1-1");
+    }
+
+    #[test]
+    fn render_block_emits_file_snippet_section_with_content() {
+        let snippet = "**`src/foo.rs:42-43`**\n```rust\nlet a;\nlet b;\n```\n";
+        let snippet_item = file_snippet_context_item(
+            "src/foo.rs",
+            42,
+            43,
+            Some("rust"),
+            "Snippet · src/foo.rs:42-43",
+            snippet,
+            None,
+        );
+        let inputs = RenderInputs {
+            workspace_root: Some("/repo".into()),
+            include_memory: true,
+            context_items: vec![snippet_item],
+            ..Default::default()
+        };
+        let out = render_agent_context_block(&inputs);
+        assert!(out.contains("## Attached file snippets"));
+        assert!(out.contains("Snippet · src/foo.rs:42-43"));
+        assert!(out.contains("```rust"));
+        assert!(out.contains("let a;"));
+        // memory section still rendered, but no snippet pollution there.
+        assert!(out.contains("## Attached memory"));
+        let memory_section = out
+            .split("## Attached memory")
+            .nth(1)
+            .and_then(|rest| rest.split("##").next())
+            .unwrap_or("");
+        assert!(!memory_section.contains("Snippet"));
+    }
+
+    #[test]
+    fn render_file_snippet_envelope_includes_session_and_snippet() {
+        let snippet = "**`src/foo.rs:1-2`**\n```rust\nlet a;\nlet b;\n```\n";
+        let out = render_file_snippet_envelope(
+            Some("/repo"),
+            Some(3),
+            Some("codex"),
+            "src/foo.rs",
+            (1, 2),
+            Some("rust"),
+            snippet,
+            None,
+        );
+        assert!(out.starts_with("⟪ BLXCode attached context"));
+        assert!(out.contains("## Session"));
+        assert!(out.contains("Workspace: `/repo`"));
+        assert!(out.contains("slot 3 (agent=codex)"));
+        assert!(out.contains("## File snippet"));
+        assert!(out.contains("`src/foo.rs` (lines 1-2, rust)"));
+        assert!(out.contains("```rust"));
+        assert!(out.contains("let a;"));
+        assert!(out.ends_with("⟪ end BLXCode context ⟫\n"));
+    }
+
+    #[test]
+    fn render_file_snippet_envelope_marks_cross_workspace_source() {
+        let snippet = "**`Other:src/foo.rs:1`**\n```\nx\n```\n";
+        let out = render_file_snippet_envelope(
+            Some("/repo-target"),
+            None,
+            None,
+            "src/foo.rs",
+            (1, 1),
+            None,
+            snippet,
+            Some("Other"),
+        );
+        assert!(out.contains("source workspace: `Other`"));
+        assert!(out.contains("`src/foo.rs` (lines 1-1, text)"));
+        assert!(!out.contains("Target terminal:"));
     }
 }

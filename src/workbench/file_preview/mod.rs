@@ -3,6 +3,7 @@
 //! detected [`crate::tauri_bridge::FileKind`]. Falls back to a monospaced
 //! text view for everything else.
 
+mod code_context_menu;
 mod code_view;
 mod header;
 mod hljs_glue;
@@ -39,22 +40,25 @@ pub fn FilePreviewDock(workspace_id: u64, rel_path: String) -> impl IntoView {
 
     let rel_for_meta = rel_path.clone();
     Effect::new(move |_| {
+        // IMPORTANT: only re-run on an explicit reload tick. Reading
+        // `wb.workspaces().get()` reactively here would refetch the file on
+        // every tab switch, because the workspaces signal also carries
+        // `center_active_tab_id`. Use `with_untracked` so the lookup does
+        // not subscribe — `workspace_id` and `rel_path` are static props.
         let _ = reload_tick.get();
         meta_sig.set(None);
         if !is_tauri_shell() {
             meta_sig.set(Some(Err(FilePreviewError::NoTauri)));
             return;
         }
-        let Some(ws) = wb
-            .workspaces()
-            .get()
-            .into_iter()
-            .find(|w| w.id == workspace_id)
-        else {
+        let Some(root) = wb.workspaces().with_untracked(|list| {
+            list.iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.cwd.clone())
+        }) else {
             meta_sig.set(Some(Err(FilePreviewError::WorkspaceNotFound)));
             return;
         };
-        let root = ws.cwd;
         let rel = rel_for_meta.clone();
         spawn_local(async move {
             match stat_workspace_file(root, rel).await {

@@ -1471,6 +1471,7 @@ fn add_category_agent_context(
             source: format!("{count} memory paths"),
             paths,
             added_at: Date::now() as i64,
+            content: None,
         },
     );
 }
@@ -1493,6 +1494,7 @@ fn add_note_agent_context(wb: WorkbenchService, path: String, label: String) {
             source: path.clone(),
             paths: vec![path],
             added_at: Date::now() as i64,
+            content: None,
         },
     );
 }

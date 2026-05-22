@@ -215,14 +215,18 @@ fn render_context_prompt(
         return prompt;
     }
 
-    let (plans, memory_like): (Vec<_>, Vec<_>) = context_items.iter().partition(|item| {
-        matches!(
-            item.kind,
+    let mut plans: Vec<&AgentContextItem> = Vec::new();
+    let mut snippets: Vec<&AgentContextItem> = Vec::new();
+    let mut memory_like: Vec<&AgentContextItem> = Vec::new();
+    for item in context_items {
+        match item.kind {
             AgentContextKind::PlanIndex
-                | AgentContextKind::PlanFile
-                | AgentContextKind::PlanTaskGroup
-        )
-    });
+            | AgentContextKind::PlanFile
+            | AgentContextKind::PlanTaskGroup => plans.push(item),
+            AgentContextKind::FileSnippet => snippets.push(item),
+            _ => memory_like.push(item),
+        }
+    }
 
     let mut out = String::new();
 
@@ -235,6 +239,23 @@ fn render_context_prompt(
                 item.paths.join(", ")
             };
             out.push_str(&format!("- {}: {}\n", item.label.trim(), paths));
+        }
+    }
+
+    if !snippets.is_empty() {
+        if !memory_like.is_empty() {
+            out.push('\n');
+        }
+        out.push_str("Attached file snippets (verbatim, line-numbered headers):\n");
+        for item in &snippets {
+            out.push_str(&format!("- {}\n", item.label.trim()));
+            if let Some(body) = item.content.as_deref().filter(|s| !s.is_empty()) {
+                let trimmed = body.trim_end();
+                out.push_str(trimmed);
+                if !trimmed.ends_with('\n') {
+                    out.push('\n');
+                }
+            }
         }
     }
 
