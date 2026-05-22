@@ -1,7 +1,4 @@
-//! Image-mode settings tab: provider buttons + shared `ModelPicker`.
-//!
-//! Mirrors the smaller flow of `harness_voice_pane` (no voice catalogue,
-//! no PTT). Persists via the `image_settings_save` Tauri command.
+//! Image-mode settings: provider buttons + shared `AgentModelPicker` dropdown.
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
@@ -9,7 +6,7 @@ use crate::tauri_bridge::{
     agent_provider_models, image_settings_get, image_settings_save, is_tauri_shell,
     AgentProviderKind, ImageProviderKind, ImageSettings, ProviderModelEntry,
 };
-use crate::workbench::model_picker::ModelPicker;
+use crate::workbench::agent_model_picker::AgentModelPicker;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 
@@ -20,9 +17,6 @@ fn image_to_agent_provider(p: ImageProviderKind) -> AgentProviderKind {
     }
 }
 
-/// Cheap heuristic mirroring `looks_like_image_model` in the backend —
-/// catches `dall-e`, `gpt-image`, `flux`, `stable-diffusion`, `imagen`,
-/// `gemini-2.5-flash-image` and anything that just says "image".
 fn looks_like_image_model(id: &str) -> bool {
     let l = id.to_ascii_lowercase();
     l.contains("image")
@@ -60,12 +54,15 @@ pub fn AgentImageColumn() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let settings = RwSignal::new(Option::<ImageSettings>::None);
     let status = RwSignal::new(Option::<String>::None);
-    let models = RwSignal::new(Vec::<ProviderModelEntry>::new());
+    let model_entries = RwSignal::new(Vec::<ProviderModelEntry>::new());
+    let model_id = RwSignal::new(String::new());
+    let loading_models = RwSignal::new(false);
 
     if is_tauri_shell() {
         leptos::task::spawn_local(async move {
             if let Ok(s) = image_settings_get().await {
-                fetch_image_models(s.provider, models).await;
+                model_id.set(s.model_id.clone());
+                fetch_image_models(s.provider, model_entries).await;
                 settings.set(Some(s));
             }
         });
@@ -73,12 +70,14 @@ pub fn AgentImageColumn() -> impl IntoView {
 
     let save = move |patch: ImageSettings| {
         if !is_tauri_shell() {
+            model_id.set(patch.model_id.clone());
             settings.set(Some(patch));
             return;
         }
         leptos::task::spawn_local(async move {
             match image_settings_save(patch).await {
                 Ok(s) => {
+                    model_id.set(s.model_id.clone());
                     settings.set(Some(s));
                     status.set(Some(i18n.tr(I18nKey::ApiKeysSaved)().to_string()));
                 }
@@ -88,10 +87,21 @@ pub fn AgentImageColumn() -> impl IntoView {
     };
 
     let reload_models = move |provider: ImageProviderKind| {
+        loading_models.set(true);
         leptos::task::spawn_local(async move {
-            fetch_image_models(provider, models).await;
+            fetch_image_models(provider, model_entries).await;
+            loading_models.set(false);
         });
     };
+
+    let on_model_change = Callback::new(move |m: String| {
+        let Some(current) = settings.get_untracked() else {
+            return;
+        };
+        let mut next = current;
+        next.model_id = m;
+        save(next);
+    });
 
     view! {
         <>
@@ -114,7 +124,6 @@ pub fn AgentImageColumn() -> impl IntoView {
                         return view! { <></> }.into_any();
                     };
                     let provider = current.provider;
-                    let model_id = current.model_id.clone();
 
                     let on_provider = {
                         let current = current.clone();
@@ -123,14 +132,6 @@ pub fn AgentImageColumn() -> impl IntoView {
                             next.provider = p;
                             save(next);
                             reload_models(p);
-                        }
-                    };
-                    let on_model = {
-                        let current = current.clone();
-                        move |m: String| {
-                            let mut next = current.clone();
-                            next.model_id = m;
-                            save(next);
                         }
                     };
 
@@ -142,34 +143,52 @@ pub fn AgentImageColumn() -> impl IntoView {
                                     label="OpenAI"
                                     target=ImageProviderKind::Openai
                                     active=provider
-                                    on:click={
+                                    on_select=Callback::new({
                                         let on_provider = on_provider.clone();
                                         move |_| on_provider(ImageProviderKind::Openai)
-                                    }
+                                    })
                                 />
                                 <ProviderBtn
                                     label="OpenRouter"
                                     target=ImageProviderKind::Openrouter
                                     active=provider
-                                    on:click={
+                                    on_select=Callback::new({
                                         let on_provider = on_provider.clone();
                                         move |_| on_provider(ImageProviderKind::Openrouter)
-                                    }
+                                    })
                                 />
                             </div>
                         </div>
 
-                        <ModelPicker
-                            label_key=I18nKey::ImageModelField
-                            datalist_id="blxcode-image-models"
-                            current=model_id.clone()
-                            models=models
-                            on_change=on_model.clone()
-                            on_refresh={
-                                let provider = provider;
-                                move || reload_models(provider)
-                            }
-                        />
+                        <label class="harness-stack">
+                            <span class="harness-field-label">
+                                <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgModelField)()}</span>
+                            </span>
+                            <AgentModelPicker
+                                model_id=model_id
+                                model_entries=model_entries
+                                loading_models=loading_models
+                                option_id_prefix="agent-image-model"
+                                on_change=on_model_change
+                            />
+                        </label>
+                        <div class="agent-provider-pane__actions">
+                            <button
+                                type="button"
+                                class="workbench-mini-btn"
+                                disabled=move || loading_models.get() || !is_tauri_shell()
+                                on:click=move |_| reload_models(provider)
+                            >
+                                <span class="harness-btn-inline">
+                                    <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
+                                    <span>{move || if loading_models.get() {
+                                        i18n.tr(I18nKey::AgModelsLoading)().to_string()
+                                    } else {
+                                        i18n.tr(I18nKey::AgModelsRefresh)().to_string()
+                                    }}</span>
+                                </span>
+                            </button>
+                        </div>
                     }.into_any()
                 }}
             </Show>
@@ -204,6 +223,7 @@ fn ProviderBtn(
     label: &'static str,
     target: ImageProviderKind,
     active: ImageProviderKind,
+    on_select: Callback<()>,
 ) -> impl IntoView {
     let is_active = move || target == active;
     view! {
@@ -211,6 +231,7 @@ fn ProviderBtn(
             type="button"
             class="image-pane__choice"
             class:image-pane__choice--active=is_active
+            on:click=move |_| on_select.run(())
         >
             {label}
         </button>

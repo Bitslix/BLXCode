@@ -3,6 +3,7 @@ mod agent_accent;
 mod agent_context_handoff;
 mod agent_panel;
 mod agent_timeline;
+mod agent_model_picker;
 mod agent_provider_pane;
 mod api_keys_pane;
 mod workspace_settings_pane;
