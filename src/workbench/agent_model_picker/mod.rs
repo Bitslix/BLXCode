@@ -243,34 +243,15 @@ pub fn AgentModelPicker(
                 let Some(entry) = selected_entry.get() else {
                     return ().into_any();
                 };
-                let mut lines = Vec::new();
-                if entry.id != entry.label && !entry.label.trim().is_empty() {
-                    lines.push(entry.id.clone());
-                }
-                if let Some(desc) = entry.description.as_ref().filter(|d| !d.trim().is_empty()) {
-                    lines.push(desc.trim().to_string());
-                }
-                if let Some(p) = entry.pricing {
-                    lines.push(
-                        i18n.tr(I18nKey::AgModelMetaPricing)()
-                            .replace("{in}", &price_per_million(p.prompt))
-                            .replace("{out}", &price_per_million(p.completion)),
-                    );
-                }
-                if lines.is_empty() {
+                let Some(p) = entry.pricing else {
                     return ().into_any();
-                }
-                let title = if entry.label.trim().is_empty() {
-                    entry.id.clone()
-                } else {
-                    entry.label.clone()
                 };
+                let pricing = i18n.tr(I18nKey::AgModelMetaPricing)()
+                    .replace("{in}", &price_per_million(p.prompt))
+                    .replace("{out}", &price_per_million(p.completion));
                 view! {
                     <div class="agent-model-picker__detail harness-muted" aria-live="polite">
-                        <span class="agent-model-picker__detail-title">{title}</span>
-                        {lines.into_iter().map(|line| view! {
-                            <span class="agent-model-picker__detail-line">{line}</span>
-                        }).collect_view()}
+                        <span class="agent-model-picker__detail-line">{pricing}</span>
                     </div>
                 }
                 .into_any()
