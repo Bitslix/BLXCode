@@ -224,14 +224,19 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
     let active_center_tab_id =
         Memo::new(move |_| wb.active_center_tab_id_for_workspace(workspace_id));
 
-    // The terminal grid only mounts when a Terminals tab is actually
-    // active in this workspace. While the user is on Settings (or a
-    // FilePreview), or while the inline configurator is showing instead
-    // of the grid, we keep the PTY surface unmounted so XTerm doesn't try
-    // to fit into a hidden 0x0 container.
-    let show_terminal_grid = Memo::new(move |_| {
-        !is_configuring.get() && active_center_tab_id.get() == CENTER_TERMINALS_TAB_ID
-    });
+    // The terminal grid stays mounted for the entire life of the workspace
+    // as soon as the inline configurator is done; it is hidden via
+    // `--hidden` (display: none) when a different center tab is active.
+    // We deliberately do NOT unmount on tab switch: every TerminalSlotSurface
+    // has an `on_cleanup` that calls `pty_kill` + `unregister_pty_session`,
+    // so unmounting would terminate running agents (claude/codex) and wipe
+    // the PTY registry — `pty_sessions_for_workspace` would then return an
+    // empty list and the file-preview right-click menu would show
+    // "No open terminals in any workspace". xterm.js inside the cells is
+    // paused via `is_workspace_active` while hidden and refits on tab
+    // re-activation, so a hidden 0x0 layout is harmless.
+    let grid_mounted =
+        Memo::new(move |_| !is_configuring.get());
 
     view! {
         <div
@@ -253,7 +258,7 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                         <WorkspaceConfigurator workspace_id=workspace_id />
                     </div>
                 </Show>
-                <Show when=move || show_terminal_grid.get()>
+                <Show when=move || grid_mounted.get()>
                     <div
                         class="workspace-center-panel"
                         class:workspace-center-panel--hidden=move || active_center_tab_id.get() != CENTER_TERMINALS_TAB_ID
