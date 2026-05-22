@@ -159,7 +159,13 @@ jobs:
         if: matrix.platform_id == 'windows'
         run: |
           set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
-          where rustup >nul 2>&1 || (echo rustup not on PATH - install stable-msvc on blxcode-win & exit /b 1)
+          where rustup >nul 2>&1 goto have_rust
+          echo Installing Rust via rustup (runner service account has no toolchain yet)...
+          curl -sSf -o "%RUNNER_TEMP%\rustup-init.exe" https://win.rustup.rs/x86_64
+          if errorlevel 1 exit /b 1
+          "%RUNNER_TEMP%\rustup-init.exe" -y --default-toolchain stable-msvc
+          set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
+          :have_rust
           rustup default stable-msvc
           rustup target add wasm32-unknown-unknown
           rustc -V
