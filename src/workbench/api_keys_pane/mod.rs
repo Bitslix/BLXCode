@@ -105,7 +105,7 @@ pub fn ApiKeysPane() -> impl IntoView {
                 Ok(s) => {
                     status.set(Some(s));
                     drafts.set(DraftMap::new());
-                    status_msg.set(Some(i18n.tr(I18nKey::ApiKeysSaved)()));
+                    status_msg.set(Some(i18n.tr(I18nKey::ApiKeysSaved)().to_string()));
                 }
                 Err(err) => error_msg.set(Some(err)),
             }
@@ -368,12 +368,12 @@ fn ApiKeyRow(entry: ApiKeyEntry, drafts: RwSignal<DraftMap>) -> impl IntoView {
                         {move || {
                             env_var
                                 .with_value(|v| {
-                                    v.as_ref().map(|name| {
-                                        i18n.tr(I18nKey::ApiKeysEnvFallback)().replace("{var}", name)
-                                    })
+                                    v.as_ref()
+                                        .map(|name| {
+                                            i18n.tr(I18nKey::ApiKeysEnvFallback)().replace("{var}", name)
+                                        })
+                                        .unwrap_or_default()
                                 })
-                                .flatten()
-                                .unwrap_or_default()
                         }}
                     </p>
                 </Show>
