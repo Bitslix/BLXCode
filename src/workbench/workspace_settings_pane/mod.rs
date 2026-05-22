@@ -1,7 +1,10 @@
 //! Workspace settings pane — same row/list layout as API Keys (`api-keys-row`).
 
+mod category_colors;
+
 use super::browser_tab::sync_embedded_browser_layer;
 use super::state::{BrowserEmbedSurface, WorkbenchService};
+use category_colors::WorkspaceCategoryColorsSection;
 use crate::config::HARNESS_BROWSER_DEFAULT_URL;
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
@@ -208,6 +211,8 @@ pub fn WorkspaceSettingsPane(
                     </li>
                 </ul>
             </section>
+
+            <WorkspaceCategoryColorsSection wb=wb />
 
             <Show when=move || status_msg.with(|m| m.is_some())>
                 <p class="harness-status">{move || status_msg.get().unwrap_or_default()}</p>
