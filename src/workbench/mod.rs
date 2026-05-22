@@ -34,6 +34,7 @@ pub mod state;
 mod voice_app_controls;
 mod terminal_cell;
 mod terminal_glue;
+mod terminal_slot_dnd;
 mod theme_service;
 mod toast;
 mod update_dialog;

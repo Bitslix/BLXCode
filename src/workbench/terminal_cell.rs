@@ -7,6 +7,9 @@ use crate::tauri_bridge::{
 };
 use crate::workbench::agent_accent::agent_accent_class;
 use crate::workbench::agent_context_handoff::TerminalSlotHandoffButton;
+use crate::workbench::terminal_slot_dnd::{
+    set_drag_payload, TerminalDragMeta, TerminalSlotDragPayload, TerminalSlotDragService,
+};
 use crate::workbench::terminal_glue::{
     terminal_create, terminal_dispose, terminal_fit, terminal_request_fit,
     terminal_set_stdin_enabled, terminal_show_fallback, terminal_size_from_js,
@@ -19,7 +22,7 @@ use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use std::sync::{Arc, Mutex};
 use wasm_bindgen::JsCast;
-use web_sys::HtmlElement;
+use web_sys::{DragEvent, HtmlElement};
 
 #[derive(Clone)]
 struct AgentLaunchPending {
@@ -76,9 +79,11 @@ pub fn WorkspaceTerminalCell(
     /// Hides the close (`×`) button when removing this cell is a no-op
     /// (e.g. last remaining terminal in the workspace with a single pane).
     can_close: Signal<bool>,
+    slot_drag_enabled: Signal<bool>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let wb = expect_context::<crate::workbench::state::WorkbenchService>();
+    let slot_dnd = use_context::<TerminalSlotDragService>();
     let load_failed = RwSignal::new(false);
     let node_ref = NodeRef::<html::Div>::new();
     let terminal_key_focus = terminal_key.clone();
@@ -433,6 +438,60 @@ pub fn WorkspaceTerminalCell(
                     move |_| wb.focus_terminal(terminal_key.clone())
                 }
             >
+                <Show when=move || slot_drag_enabled.get() && !is_full_size.get() && slot_dnd.is_some()>
+                    <span
+                        class="ws-term-cell__drag-handle"
+                        aria-label=move || i18n.tr(I18nKey::WsTermDragHandleAria)()
+                        title=move || i18n.tr(I18nKey::WsTermDragHandleAria)()
+                        prop:draggable=true
+                        on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
+                        on:dragstart={
+                            let workspace_id = workspace_id;
+                            let slot_id = slot_id;
+                            let title_snap = dynamic_title;
+                            let agent_snap = agent_label;
+                            move |ev: DragEvent| {
+                                ev.stop_propagation();
+                                if is_full_size.get_untracked() || !slot_drag_enabled.get_untracked() {
+                                    ev.prevent_default();
+                                    return;
+                                }
+                                let Some(dnd) = slot_dnd else {
+                                    return;
+                                };
+                                let Some(dt) = ev.data_transfer() else {
+                                    return;
+                                };
+                                let payload = TerminalSlotDragPayload {
+                                    workspace_id,
+                                    slot_id,
+                                };
+                                set_drag_payload(&dt, &payload);
+                                let gen = dnd.begin_session();
+                                let meta = TerminalDragMeta {
+                                    workspace_id,
+                                    slot_id,
+                                    title: title_snap.get_untracked(),
+                                    agent_label: agent_snap.get_untracked(),
+                                };
+                                leptos::task::spawn_local(async move {
+                                    TimeoutFuture::new(0).await;
+                                    dnd.try_set_active(gen, meta);
+                                });
+                            }
+                        }
+                        on:dragend={
+                            move |ev: DragEvent| {
+                                ev.stop_propagation();
+                                if let Some(dnd) = slot_dnd {
+                                    dnd.clear();
+                                }
+                            }
+                        }
+                    >
+                        <LxIcon icon=icondata::LuGripVertical width="0.8rem" height="0.8rem" />
+                    </span>
+                </Show>
                 <span class="ws-term-cell__title">{move || dynamic_title.get()}</span>
                 <Show when=move || branch.with(|b| b.is_some())>
                     <span class="ws-term-cell__branch">

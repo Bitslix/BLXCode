@@ -598,6 +598,9 @@ pub enum I18nKey {
     WsTermRestoreSize,
     WsTermPaneTitleSingle,
     WsTermPaneTitleMulti,
+    WsTermDragHandleAria,
+    WsTermDropCreateNewAria,
+    WsTermDragMaxSlots,
     WsTermBootstrapFailed,
 
     // Voice subsystem
