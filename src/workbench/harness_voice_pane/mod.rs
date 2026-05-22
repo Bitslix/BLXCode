@@ -194,42 +194,78 @@ fn voice_provider_label(i18n: &I18nService, provider: VoiceProviderKind) -> Stri
 }
 
 fn apply_voice_provider_defaults(next: &mut VoiceSettings, provider: VoiceProviderKind) {
-    if provider == VoiceProviderKind::Aws {
-        if !next.stt.model_id.contains("transcribe") {
-            next.stt.model_id = "amazon-transcribe".into();
+    match provider {
+        VoiceProviderKind::Aws => {
+            if !next.stt.model_id.contains("transcribe") {
+                next.stt.model_id = "amazon-transcribe".into();
+            }
+            if !matches!(next.tts.model_id.as_str(), "neural" | "standard") {
+                next.tts.model_id = "neural".into();
+            }
+            if next.tts.voice.is_empty() || is_openai_voice_id(&next.tts.voice) {
+                next.tts.voice = "Joanna".into();
+            }
         }
-        if !matches!(next.tts.model_id.as_str(), "neural" | "standard") {
-            next.tts.model_id = "neural".into();
+        VoiceProviderKind::Openai => {
+            if next.tts.voice.is_empty() || is_aws_polly_voice_id(&next.tts.voice) {
+                next.tts.voice = "nova".into();
+            }
         }
-        if next.tts.voice.is_empty() || is_openai_voice_id(&next.tts.voice) {
-            next.tts.voice = "Joanna".into();
-        }
+        VoiceProviderKind::Openrouter => {}
     }
 }
 
-fn fixed_aws_polly_voices() -> Vec<VoiceEntry> {
-    [
-        ("Joanna", "Joanna", VoiceGender::Female),
-        ("Matthew", "Matthew", VoiceGender::Male),
-        ("Amy", "Amy", VoiceGender::Female),
-        ("Brian", "Brian", VoiceGender::Male),
-        ("Ivy", "Ivy", VoiceGender::Female),
-        ("Justin", "Justin", VoiceGender::Male),
-    ]
-    .into_iter()
-    .map(|(id, label, gender)| VoiceEntry {
+fn voice_entry(id: &str, label: &str, gender: VoiceGender) -> VoiceEntry {
+    VoiceEntry {
         id: id.into(),
         label: label.into(),
         gender,
-    })
-    .collect()
+    }
+}
+
+/// Six curated OpenAI built-in TTS voices (see OpenAI Audio API speech guide).
+fn fixed_openai_voices() -> Vec<VoiceEntry> {
+    vec![
+        voice_entry("alloy", "Alloy", VoiceGender::Neutral),
+        voice_entry("nova", "Nova", VoiceGender::Female),
+        voice_entry("echo", "Echo", VoiceGender::Male),
+        voice_entry("shimmer", "Shimmer", VoiceGender::Female),
+        voice_entry("onyx", "Onyx", VoiceGender::Male),
+        voice_entry("coral", "Coral", VoiceGender::Female),
+    ]
+}
+
+fn fixed_aws_polly_voices() -> Vec<VoiceEntry> {
+    vec![
+        voice_entry("Joanna", "Joanna", VoiceGender::Female),
+        voice_entry("Matthew", "Matthew", VoiceGender::Male),
+        voice_entry("Amy", "Amy", VoiceGender::Female),
+        voice_entry("Brian", "Brian", VoiceGender::Male),
+        voice_entry("Ivy", "Ivy", VoiceGender::Female),
+        voice_entry("Justin", "Justin", VoiceGender::Male),
+    ]
+}
+
+fn voice_catalog_for(provider: VoiceProviderKind) -> Vec<VoiceEntry> {
+    match provider {
+        VoiceProviderKind::Openai | VoiceProviderKind::Openrouter => fixed_openai_voices(),
+        VoiceProviderKind::Aws => fixed_aws_polly_voices(),
+    }
+}
+
+fn voices_pick_enabled(provider: VoiceProviderKind) -> bool {
+    matches!(
+        provider,
+        VoiceProviderKind::Openai | VoiceProviderKind::Aws
+    )
 }
 
 fn is_openai_voice_id(id: &str) -> bool {
-    matches!(
-        id,
-        "alloy" | "ash" | "ballad" | "coral" | "echo" | "fable" | "nova" | "onyx" | "sage" | "shimmer"
-    )
+    fixed_openai_voices().iter().any(|v| v.id == id)
+}
+
+fn is_aws_polly_voice_id(id: &str) -> bool {
+    fixed_aws_polly_voices().iter().any(|v| v.id == id)
 }
 
 fn focus_voice_provider_option(provider: VoiceProviderKind) {
@@ -887,13 +923,14 @@ fn VoicePickCard(
 #[component]
 fn VoicePicksGrid(
     settings: RwSignal<Option<VoiceSettings>>,
+    voice_provider: RwSignal<VoiceProviderKind>,
     voice_id: String,
     gender_filter: RwSignal<GenderFilter>,
-    voices_pick_enabled: Memo<bool>,
     on_pick: Callback<String>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
-    let catalog = fixed_aws_polly_voices();
+    let picks_enabled =
+        Memo::new(move |_| voices_pick_enabled(voice_provider.get()));
     view! {
         <div class="voice-pane__voice-picks">
             <div class="voice-pane__gender-row">
@@ -904,19 +941,20 @@ fn VoicePicksGrid(
             </div>
             <p
                 class="voice-pane__hint voice-pane__hint--aws-only"
-                class:voice-pane__hint--visible=move || !voices_pick_enabled.get()
+                class:voice-pane__hint--visible=move || !picks_enabled.get()
             >
                 {move || i18n.tr(I18nKey::VoiceVoicesAwsOnly)()}
             </p>
             <div
                 class="voice-pane__voice-grid voice-pane__voice-grid--six"
-                class:voice-pane__voice-grid--disabled=move || !voices_pick_enabled.get()
-                aria-disabled=move || if voices_pick_enabled.get() { "false" } else { "true" }
+                class:voice-pane__voice-grid--disabled=move || !picks_enabled.get()
+                aria-disabled=move || if picks_enabled.get() { "false" } else { "true" }
             >
                 {move || {
                     let active = voice_id.clone();
                     let filter = gender_filter.get();
-                    let picks_disabled = !voices_pick_enabled.get();
+                    let picks_disabled = !picks_enabled.get();
+                    let catalog = voice_catalog_for(voice_provider.get());
                     catalog
                         .iter()
                         .filter(|v| filter.matches(v.gender))
@@ -947,17 +985,15 @@ fn VoicePickerBlock(
     on_pick: Callback<String>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
-    let voices_pick_enabled =
-        Memo::new(move |_| voice_provider.get() == VoiceProviderKind::Aws);
 
     view! {
         <div class="voice-pane__field">
             <label>{move || i18n.tr(I18nKey::VoiceVoiceField)()}</label>
             <VoicePicksGrid
                 settings=settings
+                voice_provider=voice_provider
                 voice_id=voice_id.clone()
                 gender_filter=gender_filter
-                voices_pick_enabled=voices_pick_enabled
                 on_pick=on_pick
             />
         </div>

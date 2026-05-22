@@ -500,7 +500,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::VoiceProviderField => "Fournisseur",
         I18nKey::VoiceModelField => "Modèle",
         I18nKey::VoiceVoiceField => "Voix",
-        I18nKey::VoiceVoicesAwsOnly => "Select AWS as provider to choose a Polly voice.",
+        I18nKey::VoiceVoicesAwsOnly => "Select OpenAI or AWS as provider to choose a voice.",
         I18nKey::VoiceGenderAll => "Tous",
         I18nKey::VoiceGenderMale => "Mâle",
         I18nKey::VoiceGenderFemale => "Femelle",
