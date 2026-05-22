@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Close-Terminals confirmation dialog had no chrome**: the modal raised when closing the Terminals tab (`src/workbench/close_terminals_tab_dialog/mod.rs`) referenced four CSS classes that were never authored — `harness-sheet--close-terminals`, `blx-close-terminals__head`, `blx-close-terminals__body`, `blx-close-terminals__actions`. With only the base `.harness-sheet` rule applying, the sheet had no background, padding, or width, so the title and body text rendered transparently on top of the live terminal grid (see screenshot). Added the missing styles in `styles.css`: panel-tinted opaque sheet (`min(92vw, 26rem)`, `var(--bg-panel)`, `box-shadow`, hairline border, `overflow: hidden`), header bar with `var(--bg-panel-header)` + bottom divider, body padding/typography, and a right-aligned actions footer separated by a top divider. The warning triangle now uses `var(--danger)` to match the destructive-action semantics.
+
 ### Removed
 
 

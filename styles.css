@@ -6285,6 +6285,54 @@ button {
   box-shadow: 0 22px 50px var(--scrim-bg);
 }
 
+.harness-sheet--close-terminals {
+  margin-top: 8vh;
+  width: min(92vw, 26rem);
+  border-radius: 4px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel);
+  box-shadow: 0 24px 70px var(--scrim-bg);
+  overflow: hidden;
+}
+
+.blx-close-terminals__head {
+  display: flex;
+  align-items: center;
+  min-height: 2.7rem;
+  padding: 0 0.95rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel-header);
+}
+
+.blx-close-terminals__head .harness-settings-title {
+  font-size: 0.9rem;
+  font-weight: 650;
+  font-family: inherit;
+  color: var(--text);
+}
+
+.blx-close-terminals__head .harness-settings-title__icon {
+  color: var(--danger);
+}
+
+.blx-close-terminals__body {
+  margin: 0;
+  padding: 0.95rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.blx-close-terminals__actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel-header);
+}
+
 .wz-head {
   margin-bottom: 0.75rem;
 }
