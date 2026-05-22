@@ -599,7 +599,7 @@ pub fn AgentProviderPane() -> impl IntoView {
                             <ThinkingLevelPicker selected=thinking_level />
                         </label>
                     </div>
-                    <div class="agent-provider-pane__key-row harness-muted">
+                    <div class="agent-provider-pane__key-row">
                         <span>{move || i18n.tr(I18nKey::ApiKeysManageHint)()}</span>
                         <span class="agent-provider-pane__key-status">
                             {move || {

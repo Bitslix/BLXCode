@@ -423,7 +423,7 @@ pub fn AgentVoiceColumn() -> impl IntoView {
                                         on_select=Callback::new(on_voice_provider)
                                     />
                                 </label>
-                                <div class="agent-provider-pane__key-row harness-muted">
+                                <div class="agent-provider-pane__key-row">
                                     <span>{move || i18n.tr(I18nKey::ApiKeysManageHint)()}</span>
                                     <span class="agent-provider-pane__key-status">
                                         {move || {
@@ -470,24 +470,6 @@ pub fn AgentVoiceColumn() -> impl IntoView {
                 <p class="voice-pane__status">{move || status.get().unwrap_or_default()}</p>
             </Show>
         </>
-    }
-}
-
-#[component]
-pub fn VoicePane() -> impl IntoView {
-    let i18n = expect_context::<I18nService>();
-    view! {
-        <section class="harness-settings-pane voice-pane" aria-labelledby="voice-pane-title">
-            <header class="harness-settings-pane__head">
-                <h2 id="voice-pane-title">
-                    <LxIcon icon=icondata::LuMic width="1.1rem" height="1.1rem" />
-                    <span>{move || i18n.tr(I18nKey::VoicePaneTitle)()}</span>
-                </h2>
-            </header>
-            <div class="agent-provider-pane__col agent-provider-pane__col--standalone voice-pane-standalone">
-                <AgentVoiceColumn />
-            </div>
-        </section>
     }
 }
 

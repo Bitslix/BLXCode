@@ -686,7 +686,6 @@ pub fn SettingsDock(
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Workspace label=I18nKey::HsCatWorkspace />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::AgentProvider label=I18nKey::HsCatProvider />
                 <HarnessCatStaticBtn ui=ui cat=HarnessSettingsCategory::Memory label="Memory" />
-                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Voice label=I18nKey::HsCatVoice />
             </nav>
 
             <div class="harness-settings-detail">
@@ -710,8 +709,8 @@ pub fn SettingsDock(
                         <MemorySettingsPane wb=wb />
                     }.into_any(),
                     HarnessSettingsCategory::Voice => view! {
-                        <crate::workbench::harness_voice_pane::VoicePane />
-                    }.into_any(),
+                        <crate::workbench::AgentProviderPane />
+                    }.into_any(), // legacy category → BLXCode Agent
                     HarnessSettingsCategory::Image => view! {
                         <crate::workbench::AgentProviderPane />
                     }.into_any(), // legacy category → BLXCode Agent
