@@ -1965,6 +1965,7 @@ fn AgentHooksPanel() -> impl IntoView {
                                 let note = entry.note.unwrap_or_default();
                                 let has_note = !note.is_empty();
                                 let icon_url = hook_brand_icon(&entry.agent);
+                                let status_tip = status.clone();
                                 view! {
                                     <li class="harness-hooks__item">
                                         <div class="harness-hooks__main">
@@ -1985,23 +1986,30 @@ fn AgentHooksPanel() -> impl IntoView {
                                                 </Show>
                                             </span>
                                             <div class="harness-hooks__copy">
-                                                <strong class="harness-hooks__name">{entry.agent}</strong>
+                                                <div class="harness-hooks__title-row">
+                                                    <strong class="harness-hooks__name">{entry.agent}</strong>
+                                                    <span
+                                                        class="harness-hooks__status"
+                                                        class:harness-hooks__status--ok=entry.installed
+                                                        title=status_tip.clone()
+                                                        aria-label=status_tip
+                                                    >
+                                                        <LxIcon
+                                                            icon=if entry.installed {
+                                                                icondata::LuCheck
+                                                            } else {
+                                                                icondata::LuX
+                                                            }
+                                                            width="0.82rem"
+                                                            height="0.82rem"
+                                                        />
+                                                    </span>
+                                                </div>
                                                 <Show when=move || has_note>
                                                     <small class="harness-muted">{note.clone()}</small>
                                                 </Show>
                                             </div>
                                         </div>
-                                        <span
-                                            class="harness-hooks__status"
-                                            class:harness-hooks__status--ok=entry.installed
-                                        >
-                                            <LxIcon
-                                                icon=if entry.installed { icondata::LuCheck } else { icondata::LuX }
-                                                width="0.82rem"
-                                                height="0.82rem"
-                                            />
-                                            <span>{status}</span>
-                                        </span>
                                     </li>
                                 }
                                 .into_any()

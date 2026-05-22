@@ -73,7 +73,7 @@ const SEARCH_KINDS: &[(WebKeyKind, &str, &str)] = &[
 const COMING_SOON_LLM: &[(&str, &str)] = &[
     ("google", "Google"),
     ("mistral", "Mistral"),
-    ("groq", "Groq"),
+    ("grok", "Grok xAI"),
 ];
 
 fn llm_provider_from_kind(kind: &str) -> Option<AgentProviderKind> {

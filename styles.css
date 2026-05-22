@@ -4494,8 +4494,8 @@ button.workbench-shortcut-row--action:focus-visible {
 .harness-hooks__item {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 0.55rem;
+  align-items: stretch;
+  gap: 0;
   padding: 0.7rem 0.8rem;
   border: 1px solid var(--border);
   border-radius: 0.6rem;
@@ -4509,9 +4509,10 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .harness-hooks__main {
+  width: 100%;
   min-width: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.65rem;
 }
 
@@ -4540,14 +4541,24 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .harness-hooks__copy {
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 0.12rem;
 }
 
+.harness-hooks__title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  width: 100%;
+}
+
 .harness-hooks__name {
   display: block;
+  min-width: 0;
   text-transform: lowercase;
   font-size: 0.88rem;
   font-weight: 600;
@@ -4558,9 +4569,10 @@ button.workbench-shortcut-row--action:focus-visible {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  gap: 0.42rem;
-  padding: 0.22rem 0.45rem;
+  justify-content: center;
+  padding: 0.2rem;
   border-radius: 4px;
+  cursor: default;
   border: 1px solid rgba(255, 122, 122, 0.32);
   color: #ff9a9a;
   background: rgba(255, 122, 122, 0.08);
