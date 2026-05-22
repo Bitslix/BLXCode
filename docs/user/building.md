@@ -227,6 +227,8 @@ Cross-compiling Tauri desktop bundles from Linux to macOS is **not supported** f
 
 Only the **repository owner** may trigger that workflow (on org-owned repos, set the Actions variable `RELEASE_OWNER` to the allowed GitHub login).
 
+**Windows testbuild** runs on the self-hosted runner `blxcode-win`. If the job fails at **Set up job** with `node24 is not supported`, upgrade the Actions runner on that machine to **v2.320+** (or re-run after pulling `main` — the workflow pins `tauri-apps/tauri-action@v0.5.20` for node20 compatibility).
+
 ## Clean Rebuild
 
 If a build gets into a strange state, remove generated output and rebuild:

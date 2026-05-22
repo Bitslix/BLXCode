@@ -191,9 +191,11 @@ jobs:
           retention-days: 7
           if-no-files-found: error
 
+      # Pin v0.5.20 (node20): @v0 requires node24; self-hosted runners < 2.320 fail at job setup
+      # while resolving action manifests (including skipped release-only steps in testbuild runs).
       - name: Build bundles (release)
         if: needs.resolve.outputs.mode == 'release'
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v0.5.20
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
