@@ -501,6 +501,7 @@ pub enum I18nKey {
     VoiceProviderField,
     VoiceModelField,
     VoiceVoiceField,
+    VoiceVoicesAwsOnly,
     VoiceGenderAll,
     VoiceGenderMale,
     VoiceGenderFemale,

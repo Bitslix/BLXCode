@@ -77,6 +77,10 @@
     margin-top: 0.65rem;
 }
 
+.agent-provider-pane__voice-inner .voice-pane__voice-grid--six {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .agent-provider-pane__col {
     min-width: 0;
     display: flex;

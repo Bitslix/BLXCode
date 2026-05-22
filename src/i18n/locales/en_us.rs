@@ -533,6 +533,7 @@ Classic: Ctrl+O quick open, Ctrl+` new terminal, Ctrl+Shift+P palette."
         I18nKey::VoiceProviderField => "Provider",
         I18nKey::VoiceModelField => "Model",
         I18nKey::VoiceVoiceField => "Voice",
+        I18nKey::VoiceVoicesAwsOnly => "Select AWS as provider to choose a Polly voice.",
         I18nKey::VoiceGenderAll => "All",
         I18nKey::VoiceGenderMale => "Male",
         I18nKey::VoiceGenderFemale => "Female",

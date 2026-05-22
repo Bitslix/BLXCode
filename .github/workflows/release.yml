@@ -1,5 +1,6 @@
 # Build release bundles on macOS and Windows (no Linux CI).
 # macOS .app/.dmg require a macOS runner (Intel + Apple Silicon via universal target).
+# Windows builds use the self-hosted runner (label: blxcode-win).
 name: Release
 
 permissions:
@@ -15,6 +16,14 @@ on:
     tags: ["v*"]
   workflow_dispatch:
     inputs:
+      mode:
+        description: "testbuild = build only (workflow artifacts); release = draft GitHub release + upload"
+        type: choice
+        required: true
+        default: testbuild
+        options:
+          - testbuild
+          - release
       platforms:
         description: Build targets
         type: choice
@@ -88,19 +97,49 @@ jobs:
             }
             core.setFailed("Unauthorized release actor");
 
-  build:
+  resolve:
     needs: authorize
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.mode.outputs.mode }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "mode=release" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - id: matrix
+        run: |
+          platforms="${{ inputs.platforms }}"
+          if [ "${{ github.event_name }}" = "push" ]; then
+            platforms="Alle"
+          fi
+
+          include="["
+          sep=""
+          if [ "$platforms" = "Alle" ] || [ "$platforms" = "Mac Universal" ]; then
+            include+="${sep}{\"platform\":\"macos-latest\",\"platform_id\":\"mac\",\"args\":\"--target universal-apple-darwin\"}"
+            sep=","
+          fi
+          if [ "$platforms" = "Alle" ] || [ "$platforms" = "Windows" ]; then
+            include+="${sep}{\"platform\":[\"self-hosted\",\"Windows\",\"blxcode-win\"],\"platform_id\":\"windows\",\"args\":\"\"}"
+          fi
+          include+="]"
+
+          echo "matrix={\"include\":${include}}" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: [authorize, resolve]
     permissions:
       contents: write
     strategy:
       fail-fast: false
       max-parallel: 1
-      matrix:
-        include:
-          - platform: macos-latest
-            args: --target universal-apple-darwin
-          - platform: windows-latest
-            args: ""
+      matrix: ${{ fromJson(needs.resolve.outputs.matrix) }}
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -118,8 +157,11 @@ jobs:
           cache: npm
           cache-dependency-path: frontend-js/package-lock.json
 
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend-js
+
       - name: Add macOS Rust targets
-        if: matrix.platform == 'macos-latest'
+        if: matrix.platform_id == 'mac'
         run: |
           rustup target add aarch64-apple-darwin x86_64-apple-darwin
           echo "macOS universal build: Apple Silicon (aarch64) + Intel (x86_64)"
@@ -129,7 +171,28 @@ jobs:
           cargo install trunk --locked
           cargo install tauri-cli --version "^2" --locked
 
-      - name: Build bundles
+      - name: Build bundles (testbuild)
+        if: needs.resolve.outputs.mode == 'testbuild'
+        working-directory: src-tauri
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          CI: true
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          APPLE_SIGNING_IDENTITY: "-"
+        run: cargo tauri build ${{ matrix.args }}
+
+      - name: Upload test build artifacts
+        if: needs.resolve.outputs.mode == 'testbuild'
+        uses: actions/upload-artifact@v4
+        with:
+          name: blxcode-${{ matrix.platform_id }}-${{ github.run_id }}
+          path: target/**/release/bundle/**/*
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Build bundles (release)
+        if: needs.resolve.outputs.mode == 'release'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -149,6 +212,7 @@ jobs:
           args: ${{ matrix.args || '' }}
 
       - name: Merge updater latest.json
+        if: needs.resolve.outputs.mode == 'release'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

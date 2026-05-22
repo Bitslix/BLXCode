@@ -18,7 +18,6 @@ mod harness_ui;
 mod harness_voice_pane;
 mod memory_graph;
 mod memory_panel;
-mod model_picker;
 mod notification_sound;
 mod path_nav;
 mod plans_panel;

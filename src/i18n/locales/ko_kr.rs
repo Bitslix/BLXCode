@@ -482,6 +482,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::VoiceProviderField => "공급자",
         I18nKey::VoiceModelField => "모델",
         I18nKey::VoiceVoiceField => "목소리",
+        I18nKey::VoiceVoicesAwsOnly => "Select AWS as provider to choose a Polly voice.",
         I18nKey::VoiceGenderAll => "모두",
         I18nKey::VoiceGenderMale => "남성",
         I18nKey::VoiceGenderFemale => "여성",

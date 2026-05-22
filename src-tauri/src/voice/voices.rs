@@ -60,10 +60,6 @@ fn aws_polly_voices() -> Vec<VoiceEntry> {
         ("Brian", "Brian", VoiceGender::Male),
         ("Ivy", "Ivy", VoiceGender::Female),
         ("Justin", "Justin", VoiceGender::Male),
-        ("Kendra", "Kendra", VoiceGender::Female),
-        ("Kimberly", "Kimberly", VoiceGender::Female),
-        ("Salli", "Salli", VoiceGender::Female),
-        ("Joey", "Joey", VoiceGender::Male),
     ];
     raw.iter()
         .map(|(id, label, gender)| VoiceEntry {

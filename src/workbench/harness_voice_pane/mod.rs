@@ -405,7 +405,8 @@ pub fn AgentVoiceColumn() -> impl IntoView {
                                 reload_tts_models=reload_tts_models
                             />
                             <BehaviorSection
-                                current=current.clone()
+                                settings=settings
+                                voice_provider=voice_provider
                                 post_flow=post_flow
                                 voice_id=voice_id.clone()
                                 voices=voices
@@ -654,6 +655,7 @@ where
                     model_entries=stt_models
                     loading_models=stt_loading_models
                     option_id_prefix="voice-stt-model"
+                    show_custom_field=false
                     on_change=on_stt_model
                 />
             </label>
@@ -691,6 +693,7 @@ where
                     model_entries=tts_models
                     loading_models=tts_loading_models
                     option_id_prefix="voice-tts-model"
+                    show_custom_field=false
                     on_change=on_tts_model
                 />
             </label>
@@ -754,6 +757,7 @@ fn GenderBtn(
     target: GenderFilter,
     label_key: I18nKey,
     filter: RwSignal<GenderFilter>,
+    #[prop(default = false)] disabled: bool,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let is_active = move || filter.get() == target;
@@ -762,7 +766,12 @@ fn GenderBtn(
             type="button"
             class="voice-pane__choice voice-pane__choice--gender"
             class:voice-pane__choice--active=is_active
-            on:click=move |_| filter.set(target)
+            disabled=disabled
+            on:click=move |_| {
+                if !disabled {
+                    filter.set(target);
+                }
+            }
         >
             {move || i18n.tr(label_key)()}
         </button>
@@ -777,8 +786,11 @@ fn gender_label_for(g: VoiceGender) -> &'static str {
     }
 }
 
-fn play_b64(audio_ref: NodeRef<leptos::html::Audio>, b64: &str, mime: &str) {
+fn play_b64(b64: &str, mime: &str) {
     let Ok(bytes) = BASE64.decode(b64) else {
+        return;
+    };
+    let Ok(el) = HtmlAudioElement::new() else {
         return;
     };
     let arr = Uint8Array::new_with_length(bytes.len() as u32);
@@ -793,14 +805,153 @@ fn play_b64(audio_ref: NodeRef<leptos::html::Audio>, b64: &str, mime: &str) {
     let Ok(url) = web_sys::Url::create_object_url_with_blob(&blob) else {
         return;
     };
-    if let Some(audio) = audio_ref.get_untracked() {
-        let el: HtmlAudioElement = audio.unchecked_into();
-        let old = el.src();
-        if old.starts_with("blob:") {
-            let _ = web_sys::Url::revoke_object_url(&old);
-        }
-        el.set_src(&url);
-        let _ = el.play();
+    let old = el.src();
+    if old.starts_with("blob:") {
+        let _ = web_sys::Url::revoke_object_url(&old);
+    }
+    el.set_src(&url);
+    let _ = el.play();
+}
+
+#[component]
+fn VoicePickCard(
+    entry: VoiceEntry,
+    active: bool,
+    disabled: bool,
+    settings: RwSignal<Option<VoiceSettings>>,
+    on_pick: Callback<String>,
+) -> impl IntoView {
+    let id_pick = entry.id.clone();
+    let id_preview = entry.id.clone();
+    view! {
+        <div
+            class="voice-pane__voice-card"
+            class:voice-pane__voice-card--active=move || active && !disabled
+            class:voice-pane__voice-card--disabled=move || disabled
+        >
+            <button
+                type="button"
+                class="voice-pane__voice-pick"
+                disabled=disabled
+                on:click=move |_| {
+                    if !disabled {
+                        on_pick.run(id_pick.clone());
+                    }
+                }
+            >
+                <strong>{entry.label.clone()}</strong>
+                <span class="voice-pane__voice-gender">{gender_label_for(entry.gender)}</span>
+            </button>
+            <button
+                type="button"
+                class="voice-pane__voice-preview"
+                disabled=disabled
+                on:click=move |_| {
+                    if disabled {
+                        return;
+                    }
+                    let Some(s) = settings.get_untracked() else {
+                        return;
+                    };
+                    let model = s.tts.model_id.clone();
+                    let provider = s.tts.provider;
+                    let voice = id_preview.clone();
+                    leptos::task::spawn_local(async move {
+                        let text = expect_context::<I18nService>()
+                            .tr(I18nKey::VoicePreviewText)()
+                            .to_string();
+                        if let Ok(resp) = voice_tts_preview(provider, model, voice, text).await {
+                            play_b64(&resp.audio_b64, &resp.mime);
+                        }
+                    });
+                }
+                aria-label="Sample"
+            >
+                <LxIcon icon=icondata::LuPlay width="0.85rem" height="0.85rem" />
+            </button>
+        </div>
+    }
+}
+
+#[component]
+fn VoicePicksGrid(
+    settings: RwSignal<Option<VoiceSettings>>,
+    voice_id: String,
+    voices: RwSignal<Vec<VoiceEntry>>,
+    gender_filter: RwSignal<GenderFilter>,
+    voices_pick_enabled: Memo<bool>,
+    on_pick: Callback<String>,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    view! {
+        <div class="voice-pane__voice-picks">
+            <div class="voice-pane__gender-row">
+                <GenderBtn target=GenderFilter::All label_key=I18nKey::VoiceGenderAll filter=gender_filter />
+                <GenderBtn target=GenderFilter::Male label_key=I18nKey::VoiceGenderMale filter=gender_filter />
+                <GenderBtn target=GenderFilter::Female label_key=I18nKey::VoiceGenderFemale filter=gender_filter />
+                <GenderBtn target=GenderFilter::Neutral label_key=I18nKey::VoiceGenderNeutral filter=gender_filter />
+            </div>
+            <p
+                class="voice-pane__hint voice-pane__hint--aws-only"
+                class:voice-pane__hint--visible=move || !voices_pick_enabled.get()
+            >
+                {move || i18n.tr(I18nKey::VoiceVoicesAwsOnly)()}
+            </p>
+            <div
+                class="voice-pane__voice-grid voice-pane__voice-grid--six"
+                class:voice-pane__voice-grid--disabled=move || !voices_pick_enabled.get()
+                aria-disabled=move || if voices_pick_enabled.get() { "false" } else { "true" }
+            >
+                {move || {
+                    let active = voice_id.clone();
+                    let filter = gender_filter.get();
+                    let picks_disabled = !voices_pick_enabled.get();
+                    voices.get()
+                        .into_iter()
+                        .filter(|v| filter.matches(v.gender))
+                        .map(|v| {
+                            view! {
+                                <VoicePickCard
+                                    entry=v.clone()
+                                    active=v.id == active
+                                    disabled=picks_disabled
+                                    settings=settings
+                                    on_pick=on_pick
+                                />
+                            }
+                        })
+                        .collect_view()
+                }}
+            </div>
+        </div>
+    }
+}
+
+#[component]
+fn VoicePickerBlock(
+    settings: RwSignal<Option<VoiceSettings>>,
+    voice_provider: RwSignal<VoiceProviderKind>,
+    voice_id: String,
+    voices: RwSignal<Vec<VoiceEntry>>,
+    gender_filter: RwSignal<GenderFilter>,
+    on_pick: Callback<String>,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let voices_pick_enabled =
+        Memo::new(move |_| voice_provider.get() == VoiceProviderKind::Aws);
+
+    view! {
+        <div class="voice-pane__field">
+            <label>{move || i18n.tr(I18nKey::VoiceVoiceField)()}</label>
+            <VoicePicksGrid
+                settings=settings
+                voice_id=voice_id.clone()
+                voices=voices
+                gender_filter=gender_filter
+                voices_pick_enabled=voices_pick_enabled
+                on_pick=on_pick
+            />
+        </div>
     }
 }
 
@@ -810,7 +961,8 @@ fn play_b64(audio_ref: NodeRef<leptos::html::Audio>, b64: &str, mime: &str) {
 
 #[component]
 fn BehaviorSection<F>(
-    current: VoiceSettings,
+    settings: RwSignal<Option<VoiceSettings>>,
+    voice_provider: RwSignal<VoiceProviderKind>,
     post_flow: PostSttFlow,
     voice_id: String,
     voices: RwSignal<Vec<VoiceEntry>>,
@@ -822,46 +974,28 @@ where
     F: Fn(VoiceSettings) + Send + Sync + 'static + Copy,
 {
     let i18n = expect_context::<I18nService>();
-    let audio_ref = NodeRef::<leptos::html::Audio>::new();
 
-    let on_flow = {
-        let current = current.clone();
-        move |flow: PostSttFlow| {
-            let mut next = current.clone();
-            next.post_stt_flow = flow;
-            save(next);
-        }
-    };
-    let on_voice = {
-        let current = current.clone();
-        move |id: String| {
-            let mut next = current.clone();
-            next.tts.voice = id;
-            save(next);
-        }
-    };
-    let on_enabled = {
-        let current = current.clone();
-        move |enabled: bool| {
-            let mut next = current.clone();
-            next.tts.enabled = enabled;
-            save(next);
-        }
-    };
-
-    let preview_voice = {
-        let current = current.clone();
-        move |voice: String| {
-            let model = current.tts.model_id.clone();
-            let provider = current.tts.provider;
-            let text = i18n.tr(I18nKey::VoicePreviewText)().to_string();
-            leptos::task::spawn_local(async move {
-                if let Ok(resp) = voice_tts_preview(provider, model, voice, text).await {
-                    play_b64(audio_ref, &resp.audio_b64, &resp.mime);
-                }
-            });
-        }
-    };
+    let on_flow = Callback::new(move |flow: PostSttFlow| {
+        let Some(mut next) = settings.get_untracked() else {
+            return;
+        };
+        next.post_stt_flow = flow;
+        save(next);
+    });
+    let on_voice = Callback::new(move |id: String| {
+        let Some(mut next) = settings.get_untracked() else {
+            return;
+        };
+        next.tts.voice = id;
+        save(next);
+    });
+    let on_enabled = Callback::new(move |enabled: bool| {
+        let Some(mut next) = settings.get_untracked() else {
+            return;
+        };
+        next.tts.enabled = enabled;
+        save(next);
+    });
 
     view! {
         <section class="voice-pane__section">
@@ -873,10 +1007,7 @@ where
                         type="button"
                         class="voice-pane__choice"
                         class:voice-pane__choice--active=move || matches!(post_flow, PostSttFlow::AutoSend)
-                        on:click={
-                            let on_flow = on_flow.clone();
-                            move |_| on_flow(PostSttFlow::AutoSend)
-                        }
+                        on:click=move |_| on_flow.run(PostSttFlow::AutoSend)
                     >
                         {move || i18n.tr(I18nKey::VoicePostSttAutoSend)()}
                     </button>
@@ -884,82 +1015,31 @@ where
                         type="button"
                         class="voice-pane__choice"
                         class:voice-pane__choice--active=move || matches!(post_flow, PostSttFlow::Draft)
-                        on:click={
-                            let on_flow = on_flow.clone();
-                            move |_| on_flow(PostSttFlow::Draft)
-                        }
+                        on:click=move |_| on_flow.run(PostSttFlow::Draft)
                     >
                         {move || i18n.tr(I18nKey::VoicePostSttDraft)()}
                     </button>
                 </div>
             </div>
 
-            <div class="voice-pane__field">
-                <label>{move || i18n.tr(I18nKey::VoiceVoiceField)()}</label>
-                <div class="voice-pane__gender-row">
-                    <GenderBtn target=GenderFilter::All label_key=I18nKey::VoiceGenderAll filter=gender_filter />
-                    <GenderBtn target=GenderFilter::Male label_key=I18nKey::VoiceGenderMale filter=gender_filter />
-                    <GenderBtn target=GenderFilter::Female label_key=I18nKey::VoiceGenderFemale filter=gender_filter />
-                    <GenderBtn target=GenderFilter::Neutral label_key=I18nKey::VoiceGenderNeutral filter=gender_filter />
-                </div>
-                <div class="voice-pane__voice-grid">
-                    {move || {
-                        let active = voice_id.clone();
-                        let filter = gender_filter.get();
-                        let on_voice = on_voice.clone();
-                        let preview_voice = preview_voice.clone();
-                        voices.get()
-                            .into_iter()
-                            .filter(|v| filter.matches(v.gender))
-                            .map(|v| {
-                                let is_active = v.id == active;
-                                let id_choose = v.id.clone();
-                                let id_preview = v.id.clone();
-                                let on_voice = on_voice.clone();
-                                let preview_voice = preview_voice.clone();
-                                view! {
-                                    <div
-                                        class="voice-pane__voice-card"
-                                        class:voice-pane__voice-card--active=is_active
-                                    >
-                                        <button
-                                            type="button"
-                                            class="voice-pane__voice-pick"
-                                            on:click=move |_| on_voice(id_choose.clone())
-                                        >
-                                            <strong>{v.label.clone()}</strong>
-                                            <span class="voice-pane__voice-gender">
-                                                {gender_label_for(v.gender)}
-                                            </span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            class="voice-pane__voice-preview"
-                                            on:click=move |_| preview_voice(id_preview.clone())
-                                            aria-label="Sample"
-                                        >
-                                            <LxIcon icon=icondata::LuPlay width="0.85rem" height="0.85rem" />
-                                        </button>
-                                    </div>
-                                }
-                            })
-                            .collect_view()
-                    }}
-                </div>
-            </div>
+            <VoicePickerBlock
+                settings=settings
+                voice_provider=voice_provider
+                voice_id=voice_id
+                voices=voices
+                gender_filter=gender_filter
+                on_pick=on_voice
+            />
 
             <div class="voice-pane__field">
                 <label class="voice-pane__toggle">
                     <input
                         type="checkbox"
                         prop:checked=tts_enabled
-                        on:change={
-                            let on_enabled = on_enabled.clone();
-                            move |ev| {
-                                if let Some(t) = ev.target() {
-                                    if let Ok(inp) = t.dyn_into::<web_sys::HtmlInputElement>() {
-                                        on_enabled(inp.checked());
-                                    }
+                        on:change=move |ev| {
+                            if let Some(t) = ev.target() {
+                                if let Ok(inp) = t.dyn_into::<web_sys::HtmlInputElement>() {
+                                    on_enabled.run(inp.checked());
                                 }
                             }
                         }
@@ -972,7 +1052,6 @@ where
                 </p>
             </div>
 
-            <audio node_ref=audio_ref preload="none" />
         </section>
     }
 }

@@ -96,6 +96,8 @@ pub fn AgentModelPicker(
     loading_models: RwSignal<bool>,
     #[prop(default = "agent-model")]
     option_id_prefix: &'static str,
+    #[prop(default = true)]
+    show_custom_field: bool,
     #[prop(optional)] on_change: Option<Callback<String>>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
@@ -220,20 +222,22 @@ pub fn AgentModelPicker(
                 </Show>
             </div>
 
-            <input
-                class="workbench-plain-input"
-                type="text"
-                placeholder=move || i18n.tr(I18nKey::AgModelCustomField)()
-                prop:value=move || model_id.get()
-                on:input=move |ev| {
-                    if let Some(value) = input_str(&ev) {
-                        model_id.set(value.clone());
-                        if let Some(cb) = on_change.as_ref() {
-                            cb.run(value);
+            <Show when=move || show_custom_field>
+                <input
+                    class="workbench-plain-input"
+                    type="text"
+                    placeholder=move || i18n.tr(I18nKey::AgModelCustomField)()
+                    prop:value=move || model_id.get()
+                    on:input=move |ev| {
+                        if let Some(value) = input_str(&ev) {
+                            model_id.set(value.clone());
+                            if let Some(cb) = on_change.as_ref() {
+                                cb.run(value);
+                            }
                         }
                     }
-                }
-            />
+                />
+            </Show>
 
             {move || {
                 let Some(entry) = selected_entry.get() else {

@@ -7698,10 +7698,33 @@ button {
     border-color: #5b9dff;
 }
 .voice-pane__voice-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 0.5rem;
-    margin-top: 0.4rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.voice-pane__voice-grid--six {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.voice-pane__hint--aws-only {
+  visibility: hidden;
+  min-height: 1.35rem;
+  margin: 0.15rem 0 0;
+}
+
+.voice-pane__hint--aws-only.voice-pane__hint--visible {
+  visibility: visible;
+}
+
+.voice-pane__voice-grid--disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.voice-pane__voice-card--disabled {
+  opacity: 0.72;
 }
 .voice-pane__voice-card {
     display: flex;
