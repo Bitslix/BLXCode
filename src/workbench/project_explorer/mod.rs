@@ -354,7 +354,15 @@ fn ExplorerNode(
                     }
                     style=pad.clone()
                     role="treeitem"
-                    on:click=|ev: web_sys::MouseEvent| ev.stop_propagation()
+                    on:click={
+                        let rel_path = rel_path.clone();
+                        move |ev: web_sys::MouseEvent| {
+                            ev.stop_propagation();
+                            if let Some(ws) = wb.with_active_workspace_entry() {
+                                wb.open_center_file_tab(ws.id, rel_path.clone());
+                            }
+                        }
+                    }
                 >
                     <span class="project-explorer__chev project-explorer__chev--spacer" aria-hidden="true"></span>
                     <span class="project-explorer__icon" aria-hidden="true">

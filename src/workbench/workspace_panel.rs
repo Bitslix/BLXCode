@@ -1,14 +1,16 @@
 use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
+use crate::tauri_bridge::{is_tauri_shell, read_workspace_text_file, TextFilePreview};
+use crate::workbench::app_prefs::AppPrefsService;
 use crate::workbench::browser_tab::sync_embedded_browser_layer;
 use crate::workbench::create_workspace_wizard::WorkspaceConfigurator;
-use crate::workbench::app_prefs::AppPrefsService;
 use crate::workbench::harness_chords::{
     dispatch_shortcut_action, HarnessShortcutAction, ShortcutKeys,
 };
+use crate::workbench::harness_ui::SettingsDock;
 use crate::workbench::state::{
-    workspace_entry_has_folder, BrowserEmbedSurface, HarnessUiService, RightPanelTab,
-    TerminalSplitAxis, WorkspaceEntry,
+    workspace_entry_has_folder, BrowserEmbedSurface, CenterTab, CenterTabKind, HarnessUiService,
+    RightPanelTab, TerminalSplitAxis, WorkspaceEntry, CENTER_TERMINALS_TAB_ID,
 };
 use crate::workbench::terminal_cell::WorkspaceTerminalCell;
 use crate::workbench::terminal_glue::{
@@ -219,6 +221,9 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
         terminal_unobserve_workspace_grid(workspace_id);
     });
 
+    let active_center_tab_id =
+        Memo::new(move |_| wb.active_center_tab_id_for_workspace(workspace_id));
+
     view! {
         <div
             class=move || {
@@ -233,150 +238,357 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                 <WorkspaceConfigurator workspace_id=workspace_id />
             </Show>
             <Show when=move || !is_configuring.get()>
-            <div
-                class="ws-term-grid"
-                node_ref=term_grid_ref
-                style=move || {
-                    let full = full_size_terminal.get().is_some();
-                    // Derive the authoritative track count from the
-                    // workspace itself; row_fr/col_fr only carry user-driven
-                    // resize fractions. If the cached fractions don't match
-                    // the current row/col count (e.g. right after wizard
-                    // commit, before the sync Effect fires), fall back to
-                    // even 1.0 fractions instead of rendering a stale
-                    // template. Without this fallback the grid renders the
-                    // old N×M layout, CSS auto-flow pushes children into
-                    // implicit rows at `auto` height, terminals collapse to
-                    // header-only, and xterm.fit() returns 0×0 — which makes
-                    // the spawned agent (claude/codex) see a broken TTY.
-                    let ws_rows = workspace.get().map(|w| w.grid_rows as usize).unwrap_or(1);
-                    let ws_cols = workspace.get().map(|w| w.grid_cols as usize).unwrap_or(1);
-                    let rf = row_fr.get();
-                    let cf = col_fr.get();
-                    let row_frac = if rf.len() == ws_rows { rf } else { vec![1.0; ws_rows] };
-                    let col_frac = if cf.len() == ws_cols { cf } else { vec![1.0; ws_cols] };
-                    let rows = if full { "minmax(0,1fr)".to_string() } else { fr_template(&row_frac) };
-                    let cols = if full { "minmax(0,1fr)".to_string() } else { fr_template(&col_frac) };
-                    format!(
-                        "display:grid;grid-template-rows:{rows};grid-template-columns:{cols};gap:4px;"
-                    )
-                }
-            >
-                <For
-                    each=move || {
-                        workspace
-                            .get()
-                            .map(|workspace| terminal_slots(&workspace))
-                            .unwrap_or_default()
-                    }
-                    key=|slot| slot.id
-                    children=move |slot| {
-                        let terminal_id = slot.id;
-                        let index = slot.index;
-                        let slug = slot.agent_slug;
-                        let cwd = workspace.get_untracked().map(|w| w.cwd).unwrap_or_default();
-                        let on_full_size = Callback::new(move |()| {
-                            full_size_terminal.update(|current| {
-                                *current = if *current == Some(terminal_id) {
-                                    None
-                                } else {
-                                    Some(terminal_id)
-                                };
-                            });
-                        });
+                <CenterTabStrip workspace_id=workspace_id active_tab_id=active_center_tab_id />
+                <div class="workspace-center-tab-body">
+                    <div
+                        class="workspace-center-panel"
+                        class:workspace-center-panel--hidden=move || active_center_tab_id.get() != CENTER_TERMINALS_TAB_ID
+                    >
+                        <div
+                            class="ws-term-grid"
+                            node_ref=term_grid_ref
+                            style=move || {
+                                let full = full_size_terminal.get().is_some();
+                                // Derive the authoritative track count from the
+                                // workspace itself; row_fr/col_fr only carry user-driven
+                                // resize fractions. If the cached fractions don't match
+                                // the current row/col count (e.g. right after wizard
+                                // commit, before the sync Effect fires), fall back to
+                                // even 1.0 fractions instead of rendering a stale
+                                // template. Without this fallback the grid renders the
+                                // old N×M layout, CSS auto-flow pushes children into
+                                // implicit rows at `auto` height, terminals collapse to
+                                // header-only, and xterm.fit() returns 0×0 — which makes
+                                // the spawned agent (claude/codex) see a broken TTY.
+                                let ws_rows = workspace.get().map(|w| w.grid_rows as usize).unwrap_or(1);
+                                let ws_cols = workspace.get().map(|w| w.grid_cols as usize).unwrap_or(1);
+                                let rf = row_fr.get();
+                                let cf = col_fr.get();
+                                let row_frac = if rf.len() == ws_rows { rf } else { vec![1.0; ws_rows] };
+                                let col_frac = if cf.len() == ws_cols { cf } else { vec![1.0; ws_cols] };
+                                let rows = if full { "minmax(0,1fr)".to_string() } else { fr_template(&row_frac) };
+                                let cols = if full { "minmax(0,1fr)".to_string() } else { fr_template(&col_frac) };
+                                format!(
+                                    "display:grid;grid-template-rows:{rows};grid-template-columns:{cols};gap:4px;"
+                                )
+                            }
+                        >
+                            <For
+                                each=move || {
+                                    workspace
+                                        .get()
+                                        .map(|workspace| terminal_slots(&workspace))
+                                        .unwrap_or_default()
+                                }
+                                key=|slot| slot.id
+                                children=move |slot| {
+                                    let terminal_id = slot.id;
+                                    let index = slot.index;
+                                    let slug = slot.agent_slug;
+                                    let cwd = workspace.get_untracked().map(|w| w.cwd).unwrap_or_default();
+                                    let on_full_size = Callback::new(move |()| {
+                                        full_size_terminal.update(|current| {
+                                            *current = if *current == Some(terminal_id) {
+                                                None
+                                            } else {
+                                                Some(terminal_id)
+                                            };
+                                        });
+                                    });
 
+                                    view! {
+                                        <TerminalSlotSurface
+                                            workspace_id=workspace_id
+                                            slot_id=terminal_id
+                                            index=index
+                                            cwd=cwd
+                                            agent_slug=slug
+                                            is_workspace_active=Signal::derive(move || {
+                                                wb.active_id().get() == Some(workspace_id)
+                                                    && active_center_tab_id.get() == CENTER_TERMINALS_TAB_ID
+                                            })
+                                            hidden=Signal::derive(move || {
+                                                full_size_terminal.get().is_some_and(|active| active != terminal_id)
+                                            })
+                                            is_full_size=Signal::derive(move || {
+                                                full_size_terminal.get() == Some(terminal_id)
+                                            })
+                                            on_full_size=on_full_size
+                                        />
+                                    }
+                                }
+                            />
+                            <Show when=move || full_size_terminal.get().is_none()>
+                                <For
+                                    each=move || {
+                                        let cols = workspace.get().map(|w| w.grid_cols).unwrap_or(1);
+                                        (0..cols.saturating_sub(1) as usize).collect::<Vec<_>>()
+                                    }
+                                    key=|i| *i
+                                    children=move |i| {
+                                        view! {
+                                            <button
+                                                type="button"
+                                                class="ws-term-grid__resize ws-term-grid__resize--col"
+                                                style=move || grid_col_handle_style(i, &col_fr.get())
+                                                aria-label=move || i18n.tr(I18nKey::WsResizeTermCols)()
+                                                on:mousedown=move |ev| {
+                                                    ev.prevent_default();
+                                                    let total_px = ev
+                                                        .current_target()
+                                                        .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+                                                        .and_then(|el| el.parent_element())
+                                                        .map(|el| el.client_width() as f64)
+                                                        .unwrap_or(1.0);
+                                                    drag_state.set(Some(GridDragState {
+                                                            axis: GridResizeAxis::Col,
+                                                            index: i,
+                                                            start_pos: ev.client_x() as f64,
+                                                            start_sizes: col_fr.get_untracked(),
+                                                            total_px,
+                                                    }));
+                                                }
+                                            ></button>
+                                        }
+                                    }
+                                />
+                                <For
+                                    each=move || {
+                                        let rows = workspace.get().map(|w| w.grid_rows).unwrap_or(1);
+                                        (0..rows.saturating_sub(1) as usize).collect::<Vec<_>>()
+                                    }
+                                    key=|i| *i
+                                    children=move |i| {
+                                        view! {
+                                            <button
+                                                type="button"
+                                                class="ws-term-grid__resize ws-term-grid__resize--row"
+                                                style=move || grid_row_handle_style(i, &row_fr.get())
+                                                aria-label=move || i18n.tr(I18nKey::WsResizeTermRows)()
+                                                on:mousedown=move |ev| {
+                                                    ev.prevent_default();
+                                                    let total_px = ev
+                                                        .current_target()
+                                                        .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+                                                        .and_then(|el| el.parent_element())
+                                                        .map(|el| el.client_height() as f64)
+                                                        .unwrap_or(1.0);
+                                                    drag_state.set(Some(GridDragState {
+                                                            axis: GridResizeAxis::Row,
+                                                            index: i,
+                                                            start_pos: ev.client_y() as f64,
+                                                            start_sizes: row_fr.get_untracked(),
+                                                            total_px,
+                                                    }));
+                                                }
+                                            ></button>
+                                        }
+                                    }
+                                />
+                            </Show>
+                        </div>
+                    </div>
+                    <DynamicCenterPanels workspace_id=workspace_id active_tab_id=active_center_tab_id />
+                </div>
+            </Show>
+        </div>
+    }
+}
+
+#[component]
+fn CenterTabStrip(workspace_id: u64, active_tab_id: Memo<u64>) -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+
+    view! {
+        <header class="workspace-center-tabs">
+            <div class="workspace-center-tabs__strip" role="tablist" aria-label="Workspace views">
+                <For
+                    each=move || wb.center_tabs_for_workspace(workspace_id)
+                    key=|tab| tab.id
+                    children=move |tab| {
                         view! {
-                            <TerminalSlotSurface
+                            <CenterTabButton
                                 workspace_id=workspace_id
-                                slot_id=terminal_id
-                                index=index
-                                cwd=cwd
-                                agent_slug=slug
-                                is_workspace_active=Signal::derive(move || {
-                                    wb.active_id().get() == Some(workspace_id)
-                                })
-                                hidden=Signal::derive(move || {
-                                    full_size_terminal.get().is_some_and(|active| active != terminal_id)
-                                })
-                                is_full_size=Signal::derive(move || {
-                                    full_size_terminal.get() == Some(terminal_id)
-                                })
-                                on_full_size=on_full_size
+                                tab=tab
+                                active_tab_id=active_tab_id
                             />
                         }
                     }
                 />
-                <Show when=move || full_size_terminal.get().is_none()>
-                    <For
-                        each=move || {
-                            let cols = workspace.get().map(|w| w.grid_cols).unwrap_or(1);
-                            (0..cols.saturating_sub(1) as usize).collect::<Vec<_>>()
-                        }
-                        key=|i| *i
-                        children=move |i| {
-                            view! {
-                                <button
-                                    type="button"
-                                    class="ws-term-grid__resize ws-term-grid__resize--col"
-                                    style=move || grid_col_handle_style(i, &col_fr.get())
-                                    aria-label=move || i18n.tr(I18nKey::WsResizeTermCols)()
-                                    on:mousedown=move |ev| {
-                                        ev.prevent_default();
-                                        let total_px = ev
-                                            .current_target()
-                                            .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
-                                            .and_then(|el| el.parent_element())
-                                            .map(|el| el.client_width() as f64)
-                                            .unwrap_or(1.0);
-                                        drag_state.set(Some(GridDragState {
-                                                axis: GridResizeAxis::Col,
-                                                index: i,
-                                                start_pos: ev.client_x() as f64,
-                                                start_sizes: col_fr.get_untracked(),
-                                                total_px,
-                                        }));
-                                    }
-                                ></button>
-                            }
-                        }
-                    />
-                    <For
-                        each=move || {
-                            let rows = workspace.get().map(|w| w.grid_rows).unwrap_or(1);
-                            (0..rows.saturating_sub(1) as usize).collect::<Vec<_>>()
-                        }
-                        key=|i| *i
-                        children=move |i| {
-                            view! {
-                                <button
-                                    type="button"
-                                    class="ws-term-grid__resize ws-term-grid__resize--row"
-                                    style=move || grid_row_handle_style(i, &row_fr.get())
-                                    aria-label=move || i18n.tr(I18nKey::WsResizeTermRows)()
-                                    on:mousedown=move |ev| {
-                                        ev.prevent_default();
-                                        let total_px = ev
-                                            .current_target()
-                                            .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
-                                            .and_then(|el| el.parent_element())
-                                            .map(|el| el.client_height() as f64)
-                                            .unwrap_or(1.0);
-                                        drag_state.set(Some(GridDragState {
-                                                axis: GridResizeAxis::Row,
-                                                index: i,
-                                                start_pos: ev.client_y() as f64,
-                                                start_sizes: row_fr.get_untracked(),
-                                                total_px,
-                                        }));
-                                    }
-                                ></button>
-                            }
-                        }
-                    />
-                </Show>
             </div>
+        </header>
+    }
+}
+
+#[component]
+fn CenterTabButton(workspace_id: u64, tab: CenterTab, active_tab_id: Memo<u64>) -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+    let id = tab.id;
+    let title = tab.title.clone();
+    let closeable = tab.closeable();
+    let icon = center_tab_icon(&tab.kind);
+
+    view! {
+        <button
+            type="button"
+            role="tab"
+            aria-selected=move || active_tab_id.get() == id
+            class="workspace-center-tab"
+            class:workspace-center-tab--active=move || active_tab_id.get() == id
+            title=title.clone()
+            on:click=move |_| wb.set_active_center_tab(workspace_id, id)
+        >
+            <span class="workspace-center-tab__icon" aria-hidden="true">
+                <LxIcon icon=icon width="14px" height="14px" />
+            </span>
+            <span class="workspace-center-tab__label">{title.clone()}</span>
+            <Show when=move || closeable>
+                <span
+                    role="button"
+                    tabindex="0"
+                    class="workspace-center-tab__close"
+                    aria-label="Close tab"
+                    title="Close tab"
+                    on:click=move |ev: MouseEvent| {
+                        ev.prevent_default();
+                        ev.stop_propagation();
+                        wb.close_center_tab(workspace_id, id);
+                    }
+                    on:keydown=move |ev: web_sys::KeyboardEvent| {
+                        let key = ev.key();
+                        if key == "Enter" || key == " " {
+                            ev.prevent_default();
+                            ev.stop_propagation();
+                            wb.close_center_tab(workspace_id, id);
+                        }
+                    }
+                >
+                    <LxIcon icon=icondata::LuX width="12px" height="12px" />
+                </span>
             </Show>
-        </div>
+        </button>
+    }
+}
+
+#[component]
+fn DynamicCenterPanels(workspace_id: u64, active_tab_id: Memo<u64>) -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+    let ui = expect_context::<HarnessUiService>();
+    let embed = expect_context::<BrowserEmbedSurface>();
+
+    view! {
+        <For
+            each=move || {
+                wb.center_tabs_for_workspace(workspace_id)
+                    .into_iter()
+                    .filter(|tab| !matches!(tab.kind, CenterTabKind::Terminals))
+                    .collect::<Vec<_>>()
+            }
+            key=|tab| tab.id
+            children=move |tab| {
+                let tab_id = tab.id;
+                match tab.kind {
+                    CenterTabKind::Settings => view! {
+                        <div
+                            class="workspace-center-panel workspace-center-panel--scroll"
+                            class:workspace-center-panel--hidden=move || active_tab_id.get() != tab_id
+                        >
+                            <SettingsDock ui=ui wb=wb embed=embed />
+                        </div>
+                    }.into_any(),
+                    CenterTabKind::FilePreview { rel_path } => view! {
+                        <div
+                            class="workspace-center-panel"
+                            class:workspace-center-panel--hidden=move || active_tab_id.get() != tab_id
+                        >
+                            <FilePreviewDock workspace_id=workspace_id rel_path=rel_path />
+                        </div>
+                    }.into_any(),
+                    CenterTabKind::Terminals => view! { <></> }.into_any(),
+                }
+            }
+        />
+    }
+}
+
+#[component]
+fn FilePreviewDock(workspace_id: u64, rel_path: String) -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+    let result = RwSignal::new(None::<Result<TextFilePreview, String>>);
+    let load_gen = RwSignal::new(0_u32);
+    let rel_for_effect = rel_path.clone();
+
+    Effect::new(move |_| {
+        let _ = load_gen.get();
+        result.set(None);
+        if !is_tauri_shell() {
+            result.set(Some(Err(
+                "File preview is available in the desktop app.".into()
+            )));
+            return;
+        }
+        let Some(workspace) = wb
+            .workspaces()
+            .get()
+            .into_iter()
+            .find(|workspace| workspace.id == workspace_id)
+        else {
+            result.set(Some(Err("Workspace not found.".into())));
+            return;
+        };
+        let root = workspace.cwd;
+        let path = rel_for_effect.clone();
+        leptos::task::spawn_local(async move {
+            let next = read_workspace_text_file(root, path).await;
+            result.set(Some(next));
+        });
+    });
+
+    view! {
+        <article class="file-preview">
+            <header class="file-preview__header">
+                <div class="file-preview__title">
+                    <span class="file-preview__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuFileText width="1rem" height="1rem" />
+                    </span>
+                    <span>{rel_path.clone()}</span>
+                </div>
+                <button
+                    type="button"
+                    class="workbench-mini-btn"
+                    on:click=move |_| load_gen.update(|n| *n = n.wrapping_add(1))
+                >
+                    <span class="harness-btn-inline">
+                        <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
+                        <span>"Refresh"</span>
+                    </span>
+                </button>
+            </header>
+            {move || match result.get() {
+                None => view! {
+                    <div class="file-preview__status">"Loading file..."</div>
+                }.into_any(),
+                Some(Err(err)) => view! {
+                    <div class="file-preview__status file-preview__status--error">{err}</div>
+                }.into_any(),
+                Some(Ok(preview)) => view! {
+                    <Show when=move || preview.truncated>
+                        <div class="file-preview__notice">
+                            {format!("Preview truncated at 512 KiB of {} bytes.", preview.byte_len)}
+                        </div>
+                    </Show>
+                    <pre class="file-preview__content"><code>{preview.content}</code></pre>
+                }.into_any(),
+            }}
+        </article>
+    }
+}
+
+fn center_tab_icon(kind: &CenterTabKind) -> icondata::Icon {
+    match kind {
+        CenterTabKind::Terminals => icondata::LuTerminal,
+        CenterTabKind::Settings => icondata::LuSettings2,
+        CenterTabKind::FilePreview { .. } => icondata::LuFileText,
     }
 }
 

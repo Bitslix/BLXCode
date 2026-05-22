@@ -3,6 +3,10 @@ mod agent_accent;
 mod agent_context_handoff;
 mod agent_panel;
 mod agent_timeline;
+mod agent_model_picker;
+mod agent_provider_pane;
+mod api_keys_pane;
+mod workspace_settings_pane;
 mod app_prefs;
 mod browser_tab;
 mod chat_markdown;
@@ -14,7 +18,6 @@ mod harness_ui;
 mod harness_voice_pane;
 mod memory_graph;
 mod memory_panel;
-mod model_picker;
 mod notification_sound;
 mod path_nav;
 mod plans_panel;
@@ -25,6 +28,7 @@ mod sidebar_resizer;
 mod sidebar_view_section;
 pub mod skills_rules_panel;
 pub mod state;
+mod voice_app_controls;
 mod terminal_cell;
 mod terminal_glue;
 mod toast;
@@ -33,6 +37,9 @@ mod update_service;
 mod workspace_panel;
 
 pub use agent_panel::AgentPanelDock;
+pub use agent_provider_pane::AgentProviderPane;
+pub use api_keys_pane::ApiKeysPane;
+pub use workspace_settings_pane::WorkspaceSettingsPane;
 pub use browser_tab::{BrowserTabDock, EmbeddedBrowserGlue};
 pub use memory_panel::MemoryPanel;
 pub use plans_panel::PlansPanel;
@@ -51,7 +58,7 @@ use crate::i18n::I18nKey;
 use crate::open_http::{dom_click_nav_href, DomNavHref};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    browser_embedding_kind, harness_ensure_default_sandbox, is_tauri_shell,
+    browser_embedding_kind, harness_ensure_default_sandbox, harness_user_home_dir, is_tauri_shell,
     workbench_extract_sessions_prefix, workbench_load_state, workbench_merge_sessions_workspace,
     workbench_prune_notifications, workbench_prune_sessions, workbench_save_state,
 };
@@ -169,6 +176,11 @@ pub fn WorkbenchShell() -> impl IntoView {
             {
                 if let Ok(path) = harness_ensure_default_sandbox().await {
                     wb.persist_harness_workspace_root(path);
+                }
+            }
+            if wb.default_project_dir().get_untracked().trim().is_empty() {
+                if let Ok(home) = harness_user_home_dir().await {
+                    wb.persist_default_project_dir(home);
                 }
             }
             persistence_enabled.set(allow_save);

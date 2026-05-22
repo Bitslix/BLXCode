@@ -33,20 +33,20 @@ Try opening another URL or use your system browser for sites that explicitly den
 
 ## API Key Does Not Save
 
-BLXCode stores provider keys in the OS keyring when available. If the keyring is unavailable, it falls back to app-config secret files.
+BLXCode stores keys from **Settings → API Keys** in the OS keyring when available. If the keyring is unavailable, it falls back to app-config secret files.
 
 On Linux, make sure a secret service such as GNOME Keyring or KWallet is available if you want keyring-backed storage. Otherwise, check app config directory permissions.
 
 ## Agent Says Provider Key Is Missing
 
-Open provider settings, select the provider you want to use, paste an API key, save it, and retry the agent turn. Provider keys are stored per provider, so saving an Anthropic key does not configure OpenRouter or OpenAI.
+Open **Settings → API Keys**, set the key for the provider shown in the error (OpenRouter, Anthropic, OpenAI, etc.), click **Save**, then retry. Keys are per provider — an Anthropic key does not configure OpenRouter.
 
 ## Web Search Or Fetch Unavailable
 
 `web_search` and `web_fetch` are omitted from the tool list until a web backend is configured.
 
-1. Open Harness settings → **Agent** → **Web Tools**.
-2. Choose **Tavily** or **Brave**, save the provider choice, and set the matching API key (or set `BLX_TAVILY_API_KEY` / `BLX_BRAVE_API_KEY` in the environment before launch).
+1. Set Tavily and/or Brave keys under **Settings → API Keys** (or `BLX_TAVILY_API_KEY` / `BLX_BRAVE_API_KEY` in the environment).
+2. Open **Settings → BLXCode Agent** → **Web Tools**, choose **Tavily** or **Brave**, and **Save** the agent footer.
 3. Enable the **web** core skill in the Skills panel if it was disabled.
 
 See [Agent Harness](agent-harness.md).

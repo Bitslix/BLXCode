@@ -2,6 +2,7 @@ mod agent;
 mod agent_hooks;
 mod agent_settings;
 mod agents_layout;
+mod api_keys;
 mod browser_host;
 mod commands;
 mod fs_entries;
@@ -9,6 +10,7 @@ mod git_graph;
 mod git_info;
 mod gitignore;
 mod image;
+mod media_keys;
 mod memory;
 mod plans;
 mod pty_host;
@@ -19,14 +21,11 @@ mod voice;
 mod workbench_state;
 
 use agent::{
-    agent_environment_invalidate, agent_web_api_key_delete, agent_web_api_key_set,
-    agent_web_settings_get, agent_web_settings_save, AgentEngineState,
+    agent_environment_invalidate, agent_web_settings_get, agent_web_settings_save, AgentEngineState,
 };
 use agent_hooks::{agent_hooks_status, install_agent_hooks, uninstall_agent_hooks};
-use agent_settings::{
-    agent_api_key_delete, agent_api_key_set, agent_provider_models, agent_settings_get,
-    agent_settings_save,
-};
+use agent_settings::{agent_provider_models, agent_settings_get, agent_settings_save};
+use api_keys::{api_keys_apply, api_keys_status};
 use browser_host::BrowserHost;
 use commands::*;
 use image::{image_curated_models, image_settings_get, image_settings_save};
@@ -37,7 +36,7 @@ use updater::{
     BlxUpdaterState,
 };
 use voice::{
-    voice_cancel_recording, voice_provider_voices, voice_settings_get, voice_settings_save,
+    voice_cancel_recording, voice_settings_get, voice_settings_save,
     voice_start_recording, voice_stop_and_transcribe, voice_tts_preview, VoiceRecorderState,
 };
 use workbench_state::{
@@ -125,11 +124,12 @@ pub fn run() {
             agent_read_image_file,
             agent_export_context_images,
             harness_ensure_default_sandbox,
+            harness_user_home_dir,
             agent_settings_get,
             agent_settings_save,
-            agent_api_key_set,
-            agent_api_key_delete,
             agent_provider_models,
+            api_keys_status,
+            api_keys_apply,
             browser_sync_bounds,
             browser_navigate,
             browser_run_js,
@@ -151,6 +151,7 @@ pub fn run() {
             git_graph::git_is_repository,
             git_graph::git_commit_graph,
             fs_entries::list_path_entries,
+            fs_entries::read_workspace_text_file,
             install_agent_hooks,
             agent_hooks_status,
             uninstall_agent_hooks,
@@ -218,14 +219,11 @@ pub fn run() {
             voice_cancel_recording,
             voice_settings_get,
             voice_settings_save,
-            voice_provider_voices,
             voice_tts_preview,
             image_settings_get,
             image_settings_save,
             agent_web_settings_get,
             agent_web_settings_save,
-            agent_web_api_key_set,
-            agent_web_api_key_delete,
             agent_environment_invalidate,
             image_curated_models,
             crate::image::commands::generated_image_preview,

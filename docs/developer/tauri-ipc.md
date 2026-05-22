@@ -31,10 +31,11 @@ Authoritative list from `src-tauri/src/lib.rs` (grouped for navigation):
 
 ### Agent settings and keys
 
-- `agent_settings_get`, `agent_settings_save`, `agent_api_key_set`, `agent_api_key_delete`, `agent_provider_models`
-- `agent_web_settings_get`, `agent_web_settings_save`, `agent_web_api_key_set`, `agent_web_api_key_delete`
+- `agent_settings_get`, `agent_settings_save`, `agent_provider_models`
+- `api_keys_status`, `api_keys_apply` — centralized key catalog (LLM, Tavily, Brave, fal.ai, AWS Polly); see `src-tauri/src/api_keys.rs`
+- `agent_web_settings_get`, `agent_web_settings_save` (backend choice only; keys via `api_keys_apply`)
 - `agent_environment_invalidate` — clears `environment_detect` session cache (also triggered from UI on workspace switch)
-- `harness_ensure_default_sandbox`
+- `harness_ensure_default_sandbox`, `harness_user_home_dir`
 
 ### Image generation
 
@@ -93,7 +94,7 @@ Authoritative list from `src-tauri/src/lib.rs` (grouped for navigation):
 ### Voice
 
 - `voice_start_recording`, `voice_stop_and_transcribe`, `voice_cancel_recording`
-- `voice_settings_get`, `voice_settings_save`, `voice_provider_voices`, `voice_tts_preview`
+- `voice_settings_get`, `voice_settings_save`, `voice_tts_preview`
 
 Server-side agent tools (`environment_detect`, `shell_exec`, `git_*`, `web_*`, `subagents.run`, …) run inside provider/subagent HTTP loops, not as separate Tauri commands. See [Agent Harness](agent-harness.md) and [Subagents](subagents.md).
 

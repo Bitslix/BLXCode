@@ -21,7 +21,7 @@ use std::time::Duration;
 
 use crate::agent::protocol::AgentImageContextItem;
 use crate::agent::state::AgentEngineState;
-use crate::image::settings::{ImageProviderKind, ImageSettings};
+use crate::image::settings::{ImageProviderKind, ImageQualityLevel, ImageSettings};
 
 /// Hard ceilings: align with the chat-side limits (see `commands.rs`).
 const MAX_REF_IMAGES: usize = 4;
@@ -125,10 +125,36 @@ pub async fn generate(
 
     let res = match settings.provider {
         ImageProviderKind::Openai => {
-            generate_openai(&client, &settings.model_id, api_key, prompt, refs).await
+            generate_openai(
+                &client,
+                &settings.model_id,
+                settings.quality,
+                api_key,
+                prompt,
+                refs,
+            )
+            .await
         }
         ImageProviderKind::Openrouter => {
-            generate_openrouter(&client, &settings.model_id, api_key, prompt, refs).await
+            generate_openrouter(
+                &client,
+                &settings.model_id,
+                settings.quality,
+                api_key,
+                prompt,
+                refs,
+            )
+            .await
+        }
+        ImageProviderKind::Fal => {
+            generate_fal(
+                &client,
+                &settings.model_id,
+                settings.quality,
+                api_key,
+                prompt,
+            )
+            .await
         }
     };
 
@@ -164,31 +190,48 @@ struct OpenaiError {
     message: Option<String>,
 }
 
+fn openai_image_request_body(model: &str, prompt: &str, quality: ImageQualityLevel) -> Value {
+    let model_lc = model.to_ascii_lowercase();
+    let mut body = json!({
+        "model": model,
+        "prompt": prompt,
+        "n": 1,
+        "size": quality.openai_size(),
+    });
+    let quality_param = if model_lc.contains("dall-e") || model_lc.contains("dalle") {
+        quality.openai_dalle_quality()
+    } else {
+        quality.openai_gpt_quality()
+    };
+    if let Some(obj) = body.as_object_mut() {
+        obj.insert("quality".into(), json!(quality_param));
+    }
+    body
+}
+
 async fn generate_openai(
     client: &reqwest::Client,
     model: &str,
+    quality: ImageQualityLevel,
     api_key: &str,
     prompt: &str,
     refs: &[AgentImageContextItem],
 ) -> Result<GeneratedImage, GenerateError> {
     if refs.is_empty() {
-        generate_openai_text(client, model, api_key, prompt).await
+        generate_openai_text(client, model, quality, api_key, prompt).await
     } else {
-        generate_openai_edit(client, model, api_key, prompt, refs).await
+        generate_openai_edit(client, model, quality, api_key, prompt, refs).await
     }
 }
 
 async fn generate_openai_text(
     client: &reqwest::Client,
     model: &str,
+    quality: ImageQualityLevel,
     api_key: &str,
     prompt: &str,
 ) -> Result<GeneratedImage, GenerateError> {
-    let body = json!({
-        "model": model,
-        "prompt": prompt,
-        "n": 1,
-    });
+    let body = openai_image_request_body(model, prompt, quality);
     let res = client
         .post("https://api.openai.com/v1/images/generations")
         .bearer_auth(api_key)
@@ -205,20 +248,29 @@ async fn generate_openai_text(
     if !status.is_success() {
         return Err(provider_error_from_openai(&text, status.as_u16()));
     }
-    parse_openai_envelope(&text)
+    parse_openai_envelope(client, &text).await
 }
 
 async fn generate_openai_edit(
     client: &reqwest::Client,
     model: &str,
+    quality: ImageQualityLevel,
     api_key: &str,
     prompt: &str,
     refs: &[AgentImageContextItem],
 ) -> Result<GeneratedImage, GenerateError> {
+    let model_lc = model.to_ascii_lowercase();
+    let quality_param = if model_lc.contains("dall-e") || model_lc.contains("dalle") {
+        quality.openai_dalle_quality()
+    } else {
+        quality.openai_gpt_quality()
+    };
     let mut form = reqwest::multipart::Form::new()
         .text("model", model.to_owned())
         .text("prompt", prompt.to_owned())
-        .text("n", "1");
+        .text("n", "1")
+        .text("size", quality.openai_size().to_owned())
+        .text("quality", quality_param.to_owned());
     for (idx, item) in refs.iter().enumerate() {
         let bytes = BASE64
             .decode(item.bytes_b64.as_bytes())
@@ -253,10 +305,13 @@ async fn generate_openai_edit(
     if !status.is_success() {
         return Err(provider_error_from_openai(&text, status.as_u16()));
     }
-    parse_openai_envelope(&text)
+    parse_openai_envelope(client, &text).await
 }
 
-fn parse_openai_envelope(body: &str) -> Result<GeneratedImage, GenerateError> {
+async fn parse_openai_envelope(
+    client: &reqwest::Client,
+    body: &str,
+) -> Result<GeneratedImage, GenerateError> {
     let env: OpenaiImageEnvelope = serde_json::from_str(body)
         .map_err(|e| GenerateError::Parse(format!("openai json: {e}")))?;
     let first = env
@@ -274,8 +329,9 @@ fn parse_openai_envelope(body: &str) -> Result<GeneratedImage, GenerateError> {
         });
     }
     if let Some(url) = first.url {
-        // OpenAI may return a URL only — we fetch it once and inline.
-        return fetch_url_bytes(&url).map_err(|e| GenerateError::Http(format!("openai url: {e}")));
+        return download_image_url(client, &url)
+            .await
+            .map_err(|e| GenerateError::Http(format!("openai url: {e}")));
     }
     Err(GenerateError::Provider(
         "openai response had neither b64_json nor url".into(),
@@ -291,12 +347,115 @@ fn provider_error_from_openai(body: &str, status: u16) -> GenerateError {
     GenerateError::Provider(format!("openai {status}: {}", truncate(body, 240)))
 }
 
-fn fetch_url_bytes(_url: &str) -> Result<GeneratedImage, String> {
-    // Reachable when OpenAI returns a hosted URL. We do not chase URLs in
-    // v1 — the model defaults are configured to return b64_json. If a
-    // provider unexpectedly returns a URL, surface a clear error so the
-    // user can switch models.
-    Err("provider returned a hosted URL; configure a model that emits b64_json".into())
+async fn download_image_url(
+    client: &reqwest::Client,
+    url: &str,
+) -> Result<GeneratedImage, GenerateError> {
+    let res = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| GenerateError::Http(format!("download image: {e}")))?;
+    if !res.status().is_success() {
+        return Err(GenerateError::Http(format!(
+            "download image: HTTP {}",
+            res.status()
+        )));
+    }
+    let bytes = res
+        .bytes()
+        .await
+        .map_err(|e| GenerateError::Http(format!("download body: {e}")))?
+        .to_vec();
+    Ok(GeneratedImage {
+        mime: detect_image_mime(&bytes).unwrap_or("image/png").to_owned(),
+        bytes,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// fal.ai
+// ---------------------------------------------------------------------------
+
+#[derive(Deserialize)]
+struct FalImageEnvelope {
+    #[serde(default)]
+    images: Vec<FalImageItem>,
+    #[serde(default)]
+    image: Option<FalImageItem>,
+    #[serde(default)]
+    detail: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct FalImageItem {
+    #[serde(default)]
+    url: Option<String>,
+    #[serde(default)]
+    content_type: Option<String>,
+}
+
+async fn generate_fal(
+    client: &reqwest::Client,
+    model: &str,
+    quality: ImageQualityLevel,
+    api_key: &str,
+    prompt: &str,
+) -> Result<GeneratedImage, GenerateError> {
+    let endpoint = format!("https://fal.run/{model}");
+    let body = json!({
+        "prompt": prompt,
+        "image_size": quality.fal_image_size(),
+        "num_images": 1,
+        "output_format": "png",
+    });
+    let res = client
+        .post(&endpoint)
+        .header("Authorization", format!("Key {api_key}"))
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| GenerateError::Http(format!("fal: {e}")))?;
+    let status = res.status();
+    let text = res
+        .text()
+        .await
+        .map_err(|e| GenerateError::Http(format!("fal body: {e}")))?;
+    if !status.is_success() {
+        return Err(GenerateError::Provider(format!(
+            "fal {status}: {}",
+            truncate(&text, 240)
+        )));
+    }
+    parse_fal_envelope(client, &text).await
+}
+
+async fn parse_fal_envelope(
+    client: &reqwest::Client,
+    body: &str,
+) -> Result<GeneratedImage, GenerateError> {
+    let env: FalImageEnvelope = serde_json::from_str(body)
+        .map_err(|e| GenerateError::Parse(format!("fal json: {e}")))?;
+    let item = env
+        .images
+        .into_iter()
+        .next()
+        .or(env.image)
+        .ok_or_else(|| {
+            GenerateError::Provider(
+                env.detail
+                    .unwrap_or_else(|| "fal returned no images".into()),
+            )
+        })?;
+    let url = item
+        .url
+        .ok_or_else(|| GenerateError::Provider("fal image had no url".into()))?;
+    let mut generated = download_image_url(client, &url).await?;
+    if let Some(mime) = item.content_type.filter(|m| m.starts_with("image/")) {
+        generated.mime = mime;
+    }
+    Ok(generated)
 }
 
 // ---------------------------------------------------------------------------
@@ -346,6 +505,7 @@ struct OpenrouterError {
 async fn generate_openrouter(
     client: &reqwest::Client,
     model: &str,
+    quality: ImageQualityLevel,
     api_key: &str,
     prompt: &str,
     refs: &[AgentImageContextItem],
@@ -356,6 +516,9 @@ async fn generate_openrouter(
         "modalities": ["image", "text"],
         "messages": [{ "role": "user", "content": content }],
         "stream": false,
+        "image_config": {
+            "quality": quality.openrouter_image_quality(),
+        },
     });
     let res = client
         .post("https://openrouter.ai/api/v1/chat/completions")

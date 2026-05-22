@@ -1,0 +1,19 @@
+/* Workspace settings — reuses API Keys list/row chrome from api_keys_pane.css */
+
+.workspace-field-row__input {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+  font-size: 0.82rem;
+}
+
+.settings-pane-footer {
+  margin-top: 0.85rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.settings-pane-dirty {
+  margin-left: 0.35rem;
+  font-size: 0.75rem;
+}

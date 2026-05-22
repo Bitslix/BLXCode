@@ -109,6 +109,12 @@ pub async fn harness_ensure_default_sandbox() -> Result<String, String> {
     invoke_typed("harness_ensure_default_sandbox", serde_json::json!({})).await
 }
 
+/// Returns the user's home directory. Default for the "default project
+/// directory" setting that seeds new workspace cwds.
+pub async fn harness_user_home_dir() -> Result<String, String> {
+    invoke_typed("harness_user_home_dir", serde_json::json!({})).await
+}
+
 pub async fn app_version() -> Result<String, String> {
     invoke_typed("app_version", serde_json::json!({})).await
 }
@@ -328,6 +334,7 @@ pub enum ThinkingLevel {
 #[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(PartialEq)]
 pub struct ProviderModelEntry {
     pub id: String,
     pub label: String,
@@ -342,6 +349,7 @@ pub struct ProviderModelEntry {
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(PartialEq)]
 pub struct ModelPricing {
     pub prompt: f64,
     pub completion: f64,
@@ -377,6 +385,78 @@ pub struct ProviderModelsResponse {
     pub used_fallback: bool,
     pub message: Option<String>,
 }
+
+// ---------- Centralized API keys (Settings → API Keys) ----------
+
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ApiKeyCategory {
+    Llm,
+    Search,
+    ImageVideo,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiKeyEntry {
+    pub kind: String,
+    pub label: String,
+    pub category: ApiKeyCategory,
+    pub configured: bool,
+    #[serde(default)]
+    pub masked_value: Option<String>,
+    #[serde(default)]
+    pub via_env: bool,
+    #[serde(default)]
+    pub env_var: Option<String>,
+    #[serde(default)]
+    pub coming_soon: bool,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiKeysStatus {
+    pub entries: Vec<ApiKeyEntry>,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum ApiKeyAction {
+    Set { kind: String, value: String },
+    Delete { kind: String },
+}
+
+#[allow(dead_code)]
+pub async fn api_keys_status() -> Result<ApiKeysStatus, String> {
+    invoke_typed("api_keys_status", serde_json::json!({})).await
+}
+
+#[allow(dead_code)]
+pub async fn api_keys_apply(actions: Vec<ApiKeyAction>) -> Result<ApiKeysStatus, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        payload: Payload,
+    }
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Payload {
+        actions: Vec<ApiKeyAction>,
+    }
+    invoke_typed(
+        "api_keys_apply",
+        Args {
+            payload: Payload { actions },
+        },
+    )
+    .await
+}
+
+// ---------- Legacy per-provider settings ----------
 
 pub async fn agent_settings_get() -> Result<AgentProviderSettingsView, String> {
     invoke_typed("agent_settings_get", serde_json::json!({})).await
@@ -414,32 +494,6 @@ pub async fn agent_settings_save(
     .await
 }
 
-pub async fn agent_api_key_set(
-    provider: AgentProviderKind,
-    api_key: String,
-) -> Result<AgentProviderSettingsView, String> {
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Args {
-        payload: Payload,
-    }
-
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Payload {
-        provider: AgentProviderKind,
-        api_key: String,
-    }
-
-    invoke_typed(
-        "agent_api_key_set",
-        Args {
-            payload: Payload { provider, api_key },
-        },
-    )
-    .await
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum WebProviderKind {
@@ -448,6 +502,7 @@ pub enum WebProviderKind {
     Brave,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WebKeyStatus {
@@ -462,6 +517,7 @@ pub struct AgentWebSettings {
     pub provider: WebProviderKind,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentWebSettingsView {
@@ -497,76 +553,9 @@ pub async fn agent_web_settings_save(
     .await
 }
 
-pub async fn agent_web_api_key_set(
-    kind: &str,
-    api_key: String,
-) -> Result<AgentWebSettingsView, String> {
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Args {
-        payload: Payload,
-    }
-
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Payload {
-        kind: String,
-        api_key: String,
-    }
-
-    invoke_typed(
-        "agent_web_api_key_set",
-        Args {
-            payload: Payload {
-                kind: kind.to_string(),
-                api_key,
-            },
-        },
-    )
-    .await
-}
-
-pub async fn agent_web_api_key_delete(kind: &str) -> Result<AgentWebSettingsView, String> {
-    #[derive(Serialize)]
-    struct Args {
-        kind: String,
-    }
-
-    invoke_typed(
-        "agent_web_api_key_delete",
-        Args {
-            kind: kind.to_string(),
-        },
-    )
-    .await
-}
 
 pub async fn agent_environment_invalidate() -> Result<(), String> {
     invoke_unit_js("agent_environment_invalidate", JsValue::NULL).await
-}
-
-pub async fn agent_api_key_delete(
-    provider: AgentProviderKind,
-) -> Result<AgentProviderSettingsView, String> {
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Args {
-        payload: Payload,
-    }
-
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Payload {
-        provider: AgentProviderKind,
-    }
-
-    invoke_typed(
-        "agent_api_key_delete",
-        Args {
-            payload: Payload { provider },
-        },
-    )
-    .await
 }
 
 pub async fn agent_provider_models(
@@ -642,6 +631,34 @@ pub async fn list_path_entries(
     }
     invoke_typed(
         "list_path_entries",
+        A {
+            workspace_root,
+            path,
+        },
+    )
+    .await
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TextFilePreview {
+    pub content: String,
+    pub truncated: bool,
+    pub byte_len: u64,
+}
+
+pub async fn read_workspace_text_file(
+    workspace_root: String,
+    path: String,
+) -> Result<TextFilePreview, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        workspace_root: String,
+        path: String,
+    }
+    invoke_typed(
+        "read_workspace_text_file",
         A {
             workspace_root,
             path,
@@ -1753,6 +1770,7 @@ pub async fn agent_drain_turn_opts(
 pub enum VoiceProviderKind {
     Openai,
     Openrouter,
+    Aws,
 }
 
 impl VoiceProviderKind {
@@ -1761,6 +1779,7 @@ impl VoiceProviderKind {
         match self {
             Self::Openai => "openai",
             Self::Openrouter => "openrouter",
+            Self::Aws => "aws",
         }
     }
 }
@@ -1868,14 +1887,6 @@ pub struct VoiceEntry {
 
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct VoiceProviderVoicesResponse {
-    #[allow(dead_code)]
-    pub provider: VoiceProviderKind,
-    pub voices: Vec<VoiceEntry>,
-}
-
-#[derive(Clone, Debug, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct VoiceStartResponse {
     pub turn_id: String,
 }
@@ -1973,28 +1984,6 @@ pub async fn voice_settings_save(patch: VoiceSettings) -> Result<VoiceSettings, 
     invoke_typed("voice_settings_save", Args { patch }).await
 }
 
-pub async fn voice_provider_voices(
-    provider: VoiceProviderKind,
-) -> Result<VoiceProviderVoicesResponse, String> {
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Args {
-        payload: Payload,
-    }
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Payload {
-        provider: VoiceProviderKind,
-    }
-    invoke_typed(
-        "voice_provider_voices",
-        Args {
-            payload: Payload { provider },
-        },
-    )
-    .await
-}
-
 pub async fn voice_tts_preview(
     provider: VoiceProviderKind,
     model_id: String,
@@ -2037,15 +2026,31 @@ pub async fn voice_tts_preview(
 pub enum ImageProviderKind {
     Openai,
     Openrouter,
+    Fal,
 }
 
 impl ImageProviderKind {
-    #[allow(dead_code)]
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Openai => "openai",
             Self::Openrouter => "openrouter",
+            Self::Fal => "fal",
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ImageQualityLevel {
+    Low,
+    Medium,
+    High,
+    Max,
+}
+
+impl Default for ImageQualityLevel {
+    fn default() -> Self {
+        Self::Medium
     }
 }
 
@@ -2054,6 +2059,8 @@ impl ImageProviderKind {
 pub struct ImageSettings {
     pub provider: ImageProviderKind,
     pub model_id: String,
+    #[serde(default)]
+    pub quality: ImageQualityLevel,
 }
 
 impl Default for ImageSettings {
@@ -2061,6 +2068,7 @@ impl Default for ImageSettings {
         Self {
             provider: ImageProviderKind::Openai,
             model_id: "gpt-image-1".into(),
+            quality: ImageQualityLevel::Medium,
         }
     }
 }
@@ -2101,7 +2109,6 @@ pub async fn image_settings_save(patch: ImageSettings) -> Result<ImageSettings, 
     invoke_typed("image_settings_save", Args { patch }).await
 }
 
-#[allow(dead_code)]
 pub async fn image_curated_models(
     provider: ImageProviderKind,
 ) -> Result<ImageModelsResponse, String> {

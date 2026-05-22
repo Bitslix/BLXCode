@@ -12,6 +12,7 @@ use crate::agent_settings;
 pub enum VoiceProviderKind {
     Openai,
     Openrouter,
+    Aws,
 }
 
 impl VoiceProviderKind {
@@ -19,6 +20,7 @@ impl VoiceProviderKind {
         match self {
             Self::Openai => "openai",
             Self::Openrouter => "openrouter",
+            Self::Aws => "aws",
         }
     }
 }
@@ -157,9 +159,16 @@ pub fn save(app: &AppHandle, settings: &VoiceSettings) -> Result<VoiceSettings, 
 /// Resolve the API key used for a voice provider, piggybacking on the
 /// existing agent provider keyring entries.
 pub fn provider_key(app: &AppHandle, provider: VoiceProviderKind) -> Result<String, String> {
-    let agent_provider = match provider {
-        VoiceProviderKind::Openai => agent_settings::AgentProviderKind::Openai,
-        VoiceProviderKind::Openrouter => agent_settings::AgentProviderKind::Openrouter,
-    };
-    agent_settings::provider_key_pub(app, agent_provider)
+    match provider {
+        VoiceProviderKind::Aws => crate::media_keys::resolve_key(crate::media_keys::MediaKeyKind::AwsPolly)
+            .ok_or_else(|| {
+                "AWS API key missing. Add it under Settings → API Keys (Amazon Polly).".into()
+            }),
+        VoiceProviderKind::Openai => {
+            agent_settings::provider_key_pub(app, agent_settings::AgentProviderKind::Openai)
+        }
+        VoiceProviderKind::Openrouter => {
+            agent_settings::provider_key_pub(app, agent_settings::AgentProviderKind::Openrouter)
+        }
+    }
 }

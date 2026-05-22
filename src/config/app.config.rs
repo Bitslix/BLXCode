@@ -20,6 +20,11 @@ pub const MEMORY_COLOR_PRESETS_STORAGE_KEY: &str = "blxcode_memory_color_presets
 /// `localStorage` key for agent workspace root (tool sandbox).
 pub const HARNESS_WORKSPACE_ROOT_KEY: &str = "blxcode_harness_workspace_root_v1";
 
+/// `localStorage` key for the default project / development directory
+/// used to seed the cwd of newly created workspaces. Defaults to the
+/// user's home directory when blank.
+pub const DEFAULT_PROJECT_DIR_KEY: &str = "blxcode_default_project_dir_v1";
+
 /// Default URL for embedded browser tab.
 pub const HARNESS_BROWSER_DEFAULT_URL: &str = "https://blxcode.com";
 

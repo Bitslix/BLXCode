@@ -140,7 +140,7 @@ async fn run_image_turn(
         Ok(k) if !k.trim().is_empty() => k,
         Ok(_) | Err(_) => {
             return Err(format!(
-                "Kein API-Key für Bild-Provider {} hinterlegt. In den Image-Einstellungen setzen.",
+                "Kein API-Key für Bild-Provider {} hinterlegt. In Settings → API Keys setzen.",
                 settings.provider.as_str()
             ));
         }

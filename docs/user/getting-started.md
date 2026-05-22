@@ -49,17 +49,15 @@ After accepting, the workbench opens. In the desktop shell, BLXCode also creates
 
 Workspace layout and recent workspace state are persisted by the Tauri backend and restored on the next launch. With [agent hooks](agent-providers.md) installed, terminal slots can **resume** prior Claude/Codex/Gemini/OpenCode/Cursor sessions and surface **completion badges** in the sidebar—see [Workspaces](workspaces.md#session-resume).
 
-## Configure An Agent Provider
+## Configure settings
 
-Open the agent/provider settings in the right panel. BLXCode supports provider settings for:
+Open **Settings** from the command palette (center tab). See [Settings](settings.md).
 
-- OpenRouter.
-- Anthropic.
-- OpenAI-compatible API.
+1. **API Keys** — add OpenRouter, Anthropic, OpenAI, and optional Tavily/Brave keys.
+2. **BLXCode Agent** — pick text provider, model, thinking level; configure image/voice and web-tool backend.
+3. **Workspace** — optional default project folder, sandbox root, and memory **category colors**.
 
-API keys are stored in the operating system keyring when available. On platforms where keyring storage is unavailable, BLXCode falls back to a private app-config file.
-
-Optional **Web Tools** (search/fetch) use separate Tavily or Brave keys in the same Agent settings pane. The agent also ships **core harness skills** (built-in tool guides) — see [Agent Harness](agent-harness.md).
+Keys use the OS keyring when available, with `BLX_*` env fallback. The agent ships **core harness skills** (built-in tool guides) — see [Agent Harness](agent-harness.md).
 
 ## Where Data Lives
 

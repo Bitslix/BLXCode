@@ -104,7 +104,6 @@ TTS currently supports OpenAI only. If another provider is selected, `tts::synth
 - `voice_cancel_recording`
 - `voice_settings_get`
 - `voice_settings_save`
-- `voice_provider_voices`
 - `voice_tts_preview`
 
 Keep new command arguments owned and serializable. Validate provider/model assumptions on the backend, not only in the settings UI.

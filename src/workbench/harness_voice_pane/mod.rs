@@ -1,16 +1,18 @@
 //! Voice settings tab: STT/TTS provider+model, voice with gender filter,
-//! recording quality, post-STT behaviour, STT language, push-to-talk hotkey.
+//! recording quality, post-STT behaviour. STT language + PTT live under App.
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_provider_models, is_tauri_shell, voice_provider_voices, voice_settings_get,
-    voice_settings_save, voice_tts_preview, AgentProviderKind, PostSttFlow, ProviderModelEntry,
-    PttHotkey, SttLanguageMode, SttSettings, TtsSettings, VoiceEntry, VoiceGender,
-    VoiceProviderKind, VoiceSettings,
+    agent_provider_models, agent_settings_get, api_keys_status, is_tauri_shell,
+    voice_settings_get, voice_settings_save, voice_tts_preview,
+    AgentProviderKind, AgentProviderSettingsView, ApiKeyEntry, ApiKeysStatus, PostSttFlow,
+    ProviderModelEntry, SttSettings, TtsSettings, VoiceEntry, VoiceGender, VoiceProviderKind,
+    VoiceSettings,
 };
-use crate::workbench::model_picker::ModelPicker;
+use crate::workbench::agent_model_picker::AgentModelPicker;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use gloo_timers::future::TimeoutFuture;
 use js_sys::Uint8Array;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
@@ -33,10 +35,86 @@ impl ModelKind {
     }
 }
 
-fn voice_to_agent_provider(v: VoiceProviderKind) -> AgentProviderKind {
+fn voice_to_agent_provider(v: VoiceProviderKind) -> Option<AgentProviderKind> {
     match v {
-        VoiceProviderKind::Openai => AgentProviderKind::Openai,
-        VoiceProviderKind::Openrouter => AgentProviderKind::Openrouter,
+        VoiceProviderKind::Openai => Some(AgentProviderKind::Openai),
+        VoiceProviderKind::Openrouter => Some(AgentProviderKind::Openrouter),
+        VoiceProviderKind::Aws => None,
+    }
+}
+
+fn voice_model_entry(id: &str, label: &str, description: &str) -> ProviderModelEntry {
+    ProviderModelEntry {
+        id: id.into(),
+        label: label.into(),
+        description: Some(description.into()),
+        pricing: None,
+    }
+}
+
+fn curated_voice_models(provider: VoiceProviderKind, kind: ModelKind) -> Vec<ProviderModelEntry> {
+    if provider != VoiceProviderKind::Aws {
+        return Vec::new();
+    }
+    match kind {
+        ModelKind::Stt => vec![voice_model_entry(
+            "amazon-transcribe",
+            "Amazon Transcribe",
+            "AWS speech-to-text (curated list).",
+        )],
+        ModelKind::Tts => vec![
+            voice_model_entry("neural", "Polly Neural", "Neural TTS engine."),
+            voice_model_entry("standard", "Polly Standard", "Standard TTS engine."),
+        ],
+    }
+}
+
+fn media_key_entry<'a>(api_keys: &'a ApiKeysStatus, kind: &str) -> Option<&'a ApiKeyEntry> {
+    api_keys.entries.iter().find(|e| e.kind == kind)
+}
+
+fn voice_provider_key_status(
+    i18n: &I18nService,
+    agent_settings: Option<&AgentProviderSettingsView>,
+    api_keys: Option<&ApiKeysStatus>,
+    provider: VoiceProviderKind,
+) -> String {
+    if provider == VoiceProviderKind::Aws {
+        let Some(entry) = api_keys.and_then(|s| media_key_entry(s, "aws_polly")) else {
+            return i18n.tr(I18nKey::AgApiKeyMissing)().to_string();
+        };
+        if entry.configured {
+            if let Some(mask) = entry.masked_value.as_ref() {
+                format!("{} ({mask})", i18n.tr(I18nKey::AgApiKeyConfigured)())
+            } else {
+                i18n.tr(I18nKey::AgApiKeyConfigured)().to_string()
+            }
+        } else {
+            i18n.tr(I18nKey::AgApiKeyMissing)().to_string()
+        }
+    } else if let (Some(view), Some(agent)) = (agent_settings, voice_to_agent_provider(provider)) {
+        let configured = view
+            .key_statuses
+            .iter()
+            .find(|s| s.provider == agent)
+            .map(|s| s.configured)
+            .unwrap_or(false);
+        if configured {
+            let mask = view
+                .key_statuses
+                .iter()
+                .find(|s| s.provider == agent)
+                .and_then(|s| s.masked_value.clone());
+            if let Some(mask) = mask {
+                format!("{} ({mask})", i18n.tr(I18nKey::AgApiKeyConfigured)())
+            } else {
+                i18n.tr(I18nKey::AgApiKeyConfigured)().to_string()
+            }
+        } else {
+            i18n.tr(I18nKey::AgApiKeyMissing)().to_string()
+        }
+    } else {
+        i18n.tr(I18nKey::AgApiKeyMissing)().to_string()
     }
 }
 
@@ -45,7 +123,14 @@ async fn fetch_models_for(
     kind: ModelKind,
     out: RwSignal<Vec<ProviderModelEntry>>,
 ) {
-    let agent_provider = voice_to_agent_provider(provider);
+    if provider == VoiceProviderKind::Aws {
+        out.set(curated_voice_models(provider, kind));
+        return;
+    }
+    let Some(agent_provider) = voice_to_agent_provider(provider) else {
+        out.set(Vec::new());
+        return;
+    };
     let all = match agent_provider_models(agent_provider).await {
         Ok(resp) => resp.entries,
         Err(_) => Vec::new(),
@@ -83,24 +168,156 @@ impl GenderFilter {
     }
 }
 
+fn voice_providers() -> [VoiceProviderKind; 3] {
+    [
+        VoiceProviderKind::Openai,
+        VoiceProviderKind::Openrouter,
+        VoiceProviderKind::Aws,
+    ]
+}
+
+fn voice_provider_icon_url(provider: VoiceProviderKind) -> &'static str {
+    match provider {
+        VoiceProviderKind::Openai => "/public/brand-icons/openai.svg",
+        VoiceProviderKind::Openrouter => "/public/brand-icons/openrouter.svg",
+        VoiceProviderKind::Aws => "/public/brand-icons/aws.svg",
+    }
+}
+
+fn voice_provider_label(i18n: &I18nService, provider: VoiceProviderKind) -> String {
+    let key = match provider {
+        VoiceProviderKind::Openai => I18nKey::AgProviderOpenai,
+        VoiceProviderKind::Openrouter => I18nKey::AgProviderOpenrouter,
+        VoiceProviderKind::Aws => I18nKey::AgProviderAws,
+    };
+    i18n.tr(key)().to_string()
+}
+
+fn apply_voice_provider_defaults(next: &mut VoiceSettings, provider: VoiceProviderKind) {
+    match provider {
+        VoiceProviderKind::Aws => {
+            if !next.stt.model_id.contains("transcribe") {
+                next.stt.model_id = "amazon-transcribe".into();
+            }
+            if !matches!(next.tts.model_id.as_str(), "neural" | "standard") {
+                next.tts.model_id = "neural".into();
+            }
+            if next.tts.voice.is_empty() || is_openai_voice_id(&next.tts.voice) {
+                next.tts.voice = "Joanna".into();
+            }
+        }
+        VoiceProviderKind::Openai => {
+            if next.tts.voice.is_empty() || is_aws_polly_voice_id(&next.tts.voice) {
+                next.tts.voice = "nova".into();
+            }
+        }
+        VoiceProviderKind::Openrouter => {}
+    }
+}
+
+fn voice_entry(id: &str, label: &str, gender: VoiceGender) -> VoiceEntry {
+    VoiceEntry {
+        id: id.into(),
+        label: label.into(),
+        gender,
+    }
+}
+
+/// Six curated OpenAI built-in TTS voices (see OpenAI Audio API speech guide).
+fn fixed_openai_voices() -> Vec<VoiceEntry> {
+    vec![
+        voice_entry("alloy", "Alloy", VoiceGender::Neutral),
+        voice_entry("nova", "Nova", VoiceGender::Female),
+        voice_entry("echo", "Echo", VoiceGender::Male),
+        voice_entry("shimmer", "Shimmer", VoiceGender::Female),
+        voice_entry("onyx", "Onyx", VoiceGender::Male),
+        voice_entry("coral", "Coral", VoiceGender::Female),
+    ]
+}
+
+fn fixed_aws_polly_voices() -> Vec<VoiceEntry> {
+    vec![
+        voice_entry("Joanna", "Joanna", VoiceGender::Female),
+        voice_entry("Matthew", "Matthew", VoiceGender::Male),
+        voice_entry("Amy", "Amy", VoiceGender::Female),
+        voice_entry("Brian", "Brian", VoiceGender::Male),
+        voice_entry("Ivy", "Ivy", VoiceGender::Female),
+        voice_entry("Justin", "Justin", VoiceGender::Male),
+    ]
+}
+
+fn voice_catalog_for(provider: VoiceProviderKind) -> Vec<VoiceEntry> {
+    match provider {
+        VoiceProviderKind::Openai | VoiceProviderKind::Openrouter => fixed_openai_voices(),
+        VoiceProviderKind::Aws => fixed_aws_polly_voices(),
+    }
+}
+
+fn voices_pick_enabled(provider: VoiceProviderKind) -> bool {
+    matches!(
+        provider,
+        VoiceProviderKind::Openai | VoiceProviderKind::Aws
+    )
+}
+
+fn is_openai_voice_id(id: &str) -> bool {
+    fixed_openai_voices().iter().any(|v| v.id == id)
+}
+
+fn is_aws_polly_voice_id(id: &str) -> bool {
+    fixed_aws_polly_voices().iter().any(|v| v.id == id)
+}
+
+fn focus_voice_provider_option(provider: VoiceProviderKind) {
+    let id = format!("voice-provider-option-{}", provider.as_str());
+    if let Some(doc) = web_sys::window().and_then(|w| w.document()) {
+        if let Some(el) = doc.get_element_by_id(&id) {
+            let _ = el.dyn_into::<web_sys::HtmlElement>().map(|e| e.focus());
+        }
+    }
+}
+
+fn next_voice_provider(provider: VoiceProviderKind) -> VoiceProviderKind {
+    let list = voice_providers();
+    let i = list.iter().position(|&p| p == provider).unwrap_or(0);
+    list[(i + 1) % list.len()]
+}
+
+fn prev_voice_provider(provider: VoiceProviderKind) -> VoiceProviderKind {
+    let list = voice_providers();
+    let i = list.iter().position(|&p| p == provider).unwrap_or(0);
+    list[(i + list.len() - 1) % list.len()]
+}
+
+/// Voice settings column (BLXCode Agent grid, bottom row spanning both columns).
 #[component]
-pub fn VoicePane() -> impl IntoView {
+pub fn AgentVoiceColumn() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let settings = RwSignal::new(Option::<VoiceSettings>::None);
-    let voices = RwSignal::new(Vec::<VoiceEntry>::new());
+    let agent_settings = RwSignal::new(Option::<AgentProviderSettingsView>::None);
+    let api_keys = RwSignal::new(Option::<ApiKeysStatus>::None);
     let gender_filter = RwSignal::new(GenderFilter::All);
     let status = RwSignal::new(Option::<String>::None);
-    let recording_hotkey = RwSignal::new(false);
     let stt_models = RwSignal::new(Vec::<ProviderModelEntry>::new());
     let tts_models = RwSignal::new(Vec::<ProviderModelEntry>::new());
+    let voice_provider = RwSignal::new(VoiceProviderKind::Openai);
+    let stt_model_id = RwSignal::new(String::new());
+    let tts_model_id = RwSignal::new(String::new());
+    let stt_loading_models = RwSignal::new(false);
+    let tts_loading_models = RwSignal::new(false);
 
-    // Load current settings + initial voice catalogue + model lists.
     if is_tauri_shell() {
         leptos::task::spawn_local(async move {
+            if let Ok(view) = agent_settings_get().await {
+                agent_settings.set(Some(view));
+            }
+            if let Ok(keys) = api_keys_status().await {
+                api_keys.set(Some(keys));
+            }
             if let Ok(v) = voice_settings_get().await {
-                if let Ok(catalog) = voice_provider_voices(v.tts.provider).await {
-                    voices.set(catalog.voices);
-                }
+                voice_provider.set(v.stt.provider);
+                stt_model_id.set(v.stt.model_id.clone());
+                tts_model_id.set(v.tts.model_id.clone());
                 fetch_models_for(v.stt.provider, ModelKind::Stt, stt_models).await;
                 fetch_models_for(v.tts.provider, ModelKind::Tts, tts_models).await;
                 settings.set(Some(v));
@@ -109,6 +326,9 @@ pub fn VoicePane() -> impl IntoView {
     }
 
     let save = move |patch: VoiceSettings| {
+        voice_provider.set(patch.stt.provider);
+        stt_model_id.set(patch.stt.model_id.clone());
+        tts_model_id.set(patch.tts.model_id.clone());
         if !is_tauri_shell() {
             settings.set(Some(patch));
             return;
@@ -116,37 +336,46 @@ pub fn VoicePane() -> impl IntoView {
         leptos::task::spawn_local(async move {
             match voice_settings_save(patch).await {
                 Ok(v) => {
+                    voice_provider.set(v.stt.provider);
+                    stt_model_id.set(v.stt.model_id.clone());
+                    tts_model_id.set(v.tts.model_id.clone());
                     settings.set(Some(v));
-                    status.set(Some("saved".into()));
+                    status.set(Some(i18n.tr(I18nKey::ApiKeysSaved)().to_string()));
                 }
                 Err(e) => status.set(Some(e)),
             }
         });
     };
 
-    let reload_voices = move |provider: VoiceProviderKind| {
+    let reload_tts_models = move |provider: VoiceProviderKind| {
+        tts_loading_models.set(true);
         leptos::task::spawn_local(async move {
-            if let Ok(catalog) = voice_provider_voices(provider).await {
-                voices.set(catalog.voices);
-            }
             fetch_models_for(provider, ModelKind::Tts, tts_models).await;
+            tts_loading_models.set(false);
         });
     };
 
     let reload_stt_models = move |provider: VoiceProviderKind| {
+        stt_loading_models.set(true);
         leptos::task::spawn_local(async move {
             fetch_models_for(provider, ModelKind::Stt, stt_models).await;
+            stt_loading_models.set(false);
         });
     };
 
+    let reload_all_for_provider = move |provider: VoiceProviderKind| {
+        reload_tts_models(provider);
+        reload_stt_models(provider);
+    };
+
     view! {
-        <section class="harness-settings-pane voice-pane" aria-labelledby="voice-pane-title">
-            <header class="harness-settings-pane__head">
-                <h2 id="voice-pane-title">
-                    <LxIcon icon=icondata::LuMic width="1.1rem" height="1.1rem" />
-                    <span>{move || i18n.tr(I18nKey::VoicePaneTitle)()}</span>
-                </h2>
-            </header>
+        <>
+            <h4 class="harness-pane-subhead agent-provider-pane__col-title">
+                <span class="harness-pane-subhead__icon" aria-hidden="true">
+                    <LxIcon icon=icondata::LuMic width="0.82rem" height="0.82rem" />
+                </span>
+                <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::AgColumnVoice)()}</span>
+            </h4>
 
             <Show
                 when=move || settings.get().is_some()
@@ -159,55 +388,80 @@ pub fn VoicePane() -> impl IntoView {
                         return view! { <></> }.into_any();
                     };
 
-                    let stt_provider = current.stt.provider;
-                    let tts_provider = current.tts.provider;
-                    let stt_model = current.stt.model_id.clone();
-                    let tts_model = current.tts.model_id.clone();
                     let sample_rate = current.stt.sample_rate_hz;
                     let voice_id = current.tts.voice.clone();
                     let post_flow = current.post_stt_flow;
-                    let stt_lang = current.stt_language.clone();
-                    let ptt = current.ptt_hotkey.clone();
                     let tts_enabled = current.tts.enabled;
 
+                    let on_voice_provider = {
+                        let current = current.clone();
+                        move |p: VoiceProviderKind| {
+                            voice_provider.set(p);
+                            let mut next = current.clone();
+                            next.stt.provider = p;
+                            next.tts.provider = p;
+                            apply_voice_provider_defaults(&mut next, p);
+                            stt_model_id.set(next.stt.model_id.clone());
+                            tts_model_id.set(next.tts.model_id.clone());
+                            save(next);
+                            reload_all_for_provider(p);
+                        }
+                    };
+
                     view! {
-                        <SttSection
-                            current=current.clone()
-                            stt_provider=stt_provider
-                            stt_model=stt_model.clone()
-                            sample_rate=sample_rate
-                            models=stt_models
-                            save=save
-                            reload_models=reload_stt_models
-                        />
-                        <TtsSection
-                            current=current.clone()
-                            tts_provider=tts_provider
-                            tts_model=tts_model.clone()
-                            voice_id=voice_id.clone()
-                            voices=voices
-                            gender_filter=gender_filter
-                            tts_enabled=tts_enabled
-                            models=tts_models
-                            save=save
-                            reload_voices=reload_voices
-                        />
-                        <BehaviorSection
-                            current=current.clone()
-                            post_flow=post_flow
-                            save=save
-                        />
-                        <LanguageSection
-                            current=current.clone()
-                            stt_lang=stt_lang.clone()
-                            save=save
-                        />
-                        <PttSection
-                            current=current.clone()
-                            ptt=ptt.clone()
-                            recording=recording_hotkey
-                            save=save
-                        />
+                        <div class="agent-provider-pane__voice-inner">
+                            <div class="agent-provider-pane__voice-provider">
+                                <label class="agent-provider-pane__field">
+                                    <span class="harness-field-label">
+                                        <span class="harness-field-label__icon" aria-hidden="true">
+                                            <LxIcon icon=icondata::LuPlug width="0.82rem" height="0.82rem" />
+                                        </span>
+                                        <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgProviderField)()}</span>
+                                    </span>
+                                    <VoiceProviderPicker
+                                        selected_provider=voice_provider
+                                        on_select=Callback::new(on_voice_provider)
+                                    />
+                                </label>
+                                <div class="agent-provider-pane__key-row">
+                                    <span>{move || i18n.tr(I18nKey::ApiKeysManageHint)()}</span>
+                                    <span class="agent-provider-pane__key-status">
+                                        {move || {
+                                            voice_provider_key_status(
+                                                &i18n,
+                                                agent_settings.get().as_ref(),
+                                                api_keys.get().as_ref(),
+                                                voice_provider.get(),
+                                            )
+                                        }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <SpeechSection
+                                settings=settings
+                                voice_provider=voice_provider
+                                stt_model_id=stt_model_id
+                                tts_model_id=tts_model_id
+                                sample_rate=sample_rate
+                                stt_models=stt_models
+                                tts_models=tts_models
+                                stt_loading_models=stt_loading_models
+                                tts_loading_models=tts_loading_models
+                                save=save
+                                reload_stt_models=reload_stt_models
+                                reload_tts_models=reload_tts_models
+                            />
+                            <BehaviorSection
+                                settings=settings
+                                voice_provider=voice_provider
+                                post_flow=post_flow
+                                voice_id=voice_id.clone()
+                                gender_filter=gender_filter
+                                tts_enabled=tts_enabled
+                                save=save
+                            />
+                        </div>
                     }.into_any()
                 }}
             </Show>
@@ -215,100 +469,288 @@ pub fn VoicePane() -> impl IntoView {
             <Show when=move || status.get().is_some()>
                 <p class="voice-pane__status">{move || status.get().unwrap_or_default()}</p>
             </Show>
-        </section>
+        </>
     }
 }
 
 // ---------------------------------------------------------------------------
-// STT section
+// Shared voice provider dropdown (STT + TTS)
 // ---------------------------------------------------------------------------
 
 #[component]
-fn SttSection<F, RM>(
-    current: VoiceSettings,
-    stt_provider: VoiceProviderKind,
-    stt_model: String,
+fn VoiceProviderPicker(
+    selected_provider: RwSignal<VoiceProviderKind>,
+    on_select: Callback<VoiceProviderKind>,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let open = RwSignal::new(false);
+
+    let choose = move |provider: VoiceProviderKind| {
+        selected_provider.set(provider);
+        open.set(false);
+        on_select.run(provider);
+    };
+
+    view! {
+        <div class="harness-provider-picker">
+            <button
+                type="button"
+                class="harness-provider-trigger"
+                aria-haspopup="listbox"
+                aria-expanded=move || if open.get() { "true" } else { "false" }
+                on:click=move |_| {
+                    let next = !open.get_untracked();
+                    open.set(next);
+                    if next {
+                        let provider = selected_provider.get_untracked();
+                        leptos::task::spawn_local(async move {
+                            TimeoutFuture::new(0).await;
+                            focus_voice_provider_option(provider);
+                        });
+                    }
+                }
+                on:keydown=move |ev: web_sys::KeyboardEvent| {
+                    match ev.key().as_str() {
+                        "ArrowDown" | "Enter" | " " => {
+                            ev.prevent_default();
+                            open.set(true);
+                            let provider = selected_provider.get_untracked();
+                            leptos::task::spawn_local(async move {
+                                TimeoutFuture::new(0).await;
+                                focus_voice_provider_option(provider);
+                            });
+                        }
+                        "ArrowUp" => {
+                            ev.prevent_default();
+                            open.set(true);
+                            let provider = prev_voice_provider(selected_provider.get_untracked());
+                            leptos::task::spawn_local(async move {
+                                TimeoutFuture::new(0).await;
+                                focus_voice_provider_option(provider);
+                            });
+                        }
+                        "Escape" => open.set(false),
+                        _ => {}
+                    }
+                }
+            >
+                <span class="harness-provider-trigger__main">
+                    <span class="harness-provider-trigger__brand">
+                        <img
+                            class="harness-provider-trigger__img"
+                            src=move || voice_provider_icon_url(selected_provider.get())
+                            alt=""
+                        />
+                    </span>
+                    <span>{move || voice_provider_label(&i18n, selected_provider.get())}</span>
+                </span>
+                <span class="harness-provider-trigger__caret">"▾"</span>
+            </button>
+
+            <Show when=move || open.get()>
+                <div class="harness-provider-menu" role="listbox">
+                    {move || {
+                        voice_providers()
+                            .into_iter()
+                            .map(|provider| {
+                                view! {
+                                    <button
+                                        id=format!("voice-provider-option-{}", provider.as_str())
+                                        type="button"
+                                        role="option"
+                                        class="harness-provider-option"
+                                        class:harness-provider-option--active=move || selected_provider.get() == provider
+                                        aria-selected=move || if selected_provider.get() == provider {
+                                            "true"
+                                        } else {
+                                            "false"
+                                        }
+                                        on:click=move |_| choose(provider)
+                                        on:keydown=move |ev: web_sys::KeyboardEvent| {
+                                            match ev.key().as_str() {
+                                                "ArrowDown" => {
+                                                    ev.prevent_default();
+                                                    focus_voice_provider_option(next_voice_provider(provider));
+                                                }
+                                                "ArrowUp" => {
+                                                    ev.prevent_default();
+                                                    focus_voice_provider_option(prev_voice_provider(provider));
+                                                }
+                                                "Enter" | " " => {
+                                                    ev.prevent_default();
+                                                    choose(provider);
+                                                }
+                                                "Escape" => {
+                                                    ev.prevent_default();
+                                                    open.set(false);
+                                                }
+                                                _ => {}
+                                            }
+                                        }
+                                    >
+                                        <span class="harness-provider-option__brand">
+                                            <img
+                                                class="harness-provider-option__img"
+                                                src=voice_provider_icon_url(provider)
+                                                alt=""
+                                            />
+                                        </span>
+                                        <span>{voice_provider_label(&i18n, provider)}</span>
+                                    </button>
+                                }
+                            })
+                            .collect_view()
+                    }}
+                </div>
+            </Show>
+        </div>
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Speech column (STT + TTS models, then recording quality)
+// ---------------------------------------------------------------------------
+
+#[component]
+fn SpeechSection<F, RS, RT>(
+    settings: RwSignal<Option<VoiceSettings>>,
+    voice_provider: RwSignal<VoiceProviderKind>,
+    stt_model_id: RwSignal<String>,
+    tts_model_id: RwSignal<String>,
     sample_rate: u32,
-    models: RwSignal<Vec<ProviderModelEntry>>,
+    stt_models: RwSignal<Vec<ProviderModelEntry>>,
+    tts_models: RwSignal<Vec<ProviderModelEntry>>,
+    stt_loading_models: RwSignal<bool>,
+    tts_loading_models: RwSignal<bool>,
     save: F,
-    reload_models: RM,
+    reload_stt_models: RS,
+    reload_tts_models: RT,
 ) -> impl IntoView
 where
     F: Fn(VoiceSettings) + Send + Sync + 'static + Copy,
-    RM: Fn(VoiceProviderKind) + Send + Sync + 'static + Copy,
+    RS: Fn(VoiceProviderKind) + Send + Sync + 'static + Copy,
+    RT: Fn(VoiceProviderKind) + Send + Sync + 'static + Copy,
 {
     let i18n = expect_context::<I18nService>();
-    let on_provider = {
-        let current = current.clone();
-        move |p: VoiceProviderKind| {
-            let mut next = current.clone();
-            next.stt.provider = p;
-            save(next);
-            reload_models(p);
-        }
+
+    let on_stt_model = Callback::new(move |m: String| {
+        let Some(mut next) = settings.get_untracked() else {
+            return;
+        };
+        stt_model_id.set(m.clone());
+        next.stt.model_id = m;
+        save(next);
+    });
+
+    let on_tts_model = Callback::new(move |m: String| {
+        let Some(mut next) = settings.get_untracked() else {
+            return;
+        };
+        tts_model_id.set(m.clone());
+        next.tts.model_id = m;
+        save(next);
+    });
+
+    let on_rate = move |r: u32| {
+        let Some(mut next) = settings.get_untracked() else {
+            return;
+        };
+        next.stt.sample_rate_hz = r;
+        save(next);
     };
-    let on_model = {
-        let current = current.clone();
-        move |m: String| {
-            let mut next = current.clone();
-            next.stt.model_id = m;
-            save(next);
-        }
-    };
-    let on_rate = {
-        let current = current.clone();
-        move |r: u32| {
-            let mut next = current.clone();
-            next.stt.sample_rate_hz = r;
-            save(next);
+
+    let models_source_hint = move || {
+        if voice_provider.get() == VoiceProviderKind::Aws {
+            i18n.tr(I18nKey::AgModelsSourceCurated)().to_string()
+        } else {
+            i18n.tr(I18nKey::AgModelsSourceLive)().to_string()
         }
     };
 
     view! {
-        <section class="voice-pane__section">
-            <h3>{move || i18n.tr(I18nKey::VoiceSttSection)()}</h3>
-
-            <div class="voice-pane__field">
-                <label>{move || i18n.tr(I18nKey::VoiceProviderField)()}</label>
-                <div class="voice-pane__provider-row">
-                    <ProviderBtn label="OpenAI" target=VoiceProviderKind::Openai active=stt_provider on:click={
-                        let on_provider = on_provider.clone();
-                        move |_| on_provider(VoiceProviderKind::Openai)
-                    } />
-                    <ProviderBtn label="OpenRouter" target=VoiceProviderKind::Openrouter active=stt_provider on:click={
-                        let on_provider = on_provider.clone();
-                        move |_| on_provider(VoiceProviderKind::Openrouter)
-                    } />
-                </div>
+        <section class="voice-pane__section voice-pane__section--speech">
+            <label class="harness-stack">
+                <span class="harness-field-label">
+                    <span class="harness-field-label__text">
+                        {move || format!(
+                            "{} — {}",
+                            i18n.tr(I18nKey::AgModelField)(),
+                            i18n.tr(I18nKey::VoiceSttSection)()
+                        )}
+                    </span>
+                </span>
+                <AgentModelPicker
+                    model_id=stt_model_id
+                    model_entries=stt_models
+                    loading_models=stt_loading_models
+                    option_id_prefix="voice-stt-model"
+                    show_custom_field=false
+                    on_change=on_stt_model
+                />
+            </label>
+            <div class="agent-provider-pane__actions">
+                <button
+                    type="button"
+                    class="workbench-mini-btn"
+                    disabled=move || stt_loading_models.get() || !is_tauri_shell()
+                    on:click=move |_| reload_stt_models(voice_provider.get_untracked())
+                >
+                    <span class="harness-btn-inline">
+                        <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
+                        <span>{move || if stt_loading_models.get() {
+                            i18n.tr(I18nKey::AgModelsLoading)().to_string()
+                        } else {
+                            i18n.tr(I18nKey::AgModelsRefresh)().to_string()
+                        }}</span>
+                    </span>
+                </button>
+                <small class="harness-muted">{models_source_hint}</small>
             </div>
 
-            <ModelPicker
-                label_key=I18nKey::VoiceModelField
-                datalist_id="blxcode-voice-stt-models"
-                current=stt_model.clone()
-                models=models
-                on_change=on_model.clone()
-                on_refresh={
-                    let stt_provider = stt_provider;
-                    move || reload_models(stt_provider)
-                }
-            />
+            <label class="harness-stack">
+                <span class="harness-field-label">
+                    <span class="harness-field-label__text">
+                        {move || format!(
+                            "{} — {}",
+                            i18n.tr(I18nKey::AgModelField)(),
+                            i18n.tr(I18nKey::VoiceTtsSection)()
+                        )}
+                    </span>
+                </span>
+                <AgentModelPicker
+                    model_id=tts_model_id
+                    model_entries=tts_models
+                    loading_models=tts_loading_models
+                    option_id_prefix="voice-tts-model"
+                    show_custom_field=false
+                    on_change=on_tts_model
+                />
+            </label>
+            <div class="agent-provider-pane__actions">
+                <button
+                    type="button"
+                    class="workbench-mini-btn"
+                    disabled=move || tts_loading_models.get() || !is_tauri_shell()
+                    on:click=move |_| reload_tts_models(voice_provider.get_untracked())
+                >
+                    <span class="harness-btn-inline">
+                        <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
+                        <span>{move || if tts_loading_models.get() {
+                            i18n.tr(I18nKey::AgModelsLoading)().to_string()
+                        } else {
+                            i18n.tr(I18nKey::AgModelsRefresh)().to_string()
+                        }}</span>
+                    </span>
+                </button>
+                <small class="harness-muted">{models_source_hint}</small>
+            </div>
 
             <div class="voice-pane__field">
                 <label>{move || i18n.tr(I18nKey::VoiceQualityField)()}</label>
                 <div class="voice-pane__quality-row">
-                    <QualityBtn rate=16000 label_key=I18nKey::VoiceQualityLow active=sample_rate on:click={
-                        let on_rate = on_rate.clone();
-                        move |_| on_rate(16_000)
-                    } />
-                    <QualityBtn rate=24000 label_key=I18nKey::VoiceQualityStandard active=sample_rate on:click={
-                        let on_rate = on_rate.clone();
-                        move |_| on_rate(24_000)
-                    } />
-                    <QualityBtn rate=48000 label_key=I18nKey::VoiceQualityHigh active=sample_rate on:click={
-                        let on_rate = on_rate.clone();
-                        move |_| on_rate(48_000)
-                    } />
+                    <QualityBtn rate=16000 label_key=I18nKey::VoiceQualityLow active=sample_rate on:click=move |_| on_rate(16_000) />
+                    <QualityBtn rate=24000 label_key=I18nKey::VoiceQualityStandard active=sample_rate on:click=move |_| on_rate(24_000) />
+                    <QualityBtn rate=48000 label_key=I18nKey::VoiceQualityHigh active=sample_rate on:click=move |_| on_rate(48_000) />
                 </div>
                 <p class="voice-pane__hint">{move || i18n.tr(I18nKey::VoiceQualityHint)()}</p>
                 <p class="voice-pane__hint voice-pane__hint--small">
@@ -321,24 +763,6 @@ where
                 </p>
             </div>
         </section>
-    }
-}
-
-#[component]
-fn ProviderBtn(
-    label: &'static str,
-    target: VoiceProviderKind,
-    active: VoiceProviderKind,
-) -> impl IntoView {
-    let is_active = move || target == active;
-    view! {
-        <button
-            type="button"
-            class="voice-pane__choice"
-            class:voice-pane__choice--active=is_active
-        >
-            {label}
-        </button>
     }
 }
 
@@ -357,192 +781,12 @@ fn QualityBtn(rate: u32, label_key: I18nKey, active: u32) -> impl IntoView {
     }
 }
 
-// ---------------------------------------------------------------------------
-// TTS section
-// ---------------------------------------------------------------------------
-
-#[component]
-fn TtsSection<F, RV>(
-    current: VoiceSettings,
-    tts_provider: VoiceProviderKind,
-    tts_model: String,
-    voice_id: String,
-    voices: RwSignal<Vec<VoiceEntry>>,
-    gender_filter: RwSignal<GenderFilter>,
-    tts_enabled: bool,
-    models: RwSignal<Vec<ProviderModelEntry>>,
-    save: F,
-    reload_voices: RV,
-) -> impl IntoView
-where
-    F: Fn(VoiceSettings) + Send + Sync + 'static + Copy,
-    RV: Fn(VoiceProviderKind) + Send + Sync + 'static + Copy,
-{
-    let i18n = expect_context::<I18nService>();
-    let audio_ref = NodeRef::<leptos::html::Audio>::new();
-
-    let on_provider = {
-        let current = current.clone();
-        move |p: VoiceProviderKind| {
-            let mut next = current.clone();
-            next.tts.provider = p;
-            save(next);
-            reload_voices(p);
-        }
-    };
-    let on_model = {
-        let current = current.clone();
-        move |m: String| {
-            let mut next = current.clone();
-            next.tts.model_id = m;
-            save(next);
-        }
-    };
-    let on_voice = {
-        let current = current.clone();
-        move |id: String| {
-            let mut next = current.clone();
-            next.tts.voice = id;
-            save(next);
-        }
-    };
-    let on_enabled = {
-        let current = current.clone();
-        move |enabled: bool| {
-            let mut next = current.clone();
-            next.tts.enabled = enabled;
-            save(next);
-        }
-    };
-
-    let preview_voice = {
-        let current = current.clone();
-        move |voice: String| {
-            let model = current.tts.model_id.clone();
-            let provider = current.tts.provider;
-            let text = i18n.tr(I18nKey::VoicePreviewText)().to_string();
-            leptos::task::spawn_local(async move {
-                if let Ok(resp) = voice_tts_preview(provider, model, voice, text).await {
-                    play_b64(audio_ref, &resp.audio_b64, &resp.mime);
-                }
-            });
-        }
-    };
-
-    view! {
-        <section class="voice-pane__section">
-            <h3>{move || i18n.tr(I18nKey::VoiceTtsSection)()}</h3>
-
-            <div class="voice-pane__field">
-                <label>{move || i18n.tr(I18nKey::VoiceProviderField)()}</label>
-                <div class="voice-pane__provider-row">
-                    <ProviderBtn label="OpenAI" target=VoiceProviderKind::Openai active=tts_provider on:click={
-                        let on_provider = on_provider.clone();
-                        move |_| on_provider(VoiceProviderKind::Openai)
-                    } />
-                </div>
-            </div>
-
-            <ModelPicker
-                label_key=I18nKey::VoiceModelField
-                datalist_id="blxcode-voice-tts-models"
-                current=tts_model.clone()
-                models=models
-                on_change=on_model.clone()
-                on_refresh={
-                    let tts_provider = tts_provider;
-                    move || reload_voices(tts_provider)
-                }
-            />
-
-            <div class="voice-pane__field">
-                <label>{move || i18n.tr(I18nKey::VoiceVoiceField)()}</label>
-                <div class="voice-pane__gender-row">
-                    <GenderBtn target=GenderFilter::All label_key=I18nKey::VoiceGenderAll filter=gender_filter />
-                    <GenderBtn target=GenderFilter::Male label_key=I18nKey::VoiceGenderMale filter=gender_filter />
-                    <GenderBtn target=GenderFilter::Female label_key=I18nKey::VoiceGenderFemale filter=gender_filter />
-                    <GenderBtn target=GenderFilter::Neutral label_key=I18nKey::VoiceGenderNeutral filter=gender_filter />
-                </div>
-                <div class="voice-pane__voice-grid">
-                    {move || {
-                        let active = voice_id.clone();
-                        let filter = gender_filter.get();
-                        let on_voice = on_voice.clone();
-                        let preview_voice = preview_voice.clone();
-                        voices.get()
-                            .into_iter()
-                            .filter(|v| filter.matches(v.gender))
-                            .map(|v| {
-                                let is_active = v.id == active;
-                                let id_choose = v.id.clone();
-                                let id_preview = v.id.clone();
-                                let on_voice = on_voice.clone();
-                                let preview_voice = preview_voice.clone();
-                                view! {
-                                    <div
-                                        class="voice-pane__voice-card"
-                                        class:voice-pane__voice-card--active=is_active
-                                    >
-                                        <button
-                                            type="button"
-                                            class="voice-pane__voice-pick"
-                                            on:click=move |_| on_voice(id_choose.clone())
-                                        >
-                                            <strong>{v.label.clone()}</strong>
-                                            <span class="voice-pane__voice-gender">
-                                                {gender_label_for(v.gender)}
-                                            </span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            class="voice-pane__voice-preview"
-                                            on:click=move |_| preview_voice(id_preview.clone())
-                                            aria-label="Sample"
-                                        >
-                                            <LxIcon icon=icondata::LuPlay width="0.85rem" height="0.85rem" />
-                                        </button>
-                                    </div>
-                                }
-                            })
-                            .collect_view()
-                    }}
-                </div>
-            </div>
-
-            <div class="voice-pane__field">
-                <label class="voice-pane__toggle">
-                    <input
-                        type="checkbox"
-                        prop:checked=tts_enabled
-                        on:change={
-                            let on_enabled = on_enabled.clone();
-                            move |ev| {
-                                if let Some(t) = ev.target() {
-                                    if let Ok(inp) = t.dyn_into::<web_sys::HtmlInputElement>() {
-                                        on_enabled(inp.checked());
-                                    }
-                                }
-                            }
-                        }
-                    />
-                    <span>{move || i18n.tr(I18nKey::VoiceTtsEnabled)()}</span>
-                </label>
-                <p class="voice-pane__hint">{move || i18n.tr(I18nKey::VoiceTtsAutoplayHint)()}</p>
-                <p class="voice-pane__hint voice-pane__hint--small">
-                    {move || i18n.tr(I18nKey::VoiceTtsLangAutoNote)()}
-                </p>
-            </div>
-
-            <audio node_ref=audio_ref preload="none" />
-        </section>
-    }
-}
-
 #[component]
 fn GenderBtn(
     target: GenderFilter,
     label_key: I18nKey,
     filter: RwSignal<GenderFilter>,
+    #[prop(default = false)] disabled: bool,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let is_active = move || filter.get() == target;
@@ -551,7 +795,12 @@ fn GenderBtn(
             type="button"
             class="voice-pane__choice voice-pane__choice--gender"
             class:voice-pane__choice--active=is_active
-            on:click=move |_| filter.set(target)
+            disabled=disabled
+            on:click=move |_| {
+                if !disabled {
+                    filter.set(target);
+                }
+            }
         >
             {move || i18n.tr(label_key)()}
         </button>
@@ -566,8 +815,11 @@ fn gender_label_for(g: VoiceGender) -> &'static str {
     }
 }
 
-fn play_b64(audio_ref: NodeRef<leptos::html::Audio>, b64: &str, mime: &str) {
+fn play_b64(b64: &str, mime: &str) {
     let Ok(bytes) = BASE64.decode(b64) else {
+        return;
+    };
+    let Ok(el) = HtmlAudioElement::new() else {
         return;
     };
     let arr = Uint8Array::new_with_length(bytes.len() as u32);
@@ -582,14 +834,151 @@ fn play_b64(audio_ref: NodeRef<leptos::html::Audio>, b64: &str, mime: &str) {
     let Ok(url) = web_sys::Url::create_object_url_with_blob(&blob) else {
         return;
     };
-    if let Some(audio) = audio_ref.get_untracked() {
-        let el: HtmlAudioElement = audio.unchecked_into();
-        let old = el.src();
-        if old.starts_with("blob:") {
-            let _ = web_sys::Url::revoke_object_url(&old);
-        }
-        el.set_src(&url);
-        let _ = el.play();
+    let old = el.src();
+    if old.starts_with("blob:") {
+        let _ = web_sys::Url::revoke_object_url(&old);
+    }
+    el.set_src(&url);
+    let _ = el.play();
+}
+
+#[component]
+fn VoicePickCard(
+    entry: VoiceEntry,
+    active: bool,
+    disabled: bool,
+    settings: RwSignal<Option<VoiceSettings>>,
+    on_pick: Callback<String>,
+) -> impl IntoView {
+    let id_pick = entry.id.clone();
+    let id_preview = entry.id.clone();
+    view! {
+        <div
+            class="voice-pane__voice-card"
+            class:voice-pane__voice-card--active=move || active && !disabled
+            class:voice-pane__voice-card--disabled=move || disabled
+        >
+            <button
+                type="button"
+                class="voice-pane__voice-pick"
+                disabled=disabled
+                on:click=move |_| {
+                    if !disabled {
+                        on_pick.run(id_pick.clone());
+                    }
+                }
+            >
+                <strong>{entry.label.clone()}</strong>
+                <span class="voice-pane__voice-gender">{gender_label_for(entry.gender)}</span>
+            </button>
+            <button
+                type="button"
+                class="voice-pane__voice-preview"
+                disabled=disabled
+                on:click=move |_| {
+                    if disabled {
+                        return;
+                    }
+                    let Some(s) = settings.get_untracked() else {
+                        return;
+                    };
+                    let model = s.tts.model_id.clone();
+                    let provider = s.tts.provider;
+                    let voice = id_preview.clone();
+                    leptos::task::spawn_local(async move {
+                        let text = expect_context::<I18nService>()
+                            .tr(I18nKey::VoicePreviewText)()
+                            .to_string();
+                        if let Ok(resp) = voice_tts_preview(provider, model, voice, text).await {
+                            play_b64(&resp.audio_b64, &resp.mime);
+                        }
+                    });
+                }
+                aria-label="Sample"
+            >
+                <LxIcon icon=icondata::LuPlay width="0.85rem" height="0.85rem" />
+            </button>
+        </div>
+    }
+}
+
+#[component]
+fn VoicePicksGrid(
+    settings: RwSignal<Option<VoiceSettings>>,
+    voice_provider: RwSignal<VoiceProviderKind>,
+    voice_id: String,
+    gender_filter: RwSignal<GenderFilter>,
+    on_pick: Callback<String>,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let picks_enabled =
+        Memo::new(move |_| voices_pick_enabled(voice_provider.get()));
+    view! {
+        <div class="voice-pane__voice-picks">
+            <div class="voice-pane__gender-row">
+                <GenderBtn target=GenderFilter::All label_key=I18nKey::VoiceGenderAll filter=gender_filter />
+                <GenderBtn target=GenderFilter::Male label_key=I18nKey::VoiceGenderMale filter=gender_filter />
+                <GenderBtn target=GenderFilter::Female label_key=I18nKey::VoiceGenderFemale filter=gender_filter />
+                <GenderBtn target=GenderFilter::Neutral label_key=I18nKey::VoiceGenderNeutral filter=gender_filter />
+            </div>
+            <p
+                class="voice-pane__hint voice-pane__hint--aws-only"
+                class:voice-pane__hint--visible=move || !picks_enabled.get()
+            >
+                {move || i18n.tr(I18nKey::VoiceVoicesAwsOnly)()}
+            </p>
+            <div
+                class="voice-pane__voice-grid voice-pane__voice-grid--six"
+                class:voice-pane__voice-grid--disabled=move || !picks_enabled.get()
+                aria-disabled=move || if picks_enabled.get() { "false" } else { "true" }
+            >
+                {move || {
+                    let active = voice_id.clone();
+                    let filter = gender_filter.get();
+                    let picks_disabled = !picks_enabled.get();
+                    let catalog = voice_catalog_for(voice_provider.get());
+                    catalog
+                        .iter()
+                        .filter(|v| filter.matches(v.gender))
+                        .map(|v| {
+                            view! {
+                                <VoicePickCard
+                                    entry=v.clone()
+                                    active=v.id == active
+                                    disabled=picks_disabled
+                                    settings=settings
+                                    on_pick=on_pick
+                                />
+                            }
+                        })
+                        .collect_view()
+                }}
+            </div>
+        </div>
+    }
+}
+
+#[component]
+fn VoicePickerBlock(
+    settings: RwSignal<Option<VoiceSettings>>,
+    voice_provider: RwSignal<VoiceProviderKind>,
+    voice_id: String,
+    gender_filter: RwSignal<GenderFilter>,
+    on_pick: Callback<String>,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+
+    view! {
+        <div class="voice-pane__field">
+            <label>{move || i18n.tr(I18nKey::VoiceVoiceField)()}</label>
+            <VoicePicksGrid
+                settings=settings
+                voice_provider=voice_provider
+                voice_id=voice_id.clone()
+                gender_filter=gender_filter
+                on_pick=on_pick
+            />
+        </div>
     }
 }
 
@@ -598,19 +987,42 @@ fn play_b64(audio_ref: NodeRef<leptos::html::Audio>, b64: &str, mime: &str) {
 // ---------------------------------------------------------------------------
 
 #[component]
-fn BehaviorSection<F>(current: VoiceSettings, post_flow: PostSttFlow, save: F) -> impl IntoView
+fn BehaviorSection<F>(
+    settings: RwSignal<Option<VoiceSettings>>,
+    voice_provider: RwSignal<VoiceProviderKind>,
+    post_flow: PostSttFlow,
+    voice_id: String,
+    gender_filter: RwSignal<GenderFilter>,
+    tts_enabled: bool,
+    save: F,
+) -> impl IntoView
 where
     F: Fn(VoiceSettings) + Send + Sync + 'static + Copy,
 {
     let i18n = expect_context::<I18nService>();
-    let on_flow = {
-        let current = current.clone();
-        move |flow: PostSttFlow| {
-            let mut next = current.clone();
-            next.post_stt_flow = flow;
-            save(next);
-        }
-    };
+
+    let on_flow = Callback::new(move |flow: PostSttFlow| {
+        let Some(mut next) = settings.get_untracked() else {
+            return;
+        };
+        next.post_stt_flow = flow;
+        save(next);
+    });
+    let on_voice = Callback::new(move |id: String| {
+        let Some(mut next) = settings.get_untracked() else {
+            return;
+        };
+        next.tts.voice = id;
+        save(next);
+    });
+    let on_enabled = Callback::new(move |enabled: bool| {
+        let Some(mut next) = settings.get_untracked() else {
+            return;
+        };
+        next.tts.enabled = enabled;
+        save(next);
+    });
+
     view! {
         <section class="voice-pane__section">
             <h3>{move || i18n.tr(I18nKey::VoiceBehaviorSection)()}</h3>
@@ -621,10 +1033,7 @@ where
                         type="button"
                         class="voice-pane__choice"
                         class:voice-pane__choice--active=move || matches!(post_flow, PostSttFlow::AutoSend)
-                        on:click={
-                            let on_flow = on_flow.clone();
-                            move |_| on_flow(PostSttFlow::AutoSend)
-                        }
+                        on:click=move |_| on_flow.run(PostSttFlow::AutoSend)
                     >
                         {move || i18n.tr(I18nKey::VoicePostSttAutoSend)()}
                     </button>
@@ -632,240 +1041,44 @@ where
                         type="button"
                         class="voice-pane__choice"
                         class:voice-pane__choice--active=move || matches!(post_flow, PostSttFlow::Draft)
-                        on:click={
-                            let on_flow = on_flow.clone();
-                            move |_| on_flow(PostSttFlow::Draft)
-                        }
+                        on:click=move |_| on_flow.run(PostSttFlow::Draft)
                     >
                         {move || i18n.tr(I18nKey::VoicePostSttDraft)()}
                     </button>
                 </div>
             </div>
-        </section>
-    }
-}
 
-// ---------------------------------------------------------------------------
-// Language section
-// ---------------------------------------------------------------------------
+            <VoicePickerBlock
+                settings=settings
+                voice_provider=voice_provider
+                voice_id=voice_id
+                gender_filter=gender_filter
+                on_pick=on_voice
+            />
 
-#[component]
-fn LanguageSection<F>(current: VoiceSettings, stt_lang: SttLanguageMode, save: F) -> impl IntoView
-where
-    F: Fn(VoiceSettings) + Send + Sync + 'static + Copy,
-{
-    let i18n = expect_context::<I18nService>();
-    let on_mode = {
-        let current = current.clone();
-        move |mode: SttLanguageMode| {
-            let mut next = current.clone();
-            next.stt_language = mode;
-            save(next);
-        }
-    };
-
-    let is_follow = matches!(stt_lang, SttLanguageMode::FollowApp);
-    let is_auto = matches!(stt_lang, SttLanguageMode::AutoDetect);
-    let is_manual = matches!(stt_lang, SttLanguageMode::Manual { .. });
-    let manual_code = if let SttLanguageMode::Manual { ref code } = stt_lang {
-        code.clone()
-    } else {
-        String::new()
-    };
-
-    view! {
-        <section class="voice-pane__section">
-            <h3>{move || i18n.tr(I18nKey::VoiceLanguageSection)()}</h3>
-            <div class="voice-pane__field">
-                <label>{move || i18n.tr(I18nKey::VoiceSttLangMode)()}</label>
-                <div class="voice-pane__radio-row">
-                    <button
-                        type="button"
-                        class="voice-pane__choice"
-                        class:voice-pane__choice--active=move || is_follow
-                        on:click={
-                            let on_mode = on_mode.clone();
-                            move |_| on_mode(SttLanguageMode::FollowApp)
-                        }
-                    >
-                        {move || i18n.tr(I18nKey::VoiceSttLangFollowApp)()}
-                    </button>
-                    <button
-                        type="button"
-                        class="voice-pane__choice"
-                        class:voice-pane__choice--active=move || is_auto
-                        on:click={
-                            let on_mode = on_mode.clone();
-                            move |_| on_mode(SttLanguageMode::AutoDetect)
-                        }
-                    >
-                        {move || i18n.tr(I18nKey::VoiceSttLangAutoDetect)()}
-                    </button>
-                    <button
-                        type="button"
-                        class="voice-pane__choice"
-                        class:voice-pane__choice--active=move || is_manual
-                        on:click={
-                            let on_mode = on_mode.clone();
-                            let manual_code = manual_code.clone();
-                            move |_| on_mode(SttLanguageMode::Manual { code: manual_code.clone() })
-                        }
-                    >
-                        {move || i18n.tr(I18nKey::VoiceSttLangManual)()}
-                    </button>
-                </div>
-                <Show when=move || is_manual>
-                    <input
-                        type="text"
-                        class="voice-pane__input"
-                        placeholder="ISO-639-1 (e.g. de, en, ja)"
-                        prop:value=manual_code.clone()
-                        on:change={
-                            let on_mode = on_mode.clone();
-                            move |ev| {
-                                if let Some(t) = ev.target() {
-                                    if let Ok(inp) = t.dyn_into::<web_sys::HtmlInputElement>() {
-                                        on_mode(SttLanguageMode::Manual { code: inp.value() });
-                                    }
-                                }
-                            }
-                        }
-                    />
-                </Show>
-            </div>
-        </section>
-    }
-}
-
-// ---------------------------------------------------------------------------
-// PTT hotkey section
-// ---------------------------------------------------------------------------
-
-#[component]
-fn PttSection<F>(
-    current: VoiceSettings,
-    ptt: PttHotkey,
-    recording: RwSignal<bool>,
-    save: F,
-) -> impl IntoView
-where
-    F: Fn(VoiceSettings) + Send + Sync + 'static + Copy,
-{
-    let i18n = expect_context::<I18nService>();
-    let on_enabled = {
-        let current = current.clone();
-        move |v: bool| {
-            let mut next = current.clone();
-            next.ptt_hotkey.enabled = v;
-            save(next);
-        }
-    };
-    let begin_capture = move || recording.set(true);
-    let capture_keydown = {
-        let current = current.clone();
-        move |ev: web_sys::KeyboardEvent| {
-            if !recording.get_untracked() {
-                return;
-            }
-            ev.prevent_default();
-            if ev.key() == "Escape" {
-                recording.set(false);
-                return;
-            }
-            if matches!(
-                ev.code().as_str(),
-                "ControlLeft"
-                    | "ControlRight"
-                    | "ShiftLeft"
-                    | "ShiftRight"
-                    | "AltLeft"
-                    | "AltRight"
-                    | "MetaLeft"
-                    | "MetaRight"
-            ) {
-                return;
-            }
-            let mut next = current.clone();
-            next.ptt_hotkey = PttHotkey {
-                enabled: next.ptt_hotkey.enabled,
-                code: ev.code(),
-                ctrl: ev.ctrl_key(),
-                shift: ev.shift_key(),
-                alt: ev.alt_key(),
-                meta: ev.meta_key(),
-            };
-            save(next);
-            recording.set(false);
-        }
-    };
-
-    let display = format_hotkey(&ptt);
-    let enabled = ptt.enabled;
-
-    view! {
-        <section class="voice-pane__section">
-            <h3>{move || i18n.tr(I18nKey::VoicePttSection)()}</h3>
             <div class="voice-pane__field">
                 <label class="voice-pane__toggle">
                     <input
                         type="checkbox"
-                        prop:checked=enabled
-                        on:change={
-                            let on_enabled = on_enabled.clone();
-                            move |ev| {
-                                if let Some(t) = ev.target() {
-                                    if let Ok(inp) = t.dyn_into::<web_sys::HtmlInputElement>() {
-                                        on_enabled(inp.checked());
-                                    }
+                        prop:checked=tts_enabled
+                        on:change=move |ev| {
+                            if let Some(t) = ev.target() {
+                                if let Ok(inp) = t.dyn_into::<web_sys::HtmlInputElement>() {
+                                    on_enabled.run(inp.checked());
                                 }
                             }
                         }
                     />
-                    <span>{move || i18n.tr(I18nKey::VoicePttEnabled)()}</span>
+                    <span>{move || i18n.tr(I18nKey::VoiceTtsEnabled)()}</span>
                 </label>
+                <p class="voice-pane__hint">{move || i18n.tr(I18nKey::VoiceTtsAutoplayHint)()}</p>
+                <p class="voice-pane__hint voice-pane__hint--small">
+                    {move || i18n.tr(I18nKey::VoiceTtsLangAutoNote)()}
+                </p>
             </div>
-            <div class="voice-pane__field">
-                <label>{move || i18n.tr(I18nKey::VoicePttHotkey)()}</label>
-                <button
-                    type="button"
-                    class="voice-pane__hotkey-capture"
-                    class:voice-pane__hotkey-capture--recording=move || recording.get()
-                    on:click=move |_| begin_capture()
-                    on:keydown=capture_keydown
-                    tabindex="0"
-                >
-                    {move || if recording.get() {
-                        i18n.tr(I18nKey::VoicePttRecorderHint)().to_string()
-                    } else {
-                        display.clone()
-                    }}
-                </button>
-            </div>
+
         </section>
     }
-}
-
-fn format_hotkey(spec: &PttHotkey) -> String {
-    let mut parts: Vec<&'static str> = Vec::new();
-    if spec.ctrl {
-        parts.push("Ctrl");
-    }
-    if spec.shift {
-        parts.push("Shift");
-    }
-    if spec.alt {
-        parts.push("Alt");
-    }
-    if spec.meta {
-        parts.push("Meta");
-    }
-    let mut out = parts.join("+");
-    if !out.is_empty() {
-        out.push('+');
-    }
-    let key = spec.code.strip_prefix("Key").unwrap_or(&spec.code);
-    out.push_str(key);
-    out
 }
 
 // Convince the compiler we still need these types (referenced via trait bounds only).

@@ -16,12 +16,11 @@ You need:
 - An API key for the configured voice provider.
 - Network access to the configured STT/TTS provider.
 
-Voice API keys reuse the existing agent provider key storage:
+Voice API keys are set under **Settings → API Keys** (OpenAI, OpenRouter, AWS/Polly). The voice column in **Settings → BLXCode Agent** shows configured/missing status only.
 
-- OpenAI voice uses the saved OpenAI key.
-- OpenRouter STT uses the saved OpenRouter key.
-
-Keys are stored through the OS keyring when available, with the same private file fallback used by agent provider settings.
+- **OpenAI** — six OpenAI TTS voices selectable.
+- **OpenRouter** — STT/TTS models; voice picks show OpenAI names disabled with a hint.
+- **AWS** — six Polly voices when the AWS key is set.
 
 ## Default Settings
 
@@ -42,23 +41,19 @@ The default voice settings are conservative:
 
 ## Configure Voice
 
-Open the voice settings tab in the right-side settings area.
+Open **Settings** (center tab) → **BLXCode Agent** → **Voice** section.
 
-<p align="center">
-  <img src="../images/screenshot-2026-05-18_17-58-12.png" alt="Voice settings showing STT provider, model, recording quality, TTS model, and voice selection" />
-</p>
+**Settings → App** holds STT **language mode** and **push-to-talk** hotkey only.
 
 You can configure:
 
-- STT provider and model.
+- STT/TTS provider and models (shared provider dropdown).
 - Recording quality: low `16000`, standard `24000`, or high `48000` Hz.
-- TTS model. The backend currently supports OpenAI for TTS.
-- TTS voice.
-- TTS voice gender filter.
+- TTS voice (fixed catalog per provider) and gender filter.
 - TTS autoplay on or off.
 - Whether STT should auto-send or only fill a draft.
-- STT language mode.
-- Push-to-talk hotkey.
+
+See [Settings](settings.md).
 
 ## STT Language Modes
 

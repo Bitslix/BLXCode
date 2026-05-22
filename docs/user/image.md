@@ -18,19 +18,17 @@ You need:
 - Network access to the provider.
 - A selected workspace **if** you want generated images saved to disk. Without one the image lives in chat memory only.
 
-Image keys piggyback on the existing agent provider keyring:
+Image keys are set under **Settings → API Keys** (OpenAI, OpenRouter, fal.ai).
 
-- **OpenAI** image generation uses the saved OpenAI key.
-- **OpenRouter** image generation uses the saved OpenRouter key.
-
-## Settings (Settings → Image)
+## Settings (Settings → BLXCode Agent → Image)
 
 | Setting | Default |
 |---|---|
 | Provider | OpenAI |
 | Model | `gpt-image-1` |
+| Quality | Medium |
 
-Switch the provider with the OpenAI/OpenRouter buttons; pick a model from the suggestion list or type a custom id. The refresh button pulls the provider's catalog (filtered to image-shaped models).
+Pick provider from the dropdown; choose model via **AgentModelPicker** (catalog + custom id). Changes auto-save. API-key status points to API Keys.
 
 OpenRouter uses chat-completions with `modalities: ["image"]`. OpenAI uses `/v1/images/generations` (text-only) or `/v1/images/edits` when one or more reference images are attached.
 
@@ -51,7 +49,7 @@ Filenames collide-protect with a numeric suffix. The relative path is shown unde
 
 ## Voice + Image
 
-If you submit an image-mode turn from voice (PTT or hotkey) **and** TTS is enabled in the Voice tab, BLXCode plays a short confirmation phrase (in your locale's voice) after the image arrives. The image content itself is not narrated.
+If you submit an image-mode turn from voice (PTT or hotkey) **and** TTS is enabled in BLXCode Agent voice settings, BLXCode plays a short confirmation phrase after the image arrives. The image content itself is not narrated.
 
 ## Limits
 

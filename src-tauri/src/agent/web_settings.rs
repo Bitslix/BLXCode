@@ -144,12 +144,37 @@ fn key_masked(kind: WebKeyKind) -> Result<Option<String>, String> {
     }
 }
 
-fn env_key(kind: WebKeyKind) -> Option<String> {
-    let var = match kind {
+pub fn env_var_name(kind: WebKeyKind) -> &'static str {
+    match kind {
         WebKeyKind::Tavily => "BLX_TAVILY_API_KEY",
         WebKeyKind::Brave => "BLX_BRAVE_API_KEY",
-    };
-    std::env::var(var).ok().filter(|s| !s.trim().is_empty())
+    }
+}
+
+fn env_key(kind: WebKeyKind) -> Option<String> {
+    std::env::var(env_var_name(kind))
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+}
+
+/// (masked_value, via_env). Mirrors the LLM provider equivalent in
+/// `agent_settings::provider_key_with_source`. Order: keyring → env.
+pub fn key_with_source(kind: WebKeyKind) -> Result<(Option<String>, bool), String> {
+    let entry = keyring_entry(kind)?;
+    match entry.get_password() {
+        Ok(secret) if !secret.trim().is_empty() => {
+            Ok((agent_settings::mask_secret_pub(&secret), false))
+        }
+        Ok(_) | Err(keyring_core::Error::NoEntry) => match env_key(kind) {
+            Some(secret) => Ok((agent_settings::mask_secret_pub(&secret), true)),
+            None => Ok((None, false)),
+        },
+        Err(_) if cfg!(target_os = "linux") => match env_key(kind) {
+            Some(secret) => Ok((agent_settings::mask_secret_pub(&secret), true)),
+            None => Ok((None, false)),
+        },
+        Err(e) => Err(format!("keyring get {}: {e}", kind.account())),
+    }
 }
 
 pub fn resolve_key(kind: WebKeyKind) -> Option<String> {
