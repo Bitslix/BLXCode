@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+
+## [0.2.3] - 2026-05-22
+
+### Added
+
 - **Center multi-view tabs**: the workspace pane now hosts a VS Code-style tab strip above the terminal grid. The pinned **Terminals** tab is non-closeable and always renders the existing PTY layout; additional tabs are opened dynamically and closed via the strip. Per-workspace state (`center_tabs`, `center_active_tab_id`, `center_next_tab_id`) is persisted in the workspace snapshot with tolerant serde defaults so older snapshots load cleanly and self-heal to include the Terminals tab. Switching tabs hides (rather than unmounts) the terminal grid so xterm sessions and PTYs are never recreated. Active-tab tracking is wired into `is_workspace_active` so terminal focus/resize observers only fire when the Terminals tab is visible.
 - **File preview tab**: clicking a file row in the sidebar Project Explorer opens (or reuses) a center tab that renders the file's text contents. New Tauri command `read_workspace_text_file` (`src-tauri/src/fs_entries.rs`) reads UTF-8 text under the workspace root with the same `canonical_root` / `resolve_under_root` sandbox the existing `list_path_entries` uses, hard-caps at 512 KiB (`MAX_TEXT_PREVIEW_BYTES`) and returns `{ content, truncated, byteLen }`. Non-text payloads surface `file is not valid UTF-8 text`, directories `not a file`, and out-of-root paths the existing `outside workspace` error. The new `tauri_bridge::read_workspace_text_file` wrapper plus `TextFilePreview` mirror the payload shape. 4 unit tests pin the happy path, traversal rejection, directory rejection, and missing-file rejection.
 - **Docked settings tab**: the harness settings UI moved out of the modal `SettingsChrome` overlay and into a `SettingsDock` component rendered inside a dynamic center tab. Opening settings (command palette `Open Settings`, etc.) now calls `WorkbenchService::open_center_settings_tab` which reuses any existing settings tab for the active workspace instead of stacking duplicates. The legacy scrim + focus-trap helpers (`focus_first_settings_control`, `settings_focusables`, `trap_settings_tab`) and `HarnessUiService::open_settings` are gone; `HarnessSettingsCategory` is now `Serialize/Deserialize` so it can ride along with the snapshot. The chat header, right panel and other categories continue to interact with the existing `settings_category` signal.
