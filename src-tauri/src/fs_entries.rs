@@ -38,6 +38,23 @@ pub enum FileKind {
     Binary,
 }
 
+/// Repository "policy" documents — these typically ship without an extension
+/// (e.g. `LICENSE`, `CONTRIBUTING`) but are conventionally rendered as
+/// Markdown. The frontend renders a hero banner above the body so the
+/// document's role is immediately obvious.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PolicyKind {
+    License,
+    Contributing,
+    Contributors,
+    CodeOfConduct,
+    Security,
+    Authors,
+    Changelog,
+    Readme,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileMeta {
@@ -47,6 +64,12 @@ pub struct FileMeta {
     pub modified_ms: Option<i64>,
     pub kind: FileKind,
     pub mime: Option<String>,
+    /// Set when the file's stem matches a well-known repository policy
+    /// document (`LICENSE`, `CONTRIBUTING`, `CONTRIBUTORS`, …) — applies
+    /// regardless of whether the file ships with `.md` / `.markdown` or
+    /// without any extension at all.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub policy_kind: Option<PolicyKind>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -64,6 +87,36 @@ fn ext_lower(path: &Path) -> String {
         .and_then(|e| e.to_str())
         .map(|e| e.to_ascii_lowercase())
         .unwrap_or_default()
+}
+
+/// Lowercased file stem (filename without extension) — empty string if the
+/// path has no file name component.
+fn stem_lower(path: &Path) -> String {
+    path.file_stem()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_ascii_lowercase())
+        .unwrap_or_default()
+}
+
+/// Classify a repository policy document by its filename stem (case-insensitive).
+/// Matches both the bare filename (`LICENSE`) and the `.md` / `.markdown`
+/// variant (`LICENSE.md`) since the caller always passes the stem.
+fn classify_policy(stem: &str) -> Option<PolicyKind> {
+    match stem {
+        "license" | "licence" | "copying" | "copyright" | "unlicense" => {
+            Some(PolicyKind::License)
+        }
+        "contributing" | "contribution" | "contributions" => Some(PolicyKind::Contributing),
+        "contributors" | "contributer" | "contributers" => Some(PolicyKind::Contributors),
+        "code_of_conduct" | "code-of-conduct" | "codeofconduct" => Some(PolicyKind::CodeOfConduct),
+        "security" | "security-policy" | "security_policy" => Some(PolicyKind::Security),
+        "authors" | "maintainers" | "owners" | "codeowners" => Some(PolicyKind::Authors),
+        "changelog" | "changes" | "history" | "release_notes" | "release-notes" | "releasenotes" => {
+            Some(PolicyKind::Changelog)
+        }
+        "readme" => Some(PolicyKind::Readme),
+        _ => None,
+    }
 }
 
 /// Maps a lowercased extension to a [`FileKind`] used by the preview dispatcher.
@@ -243,8 +296,19 @@ pub fn stat_workspace_file(workspace_root: String, path: String) -> Result<FileM
     }
     let meta = fs::metadata(&file).map_err(|e| e.to_string())?;
     let ext = ext_lower(&file);
-    let kind = classify_kind(&ext);
-    let mime = mime_for_ext(&ext).map(str::to_string);
+    let stem = stem_lower(&file);
+    let policy_kind = classify_policy(&stem);
+    // Policy docs are rendered as Markdown regardless of extension so a bare
+    // `LICENSE` (no `.md`) still gets the rich preview.
+    let base_kind = classify_kind(&ext);
+    let kind = if policy_kind.is_some() {
+        FileKind::Markdown
+    } else {
+        base_kind
+    };
+    let mime = mime_for_ext(&ext)
+        .map(str::to_string)
+        .or_else(|| policy_kind.map(|_| "text/markdown".to_string()));
     let name = file
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -256,6 +320,7 @@ pub fn stat_workspace_file(workspace_root: String, path: String) -> Result<FileM
         modified_ms: modified_ms(&meta),
         kind,
         mime,
+        policy_kind,
     })
 }
 
@@ -377,6 +442,66 @@ mod tests {
         let root = tmp.to_string_lossy().into_owned();
         let err = read_workspace_text_file(root, "missing.txt".into()).expect_err("missing");
         assert!(err.contains("path not found"));
+        let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn classify_policy_matches_known_stems() {
+        assert!(matches!(classify_policy("license"), Some(PolicyKind::License)));
+        assert!(matches!(classify_policy("licence"), Some(PolicyKind::License)));
+        assert!(matches!(classify_policy("copying"), Some(PolicyKind::License)));
+        assert!(matches!(
+            classify_policy("contributing"),
+            Some(PolicyKind::Contributing)
+        ));
+        assert!(matches!(
+            classify_policy("contributions"),
+            Some(PolicyKind::Contributing)
+        ));
+        assert!(matches!(
+            classify_policy("contributors"),
+            Some(PolicyKind::Contributors)
+        ));
+        assert!(matches!(
+            classify_policy("code_of_conduct"),
+            Some(PolicyKind::CodeOfConduct)
+        ));
+        assert!(matches!(
+            classify_policy("security"),
+            Some(PolicyKind::Security)
+        ));
+        assert!(matches!(
+            classify_policy("changelog"),
+            Some(PolicyKind::Changelog)
+        ));
+        assert!(matches!(classify_policy("readme"), Some(PolicyKind::Readme)));
+        assert!(classify_policy("random").is_none());
+    }
+
+    #[test]
+    fn stat_workspace_file_marks_extensionless_license_as_markdown() {
+        let tmp = std::env::temp_dir().join(format!("blx_fs_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("LICENSE"), b"MIT License\n\nCopyright").unwrap();
+        let root = tmp.to_string_lossy().into_owned();
+        let meta = stat_workspace_file(root, "LICENSE".into()).unwrap();
+        assert!(matches!(meta.kind, FileKind::Markdown));
+        assert!(matches!(meta.policy_kind, Some(PolicyKind::License)));
+        let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn stat_workspace_file_marks_contributing_md_as_policy() {
+        let tmp = std::env::temp_dir().join(format!("blx_fs_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("CONTRIBUTING.md"), b"# Guide").unwrap();
+        let root = tmp.to_string_lossy().into_owned();
+        let meta = stat_workspace_file(root, "CONTRIBUTING.md".into()).unwrap();
+        assert!(matches!(meta.kind, FileKind::Markdown));
+        assert!(matches!(
+            meta.policy_kind,
+            Some(PolicyKind::Contributing)
+        ));
         let _ = fs::remove_dir_all(tmp);
     }
 

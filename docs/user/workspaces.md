@@ -100,7 +100,7 @@ The left sidebar combines the workspace list with a resizable bottom panel for p
 - **Refresh** toolbar action.
 - **Show/hide hidden files** — eye toggle for dot-prefixed entries (`blxcode_sidebar_explorer_show_hidden_v1`, default off).
 - Click a folder row to expand or collapse; chevron still works without double-toggling.
-- **Click a file row** to open it in a shared center preview tab. Images, video, Markdown and Mermaid render as rich content; text falls back to a monospaced view; binary types show an "unsupported" placeholder. See [File Preview](file-preview.md) for the full feature matrix, byte caps, and security notes.
+- **Click a file row** to open it in a shared center preview tab. Images, video, Markdown, source code (with line numbers + syntax highlighting), and Mermaid render as rich content; text falls back to a gutter-and-selection monospaced view; binary types show an "unsupported" placeholder. Repository policy docs (`LICENSE`, `CONTRIBUTING`, `CONTRIBUTORS`, `SECURITY`, `CHANGELOG`, `README`, …) render as Markdown with a kind-specific hero banner whether or not they ship with a `.md` extension. See [File Preview](file-preview.md) for the full feature matrix, byte caps, and security notes.
 
 ### Git Commits
 

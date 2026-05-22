@@ -2,7 +2,7 @@
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::tauri_bridge::{is_tauri_shell, read_workspace_text_file};
+use crate::tauri_bridge::{is_tauri_shell, read_workspace_text_file, PolicyKind};
 use crate::workbench::file_preview::mermaid_glue::run_mermaid_on;
 use crate::workbench::file_preview::util::{
     render_load_error, sanitize_markdown_html, FilePreviewError,
@@ -11,6 +11,7 @@ use crate::workbench::WorkbenchService;
 use leptos::html;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use leptos_icons::Icon as LxIcon;
 use pulldown_cmark::{html as md_html, CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 use wasm_bindgen::JsCast;
 use web_sys::{Element, HtmlElement};
@@ -77,11 +78,74 @@ fn html_escape(s: &str) -> String {
     o
 }
 
+/// Static metadata for a [`PolicyKind`] hero banner: icon glyph, title key,
+/// and short subtitle key.
+struct PolicyHero {
+    icon: icondata::Icon,
+    title_key: I18nKey,
+    subtitle_key: I18nKey,
+    modifier: &'static str,
+}
+
+fn policy_hero(kind: PolicyKind) -> PolicyHero {
+    match kind {
+        PolicyKind::License => PolicyHero {
+            icon: icondata::LuScale,
+            title_key: I18nKey::FilePreviewPolicyLicenseTitle,
+            subtitle_key: I18nKey::FilePreviewPolicyLicenseSubtitle,
+            modifier: "license",
+        },
+        PolicyKind::Contributing => PolicyHero {
+            icon: icondata::LuGitPullRequest,
+            title_key: I18nKey::FilePreviewPolicyContributingTitle,
+            subtitle_key: I18nKey::FilePreviewPolicyContributingSubtitle,
+            modifier: "contributing",
+        },
+        PolicyKind::Contributors => PolicyHero {
+            icon: icondata::LuUsers,
+            title_key: I18nKey::FilePreviewPolicyContributorsTitle,
+            subtitle_key: I18nKey::FilePreviewPolicyContributorsSubtitle,
+            modifier: "contributors",
+        },
+        PolicyKind::CodeOfConduct => PolicyHero {
+            icon: icondata::LuShieldCheck,
+            title_key: I18nKey::FilePreviewPolicyCodeOfConductTitle,
+            subtitle_key: I18nKey::FilePreviewPolicyCodeOfConductSubtitle,
+            modifier: "code-of-conduct",
+        },
+        PolicyKind::Security => PolicyHero {
+            icon: icondata::LuLock,
+            title_key: I18nKey::FilePreviewPolicySecurityTitle,
+            subtitle_key: I18nKey::FilePreviewPolicySecuritySubtitle,
+            modifier: "security",
+        },
+        PolicyKind::Authors => PolicyHero {
+            icon: icondata::LuUserRound,
+            title_key: I18nKey::FilePreviewPolicyAuthorsTitle,
+            subtitle_key: I18nKey::FilePreviewPolicyAuthorsSubtitle,
+            modifier: "authors",
+        },
+        PolicyKind::Changelog => PolicyHero {
+            icon: icondata::LuHistory,
+            title_key: I18nKey::FilePreviewPolicyChangelogTitle,
+            subtitle_key: I18nKey::FilePreviewPolicyChangelogSubtitle,
+            modifier: "changelog",
+        },
+        PolicyKind::Readme => PolicyHero {
+            icon: icondata::LuBookOpen,
+            title_key: I18nKey::FilePreviewPolicyReadmeTitle,
+            subtitle_key: I18nKey::FilePreviewPolicyReadmeSubtitle,
+            modifier: "readme",
+        },
+    }
+}
+
 #[component]
 pub fn MarkdownView(
     workspace_id: u64,
     rel_path: String,
     reload_tick: ReadSignal<u32>,
+    #[prop(default = None)] policy_kind: Option<PolicyKind>,
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
@@ -152,8 +216,34 @@ pub fn MarkdownView(
         });
     });
 
+    let hero = policy_kind.map(policy_hero);
+    let hero_class = hero
+        .as_ref()
+        .map(|h| {
+            format!(
+                "file-preview__stage file-preview__stage--markdown file-preview__stage--policy file-preview__stage--policy-{}",
+                h.modifier
+            )
+        })
+        .unwrap_or_else(|| "file-preview__stage file-preview__stage--markdown".to_string());
+
     view! {
-        <div class="file-preview__stage file-preview__stage--markdown">
+        <div class=hero_class>
+            {hero.map(|h| view! {
+                <header class=format!("file-preview__policy-hero file-preview__policy-hero--{}", h.modifier)>
+                    <span class="file-preview__policy-hero__icon" aria-hidden="true">
+                        <LxIcon icon=h.icon width="1.4rem" height="1.4rem" />
+                    </span>
+                    <div class="file-preview__policy-hero__text">
+                        <h1 class="file-preview__policy-hero__title">
+                            {move || i18n.tr(h.title_key)()}
+                        </h1>
+                        <p class="file-preview__policy-hero__subtitle">
+                            {move || i18n.tr(h.subtitle_key)()}
+                        </p>
+                    </div>
+                </header>
+            })}
             {move || match html_sig.get() {
                 None => view! {
                     <div class="file-preview__status">{i18n.tr(I18nKey::FilePreviewLoading)}</div>

@@ -16,7 +16,7 @@ mod video_view;
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::tauri_bridge::{is_tauri_shell, stat_workspace_file, FileKind, FileMeta};
+use crate::tauri_bridge::{is_tauri_shell, stat_workspace_file, FileKind, FileMeta, PolicyKind};
 use crate::workbench::WorkbenchService;
 use code_view::CodeView;
 use header::FilePreviewHeader;
@@ -94,6 +94,7 @@ pub fn FilePreviewDock(workspace_id: u64, rel_path: String) -> impl IntoView {
                 Some(Err(err)) => render_load_error(i18n, I18nKey::FilePreviewLoadFailedMeta, err),
                 Some(Ok(meta)) => render_for_kind(
                     meta.kind,
+                    meta.policy_kind,
                     dispatcher_workspace_id,
                     dispatcher_rel_path.clone(),
                     reload_tick,
@@ -105,6 +106,7 @@ pub fn FilePreviewDock(workspace_id: u64, rel_path: String) -> impl IntoView {
 
 fn render_for_kind(
     kind: FileKind,
+    policy_kind: Option<PolicyKind>,
     workspace_id: u64,
     rel_path: String,
     reload_tick: ReadSignal<u32>,
@@ -119,7 +121,12 @@ fn render_for_kind(
         }
         .into_any(),
         FileKind::Markdown => view! {
-            <MarkdownView workspace_id=workspace_id rel_path=rel_path reload_tick=reload_tick />
+            <MarkdownView
+                workspace_id=workspace_id
+                rel_path=rel_path
+                reload_tick=reload_tick
+                policy_kind=policy_kind
+            />
         }
         .into_any(),
         FileKind::Mermaid => view! {

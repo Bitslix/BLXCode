@@ -32,7 +32,7 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 - [Settings](user/settings.md) — docked center-tab settings, API Keys, BLXCode Agent grid, Workspace, **Appearance / themes**.
 - [Appearance & Themes](user/appearance-themes.md) — theme picker, presets, persistence, exceptions.
 - [Workspaces](user/workspaces.md) — creation, terminal grids, sidebar explorer, Git graph, handoff, persistence.
-- [File Preview](user/file-preview.md) — center-tab previews for images (incl. SVG), video, rendered Markdown, and Mermaid diagrams with a topbar showing name/path/size/mtime.
+- [File Preview](user/file-preview.md) — center-tab previews for images (incl. SVG), video, rendered Markdown, syntax-highlighted source code, and Mermaid diagrams. Repository policy docs (`LICENSE`, `CONTRIBUTING`, `SECURITY`, `CHANGELOG`, …) render as Markdown with a kind-specific hero banner — with or without a `.md` extension.
 - [Memory And Tasks](user/memory-and-tasks.md) — Memory panel (Files, Graph, Search), dynamic categories, tasks, agent memory tools.
 - [Plans](user/plans.md) — `.agents/plans/`, Kanban board, task syntax, Plans panel, agent tools.
 - [Rules And Skills](user/rules-and-skills.md) — expandable rule/skill cards, core vs user skills, install dialog.

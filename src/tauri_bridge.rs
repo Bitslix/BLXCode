@@ -679,6 +679,22 @@ pub enum FileKind {
     Binary,
 }
 
+/// Mirrors `src-tauri/src/fs_entries.rs::PolicyKind`. Set when the file's
+/// stem matches a well-known repository policy document; the frontend renders
+/// a hero banner above the markdown body for these.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PolicyKind {
+    License,
+    Contributing,
+    Contributors,
+    CodeOfConduct,
+    Security,
+    Authors,
+    Changelog,
+    Readme,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileMeta {
@@ -688,6 +704,8 @@ pub struct FileMeta {
     pub modified_ms: Option<i64>,
     pub kind: FileKind,
     pub mime: Option<String>,
+    #[serde(default)]
+    pub policy_kind: Option<PolicyKind>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]

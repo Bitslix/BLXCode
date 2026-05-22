@@ -16,6 +16,8 @@ The preview picks a renderer based on the file extension:
 | **Text** | `txt`, `log`, `ini`, `conf`, `env`, `properties`, `csv`, `tsv`, `gitignore`, `editorconfig`, … | Same gutter + row-selection layout as Code, but without syntax highlighting (plain monospaced text). |
 | **Binary** | everything else | "Preview not available for this file type" placeholder |
 
+> **Note** — Common repository "policy" documents (`LICENSE`, `LICENCE`, `COPYING`, `CONTRIBUTING`, `CONTRIBUTORS`, `CODE_OF_CONDUCT`, `SECURITY`, `AUTHORS` / `MAINTAINERS` / `OWNERS` / `CODEOWNERS`, `CHANGELOG`, `README`) are detected by their **filename stem**, not their extension. They render as Markdown **with or without** a `.md` / `.markdown` suffix and get a special hero banner — see [Repository policy documents](#repository-policy-documents) below.
+
 ## Topbar
 
 Every renderer shares the same topbar:
@@ -80,6 +82,34 @@ flowchart LR
 ````
 
 Regular ```` ```rust ```` / ```` ```ts ```` code blocks stay as syntax-highlightable `<pre><code>` and are **not** sent to Mermaid.
+
+## Repository policy documents
+
+Open-source repositories conventionally ship a small set of "policy" files at the repo root — `LICENSE`, `CONTRIBUTING`, `CHANGELOG`, etc. These are commonly Markdown but they are **just as commonly shipped without any extension at all**. The file preview detects these by their **filename stem** (case-insensitive), so `LICENSE`, `LICENSE.md`, `License`, and `LICENCE` all render as Markdown — even when the file has no extension.
+
+Each policy doc gets a **hero banner** above the rendered Markdown body. The banner shows:
+
+- A **kind-specific icon** (e.g. scales for License, pull-request glyph for Contributing, lock for Security, …).
+- A **bold title** (translated into the active UI language).
+- A **one-line subtitle** explaining the document's role.
+- A **left accent bar** in a kind-specific color: `License` is tinted with the **success** token, `Security` with the **danger** token, the rest with the active **accent** color.
+
+Recognized stems and their banner kinds:
+
+| Banner kind | Matched stems (case-insensitive) | Icon |
+|---|---|---|
+| **License** | `license`, `licence`, `copying`, `copyright`, `unlicense` | Scale |
+| **Contributing** | `contributing`, `contribution`, `contributions` | Git pull request |
+| **Contributors** | `contributors`, `contributer`, `contributers` | Users |
+| **Code of Conduct** | `code_of_conduct`, `code-of-conduct`, `codeofconduct` | Shield-check |
+| **Security Policy** | `security`, `security-policy`, `security_policy` | Lock |
+| **Authors** | `authors`, `maintainers`, `owners`, `codeowners` | User-round |
+| **Changelog** | `changelog`, `changes`, `history`, `release_notes`, `release-notes`, `releasenotes` | History |
+| **Readme** | `readme` | Book-open |
+
+The match is performed on the **stem only** (the filename minus its extension), so a `.md` / `.markdown` suffix is fully optional. A bare `LICENSE` is treated identically to `LICENSE.md`. Files whose stem doesn't match any of the rows above keep their normal classification (Markdown, Code, Text, Image, Binary, …) and **do not** show the hero banner.
+
+Why this matters: previously a stand-alone `LICENSE` (no extension) would be classified as `Binary` and the preview would show "Preview not available for this file type." Now you get a properly rendered, theme-aware Markdown view with an obvious "License" banner — same for every other policy doc in the table above.
 
 ## Source code & plain text
 

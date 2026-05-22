@@ -5797,6 +5797,82 @@ button {
   color: var(--text);
 }
 
+/* Policy doc hero banner (LICENSE / CONTRIBUTING / SECURITY / …)
+   Sits above the markdown body. The accent strip + tinted background
+   makes the document's role obvious at a glance. */
+.file-preview__stage--policy {
+  --policy-accent: var(--accent);
+  --policy-accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+  --policy-accent-strong: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+.file-preview__stage--policy-license { --policy-accent: var(--success, var(--accent)); }
+.file-preview__stage--policy-contributing { --policy-accent: var(--accent); }
+.file-preview__stage--policy-contributors { --policy-accent: color-mix(in srgb, var(--accent) 80%, var(--text)); }
+.file-preview__stage--policy-code-of-conduct { --policy-accent: var(--info, var(--accent)); }
+.file-preview__stage--policy-security { --policy-accent: var(--danger); }
+.file-preview__stage--policy-authors { --policy-accent: var(--accent); }
+.file-preview__stage--policy-changelog { --policy-accent: var(--accent); }
+.file-preview__stage--policy-readme { --policy-accent: var(--accent); }
+
+.file-preview__policy-hero {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 0.95rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--policy-accent) 18%, transparent) 0%,
+      color-mix(in srgb, var(--policy-accent) 6%, transparent) 100%
+    ),
+    var(--bg-panel-header);
+  border-left: 3px solid var(--policy-accent);
+}
+
+.file-preview__policy-hero__icon {
+  flex-shrink: 0;
+  width: 2.4rem;
+  height: 2.4rem;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--policy-accent) 22%, var(--bg-panel));
+  color: var(--policy-accent);
+  border: 1px solid color-mix(in srgb, var(--policy-accent) 50%, transparent);
+}
+
+.file-preview__policy-hero__text {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.file-preview__policy-hero__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.file-preview__policy-hero__subtitle {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+/* Slightly tighter top padding on the markdown body when a hero is present
+   so the title/subtitle visually anchor to the body content. */
+.file-preview__stage--policy .file-preview__markdown {
+  padding-top: 0.85rem;
+}
+
 .file-preview__markdown h1,
 .file-preview__markdown h2,
 .file-preview__markdown h3,
