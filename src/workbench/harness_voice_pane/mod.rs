@@ -11,6 +11,7 @@ use crate::tauri_bridge::{
 };
 use crate::workbench::model_picker::ModelPicker;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use gloo_timers::future::TimeoutFuture;
 use js_sys::Uint8Array;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
@@ -83,6 +84,46 @@ impl GenderFilter {
     }
 }
 
+fn voice_providers() -> [VoiceProviderKind; 2] {
+    [VoiceProviderKind::Openai, VoiceProviderKind::Openrouter]
+}
+
+fn voice_provider_icon_url(provider: VoiceProviderKind) -> &'static str {
+    match provider {
+        VoiceProviderKind::Openai => "/public/brand-icons/openai.svg",
+        VoiceProviderKind::Openrouter => "/public/brand-icons/openrouter.svg",
+    }
+}
+
+fn voice_provider_label(i18n: &I18nService, provider: VoiceProviderKind) -> String {
+    let key = match provider {
+        VoiceProviderKind::Openai => I18nKey::AgProviderOpenai,
+        VoiceProviderKind::Openrouter => I18nKey::AgProviderOpenrouter,
+    };
+    i18n.tr(key)().to_string()
+}
+
+fn focus_voice_provider_option(provider: VoiceProviderKind) {
+    let id = format!("voice-provider-option-{}", provider.as_str());
+    if let Some(doc) = web_sys::window().and_then(|w| w.document()) {
+        if let Some(el) = doc.get_element_by_id(&id) {
+            let _ = el.dyn_into::<web_sys::HtmlElement>().map(|e| e.focus());
+        }
+    }
+}
+
+fn next_voice_provider(provider: VoiceProviderKind) -> VoiceProviderKind {
+    let list = voice_providers();
+    let i = list.iter().position(|&p| p == provider).unwrap_or(0);
+    list[(i + 1) % list.len()]
+}
+
+fn prev_voice_provider(provider: VoiceProviderKind) -> VoiceProviderKind {
+    let list = voice_providers();
+    let i = list.iter().position(|&p| p == provider).unwrap_or(0);
+    list[(i + list.len() - 1) % list.len()]
+}
+
 /// Voice settings column (BLXCode Agent grid, bottom row spanning both columns).
 #[component]
 pub fn AgentVoiceColumn() -> impl IntoView {
@@ -93,10 +134,12 @@ pub fn AgentVoiceColumn() -> impl IntoView {
     let status = RwSignal::new(Option::<String>::None);
     let stt_models = RwSignal::new(Vec::<ProviderModelEntry>::new());
     let tts_models = RwSignal::new(Vec::<ProviderModelEntry>::new());
+    let voice_provider = RwSignal::new(VoiceProviderKind::Openai);
 
     if is_tauri_shell() {
         leptos::task::spawn_local(async move {
             if let Ok(v) = voice_settings_get().await {
+                voice_provider.set(v.stt.provider);
                 if let Ok(catalog) = voice_provider_voices(v.tts.provider).await {
                     voices.set(catalog.voices);
                 }
@@ -138,6 +181,11 @@ pub fn AgentVoiceColumn() -> impl IntoView {
         });
     };
 
+    let reload_all_for_provider = move |provider: VoiceProviderKind| {
+        reload_voices(provider);
+        reload_stt_models(provider);
+    };
+
     view! {
         <>
             <h4 class="harness-pane-subhead agent-provider-pane__col-title">
@@ -158,8 +206,6 @@ pub fn AgentVoiceColumn() -> impl IntoView {
                         return view! { <></> }.into_any();
                     };
 
-                    let stt_provider = current.stt.provider;
-                    let tts_provider = current.tts.provider;
                     let stt_model = current.stt.model_id.clone();
                     let tts_model = current.tts.model_id.clone();
                     let sample_rate = current.stt.sample_rate_hz;
@@ -167,11 +213,36 @@ pub fn AgentVoiceColumn() -> impl IntoView {
                     let post_flow = current.post_stt_flow;
                     let tts_enabled = current.tts.enabled;
 
+                    let on_voice_provider = {
+                        let current = current.clone();
+                        move |p: VoiceProviderKind| {
+                            voice_provider.set(p);
+                            let mut next = current.clone();
+                            next.stt.provider = p;
+                            next.tts.provider = p;
+                            save(next);
+                            reload_all_for_provider(p);
+                        }
+                    };
+
                     view! {
                         <div class="agent-provider-pane__voice-inner">
+                            <label class="agent-provider-pane__field agent-provider-pane__voice-provider">
+                                <span class="harness-field-label">
+                                    <span class="harness-field-label__icon" aria-hidden="true">
+                                        <LxIcon icon=icondata::LuPlug width="0.82rem" height="0.82rem" />
+                                    </span>
+                                    <span class="harness-field-label__text">{move || i18n.tr(I18nKey::VoiceProviderField)()}</span>
+                                </span>
+                                <VoiceProviderPicker
+                                    selected_provider=voice_provider
+                                    on_select=Callback::new(on_voice_provider)
+                                />
+                            </label>
+
                             <SttSection
                                 current=current.clone()
-                                stt_provider=stt_provider
+                                voice_provider=voice_provider
                                 stt_model=stt_model.clone()
                                 sample_rate=sample_rate
                                 models=stt_models
@@ -180,19 +251,19 @@ pub fn AgentVoiceColumn() -> impl IntoView {
                             />
                             <TtsSection
                                 current=current.clone()
-                                tts_provider=tts_provider
+                                voice_provider=voice_provider
                                 tts_model=tts_model.clone()
-                                voice_id=voice_id.clone()
-                                voices=voices
-                                gender_filter=gender_filter
-                                tts_enabled=tts_enabled
                                 models=tts_models
                                 save=save
-                                reload_voices=reload_voices
+                                reload_models=reload_voices
                             />
                             <BehaviorSection
                                 current=current.clone()
                                 post_flow=post_flow
+                                voice_id=voice_id.clone()
+                                voices=voices
+                                gender_filter=gender_filter
+                                tts_enabled=tts_enabled
                                 save=save
                             />
                         </div>
@@ -226,13 +297,147 @@ pub fn VoicePane() -> impl IntoView {
 }
 
 // ---------------------------------------------------------------------------
+// Shared voice provider dropdown (STT + TTS)
+// ---------------------------------------------------------------------------
+
+#[component]
+fn VoiceProviderPicker(
+    selected_provider: RwSignal<VoiceProviderKind>,
+    on_select: Callback<VoiceProviderKind>,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let open = RwSignal::new(false);
+
+    let choose = move |provider: VoiceProviderKind| {
+        selected_provider.set(provider);
+        open.set(false);
+        on_select.run(provider);
+    };
+
+    view! {
+        <div class="harness-provider-picker">
+            <button
+                type="button"
+                class="harness-provider-trigger"
+                aria-haspopup="listbox"
+                aria-expanded=move || if open.get() { "true" } else { "false" }
+                on:click=move |_| {
+                    let next = !open.get_untracked();
+                    open.set(next);
+                    if next {
+                        let provider = selected_provider.get_untracked();
+                        leptos::task::spawn_local(async move {
+                            TimeoutFuture::new(0).await;
+                            focus_voice_provider_option(provider);
+                        });
+                    }
+                }
+                on:keydown=move |ev: web_sys::KeyboardEvent| {
+                    match ev.key().as_str() {
+                        "ArrowDown" | "Enter" | " " => {
+                            ev.prevent_default();
+                            open.set(true);
+                            let provider = selected_provider.get_untracked();
+                            leptos::task::spawn_local(async move {
+                                TimeoutFuture::new(0).await;
+                                focus_voice_provider_option(provider);
+                            });
+                        }
+                        "ArrowUp" => {
+                            ev.prevent_default();
+                            open.set(true);
+                            let provider = prev_voice_provider(selected_provider.get_untracked());
+                            leptos::task::spawn_local(async move {
+                                TimeoutFuture::new(0).await;
+                                focus_voice_provider_option(provider);
+                            });
+                        }
+                        "Escape" => open.set(false),
+                        _ => {}
+                    }
+                }
+            >
+                <span class="harness-provider-trigger__main">
+                    <span class="harness-provider-trigger__brand">
+                        <img
+                            class="harness-provider-trigger__img"
+                            src=move || voice_provider_icon_url(selected_provider.get())
+                            alt=""
+                        />
+                    </span>
+                    <span>{move || voice_provider_label(&i18n, selected_provider.get())}</span>
+                </span>
+                <span class="harness-provider-trigger__caret">"▾"</span>
+            </button>
+
+            <Show when=move || open.get()>
+                <div class="harness-provider-menu" role="listbox">
+                    {move || {
+                        voice_providers()
+                            .into_iter()
+                            .map(|provider| {
+                                view! {
+                                    <button
+                                        id=format!("voice-provider-option-{}", provider.as_str())
+                                        type="button"
+                                        role="option"
+                                        class="harness-provider-option"
+                                        class:harness-provider-option--active=move || selected_provider.get() == provider
+                                        aria-selected=move || if selected_provider.get() == provider {
+                                            "true"
+                                        } else {
+                                            "false"
+                                        }
+                                        on:click=move |_| choose(provider)
+                                        on:keydown=move |ev: web_sys::KeyboardEvent| {
+                                            match ev.key().as_str() {
+                                                "ArrowDown" => {
+                                                    ev.prevent_default();
+                                                    focus_voice_provider_option(next_voice_provider(provider));
+                                                }
+                                                "ArrowUp" => {
+                                                    ev.prevent_default();
+                                                    focus_voice_provider_option(prev_voice_provider(provider));
+                                                }
+                                                "Enter" | " " => {
+                                                    ev.prevent_default();
+                                                    choose(provider);
+                                                }
+                                                "Escape" => {
+                                                    ev.prevent_default();
+                                                    open.set(false);
+                                                }
+                                                _ => {}
+                                            }
+                                        }
+                                    >
+                                        <span class="harness-provider-option__brand">
+                                            <img
+                                                class="harness-provider-option__img"
+                                                src=voice_provider_icon_url(provider)
+                                                alt=""
+                                            />
+                                        </span>
+                                        <span>{voice_provider_label(&i18n, provider)}</span>
+                                    </button>
+                                }
+                            })
+                            .collect_view()
+                    }}
+                </div>
+            </Show>
+        </div>
+    }
+}
+
+// ---------------------------------------------------------------------------
 // STT section
 // ---------------------------------------------------------------------------
 
 #[component]
 fn SttSection<F, RM>(
     current: VoiceSettings,
-    stt_provider: VoiceProviderKind,
+    voice_provider: RwSignal<VoiceProviderKind>,
     stt_model: String,
     sample_rate: u32,
     models: RwSignal<Vec<ProviderModelEntry>>,
@@ -244,15 +449,6 @@ where
     RM: Fn(VoiceProviderKind) + Send + Sync + 'static + Copy,
 {
     let i18n = expect_context::<I18nService>();
-    let on_provider = {
-        let current = current.clone();
-        move |p: VoiceProviderKind| {
-            let mut next = current.clone();
-            next.stt.provider = p;
-            save(next);
-            reload_models(p);
-        }
-    };
     let on_model = {
         let current = current.clone();
         move |m: String| {
@@ -274,30 +470,13 @@ where
         <section class="voice-pane__section">
             <h3>{move || i18n.tr(I18nKey::VoiceSttSection)()}</h3>
 
-            <div class="voice-pane__field">
-                <label>{move || i18n.tr(I18nKey::VoiceProviderField)()}</label>
-                <div class="voice-pane__provider-row">
-                    <ProviderBtn label="OpenAI" target=VoiceProviderKind::Openai active=stt_provider on:click={
-                        let on_provider = on_provider.clone();
-                        move |_| on_provider(VoiceProviderKind::Openai)
-                    } />
-                    <ProviderBtn label="OpenRouter" target=VoiceProviderKind::Openrouter active=stt_provider on:click={
-                        let on_provider = on_provider.clone();
-                        move |_| on_provider(VoiceProviderKind::Openrouter)
-                    } />
-                </div>
-            </div>
-
             <ModelPicker
                 label_key=I18nKey::VoiceModelField
                 datalist_id="blxcode-voice-stt-models"
                 current=stt_model.clone()
                 models=models
                 on_change=on_model.clone()
-                on_refresh={
-                    let stt_provider = stt_provider;
-                    move || reload_models(stt_provider)
-                }
+                on_refresh=move || reload_models(voice_provider.get_untracked())
             />
 
             <div class="voice-pane__field">
@@ -331,24 +510,6 @@ where
 }
 
 #[component]
-fn ProviderBtn(
-    label: &'static str,
-    target: VoiceProviderKind,
-    active: VoiceProviderKind,
-) -> impl IntoView {
-    let is_active = move || target == active;
-    view! {
-        <button
-            type="button"
-            class="voice-pane__choice"
-            class:voice-pane__choice--active=is_active
-        >
-            {label}
-        </button>
-    }
-}
-
-#[component]
 fn QualityBtn(rate: u32, label_key: I18nKey, active: u32) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let is_active = move || rate == active;
@@ -370,37 +531,123 @@ fn QualityBtn(rate: u32, label_key: I18nKey, active: u32) -> impl IntoView {
 #[component]
 fn TtsSection<F, RV>(
     current: VoiceSettings,
-    tts_provider: VoiceProviderKind,
+    voice_provider: RwSignal<VoiceProviderKind>,
     tts_model: String,
-    voice_id: String,
-    voices: RwSignal<Vec<VoiceEntry>>,
-    gender_filter: RwSignal<GenderFilter>,
-    tts_enabled: bool,
     models: RwSignal<Vec<ProviderModelEntry>>,
     save: F,
-    reload_voices: RV,
+    reload_models: RV,
 ) -> impl IntoView
 where
     F: Fn(VoiceSettings) + Send + Sync + 'static + Copy,
     RV: Fn(VoiceProviderKind) + Send + Sync + 'static + Copy,
 {
     let i18n = expect_context::<I18nService>();
-    let audio_ref = NodeRef::<leptos::html::Audio>::new();
 
-    let on_provider = {
-        let current = current.clone();
-        move |p: VoiceProviderKind| {
-            let mut next = current.clone();
-            next.tts.provider = p;
-            save(next);
-            reload_voices(p);
-        }
-    };
     let on_model = {
         let current = current.clone();
         move |m: String| {
             let mut next = current.clone();
             next.tts.model_id = m;
+            save(next);
+        }
+    };
+
+    view! {
+        <section class="voice-pane__section">
+            <h3>{move || i18n.tr(I18nKey::VoiceTtsSection)()}</h3>
+
+            <ModelPicker
+                label_key=I18nKey::VoiceModelField
+                datalist_id="blxcode-voice-tts-models"
+                current=tts_model.clone()
+                models=models
+                on_change=on_model.clone()
+                on_refresh=move || reload_models(voice_provider.get_untracked())
+            />
+        </section>
+    }
+}
+
+#[component]
+fn GenderBtn(
+    target: GenderFilter,
+    label_key: I18nKey,
+    filter: RwSignal<GenderFilter>,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let is_active = move || filter.get() == target;
+    view! {
+        <button
+            type="button"
+            class="voice-pane__choice voice-pane__choice--gender"
+            class:voice-pane__choice--active=is_active
+            on:click=move |_| filter.set(target)
+        >
+            {move || i18n.tr(label_key)()}
+        </button>
+    }
+}
+
+fn gender_label_for(g: VoiceGender) -> &'static str {
+    match g {
+        VoiceGender::Male => "♂",
+        VoiceGender::Female => "♀",
+        VoiceGender::Neutral => "○",
+    }
+}
+
+fn play_b64(audio_ref: NodeRef<leptos::html::Audio>, b64: &str, mime: &str) {
+    let Ok(bytes) = BASE64.decode(b64) else {
+        return;
+    };
+    let arr = Uint8Array::new_with_length(bytes.len() as u32);
+    arr.copy_from(&bytes);
+    let parts = js_sys::Array::new();
+    parts.push(&arr.buffer());
+    let opts = BlobPropertyBag::new();
+    opts.set_type(mime);
+    let Ok(blob) = Blob::new_with_u8_array_sequence_and_options(&parts, &opts) else {
+        return;
+    };
+    let Ok(url) = web_sys::Url::create_object_url_with_blob(&blob) else {
+        return;
+    };
+    if let Some(audio) = audio_ref.get_untracked() {
+        let el: HtmlAudioElement = audio.unchecked_into();
+        let old = el.src();
+        if old.starts_with("blob:") {
+            let _ = web_sys::Url::revoke_object_url(&old);
+        }
+        el.set_src(&url);
+        let _ = el.play();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Behavior section
+// ---------------------------------------------------------------------------
+
+#[component]
+fn BehaviorSection<F>(
+    current: VoiceSettings,
+    post_flow: PostSttFlow,
+    voice_id: String,
+    voices: RwSignal<Vec<VoiceEntry>>,
+    gender_filter: RwSignal<GenderFilter>,
+    tts_enabled: bool,
+    save: F,
+) -> impl IntoView
+where
+    F: Fn(VoiceSettings) + Send + Sync + 'static + Copy,
+{
+    let i18n = expect_context::<I18nService>();
+    let audio_ref = NodeRef::<leptos::html::Audio>::new();
+
+    let on_flow = {
+        let current = current.clone();
+        move |flow: PostSttFlow| {
+            let mut next = current.clone();
+            next.post_stt_flow = flow;
             save(next);
         }
     };
@@ -437,29 +684,34 @@ where
 
     view! {
         <section class="voice-pane__section">
-            <h3>{move || i18n.tr(I18nKey::VoiceTtsSection)()}</h3>
-
+            <h3>{move || i18n.tr(I18nKey::VoiceBehaviorSection)()}</h3>
             <div class="voice-pane__field">
-                <label>{move || i18n.tr(I18nKey::VoiceProviderField)()}</label>
-                <div class="voice-pane__provider-row">
-                    <ProviderBtn label="OpenAI" target=VoiceProviderKind::Openai active=tts_provider on:click={
-                        let on_provider = on_provider.clone();
-                        move |_| on_provider(VoiceProviderKind::Openai)
-                    } />
+                <label>{move || i18n.tr(I18nKey::VoicePostSttFlow)()}</label>
+                <div class="voice-pane__radio-row">
+                    <button
+                        type="button"
+                        class="voice-pane__choice"
+                        class:voice-pane__choice--active=move || matches!(post_flow, PostSttFlow::AutoSend)
+                        on:click={
+                            let on_flow = on_flow.clone();
+                            move |_| on_flow(PostSttFlow::AutoSend)
+                        }
+                    >
+                        {move || i18n.tr(I18nKey::VoicePostSttAutoSend)()}
+                    </button>
+                    <button
+                        type="button"
+                        class="voice-pane__choice"
+                        class:voice-pane__choice--active=move || matches!(post_flow, PostSttFlow::Draft)
+                        on:click={
+                            let on_flow = on_flow.clone();
+                            move |_| on_flow(PostSttFlow::Draft)
+                        }
+                    >
+                        {move || i18n.tr(I18nKey::VoicePostSttDraft)()}
+                    </button>
                 </div>
             </div>
-
-            <ModelPicker
-                label_key=I18nKey::VoiceModelField
-                datalist_id="blxcode-voice-tts-models"
-                current=tts_model.clone()
-                models=models
-                on_change=on_model.clone()
-                on_refresh={
-                    let tts_provider = tts_provider;
-                    move || reload_voices(tts_provider)
-                }
-            />
 
             <div class="voice-pane__field">
                 <label>{move || i18n.tr(I18nKey::VoiceVoiceField)()}</label>
@@ -540,113 +792,6 @@ where
             </div>
 
             <audio node_ref=audio_ref preload="none" />
-        </section>
-    }
-}
-
-#[component]
-fn GenderBtn(
-    target: GenderFilter,
-    label_key: I18nKey,
-    filter: RwSignal<GenderFilter>,
-) -> impl IntoView {
-    let i18n = expect_context::<I18nService>();
-    let is_active = move || filter.get() == target;
-    view! {
-        <button
-            type="button"
-            class="voice-pane__choice voice-pane__choice--gender"
-            class:voice-pane__choice--active=is_active
-            on:click=move |_| filter.set(target)
-        >
-            {move || i18n.tr(label_key)()}
-        </button>
-    }
-}
-
-fn gender_label_for(g: VoiceGender) -> &'static str {
-    match g {
-        VoiceGender::Male => "♂",
-        VoiceGender::Female => "♀",
-        VoiceGender::Neutral => "○",
-    }
-}
-
-fn play_b64(audio_ref: NodeRef<leptos::html::Audio>, b64: &str, mime: &str) {
-    let Ok(bytes) = BASE64.decode(b64) else {
-        return;
-    };
-    let arr = Uint8Array::new_with_length(bytes.len() as u32);
-    arr.copy_from(&bytes);
-    let parts = js_sys::Array::new();
-    parts.push(&arr.buffer());
-    let opts = BlobPropertyBag::new();
-    opts.set_type(mime);
-    let Ok(blob) = Blob::new_with_u8_array_sequence_and_options(&parts, &opts) else {
-        return;
-    };
-    let Ok(url) = web_sys::Url::create_object_url_with_blob(&blob) else {
-        return;
-    };
-    if let Some(audio) = audio_ref.get_untracked() {
-        let el: HtmlAudioElement = audio.unchecked_into();
-        let old = el.src();
-        if old.starts_with("blob:") {
-            let _ = web_sys::Url::revoke_object_url(&old);
-        }
-        el.set_src(&url);
-        let _ = el.play();
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Behavior section
-// ---------------------------------------------------------------------------
-
-#[component]
-fn BehaviorSection<F>(current: VoiceSettings, post_flow: PostSttFlow, save: F) -> impl IntoView
-where
-    F: Fn(VoiceSettings) + Send + Sync + 'static + Copy,
-{
-    let i18n = expect_context::<I18nService>();
-    let on_flow = {
-        let current = current.clone();
-        move |flow: PostSttFlow| {
-            let mut next = current.clone();
-            next.post_stt_flow = flow;
-            save(next);
-        }
-    };
-    view! {
-        <section class="voice-pane__section">
-            <h3>{move || i18n.tr(I18nKey::VoiceBehaviorSection)()}</h3>
-            <div class="voice-pane__field">
-                <label>{move || i18n.tr(I18nKey::VoicePostSttFlow)()}</label>
-                <div class="voice-pane__radio-row">
-                    <button
-                        type="button"
-                        class="voice-pane__choice"
-                        class:voice-pane__choice--active=move || matches!(post_flow, PostSttFlow::AutoSend)
-                        on:click={
-                            let on_flow = on_flow.clone();
-                            move |_| on_flow(PostSttFlow::AutoSend)
-                        }
-                    >
-                        {move || i18n.tr(I18nKey::VoicePostSttAutoSend)()}
-                    </button>
-                    <button
-                        type="button"
-                        class="voice-pane__choice"
-                        class:voice-pane__choice--active=move || matches!(post_flow, PostSttFlow::Draft)
-                        on:click={
-                            let on_flow = on_flow.clone();
-                            move |_| on_flow(PostSttFlow::Draft)
-                        }
-                    >
-                        {move || i18n.tr(I18nKey::VoicePostSttDraft)()}
-                    </button>
-                </div>
-            </div>
         </section>
     }
 }

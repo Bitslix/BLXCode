@@ -28,6 +28,11 @@
     align-items: start;
 }
 
+.agent-provider-pane__voice-provider {
+    grid-column: 1 / -1;
+    margin: 0 0 0.15rem;
+}
+
 @media (max-width: 900px) {
     .agent-provider-pane__voice-inner {
         grid-template-columns: 1fr;
