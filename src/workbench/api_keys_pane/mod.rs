@@ -26,6 +26,27 @@ enum DraftAction {
 
 type DraftMap = BTreeMap<String, DraftAction>;
 
+/// Brand SVG paths — same assets as Agent Provider picker (`harness_ui.rs`).
+fn api_key_brand_icon_url(kind: &str) -> Option<&'static str> {
+    match kind {
+        "openrouter" => Some("/public/brand-icons/openrouter.svg"),
+        "anthropic" => Some("/public/brand-icons/anthropic.svg"),
+        "openai" => Some("/public/brand-icons/openai.svg"),
+        "google" => Some("/public/brand-icons/gemini.svg"),
+        _ => None,
+    }
+}
+
+fn api_key_icon_fallback(kind: &str) -> icondata::Icon {
+    match kind {
+        "mistral" => icondata::LuSparkles,
+        "groq" => icondata::LuZap,
+        "tavily" => icondata::LuSearch,
+        "brave" => icondata::LuShield,
+        _ => icondata::LuKeyRound,
+    }
+}
+
 fn input_str(ev: &web_sys::Event) -> Option<String> {
     ev.target()?
         .dyn_into::<web_sys::HtmlInputElement>()
@@ -278,6 +299,7 @@ fn ApiKeyRow(entry: ApiKeyEntry, drafts: RwSignal<DraftMap>) -> impl IntoView {
         });
     };
 
+    let kind_for_icon = kind.clone();
     let kind_for_remove = kind.clone();
     let on_remove = move |_| {
         let k = kind_for_remove.to_string();
@@ -293,7 +315,31 @@ fn ApiKeyRow(entry: ApiKeyEntry, drafts: RwSignal<DraftMap>) -> impl IntoView {
             class:api-keys-row--marked-delete=move || marked_delete.get()
         >
             <div class="api-keys-row__head">
-                <span class="api-keys-row__label">{move || label.get_value()}</span>
+                <span class="api-keys-row__title">
+                    {move || {
+                        let k = kind_for_icon.as_ref();
+                        if let Some(url) = api_key_brand_icon_url(k) {
+                            view! {
+                                <span class="api-keys-row__brand" aria-hidden="true">
+                                    <img class="api-keys-row__brand-img" src=url alt="" />
+                                </span>
+                            }
+                            .into_any()
+                        } else {
+                            view! {
+                                <span class="api-keys-row__brand api-keys-row__brand--fallback" aria-hidden="true">
+                                    <LxIcon
+                                        icon=api_key_icon_fallback(k)
+                                        width="0.72rem"
+                                        height="0.72rem"
+                                    />
+                                </span>
+                            }
+                            .into_any()
+                        }
+                    }}
+                    <span class="api-keys-row__label">{move || label.get_value()}</span>
+                </span>
                 {move || {
                     if coming_soon {
                         view! {

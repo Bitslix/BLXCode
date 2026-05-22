@@ -37,6 +37,35 @@
     margin-bottom: 0.3rem;
 }
 
+.api-keys-row__title {
+    display: flex;
+    align-items: center;
+    gap: 0.42rem;
+    min-width: 0;
+}
+
+.api-keys-row__brand {
+    width: 1.15rem;
+    height: 1.15rem;
+    flex: 0 0 1.15rem;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.92);
+    overflow: hidden;
+}
+
+.api-keys-row__brand--fallback {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-muted, rgba(255, 255, 255, 0.65));
+}
+
+.api-keys-row__brand-img {
+    width: 0.72rem;
+    height: 0.72rem;
+    display: block;
+}
+
 .api-keys-row__label {
     font-weight: 600;
     font-size: 0.9rem;
