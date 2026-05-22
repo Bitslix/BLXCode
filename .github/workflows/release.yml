@@ -142,13 +142,29 @@ jobs:
       matrix: ${{ fromJson(needs.resolve.outputs.matrix) }}
 
     runs-on: ${{ matrix.platform }}
+    # Self-hosted Windows maps default shell to WSL bash (no distro). Use PowerShell.
+    defaults:
+      run:
+        shell: ${{ matrix.platform_id == 'windows' && 'pwsh' || 'bash' }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
+      - name: Install Rust (macOS)
+        if: matrix.platform_id == 'mac'
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
+
+      - name: Install Rust (Windows)
+        if: matrix.platform_id == 'windows'
+        run: |
+          if (-not (Get-Command rustup -ErrorAction SilentlyContinue)) {
+            throw "rustup not on PATH — install stable-msvc on blxcode-win (see docs/user/building.md)"
+          }
+          rustup default stable-msvc
+          rustup target add wasm32-unknown-unknown
+          rustc -V
+          cargo -V
 
       - name: Install Node
         uses: actions/setup-node@v4

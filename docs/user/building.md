@@ -227,7 +227,12 @@ Cross-compiling Tauri desktop bundles from Linux to macOS is **not supported** f
 
 Only the **repository owner** may trigger that workflow (on org-owned repos, set the Actions variable `RELEASE_OWNER` to the allowed GitHub login).
 
-**Windows testbuild** runs on the self-hosted runner `blxcode-win`. If the job fails at **Set up job** with `node24 is not supported`, upgrade the Actions runner on that machine to **v2.320+** (or re-run after pulling `main` — the workflow pins `tauri-apps/tauri-action@v0.5.20` for node20 compatibility).
+**Windows testbuild** runs on the self-hosted runner `blxcode-win` with **PowerShell** (not WSL). Prerequisites on that machine:
+
+- **Rust** (`rustup`, `stable-msvc`, target `wasm32-unknown-unknown`) and **Node 22** on `PATH`
+- **GitHub Actions runner** v2.320+ recommended (older runners fail on `tauri-action@v0` node24; `main` pins `@v0.5.20`)
+
+If **Install Rust** fails with „Windows-Subsystem für Linux … keine Distributionen“, the runner was using WSL bash — update the workflow from `main` (uses `pwsh` + preinstalled `rustup`).
 
 ## Clean Rebuild
 
