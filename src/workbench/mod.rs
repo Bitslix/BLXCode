@@ -29,6 +29,7 @@ mod sidebar_resizer;
 mod sidebar_view_section;
 pub mod skills_rules_panel;
 pub mod state;
+mod voice_app_controls;
 mod terminal_cell;
 mod terminal_glue;
 mod toast;

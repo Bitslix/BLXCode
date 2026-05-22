@@ -1,12 +1,12 @@
 //! Voice settings tab: STT/TTS provider+model, voice with gender filter,
-//! recording quality, post-STT behaviour, STT language, push-to-talk hotkey.
+//! recording quality, post-STT behaviour. STT language + PTT live under App.
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_provider_models, is_tauri_shell, voice_provider_voices, voice_settings_get,
     voice_settings_save, voice_tts_preview, AgentProviderKind, PostSttFlow, ProviderModelEntry,
-    PttHotkey, SttLanguageMode, SttSettings, TtsSettings, VoiceEntry, VoiceGender,
+    SttSettings, TtsSettings, VoiceEntry, VoiceGender,
     VoiceProviderKind, VoiceSettings,
 };
 use crate::workbench::model_picker::ModelPicker;
@@ -90,7 +90,6 @@ pub fn VoicePane() -> impl IntoView {
     let voices = RwSignal::new(Vec::<VoiceEntry>::new());
     let gender_filter = RwSignal::new(GenderFilter::All);
     let status = RwSignal::new(Option::<String>::None);
-    let recording_hotkey = RwSignal::new(false);
     let stt_models = RwSignal::new(Vec::<ProviderModelEntry>::new());
     let tts_models = RwSignal::new(Vec::<ProviderModelEntry>::new());
 
@@ -166,8 +165,6 @@ pub fn VoicePane() -> impl IntoView {
                     let sample_rate = current.stt.sample_rate_hz;
                     let voice_id = current.tts.voice.clone();
                     let post_flow = current.post_stt_flow;
-                    let stt_lang = current.stt_language.clone();
-                    let ptt = current.ptt_hotkey.clone();
                     let tts_enabled = current.tts.enabled;
 
                     view! {
@@ -195,17 +192,6 @@ pub fn VoicePane() -> impl IntoView {
                         <BehaviorSection
                             current=current.clone()
                             post_flow=post_flow
-                            save=save
-                        />
-                        <LanguageSection
-                            current=current.clone()
-                            stt_lang=stt_lang.clone()
-                            save=save
-                        />
-                        <PttSection
-                            current=current.clone()
-                            ptt=ptt.clone()
-                            recording=recording_hotkey
                             save=save
                         />
                     }.into_any()
@@ -643,229 +629,6 @@ where
             </div>
         </section>
     }
-}
-
-// ---------------------------------------------------------------------------
-// Language section
-// ---------------------------------------------------------------------------
-
-#[component]
-fn LanguageSection<F>(current: VoiceSettings, stt_lang: SttLanguageMode, save: F) -> impl IntoView
-where
-    F: Fn(VoiceSettings) + Send + Sync + 'static + Copy,
-{
-    let i18n = expect_context::<I18nService>();
-    let on_mode = {
-        let current = current.clone();
-        move |mode: SttLanguageMode| {
-            let mut next = current.clone();
-            next.stt_language = mode;
-            save(next);
-        }
-    };
-
-    let is_follow = matches!(stt_lang, SttLanguageMode::FollowApp);
-    let is_auto = matches!(stt_lang, SttLanguageMode::AutoDetect);
-    let is_manual = matches!(stt_lang, SttLanguageMode::Manual { .. });
-    let manual_code = if let SttLanguageMode::Manual { ref code } = stt_lang {
-        code.clone()
-    } else {
-        String::new()
-    };
-
-    view! {
-        <section class="voice-pane__section">
-            <h3>{move || i18n.tr(I18nKey::VoiceLanguageSection)()}</h3>
-            <div class="voice-pane__field">
-                <label>{move || i18n.tr(I18nKey::VoiceSttLangMode)()}</label>
-                <div class="voice-pane__radio-row">
-                    <button
-                        type="button"
-                        class="voice-pane__choice"
-                        class:voice-pane__choice--active=move || is_follow
-                        on:click={
-                            let on_mode = on_mode.clone();
-                            move |_| on_mode(SttLanguageMode::FollowApp)
-                        }
-                    >
-                        {move || i18n.tr(I18nKey::VoiceSttLangFollowApp)()}
-                    </button>
-                    <button
-                        type="button"
-                        class="voice-pane__choice"
-                        class:voice-pane__choice--active=move || is_auto
-                        on:click={
-                            let on_mode = on_mode.clone();
-                            move |_| on_mode(SttLanguageMode::AutoDetect)
-                        }
-                    >
-                        {move || i18n.tr(I18nKey::VoiceSttLangAutoDetect)()}
-                    </button>
-                    <button
-                        type="button"
-                        class="voice-pane__choice"
-                        class:voice-pane__choice--active=move || is_manual
-                        on:click={
-                            let on_mode = on_mode.clone();
-                            let manual_code = manual_code.clone();
-                            move |_| on_mode(SttLanguageMode::Manual { code: manual_code.clone() })
-                        }
-                    >
-                        {move || i18n.tr(I18nKey::VoiceSttLangManual)()}
-                    </button>
-                </div>
-                <Show when=move || is_manual>
-                    <input
-                        type="text"
-                        class="voice-pane__input"
-                        placeholder="ISO-639-1 (e.g. de, en, ja)"
-                        prop:value=manual_code.clone()
-                        on:change={
-                            let on_mode = on_mode.clone();
-                            move |ev| {
-                                if let Some(t) = ev.target() {
-                                    if let Ok(inp) = t.dyn_into::<web_sys::HtmlInputElement>() {
-                                        on_mode(SttLanguageMode::Manual { code: inp.value() });
-                                    }
-                                }
-                            }
-                        }
-                    />
-                </Show>
-            </div>
-        </section>
-    }
-}
-
-// ---------------------------------------------------------------------------
-// PTT hotkey section
-// ---------------------------------------------------------------------------
-
-#[component]
-fn PttSection<F>(
-    current: VoiceSettings,
-    ptt: PttHotkey,
-    recording: RwSignal<bool>,
-    save: F,
-) -> impl IntoView
-where
-    F: Fn(VoiceSettings) + Send + Sync + 'static + Copy,
-{
-    let i18n = expect_context::<I18nService>();
-    let on_enabled = {
-        let current = current.clone();
-        move |v: bool| {
-            let mut next = current.clone();
-            next.ptt_hotkey.enabled = v;
-            save(next);
-        }
-    };
-    let begin_capture = move || recording.set(true);
-    let capture_keydown = {
-        let current = current.clone();
-        move |ev: web_sys::KeyboardEvent| {
-            if !recording.get_untracked() {
-                return;
-            }
-            ev.prevent_default();
-            if ev.key() == "Escape" {
-                recording.set(false);
-                return;
-            }
-            if matches!(
-                ev.code().as_str(),
-                "ControlLeft"
-                    | "ControlRight"
-                    | "ShiftLeft"
-                    | "ShiftRight"
-                    | "AltLeft"
-                    | "AltRight"
-                    | "MetaLeft"
-                    | "MetaRight"
-            ) {
-                return;
-            }
-            let mut next = current.clone();
-            next.ptt_hotkey = PttHotkey {
-                enabled: next.ptt_hotkey.enabled,
-                code: ev.code(),
-                ctrl: ev.ctrl_key(),
-                shift: ev.shift_key(),
-                alt: ev.alt_key(),
-                meta: ev.meta_key(),
-            };
-            save(next);
-            recording.set(false);
-        }
-    };
-
-    let display = format_hotkey(&ptt);
-    let enabled = ptt.enabled;
-
-    view! {
-        <section class="voice-pane__section">
-            <h3>{move || i18n.tr(I18nKey::VoicePttSection)()}</h3>
-            <div class="voice-pane__field">
-                <label class="voice-pane__toggle">
-                    <input
-                        type="checkbox"
-                        prop:checked=enabled
-                        on:change={
-                            let on_enabled = on_enabled.clone();
-                            move |ev| {
-                                if let Some(t) = ev.target() {
-                                    if let Ok(inp) = t.dyn_into::<web_sys::HtmlInputElement>() {
-                                        on_enabled(inp.checked());
-                                    }
-                                }
-                            }
-                        }
-                    />
-                    <span>{move || i18n.tr(I18nKey::VoicePttEnabled)()}</span>
-                </label>
-            </div>
-            <div class="voice-pane__field">
-                <label>{move || i18n.tr(I18nKey::VoicePttHotkey)()}</label>
-                <button
-                    type="button"
-                    class="voice-pane__hotkey-capture"
-                    class:voice-pane__hotkey-capture--recording=move || recording.get()
-                    on:click=move |_| begin_capture()
-                    on:keydown=capture_keydown
-                    tabindex="0"
-                >
-                    {move || if recording.get() {
-                        i18n.tr(I18nKey::VoicePttRecorderHint)().to_string()
-                    } else {
-                        display.clone()
-                    }}
-                </button>
-            </div>
-        </section>
-    }
-}
-
-fn format_hotkey(spec: &PttHotkey) -> String {
-    let mut parts: Vec<&'static str> = Vec::new();
-    if spec.ctrl {
-        parts.push("Ctrl");
-    }
-    if spec.shift {
-        parts.push("Shift");
-    }
-    if spec.alt {
-        parts.push("Alt");
-    }
-    if spec.meta {
-        parts.push("Meta");
-    }
-    let mut out = parts.join("+");
-    if !out.is_empty() {
-        out.push('+');
-    }
-    let key = spec.code.strip_prefix("Key").unwrap_or(&spec.code);
-    out.push_str(key);
-    out
 }
 
 // Convince the compiler we still need these types (referenced via trait bounds only).

@@ -1570,6 +1570,33 @@ button.workbench-shortcut-row--action:focus-visible {
   color: rgba(218, 221, 232, 0.9);
 }
 
+.app-prefs-toggle-grid--triple {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 720px) {
+    .app-prefs-toggle-grid--triple {
+        grid-template-columns: 1fr;
+    }
+}
+.app-voice-stt-lang {
+    margin-top: 0.65rem;
+}
+.app-voice-ptt {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    margin-top: 0.75rem;
+}
+.app-prefs-hotkey-capture {
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+}
+.app-prefs-hotkey-capture--recording {
+    border-color: var(--accent, #4ea1ff);
+    background: rgba(78, 161, 255, 0.08);
+}
 .app-prefs-radio input {
   accent-color: var(--accent);
 }

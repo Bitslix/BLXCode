@@ -3,6 +3,7 @@
 //! Tastenkürzel (tmux-Standard: `Ctrl+b` + zweite Taste; Legacy in App-Einstellungen)
 //! sind im Haupt-Webview gebunden ([`HarnessHost`] → [`super::harness_chords`]).
 use super::app_prefs::{AppPrefsService, ShortcutMode};
+use super::voice_app_controls::{VoicePttControls, VoiceSttLanguageControls};
 use super::browser_tab::sync_embedded_browser_layer;
 use super::harness_chords::handle_harness_keydown;
 use super::state::{
@@ -14,7 +15,7 @@ use crate::i18n::{lookup, I18nKey, Locale, APP_LOCALES};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_hooks_status, install_agent_hooks, is_tauri_shell, uninstall_agent_hooks,
-    AgentHooksReport,
+    voice_settings_get, voice_settings_save, AgentHooksReport, VoiceSettings,
 };
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Date;
@@ -936,6 +937,29 @@ fn AppSettingsPane() -> impl IntoView {
     let prefs = expect_context::<AppPrefsService>();
     let ui = expect_context::<HarnessUiService>();
     let updates = expect_context::<UpdateService>();
+    let voice_settings = RwSignal::new(Option::<VoiceSettings>::None);
+    let ptt_recording = RwSignal::new(false);
+
+    if is_tauri_shell() {
+        leptos::task::spawn_local(async move {
+            if let Ok(v) = voice_settings_get().await {
+                voice_settings.set(Some(v));
+            }
+        });
+    }
+
+    let save_voice = move |patch: VoiceSettings| {
+        if !is_tauri_shell() {
+            voice_settings.set(Some(patch));
+            return;
+        }
+        leptos::task::spawn_local(async move {
+            if let Ok(v) = voice_settings_save(patch).await {
+                voice_settings.set(Some(v));
+            }
+        });
+    };
+
     view! {
         <article class="harness-pane app-settings-pane">
             <h3 class="harness-pane-title">
@@ -952,6 +976,7 @@ fn AppSettingsPane() -> impl IntoView {
                     <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AppLanguage)()}</span>
                 </span>
                 <LocalePicker />
+                <VoiceSttLanguageControls settings=voice_settings save=save_voice />
             </label>
             <section class="harness-subpane">
                 <h4 class="harness-pane-subhead">
@@ -991,6 +1016,11 @@ fn AppSettingsPane() -> impl IntoView {
                     </div>
                 </div>
                 <p class="app-prefs-hint">{move || i18n.tr(I18nKey::AppShortcutModeHint)()}</p>
+                <VoicePttControls
+                    settings=voice_settings
+                    recording=ptt_recording
+                    save=save_voice
+                />
             </section>
             <section class="harness-subpane">
                 <h4 class="harness-pane-subhead">
