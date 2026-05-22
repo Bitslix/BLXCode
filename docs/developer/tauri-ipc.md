@@ -58,7 +58,7 @@ Authoritative list from `src-tauri/src/lib.rs` (grouped for navigation):
 
 - `git_branch`
 - `git_is_repository`, `git_commit_graph` (`git_graph` module)
-- `list_path_entries` (`fs_entries` module)
+- `list_path_entries`, `read_workspace_text_file`, `stat_workspace_file`, `read_workspace_image_file`, `read_workspace_video_file` (`fs_entries` module) — explorer tree + center-tab file preview dispatcher (see [File Preview](../user/file-preview.md))
 
 ### Hooks
 

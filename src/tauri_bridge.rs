@@ -667,6 +667,98 @@ pub async fn read_workspace_text_file(
     .await
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FileKind {
+    Image,
+    Video,
+    Markdown,
+    Mermaid,
+    Code,
+    Text,
+    Binary,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileMeta {
+    pub name: String,
+    pub rel_path: String,
+    pub byte_len: u64,
+    pub modified_ms: Option<i64>,
+    pub kind: FileKind,
+    pub mime: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BinaryFilePreview {
+    pub base64: String,
+    pub mime: String,
+    pub byte_len: u64,
+    pub truncated: bool,
+}
+
+pub async fn stat_workspace_file(
+    workspace_root: String,
+    path: String,
+) -> Result<FileMeta, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        workspace_root: String,
+        path: String,
+    }
+    invoke_typed(
+        "stat_workspace_file",
+        A {
+            workspace_root,
+            path,
+        },
+    )
+    .await
+}
+
+pub async fn read_workspace_image_file(
+    workspace_root: String,
+    path: String,
+) -> Result<BinaryFilePreview, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        workspace_root: String,
+        path: String,
+    }
+    invoke_typed(
+        "read_workspace_image_file",
+        A {
+            workspace_root,
+            path,
+        },
+    )
+    .await
+}
+
+pub async fn read_workspace_video_file(
+    workspace_root: String,
+    path: String,
+) -> Result<BinaryFilePreview, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        workspace_root: String,
+        path: String,
+    }
+    invoke_typed(
+        "read_workspace_video_file",
+        A {
+            workspace_root,
+            path,
+        },
+    )
+    .await
+}
+
 pub async fn list_directory(path: String) -> Result<Vec<DirEntryBrief>, String> {
     #[derive(Serialize)]
     struct A {
@@ -1671,22 +1763,16 @@ pub struct GitCommitNode {
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct GitGraphRow {
-    pub oid: String,
-    pub lane: usize,
-    pub lane_color_index: usize,
-    pub continues_up: bool,
-    pub continues_down: bool,
-    pub merge_from_lane: Option<usize>,
-    pub branch_from_lane: Option<usize>,
-    pub pass_through_lanes: Vec<usize>,
+pub struct GitGraphEntry {
+    pub gutter: String,
+    pub commit: GitCommitNode,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitGraphLayout {
-    pub commits: Vec<GitCommitNode>,
-    pub rows: Vec<GitGraphRow>,
+    pub entries: Vec<GitGraphEntry>,
+    pub gutter_cols: usize,
 }
 
 pub const GIT_MISSING_CODE: &str = "git_missing";

@@ -1,26 +1,13 @@
-//! Sidebar git commit graph with swim-lane SVG.
+//! Sidebar git commit graph — native `git log --graph` gutter + commit rows.
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::tauri_bridge::{
-    git_commit_graph, GitCommitNode, GitGraphLayout, GitGraphRow, GIT_MISSING_CODE,
-};
+use crate::tauri_bridge::{git_commit_graph, GitGraphEntry, GitGraphLayout, GIT_MISSING_CODE};
 use crate::workbench::sidebar_view_section::{SidebarSectionIconBtn, SidebarViewSection};
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
-use std::collections::HashMap;
-
-const LANE_PITCH: f64 = 14.0;
-/// Left inset for the first swim-lane (kept small so the column isn't mostly empty).
-const LANE_ORIGIN: f64 = 4.0;
-/// SVG viewBox height; y-coordinates are 0..VIEW_H so lines stretch with each row.
-const VIEW_H: f64 = 100.0;
-/// Commit node sits on the subject line (~top fifth of a typical multi-line row).
-const NODE_Y: f64 = 18.0;
-const NODE_R: f64 = 3.5;
-const LANE_COL_PAD: f64 = 4.0;
 
 #[component]
 pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl IntoView {
@@ -149,7 +136,7 @@ fn GitGraphBody(
                     let Some(g) = layout.get() else {
                         return view! { <p class="sidebar-view-section__empty">"…"</p> }.into_any();
                     };
-                    if g.commits.is_empty() {
+                    if g.entries.is_empty() {
                         return view! {
                             <p class="sidebar-view-section__empty">{move || i18n.tr(I18nKey::SbGraphLoadError)()}</p>
                         }
@@ -169,56 +156,18 @@ fn GitGraphBody(
     }
 }
 
-fn lane_x(lane: usize) -> f64 {
-    LANE_ORIGIN + f64::from(lane as u32) * LANE_PITCH
-}
-
-fn lane_col_width(lane_count: usize) -> f64 {
-    (lane_x(lane_count.saturating_sub(1)) + NODE_R + LANE_COL_PAD).max(14.0)
-}
-
-fn connector_path(x0: f64, y0: f64, x1: f64, y1: f64) -> String {
-    let mid_y = (y0 + y1) / 2.0;
-    format!("M {x0} {y0} C {x0} {mid_y}, {x1} {mid_y}, {x1} {y1}")
-}
-
 #[component]
 fn GitGraphList(layout: GitGraphLayout) -> impl IntoView {
-    let row_by_oid: HashMap<String, GitGraphRow> = layout
-        .rows
-        .iter()
-        .map(|r| (r.oid.clone(), r.clone()))
-        .collect();
-    let max_lane = layout
-        .rows
-        .iter()
-        .flat_map(|r| {
-            let mut lanes = vec![r.lane];
-            if let Some(m) = r.merge_from_lane {
-                lanes.push(m);
-            }
-            if let Some(b) = r.branch_from_lane {
-                lanes.push(b);
-            }
-            lanes.extend(r.pass_through_lanes.iter().copied());
-            lanes
-        })
-        .max()
-        .unwrap_or(0);
-    let lane_count = max_lane + 1;
-    let lanes_w = lane_col_width(lane_count);
+    let gutter_ch = layout.gutter_cols.max(2);
+    let gutter_style = format!("--git-graph-cols: {gutter_ch}");
 
     view! {
-        <ul class="git-graph__list" role="list">
+        <ul class="git-graph__list" role="list" style=gutter_style>
             <For
-                each=move || layout.commits.clone()
-                key=|c| c.oid.clone()
-                children=move |commit: GitCommitNode| {
-                    let oid = commit.oid.clone();
-                    let row = row_by_oid.get(&oid).cloned();
-                    view! {
-                        <GitGraphRowView commit=commit row=row lanes_w=lanes_w />
-                    }
+                each=move || layout.entries.clone()
+                key=|e| e.commit.oid.clone()
+                children=move |entry: GitGraphEntry| {
+                    view! { <GitGraphEntryView entry=entry /> }
                 }
             />
         </ul>
@@ -226,117 +175,13 @@ fn GitGraphList(layout: GitGraphLayout) -> impl IntoView {
 }
 
 #[component]
-fn GitGraphRowView(
-    commit: GitCommitNode,
-    row: Option<GitGraphRow>,
-    lanes_w: f64,
-) -> impl IntoView {
-    let lane = row.as_ref().map(|r| r.lane).unwrap_or(0);
-    let color_idx = row.as_ref().map(|r| r.lane_color_index).unwrap_or(0);
-    let continues_up = row.as_ref().is_some_and(|r| r.continues_up);
-    let continues_down = row.as_ref().is_some_and(|r| r.continues_down);
-    let merge_from = row.as_ref().and_then(|r| r.merge_from_lane);
-    let branch_from = row.as_ref().and_then(|r| r.branch_from_lane);
-    let pass_through = row
-        .as_ref()
-        .map(|r| r.pass_through_lanes.clone())
-        .unwrap_or_default();
-    let is_merge = merge_from.is_some();
-
-    let x = lane_x(lane);
+fn GitGraphEntryView(entry: GitGraphEntry) -> impl IntoView {
+    let commit = entry.commit.clone();
+    let gutter = entry.gutter.clone();
 
     view! {
         <li class="git-graph__row">
-            <div
-                class="git-graph__lanes"
-                style:width=format!("{lanes_w}px")
-            >
-                <svg
-                    class="git-graph__lanes-svg"
-                    viewBox=format!("0 0 {lanes_w} {VIEW_H}")
-                    preserveAspectRatio="none"
-                    aria-hidden="true"
-                >
-                    <For
-                        each=move || pass_through.clone()
-                        key=|lane| *lane
-                        children=move |pass_lane| {
-                            let px = lane_x(pass_lane);
-                            let pass_color = pass_lane % 6;
-                            view! {
-                                <line
-                                    x1=px
-                                    y1="0"
-                                    x2=px
-                                    y2=format!("{VIEW_H}")
-                                    class=format!("git-graph__line git-graph__line--c{pass_color}")
-                                />
-                            }
-                        }
-                    />
-                    {continues_up.then(|| view! {
-                        <line
-                            x1=x
-                            y1="0"
-                            x2=x
-                            y2=format!("{NODE_Y}")
-                            class=format!("git-graph__line git-graph__line--c{color_idx}")
-                        />
-                    })}
-                    {continues_down.then(|| view! {
-                        <line
-                            x1=x
-                            y1=format!("{NODE_Y}")
-                            x2=x
-                            y2=format!("{VIEW_H}")
-                            class=format!("git-graph__line git-graph__line--c{color_idx}")
-                        />
-                    })}
-                    {branch_from.map(|from_lane| {
-                        let x0 = lane_x(from_lane);
-                        let from_color = from_lane % 6;
-                        let d = connector_path(x0, 0.0, x, NODE_Y);
-                        view! {
-                            <path
-                                d=d
-                                class=format!("git-graph__connector git-graph__line--c{from_color}")
-                                fill="none"
-                                stroke-width="1.5"
-                            />
-                        }
-                    })}
-                    {merge_from.map(|from_lane| {
-                        let x0 = lane_x(from_lane);
-                        let from_color = from_lane % 6;
-                        let d = connector_path(x0, VIEW_H, x, NODE_Y);
-                        view! {
-                            <path
-                                d=d
-                                class=format!("git-graph__connector git-graph__line--c{from_color}")
-                                fill="none"
-                                stroke-width="1.5"
-                            />
-                        }
-                    })}
-                    <circle
-                        cx=x
-                        cy=format!("{NODE_Y}")
-                        r=if is_merge { "4.5" } else { "3.5" }
-                        class=format!(
-                            "git-graph__dot git-graph__dot--c{color_idx}{}",
-                            if is_merge { " git-graph__dot--merge" } else { "" }
-                        )
-                    />
-                    {is_merge.then(|| view! {
-                        <circle
-                            cx=x
-                            cy=format!("{NODE_Y}")
-                            r="2"
-                            class="git-graph__dot-inner"
-                        />
-                    })}
-                </svg>
-            </div>
+            <pre class="git-graph__gutter" aria-hidden="true">{gutter}</pre>
             <div class="git-graph__text">
                 <div class="git-graph__subject-line">
                     <span class="git-graph__subject" title=commit.subject.clone()>

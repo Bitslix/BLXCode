@@ -1,9 +1,9 @@
 use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
-use crate::tauri_bridge::{is_tauri_shell, read_workspace_text_file, TextFilePreview};
 use crate::workbench::app_prefs::AppPrefsService;
 use crate::workbench::browser_tab::sync_embedded_browser_layer;
 use crate::workbench::create_workspace_wizard::WorkspaceConfigurator;
+use crate::workbench::file_preview::FilePreviewDock;
 use crate::workbench::harness_chords::{
     dispatch_shortcut_action, HarnessShortcutAction, ShortcutKeys,
 };
@@ -534,79 +534,6 @@ fn DynamicCenterPanels(workspace_id: u64, active_tab_id: Memo<u64>) -> impl Into
                 }
             }
         />
-    }
-}
-
-#[component]
-fn FilePreviewDock(workspace_id: u64, rel_path: String) -> impl IntoView {
-    let wb = expect_context::<WorkbenchService>();
-    let result = RwSignal::new(None::<Result<TextFilePreview, String>>);
-    let load_gen = RwSignal::new(0_u32);
-    let rel_for_effect = rel_path.clone();
-
-    Effect::new(move |_| {
-        let _ = load_gen.get();
-        result.set(None);
-        if !is_tauri_shell() {
-            result.set(Some(Err(
-                "File preview is available in the desktop app.".into()
-            )));
-            return;
-        }
-        let Some(workspace) = wb
-            .workspaces()
-            .get()
-            .into_iter()
-            .find(|workspace| workspace.id == workspace_id)
-        else {
-            result.set(Some(Err("Workspace not found.".into())));
-            return;
-        };
-        let root = workspace.cwd;
-        let path = rel_for_effect.clone();
-        leptos::task::spawn_local(async move {
-            let next = read_workspace_text_file(root, path).await;
-            result.set(Some(next));
-        });
-    });
-
-    view! {
-        <article class="file-preview">
-            <header class="file-preview__header">
-                <div class="file-preview__title">
-                    <span class="file-preview__icon" aria-hidden="true">
-                        <LxIcon icon=icondata::LuFileText width="1rem" height="1rem" />
-                    </span>
-                    <span>{rel_path.clone()}</span>
-                </div>
-                <button
-                    type="button"
-                    class="workbench-mini-btn"
-                    on:click=move |_| load_gen.update(|n| *n = n.wrapping_add(1))
-                >
-                    <span class="harness-btn-inline">
-                        <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
-                        <span>"Refresh"</span>
-                    </span>
-                </button>
-            </header>
-            {move || match result.get() {
-                None => view! {
-                    <div class="file-preview__status">"Loading file..."</div>
-                }.into_any(),
-                Some(Err(err)) => view! {
-                    <div class="file-preview__status file-preview__status--error">{err}</div>
-                }.into_any(),
-                Some(Ok(preview)) => view! {
-                    <Show when=move || preview.truncated>
-                        <div class="file-preview__notice">
-                            {format!("Preview truncated at 512 KiB of {} bytes.", preview.byte_len)}
-                        </div>
-                    </Show>
-                    <pre class="file-preview__content"><code>{preview.content}</code></pre>
-                }.into_any(),
-            }}
-        </article>
     }
 }
 

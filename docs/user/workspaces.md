@@ -88,6 +88,7 @@ The left sidebar combines the workspace list with a resizable bottom panel for p
 - **Refresh** toolbar action.
 - **Show/hide hidden files** — eye toggle for dot-prefixed entries (`blxcode_sidebar_explorer_show_hidden_v1`, default off).
 - Click a folder row to expand or collapse; chevron still works without double-toggling.
+- **Click a file row** to open it in a shared center preview tab. Images, video, Markdown and Mermaid render as rich content; text falls back to a monospaced view; binary types show an "unsupported" placeholder. See [File Preview](file-preview.md) for the full feature matrix, byte caps, and security notes.
 
 ### Git Commits
 
@@ -182,6 +183,7 @@ If a saved snapshot has an unsupported schema version, BLXCode ignores it and st
 
 ## See also
 
+- [File Preview](file-preview.md) — image / video / Markdown / Mermaid renderers triggered from the sidebar
 - [Memory And Tasks](memory-and-tasks.md) — memory panel and graph handoff
 - [Plans](plans.md) — plan files included in handoff
 - [Keyboard Shortcuts](keyboard-shortcuts.md) — tmux/legacy chords and notification settings
