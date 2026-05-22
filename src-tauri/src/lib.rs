@@ -36,7 +36,7 @@ use updater::{
     BlxUpdaterState,
 };
 use voice::{
-    voice_cancel_recording, voice_provider_voices, voice_settings_get, voice_settings_save,
+    voice_cancel_recording, voice_settings_get, voice_settings_save,
     voice_start_recording, voice_stop_and_transcribe, voice_tts_preview, VoiceRecorderState,
 };
 use workbench_state::{
@@ -219,7 +219,6 @@ pub fn run() {
             voice_cancel_recording,
             voice_settings_get,
             voice_settings_save,
-            voice_provider_voices,
             voice_tts_preview,
             image_settings_get,
             image_settings_save,

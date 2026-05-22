@@ -1887,14 +1887,6 @@ pub struct VoiceEntry {
 
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct VoiceProviderVoicesResponse {
-    #[allow(dead_code)]
-    pub provider: VoiceProviderKind,
-    pub voices: Vec<VoiceEntry>,
-}
-
-#[derive(Clone, Debug, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct VoiceStartResponse {
     pub turn_id: String,
 }
@@ -1990,28 +1982,6 @@ pub async fn voice_settings_save(patch: VoiceSettings) -> Result<VoiceSettings, 
         patch: VoiceSettings,
     }
     invoke_typed("voice_settings_save", Args { patch }).await
-}
-
-pub async fn voice_provider_voices(
-    provider: VoiceProviderKind,
-) -> Result<VoiceProviderVoicesResponse, String> {
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Args {
-        payload: Payload,
-    }
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Payload {
-        provider: VoiceProviderKind,
-    }
-    invoke_typed(
-        "voice_provider_voices",
-        Args {
-            payload: Payload { provider },
-        },
-    )
-    .await
 }
 
 pub async fn voice_tts_preview(

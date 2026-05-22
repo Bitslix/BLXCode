@@ -93,7 +93,7 @@ Authoritative list from `src-tauri/src/lib.rs` (grouped for navigation):
 ### Voice
 
 - `voice_start_recording`, `voice_stop_and_transcribe`, `voice_cancel_recording`
-- `voice_settings_get`, `voice_settings_save`, `voice_provider_voices`, `voice_tts_preview`
+- `voice_settings_get`, `voice_settings_save`, `voice_tts_preview`
 
 Server-side agent tools (`environment_detect`, `shell_exec`, `git_*`, `web_*`, `subagents.run`, …) run inside provider/subagent HTTP loops, not as separate Tauri commands. See [Agent Harness](agent-harness.md) and [Subagents](subagents.md).
 

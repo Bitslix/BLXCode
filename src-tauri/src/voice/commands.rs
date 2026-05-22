@@ -10,7 +10,6 @@ use super::recorder::{self, VoiceRecorderState};
 use super::settings::{self, VoiceProviderKind, VoiceSettings};
 use super::stt;
 use super::tts;
-use super::voices::{self, VoiceEntry};
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -42,19 +41,6 @@ pub struct VoiceCancelPayload {
 #[serde(rename_all = "camelCase")]
 pub struct VoiceStopResponse {
     pub text: String,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct VoiceProviderRef {
-    pub provider: VoiceProviderKind,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct VoiceProviderVoicesResponse {
-    pub provider: VoiceProviderKind,
-    pub voices: Vec<VoiceEntry>,
 }
 
 #[derive(Deserialize)]
@@ -136,16 +122,6 @@ pub fn voice_settings_get(app: AppHandle) -> Result<VoiceSettings, String> {
 #[tauri::command]
 pub fn voice_settings_save(app: AppHandle, patch: VoiceSettings) -> Result<VoiceSettings, String> {
     settings::save(&app, &patch)
-}
-
-#[tauri::command]
-pub fn voice_provider_voices(
-    payload: VoiceProviderRef,
-) -> Result<VoiceProviderVoicesResponse, String> {
-    Ok(VoiceProviderVoicesResponse {
-        provider: payload.provider,
-        voices: voices::voices_for(payload.provider),
-    })
 }
 
 #[tauri::command]
