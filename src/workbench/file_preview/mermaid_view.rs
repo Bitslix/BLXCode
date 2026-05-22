@@ -28,6 +28,7 @@ pub fn MermaidView(
 
     let rel_for_effect = rel_path.clone();
     Effect::new(move |_| {
+        // Only refetch on explicit reload. See FilePreviewDock for context.
         let _ = reload_tick.get();
         source.set(None);
         render_err.set(false);
@@ -35,16 +36,14 @@ pub fn MermaidView(
             source.set(Some(Err(FilePreviewError::NoTauri)));
             return;
         }
-        let Some(ws) = wb
-            .workspaces()
-            .get()
-            .into_iter()
-            .find(|w| w.id == workspace_id)
-        else {
+        let Some(root) = wb.workspaces().with_untracked(|list| {
+            list.iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.cwd.clone())
+        }) else {
             source.set(Some(Err(FilePreviewError::WorkspaceNotFound)));
             return;
         };
-        let root = ws.cwd;
         let rel = rel_for_effect.clone();
         spawn_local(async move {
             match read_workspace_text_file(root, rel).await {

@@ -91,6 +91,7 @@ pub fn MarkdownView(
 
     let rel_for_effect = rel_path.clone();
     Effect::new(move |_| {
+        // Only refetch on explicit reload. See FilePreviewDock for context.
         let _ = reload_tick.get();
         html_sig.set(None);
         mermaid_err.set(false);
@@ -98,16 +99,14 @@ pub fn MarkdownView(
             html_sig.set(Some(Err(FilePreviewError::NoTauri)));
             return;
         }
-        let Some(ws) = wb
-            .workspaces()
-            .get()
-            .into_iter()
-            .find(|w| w.id == workspace_id)
-        else {
+        let Some(root) = wb.workspaces().with_untracked(|list| {
+            list.iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.cwd.clone())
+        }) else {
             html_sig.set(Some(Err(FilePreviewError::WorkspaceNotFound)));
             return;
         };
-        let root = ws.cwd;
         let rel = rel_for_effect.clone();
         spawn_local(async move {
             match read_workspace_text_file(root, rel).await {

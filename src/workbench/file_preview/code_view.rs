@@ -125,6 +125,9 @@ pub fn CodeView(
 
     let rel_for_effect = rel_path.clone();
     Effect::new(move |_| {
+        // Only react to `reload_tick`. Reading `wb.workspaces().get()`
+        // reactively would re-fetch + remount on every tab switch (see
+        // FilePreviewDock for the same fix).
         let _ = reload_tick.get();
         result.set(None);
         selected.set(None);
@@ -135,16 +138,14 @@ pub fn CodeView(
             result.set(Some(Err(FilePreviewError::NoTauri)));
             return;
         }
-        let Some(ws) = wb
-            .workspaces()
-            .get()
-            .into_iter()
-            .find(|w| w.id == workspace_id)
-        else {
+        let Some(root) = wb.workspaces().with_untracked(|list| {
+            list.iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.cwd.clone())
+        }) else {
             result.set(Some(Err(FilePreviewError::WorkspaceNotFound)));
             return;
         };
-        let root = ws.cwd;
         let rel = rel_for_effect.clone();
         let lang = language_hint;
         spawn_local(async move {
