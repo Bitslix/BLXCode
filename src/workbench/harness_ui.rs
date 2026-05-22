@@ -1891,7 +1891,7 @@ fn AgentProviderPane() -> impl IntoView {
                     </span>
                     <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::AgApiKeyField)()}</span>
                 </h4>
-                <p class="harness-muted">"Manage API keys in Settings → API Keys."</p>
+                <p class="harness-muted">{move || i18n.tr(I18nKey::ApiKeysManageHint)()}</p>
                 <small class="harness-muted">
                     {move || {
                         settings
@@ -1958,7 +1958,7 @@ fn AgentProviderPane() -> impl IntoView {
                         <option value="brave">{move || i18n.tr(I18nKey::AgWebProviderBrave)()}</option>
                     </select>
                 </label>
-                <p class="harness-muted">"Manage Tavily / Brave keys in Settings → API Keys."</p>
+                <p class="harness-muted">{move || i18n.tr(I18nKey::ApiKeysManageHintWeb)()}</p>
                 <div class="harness-row-gap">
                     <button
                         type="button"

@@ -105,7 +105,7 @@ pub fn ApiKeysPane() -> impl IntoView {
                 Ok(s) => {
                     status.set(Some(s));
                     drafts.set(DraftMap::new());
-                    status_msg.set(Some("Saved.".into()));
+                    status_msg.set(Some(i18n.tr(I18nKey::ApiKeysSaved)()));
                 }
                 Err(err) => error_msg.set(Some(err)),
             }
@@ -158,7 +158,7 @@ pub fn ApiKeysPane() -> impl IntoView {
                     <span class="harness-pane-subhead__icon" aria-hidden="true">
                         <LxIcon icon=icondata::LuCpu width="0.9rem" height="0.9rem" />
                     </span>
-                    <span class="harness-pane-subhead__text">"LLM Providers"</span>
+                    <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::ApiKeysLlmSubhead)()}</span>
                 </h4>
                 <ApiKeyRows entries=llm_entries drafts=drafts />
             </section>
@@ -168,7 +168,7 @@ pub fn ApiKeysPane() -> impl IntoView {
                     <span class="harness-pane-subhead__icon" aria-hidden="true">
                         <LxIcon icon=icondata::LuGlobe width="0.9rem" height="0.9rem" />
                     </span>
-                    <span class="harness-pane-subhead__text">"Search Providers"</span>
+                    <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::ApiKeysSearchSubhead)()}</span>
                 </h4>
                 <ApiKeyRows entries=search_entries drafts=drafts />
             </section>
@@ -189,7 +189,7 @@ pub fn ApiKeysPane() -> impl IntoView {
                 >
                     <span class="harness-btn-inline">
                         <LxIcon icon=icondata::LuSave width="0.78rem" height="0.78rem" />
-                        <span>{move || i18n.tr(I18nKey::AgSaveProvider)()}</span>
+                        <span>{move || i18n.tr(I18nKey::BtnSave)()}</span>
                     </span>
                 </button>
                 <button
@@ -200,11 +200,11 @@ pub fn ApiKeysPane() -> impl IntoView {
                 >
                     <span class="harness-btn-inline">
                         <LxIcon icon=icondata::LuUndo2 width="0.78rem" height="0.78rem" />
-                        <span>"Discard"</span>
+                        <span>{move || i18n.tr(I18nKey::ApiKeysDiscard)()}</span>
                     </span>
                 </button>
                 <Show when=move || dirty.get()>
-                    <span class="api-keys-dirty harness-muted">"Unsaved changes"</span>
+                    <span class="api-keys-dirty harness-muted">{move || i18n.tr(I18nKey::ApiKeysUnsaved)()}</span>
                 </Show>
             </footer>
         </article>
@@ -228,6 +228,7 @@ fn ApiKeyRows(entries: Memo<Vec<ApiKeyEntry>>, drafts: RwSignal<DraftMap>) -> im
 
 #[component]
 fn ApiKeyRow(entry: ApiKeyEntry, drafts: RwSignal<DraftMap>) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     let kind: std::sync::Arc<str> = std::sync::Arc::from(entry.kind.as_str());
     let coming_soon = entry.coming_soon;
     let configured = entry.configured;
@@ -235,15 +236,8 @@ fn ApiKeyRow(entry: ApiKeyEntry, drafts: RwSignal<DraftMap>) -> impl IntoView {
 
     let label = StoredValue::new(entry.label.clone());
     let masked = StoredValue::new(entry.masked_value.clone().unwrap_or_default());
-    let env_hint_text = StoredValue::new(
-        entry
-            .env_var
-            .clone()
-            .filter(|_| !configured || via_env)
-            .map(|v| format!("Env fallback: {v}"))
-            .unwrap_or_default(),
-    );
-    let has_env_hint = !env_hint_text.with_value(|s| s.is_empty());
+    let env_var = StoredValue::new(entry.env_var.clone());
+    let show_env_hint = !configured || via_env;
 
     let kind_for_draft = kind.clone();
     let draft_value = Signal::derive(move || {
@@ -302,15 +296,27 @@ fn ApiKeyRow(entry: ApiKeyEntry, drafts: RwSignal<DraftMap>) -> impl IntoView {
                 <span class="api-keys-row__label">{move || label.get_value()}</span>
                 {move || {
                     if coming_soon {
-                        view! { <span class="api-keys-row__badge">"Coming soon"</span> }.into_any()
+                        view! {
+                            <span class="api-keys-row__badge">{move || i18n.tr(I18nKey::ApiKeysComingSoon)()}</span>
+                        }.into_any()
                     } else if marked_delete.get() {
-                        view! { <span class="api-keys-row__badge api-keys-row__badge--warn">"Will be removed"</span> }.into_any()
+                        view! {
+                            <span class="api-keys-row__badge api-keys-row__badge--warn">
+                                {move || i18n.tr(I18nKey::ApiKeysWillBeRemoved)()}
+                            </span>
+                        }.into_any()
                     } else if configured && via_env {
-                        view! { <span class="api-keys-row__badge">"via env"</span> }.into_any()
+                        view! {
+                            <span class="api-keys-row__badge">{move || i18n.tr(I18nKey::ApiKeysViaEnv)()}</span>
+                        }.into_any()
                     } else if configured {
                         view! { <span class="api-keys-row__masked">{move || masked.get_value()}</span> }.into_any()
                     } else {
-                        view! { <span class="api-keys-row__badge api-keys-row__badge--muted">"Not set"</span> }.into_any()
+                        view! {
+                            <span class="api-keys-row__badge api-keys-row__badge--muted">
+                                {move || i18n.tr(I18nKey::ApiKeysNotSet)()}
+                            </span>
+                        }.into_any()
                     }
                 }}
             </div>
@@ -334,7 +340,7 @@ fn ApiKeyRow(entry: ApiKeyEntry, drafts: RwSignal<DraftMap>) -> impl IntoView {
                                     <button type="button" class="workbench-mini-btn" on:click=on_undo>
                                         <span class="harness-btn-inline">
                                             <LxIcon icon=icondata::LuUndo2 width="0.78rem" height="0.78rem" />
-                                            <span>"Undo"</span>
+                                            <span>{move || i18n.tr(I18nKey::ApiKeysUndo)()}</span>
                                         </span>
                                     </button>
                                 }.into_any()
@@ -344,7 +350,7 @@ fn ApiKeyRow(entry: ApiKeyEntry, drafts: RwSignal<DraftMap>) -> impl IntoView {
                                     <button type="button" class="workbench-mini-btn" on:click=on_remove>
                                         <span class="harness-btn-inline">
                                             <LxIcon icon=icondata::LuTrash2 width="0.78rem" height="0.78rem" />
-                                            <span>"Remove"</span>
+                                            <span>{move || i18n.tr(I18nKey::ApiKeysRemove)()}</span>
                                         </span>
                                     </button>
                                 }.into_any()
@@ -355,10 +361,21 @@ fn ApiKeyRow(entry: ApiKeyEntry, drafts: RwSignal<DraftMap>) -> impl IntoView {
                     }
                 </div>
                 <Show when=move || row_dirty.get() && !marked_delete.get()>
-                    <p class="harness-muted api-keys-row__hint">"Pending — press Save to apply."</p>
+                    <p class="harness-muted api-keys-row__hint">{move || i18n.tr(I18nKey::ApiKeysPending)()}</p>
                 </Show>
-                <Show when=move || has_env_hint>
-                    <p class="harness-muted api-keys-row__envhint">{move || env_hint_text.get_value()}</p>
+                <Show when=move || show_env_hint && env_var.with_value(|v| v.is_some())>
+                    <p class="harness-muted api-keys-row__envhint">
+                        {move || {
+                            env_var
+                                .with_value(|v| {
+                                    v.as_ref().map(|name| {
+                                        i18n.tr(I18nKey::ApiKeysEnvFallback)().replace("{var}", name)
+                                    })
+                                })
+                                .flatten()
+                                .unwrap_or_default()
+                        }}
+                    </p>
                 </Show>
             </Show>
         </li>
