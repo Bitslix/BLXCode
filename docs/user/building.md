@@ -233,7 +233,7 @@ Only the **repository owner** may trigger that workflow (on org-owned repos, set
 - **MSVC Build Tools** (Desktop C++) for linking — see Windows section above
 - **GitHub Actions runner** v2.320+ recommended (older runners fail on `tauri-action@v0` node24; `main` pins `@v0.5.20`)
 
-If **Install Rust** fails with „Windows-Subsystem für Linux … keine Distributionen“, pull `main` (workflow avoids WSL). **`pwsh: command not found`** → workflow uses built-in `powershell`. **`PSSecurityException` / Ausführung von Skripts deaktiviert** → workflow uses `-ExecutionPolicy Bypass` for runner scripts; or on the machine: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` for the runner service account.
+If **Install Rust** fails with „Windows-Subsystem für Linux … keine Distributionen“, pull `main` (workflow avoids WSL). **`rustup default` / `static.rust-lang.org` / error 10054** — firewall or proxy on the runner PC blocks Rust CDN; allow `https://static.rust-lang.org` or run once interactively as the runner user: `rustup default stable-msvc` and `rustup target add wasm32-unknown-unknown` (then CI reuses the toolchain).
 
 ## Clean Rebuild
 

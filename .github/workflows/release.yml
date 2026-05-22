@@ -169,13 +169,20 @@ jobs:
           "%RUNNER_TEMP%\rustup-init.exe" -y --default-toolchain stable-msvc
           if not exist "%RUSTUP%" exit /b 1
           :configure
+          rustc -V >nul 2>&1 && goto add_target
+          echo No active toolchain, setting stable-msvc...
           "%RUSTUP%" default stable-msvc
           if errorlevel 1 (
-            echo rustup default failed, retrying in 10s...
-            timeout /t 10 /nobreak >nul
+            echo rustup default failed, retrying...
+            ping 127.0.0.1 -n 6 >nul
             "%RUSTUP%" default stable-msvc
           )
-          if errorlevel 1 exit /b 1
+          if errorlevel 1 (
+            echo ERROR: cannot reach static.rust-lang.org from this runner.
+            echo Run once on DESKTOP-KI: rustup default stable-msvc
+            exit /b 1
+          )
+          :add_target
           "%RUSTUP%" target add wasm32-unknown-unknown
           rustc -V
           cargo -V
