@@ -85,8 +85,10 @@ pub struct WorkspaceEntry {
     /// Sidebar explorer section expanded (bottom panel).
     #[serde(default = "default_sidebar_section_open")]
     pub sidebar_explorer_open: bool,
-    /// Sidebar git graph section expanded.
-    #[serde(default = "default_sidebar_section_open")]
+    /// Sidebar git graph section expanded. Defaults to **closed** so the
+    /// section starts collapsed and only opens when the user explicitly
+    /// expands it; the per-workspace state then persists across sessions.
+    #[serde(default = "default_sidebar_graph_open")]
     pub sidebar_graph_open: bool,
     /// Relative paths (from `cwd`) expanded in the project explorer tree.
     #[serde(default)]
@@ -105,6 +107,10 @@ pub struct WorkspaceEntry {
 
 fn default_sidebar_section_open() -> bool {
     true
+}
+
+fn default_sidebar_graph_open() -> bool {
+    false
 }
 
 pub const CENTER_TERMINALS_TAB_ID: u64 = 1;
@@ -401,7 +407,7 @@ impl WorkspaceEntry {
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),
             sidebar_explorer_open: true,
-            sidebar_graph_open: true,
+            sidebar_graph_open: false,
             sidebar_explorer_expanded_paths: Vec::new(),
             center_tabs: default_center_tabs(),
             center_active_tab_id: default_center_active_tab_id(),
@@ -1467,7 +1473,7 @@ impl WorkbenchService {
 
     pub fn active_sidebar_graph_open(&self) -> bool {
         self.with_active_workspace(|w| w.sidebar_graph_open)
-            .unwrap_or(true)
+            .unwrap_or(false)
     }
 
     pub fn set_active_sidebar_graph_open(&self, open: bool) {
@@ -1684,7 +1690,7 @@ impl WorkbenchService {
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),
             sidebar_explorer_open: true,
-            sidebar_graph_open: true,
+            sidebar_graph_open: false,
             sidebar_explorer_expanded_paths: Vec::new(),
             center_tabs: Vec::new(),
             center_active_tab_id: 0,
@@ -1810,7 +1816,7 @@ impl WorkbenchService {
                 memory_category_settings: HashMap::new(),
                 agent_chat_usage: ChatUsageStats::default(),
                 sidebar_explorer_open: true,
-                sidebar_graph_open: true,
+                sidebar_graph_open: false,
                 sidebar_explorer_expanded_paths: Vec::new(),
                 center_tabs: default_center_tabs(),
                 center_active_tab_id: default_center_active_tab_id(),
@@ -2425,7 +2431,7 @@ impl WorkbenchService {
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),
             sidebar_explorer_open: true,
-            sidebar_graph_open: true,
+            sidebar_graph_open: false,
             sidebar_explorer_expanded_paths: Vec::new(),
             center_tabs: default_center_tabs(),
             center_active_tab_id: default_center_active_tab_id(),
@@ -3371,7 +3377,7 @@ mod center_tab_tests {
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),
             sidebar_explorer_open: true,
-            sidebar_graph_open: true,
+            sidebar_graph_open: false,
             sidebar_explorer_expanded_paths: Vec::new(),
             center_tabs: tabs,
             center_active_tab_id: active,
@@ -3464,7 +3470,7 @@ mod terminal_slot_tests {
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),
             sidebar_explorer_open: true,
-            sidebar_graph_open: true,
+            sidebar_graph_open: false,
             sidebar_explorer_expanded_paths: Vec::new(),
             center_tabs: default_center_tabs(),
             center_active_tab_id: default_center_active_tab_id(),
