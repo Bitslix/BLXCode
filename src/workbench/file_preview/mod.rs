@@ -23,6 +23,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use markdown_view::MarkdownView;
 use mermaid_view::MermaidView;
+use util::{render_load_error, FilePreviewError};
 use video_view::VideoView;
 
 /// Top-level file preview component. Owns metadata + reload tick;
@@ -32,7 +33,7 @@ pub fn FilePreviewDock(workspace_id: u64, rel_path: String) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
 
-    let meta_sig = RwSignal::new(None::<Result<FileMeta, String>>);
+    let meta_sig = RwSignal::new(None::<Result<FileMeta, FilePreviewError>>);
     let (reload_tick, set_reload_tick) = signal(0u32);
 
     let rel_for_meta = rel_path.clone();
@@ -40,9 +41,7 @@ pub fn FilePreviewDock(workspace_id: u64, rel_path: String) -> impl IntoView {
         let _ = reload_tick.get();
         meta_sig.set(None);
         if !is_tauri_shell() {
-            meta_sig.set(Some(Err(
-                "File preview is available in the desktop app.".into()
-            )));
+            meta_sig.set(Some(Err(FilePreviewError::NoTauri)));
             return;
         }
         let Some(ws) = wb
@@ -51,14 +50,16 @@ pub fn FilePreviewDock(workspace_id: u64, rel_path: String) -> impl IntoView {
             .into_iter()
             .find(|w| w.id == workspace_id)
         else {
-            meta_sig.set(Some(Err("Workspace not found.".into())));
+            meta_sig.set(Some(Err(FilePreviewError::WorkspaceNotFound)));
             return;
         };
         let root = ws.cwd;
         let rel = rel_for_meta.clone();
         spawn_local(async move {
-            let next = stat_workspace_file(root, rel).await;
-            meta_sig.set(Some(next));
+            match stat_workspace_file(root, rel).await {
+                Ok(m) => meta_sig.set(Some(Ok(m))),
+                Err(e) => meta_sig.set(Some(Err(FilePreviewError::Failed(e)))),
+            }
         });
     });
 
@@ -85,9 +86,7 @@ pub fn FilePreviewDock(workspace_id: u64, rel_path: String) -> impl IntoView {
                 None => view! {
                     <div class="file-preview__status">{i18n.tr(I18nKey::FilePreviewLoading)}</div>
                 }.into_any(),
-                Some(Err(err)) => view! {
-                    <div class="file-preview__status file-preview__status--error">{err}</div>
-                }.into_any(),
+                Some(Err(err)) => render_load_error(i18n, I18nKey::FilePreviewLoadFailedMeta, err),
                 Some(Ok(meta)) => render_for_kind(
                     meta.kind,
                     dispatcher_workspace_id,
@@ -145,16 +144,14 @@ fn TextFallbackView(
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
-    let result = RwSignal::new(None::<Result<(String, bool, u64), String>>);
+    let result = RwSignal::new(None::<Result<(String, bool, u64), FilePreviewError>>);
 
     let rel_for_effect = rel_path.clone();
     Effect::new(move |_| {
         let _ = reload_tick.get();
         result.set(None);
         if !is_tauri_shell() {
-            result.set(Some(Err(
-                "File preview is available in the desktop app.".into()
-            )));
+            result.set(Some(Err(FilePreviewError::NoTauri)));
             return;
         }
         let Some(ws) = wb
@@ -163,7 +160,7 @@ fn TextFallbackView(
             .into_iter()
             .find(|w| w.id == workspace_id)
         else {
-            result.set(Some(Err("Workspace not found.".into())));
+            result.set(Some(Err(FilePreviewError::WorkspaceNotFound)));
             return;
         };
         let root = ws.cwd;
@@ -171,7 +168,7 @@ fn TextFallbackView(
         spawn_local(async move {
             match read_workspace_text_file(root, rel).await {
                 Ok(t) => result.set(Some(Ok((t.content, t.truncated, t.byte_len)))),
-                Err(e) => result.set(Some(Err(e))),
+                Err(e) => result.set(Some(Err(FilePreviewError::Failed(e)))),
             }
         });
     });
@@ -182,13 +179,13 @@ fn TextFallbackView(
                 None => view! {
                     <div class="file-preview__status">{i18n.tr(I18nKey::FilePreviewLoading)}</div>
                 }.into_any(),
-                Some(Err(err)) => view! {
-                    <div class="file-preview__status file-preview__status--error">{err}</div>
-                }.into_any(),
+                Some(Err(err)) => render_load_error(i18n, I18nKey::FilePreviewLoadFailedText, err),
                 Some(Ok((content, truncated, byte_len))) => view! {
                     <Show when=move || truncated>
                         <div class="file-preview__notice">
-                            {format!("Preview truncated at 512 KiB of {byte_len} bytes.")}
+                            {move || i18n
+                                .tr(I18nKey::FilePreviewTextTruncated)()
+                                .replace("{bytes}", &byte_len.to_string())}
                         </div>
                     </Show>
                     <pre class="file-preview__content"><code>{content}</code></pre>

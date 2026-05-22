@@ -4,7 +4,9 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{is_tauri_shell, read_workspace_text_file};
 use crate::workbench::file_preview::mermaid_glue::run_mermaid_on;
-use crate::workbench::file_preview::util::sanitize_markdown_html;
+use crate::workbench::file_preview::util::{
+    render_load_error, sanitize_markdown_html, FilePreviewError,
+};
 use crate::workbench::WorkbenchService;
 use leptos::html;
 use leptos::prelude::*;
@@ -83,19 +85,17 @@ pub fn MarkdownView(
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
-    let html_sig = RwSignal::new(None::<Result<String, String>>);
+    let html_sig = RwSignal::new(None::<Result<String, FilePreviewError>>);
     let node_ref: NodeRef<html::Article> = NodeRef::new();
-    let mermaid_err = RwSignal::new(None::<String>);
+    let mermaid_err = RwSignal::new(false);
 
     let rel_for_effect = rel_path.clone();
     Effect::new(move |_| {
         let _ = reload_tick.get();
         html_sig.set(None);
-        mermaid_err.set(None);
+        mermaid_err.set(false);
         if !is_tauri_shell() {
-            html_sig.set(Some(Err(
-                "File preview is available in the desktop app.".into()
-            )));
+            html_sig.set(Some(Err(FilePreviewError::NoTauri)));
             return;
         }
         let Some(ws) = wb
@@ -104,7 +104,7 @@ pub fn MarkdownView(
             .into_iter()
             .find(|w| w.id == workspace_id)
         else {
-            html_sig.set(Some(Err("Workspace not found.".into())));
+            html_sig.set(Some(Err(FilePreviewError::WorkspaceNotFound)));
             return;
         };
         let root = ws.cwd;
@@ -115,7 +115,7 @@ pub fn MarkdownView(
                     let rendered = render_markdown(&t.content);
                     html_sig.set(Some(Ok(rendered)));
                 }
-                Err(e) => html_sig.set(Some(Err(e))),
+                Err(e) => html_sig.set(Some(Err(FilePreviewError::Failed(e)))),
             }
         });
     });
@@ -147,7 +147,8 @@ pub fn MarkdownView(
         }
         spawn_local(async move {
             if let Err(e) = run_mermaid_on(&nodes).await {
-                mermaid_err.set(Some(e));
+                web_sys::console::warn_1(&format!("mermaid render: {e}").into());
+                mermaid_err.set(true);
             }
         });
     });
@@ -158,20 +159,18 @@ pub fn MarkdownView(
                 None => view! {
                     <div class="file-preview__status">{i18n.tr(I18nKey::FilePreviewLoading)}</div>
                 }.into_any(),
-                Some(Err(err)) => view! {
-                    <div class="file-preview__status file-preview__status--error">{err}</div>
-                }.into_any(),
+                Some(Err(err)) => render_load_error(i18n, I18nKey::FilePreviewLoadFailedMarkdown, err),
                 Some(Ok(html_content)) => view! {
                     <article
                         node_ref=node_ref
                         class="file-preview__markdown"
                         inner_html=html_content
                     />
-                    {move || mermaid_err.get().map(|e| view! {
+                    <Show when=move || mermaid_err.get()>
                         <div class="file-preview__notice file-preview__notice--error">
-                            {i18n.tr(I18nKey::FilePreviewMermaidError)}" "{e}
+                            {i18n.tr(I18nKey::FilePreviewMermaidError)}
                         </div>
-                    })}
+                    </Show>
                 }.into_any(),
             }}
         </div>

@@ -4,6 +4,7 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{is_tauri_shell, read_workspace_text_file};
 use crate::workbench::file_preview::mermaid_glue::run_mermaid_on;
+use crate::workbench::file_preview::util::{render_load_error, FilePreviewError};
 use crate::workbench::WorkbenchService;
 use leptos::html;
 use leptos::prelude::*;
@@ -20,8 +21,8 @@ pub fn MermaidView(
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
-    let source = RwSignal::new(None::<Result<String, String>>);
-    let render_err = RwSignal::new(None::<String>);
+    let source = RwSignal::new(None::<Result<String, FilePreviewError>>);
+    let render_err = RwSignal::new(false);
     let node_ref: NodeRef<html::Div> = NodeRef::new();
     let dom_id = Uuid::new_v4().to_string().replace('-', "");
 
@@ -29,11 +30,9 @@ pub fn MermaidView(
     Effect::new(move |_| {
         let _ = reload_tick.get();
         source.set(None);
-        render_err.set(None);
+        render_err.set(false);
         if !is_tauri_shell() {
-            source.set(Some(Err(
-                "File preview is available in the desktop app.".into()
-            )));
+            source.set(Some(Err(FilePreviewError::NoTauri)));
             return;
         }
         let Some(ws) = wb
@@ -42,7 +41,7 @@ pub fn MermaidView(
             .into_iter()
             .find(|w| w.id == workspace_id)
         else {
-            source.set(Some(Err("Workspace not found.".into())));
+            source.set(Some(Err(FilePreviewError::WorkspaceNotFound)));
             return;
         };
         let root = ws.cwd;
@@ -50,7 +49,7 @@ pub fn MermaidView(
         spawn_local(async move {
             match read_workspace_text_file(root, rel).await {
                 Ok(t) => source.set(Some(Ok(t.content))),
-                Err(e) => source.set(Some(Err(e))),
+                Err(e) => source.set(Some(Err(FilePreviewError::Failed(e)))),
             }
         });
     });
@@ -79,7 +78,8 @@ pub fn MermaidView(
         let nodes = vec![target_el];
         spawn_local(async move {
             if let Err(e) = run_mermaid_on(&nodes).await {
-                render_err.set(Some(e));
+                web_sys::console::warn_1(&format!("mermaid render: {e}").into());
+                render_err.set(true);
             }
         });
     });
@@ -90,18 +90,16 @@ pub fn MermaidView(
                 None => view! {
                     <div class="file-preview__status">{i18n.tr(I18nKey::FilePreviewLoading)}</div>
                 }.into_any(),
-                Some(Err(err)) => view! {
-                    <div class="file-preview__status file-preview__status--error">{err}</div>
-                }.into_any(),
+                Some(Err(err)) => render_load_error(i18n, I18nKey::FilePreviewLoadFailedMermaid, err),
                 Some(Ok(_)) => {
                     let id_attr = dom_id.clone();
                     view! {
                         <div node_ref=node_ref id=id_attr class="file-preview__mermaid-stage" />
-                        {move || render_err.get().map(|e| view! {
+                        <Show when=move || render_err.get()>
                             <div class="file-preview__notice file-preview__notice--error">
-                                {i18n.tr(I18nKey::FilePreviewMermaidError)}" "{e}
+                                {i18n.tr(I18nKey::FilePreviewMermaidError)}
                             </div>
-                        })}
+                        </Show>
                     }.into_any()
                 }
             }}

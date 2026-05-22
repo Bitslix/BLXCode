@@ -1,7 +1,10 @@
 //! Format / sanitize helpers used by the file preview dispatcher.
 
+use crate::i18n::I18nKey;
+use crate::service::I18nService;
 use crate::tauri_bridge::FileKind;
 use js_sys::Date;
+use leptos::prelude::*;
 
 /// Returns a human-readable byte-size string (1.4 MiB, 768 B, …).
 #[must_use]
@@ -32,6 +35,69 @@ pub fn format_mtime(ms: Option<i64>) -> Option<String> {
         None
     } else {
         Some(label)
+    }
+}
+
+/// Categorised error state for every file-preview renderer. Each variant
+/// maps to its own translated banner so users see why a preview failed
+/// instead of a raw backend string.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FilePreviewError {
+    /// Running in a non-Tauri webview (the file APIs are unavailable).
+    NoTauri,
+    /// Workspace id no longer present in the service.
+    WorkspaceNotFound,
+    /// Payload exceeded the renderer's byte cap. `bytes` is the original size.
+    TooLarge(u64),
+    /// Backend or IPC error; `detail` is shown after the localized label.
+    Failed(String),
+}
+
+/// Renders a [`FilePreviewError`] using the supplied label for the `Failed`
+/// case. `NoTauri` / `WorkspaceNotFound` / `TooLarge` ignore the label and
+/// show their own standalone message so the user sees the most relevant text.
+#[must_use]
+pub fn render_load_error(
+    i18n: I18nService,
+    failed_label: I18nKey,
+    error: FilePreviewError,
+) -> AnyView {
+    match error {
+        FilePreviewError::NoTauri => view! {
+            <div class="file-preview__status file-preview__status--error">
+                {i18n.tr(I18nKey::FilePreviewNoTauri)}
+            </div>
+        }
+        .into_any(),
+        FilePreviewError::WorkspaceNotFound => view! {
+            <div class="file-preview__status file-preview__status--error">
+                {i18n.tr(I18nKey::FilePreviewWorkspaceNotFound)}
+            </div>
+        }
+        .into_any(),
+        FilePreviewError::TooLarge(bytes) => view! {
+            <div class="file-preview__status file-preview__status--error">
+                {move || i18n
+                    .tr(I18nKey::FilePreviewTooLarge)()
+                    .replace("{size}", &format_bytes(bytes))}
+            </div>
+        }
+        .into_any(),
+        FilePreviewError::Failed(detail) => {
+            let detail = detail.trim().to_string();
+            let detail_for_render = detail.clone();
+            view! {
+                <div class="file-preview__status file-preview__status--error">
+                    <strong class="file-preview__error-label">{i18n.tr(failed_label)}</strong>
+                    {move || if detail_for_render.is_empty() {
+                        String::new()
+                    } else {
+                        format!(": {detail_for_render}")
+                    }}
+                </div>
+            }
+            .into_any()
+        }
     }
 }
 

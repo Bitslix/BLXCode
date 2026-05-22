@@ -216,19 +216,19 @@ Erinnerung aus `CLAUDE.md`: Alle Sprach-Locale-Files müssen die neuen Keys habe
 
 ## Tasks
 
-- [ ] `backend-meta` - `FileMeta`, `FileKind`, `stat_workspace_file` Command + Unit-Tests
-- [ ] `backend-image` - `BinaryFilePreview` + `read_workspace_image_file` + Cap + Tests
-- [ ] `backend-video` - `read_workspace_video_file` + Cap + Tests
-- [ ] `backend-register` - Commands in `lib.rs` registrieren
-- [ ] `bridge-types` - Serde-Spiegel + async Wrapper in `tauri_bridge.rs`
-- [ ] `frontend-module` - Neues `file_preview/`-Modul mit `mod.rs` Dispatcher + `util.rs` (classify, format)
-- [ ] `frontend-header` - Topbar mit Name/Pfad/Größe/mtime + Refresh
-- [ ] `frontend-image` - SVG-Inline + Raster-`<img>` mit Data-URL + Centered-Stage
-- [ ] `frontend-video` - `<video>`-Renderer mit Cap-Hinweis
-- [ ] `frontend-markdown` - `pulldown-cmark` Pipeline + Sanitization + Mermaid-Sentinel
-- [ ] `mermaid-asset` - Vendored `mermaid.esm.min.mjs` unter `public/vendor/mermaid/`
-- [ ] `frontend-mermaid` - Lazy-Loader + `mermaid.run` Integration für `.mmd` und Markdown-Blöcke
-- [ ] `workspace-panel-wire` - Alte `FilePreviewDock`-Impl in `workspace_panel.rs` entfernen, neues Modul nutzen
-- [ ] `i18n-keys` - Neue Keys in `keys.rs` + alle `locales/*.rs`
-- [ ] `styles` - `.file-preview__stage`, `__image`, `__video`, `__markdown`, `__mermaid` Stile
+- [x] `backend-meta` - `FileMeta`, `FileKind`, `stat_workspace_file` Command + Unit-Tests
+- [x] `backend-image` - `BinaryFilePreview` + `read_workspace_image_file` + Cap + Tests
+- [x] `backend-video` - `read_workspace_video_file` + Cap + Tests
+- [x] `backend-register` - Commands in `lib.rs` registrieren
+- [x] `bridge-types` - Serde-Spiegel + async Wrapper in `tauri_bridge.rs`
+- [x] `frontend-module` - Neues `file_preview/`-Modul mit `mod.rs` Dispatcher + `util.rs` (classify, format)
+- [x] `frontend-header` - Topbar mit Name/Pfad/Größe/mtime + Refresh
+- [x] `frontend-image` - SVG-Inline + Raster-`<img>` mit Data-URL + Centered-Stage
+- [x] `frontend-video` - `<video>`-Renderer mit Cap-Hinweis
+- [x] `frontend-markdown` - `pulldown-cmark` Pipeline + Sanitization + Mermaid-Sentinel
+- [x] `mermaid-asset` - Vendored Mermaid-Bundle unter `public/vendor/mermaid/` (UMD `mermaid.min.js`)
+- [x] `frontend-mermaid` - Lazy-Loader + `mermaid.run` Integration für `.mmd` und Markdown-Blöcke
+- [x] `workspace-panel-wire` - Alte `FilePreviewDock`-Impl in `workspace_panel.rs` entfernen, neues Modul nutzen
+- [x] `i18n-keys` - Neue Keys in `keys.rs` + alle `locales/*.rs`
+- [x] `styles` - `.file-preview__stage`, `__image`, `__video`, `__markdown`, `__mermaid` Stile
 - [ ] `manual-verify` - Manuelle Checks aus Test-Tabelle inkl. PNG, SVG, MD, MMD, MP4
