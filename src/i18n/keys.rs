@@ -322,6 +322,17 @@ pub enum I18nKey {
     CenterTabCloseTerminalsCancel,
     CenterTabCloseAria,
 
+    FilePreviewSize,
+    FilePreviewModified,
+    FilePreviewTooLarge,
+    FilePreviewUnsupported,
+    FilePreviewLoadingMermaid,
+    FilePreviewMermaidError,
+    FilePreviewRefresh,
+    FilePreviewLoading,
+    FilePreviewCopyPath,
+    FilePreviewPathCopied,
+
     HsCloseSettingsAria,
     HsTitle,
     HsAriaCats,

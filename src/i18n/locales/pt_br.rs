@@ -315,6 +315,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CenterTabCloseTerminalsCancel => "Cancelar",
         I18nKey::CenterTabCloseAria => "Fechar guia",
 
+        I18nKey::FilePreviewSize => "Tamanho",
+        I18nKey::FilePreviewModified => "Modificado",
+        I18nKey::FilePreviewTooLarge => "Arquivo grande demais para visualização ({size}).",
+        I18nKey::FilePreviewUnsupported => "Visualização indisponível para este tipo de arquivo.",
+        I18nKey::FilePreviewLoadingMermaid => "Carregando Mermaid…",
+        I18nKey::FilePreviewMermaidError => "Falha ao renderizar o diagrama Mermaid.",
+        I18nKey::FilePreviewRefresh => "Atualizar",
+        I18nKey::FilePreviewLoading => "Carregando arquivo…",
+        I18nKey::FilePreviewCopyPath => "Copiar caminho",
+        I18nKey::FilePreviewPathCopied => "Caminho copiado",
+
         I18nKey::HsCloseSettingsAria => "Fechar configurações",
         I18nKey::HsTitle => "Configurações do BLXCode",
         I18nKey::HsAriaCats => "Categorias",

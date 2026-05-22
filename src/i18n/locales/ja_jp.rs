@@ -309,6 +309,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CenterTabCloseTerminalsCancel => "キャンセル",
         I18nKey::CenterTabCloseAria => "タブを閉じる",
 
+        I18nKey::FilePreviewSize => "サイズ",
+        I18nKey::FilePreviewModified => "更新日時",
+        I18nKey::FilePreviewTooLarge => "ファイルが大きすぎてプレビューできません ({size})。",
+        I18nKey::FilePreviewUnsupported => "このファイル形式のプレビューには対応していません。",
+        I18nKey::FilePreviewLoadingMermaid => "Mermaid を読み込み中…",
+        I18nKey::FilePreviewMermaidError => "Mermaid 図の描画に失敗しました。",
+        I18nKey::FilePreviewRefresh => "更新",
+        I18nKey::FilePreviewLoading => "ファイルを読み込み中…",
+        I18nKey::FilePreviewCopyPath => "パスをコピー",
+        I18nKey::FilePreviewPathCopied => "パスをコピーしました",
+
         I18nKey::HsCloseSettingsAria => "設定を閉じる",
         I18nKey::HsTitle => "BLXCodeの設定",
         I18nKey::HsAriaCats => "カテゴリー",

@@ -313,6 +313,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CenterTabCloseTerminalsCancel => "Anuluj",
         I18nKey::CenterTabCloseAria => "Zamknij kartę",
 
+        I18nKey::FilePreviewSize => "Rozmiar",
+        I18nKey::FilePreviewModified => "Zmodyfikowano",
+        I18nKey::FilePreviewTooLarge => "Plik zbyt duży do podglądu ({size}).",
+        I18nKey::FilePreviewUnsupported => "Podgląd niedostępny dla tego typu pliku.",
+        I18nKey::FilePreviewLoadingMermaid => "Ładowanie Mermaid…",
+        I18nKey::FilePreviewMermaidError => "Nie udało się wyrenderować diagramu Mermaid.",
+        I18nKey::FilePreviewRefresh => "Odśwież",
+        I18nKey::FilePreviewLoading => "Wczytywanie pliku…",
+        I18nKey::FilePreviewCopyPath => "Kopiuj ścieżkę",
+        I18nKey::FilePreviewPathCopied => "Ścieżka skopiowana",
+
         I18nKey::HsCloseSettingsAria => "Zamknij ustawienia",
         I18nKey::HsTitle => "Ustawienia BLXCode",
         I18nKey::HsAriaCats => "Kategorie",

@@ -307,6 +307,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CenterTabCloseTerminalsCancel => "取消",
         I18nKey::CenterTabCloseAria => "关闭标签页",
 
+        I18nKey::FilePreviewSize => "大小",
+        I18nKey::FilePreviewModified => "已修改",
+        I18nKey::FilePreviewTooLarge => "文件过大，无法预览 ({size})。",
+        I18nKey::FilePreviewUnsupported => "此文件类型暂不支持预览。",
+        I18nKey::FilePreviewLoadingMermaid => "正在加载 Mermaid…",
+        I18nKey::FilePreviewMermaidError => "Mermaid 图渲染失败。",
+        I18nKey::FilePreviewRefresh => "刷新",
+        I18nKey::FilePreviewLoading => "正在加载文件…",
+        I18nKey::FilePreviewCopyPath => "复制路径",
+        I18nKey::FilePreviewPathCopied => "路径已复制",
+
         I18nKey::HsCloseSettingsAria => "关闭设置",
         I18nKey::HsTitle => "BLX 代码设置",
         I18nKey::HsAriaCats => "类别",

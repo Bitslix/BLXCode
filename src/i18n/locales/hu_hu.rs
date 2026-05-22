@@ -315,6 +315,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CenterTabCloseTerminalsCancel => "Mégse",
         I18nKey::CenterTabCloseAria => "Lap bezárása",
 
+        I18nKey::FilePreviewSize => "Méret",
+        I18nKey::FilePreviewModified => "Módosítva",
+        I18nKey::FilePreviewTooLarge => "A fájl túl nagy az előnézethez ({size}).",
+        I18nKey::FilePreviewUnsupported => "Ehhez a fájltípushoz nem érhető el előnézet.",
+        I18nKey::FilePreviewLoadingMermaid => "Mermaid betöltése…",
+        I18nKey::FilePreviewMermaidError => "A Mermaid diagram megjelenítése sikertelen.",
+        I18nKey::FilePreviewRefresh => "Frissítés",
+        I18nKey::FilePreviewLoading => "Fájl betöltése…",
+        I18nKey::FilePreviewCopyPath => "Útvonal másolása",
+        I18nKey::FilePreviewPathCopied => "Útvonal másolva",
+
         I18nKey::HsCloseSettingsAria => "Zárja be a beállításokat",
         I18nKey::HsTitle => "BLXCode beállítások",
         I18nKey::HsAriaCats => "Kategóriák",

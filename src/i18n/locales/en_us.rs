@@ -352,6 +352,17 @@ Classic: Ctrl+O quick open, Ctrl+` new terminal, Ctrl+Shift+P palette."
         I18nKey::CenterTabCloseTerminalsCancel => "Cancel",
         I18nKey::CenterTabCloseAria => "Close tab",
 
+        I18nKey::FilePreviewSize => "Size",
+        I18nKey::FilePreviewModified => "Modified",
+        I18nKey::FilePreviewTooLarge => "File too large for preview ({size}).",
+        I18nKey::FilePreviewUnsupported => "Preview not available for this file type.",
+        I18nKey::FilePreviewLoadingMermaid => "Loading Mermaid…",
+        I18nKey::FilePreviewMermaidError => "Failed to render Mermaid diagram.",
+        I18nKey::FilePreviewRefresh => "Refresh",
+        I18nKey::FilePreviewLoading => "Loading file…",
+        I18nKey::FilePreviewCopyPath => "Copy path",
+        I18nKey::FilePreviewPathCopied => "Path copied",
+
         I18nKey::HsCloseSettingsAria => "Close settings",
         I18nKey::HsTitle => "BLXCode settings",
         I18nKey::HsAriaCats => "Categories",

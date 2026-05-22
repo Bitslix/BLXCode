@@ -317,6 +317,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CenterTabCloseTerminalsCancel => "Annuler",
         I18nKey::CenterTabCloseAria => "Fermer l'onglet",
 
+        I18nKey::FilePreviewSize => "Taille",
+        I18nKey::FilePreviewModified => "Modifié",
+        I18nKey::FilePreviewTooLarge => "Fichier trop volumineux pour l'aperçu ({size}).",
+        I18nKey::FilePreviewUnsupported => "Aperçu indisponible pour ce type de fichier.",
+        I18nKey::FilePreviewLoadingMermaid => "Chargement de Mermaid…",
+        I18nKey::FilePreviewMermaidError => "Échec du rendu du diagramme Mermaid.",
+        I18nKey::FilePreviewRefresh => "Actualiser",
+        I18nKey::FilePreviewLoading => "Chargement du fichier…",
+        I18nKey::FilePreviewCopyPath => "Copier le chemin",
+        I18nKey::FilePreviewPathCopied => "Chemin copié",
+
         I18nKey::HsCloseSettingsAria => "Fermer les paramètres",
         I18nKey::HsTitle => "Paramètres du code BLX",
         I18nKey::HsAriaCats => "Catégories",

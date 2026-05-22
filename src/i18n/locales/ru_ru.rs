@@ -313,6 +313,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CenterTabCloseTerminalsCancel => "Отмена",
         I18nKey::CenterTabCloseAria => "Закрыть вкладку",
 
+        I18nKey::FilePreviewSize => "Размер",
+        I18nKey::FilePreviewModified => "Изменено",
+        I18nKey::FilePreviewTooLarge => "Файл слишком большой для предпросмотра ({size}).",
+        I18nKey::FilePreviewUnsupported => "Предпросмотр недоступен для этого типа файла.",
+        I18nKey::FilePreviewLoadingMermaid => "Загрузка Mermaid…",
+        I18nKey::FilePreviewMermaidError => "Не удалось отрисовать диаграмму Mermaid.",
+        I18nKey::FilePreviewRefresh => "Обновить",
+        I18nKey::FilePreviewLoading => "Загрузка файла…",
+        I18nKey::FilePreviewCopyPath => "Копировать путь",
+        I18nKey::FilePreviewPathCopied => "Путь скопирован",
+
         I18nKey::HsCloseSettingsAria => "Закрыть настройки",
         I18nKey::HsTitle => "Настройки BLXкода",
         I18nKey::HsAriaCats => "Категории",

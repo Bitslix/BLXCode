@@ -5385,6 +5385,236 @@ button {
   background: transparent;
 }
 
+.file-preview__title-block {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.file-preview__name {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.file-preview__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.file-preview__path {
+  min-width: 0;
+  max-width: 32rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.78;
+}
+
+.file-preview__meta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.05rem 0.42rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--overlay-1, transparent);
+}
+
+.file-preview__meta-label {
+  opacity: 0.7;
+}
+
+.file-preview__meta-value {
+  color: var(--text);
+}
+
+.file-preview__actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.file-preview__stage {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 0.85rem;
+}
+
+.file-preview__stage--text,
+.file-preview__stage--markdown,
+.file-preview__stage--mermaid {
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+}
+
+.file-preview__stage--text {
+  padding: 0;
+}
+
+.file-preview__image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 4px 24px rgba(0, 0, 0, 0.35));
+}
+
+.file-preview__image-svg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  filter: drop-shadow(0 4px 24px rgba(0, 0, 0, 0.35));
+}
+
+.file-preview__image-svg svg {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+}
+
+.file-preview__video {
+  max-width: 100%;
+  max-height: 100%;
+  background: #000;
+  border-radius: 6px;
+  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.45);
+}
+
+.file-preview__markdown {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 1rem 1.25rem 1.75rem;
+  font-size: 0.86rem;
+  line-height: 1.65;
+  color: var(--text);
+}
+
+.file-preview__markdown h1,
+.file-preview__markdown h2,
+.file-preview__markdown h3,
+.file-preview__markdown h4,
+.file-preview__markdown h5,
+.file-preview__markdown h6 {
+  margin-top: 1.4em;
+  margin-bottom: 0.5em;
+  line-height: 1.25;
+}
+
+.file-preview__markdown h1 { font-size: 1.6em; }
+.file-preview__markdown h2 { font-size: 1.35em; }
+.file-preview__markdown h3 { font-size: 1.15em; }
+.file-preview__markdown h4 { font-size: 1.05em; }
+
+.file-preview__markdown p,
+.file-preview__markdown ul,
+.file-preview__markdown ol,
+.file-preview__markdown blockquote {
+  margin: 0.55em 0;
+}
+
+.file-preview__markdown ul,
+.file-preview__markdown ol {
+  padding-left: 1.4em;
+}
+
+.file-preview__markdown a {
+  color: var(--accent, #66aaff);
+  text-decoration: underline;
+}
+
+.file-preview__markdown code {
+  font-family: var(--font-mono);
+  background: var(--overlay-2);
+  padding: 0.08em 0.32em;
+  border-radius: 4px;
+  font-size: 0.88em;
+}
+
+.file-preview__markdown pre {
+  background: var(--overlay-2);
+  padding: 0.75rem 0.9rem;
+  border-radius: 6px;
+  overflow: auto;
+  font-size: 0.82em;
+  line-height: 1.5;
+}
+
+.file-preview__markdown pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+
+.file-preview__markdown blockquote {
+  border-left: 3px solid var(--accent, #66aaff);
+  padding: 0.2em 0.8em;
+  color: var(--text-muted);
+  background: var(--overlay-1, transparent);
+}
+
+.file-preview__markdown table {
+  border-collapse: collapse;
+  margin: 0.8em 0;
+  font-size: 0.86em;
+}
+
+.file-preview__markdown th,
+.file-preview__markdown td {
+  border: 1px solid var(--border);
+  padding: 0.32em 0.55em;
+}
+
+.file-preview__markdown img {
+  max-width: 100%;
+  height: auto;
+}
+
+.file-preview__markdown .file-preview__mermaid-inline {
+  background: transparent;
+  padding: 0.4rem;
+  margin: 0.8em 0;
+  text-align: center;
+}
+
+.file-preview__mermaid-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 100%;
+  padding: 1.25rem;
+}
+
+.file-preview__mermaid-node {
+  background: transparent;
+  font-family: var(--font-mono);
+}
+
+.file-preview__notice--error {
+  color: var(--danger, #f87171);
+  border-color: var(--danger, #f87171);
+}
+
 .ws-term-grid__resize {
   position: absolute;
   z-index: 6;

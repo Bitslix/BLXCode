@@ -315,6 +315,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CenterTabCloseTerminalsCancel => "Abbrechen",
         I18nKey::CenterTabCloseAria => "Tab schließen",
 
+        I18nKey::FilePreviewSize => "Größe",
+        I18nKey::FilePreviewModified => "Geändert",
+        I18nKey::FilePreviewTooLarge => "Datei zu groß für Vorschau ({size}).",
+        I18nKey::FilePreviewUnsupported => "Vorschau für diesen Dateityp nicht verfügbar.",
+        I18nKey::FilePreviewLoadingMermaid => "Mermaid wird geladen…",
+        I18nKey::FilePreviewMermaidError => "Mermaid-Diagramm konnte nicht gerendert werden.",
+        I18nKey::FilePreviewRefresh => "Aktualisieren",
+        I18nKey::FilePreviewLoading => "Datei wird geladen…",
+        I18nKey::FilePreviewCopyPath => "Pfad kopieren",
+        I18nKey::FilePreviewPathCopied => "Pfad kopiert",
+
         I18nKey::HsCloseSettingsAria => "Einstellungen schließen",
         I18nKey::HsTitle => "BLXCode-Einstellungen",
         I18nKey::HsAriaCats => "Kategorien",
