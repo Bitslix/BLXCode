@@ -142,10 +142,10 @@ jobs:
       matrix: ${{ fromJson(needs.resolve.outputs.matrix) }}
 
     runs-on: ${{ matrix.platform }}
-    # Self-hosted Windows maps default shell to WSL bash (no distro). Use Windows PowerShell.
+    # Self-hosted Windows: avoid WSL bash; bypass restrictive PowerShell execution policy for GHA scripts.
     defaults:
       run:
-        shell: ${{ matrix.platform_id == 'windows' && 'powershell' || 'bash' }}
+        shell: ${{ matrix.platform_id == 'windows' && 'powershell -NoProfile -ExecutionPolicy Bypass -File {0}' || 'bash' }}
     steps:
       - uses: actions/checkout@v4
 
