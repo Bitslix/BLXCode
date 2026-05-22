@@ -28,13 +28,6 @@ fn input_str(ev: &web_sys::Event) -> Option<String> {
         .map(|i| i.value())
 }
 
-fn select_str(ev: &web_sys::Event) -> Option<String> {
-    ev.target()?
-        .dyn_into::<web_sys::HtmlSelectElement>()
-        .ok()
-        .map(|s| s.value())
-}
-
 fn provider_label(i18n: &I18nService, provider: AgentProviderKind) -> String {
     let key = match provider {
         AgentProviderKind::Openrouter => I18nKey::AgProviderOpenrouter,
@@ -553,6 +546,9 @@ fn AgentModelPicker(
                                     .into_iter()
                                     .map(|entry| {
                                         let id = entry.id.clone();
+                                        let id_active = id.clone();
+                                        let id_click = id.clone();
+                                        let id_key = id.clone();
                                         let meta = model_row_meta(&i18n, &entry);
                                         let title = if entry.label.trim().is_empty() {
                                             entry.id.clone()
@@ -565,21 +561,18 @@ fn AgentModelPicker(
                                                 type="button"
                                                 role="option"
                                                 class="harness-provider-option agent-model-option"
-                                                class:harness-provider-option--active=move || model_id.get() == id
-                                                aria-selected=move || if model_id.get() == id {
+                                                class:harness-provider-option--active=move || model_id.get() == id_active
+                                                aria-selected=move || if model_id.get() == id_active {
                                                     "true"
                                                 } else {
                                                     "false"
                                                 }
-                                                on:click={
-                                                    let id = id.clone();
-                                                    move |_| choose(id.clone())
-                                                }
+                                                on:click=move |_| choose(id_click.clone())
                                                 on:keydown=move |ev: web_sys::KeyboardEvent| {
                                                     match ev.key().as_str() {
                                                         "Enter" | " " => {
                                                             ev.prevent_default();
-                                                            choose(id.clone());
+                                                            choose(id_key.clone());
                                                         }
                                                         "Escape" => {
                                                             ev.prevent_default();
