@@ -5,7 +5,7 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_provider_models, agent_settings_get, api_keys_status, is_tauri_shell,
-    voice_provider_voices, voice_settings_get, voice_settings_save, voice_tts_preview,
+    voice_settings_get, voice_settings_save, voice_tts_preview,
     AgentProviderKind, AgentProviderSettingsView, ApiKeyEntry, ApiKeysStatus, PostSttFlow,
     ProviderModelEntry, SttSettings, TtsSettings, VoiceEntry, VoiceGender, VoiceProviderKind,
     VoiceSettings,
@@ -201,16 +201,35 @@ fn apply_voice_provider_defaults(next: &mut VoiceSettings, provider: VoiceProvid
         if !matches!(next.tts.model_id.as_str(), "neural" | "standard") {
             next.tts.model_id = "neural".into();
         }
-        if next.tts.voice.is_empty() || openai_voice_ids().contains(&next.tts.voice.as_str()) {
+        if next.tts.voice.is_empty() || is_openai_voice_id(&next.tts.voice) {
             next.tts.voice = "Joanna".into();
         }
     }
 }
 
-fn openai_voice_ids() -> &'static [&'static str] {
-    &[
-        "alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer",
+fn fixed_aws_polly_voices() -> Vec<VoiceEntry> {
+    [
+        ("Joanna", "Joanna", VoiceGender::Female),
+        ("Matthew", "Matthew", VoiceGender::Male),
+        ("Amy", "Amy", VoiceGender::Female),
+        ("Brian", "Brian", VoiceGender::Male),
+        ("Ivy", "Ivy", VoiceGender::Female),
+        ("Justin", "Justin", VoiceGender::Male),
     ]
+    .into_iter()
+    .map(|(id, label, gender)| VoiceEntry {
+        id: id.into(),
+        label: label.into(),
+        gender,
+    })
+    .collect()
+}
+
+fn is_openai_voice_id(id: &str) -> bool {
+    matches!(
+        id,
+        "alloy" | "ash" | "ballad" | "coral" | "echo" | "fable" | "nova" | "onyx" | "sage" | "shimmer"
+    )
 }
 
 fn focus_voice_provider_option(provider: VoiceProviderKind) {
@@ -241,7 +260,6 @@ pub fn AgentVoiceColumn() -> impl IntoView {
     let settings = RwSignal::new(Option::<VoiceSettings>::None);
     let agent_settings = RwSignal::new(Option::<AgentProviderSettingsView>::None);
     let api_keys = RwSignal::new(Option::<ApiKeysStatus>::None);
-    let voices = RwSignal::new(Vec::<VoiceEntry>::new());
     let gender_filter = RwSignal::new(GenderFilter::All);
     let status = RwSignal::new(Option::<String>::None);
     let stt_models = RwSignal::new(Vec::<ProviderModelEntry>::new());
@@ -264,9 +282,6 @@ pub fn AgentVoiceColumn() -> impl IntoView {
                 voice_provider.set(v.stt.provider);
                 stt_model_id.set(v.stt.model_id.clone());
                 tts_model_id.set(v.tts.model_id.clone());
-                if let Ok(catalog) = voice_provider_voices(v.tts.provider).await {
-                    voices.set(catalog.voices);
-                }
                 fetch_models_for(v.stt.provider, ModelKind::Stt, stt_models).await;
                 fetch_models_for(v.tts.provider, ModelKind::Tts, tts_models).await;
                 settings.set(Some(v));
@@ -299,9 +314,6 @@ pub fn AgentVoiceColumn() -> impl IntoView {
     let reload_tts_models = move |provider: VoiceProviderKind| {
         tts_loading_models.set(true);
         leptos::task::spawn_local(async move {
-            if let Ok(catalog) = voice_provider_voices(provider).await {
-                voices.set(catalog.voices);
-            }
             fetch_models_for(provider, ModelKind::Tts, tts_models).await;
             tts_loading_models.set(false);
         });
@@ -409,7 +421,6 @@ pub fn AgentVoiceColumn() -> impl IntoView {
                                 voice_provider=voice_provider
                                 post_flow=post_flow
                                 voice_id=voice_id.clone()
-                                voices=voices
                                 gender_filter=gender_filter
                                 tts_enabled=tts_enabled
                                 save=save
@@ -877,12 +888,12 @@ fn VoicePickCard(
 fn VoicePicksGrid(
     settings: RwSignal<Option<VoiceSettings>>,
     voice_id: String,
-    voices: RwSignal<Vec<VoiceEntry>>,
     gender_filter: RwSignal<GenderFilter>,
     voices_pick_enabled: Memo<bool>,
     on_pick: Callback<String>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let catalog = fixed_aws_polly_voices();
     view! {
         <div class="voice-pane__voice-picks">
             <div class="voice-pane__gender-row">
@@ -906,8 +917,8 @@ fn VoicePicksGrid(
                     let active = voice_id.clone();
                     let filter = gender_filter.get();
                     let picks_disabled = !voices_pick_enabled.get();
-                    voices.get()
-                        .into_iter()
+                    catalog
+                        .iter()
                         .filter(|v| filter.matches(v.gender))
                         .map(|v| {
                             view! {
@@ -932,7 +943,6 @@ fn VoicePickerBlock(
     settings: RwSignal<Option<VoiceSettings>>,
     voice_provider: RwSignal<VoiceProviderKind>,
     voice_id: String,
-    voices: RwSignal<Vec<VoiceEntry>>,
     gender_filter: RwSignal<GenderFilter>,
     on_pick: Callback<String>,
 ) -> impl IntoView {
@@ -946,7 +956,6 @@ fn VoicePickerBlock(
             <VoicePicksGrid
                 settings=settings
                 voice_id=voice_id.clone()
-                voices=voices
                 gender_filter=gender_filter
                 voices_pick_enabled=voices_pick_enabled
                 on_pick=on_pick
@@ -965,7 +974,6 @@ fn BehaviorSection<F>(
     voice_provider: RwSignal<VoiceProviderKind>,
     post_flow: PostSttFlow,
     voice_id: String,
-    voices: RwSignal<Vec<VoiceEntry>>,
     gender_filter: RwSignal<GenderFilter>,
     tts_enabled: bool,
     save: F,
@@ -1026,7 +1034,6 @@ where
                 settings=settings
                 voice_provider=voice_provider
                 voice_id=voice_id
-                voices=voices
                 gender_filter=gender_filter
                 on_pick=on_voice
             />
