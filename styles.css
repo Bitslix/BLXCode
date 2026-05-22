@@ -2647,6 +2647,29 @@ button.workbench-shortcut-row--action:focus-visible {
   background: var(--accent-hover);
 }
 
+.workbench-mini-btn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.workbench-mini-btn:disabled:hover {
+  border-color: var(--border);
+  color: var(--text-muted);
+  background: transparent;
+}
+
+.workbench-mini-btn--primary:disabled {
+  background: color-mix(in srgb, var(--accent) 42%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  color: color-mix(in srgb, #101114 55%, transparent);
+}
+
+.workbench-mini-btn--primary:disabled:hover {
+  background: color-mix(in srgb, var(--accent) 42%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
 .workbench-agent-status {
   flex-shrink: 0;
   margin: 0;

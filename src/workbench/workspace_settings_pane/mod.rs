@@ -97,6 +97,9 @@ pub fn WorkspaceSettingsPane(
     };
 
     let discard = move || {
+        if !dirty.get_untracked() {
+            return;
+        }
         let b = baseline.get_untracked();
         wb.set_default_project_dir_text(b.project_dir);
         wb.set_harness_workspace_root_text(b.sandbox_root);
@@ -214,7 +217,7 @@ pub fn WorkspaceSettingsPane(
                 <button
                     type="button"
                     class="workbench-mini-btn workbench-mini-btn--primary"
-                    prop:disabled=move || busy.get() || !dirty.get()
+                    disabled=move || busy.get() || !dirty.get()
                     on:click=move |_| save()
                 >
                     <span class="harness-btn-inline">
@@ -225,7 +228,7 @@ pub fn WorkspaceSettingsPane(
                 <button
                     type="button"
                     class="workbench-mini-btn"
-                    prop:disabled=move || busy.get() || !dirty.get()
+                    disabled=move || busy.get() || !dirty.get()
                     on:click=move |_| discard()
                 >
                     <span class="harness-btn-inline">

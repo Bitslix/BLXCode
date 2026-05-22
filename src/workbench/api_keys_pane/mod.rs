@@ -135,6 +135,9 @@ pub fn ApiKeysPane() -> impl IntoView {
     };
 
     let discard = move || {
+        if !dirty.get_untracked() {
+            return;
+        }
         drafts.set(DraftMap::new());
         status_msg.set(None);
         error_msg.set(None);
@@ -205,7 +208,7 @@ pub fn ApiKeysPane() -> impl IntoView {
                 <button
                     type="button"
                     class="workbench-mini-btn workbench-mini-btn--primary"
-                    prop:disabled=move || busy.get() || !dirty.get() || !is_tauri_shell()
+                    disabled=move || busy.get() || !dirty.get() || !is_tauri_shell()
                     on:click=move |_| save()
                 >
                     <span class="harness-btn-inline">
@@ -216,7 +219,7 @@ pub fn ApiKeysPane() -> impl IntoView {
                 <button
                     type="button"
                     class="workbench-mini-btn"
-                    prop:disabled=move || busy.get() || !dirty.get()
+                    disabled=move || busy.get() || !dirty.get()
                     on:click=move |_| discard()
                 >
                     <span class="harness-btn-inline">
