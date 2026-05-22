@@ -315,6 +315,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::ApiKeysHeading => "API 키",
         I18nKey::ApiKeysLlmSubhead => "LLM 제공업체",
         I18nKey::ApiKeysSearchSubhead => "검색 제공업체",
+        I18nKey::ApiKeysImageVideoSubhead => "Image / video & voice",
+        I18nKey::AgProviderFal => "fal.ai",
         I18nKey::ApiKeysSaved => "저장됨.",
         I18nKey::ApiKeysDiscard => "취소",
         I18nKey::ApiKeysUnsaved => "저장되지 않은 변경",

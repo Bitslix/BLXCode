@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
 use crate::agent::web_settings::{self, WebKeyKind};
+use crate::media_keys::{self, MediaKeyKind};
 use crate::agent_settings::{
     self, delete_provider_key_secret, provider_env_var, provider_key_with_source,
     set_provider_key_secret, AgentProviderKind, KeySource,
@@ -21,6 +22,7 @@ use crate::agent_settings::{
 pub enum ApiKeyCategory {
     Llm,
     Search,
+    ImageVideo,
 }
 
 /// One row in the API-keys pane. `kind` is the stable identifier the UI
@@ -90,8 +92,14 @@ fn search_kind_from_kind(kind: &str) -> Option<WebKeyKind> {
         .map(|(k, _, _)| *k)
 }
 
+fn media_kind_from_kind(kind: &str) -> Option<MediaKeyKind> {
+    media_keys::kind_from_id(kind)
+}
+
 fn build_status(app: &AppHandle) -> Result<ApiKeysStatus, String> {
-    let mut entries = Vec::with_capacity(LLM_KINDS.len() + SEARCH_KINDS.len() + COMING_SOON_LLM.len());
+    let mut entries = Vec::with_capacity(
+        LLM_KINDS.len() + SEARCH_KINDS.len() + COMING_SOON_LLM.len() + media_keys::MEDIA_KEY_KINDS.len(),
+    );
 
     for (provider, kind, label) in LLM_KINDS {
         let (masked, source) = provider_key_with_source(app, *provider)?;
@@ -134,6 +142,20 @@ fn build_status(app: &AppHandle) -> Result<ApiKeysStatus, String> {
         });
     }
 
+    for media_kind in media_keys::MEDIA_KEY_KINDS {
+        let row = media_keys::catalog_entry(media_kind)?;
+        entries.push(ApiKeyEntry {
+            kind: row.kind,
+            label: row.label,
+            category: ApiKeyCategory::ImageVideo,
+            configured: row.configured,
+            masked_value: row.masked_value,
+            via_env: row.via_env,
+            env_var: Some(row.env_var),
+            coming_soon: false,
+        });
+    }
+
     Ok(ApiKeysStatus { entries })
 }
 
@@ -148,6 +170,10 @@ fn apply_one(app: &AppHandle, action: &ApiKeyAction) -> Result<(), String> {
                 web_settings::set_key(app, search_kind, value.clone())?;
                 return Ok(());
             }
+            if let Some(media_kind) = media_kind_from_kind(kind) {
+                media_keys::set_key(app, media_kind, value)?;
+                return Ok(());
+            }
             Err(format!("unknown api key kind: {kind}"))
         }
         ApiKeyAction::Delete { kind } => {
@@ -157,6 +183,10 @@ fn apply_one(app: &AppHandle, action: &ApiKeyAction) -> Result<(), String> {
             }
             if let Some(search_kind) = search_kind_from_kind(kind) {
                 web_settings::delete_key(app, search_kind)?;
+                return Ok(());
+            }
+            if let Some(media_kind) = media_kind_from_kind(kind) {
+                media_keys::delete_key(app, media_kind)?;
                 return Ok(());
             }
             Err(format!("unknown api key kind: {kind}"))

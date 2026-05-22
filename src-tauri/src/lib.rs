@@ -10,6 +10,7 @@ mod git_graph;
 mod git_info;
 mod gitignore;
 mod image;
+mod media_keys;
 mod memory;
 mod plans;
 mod pty_host;

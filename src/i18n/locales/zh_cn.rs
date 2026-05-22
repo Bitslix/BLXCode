@@ -313,6 +313,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::ApiKeysHeading => "API 密钥",
         I18nKey::ApiKeysLlmSubhead => "LLM 提供商",
         I18nKey::ApiKeysSearchSubhead => "搜索提供商",
+        I18nKey::ApiKeysImageVideoSubhead => "Image / video & voice",
+        I18nKey::AgProviderFal => "fal.ai",
         I18nKey::ApiKeysSaved => "已保存。",
         I18nKey::ApiKeysDiscard => "放弃",
         I18nKey::ApiKeysUnsaved => "未保存的更改",

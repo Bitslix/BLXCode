@@ -3,9 +3,10 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_provider_models, agent_settings_get, image_settings_get, image_settings_save,
-    is_tauri_shell, AgentProviderKind, AgentProviderSettingsView, ImageProviderKind,
-    ImageQualityLevel, ImageSettings, ProviderModelEntry,
+    agent_provider_models, agent_settings_get, api_keys_status, image_curated_models,
+    image_settings_get, image_settings_save, is_tauri_shell, AgentProviderKind,
+    AgentProviderSettingsView, ApiKeyEntry, ApiKeysStatus, ImageProviderKind, ImageQualityLevel,
+    ImageSettings, ProviderModelEntry,
 };
 use crate::workbench::agent_model_picker::AgentModelPicker;
 use gloo_timers::future::TimeoutFuture;
@@ -13,14 +14,19 @@ use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
 
-fn image_providers() -> [ImageProviderKind; 2] {
-    [ImageProviderKind::Openrouter, ImageProviderKind::Openai]
+fn image_providers() -> [ImageProviderKind; 3] {
+    [
+        ImageProviderKind::Openrouter,
+        ImageProviderKind::Openai,
+        ImageProviderKind::Fal,
+    ]
 }
 
-fn image_to_agent_provider(p: ImageProviderKind) -> AgentProviderKind {
+fn image_to_agent_provider(p: ImageProviderKind) -> Option<AgentProviderKind> {
     match p {
-        ImageProviderKind::Openai => AgentProviderKind::Openai,
-        ImageProviderKind::Openrouter => AgentProviderKind::Openrouter,
+        ImageProviderKind::Openai => Some(AgentProviderKind::Openai),
+        ImageProviderKind::Openrouter => Some(AgentProviderKind::Openrouter),
+        ImageProviderKind::Fal => None,
     }
 }
 
@@ -28,6 +34,7 @@ fn image_provider_label(i18n: &I18nService, provider: ImageProviderKind) -> Stri
     let key = match provider {
         ImageProviderKind::Openrouter => I18nKey::AgProviderOpenrouter,
         ImageProviderKind::Openai => I18nKey::AgProviderOpenai,
+        ImageProviderKind::Fal => I18nKey::AgProviderFal,
     };
     i18n.tr(key)().to_string()
 }
@@ -36,31 +43,53 @@ fn image_provider_icon_url(provider: ImageProviderKind) -> &'static str {
     match provider {
         ImageProviderKind::Openrouter => "/public/brand-icons/openrouter.svg",
         ImageProviderKind::Openai => "/public/brand-icons/openai.svg",
+        ImageProviderKind::Fal => "/public/brand-icons/fal.svg",
     }
+}
+
+fn media_key_entry<'a>(api_keys: &'a ApiKeysStatus, kind: &str) -> Option<&'a ApiKeyEntry> {
+    api_keys.entries.iter().find(|e| e.kind == kind)
 }
 
 fn image_provider_key_status(
     i18n: &I18nService,
-    view: &AgentProviderSettingsView,
+    agent_settings: Option<&AgentProviderSettingsView>,
+    api_keys: Option<&ApiKeysStatus>,
     provider: ImageProviderKind,
 ) -> String {
-    let agent = image_to_agent_provider(provider);
-    let configured = view
-        .key_statuses
-        .iter()
-        .find(|s| s.provider == agent)
-        .map(|s| s.configured)
-        .unwrap_or(false);
-    if configured {
-        let mask = view
+    if provider == ImageProviderKind::Fal {
+        let Some(entry) = api_keys.and_then(|s| media_key_entry(s, "fal")) else {
+            return i18n.tr(I18nKey::AgApiKeyMissing)().to_string();
+        };
+        if entry.configured {
+            if let Some(mask) = entry.masked_value.as_ref() {
+                format!("{} ({mask})", i18n.tr(I18nKey::AgApiKeyConfigured)())
+            } else {
+                i18n.tr(I18nKey::AgApiKeyConfigured)().to_string()
+            }
+        } else {
+            i18n.tr(I18nKey::AgApiKeyMissing)().to_string()
+        }
+    } else if let (Some(view), Some(agent)) = (agent_settings, image_to_agent_provider(provider)) {
+        let configured = view
             .key_statuses
             .iter()
             .find(|s| s.provider == agent)
-            .and_then(|s| s.masked_value.clone());
-        if let Some(mask) = mask {
-            format!("{} ({mask})", i18n.tr(I18nKey::AgApiKeyConfigured)())
+            .map(|s| s.configured)
+            .unwrap_or(false);
+        if configured {
+            let mask = view
+                .key_statuses
+                .iter()
+                .find(|s| s.provider == agent)
+                .and_then(|s| s.masked_value.clone());
+            if let Some(mask) = mask {
+                format!("{} ({mask})", i18n.tr(I18nKey::AgApiKeyConfigured)())
+            } else {
+                i18n.tr(I18nKey::AgApiKeyConfigured)().to_string()
+            }
         } else {
-            i18n.tr(I18nKey::AgApiKeyConfigured)().to_string()
+            i18n.tr(I18nKey::AgApiKeyMissing)().to_string()
         }
     } else {
         i18n.tr(I18nKey::AgApiKeyMissing)().to_string()
@@ -85,10 +114,9 @@ fn focus_image_provider_option(provider: ImageProviderKind) {
 }
 
 fn next_image_provider(provider: ImageProviderKind) -> ImageProviderKind {
-    match provider {
-        ImageProviderKind::Openrouter => ImageProviderKind::Openai,
-        ImageProviderKind::Openai => ImageProviderKind::Openrouter,
-    }
+    let levels = image_providers();
+    let idx = levels.iter().position(|p| *p == provider).unwrap_or(0);
+    levels[(idx + 1) % levels.len()]
 }
 
 fn prev_image_provider(provider: ImageProviderKind) -> ImageProviderKind {
@@ -156,7 +184,25 @@ async fn fetch_image_models(
     provider: ImageProviderKind,
     out: RwSignal<Vec<ProviderModelEntry>>,
 ) {
-    let agent_provider = image_to_agent_provider(provider);
+    if provider == ImageProviderKind::Fal {
+        if let Ok(resp) = image_curated_models(provider).await {
+            let entries = resp
+                .entries
+                .into_iter()
+                .map(|m| ProviderModelEntry {
+                    id: m.id,
+                    label: m.label,
+                    description: None,
+                    pricing: None,
+                })
+                .collect();
+            out.set(entries);
+        }
+        return;
+    }
+    let Some(agent_provider) = image_to_agent_provider(provider) else {
+        return;
+    };
     let all = match agent_provider_models(agent_provider).await {
         Ok(resp) => resp.entries,
         Err(_) => Vec::new(),
@@ -433,6 +479,7 @@ pub fn AgentImageColumn() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let settings = RwSignal::new(Option::<ImageSettings>::None);
     let agent_settings = RwSignal::new(Option::<AgentProviderSettingsView>::None);
+    let api_keys = RwSignal::new(Option::<ApiKeysStatus>::None);
     let status = RwSignal::new(Option::<String>::None);
     let selected_provider = RwSignal::new(ImageProviderKind::Openai);
     let quality_level = RwSignal::new(ImageQualityLevel::Medium);
@@ -444,6 +491,9 @@ pub fn AgentImageColumn() -> impl IntoView {
         leptos::task::spawn_local(async move {
             if let Ok(view) = agent_settings_get().await {
                 agent_settings.set(Some(view));
+            }
+            if let Ok(keys) = api_keys_status().await {
+                api_keys.set(Some(keys));
             }
             if let Ok(s) = image_settings_get().await {
                 selected_provider.set(s.provider);
@@ -489,6 +539,13 @@ pub fn AgentImageColumn() -> impl IntoView {
         let mut next = settings.get_untracked().unwrap_or_default();
         next.provider = p;
         next.quality = quality_level.get_untracked();
+        if p == ImageProviderKind::Fal && !next.model_id.contains("fal-ai/") {
+            next.model_id = "fal-ai/flux/schnell".into();
+            model_id.set(next.model_id.clone());
+        } else if p != ImageProviderKind::Fal && next.model_id.contains("fal-ai/") {
+            next.model_id = "gpt-image-1".into();
+            model_id.set(next.model_id.clone());
+        }
         save(next);
         reload_models(p);
     });
@@ -551,12 +608,12 @@ pub fn AgentImageColumn() -> impl IntoView {
                     <span>{move || i18n.tr(I18nKey::ApiKeysManageHint)()}</span>
                     <span class="agent-provider-pane__key-status">
                         {move || {
-                            agent_settings
-                                .get()
-                                .map(|view| {
-                                    image_provider_key_status(&i18n, &view, selected_provider.get())
-                                })
-                                .unwrap_or_else(|| i18n.tr(I18nKey::AgApiKeyMissing)().to_string())
+                            image_provider_key_status(
+                                &i18n,
+                                agent_settings.get().as_ref(),
+                                api_keys.get().as_ref(),
+                                selected_provider.get(),
+                            )
                         }}
                     </span>
                 </div>

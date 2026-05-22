@@ -37,6 +37,8 @@ fn api_key_brand_icon_url(kind: &str) -> Option<&'static str> {
         "grok" => Some("/public/brand-icons/grok.svg"),
         "tavily" => Some("/public/brand-icons/tavily.svg"),
         "brave" => Some("/public/brand-icons/brave.svg"),
+        "fal" => Some("/public/brand-icons/fal.svg"),
+        "aws_polly" => Some("/public/brand-icons/aws.svg"),
         _ => None,
     }
 }
@@ -163,6 +165,17 @@ pub fn ApiKeysPane() -> impl IntoView {
             })
             .unwrap_or_default()
     });
+    let image_video_entries = Memo::new(move |_| {
+        status
+            .get()
+            .map(|s| {
+                s.entries
+                    .into_iter()
+                    .filter(|e| matches!(e.category, ApiKeyCategory::ImageVideo))
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    });
 
     view! {
         <article class="harness-pane api-keys-pane">
@@ -193,6 +206,16 @@ pub fn ApiKeysPane() -> impl IntoView {
                     <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::ApiKeysSearchSubhead)()}</span>
                 </h4>
                 <ApiKeyRows entries=search_entries drafts=drafts />
+            </section>
+
+            <section class="harness-subpane">
+                <h4 class="harness-pane-subhead">
+                    <span class="harness-pane-subhead__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuImage width="0.9rem" height="0.9rem" />
+                    </span>
+                    <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::ApiKeysImageVideoSubhead)()}</span>
+                </h4>
+                <ApiKeyRows entries=image_video_entries drafts=drafts />
             </section>
 
             <Show when=move || status_msg.with(|m| m.is_some())>

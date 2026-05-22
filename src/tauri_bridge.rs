@@ -394,6 +394,7 @@ pub struct ProviderModelsResponse {
 pub enum ApiKeyCategory {
     Llm,
     Search,
+    ImageVideo,
 }
 
 #[allow(dead_code)]
@@ -2053,14 +2054,15 @@ pub async fn voice_tts_preview(
 pub enum ImageProviderKind {
     Openai,
     Openrouter,
+    Fal,
 }
 
 impl ImageProviderKind {
-    #[allow(dead_code)]
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Openai => "openai",
             Self::Openrouter => "openrouter",
+            Self::Fal => "fal",
         }
     }
 }
@@ -2135,7 +2137,6 @@ pub async fn image_settings_save(patch: ImageSettings) -> Result<ImageSettings, 
     invoke_typed("image_settings_save", Args { patch }).await
 }
 
-#[allow(dead_code)]
 pub async fn image_curated_models(
     provider: ImageProviderKind,
 ) -> Result<ImageModelsResponse, String> {

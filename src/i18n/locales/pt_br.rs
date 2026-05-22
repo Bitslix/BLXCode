@@ -321,6 +321,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::ApiKeysHeading => "Chaves de API",
         I18nKey::ApiKeysLlmSubhead => "Provedores LLM",
         I18nKey::ApiKeysSearchSubhead => "Provedores de busca",
+        I18nKey::ApiKeysImageVideoSubhead => "Image / video & voice",
+        I18nKey::AgProviderFal => "fal.ai",
         I18nKey::ApiKeysSaved => "Salvo.",
         I18nKey::ApiKeysDiscard => "Descartar",
         I18nKey::ApiKeysUnsaved => "Alterações não salvas",

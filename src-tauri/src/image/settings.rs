@@ -12,6 +12,7 @@ use crate::agent_settings;
 pub enum ImageProviderKind {
     Openai,
     Openrouter,
+    Fal,
 }
 
 impl ImageProviderKind {
@@ -19,6 +20,7 @@ impl ImageProviderKind {
         match self {
             Self::Openai => "openai",
             Self::Openrouter => "openrouter",
+            Self::Fal => "fal",
         }
     }
 }
@@ -78,6 +80,16 @@ impl ImageQualityLevel {
             Self::Max => "ultra",
         }
     }
+
+    /// fal.ai `image_size` preset.
+    pub fn fal_image_size(self) -> &'static str {
+        match self {
+            Self::Low => "square",
+            Self::Medium => "square_hd",
+            Self::High => "landscape_4_3",
+            Self::Max => "landscape_16_9",
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -122,11 +134,21 @@ pub fn save(app: &AppHandle, settings: &ImageSettings) -> Result<ImageSettings, 
 /// Resolve the API key used for an image provider, piggybacking on the
 /// existing agent provider keyring entries.
 pub fn provider_key(app: &AppHandle, provider: ImageProviderKind) -> Result<String, String> {
-    let agent_provider = match provider {
-        ImageProviderKind::Openai => agent_settings::AgentProviderKind::Openai,
-        ImageProviderKind::Openrouter => agent_settings::AgentProviderKind::Openrouter,
-    };
-    agent_settings::provider_key_pub(app, agent_provider)
+    match provider {
+        ImageProviderKind::Openai => {
+            agent_settings::provider_key_pub(app, agent_settings::AgentProviderKind::Openai)
+        }
+        ImageProviderKind::Openrouter => {
+            agent_settings::provider_key_pub(app, agent_settings::AgentProviderKind::Openrouter)
+        }
+        ImageProviderKind::Fal => crate::media_keys::resolve_key(crate::media_keys::MediaKeyKind::Fal)
+            .ok_or_else(|| {
+                format!(
+                    "fal.ai API key missing — set it in Settings → API Keys (env: {})",
+                    crate::media_keys::MediaKeyKind::Fal.env_var()
+                )
+            }),
+    }
 }
 
 /// Curated fallback model lists per provider, used when the live model
@@ -151,6 +173,24 @@ pub fn curated_image_models(provider: ImageProviderKind) -> Vec<CuratedImageMode
             CuratedImageModel {
                 id: "openai/gpt-image-1".into(),
                 label: "GPT Image 1 (via OpenRouter)".into(),
+            },
+        ],
+        ImageProviderKind::Fal => vec![
+            CuratedImageModel {
+                id: "fal-ai/flux/schnell".into(),
+                label: "FLUX Schnell".into(),
+            },
+            CuratedImageModel {
+                id: "fal-ai/flux/dev".into(),
+                label: "FLUX.1 [dev]".into(),
+            },
+            CuratedImageModel {
+                id: "fal-ai/nano-banana-2".into(),
+                label: "Nano Banana 2".into(),
+            },
+            CuratedImageModel {
+                id: "fal-ai/gpt-image-1.5".into(),
+                label: "GPT Image 1.5".into(),
             },
         ],
     }
