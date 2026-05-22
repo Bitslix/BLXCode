@@ -384,6 +384,77 @@ pub struct ProviderModelsResponse {
     pub message: Option<String>,
 }
 
+// ---------- Centralized API keys (Settings → API Keys) ----------
+
+#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum ApiKeyCategory {
+    Llm,
+    Search,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiKeyEntry {
+    pub kind: String,
+    pub label: String,
+    pub category: ApiKeyCategory,
+    pub configured: bool,
+    #[serde(default)]
+    pub masked_value: Option<String>,
+    #[serde(default)]
+    pub via_env: bool,
+    #[serde(default)]
+    pub env_var: Option<String>,
+    #[serde(default)]
+    pub coming_soon: bool,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiKeysStatus {
+    pub entries: Vec<ApiKeyEntry>,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum ApiKeyAction {
+    Set { kind: String, value: String },
+    Delete { kind: String },
+}
+
+#[allow(dead_code)]
+pub async fn api_keys_status() -> Result<ApiKeysStatus, String> {
+    invoke_typed("api_keys_status", serde_json::json!({})).await
+}
+
+#[allow(dead_code)]
+pub async fn api_keys_apply(actions: Vec<ApiKeyAction>) -> Result<ApiKeysStatus, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        payload: Payload,
+    }
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Payload {
+        actions: Vec<ApiKeyAction>,
+    }
+    invoke_typed(
+        "api_keys_apply",
+        Args {
+            payload: Payload { actions },
+        },
+    )
+    .await
+}
+
+// ---------- Legacy per-provider settings ----------
+
 pub async fn agent_settings_get() -> Result<AgentProviderSettingsView, String> {
     invoke_typed("agent_settings_get", serde_json::json!({})).await
 }
@@ -420,32 +491,6 @@ pub async fn agent_settings_save(
     .await
 }
 
-pub async fn agent_api_key_set(
-    provider: AgentProviderKind,
-    api_key: String,
-) -> Result<AgentProviderSettingsView, String> {
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Args {
-        payload: Payload,
-    }
-
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Payload {
-        provider: AgentProviderKind,
-        api_key: String,
-    }
-
-    invoke_typed(
-        "agent_api_key_set",
-        Args {
-            payload: Payload { provider, api_key },
-        },
-    )
-    .await
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum WebProviderKind {
@@ -454,6 +499,7 @@ pub enum WebProviderKind {
     Brave,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WebKeyStatus {
@@ -468,6 +514,7 @@ pub struct AgentWebSettings {
     pub provider: WebProviderKind,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentWebSettingsView {
@@ -503,76 +550,9 @@ pub async fn agent_web_settings_save(
     .await
 }
 
-pub async fn agent_web_api_key_set(
-    kind: &str,
-    api_key: String,
-) -> Result<AgentWebSettingsView, String> {
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Args {
-        payload: Payload,
-    }
-
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Payload {
-        kind: String,
-        api_key: String,
-    }
-
-    invoke_typed(
-        "agent_web_api_key_set",
-        Args {
-            payload: Payload {
-                kind: kind.to_string(),
-                api_key,
-            },
-        },
-    )
-    .await
-}
-
-pub async fn agent_web_api_key_delete(kind: &str) -> Result<AgentWebSettingsView, String> {
-    #[derive(Serialize)]
-    struct Args {
-        kind: String,
-    }
-
-    invoke_typed(
-        "agent_web_api_key_delete",
-        Args {
-            kind: kind.to_string(),
-        },
-    )
-    .await
-}
 
 pub async fn agent_environment_invalidate() -> Result<(), String> {
     invoke_unit_js("agent_environment_invalidate", JsValue::NULL).await
-}
-
-pub async fn agent_api_key_delete(
-    provider: AgentProviderKind,
-) -> Result<AgentProviderSettingsView, String> {
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Args {
-        payload: Payload,
-    }
-
-    #[derive(Serialize)]
-    #[serde(rename_all = "camelCase")]
-    struct Payload {
-        provider: AgentProviderKind,
-    }
-
-    invoke_typed(
-        "agent_api_key_delete",
-        Args {
-            payload: Payload { provider },
-        },
-    )
-    .await
 }
 
 pub async fn agent_provider_models(

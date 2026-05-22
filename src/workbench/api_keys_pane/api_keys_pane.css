@@ -1,0 +1,95 @@
+/* Centralized API keys pane (Settings → API Keys). Layout only —
+   global tokens live in the project-wide styles. */
+
+.api-keys-pane .api-keys-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.api-keys-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.api-keys-row--coming-soon {
+    opacity: 0.55;
+}
+
+.api-keys-row--marked-delete {
+    border-color: rgba(248, 113, 113, 0.45);
+    background: rgba(248, 113, 113, 0.06);
+}
+
+.api-keys-row__head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    justify-content: space-between;
+}
+
+.api-keys-row__label {
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+.api-keys-row__masked {
+    font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+    font-size: 0.78rem;
+    opacity: 0.82;
+}
+
+.api-keys-row__badge {
+    font-size: 0.72rem;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.api-keys-row__badge--warn {
+    background: rgba(248, 113, 113, 0.18);
+}
+
+.api-keys-row__badge--muted {
+    background: rgba(255, 255, 255, 0.04);
+    opacity: 0.7;
+}
+
+.api-keys-row__body {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+.api-keys-row__input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.api-keys-row__hint,
+.api-keys-row__envhint {
+    margin: 0;
+    font-size: 0.72rem;
+}
+
+.api-keys-footer {
+    margin-top: 0.85rem;
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.api-keys-dirty {
+    margin-left: 0.35rem;
+    font-size: 0.75rem;
+}

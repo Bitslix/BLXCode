@@ -2,6 +2,7 @@ mod agent;
 mod agent_hooks;
 mod agent_settings;
 mod agents_layout;
+mod api_keys;
 mod browser_host;
 mod commands;
 mod fs_entries;
@@ -19,14 +20,11 @@ mod voice;
 mod workbench_state;
 
 use agent::{
-    agent_environment_invalidate, agent_web_api_key_delete, agent_web_api_key_set,
-    agent_web_settings_get, agent_web_settings_save, AgentEngineState,
+    agent_environment_invalidate, agent_web_settings_get, agent_web_settings_save, AgentEngineState,
 };
 use agent_hooks::{agent_hooks_status, install_agent_hooks, uninstall_agent_hooks};
-use agent_settings::{
-    agent_api_key_delete, agent_api_key_set, agent_provider_models, agent_settings_get,
-    agent_settings_save,
-};
+use agent_settings::{agent_provider_models, agent_settings_get, agent_settings_save};
+use api_keys::{api_keys_apply, api_keys_status};
 use browser_host::BrowserHost;
 use commands::*;
 use image::{image_curated_models, image_settings_get, image_settings_save};
@@ -128,9 +126,9 @@ pub fn run() {
             harness_user_home_dir,
             agent_settings_get,
             agent_settings_save,
-            agent_api_key_set,
-            agent_api_key_delete,
             agent_provider_models,
+            api_keys_status,
+            api_keys_apply,
             browser_sync_bounds,
             browser_navigate,
             browser_run_js,
@@ -226,8 +224,6 @@ pub fn run() {
             image_settings_save,
             agent_web_settings_get,
             agent_web_settings_save,
-            agent_web_api_key_set,
-            agent_web_api_key_delete,
             agent_environment_invalidate,
             image_curated_models,
             crate::image::commands::generated_image_preview,

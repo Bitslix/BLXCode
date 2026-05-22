@@ -132,13 +132,6 @@ pub struct AgentProviderSettingsPatch {
 
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ProviderKeyPayload {
-    pub provider: AgentProviderKind,
-    pub api_key: String,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ProviderRef {
     pub provider: AgentProviderKind,
 }
@@ -188,6 +181,123 @@ pub(crate) fn provider_key_pub(
     provider: AgentProviderKind,
 ) -> Result<String, String> {
     provider_key(app, provider)
+}
+
+/// Source of a successfully resolved key. Surfaces in the UI so users
+/// understand why a row shows a masked value (e.g. \"via env\").
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum KeySource {
+    Keyring,
+    File,
+    Env,
+    None,
+}
+
+pub(crate) fn provider_env_var(provider: AgentProviderKind) -> &'static str {
+    match provider {
+        AgentProviderKind::Openrouter => "BLX_OPENROUTER_API_KEY",
+        AgentProviderKind::Anthropic => "BLX_ANTHROPIC_API_KEY",
+        AgentProviderKind::Openai => "BLX_OPENAI_API_KEY",
+    }
+}
+
+fn provider_env_secret(provider: AgentProviderKind) -> Option<String> {
+    std::env::var(provider_env_var(provider))
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+/// Mask + source resolution for the new central API-keys view.
+pub(crate) fn provider_key_with_source(
+    app: &AppHandle,
+    provider: AgentProviderKind,
+) -> Result<(Option<String>, KeySource), String> {
+    let entry = keyring_entry(provider)?;
+    match entry.get_password() {
+        Ok(secret) if !secret.trim().is_empty() => {
+            Ok((mask_secret(&secret), KeySource::Keyring))
+        }
+        Ok(_) | Err(keyring_core::Error::NoEntry) => match read_fallback_secret(app, provider)? {
+            Some(secret) => Ok((mask_secret(&secret), KeySource::File)),
+            None => match provider_env_secret(provider) {
+                Some(secret) => Ok((mask_secret(&secret), KeySource::Env)),
+                None => Ok((None, KeySource::None)),
+            },
+        },
+        Err(_) if cfg!(target_os = "linux") => match read_fallback_secret(app, provider)? {
+            Some(secret) => Ok((mask_secret(&secret), KeySource::File)),
+            None => match provider_env_secret(provider) {
+                Some(secret) => Ok((mask_secret(&secret), KeySource::Env)),
+                None => Ok((None, KeySource::None)),
+            },
+        },
+        Err(e) => Err(format!("keyring get {}: {e}", provider.as_str())),
+    }
+}
+
+/// Set a provider key (keyring with file fallback on Linux). Same write +
+/// verify logic as the legacy `agent_api_key_set` command body, exposed
+/// for the centralized `api_keys_apply` batch command.
+pub(crate) fn set_provider_key_secret(
+    app: &AppHandle,
+    provider: AgentProviderKind,
+    secret: &str,
+) -> Result<(), String> {
+    let trimmed = secret.trim();
+    if trimmed.is_empty() {
+        return Err("API key must not be empty".into());
+    }
+    let entry = keyring_entry(provider)?;
+    let keyring_write = entry.set_password(trimmed);
+    match keyring_write {
+        Ok(()) => {}
+        Err(_e) if cfg!(target_os = "linux") => {
+            write_fallback_secret(app, provider, trimmed)?;
+            return Ok(());
+        }
+        Err(e) => return Err(format!("keyring set {}: {e}", provider.as_str())),
+    }
+    match entry.get_password() {
+        Ok(saved) if saved.trim().is_empty() => {
+            if cfg!(target_os = "linux") {
+                write_fallback_secret(app, provider, trimmed)?;
+                return Ok(());
+            }
+            return Err(format!(
+                "keyring verify {}: secret was written, but readback returned an empty value",
+                provider.as_str()
+            ));
+        }
+        Ok(_) => {}
+        Err(e) => {
+            if cfg!(target_os = "linux") {
+                write_fallback_secret(app, provider, trimmed)?;
+                return Ok(());
+            }
+            return Err(format!(
+                "keyring verify {}: readback failed after write: {e}",
+                provider.as_str()
+            ));
+        }
+    }
+    let _ = delete_fallback_secret(app, provider);
+    Ok(())
+}
+
+/// Delete a provider key from keyring + fallback file. Idempotent.
+pub(crate) fn delete_provider_key_secret(
+    app: &AppHandle,
+    provider: AgentProviderKind,
+) -> Result<(), String> {
+    let entry = keyring_entry(provider)?;
+    match entry.delete_credential() {
+        Ok(()) | Err(keyring_core::Error::NoEntry) => {}
+        Err(_) if cfg!(target_os = "linux") => {}
+        Err(e) => return Err(format!("keyring delete {}: {e}", provider.as_str())),
+    }
+    delete_fallback_secret(app, provider)?;
+    Ok(())
 }
 
 /// Shared envelope reader: parses `agent_provider_settings.json` as a JSON
@@ -338,17 +448,7 @@ fn key_masked_value(
     app: &AppHandle,
     provider: AgentProviderKind,
 ) -> Result<Option<String>, String> {
-    let entry = keyring_entry(provider)?;
-    match entry.get_password() {
-        Ok(secret) => Ok(mask_secret(&secret)),
-        Err(keyring_core::Error::NoEntry) => {
-            Ok(read_fallback_secret(app, provider)?.and_then(|secret| mask_secret(&secret)))
-        }
-        Err(_) if cfg!(target_os = "linux") => {
-            Ok(read_fallback_secret(app, provider)?.and_then(|secret| mask_secret(&secret)))
-        }
-        Err(e) => Err(format!("keyring get {}: {e}", provider.as_str())),
-    }
+    provider_key_with_source(app, provider).map(|(masked, _)| masked)
 }
 
 #[allow(dead_code)]
@@ -358,14 +458,22 @@ fn key_is_configured(app: &AppHandle, provider: AgentProviderKind) -> Result<boo
 
 fn provider_key(app: &AppHandle, provider: AgentProviderKind) -> Result<String, String> {
     let entry = keyring_entry(provider)?;
+    let from_fallback_or_env = || -> Result<String, String> {
+        if let Some(secret) = read_fallback_secret(app, provider)? {
+            return Ok(secret);
+        }
+        provider_env_secret(provider).ok_or_else(|| {
+            format!(
+                "no API key configured for {} (set it in Settings \u{2192} API Keys or via {})",
+                provider.as_str(),
+                provider_env_var(provider)
+            )
+        })
+    };
     match entry.get_password() {
         Ok(secret) if !secret.trim().is_empty() => Ok(secret),
-        Ok(_) => read_fallback_secret(app, provider)?
-            .ok_or_else(|| format!("keyring get {}: empty secret", provider.as_str())),
-        Err(keyring_core::Error::NoEntry) => read_fallback_secret(app, provider)?
-            .ok_or_else(|| format!("keyring get {}: no stored secret", provider.as_str())),
-        Err(_) if cfg!(target_os = "linux") => read_fallback_secret(app, provider)?
-            .ok_or_else(|| format!("keyring get {}: no stored secret", provider.as_str())),
+        Ok(_) | Err(keyring_core::Error::NoEntry) => from_fallback_or_env(),
+        Err(_) if cfg!(target_os = "linux") => from_fallback_or_env(),
         Err(e) => Err(format!("keyring get {}: {e}", provider.as_str())),
     }
 }
@@ -472,16 +580,6 @@ fn settings_view(
     })
 }
 
-fn provider_configured_in_view(
-    view: &AgentProviderSettingsView,
-    provider: AgentProviderKind,
-) -> bool {
-    view.key_statuses
-        .iter()
-        .find(|status| status.provider == provider)
-        .map(|status| status.configured)
-        .unwrap_or(false)
-}
 
 #[derive(Deserialize)]
 struct OpenrouterModelsEnvelope {
@@ -655,118 +753,6 @@ pub fn agent_settings_save(
     settings.thinking_level = patch.thinking_level;
     save_settings(&app, &settings)?;
     settings_view(&app, settings)
-}
-
-#[tauri::command]
-pub fn agent_api_key_set(
-    app: AppHandle,
-    payload: ProviderKeyPayload,
-) -> Result<AgentProviderSettingsView, String> {
-    let trimmed = payload.api_key.trim();
-    if trimmed.is_empty() {
-        return Err("API key must not be empty".into());
-    }
-    let entry = keyring_entry(payload.provider)?;
-    let keyring_write = entry.set_password(trimmed);
-    match keyring_write {
-        Ok(()) => {}
-        Err(_e) if cfg!(target_os = "linux") => {
-            write_fallback_secret(&app, payload.provider, trimmed)?;
-            let view = settings_view(&app, load_settings(&app)?)?;
-            if !provider_configured_in_view(&view, payload.provider) {
-                return Err(format!(
-                    "linux fallback verify {}: fallback secret was written, but a fresh lookup still reports no stored secret",
-                    payload.provider.as_str()
-                ));
-            }
-            return Ok(view);
-        }
-        Err(e) => return Err(format!("keyring set {}: {e}", payload.provider.as_str())),
-    }
-    match entry.get_password() {
-        Ok(saved) if saved.trim().is_empty() => {
-            if cfg!(target_os = "linux") {
-                write_fallback_secret(&app, payload.provider, trimmed)?;
-            } else {
-                return Err(format!(
-                    "keyring verify {}: secret was written, but readback returned an empty value",
-                    payload.provider.as_str()
-                ));
-            }
-        }
-        Ok(_) => {}
-        Err(e) => {
-            if cfg!(target_os = "linux") {
-                write_fallback_secret(&app, payload.provider, trimmed)?;
-            } else {
-                return Err(format!(
-                    "keyring verify {}: readback failed after write: {e}",
-                    payload.provider.as_str()
-                ));
-            }
-        }
-    }
-    let view = settings_view(&app, load_settings(&app)?)?;
-    if !provider_configured_in_view(&view, payload.provider) {
-        if cfg!(target_os = "linux") {
-            write_fallback_secret(&app, payload.provider, trimmed)?;
-            let view = settings_view(&app, load_settings(&app)?)?;
-            if !provider_configured_in_view(&view, payload.provider) {
-                return Err(format!(
-                    "linux fallback verify {}: fallback secret was written, but a fresh lookup still reports no stored secret",
-                    payload.provider.as_str()
-                ));
-            }
-            return Ok(view);
-        } else {
-            return Err(format!(
-                "keyring verify {}: readback succeeded on the immediate handle, but a fresh lookup still reports no stored secret",
-                payload.provider.as_str()
-            ));
-        }
-    }
-    let _ = delete_fallback_secret(&app, payload.provider);
-    Ok(view)
-}
-
-#[tauri::command]
-pub fn agent_api_key_delete(
-    app: AppHandle,
-    payload: ProviderRef,
-) -> Result<AgentProviderSettingsView, String> {
-    let entry = keyring_entry(payload.provider)?;
-    match entry.delete_credential() {
-        Ok(()) | Err(keyring_core::Error::NoEntry) => {}
-        Err(_) if cfg!(target_os = "linux") => {}
-        Err(e) => return Err(format!("keyring delete {}: {e}", payload.provider.as_str())),
-    }
-    delete_fallback_secret(&app, payload.provider)?;
-    match entry.get_password() {
-        Ok(_) => {
-            if !cfg!(target_os = "linux") {
-                return Err(format!(
-                    "keyring verify {}: secret still present after delete",
-                    payload.provider.as_str()
-                ));
-            }
-        }
-        Err(keyring_core::Error::NoEntry) => {}
-        Err(_) if cfg!(target_os = "linux") => {}
-        Err(e) => {
-            return Err(format!(
-                "keyring verify {}: readback after delete failed unexpectedly: {e}",
-                payload.provider.as_str()
-            ));
-        }
-    }
-    let view = settings_view(&app, load_settings(&app)?)?;
-    if provider_configured_in_view(&view, payload.provider) {
-        return Err(format!(
-            "keyring verify {}: delete returned successfully, but a fresh lookup still reports a stored secret",
-            payload.provider.as_str()
-        ));
-    }
-    Ok(view)
 }
 
 #[tauri::command]

@@ -23,8 +23,7 @@ mod web_tools;
 mod workspace_agent;
 
 pub use web_commands::{
-    agent_environment_invalidate, agent_web_api_key_delete, agent_web_api_key_set,
-    agent_web_settings_get, agent_web_settings_save,
+    agent_environment_invalidate, agent_web_settings_get, agent_web_settings_save,
 };
 
 pub use protocol::{AgentEvent, UserTurn};

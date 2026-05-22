@@ -14,11 +14,10 @@ use crate::config::HARNESS_BROWSER_DEFAULT_URL;
 use crate::i18n::{lookup, I18nKey, Locale, APP_LOCALES};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_api_key_delete, agent_api_key_set, agent_hooks_status, agent_provider_models,
-    agent_settings_get, agent_settings_save, agent_web_api_key_delete, agent_web_api_key_set,
+    agent_hooks_status, agent_provider_models, agent_settings_get, agent_settings_save,
     agent_web_settings_get, agent_web_settings_save, install_agent_hooks, is_tauri_shell,
     uninstall_agent_hooks, AgentHooksReport, AgentProviderKind, AgentProviderSettingsView,
-    AgentWebSettingsView, ProviderModelEntry, ProviderModelsResponse, ThinkingLevel, WebKeyStatus,
+    AgentWebSettingsView, ProviderModelEntry, ProviderModelsResponse, ThinkingLevel,
     WebProviderKind,
 };
 use gloo_timers::future::TimeoutFuture;
@@ -1133,17 +1132,7 @@ fn AppearanceSettingsPane() -> impl IntoView {
 
 #[component]
 fn ApiKeysSettingsPane() -> impl IntoView {
-    let i18n = expect_context::<I18nService>();
-    view! {
-        <article class="harness-pane">
-            <h3 class="harness-pane-title">
-                <span class="harness-pane-title__icon" aria-hidden="true">
-                    <LxIcon icon=icondata::LuKeyRound width="1.02rem" height="1.02rem" />
-                </span>
-                <span class="harness-pane-title__text">{move || i18n.tr(I18nKey::ApiKeysHeading)()}</span>
-            </h3>
-        </article>
-    }
+    view! { <crate::workbench::ApiKeysPane /> }
 }
 
 #[component]
@@ -1691,7 +1680,6 @@ fn AgentProviderPane() -> impl IntoView {
     let selected_provider = RwSignal::new(AgentProviderKind::Openrouter);
     let custom_model = RwSignal::new(String::new());
     let thinking_level = RwSignal::new(ThinkingLevel::Medium);
-    let api_key_input = RwSignal::new(String::new());
     let model_entries: RwSignal<Vec<ProviderModelEntry>> = RwSignal::new(Vec::new());
     let models_source = RwSignal::new(String::new());
     let models_message: RwSignal<Option<String>> = RwSignal::new(None);
@@ -1702,8 +1690,6 @@ fn AgentProviderPane() -> impl IntoView {
     let provider_refresh_request: RwSignal<Option<AgentProviderKind>> = RwSignal::new(None);
     let web_settings: RwSignal<Option<AgentWebSettingsView>> = RwSignal::new(None);
     let web_provider = RwSignal::new(WebProviderKind::None);
-    let web_tavily_key = RwSignal::new(String::new());
-    let web_brave_key = RwSignal::new(String::new());
     let web_status_msg: RwSignal<Option<String>> = RwSignal::new(None);
 
     let apply_web_settings = move |view: AgentWebSettingsView| {
@@ -1899,121 +1885,21 @@ fn AgentProviderPane() -> impl IntoView {
             </Show>
 
             <section class="harness-subpane">
-                <div class="harness-row-gap harness-row-gap--space">
-                    <h4 class="harness-pane-subhead">
-                        <span class="harness-pane-subhead__icon" aria-hidden="true">
-                            <LxIcon icon=icondata::LuKeyRound width="0.9rem" height="0.9rem" />
-                        </span>
-                        <span class="harness-pane-subhead__text">
-                            {move || format!("{} {}", i18n.tr(I18nKey::AgApiKeyField)(), provider_label(&i18n, selected_provider.get()))}
-                        </span>
-                    </h4>
-                    <small class="harness-muted">
-                        {move || {
-                            settings
-                                .get()
-                                .map(|view| provider_key_status_text(&i18n, &view, selected_provider.get()))
-                                .unwrap_or_else(|| i18n.tr(I18nKey::AgApiKeyMissing)().to_string())
-                        }}
-                    </small>
-                </div>
-                <p class="harness-muted">{move || i18n.tr(I18nKey::AgApiKeyHint)()}</p>
-                <label class="harness-stack">
-                    <input
-                        class="workbench-plain-input"
-                        type="password"
-                        autocomplete="off"
-                        placeholder=move || {
-                            settings
-                                .get()
-                                .and_then(|view| provider_key_mask(&view, selected_provider.get()))
-                                .unwrap_or_default()
-                        }
-                        prop:value=move || api_key_input.get()
-                        on:input=move |ev| {
-                            if let Some(value) = input_str(&ev) {
-                                api_key_input.set(value);
-                            }
-                        }
-                    />
-                </label>
-                <div class="harness-row-gap">
-                    <button
-                        type="button"
-                        class="workbench-mini-btn workbench-mini-btn--primary"
-                        prop:disabled=move || busy.get() || !is_tauri_shell()
-                        on:click=move |_| {
-                            let provider = selected_provider.get_untracked();
-                            let api_key = api_key_input.get_untracked();
-                            if api_key.trim().is_empty() {
-                                status_msg.set(None);
-                                error_msg.set(Some("API key is empty".into()));
-                                return;
-                            }
-                            busy.set(true);
-                            error_msg.set(None);
-                            leptos::task::spawn_local(async move {
-                                match agent_api_key_set(provider, api_key).await {
-                                    Ok(view) => {
-                                        if !provider_key_configured(&view, provider) {
-                                            status_msg.set(None);
-                                            error_msg.set(Some(format!(
-                                                "API-Key speichern fehlgeschlagen: provider state for {} is still missing after save",
-                                                provider.as_str()
-                                            )));
-                                            busy.set(false);
-                                            return;
-                                        }
-                                        api_key_input.set(String::new());
-                                        status_msg.set(Some(i18n.tr(I18nKey::AgSaveProviderDone)().to_string()));
-                                        error_msg.set(None);
-                                        apply_settings(view);
-                                        refresh_models(provider);
-                                    }
-                                    Err(err) => {
-                                        status_msg.set(None);
-                                        error_msg.set(Some(format!("API-Key speichern fehlgeschlagen: {err}")));
-                                    }
-                                }
-                                busy.set(false);
-                            });
-                        }
-                    >
-                        <span class="harness-btn-inline">
-                            <LxIcon icon=icondata::LuCheck width="0.78rem" height="0.78rem" />
-                            <span>{move || i18n.tr(I18nKey::AgApiKeySet)()}</span>
-                        </span>
-                    </button>
-                    <button
-                        type="button"
-                        class="workbench-mini-btn"
-                        prop:disabled=move || busy.get() || !is_tauri_shell()
-                        on:click=move |_| {
-                            let provider = selected_provider.get_untracked();
-                            busy.set(true);
-                            error_msg.set(None);
-                            leptos::task::spawn_local(async move {
-                                match agent_api_key_delete(provider).await {
-                                    Ok(view) => {
-                                        status_msg.set(None);
-                                        error_msg.set(None);
-                                        apply_settings(view);
-                                    }
-                                    Err(err) => {
-                                        status_msg.set(None);
-                                        error_msg.set(Some(format!("API-Key löschen fehlgeschlagen: {err}")));
-                                    }
-                                }
-                                busy.set(false);
-                            });
-                        }
-                    >
-                        <span class="harness-btn-inline">
-                            <LxIcon icon=icondata::LuTrash2 width="0.78rem" height="0.78rem" />
-                            <span>{move || i18n.tr(I18nKey::AgApiKeyDelete)()}</span>
-                        </span>
-                    </button>
-                </div>
+                <h4 class="harness-pane-subhead">
+                    <span class="harness-pane-subhead__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuKeyRound width="0.9rem" height="0.9rem" />
+                    </span>
+                    <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::AgApiKeyField)()}</span>
+                </h4>
+                <p class="harness-muted">"Manage API keys in Settings → API Keys."</p>
+                <small class="harness-muted">
+                    {move || {
+                        settings
+                            .get()
+                            .map(|view| provider_key_status_text(&i18n, &view, selected_provider.get()))
+                            .unwrap_or_else(|| i18n.tr(I18nKey::AgApiKeyMissing)().to_string())
+                    }}
+                </small>
             </section>
 
             <div class="harness-row-gap">
@@ -2072,137 +1958,7 @@ fn AgentProviderPane() -> impl IntoView {
                         <option value="brave">{move || i18n.tr(I18nKey::AgWebProviderBrave)()}</option>
                     </select>
                 </label>
-                <p class="harness-muted">{move || i18n.tr(I18nKey::AgWebKeyHint)()}</p>
-                <label class="harness-stack">
-                    <span class="harness-field-label">
-                        <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgWebTavilyKey)()}</span>
-                    </span>
-                    <small class="harness-muted">
-                        {move || web_key_status_text(&i18n, web_settings.get(), "tavily")}
-                    </small>
-                    <input
-                        class="workbench-plain-input"
-                        type="password"
-                        autocomplete="off"
-                        placeholder=move || web_key_mask(web_settings.get(), "tavily").unwrap_or_default()
-                        prop:value=move || web_tavily_key.get()
-                        on:input=move |ev| {
-                            if let Some(value) = input_str(&ev) {
-                                web_tavily_key.set(value);
-                            }
-                        }
-                    />
-                </label>
-                <div class="harness-row-gap">
-                    <button
-                        type="button"
-                        class="workbench-mini-btn workbench-mini-btn--primary"
-                        prop:disabled=move || busy.get() || !is_tauri_shell()
-                        on:click=move |_| {
-                            let key = web_tavily_key.get_untracked();
-                            if key.trim().is_empty() {
-                                error_msg.set(Some("API key is empty".into()));
-                                return;
-                            }
-                            busy.set(true);
-                            leptos::task::spawn_local(async move {
-                                match agent_web_api_key_set("tavily", key).await {
-                                    Ok(view) => {
-                                        web_tavily_key.set(String::new());
-                                        web_status_msg.set(Some(i18n.tr(I18nKey::AgWebSaveDone)().to_string()));
-                                        apply_web_settings(view);
-                                    }
-                                    Err(err) => error_msg.set(Some(err)),
-                                }
-                                busy.set(false);
-                            });
-                        }
-                    >
-                        <span>{move || i18n.tr(I18nKey::AgWebKeySet)()}</span>
-                    </button>
-                    <button
-                        type="button"
-                        class="workbench-mini-btn"
-                        prop:disabled=move || busy.get() || !is_tauri_shell()
-                        on:click=move |_| {
-                            busy.set(true);
-                            leptos::task::spawn_local(async move {
-                                match agent_web_api_key_delete("tavily").await {
-                                    Ok(view) => apply_web_settings(view),
-                                    Err(err) => error_msg.set(Some(err)),
-                                }
-                                busy.set(false);
-                            });
-                        }
-                    >
-                        <span>{move || i18n.tr(I18nKey::AgWebKeyDelete)()}</span>
-                    </button>
-                </div>
-                <label class="harness-stack">
-                    <span class="harness-field-label">
-                        <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgWebBraveKey)()}</span>
-                    </span>
-                    <small class="harness-muted">
-                        {move || web_key_status_text(&i18n, web_settings.get(), "brave")}
-                    </small>
-                    <input
-                        class="workbench-plain-input"
-                        type="password"
-                        autocomplete="off"
-                        placeholder=move || web_key_mask(web_settings.get(), "brave").unwrap_or_default()
-                        prop:value=move || web_brave_key.get()
-                        on:input=move |ev| {
-                            if let Some(value) = input_str(&ev) {
-                                web_brave_key.set(value);
-                            }
-                        }
-                    />
-                </label>
-                <div class="harness-row-gap">
-                    <button
-                        type="button"
-                        class="workbench-mini-btn workbench-mini-btn--primary"
-                        prop:disabled=move || busy.get() || !is_tauri_shell()
-                        on:click=move |_| {
-                            let key = web_brave_key.get_untracked();
-                            if key.trim().is_empty() {
-                                error_msg.set(Some("API key is empty".into()));
-                                return;
-                            }
-                            busy.set(true);
-                            leptos::task::spawn_local(async move {
-                                match agent_web_api_key_set("brave", key).await {
-                                    Ok(view) => {
-                                        web_brave_key.set(String::new());
-                                        web_status_msg.set(Some(i18n.tr(I18nKey::AgWebSaveDone)().to_string()));
-                                        apply_web_settings(view);
-                                    }
-                                    Err(err) => error_msg.set(Some(err)),
-                                }
-                                busy.set(false);
-                            });
-                        }
-                    >
-                        <span>{move || i18n.tr(I18nKey::AgWebKeySet)()}</span>
-                    </button>
-                    <button
-                        type="button"
-                        class="workbench-mini-btn"
-                        prop:disabled=move || busy.get() || !is_tauri_shell()
-                        on:click=move |_| {
-                            busy.set(true);
-                            leptos::task::spawn_local(async move {
-                                match agent_web_api_key_delete("brave").await {
-                                    Ok(view) => apply_web_settings(view),
-                                    Err(err) => error_msg.set(Some(err)),
-                                }
-                                busy.set(false);
-                            });
-                        }
-                    >
-                        <span>{move || i18n.tr(I18nKey::AgWebKeyDelete)()}</span>
-                    </button>
-                </div>
+                <p class="harness-muted">"Manage Tavily / Brave keys in Settings → API Keys."</p>
                 <div class="harness-row-gap">
                     <button
                         type="button"
@@ -2257,31 +2013,6 @@ fn web_provider_from_value(value: &str) -> WebProviderKind {
         "tavily" => WebProviderKind::Tavily,
         "brave" => WebProviderKind::Brave,
         _ => WebProviderKind::None,
-    }
-}
-
-fn web_key_entry<'a>(
-    view: Option<&'a AgentWebSettingsView>,
-    kind: &str,
-) -> Option<&'a WebKeyStatus> {
-    view?.key_statuses.iter().find(|k| k.kind == kind)
-}
-
-fn web_key_mask(view: Option<AgentWebSettingsView>, kind: &str) -> Option<String> {
-    web_key_entry(view.as_ref(), kind).and_then(|k| k.masked_value.clone())
-}
-
-fn web_key_status_text(
-    i18n: &I18nService,
-    view: Option<AgentWebSettingsView>,
-    kind: &str,
-) -> String {
-    match web_key_entry(view.as_ref(), kind) {
-        Some(k) if k.configured => k
-            .masked_value
-            .clone()
-            .unwrap_or_else(|| i18n.tr(I18nKey::AgApiKeyConfigured)().to_string()),
-        _ => i18n.tr(I18nKey::AgApiKeyMissing)().to_string(),
     }
 }
 
