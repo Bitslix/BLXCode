@@ -142,10 +142,10 @@ jobs:
       matrix: ${{ fromJson(needs.resolve.outputs.matrix) }}
 
     runs-on: ${{ matrix.platform }}
-    # Self-hosted Windows maps default shell to WSL bash (no distro). Use PowerShell.
+    # Self-hosted Windows maps default shell to WSL bash (no distro). Use Windows PowerShell.
     defaults:
       run:
-        shell: ${{ matrix.platform_id == 'windows' && 'pwsh' || 'bash' }}
+        shell: ${{ matrix.platform_id == 'windows' && 'powershell' || 'bash' }}
     steps:
       - uses: actions/checkout@v4
 
