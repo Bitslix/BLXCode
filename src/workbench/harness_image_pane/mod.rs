@@ -362,7 +362,7 @@ fn ImageQualityLevelPicker(
     };
 
     view! {
-        <div class="harness-provider-picker">
+        <div class="harness-provider-picker harness-level-picker">
             <button
                 type="button"
                 class="harness-provider-trigger"

@@ -4456,6 +4456,33 @@ button.workbench-shortcut-row--action:focus-visible {
   object-fit: cover;
 }
 
+/* Thinking / quality level pickers (Lucide icons, not brand logos) */
+.harness-level-picker .harness-provider-trigger__brand,
+.harness-level-picker .harness-provider-option__brand {
+  width: 1.35rem;
+  height: 1.35rem;
+  flex: 0 0 1.35rem;
+  background: color-mix(in srgb, var(--accent-cool, var(--accent)) 14%, var(--bg-panel));
+  border: 1px solid color-mix(in srgb, var(--accent-cool, var(--accent)) 38%, var(--border));
+  color: var(--accent-cool, var(--accent));
+}
+
+.harness-level-picker .harness-provider-trigger__brand svg,
+.harness-level-picker .harness-provider-option__brand svg {
+  width: 0.92rem;
+  height: 0.92rem;
+  stroke: currentColor;
+  fill: none;
+}
+
+.harness-level-picker .harness-provider-option:hover .harness-provider-option__brand,
+.harness-level-picker .harness-provider-option--active .harness-provider-option__brand,
+.harness-level-picker .harness-provider-option:focus .harness-provider-option__brand {
+  background: color-mix(in srgb, var(--accent) 22%, var(--bg-raised));
+  border-color: var(--accent);
+  color: var(--text);
+}
+
 .harness-stack {
   display: flex;
   flex-direction: column;
