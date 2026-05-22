@@ -604,6 +604,7 @@ pub enum RightPanelTab {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HarnessSettingsCategory {
     App,
+    Appearance,
     Workspace,
     AgentProvider,
     Memory,

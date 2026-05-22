@@ -670,6 +670,7 @@ fn defer_browser_bounds(wb: WorkbenchService, embed: BrowserEmbedSurface) {
 fn harness_settings_cat_icon(cat: HarnessSettingsCategory) -> icondata::Icon {
     match cat {
         HarnessSettingsCategory::App => icondata::LuLayoutDashboard,
+        HarnessSettingsCategory::Appearance => icondata::LuSunMoon,
         HarnessSettingsCategory::Workspace => icondata::LuFolderOpen,
         HarnessSettingsCategory::AgentProvider => icondata::LuCpu,
         HarnessSettingsCategory::Memory => icondata::LuPalette,
@@ -690,6 +691,7 @@ pub fn SettingsDock(
         <div class="harness-settings-grid harness-settings-grid--docked">
             <nav class="harness-settings-cats" aria-label=move || i18n.tr(I18nKey::HsAriaCats)()>
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::App label=I18nKey::HsCatApp />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Appearance label=I18nKey::HsCatAppearance />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Workspace label=I18nKey::HsCatWorkspace />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::AgentProvider label=I18nKey::HsCatProvider />
                 <HarnessCatStaticBtn ui=ui cat=HarnessSettingsCategory::Memory label="Memory" />
@@ -701,6 +703,9 @@ pub fn SettingsDock(
                 {move || match ui.settings_category().get() {
                     HarnessSettingsCategory::App => view! {
                         <AppSettingsPane />
+                    }.into_any(),
+                    HarnessSettingsCategory::Appearance => view! {
+                        <AppearanceSettingsPane />
                     }.into_any(),
                     HarnessSettingsCategory::Workspace => view! {
                         <WorkspaceSettingsPane ui=ui wb=wb embed=embed />
@@ -956,32 +961,36 @@ fn AppSettingsPane() -> impl IntoView {
                     </span>
                     <span>{move || i18n.tr(I18nKey::AppShortcutHeading)()}</span>
                 </h4>
-                <fieldset class="app-prefs-shortcut-modes app-prefs-shortcut-modes--grid">
-                    <label class="app-prefs-radio">
-                        <input
-                            type="radio"
-                            name="shortcut-mode"
-                            prop:checked=move || prefs.shortcut_mode().get() == ShortcutMode::Tmux
-                            on:change=move |_| {
-                                prefs.set_shortcut_mode(ShortcutMode::Tmux);
-                                ui.clear_prefix();
-                            }
-                        />
-                        <span>{move || i18n.tr(I18nKey::AppShortcutModeTmux)()}</span>
-                    </label>
-                    <label class="app-prefs-radio">
-                        <input
-                            type="radio"
-                            name="shortcut-mode"
-                            prop:checked=move || prefs.shortcut_mode().get() == ShortcutMode::Legacy
-                            on:change=move |_| {
-                                prefs.set_shortcut_mode(ShortcutMode::Legacy);
-                                ui.clear_prefix();
-                            }
-                        />
-                        <span>{move || i18n.tr(I18nKey::AppShortcutModeLegacy)()}</span>
-                    </label>
-                </fieldset>
+                <div class="app-prefs-toggle-grid">
+                    <div class="app-prefs-toggle-cell">
+                        <label class="app-prefs-radio">
+                            <input
+                                type="radio"
+                                name="shortcut-mode"
+                                prop:checked=move || prefs.shortcut_mode().get() == ShortcutMode::Tmux
+                                on:change=move |_| {
+                                    prefs.set_shortcut_mode(ShortcutMode::Tmux);
+                                    ui.clear_prefix();
+                                }
+                            />
+                            <span>{move || i18n.tr(I18nKey::AppShortcutModeTmux)()}</span>
+                        </label>
+                    </div>
+                    <div class="app-prefs-toggle-cell">
+                        <label class="app-prefs-radio">
+                            <input
+                                type="radio"
+                                name="shortcut-mode"
+                                prop:checked=move || prefs.shortcut_mode().get() == ShortcutMode::Legacy
+                                on:change=move |_| {
+                                    prefs.set_shortcut_mode(ShortcutMode::Legacy);
+                                    ui.clear_prefix();
+                                }
+                            />
+                            <span>{move || i18n.tr(I18nKey::AppShortcutModeLegacy)()}</span>
+                        </label>
+                    </div>
+                </div>
                 <p class="app-prefs-hint">{move || i18n.tr(I18nKey::AppShortcutModeHint)()}</p>
             </section>
             <section class="harness-subpane">
@@ -1098,6 +1107,21 @@ fn AppSettingsPane() -> impl IntoView {
                     }}
                 </p>
             </section>
+        </article>
+    }
+}
+
+#[component]
+fn AppearanceSettingsPane() -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    view! {
+        <article class="harness-pane">
+            <h3 class="harness-pane-title">
+                <span class="harness-pane-title__icon" aria-hidden="true">
+                    <LxIcon icon=icondata::LuSunMoon width="1.02rem" height="1.02rem" />
+                </span>
+                <span class="harness-pane-title__text">{move || i18n.tr(I18nKey::AppearanceHeading)()}</span>
+            </h3>
         </article>
     }
 }
