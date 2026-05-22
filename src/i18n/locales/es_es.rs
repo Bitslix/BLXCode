@@ -368,6 +368,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingMedium => "Medio",
         I18nKey::AgThinkingHigh => "Alto",
         I18nKey::AgThinkingMax => "máx.",
+        I18nKey::AgImageQualityField => "Nivel de calidad",
+        I18nKey::AgImageQualityLow => "Bajo",
+        I18nKey::AgImageQualityMedium => "Medio",
+        I18nKey::AgImageQualityHigh => "Alto",
+        I18nKey::AgImageQualityMax => "Máx.",
         I18nKey::AgApiKeyField => "clave API",
         I18nKey::AgApiKeyHint => {
             "Los secretos se almacenan en el llavero del sistema operativo, nunca en el almacenamiento del navegador."

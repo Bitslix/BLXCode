@@ -370,6 +370,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingMedium => "Moyen",
         I18nKey::AgThinkingHigh => "Haut",
         I18nKey::AgThinkingMax => "Max.",
+        I18nKey::AgImageQualityField => "Niveau de qualité",
+        I18nKey::AgImageQualityLow => "Faible",
+        I18nKey::AgImageQualityMedium => "Moyen",
+        I18nKey::AgImageQualityHigh => "Élevé",
+        I18nKey::AgImageQualityMax => "Max.",
         I18nKey::AgApiKeyField => "Clé API",
         I18nKey::AgApiKeyHint => {
             "Les secrets sont stockés dans le trousseau du système d’exploitation, jamais dans le stockage du navigateur."

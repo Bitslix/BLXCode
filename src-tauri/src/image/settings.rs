@@ -29,11 +29,64 @@ impl Default for ImageProviderKind {
     }
 }
 
+/// Output quality / resolution tier for image generation (UI: parallel to text
+/// `ThinkingLevel`, without an "off" step).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum ImageQualityLevel {
+    Low,
+    #[default]
+    Medium,
+    High,
+    Max,
+}
+
+impl ImageQualityLevel {
+    /// OpenAI `quality` for GPT Image / similar (`low` | `medium` | `high`).
+    pub fn openai_gpt_quality(self) -> &'static str {
+        match self {
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High | Self::Max => "high",
+        }
+    }
+
+    /// OpenAI DALL·E 3 `quality` (`standard` | `hd`).
+    pub fn openai_dalle_quality(self) -> &'static str {
+        match self {
+            Self::Low | Self::Medium => "standard",
+            Self::High | Self::Max => "hd",
+        }
+    }
+
+    /// OpenAI `size` for generations / edits.
+    pub fn openai_size(self) -> &'static str {
+        match self {
+            Self::Low => "1024x1024",
+            Self::Medium => "1024x1024",
+            Self::High => "1536x1024",
+            Self::Max => "1792x1024",
+        }
+    }
+
+    /// OpenRouter `image_config.quality` hint when supported by the model.
+    pub fn openrouter_image_quality(self) -> &'static str {
+        match self {
+            Self::Low => "low",
+            Self::Medium => "medium",
+            Self::High => "high",
+            Self::Max => "ultra",
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImageSettings {
     pub provider: ImageProviderKind,
     pub model_id: String,
+    #[serde(default)]
+    pub quality: ImageQualityLevel,
 }
 
 impl Default for ImageSettings {
@@ -41,6 +94,7 @@ impl Default for ImageSettings {
         Self {
             provider: ImageProviderKind::Openai,
             model_id: "gpt-image-1".into(),
+            quality: ImageQualityLevel::Medium,
         }
     }
 }
@@ -152,5 +206,13 @@ mod tests {
         let s = ImageSettings::default();
         assert!(matches!(s.provider, ImageProviderKind::Openai));
         assert_eq!(s.model_id, "gpt-image-1");
+        assert_eq!(s.quality, ImageQualityLevel::Medium);
+    }
+
+    #[test]
+    fn quality_maps_openai_tiers() {
+        assert_eq!(ImageQualityLevel::Low.openai_gpt_quality(), "low");
+        assert_eq!(ImageQualityLevel::Max.openai_dalle_quality(), "hd");
+        assert_eq!(ImageQualityLevel::High.openai_size(), "1536x1024");
     }
 }

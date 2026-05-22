@@ -2065,11 +2065,28 @@ impl ImageProviderKind {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ImageQualityLevel {
+    Low,
+    Medium,
+    High,
+    Max,
+}
+
+impl Default for ImageQualityLevel {
+    fn default() -> Self {
+        Self::Medium
+    }
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ImageSettings {
     pub provider: ImageProviderKind,
     pub model_id: String,
+    #[serde(default)]
+    pub quality: ImageQualityLevel,
 }
 
 impl Default for ImageSettings {
@@ -2077,6 +2094,7 @@ impl Default for ImageSettings {
         Self {
             provider: ImageProviderKind::Openai,
             model_id: "gpt-image-1".into(),
+            quality: ImageQualityLevel::Medium,
         }
     }
 }

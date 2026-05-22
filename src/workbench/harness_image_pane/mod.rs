@@ -5,7 +5,7 @@ use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_provider_models, agent_settings_get, image_settings_get, image_settings_save,
     is_tauri_shell, AgentProviderKind, AgentProviderSettingsView, ImageProviderKind,
-    ImageSettings, ProviderModelEntry,
+    ImageQualityLevel, ImageSettings, ProviderModelEntry,
 };
 use crate::workbench::agent_model_picker::AgentModelPicker;
 use gloo_timers::future::TimeoutFuture;
@@ -93,6 +93,51 @@ fn next_image_provider(provider: ImageProviderKind) -> ImageProviderKind {
 
 fn prev_image_provider(provider: ImageProviderKind) -> ImageProviderKind {
     next_image_provider(provider)
+}
+
+fn image_quality_levels() -> [ImageQualityLevel; 4] {
+    [
+        ImageQualityLevel::Low,
+        ImageQualityLevel::Medium,
+        ImageQualityLevel::High,
+        ImageQualityLevel::Max,
+    ]
+}
+
+fn image_quality_label(i18n: &I18nService, level: ImageQualityLevel) -> String {
+    let key = match level {
+        ImageQualityLevel::Low => I18nKey::AgImageQualityLow,
+        ImageQualityLevel::Medium => I18nKey::AgImageQualityMedium,
+        ImageQualityLevel::High => I18nKey::AgImageQualityHigh,
+        ImageQualityLevel::Max => I18nKey::AgImageQualityMax,
+    };
+    i18n.tr(key)().to_string()
+}
+
+fn image_quality_icon(level: ImageQualityLevel) -> icondata::Icon {
+    match level {
+        ImageQualityLevel::Low => icondata::LuGauge,
+        ImageQualityLevel::Medium => icondata::LuImage,
+        ImageQualityLevel::High => icondata::LuSparkles,
+        ImageQualityLevel::Max => icondata::LuZap,
+    }
+}
+
+fn focus_image_quality_option(level: ImageQualityLevel) {
+    let id = format!("image-quality-option-{level:?}").to_ascii_lowercase();
+    focus_by_id(&id);
+}
+
+fn next_image_quality(level: ImageQualityLevel) -> ImageQualityLevel {
+    let levels = image_quality_levels();
+    let idx = levels.iter().position(|l| *l == level).unwrap_or(1);
+    levels[(idx + 1) % levels.len()]
+}
+
+fn prev_image_quality(level: ImageQualityLevel) -> ImageQualityLevel {
+    let levels = image_quality_levels();
+    let idx = levels.iter().position(|l| *l == level).unwrap_or(1);
+    levels[(idx + levels.len() - 1) % levels.len()]
 }
 
 fn looks_like_image_model(id: &str) -> bool {
@@ -256,6 +301,132 @@ fn ImageProviderPicker(
     }
 }
 
+#[component]
+fn ImageQualityLevelPicker(
+    selected: RwSignal<ImageQualityLevel>,
+    on_select: Callback<ImageQualityLevel>,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let open = RwSignal::new(false);
+
+    let choose = move |level: ImageQualityLevel| {
+        selected.set(level);
+        open.set(false);
+        on_select.run(level);
+    };
+
+    view! {
+        <div class="harness-provider-picker">
+            <button
+                type="button"
+                class="harness-provider-trigger"
+                aria-haspopup="listbox"
+                aria-expanded=move || if open.get() { "true" } else { "false" }
+                on:click=move |_| {
+                    let next = !open.get_untracked();
+                    open.set(next);
+                    if next {
+                        let level = selected.get_untracked();
+                        leptos::task::spawn_local(async move {
+                            TimeoutFuture::new(0).await;
+                            focus_image_quality_option(level);
+                        });
+                    }
+                }
+                on:keydown=move |ev: web_sys::KeyboardEvent| {
+                    match ev.key().as_str() {
+                        "ArrowDown" | "Enter" | " " => {
+                            ev.prevent_default();
+                            open.set(true);
+                            let level = selected.get_untracked();
+                            leptos::task::spawn_local(async move {
+                                TimeoutFuture::new(0).await;
+                                focus_image_quality_option(level);
+                            });
+                        }
+                        "ArrowUp" => {
+                            ev.prevent_default();
+                            open.set(true);
+                            let level = prev_image_quality(selected.get_untracked());
+                            leptos::task::spawn_local(async move {
+                                TimeoutFuture::new(0).await;
+                                focus_image_quality_option(level);
+                            });
+                        }
+                        "Escape" => open.set(false),
+                        _ => {}
+                    }
+                }
+            >
+                <span class="harness-provider-trigger__main">
+                    <span class="harness-provider-trigger__brand">
+                        <LxIcon
+                            icon=move || image_quality_icon(selected.get())
+                            width="0.76rem"
+                            height="0.76rem"
+                        />
+                    </span>
+                    <span>{move || image_quality_label(&i18n, selected.get())}</span>
+                </span>
+                <span class="harness-provider-trigger__caret">"▾"</span>
+            </button>
+
+            <Show when=move || open.get()>
+                <div class="harness-provider-menu" role="listbox">
+                    {move || {
+                        image_quality_levels()
+                            .into_iter()
+                            .map(|level| {
+                                view! {
+                                    <button
+                                        id=format!("image-quality-option-{level:?}").to_ascii_lowercase()
+                                        type="button"
+                                        role="option"
+                                        class="harness-provider-option"
+                                        class:harness-provider-option--active=move || selected.get() == level
+                                        aria-selected=move || if selected.get() == level {
+                                            "true"
+                                        } else {
+                                            "false"
+                                        }
+                                        on:click=move |_| choose(level)
+                                        on:keydown=move |ev: web_sys::KeyboardEvent| {
+                                            match ev.key().as_str() {
+                                                "ArrowDown" => {
+                                                    ev.prevent_default();
+                                                    focus_image_quality_option(next_image_quality(level));
+                                                }
+                                                "ArrowUp" => {
+                                                    ev.prevent_default();
+                                                    focus_image_quality_option(prev_image_quality(level));
+                                                }
+                                                "Enter" | " " => {
+                                                    ev.prevent_default();
+                                                    choose(level);
+                                                }
+                                                "Escape" => {
+                                                    ev.prevent_default();
+                                                    open.set(false);
+                                                }
+                                                _ => {}
+                                            }
+                                        }
+                                    >
+                                        <span class="harness-provider-option__brand">
+                                            <LxIcon icon=image_quality_icon(level) width="0.76rem" height="0.76rem" />
+                                        </span>
+                                        <span>{image_quality_label(&i18n, level)}</span>
+                                    </button>
+                                }
+                            })
+                            .collect_view()
+                    }}
+                </div>
+            </Show>
+        </div>
+    }
+}
+
 /// Image model settings column (BLXCode Agent grid, middle).
 #[component]
 pub fn AgentImageColumn() -> impl IntoView {
@@ -264,6 +435,7 @@ pub fn AgentImageColumn() -> impl IntoView {
     let agent_settings = RwSignal::new(Option::<AgentProviderSettingsView>::None);
     let status = RwSignal::new(Option::<String>::None);
     let selected_provider = RwSignal::new(ImageProviderKind::Openai);
+    let quality_level = RwSignal::new(ImageQualityLevel::Medium);
     let model_entries = RwSignal::new(Vec::<ProviderModelEntry>::new());
     let model_id = RwSignal::new(String::new());
     let loading_models = RwSignal::new(false);
@@ -275,6 +447,7 @@ pub fn AgentImageColumn() -> impl IntoView {
             }
             if let Ok(s) = image_settings_get().await {
                 selected_provider.set(s.provider);
+                quality_level.set(s.quality);
                 model_id.set(s.model_id.clone());
                 fetch_image_models(s.provider, model_entries).await;
                 settings.set(Some(s));
@@ -285,6 +458,7 @@ pub fn AgentImageColumn() -> impl IntoView {
     let save = move |patch: ImageSettings| {
         if !is_tauri_shell() {
             selected_provider.set(patch.provider);
+            quality_level.set(patch.quality);
             model_id.set(patch.model_id.clone());
             settings.set(Some(patch));
             return;
@@ -293,6 +467,7 @@ pub fn AgentImageColumn() -> impl IntoView {
             match image_settings_save(patch).await {
                 Ok(s) => {
                     selected_provider.set(s.provider);
+                    quality_level.set(s.quality);
                     model_id.set(s.model_id.clone());
                     settings.set(Some(s));
                     status.set(Some(i18n.tr(I18nKey::ApiKeysSaved)().to_string()));
@@ -313,13 +488,21 @@ pub fn AgentImageColumn() -> impl IntoView {
     let on_provider_select = Callback::new(move |p: ImageProviderKind| {
         let mut next = settings.get_untracked().unwrap_or_default();
         next.provider = p;
+        next.quality = quality_level.get_untracked();
         save(next);
         reload_models(p);
+    });
+
+    let on_quality_select = Callback::new(move |q: ImageQualityLevel| {
+        let mut next = settings.get_untracked().unwrap_or_default();
+        next.quality = q;
+        save(next);
     });
 
     let on_model_change = Callback::new(move |m: String| {
         let mut next = settings.get_untracked().unwrap_or_default();
         next.model_id = m;
+        next.quality = quality_level.get_untracked();
         save(next);
     });
 
@@ -349,6 +532,18 @@ pub fn AgentImageColumn() -> impl IntoView {
                         <ImageProviderPicker
                             selected_provider=selected_provider
                             on_select=on_provider_select
+                        />
+                    </label>
+                    <label class="agent-provider-pane__field">
+                        <span class="harness-field-label">
+                            <span class="harness-field-label__icon" aria-hidden="true">
+                                <LxIcon icon=icondata::LuSlidersHorizontal width="0.82rem" height="0.82rem" />
+                            </span>
+                            <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgImageQualityField)()}</span>
+                        </span>
+                        <ImageQualityLevelPicker
+                            selected=quality_level
+                            on_select=on_quality_select
                         />
                     </label>
                 </div>

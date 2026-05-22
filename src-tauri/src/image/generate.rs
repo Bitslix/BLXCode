@@ -21,7 +21,7 @@ use std::time::Duration;
 
 use crate::agent::protocol::AgentImageContextItem;
 use crate::agent::state::AgentEngineState;
-use crate::image::settings::{ImageProviderKind, ImageSettings};
+use crate::image::settings::{ImageProviderKind, ImageQualityLevel, ImageSettings};
 
 /// Hard ceilings: align with the chat-side limits (see `commands.rs`).
 const MAX_REF_IMAGES: usize = 4;
@@ -125,10 +125,26 @@ pub async fn generate(
 
     let res = match settings.provider {
         ImageProviderKind::Openai => {
-            generate_openai(&client, &settings.model_id, api_key, prompt, refs).await
+            generate_openai(
+                &client,
+                &settings.model_id,
+                settings.quality,
+                api_key,
+                prompt,
+                refs,
+            )
+            .await
         }
         ImageProviderKind::Openrouter => {
-            generate_openrouter(&client, &settings.model_id, api_key, prompt, refs).await
+            generate_openrouter(
+                &client,
+                &settings.model_id,
+                settings.quality,
+                api_key,
+                prompt,
+                refs,
+            )
+            .await
         }
     };
 
@@ -164,31 +180,48 @@ struct OpenaiError {
     message: Option<String>,
 }
 
+fn openai_image_request_body(model: &str, prompt: &str, quality: ImageQualityLevel) -> Value {
+    let model_lc = model.to_ascii_lowercase();
+    let mut body = json!({
+        "model": model,
+        "prompt": prompt,
+        "n": 1,
+        "size": quality.openai_size(),
+    });
+    let quality_param = if model_lc.contains("dall-e") || model_lc.contains("dalle") {
+        quality.openai_dalle_quality()
+    } else {
+        quality.openai_gpt_quality()
+    };
+    if let Some(obj) = body.as_object_mut() {
+        obj.insert("quality".into(), json!(quality_param));
+    }
+    body
+}
+
 async fn generate_openai(
     client: &reqwest::Client,
     model: &str,
+    quality: ImageQualityLevel,
     api_key: &str,
     prompt: &str,
     refs: &[AgentImageContextItem],
 ) -> Result<GeneratedImage, GenerateError> {
     if refs.is_empty() {
-        generate_openai_text(client, model, api_key, prompt).await
+        generate_openai_text(client, model, quality, api_key, prompt).await
     } else {
-        generate_openai_edit(client, model, api_key, prompt, refs).await
+        generate_openai_edit(client, model, quality, api_key, prompt, refs).await
     }
 }
 
 async fn generate_openai_text(
     client: &reqwest::Client,
     model: &str,
+    quality: ImageQualityLevel,
     api_key: &str,
     prompt: &str,
 ) -> Result<GeneratedImage, GenerateError> {
-    let body = json!({
-        "model": model,
-        "prompt": prompt,
-        "n": 1,
-    });
+    let body = openai_image_request_body(model, prompt, quality);
     let res = client
         .post("https://api.openai.com/v1/images/generations")
         .bearer_auth(api_key)
@@ -211,14 +244,23 @@ async fn generate_openai_text(
 async fn generate_openai_edit(
     client: &reqwest::Client,
     model: &str,
+    quality: ImageQualityLevel,
     api_key: &str,
     prompt: &str,
     refs: &[AgentImageContextItem],
 ) -> Result<GeneratedImage, GenerateError> {
+    let model_lc = model.to_ascii_lowercase();
+    let quality_param = if model_lc.contains("dall-e") || model_lc.contains("dalle") {
+        quality.openai_dalle_quality()
+    } else {
+        quality.openai_gpt_quality()
+    };
     let mut form = reqwest::multipart::Form::new()
         .text("model", model.to_owned())
         .text("prompt", prompt.to_owned())
-        .text("n", "1");
+        .text("n", "1")
+        .text("size", quality.openai_size().to_owned())
+        .text("quality", quality_param.to_owned());
     for (idx, item) in refs.iter().enumerate() {
         let bytes = BASE64
             .decode(item.bytes_b64.as_bytes())
@@ -346,6 +388,7 @@ struct OpenrouterError {
 async fn generate_openrouter(
     client: &reqwest::Client,
     model: &str,
+    quality: ImageQualityLevel,
     api_key: &str,
     prompt: &str,
     refs: &[AgentImageContextItem],
@@ -356,6 +399,9 @@ async fn generate_openrouter(
         "modalities": ["image", "text"],
         "messages": [{ "role": "user", "content": content }],
         "stream": false,
+        "image_config": {
+            "quality": quality.openrouter_image_quality(),
+        },
     });
     let res = client
         .post("https://openrouter.ai/api/v1/chat/completions")

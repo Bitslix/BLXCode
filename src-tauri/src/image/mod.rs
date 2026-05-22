@@ -14,4 +14,4 @@ pub mod settings;
 
 pub use commands::*;
 #[allow(unused_imports)]
-pub use settings::{ImageProviderKind, ImageSettings};
+pub use settings::{ImageProviderKind, ImageQualityLevel, ImageSettings};
