@@ -7,7 +7,6 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
 }
 
 /* Card chrome: .settings-field-card in workspace_settings_pane.css */
@@ -76,6 +75,3 @@
 
 /* Footer/dirty: see workspace_settings_pane.css (.settings-pane-footer). */
 
-.api-keys-pane .settings-pane-footer {
-    margin-top: 0.85rem;
-}

@@ -1,22 +1,45 @@
-/* Workspace settings — shared field cards with API Keys pane. */
+/* Workspace + API Keys settings — shared field cards and vertical rhythm. */
 
-.workspace-settings-pane .settings-field-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
+.workspace-settings-pane.harness-pane,
+.api-keys-pane.harness-pane {
+  gap: 1.5rem;
+}
+
+.workspace-settings-pane .harness-subpane,
+.api-keys-pane .harness-subpane {
+  gap: 1rem;
+  padding: 1.2rem 1.15rem;
+}
+
+.workspace-settings-pane .harness-pane-subhead,
+.api-keys-pane .harness-pane-subhead {
+  margin: 0 0 0.85rem;
+}
+
+.workspace-settings-pane .settings-field-list,
+.api-keys-pane .api-keys-list {
+  gap: 0.9rem;
 }
 
 .settings-field-card {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  padding: 0.55rem 0.65rem;
+  gap: 0.55rem;
+  padding: 0.85rem 0.9rem;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.workspace-settings-pane .settings-field-card .harness-stack,
+.api-keys-pane .api-keys-row .harness-stack {
+  gap: 0.6rem;
+}
+
+.workspace-settings-pane .settings-field-card .harness-muted,
+.api-keys-pane .api-keys-row .harness-muted {
+  margin-top: 0.1rem;
+  line-height: 1.45;
 }
 
 .settings-field-card__input {
@@ -25,7 +48,8 @@
 }
 
 .settings-pane-footer {
-  margin-top: 0.85rem;
+  margin-top: 1.1rem;
+  padding-top: 0.25rem;
   display: flex;
   gap: 0.5rem;
   align-items: center;
