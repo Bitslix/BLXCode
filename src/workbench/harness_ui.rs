@@ -486,13 +486,6 @@ fn checkbox_checked(ev: &web_sys::Event) -> Option<bool> {
         .map(|i| i.checked())
 }
 
-fn select_str(ev: &web_sys::Event) -> Option<String> {
-    ev.target()?
-        .dyn_into::<web_sys::HtmlSelectElement>()
-        .ok()
-        .map(|i| i.value())
-}
-
 #[component]
 fn PaletteList(
     ui: HarnessUiService,
