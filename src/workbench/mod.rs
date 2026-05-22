@@ -3,6 +3,7 @@ mod agent_accent;
 mod agent_context_handoff;
 mod agent_panel;
 mod agent_timeline;
+mod agent_provider_pane;
 mod api_keys_pane;
 mod workspace_settings_pane;
 mod app_prefs;
@@ -35,6 +36,7 @@ mod update_service;
 mod workspace_panel;
 
 pub use agent_panel::AgentPanelDock;
+pub use agent_provider_pane::AgentProviderPane;
 pub use api_keys_pane::ApiKeysPane;
 pub use workspace_settings_pane::WorkspaceSettingsPane;
 pub use browser_tab::{BrowserTabDock, EmbeddedBrowserGlue};
