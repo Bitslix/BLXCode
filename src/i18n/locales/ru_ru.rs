@@ -304,6 +304,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CmdBrowseSub => "Синхронизировать встроенный веб-просмотр",
         I18nKey::CmdMemoryTitle => "Правая вкладка: Память",
         I18nKey::CmdMemorySub => "Зарезервированная панель",
+        I18nKey::CmdTermTitle => "Терминалы",
+        I18nKey::CmdTermSub => "Показать сетку терминалов в активном рабочем пространстве",
+
+        I18nKey::CenterTabCloseTerminalsTitle => "Закрыть рабочее пространство?",
+        I18nKey::CenterTabCloseTerminalsBody => "Все запущенные терминалы в этом рабочем пространстве будут завершены, а рабочее пространство сохранено и закрыто. Открытые вкладки настроек и файлов в этом рабочем пространстве также закроются.",
+        I18nKey::CenterTabCloseTerminalsConfirm => "Закрыть ({seconds} с)",
+        I18nKey::CenterTabCloseTerminalsCancel => "Отмена",
+        I18nKey::CenterTabCloseAria => "Закрыть вкладку",
+
         I18nKey::HsCloseSettingsAria => "Закрыть настройки",
         I18nKey::HsTitle => "Настройки BLXкода",
         I18nKey::HsAriaCats => "Категории",

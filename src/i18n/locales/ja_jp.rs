@@ -300,6 +300,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CmdBrowseSub => "埋め込み Web ビューを同期する",
         I18nKey::CmdMemoryTitle => "右タブ: メモリ",
         I18nKey::CmdMemorySub => "予約済みパネル",
+        I18nKey::CmdTermTitle => "ターミナル",
+        I18nKey::CmdTermSub => "アクティブなワークスペースのターミナルグリッドを表示",
+
+        I18nKey::CenterTabCloseTerminalsTitle => "ワークスペースを閉じますか？",
+        I18nKey::CenterTabCloseTerminalsBody => "このワークスペースで実行中のすべてのターミナルは終了され、ワークスペースは保存されて閉じられます。このワークスペースで開いている設定タブやファイルタブも閉じられます。",
+        I18nKey::CenterTabCloseTerminalsConfirm => "閉じる（{seconds}秒）",
+        I18nKey::CenterTabCloseTerminalsCancel => "キャンセル",
+        I18nKey::CenterTabCloseAria => "タブを閉じる",
+
         I18nKey::HsCloseSettingsAria => "設定を閉じる",
         I18nKey::HsTitle => "BLXCodeの設定",
         I18nKey::HsAriaCats => "カテゴリー",

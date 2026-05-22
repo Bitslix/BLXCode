@@ -138,11 +138,6 @@ impl CenterTab {
             kind: CenterTabKind::Terminals,
         }
     }
-
-    #[must_use]
-    pub fn closeable(&self) -> bool {
-        !matches!(self.kind, CenterTabKind::Terminals)
-    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -444,20 +439,21 @@ impl WorkspaceEntry {
     }
 }
 
-fn ensure_center_tabs(workspace: &mut WorkspaceEntry) {
-    if !workspace
-        .center_tabs
-        .iter()
-        .any(|tab| matches!(tab.kind, CenterTabKind::Terminals))
-    {
-        workspace.center_tabs.insert(0, CenterTab::terminals());
-    }
-    if !workspace
+/// Repair `center_active_tab_id` / `center_next_tab_id` so they stay
+/// consistent with `center_tabs`. Does **not** re-insert a Terminals tab —
+/// callers (`open_center_terminals_tab`, wizard commit, …) decide when a
+/// Terminals tab should exist. When `center_tabs` is empty, `active_tab_id`
+/// is left at `0` to signal "no tab"; the close-flow upgrades this to a
+/// full `close_workspace` via the empty-tabs fallback.
+fn repair_center_tab_state(workspace: &mut WorkspaceEntry) {
+    if workspace.center_tabs.is_empty() {
+        workspace.center_active_tab_id = 0;
+    } else if !workspace
         .center_tabs
         .iter()
         .any(|tab| tab.id == workspace.center_active_tab_id)
     {
-        workspace.center_active_tab_id = CENTER_TERMINALS_TAB_ID;
+        workspace.center_active_tab_id = workspace.center_tabs[0].id;
     }
     let max_id = workspace
         .center_tabs
@@ -469,6 +465,15 @@ fn ensure_center_tabs(workspace: &mut WorkspaceEntry) {
         .center_next_tab_id
         .max(max_id.saturating_add(1))
         .max(default_center_next_tab_id());
+}
+
+/// True when a workspace is an ephemeral "shell" — no folder, not in the
+/// configurator. Created by `open_center_settings_tab` when no real
+/// workspace is open. These are hidden from the sidebar and from the
+/// persisted snapshot.
+#[inline]
+pub(crate) fn is_shell_workspace(ws: &WorkspaceEntry) -> bool {
+    !workspace_entry_has_folder(ws) && !ws.configuring
 }
 
 #[inline]
@@ -648,6 +653,17 @@ pub enum HarnessSettingsCategory {
     Image,
 }
 
+/// Live state of the "Close Terminals tab" confirmation overlay. The 10s
+/// countdown disables the confirm button so accidental double-clicks can't
+/// destroy the workspace. `generation` tags the active timer so a stale
+/// async tick can't override a freshly-opened dialog (rapid-fire close).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CloseTerminalsConfirm {
+    pub workspace_id: u64,
+    pub seconds_left: u8,
+    pub generation: u32,
+}
+
 #[derive(Clone, Copy)]
 pub struct HarnessUiService {
     palette_open: RwSignal<bool>,
@@ -661,6 +677,8 @@ pub struct HarnessUiService {
     /// Tmux-style prefix (`Ctrl+b`) armed; second key pending.
     prefix_armed: RwSignal<bool>,
     prefix_gen: RwSignal<u32>,
+    close_terminals_confirm: RwSignal<Option<CloseTerminalsConfirm>>,
+    close_terminals_gen: RwSignal<u32>,
 }
 
 impl HarnessUiService {
@@ -677,7 +695,57 @@ impl HarnessUiService {
             settings_category: RwSignal::new(HarnessSettingsCategory::App),
             prefix_armed: RwSignal::new(false),
             prefix_gen: RwSignal::new(0),
+            close_terminals_confirm: RwSignal::new(None),
+            close_terminals_gen: RwSignal::new(0),
         }
+    }
+
+    /// Reactive accessor for the Terminals-close confirmation overlay.
+    /// `None` = closed; `Some(_)` = dialog visible with `seconds_left` ticks.
+    #[must_use]
+    pub fn close_terminals_confirm(&self) -> RwSignal<Option<CloseTerminalsConfirm>> {
+        self.close_terminals_confirm
+    }
+
+    /// Open the confirmation overlay for closing the Terminals tab of
+    /// `workspace_id`. Spawns a 1s tick loop that decrements
+    /// `seconds_left` from 3 → 0; the confirm button stays disabled until
+    /// it hits 0. A fresh `generation` lets a later call cancel an earlier
+    /// in-flight countdown.
+    pub fn request_close_terminals_tab(&self, workspace_id: u64) {
+        const COUNTDOWN_SECS: u8 = 3;
+        let gen = self.close_terminals_gen.get_untracked().wrapping_add(1);
+        self.close_terminals_gen.set(gen);
+        self.close_terminals_confirm.set(Some(CloseTerminalsConfirm {
+            workspace_id,
+            seconds_left: COUNTDOWN_SECS,
+            generation: gen,
+        }));
+        let me = *self;
+        spawn_local(async move {
+            let mut remaining = COUNTDOWN_SECS;
+            while remaining > 0 {
+                TimeoutFuture::new(1000).await;
+                // Bail out if a newer dialog (or close) superseded us.
+                let snapshot = me.close_terminals_confirm.get_untracked();
+                let Some(state) = snapshot else { return };
+                if state.generation != gen {
+                    return;
+                }
+                remaining = remaining.saturating_sub(1);
+                me.close_terminals_confirm.set(Some(CloseTerminalsConfirm {
+                    workspace_id: state.workspace_id,
+                    seconds_left: remaining,
+                    generation: gen,
+                }));
+            }
+        });
+    }
+
+    pub fn dismiss_close_terminals_confirm(&self) {
+        self.close_terminals_gen
+            .update(|g| *g = g.wrapping_add(1));
+        self.close_terminals_confirm.set(None);
     }
 
     pub fn prefix_armed(&self) -> RwSignal<bool> {
@@ -1421,12 +1489,8 @@ impl WorkbenchService {
             workspaces
                 .iter()
                 .find(|w| w.id == workspace_id)
-                .map(|w| {
-                    let mut clone = w.clone();
-                    ensure_center_tabs(&mut clone);
-                    clone.center_tabs
-                })
-                .unwrap_or_else(default_center_tabs)
+                .map(|w| w.center_tabs.clone())
+                .unwrap_or_default()
         })
     }
 
@@ -1437,7 +1501,7 @@ impl WorkbenchService {
                 .iter()
                 .find(|w| w.id == workspace_id)
                 .map(|w| w.center_active_tab_id)
-                .unwrap_or(CENTER_TERMINALS_TAB_ID)
+                .unwrap_or(0)
         })
     }
 
@@ -1446,23 +1510,25 @@ impl WorkbenchService {
             let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
                 return;
             };
-            ensure_center_tabs(workspace);
             if workspace.center_tabs.iter().any(|tab| tab.id == tab_id) {
                 workspace.center_active_tab_id = tab_id;
             }
+            repair_center_tab_state(workspace);
         });
         self.bump_terminal_layout();
     }
 
+    /// Close a non-terminals center tab. Terminals tabs are routed through
+    /// the countdown dialog and `close_center_terminals_tab` instead. When
+    /// removing the last tab from a workspace, the workspace itself is
+    /// closed (save + recent) — this triggers the welcome screen if no
+    /// other workspace is open.
     pub fn close_center_tab(&self, workspace_id: u64, tab_id: u64) {
-        if tab_id == CENTER_TERMINALS_TAB_ID {
-            return;
-        }
+        let mut became_empty = false;
         self.workspaces.update(|workspaces| {
             let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
                 return;
             };
-            ensure_center_tabs(workspace);
             let Some(index) = workspace
                 .center_tabs
                 .iter()
@@ -1470,7 +1536,7 @@ impl WorkbenchService {
             else {
                 return;
             };
-            if !workspace.center_tabs[index].closeable() {
+            if matches!(workspace.center_tabs[index].kind, CenterTabKind::Terminals) {
                 return;
             }
             workspace.center_tabs.remove(index);
@@ -1484,28 +1550,65 @@ impl WorkbenchService {
                             .and_then(|i| workspace.center_tabs.get(i))
                     })
                     .map(|tab| tab.id)
-                    .unwrap_or(CENTER_TERMINALS_TAB_ID);
+                    .unwrap_or(0);
             }
-            ensure_center_tabs(workspace);
+            repair_center_tab_state(workspace);
+            became_empty = workspace.center_tabs.is_empty();
+        });
+        if became_empty {
+            // close_workspace MUST run outside workspaces.update — see
+            // finalize_workspace_close for the deadlock note.
+            self.close_workspace(workspace_id);
+        } else {
+            self.bump_terminal_layout();
+        }
+    }
+
+    /// Close the Terminals center tab AND the entire workspace it belongs
+    /// to. Invoked after the 10-second confirmation dialog has been
+    /// accepted; behaves like a sidebar close (saves sessions, pushes
+    /// to recent, switches `active_id` to the next workspace or `None`).
+    pub fn close_center_terminals_tab(&self, workspace_id: u64) {
+        self.close_workspace(workspace_id);
+    }
+
+    /// Ensure a Terminals tab exists at index 0 of the given workspace and
+    /// make it the active tab. Used by the "new terminal" shortcut and
+    /// the optional palette entry that reopens the terminal grid.
+    pub fn open_center_terminals_tab(&self, workspace_id: u64) {
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            if !workspace
+                .center_tabs
+                .iter()
+                .any(|tab| matches!(tab.kind, CenterTabKind::Terminals))
+            {
+                workspace.center_tabs.insert(0, CenterTab::terminals());
+            }
+            workspace.center_active_tab_id = CENTER_TERMINALS_TAB_ID;
+            repair_center_tab_state(workspace);
         });
         self.bump_terminal_layout();
     }
 
     pub fn open_center_settings_tab(&self, cat: HarnessSettingsCategory) {
-        let Some(workspace_id) = self.active_id.get_untracked() else {
-            return;
-        };
+        let workspace_id = self
+            .active_id
+            .get_untracked()
+            .unwrap_or_else(|| self.ensure_tab_host_workspace());
         self.workspaces.update(|workspaces| {
             let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
                 return;
             };
-            ensure_center_tabs(workspace);
             if let Some(tab) = workspace
                 .center_tabs
                 .iter()
                 .find(|tab| matches!(tab.kind, CenterTabKind::Settings))
             {
                 workspace.center_active_tab_id = tab.id;
+                repair_center_tab_state(workspace);
                 return;
             }
             let id = workspace
@@ -1518,6 +1621,7 @@ impl WorkbenchService {
                 kind: CenterTabKind::Settings,
             });
             workspace.center_active_tab_id = id;
+            repair_center_tab_state(workspace);
         });
         self.bump_terminal_layout();
     }
@@ -1531,11 +1635,11 @@ impl WorkbenchService {
             let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
                 return;
             };
-            ensure_center_tabs(workspace);
             if let Some(tab) = workspace.center_tabs.iter().find(|tab| {
                 matches!(&tab.kind, CenterTabKind::FilePreview { rel_path: existing } if existing == &rel_path)
             }) {
                 workspace.center_active_tab_id = tab.id;
+                repair_center_tab_state(workspace);
                 return;
             }
             let id = workspace.center_next_tab_id.max(default_center_next_tab_id());
@@ -1546,7 +1650,49 @@ impl WorkbenchService {
                 kind: CenterTabKind::FilePreview { rel_path },
             });
             workspace.center_active_tab_id = id;
+            repair_center_tab_state(workspace);
         });
+    }
+
+    /// Create an ephemeral "shell" workspace that hosts only the settings
+    /// tab when no real workspace is open. The shell has empty `cwd`,
+    /// `configuring: false`, no terminal slots, and starts with an empty
+    /// `center_tabs` (the caller pushes the desired tab right after).
+    /// Returns the new workspace id and selects it. Shell workspaces are
+    /// filtered out of the sidebar and not persisted in the snapshot.
+    fn ensure_tab_host_workspace(&self) -> u64 {
+        let id = self.allocate_workspace_id();
+        let color = self.workspace_color_for_new_index(self.workspaces.get_untracked().len());
+        let entry = WorkspaceEntry {
+            id,
+            storage_key: WorkspaceEntry::new_storage_key(),
+            title: format!("Workspace {id}"),
+            color,
+            cwd: String::new(),
+            terminal_count: 0,
+            grid_rows: 1,
+            grid_cols: 1,
+            next_terminal_id: 1,
+            slot_ids: Vec::new(),
+            slot_agent_labels: Vec::new(),
+            slot_pane_states: Vec::new(),
+            configuring: false,
+            agent_timeline: Vec::new(),
+            agent_compose_draft: String::new(),
+            agent_image_mode: false,
+            agent_context_items: Vec::new(),
+            memory_category_settings: HashMap::new(),
+            agent_chat_usage: ChatUsageStats::default(),
+            sidebar_explorer_open: true,
+            sidebar_graph_open: true,
+            sidebar_explorer_expanded_paths: Vec::new(),
+            center_tabs: Vec::new(),
+            center_active_tab_id: 0,
+            center_next_tab_id: default_center_next_tab_id(),
+        };
+        self.workspaces.update(|v| v.push(entry));
+        self.active_id.set(Some(id));
+        id
     }
 
     #[must_use]
@@ -1723,6 +1869,15 @@ impl WorkbenchService {
                     .map(|workspace| workspace.id);
                 self.active_id.set(next);
             }
+        });
+        // Always drop the in-flight wizard draft for this id (cancel_inline_configure
+        // also calls us; sidebar close and the new terminals-close path rely on this
+        // so a discarded configurator never leaks past the close).
+        self.workspace_drafts.update(|m| {
+            m.remove(&id);
+        });
+        self.workspace_config_steps.update(|m| {
+            m.remove(&id);
         });
         // Must run after `workspaces.update` — re-entering the same signal inside
         // the closure can deadlock Leptos and freeze close / add workspace.
@@ -2267,12 +2422,8 @@ impl WorkbenchService {
     }
 
     pub fn cancel_inline_configure(&self, id: u64) {
-        self.workspace_drafts.update(|m| {
-            m.remove(&id);
-        });
-        self.workspace_config_steps.update(|m| {
-            m.remove(&id);
-        });
+        // Draft + config-step cleanup is centralised in
+        // `finalize_workspace_close` so every close path drops the draft.
         self.close_workspace(id);
     }
 
@@ -2428,7 +2579,19 @@ impl WorkbenchService {
             let Some(ws) = v.iter_mut().find(|w| w.id == id) else {
                 return;
             };
-            ensure_center_tabs(ws);
+            // Wizard-commit upgrades a freshly-created (empty center_tabs)
+            // workspace into a real one — make sure the Terminals tab is
+            // present, but never overwrite a Settings/File tab the user
+            // already opened in the meantime.
+            if !ws
+                .center_tabs
+                .iter()
+                .any(|tab| matches!(tab.kind, CenterTabKind::Terminals))
+            {
+                ws.center_tabs.insert(0, CenterTab::terminals());
+            }
+            ws.center_active_tab_id = CENTER_TERMINALS_TAB_ID;
+            repair_center_tab_state(ws);
             ws.title = title;
             if ws.color.trim().is_empty() {
                 ws.color = self.workspace_color_for_new_index(0);
@@ -2917,7 +3080,17 @@ impl WorkbenchService {
                 }
                 let fallback = workspace_color_from_presets(&color_presets, idx);
                 w.color = normalize_hex_color(&w.color, &fallback);
-                ensure_center_tabs(&mut w);
+                // Older snapshots may have lost the Terminals tab via a
+                // bug; ensure persisted workspaces (filtered to those with
+                // a folder) still have one so the grid renders.
+                if !w
+                    .center_tabs
+                    .iter()
+                    .any(|tab| matches!(tab.kind, CenterTabKind::Terminals))
+                {
+                    w.center_tabs.insert(0, CenterTab::terminals());
+                }
+                repair_center_tab_state(&mut w);
                 w
             })
             .collect();
@@ -3125,4 +3298,91 @@ pub fn derive_workspace_name(path: &str) -> Option<String> {
         return None;
     }
     Some(last.to_string())
+}
+
+#[cfg(test)]
+mod center_tab_tests {
+    use super::*;
+
+    fn mk_workspace(id: u64, tabs: Vec<CenterTab>) -> WorkspaceEntry {
+        let active = tabs.first().map(|t| t.id).unwrap_or(0);
+        WorkspaceEntry {
+            id,
+            storage_key: "ws-storage".into(),
+            title: format!("Workspace {id}"),
+            color: "#7dd3fc".into(),
+            cwd: "/tmp/blxcode-test".into(),
+            terminal_count: 1,
+            grid_rows: 1,
+            grid_cols: 1,
+            next_terminal_id: 2,
+            slot_ids: vec![1],
+            slot_agent_labels: vec![String::new()],
+            slot_pane_states: vec![SlotPaneState::default_for_slot(1)],
+            configuring: false,
+            agent_timeline: Vec::new(),
+            agent_compose_draft: String::new(),
+            agent_image_mode: false,
+            agent_context_items: Vec::new(),
+            memory_category_settings: HashMap::new(),
+            agent_chat_usage: ChatUsageStats::default(),
+            sidebar_explorer_open: true,
+            sidebar_graph_open: true,
+            sidebar_explorer_expanded_paths: Vec::new(),
+            center_tabs: tabs,
+            center_active_tab_id: active,
+            center_next_tab_id: default_center_next_tab_id(),
+        }
+    }
+
+    #[test]
+    fn repair_does_not_reinsert_terminals() {
+        let mut ws = mk_workspace(
+            1,
+            vec![CenterTab {
+                id: 42,
+                title: "Settings".into(),
+                kind: CenterTabKind::Settings,
+            }],
+        );
+        repair_center_tab_state(&mut ws);
+        assert!(
+            !ws.center_tabs
+                .iter()
+                .any(|tab| matches!(tab.kind, CenterTabKind::Terminals)),
+            "repair_center_tab_state must not reinsert a Terminals tab"
+        );
+        assert_eq!(ws.center_active_tab_id, 42);
+    }
+
+    #[test]
+    fn repair_handles_empty_tabs() {
+        let mut ws = mk_workspace(1, vec![]);
+        repair_center_tab_state(&mut ws);
+        assert_eq!(ws.center_active_tab_id, 0);
+        assert!(ws.center_tabs.is_empty());
+    }
+
+    #[test]
+    fn repair_fixes_dangling_active_id() {
+        let mut ws = mk_workspace(
+            1,
+            vec![CenterTab::terminals()],
+        );
+        ws.center_active_tab_id = 999;
+        repair_center_tab_state(&mut ws);
+        assert_eq!(ws.center_active_tab_id, CENTER_TERMINALS_TAB_ID);
+    }
+
+    #[test]
+    fn is_shell_workspace_only_for_empty_cwd_no_configure() {
+        let mut ws = mk_workspace(1, vec![CenterTab::terminals()]);
+        ws.cwd = String::new();
+        assert!(is_shell_workspace(&ws));
+        ws.configuring = true;
+        assert!(!is_shell_workspace(&ws));
+        ws.configuring = false;
+        ws.cwd = "/tmp/x".into();
+        assert!(!is_shell_workspace(&ws));
+    }
 }

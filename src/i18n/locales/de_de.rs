@@ -306,6 +306,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CmdBrowseSub => "Eingebettete Webview synchronisieren",
         I18nKey::CmdMemoryTitle => "Rechter Reiter: Gedächtnis",
         I18nKey::CmdMemorySub => "Reservierter Bereich",
+        I18nKey::CmdTermTitle => "Terminals",
+        I18nKey::CmdTermSub => "Terminal-Grid im aktiven Workspace anzeigen",
+
+        I18nKey::CenterTabCloseTerminalsTitle => "Workspace schließen?",
+        I18nKey::CenterTabCloseTerminalsBody => "Alle laufenden Terminals in diesem Workspace werden beendet und der Workspace wird gespeichert und geschlossen. Offene Einstellungs- oder Datei-Tabs in diesem Workspace werden ebenfalls geschlossen.",
+        I18nKey::CenterTabCloseTerminalsConfirm => "Schließen ({seconds}s)",
+        I18nKey::CenterTabCloseTerminalsCancel => "Abbrechen",
+        I18nKey::CenterTabCloseAria => "Tab schließen",
+
         I18nKey::HsCloseSettingsAria => "Einstellungen schließen",
         I18nKey::HsTitle => "BLXCode-Einstellungen",
         I18nKey::HsAriaCats => "Kategorien",

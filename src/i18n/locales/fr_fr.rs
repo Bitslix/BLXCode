@@ -308,6 +308,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CmdBrowseSub => "Synchroniser la vue Web intégrée",
         I18nKey::CmdMemoryTitle => "Onglet droit : Mémoire",
         I18nKey::CmdMemorySub => "Panneau réservé",
+        I18nKey::CmdTermTitle => "Terminaux",
+        I18nKey::CmdTermSub => "Afficher la grille de terminaux dans l'espace de travail actif",
+
+        I18nKey::CenterTabCloseTerminalsTitle => "Fermer l'espace de travail ?",
+        I18nKey::CenterTabCloseTerminalsBody => "Tous les terminaux en cours dans cet espace de travail seront arrêtés, et l'espace de travail sera enregistré et fermé. Les onglets de paramètres ou de fichiers ouverts dans cet espace de travail seront également fermés.",
+        I18nKey::CenterTabCloseTerminalsConfirm => "Fermer ({seconds}s)",
+        I18nKey::CenterTabCloseTerminalsCancel => "Annuler",
+        I18nKey::CenterTabCloseAria => "Fermer l'onglet",
+
         I18nKey::HsCloseSettingsAria => "Fermer les paramètres",
         I18nKey::HsTitle => "Paramètres du code BLX",
         I18nKey::HsAriaCats => "Catégories",

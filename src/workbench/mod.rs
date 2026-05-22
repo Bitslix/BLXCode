@@ -11,6 +11,7 @@ mod appearance_settings_pane;
 mod app_prefs;
 mod browser_tab;
 mod chat_markdown;
+mod close_terminals_tab_dialog;
 mod create_workspace_wizard;
 mod git_graph;
 mod harness_chords;
@@ -76,6 +77,7 @@ use send_wrapper::SendWrapper;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use toast::{ToastHost, ToastService};
+use close_terminals_tab_dialog::CloseTerminalsTabDialog;
 use update_dialog::{UpdateBanner, UpdateDialog};
 use update_service::UpdateService;
 use wasm_bindgen::closure::Closure;
@@ -480,6 +482,7 @@ pub fn WorkbenchShell() -> impl IntoView {
             <EmbeddedBrowserGlue />
             <UpdateBanner />
             <UpdateDialog />
+            <CloseTerminalsTabDialog />
             <HarnessHost />
             <ToastHost />
         </Show>

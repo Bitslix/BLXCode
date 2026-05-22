@@ -306,6 +306,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CmdBrowseSub => "Sincronizar webview incorporado",
         I18nKey::CmdMemoryTitle => "Guia direita: Memória",
         I18nKey::CmdMemorySub => "Painel reservado",
+        I18nKey::CmdTermTitle => "Terminais",
+        I18nKey::CmdTermSub => "Mostrar a grade de terminais no workspace ativo",
+
+        I18nKey::CenterTabCloseTerminalsTitle => "Fechar workspace?",
+        I18nKey::CenterTabCloseTerminalsBody => "Todos os terminais em execução neste workspace serão encerrados e o workspace será salvo e fechado. As abas de configurações ou arquivos abertas neste workspace também serão fechadas.",
+        I18nKey::CenterTabCloseTerminalsConfirm => "Fechar ({seconds}s)",
+        I18nKey::CenterTabCloseTerminalsCancel => "Cancelar",
+        I18nKey::CenterTabCloseAria => "Fechar guia",
+
         I18nKey::HsCloseSettingsAria => "Fechar configurações",
         I18nKey::HsTitle => "Configurações do BLXCode",
         I18nKey::HsAriaCats => "Categorias",

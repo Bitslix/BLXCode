@@ -304,6 +304,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CmdBrowseSub => "Synchronizuj osadzony widok internetowy",
         I18nKey::CmdMemoryTitle => "Prawa zakładka: Pamięć",
         I18nKey::CmdMemorySub => "Zarezerwowany panel",
+        I18nKey::CmdTermTitle => "Terminale",
+        I18nKey::CmdTermSub => "Pokaż siatkę terminali w aktywnym workspace",
+
+        I18nKey::CenterTabCloseTerminalsTitle => "Zamknąć workspace?",
+        I18nKey::CenterTabCloseTerminalsBody => "Wszystkie uruchomione terminale w tym workspace zostaną zakończone, a workspace zostanie zapisany i zamknięty. Otwarte karty ustawień i plików w tym workspace również zostaną zamknięte.",
+        I18nKey::CenterTabCloseTerminalsConfirm => "Zamknij ({seconds}s)",
+        I18nKey::CenterTabCloseTerminalsCancel => "Anuluj",
+        I18nKey::CenterTabCloseAria => "Zamknij kartę",
+
         I18nKey::HsCloseSettingsAria => "Zamknij ustawienia",
         I18nKey::HsTitle => "Ustawienia BLXCode",
         I18nKey::HsAriaCats => "Kategorie",

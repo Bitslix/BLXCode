@@ -343,6 +343,14 @@ Classic: Ctrl+O quick open, Ctrl+` new terminal, Ctrl+Shift+P palette."
         I18nKey::CmdBrowseSub => "Sync embedded webview",
         I18nKey::CmdMemoryTitle => "Right tab: Memory",
         I18nKey::CmdMemorySub => "Reserved panel",
+        I18nKey::CmdTermTitle => "Terminals",
+        I18nKey::CmdTermSub => "Show terminal grid in the active workspace",
+
+        I18nKey::CenterTabCloseTerminalsTitle => "Close workspace?",
+        I18nKey::CenterTabCloseTerminalsBody => "All running terminals in this workspace will be terminated and the workspace will be saved and closed. Open Settings or file tabs in this workspace will also close.",
+        I18nKey::CenterTabCloseTerminalsConfirm => "Close ({seconds}s)",
+        I18nKey::CenterTabCloseTerminalsCancel => "Cancel",
+        I18nKey::CenterTabCloseAria => "Close tab",
 
         I18nKey::HsCloseSettingsAria => "Close settings",
         I18nKey::HsTitle => "BLXCode settings",

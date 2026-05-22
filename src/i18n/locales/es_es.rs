@@ -306,6 +306,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CmdBrowseSub => "Sincronizar vista web integrada",
         I18nKey::CmdMemoryTitle => "Pestaña derecha: Memoria",
         I18nKey::CmdMemorySub => "Panel reservado",
+        I18nKey::CmdTermTitle => "Terminales",
+        I18nKey::CmdTermSub => "Mostrar la cuadrícula de terminales en el espacio de trabajo activo",
+
+        I18nKey::CenterTabCloseTerminalsTitle => "¿Cerrar el espacio de trabajo?",
+        I18nKey::CenterTabCloseTerminalsBody => "Todas las terminales en ejecución en este espacio de trabajo se cerrarán y el espacio de trabajo se guardará y cerrará. Las pestañas de configuración o archivos abiertas en este espacio de trabajo también se cerrarán.",
+        I18nKey::CenterTabCloseTerminalsConfirm => "Cerrar ({seconds}s)",
+        I18nKey::CenterTabCloseTerminalsCancel => "Cancelar",
+        I18nKey::CenterTabCloseAria => "Cerrar pestaña",
+
         I18nKey::HsCloseSettingsAria => "Cerrar configuración",
         I18nKey::HsTitle => "Configuración del código BLX",
         I18nKey::HsAriaCats => "Categorías",

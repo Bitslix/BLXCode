@@ -32,6 +32,12 @@ enum PaletteAction {
     AgentTab,
     BrowserTab,
     MemoryTab,
+    /// Reopen the Terminals tab in the active workspace without spawning
+    /// a fresh terminal slot — used after the user closed the tab via
+    /// the confirmation dialog (technically that flow closes the whole
+    /// workspace, so this is mainly handy after manually closing extra
+    /// tabs and wanting to jump back to the grid).
+    OpenTerminalsTab,
 }
 
 #[derive(Clone, Copy)]
@@ -78,6 +84,12 @@ const PALETTE_ROWS: &[PaletteRow] = &[
         subtitle: I18nKey::CmdMemorySub,
         action: PaletteAction::MemoryTab,
         icon: icondata::LuLayers,
+    },
+    PaletteRow {
+        title: I18nKey::CmdTermTitle,
+        subtitle: I18nKey::CmdTermSub,
+        action: PaletteAction::OpenTerminalsTab,
+        icon: icondata::LuSquareTerminal,
     },
 ];
 
@@ -630,6 +642,11 @@ fn palette_run(
         }
         PaletteAction::MemoryTab => {
             reveal_tab(RightPanelTab::Memory, ui, wb, embed);
+        }
+        PaletteAction::OpenTerminalsTab => {
+            if let Some(workspace_id) = wb.active_id().get_untracked() {
+                wb.open_center_terminals_tab(workspace_id);
+            }
         }
     }
 }
