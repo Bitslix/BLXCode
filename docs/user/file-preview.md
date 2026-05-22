@@ -89,15 +89,33 @@ Code files (Rust, TypeScript, JavaScript, Python, Go, Java, Kotlin, Swift, C/C++
 - **Syntax highlighting** on the right via [highlight.js 11](https://highlightjs.org/) for every file whose extension maps to a known language. The bundle is vendored at `public/vendor/highlight/highlight.min.js` (~127 KiB, 38 common languages) and lazy-loaded on first use; subsequent code previews reuse `globalThis.hljs` without re-downloading.
 - **Plain text** (txt/log/ini/conf/env/csv/…) gets the **same gutter + selection layout** but without highlighting — useful for logs and config files where you still want to reference a line number.
 
-### Row selection
+### Row and range selection
 
-Click any line — either on the line number, the code, or the empty space at the end of the row — to **highlight that row**. The selection is shown as an accent-soft background with a bright accent-colored bar on the left and the line number switching to the accent color. Click the same row again to clear the selection. The selection state survives **Refresh** because the preview only resets it when you open a different file.
+- **Click** any line — either on the line number, the code, or the empty space at the end of the row — to **highlight that row**. The selection is shown as an accent-soft background with a bright accent-colored bar on the left and the line number switching to the accent color. Click the same row again to clear the selection.
+- **Drag** with the left mouse button to extend the selection across multiple lines. Press down on the first row, drag up or down to the last row, and release: every line in between stays highlighted. Releasing the button anywhere on the page ends the drag, even when the cursor leaves the gutter.
 
-This is great for:
+The selection state survives **Refresh** because the preview only resets it when you open a different file. The selection is useful for:
 
-- Pointing the agent or a teammate at a specific line ("look at line 42 in `src-tauri/src/agent/openrouter.rs`").
+- Pointing the agent or a teammate at a specific line.
 - Keeping a visual marker while you scroll through a long file.
-- Combining with **Copy path** in the topbar to drop a file reference into chat or the terminal.
+- Combining with the right-click handoff menu below to send the highlighted lines anywhere in the workbench.
+
+### Right-click handoff menu
+
+Right-clicking on any row inside the code view opens a contextual menu. If the click lands outside the current selection the menu first replaces the selection with that single line; otherwise the existing range stays. The menu groups four kinds of actions, all of which respect the highlighted line range:
+
+| Section | What happens | Where it ends up |
+|---|---|---|
+| **Snippet → Insert into terminal** | Writes a fenced markdown block (`**path:start-end**` + ```` ```lang ```` body) directly into the chosen PTY session. | Any open terminal in **any workspace** — the menu lists every workspace that has at least one live terminal, with the preview's own workspace pinned to the top and tagged with a localized **current** badge. |
+| **Full context block → Insert into terminal** | Wraps the same snippet inside the standard `⟪ BLXCode attached context ⟫` envelope (Session header + File snippet section + end marker) so terminal agents parse it identically to a workspace handoff. | Same terminal targets as above. |
+| **Snippet → Attach to agent** | Adds an `AgentContextKind::FileSnippet` entry to the chosen workspace's agent context; the inline content rides on the prompt the next time you submit a turn. | Any workspace's BLXCode Agent context — the preview's workspace is again pinned first with the **current** badge. |
+| **Clipboard** | `Copy snippet` (fenced markdown), `Copy line range` (raw text of the selected lines), `Copy raw text` (the whole file). | `navigator.clipboard` — a toast confirms each copy. |
+
+When the **target workspace** differs from the **preview workspace** (e.g. you have file `src/foo.rs` open in workspace **Demo** and insert the snippet into a terminal in workspace **Backend**), the rendered block adds a `source workspace: ` `Demo` line so the receiving agent knows the file lives elsewhere. The same disambiguating header is added when you attach the snippet to a different workspace's agent.
+
+Toasts surface success and failure for every action — e.g. *Snippet inserted into terminal Slot 2 · codex (Workspace Backend)*, *Snippet attached to Demo agent*, or *Failed to insert into terminal: <backend detail>*. The menu closes on any click outside, on `Escape`, or after any item is activated.
+
+The menu is fully localized — all section headers, workspace group labels, slot labels (*Slot 3 · shell*), and toast strings use the new `CodeViewMenu*` / `CodeViewToast*` i18n keys with `{workspace}`, `{terminal}`, `{slot}`, `{agent}`, `{error}` placeholders.
 
 ### Language detection
 

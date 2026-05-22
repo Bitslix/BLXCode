@@ -239,4 +239,14 @@ Erinnerung aus `CLAUDE.md`: Alle Sprach-Locale-Files müssen die neuen Keys habe
 - [x] `code-view` - `CodeView` mit Line-Numbers, Syntax-Highlighting, Row-Selection
 - [x] `code-dispatch` - Dispatcher routet `Code | Text` → `CodeView`
 - [x] `code-styles` - `.code-view` Layout + hljs-Token-Mapping mit Theme-Tokens (dark + light)
-- [ ] `manual-verify` - Manuelle Checks aus Test-Tabelle inkl. PNG, SVG, MD, MMD, MP4, sowie TS/JS/RS-Files mit Line-Selection
+- [x] `code-drag-selection` - Drag-Range-Selection (mousedown→mousemove→window-mouseup) auf `.code-view` mit Single-Click-Toggle erhalten
+- [x] `code-snippet-util` - `build_file_snippet_block` in `file_preview/util.rs` mit fenced Markdown + Source-Workspace-Header für Cross-Workspace
+- [x] `code-envelope` - `render_file_snippet_envelope` in `agent_context_handoff.rs` als Mini-Variante des Handoff-Blocks
+- [x] `code-context-item` - `AgentContextKind::FileSnippet` + optionales `content`-Feld auf Frontend-Bridge + Backend-Protocol + Prompt-Renderer (`session_orchestrator.rs`)
+- [x] `code-cross-workspace-terms` - `list_terminal_targets_all_workspaces` enumeriert alle Workspaces, gruppiert + Shell-Workspaces ausgefiltert
+- [x] `code-context-menu` - Neues `code_context_menu.rs`-Modul: gruppiertes Menü (Snippet→Terminal, Envelope→Terminal, Attach→Agent, Clipboard) mit "current"-Badge für Preview-Workspace
+- [x] `code-menu-wire` - `on:contextmenu` in `CodeView`, Menu-State-Signal, Window-mousedown/Escape zum Schließen, Range-Capture
+- [x] `code-actions` - `pty_write` für Snippet & Envelope, `upsert_workspace_agent_context` für Attach, `navigator.clipboard.writeText` für Copy-Snippet/Range/Raw mit Toast-Feedback
+- [x] `code-i18n-handoff` - 22 neue Keys (`CodeViewMenu*` + `CodeViewToast*`) + Übersetzungen in allen 13 Locales (en/de/fr/es/it/pt_br/pl/hu/ru/ja/ko/zh_cn/zh_tw)
+- [x] `code-css-menu` - `user-select:none` auf `.code-view` + `.code-context-menu` Stile (Sektionen, Workspace-Gruppen, Slot-Items, Badge)
+- [ ] `manual-verify` - Manuelle Checks aus Test-Tabelle inkl. PNG, SVG, MD, MMD, MP4, sowie TS/JS/RS-Files mit Line-Selection + Drag-Selection + Rechtsklick → Terminal/Agent/Clipboard (auch cross-workspace)

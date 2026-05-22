@@ -176,6 +176,45 @@ pub fn hljs_lang_for_ext(ext: &str) -> Option<&'static str> {
     })
 }
 
+/// Build a fenced markdown snippet for a file preview line range.
+///
+/// `range` is 1-based, inclusive. `source_workspace_for_header` is set when
+/// the snippet is being sent to a target in a **different** workspace than
+/// the preview source so the receiver can disambiguate; otherwise pass
+/// `None` for a clean `path:start-end` header.
+///
+/// Out-of-range indices are clamped to the available `plain_lines` so the
+/// helper never panics on stale signals.
+#[must_use]
+pub fn build_file_snippet_block(
+    rel_path: &str,
+    language: Option<&str>,
+    plain_lines: &[String],
+    range: (u32, u32),
+    source_workspace_for_header: Option<&str>,
+) -> String {
+    let total = plain_lines.len() as u32;
+    if total == 0 {
+        return String::new();
+    }
+    let (raw_s, raw_e) = range;
+    let start = raw_s.max(1).min(total);
+    let end = raw_e.max(start).min(total);
+
+    let start_idx = (start - 1) as usize;
+    let end_idx = (end - 1) as usize;
+    let slice = plain_lines[start_idx..=end_idx].join("\n");
+
+    let location = match source_workspace_for_header {
+        Some(ws) if !ws.is_empty() && start == end => format!("{ws}:{rel_path}:{start}"),
+        Some(ws) if !ws.is_empty() => format!("{ws}:{rel_path}:{start}-{end}"),
+        _ if start == end => format!("{rel_path}:{start}"),
+        _ => format!("{rel_path}:{start}-{end}"),
+    };
+    let lang_tag = language.unwrap_or("");
+    format!("**`{location}`**\n```{lang_tag}\n{slice}\n```\n")
+}
+
 /// HTML-escapes a string for safe insertion as text content.
 #[must_use]
 pub fn html_escape(input: &str) -> String {
@@ -567,5 +606,98 @@ z</span>w</span>"#;
     fn split_highlighted_into_lines_keeps_empty_lines() {
         let lines = split_highlighted_into_lines("a\n\nb");
         assert_eq!(lines, vec!["a", "", "b"]);
+    }
+
+    fn sample_plain_lines() -> Vec<String> {
+        vec![
+            "let a = 1;".to_string(),
+            "let b = 2;".to_string(),
+            "let c = 3;".to_string(),
+            "let d = 4;".to_string(),
+        ]
+    }
+
+    #[test]
+    fn build_file_snippet_block_single_line_same_workspace() {
+        let out = build_file_snippet_block(
+            "src/foo.rs",
+            Some("rust"),
+            &sample_plain_lines(),
+            (2, 2),
+            None,
+        );
+        assert!(out.starts_with("**`src/foo.rs:2`**\n"));
+        assert!(out.contains("```rust\nlet b = 2;\n```\n"));
+    }
+
+    #[test]
+    fn build_file_snippet_block_range_same_workspace() {
+        let out = build_file_snippet_block(
+            "src/foo.rs",
+            Some("rust"),
+            &sample_plain_lines(),
+            (2, 3),
+            None,
+        );
+        assert!(out.contains("**`src/foo.rs:2-3`**"));
+        assert!(out.contains("let b = 2;\nlet c = 3;"));
+    }
+
+    #[test]
+    fn build_file_snippet_block_range_cross_workspace() {
+        let out = build_file_snippet_block(
+            "src/foo.rs",
+            Some("rust"),
+            &sample_plain_lines(),
+            (1, 4),
+            Some("Demo"),
+        );
+        assert!(out.contains("**`Demo:src/foo.rs:1-4`**"));
+    }
+
+    #[test]
+    fn build_file_snippet_block_without_language_leaves_fence_tag_empty() {
+        let out = build_file_snippet_block(
+            "notes/log.txt",
+            None,
+            &sample_plain_lines(),
+            (1, 1),
+            None,
+        );
+        // Fence opens with bare three backticks (no lang tag).
+        assert!(out.contains("```\nlet a = 1;\n```"));
+    }
+
+    #[test]
+    fn build_file_snippet_block_preserves_utf8() {
+        let lines: Vec<String> = vec![
+            "Grüße aus München".into(),
+            "你好世界 ✓".into(),
+        ];
+        let out = build_file_snippet_block(
+            "i18n.md",
+            None,
+            &lines,
+            (1, 2),
+            None,
+        );
+        assert!(out.contains("Grüße aus München"));
+        assert!(out.contains("你好世界 ✓"));
+        // Header sanity-checks UTF-8 path safety too.
+        assert!(out.contains("**`i18n.md:1-2`**"));
+    }
+
+    #[test]
+    fn build_file_snippet_block_clamps_out_of_range() {
+        // start above total -> clamp to last line; end below start -> raised to start.
+        let out = build_file_snippet_block(
+            "x.rs",
+            Some("rust"),
+            &sample_plain_lines(),
+            (99, 1),
+            None,
+        );
+        assert!(out.contains("**`x.rs:4`**"));
+        assert!(out.contains("let d = 4;"));
     }
 }

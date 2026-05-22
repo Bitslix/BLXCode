@@ -972,6 +972,7 @@ fn load_plan_into_agent(state: PlansState, wb: WorkbenchService, path: String) {
                     source: summary,
                     paths: vec![report.path.clone()],
                     added_at: Date::now() as i64,
+                    content: None,
                 };
                 wb.upsert_workspace_agent_context(ws_id, item);
                 if let Ok(snap) = tauri_bridge::tasks_list(ws.clone()).await {

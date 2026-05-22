@@ -3,6 +3,7 @@
 //! detected [`crate::tauri_bridge::FileKind`]. Falls back to a monospaced
 //! text view for everything else.
 
+mod code_context_menu;
 mod code_view;
 mod header;
 mod hljs_glue;
