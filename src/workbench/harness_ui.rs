@@ -1291,6 +1291,16 @@ fn normalize_settings_color(raw: &str) -> String {
     }
 }
 
+fn hook_brand_icon(agent: &str) -> Option<&'static str> {
+    match agent {
+        "claude" => Some("/public/brand-icons/anthropic.svg"),
+        "codex" => Some("/public/brand-icons/openai.svg"),
+        "gemini" => Some("/public/brand-icons/gemini.svg"),
+        "cursor" => Some("/public/brand-icons/cursor.svg"),
+        _ => None,
+    }
+}
+
 #[component]
 fn AgentHooksPanel() -> impl IntoView {
     let i18n = expect_context::<I18nService>();

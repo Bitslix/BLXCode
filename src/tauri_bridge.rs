@@ -334,6 +334,7 @@ pub enum ThinkingLevel {
 #[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(PartialEq)]
 pub struct ProviderModelEntry {
     pub id: String,
     pub label: String,
@@ -348,6 +349,7 @@ pub struct ProviderModelEntry {
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(PartialEq)]
 pub struct ModelPricing {
     pub prompt: f64,
     pub completion: f64,

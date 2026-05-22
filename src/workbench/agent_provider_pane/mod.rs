@@ -497,7 +497,8 @@ fn AgentModelPicker(
     let i18n = expect_context::<I18nService>();
     let open = RwSignal::new(false);
 
-    let selected_entry = Memo::new(move |_| find_model_entry(&model_entries.get(), &model_id.get()));
+    let selected_entry =
+        Signal::derive(move || find_model_entry(&model_entries.get(), &model_id.get()));
 
     let choose = move |id: String| {
         model_id.set(id);
