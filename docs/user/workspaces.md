@@ -53,6 +53,18 @@ Individual terminal slots can also keep split-pane state. BLXCode persists pane 
   <img src="../images/screenshot-2026-05-18_18-10-48.png" alt="Workspace terminal grid after the agent opens two additional Claude terminal slots" />
 </p>
 
+### Reordering terminals with drag & drop
+
+Every terminal slot exposes a grip handle (`⋮⋮`) on the far left of its titlebar. Drag a slot by its handle and drop it on any other slot in the same workspace grid to swap positions — the two slots exchange their cells in the grid, agent labels and split-pane layout travel along, and running PTY sessions are preserved (no shell restart, no agent CLI re-launch).
+
+Visual cues while dragging:
+
+- The source slot fades to ~55% opacity.
+- The slot under the cursor gets a dashed accent outline.
+- A transluscent ghost preview marks the target grid cell.
+
+Drag is disabled while the workspace configurator is open, while a slot is in full-size mode, and while the sidebar is collapsed. Drag direction is unconstrained — any source slot can be dropped on any other slot, and repeated reorders compose freely. Cross-workspace transfer is not supported in this release; individual split panes inside a slot cannot be dragged out on their own.
+
 ## Shell Environment
 
 The backend spawns PTY sessions through `portable-pty`. On Unix-like systems it uses `$SHELL`, falling back to `/bin/sh`.
