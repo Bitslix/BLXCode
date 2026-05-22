@@ -5453,15 +5453,206 @@ button {
 }
 
 .file-preview__stage--text,
+.file-preview__stage--code,
 .file-preview__stage--markdown,
 .file-preview__stage--mermaid {
   align-items: stretch;
   justify-content: stretch;
   padding: 0;
+  flex-direction: column;
 }
 
-.file-preview__stage--text {
+.file-preview__stage--text,
+.file-preview__stage--code {
   padding: 0;
+}
+
+/* --- Code view (line numbers + syntax highlight + row selection) --- */
+
+.code-view {
+  flex: 1 1 0;
+  min-height: 0;
+  margin: 0;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--text);
+  background: transparent;
+  --code-view-gutter-width: 3ch;
+  --code-view-selection-bg: color-mix(in srgb, var(--accent) 18%, transparent);
+  --code-view-selection-bar: var(--accent);
+  --code-view-hover-bg: color-mix(in srgb, var(--text) 5%, transparent);
+}
+
+.code-view__row {
+  display: grid;
+  grid-template-columns: calc(var(--code-view-gutter-width) + 1.4rem) 1fr;
+  align-items: baseline;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  padding: 0;
+  transition: background-color 80ms ease-in-out, border-color 80ms ease-in-out;
+}
+
+.code-view__row:hover {
+  background: var(--code-view-hover-bg);
+}
+
+.code-view__row--selected {
+  background: var(--code-view-selection-bg);
+  border-left-color: var(--code-view-selection-bar);
+}
+
+.code-view__lineno {
+  display: inline-block;
+  padding: 0 0.7rem 0 0.55rem;
+  text-align: right;
+  color: var(--text-muted);
+  opacity: 0.55;
+  user-select: none;
+  -webkit-user-select: none;
+  font-variant-numeric: tabular-nums;
+  border-right: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+}
+
+.code-view__row--selected .code-view__lineno {
+  color: var(--accent);
+  opacity: 1;
+}
+
+.code-view__line {
+  display: inline-block;
+  padding: 0 0.85rem;
+  white-space: pre;
+  min-height: 1.55em;
+}
+
+/* highlight.js token color mapping (works for both blxcode-dark and -light
+   themes thanks to color-mix on the accent / text tokens). */
+.code-view.hljs {
+  background: transparent;
+}
+
+.code-view .hljs-comment,
+.code-view .hljs-quote {
+  color: color-mix(in srgb, var(--text-muted) 90%, transparent);
+  font-style: italic;
+}
+
+.code-view .hljs-keyword,
+.code-view .hljs-selector-tag,
+.code-view .hljs-literal,
+.code-view .hljs-built_in {
+  color: color-mix(in srgb, var(--accent) 85%, var(--text));
+  font-weight: 600;
+}
+
+.code-view .hljs-string,
+.code-view .hljs-regexp,
+.code-view .hljs-doctag {
+  color: #d4b170;
+}
+
+.code-view .hljs-number,
+.code-view .hljs-symbol,
+.code-view .hljs-bullet,
+.code-view .hljs-meta {
+  color: #b59bd5;
+}
+
+.code-view .hljs-title,
+.code-view .hljs-title.class_,
+.code-view .hljs-title.function_,
+.code-view .hljs-name,
+.code-view .hljs-section {
+  color: #7ec4ff;
+  font-weight: 500;
+}
+
+.code-view .hljs-attr,
+.code-view .hljs-attribute,
+.code-view .hljs-variable,
+.code-view .hljs-template-variable,
+.code-view .hljs-selector-attr,
+.code-view .hljs-selector-pseudo {
+  color: #7fd6c0;
+}
+
+.code-view .hljs-type,
+.code-view .hljs-class .hljs-title {
+  color: #c1a4ff;
+}
+
+.code-view .hljs-tag,
+.code-view .hljs-selector-id,
+.code-view .hljs-selector-class {
+  color: #d29acc;
+}
+
+.code-view .hljs-deletion {
+  color: #f87171;
+  background: color-mix(in srgb, #f87171 14%, transparent);
+}
+
+.code-view .hljs-addition {
+  color: #4ade80;
+  background: color-mix(in srgb, #4ade80 14%, transparent);
+}
+
+.code-view .hljs-emphasis {
+  font-style: italic;
+}
+
+.code-view .hljs-strong {
+  font-weight: 700;
+}
+
+[data-theme="blxcode-light"] .code-view .hljs-string,
+[data-theme="solarized-light"] .code-view .hljs-string,
+[data-theme="gruvbox-light"] .code-view .hljs-string,
+[data-theme="catppuccin-latte"] .code-view .hljs-string {
+  color: #b86b00;
+}
+
+[data-theme="blxcode-light"] .code-view .hljs-number,
+[data-theme="solarized-light"] .code-view .hljs-number,
+[data-theme="gruvbox-light"] .code-view .hljs-number,
+[data-theme="catppuccin-latte"] .code-view .hljs-number {
+  color: #7c3aed;
+}
+
+[data-theme="blxcode-light"] .code-view .hljs-title,
+[data-theme="solarized-light"] .code-view .hljs-title,
+[data-theme="gruvbox-light"] .code-view .hljs-title,
+[data-theme="catppuccin-latte"] .code-view .hljs-title,
+[data-theme="blxcode-light"] .code-view .hljs-name,
+[data-theme="solarized-light"] .code-view .hljs-name,
+[data-theme="gruvbox-light"] .code-view .hljs-name,
+[data-theme="catppuccin-latte"] .code-view .hljs-name {
+  color: #1e6fea;
+}
+
+[data-theme="blxcode-light"] .code-view .hljs-attr,
+[data-theme="solarized-light"] .code-view .hljs-attr,
+[data-theme="gruvbox-light"] .code-view .hljs-attr,
+[data-theme="catppuccin-latte"] .code-view .hljs-attr {
+  color: #0b8d72;
+}
+
+[data-theme="blxcode-light"] .code-view .hljs-type,
+[data-theme="solarized-light"] .code-view .hljs-type,
+[data-theme="gruvbox-light"] .code-view .hljs-type,
+[data-theme="catppuccin-latte"] .code-view .hljs-type {
+  color: #6e34c6;
+}
+
+[data-theme="blxcode-light"] .code-view .hljs-tag,
+[data-theme="solarized-light"] .code-view .hljs-tag,
+[data-theme="gruvbox-light"] .code-view .hljs-tag,
+[data-theme="catppuccin-latte"] .code-view .hljs-tag {
+  color: #b5328a;
 }
 
 .file-preview__image {

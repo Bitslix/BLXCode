@@ -12,7 +12,8 @@ The preview picks a renderer based on the file extension:
 | **Video** | `mp4`, `webm`, `mov`, `m4v`, `mkv` | Native `<video controls>` with HTML5 playback |
 | **Markdown** | `md`, `markdown` | `pulldown-cmark` (GFM tables, strikethrough, task lists, footnotes, smart punctuation) with sanitized HTML and inline Mermaid blocks |
 | **Mermaid** | `mmd`, `mermaid` | Lazy-loaded [Mermaid 11](https://mermaid.js.org/) diagram via vendored bundle |
-| **Text** | `txt`, `log`, `rs`, `ts`, `tsx`, `js`, `json`, `toml`, `yaml`, `html`, `css`, `py`, `go`, `rb`, `sh`, `sql`, `xml`, `ini`, `conf`, … | Monospaced `<pre><code>` (UTF-8 only) |
+| **Code** | `rs`, `ts`, `tsx`, `js`, `jsx`, `mjs`, `cjs`, `py`, `go`, `java`, `kt`, `scala`, `swift`, `c`, `cpp`, `cs`, `rb`, `php`, `lua`, `dart`, `r`, `clj`, `ex`, `hs`, `elm`, `zig`, `nim`, `html`, `vue`, `svelte`, `css`, `scss`, `less`, `json`, `toml`, `yaml`, `xml`, `sh`, `bash`, `ps1`, `sql`, `graphql`, `proto`, `tf`, `nix`, `dockerfile`, `makefile`, `diff`, … | Two-column code view: gutter with **line numbers** + syntax-highlighted code (highlight.js 11). Click any row to **toggle a selection highlight** for that line. |
+| **Text** | `txt`, `log`, `ini`, `conf`, `env`, `properties`, `csv`, `tsv`, `gitignore`, `editorconfig`, … | Same gutter + row-selection layout as Code, but without syntax highlighting (plain monospaced text). |
 | **Binary** | everything else | "Preview not available for this file type" placeholder |
 
 ## Topbar
@@ -79,6 +80,51 @@ flowchart LR
 ````
 
 Regular ```` ```rust ```` / ```` ```ts ```` code blocks stay as syntax-highlightable `<pre><code>` and are **not** sent to Mermaid.
+
+## Source code & plain text
+
+Code files (Rust, TypeScript, JavaScript, Python, Go, Java, Kotlin, Swift, C/C++, C#, Ruby, PHP, Lua, Dart, R, Clojure, Elixir, Haskell, Elm, Zig, Nim, HTML, Vue, Svelte, CSS, SCSS, JSON, TOML, YAML, XML, shell scripts, SQL, GraphQL, Protobuf, Terraform/HCL, Nix, Dockerfile, Makefile, diff/patch, …) and plain-text files (txt, log, ini, conf, env, properties, csv, tsv, gitignore, editorconfig) both render in a dedicated two-column **CodeView**:
+
+- **Line numbers gutter** on the left — right-aligned, tabular numerals, separated by a hairline divider. The gutter width auto-sizes to the largest line number (`--code-view-gutter-width`).
+- **Syntax highlighting** on the right via [highlight.js 11](https://highlightjs.org/) for every file whose extension maps to a known language. The bundle is vendored at `public/vendor/highlight/highlight.min.js` (~127 KiB, 38 common languages) and lazy-loaded on first use; subsequent code previews reuse `globalThis.hljs` without re-downloading.
+- **Plain text** (txt/log/ini/conf/env/csv/…) gets the **same gutter + selection layout** but without highlighting — useful for logs and config files where you still want to reference a line number.
+
+### Row selection
+
+Click any line — either on the line number, the code, or the empty space at the end of the row — to **highlight that row**. The selection is shown as an accent-soft background with a bright accent-colored bar on the left and the line number switching to the accent color. Click the same row again to clear the selection. The selection state survives **Refresh** because the preview only resets it when you open a different file.
+
+This is great for:
+
+- Pointing the agent or a teammate at a specific line ("look at line 42 in `src-tauri/src/agent/openrouter.rs`").
+- Keeping a visual marker while you scroll through a long file.
+- Combining with **Copy path** in the topbar to drop a file reference into chat or the terminal.
+
+### Language detection
+
+The mapping from file extension to highlight.js language alias lives in `hljs_lang_for_ext` (`src/workbench/file_preview/util.rs`) — for example:
+
+| Extension(s) | hljs language |
+|---|---|
+| `rs` | `rust` |
+| `ts`, `tsx` | `typescript` |
+| `js`, `jsx`, `mjs`, `cjs` | `javascript` |
+| `py`, `pyw`, `pyi` | `python` |
+| `cs` | `csharp` |
+| `kt`, `kts` | `kotlin` |
+| `html`, `htm`, `vue`, `svelte`, `xhtml` | `xml` |
+| `sh`, `bash`, `zsh`, `fish` | `bash` |
+| `ps1` | `powershell` |
+| `toml` | `ini` |
+| `tf`, `tfvars`, `hcl` | `hcl` |
+| `dockerfile`, `containerfile` | `dockerfile` |
+| `makefile`, `mk`, `cmake` | `makefile` |
+| `diff`, `patch` | `diff` |
+
+If a file uses an extension that highlight.js does not support, the preview falls back to plain text but still shows line numbers and supports row selection. If highlight.js itself fails on a particular file, the renderer also falls back to plain text and logs a warning to the DevTools console — the file content is never lost.
+
+### Theme integration
+
+The code-view chrome (gutter, hover, selection bar) is built with `color-mix` against the active BLXCode theme tokens (`--accent`, `--text`, `--text-muted`, `--surface`, `--border`), so switching themes from **Settings → Appearance** immediately re-tints both the layout and the syntax-highlighted tokens. Light themes (`blxcode-light`, `solarized-light`, `gruvbox-light`, `catppuccin-latte`) override a few of the brighter dark-theme colors (strings, numbers, types, attributes, tags) so the code stays legible on bright backgrounds.
 
 ## Mermaid files
 

@@ -33,6 +33,7 @@ pub enum FileKind {
     Video,
     Markdown,
     Mermaid,
+    Code,
     Text,
     Binary,
 }
@@ -72,10 +73,25 @@ fn classify_kind(ext: &str) -> FileKind {
         "mp4" | "webm" | "mov" | "m4v" | "mkv" => FileKind::Video,
         "md" | "markdown" => FileKind::Markdown,
         "mmd" | "mermaid" => FileKind::Mermaid,
-        "txt" | "log" | "rs" | "ts" | "tsx" | "js" | "jsx" | "json" | "toml" | "yaml" | "yml"
-        | "html" | "css" | "scss" | "py" | "go" | "java" | "c" | "h" | "cpp" | "hpp" | "rb"
-        | "sh" | "bash" | "zsh" | "fish" | "ps1" | "sql" | "xml" | "ini" | "conf" | "env"
-        | "lock" | "gitignore" | "dockerfile" => FileKind::Text,
+        // Source code with syntax highlighting.
+        "rs" | "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs"
+        | "py" | "pyw" | "pyi"
+        | "go" | "java" | "kt" | "kts" | "scala" | "groovy" | "gradle"
+        | "swift" | "m" | "mm" | "c" | "h" | "cpp" | "cc" | "cxx" | "hpp" | "hxx"
+        | "cs" | "fs" | "fsx" | "vb" | "rb" | "erb" | "php" | "phtml"
+        | "lua" | "pl" | "pm" | "dart" | "r" | "jl"
+        | "clj" | "cljs" | "cljc" | "edn" | "ex" | "exs" | "eex" | "erl" | "hrl"
+        | "hs" | "lhs" | "purs" | "elm" | "nim" | "zig" | "ml" | "mli" | "ocaml"
+        | "html" | "htm" | "xhtml" | "vue" | "svelte" | "css" | "scss" | "sass" | "less" | "styl"
+        | "json" | "json5" | "jsonc" | "toml" | "yaml" | "yml" | "xml" | "plist"
+        | "sh" | "bash" | "zsh" | "fish" | "ps1" | "bat" | "cmd"
+        | "sql" | "graphql" | "gql" | "proto" | "thrift" | "tf" | "tfvars" | "hcl" | "nix"
+        | "dockerfile" | "containerfile" | "makefile" | "mk" | "cmake"
+        | "diff" | "patch" => FileKind::Code,
+        // Plain text without highlighting (still gets line numbers in the preview).
+        "txt" | "log" | "ini" | "conf" | "cfg" | "env" | "properties"
+        | "lock" | "gitignore" | "gitattributes" | "editorconfig"
+        | "csv" | "tsv" => FileKind::Text,
         _ => FileKind::Binary,
     }
 }
@@ -97,12 +113,17 @@ fn mime_for_ext(ext: &str) -> Option<&'static str> {
         "mkv" => "video/x-matroska",
         "md" | "markdown" => "text/markdown",
         "mmd" | "mermaid" => "text/vnd.mermaid",
-        "json" => "application/json",
-        "html" => "text/html",
+        "json" | "json5" | "jsonc" => "application/json",
+        "html" | "htm" => "text/html",
         "css" => "text/css",
-        "js" | "mjs" => "text/javascript",
+        "js" | "mjs" | "cjs" => "text/javascript",
+        "ts" | "tsx" => "application/typescript",
         "xml" => "application/xml",
+        "toml" => "application/toml",
+        "yaml" | "yml" => "application/yaml",
         "txt" | "log" | "ini" | "conf" | "env" => "text/plain",
+        "csv" => "text/csv",
+        "tsv" => "text/tab-separated-values",
         _ => return None,
     })
 }
@@ -368,7 +389,20 @@ mod tests {
         assert!(matches!(classify_kind("markdown"), FileKind::Markdown));
         assert!(matches!(classify_kind("mmd"), FileKind::Mermaid));
         assert!(matches!(classify_kind("mermaid"), FileKind::Mermaid));
-        assert!(matches!(classify_kind("rs"), FileKind::Text));
+        // Programming languages go through the syntax-highlighted Code path.
+        assert!(matches!(classify_kind("rs"), FileKind::Code));
+        assert!(matches!(classify_kind("ts"), FileKind::Code));
+        assert!(matches!(classify_kind("tsx"), FileKind::Code));
+        assert!(matches!(classify_kind("js"), FileKind::Code));
+        assert!(matches!(classify_kind("py"), FileKind::Code));
+        assert!(matches!(classify_kind("go"), FileKind::Code));
+        assert!(matches!(classify_kind("html"), FileKind::Code));
+        assert!(matches!(classify_kind("json"), FileKind::Code));
+        // Plain text and config-like files stay on the Text path.
+        assert!(matches!(classify_kind("txt"), FileKind::Text));
+        assert!(matches!(classify_kind("log"), FileKind::Text));
+        assert!(matches!(classify_kind("env"), FileKind::Text));
+        assert!(matches!(classify_kind("gitignore"), FileKind::Text));
         assert!(matches!(classify_kind("unknown"), FileKind::Binary));
     }
 

@@ -674,6 +674,7 @@ pub enum FileKind {
     Video,
     Markdown,
     Mermaid,
+    Code,
     Text,
     Binary,
 }

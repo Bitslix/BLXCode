@@ -3,7 +3,9 @@
 //! detected [`crate::tauri_bridge::FileKind`]. Falls back to a monospaced
 //! text view for everything else.
 
+mod code_view;
 mod header;
+mod hljs_glue;
 mod image_view;
 mod markdown_view;
 mod mermaid_glue;
@@ -13,10 +15,9 @@ mod video_view;
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::tauri_bridge::{
-    is_tauri_shell, read_workspace_text_file, stat_workspace_file, FileKind, FileMeta,
-};
+use crate::tauri_bridge::{is_tauri_shell, stat_workspace_file, FileKind, FileMeta};
 use crate::workbench::WorkbenchService;
+use code_view::CodeView;
 use header::FilePreviewHeader;
 use image_view::ImageView;
 use leptos::prelude::*;
@@ -121,8 +122,8 @@ fn render_for_kind(
             <MermaidView workspace_id=workspace_id rel_path=rel_path reload_tick=reload_tick />
         }
         .into_any(),
-        FileKind::Text => view! {
-            <TextFallbackView
+        FileKind::Code | FileKind::Text => view! {
+            <CodeView
                 workspace_id=workspace_id
                 rel_path=rel_path
                 reload_tick=reload_tick
@@ -133,65 +134,6 @@ fn render_for_kind(
             <UnsupportedView />
         }
         .into_any(),
-    }
-}
-
-#[component]
-fn TextFallbackView(
-    workspace_id: u64,
-    rel_path: String,
-    reload_tick: ReadSignal<u32>,
-) -> impl IntoView {
-    let wb = expect_context::<WorkbenchService>();
-    let i18n = expect_context::<I18nService>();
-    let result = RwSignal::new(None::<Result<(String, bool, u64), FilePreviewError>>);
-
-    let rel_for_effect = rel_path.clone();
-    Effect::new(move |_| {
-        let _ = reload_tick.get();
-        result.set(None);
-        if !is_tauri_shell() {
-            result.set(Some(Err(FilePreviewError::NoTauri)));
-            return;
-        }
-        let Some(ws) = wb
-            .workspaces()
-            .get()
-            .into_iter()
-            .find(|w| w.id == workspace_id)
-        else {
-            result.set(Some(Err(FilePreviewError::WorkspaceNotFound)));
-            return;
-        };
-        let root = ws.cwd;
-        let rel = rel_for_effect.clone();
-        spawn_local(async move {
-            match read_workspace_text_file(root, rel).await {
-                Ok(t) => result.set(Some(Ok((t.content, t.truncated, t.byte_len)))),
-                Err(e) => result.set(Some(Err(FilePreviewError::Failed(e)))),
-            }
-        });
-    });
-
-    view! {
-        <div class="file-preview__stage file-preview__stage--text">
-            {move || match result.get() {
-                None => view! {
-                    <div class="file-preview__status">{i18n.tr(I18nKey::FilePreviewLoading)}</div>
-                }.into_any(),
-                Some(Err(err)) => render_load_error(i18n, I18nKey::FilePreviewLoadFailedText, err),
-                Some(Ok((content, truncated, byte_len))) => view! {
-                    <Show when=move || truncated>
-                        <div class="file-preview__notice">
-                            {move || i18n
-                                .tr(I18nKey::FilePreviewTextTruncated)()
-                                .replace("{bytes}", &byte_len.to_string())}
-                        </div>
-                    </Show>
-                    <pre class="file-preview__content"><code>{content}</code></pre>
-                }.into_any(),
-            }}
-        </div>
     }
 }
 

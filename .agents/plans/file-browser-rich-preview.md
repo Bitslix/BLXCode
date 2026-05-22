@@ -231,4 +231,12 @@ Erinnerung aus `CLAUDE.md`: Alle Sprach-Locale-Files müssen die neuen Keys habe
 - [x] `workspace-panel-wire` - Alte `FilePreviewDock`-Impl in `workspace_panel.rs` entfernen, neues Modul nutzen
 - [x] `i18n-keys` - Neue Keys in `keys.rs` + alle `locales/*.rs`
 - [x] `styles` - `.file-preview__stage`, `__image`, `__video`, `__markdown`, `__mermaid` Stile
-- [ ] `manual-verify` - Manuelle Checks aus Test-Tabelle inkl. PNG, SVG, MD, MMD, MP4
+- [x] `code-vendor` - Vendor `public/vendor/highlight/highlight.min.js` (highlight.js 11 common bundle)
+- [x] `code-backend` - Neue `FileKind::Code`, erweiterte `classify_kind`, MIME für ts/js/yaml/toml/csv
+- [x] `code-bridge` - `FileKind::Code` im Frontend-Bridge-Spiegel
+- [x] `code-util` - `hljs_lang_for_ext`, `html_escape`, `split_highlighted_into_lines` + Unit-Tests
+- [x] `code-glue` - `hljs_glue.rs` mit `ensure_hljs_loaded` + `highlight`
+- [x] `code-view` - `CodeView` mit Line-Numbers, Syntax-Highlighting, Row-Selection
+- [x] `code-dispatch` - Dispatcher routet `Code | Text` → `CodeView`
+- [x] `code-styles` - `.code-view` Layout + hljs-Token-Mapping mit Theme-Tokens (dark + light)
+- [ ] `manual-verify` - Manuelle Checks aus Test-Tabelle inkl. PNG, SVG, MD, MMD, MP4, sowie TS/JS/RS-Files mit Line-Selection

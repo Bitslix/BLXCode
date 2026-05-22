@@ -164,7 +164,7 @@ flowchart LR
 ## Sidebar Explorer And Git Graph
 
 - `src-tauri/src/fs_entries.rs` — `list_path_entries` (sandboxed directory listing), `read_workspace_text_file` (UTF-8 text preview, 512 KiB cap), and the file-preview trio:
-  - `stat_workspace_file` → `FileMeta { name, relPath, byteLen, modifiedMs, kind, mime }` with `FileKind` (`Image` / `Video` / `Markdown` / `Mermaid` / `Text` / `Binary`).
+  - `stat_workspace_file` → `FileMeta { name, relPath, byteLen, modifiedMs, kind, mime }` with `FileKind` (`Image` / `Video` / `Markdown` / `Mermaid` / `Code` / `Text` / `Binary`). `Code` covers source languages (Rust/TS/JS/Py/Go/HTML/CSS/JSON/YAML/shell/SQL/…); `Text` is reserved for plain text (txt/log/ini/conf/env/csv/…) that should still get gutter+selection but no syntax highlighting.
   - `read_workspace_image_file` → base64 + MIME, **16 MiB** cap (`MAX_IMAGE_PREVIEW_BYTES`).
   - `read_workspace_video_file` → base64 + MIME, **64 MiB** cap (`MAX_VIDEO_PREVIEW_BYTES`).
   All four commands reuse the same `canonical_root` / `resolve_under_root` sandbox so traversal-out-of-root, missing files, and non-files behave identically.
@@ -174,11 +174,13 @@ Frontend:
 
 - `src/workbench/sidebar_view_section/` — explorer and graph panels in the workbench sidebar.
 - `src/workbench/file_preview/` — center-tab preview dispatcher:
-  - `mod.rs` loads `FileMeta` once and routes to `ImageView` / `VideoView` / `MarkdownView` / `MermaidView` / `TextFallbackView` / `UnsupportedView`.
+  - `mod.rs` loads `FileMeta` once and routes to `ImageView` / `VideoView` / `MarkdownView` / `MermaidView` / `CodeView` (used for both `FileKind::Code` and `FileKind::Text`) / `UnsupportedView`.
   - `header.rs` renders the topbar (icon, name, path, size, mtime, Copy path, Refresh).
+  - `code_view.rs` two-column layout: `<div class="code-view__row" data-line="N">` rows with a line-number gutter on the left and `inner_html` highlighted code on the right. Per-row clicks bubble through event delegation on the container (`closest("[data-line]")`) and toggle the selected line stored in `RwSignal<Option<usize>>`. Plain-text files share the same layout but skip the highlight call. Lines are pre-rendered into a `Vec<View>` (no per-line `<For>` clone cost on large files).
+  - `hljs_glue.rs` lazy-loads the vendored highlight.js 11 common bundle `public/vendor/highlight/highlight.min.js`, polls `globalThis.hljs` for up to 5 s, and exposes `highlight(code, language)` over `hljs.highlight(code, { language, ignoreIllegals: true })`. Same lazy-script pattern as `mermaid_glue.rs`.
   - `markdown_view.rs` runs `pulldown-cmark` (tables, strikethrough, task lists, footnotes, smart-punctuation), detects ```` ```mermaid ```` fences and replaces them with `<pre class="mermaid">` sentinels that the post-mount effect hands to `mermaid.run({ nodes })`.
   - `mermaid_glue.rs` lazy-loads the vendored bundle `public/vendor/mermaid/mermaid.min.js`, calls `mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'dark' })`, and exposes `run_mermaid_on(&[HtmlElement])`.
-  - `util.rs` ships `format_bytes`, `format_mtime` (`js_sys::Date.to_locale_string`), `icon_for_kind`, allowlist-based `sanitize_svg` + `sanitize_markdown_html` (strips `<script>` / `<style>` / `<iframe>` / `<object>` / `<embed>` / `<foreignObject>` blocks, `on*=` event handlers, and `javascript:` / `vbscript:` URIs while preserving multi-byte UTF-8), plus a shared `FilePreviewError` enum (`NoTauri` / `WorkspaceNotFound` / `TooLarge(u64)` / `Failed(String)`) and `render_load_error(i18n, failed_label, error)` helper used by every renderer for consistent localized banners.
+  - `util.rs` ships `format_bytes`, `format_mtime` (`js_sys::Date.to_locale_string`), `icon_for_kind`, `hljs_lang_for_ext` (extension → highlight.js alias map), `html_escape`, `split_highlighted_into_lines` (UTF-8-safe HTML splitter that balances open `<span>`s across `\n`), allowlist-based `sanitize_svg` + `sanitize_markdown_html` (strips `<script>` / `<style>` / `<iframe>` / `<object>` / `<embed>` / `<foreignObject>` blocks, `on*=` event handlers, and `javascript:` / `vbscript:` URIs while preserving multi-byte UTF-8), plus a shared `FilePreviewError` enum (`NoTauri` / `WorkspaceNotFound` / `TooLarge(u64)` / `Failed(String)`) and `render_load_error(i18n, failed_label, error)` helper used by every renderer for consistent localized banners.
 
 ```mermaid
 flowchart LR
@@ -191,12 +193,14 @@ flowchart LR
   Vid[read_workspace_video_file]
   Txt[read_workspace_text_file]
   Mer[Mermaid bundle]
+  Hjs[highlight.js bundle]
   Click --> Tab --> Dock --> Stat
   Dock --> Disp
   Disp -->|Image| Img
   Disp -->|Video| Vid
-  Disp -->|Markdown / Mermaid / Text| Txt
+  Disp -->|Markdown / Mermaid / Code / Text| Txt
   Disp -->|Markdown / Mermaid| Mer
+  Disp -->|Code| Hjs
 ```
 
 ## Terminal Context Handoff
