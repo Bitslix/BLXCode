@@ -1496,27 +1496,40 @@ button.workbench-shortcut-row--action:focus-visible {
 
 .app-prefs-shortcut-modes--grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 0.45rem 0.9rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.55rem 1rem;
 }
 
 .app-prefs-toggle-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 0.55rem 0.9rem;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.8rem 1.1rem;
 }
 
 .app-prefs-toggle-cell {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.2rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.app-prefs-toggle-cell .app-prefs-toggle {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.app-prefs-toggle-cell .app-prefs-hint {
+  margin: 0 0 0 1.55rem;
 }
 
 .app-prefs-version {
-  margin: 0.55rem 0 0;
+  margin: 0.35rem 0 0.1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.4rem;
 }
 
 .app-prefs-version__row {
@@ -1524,26 +1537,33 @@ button.workbench-shortcut-row--action:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 0.6rem;
-  padding: 0.32rem 0.5rem;
-  border-radius: 4px;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.5rem;
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.02);
-  font-size: 0.78rem;
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 0.85rem;
   margin: 0;
 }
 
 .app-prefs-version__row dt {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  color: rgba(180, 185, 200, 0.85);
+  gap: 0.5rem;
+  color: var(--text-muted);
   margin: 0;
+  font-weight: 500;
+}
+
+.app-prefs-version__row dt svg {
+  width: 0.9rem;
+  height: 0.9rem;
 }
 
 .app-prefs-version__row dd {
   margin: 0;
   font-family: var(--font-mono);
   color: var(--text);
+  font-size: 0.9rem;
 }
 
 .app-prefs-version__row--available {
@@ -1553,13 +1573,6 @@ button.workbench-shortcut-row--action:focus-visible {
 
 .app-prefs-version__row--available dd {
   color: #86e7b2;
-}
-
-@media (max-width: 720px) {
-  .app-prefs-shortcut-modes--grid,
-  .app-prefs-toggle-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 .app-prefs-radio {
@@ -4115,25 +4128,46 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .harness-settings-detail {
-  padding: 0.75rem;
+  padding: 1.4rem clamp(1rem, 3vw, 1.75rem) 2rem;
   overflow: auto;
 }
 
+.harness-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 880px;
+}
+
 .harness-pane-title {
-  margin: 0 0 0.45rem;
-  font-family: var(--font-mono);
-  font-size: 0.9rem;
+  margin: 0 0 0.25rem;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   display: flex;
   align-items: center;
-  gap: 0.42rem;
+  gap: 0.65rem;
   min-width: 0;
+  color: var(--text);
 }
 
 .harness-pane-title__icon {
   flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  color: var(--accent);
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  background: var(--accent-soft);
+  color: var(--accent-cool, var(--accent));
+}
+
+.harness-pane-title__icon svg {
+  width: 1.05rem;
+  height: 1.05rem;
 }
 
 .harness-pane-title__text {
@@ -4141,21 +4175,34 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .harness-pane-subhead {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
+  margin: 0 0 0.7rem;
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
   display: flex;
   align-items: center;
-  gap: 0.38rem;
+  gap: 0.55rem;
   min-width: 0;
+  color: var(--text);
 }
 
 .harness-pane-subhead__icon {
   flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  color: var(--accent);
-  opacity: 0.95;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.4rem;
+  background: var(--accent-soft);
+  color: var(--accent-cool, var(--accent));
+  opacity: 1;
+}
+
+.harness-pane-subhead__icon svg {
+  width: 0.9rem;
+  height: 0.9rem;
 }
 
 .harness-pane-subhead__text {
@@ -4165,18 +4212,25 @@ button.workbench-shortcut-row--action:focus-visible {
 .harness-field-label {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.45rem;
   min-width: 0;
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 500;
 }
 
 .harness-field-label__icon {
   flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  color: var(--accent);
-  opacity: 0.85;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-cool, var(--accent));
+  opacity: 0.9;
+}
+
+.harness-field-label__icon svg {
+  width: 0.92rem;
+  height: 0.92rem;
 }
 
 .harness-field-label__text {
@@ -4184,9 +4238,9 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .harness-pane p {
-  font-size: 0.76rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
-  line-height: 1.62;
+  line-height: 1.6;
 }
 
 .harness-error-text {
@@ -4198,9 +4252,29 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .harness-subpane {
-  margin-top: 1rem;
-  padding-top: 0.85rem;
-  border-top: 1px solid var(--border);
+  margin: 0;
+  padding: 1.05rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: var(--bg-raised, rgba(255, 255, 255, 0.018));
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+@media (max-width: 720px) {
+  .harness-settings-detail {
+    padding: 1rem 0.9rem 1.5rem;
+  }
+  .harness-pane {
+    gap: 1rem;
+  }
+  .harness-subpane {
+    padding: 0.85rem 0.9rem;
+  }
+  .harness-pane-title {
+    font-size: 0.86rem;
+  }
 }
 
 .memory-preset-list {
@@ -4348,9 +4422,9 @@ button.workbench-shortcut-row--action:focus-visible {
 .harness-stack {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  margin: 0.75rem 0;
-  font-size: 0.75rem;
+  gap: 0.45rem;
+  margin: 0;
+  font-size: 0.82rem;
 }
 
 .workbench-plain-textarea {
@@ -4389,7 +4463,7 @@ button.workbench-shortcut-row--action:focus-visible {
 .harness-hooks {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.85rem;
 }
 
 .harness-hooks__list {
@@ -4403,31 +4477,25 @@ button.workbench-shortcut-row--action:focus-visible {
 
 .harness-hooks__list--grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5rem;
-}
-
-@media (max-width: 900px) {
-  .harness-hooks__list--grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 600px) {
-  .harness-hooks__list--grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.7rem;
 }
 
 .harness-hooks__item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.6rem 0.7rem;
+  gap: 0.7rem;
+  padding: 0.7rem 0.8rem;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.02);
+  border-radius: 0.6rem;
+  background: var(--bg-panel);
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.harness-hooks__item:hover {
+  border-color: var(--border-strong, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.035);
 }
 
 .harness-hooks__main {
@@ -4471,6 +4539,9 @@ button.workbench-shortcut-row--action:focus-visible {
 .harness-hooks__name {
   display: block;
   text-transform: lowercase;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .harness-hooks__status {
@@ -4494,13 +4565,19 @@ button.workbench-shortcut-row--action:focus-visible {
 
 .workbench-plain-input {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
-  border-radius: 4px;
+  font-size: 0.82rem;
+  border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--bg-panel);
   color: var(--text);
-  padding: 0.35rem 0.45rem;
+  padding: 0.55rem 0.7rem;
   width: 100%;
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+.workbench-plain-input:focus {
+  outline: none;
+  border-color: rgba(88, 166, 255, 0.55);
+  box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.18);
 }
 
 @media (max-width: 720px) {
