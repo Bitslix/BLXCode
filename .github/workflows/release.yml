@@ -158,16 +158,25 @@ jobs:
       - name: Install Rust (Windows)
         if: matrix.platform_id == 'windows'
         run: |
-          set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
-          where rustup >nul 2>&1 goto have_rust
-          echo Installing Rust via rustup (runner service account has no toolchain yet)...
+          set "CARGO_HOME=%USERPROFILE%\.cargo"
+          set "RUSTUP_HOME=%USERPROFILE%\.rustup"
+          set "PATH=%CARGO_HOME%\bin;%PATH%"
+          set "RUSTUP=%CARGO_HOME%\bin\rustup.exe"
+          if exist "%RUSTUP%" goto configure
+          echo Bootstrapping rustup...
           curl -sSf -o "%RUNNER_TEMP%\rustup-init.exe" https://win.rustup.rs/x86_64
           if errorlevel 1 exit /b 1
           "%RUNNER_TEMP%\rustup-init.exe" -y --default-toolchain stable-msvc
-          set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
-          :have_rust
-          rustup default stable-msvc
-          rustup target add wasm32-unknown-unknown
+          if not exist "%RUSTUP%" exit /b 1
+          :configure
+          "%RUSTUP%" default stable-msvc
+          if errorlevel 1 (
+            echo rustup default failed, retrying in 10s...
+            timeout /t 10 /nobreak >nul
+            "%RUSTUP%" default stable-msvc
+          )
+          if errorlevel 1 exit /b 1
+          "%RUSTUP%" target add wasm32-unknown-unknown
           rustc -V
           cargo -V
 
