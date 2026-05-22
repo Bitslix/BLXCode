@@ -229,7 +229,8 @@ Only the **repository owner** may trigger that workflow (on org-owned repos, set
 
 **Windows testbuild** runs on the self-hosted runner `blxcode-win` with **Windows PowerShell** (`powershell`, not WSL). Prerequisites on that machine:
 
-- **Rust** (`rustup`, `stable-msvc`, target `wasm32-unknown-unknown`) and **Node 22** on `PATH`
+- **Node 22** on `PATH`; **Rust** optional (workflow installs `stable-msvc` + `wasm32-unknown-unknown` via rustup if missing on the runner account)
+- **MSVC Build Tools** (Desktop C++) for linking — see Windows section above
 - **GitHub Actions runner** v2.320+ recommended (older runners fail on `tauri-action@v0` node24; `main` pins `@v0.5.20`)
 
 If **Install Rust** fails with „Windows-Subsystem für Linux … keine Distributionen“, pull `main` (workflow avoids WSL). **`pwsh: command not found`** → workflow uses built-in `powershell`. **`PSSecurityException` / Ausführung von Skripts deaktiviert** → workflow uses `-ExecutionPolicy Bypass` for runner scripts; or on the machine: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` for the runner service account.
