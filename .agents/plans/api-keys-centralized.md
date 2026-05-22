@@ -11,6 +11,10 @@ Zentrale API-Schlüssel unter **Settings → API Keys**. UI folgt **App**- und *
 - Batch-IPC: `api_keys_apply`.
 - (Siehe Cursor-Plan für Keyring, Env, Coming soon, Pfade.)
 
+## Runtime (Review)
+
+Agent, Subagents (gleicher Turn-Key), Image/Voice (Reuse OpenAI/OpenRouter-IDs), Web, Model-Refresh → alle über `api_keys::resolve` / `provider_key_pub`. Subagents: kein separater Lookup. Image-Fehler heute irreführend („Image-Einstellungen“) → auf API Keys umstellen.
+
 ## Tasks
 
 - [ ] `api-keys-backend` - Katalog, resolve, `api_keys_apply`
@@ -18,4 +22,5 @@ Zentrale API-Schlüssel unter **Settings → API Keys**. UI folgt **App**- und *
 - [ ] `settings-scaffold` - `settings/mod.rs`
 - [ ] `api-keys-ui` - Harness-Stil, ein Save-Footer, Draft-State
 - [ ] `agent-pane-trim` - Agent ohne Key-UI
-- [ ] `i18n-docs` - Locales + docs
+- [ ] `runtime-wiring` - provider_key_pub, image/voice/web, Fehlermeldungen
+- [ ] `i18n-docs` - Locales + docs + Fehlertexte
