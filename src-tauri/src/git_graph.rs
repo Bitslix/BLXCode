@@ -228,11 +228,16 @@ fn compute_lane_layout(commits: &[GitCommitNode]) -> Vec<GitGraphRow> {
         let merge_from_lane = merge_from.get(&c.oid).copied();
         let branch_from_lane = branch_from.get(&c.oid).copied();
 
-        let pass_through_lanes: Vec<usize> = carry_lanes
+        let mut pass_through_lanes: Vec<usize> = carry_lanes
             .iter()
             .copied()
             .filter(|l| *l != lane)
             .collect();
+        if let Some(mf) = merge_from_lane {
+            if !pass_through_lanes.contains(&mf) {
+                pass_through_lanes.push(mf);
+            }
+        }
 
         let continues_down = c
             .parents
@@ -242,13 +247,19 @@ fn compute_lane_layout(commits: &[GitCommitNode]) -> Vec<GitGraphRow> {
             .unwrap_or(false)
             && i + 1 < commits.len();
 
-        let continues_up = i > 0
-            && commits[i - 1]
+        let continues_up = if i > 0 {
+            let newer = &commits[i - 1];
+            let first_parent_child = newer
                 .parents
                 .first()
                 .map(|p| p == &c.oid)
                 .unwrap_or(false)
-            && lane_of.get(&commits[i - 1].oid).copied() == Some(lane);
+                && lane_of.get(&newer.oid).copied() == Some(lane);
+            let merge_child = merge_from.get(&newer.oid).copied() == Some(lane);
+            first_parent_child || merge_child
+        } else {
+            false
+        };
 
         rows.push(GitGraphRow {
             oid: c.oid.clone(),
@@ -269,7 +280,9 @@ fn compute_lane_layout(commits: &[GitCommitNode]) -> Vec<GitGraphRow> {
         }
         if let Some(bf) = branch_from_lane {
             carry_lanes.insert(bf);
-            carry_lanes.insert(lane);
+            if continues_down {
+                carry_lanes.insert(lane);
+            }
         }
     }
 
