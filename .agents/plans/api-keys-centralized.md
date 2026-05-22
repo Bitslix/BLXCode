@@ -38,27 +38,20 @@ Zentrale API-Schlüssel unter **Settings → API Keys**. UI folgt **App**- und *
 
 ## Tasks (in Ausführungsreihenfolge)
 
-1. [ ] **`api-keys-backend`** — Katalog-Struct, Storage (Keyring/Datei), `api_keys_apply`, `api_keys::resolve`, One-shot-Migration aus altem `agent_api_key_set`-Store, Env-Fallback-Logik.
-   _Blockiert von: —_
-2. [ ] **`api-keys-bridge`** — `tauri_bridge.rs` + `agent_wire.rs`: neue Batch-Typen + Wrapper; alte `agent_api_key_set/delete` Wrapper entfernen.
-   _Blockiert von: `api-keys-backend`_
-3. [ ] **`settings-scaffold`** — `src/workbench/settings/mod.rs` neu (folgt Harness-Stil), Routing/Tab in Sidebar/Right-Panel.
-   _Blockiert von: —_ (parallel zu Backend möglich)
-4. [ ] **`api-keys-ui`** — Pane unter Settings → API Keys: ein Save-Footer, Discard-Button, Draft-State, Per-Row-Remove, Verlassen-Warnung bei Dirty-State, „via env"-Hinweis.
-   _Blockiert von: `api-keys-bridge`, `settings-scaffold`_
-5. [ ] **`runtime-wiring`** — Agent/Subagent/Image/Voice/Web/Model-Refresh auf `provider_key_pub` / `resolve` umstellen; Image/Voice-Settings: Key-Felder aus Struct + UI entfernen; Fehlermeldungen umtexten.
-   _Blockiert von: `api-keys-backend`_
-6. [ ] **`agent-pane-trim`** — Key-Eingabe im Agent-Pane entfernen (Verweis auf Settings → API Keys).
-   _Blockiert von: `api-keys-ui`, `runtime-wiring`_
-7. [ ] **`i18n-docs`** — Locales (API-Keys-Kategorie/Headings sind teilweise schon gelandet — siehe Commits `1b66656`, `e67c03a`; ergänzen statt neu), Doc-Update, neue Fehlertexte.
-   _Blockiert von: `api-keys-ui`, `runtime-wiring`_
+1. [x] **`api-keys-backend`** — Katalog-Struct, Storage (Keyring/Datei), `api_keys_apply`, `api_keys::resolve`, One-shot-Migration aus altem `agent_api_key_set`-Store, Env-Fallback-Logik.
+2. [x] **`api-keys-bridge`** — `tauri_bridge.rs`: `api_keys_status` / `api_keys_apply`; alte per-provider key commands entfernt.
+3. [x] **`settings-scaffold`** — Docked center settings tab + sidebar categories (`harness_ui.rs` / `SettingsDock`).
+4. [x] **`api-keys-ui`** — `api_keys_pane/`: Save/Discard footer, draft state, per-row remove, „via env" hint, brand icons.
+5. [x] **`runtime-wiring`** — Agent/Subagent/Image/Voice/Web/Model-Refresh über zentralen resolve; Image/Voice ohne eigene Key-Felder.
+6. [x] **`agent-pane-trim`** — BLXCode Agent: nur Status-Hinweis → API Keys (Text/Image/Voice).
+7. [x] **`i18n-docs`** — Locales + user/developer docs + CHANGELOG (PR #13 branch).
 
 ## Acceptance Criteria
 
-- [ ] Subagent läuft mit zentral gesetztem Key (kein separater Lookup-Pfad).
-- [ ] Image-Fehlermeldung verweist auf **Settings → API Keys** (nicht mehr „Image-Einstellungen").
-- [ ] Agent-Pane enthält kein Key-Eingabefeld mehr.
-- [ ] Migration-Smoke: Vorhandene Pro-Provider-Keys (alter Store) sind nach erstem Start im zentralen Katalog lesbar; alter Store geleert.
-- [ ] `agent_api_key_set` / `agent_api_key_delete` (Backend-Command + Bridge-Wrapper) sind aus dem Repo entfernt.
-- [ ] Env-Fallback: Bei leerem Store-Eintrag wird `BLX_ANTHROPIC_API_KEY` gelesen; UI zeigt „via env".
-- [ ] Discard-Button verwirft Draft; Verlassen mit Dirty-State löst Bestätigung aus.
+- [x] Subagent läuft mit zentral gesetztem Key (kein separater Lookup-Pfad).
+- [x] Image-Fehlermeldung verweist auf **Settings → API Keys** (nicht mehr „Image-Einstellungen").
+- [x] Agent-Pane enthält kein Key-Eingabefeld mehr.
+- [x] Migration-Smoke: Vorhandene Pro-Provider-Keys (alter Store) sind nach erstem Start im zentralen Katalog lesbar; alter Store geleert.
+- [x] `agent_api_key_set` / `agent_api_key_delete` (Backend-Command + Bridge-Wrapper) sind aus dem Repo entfernt.
+- [x] Env-Fallback: Bei leerem Store-Eintrag wird `BLX_*` env gelesen; UI zeigt „via env".
+- [x] Discard-Button verwirft Draft; Dirty-State im Footer sichtbar.

@@ -27,20 +27,18 @@ Model lists are fetched live when possible. If a provider request fails or retur
 
 ## API Keys
 
-API keys are saved per provider. BLXCode tries to store them in the OS keyring using service name `BLXCode`.
+All secrets are managed under **Settings → API Keys** (single Save/Discard pane). BLXCode stores them in the OS keyring (`BLXCode` service) with `BLX_*` env fallback when a slot is empty.
 
-If keyring access fails on Linux or another platform, BLXCode writes a fallback secret file under the Tauri app config directory. On Unix, the fallback secrets directory is created with private permissions.
+**Settings → BLXCode Agent** shows provider/model/thinking for text, image, and voice plus web-tool backend choice. Each column displays a short **configured / missing** hint — no password fields.
 
-The UI only displays masked API key values after save.
+| Use | Keys in API Keys pane |
+|-----|------------------------|
+| Text agent | OpenRouter, Anthropic, OpenAI, … |
+| Image mode | OpenAI, OpenRouter, fal.ai |
+| Voice STT/TTS | OpenAI, OpenRouter, AWS (Polly) |
+| Web search/fetch | Tavily, Brave |
 
-<p align="center">
-  <img src="../images/screenshot-2026-05-18_17-58-05.png" alt="Agent provider settings showing provider, model, thinking level, and masked API key" />
-</p>
-
-## Voice And Image Keys
-
-- **Voice** reuses provider keys — see [Voice](voice.md).
-- **Image mode** (generate images in chat) reuses OpenAI/OpenRouter keys — see [Image Mode](image.md). This is separate from **context images** below.
+See [Settings](settings.md) and [Voice](voice.md) / [Image Mode](image.md).
 
 ## Thinking Levels
 
@@ -91,7 +89,7 @@ Call `list_tools` for the full JSON catalog (name, server/client site, schema).
 
 `harness.send_agent_context` prefers explicit single-terminal targets; default `includeKinds` is `["memory","plans","tasks","images"]`.
 
-**Web tools** need Tavily or Brave keys in Agent settings → Web Tools. **Shell/Git** need `environment_detect` once per workspace session.
+**Web tools** need Tavily or Brave keys in **Settings → API Keys**, then a backend choice under **BLXCode Agent → Web Tools**. **Shell/Git** need `environment_detect` once per workspace session.
 
 See [Agent Harness](agent-harness.md) for core skills and web keys; [Subagents](subagents.md) for roles, timeline, and tool groups.
 

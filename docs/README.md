@@ -10,6 +10,7 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 
 | Topic | Guide |
 |-------|--------|
+| Settings (API Keys, BLXCode Agent, Workspace) | [Settings](user/settings.md) |
 | Workbench, terminals, sidebar, handoff | [Workspaces](user/workspaces.md) |
 | Memory, learnings, graph, categories | [Memory And Tasks](user/memory-and-tasks.md) |
 | Markdown plans and plan-linked tasks | [Plans](user/plans.md) |
@@ -27,6 +28,7 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 ## User docs
 
 - [Getting Started](user/getting-started.md) — prerequisites, run BLXCode, first workspace, where data lives.
+- [Settings](user/settings.md) — docked center-tab settings, API Keys, BLXCode Agent grid, Workspace.
 - [Workspaces](user/workspaces.md) — creation, terminal grids, sidebar explorer, Git graph, handoff, persistence.
 - [Memory And Tasks](user/memory-and-tasks.md) — Memory panel (Files, Graph, Search), dynamic categories, tasks, agent memory tools.
 - [Plans](user/plans.md) — `.agents/plans/`, Kanban board, task syntax, Plans panel, agent tools.

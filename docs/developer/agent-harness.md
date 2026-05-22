@@ -32,11 +32,18 @@ src-tauri/src/agent/
   openrouter.rs / anthropic.rs  # Use tool_dispatch
 
 src/skills_rules/store.rs   # CORE_SKILLS, core SkillSourceKind, availability
+src-tauri/src/api_keys.rs     # Central key catalog, resolve, api_keys_status/apply
 src/workbench/
-  harness_ui.rs             # AgentProviderPane + Web Tools section
-  agent_timeline.rs         # tool_label, subagent_*_label (i18n)
-  agent_panel/timeline.rs   # chat timeline (subagent UI: see subagents.md)
-src/tauri_bridge.rs         # agent_web_*, agent_environment_invalidate
+  harness_ui.rs               # SettingsDock, App/Appearance panes
+  agent_provider_pane/        # BLXCode Agent grid (text, web footer)
+  harness_image_pane/         # AgentImageColumn
+  harness_voice_pane/         # AgentVoiceColumn
+  agent_model_picker/         # Shared model dropdown + pricing detail
+  api_keys_pane/              # Settings → API Keys UI
+  workspace_settings_pane/    # Paths, browser, category_colors
+  agent_timeline.rs           # tool_label, subagent_*_label (i18n)
+  agent_panel/timeline.rs     # chat timeline (subagent UI: see subagents.md)
+src/tauri_bridge.rs           # api_keys_*, agent_web_*, agent_environment_invalidate
 ```
 
 ## Core skills (Better Harness)

@@ -6,34 +6,38 @@ For **subagents** (parallel scout/review/security runs), see the dedicated guide
 
 This guide covers what you see in the UI and how the agent is expected to behave. For implementation detail, see [Agent Harness (developer)](../developer/agent-harness.md).
 
-## Settings → Agent
+## Settings
 
-Open **Harness settings** (command palette or sidebar) and choose the **Agent** pane.
+Open **Settings** from the command palette (center tab). Overview: [Settings](settings.md).
 
-| Section | What it configures |
-|---------|-------------------|
+| Category | Harness-related content |
+|----------|-------------------------|
+| **API Keys** | All LLM, search, fal.ai, and AWS Polly secrets |
+| **BLXCode Agent** | Text provider/model/thinking, image provider, voice STT/TTS, web tools |
+| **App** | STT language + push-to-talk (not full voice models) |
+
+### BLXCode Agent → Text
+
+| Field | What it configures |
+|-------|-------------------|
 | **Provider** | OpenRouter, Anthropic, or OpenAI-compatible API |
-| **Model** | Model ID (datalist from live/cached catalog) |
+| **Model** | `AgentModelPicker` — catalog, pricing line, custom id |
 | **Thinking** | Off / Low / Medium / High / Max |
-| **API key** | Per-provider key in the OS keyring (`BLXCode` service) |
-| **Web Tools** | Search/fetch backend (Tavily or Brave) and API keys |
 
-Provider and web keys are stored separately. Masked values appear in the UI after save; secrets are never shown in full.
+API keys are **not** entered here. A muted hint links to **Settings → API Keys**; masked status shows configured / missing.
 
-### Web Tools
-
-Web search and fetch require a configured backend:
+### Web Tools (bottom of BLXCode Agent)
 
 | Backend | Keyring account | Env fallback |
 |---------|-----------------|--------------|
 | **Tavily** | `agent:web:tavily` | `BLX_TAVILY_API_KEY` |
 | **Brave** | `agent:web:brave` | `BLX_BRAVE_API_KEY` |
 
-1. Pick **Tavily** or **Brave** as the backend (or **Disabled**).
-2. Paste the API key for the provider you use and click **Save key**.
-3. Click **Save** on the web section to persist the provider choice.
+1. Set Tavily and/or Brave keys under **Settings → API Keys**.
+2. Pick **Tavily**, **Brave**, or **Disabled** in BLXCode Agent.
+3. Click **Save** on the BLXCode Agent footer (with text provider settings).
 
-Until a key is available, `web_search` and `web_fetch` are omitted from the agent tool catalog. The **web** core skill still appears in the Skills panel with availability **disabled_no_key** so you know what to configure.
+Until a key is available, `web_search` and `web_fetch` are omitted from the agent tool catalog. The **web** core skill still appears in the Skills panel with availability **disabled_no_key**.
 
 ## Core skills vs user skills
 

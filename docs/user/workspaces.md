@@ -97,6 +97,20 @@ The left sidebar combines the workspace list with a resizable bottom panel for p
 
 Explorer and Git section open/collapsed state restores per workspace after reload.
 
+## Workspace settings
+
+**Settings** (center tab) → **Workspace**:
+
+| Section | Purpose |
+|---------|---------|
+| **Paths & sandbox** | Default directory for new workspaces; agent sandbox root for file tools |
+| **Embedded browser** | Default URL when opening the Browser tab |
+| **Category colors** | Named color presets for Memory categories (sidebar dots, graph accents) |
+
+One **Save** / **Discard** footer applies path and browser changes together. Category color edits save immediately when you change a swatch or label.
+
+See [Settings](settings.md).
+
 ## Terminal Agent Context Handoff
 
 Each terminal cell exposes a share icon in its titlebar. The menu lists every live terminal in the workspace, a separator, and **Send to BLXCode Agent**.
