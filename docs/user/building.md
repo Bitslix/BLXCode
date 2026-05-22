@@ -227,12 +227,12 @@ Cross-compiling Tauri desktop bundles from Linux to macOS is **not supported** f
 
 Only the **repository owner** may trigger that workflow (on org-owned repos, set the Actions variable `RELEASE_OWNER` to the allowed GitHub login).
 
-**Windows testbuild** runs on the self-hosted runner `blxcode-win` with **PowerShell** (not WSL). Prerequisites on that machine:
+**Windows testbuild** runs on the self-hosted runner `blxcode-win` with **Windows PowerShell** (`powershell`, not WSL). Prerequisites on that machine:
 
 - **Rust** (`rustup`, `stable-msvc`, target `wasm32-unknown-unknown`) and **Node 22** on `PATH`
 - **GitHub Actions runner** v2.320+ recommended (older runners fail on `tauri-action@v0` node24; `main` pins `@v0.5.20`)
 
-If **Install Rust** fails with „Windows-Subsystem für Linux … keine Distributionen“, the runner was using WSL bash — update the workflow from `main` (uses `pwsh` + preinstalled `rustup`).
+If **Install Rust** fails with „Windows-Subsystem für Linux … keine Distributionen“, the runner was using WSL bash — pull `main` (uses `powershell` + preinstalled `rustup`). If you see `pwsh: command not found`, install [PowerShell 7](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows) or rely on the workflow’s `powershell` shell (Windows built-in).
 
 ## Clean Rebuild
 
