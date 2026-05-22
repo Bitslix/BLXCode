@@ -169,40 +169,46 @@ fn strip_tag_blocks(input: &str, tag: &str) -> String {
 }
 
 /// Removes `on*=` attributes and neutralizes `javascript:` URIs anywhere in
-/// the HTML. Implemented with a single pass — runs in O(n) over the input.
+/// the HTML. Implemented with a byte-level scan that only breaks on ASCII
+/// delimiters (`<`, `>`, whitespace), and copies content via string slicing
+/// so multi-byte UTF-8 codepoints are preserved verbatim.
 fn strip_dangerous_attributes(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
     let bytes = input.as_bytes();
-    let mut i = 0usize;
+    let mut copy_start = 0usize;
     let mut in_tag = false;
+    let mut i = 0usize;
     while i < bytes.len() {
         let c = bytes[i];
-        if c == b'<' {
-            in_tag = true;
-            out.push(c as char);
-            i += 1;
-            continue;
-        }
-        if c == b'>' {
-            in_tag = false;
-            out.push(c as char);
-            i += 1;
-            continue;
-        }
-        if in_tag && (c == b' ' || c == b'\t' || c == b'\n') {
-            let rest = &input[i + 1..];
-            if let Some(end) = next_attr_end(rest) {
-                let attr = &rest[..end];
-                let lower = attr.to_ascii_lowercase();
-                if is_unsafe_attribute(&lower) {
-                    i += 1 + end;
-                    continue;
+        match c {
+            b'<' => {
+                in_tag = true;
+                i += 1;
+            }
+            b'>' => {
+                in_tag = false;
+                i += 1;
+            }
+            b' ' | b'\t' | b'\n' if in_tag => {
+                let rest = &input[i + 1..];
+                if let Some(end) = next_attr_end(rest) {
+                    let attr = &rest[..end];
+                    let lower = attr.to_ascii_lowercase();
+                    if is_unsafe_attribute(&lower) {
+                        out.push_str(&input[copy_start..i]);
+                        i = i + 1 + end;
+                        copy_start = i;
+                        continue;
+                    }
                 }
+                i += 1;
+            }
+            _ => {
+                i += 1;
             }
         }
-        out.push(c as char);
-        i += 1;
     }
+    out.push_str(&input[copy_start..]);
     out
 }
 
@@ -326,5 +332,28 @@ mod tests {
         let html = r#"<a href="javascript:alert(1)">x</a>"#;
         let out = sanitize_markdown_html(html);
         assert!(!out.contains("javascript:"));
+    }
+
+    #[test]
+    fn sanitize_markdown_preserves_utf8_codepoints() {
+        let html = "<p>Hallo, schöne Grüße für €-Land — 你好 ✓</p>";
+        let out = sanitize_markdown_html(html);
+        assert!(out.contains("schöne"));
+        assert!(out.contains("Grüße"));
+        assert!(out.contains("für"));
+        assert!(out.contains("€"));
+        assert!(out.contains("你好"));
+        assert!(out.contains("✓"));
+        assert!(!out.contains("Ã¼"));
+        assert!(!out.contains("Ã¶"));
+    }
+
+    #[test]
+    fn sanitize_svg_preserves_utf8_codepoints() {
+        let svg = r#"<svg><text>für — €</text></svg>"#;
+        let out = sanitize_svg(svg);
+        assert!(out.contains("für"));
+        assert!(out.contains("€"));
+        assert!(!out.contains("Ã¼"));
     }
 }

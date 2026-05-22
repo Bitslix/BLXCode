@@ -163,10 +163,41 @@ flowchart LR
 
 ## Sidebar Explorer And Git Graph
 
-- `src-tauri/src/fs_entries.rs` — `list_path_entries` (sandboxed directory listing for the explorer tree).
+- `src-tauri/src/fs_entries.rs` — `list_path_entries` (sandboxed directory listing), `read_workspace_text_file` (UTF-8 text preview, 512 KiB cap), and the file-preview trio:
+  - `stat_workspace_file` → `FileMeta { name, relPath, byteLen, modifiedMs, kind, mime }` with `FileKind` (`Image` / `Video` / `Markdown` / `Mermaid` / `Text` / `Binary`).
+  - `read_workspace_image_file` → base64 + MIME, **16 MiB** cap (`MAX_IMAGE_PREVIEW_BYTES`).
+  - `read_workspace_video_file` → base64 + MIME, **64 MiB** cap (`MAX_VIDEO_PREVIEW_BYTES`).
+  All four commands reuse the same `canonical_root` / `resolve_under_root` sandbox so traversal-out-of-root, missing files, and non-files behave identically.
 - `src-tauri/src/git_graph.rs` — `git_is_repository`, `git_commit_graph` (lane layout, unit-tested).
 
-Frontend: `src/workbench/sidebar_view_section/`, explorer and graph panels in the workbench sidebar.
+Frontend:
+
+- `src/workbench/sidebar_view_section/` — explorer and graph panels in the workbench sidebar.
+- `src/workbench/file_preview/` — center-tab preview dispatcher:
+  - `mod.rs` loads `FileMeta` once and routes to `ImageView` / `VideoView` / `MarkdownView` / `MermaidView` / `TextFallbackView` / `UnsupportedView`.
+  - `header.rs` renders the topbar (icon, name, path, size, mtime, Copy path, Refresh).
+  - `markdown_view.rs` runs `pulldown-cmark` (tables, strikethrough, task lists, footnotes, smart-punctuation), detects ```` ```mermaid ```` fences and replaces them with `<pre class="mermaid">` sentinels that the post-mount effect hands to `mermaid.run({ nodes })`.
+  - `mermaid_glue.rs` lazy-loads the vendored bundle `public/vendor/mermaid/mermaid.min.js`, calls `mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'dark' })`, and exposes `run_mermaid_on(&[HtmlElement])`.
+  - `util.rs` ships `format_bytes`, `format_mtime` (`js_sys::Date.to_locale_string`), `icon_for_kind`, allowlist-based `sanitize_svg` + `sanitize_markdown_html` (strips `<script>` / `<style>` / `<iframe>` / `<object>` / `<embed>` / `<foreignObject>` blocks, `on*=` event handlers, and `javascript:` / `vbscript:` URIs while preserving multi-byte UTF-8), plus a shared `FilePreviewError` enum (`NoTauri` / `WorkspaceNotFound` / `TooLarge(u64)` / `Failed(String)`) and `render_load_error(i18n, failed_label, error)` helper used by every renderer for consistent localized banners.
+
+```mermaid
+flowchart LR
+  Click[Sidebar file click]
+  Tab[CenterTabKind::FilePreview]
+  Dock[FilePreviewDock]
+  Stat[stat_workspace_file]
+  Disp{FileKind}
+  Img[read_workspace_image_file]
+  Vid[read_workspace_video_file]
+  Txt[read_workspace_text_file]
+  Mer[Mermaid bundle]
+  Click --> Tab --> Dock --> Stat
+  Dock --> Disp
+  Disp -->|Image| Img
+  Disp -->|Video| Vid
+  Disp -->|Markdown / Mermaid / Text| Txt
+  Disp -->|Markdown / Mermaid| Mer
+```
 
 ## Terminal Context Handoff
 

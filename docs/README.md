@@ -12,6 +12,7 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 |-------|--------|
 | Settings (API Keys, BLXCode Agent, Workspace, **Appearance / themes**) | [Settings](user/settings.md) · [Appearance & Themes](user/appearance-themes.md) |
 | Workbench, terminals, sidebar, handoff | [Workspaces](user/workspaces.md) |
+| File preview (images, video, Markdown, Mermaid) | [File Preview](user/file-preview.md) |
 | Memory, learnings, graph, categories | [Memory And Tasks](user/memory-and-tasks.md) |
 | Markdown plans and plan-linked tasks | [Plans](user/plans.md) |
 | Workspace rules and skills | [Rules And Skills](user/rules-and-skills.md) |
@@ -31,6 +32,7 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 - [Settings](user/settings.md) — docked center-tab settings, API Keys, BLXCode Agent grid, Workspace, **Appearance / themes**.
 - [Appearance & Themes](user/appearance-themes.md) — theme picker, presets, persistence, exceptions.
 - [Workspaces](user/workspaces.md) — creation, terminal grids, sidebar explorer, Git graph, handoff, persistence.
+- [File Preview](user/file-preview.md) — center-tab previews for images (incl. SVG), video, rendered Markdown, and Mermaid diagrams with a topbar showing name/path/size/mtime.
 - [Memory And Tasks](user/memory-and-tasks.md) — Memory panel (Files, Graph, Search), dynamic categories, tasks, agent memory tools.
 - [Plans](user/plans.md) — `.agents/plans/`, Kanban board, task syntax, Plans panel, agent tools.
 - [Rules And Skills](user/rules-and-skills.md) — expandable rule/skill cards, core vs user skills, install dialog.
