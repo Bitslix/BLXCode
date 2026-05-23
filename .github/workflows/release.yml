@@ -2,7 +2,16 @@
 # macOS .app/.dmg require a macOS runner (Intel + Apple Silicon via universal target).
 # Windows builds prefer the fast self-hosted runner (label: blxcode-win-fast) and fall back
 # to the slower runner (label: blxcode-win) if the fast runner is offline or its build fails.
+# Flow:
+#   probe-windows         -> query GitHub API for an online 'blxcode-win-fast' runner
+#   build-windows-fast    -> only runs if probe says fast is available
+#   build-windows-fallback-> runs when fast is unavailable OR fast ran but its build failed
 # Both Windows jobs share the same steps via .github/actions/build-windows (composite action).
+#
+# RUNNER_PROBE_TOKEN secret (optional): classic PAT with 'repo' scope, or a fine-grained PAT with
+# repository 'Administration: Read', so the workflow can list self-hosted runners. GITHUB_TOKEN
+# cannot be granted that permission. If the secret is missing, the probe assumes the fast runner
+# is available (preserves the previous "try fast first" behavior).
 name: Release
 
 permissions:
@@ -255,20 +264,75 @@ jobs:
             "${signatures[@]}"
           gh release upload "${{ github.ref_name }}" -R "${{ github.repository }}" --clobber target/latest.json
 
-  # Primary Windows build on the fast self-hosted runner. `continue-on-error: true` so that
-  # build-windows-fallback can take over without marking the whole workflow as failed when the
-  # fast runner is unavailable, queued indefinitely, or the build itself fails.
-  # `timeout-minutes` bounds the wait when the fast runner is offline so the fallback runs
-  # within a predictable window rather than holding the workflow open until the GH default
-  # (6h) elapses.
-  build-windows-fast:
+  # Probe whether at least one 'blxcode-win-fast' self-hosted runner is currently online.
+  # We need this because GitHub's `timeout-minutes` only counts elapsed *running* time, so a
+  # job assigned to an offline runner would sit in the queue indefinitely instead of failing
+  # over to the slow runner.
+  #
+  # Requires the optional RUNNER_PROBE_TOKEN secret (classic PAT with `repo` scope, or a
+  # fine-grained PAT with repository "Administration: Read"). Without it we assume the fast
+  # runner is available so we don't regress to "fallback only" by accident.
+  probe-windows:
     needs: [authorize, resolve]
     if: needs.resolve.outputs.build_windows == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      fast_available: ${{ steps.probe.outputs.fast_available }}
+    steps:
+      - id: probe
+        env:
+          GH_TOKEN: ${{ secrets.RUNNER_PROBE_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "RUNNER_PROBE_TOKEN not set; assuming fast runner is available."
+            echo "fast_available=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Count online runners that carry the 'blxcode-win-fast' label. Busy ones still count
+          # (they'll just queue briefly). Offline ones do not, so we skip straight to fallback.
+          count=$(gh api --paginate "repos/${REPO}/actions/runners" \
+            --jq '[.runners[]
+                   | select(.status == "online")
+                   | select(any(.labels[]?; .name == "blxcode-win-fast"))
+                  ] | length' 2>/dev/null || echo "")
+
+          if [ -z "${count}" ]; then
+            echo "::warning::Could not query self-hosted runners (token missing scope?). Assuming fast runner is available."
+            echo "fast_available=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "${count}" -gt 0 ]; then
+            echo "Fast runner available: ${count} online instance(s) with label 'blxcode-win-fast'."
+            echo "fast_available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No online 'blxcode-win-fast' runner; skipping fast build and going straight to fallback."
+            echo "fast_available=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Primary Windows build on the fast self-hosted runner. Only scheduled when the probe says
+  # at least one fast runner is online, so we never hang in the queue.
+  #
+  # `continue-on-error: true` keeps the overall workflow from being marked as failed when the
+  # fast build fails but the fallback succeeds. NOTE: with continue-on-error on a job, GitHub
+  # masks `needs.<job>.result` to `success` even on failure, so the fallback condition must
+  # consult `needs.build-windows-fast.outputs.built_ok` (set from the step outcome) instead.
+  build-windows-fast:
+    needs: [authorize, resolve, probe-windows]
+    if: |
+      needs.resolve.outputs.build_windows == 'true'
+      && needs.probe-windows.outputs.fast_available == 'true'
     permissions:
       contents: write
     runs-on: [self-hosted, Windows, blxcode-win-fast]
     continue-on-error: true
     timeout-minutes: 60
+    outputs:
+      built_ok: ${{ steps.build.outcome }}
     # Self-hosted Windows: avoid WSL bash; use cmd (no pwsh / execution-policy / encoding issues).
     defaults:
       run:
@@ -276,7 +340,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Windows bundle (fast runner)
+      - id: build
+        name: Build Windows bundle (fast runner)
         uses: ./.github/actions/build-windows
         with:
           mode: ${{ needs.resolve.outputs.mode }}
@@ -286,17 +351,20 @@ jobs:
           tauri-signing-private-key: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           tauri-signing-private-key-password: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
-  # Fallback Windows build on the slower self-hosted runner. Runs only when the fast job
-  # could not produce a green result (failed build, runner offline / timed out, infra error).
-  # `cancelled` and `skipped` are excluded so a manually cancelled run does not re-trigger.
+  # Fallback Windows build on the slower self-hosted runner. Runs when either:
+  #   - the probe found no online fast runner, OR
+  #   - the fast job ran but its build step did not succeed.
+  # `cancelled` is excluded so a manually cancelled run does not re-trigger the slow build.
   build-windows-fallback:
-    needs: [authorize, resolve, build-windows-fast]
+    needs: [authorize, resolve, probe-windows, build-windows-fast]
     if: |
       always()
       && needs.resolve.outputs.build_windows == 'true'
-      && needs.build-windows-fast.result != 'success'
       && needs.build-windows-fast.result != 'cancelled'
-      && needs.build-windows-fast.result != 'skipped'
+      && (
+        needs.probe-windows.outputs.fast_available != 'true'
+        || needs.build-windows-fast.outputs.built_ok != 'success'
+      )
     permissions:
       contents: write
     runs-on: [self-hosted, Windows, blxcode-win]
@@ -309,7 +377,9 @@ jobs:
 
       - name: Report fast-runner outcome
         run: |
-          echo build-windows-fast result: ${{ needs.build-windows-fast.result }}
+          echo probe-windows fast_available: ${{ needs.probe-windows.outputs.fast_available }}
+          echo build-windows-fast result:    ${{ needs.build-windows-fast.result }}
+          echo build-windows-fast built_ok:  ${{ needs.build-windows-fast.outputs.built_ok }}
           echo Falling back to runner label 'blxcode-win'.
 
       - name: Build Windows bundle (fallback runner)
