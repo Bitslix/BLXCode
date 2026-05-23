@@ -308,13 +308,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CmdMemorySub => "Reservierter Bereich",
         I18nKey::CmdTermTitle => "Terminals",
         I18nKey::CmdTermSub => "Terminal-Grid im aktiven Workspace anzeigen",
-
         I18nKey::CenterTabCloseTerminalsTitle => "Workspace schließen?",
-        I18nKey::CenterTabCloseTerminalsBody => "Alle laufenden Terminals in diesem Workspace werden beendet und der Workspace wird gespeichert und geschlossen. Offene Einstellungs- oder Datei-Tabs in diesem Workspace werden ebenfalls geschlossen.",
+        I18nKey::CenterTabCloseTerminalsBody => {
+            "Alle laufenden Terminals in diesem Workspace werden beendet und der Workspace wird gespeichert und geschlossen. Offene Einstellungs- oder Datei-Tabs in diesem Workspace werden ebenfalls geschlossen."
+        }
         I18nKey::CenterTabCloseTerminalsConfirm => "Schließen ({seconds}s)",
         I18nKey::CenterTabCloseTerminalsCancel => "Abbrechen",
         I18nKey::CenterTabCloseAria => "Tab schließen",
-
         I18nKey::FilePreviewSize => "Größe",
         I18nKey::FilePreviewModified => "Geändert",
         I18nKey::FilePreviewTooLarge => "Datei zu groß für Vorschau ({size}).",
@@ -350,13 +350,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::FilePreviewPolicyChangelogSubtitle => "Wichtige Änderungen in den Releases dieses Projekts.",
         I18nKey::FilePreviewPolicyReadmeTitle => "Readme",
         I18nKey::FilePreviewPolicyReadmeSubtitle => "Projektübersicht, Einrichtung und Kurzreferenz.",
-
         I18nKey::CodeViewMenuAria => "Code-Vorschau-Aktionen",
         I18nKey::CodeViewMenuSectionSnippetTerminal => "Snippet — In Terminal einfügen",
         I18nKey::CodeViewMenuSectionSnippetAgent => "Snippet — An Agent anhängen",
         I18nKey::CodeViewMenuSectionEnvelopeTerminal => "Voller Kontextblock — In Terminal einfügen",
         I18nKey::CodeViewMenuSectionClipboard => "Zwischenablage",
-        I18nKey::CodeViewMenuWorkspaceGroup => "Workspace: {workspace}",
+        I18nKey::CodeViewMenuWorkspaceGroup => "Arbeitsbereich: {workspace}",
         I18nKey::CodeViewMenuTerminalSlotLabel => "Slot {slot} · {agent}",
         I18nKey::CodeViewMenuAttachAgentLabel => "An Agent in {workspace} anhängen",
         I18nKey::CodeViewMenuNoTerminals => "Keine offenen Terminals in irgendeinem Workspace",
@@ -372,7 +371,6 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CodeViewToastCopiedRaw => "Rohtext in Zwischenablage kopiert",
         I18nKey::CodeViewToastInsertFailed => "Einfügen in Terminal fehlgeschlagen: {error}",
         I18nKey::CodeViewToastClipboardFailed => "Kopieren in Zwischenablage fehlgeschlagen: {error}",
-
         I18nKey::HsCloseSettingsAria => "Einstellungen schließen",
         I18nKey::HsTitle => "BLXCode-Einstellungen",
         I18nKey::HsAriaCats => "Kategorien",
@@ -533,9 +531,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbRenameSubmit => "Speichern",
         I18nKey::SbRenameMenu => "Arbeitsbereich bearbeiten",
         I18nKey::SbCloseWorkspaceMenu => "Arbeitsbereich schließen",
-        I18nKey::SbTerminalCountAria => "{n} Terminal-Slots",
         I18nKey::SbAddWorkspaceAria => "Neuen Arbeitsbereich erstellen",
         I18nKey::SbBadgeTotalAria => "{n} im Arbeitsbereich ungelesen",
+        I18nKey::SbTerminalCountAria => "{n} Terminal-Slots",
         I18nKey::WzTitle => "Arbeitsbereich erstellen",
         I18nKey::WzSubLayout => "Wählen Sie Layout und Arbeitsverzeichnis.",
         I18nKey::WzSubFleet => "Weisen Sie Agenten für {n} Terminals zu.",

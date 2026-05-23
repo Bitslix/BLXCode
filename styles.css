@@ -711,17 +711,8 @@ body {
   border: none;
   padding: 0.45rem 1.85rem 0.45rem 0.75rem;
   cursor: pointer;
-  border-left: 2px solid transparent;
+  border-left: 2px solid color-mix(in srgb, var(--workspace-color) 35%, transparent);
   --workspace-color: var(--accent);
-}
-
-.workbench-sidebar__color-dot {
-  flex: 0 0 auto;
-  width: 0.62rem;
-  height: 0.62rem;
-  border-radius: 999px;
-  background: var(--workspace-color);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--workspace-color) 40%, transparent);
 }
 
 .workbench-sidebar__terminal-count {
@@ -731,15 +722,23 @@ body {
   padding: 0 0.28rem;
   display: inline-grid;
   place-items: center;
-  border-radius: 999px;
-  color: var(--text-bright);
-  background: #e8954a;
-  box-shadow: 0 0 0 1px var(--scrim-bg);
+  border-radius: 4px;
+  color: color-mix(in srgb, #e8954a 85%, var(--text-bright));
+  background: color-mix(in srgb, #e8954a 28%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #e8954a 45%, transparent);
   font-family: var(--font-mono);
   font-size: 0.62rem;
   font-weight: 750;
   line-height: 1;
   letter-spacing: 0;
+  transition: background 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.workbench-sidebar__row:hover .workbench-sidebar__terminal-count,
+.workbench-sidebar__row--active .workbench-sidebar__terminal-count {
+  color: color-mix(in srgb, #e8954a 70%, var(--text-bright));
+  background: color-mix(in srgb, #e8954a 40%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #e8954a 60%, transparent);
 }
 
 .workbench-sidebar__badges {
@@ -841,7 +840,6 @@ body {
   border: 1px solid transparent;
 }
 
-.workbench-sidebar--collapsed .workbench-sidebar__color-dot,
 .workbench-sidebar--collapsed .workbench-sidebar__terminal-count {
   display: none;
 }

@@ -321,8 +321,7 @@ pub fn Sidebar() -> impl IntoView {
                                         <span class="workbench-sidebar__icon" aria-hidden="true">
                                             {icon_label}
                                         </span>
-                                        <span class="workbench-sidebar__color-dot" aria-hidden="true"></span>
-                                        <Show when=move || !collapsed.get() && (terminal_slot_count.get() > 1)>
+                                        <Show when=move || !collapsed.get() && (terminal_slot_count.get() >= 1)>
                                             {move || {
                                                 let count = terminal_slot_count.get();
                                                 let aria = i18n
