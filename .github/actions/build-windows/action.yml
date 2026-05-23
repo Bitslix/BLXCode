@@ -129,74 +129,104 @@ runs:
         prerelease: false
         args: ${{ env.TAURI_BUILD_ARGS }}
 
+    # All file-listing / gh-release-upload steps below use `shell: powershell` (Windows PS 5.1).
+    # Reason: `shell: bash` on a self-hosted Windows runner falls back to Git Bash (must be on
+    # PATH) and then to WSL. The blxcode-win runner has neither, so `bash` blows up with
+    # "Windows-Subsystem fuer Linux verfuegt ueber keine installierten Distributionen". PS 5.1
+    # is built into every Windows install, so it works on both blxcode-win-fast and blxcode-win
+    # without extra provisioning.
+
     # tauri-action (v0.5.x) only uploads the first installer it finds per bundle directory
     # (typically *-setup.exe + *-setup.exe.sig). We additionally publish:
     #   - *.msi + *.msi.sig (WiX installer + updater signature) when present
     #   - *-setup.nsis.zip / *.msi.zip + their .sig files (only emitted when the project uses
     #     createUpdaterArtifacts: "v1Compatible" in tauri.conf.json; harmless no-op otherwise)
     # That way the release page is consistent regardless of which updater-artifact mode the
-    # project is configured for, and `gh release upload` is a no-op for files that don't exist.
+    # project is configured for, and missing files are silently skipped.
     - name: Upload remaining Windows installer artifacts (release-new)
       if: inputs.mode == 'release-new'
-      shell: bash
+      shell: powershell
       env:
         GH_TOKEN: ${{ inputs.github-token }}
         REPO: ${{ inputs.repository }}
         TAG: ${{ inputs.tag-name }}
       run: |
-        set -euo pipefail
-        mapfile -t files < <(find target -path '*/release/bundle/*' -type f \( \
-          -name '*-setup.nsis.zip' -o -name '*-setup.nsis.zip.sig' \
-          -o -name '*.msi' -o -name '*.msi.sig' \
-          -o -name '*.msi.zip' -o -name '*.msi.zip.sig' \
-        \))
-        if [[ ${#files[@]} -eq 0 ]]; then
-          echo "::warning::No extra Windows installer artifacts found (zip-wrapped updater payloads / MSI). Updater latest.json may be incomplete."
+        $ErrorActionPreference = 'Stop'
+        $files = Get-ChildItem -Path 'target' -Recurse -File -ErrorAction SilentlyContinue |
+          Where-Object { $_.FullName -like '*\release\bundle\*' } |
+          Where-Object {
+            $_.Name -like '*-setup.nsis.zip' -or
+            $_.Name -like '*-setup.nsis.zip.sig' -or
+            $_.Name -like '*.msi' -or
+            $_.Name -like '*.msi.sig' -or
+            $_.Name -like '*.msi.zip' -or
+            $_.Name -like '*.msi.zip.sig'
+          }
+        if (-not $files -or $files.Count -eq 0) {
+          Write-Host "::warning::No extra Windows installer artifacts found (zip-wrapped updater payloads / MSI). Updater latest.json may be incomplete."
           exit 0
-        fi
-        printf 'Uploading %s\n' "${files[@]}"
-        gh release upload "$TAG" -R "$REPO" --clobber "${files[@]}"
+        }
+        foreach ($f in $files) {
+          Write-Host "Uploading $($f.FullName)"
+          & gh release upload $env:TAG -R $env:REPO --clobber $f.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        }
 
     - name: Upload bundles to existing release (release-existing)
       if: inputs.mode == 'release-existing'
-      shell: bash
+      shell: powershell
       env:
         GH_TOKEN: ${{ inputs.github-token }}
         REPO: ${{ inputs.repository }}
         TAG: ${{ inputs.tag-name }}
       run: |
-        set -euo pipefail
-        mapfile -t files < <(find target -path '*/release/bundle/*' -type f \( \
-          -name '*-setup.exe' -o -name '*-setup.exe.sig' \
-          -o -name '*-setup.nsis.zip' -o -name '*-setup.nsis.zip.sig' \
-          -o -name '*.msi' -o -name '*.msi.sig' \
-          -o -name '*.msi.zip' -o -name '*.msi.zip.sig' \
-        \))
-        if [[ ${#files[@]} -eq 0 ]]; then
-          echo "::error::No Windows bundles found under target/**/release/bundle/"
+        $ErrorActionPreference = 'Stop'
+        $files = Get-ChildItem -Path 'target' -Recurse -File -ErrorAction SilentlyContinue |
+          Where-Object { $_.FullName -like '*\release\bundle\*' } |
+          Where-Object {
+            $_.Name -like '*-setup.exe' -or
+            $_.Name -like '*-setup.exe.sig' -or
+            $_.Name -like '*-setup.nsis.zip' -or
+            $_.Name -like '*-setup.nsis.zip.sig' -or
+            $_.Name -like '*.msi' -or
+            $_.Name -like '*.msi.sig' -or
+            $_.Name -like '*.msi.zip' -or
+            $_.Name -like '*.msi.zip.sig'
+          }
+        if (-not $files -or $files.Count -eq 0) {
+          Write-Host "::error::No Windows bundles found under target\**\release\bundle\"
           exit 1
-        fi
-        printf 'Uploading %s\n' "${files[@]}"
-        gh release upload "$TAG" -R "$REPO" --clobber "${files[@]}"
+        }
+        foreach ($f in $files) {
+          Write-Host "Uploading $($f.FullName)"
+          & gh release upload $env:TAG -R $env:REPO --clobber $f.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        }
 
     - name: Merge updater latest.json
       if: inputs.mode == 'release-new' || inputs.mode == 'release-existing'
-      shell: bash
+      shell: powershell
       env:
         GH_TOKEN: ${{ inputs.github-token }}
         TAG_NAME: ${{ inputs.tag-name }}
         REPO: ${{ inputs.repository }}
       run: |
-        mapfile -t signatures < <(find target -path '*/release/bundle/*' -name '*.sig' -type f)
-        if [[ ${#signatures[@]} -eq 0 ]]; then
-          echo "No updater signatures found; skipping latest.json"
+        $ErrorActionPreference = 'Stop'
+        $signatures = Get-ChildItem -Path 'target' -Recurse -File -Filter '*.sig' -ErrorAction SilentlyContinue |
+          Where-Object { $_.FullName -like '*\release\bundle\*' }
+        if (-not $signatures -or $signatures.Count -eq 0) {
+          Write-Host "No updater signatures found; skipping latest.json"
           exit 0
-        fi
-        version="${TAG_NAME#v}"
-        python scripts/release/merge_latest_json.py \
-          --repo "$REPO" \
-          --tag "$TAG_NAME" \
-          --version "$version" \
-          --output target/latest.json \
-          "${signatures[@]}"
-        gh release upload "$TAG_NAME" -R "$REPO" --clobber target/latest.json
+        }
+        $version = $env:TAG_NAME -replace '^v', ''
+        $pyArgs = @(
+          'scripts/release/merge_latest_json.py',
+          '--repo',    $env:REPO,
+          '--tag',     $env:TAG_NAME,
+          '--version', $version,
+          '--output',  'target/latest.json'
+        ) + ($signatures | ForEach-Object { $_.FullName })
+        & python @pyArgs
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        & gh release upload $env:TAG_NAME -R $env:REPO --clobber 'target/latest.json'
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
