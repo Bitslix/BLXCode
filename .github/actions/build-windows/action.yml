@@ -129,6 +129,31 @@ runs:
         prerelease: false
         args: ${{ env.TAURI_BUILD_ARGS }}
 
+    # tauri-action (v0.5.x) only uploads the first installer it finds per bundle directory
+    # (typically *-setup.exe + *-setup.exe.sig). The Tauri v2 updater however expects the
+    # zip-wrapped form (*-setup.nsis.zip / *.msi.zip) plus their .sig files, and we also
+    # want the MSI installer + its sig on the release page. Upload the rest here.
+    - name: Upload remaining Windows installer artifacts (release-new)
+      if: inputs.mode == 'release-new'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        REPO: ${{ inputs.repository }}
+        TAG: ${{ inputs.tag-name }}
+      run: |
+        set -euo pipefail
+        mapfile -t files < <(find target -path '*/release/bundle/*' -type f \( \
+          -name '*-setup.nsis.zip' -o -name '*-setup.nsis.zip.sig' \
+          -o -name '*.msi' -o -name '*.msi.sig' \
+          -o -name '*.msi.zip' -o -name '*.msi.zip.sig' \
+        \))
+        if [[ ${#files[@]} -eq 0 ]]; then
+          echo "::warning::No extra Windows installer artifacts found (zip-wrapped updater payloads / MSI). Updater latest.json may be incomplete."
+          exit 0
+        fi
+        printf 'Uploading %s\n' "${files[@]}"
+        gh release upload "$TAG" -R "$REPO" --clobber "${files[@]}"
+
     - name: Upload bundles to existing release (release-existing)
       if: inputs.mode == 'release-existing'
       shell: bash
@@ -139,15 +164,10 @@ runs:
       run: |
         set -euo pipefail
         mapfile -t files < <(find target -path '*/release/bundle/*' -type f \( \
-          -name '*-setup.exe' \
-          -o -name '*-setup.nsis.zip' \
-          -o -name '*-setup.nsis.zip.sig' \
-          -o -name '*-setup.exe.sig' \
-          -o -name '*.msi' \
-          -o -name '*.msi.zip' \
-          -o -name '*.msi.zip.sig' \
-          -o -name '*.msi.sig' \
-          -o -name '*.sig' \
+          -name '*-setup.exe' -o -name '*-setup.exe.sig' \
+          -o -name '*-setup.nsis.zip' -o -name '*-setup.nsis.zip.sig' \
+          -o -name '*.msi' -o -name '*.msi.sig' \
+          -o -name '*.msi.zip' -o -name '*.msi.zip.sig' \
         \))
         if [[ ${#files[@]} -eq 0 ]]; then
           echo "::error::No Windows bundles found under target/**/release/bundle/"

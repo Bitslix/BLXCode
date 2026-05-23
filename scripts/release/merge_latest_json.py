@@ -16,6 +16,26 @@ def run(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess[st
     return subprocess.run(cmd, check=check, text=True, capture_output=True)
 
 
+# For Windows the Tauri v2 updater prefers the zip-wrapped installer (.nsis.zip / .msi.zip)
+# because it streams the archive, verifies the .sig, then unpacks and executes the inner
+# installer. The raw .exe / .msi are still valid for manual download but not what the updater
+# itself fetches, so when multiple sigs are present we pick the highest-priority one.
+WINDOWS_SUFFIX_PRIORITY: tuple[str, ...] = (
+    ".nsis.zip.sig",
+    ".msi.zip.sig",
+    ".exe.sig",
+    ".msi.sig",
+)
+
+
+def windows_suffix_rank(name: str) -> int:
+    name = name.lower()
+    for index, suffix in enumerate(WINDOWS_SUFFIX_PRIORITY):
+        if name.endswith(suffix):
+            return index
+    return len(WINDOWS_SUFFIX_PRIORITY)
+
+
 def infer_platform(path: Path) -> str | None:
     name = path.name.lower()
     full = str(path).lower()
@@ -24,7 +44,7 @@ def infer_platform(path: Path) -> str | None:
         return f"linux-{arch}"
     if name.endswith(".app.tar.gz.sig"):
         return "darwin-universal"
-    if name.endswith(".exe.sig") or name.endswith(".msi.sig"):
+    if name.endswith(WINDOWS_SUFFIX_PRIORITY):
         return "windows-x86_64"
     return None
 
@@ -51,6 +71,13 @@ def release_asset_names(repo: str, tag: str) -> set[str]:
     return {line.strip() for line in result.stdout.splitlines() if line.strip()}
 
 
+def _sort_key(platform: str, sig: Path) -> tuple[int, str]:
+    name = sig.name.lower()
+    if platform.startswith("windows-"):
+        return (windows_suffix_rank(name), name)
+    return (0, name)
+
+
 def build_manifest(repo: str, tag: str, version: str, notes: str, artifacts: list[Path]) -> dict:
     manifest = load_existing(repo, tag)
     manifest["version"] = version
@@ -58,23 +85,34 @@ def build_manifest(repo: str, tag: str, version: str, notes: str, artifacts: lis
     manifest.setdefault("pub_date", datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"))
     platforms = manifest.setdefault("platforms", {})
 
-    for sig_path in sorted(artifacts, key=lambda p: p.name.lower()):
-        platform = infer_platform(sig_path)
+    # Group signatures by platform first, then for each platform pick the highest-priority
+    # signature whose payload actually exists on disk. This lets us prefer the .nsis.zip /
+    # .msi.zip variants (what the Tauri v2 updater fetches) over the raw .exe / .msi.
+    grouped: dict[str, list[Path]] = {}
+    for sig in artifacts:
+        platform = infer_platform(sig)
         if platform is None:
             continue
-        if (
-            platform.startswith("windows-")
-            and sig_path.name.lower().endswith(".msi.sig")
-            and platform in platforms
-            and str(platforms[platform].get("url", "")).lower().endswith(".exe")
-        ):
-            continue
-        payload = payload_for_sig(sig_path)
-        if not payload.exists():
-            raise SystemExit(f"signature has no matching payload: {sig_path}")
-        signature = sig_path.read_text(encoding="utf-8").strip()
-        if not signature:
-            raise SystemExit(f"empty signature: {sig_path}")
+        grouped.setdefault(platform, []).append(sig)
+
+    for platform, sigs in grouped.items():
+        sigs = sorted(sigs, key=lambda s: _sort_key(platform, s))
+        chosen: tuple[Path, Path, str] | None = None
+        for sig in sigs:
+            payload = payload_for_sig(sig)
+            if not payload.exists():
+                continue
+            signature = sig.read_text(encoding="utf-8").strip()
+            if not signature:
+                continue
+            chosen = (sig, payload, signature)
+            break
+        if chosen is None:
+            raise SystemExit(
+                f"no usable signature/payload pair found for platform {platform}: "
+                + ", ".join(str(s) for s in sigs)
+            )
+        _, payload, signature = chosen
         platforms[platform] = {
             "signature": signature,
             "url": f"https://github.com/{repo}/releases/download/{tag}/{payload.name}",
