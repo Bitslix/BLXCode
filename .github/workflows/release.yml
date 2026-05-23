@@ -28,13 +28,18 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "testbuild = build only (workflow artifacts); release = draft GitHub release + upload"
+        description: "What to do with the build"
         type: choice
         required: true
         default: testbuild
         options:
-          - testbuild
-          - release
+          - testbuild          # build only, upload as workflow artifact
+          - release-new        # build + create a new draft release with release_tag
+          - release-existing   # build + upload artifacts to an existing release (release_tag must exist)
+      release_tag:
+        description: "Tag name (e.g. v0.2.6). Required for release-new (will be created) and release-existing (must already exist). Ignored for testbuild."
+        required: false
+        default: ""
       platforms:
         description: Build targets
         type: choice
@@ -111,20 +116,71 @@ jobs:
   resolve:
     needs: authorize
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       mode: ${{ steps.mode.outputs.mode }}
+      release_tag: ${{ steps.mode.outputs.release_tag }}
       matrix: ${{ steps.matrix.outputs.matrix }}
       build_mac: ${{ steps.targets.outputs.build_mac }}
       build_windows: ${{ steps.targets.outputs.build_windows }}
       has_mac_entries: ${{ steps.targets.outputs.has_mac_entries }}
     steps:
+      # Decide mode + tag, and validate against the GitHub API so we fail early (in resolve)
+      # rather than after a 30-minute Windows build.
+      #   push event:        always mode=release-new, tag=github.ref_name (the pushed v* tag).
+      #   workflow_dispatch: mode comes from input; release_tag is validated per mode.
       - id: mode
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
+          set -euo pipefail
+
           if [ "${{ github.event_name }}" = "push" ]; then
-            echo "mode=release" >> "$GITHUB_OUTPUT"
+            mode="release-new"
+            release_tag="${GITHUB_REF_NAME}"
           else
-            echo "mode=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
+            mode="${{ inputs.mode }}"
+            release_tag="${{ inputs.release_tag }}"
           fi
+
+          case "$mode" in
+            testbuild)
+              # Tag is irrelevant for testbuild; null it out so downstream steps don't misuse it.
+              release_tag=""
+              ;;
+            release-new)
+              if [ -z "$release_tag" ]; then
+                echo "::error::mode=release-new requires the 'release_tag' input (e.g. v0.2.7)."
+                exit 1
+              fi
+              if gh release view "$release_tag" -R "$REPO" >/dev/null 2>&1; then
+                echo "::error::Release '$release_tag' already exists. Use mode=release-existing to upload to it, or choose a different tag."
+                exit 1
+              fi
+              ;;
+            release-existing)
+              if [ -z "$release_tag" ]; then
+                echo "::error::mode=release-existing requires the 'release_tag' input. Available releases:"
+                gh release list -R "$REPO" --limit 20 || true
+                exit 1
+              fi
+              if ! gh release view "$release_tag" -R "$REPO" >/dev/null 2>&1; then
+                echo "::error::Release '$release_tag' does not exist. Available releases:"
+                gh release list -R "$REPO" --limit 20 || true
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::error::Unknown mode: $mode"
+              exit 1
+              ;;
+          esac
+
+          echo "Resolved mode=$mode release_tag=$release_tag"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
 
       - id: targets
         run: |
@@ -202,8 +258,10 @@ jobs:
           cargo install trunk --locked
           cargo install tauri-cli --version "^2" --locked
 
-      - name: Build bundles (testbuild, macOS)
-        if: needs.resolve.outputs.mode == 'testbuild' && matrix.platform_id == 'mac'
+      # cargo tauri build for testbuild AND release-existing (we don't want tauri-action to
+      # create or replace a release in release-existing mode; we'll upload artifacts ourselves).
+      - name: Build bundles (cargo tauri build, macOS)
+        if: (needs.resolve.outputs.mode == 'testbuild' || needs.resolve.outputs.mode == 'release-existing') && matrix.platform_id == 'mac'
         working-directory: src-tauri
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -224,8 +282,8 @@ jobs:
 
       # Pin v0.5.20 (node20): @v0 requires node24; self-hosted runners < 2.320 fail at job setup
       # while resolving action manifests (including skipped release-only steps in testbuild runs).
-      - name: Build bundles (release)
-        if: needs.resolve.outputs.mode == 'release'
+      - name: Build bundles + create draft release (release-new)
+        if: needs.resolve.outputs.mode == 'release-new'
         uses: tauri-apps/tauri-action@v0.5.20
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -237,32 +295,56 @@ jobs:
           APPLE_SIGNING_IDENTITY: "-"
         with:
           projectPath: src-tauri
-          tagName: ${{ github.ref_name }}
-          releaseName: "BLXCode ${{ github.ref_name }}"
+          tagName: ${{ needs.resolve.outputs.release_tag }}
+          releaseName: "BLXCode ${{ needs.resolve.outputs.release_tag }}"
           releaseBody: "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details."
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
 
-      - name: Merge updater latest.json
-        if: needs.resolve.outputs.mode == 'release'
+      - name: Upload bundles to existing release (release-existing, macOS)
+        if: needs.resolve.outputs.mode == 'release-existing' && matrix.platform_id == 'mac'
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.resolve.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(find target -path '*/release/bundle/*' -type f \( \
+            -name '*.dmg' \
+            -o -name '*.app.tar.gz' \
+            -o -name '*.app.tar.gz.sig' \
+            -o -name '*.sig' \
+          \))
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "::error::No macOS bundles found under target/**/release/bundle/"
+            exit 1
+          fi
+          printf 'Uploading %s\n' "${files[@]}"
+          gh release upload "$TAG" -R "$REPO" --clobber "${files[@]}"
+
+      - name: Merge updater latest.json
+        if: needs.resolve.outputs.mode == 'release-new' || needs.resolve.outputs.mode == 'release-existing'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.resolve.outputs.release_tag }}
         run: |
           mapfile -t signatures < <(find target -path '*/release/bundle/*' -name '*.sig' -type f)
           if [[ ${#signatures[@]} -eq 0 ]]; then
             echo "No updater signatures found; skipping latest.json"
             exit 0
           fi
-          version="${GITHUB_REF_NAME#v}"
+          version="${TAG#v}"
           python scripts/release/merge_latest_json.py \
-            --repo "${{ github.repository }}" \
-            --tag "${{ github.ref_name }}" \
+            --repo "$REPO" \
+            --tag "$TAG" \
             --version "$version" \
             --output target/latest.json \
             "${signatures[@]}"
-          gh release upload "${{ github.ref_name }}" -R "${{ github.repository }}" --clobber target/latest.json
+          gh release upload "$TAG" -R "$REPO" --clobber target/latest.json
 
   # Probe whether at least one 'blxcode-win-fast' self-hosted runner is currently online.
   # We need this because GitHub's `timeout-minutes` only counts elapsed *running* time, so a
@@ -346,7 +428,7 @@ jobs:
         with:
           mode: ${{ needs.resolve.outputs.mode }}
           repository: ${{ github.repository }}
-          tag-name: ${{ github.ref_name }}
+          tag-name: ${{ needs.resolve.outputs.release_tag }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           tauri-signing-private-key: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           tauri-signing-private-key-password: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -387,7 +469,7 @@ jobs:
         with:
           mode: ${{ needs.resolve.outputs.mode }}
           repository: ${{ github.repository }}
-          tag-name: ${{ github.ref_name }}
+          tag-name: ${{ needs.resolve.outputs.release_tag }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           tauri-signing-private-key: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           tauri-signing-private-key-password: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}

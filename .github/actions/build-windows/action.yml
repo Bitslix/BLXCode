@@ -3,13 +3,13 @@ description: "Shared Windows build steps for blxcode-win-fast (primary) and blxc
 
 inputs:
   mode:
-    description: "testbuild = workflow artifacts only; release = draft GitHub release + upload"
+    description: "testbuild = workflow artifacts only; release-new = draft GitHub release + upload; release-existing = upload to an existing release"
     required: true
   repository:
-    description: "owner/repo for tauri-action release uploads"
+    description: "owner/repo for tauri-action / gh release uploads"
     required: true
   tag-name:
-    description: "Git tag name (used only in release mode)"
+    description: "Release tag (required for release-new and release-existing)"
     required: false
     default: ""
   github-token:
@@ -85,8 +85,10 @@ runs:
       shell: cmd
       run: call scripts\ci\ensure-vbscript.cmd
 
-    - name: Build bundles (testbuild, Windows)
-      if: inputs.mode == 'testbuild'
+    # cargo tauri build for testbuild AND release-existing. For release-existing we don't want
+    # tauri-action to create/overwrite a release; we'll upload the artifacts ourselves below.
+    - name: Build bundles (cargo tauri build, Windows)
+      if: inputs.mode == 'testbuild' || inputs.mode == 'release-existing'
       shell: cmd
       working-directory: src-tauri
       env:
@@ -108,8 +110,8 @@ runs:
 
     # Pin v0.5.20 (node20): @v0 requires node24; self-hosted runners < 2.320 fail at job setup
     # while resolving action manifests (including skipped release-only steps in testbuild runs).
-    - name: Build bundles (release)
-      if: inputs.mode == 'release'
+    - name: Build bundles + create draft release (release-new)
+      if: inputs.mode == 'release-new'
       uses: tauri-apps/tauri-action@v0.5.20
       env:
         GITHUB_TOKEN: ${{ inputs.github-token }}
@@ -127,8 +129,35 @@ runs:
         prerelease: false
         args: ${{ env.TAURI_BUILD_ARGS }}
 
+    - name: Upload bundles to existing release (release-existing)
+      if: inputs.mode == 'release-existing'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        REPO: ${{ inputs.repository }}
+        TAG: ${{ inputs.tag-name }}
+      run: |
+        set -euo pipefail
+        mapfile -t files < <(find target -path '*/release/bundle/*' -type f \( \
+          -name '*-setup.exe' \
+          -o -name '*-setup.nsis.zip' \
+          -o -name '*-setup.nsis.zip.sig' \
+          -o -name '*-setup.exe.sig' \
+          -o -name '*.msi' \
+          -o -name '*.msi.zip' \
+          -o -name '*.msi.zip.sig' \
+          -o -name '*.msi.sig' \
+          -o -name '*.sig' \
+        \))
+        if [[ ${#files[@]} -eq 0 ]]; then
+          echo "::error::No Windows bundles found under target/**/release/bundle/"
+          exit 1
+        fi
+        printf 'Uploading %s\n' "${files[@]}"
+        gh release upload "$TAG" -R "$REPO" --clobber "${files[@]}"
+
     - name: Merge updater latest.json
-      if: inputs.mode == 'release'
+      if: inputs.mode == 'release-new' || inputs.mode == 'release-existing'
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.github-token }}
