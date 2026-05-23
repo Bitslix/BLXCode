@@ -15,11 +15,24 @@ function Get-ReleaseBumpedVersion {
     $minor = [int]$pieces[1]
     $patch = [int]$pieces[2]
 
-    switch ($Part) {
-        "patch" { $patch += 1 }
-        "minor" { $minor += 1; $patch = 0 }
-        "major" { $major += 1; $minor = 0; $patch = 0 }
-        default { Stop-Release "unknown bump part: '$Part'" }
+    # Accept "patch", "minor", "major" (+1) or "patch+N", "minor+N", "major+N" (+N).
+    $mo = [regex]::Match($Part, '^(patch|minor|major)(?:\+(\d+))?$')
+    if (-not $mo.Success) {
+        Stop-Release "unknown bump spec: '$Part' (use patch|minor|major[+N])"
+    }
+    $kind = $mo.Groups[1].Value
+    $step = 1
+    if ($mo.Groups[2].Success) {
+        $step = [int]$mo.Groups[2].Value
+    }
+    if ($step -lt 1) {
+        Stop-Release "bump step must be >= 1, got $step"
+    }
+
+    switch ($kind) {
+        "patch" { $patch += $step }
+        "minor" { $minor += $step; $patch = 0 }
+        "major" { $major += $step; $minor = 0; $patch = 0 }
     }
 
     return "$major.$minor.$patch"

@@ -7,24 +7,32 @@ release_bump_version() {
   current="$(release_read_version)"
 
   new="$(python3 - "$current" "$part" <<'PY'
-import sys
+import sys, re
 
-def bump(v: str, part: str) -> str:
+def bump(v: str, spec: str) -> str:
     m = v.split(".")
     if len(m) != 3 or not all(x.isdigit() for x in m):
         raise SystemExit(f"invalid semver: {v!r}")
     major, minor, patch = (int(x) for x in m)
+
+    # Accept "patch", "minor", "major" (+1) or "patch+N", "minor+N", "major+N" (+N).
+    mo = re.fullmatch(r"(patch|minor|major)(?:\+(\d+))?", spec)
+    if not mo:
+        raise SystemExit(f"unknown bump spec: {spec!r} (use patch|minor|major[+N])")
+    part = mo.group(1)
+    step = int(mo.group(2) or "1")
+    if step < 1:
+        raise SystemExit(f"bump step must be >= 1, got {step}")
+
     if part == "patch":
-        patch += 1
+        patch += step
     elif part == "minor":
-        minor += 1
+        minor += step
         patch = 0
     elif part == "major":
-        major += 1
+        major += step
         minor = 0
         patch = 0
-    else:
-        raise SystemExit(f"unknown bump part: {part!r}")
     return f"{major}.{minor}.{patch}"
 
 print(bump(sys.argv[1], sys.argv[2]))

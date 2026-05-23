@@ -41,7 +41,9 @@ Build signed Tauri bundles for the current host (Linux sets NO_STRIP for AppImag
 Optionally bump version, rewrite CHANGELOG, tag, push, and upload to GitHub.
 
 Options:
-  --bump patch|minor|major   Bump version in Cargo.toml + tauri.conf.json + CHANGELOG
+  --bump patch|minor|major[+N]
+                             Bump version in Cargo.toml + tauri.conf.json + CHANGELOG.
+                             Optional +N (default +1), e.g. patch+3, minor+2, major+1.
   --no-changelog             Skip CHANGELOG rewrite on bump
   --build                    Run cargo tauri build (default when not --upload-only / --no-build)
   --no-build                 Skip build
@@ -73,7 +75,7 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --bump)
-      RELEASE_BUMP="${2:?--bump requires patch|minor|major}"
+      RELEASE_BUMP="${2:?--bump requires patch|minor|major (optionally with +N, e.g. patch+3)}"
       shift 2
       ;;
     --no-changelog) RELEASE_NO_CHANGELOG=1; shift ;;
