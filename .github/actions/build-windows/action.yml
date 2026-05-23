@@ -1,0 +1,150 @@
+name: "Build Windows bundle"
+description: "Shared Windows build steps for blxcode-win-fast (primary) and blxcode-win (fallback) runners."
+
+inputs:
+  mode:
+    description: "testbuild = workflow artifacts only; release = draft GitHub release + upload"
+    required: true
+  repository:
+    description: "owner/repo for tauri-action release uploads"
+    required: true
+  tag-name:
+    description: "Git tag name (used only in release mode)"
+    required: false
+    default: ""
+  github-token:
+    description: "GITHUB_TOKEN for tauri-action / gh CLI"
+    required: false
+    default: ""
+  tauri-signing-private-key:
+    description: "Tauri updater signing key (PEM string)"
+    required: false
+    default: ""
+  tauri-signing-private-key-password:
+    description: "Tauri updater signing key password"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Rust (Windows)
+      shell: cmd
+      run: |
+        set "CARGO_HOME=%USERPROFILE%\.cargo"
+        set "RUSTUP_HOME=%USERPROFILE%\.rustup"
+        set "PATH=%CARGO_HOME%\bin;%PATH%"
+        set "RUSTUP=%CARGO_HOME%\bin\rustup.exe"
+        if exist "%RUSTUP%" goto configure
+        echo Bootstrapping rustup...
+        curl -sSf -o "%RUNNER_TEMP%\rustup-init.exe" https://win.rustup.rs/x86_64
+        if errorlevel 1 exit /b 1
+        "%RUNNER_TEMP%\rustup-init.exe" -y --default-toolchain stable-msvc
+        if not exist "%RUSTUP%" exit /b 1
+        :configure
+        rustc -V >nul 2>&1 && goto add_target
+        echo No active toolchain, setting stable-msvc...
+        "%RUSTUP%" default stable-msvc
+        if errorlevel 1 (
+          echo rustup default failed, retrying...
+          ping 127.0.0.1 -n 6 >nul
+          "%RUSTUP%" default stable-msvc
+        )
+        if errorlevel 1 (
+          echo ERROR: cannot reach static.rust-lang.org from this runner.
+          echo Run once on the runner host: rustup default stable-msvc
+          exit /b 1
+        )
+        :add_target
+        "%RUSTUP%" target add wasm32-unknown-unknown
+        rustc -V
+        cargo -V
+
+    - name: Export Rust PATH (Windows)
+      shell: cmd
+      run: echo PATH=%USERPROFILE%\.cargo\bin;%PATH%>>%GITHUB_ENV%
+
+    - name: Install Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+        cache: npm
+        cache-dependency-path: frontend-js/package-lock.json
+
+    - name: Install frontend dependencies
+      shell: cmd
+      run: npm ci --prefix frontend-js
+
+    - name: Install Trunk and Tauri CLI
+      shell: cmd
+      run: |
+        cargo install trunk --locked
+        cargo install tauri-cli --version "^2" --locked
+
+    - name: Ensure VBSCRIPT for WiX MSI (Windows)
+      shell: cmd
+      run: call scripts\ci\ensure-vbscript.cmd
+
+    - name: Build bundles (testbuild, Windows)
+      if: inputs.mode == 'testbuild'
+      shell: cmd
+      working-directory: src-tauri
+      env:
+        TAURI_SIGNING_PRIVATE_KEY: ${{ inputs.tauri-signing-private-key }}
+        TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ inputs.tauri-signing-private-key-password }}
+        CI: "true"
+        CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        APPLE_SIGNING_IDENTITY: "-"
+      run: cargo tauri build %TAURI_BUILD_ARGS%
+
+    - name: Upload test build artifacts
+      if: inputs.mode == 'testbuild'
+      uses: actions/upload-artifact@v4
+      with:
+        name: blxcode-windows-${{ github.run_id }}-${{ github.run_attempt }}-${{ runner.name }}
+        path: target/**/release/bundle/**/*
+        retention-days: 7
+        if-no-files-found: error
+
+    # Pin v0.5.20 (node20): @v0 requires node24; self-hosted runners < 2.320 fail at job setup
+    # while resolving action manifests (including skipped release-only steps in testbuild runs).
+    - name: Build bundles (release)
+      if: inputs.mode == 'release'
+      uses: tauri-apps/tauri-action@v0.5.20
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        TAURI_SIGNING_PRIVATE_KEY: ${{ inputs.tauri-signing-private-key }}
+        TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ inputs.tauri-signing-private-key-password }}
+        CI: "true"
+        CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        APPLE_SIGNING_IDENTITY: "-"
+      with:
+        projectPath: src-tauri
+        tagName: ${{ inputs.tag-name }}
+        releaseName: "BLXCode ${{ inputs.tag-name }}"
+        releaseBody: "See [CHANGELOG.md](https://github.com/${{ inputs.repository }}/blob/main/CHANGELOG.md) for details."
+        releaseDraft: true
+        prerelease: false
+        args: ${{ env.TAURI_BUILD_ARGS }}
+
+    - name: Merge updater latest.json
+      if: inputs.mode == 'release'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        TAG_NAME: ${{ inputs.tag-name }}
+        REPO: ${{ inputs.repository }}
+      run: |
+        mapfile -t signatures < <(find target -path '*/release/bundle/*' -name '*.sig' -type f)
+        if [[ ${#signatures[@]} -eq 0 ]]; then
+          echo "No updater signatures found; skipping latest.json"
+          exit 0
+        fi
+        version="${TAG_NAME#v}"
+        python scripts/release/merge_latest_json.py \
+          --repo "$REPO" \
+          --tag "$TAG_NAME" \
+          --version "$version" \
+          --output target/latest.json \
+          "${signatures[@]}"
+        gh release upload "$TAG_NAME" -R "$REPO" --clobber target/latest.json

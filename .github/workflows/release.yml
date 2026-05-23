@@ -1,6 +1,8 @@
 # Build release bundles on macOS and Windows (no Linux CI).
 # macOS .app/.dmg require a macOS runner (Intel + Apple Silicon via universal target).
-# Windows builds use the self-hosted runner (label: blxcode-win).
+# Windows builds prefer the fast self-hosted runner (label: blxcode-win-fast) and fall back
+# to the slower runner (label: blxcode-win) if the fast runner is offline or its build fails.
+# Both Windows jobs share the same steps via .github/actions/build-windows (composite action).
 name: Release
 
 permissions:
@@ -103,6 +105,9 @@ jobs:
     outputs:
       mode: ${{ steps.mode.outputs.mode }}
       matrix: ${{ steps.matrix.outputs.matrix }}
+      build_mac: ${{ steps.targets.outputs.build_mac }}
+      build_windows: ${{ steps.targets.outputs.build_windows }}
+      has_mac_entries: ${{ steps.targets.outputs.has_mac_entries }}
     steps:
       - id: mode
         run: |
@@ -112,21 +117,33 @@ jobs:
             echo "mode=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
           fi
 
-      - id: matrix
+      - id: targets
         run: |
           platforms="${{ inputs.platforms }}"
           if [ "${{ github.event_name }}" = "push" ]; then
             platforms="Alle"
           fi
 
-          include="["
-          sep=""
+          build_mac=false
+          build_windows=false
           if [ "$platforms" = "Alle" ] || [ "$platforms" = "Mac Universal" ]; then
-            include+="${sep}{\"platform\":\"macos-latest\",\"platform_id\":\"mac\",\"args\":\"--target universal-apple-darwin\"}"
-            sep=","
+            build_mac=true
           fi
           if [ "$platforms" = "Alle" ] || [ "$platforms" = "Windows" ]; then
-            include+="${sep}{\"platform\":[\"self-hosted\",\"Windows\",\"blxcode-win\"],\"platform_id\":\"windows\",\"args\":\"\"}"
+            build_windows=true
+          fi
+
+          echo "build_mac=${build_mac}" >> "$GITHUB_OUTPUT"
+          echo "build_windows=${build_windows}" >> "$GITHUB_OUTPUT"
+          echo "has_mac_entries=${build_mac}" >> "$GITHUB_OUTPUT"
+
+      - id: matrix
+        run: |
+          include="["
+          sep=""
+          if [ "${{ steps.targets.outputs.build_mac }}" = "true" ]; then
+            include+="${sep}{\"platform\":\"macos-latest\",\"platform_id\":\"mac\",\"args\":\"--target universal-apple-darwin\"}"
+            sep=","
           fi
           include+="]"
 
@@ -134,6 +151,7 @@ jobs:
 
   build:
     needs: [authorize, resolve]
+    if: needs.resolve.outputs.has_mac_entries == 'true'
     permissions:
       contents: write
     strategy:
@@ -142,10 +160,9 @@ jobs:
       matrix: ${{ fromJson(needs.resolve.outputs.matrix) }}
 
     runs-on: ${{ matrix.platform }}
-    # Self-hosted Windows: avoid WSL bash; use cmd (no pwsh / execution-policy / encoding issues).
     defaults:
       run:
-        shell: ${{ matrix.platform_id == 'windows' && 'cmd' || 'bash' }}
+        shell: bash
     steps:
       - uses: actions/checkout@v4
 
@@ -154,42 +171,6 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
-
-      - name: Install Rust (Windows)
-        if: matrix.platform_id == 'windows'
-        run: |
-          set "CARGO_HOME=%USERPROFILE%\.cargo"
-          set "RUSTUP_HOME=%USERPROFILE%\.rustup"
-          set "PATH=%CARGO_HOME%\bin;%PATH%"
-          set "RUSTUP=%CARGO_HOME%\bin\rustup.exe"
-          if exist "%RUSTUP%" goto configure
-          echo Bootstrapping rustup...
-          curl -sSf -o "%RUNNER_TEMP%\rustup-init.exe" https://win.rustup.rs/x86_64
-          if errorlevel 1 exit /b 1
-          "%RUNNER_TEMP%\rustup-init.exe" -y --default-toolchain stable-msvc
-          if not exist "%RUSTUP%" exit /b 1
-          :configure
-          rustc -V >nul 2>&1 && goto add_target
-          echo No active toolchain, setting stable-msvc...
-          "%RUSTUP%" default stable-msvc
-          if errorlevel 1 (
-            echo rustup default failed, retrying...
-            ping 127.0.0.1 -n 6 >nul
-            "%RUSTUP%" default stable-msvc
-          )
-          if errorlevel 1 (
-            echo ERROR: cannot reach static.rust-lang.org from this runner.
-            echo Run once on DESKTOP-KI: rustup default stable-msvc
-            exit /b 1
-          )
-          :add_target
-          "%RUSTUP%" target add wasm32-unknown-unknown
-          rustc -V
-          cargo -V
-
-      - name: Export Rust PATH (Windows)
-        if: matrix.platform_id == 'windows'
-        run: echo PATH=%USERPROFILE%\.cargo\bin;%PATH%>>%GITHUB_ENV%
 
       - name: Install Node
         uses: actions/setup-node@v4
@@ -211,22 +192,6 @@ jobs:
         run: |
           cargo install trunk --locked
           cargo install tauri-cli --version "^2" --locked
-
-      # WiX MSI needs the VBSCRIPT optional feature; without it light.exe fails with no stderr.
-      - name: Ensure VBSCRIPT for WiX MSI (Windows)
-        if: matrix.platform_id == 'windows'
-        run: call scripts\ci\ensure-vbscript.cmd
-
-      - name: Build bundles (testbuild, Windows)
-        if: needs.resolve.outputs.mode == 'testbuild' && matrix.platform_id == 'windows'
-        working-directory: src-tauri
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          CI: true
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-          APPLE_SIGNING_IDENTITY: "-"
-        run: cargo tauri build %TAURI_BUILD_ARGS%
 
       - name: Build bundles (testbuild, macOS)
         if: needs.resolve.outputs.mode == 'testbuild' && matrix.platform_id == 'mac'
@@ -268,7 +233,7 @@ jobs:
           releaseBody: "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details."
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.platform_id == 'windows' && env.TAURI_BUILD_ARGS || matrix.args }}
+          args: ${{ matrix.args }}
 
       - name: Merge updater latest.json
         if: needs.resolve.outputs.mode == 'release'
@@ -289,3 +254,70 @@ jobs:
             --output target/latest.json \
             "${signatures[@]}"
           gh release upload "${{ github.ref_name }}" -R "${{ github.repository }}" --clobber target/latest.json
+
+  # Primary Windows build on the fast self-hosted runner. `continue-on-error: true` so that
+  # build-windows-fallback can take over without marking the whole workflow as failed when the
+  # fast runner is unavailable, queued indefinitely, or the build itself fails.
+  # `timeout-minutes` bounds the wait when the fast runner is offline so the fallback runs
+  # within a predictable window rather than holding the workflow open until the GH default
+  # (6h) elapses.
+  build-windows-fast:
+    needs: [authorize, resolve]
+    if: needs.resolve.outputs.build_windows == 'true'
+    permissions:
+      contents: write
+    runs-on: [self-hosted, Windows, blxcode-win-fast]
+    continue-on-error: true
+    timeout-minutes: 60
+    # Self-hosted Windows: avoid WSL bash; use cmd (no pwsh / execution-policy / encoding issues).
+    defaults:
+      run:
+        shell: cmd
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Windows bundle (fast runner)
+        uses: ./.github/actions/build-windows
+        with:
+          mode: ${{ needs.resolve.outputs.mode }}
+          repository: ${{ github.repository }}
+          tag-name: ${{ github.ref_name }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          tauri-signing-private-key: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          tauri-signing-private-key-password: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+  # Fallback Windows build on the slower self-hosted runner. Runs only when the fast job
+  # could not produce a green result (failed build, runner offline / timed out, infra error).
+  # `cancelled` and `skipped` are excluded so a manually cancelled run does not re-trigger.
+  build-windows-fallback:
+    needs: [authorize, resolve, build-windows-fast]
+    if: |
+      always()
+      && needs.resolve.outputs.build_windows == 'true'
+      && needs.build-windows-fast.result != 'success'
+      && needs.build-windows-fast.result != 'cancelled'
+      && needs.build-windows-fast.result != 'skipped'
+    permissions:
+      contents: write
+    runs-on: [self-hosted, Windows, blxcode-win]
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: cmd
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Report fast-runner outcome
+        run: |
+          echo build-windows-fast result: ${{ needs.build-windows-fast.result }}
+          echo Falling back to runner label 'blxcode-win'.
+
+      - name: Build Windows bundle (fallback runner)
+        uses: ./.github/actions/build-windows
+        with:
+          mode: ${{ needs.resolve.outputs.mode }}
+          repository: ${{ github.repository }}
+          tag-name: ${{ github.ref_name }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          tauri-signing-private-key: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          tauri-signing-private-key-password: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
