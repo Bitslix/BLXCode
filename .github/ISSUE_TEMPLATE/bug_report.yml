@@ -1,0 +1,89 @@
+name: Bug report
+description: Report a crash, regression, or reproducible defect
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please search [existing issues](https://github.com/Bitslix/BLXCode/issues) first.
+
+        For usage questions, try [Discussions → Q&A](https://github.com/Bitslix/BLXCode/discussions/categories/q-a) or the [troubleshooting guide](https://github.com/Bitslix/BLXCode/blob/main/docs/user/troubleshooting.md).
+
+  - type: input
+    id: version
+    attributes:
+      label: BLXCode version
+      description: Settings → App → Current version, or the release tag you installed
+      placeholder: "0.2.6"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Linux
+        - macOS
+        - Windows
+    validations:
+      required: true
+
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+      description: Distribution + version, macOS version, or Windows build
+      placeholder: "Arch Linux, macOS 15.2, Windows 11 24H2"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps that trigger the problem consistently
+      placeholder: |
+        1. Open workspace at …
+        2. Click …
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or console output
+      description: Terminal output from `cargo tauri dev`, browser devtools console, or in-app error text
+      render: shell
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, workspace layout, provider (OpenRouter/Anthropic), or anything else that helps
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and did not find a duplicate
+          required: true
+        - label: I can reproduce this on the latest release (or on current `main`)
+          required: true

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & usage help
+    url: https://github.com/Bitslix/BLXCode/discussions/categories/q-a
+    about: Ask the community — prefer Discussions for how-to questions and troubleshooting
+  - name: Ideas & feature proposals
+    url: https://github.com/Bitslix/BLXCode/discussions/categories/ideas
+    about: Share feature ideas and gather feedback before opening a formal request
+  - name: Documentation
+    url: https://github.com/Bitslix/BLXCode/wiki
+    about: User and developer guides (mirrored from docs/)

@@ -1,0 +1,15 @@
+title: "[General]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        General feedback, show-and-tell, or community conversation about BLXCode.
+
+        For bugs use [Issues](https://github.com/Bitslix/BLXCode/issues/new?template=bug_report.yml). For questions use [Q&A](https://github.com/Bitslix/BLXCode/discussions/new?category=q-a).
+
+  - type: textarea
+    id: body
+    attributes:
+      label: Message
+    validations:
+      required: true

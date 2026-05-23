@@ -1,0 +1,47 @@
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ask a usage or setup question. For confirmed bugs, use [Bug report](https://github.com/Bitslix/BLXCode/issues/new?template=bug_report.yml) instead.
+
+        **Helpful docs:** [Getting started](https://github.com/Bitslix/BLXCode/blob/main/docs/user/getting-started.md) · [Troubleshooting](https://github.com/Bitslix/BLXCode/blob/main/docs/user/troubleshooting.md) · [Wiki](https://github.com/Bitslix/BLXCode/wiki)
+
+  - type: dropdown
+    id: topic
+    attributes:
+      label: Topic
+      options:
+        - Installation & build from source
+        - Workspaces & terminals
+        - Agent / providers / API keys
+        - Memory, plans, or tasks
+        - Settings, themes, or language
+        - Updates & releases
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      placeholder: What are you trying to do, and where are you stuck?
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: BLXCode version, OS, and how you installed (release binary vs `cargo tauri dev`)
+      placeholder: "BLXCode 0.2.6, Arch Linux, GitHub release AppImage"
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Before posting
+      options:
+        - label: I searched existing discussions and the troubleshooting guide
+          required: true

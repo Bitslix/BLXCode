@@ -2,6 +2,8 @@
 
 Thank you for helping improve BLXCode. The project is young, so clear fixes, docs, small refactors, and careful issue reports all matter.
 
+**Quick links:** [CONTRIBUTING.md](../../CONTRIBUTING.md) (repository root) · [Developer Setup](setup.md) · [Support](../../SUPPORT.md)
+
 ## Before You Change Code
 
 Read the repository rules in `.agents/rules/`:

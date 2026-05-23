@@ -1,0 +1,45 @@
+title: "[Idea]: "
+labels: ["idea"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share a feature idea or UX improvement. When the idea is ready for implementation tracking, a maintainer may have it converted to an [issue](https://github.com/Bitslix/BLXCode/issues/new?template=feature_request.yml).
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences describing the idea
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Who benefits and what problem does this solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: mockup
+    attributes:
+      label: Mockup, sketch, or reference
+      description: Screenshots, links to similar tools, or a rough workflow description
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Workbench / terminals
+        - Sidebar / file preview / Git
+        - Plans / memory / tasks
+        - BLXCode Agent / harness
+        - Settings / themes / i18n
+        - Build / packaging / updater
+        - Documentation
+        - Other
+    validations:
+      required: true
