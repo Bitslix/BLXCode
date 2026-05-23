@@ -2,12 +2,19 @@
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::tauri_bridge::{git_commit_graph, GitGraphEntry, GitGraphLayout, GIT_MISSING_CODE};
+use crate::tauri_bridge::{
+    git_commit_graph, listen_git_status_dirty, GitGraphEntry, GitGraphLayout, TauriEventListener,
+    GIT_MISSING_CODE,
+};
 use crate::workbench::sidebar_view_section::{SidebarSectionIconBtn, SidebarViewSection};
 use crate::workbench::WorkbenchService;
+use gloo_timers::callback::Timeout;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
+use send_wrapper::SendWrapper;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[component]
 pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl IntoView {
@@ -88,6 +95,40 @@ pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
                 }
             }
         });
+    });
+
+    // Auto-refresh on `git_status_dirty` (shared watcher with the
+    // FileDiffSection). 400ms debounce keeps a burst of HEAD/index/refs
+    // changes from triggering more than one `git log`.
+    let pending_timeout: SendWrapper<Rc<RefCell<Option<Timeout>>>> =
+        SendWrapper::new(Rc::new(RefCell::new(None)));
+    let pending_for_cleanup = pending_timeout.clone();
+    let listener_handle: SendWrapper<Rc<RefCell<Option<TauriEventListener>>>> =
+        SendWrapper::new(Rc::new(RefCell::new(None)));
+    let listener_for_cleanup = listener_handle.clone();
+
+    Effect::new(move |_| {
+        if listener_handle.borrow().is_some() {
+            return;
+        }
+        let pending = pending_timeout.clone();
+        let listener = listen_git_status_dirty(move |_payload| {
+            if let Some(prev) = pending.borrow_mut().take() {
+                prev.cancel();
+            }
+            let timeout = Timeout::new(400, move || {
+                load_gen.update(|g| *g = g.wrapping_add(1));
+            });
+            *pending.borrow_mut() = Some(timeout);
+        });
+        *listener_handle.borrow_mut() = listener;
+    });
+
+    on_cleanup(move || {
+        if let Some(prev) = pending_for_cleanup.borrow_mut().take() {
+            prev.cancel();
+        }
+        listener_for_cleanup.borrow_mut().take();
     });
 
     let show = move || {

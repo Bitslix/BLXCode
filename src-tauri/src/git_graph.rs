@@ -83,7 +83,8 @@ fn fetch_graph_entries(work_tree: &Path, limit: u32) -> Result<GitGraphLayout, S
     let out = Command::new("git")
         .arg("-C")
         .arg(work_tree)
-        .arg(format!("-c log.graphWidth={GRAPH_WIDTH}"))
+        .arg("-c")
+        .arg(format!("log.graphWidth={GRAPH_WIDTH}"))
         .args([
             "log",
             "--graph",

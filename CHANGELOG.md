@@ -9,9 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Sidebar File Diff section + center diff viewer**: new collapsible **File Diff** panel sits between Project Files and Git Commits in the sidebar. Backend module `src-tauri/src/git_status.rs` exposes `git_status_changes` (`git status --porcelain=v1 -z` + merged `--numstat` for staged/unstaged, untracked line counts via file read), `git_file_diff` (unified diff, synthetic `+++` body for untracked files), `git_stage_file` / `git_unstage_file`, and `git_status_watch_start` / `git_status_watch_stop` — a `notify`-based recursive watcher on the work tree (debounced 300 ms) emits `git_status_dirty` via Tauri so the UI refreshes without manual polling. `ChangedFile` rows show a status marker (`M`/`A`/`D`/`R`/`?`/`C`), path, and `+N`/`-N` counts; hover reveals **stage** (`+`) and **unstage** (`−`) actions. Clicking a row opens (or focuses) a `CenterTabKind::FileDiff { rel_path, staged }` tab with an inline diff viewer (`src/workbench/file_diff/`) that classifies lines (`@@` hunk headers, `+`/`-`/`---`/`+++`). Frontend bridge mirrors all types and adds `listen_git_status_dirty` with an RAII `TauriEventListener`. Per-workspace `sidebar_diff_open` (default **open**) persists expand/collapse; `open_center_diff_tab` deduplicates tabs per path. Sidebar panels block is now a **three-slot** layout (Explorer → Diff → Graph) with two `SidebarResizer` handles and `SIDEBAR_DIFF_HEIGHT_PCT_*` in `localStorage`. 18 new `SbDiff*` i18n keys in all 13 locales. Component CSS in `file_diff_section/file-diff-section.css` and `file_diff/file-diff.css` (theme tokens only).
+
 ### Changed
 
+- **Git Commits auto-refresh**: `GitGraphSection` now listens to the same `git_status_dirty` event (400 ms debounced reload) so the commit graph updates when the index or working tree changes, without a manual refresh.
+
 ### Fixed
+
+- **Git commit graph `git log` invocation**: `fetch_graph_entries` passed `-c log.graphWidth=14` as a single argv token, which Git rejects (`unknown option: -c log.graphWidth=14`) and surfaced in the UI as "Could not load commit history." even though the repository was detected and File Diff worked. Split into `-c` + `log.graphWidth=14` as separate arguments.
 
 ### Removed
 

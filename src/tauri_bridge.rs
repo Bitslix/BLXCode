@@ -1804,6 +1804,168 @@ pub async fn git_commit_graph(cwd: String, limit: Option<u32>) -> Result<GitGrap
     invoke_typed("git_commit_graph", Args { cwd, limit }).await
 }
 
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangedFile {
+    pub rel_path: String,
+    /// `"modified" | "added" | "deleted" | "renamed" | "untracked" | "conflicted"`.
+    pub status: String,
+    pub staged: bool,
+    pub unstaged: bool,
+    pub added_lines: u32,
+    pub removed_lines: u32,
+}
+
+pub async fn git_status_changes(cwd: String) -> Result<Vec<ChangedFile>, String> {
+    #[derive(Serialize)]
+    struct Args {
+        cwd: String,
+    }
+    invoke_typed("git_status_changes", Args { cwd }).await
+}
+
+pub async fn git_file_diff(
+    cwd: String,
+    rel_path: String,
+    staged: bool,
+) -> Result<String, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        cwd: String,
+        rel_path: String,
+        staged: bool,
+    }
+    invoke_typed(
+        "git_file_diff",
+        Args {
+            cwd,
+            rel_path,
+            staged,
+        },
+    )
+    .await
+}
+
+pub async fn git_stage_file(cwd: String, rel_path: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        cwd: String,
+        rel_path: String,
+    }
+    invoke_unit_js("git_stage_file", args_value(Args { cwd, rel_path })?).await
+}
+
+pub async fn git_unstage_file(cwd: String, rel_path: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        cwd: String,
+        rel_path: String,
+    }
+    invoke_unit_js("git_unstage_file", args_value(Args { cwd, rel_path })?).await
+}
+
+pub async fn git_status_watch_start(cwd: String) -> Result<u64, String> {
+    #[derive(Serialize)]
+    struct Args {
+        cwd: String,
+    }
+    invoke_typed("git_status_watch_start", Args { cwd }).await
+}
+
+pub async fn git_status_watch_stop(token: u64) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        token: u64,
+    }
+    invoke_unit_js("git_status_watch_stop", args_value(Args { token })?).await
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitStatusDirtyPayload {
+    /// The repo cwd that triggered the event. Listeners with multiple
+    /// active watchers compare this against their own state to decide
+    /// whether to act; the sidebar today only watches one repo at a time.
+    #[allow(dead_code)]
+    pub cwd: String,
+}
+
+/// Subscribes to the backend `git_status_dirty` window event. The returned
+/// `TauriEventListener` removes the underlying listener on `Drop`. Returns
+/// `None` outside a Tauri shell or when the event API is unavailable.
+pub fn listen_git_status_dirty(
+    callback: impl FnMut(GitStatusDirtyPayload) + 'static,
+) -> Option<TauriEventListener> {
+    listen_tauri_event::<GitStatusDirtyPayload>("git_status_dirty", callback)
+}
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(catch, js_namespace = ["window", "__TAURI__", "event"], js_name = listen)]
+    async fn tauri_listen_raw(event: &str, callback: &js_sys::Function) -> Result<JsValue, JsValue>;
+}
+
+/// RAII handle returned by [`listen_tauri_event`]. Drop calls the
+/// asynchronous unlisten function returned by `tauri.event.listen`. We
+/// store the JS callback inside so it stays alive (forgetting the closure
+/// would leak it forever; using `into_js_value` is essentially the same
+/// once the unlisten fires, but we keep the binding scoped here).
+pub struct TauriEventListener {
+    unlisten: std::rc::Rc<std::cell::RefCell<Option<js_sys::Function>>>,
+    _callback: send_wrapper::SendWrapper<wasm_bindgen::closure::Closure<dyn FnMut(JsValue)>>,
+}
+
+impl Drop for TauriEventListener {
+    fn drop(&mut self) {
+        if let Some(unlisten) = self.unlisten.borrow_mut().take() {
+            let _ = unlisten.call0(&JsValue::NULL);
+        }
+    }
+}
+
+fn listen_tauri_event<T>(
+    event: &'static str,
+    mut callback: impl FnMut(T) + 'static,
+) -> Option<TauriEventListener>
+where
+    T: DeserializeOwned + 'static,
+{
+    if !is_tauri_shell() {
+        return None;
+    }
+
+    let cb = wasm_bindgen::closure::Closure::wrap(Box::new(move |js_event: JsValue| {
+        let payload =
+            js_sys::Reflect::get(&js_event, &JsValue::from_str("payload")).unwrap_or(JsValue::NULL);
+        if payload.is_null() || payload.is_undefined() {
+            return;
+        }
+        if let Ok(parsed) = serde_wasm_bindgen::from_value::<T>(payload) {
+            callback(parsed);
+        }
+    }) as Box<dyn FnMut(JsValue)>);
+    let cb_function = cb.as_ref().unchecked_ref::<js_sys::Function>().clone();
+    let unlisten_slot: std::rc::Rc<std::cell::RefCell<Option<js_sys::Function>>> =
+        std::rc::Rc::new(std::cell::RefCell::new(None));
+    let unlisten_slot_for_promise = unlisten_slot.clone();
+    let event_name = event.to_string();
+    wasm_bindgen_futures::spawn_local(async move {
+        if let Ok(unlisten) = tauri_listen_raw(&event_name, &cb_function).await {
+            if let Ok(func) = unlisten.dyn_into::<js_sys::Function>() {
+                *unlisten_slot_for_promise.borrow_mut() = Some(func);
+            }
+        }
+    });
+
+    Some(TauriEventListener {
+        unlisten: unlisten_slot,
+        _callback: send_wrapper::SendWrapper::new(cb),
+    })
+}
+
 pub async fn pty_kill(session_id: u64) -> Result<(), String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]

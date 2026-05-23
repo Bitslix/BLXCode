@@ -8,6 +8,7 @@ mod commands;
 mod fs_entries;
 mod git_graph;
 mod git_info;
+mod git_status;
 mod gitignore;
 mod image;
 mod media_keys;
@@ -103,6 +104,7 @@ pub fn run() {
         .manage(AgentEngineState::new())
         .manage(BlxUpdaterState::default())
         .manage(BrowserHost::default())
+        .manage(git_status::GitWatcherState::default())
         .manage(PtyManager::default())
         .manage(VoiceRecorderState::new())
         .manage(WorkbenchSessionsFileLock::default())
@@ -150,6 +152,12 @@ pub fn run() {
             git_branch,
             git_graph::git_is_repository,
             git_graph::git_commit_graph,
+            git_status::git_status_changes,
+            git_status::git_file_diff,
+            git_status::git_stage_file,
+            git_status::git_unstage_file,
+            git_status::git_status_watch_start,
+            git_status::git_status_watch_stop,
             fs_entries::list_path_entries,
             fs_entries::read_workspace_text_file,
             fs_entries::stat_workspace_file,
