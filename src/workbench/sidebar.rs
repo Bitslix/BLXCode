@@ -1,13 +1,15 @@
 use crate::config::{
-    SIDEBAR_EXPLORER_HEIGHT_PCT_DEFAULT, SIDEBAR_EXPLORER_HEIGHT_PCT_KEY,
-    SIDEBAR_EXPLORER_HEIGHT_PCT_MAX, SIDEBAR_EXPLORER_HEIGHT_PCT_MIN,
-    SIDEBAR_PANELS_HEIGHT_PCT_DEFAULT, SIDEBAR_PANELS_HEIGHT_PCT_KEY,
-    SIDEBAR_PANELS_HEIGHT_PCT_MAX, SIDEBAR_PANELS_HEIGHT_PCT_MIN, SIDEBAR_WIDTH_PX_DEFAULT,
-    SIDEBAR_WIDTH_PX_MIN,
+    SIDEBAR_DIFF_HEIGHT_PCT_DEFAULT, SIDEBAR_DIFF_HEIGHT_PCT_KEY, SIDEBAR_DIFF_HEIGHT_PCT_MAX,
+    SIDEBAR_DIFF_HEIGHT_PCT_MIN, SIDEBAR_EXPLORER_HEIGHT_PCT_DEFAULT,
+    SIDEBAR_EXPLORER_HEIGHT_PCT_KEY, SIDEBAR_EXPLORER_HEIGHT_PCT_MAX,
+    SIDEBAR_EXPLORER_HEIGHT_PCT_MIN, SIDEBAR_PANELS_HEIGHT_PCT_DEFAULT,
+    SIDEBAR_PANELS_HEIGHT_PCT_KEY, SIDEBAR_PANELS_HEIGHT_PCT_MAX, SIDEBAR_PANELS_HEIGHT_PCT_MIN,
+    SIDEBAR_WIDTH_PX_DEFAULT, SIDEBAR_WIDTH_PX_MIN,
 };
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{git_is_repository, is_tauri_shell};
+use crate::workbench::file_diff_section::FileDiffSection;
 use crate::workbench::git_graph::GitGraphSection;
 use crate::workbench::project_explorer::ProjectExplorerSection;
 use crate::workbench::sidebar_resizer::SidebarResizer;
@@ -53,11 +55,15 @@ pub fn Sidebar() -> impl IntoView {
     let workspaces = wb.workspaces();
     let panels_height_pct = RwSignal::new(read_panels_height_pct());
     let explorer_height_pct = RwSignal::new(read_explorer_height_pct());
+    let diff_height_pct = RwSignal::new(read_diff_height_pct());
     Effect::new(move |_| {
         write_panels_height_pct(panels_height_pct.get());
     });
     Effect::new(move |_| {
         write_explorer_height_pct(explorer_height_pct.get());
+    });
+    Effect::new(move |_| {
+        write_diff_height_pct(diff_height_pct.get());
     });
     let context_menu = RwSignal::new(None::<WorkspaceContextMenu>);
     let rename_dialog = RwSignal::new(None::<RenameWorkspaceDialog>);
@@ -414,7 +420,9 @@ pub fn Sidebar() -> impl IntoView {
                         let _ = wb.active_id().get();
                         let explorer_open = wb.active_sidebar_explorer_open();
                         let graph_open = wb.active_sidebar_graph_open();
-                        if !explorer_open && !graph_open {
+                        let diff_open = wb.active_sidebar_diff_open()
+                            && git_repo_available.get() == Some(true);
+                        if !explorer_open && !graph_open && !diff_open {
                             return "flex: 0 0 auto; min-height: 0;".to_string();
                         }
                         format!(
@@ -431,7 +439,10 @@ pub fn Sidebar() -> impl IntoView {
                             if !wb.active_sidebar_explorer_open() {
                                 return "flex: 0 0 auto; min-height: 0;".to_string();
                             }
-                            if !wb.active_sidebar_graph_open() {
+                            let diff_visible = wb.active_sidebar_diff_open()
+                                && git_repo_available.get() == Some(true);
+                            let graph_visible = wb.active_sidebar_graph_open();
+                            if !diff_visible && !graph_visible {
                                 return "flex: 1 1 auto; min-height: 0;".to_string();
                             }
                             format!(
@@ -443,12 +454,54 @@ pub fn Sidebar() -> impl IntoView {
                         <ProjectExplorerSection />
                     </div>
                     <Show when=move || {
-                        wb.active_sidebar_explorer_open() && wb.active_sidebar_graph_open()
+                        wb.active_sidebar_explorer_open()
+                            && (wb.active_sidebar_diff_open()
+                                || wb.active_sidebar_graph_open())
+                            && (git_repo_available.get() == Some(true)
+                                || wb.active_sidebar_graph_open())
                     }>
                         <SidebarResizer
                             height_pct=explorer_height_pct
                             container_selector=".workbench-sidebar__panels"
                             aria_key=I18nKey::SbExplorerResizeAria
+                        />
+                    </Show>
+                    <div
+                        class="workbench-sidebar__diff-slot"
+                        style=move || {
+                            let _ = wb.workspaces().get();
+                            let _ = wb.active_id().get();
+                            let diff_visible = wb.active_sidebar_diff_open()
+                                && git_repo_available.get() == Some(true);
+                            if !diff_visible {
+                                return "flex: 0 0 auto; min-height: 0;".to_string();
+                            }
+                            if !wb.active_sidebar_explorer_open()
+                                && !wb.active_sidebar_graph_open()
+                            {
+                                return "flex: 1 1 auto; min-height: 0;".to_string();
+                            }
+                            if !wb.active_sidebar_graph_open() {
+                                return "flex: 1 1 auto; min-height: 0;".to_string();
+                            }
+                            format!(
+                                "flex: 0 0 {pct:.2}%; min-height: 0;",
+                                pct = diff_height_pct.get(),
+                            )
+                        }
+                    >
+                        <FileDiffSection git_repo_available=git_repo_available.read_only() />
+                    </div>
+                    <Show when=move || {
+                        wb.active_sidebar_diff_open()
+                            && wb.active_sidebar_graph_open()
+                            && git_repo_available.get() == Some(true)
+                    }>
+                        <SidebarResizer
+                            height_pct=diff_height_pct
+                            container_selector=".workbench-sidebar__panels"
+                            clamp=SidebarResizerClamp::DiffInPanels
+                            aria_key=I18nKey::SbDiffResizeAria
                         />
                     </Show>
                     <div
@@ -458,9 +511,6 @@ pub fn Sidebar() -> impl IntoView {
                             let _ = wb.active_id().get();
                             if !wb.active_sidebar_graph_open() {
                                 return "flex: 0 0 auto; min-height: 0;".to_string();
-                            }
-                            if !wb.active_sidebar_explorer_open() {
-                                return "flex: 1 1 auto; min-height: 0;".to_string();
                             }
                             "flex: 1 1 auto; min-height: 0;".to_string()
                         }
@@ -714,5 +764,24 @@ fn write_explorer_height_pct(pct: f64) {
     };
     if let Ok(Some(storage)) = window.local_storage() {
         let _ = storage.set_item(SIDEBAR_EXPLORER_HEIGHT_PCT_KEY, &format!("{pct:.2}"));
+    }
+}
+
+fn read_diff_height_pct() -> f64 {
+    let stored = web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten())
+        .and_then(|s| s.get_item(SIDEBAR_DIFF_HEIGHT_PCT_KEY).ok().flatten())
+        .and_then(|raw| raw.parse::<f64>().ok());
+    let pct = stored.unwrap_or(SIDEBAR_DIFF_HEIGHT_PCT_DEFAULT);
+    pct.max(SIDEBAR_DIFF_HEIGHT_PCT_MIN)
+        .min(SIDEBAR_DIFF_HEIGHT_PCT_MAX)
+}
+
+fn write_diff_height_pct(pct: f64) {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    if let Ok(Some(storage)) = window.local_storage() {
+        let _ = storage.set_item(SIDEBAR_DIFF_HEIGHT_PCT_KEY, &format!("{pct:.2}"));
     }
 }

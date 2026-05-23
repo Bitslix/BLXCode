@@ -1,0 +1,107 @@
+.file-diff-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--bg-app);
+  color: var(--text);
+}
+
+.file-diff-view__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: var(--bg-panel-header);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.file-diff-view__path {
+  flex: 1 1 auto;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-diff-view__badge {
+  flex-shrink: 0;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  background: var(--overlay-2);
+}
+
+.file-diff-view__badge--staged {
+  color: var(--success);
+  border-color: var(--success);
+}
+
+.file-diff-view__badge--unstaged {
+  color: var(--accent-cool);
+  border-color: var(--accent-cool);
+}
+
+.file-diff-view__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0;
+}
+
+.file-diff-view__pre {
+  margin: 0;
+  padding: 0.5rem 0;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre;
+}
+
+.file-diff-view__line {
+  display: block;
+  padding: 0 0.75rem;
+}
+
+.file-diff-view__line--add {
+  background: color-mix(in srgb, var(--success) 18%, transparent);
+  color: var(--success);
+}
+
+.file-diff-view__line--del {
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  color: var(--danger);
+}
+
+.file-diff-view__line--hunk {
+  color: var(--text-muted);
+  font-weight: 600;
+  border-top: 1px solid var(--border);
+  padding-top: 0.2rem;
+  padding-bottom: 0.2rem;
+  margin-top: 0.25rem;
+}
+
+.file-diff-view__line--header {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.file-diff-view__line--ctx {
+  color: var(--text);
+}
+
+.file-diff-view__empty {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}

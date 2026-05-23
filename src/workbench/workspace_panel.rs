@@ -3,6 +3,7 @@ use crate::service::I18nService;
 use crate::workbench::app_prefs::AppPrefsService;
 use crate::workbench::browser_tab::sync_embedded_browser_layer;
 use crate::workbench::create_workspace_wizard::WorkspaceConfigurator;
+use crate::workbench::file_diff::FileDiffDock;
 use crate::workbench::file_preview::FilePreviewDock;
 use crate::workbench::harness_chords::{
     dispatch_shortcut_action, HarnessShortcutAction, ShortcutKeys,
@@ -557,6 +558,18 @@ fn DynamicCenterPanels(workspace_id: u64, active_tab_id: Memo<u64>) -> impl Into
                             <FilePreviewDock workspace_id=workspace_id rel_path=rel_path />
                         </div>
                     }.into_any(),
+                    CenterTabKind::FileDiff { rel_path, staged } => view! {
+                        <div
+                            class="workspace-center-panel workspace-center-panel--scroll"
+                            class:workspace-center-panel--hidden=move || active_tab_id.get() != tab_id
+                        >
+                            <FileDiffDock
+                                workspace_id=workspace_id
+                                rel_path=rel_path
+                                staged=staged
+                            />
+                        </div>
+                    }.into_any(),
                     CenterTabKind::Terminals => view! { <></> }.into_any(),
                 }
             }
@@ -569,6 +582,7 @@ fn center_tab_icon(kind: &CenterTabKind) -> icondata::Icon {
         CenterTabKind::Terminals => icondata::LuTerminal,
         CenterTabKind::Settings => icondata::LuSettings2,
         CenterTabKind::FilePreview { .. } => icondata::LuFileText,
+        CenterTabKind::FileDiff { .. } => icondata::LuFileDiff,
     }
 }
 

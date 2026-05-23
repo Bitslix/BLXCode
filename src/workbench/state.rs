@@ -90,6 +90,10 @@ pub struct WorkspaceEntry {
     /// expands it; the per-workspace state then persists across sessions.
     #[serde(default = "default_sidebar_graph_open")]
     pub sidebar_graph_open: bool,
+    /// Sidebar `File Diff` section expanded. Defaults open so changes are
+    /// visible the moment the workspace mounts. Persisted across sessions.
+    #[serde(default = "default_sidebar_section_open")]
+    pub sidebar_diff_open: bool,
     /// Relative paths (from `cwd`) expanded in the project explorer tree.
     #[serde(default)]
     pub sidebar_explorer_expanded_paths: Vec<String>,
@@ -152,6 +156,9 @@ pub enum CenterTabKind {
     Terminals,
     Settings,
     FilePreview { rel_path: String },
+    /// Side-by-side or inline diff view for one changed file.
+    /// `staged` selects between `git diff [--cached]`.
+    FileDiff { rel_path: String, staged: bool },
 }
 
 /// Aggregated token / cost stats for a workspace's agent chat. Each
@@ -408,6 +415,7 @@ impl WorkspaceEntry {
             agent_chat_usage: ChatUsageStats::default(),
             sidebar_explorer_open: true,
             sidebar_graph_open: false,
+            sidebar_diff_open: true,
             sidebar_explorer_expanded_paths: Vec::new(),
             center_tabs: default_center_tabs(),
             center_active_tab_id: default_center_active_tab_id(),
@@ -1480,6 +1488,15 @@ impl WorkbenchService {
         self.update_active_workspace(|w| w.sidebar_graph_open = open);
     }
 
+    pub fn active_sidebar_diff_open(&self) -> bool {
+        self.with_active_workspace(|w| w.sidebar_diff_open)
+            .unwrap_or(true)
+    }
+
+    pub fn set_active_sidebar_diff_open(&self, open: bool) {
+        self.update_active_workspace(|w| w.sidebar_diff_open = open);
+    }
+
     pub fn active_sidebar_explorer_expanded_paths(&self) -> Vec<String> {
         self.with_active_workspace(|w| w.sidebar_explorer_expanded_paths.clone())
             .unwrap_or_default()
@@ -1660,6 +1677,44 @@ impl WorkbenchService {
         });
     }
 
+    /// Open (or focus) a `FileDiff` center tab for the given path. Reopening
+    /// an existing diff tab with a different `staged` flag updates the kind
+    /// in place rather than spawning a duplicate tab — the row in the
+    /// sidebar already disambiguates staged vs unstaged.
+    pub fn open_center_diff_tab(&self, workspace_id: u64, rel_path: String, staged: bool) {
+        let rel_path = rel_path.trim().trim_start_matches(['/', '\\']).to_string();
+        if rel_path.is_empty() {
+            return;
+        }
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            if let Some(tab) = workspace.center_tabs.iter_mut().find(|tab| {
+                matches!(&tab.kind, CenterTabKind::FileDiff { rel_path: existing, .. } if existing == &rel_path)
+            }) {
+                tab.kind = CenterTabKind::FileDiff {
+                    rel_path: rel_path.clone(),
+                    staged,
+                };
+                tab.title = diff_tab_title(&rel_path);
+                let active = tab.id;
+                workspace.center_active_tab_id = active;
+                repair_center_tab_state(workspace);
+                return;
+            }
+            let id = workspace.center_next_tab_id.max(default_center_next_tab_id());
+            workspace.center_next_tab_id = id.saturating_add(1);
+            workspace.center_tabs.push(CenterTab {
+                id,
+                title: diff_tab_title(&rel_path),
+                kind: CenterTabKind::FileDiff { rel_path, staged },
+            });
+            workspace.center_active_tab_id = id;
+            repair_center_tab_state(workspace);
+        });
+    }
+
     /// Create an ephemeral "shell" workspace that hosts only the settings
     /// tab when no real workspace is open. The shell has empty `cwd`,
     /// `configuring: false`, no terminal slots, and starts with an empty
@@ -1691,6 +1746,7 @@ impl WorkbenchService {
             agent_chat_usage: ChatUsageStats::default(),
             sidebar_explorer_open: true,
             sidebar_graph_open: false,
+            sidebar_diff_open: true,
             sidebar_explorer_expanded_paths: Vec::new(),
             center_tabs: Vec::new(),
             center_active_tab_id: 0,
@@ -1817,6 +1873,7 @@ impl WorkbenchService {
                 agent_chat_usage: ChatUsageStats::default(),
                 sidebar_explorer_open: true,
                 sidebar_graph_open: false,
+                sidebar_diff_open: true,
                 sidebar_explorer_expanded_paths: Vec::new(),
                 center_tabs: default_center_tabs(),
                 center_active_tab_id: default_center_active_tab_id(),
@@ -2432,6 +2489,7 @@ impl WorkbenchService {
             agent_chat_usage: ChatUsageStats::default(),
             sidebar_explorer_open: true,
             sidebar_graph_open: false,
+            sidebar_diff_open: true,
             sidebar_explorer_expanded_paths: Vec::new(),
             center_tabs: default_center_tabs(),
             center_active_tab_id: default_center_active_tab_id(),
@@ -3229,6 +3287,15 @@ fn file_tab_title(rel_path: &str) -> String {
         .to_string()
 }
 
+fn diff_tab_title(rel_path: &str) -> String {
+    let base = rel_path
+        .rsplit(['/', '\\'])
+        .next()
+        .filter(|name| !name.is_empty())
+        .unwrap_or(rel_path);
+    format!("{base} (diff)")
+}
+
 /// On-disk schema for the workbench layout. Versioned via
 /// [`WORKBENCH_SNAPSHOT_VERSION`].
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -3378,6 +3445,7 @@ mod center_tab_tests {
             agent_chat_usage: ChatUsageStats::default(),
             sidebar_explorer_open: true,
             sidebar_graph_open: false,
+            sidebar_diff_open: true,
             sidebar_explorer_expanded_paths: Vec::new(),
             center_tabs: tabs,
             center_active_tab_id: active,
@@ -3471,6 +3539,7 @@ mod terminal_slot_tests {
             agent_chat_usage: ChatUsageStats::default(),
             sidebar_explorer_open: true,
             sidebar_graph_open: false,
+            sidebar_diff_open: true,
             sidebar_explorer_expanded_paths: Vec::new(),
             center_tabs: default_center_tabs(),
             center_active_tab_id: default_center_active_tab_id(),

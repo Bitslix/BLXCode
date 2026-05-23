@@ -72,11 +72,21 @@ pub const SIDEBAR_PANELS_HEIGHT_PCT_MAX: f64 = 75.0;
 pub const SIDEBAR_EXPLORER_HEIGHT_PCT_KEY: &str = "blxcode_sidebar_explorer_height_pct_v1";
 
 /// Default Project Explorer slot height (percent of the panels block).
-pub const SIDEBAR_EXPLORER_HEIGHT_PCT_DEFAULT: f64 = 50.0;
+pub const SIDEBAR_EXPLORER_HEIGHT_PCT_DEFAULT: f64 = 40.0;
 
 /// Min/max clamp range for the Project Explorer slot height (percent of panels block).
-pub const SIDEBAR_EXPLORER_HEIGHT_PCT_MIN: f64 = 15.0;
-pub const SIDEBAR_EXPLORER_HEIGHT_PCT_MAX: f64 = 85.0;
+pub const SIDEBAR_EXPLORER_HEIGHT_PCT_MIN: f64 = 12.0;
+pub const SIDEBAR_EXPLORER_HEIGHT_PCT_MAX: f64 = 76.0;
+
+/// `localStorage` key for the sidebar File Diff slot height (percent of panels block).
+pub const SIDEBAR_DIFF_HEIGHT_PCT_KEY: &str = "blxcode_sidebar_diff_height_pct_v1";
+
+/// Default File Diff slot height (percent of the panels block).
+pub const SIDEBAR_DIFF_HEIGHT_PCT_DEFAULT: f64 = 30.0;
+
+/// Min/max clamp range for the File Diff slot height (percent of panels block).
+pub const SIDEBAR_DIFF_HEIGHT_PCT_MIN: f64 = 12.0;
+pub const SIDEBAR_DIFF_HEIGHT_PCT_MAX: f64 = 76.0;
 
 /// `localStorage` key for sidebar width in pixels.
 pub const SIDEBAR_WIDTH_PX_KEY: &str = "blxcode_sidebar_width_px_v1";

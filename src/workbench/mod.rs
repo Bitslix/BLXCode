@@ -13,6 +13,8 @@ mod browser_tab;
 mod chat_markdown;
 mod close_terminals_tab_dialog;
 mod create_workspace_wizard;
+mod file_diff;
+mod file_diff_section;
 mod file_preview;
 mod git_graph;
 mod harness_chords;

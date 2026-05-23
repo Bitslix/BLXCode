@@ -4,8 +4,9 @@
 //! Dragging adjusts a percent value, clamped to a project-wide range.
 
 use crate::config::{
-    SIDEBAR_EXPLORER_HEIGHT_PCT_MAX, SIDEBAR_EXPLORER_HEIGHT_PCT_MIN,
-    SIDEBAR_PANELS_HEIGHT_PCT_MAX, SIDEBAR_PANELS_HEIGHT_PCT_MIN,
+    SIDEBAR_DIFF_HEIGHT_PCT_MAX, SIDEBAR_DIFF_HEIGHT_PCT_MIN, SIDEBAR_EXPLORER_HEIGHT_PCT_MAX,
+    SIDEBAR_EXPLORER_HEIGHT_PCT_MIN, SIDEBAR_PANELS_HEIGHT_PCT_MAX,
+    SIDEBAR_PANELS_HEIGHT_PCT_MIN,
 };
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
@@ -18,6 +19,7 @@ use web_sys::{Element, PointerEvent};
 pub enum SidebarResizerClamp {
     #[default]
     ExplorerInPanels,
+    DiffInPanels,
     PanelsInSidebar,
 }
 
@@ -27,6 +29,7 @@ impl SidebarResizerClamp {
             Self::ExplorerInPanels => {
                 (SIDEBAR_EXPLORER_HEIGHT_PCT_MIN, SIDEBAR_EXPLORER_HEIGHT_PCT_MAX)
             }
+            Self::DiffInPanels => (SIDEBAR_DIFF_HEIGHT_PCT_MIN, SIDEBAR_DIFF_HEIGHT_PCT_MAX),
             Self::PanelsInSidebar => {
                 (SIDEBAR_PANELS_HEIGHT_PCT_MIN, SIDEBAR_PANELS_HEIGHT_PCT_MAX)
             }
