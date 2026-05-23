@@ -130,9 +130,12 @@ runs:
         args: ${{ env.TAURI_BUILD_ARGS }}
 
     # tauri-action (v0.5.x) only uploads the first installer it finds per bundle directory
-    # (typically *-setup.exe + *-setup.exe.sig). The Tauri v2 updater however expects the
-    # zip-wrapped form (*-setup.nsis.zip / *.msi.zip) plus their .sig files, and we also
-    # want the MSI installer + its sig on the release page. Upload the rest here.
+    # (typically *-setup.exe + *-setup.exe.sig). We additionally publish:
+    #   - *.msi + *.msi.sig (WiX installer + updater signature) when present
+    #   - *-setup.nsis.zip / *.msi.zip + their .sig files (only emitted when the project uses
+    #     createUpdaterArtifacts: "v1Compatible" in tauri.conf.json; harmless no-op otherwise)
+    # That way the release page is consistent regardless of which updater-artifact mode the
+    # project is configured for, and `gh release upload` is a no-op for files that don't exist.
     - name: Upload remaining Windows installer artifacts (release-new)
       if: inputs.mode == 'release-new'
       shell: bash

@@ -16,10 +16,15 @@ def run(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess[st
     return subprocess.run(cmd, check=check, text=True, capture_output=True)
 
 
-# For Windows the Tauri v2 updater prefers the zip-wrapped installer (.nsis.zip / .msi.zip)
-# because it streams the archive, verifies the .sig, then unpacks and executes the inner
-# installer. The raw .exe / .msi are still valid for manual download but not what the updater
-# itself fetches, so when multiple sigs are present we pick the highest-priority one.
+# Tauri v2's `bundle.createUpdaterArtifacts` setting determines which Windows files exist
+# and which one belongs in latest.json's `url`:
+#   - `true` (current project setting): only the raw installers exist. The updater downloads
+#     and runs them directly. latest.json -> *-setup.exe (NSIS) or *.msi (WiX).
+#   - `"v1Compatible"` (legacy/migration): both raw installers AND zip-wrapped variants are
+#     emitted. The .zip is the "updater bundle"; v1 clients require the .zip URL.
+# We accept all four suffixes and pick by priority: if the zip-wrapped form is present (i.e.
+# v1Compatible build), prefer it; otherwise fall back to the direct installer signature.
+# Either choice produces a valid latest.json for its respective mode.
 WINDOWS_SUFFIX_PRIORITY: tuple[str, ...] = (
     ".nsis.zip.sig",
     ".msi.zip.sig",
