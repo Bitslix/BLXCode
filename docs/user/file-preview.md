@@ -111,6 +111,18 @@ The match is performed on the **stem only** (the filename minus its extension), 
 
 Why this matters: previously a stand-alone `LICENSE` (no extension) would be classified as `Binary` and the preview would show "Preview not available for this file type." Now you get a properly rendered, theme-aware Markdown view with an obvious "License" banner — same for every other policy doc in the table above.
 
+<p align="center">
+  <img src="../images/screenshot-2026-05-23_00-40-23.png" alt="LICENSE file preview with the License hero banner (Scale icon, success-green accent bar, 'Legal terms governing the use, distribution, and modification of this project.' subtitle), MIT License text rendered as Markdown" />
+</p>
+
+*Bare `LICENSE` (no extension, 1.1 KiB) opens with the **License** hero banner — Scale icon, success-green left bar, translated title, and a one-line subtitle — followed by the MIT license text rendered as Markdown.*
+
+<p align="center">
+  <img src="../images/screenshot-2026-05-23_00-40-09.png" alt="README.md file preview with the Readme hero banner (Book-open icon, accent-blue bar, 'Project overview, setup instructions, and quick reference.' subtitle) and the rendered BLXCode README" />
+</p>
+
+*`README.md` opens with the **Readme** hero banner (Book-open icon, accent-blue left bar) above the rendered README body — including badge rows, headings, and lists.*
+
 ## Source code & plain text
 
 Code files (Rust, TypeScript, JavaScript, Python, Go, Java, Kotlin, Swift, C/C++, C#, Ruby, PHP, Lua, Dart, R, Clojure, Elixir, Haskell, Elm, Zig, Nim, HTML, Vue, Svelte, CSS, SCSS, JSON, TOML, YAML, XML, shell scripts, SQL, GraphQL, Protobuf, Terraform/HCL, Nix, Dockerfile, Makefile, diff/patch, …) and plain-text files (txt, log, ini, conf, env, properties, csv, tsv, gitignore, editorconfig) both render in a dedicated two-column **CodeView**:
@@ -131,6 +143,12 @@ The selection state survives **Refresh** because the preview only resets it when
 - Combining with the right-click handoff menu below to send the highlighted lines anywhere in the workbench.
 
 ### Right-click handoff menu
+
+<p align="center">
+  <img src="../images/screenshot-2026-05-23_00-22-11.png" alt="Right-click context menu in the code preview showing four sections: Snippet → Insert into terminal (per-workspace slot list), Full context block → Insert into terminal, Snippet → Attach to agent, and Clipboard (Copy snippet / range / raw text)" />
+</p>
+
+*Right-clicking on a selected line range in `Cargo.toml` opens the handoff menu — the selected lines are highlighted in the gutter, and the menu lists every terminal slot in the **Test** workspace (Slots 1–4 · shell) under both *Snippet → Insert into terminal* and *Full context block → Insert into terminal*, plus *Attach to agent in Test* and the *Clipboard* actions.*
 
 Right-clicking on any row inside the code view opens a contextual menu. If the click lands outside the current selection the menu first replaces the selection with that single line; otherwise the existing range stays. The menu groups four kinds of actions, all of which respect the highlighted line range:
 

@@ -29,6 +29,16 @@ cargo tauri dev
 
 This launches the Tauri app and automatically starts Trunk using the command configured in `src-tauri/tauri.conf.json`. Trunk serves the frontend at `http://localhost:1420`.
 
+## Boot loading screen
+
+Before the WASM bundle is ready, BLXCode shows a branded boot screen — logo, eyebrow text, a faux workbench preview, and an animated progress rail — so the first paint happens immediately on the Trunk-served HTML, well before the Leptos app mounts. Once the workbench is ready, the boot screen hands off to the workbench shell.
+
+<p align="center">
+  <img src="../images/screenshot-2026-05-22_11-00-42.png" alt="BLXCode boot loading screen with logo, 'Restoring workspace' eyebrow, animated workbench preview skeleton and progress rail" />
+</p>
+
+The eyebrow copy cycles through three phases — **Starting BLXCode** → **Restoring workspace** → **Opening workbench** — so you can tell whether the app is initializing fresh or rehydrating a saved snapshot.
+
 ## First Launch
 
 On first launch, BLXCode shows the EULA gate in your detected UI language. Accepting it stores a local `blxcode_eula_v2` flag in browser local storage. Declining exits the app. BLXCode supports **14 UI locales**; see [UI Language](language.md) to change the language or review the full list.

@@ -1,6 +1,6 @@
 # Appearance & Themes
 
-BLXCode ships **12 app themes**. Colors apply across the workbench — sidebar, settings, terminals, memory graph, and agent panels — via a shared token system.
+BLXCode ships **20 app themes** (15 dark + 5 light). Colors apply across the workbench — sidebar, settings, terminals, memory graph, and agent panels — via a shared token system.
 
 ## Open the theme picker
 
@@ -9,12 +9,16 @@ BLXCode ships **12 app themes**. Colors apply across the workbench — sidebar, 
 
 The pane shows:
 
-- A **hero preview** of the active theme
+- A **hero preview** of the active theme (top right)
 - A **search** field (filters by translated name and description)
-- **All / Dark / Light** filters with counts
+- **All / Dark / Light** filters with counts (`All (20)`, `Dark (15)`, `Light (5)`)
 - A **grid of theme cards** with mini layout previews
 
 Click a card to apply the theme immediately. The active card shows an **ACTIVE** badge and accent border.
+
+<p align="center">
+  <img src="../images/screenshot-2026-05-22_17-32-52.png" alt="Settings → Appearance pane titled 'Make it yours.' with 20 theme cards in a 4-column grid: BLXCode (active), BLXCode Light, Dracula, Gruvbox Dark/Light, Solarized Dark/Light, Nord, One Dark, Catppuccin Mocha/Latte/Frappé, Tokyo Night, Rosé Pine, Rosé Pine Dawn, Everforest Dark, Kanagawa, GitHub Dark, Night Owl, Ayu Mirage" />
+</p>
 
 ## Default theme
 
@@ -31,8 +35,15 @@ Click a card to apply the theme immediately. The active card shows an **ACTIVE**
 | Solarized Dark / Light | Dark / Light |
 | Nord | Dark |
 | One Dark | Dark |
-| Catppuccin Mocha / Latte | Dark / Light |
+| Catppuccin Mocha / Latte / Frappé | Dark / Light / Dark |
 | Tokyo Night | Dark |
+| Rosé Pine | Dark |
+| Rosé Pine Dawn | Light |
+| Everforest Dark | Dark |
+| Kanagawa | Dark |
+| GitHub Dark | Dark |
+| Night Owl | Dark |
+| Ayu Mirage | Dark |
 
 Theme names and descriptions follow your **Settings → App → Language** choice.
 

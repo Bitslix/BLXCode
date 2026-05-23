@@ -32,6 +32,46 @@ The supported fleet labels are:
   <img src="../images/screenshot-2026-05-18_17-46-07.png" alt="New workspace with a 2x2 terminal grid running Claude Code in each slot" />
 </p>
 
+## Center tabs
+
+The workspace pane uses a VS Code–style **tab strip** above the terminal grid. Tabs share the same workspace context (sidebar, agent panel, right panel) and let you keep multiple views side-by-side without unmounting the live terminals.
+
+<p align="center">
+  <img src="../images/screenshot-2026-05-23_00-40-23.png" alt="Workspace with multiple center tabs open: Terminals, LICENSE, README.md" />
+</p>
+
+*Three center tabs open in the same workspace: the pinned **Terminals** tab, the **LICENSE** file preview with its policy-doc hero banner, and **README.md**. Switching tabs hides the inactive views — the running PTYs in the Terminals tab keep their state, scrollback, and agent sessions.*
+
+### Tab types
+
+| Tab | Opened by | Closeable | Singleton |
+|---|---|---|---|
+| **Terminals** | Pinned by default; reopened via command palette **Terminals** or by opening a new terminal slot | ✅ — with a 3 s confirmation dialog | ✅ one per workspace |
+| **File preview** | Click a file row in the sidebar Project Files explorer | ✅ | ✅ shared — opening another file replaces the contents instead of stacking tabs (see [File Preview](file-preview.md)) |
+| **Settings** | Command palette **Open Settings**, or the configured shortcut | ✅ | ✅ one per workspace — reopening focuses the existing tab |
+
+### Switching, hiding, and persistence
+
+- The active tab is highlighted; **clicking another tab** switches the view immediately.
+- The Terminals tab is **hidden, not unmounted**, while another tab is active — xterm sessions, PTYs, agent CLIs, scrollback, and focus all stay alive. Terminal focus/resize observers only fire when the Terminals tab is visible, so background tabs don't trigger unnecessary work.
+- Open tabs, active tab, and per-tab content are persisted as part of the workspace snapshot. Older snapshots without a `center_tabs` field self-heal to include the Terminals tab on the next launch.
+
+### Closing the Terminals tab
+
+The pinned Terminals tab can be closed too. Clicking its **×** raises a confirmation dialog with a **3-second countdown** — the **Close** button stays disabled until the countdown finishes, so you don't accidentally tear down running agents. Confirming saves the workspace, terminates its PTYs, and pushes it onto the recent-workspaces list (same path as closing the workspace from the sidebar).
+
+`Escape` dismisses the dialog and keeps the workspace intact. Reopen the Terminals tab any time via the command palette entry **Terminals** without spawning a new PTY.
+
+### Closing the last non-Terminals tab
+
+If the **last remaining tab** in a real workspace is not the Terminals tab and you close it, BLXCode also closes the workspace — the welcome screen reappears when no workspaces remain. This prevents an empty workbench shell that has no visible content.
+
+### Settings without an active workspace
+
+You can open **Settings** even when no workspace is open. BLXCode lazily creates an ephemeral **shell workspace** (empty `cwd`, no terminal slots, hidden from the sidebar list) that hosts only the Settings tab. Closing the Settings tab disposes the shell workspace automatically — you never see it in the sidebar and it never persists across restarts.
+
+This means **Settings → API Keys / Appearance / Workspace / BLXCode Agent** are always one shortcut away from the welcome screen, before you've created or opened any project.
+
 ## Terminal Grids And Panes
 
 Each workspace has a top-level terminal grid. Preset counts map to balanced grid dimensions:
