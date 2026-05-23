@@ -6,6 +6,7 @@ Persistent plans for multi-step work on **blxcode**. Individual plans live as Ma
 
 | Status | Plan | Description |
 |--------|------|-------------|
+| planned | [security-hardening.md](security-hardening.md) | Security-Audit: Subagent shell_write-Bypass, Shell-Allowlist, XSS/CSP, Runtime-Tool-Allowlist, Symlink/URL/PTY-Hardening; Phasen P0–P3 |
 | planned | [v2-roadmap.md](v2-roadmap.md) | V2-Roadmap (Trust Repair): plan_context-Bug, Konversations-Persistenz, Kanban-MVP, web_fetch, Docs-Sync, CI; Phasen V2.0–V2.3+ |
 | planned | [kanban-board-view.md](kanban-board-view.md) | Kanban-View im Plans-Panel: Status-Spalten, DnD fuer Karten/Spalten, Spalten ein-/ausblenden, Markdown-Writeback (Full Scope; MVP in v2-roadmap) |
 | done | [agent-chat-maximize.md](agent-chat-maximize.md) | Agent-Tab: Chat-Maximize-Toggle vor Reset; Voice-Hero kompakt, mehr Platz fuer Chat-Verlauf |
