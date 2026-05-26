@@ -193,8 +193,7 @@ pub fn agent_export_context_images(
     }
     let base_dir = ws_root.join(AGENT_CONTEXT_REL_DIR);
     let images_dir = base_dir.join(AGENT_CONTEXT_IMAGES_DIRNAME);
-    std::fs::create_dir_all(&images_dir)
-        .map_err(|e| format!("create context image dir: {e}"))?;
+    std::fs::create_dir_all(&images_dir).map_err(|e| format!("create context image dir: {e}"))?;
 
     let mut exports: Vec<AgentContextImageExport> = Vec::with_capacity(items.len());
     for item in items {
@@ -357,8 +356,8 @@ mod tests {
             bytes_b64: b64,
             size_bytes: png.len() as u64,
         }];
-        let report = agent_export_context_images(ws.to_string_lossy().into(), items)
-            .expect("export ok");
+        let report =
+            agent_export_context_images(ws.to_string_lossy().into(), items).expect("export ok");
         let dir = std::path::PathBuf::from(&report.dir);
         assert!(dir.ends_with(AGENT_CONTEXT_REL_DIR));
         let manifest = std::path::PathBuf::from(&report.manifest_path);
@@ -366,7 +365,11 @@ mod tests {
         assert_eq!(report.images.len(), 1);
         let exported = std::path::PathBuf::from(&report.images[0].path);
         assert!(exported.is_file());
-        assert!(exported.file_name().unwrap().to_string_lossy().ends_with(".png"));
+        assert!(exported
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .ends_with(".png"));
         let manifest_body = std::fs::read_to_string(&manifest).unwrap();
         assert!(manifest_body.contains("\"images\""));
         assert!(manifest_body.contains("img:1"));
@@ -481,7 +484,8 @@ where
             let _ = tx.send(f(app));
         })
         .map_err(|e| e.to_string())?;
-    rx.await.map_err(|_| "main thread channel dropped".to_string())?
+    rx.await
+        .map_err(|_| "main thread channel dropped".to_string())?
 }
 
 #[tauri::command]
@@ -505,7 +509,8 @@ pub async fn browser_run_js(
     script: String,
 ) -> Result<(), String> {
     dispatch_on_main(app, move |app| {
-        app.state::<BrowserHost>().eval_embedded(&app, tab_id, script)
+        app.state::<BrowserHost>()
+            .eval_embedded(&app, tab_id, script)
     })
     .await
 }
@@ -523,10 +528,7 @@ pub async fn browser_navigate(
 }
 
 #[tauri::command]
-pub async fn browser_close_tab(
-    app: tauri::AppHandle,
-    tab_id: u64,
-) -> Result<(), String> {
+pub async fn browser_close_tab(app: tauri::AppHandle, tab_id: u64) -> Result<(), String> {
     dispatch_on_main(app, move |app| {
         app.state::<BrowserHost>().close_tab(&app, tab_id)
     })

@@ -417,7 +417,7 @@ pub fn RightPanel() -> impl IntoView {
                                 </span>
                                 <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabSkills)()}</span>
                             </button>
-                            
+
                         </div>
                         <RightPanelSettingsButton />
                     </div>

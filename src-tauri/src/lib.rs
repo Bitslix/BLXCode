@@ -37,8 +37,8 @@ use updater::{
     BlxUpdaterState,
 };
 use voice::{
-    voice_cancel_recording, voice_settings_get, voice_settings_save,
-    voice_start_recording, voice_stop_and_transcribe, voice_tts_preview, VoiceRecorderState,
+    voice_cancel_recording, voice_settings_get, voice_settings_save, voice_start_recording,
+    voice_stop_and_transcribe, voice_tts_preview, VoiceRecorderState,
 };
 use workbench_state::{
     agent_latest_session_id, agent_session_exists, workbench_clear_terminal_notifications,
@@ -183,11 +183,12 @@ pub fn run() {
             gitignore::gitignore_append_blxcode,
             memory::workspace_ensure_agents,
             memory::memory_root,
+            memory::memory_status,
+            memory::memory_bootstrap,
             memory::memory_list,
             memory::memory_read,
             memory::memory_write,
             memory::memory_create,
-            memory::memory_list_categories,
             memory::memory_create_category,
             memory::memory_delete,
             memory::memory_rename,

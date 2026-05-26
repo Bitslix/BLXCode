@@ -13,9 +13,7 @@
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::workbench::agent_context_handoff::{
-    WorkspaceTerminalGroup, WorkspaceTerminalTarget,
-};
+use crate::workbench::agent_context_handoff::{WorkspaceTerminalGroup, WorkspaceTerminalTarget};
 use leptos::prelude::*;
 
 /// Action emitted from a menu item. The parent component holds the

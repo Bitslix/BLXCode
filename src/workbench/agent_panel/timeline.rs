@@ -2,6 +2,8 @@ use crate::agent_wire::{AgentEvent, TaskSnapshot, TurnMetrics, TurnUsageKind};
 use crate::i18n::{lookup, I18nKey, Locale};
 use crate::service::I18nService;
 use crate::tauri_bridge::{is_tauri_shell, voice_settings_get};
+use crate::workbench::agent_panel::ask_user_card::AskUserCard;
+use crate::workbench::agent_panel::turn_metrics_bar::{BarContext, TurnMetricsBar};
 use crate::workbench::agent_panel::voice_orb::{
     play_line_tts, tts_line_playback_available, VoiceOrbHandle,
 };
@@ -10,8 +12,6 @@ use crate::workbench::agent_timeline::{
     subagent_role_label, subagent_status_label, ActivityStatus, AskUserOption, AskUserState,
     SubagentCard, SubagentGroup, SubagentStepRow, ToolActivity,
 };
-use crate::workbench::agent_panel::ask_user_card::AskUserCard;
-use crate::workbench::agent_panel::turn_metrics_bar::{BarContext, TurnMetricsBar};
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
@@ -20,7 +20,9 @@ use std::collections::HashMap;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum DisplayTimelineItem {
-    User { text: String },
+    User {
+        text: String,
+    },
     Assistant {
         text: String,
         /// Latest user-message text preceding this assistant block — used as
@@ -37,7 +39,10 @@ pub enum DisplayTimelineItem {
         tools: Vec<ToolActivity>,
     },
     SubagentGroup(SubagentGroup),
-    Thinking { text: String, done: bool },
+    Thinking {
+        text: String,
+        done: bool,
+    },
     GeneratedImage {
         prompt: String,
         mime: String,
@@ -75,7 +80,10 @@ fn persist_agent_timeline(
             .filter(|item| {
                 !matches!(
                     item,
-                    TimelineItem::AskUser { state: AskUserState::Open, .. }
+                    TimelineItem::AskUser {
+                        state: AskUserState::Open,
+                        ..
+                    }
                 )
             })
             .map(|item| match item {
@@ -86,13 +94,15 @@ fn persist_agent_timeline(
                     saved_path,
                     filename,
                 } => {
-                    let drop_preview = saved_path
-                        .as_deref()
-                        .is_some_and(|p| !p.trim().is_empty());
+                    let drop_preview = saved_path.as_deref().is_some_and(|p| !p.trim().is_empty());
                     TimelineItem::GeneratedImage {
                         prompt,
                         mime,
-                        preview_src: if drop_preview { String::new() } else { preview_src },
+                        preview_src: if drop_preview {
+                            String::new()
+                        } else {
+                            preview_src
+                        },
                         saved_path,
                         filename,
                     }
@@ -163,10 +173,9 @@ fn find_subagent_card_mut<'a>(
     agent_id: &str,
 ) -> Option<&'a mut SubagentCard> {
     rows.iter_mut().rev().find_map(|entry| match entry {
-        TimelineItem::SubagentGroup(group) => group
-            .agents
-            .iter_mut()
-            .find(|c| c.agent_id == agent_id),
+        TimelineItem::SubagentGroup(group) => {
+            group.agents.iter_mut().find(|c| c.agent_id == agent_id)
+        }
         _ => None,
     })
 }
@@ -282,7 +291,11 @@ pub fn apply_agent_event(
             });
             persist_agent_timeline(persist, timeline);
         }
-        AgentEvent::ToolCall { tool, args, call_id } => {
+        AgentEvent::ToolCall {
+            tool,
+            args,
+            call_id,
+        } => {
             if tool == "harness.ask_user" {
                 if let Some((call_id, ask)) = call_id
                     .clone()
@@ -306,8 +319,7 @@ pub fn apply_agent_event(
                 // user at least sees something landed. The client_tools.rs
                 // dispatcher will short-circuit the result with ok=false.
             }
-            let entry =
-                ToolActivity::from_call_with_id(tool, args.as_ref(), loc, call_id.clone());
+            let entry = ToolActivity::from_call_with_id(tool, args.as_ref(), loc, call_id.clone());
             timeline.update(|rows| rows.push(TimelineItem::Tool(entry)));
             persist_agent_timeline(persist, timeline);
         }
@@ -393,11 +405,7 @@ pub fn apply_agent_event(
         } => {
             timeline.update(|rows| {
                 if let Some(card) = find_subagent_card_mut(rows, agent_id) {
-                    if let Some(step) = card
-                        .steps
-                        .iter_mut()
-                        .find(|s| s.id == *step_id)
-                    {
+                    if let Some(step) = card.steps.iter_mut().find(|s| s.id == *step_id) {
                         step.title = title.clone();
                         step.status = status.clone();
                         step.note = note.clone();
@@ -413,7 +421,12 @@ pub fn apply_agent_event(
             });
             persist_agent_timeline(persist, timeline);
         }
-        AgentEvent::SubagentToolCall { agent_id, tool, args, .. } => {
+        AgentEvent::SubagentToolCall {
+            agent_id,
+            tool,
+            args,
+            ..
+        } => {
             let entry = ToolActivity::from_call(tool, args.as_ref(), loc);
             timeline.update(|rows| {
                 if let Some(card) = find_subagent_card_mut(rows, agent_id) {
@@ -462,25 +475,27 @@ pub fn apply_agent_event(
             };
 
             // 2) Per-row routing — the 4 cases from the plan.
-            timeline.update(|rows| match (*kind, agent_id.as_deref(), call_id.as_deref()) {
-                (TurnUsageKind::ToolExec, None, Some(call_id)) => {
-                    attach_main_tool_exec(rows, call_id, metrics);
-                }
-                (TurnUsageKind::ToolExec, Some(agent_id), Some(call_id)) => {
-                    attach_subagent_tool_exec(rows, agent_id, call_id, metrics);
-                }
-                (TurnUsageKind::ModelRound, None, _) => {
-                    attach_main_model_round(rows, metrics);
-                }
-                (TurnUsageKind::ModelRound, Some(agent_id), _) => {
-                    if let Some(card) = find_subagent_card_mut(rows, agent_id) {
-                        card.metrics.merge(&metrics);
+            timeline.update(
+                |rows| match (*kind, agent_id.as_deref(), call_id.as_deref()) {
+                    (TurnUsageKind::ToolExec, None, Some(call_id)) => {
+                        attach_main_tool_exec(rows, call_id, metrics);
                     }
-                }
-                // ToolExec without a call_id is malformed — nothing to
-                // route to, the session aggregate above still counted it.
-                (TurnUsageKind::ToolExec, _, None) => {}
-            });
+                    (TurnUsageKind::ToolExec, Some(agent_id), Some(call_id)) => {
+                        attach_subagent_tool_exec(rows, agent_id, call_id, metrics);
+                    }
+                    (TurnUsageKind::ModelRound, None, _) => {
+                        attach_main_model_round(rows, metrics);
+                    }
+                    (TurnUsageKind::ModelRound, Some(agent_id), _) => {
+                        if let Some(card) = find_subagent_card_mut(rows, agent_id) {
+                            card.metrics.merge(&metrics);
+                        }
+                    }
+                    // ToolExec without a call_id is malformed — nothing to
+                    // route to, the session aggregate above still counted it.
+                    (TurnUsageKind::ToolExec, _, None) => {}
+                },
+            );
             persist_agent_timeline(persist, timeline);
         }
         AgentEvent::SubagentAssistantDelta { agent_id, delta } => {
@@ -607,9 +622,9 @@ fn synthesize_completion_message(rows: &[TimelineItem]) -> Option<String> {
         .iter()
         .rposition(|entry| matches!(entry, TimelineItem::User { .. }))?;
 
-    let has_assistant_after_user = rows[last_user_idx + 1..]
-        .iter()
-        .any(|entry| matches!(entry, TimelineItem::Assistant { text, .. } if !text.trim().is_empty()));
+    let has_assistant_after_user = rows[last_user_idx + 1..].iter().any(
+        |entry| matches!(entry, TimelineItem::Assistant { text, .. } if !text.trim().is_empty()),
+    );
     if has_assistant_after_user {
         return None;
     }
@@ -661,11 +676,7 @@ fn synthesize_completion_message(rows: &[TimelineItem]) -> Option<String> {
 fn merge_consecutive_model_rounds(items: Vec<DisplayTimelineItem>) -> Vec<DisplayTimelineItem> {
     let mut out: Vec<DisplayTimelineItem> = Vec::new();
     for item in items {
-        if let DisplayTimelineItem::ModelRound {
-            metrics,
-            mut tools,
-        } = item
-        {
+        if let DisplayTimelineItem::ModelRound { metrics, mut tools } = item {
             // Only collapse single-tool rounds with the same tool name as the
             // previous round.
             if tools.len() == 1 {
@@ -675,9 +686,7 @@ fn merge_consecutive_model_rounds(items: Vec<DisplayTimelineItem>) -> Vec<Displa
                     tools: prev_tools,
                 }) = out.last_mut()
                 {
-                    if prev_tools.len() == 1
-                        && prev_tools[0].tool == incoming_tool.tool
-                    {
+                    if prev_tools.len() == 1 && prev_tools[0].tool == incoming_tool.tool {
                         let prev = &mut prev_tools[0];
                         prev.paths.extend(incoming_tool.paths);
                         prev.metrics.merge(&incoming_tool.metrics);
@@ -716,9 +725,7 @@ fn group_consecutive_tools(tools: Vec<ToolActivity>) -> Vec<ToolActivity> {
                 last.merged_count += t.merged_count;
                 if t.status == ActivityStatus::Fail {
                     last.status = ActivityStatus::Fail;
-                } else if last.status == ActivityStatus::Ok
-                    && t.status == ActivityStatus::Pending
-                {
+                } else if last.status == ActivityStatus::Ok && t.status == ActivityStatus::Pending {
                     last.status = ActivityStatus::Pending;
                 }
                 continue;
@@ -751,7 +758,10 @@ pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
                 // Collect the tool calls that follow this model round into a
                 // single grouped block instead of emitting separate Tool rows.
                 let mut tools = Vec::new();
-                while iter.peek().is_some_and(|x| matches!(x, TimelineItem::Tool(_))) {
+                while iter
+                    .peek()
+                    .is_some_and(|x| matches!(x, TimelineItem::Tool(_)))
+                {
                     if let Some(TimelineItem::Tool(t)) = iter.next() {
                         tools.push(t);
                     }
@@ -1255,9 +1265,7 @@ fn GeneratedImageRow(
             return;
         }
         leptos::task::spawn_local(async move {
-            if let Ok(resp) =
-                crate::tauri_bridge::generated_image_preview(path).await
-            {
+            if let Ok(resp) = crate::tauri_bridge::generated_image_preview(path).await {
                 preview.set(format!("data:{};base64,{}", resp.mime, resp.bytes_b64));
             }
         });
@@ -1446,4 +1454,3 @@ fn ToolActivityRow(
         </li>
     }
 }
-

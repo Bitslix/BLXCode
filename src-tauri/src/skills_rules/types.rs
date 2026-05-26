@@ -138,13 +138,19 @@ pub struct SkillIndexEntry {
 
 impl Default for RulesIndex {
     fn default() -> Self {
-        Self { version: INDEX_VERSION, rules: BTreeMap::new() }
+        Self {
+            version: INDEX_VERSION,
+            rules: BTreeMap::new(),
+        }
     }
 }
 
 impl Default for SkillsIndex {
     fn default() -> Self {
-        Self { version: INDEX_VERSION, skills: BTreeMap::new() }
+        Self {
+            version: INDEX_VERSION,
+            skills: BTreeMap::new(),
+        }
     }
 }
 

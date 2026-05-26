@@ -206,9 +206,7 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
     provide_context(slot_dnd);
 
     let slot_drag_enabled = Memo::new(move |_| {
-        !is_configuring.get()
-            && !wb.sidebar_collapsed().get()
-            && full_size_terminal.get().is_none()
+        !is_configuring.get() && !wb.sidebar_collapsed().get() && full_size_terminal.get().is_none()
     });
     let term_grid_ref = NodeRef::<html::Div>::new();
 
@@ -248,8 +246,7 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
     // "No open terminals in any workspace". xterm.js inside the cells is
     // paused via `is_workspace_active` while hidden and refits on tab
     // re-activation, so a hidden 0x0 layout is harmless.
-    let grid_mounted =
-        Memo::new(move |_| !is_configuring.get());
+    let grid_mounted = Memo::new(move |_| !is_configuring.get());
 
     view! {
         <div

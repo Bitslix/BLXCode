@@ -98,12 +98,7 @@ impl ToolGroup {
                 "memory_context_attach",
                 "memory_context_detach",
             ],
-            Self::PlansRead => &[
-                "plan_list",
-                "plan_read",
-                "plan_load",
-                "plan_context_list",
-            ],
+            Self::PlansRead => &["plan_list", "plan_read", "plan_load", "plan_context_list"],
             Self::PlansWrite => &[
                 "plan_create",
                 "plan_write",
@@ -114,12 +109,7 @@ impl ToolGroup {
                 "plan_context_detach",
             ],
             Self::TasksRead => &["task_list", "task_get"],
-            Self::TasksWrite => &[
-                "task_create",
-                "task_update",
-                "task_delete",
-                "task_reorder",
-            ],
+            Self::TasksWrite => &["task_create", "task_update", "task_delete", "task_reorder"],
             Self::RulesSkillsRead => &["rules_list", "rules_read", "skills_list", "skills_read"],
             Self::RulesSkillsWrite => &[
                 "rules_write",
@@ -175,10 +165,7 @@ pub fn coordinator_groups(web_enabled: bool) -> Vec<ToolGroup> {
 }
 
 pub fn parse_allowed_groups(names: &[String]) -> Vec<ToolGroup> {
-    names
-        .iter()
-        .filter_map(|s| ToolGroup::parse(s))
-        .collect()
+    names.iter().filter_map(|s| ToolGroup::parse(s)).collect()
 }
 
 /// Like [`parse_allowed_groups`] but also returns the strings that failed to
@@ -303,9 +290,9 @@ mod tests {
     fn parse_allowed_groups_strict_separates_known_from_unknown() {
         let input = vec![
             "workspace_read".to_string(),
-            "file_access".to_string(),     // bogus
+            "file_access".to_string(), // bogus
             "git_read".to_string(),
-            "shell".to_string(),           // bogus (correct names are shell_read/shell_write)
+            "shell".to_string(), // bogus (correct names are shell_read/shell_write)
         ];
         let (ok, bad) = parse_allowed_groups_strict(&input);
         assert_eq!(ok, vec![ToolGroup::WorkspaceRead, ToolGroup::GitRead]);
@@ -349,7 +336,10 @@ mod tests {
         }
         // SubagentSubmit is force-pushed onto every subagent's group list.
         for tool in ToolGroup::SubagentSubmit.tool_names() {
-            assert!(!tool.contains('.'), "SubagentSubmit tool {tool:?} must be dotless");
+            assert!(
+                !tool.contains('.'),
+                "SubagentSubmit tool {tool:?} must be dotless"
+            );
         }
     }
 

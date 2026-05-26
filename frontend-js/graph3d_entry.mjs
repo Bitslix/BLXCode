@@ -17,7 +17,11 @@ function readCssVar(name, fallback = "") {
 function applyGraph3dTheme(rec) {
   if (!rec?.graph) return;
   rec.graph.backgroundColor("rgba(0,0,0,0)");
-  rec.graph.linkColor(() => readCssVar("--overlay-4", "rgba(255,255,255,0.14)"));
+  rec.graph.linkColor((link) =>
+    link.crossScope
+      ? readCssVar("--accent-cool", "#7dd3fc")
+      : readCssVar("--overlay-4", "rgba(255,255,255,0.14)"),
+  );
   rec.graph.nodeThreeObject(makeNodeObject);
   rec.graph.refresh();
 }
@@ -74,6 +78,7 @@ function normalizeGraphData(graphData) {
     ? graphData.edges.map((edge) => ({
         source: edge.source,
         target: edge.target,
+        crossScope: Boolean(edge.crossScope),
       }))
     : [];
   return {
@@ -84,6 +89,7 @@ function normalizeGraphData(graphData) {
       orphan: Boolean(node.orphan),
       color: typeof node.color === "string" && node.color.trim() ? node.color : null,
       category: typeof node.category === "string" && node.category.trim() ? node.category : null,
+      isCategoryHub: Boolean(node.isCategoryHub || String(node.id).startsWith("hub:")),
     })),
     links,
   };
@@ -91,6 +97,7 @@ function normalizeGraphData(graphData) {
 
 function colorForNode(node) {
   if (node.color) return node.color;
+  if (node.isCategoryHub) return readCssVar("--accent-warm", "#f59e0b");
   if (node.orphan) return "#9aa3b8";
   const tag = node.tags?.[0] || "";
   let hash = 0;
@@ -104,23 +111,30 @@ function colorForNode(node) {
 function makeNodeObject(node) {
   const color = colorForNode(node);
   const group = new THREE.Group();
-  const geometry = new THREE.SphereGeometry(5.8, 24, 24);
+  const isHub = Boolean(node.isCategoryHub);
+  const geometry = isHub
+    ? new THREE.BoxGeometry(12.6, 8.8, 5.8)
+    : new THREE.SphereGeometry(5.8, 24, 24);
   const material = new THREE.MeshPhongMaterial({
     color,
     emissive: color,
-    emissiveIntensity: 0.22,
+    emissiveIntensity: isHub ? 0.34 : 0.22,
     shininess: 70,
   });
-  const sphere = new THREE.Mesh(geometry, material);
+  const body = new THREE.Mesh(geometry, material);
   const halo = new THREE.Mesh(
-    new THREE.SphereGeometry(8.5, 24, 24),
+    isHub ? new THREE.BoxGeometry(17.5, 12, 8) : new THREE.SphereGeometry(8.5, 24, 24),
     new THREE.MeshBasicMaterial({
       color,
       transparent: true,
-      opacity: 0.12,
+      opacity: isHub ? 0.18 : 0.12,
       depthWrite: false,
     }),
   );
+  if (isHub) {
+    halo.rotation.z = -0.08;
+    body.rotation.z = -0.08;
+  }
   const label = new SpriteText(wrapLabel(node.label || node.id));
   label.color = readCssVar("--text", "rgba(238,239,245,0.92)");
   label.backgroundColor = readCssVar("--scrim-bg", "rgba(8,10,16,0.58)");
@@ -128,14 +142,14 @@ function makeNodeObject(node) {
   label.borderWidth = 0.25;
   label.borderRadius = 2;
   label.padding = 2.6;
-  label.textHeight = 4.2;
+  label.textHeight = isHub ? 4.8 : 4.2;
   label.center.set(0, 0.5);
   label.position.set(12.5, 0, 0);
   label.material.depthWrite = false;
   label.material.depthTest = false;
   label.renderOrder = 10;
   group.add(halo);
-  group.add(sphere);
+  group.add(body);
   group.add(label);
   return group;
 }
@@ -368,9 +382,13 @@ window.__blxcodeGraph3d = {
       .nodeId("id")
       .nodeLabel("label")
       .nodeThreeObject(makeNodeObject)
-      .linkColor(() => readCssVar("--overlay-4", "rgba(255,255,255,0.14)"))
+      .linkColor((link) =>
+        link.crossScope
+          ? readCssVar("--accent-cool", "#7dd3fc")
+          : readCssVar("--overlay-4", "rgba(255,255,255,0.14)"),
+      )
       .linkOpacity(0.34)
-      .linkWidth(1)
+      .linkWidth((link) => (link.crossScope ? 1.45 : 1))
       .linkCurvature((link) => linkWobble(link))
       .linkCurveRotation((link) => linkRotation(link))
       .onLinkHover((link) => {

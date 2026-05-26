@@ -43,10 +43,15 @@ fn require_env(root: &WorkspaceRootGuard) -> Result<(), ToolOutcome> {
 }
 
 fn optional_path<'a>(args: &'a Value, key: &str) -> Option<&'a str> {
-    args.get(key).and_then(|v| v.as_str()).filter(|s| !s.is_empty())
+    args.get(key)
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
 }
 
-fn resolve_cwd(root: &WorkspaceRootGuard, rel: Option<&str>) -> Result<std::path::PathBuf, ToolOutcome> {
+fn resolve_cwd(
+    root: &WorkspaceRootGuard,
+    rel: Option<&str>,
+) -> Result<std::path::PathBuf, ToolOutcome> {
     let base = root.as_str();
     let base_path = Path::new(&base);
     match rel {
@@ -118,7 +123,10 @@ pub fn tool_git_diff(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOut
     if args.get("staged").and_then(|v| v.as_bool()) == Some(true) {
         cmd_args.push("--staged");
     }
-    let output = Command::new("git").args(&cmd_args).current_dir(&cwd).output();
+    let output = Command::new("git")
+        .args(&cmd_args)
+        .current_dir(&cwd)
+        .output();
     match output {
         Ok(o) => ToolOutcome {
             ok: true,

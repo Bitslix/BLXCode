@@ -22,14 +22,13 @@ use crate::workbench::agent_panel::image_context::{
     clear_drop_state, handle_dom_drag_event, handle_dom_drop, install_agent_image_intake,
     DropZoneState,
 };
-use crate::workbench::agent_panel::task_list::TaskSection;
 use crate::workbench::agent_panel::subagent_debounce::{
     is_subagent_timeline_event, SubagentEventDebounce,
 };
+use crate::workbench::agent_panel::task_list::TaskSection;
 use crate::workbench::agent_panel::timeline::{
     apply_agent_event, compact_timeline, ChatLineIndexColumn, TimelineItem, TimelineRow,
 };
-use std::rc::Rc;
 use crate::workbench::agent_panel::voice_orb::{
     handle_voice_event, install_ptt_hotkey, VoiceOrb, VoiceOrbHandle,
 };
@@ -38,6 +37,7 @@ use leptos::html;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use std::collections::HashMap;
+use std::rc::Rc;
 use wasm_bindgen::JsCast;
 
 #[component]
@@ -146,10 +146,7 @@ pub fn AgentPanelDock() -> impl IntoView {
             // Prime the handoff renderer cache so terminal handoffs after
             // a workspace reload see the restored plan-task state.
             if let Some(ws_id) = active {
-                crate::workbench::agent_context_handoff::store_task_snapshot(
-                    ws_id,
-                    next.clone(),
-                );
+                crate::workbench::agent_context_handoff::store_task_snapshot(ws_id, next.clone());
             }
             task_snapshot_sig.set(next);
         });

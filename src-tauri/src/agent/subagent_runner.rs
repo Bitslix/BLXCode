@@ -4,10 +4,10 @@ use crate::agent::anthropic::{from_anthropic_name, to_anthropic_name};
 use crate::agent::openrouter::Endpoint;
 use crate::agent::protocol::AgentEvent;
 use crate::agent::state::AgentEngineState;
-use crate::agent::subagent_prompts::{self, SubagentRole, truncate_submit_result};
+use crate::agent::subagent_prompts::{self, truncate_submit_result, SubagentRole};
+use crate::agent::tool_dispatch::DispatchContext;
 use crate::agent::tool_groups::{openai_tool_name_to_internal, ToolGroup};
 use crate::agent::tools::{self, WorkspaceRootGuard};
-use crate::agent::tool_dispatch::DispatchContext;
 use crate::agent_settings::AgentProviderKind;
 use futures_util::TryStreamExt;
 use serde::Deserialize;
@@ -142,11 +142,10 @@ pub async fn run_one_subagent(
     // with as the first step. When models claim "tools not in schema", the
     // operator can immediately compare against this list and tell whether
     // the model is hallucinating or the provisioning really is empty.
-    let provisioned: Vec<&'static str> =
-        crate::agent::tool_groups::registry_filtered(groups, true)
-            .into_iter()
-            .map(|t| t.name)
-            .collect();
+    let provisioned: Vec<&'static str> = crate::agent::tool_groups::registry_filtered(groups, true)
+        .into_iter()
+        .map(|t| t.name)
+        .collect();
     state.push(AgentEvent::SubagentStep {
         agent_id: agent_id.to_owned(),
         step_id: "provisioned-tools".into(),
@@ -226,7 +225,12 @@ pub async fn run_one_subagent(
                 }
                 let round_start = Instant::now();
                 let round = match stream_openai_subagent_round(
-                    state, &client, endpoint, &ctx.api_key, &body, agent_id,
+                    state,
+                    &client,
+                    endpoint,
+                    &ctx.api_key,
+                    &body,
+                    agent_id,
                 )
                 .await
                 {
@@ -276,20 +280,24 @@ pub async fn run_one_subagent(
                 }
                 if !round.tool_calls.is_empty() {
                     assistant["tool_calls"] = Value::Array(
-                        round.tool_calls.iter().map(|tc| {
-                            json!({
-                                "id": tc.id,
-                                "type": "function",
-                                "function": {
-                                    "name": tc.name,
-                                    "arguments": if tc.arguments.is_empty() {
-                                        "{}".to_string()
-                                    } else {
-                                        tc.arguments.clone()
-                                    },
-                                }
+                        round
+                            .tool_calls
+                            .iter()
+                            .map(|tc| {
+                                json!({
+                                    "id": tc.id,
+                                    "type": "function",
+                                    "function": {
+                                        "name": tc.name,
+                                        "arguments": if tc.arguments.is_empty() {
+                                            "{}".to_string()
+                                        } else {
+                                            tc.arguments.clone()
+                                        },
+                                    }
+                                })
                             })
-                        }).collect(),
+                            .collect(),
                     );
                 }
                 messages.push(assistant);
@@ -340,11 +348,8 @@ pub async fn run_one_subagent(
                                 groups,
                                 root_guard.as_ref(),
                             );
-                            let tool_elapsed_ms = tool_start
-                                .elapsed()
-                                .as_millis()
-                                .min(u64::MAX as u128)
-                                as u64;
+                            let tool_elapsed_ms =
+                                tool_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
                             state.push(AgentEvent::TurnUsage {
                                 kind: crate::agent::protocol::TurnUsageKind::ToolExec,
                                 agent_id: Some(agent_id.to_owned()),
@@ -393,7 +398,11 @@ pub async fn run_one_subagent(
                 });
                 let round_start = Instant::now();
                 let round = match stream_anthropic_subagent_round(
-                    state, &client, &ctx.api_key, &body, agent_id,
+                    state,
+                    &client,
+                    &ctx.api_key,
+                    &body,
+                    agent_id,
                 )
                 .await
                 {
@@ -436,7 +445,8 @@ pub async fn run_one_subagent(
                     return result;
                 }
                 if !round.assistant_blocks.is_empty() {
-                    messages.push(json!({ "role": "assistant", "content": round.assistant_blocks }));
+                    messages
+                        .push(json!({ "role": "assistant", "content": round.assistant_blocks }));
                 }
                 if round.tool_uses.is_empty() {
                     break;
@@ -479,11 +489,8 @@ pub async fn run_one_subagent(
                             let tool_start = Instant::now();
                             let outcome =
                                 execute_subagent_tool(&name, &args, groups, root_guard.as_ref());
-                            let tool_elapsed_ms = tool_start
-                                .elapsed()
-                                .as_millis()
-                                .min(u64::MAX as u128)
-                                as u64;
+                            let tool_elapsed_ms =
+                                tool_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
                             state.push(AgentEvent::TurnUsage {
                                 kind: crate::agent::protocol::TurnUsageKind::ToolExec,
                                 agent_id: Some(agent_id.to_owned()),
@@ -936,9 +943,9 @@ async fn stream_anthropic_subagent_round(
                                 });
                             }
                             if acc.ttft_ms.is_none() {
-                                acc.ttft_ms = Some(
-                                    req_start.elapsed().as_millis().min(u64::MAX as u128) as u64,
-                                );
+                                acc.ttft_ms =
+                                    Some(req_start.elapsed().as_millis().min(u64::MAX as u128)
+                                        as u64);
                             }
                             state.push(AgentEvent::SubagentAssistantDelta {
                                 agent_id: agent_id.to_owned(),
@@ -951,9 +958,9 @@ async fn stream_anthropic_subagent_round(
                     AnthroBlockDelta::ThinkingDelta { thinking } => {
                         if !thinking.is_empty() {
                             if acc.ttft_ms.is_none() {
-                                acc.ttft_ms = Some(
-                                    req_start.elapsed().as_millis().min(u64::MAX as u128) as u64,
-                                );
+                                acc.ttft_ms =
+                                    Some(req_start.elapsed().as_millis().min(u64::MAX as u128)
+                                        as u64);
                             }
                             state.push(AgentEvent::SubagentThinkingDelta {
                                 agent_id: agent_id.to_owned(),
@@ -1121,9 +1128,8 @@ async fn stream_openai_subagent_round(
                 if !reasoning.is_empty() {
                     thinking_active = true;
                     if acc.ttft_ms.is_none() {
-                        acc.ttft_ms = Some(
-                            req_start.elapsed().as_millis().min(u64::MAX as u128) as u64,
-                        );
+                        acc.ttft_ms =
+                            Some(req_start.elapsed().as_millis().min(u64::MAX as u128) as u64);
                     }
                     state.push(AgentEvent::SubagentThinkingDelta {
                         agent_id: agent_id.to_owned(),
@@ -1140,9 +1146,8 @@ async fn stream_openai_subagent_round(
                         });
                     }
                     if acc.ttft_ms.is_none() {
-                        acc.ttft_ms = Some(
-                            req_start.elapsed().as_millis().min(u64::MAX as u128) as u64,
-                        );
+                        acc.ttft_ms =
+                            Some(req_start.elapsed().as_millis().min(u64::MAX as u128) as u64);
                     }
                     state.push(AgentEvent::SubagentAssistantDelta {
                         agent_id: agent_id.to_owned(),
@@ -1208,20 +1213,14 @@ mod tests {
         let args = json!({ "status": "blocked", "summary": "denied" });
         let mut called: HashSet<String> = HashSet::new();
         called.insert("list_workspace_files".into());
-        assert_eq!(
-            validate_submit(&args, &called, true),
-            SubmitVerdict::Accept
-        );
+        assert_eq!(validate_submit(&args, &called, true), SubmitVerdict::Accept);
     }
 
     #[test]
     fn validate_submit_accepts_completed_regardless() {
         let args = json!({ "status": "completed", "summary": "done" });
         let called: HashSet<String> = HashSet::new();
-        assert_eq!(
-            validate_submit(&args, &called, true),
-            SubmitVerdict::Accept
-        );
+        assert_eq!(validate_submit(&args, &called, true), SubmitVerdict::Accept);
     }
 
     #[test]

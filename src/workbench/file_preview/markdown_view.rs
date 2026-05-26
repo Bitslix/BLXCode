@@ -43,10 +43,8 @@ fn render_markdown(src: &str) -> String {
             Event::End(TagEnd::CodeBlock) if in_mermaid => {
                 let escaped = html_escape(&mermaid_buf);
                 buffered.push(Event::Html(
-                    format!(
-                        r#"<pre class="mermaid file-preview__mermaid-inline">{escaped}</pre>"#
-                    )
-                    .into(),
+                    format!(r#"<pre class="mermaid file-preview__mermaid-inline">{escaped}</pre>"#)
+                        .into(),
                 ));
                 in_mermaid = false;
                 mermaid_buf.clear();

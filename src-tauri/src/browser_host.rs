@@ -9,7 +9,6 @@ use tauri::webview::WebviewBuilder;
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl};
 use url::Url;
 
-
 /// Child-WebViews mit SPA-gestützten Bounds funktionieren zuverlässig nur dort,
 /// wo das Tauri-/wry-Backend eine echte Unter-WebView einpasst (Windows: HWND-Child,
 /// macOS: NSView addSubview). Auf Linux/GTK fügt `add_child` die Webview als

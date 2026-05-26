@@ -3,18 +3,18 @@ mod graph_glue;
 use crate::i18n::I18nKey;
 use crate::open_http::{dom_click_nav_href, DomNavHref};
 use crate::service::I18nService;
-use crate::tauri_bridge::{self, GraphData, NoteContent};
+use crate::tauri_bridge::{self, GraphData, MemoryScope, NoteContent};
+use crate::workbench::agent_context_handoff::HandoffMenu;
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::memory_graph::graph_glue::{
     ensure_graph3d_script, graph3d_create, graph3d_dispose, graph3d_fly_to_node,
     graph3d_reset_view, graph3d_resize, graph3d_set_data, graph3d_zoom,
 };
-use crate::workbench::agent_context_handoff::HandoffMenu;
 use crate::workbench::memory_panel::{
     expand_files_group_for_path, load_note, refresh_graph, MemoryState, MemoryView,
 };
-use crate::workbench::WorkbenchService;
 use crate::workbench::ThemeService;
+use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
 use leptos::html;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
@@ -68,6 +68,7 @@ impl GraphMode {
 #[derive(Clone, Copy)]
 struct GraphPreviewState {
     open: RwSignal<bool>,
+    scope: RwSignal<MemoryScope>,
     path: RwSignal<Option<String>>,
     label: RwSignal<String>,
     content: RwSignal<String>,
@@ -78,6 +79,7 @@ impl GraphPreviewState {
     fn new() -> Self {
         Self {
             open: RwSignal::new(false),
+            scope: RwSignal::new(MemoryScope::Workspace),
             path: RwSignal::new(None),
             label: RwSignal::new(String::new()),
             content: RwSignal::new(String::new()),
@@ -394,26 +396,26 @@ fn Graph3dView(
     let click_handle = {
         let state = state.clone();
         window_event_listener_untyped("blxcode-graph3d-node-click", move |ev| {
-        let Some(custom) = ev.dyn_ref::<web_sys::CustomEvent>() else {
-            return;
-        };
-        let detail = custom.detail();
-        let event_graph_id =
-            js_sys::Reflect::get(&detail, &wasm_bindgen::JsValue::from_str("graphId"))
-                .ok()
-                .and_then(|v| v.as_f64());
-        if event_graph_id != graph_id.get_untracked() {
-            return;
-        }
-        let Some(node_id) =
-            js_sys::Reflect::get(&detail, &wasm_bindgen::JsValue::from_str("nodeId"))
-                .ok()
-                .and_then(|v| v.as_string())
-        else {
-            return;
-        };
-        state.graph_selected_node.set(Some(node_id.clone()));
-        open_preview.run(node_id);
+            let Some(custom) = ev.dyn_ref::<web_sys::CustomEvent>() else {
+                return;
+            };
+            let detail = custom.detail();
+            let event_graph_id =
+                js_sys::Reflect::get(&detail, &wasm_bindgen::JsValue::from_str("graphId"))
+                    .ok()
+                    .and_then(|v| v.as_f64());
+            if event_graph_id != graph_id.get_untracked() {
+                return;
+            }
+            let Some(node_id) =
+                js_sys::Reflect::get(&detail, &wasm_bindgen::JsValue::from_str("nodeId"))
+                    .ok()
+                    .and_then(|v| v.as_string())
+            else {
+                return;
+            };
+            state.graph_selected_node.set(Some(node_id.clone()));
+            open_preview.run(node_id);
         })
     };
 
@@ -633,12 +635,18 @@ fn Graph2dView(
                                     None => true,
                                 };
                                 let (stroke, width) = if hov.is_none() {
-                                    (edge_default.clone(), "1".to_string())
+                                    let stroke = if e.cross_scope {
+                                        edge_active.clone()
+                                    } else {
+                                        edge_default.clone()
+                                    };
+                                    (stroke, "1".to_string())
                                 } else if incident {
                                     (edge_active.clone(), "1.6".to_string())
                                 } else {
                                     (edge_dim.clone(), "1".to_string())
                                 };
+                                let dasharray = if e.cross_scope { "5 4" } else { "" };
                                 Some(view! {
                                     <line
                                         x1=sx.to_string()
@@ -648,6 +656,7 @@ fn Graph2dView(
                                         stroke=stroke
                                         stroke-width=width
                                         stroke-linecap="round"
+                                        stroke-dasharray=dasharray
                                     />
                                 })
                             }).collect::<Vec<_>>()
@@ -679,7 +688,12 @@ fn Graph2dView(
                             nodes.into_iter().filter_map(|n| {
                                 let (x, y) = *pos.get(&n.id)?;
                                 let deg = degrees.get(&n.id).copied().unwrap_or(0);
-                                let radius = 4.0_f32 + (deg as f32).sqrt() * 2.5;
+                                let is_hub = n.is_category_hub.unwrap_or(false);
+                                let radius = if is_hub {
+                                    8.0_f32 + (deg as f32).sqrt() * 2.2
+                                } else {
+                                    4.0_f32 + (deg as f32).sqrt() * 2.5
+                                };
                                 let is_selected = selected.as_deref() == Some(n.id.as_str());
                                 let (focus_state, is_hovered) = match hov.as_deref() {
                                     Some(h) if h == n.id => (NodeFocus::Hovered, true),
@@ -689,7 +703,18 @@ fn Graph2dView(
                                     }
                                     None => (NodeFocus::Normal, false),
                                 };
-                                let base_fill = n.color.clone().unwrap_or_else(|| cluster_color(&n.tags, n.orphan));
+                                let base_fill = n.color.clone().unwrap_or_else(|| {
+                                    if is_hub {
+                                        let warm = read_css_var("--accent-warm");
+                                        if warm.is_empty() {
+                                            "#f59e0b".to_string()
+                                        } else {
+                                            warm
+                                        }
+                                    } else {
+                                        cluster_color(&n.tags, n.orphan)
+                                    }
+                                });
                                 let fill = match focus_state {
                                     NodeFocus::Dim => fade_color(&base_fill, 0.18),
                                     _ => base_fill,
@@ -715,8 +740,13 @@ fn Graph2dView(
                                 let id_for_click = n.id.clone();
                                 let id_for_enter = n.id.clone();
                                 let label = clean_display_label(&n.label);
+                                let node_class = if is_hub {
+                                    "workbench-memory-graph__node workbench-memory-graph__node--hub"
+                                } else {
+                                    "workbench-memory-graph__node"
+                                };
                                 Some(view! {
-                                    <g class="workbench-memory-graph__node"
+                                    <g class=node_class
                                         on:click=move |_| {
                                             state.graph_selected_node.set(Some(id_for_click.clone()));
                                             open_preview.run(id_for_click.clone());
@@ -724,14 +754,31 @@ fn Graph2dView(
                                         on:mouseenter=move |_| hovered.set(Some(id_for_enter.clone()))
                                         on:mouseleave=move |_| hovered.set(None)
                                     >
-                                        <circle
-                                            cx=x.to_string()
-                                            cy=y.to_string()
-                                            r=radius.to_string()
-                                            fill=fill
-                                            stroke=stroke
-                                            stroke-width=stroke_width
-                                        />
+                                        {if is_hub {
+                                            view! {
+                                                <rect
+                                                    x=(x - radius).to_string()
+                                                    y=(y - radius * 0.72).to_string()
+                                                    width=(radius * 2.05).to_string()
+                                                    height=(radius * 1.55).to_string()
+                                                    rx="2.5"
+                                                    fill=fill
+                                                    stroke=stroke
+                                                    stroke-width=stroke_width
+                                                />
+                                            }.into_any()
+                                        } else {
+                                            view! {
+                                                <circle
+                                                    cx=x.to_string()
+                                                    cy=y.to_string()
+                                                    r=radius.to_string()
+                                                    fill=fill
+                                                    stroke=stroke
+                                                    stroke-width=stroke_width
+                                                />
+                                            }.into_any()
+                                        }}
                                         {(label_opacity > 0.0 || label_force_visible).then(|| view! {
                                             <text
                                                 x=(x + radius + 3.0).to_string()
@@ -767,8 +814,9 @@ fn GraphPreviewPopover(
             if let Some(DomNavHref::Memory(path)) = dom_click_nav_href(&ev) {
                 ev.prevent_default();
                 ev.stop_propagation();
-                state.graph_selected_node.set(Some(path.clone()));
-                open_preview.run(path);
+                let node_id = tauri_bridge::note_key(&preview.scope.get_untracked(), &path);
+                state.graph_selected_node.set(Some(node_id.clone()));
+                open_preview.run(node_id);
             }
         }
     };
@@ -807,9 +855,10 @@ fn GraphPreviewPopover(
                             on:click=move |_| {
                                 let Some(ws) = state.workspace_cwd.get_untracked() else { return };
                                 let Some(path) = preview.path.get_untracked() else { return };
-                                expand_files_group_for_path(state.clone(), &path);
+                                let scope = preview.scope.get_untracked();
+                                expand_files_group_for_path(state.clone(), &scope, &path);
                                 preview.open.set(false);
-                                load_note(state.clone(), ws, path);
+                                load_note(state.clone(), ws, scope, path);
                                 state.view.set(MemoryView::Files);
                             }
                         >
@@ -842,23 +891,36 @@ fn GraphPreviewPopover(
     }
 }
 
-fn open_graph_preview(state: MemoryState, preview: GraphPreviewState, path: String) {
-    state.graph_selected_node.set(Some(path.clone()));
+fn open_graph_preview(state: MemoryState, preview: GraphPreviewState, node_id: String) {
+    state.graph_selected_node.set(Some(node_id.clone()));
     preview.open.set(true);
-    preview.path.set(Some(path.clone()));
-    preview.label.set(label_for_path(&state, &path));
     preview.content.set(String::new());
     preview.loading.set(true);
+
+    if let Some(category) = node_id.strip_prefix("hub:") {
+        preview.scope.set(MemoryScope::Workspace);
+        preview.path.set(None);
+        preview.label.set(clean_display_label(category));
+        preview.content.set(hub_summary_markdown(&state, category));
+        preview.loading.set(false);
+        return;
+    }
+
+    let (scope, path) =
+        tauri_bridge::parse_note_key(&node_id).unwrap_or((MemoryScope::Workspace, node_id.clone()));
+    preview.scope.set(scope.clone());
+    preview.path.set(Some(path.clone()));
+    preview.label.set(label_for_node_id(&state, &node_id));
     let Some(ws) = state.workspace_cwd.get_untracked() else {
         preview.loading.set(false);
         return;
     };
     spawn_local(async move {
         TimeoutFuture::new(40).await;
-        match tauri_bridge::memory_read(&ws, &path).await {
+        match tauri_bridge::memory_read(&ws, &scope, &path).await {
             Ok(NoteContent { content, .. }) => {
                 preview.content.set(content);
-                preview.label.set(label_for_path(&state, &path));
+                preview.label.set(label_for_node_id(&state, &node_id));
                 preview.path.set(Some(path));
             }
             Err(e) => {
@@ -869,17 +931,48 @@ fn open_graph_preview(state: MemoryState, preview: GraphPreviewState, path: Stri
     });
 }
 
-fn label_for_path(state: &MemoryState, path: &str) -> String {
+fn hub_summary_markdown(state: &MemoryState, category: &str) -> String {
+    let Some(graph) = state.graph.get_untracked() else {
+        return String::new();
+    };
+    let mut notes: Vec<_> = graph
+        .nodes
+        .iter()
+        .filter(|node| node.category == category && !node.is_category_hub.unwrap_or(false))
+        .map(|node| {
+            let scope = match node.scope {
+                MemoryScope::Workspace => "workspace",
+                MemoryScope::Global => "global",
+            };
+            format!("- `{scope}` {}", clean_display_label(&node.label))
+        })
+        .collect();
+    notes.sort();
+    if notes.is_empty() {
+        format!(
+            "## {}\n\nNo notes in this category.",
+            clean_display_label(category)
+        )
+    } else {
+        format!(
+            "## {}\n\n{}",
+            clean_display_label(category),
+            notes.join("\n")
+        )
+    }
+}
+
+fn label_for_node_id(state: &MemoryState, node_id: &str) -> String {
     state
         .graph
         .get_untracked()
         .and_then(|g| {
             g.nodes
                 .iter()
-                .find(|node| node.id == path)
+                .find(|node| node.id == node_id)
                 .map(|node| clean_display_label(&node.label))
         })
-        .unwrap_or_else(|| clean_display_label(path))
+        .unwrap_or_else(|| clean_display_label(node_id))
 }
 
 fn clean_display_label(raw: &str) -> String {
@@ -978,7 +1071,7 @@ fn configured_graph(wb: WorkbenchService, graph: Option<GraphData>) -> Option<Gr
             return false;
         }
         node.color = Some(settings.color);
-        node.category = Some(category);
+        node.category = category;
         true
     });
     let visible: HashSet<String> = graph.nodes.iter().map(|node| node.id.clone()).collect();
@@ -1082,21 +1175,15 @@ fn force_layout(g: &GraphData, w: f32, h: f32, iters: u32) -> HashMap<String, (f
         .collect();
     let k = (w * h / (n as f32 + 1.0)).sqrt().max(20.0);
     let mut t = w.min(h) * 0.1;
-    let categories: Vec<String> = g
-        .nodes
-        .iter()
-        .map(|node| {
-            node.category
-                .clone()
-                .unwrap_or_else(|| graph_category_for_path(&node.id))
-        })
-        .collect();
+    let categories: Vec<String> = g.nodes.iter().map(|node| node.category.clone()).collect();
     let cluster_strength = 0.04_f32;
     for _ in 0..iters {
         // Per-category centroid (attracts same-category nodes toward each other).
         let mut centroids: HashMap<&str, (f32, f32, u32)> = HashMap::new();
         for i in 0..n {
-            let entry = centroids.entry(categories[i].as_str()).or_insert((0.0, 0.0, 0));
+            let entry = centroids
+                .entry(categories[i].as_str())
+                .or_insert((0.0, 0.0, 0));
             entry.0 += pos[i].0;
             entry.1 += pos[i].1;
             entry.2 += 1;
@@ -1156,9 +1243,11 @@ fn force_layout(g: &GraphData, w: f32, h: f32, iters: u32) -> HashMap<String, (f
         .collect()
 }
 
-/// Switch to Graph (3D), select `path`, and fly to that node when the graph is ready.
-pub fn navigate_to_graph_node(state: MemoryState, path: String) {
-    state.graph_selected_node.set(Some(path));
+/// Switch to Graph (3D), select a scoped note, and fly to that node when the graph is ready.
+pub fn navigate_to_graph_node(state: MemoryState, scope: MemoryScope, path: String) {
+    state
+        .graph_selected_node
+        .set(Some(tauri_bridge::note_key(&scope, &path)));
     state.graph_focus_generation.update(|n| *n += 1);
     state.graph_prefer_3d.set(true);
     state.view.set(MemoryView::Graph);

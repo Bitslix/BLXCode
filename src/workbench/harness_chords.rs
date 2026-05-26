@@ -2,7 +2,9 @@
 
 use super::app_prefs::{AppPrefsService, ShortcutMode};
 use super::browser_tab::sync_embedded_browser_layer;
-use super::state::{BrowserEmbedSurface, HarnessUiService, RightPanelTab, SlotPaneState, WorkbenchService};
+use super::state::{
+    BrowserEmbedSurface, HarnessUiService, RightPanelTab, SlotPaneState, WorkbenchService,
+};
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
@@ -249,7 +251,12 @@ fn handle_legacy_keydown(
         match key.as_str() {
             "p" | "P" => {
                 ke.prevent_default();
-                dispatch_shortcut_action(HarnessShortcutAction::ToggleCommandPalette, ui, wb, embed);
+                dispatch_shortcut_action(
+                    HarnessShortcutAction::ToggleCommandPalette,
+                    ui,
+                    wb,
+                    embed,
+                );
                 return true;
             }
             "a" | "A" => {

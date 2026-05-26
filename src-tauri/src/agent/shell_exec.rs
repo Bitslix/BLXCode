@@ -41,8 +41,25 @@ pub fn kill_all_children() {
 fn read_only_allowlist(program: &str) -> bool {
     matches!(
         program,
-        "ls" | "pwd" | "cat" | "head" | "tail" | "wc" | "file" | "which" | "env" | "rg"
-            | "fd" | "find" | "tree" | "stat" | "du" | "df" | "node" | "npm" | "cargo" | "git"
+        "ls" | "pwd"
+            | "cat"
+            | "head"
+            | "tail"
+            | "wc"
+            | "file"
+            | "which"
+            | "env"
+            | "rg"
+            | "fd"
+            | "find"
+            | "tree"
+            | "stat"
+            | "du"
+            | "df"
+            | "node"
+            | "npm"
+            | "cargo"
+            | "git"
     )
 }
 

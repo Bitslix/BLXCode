@@ -26,17 +26,32 @@ pub const SKILLS_REL: &str = ".agents/skills";
 /// Built-in harness skills embedded in the binary.
 /// Each entry is `(name, markdown_content)`.
 pub const CORE_SKILLS: &[(&str, &str)] = &[
-    ("file-access", include_str!("../agent/harness_skills/file-access.md")),
+    (
+        "file-access",
+        include_str!("../agent/harness_skills/file-access.md"),
+    ),
     ("memory", include_str!("../agent/harness_skills/memory.md")),
     ("plans", include_str!("../agent/harness_skills/plans.md")),
     ("tasks", include_str!("../agent/harness_skills/tasks.md")),
-    ("rules-skills", include_str!("../agent/harness_skills/rules-skills.md")),
-    ("harness", include_str!("../agent/harness_skills/harness.md")),
-    ("environment", include_str!("../agent/harness_skills/environment.md")),
+    (
+        "rules-skills",
+        include_str!("../agent/harness_skills/rules-skills.md"),
+    ),
+    (
+        "harness",
+        include_str!("../agent/harness_skills/harness.md"),
+    ),
+    (
+        "environment",
+        include_str!("../agent/harness_skills/environment.md"),
+    ),
     ("shell", include_str!("../agent/harness_skills/shell.md")),
     ("git", include_str!("../agent/harness_skills/git.md")),
     ("web", include_str!("../agent/harness_skills/web.md")),
-    ("subagents", include_str!("../agent/harness_skills/subagents.md")),
+    (
+        "subagents",
+        include_str!("../agent/harness_skills/subagents.md"),
+    ),
 ];
 
 const CORE_INSTALLED_AT: &str = "2026-01-01T00:00:00Z";
@@ -250,9 +265,7 @@ fn atomic_write_json<T: serde::Serialize>(path: &Path, value: &T) -> Result<(), 
     fs::create_dir_all(parent).map_err(|e| format!("mkdir parent: {e}"))?;
     let tmp = parent.join(format!(
         ".{}.{}.tmp",
-        path.file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or("index"),
+        path.file_name().and_then(|s| s.to_str()).unwrap_or("index"),
         std::process::id()
     ));
     {
@@ -367,8 +380,7 @@ pub fn list_rules(ws: &str) -> Result<Vec<RuleEntry>, String> {
         let path = roots.rules.join(&name);
         let body = fs::read_to_string(&path).unwrap_or_default();
         let meta = fs::metadata(&path).ok();
-        let (title, summary) =
-            extract_title_and_summary(&body, name.trim_end_matches(".md"));
+        let (title, summary) = extract_title_and_summary(&body, name.trim_end_matches(".md"));
         let enabled = idx.rules.get(&name).map(|e| e.enabled).unwrap_or(true);
         entries.push(RuleEntry {
             name,
@@ -519,11 +531,7 @@ pub fn list_skills(ws: &str) -> Result<Vec<SkillEntry>, String> {
         .iter()
         .map(|(name, content)| {
             let (title, summary) = extract_title_and_summary(content, name);
-            let enabled = idx
-                .skills
-                .get(*name)
-                .map(|e| e.enabled)
-                .unwrap_or(true);
+            let enabled = idx.skills.get(*name).map(|e| e.enabled).unwrap_or(true);
             SkillEntry {
                 name: name.to_string(),
                 title,
@@ -940,7 +948,10 @@ mod tests {
         set_rule_enabled(&ws_str(&ws), "rule-beta.md", false).unwrap();
         let _ = ensure_skills_rules_roots(&ws_str(&ws)).unwrap();
         let rules_after = list_rules(&ws_str(&ws)).unwrap();
-        let beta = rules_after.iter().find(|r| r.name == "rule-beta.md").unwrap();
+        let beta = rules_after
+            .iter()
+            .find(|r| r.name == "rule-beta.md")
+            .unwrap();
         assert!(!beta.enabled, "bootstrap must be a no-op when index exists");
         let _ = fs::remove_dir_all(&ws);
     }

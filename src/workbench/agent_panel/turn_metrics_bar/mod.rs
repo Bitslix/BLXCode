@@ -47,7 +47,10 @@ pub fn TurnMetricsBar(metrics: TurnMetrics, context: BarContext) -> impl IntoVie
         _ => dash.clone(),
     };
     let ttft = metrics.ttft_ms.map(fmt_ms).unwrap_or_else(|| dash.clone());
-    let cost = metrics.cost_usd.map(fmt_cost).unwrap_or_else(|| dash.clone());
+    let cost = metrics
+        .cost_usd
+        .map(fmt_cost)
+        .unwrap_or_else(|| dash.clone());
 
     let label_in = lookup(loc, I18nKey::AgMetricsIn);
     let label_out = lookup(loc, I18nKey::AgMetricsOut);

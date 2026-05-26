@@ -300,12 +300,7 @@ fn mark_cancelled(timeline: RwSignal<Vec<TimelineItem>>, call_id: &str) {
     });
 }
 
-fn submit_async(
-    call_id: String,
-    ok: bool,
-    message: String,
-    data: Option<serde_json::Value>,
-) {
+fn submit_async(call_id: String, ok: bool, message: String, data: Option<serde_json::Value>) {
     leptos::task::spawn_local(async move {
         let _ = agent_submit_tool_result(call_id, ok, Some(message), data).await;
     });

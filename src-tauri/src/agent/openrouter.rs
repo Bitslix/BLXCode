@@ -11,13 +11,13 @@
 //! Cancellation (`state.cancelled()`) is polled between SSE lines and
 //! between rounds; pending oneshots are dropped on cancel.
 
+use crate::agent::pricing;
 use crate::agent::protocol::{AgentEvent, AgentImageContextItem};
 use crate::agent::state::AgentEngineState;
 use crate::agent::system_prompt::system_prompt;
 use crate::agent::tool_dispatch::{dispatch_tool, DispatchContext};
 use crate::agent::tool_groups::openai_tool_name_to_internal;
 use crate::agent::tools::WorkspaceRootGuard;
-use crate::agent::pricing;
 use crate::agent_settings::{AgentProviderKind, AgentProviderSettings, ThinkingLevel};
 use crate::tasks;
 use serde::Deserialize;
@@ -298,8 +298,7 @@ pub async fn run_chat_turn(
                 return;
             }
         };
-        let round_elapsed_ms =
-            round_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        let round_elapsed_ms = round_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
 
         // Resolve USD cost: prefer OpenRouter's native number, fall back
         // to local token×price math via the cached pricing table.
@@ -379,8 +378,7 @@ pub async fn run_chat_turn(
                 Some(&dispatch_ctx),
             )
             .await;
-            let tool_elapsed_ms =
-                tool_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+            let tool_elapsed_ms = tool_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
 
             if outcome.ok && internal_name.starts_with("task_") {
                 maybe_emit_task_snapshot(&state, root_guard.as_ref());
@@ -553,7 +551,8 @@ async fn run_one_round(
             if let Some(reasoning) = reasoning_chunk {
                 if !reasoning.is_empty() {
                     if acc.ttft_ms.is_none() {
-                        acc.ttft_ms = Some(request_sent.elapsed().as_millis().min(u64::MAX as u128) as u64);
+                        acc.ttft_ms =
+                            Some(request_sent.elapsed().as_millis().min(u64::MAX as u128) as u64);
                     }
                     thinking_active = true;
                     state.push(AgentEvent::ThinkingDelta { delta: reasoning });
@@ -562,7 +561,8 @@ async fn run_one_round(
             if let Some(text) = choice.delta.content {
                 if !text.is_empty() {
                     if acc.ttft_ms.is_none() {
-                        acc.ttft_ms = Some(request_sent.elapsed().as_millis().min(u64::MAX as u128) as u64);
+                        acc.ttft_ms =
+                            Some(request_sent.elapsed().as_millis().min(u64::MAX as u128) as u64);
                     }
                     if thinking_active && !thinking_closed {
                         thinking_closed = true;

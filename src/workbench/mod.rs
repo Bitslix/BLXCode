@@ -1,14 +1,13 @@
 //! Three-pane editor shell: collapsible sidebar, workspace, resizable right column.
 mod agent_accent;
 mod agent_context_handoff;
-mod agent_panel;
-mod agent_timeline;
 mod agent_model_picker;
+mod agent_panel;
 mod agent_provider_pane;
+mod agent_timeline;
 mod api_keys_pane;
-mod workspace_settings_pane;
-mod appearance_settings_pane;
 mod app_prefs;
+mod appearance_settings_pane;
 mod browser_tab;
 mod chat_markdown;
 mod close_terminals_tab_dialog;
@@ -33,7 +32,6 @@ mod sidebar_resizer;
 mod sidebar_view_section;
 pub mod skills_rules_panel;
 pub mod state;
-mod voice_app_controls;
 mod terminal_cell;
 mod terminal_glue;
 mod terminal_slot_dnd;
@@ -41,14 +39,14 @@ mod theme_service;
 mod toast;
 mod update_dialog;
 mod update_service;
+mod voice_app_controls;
 mod workspace_panel;
+mod workspace_settings_pane;
 
 pub use agent_panel::AgentPanelDock;
-pub use appearance_settings_pane::AppearanceSettingsPane;
-pub use theme_service::ThemeService;
 pub use agent_provider_pane::AgentProviderPane;
 pub use api_keys_pane::ApiKeysPane;
-pub use workspace_settings_pane::WorkspaceSettingsPane;
+pub use appearance_settings_pane::AppearanceSettingsPane;
 pub use browser_tab::{BrowserTabDock, EmbeddedBrowserGlue};
 pub use memory_panel::MemoryPanel;
 pub use plans_panel::PlansPanel;
@@ -60,7 +58,9 @@ pub use state::{
     LegacyStorageMigration, RightPanelTab, WorkbenchService, WorkbenchSnapshot,
     WorkspaceAgentImage,
 };
+pub use theme_service::ThemeService;
 pub use workspace_panel::WorkspacePanel;
+pub use workspace_settings_pane::WorkspaceSettingsPane;
 
 use crate::boot_loading::{BootLoadingScreen, BootPhase};
 use crate::config::{SIDEBAR_WIDTH_PX_KEY, SIDEBAR_WIDTH_PX_MIN};
@@ -73,6 +73,7 @@ use crate::tauri_bridge::{
     workbench_prune_notifications, workbench_prune_sessions, workbench_save_state,
 };
 use app_prefs::AppPrefsService;
+use close_terminals_tab_dialog::CloseTerminalsTabDialog;
 use gloo_timers::future::TimeoutFuture;
 use harness_ui::HarnessHost;
 use js_sys;
@@ -82,7 +83,6 @@ use send_wrapper::SendWrapper;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use toast::{ToastHost, ToastService};
-use close_terminals_tab_dialog::CloseTerminalsTabDialog;
 use update_dialog::{UpdateBanner, UpdateDialog};
 use update_service::UpdateService;
 use wasm_bindgen::closure::Closure;

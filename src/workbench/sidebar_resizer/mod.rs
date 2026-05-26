@@ -5,8 +5,7 @@
 
 use crate::config::{
     SIDEBAR_DIFF_HEIGHT_PCT_MAX, SIDEBAR_DIFF_HEIGHT_PCT_MIN, SIDEBAR_EXPLORER_HEIGHT_PCT_MAX,
-    SIDEBAR_EXPLORER_HEIGHT_PCT_MIN, SIDEBAR_PANELS_HEIGHT_PCT_MAX,
-    SIDEBAR_PANELS_HEIGHT_PCT_MIN,
+    SIDEBAR_EXPLORER_HEIGHT_PCT_MIN, SIDEBAR_PANELS_HEIGHT_PCT_MAX, SIDEBAR_PANELS_HEIGHT_PCT_MIN,
 };
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
@@ -26,13 +25,12 @@ pub enum SidebarResizerClamp {
 impl SidebarResizerClamp {
     fn min_max(self) -> (f64, f64) {
         match self {
-            Self::ExplorerInPanels => {
-                (SIDEBAR_EXPLORER_HEIGHT_PCT_MIN, SIDEBAR_EXPLORER_HEIGHT_PCT_MAX)
-            }
+            Self::ExplorerInPanels => (
+                SIDEBAR_EXPLORER_HEIGHT_PCT_MIN,
+                SIDEBAR_EXPLORER_HEIGHT_PCT_MAX,
+            ),
             Self::DiffInPanels => (SIDEBAR_DIFF_HEIGHT_PCT_MIN, SIDEBAR_DIFF_HEIGHT_PCT_MAX),
-            Self::PanelsInSidebar => {
-                (SIDEBAR_PANELS_HEIGHT_PCT_MIN, SIDEBAR_PANELS_HEIGHT_PCT_MAX)
-            }
+            Self::PanelsInSidebar => (SIDEBAR_PANELS_HEIGHT_PCT_MIN, SIDEBAR_PANELS_HEIGHT_PCT_MAX),
         }
     }
 }
@@ -46,11 +44,9 @@ pub fn SidebarResizer(
     /// When true, `height_pct` is the portion from the pointer down to the container bottom.
     #[prop(default = false)]
     measure_from_bottom: bool,
-    #[prop(default = SidebarResizerClamp::ExplorerInPanels)]
-    clamp: SidebarResizerClamp,
+    #[prop(default = SidebarResizerClamp::ExplorerInPanels)] clamp: SidebarResizerClamp,
     aria_key: I18nKey,
-    #[prop(default = "")]
-    extra_class: &'static str,
+    #[prop(default = "")] extra_class: &'static str,
     /// Subtract this percentage from the raw Y-from-top value before storing.
     /// Used when the resizer sits below another fixed-size slot (e.g. diff resizer
     /// must subtract explorer_pct so `height_pct` stores the section height, not

@@ -294,13 +294,17 @@ fn ApiKeyRow(entry: ApiKeyEntry, drafts: RwSignal<DraftMap>) -> impl IntoView {
 
     let kind_for_delete_check = kind.clone();
     let marked_delete = Signal::derive(move || {
-        drafts.with(|m| matches!(m.get(kind_for_delete_check.as_ref()), Some(DraftAction::Delete)))
+        drafts.with(|m| {
+            matches!(
+                m.get(kind_for_delete_check.as_ref()),
+                Some(DraftAction::Delete)
+            )
+        })
     });
 
     let kind_for_dirty = kind.clone();
-    let row_dirty = Signal::derive(move || {
-        drafts.with(|m| m.contains_key(kind_for_dirty.as_ref()))
-    });
+    let row_dirty =
+        Signal::derive(move || drafts.with(|m| m.contains_key(kind_for_dirty.as_ref())));
 
     let kind_for_input = kind.clone();
     let on_input = move |ev: web_sys::Event| {

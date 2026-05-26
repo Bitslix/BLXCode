@@ -93,7 +93,8 @@ pub fn SkillInstallDialog(open: RwSignal<bool>) -> impl IntoView {
                     on:input=move |ev| git_ref.set(read_input(&ev))
                 />
             </div>
-        }.into_any(),
+        }
+        .into_any(),
         SkillSourceKind::Npm => view! {
             <div class="blx-sr-dialog__row">
                 <label>{i18n.tr(I18nKey::SrNpmPackageLabel)}</label>
@@ -113,7 +114,8 @@ pub fn SkillInstallDialog(open: RwSignal<bool>) -> impl IntoView {
                     on:input=move |ev| npm_version.set(read_input(&ev))
                 />
             </div>
-        }.into_any(),
+        }
+        .into_any(),
         SkillSourceKind::Local => view! {
             <div class="blx-sr-dialog__row">
                 <label>{i18n.tr(I18nKey::SrLocalPathLabel)}</label>
@@ -124,7 +126,8 @@ pub fn SkillInstallDialog(open: RwSignal<bool>) -> impl IntoView {
                     on:input=move |ev| local_path.set(read_input(&ev))
                 />
             </div>
-        }.into_any(),
+        }
+        .into_any(),
         SkillSourceKind::AgentCreated | SkillSourceKind::Core => view! { <></> }.into_any(),
     };
 

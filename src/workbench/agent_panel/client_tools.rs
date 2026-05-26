@@ -273,8 +273,9 @@ fn handle_memory_context_attach(
         };
         leptos::task::spawn_local(async move {
             match memory_list(&cwd).await {
-                Ok(notes) => {
-                    let paths: Vec<String> = notes
+                Ok(resp) => {
+                    let paths: Vec<String> = resp
+                        .notes
                         .into_iter()
                         .filter(|n| {
                             if category == "learnings" {

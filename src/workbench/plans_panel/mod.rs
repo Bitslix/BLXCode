@@ -233,10 +233,7 @@ fn grouped_plans(plans: &[PlanMeta]) -> Vec<PlanGroup> {
         .collect()
 }
 
-fn open_plan_composer(
-    composer_open: RwSignal<bool>,
-    draft_error: RwSignal<Option<String>>,
-) {
+fn open_plan_composer(composer_open: RwSignal<bool>, draft_error: RwSignal<Option<String>>) {
     composer_open.set(true);
     draft_error.set(None);
     spawn_local(async move {

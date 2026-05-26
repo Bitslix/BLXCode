@@ -7594,11 +7594,52 @@ button {
 }
 
 .workbench-memory-files__list {
-  flex: 1;
   margin: 0;
   padding: 0.25rem 0;
   list-style: none;
-  overflow-y: auto;
+}
+/* Dual-scope sidebar sections */
+.workbench-memory-files__scope-section {
+  display: flex;
+  flex-direction: column;
+}
+.workbench-memory-files__scope-head {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.5rem 0.15rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  user-select: none;
+}
+.workbench-memory-files__scope-head span {
+  flex: 1;
+}
+/* "Create Global Memory" placeholder */
+.workbench-memory-files__global-init {
+  padding: 0.4rem 0.5rem;
+}
+.workbench-memory-files__global-init-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  background: none;
+  border: 1px dashed var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  text-align: left;
+  transition: color 0.15s, border-color 0.15s;
+}
+.workbench-memory-files__global-init-btn:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
 }
 .workbench-memory-files__group-head {
   display: flex;
@@ -8450,6 +8491,9 @@ button {
 .workbench-memory-graph__nodes,
 .workbench-memory-graph__edges { pointer-events: auto; }
 .workbench-memory-graph__node { cursor: pointer; }
+.workbench-memory-graph__node--hub {
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--accent-warm) 36%, transparent));
+}
 
 /* ============================================================ */
 /* Voice subsystem                                              */

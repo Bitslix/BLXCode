@@ -74,38 +74,48 @@ fn render_tool_inventory(groups: &[ToolGroup]) -> String {
             .collect();
 
     let buckets: &[(&str, &[&str])] = &[
-        ("Workspace (read repo files)", &[
-            "list_workspace_files",
-            "read_workspace_file",
-            "workspace_search",
-        ]),
+        (
+            "Workspace (read repo files)",
+            &[
+                "list_workspace_files",
+                "read_workspace_file",
+                "workspace_search",
+            ],
+        ),
         ("Diffs", &["workspace_git_status", "workspace_diff"]),
-        ("Git", &[
-            "git_status",
-            "git_diff",
-            "git_log",
-            "git_show",
-            "git_branch_info",
-            "git_ls_files",
-        ]),
+        (
+            "Git",
+            &[
+                "git_status",
+                "git_diff",
+                "git_log",
+                "git_show",
+                "git_branch_info",
+                "git_ls_files",
+            ],
+        ),
         ("Environment / shell", &["environment_detect", "shell_exec"]),
-        ("Memory", &[
-            "memory_list",
-            "memory_read",
-            "memory_search",
-            "memory_graph",
-            "memory_backlinks",
-            "memory_category_list",
-            "memory_context_list",
-        ]),
-        ("Plans", &["plan_list", "plan_read", "plan_load", "plan_context_list"]),
+        (
+            "Memory",
+            &[
+                "memory_list",
+                "memory_read",
+                "memory_search",
+                "memory_graph",
+                "memory_backlinks",
+                "memory_category_list",
+                "memory_context_list",
+            ],
+        ),
+        (
+            "Plans",
+            &["plan_list", "plan_read", "plan_load", "plan_context_list"],
+        ),
         ("Tasks", &["task_list", "task_get"]),
-        ("Rules & Skills", &[
-            "rules_list",
-            "rules_read",
-            "skills_list",
-            "skills_read",
-        ]),
+        (
+            "Rules & Skills",
+            &["rules_list", "rules_read", "skills_list", "skills_read"],
+        ),
         ("Web", &["web_search", "web_fetch"]),
     ];
 

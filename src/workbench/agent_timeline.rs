@@ -228,7 +228,9 @@ pub enum AskUserState {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum TimelineItem {
-    User { text: String },
+    User {
+        text: String,
+    },
     Assistant {
         text: String,
         /// Per-row metrics aggregated from `ModelRound` events whose visible
@@ -238,7 +240,10 @@ pub enum TimelineItem {
         metrics: TurnMetrics,
     },
     Tool(ToolActivity),
-    Thinking { text: String, done: bool },
+    Thinking {
+        text: String,
+        done: bool,
+    },
     SubagentGroup(SubagentGroup),
     /// Synthetic row inserted for tool-only model rounds (no assistant
     /// text was emitted). Carries the round's metrics so cost / tokens
@@ -287,7 +292,12 @@ fn summarize_args(tool: &str, args: Option<&Value>) -> String {
     let pick = match tool {
         "harness.create_workspace" => Some("title"),
         "list_workspace_files" => Some("path"),
-        "read_workspace_file" | "memory_read" | "memory_create" | "memory_write" | "memory_delete" | "memory_backlinks" => Some("path"),
+        "read_workspace_file"
+        | "memory_read"
+        | "memory_create"
+        | "memory_write"
+        | "memory_delete"
+        | "memory_backlinks" => Some("path"),
         "memory_rename" => Some("newPath"),
         "memory_search" => Some("query"),
         "memory_category_update" => Some("category"),
@@ -332,10 +342,13 @@ fn file_arg_path(tool: &str, args: Option<&Value>) -> Option<String> {
             let name = args.get("name")?.as_str()?;
             Some(format!(".agents/skills/{name}/SKILL.md"))
         }
-        "read_workspace_file" | "memory_read" | "memory_create" | "memory_write"
-        | "memory_delete" | "memory_backlinks" | "list_workspace_files" => {
-            args.get("path")?.as_str().map(|s| s.to_owned())
-        }
+        "read_workspace_file"
+        | "memory_read"
+        | "memory_create"
+        | "memory_write"
+        | "memory_delete"
+        | "memory_backlinks"
+        | "list_workspace_files" => args.get("path")?.as_str().map(|s| s.to_owned()),
         "memory_rename" => args.get("newPath")?.as_str().map(|s| s.to_owned()),
         _ => None,
     }

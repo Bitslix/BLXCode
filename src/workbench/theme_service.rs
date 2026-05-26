@@ -33,9 +33,8 @@ impl ThemeService {
     pub fn active_theme(&self) -> impl Fn() -> &'static crate::theme::AppTheme + Copy {
         let sig = self.active_theme_id;
         move || {
-            theme_by_id(&sig.get()).unwrap_or_else(|| {
-                theme_by_id(DEFAULT_THEME_ID).expect("default theme exists")
-            })
+            theme_by_id(&sig.get())
+                .unwrap_or_else(|| theme_by_id(DEFAULT_THEME_ID).expect("default theme exists"))
         }
     }
 

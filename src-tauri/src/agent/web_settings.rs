@@ -77,10 +77,7 @@ pub fn refresh_runtime_from_app(app: &AppHandle) {
 }
 
 pub fn runtime_provider() -> WebProviderKind {
-    runtime()
-        .lock()
-        .map(|g| g.provider)
-        .unwrap_or_default()
+    runtime().lock().map(|g| g.provider).unwrap_or_default()
 }
 
 pub fn load(app: &AppHandle) -> Result<AgentWebSettings, String> {
@@ -136,7 +133,9 @@ fn key_masked(kind: WebKeyKind) -> Result<Option<String>, String> {
     let entry = keyring_entry(kind)?;
     match entry.get_password() {
         Ok(secret) => Ok(agent_settings::mask_secret_pub(&secret)),
-        Err(keyring_core::Error::NoEntry) => Ok(env_key(kind).and_then(|s| agent_settings::mask_secret_pub(&s))),
+        Err(keyring_core::Error::NoEntry) => {
+            Ok(env_key(kind).and_then(|s| agent_settings::mask_secret_pub(&s)))
+        }
         Err(_) if cfg!(target_os = "linux") => {
             Ok(env_key(kind).and_then(|s| agent_settings::mask_secret_pub(&s)))
         }
@@ -189,8 +188,12 @@ pub fn resolve_key(kind: WebKeyKind) -> Option<String> {
 
 pub fn resolve_active_key() -> Option<(WebProviderKind, String)> {
     match runtime_provider() {
-        WebProviderKind::Tavily => resolve_key(WebKeyKind::Tavily).map(|k| (WebProviderKind::Tavily, k)),
-        WebProviderKind::Brave => resolve_key(WebKeyKind::Brave).map(|k| (WebProviderKind::Brave, k)),
+        WebProviderKind::Tavily => {
+            resolve_key(WebKeyKind::Tavily).map(|k| (WebProviderKind::Tavily, k))
+        }
+        WebProviderKind::Brave => {
+            resolve_key(WebKeyKind::Brave).map(|k| (WebProviderKind::Brave, k))
+        }
         WebProviderKind::None => env_key(WebKeyKind::Tavily)
             .map(|k| (WebProviderKind::Tavily, k))
             .or_else(|| env_key(WebKeyKind::Brave).map(|k| (WebProviderKind::Brave, k))),
@@ -201,7 +204,11 @@ pub fn web_tools_enabled() -> bool {
     resolve_active_key().is_some()
 }
 
-pub fn set_key(app: &AppHandle, kind: WebKeyKind, api_key: String) -> Result<AgentWebSettingsView, String> {
+pub fn set_key(
+    app: &AppHandle,
+    kind: WebKeyKind,
+    api_key: String,
+) -> Result<AgentWebSettingsView, String> {
     let secret = api_key.trim();
     if secret.is_empty() {
         return Err("API key is empty".into());

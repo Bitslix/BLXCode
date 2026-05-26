@@ -1412,10 +1412,10 @@ fn tool_memory_list(root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
         Err(out) => return out,
     };
     match memory::memory_list(ws) {
-        Ok(mut notes) => {
-            notes.truncate(200);
+        Ok(mut resp) => {
+            resp.notes.truncate(200);
             let body =
-                serde_json::to_string(&notes).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
+                serde_json::to_string(&resp).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
             ToolOutcome {
                 ok: true,
                 content: body,
@@ -1439,7 +1439,7 @@ fn tool_memory_read(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutc
         Ok(s) => s,
         Err(out) => return out,
     };
-    match memory::memory_read(ws, path.to_owned()) {
+    match memory::memory_read(ws, memory::MemoryScope::Workspace, path.to_owned()) {
         Ok(note) => {
             let body = truncate_chars(&note.content, 4000);
             ToolOutcome {
@@ -1509,7 +1509,12 @@ fn tool_memory_create(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOu
         Ok(s) => s,
         Err(out) => return out,
     };
-    match memory::memory_create(ws, path.to_owned(), Some(content)) {
+    match memory::memory_create(
+        ws,
+        memory::MemoryScope::Workspace,
+        path.to_owned(),
+        Some(content),
+    ) {
         Ok(meta) => {
             let body =
                 serde_json::to_string(&meta).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
@@ -1551,7 +1556,12 @@ fn tool_memory_write(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOut
         Ok(s) => s,
         Err(out) => return out,
     };
-    match memory::memory_write(ws, path.to_owned(), content.to_owned()) {
+    match memory::memory_write(
+        ws,
+        memory::MemoryScope::Workspace,
+        path.to_owned(),
+        content.to_owned(),
+    ) {
         Ok(note) => ToolOutcome {
             ok: true,
             content: format!("wrote {} ({} bytes)", note.path, note.content.len()),
@@ -1574,7 +1584,7 @@ fn tool_memory_delete(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOu
         Ok(s) => s,
         Err(out) => return out,
     };
-    match memory::memory_delete(ws, path.to_owned()) {
+    match memory::memory_delete(ws, memory::MemoryScope::Workspace, path.to_owned()) {
         Ok(()) => ToolOutcome {
             ok: true,
             content: format!("deleted {path}"),
@@ -1607,7 +1617,13 @@ fn tool_memory_rename(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOu
         Ok(s) => s,
         Err(out) => return out,
     };
-    match memory::memory_rename(ws, old_path.to_owned(), new_path.to_owned(), rewrite_links) {
+    match memory::memory_rename(
+        ws,
+        memory::MemoryScope::Workspace,
+        old_path.to_owned(),
+        new_path.to_owned(),
+        rewrite_links,
+    ) {
         Ok(report) => {
             let body =
                 serde_json::to_string(&report).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
@@ -1655,7 +1671,7 @@ fn tool_memory_backlinks(args: &Value, root: Option<&WorkspaceRootGuard>) -> Too
         Ok(s) => s,
         Err(out) => return out,
     };
-    match memory::memory_backlinks(ws, path.to_owned()) {
+    match memory::memory_backlinks(ws, memory::MemoryScope::Workspace, path.to_owned()) {
         Ok(links) => {
             let body =
                 serde_json::to_string(&links).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));

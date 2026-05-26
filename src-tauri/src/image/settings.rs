@@ -141,13 +141,14 @@ pub fn provider_key(app: &AppHandle, provider: ImageProviderKind) -> Result<Stri
         ImageProviderKind::Openrouter => {
             agent_settings::provider_key_pub(app, agent_settings::AgentProviderKind::Openrouter)
         }
-        ImageProviderKind::Fal => crate::media_keys::resolve_key(crate::media_keys::MediaKeyKind::Fal)
-            .ok_or_else(|| {
+        ImageProviderKind::Fal => {
+            crate::media_keys::resolve_key(crate::media_keys::MediaKeyKind::Fal).ok_or_else(|| {
                 format!(
                     "fal.ai API key missing — set it in Settings → API Keys (env: {})",
                     crate::media_keys::MediaKeyKind::Fal.env_var()
                 )
-            }),
+            })
+        }
     }
 }
 

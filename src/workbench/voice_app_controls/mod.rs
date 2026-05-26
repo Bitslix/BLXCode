@@ -1,7 +1,7 @@
 //! Voice STT language + push-to-talk controls styled for Settings → App.
 
-use crate::i18n::{Locale, APP_LOCALES};
 use crate::i18n::I18nKey;
+use crate::i18n::{Locale, APP_LOCALES};
 use crate::service::I18nService;
 use crate::tauri_bridge::{PttHotkey, SttLanguageMode, VoiceSettings};
 use gloo_timers::future::TimeoutFuture;
@@ -217,7 +217,10 @@ where
 
 /// STT input language (nested under App → Language).
 #[component]
-pub fn VoiceSttLanguageControls<F>(settings: RwSignal<Option<VoiceSettings>>, save: F) -> impl IntoView
+pub fn VoiceSttLanguageControls<F>(
+    settings: RwSignal<Option<VoiceSettings>>,
+    save: F,
+) -> impl IntoView
 where
     F: Fn(VoiceSettings) + Send + Sync + 'static + Copy,
 {

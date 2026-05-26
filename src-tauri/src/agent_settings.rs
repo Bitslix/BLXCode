@@ -215,9 +215,7 @@ pub(crate) fn provider_key_with_source(
 ) -> Result<(Option<String>, KeySource), String> {
     let entry = keyring_entry(provider)?;
     match entry.get_password() {
-        Ok(secret) if !secret.trim().is_empty() => {
-            Ok((mask_secret(&secret), KeySource::Keyring))
-        }
+        Ok(secret) if !secret.trim().is_empty() => Ok((mask_secret(&secret), KeySource::Keyring)),
         Ok(_) | Err(keyring_core::Error::NoEntry) => match read_fallback_secret(app, provider)? {
             Some(secret) => Ok((mask_secret(&secret), KeySource::File)),
             None => match provider_env_secret(provider) {
@@ -362,8 +360,8 @@ fn save_settings(app: &AppHandle, settings: &AgentProviderSettings) -> Result<()
     // Merge the agent settings into the existing envelope so sibling keys
     // (voice/image) are preserved.
     let mut envelope = read_envelope(app)?;
-    let value = serde_json::to_value(settings)
-        .map_err(|e| format!("serialize agent settings: {e}"))?;
+    let value =
+        serde_json::to_value(settings).map_err(|e| format!("serialize agent settings: {e}"))?;
     let merged = match value {
         serde_json::Value::Object(map) => map,
         _ => return Err("agent settings did not serialize to a JSON object".into()),
@@ -579,7 +577,6 @@ fn settings_view(
         key_statuses,
     })
 }
-
 
 #[derive(Deserialize)]
 struct OpenrouterModelsEnvelope {
