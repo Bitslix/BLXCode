@@ -51,6 +51,16 @@ pub fn SidebarResizer(
     aria_key: I18nKey,
     #[prop(default = "")]
     extra_class: &'static str,
+    /// Subtract this percentage from the raw Y-from-top value before storing.
+    /// Used when the resizer sits below another fixed-size slot (e.g. diff resizer
+    /// must subtract explorer_pct so `height_pct` stores the section height, not
+    /// the absolute boundary position).
+    #[prop(default = None)]
+    subtract_pct: Option<Signal<f64>>,
+    /// Dynamic ceiling that overrides the static clamp max — used to reserve space
+    /// for sections below (e.g. ensure the graph slot never collapses to zero).
+    #[prop(default = None)]
+    clamp_max: Option<Signal<f64>>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let dragging = RwSignal::new(false);
@@ -82,12 +92,20 @@ pub fn SidebarResizer(
             return;
         }
         let offset = f64::from(pe.client_y()) - rect.top();
-        let pct = if measure_from_bottom {
+        let raw_pct = if measure_from_bottom {
             ((height - offset) / height) * 100.0
         } else {
             (offset / height) * 100.0
         };
-        let (min_pct, max_pct) = clamp.min_max();
+        let pct = match subtract_pct {
+            Some(sub) => raw_pct - sub.get_untracked(),
+            None => raw_pct,
+        };
+        let (min_pct, static_max) = clamp.min_max();
+        let max_pct = match clamp_max {
+            Some(s) => s.get_untracked().min(static_max),
+            None => static_max,
+        };
         height_pct.set(pct.max(min_pct).min(max_pct));
     });
 

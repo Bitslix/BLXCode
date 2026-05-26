@@ -56,7 +56,7 @@ impl PtyManager {
         cwd: String,
         extra_env: Vec<(String, String)>,
     ) -> Result<u64, String> {
-        let cwd = PathBuf::from(cwd.trim());
+        let cwd = PathBuf::from(cwd.trim().trim_matches('\0'));
         if cwd.as_os_str().is_empty() {
             return Err("cwd empty".into());
         }
@@ -73,9 +73,18 @@ impl PtyManager {
         };
         let pair = pty_system.openpty(size).map_err(|e| e.to_string())?;
 
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+        #[cfg(windows)]
+        let (shell, login_args): (String, &[&str]) = (
+            std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".into()),
+            &[],
+        );
+        #[cfg(not(windows))]
+        let (shell, login_args): (String, &[&str]) = (
+            std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into()),
+            &["-l"],
+        );
         let mut cmd = CommandBuilder::new(&shell);
-        cmd.args(["-l"]);
+        cmd.args(login_args);
         cmd.cwd(&cwd);
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
@@ -282,7 +291,10 @@ fn drain_queue(q: &mut VecDeque<Vec<u8>>, cap: usize) -> Vec<u8> {
 }
 
 fn home_dir_string() -> Option<String> {
-    std::env::var("HOME").ok().filter(|s| !s.is_empty())
+    std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .ok()
+        .filter(|s| !s.is_empty())
 }
 
 /// Safe `cd`-style navigation: only `cd` with one argument (or `cd` / `cd ~`), plus empty line = pwd.
@@ -326,7 +338,7 @@ fn resolve_cd_path(base: &Path, arg: &str) -> Result<PathBuf, String> {
     let joined = if let Some(stripped) = arg.strip_prefix("~/") {
         let h = home_dir_string().ok_or_else(|| "HOME not set".to_string())?;
         Path::new(&h).join(stripped)
-    } else if arg.starts_with('/') {
+    } else if Path::new(arg).is_absolute() {
         PathBuf::from(arg)
     } else if arg == ".." {
         base.join("..")

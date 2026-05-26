@@ -88,6 +88,9 @@ pub const SIDEBAR_DIFF_HEIGHT_PCT_DEFAULT: f64 = 30.0;
 pub const SIDEBAR_DIFF_HEIGHT_PCT_MIN: f64 = 12.0;
 pub const SIDEBAR_DIFF_HEIGHT_PCT_MAX: f64 = 76.0;
 
+/// Minimum height reserved for the Git Graph (commits) slot when stacked with other sections.
+pub const SIDEBAR_GRAPH_HEIGHT_PCT_MIN: f64 = 12.0;
+
 /// `localStorage` key for sidebar width in pixels.
 pub const SIDEBAR_WIDTH_PX_KEY: &str = "blxcode_sidebar_width_px_v1";
 

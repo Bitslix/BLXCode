@@ -3,7 +3,8 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::workbench::skills_rules_panel::{RulesTabDock, SkillsTabDock};
 use crate::workbench::{
-    AgentPanelDock, BrowserTabDock, MemoryPanel, PlansPanel, RightPanelTab, WorkbenchService,
+    AgentPanelDock, BrowserTabDock, HarnessSettingsCategory, MemoryPanel, PlansPanel,
+    RightPanelTab, WorkbenchService,
 };
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
@@ -51,6 +52,32 @@ fn PlansTabDock() -> impl IntoView {
         <div class="workbench-right-plans" role="region">
             <PlansPanel />
         </div>
+    }
+}
+
+#[component]
+fn RightPanelSettingsButton(#[prop(default = "")] extra_class: &'static str) -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+    let i18n = expect_context::<I18nService>();
+    view! {
+        <button
+            type="button"
+            class=move || {
+                let mut c = String::from("workbench-icon-btn workbench-right-settings-btn");
+                if !extra_class.is_empty() {
+                    c.push(' ');
+                    c.push_str(extra_class);
+                }
+                c
+            }
+            aria-label=move || i18n.tr(I18nKey::CmdSetTitle)()
+            title=move || i18n.tr(I18nKey::CmdSetTitle)()
+            on:click=move |_| wb.open_center_settings_tab(HarnessSettingsCategory::App)
+        >
+            <span class="workbench-right-settings-btn__icon" aria-hidden="true">
+                <LxIcon icon=icondata::LuSettings width="1rem" height="1rem" />
+            </span>
+        </button>
     }
 }
 
@@ -264,6 +291,9 @@ pub fn RightPanel() -> impl IntoView {
                         </span>
                     </button>
                 </div>
+                <footer class="workbench-right-rail__footer">
+                    <RightPanelSettingsButton extra_class="workbench-right-rail-settings-btn" />
+                </footer>
             </div>
             <div
                 class="workbench-splitter"
@@ -387,7 +417,9 @@ pub fn RightPanel() -> impl IntoView {
                                 </span>
                                 <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabSkills)()}</span>
                             </button>
+                            
                         </div>
+                        <RightPanelSettingsButton />
                     </div>
                 </header>
                 <div id="blx-right-panel-body" class="workbench-right__body">

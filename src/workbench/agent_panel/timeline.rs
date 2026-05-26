@@ -30,9 +30,12 @@ pub enum DisplayTimelineItem {
         metrics: TurnMetrics,
     },
     Tool(ToolActivity),
-    /// Synthetic row for a tool-only model round — renders nothing but a
-    /// `TurnMetricsBar` so the round's cost still surfaces.
-    ModelDecision { metrics: TurnMetrics },
+    /// A tool-only model round: LLM inference metrics + the tool calls the
+    /// model issued in that round, grouped into one timeline block.
+    ModelRound {
+        metrics: TurnMetrics,
+        tools: Vec<ToolActivity>,
+    },
     SubagentGroup(SubagentGroup),
     Thinking { text: String, done: bool },
     GeneratedImage {
@@ -187,20 +190,11 @@ fn attach_main_model_round(rows: &mut Vec<TimelineItem>, metrics: TurnMetrics) {
         m.merge(&metrics);
         return;
     }
-    // Walk back over a trailing run of Tool rows to find where the
-    // tool-only round started.
-    let mut insert_at = rows.len();
-    while insert_at > 0 {
-        match &rows[insert_at - 1] {
-            TimelineItem::Tool(_) => insert_at -= 1,
-            _ => break,
-        }
-    }
-    if insert_at < rows.len() {
-        rows.insert(insert_at, TimelineItem::ModelDecision { metrics });
-    } else {
-        rows.push(TimelineItem::ModelDecision { metrics });
-    }
+    // Tool-only round: the backend pushes TurnUsage(ModelRound) *before*
+    // dispatching tools, so ToolCall events for this round always arrive
+    // *after* this event. Appending here lets those pushes land naturally
+    // after the ModelDecision row — no walk-back needed.
+    rows.push(TimelineItem::ModelDecision { metrics });
 }
 
 /// Attach `ToolExec` metrics for a main-agent tool. Walks backwards for
@@ -354,6 +348,8 @@ pub fn apply_agent_event(
                         detail: message.clone().filter(|m| !m.is_empty()),
                         call_id: None,
                         metrics: TurnMetrics::default(),
+                        paths: Vec::new(),
+                        merged_count: 1,
                     }));
                 }
             });
@@ -658,11 +654,87 @@ fn synthesize_completion_message(rows: &[TimelineItem]) -> Option<String> {
     Some(message)
 }
 
+/// Merge consecutive `ModelRound` display items when they each contain only a
+/// single (already-grouped) tool of the same type. This collapses e.g. three
+/// separate `rules_read` rounds into one entry the user can expand to see all
+/// files read, instead of forcing them to scroll past N nearly-identical rows.
+fn merge_consecutive_model_rounds(items: Vec<DisplayTimelineItem>) -> Vec<DisplayTimelineItem> {
+    let mut out: Vec<DisplayTimelineItem> = Vec::new();
+    for item in items {
+        if let DisplayTimelineItem::ModelRound {
+            metrics,
+            mut tools,
+        } = item
+        {
+            // Only collapse single-tool rounds with the same tool name as the
+            // previous round.
+            if tools.len() == 1 {
+                let incoming_tool = tools.remove(0);
+                if let Some(DisplayTimelineItem::ModelRound {
+                    metrics: prev_metrics,
+                    tools: prev_tools,
+                }) = out.last_mut()
+                {
+                    if prev_tools.len() == 1
+                        && prev_tools[0].tool == incoming_tool.tool
+                    {
+                        let prev = &mut prev_tools[0];
+                        prev.paths.extend(incoming_tool.paths);
+                        prev.metrics.merge(&incoming_tool.metrics);
+                        prev.merged_count += incoming_tool.merged_count;
+                        if incoming_tool.status == ActivityStatus::Fail {
+                            prev.status = ActivityStatus::Fail;
+                        } else if prev.status == ActivityStatus::Ok
+                            && incoming_tool.status == ActivityStatus::Pending
+                        {
+                            prev.status = ActivityStatus::Pending;
+                        }
+                        prev_metrics.merge(&metrics);
+                        continue;
+                    }
+                }
+                // Not merged — restore the tool and push as new entry.
+                tools.push(incoming_tool);
+            }
+            out.push(DisplayTimelineItem::ModelRound { metrics, tools });
+        } else {
+            out.push(item);
+        }
+    }
+    out
+}
+
+/// Merge consecutive tool rows with the same tool name into a single entry.
+/// Paths are accumulated; metrics are summed; status is the worst seen.
+fn group_consecutive_tools(tools: Vec<ToolActivity>) -> Vec<ToolActivity> {
+    let mut out: Vec<ToolActivity> = Vec::new();
+    for t in tools {
+        if let Some(last) = out.last_mut() {
+            if last.tool == t.tool {
+                last.paths.extend(t.paths);
+                last.metrics.merge(&t.metrics);
+                last.merged_count += t.merged_count;
+                if t.status == ActivityStatus::Fail {
+                    last.status = ActivityStatus::Fail;
+                } else if last.status == ActivityStatus::Ok
+                    && t.status == ActivityStatus::Pending
+                {
+                    last.status = ActivityStatus::Pending;
+                }
+                continue;
+            }
+        }
+        out.push(t);
+    }
+    out
+}
+
 pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
     let mut out = Vec::with_capacity(items.len());
     let mut last_user_text: Option<String> = None;
+    let mut iter = items.into_iter().peekable();
 
-    for item in items {
+    while let Some(item) = iter.next() {
         match item {
             TimelineItem::User { text } => {
                 last_user_text = Some(text.clone());
@@ -676,9 +748,22 @@ pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
                 });
             }
             TimelineItem::ModelDecision { metrics } => {
-                out.push(DisplayTimelineItem::ModelDecision { metrics });
+                // Collect the tool calls that follow this model round into a
+                // single grouped block instead of emitting separate Tool rows.
+                let mut tools = Vec::new();
+                while iter.peek().is_some_and(|x| matches!(x, TimelineItem::Tool(_))) {
+                    if let Some(TimelineItem::Tool(t)) = iter.next() {
+                        tools.push(t);
+                    }
+                }
+                out.push(DisplayTimelineItem::ModelRound {
+                    metrics,
+                    tools: group_consecutive_tools(tools),
+                });
             }
             TimelineItem::Tool(tool) => {
+                // Standalone tool not preceded by a ModelDecision (e.g. a
+                // text+tool round where metrics merged into the Assistant row).
                 out.push(DisplayTimelineItem::Tool(tool));
             }
             TimelineItem::Thinking { text, done } => {
@@ -724,7 +809,12 @@ pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
         }
     }
 
-    out
+    merge_consecutive_model_rounds(out)
+}
+
+/// Returns the last path component of a workspace-relative path for display.
+fn path_tail(p: &str) -> String {
+    p.rsplit(['/', '\\']).next().unwrap_or(p).to_owned()
 }
 
 fn tool_icon(tool: &str) -> icondata::Icon {
@@ -818,6 +908,8 @@ pub fn TimelineRow(
     voice_handle: VoiceOrbHandle,
     on_redo: Callback<String>,
     timeline: RwSignal<Vec<TimelineItem>>,
+    wb: WorkbenchService,
+    workspace_id: Option<u64>,
 ) -> impl IntoView {
     let line_no = format!("{:02}", idx + 1);
     match entry {
@@ -900,14 +992,111 @@ pub fn TimelineRow(
             <ToolActivityRow line_no=line_no tool=tool voice_handle=voice_handle />
         }
         .into_any(),
-        DisplayTimelineItem::ModelDecision { metrics } => {
+        DisplayTimelineItem::ModelRound { metrics, tools } => {
             let loc = i18n.locale().get_untracked();
             let label = lookup(loc, I18nKey::AgMetricsModelRound).to_string();
             view! {
-                <li class="agent-chat-line agent-chat-line--decision">
+                <li class="agent-chat-line agent-chat-line--model-round">
                     <ChatLineIndexColumn line_no=line_no.clone() tts_text=None voice_handle=voice_handle />
                     <div class="agent-chat-body">
                         <span class="agent-chat-decision-label">{label}</span>
+                        <ul class="model-round-tools">
+                            {tools.into_iter().map(|tool| {
+                                let status_class = match tool.status {
+                                    ActivityStatus::Ok => "agent-tool-row--ok",
+                                    ActivityStatus::Fail => "agent-tool-row--fail",
+                                    ActivityStatus::Pending => "agent-tool-row--pending",
+                                };
+                                let status_icon = match tool.status {
+                                    ActivityStatus::Ok => icondata::LuCheck,
+                                    ActivityStatus::Fail => icondata::LuTriangleAlert,
+                                    ActivityStatus::Pending => icondata::LuLoader,
+                                };
+                                let tool_icon_val = tool_icon(&tool.tool);
+                                let label = tool.label.clone();
+                                // For grouped calls: show "×N" count instead of single-arg summary
+                                let merged_count = tool.merged_count;
+                                let summary = if merged_count > 1 {
+                                    String::new()
+                                } else {
+                                    tool.args_summary.clone()
+                                };
+                                let count_badge = if merged_count > 1 {
+                                    format!("×{merged_count}")
+                                } else {
+                                    String::new()
+                                };
+                                let tool_name = tool.tool.clone();
+                                let has_paths = !tool.paths.is_empty();
+                                let has_detail = has_paths
+                                    || tool.detail.as_ref().is_some_and(|s| !s.is_empty());
+                                let detail_text = tool.detail.clone().unwrap_or_default();
+                                let paths_sv = StoredValue::new(tool.paths.clone());
+                                let detail_open = RwSignal::new(false);
+                                view! {
+                                    <li class="model-round-tool-item">
+                                        <div class=format!("agent-tool-row {status_class}") title=tool_name>
+                                            <button
+                                                type="button"
+                                                class="agent-tool-row__head"
+                                                aria-expanded=move || detail_open.get().to_string()
+                                                prop:disabled=move || !has_detail
+                                                on:click=move |_| {
+                                                    if has_detail { detail_open.update(|o| *o = !*o); }
+                                                }
+                                            >
+                                                <span class="agent-tool-row__icon" aria-hidden="true">
+                                                    <LxIcon icon=tool_icon_val width="0.82rem" height="0.82rem" />
+                                                </span>
+                                                <span class="agent-tool-row__label">{label}</span>
+                                                <Show when={let s = summary.clone(); move || !s.is_empty()}>
+                                                    <span class="agent-tool-row__arg">{summary.clone()}</span>
+                                                </Show>
+                                                <Show when={let b = count_badge.clone(); move || !b.is_empty()}>
+                                                    <span class="agent-tool-row__count">{count_badge.clone()}</span>
+                                                </Show>
+                                                <span class="agent-tool-row__status" aria-hidden="true">
+                                                    <LxIcon icon=status_icon width="0.78rem" height="0.78rem" />
+                                                </span>
+                                            </button>
+                                            {move || {
+                                                if !has_detail || !detail_open.get() {
+                                                    return view! { <></> }.into_any();
+                                                }
+                                                if has_paths {
+                                                    view! {
+                                                        <ul class="tool-row-paths">
+                                                            {paths_sv.get_value().into_iter().map(|p| {
+                                                                let display = path_tail(&p);
+                                                                let p_open = p.clone();
+                                                                view! {
+                                                                    <li>
+                                                                        <button
+                                                                            type="button"
+                                                                            class="tool-row-path-btn"
+                                                                            title=p.clone()
+                                                                            on:click=move |_| {
+                                                                                if let Some(ws_id) = workspace_id {
+                                                                                    wb.open_center_file_tab(ws_id, p_open.clone());
+                                                                                }
+                                                                            }
+                                                                        >{display}</button>
+                                                                    </li>
+                                                                }
+                                                            }).collect_view()}
+                                                        </ul>
+                                                    }.into_any()
+                                                } else {
+                                                    view! {
+                                                        <pre class="agent-tool-row__detail">{detail_text.clone()}</pre>
+                                                    }.into_any()
+                                                }
+                                            }}
+                                        </div>
+                                    </li>
+                                }
+                            }).collect_view()}
+                        </ul>
                         <TurnMetricsBar metrics=metrics context=BarContext::Main />
                     </div>
                 </li>

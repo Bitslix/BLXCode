@@ -59,6 +59,15 @@ pub fn AgentPanelDock() -> impl IntoView {
     let image_mode = RwSignal::new(false);
     let chat_maximized = RwSignal::new(false);
     let chat_scroll_ref = NodeRef::<html::Div>::new();
+    let compose_input_ref = NodeRef::<html::Input>::new();
+    // Refocus the compose input whenever the agent finishes (busy → false).
+    Effect::new(move |_| {
+        if !busy.get() {
+            if let Some(el) = compose_input_ref.get() {
+                let _ = el.focus();
+            }
+        }
+    });
     let voice_handle = VoiceOrbHandle::new();
     let task_snapshot = RwSignal::new(TaskSnapshot {
         tasks: Vec::new(),
@@ -290,13 +299,6 @@ pub fn AgentPanelDock() -> impl IntoView {
                     <h3>{move || i18n.tr(I18nKey::AgChatHeading)()}</h3>
                     <SessionCostChip wb=wb />
                     <div class="agent-chat-head__actions">
-                        <span>{move || {
-                            if timeline.get().is_empty() {
-                                i18n.tr(I18nKey::AgBadgeReady)().to_string()
-                            } else {
-                                i18n.tr(I18nKey::AgBadgeLive)().to_string()
-                            }
-                        }}</span>
                         <button
                             type="button"
                             class=move || {
@@ -372,6 +374,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                                             draft.set(String::new());
                                             wb.set_workspace_agent_timeline(ws_id, Vec::new());
                                             wb.set_workspace_agent_compose_draft(ws_id, String::new());
+                                            wb.clear_chat_usage(ws_id);
                                             status_line.set(None);
                                         }
                                         Err(msg) => status_line.set(Some(msg)),
@@ -418,7 +421,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                                     .into_iter()
                                     .enumerate()
                                     .map(|(idx, entry)| {
-                                        view! { <TimelineRow idx=idx entry=entry i18n=i18n thinking_open=thinking_open voice_handle=voice_handle on_redo=on_redo timeline=timeline /> }
+                                        view! { <TimelineRow idx=idx entry=entry i18n=i18n thinking_open=thinking_open voice_handle=voice_handle on_redo=on_redo timeline=timeline wb=wb workspace_id=wb.active_id().get_untracked() /> }
                                     })
                                     .collect_view()
                             }}
@@ -436,6 +439,7 @@ pub fn AgentPanelDock() -> impl IntoView {
             >
                 <input
                     type="text"
+                    node_ref=compose_input_ref
                     class="workbench-agent-input workbench-agent-input--single"
                     placeholder=move || i18n.tr(I18nKey::AgPromptPh)()
                     prop:value=move || draft.get()
@@ -464,6 +468,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                         type="submit"
                         class="workbench-mini-btn workbench-mini-btn--primary agent-send-btn"
                         prop:disabled=move || busy.get()
+                        on:mousedown=|ev| ev.prevent_default()
                     >
                         <LxIcon icon=icondata::LuSparkles width="0.9rem" height="0.9rem" />
                         <span>{move || i18n.tr(I18nKey::AgSend)()}</span>

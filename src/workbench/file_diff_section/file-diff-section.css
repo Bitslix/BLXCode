@@ -1,8 +1,4 @@
 .sidebar-view-section--sb-diff {
-  flex: 0 0 auto;
-}
-
-.sidebar-view-section--sb-diff.sidebar-view-section--open {
   flex: 1 1 auto;
   min-height: 0;
 }

@@ -2,9 +2,10 @@ use crate::config::{
     SIDEBAR_DIFF_HEIGHT_PCT_DEFAULT, SIDEBAR_DIFF_HEIGHT_PCT_KEY, SIDEBAR_DIFF_HEIGHT_PCT_MAX,
     SIDEBAR_DIFF_HEIGHT_PCT_MIN, SIDEBAR_EXPLORER_HEIGHT_PCT_DEFAULT,
     SIDEBAR_EXPLORER_HEIGHT_PCT_KEY, SIDEBAR_EXPLORER_HEIGHT_PCT_MAX,
-    SIDEBAR_EXPLORER_HEIGHT_PCT_MIN, SIDEBAR_PANELS_HEIGHT_PCT_DEFAULT,
-    SIDEBAR_PANELS_HEIGHT_PCT_KEY, SIDEBAR_PANELS_HEIGHT_PCT_MAX, SIDEBAR_PANELS_HEIGHT_PCT_MIN,
-    SIDEBAR_WIDTH_PX_DEFAULT, SIDEBAR_WIDTH_PX_MIN,
+    SIDEBAR_EXPLORER_HEIGHT_PCT_MIN, SIDEBAR_GRAPH_HEIGHT_PCT_MIN,
+    SIDEBAR_PANELS_HEIGHT_PCT_DEFAULT, SIDEBAR_PANELS_HEIGHT_PCT_KEY,
+    SIDEBAR_PANELS_HEIGHT_PCT_MAX, SIDEBAR_PANELS_HEIGHT_PCT_MIN, SIDEBAR_WIDTH_PX_DEFAULT,
+    SIDEBAR_WIDTH_PX_MIN,
 };
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
@@ -454,6 +455,8 @@ pub fn Sidebar() -> impl IntoView {
                         <ProjectExplorerSection />
                     </div>
                     <Show when=move || {
+                        let _ = wb.workspaces().get();
+                        let _ = wb.active_id().get();
                         wb.active_sidebar_explorer_open()
                             && (wb.active_sidebar_diff_open()
                                 || wb.active_sidebar_graph_open())
@@ -464,6 +467,21 @@ pub fn Sidebar() -> impl IntoView {
                             height_pct=explorer_height_pct
                             container_selector=".workbench-sidebar__panels"
                             aria_key=I18nKey::SbExplorerResizeAria
+                            clamp_max=Some(Signal::derive(move || {
+                                let diff_visible = wb.active_sidebar_diff_open()
+                                    && git_repo_available.get_untracked() == Some(true);
+                                let graph_visible = wb.active_sidebar_graph_open();
+                                let reserved = if diff_visible && graph_visible {
+                                    diff_height_pct.get() + SIDEBAR_GRAPH_HEIGHT_PCT_MIN
+                                } else if diff_visible {
+                                    diff_height_pct.get()
+                                } else if graph_visible {
+                                    SIDEBAR_GRAPH_HEIGHT_PCT_MIN
+                                } else {
+                                    0.0
+                                };
+                                (100.0 - reserved).max(SIDEBAR_EXPLORER_HEIGHT_PCT_MIN)
+                            }))
                         />
                     </Show>
                     <div
@@ -493,6 +511,8 @@ pub fn Sidebar() -> impl IntoView {
                         <FileDiffSection git_repo_available=git_repo_available.read_only() />
                     </div>
                     <Show when=move || {
+                        let _ = wb.workspaces().get();
+                        let _ = wb.active_id().get();
                         wb.active_sidebar_diff_open()
                             && wb.active_sidebar_graph_open()
                             && git_repo_available.get() == Some(true)
@@ -502,6 +522,22 @@ pub fn Sidebar() -> impl IntoView {
                             container_selector=".workbench-sidebar__panels"
                             clamp=SidebarResizerClamp::DiffInPanels
                             aria_key=I18nKey::SbDiffResizeAria
+                            subtract_pct=Some(Signal::derive(move || {
+                                if wb.active_sidebar_explorer_open() {
+                                    explorer_height_pct.get()
+                                } else {
+                                    0.0
+                                }
+                            }))
+                            clamp_max=Some(Signal::derive(move || {
+                                let explorer_pct = if wb.active_sidebar_explorer_open() {
+                                    explorer_height_pct.get()
+                                } else {
+                                    0.0
+                                };
+                                (100.0 - explorer_pct - SIDEBAR_GRAPH_HEIGHT_PCT_MIN)
+                                    .max(SIDEBAR_DIFF_HEIGHT_PCT_MIN)
+                            }))
                         />
                     </Show>
                     <div

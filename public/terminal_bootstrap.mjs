@@ -20,7 +20,7 @@ function xtermThemeFromDom() {
     foreground: readCssVar("--term-fg", "#f1f2f5"),
     cursor: readCssVar("--term-cursor", "#58a6ff"),
     cursorAccent: readCssVar("--term-cursor", "#58a6ff"),
-    selectionBackground: readCssVar("--accent-soft", "rgba(88, 166, 255, 0.16)"),
+    selectionBackground: readCssVar("--accent-soft", "rgba(88, 166, 255, 0.30)"),
     black: readCssVar("--bg-app", "#090a0d"),
     red: readCssVar("--danger", "#f85149"),
     green: readCssVar("--success", "#3fb950"),
@@ -226,6 +226,8 @@ window.__blxcodeTerminal = {
       allowTransparency: true,
       theme: xtermThemeFromDom(),
       disableStdin: false,
+      rightClickSelectsWord: false,
+      scrollback: 5000,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -241,6 +243,34 @@ window.__blxcodeTerminal = {
     });
     term.loadAddon(webLinks);
     term.open(container);
+
+    // Windows CMD-style right-click: copy selection if text is selected,
+    // otherwise paste from clipboard. xterm.js swallows contextmenu by
+    // default so we need our own handler on the rendered element.
+    const attachContextMenu = () => {
+      const el = term.element;
+      if (!el) return;
+      el.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        const sel = term.getSelection();
+        if (sel && sel.length > 0) {
+          navigator.clipboard.writeText(sel).catch(() => {});
+          term.clearSelection();
+        } else {
+          navigator.clipboard
+            .readText()
+            .then((text) => { if (text) term.paste(text); })
+            .catch(() => {});
+        }
+      });
+    };
+    // term.element is available after open() but guard with rAF to be safe
+    if (term.element) {
+      attachContextMenu();
+    } else {
+      requestAnimationFrame(attachContextMenu);
+    }
+
     const rec = {
       term,
       fit,

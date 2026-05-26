@@ -9,7 +9,6 @@ use tauri::webview::WebviewBuilder;
 use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, WebviewUrl};
 use url::Url;
 
-pub const DEFAULT_HOME_URL: &str = "https://blxcode.com";
 
 /// Child-WebViews mit SPA-gestützten Bounds funktionieren zuverlässig nur dort,
 /// wo das Tauri-/wry-Backend eine echte Unter-WebView einpasst (Windows: HWND-Child,
@@ -84,11 +83,13 @@ impl BrowserHost {
         let label = label_for(tab_id);
 
         // Webview für aktiven Tab anlegen falls noch nicht vorhanden.
+        // Kein nativer Child für leere URLs (neuer Tab) — die Leptos-Komponente
+        // zeigt in dem Fall die New-Tab-Seite ohne überlagernde Webview.
         if !state.tabs.contains_key(&tab_id) {
-            let start = navigate_to
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .unwrap_or(DEFAULT_HOME_URL);
+            let start = match navigate_to.map(str::trim).filter(|s| !s.is_empty()) {
+                Some(url) => url,
+                None => return Ok(()),
+            };
             let u = Url::parse(start).map_err(|e| format!("URL: {e}"))?;
             let builder = WebviewBuilder::new(&label, WebviewUrl::External(u));
             let window = app
@@ -104,9 +105,10 @@ impl BrowserHost {
             state.tabs.insert(tab_id, Some(start.to_string()));
         }
 
-        let wv = app
-            .get_webview(&label)
-            .ok_or_else(|| format!("webview {label}"))?;
+        // Tab exists but still has no webview yet (URL was empty at creation time).
+        let Some(wv) = app.get_webview(&label) else {
+            return Ok(());
+        };
 
         wv.set_position(LogicalPosition::new(rect.x, rect.y))
             .map_err(|e| e.to_string())?;

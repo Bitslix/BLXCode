@@ -195,7 +195,11 @@ pub struct ChatUsageStats {
     /// belong to a turn that was cancelled by `agent_clear_conversation`.
     /// Bumped locally on chat reset as well so we don't credit anything
     /// emitted before the reset to the fresh chat.
-    #[serde(default)]
+    ///
+    /// Not persisted: the backend resets its own generation to 0 on every
+    /// app launch, so persisting this value would cause all first-session
+    /// events to be dropped after any prior-session reset.
+    #[serde(skip)]
     pub current_turn_generation: u64,
 }
 

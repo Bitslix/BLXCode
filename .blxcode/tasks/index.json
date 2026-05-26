@@ -1,17 +1,5 @@
 {
   "version": 1,
-  "tasks": [
-    {
-      "id": "task-1779295993-1",
-      "title": "Demo task",
-      "description": "A placeholder demo task created by BLXCode Agent. You can edit the title, description, or status anytime.",
-      "status": "pending",
-      "position": 0,
-      "createdAt": 1779295993,
-      "updatedAt": 1779295993,
-      "completedAt": null,
-      "parentId": null,
-      "notes": null
-    }
-  ]
+  "tasks": [],
+  "activePlanPath": null
 }

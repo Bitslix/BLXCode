@@ -467,44 +467,70 @@ pub struct BrowserBoundsPayload {
     pub visible: bool,
 }
 
+/// Dispatches `f` to the Tauri main thread and awaits the result.
+/// Required for any WebView2 / wry API call on Windows (add_child, navigate,
+/// show, hide, eval, …) — those must run on the UI message-pump thread.
+async fn dispatch_on_main<F, T>(app: tauri::AppHandle, f: F) -> Result<T, String>
+where
+    F: FnOnce(tauri::AppHandle) -> Result<T, String> + Send + 'static,
+    T: Send + 'static,
+{
+    let (tx, rx) = tokio::sync::oneshot::channel::<Result<T, String>>();
+    app.clone()
+        .run_on_main_thread(move || {
+            let _ = tx.send(f(app));
+        })
+        .map_err(|e| e.to_string())?;
+    rx.await.map_err(|_| "main thread channel dropped".to_string())?
+}
+
 #[tauri::command]
-pub fn browser_sync_bounds(
+pub async fn browser_sync_bounds(
     app: tauri::AppHandle,
-    host: State<'_, BrowserHost>,
     active_tab_id: Option<u64>,
     rect: BrowserBoundsPayload,
     url_optional: Option<String>,
 ) -> Result<(), String> {
-    host.sync_bounds(&app, active_tab_id, rect, url_optional.as_deref())
+    dispatch_on_main(app, move |app| {
+        app.state::<BrowserHost>()
+            .sync_bounds(&app, active_tab_id, rect, url_optional.as_deref())
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn browser_run_js(
-    app: AppHandle,
-    host: State<'_, BrowserHost>,
+pub async fn browser_run_js(
+    app: tauri::AppHandle,
     tab_id: u64,
     script: String,
 ) -> Result<(), String> {
-    host.eval_embedded(&app, tab_id, script)
+    dispatch_on_main(app, move |app| {
+        app.state::<BrowserHost>().eval_embedded(&app, tab_id, script)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn browser_navigate(
+pub async fn browser_navigate(
     app: tauri::AppHandle,
-    host: State<'_, BrowserHost>,
     tab_id: u64,
     url: String,
 ) -> Result<(), String> {
-    host.navigate(&app, tab_id, &url)
+    dispatch_on_main(app, move |app| {
+        app.state::<BrowserHost>().navigate(&app, tab_id, &url)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn browser_close_tab(
+pub async fn browser_close_tab(
     app: tauri::AppHandle,
-    host: State<'_, BrowserHost>,
     tab_id: u64,
 ) -> Result<(), String> {
-    host.close_tab(&app, tab_id)
+    dispatch_on_main(app, move |app| {
+        app.state::<BrowserHost>().close_tab(&app, tab_id)
+    })
+    .await
 }
 
 #[tauri::command]

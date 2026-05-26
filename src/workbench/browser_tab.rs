@@ -534,7 +534,15 @@ pub fn BrowserTabDock() -> impl IntoView {
                         aria-label=move || i18n.tr(I18nKey::BrNativeAria)()
                     >
                         <Show
-                            when=move || active_tab_url(wb).trim().is_empty()
+                            when=move || {
+                                let aid = wb.embedded_browser_active_id().get();
+                                wb.embedded_browser_tabs().with(|tabs| {
+                                    tabs.iter()
+                                        .find(|t| t.id == aid)
+                                        .map(|t| t.url.trim().is_empty())
+                                        .unwrap_or(true)
+                                })
+                            }
                             fallback=move || ().into_any()
                         >
                             <BrowserNewTabPane wb surface />
