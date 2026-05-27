@@ -7691,6 +7691,12 @@ button {
   background: var(--overlay-1);
 }
 
+.workbench-memory-files__tree-spacer {
+  flex: 1 1 auto;
+  min-height: 2rem;
+  cursor: default;
+}
+
 .workbench-memory-files__tree--collapsed {
   align-items: center;
 }

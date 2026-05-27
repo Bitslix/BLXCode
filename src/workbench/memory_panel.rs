@@ -255,6 +255,18 @@ pub(crate) fn load_note(state: MemoryState, ws: String, scope: MemoryScope, path
     });
 }
 
+fn clear_memory_selection(state: MemoryState) {
+    if state.active_path.get_untracked().is_none() {
+        return;
+    }
+    state.active_path.set(None);
+    state.editor_content.set(String::new());
+    state.editor_dirty.set(false);
+    state.show_preview.set(false);
+    state.backlinks.set(Vec::new());
+    state.graph_selected_node.set(None);
+}
+
 fn schedule_save(state: MemoryState, ws: String) {
     let token = state.save_token.get_untracked() + 1;
     state.save_token.set(token);
@@ -945,6 +957,18 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
             <aside
                 class="workbench-memory-files__tree"
                 class:workbench-memory-files__tree--collapsed=move || files_collapsed.get()
+                on:click={
+                    let state = state.clone();
+                    move |ev: web_sys::MouseEvent| {
+                        let same = ev
+                            .target()
+                            .zip(ev.current_target())
+                            .is_some_and(|(t, c)| t == c);
+                        if same {
+                            clear_memory_selection(state.clone());
+                        }
+                    }
+                }
             >
                 <div
                     class="workbench-memory-files__new"
@@ -1050,6 +1074,14 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                         {section(MemoryScope::Global)}
                     </Show>
                 </div>
+                <div
+                    class="workbench-memory-files__tree-spacer"
+                    aria-hidden="true"
+                    on:click={
+                        let state = state.clone();
+                        move |_| clear_memory_selection(state.clone())
+                    }
+                ></div>
             </aside>
             <section class="workbench-memory-editor">
                 <Show
