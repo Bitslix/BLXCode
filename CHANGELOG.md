@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+
+## [0.2.7] - 2026-05-27
+
+### Added
+
 - **Sidebar File Diff section + center diff viewer**: new collapsible **File Diff** panel sits between Project Files and Git Commits in the sidebar. Backend module `src-tauri/src/git_status.rs` exposes `git_status_changes` (`git status --porcelain=v1 -z` + merged `--numstat` for staged/unstaged, untracked line counts via file read), `git_file_diff` (unified diff, synthetic `+++` body for untracked files), `git_stage_file` / `git_unstage_file`, and `git_status_watch_start` / `git_status_watch_stop` — a `notify`-based recursive watcher on the work tree (debounced 300 ms) emits `git_status_dirty` via Tauri so the UI refreshes without manual polling. `ChangedFile` rows show a status marker (`M`/`A`/`D`/`R`/`?`/`C`), path, and `+N`/`-N` counts; hover reveals **stage** (`+`) and **unstage** (`−`) actions. Clicking a row opens (or focuses) a `CenterTabKind::FileDiff { rel_path, staged }` tab with an inline diff viewer (`src/workbench/file_diff/`) that classifies lines (`@@` hunk headers, `+`/`-`/`---`/`+++`). Frontend bridge mirrors all types and adds `listen_git_status_dirty` with an RAII `TauriEventListener`. Per-workspace `sidebar_diff_open` (default **open**) persists expand/collapse; `open_center_diff_tab` deduplicates tabs per path. Sidebar panels block is now a **three-slot** layout (Explorer → Diff → Graph) with two `SidebarResizer` handles and `SIDEBAR_DIFF_HEIGHT_PCT_*` in `localStorage`. 18+ new `SbDiff*` i18n keys in all 13 locales. Component CSS in `file_diff_section/file-diff-section.css` and `file_diff/file-diff.css` (theme tokens only).
 
 - **Terminal context menu + native clipboard (Linux-safe)**: workspace xterm terminals now expose a right-click context menu with **Copy**, **Paste**, and **Select all** (`src/workbench/terminal_context_menu.rs`, mounted from `WorkspacePanel`). **Shift+right-click** pastes directly (Linux terminal convention). Keyboard shortcuts: **Ctrl+Shift+C/V** for copy/paste; **Ctrl+C** copies only when text is selected, otherwise SIGINT goes to the shell. Clipboard I/O bypasses the unreliable WebKitGTK `navigator.clipboard` path via new Tauri commands `clipboard_read_text` / `clipboard_write_text` backed by **`arboard`** (`src-tauri/src/clipboard.rs`, X11 + Wayland); the frontend uses `clipboard_*_text_compat()` in `tauri_bridge.rs` with a Web Clipboard fallback for `trunk serve`. `public/terminal_bootstrap.mjs` dispatches `blxcode-terminal-contextmenu`, `blxcode-terminal-paste-request`, and `blxcode-terminal-copy-request` custom events; `terminal_glue.rs` gained `getSelection`, `paste`, `selectAll`, `clearSelection`, and `focus` wrappers. Copy clears selection only after a successful write; failures surface as toasts (`WsTermToastCopyFailed` / `WsTermToastPasteFailed`). Global `contextmenu` suppression in `workbench/mod.rs` skips `.ws-term-cell__xterm` / `.xterm` targets. 7 new `WsTermMenu*` / `WsTermToast*` i18n keys in all 13 locales. CSS: `.terminal-context-menu` in `styles.css`.
