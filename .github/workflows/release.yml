@@ -311,7 +311,11 @@ jobs:
           TAG: ${{ needs.resolve.outputs.release_tag }}
         run: |
           set -euo pipefail
-          mapfile -t files < <(find target -path '*/release/bundle/*' -type f \( \
+          # macOS /bin/bash is 3.2 (no mapfile); use read loop instead.
+          files=()
+          while IFS= read -r f; do
+            files+=("$f")
+          done < <(find target -path '*/release/bundle/*' -type f \( \
             -name '*.dmg' \
             -o -name '*.app.tar.gz' \
             -o -name '*.app.tar.gz.sig' \
@@ -332,7 +336,11 @@ jobs:
           REPO: ${{ github.repository }}
           TAG: ${{ needs.resolve.outputs.release_tag }}
         run: |
-          mapfile -t signatures < <(find target -path '*/release/bundle/*' -name '*.sig' -type f)
+          set -euo pipefail
+          signatures=()
+          while IFS= read -r sig; do
+            signatures+=("$sig")
+          done < <(find target -path '*/release/bundle/*' -name '*.sig' -type f)
           if [[ ${#signatures[@]} -eq 0 ]]; then
             echo "No updater signatures found; skipping latest.json"
             exit 0
