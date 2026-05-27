@@ -143,6 +143,13 @@ pub fn RightPanel() -> impl IntoView {
         format!("{width:.0}px")
     });
     let active_tab = Memo::new(move |_| wb.right_active_tab().get());
+    let browser_dock_mounted = RwSignal::new(false);
+
+    Effect::new(move |_| {
+        if active_tab.get() == RightPanelTab::Browser {
+            browser_dock_mounted.set(true);
+        }
+    });
 
     view! {
         <div
@@ -426,9 +433,11 @@ pub fn RightPanel() -> impl IntoView {
                     <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Agent>
                         <AgentPanelDock />
                     </div>
-                    <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Browser>
-                        <BrowserTabDock />
-                    </div>
+                    <Show when=move || browser_dock_mounted.get()>
+                        <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Browser>
+                            <BrowserTabDock />
+                        </div>
+                    </Show>
                     <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Plans>
                         <PlansTabDock />
                     </div>

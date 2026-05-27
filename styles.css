@@ -9194,16 +9194,18 @@ button {
     transition: border-color 140ms ease, background 140ms ease,
         box-shadow 140ms ease, transform 140ms ease;
 }
-.blx-sr-card:hover {
+.blx-sr-card:hover:not(.blx-sr-card--open) {
     border-color: var(--border-strong);
-    background: var(--text-muted);
+    background: var(--overlay-2);
 }
 .blx-sr-card--open {
     border-color: var(--accent-soft);
-    background: var(--text-muted);
-    box-shadow:
-        0 0 0 1px var(--accent-cool-soft),
-        0 8px 24px var(--scrim-bg);
+    background: var(--accent-soft);
+    box-shadow: 0 0 0 1px var(--accent-cool-soft);
+}
+.blx-sr-card--open:hover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
 }
 .blx-sr-card--composer {
     border-style: dashed;
