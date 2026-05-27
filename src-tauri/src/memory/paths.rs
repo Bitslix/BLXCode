@@ -144,10 +144,3 @@ pub fn category_hub_node_id(category: &str) -> String {
 pub fn category_hub_path(category: &str) -> String {
     format!("{CATEGORY_HUB_PATH_PREFIX}{category}")
 }
-
-pub fn overview_path_for_category(category: &str) -> String {
-    if category == "learnings" {
-        return format!("{LEARNINGS_API_PREFIX}README.md");
-    }
-    format!("{category}/README.md")
-}

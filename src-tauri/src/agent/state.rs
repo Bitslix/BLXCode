@@ -168,6 +168,7 @@ impl AgentEngineState {
 /// Optional env-based provider config (no network in stub).
 #[derive(Clone, Debug)]
 pub struct ProviderEnv {
+    #[allow(dead_code)]
     pub anthropic_api_key: Option<String>,
 }
 
@@ -181,6 +182,7 @@ impl ProviderEnv {
     }
 
     /// Returns JSON for settings UI (secrets redacted).
+    #[allow(dead_code)]
     pub fn status_json(&self) -> Value {
         let provider = if self.anthropic_api_key.is_some() {
             "anthropic_env_configured_stub"

@@ -14,6 +14,7 @@ use crate::workbench::agent_timeline::{
 };
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::WorkbenchService;
+use leptos::html;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use std::collections::HashMap;
@@ -736,6 +737,35 @@ fn group_consecutive_tools(tools: Vec<ToolActivity>) -> Vec<ToolActivity> {
     out
 }
 
+/// One rendered chat-log row (index in [`compact_timeline`] output).
+#[derive(Clone, Debug, PartialEq)]
+pub struct TimelineDisplayRow {
+    pub idx: usize,
+    pub entry: DisplayTimelineItem,
+}
+
+pub fn timeline_display_rows(items: Vec<TimelineItem>) -> Vec<TimelineDisplayRow> {
+    compact_timeline(items)
+        .into_iter()
+        .enumerate()
+        .map(|(idx, entry)| TimelineDisplayRow { idx, entry })
+        .collect()
+}
+
+/// Stable key for tool-detail expand state across streaming rerenders.
+pub fn tool_detail_key(
+    line_idx: usize,
+    tool: &str,
+    call_id: Option<&str>,
+    sub_idx: Option<usize>,
+) -> String {
+    if let Some(si) = sub_idx {
+        format!("{line_idx}-s{si}-{tool}")
+    } else {
+        format!("{line_idx}-{tool}-{}", call_id.unwrap_or(""))
+    }
+}
+
 pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
     let mut out = Vec::with_capacity(items.len());
     let mut last_user_text: Option<String> = None;
@@ -915,6 +945,7 @@ pub fn TimelineRow(
     entry: DisplayTimelineItem,
     i18n: I18nService,
     thinking_open: RwSignal<HashMap<usize, bool>>,
+    tool_detail_open: RwSignal<HashMap<String, bool>>,
     voice_handle: VoiceOrbHandle,
     on_redo: Callback<String>,
     timeline: RwSignal<Vec<TimelineItem>>,
@@ -998,10 +1029,19 @@ pub fn TimelineRow(
         }
             .into_any()
         }
-        DisplayTimelineItem::Tool(tool) => view! {
-            <ToolActivityRow line_no=line_no tool=tool voice_handle=voice_handle />
+        DisplayTimelineItem::Tool(tool) => {
+            let detail_key = tool_detail_key(idx, &tool.tool, tool.call_id.as_deref(), None);
+            view! {
+                <ToolActivityRow
+                    line_no=line_no
+                    tool=tool
+                    detail_key=detail_key
+                    tool_detail_open=tool_detail_open
+                    voice_handle=voice_handle
+                />
+            }
+            .into_any()
         }
-        .into_any(),
         DisplayTimelineItem::ModelRound { metrics, tools } => {
             let loc = i18n.locale().get_untracked();
             let label = lookup(loc, I18nKey::AgMetricsModelRound).to_string();
@@ -1011,7 +1051,7 @@ pub fn TimelineRow(
                     <div class="agent-chat-body">
                         <span class="agent-chat-decision-label">{label}</span>
                         <ul class="model-round-tools">
-                            {tools.into_iter().map(|tool| {
+                            {tools.into_iter().enumerate().map(|(ti, tool)| {
                                 let status_class = match tool.status {
                                     ActivityStatus::Ok => "agent-tool-row--ok",
                                     ActivityStatus::Fail => "agent-tool-row--fail",
@@ -1042,7 +1082,13 @@ pub fn TimelineRow(
                                     || tool.detail.as_ref().is_some_and(|s| !s.is_empty());
                                 let detail_text = tool.detail.clone().unwrap_or_default();
                                 let paths_sv = StoredValue::new(tool.paths.clone());
-                                let detail_open = RwSignal::new(false);
+                                let detail_key =
+                                    tool_detail_key(idx, &tool_name, tool.call_id.as_deref(), Some(ti));
+                                let detail_key_memo = detail_key.clone();
+                                let detail_open = Memo::new(move |_| {
+                                    tool_detail_open
+                                        .with(|m| m.get(&detail_key_memo).copied().unwrap_or(false))
+                                });
                                 view! {
                                     <li class="model-round-tool-item">
                                         <div class=format!("agent-tool-row {status_class}") title=tool_name>
@@ -1052,7 +1098,13 @@ pub fn TimelineRow(
                                                 aria-expanded=move || detail_open.get().to_string()
                                                 prop:disabled=move || !has_detail
                                                 on:click=move |_| {
-                                                    if has_detail { detail_open.update(|o| *o = !*o); }
+                                                    if has_detail {
+                                                        tool_detail_open.update(|m| {
+                                                            let cur =
+                                                                m.get(&detail_key).copied().unwrap_or(false);
+                                                            m.insert(detail_key.clone(), !cur);
+                                                        });
+                                                    }
                                                 }
                                             >
                                                 <span class="agent-tool-row__icon" aria-hidden="true">
@@ -1347,6 +1399,19 @@ fn ThinkingRow(
     let has_content = !text.trim().is_empty();
     let label = if done { "Thinking" } else { "Thinking…" };
     let body = text.clone();
+    let body_ref = NodeRef::<html::Pre>::new();
+    let body_scroll_top = StoredValue::new(0i32);
+    Effect::new(move |_| {
+        let _ = text.len();
+        let Some(pre) = body_ref.get() else {
+            return;
+        };
+        let sh = pre.scroll_height();
+        let ch = pre.client_height();
+        let st = body_scroll_top.get_value();
+        let at_bottom = sh - st - ch < 8;
+        pre.set_scroll_top(if at_bottom { sh } else { st });
+    });
     view! {
         <li class="agent-chat-line agent-chat-line--thinking">
             <ChatLineIndexColumn line_no=line_no tts_text=None voice_handle=voice_handle />
@@ -1383,7 +1448,17 @@ fn ThinkingRow(
                     </Show>
                 </button>
                 <Show when=move || open.get() && has_content>
-                    <pre class="agent-thinking-card__body">{body.clone()}</pre>
+                    <pre
+                        class="agent-thinking-card__body"
+                        node_ref=body_ref
+                        on:scroll=move |_| {
+                            if let Some(pre) = body_ref.get() {
+                                body_scroll_top.set_value(pre.scroll_top());
+                            }
+                        }
+                    >
+                        {body.clone()}
+                    </pre>
                 </Show>
             </div>
         </li>
@@ -1394,6 +1469,8 @@ fn ThinkingRow(
 fn ToolActivityRow(
     line_no: String,
     tool: ToolActivity,
+    detail_key: String,
+    tool_detail_open: RwSignal<HashMap<String, bool>>,
     voice_handle: VoiceOrbHandle,
 ) -> impl IntoView {
     let status_class = match tool.status {
@@ -1407,7 +1484,11 @@ fn ToolActivityRow(
         ActivityStatus::Fail => icondata::LuTriangleAlert,
     };
 
-    let detail_open = RwSignal::new(false);
+    let detail_key_memo = detail_key.clone();
+    let detail_open = Memo::new(move |_| {
+        tool_detail_open
+            .with(|m| m.get(&detail_key_memo).copied().unwrap_or(false))
+    });
     let has_detail = tool.detail.as_ref().is_some_and(|s| !s.is_empty());
     let detail_text = tool.detail.clone().unwrap_or_default();
     let label = tool.label.clone();
@@ -1427,7 +1508,11 @@ fn ToolActivityRow(
                         prop:disabled=move || !has_detail
                         on:click=move |_| {
                             if has_detail {
-                                detail_open.update(|o| *o = !*o);
+                                let key = detail_key.clone();
+                                tool_detail_open.update(|m| {
+                                    let cur = m.get(&key).copied().unwrap_or(false);
+                                    m.insert(key, !cur);
+                                });
                             }
                         }
                     >

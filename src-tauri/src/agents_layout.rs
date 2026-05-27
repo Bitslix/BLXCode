@@ -46,8 +46,6 @@ _(Add learnings here as `[[learnings/topic-filename|Short title]]` — one line 
 
 #[derive(Debug, Clone)]
 pub struct WorkspaceRoots {
-    pub memory: PathBuf,
-    pub learnings: PathBuf,
     pub plans: PathBuf,
 }
 
@@ -86,11 +84,7 @@ pub fn ensure_agents_layout(ws: &str) -> Result<WorkspaceRoots, String> {
     upgrade_learnings_graph_links(&learnings)?;
     seed_plans_index_if_missing(&plans)?;
 
-    Ok(WorkspaceRoots {
-        memory,
-        learnings,
-        plans,
-    })
+    Ok(WorkspaceRoots { plans })
 }
 
 fn seed_plans_index_if_missing(plans: &Path) -> Result<(), String> {

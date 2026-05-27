@@ -692,6 +692,11 @@ pub enum PolicyKind {
     Authors,
     Changelog,
     Readme,
+    Support,
+    Agents,
+    Claude,
+    Codex,
+    Gemini,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -1536,7 +1541,10 @@ pub async fn memory_search(ws: &str, query: &str) -> Result<Vec<SearchHit>, Stri
     .await
 }
 
-#[allow(dead_code)]
+pub async fn memory_pointer_status(ws: &str) -> Result<Vec<PointerResult>, String> {
+    invoke_typed("memory_pointer_status", WsArg { workspace_cwd: ws }).await
+}
+
 pub async fn memory_install_pointers(
     ws: &str,
     agents: Vec<String>,
@@ -1549,6 +1557,26 @@ pub async fn memory_install_pointers(
     }
     invoke_typed(
         "memory_install_pointers",
+        A {
+            workspace_cwd: ws,
+            agents,
+        },
+    )
+    .await
+}
+
+pub async fn memory_uninstall_pointers(
+    ws: &str,
+    agents: Vec<String>,
+) -> Result<Vec<PointerResult>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        agents: Vec<String>,
+    }
+    invoke_typed(
+        "memory_uninstall_pointers",
         A {
             workspace_cwd: ws,
             agents,
@@ -1937,14 +1965,21 @@ pub async fn git_commit_graph(cwd: String, limit: Option<u32>) -> Result<GitGrap
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LineStats {
+    pub added: u32,
+    pub removed: u32,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChangedFile {
     pub rel_path: String,
     /// `"modified" | "added" | "deleted" | "renamed" | "untracked" | "conflicted"`.
     pub status: String,
     pub staged: bool,
     pub unstaged: bool,
-    pub added_lines: u32,
-    pub removed_lines: u32,
+    pub staged_stats: Option<LineStats>,
+    pub unstaged_stats: Option<LineStats>,
 }
 
 pub async fn git_status_changes(cwd: String) -> Result<Vec<ChangedFile>, String> {

@@ -16,6 +16,13 @@ use tauri::{AppHandle, Emitter, Manager};
 
 pub const GIT_MISSING_CODE: &str = "git_missing";
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LineStats {
+    pub added: u32,
+    pub removed: u32,
+}
+
 /// Minimal change record exposed to the frontend. One row per `rel_path`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -25,8 +32,8 @@ pub struct ChangedFile {
     pub status: String,
     pub staged: bool,
     pub unstaged: bool,
-    pub added_lines: u32,
-    pub removed_lines: u32,
+    pub staged_stats: Option<LineStats>,
+    pub unstaged_stats: Option<LineStats>,
 }
 
 /// Payload of the `git_status_dirty` window event. Frontend listeners
@@ -63,21 +70,22 @@ pub fn git_status_changes(cwd: String) -> Result<Vec<ChangedFile>, String> {
 
     for entry in &mut entries {
         let path = entry.rel_path.clone();
-        let mut added = 0u32;
-        let mut removed = 0u32;
-        if let Some((a, r)) = unstaged_counts.get(&path) {
-            added = added.saturating_add(*a);
-            removed = removed.saturating_add(*r);
+        let mut unstaged_stats = unstaged_counts
+            .get(&path)
+            .copied()
+            .and_then(normalize_stats);
+        let mut staged_stats = staged_counts.get(&path).copied().and_then(normalize_stats);
+        if entry.status == "untracked" {
+            let lines = count_file_lines(&work_tree.join(&path)).unwrap_or(0);
+            unstaged_stats = normalize_stats((lines, 0));
+            staged_stats = None;
         }
-        if let Some((a, r)) = staged_counts.get(&path) {
-            added = added.saturating_add(*a);
-            removed = removed.saturating_add(*r);
-        }
-        if entry.status == "untracked" && (added == 0 && removed == 0) {
-            added = count_file_lines(&work_tree.join(&path)).unwrap_or(0);
-        }
-        entry.added_lines = added;
-        entry.removed_lines = removed;
+        entry.staged_stats = if entry.staged { staged_stats } else { None };
+        entry.unstaged_stats = if entry.unstaged {
+            unstaged_stats
+        } else {
+            None
+        };
     }
 
     entries.sort_by(|a, b| a.rel_path.cmp(&b.rel_path));
@@ -218,8 +226,8 @@ fn parse_porcelain(text: &str) -> Vec<ChangedFile> {
             status: status.to_string(),
             staged,
             unstaged: unstaged || (x == '?' && y == '?'),
-            added_lines: 0,
-            removed_lines: 0,
+            staged_stats: None,
+            unstaged_stats: None,
         });
         i = j + 1;
     }
@@ -229,6 +237,13 @@ fn parse_porcelain(text: &str) -> Vec<ChangedFile> {
 /// Parse `git diff --numstat -z` output. Format per record:
 /// `added\tdeleted\t<NUL>oldname<NUL>newname<NUL>` for renames, otherwise
 /// `added\tdeleted\tpath<NUL>`. Binary files use `-` for the counts.
+fn normalize_stats((added, removed): (u32, u32)) -> Option<LineStats> {
+    if added == 0 && removed == 0 {
+        return None;
+    }
+    Some(LineStats { added, removed })
+}
+
 fn parse_numstat(text: &str) -> HashMap<String, (u32, u32)> {
     let mut out = HashMap::new();
     let bytes = text.as_bytes();

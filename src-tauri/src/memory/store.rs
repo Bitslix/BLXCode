@@ -1,18 +1,18 @@
 //! Core CRUD helpers — called from #[tauri::command] wrappers in mod.rs.
 
-use crate::agents_layout::{ensure_agents_layout, LEARNINGS_API_PREFIX, LEARNINGS_REL, MEMORY_REL};
-use std::collections::HashMap;
+use crate::agents_layout::{LEARNINGS_API_PREFIX, LEARNINGS_REL, MEMORY_REL};
+use std::collections::{BTreeSet, HashMap};
 use std::fs;
 use std::io::Write as IoWrite;
 use std::path::{Component, Path, PathBuf};
 
 use super::frontmatter::{
-    parse_frontmatter, serialize_frontmatter, strip_frontmatter, MemoryFrontmatter,
+    parse_frontmatter, serialize_frontmatter, MemoryFrontmatter,
 };
 use super::graph::{build_graph, CategoryHubInput, ScopeNote};
 use super::paths::{
     folder_exists, get_global_roots, get_roots_for_scope, graph_category_for,
-    list_memory_subcategories, node_id, parse_node_id, validate_category_name, MemoryRoots,
+    list_memory_subcategories, node_id, validate_category_name, MemoryRoots,
     CATEGORY_PLACEHOLDER, TEMPLATES_DIRNAME,
 };
 use super::types::{
@@ -20,7 +20,7 @@ use super::types::{
     MemoryStatusResponse, MemorySubcategories, NoteContent, NoteMeta, PointerResult, RenameReport,
     SearchHit,
 };
-use super::wikilinks::{parse_links_and_tags, rewrite_wikilinks};
+use super::wikilinks::rewrite_wikilinks;
 
 // ── Bootstrap seed text ────────────────────────────────────────────────────────
 
@@ -313,6 +313,16 @@ fn seed_learnings(learnings_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
+pub fn ensure_global_memory_seeded_impl() -> Result<(), String> {
+    let global = get_global_roots();
+    if let Some(parent) = global.memory.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("mkdir global base: {e}"))?;
+    }
+    seed_memory(&global.memory)?;
+    seed_learnings(&global.learnings)?;
+    Ok(())
+}
+
 pub fn memory_bootstrap_impl(target: &str, workspace_cwd: &str) -> Result<(), String> {
     match target {
         "workspace" | "all" => {
@@ -323,20 +333,10 @@ pub fn memory_bootstrap_impl(target: &str, workspace_cwd: &str) -> Result<(), St
                 return Ok(());
             }
             // fall through for "all"
-            let global = get_global_roots();
-            if let Some(parent) = global.memory.parent() {
-                fs::create_dir_all(parent).map_err(|e| format!("mkdir global base: {e}"))?;
-            }
-            seed_memory(&global.memory)?;
-            seed_learnings(&global.learnings)?;
+            ensure_global_memory_seeded_impl()?;
         }
         "global" => {
-            let global = get_global_roots();
-            if let Some(parent) = global.memory.parent() {
-                fs::create_dir_all(parent).map_err(|e| format!("mkdir global base: {e}"))?;
-            }
-            seed_memory(&global.memory)?;
-            seed_learnings(&global.learnings)?;
+            ensure_global_memory_seeded_impl()?;
         }
         _ => return err(format!("unknown target: {target}")),
     }
@@ -832,12 +832,17 @@ fn pointer_filename(agent: &str) -> Option<&'static str> {
     }
 }
 
+fn pointer_cursor_style(agent: &str) -> bool {
+    agent == "cursor"
+}
+
 fn pointer_body(workspace_cwd: &Path, notes: &[NoteMeta], cursor_style: bool) -> String {
     let memory_dir = workspace_cwd.join(MEMORY_REL);
     let learnings_dir = workspace_cwd.join(LEARNINGS_REL);
+    let global_roots = get_global_roots();
     let mut s = String::new();
     if cursor_style {
-        s.push_str("blxcode tracks per-workspace memory and learnings at the paths below.\n");
+        s.push_str("blxcode tracks per-workspace and global memory at the paths below.\n");
     } else {
         s.push_str("## blxcode workspace memory\n\n");
         s.push_str(
@@ -847,22 +852,37 @@ context: read notes that are relevant to the task, and propose new notes \
 or edits when you learn something the team should remember.\n\n",
         );
     }
-    s.push_str(&format!("Memory root: `{}`\n", memory_dir.display()));
+    s.push_str(&format!("Workspace memory: `{}`\n", memory_dir.display()));
     s.push_str(&format!(
-        "Learnings root: `{}` (API paths: `learnings/…`)\n\n",
+        "Workspace learnings: `{}` (API paths: `learnings/...`)\n",
         learnings_dir.display()
     ));
-    let non_template: Vec<_> = notes.iter().filter(|n| !n.is_template).collect();
-    if non_template.is_empty() {
+    s.push_str(&format!(
+        "Global memory: `{}`\n",
+        global_roots.memory.display()
+    ));
+    s.push_str(&format!(
+        "Global learnings: `{}`\n",
+        global_roots.learnings.display()
+    ));
+    s.push_str("Cross-scope links: `[[global:...]]` / `[[workspace:...]]`\n\n");
+    let workspace_notes: Vec<_> = notes
+        .iter()
+        .filter(|n| n.scope == MemoryScope::Workspace && !n.is_template)
+        .collect();
+    if workspace_notes.is_empty() {
         s.push_str("(no notes yet)\n");
     } else {
-        s.push_str("Current notes:\n");
+        s.push_str("Current workspace notes:\n");
         let mut shown = 0;
-        for n in &non_template {
+        for n in &workspace_notes {
             s.push_str(&format!("- `{}`\n", n.path));
             shown += 1;
             if shown >= 80 {
-                s.push_str(&format!("- … and {} more\n", non_template.len() - shown));
+                s.push_str(&format!(
+                    "- ... and {} more\n",
+                    workspace_notes.len().saturating_sub(shown)
+                ));
                 break;
             }
         }
@@ -874,32 +894,32 @@ or edits when you learn something the team should remember.\n\n",
 fn splice_block(existing: &str, begin: &str, end: &str, new_body: &str) -> String {
     let block = format!("{begin}\n{new_body}{end}\n");
     if let (Some(bi), Some(ei)) = (existing.find(begin), existing.find(end)) {
-        let ei_end = ei + end.len();
-        let tail_start = if ei_end < existing.len() && existing.as_bytes()[ei_end] == b'\n' {
-            ei_end + 1
-        } else {
-            ei_end
-        };
-        let mut out = String::with_capacity(bi + block.len() + existing.len() - tail_start);
-        out.push_str(&existing[..bi]);
-        out.push_str(&block);
-        out.push_str(&existing[tail_start..]);
-        return out;
+        if ei > bi {
+            let ei_end = ei + end.len();
+            let tail_start = if ei_end < existing.len() && existing.as_bytes()[ei_end] == b'\n' {
+                ei_end + 1
+            } else {
+                ei_end
+            };
+            let mut out = String::with_capacity(bi + block.len() + existing.len() - tail_start);
+            out.push_str(&existing[..bi]);
+            out.push_str(&block);
+            out.push_str(&existing[tail_start..]);
+            return out;
+        }
     }
-    let mut out = String::new();
-    out.push_str(existing);
-    if !existing.is_empty() && !existing.ends_with('\n') {
-        out.push('\n');
+    if existing.trim().is_empty() {
+        block
+    } else {
+        format!("{}\n\n{block}", existing.trim_end())
     }
-    if !existing.is_empty() {
-        out.push('\n');
-    }
-    out.push_str(&block);
-    out
 }
 
 fn strip_block(existing: &str, begin: &str, end: &str) -> String {
     if let (Some(bi), Some(ei)) = (existing.find(begin), existing.find(end)) {
+        if ei <= bi {
+            return existing.to_owned();
+        }
         let ei_end = ei + end.len();
         let tail_start = if ei_end < existing.len() && existing.as_bytes()[ei_end] == b'\n' {
             ei_end + 1
@@ -909,9 +929,13 @@ fn strip_block(existing: &str, begin: &str, end: &str) -> String {
         let mut out = String::new();
         out.push_str(&existing[..bi]);
         out.push_str(&existing[tail_start..]);
-        return out.trim_end_matches('\n').to_owned() + "\n";
+        return out.trim_end().to_owned();
     }
     existing.to_owned()
+}
+
+fn block_installed(content: &str, begin: &str, end: &str) -> bool {
+    content.contains(begin) && content.contains(end)
 }
 
 pub fn memory_install_pointers_impl(
@@ -922,7 +946,7 @@ pub fn memory_install_pointers_impl(
     let ws = validate_workspace_cwd(workspace_cwd)?;
     let notes = collect_notes(&MemoryScope::Workspace, workspace_cwd);
     let mut results: Vec<PointerResult> = Vec::new();
-    let mut written: std::collections::BTreeSet<String> = Default::default();
+    let mut written: BTreeSet<String> = Default::default();
     for agent in agents {
         let Some(fname) = pointer_filename(&agent) else {
             results.push(PointerResult {
@@ -939,23 +963,21 @@ pub fn memory_install_pointers_impl(
                 agent,
                 path: path.to_string_lossy().into_owned(),
                 installed: false,
-                note: Some("shared file already handled".into()),
+                note: Some("shared file already written".into()),
             });
             continue;
         }
+        written.insert(fname.to_owned());
         if !path.exists() {
             results.push(PointerResult {
                 agent,
                 path: path.to_string_lossy().into_owned(),
                 installed: false,
-                note: Some(
-                    "skipped: file absent; blxcode does not auto-create root pointer files".into(),
-                ),
+                note: Some("file missing — create it first".into()),
             });
-            written.insert(fname.to_owned());
             continue;
         }
-        let cursor_style = agent == "cursor";
+        let cursor_style = pointer_cursor_style(&agent);
         let body = pointer_body(&ws, &notes, cursor_style);
         let (begin, end) = if cursor_style {
             (POINTER_BEGIN_CURSOR, POINTER_END_CURSOR)
@@ -963,22 +985,9 @@ pub fn memory_install_pointers_impl(
             (POINTER_BEGIN, POINTER_END)
         };
         let existing = fs::read_to_string(&path).unwrap_or_default();
-        if !existing.contains(begin) {
-            results.push(PointerResult {
-                agent,
-                path: path.to_string_lossy().into_owned(),
-                installed: false,
-                note: Some(
-                    "skipped: existing file is user-owned and has no blxcode managed block".into(),
-                ),
-            });
-            written.insert(fname.to_owned());
-            continue;
-        }
         let updated = splice_block(&existing, begin, end, &body);
         match fs::write(&path, updated.as_bytes()) {
             Ok(()) => {
-                written.insert(fname.to_owned());
                 results.push(PointerResult {
                     agent,
                     path: path.to_string_lossy().into_owned(),
@@ -1004,7 +1013,7 @@ pub fn memory_uninstall_pointers_impl(
     use crate::agents_layout::validate_workspace_cwd;
     let ws = validate_workspace_cwd(workspace_cwd)?;
     let mut results = Vec::new();
-    let mut handled: std::collections::BTreeSet<String> = Default::default();
+    let mut handled: BTreeSet<String> = Default::default();
     for agent in agents {
         let Some(fname) = pointer_filename(&agent) else {
             results.push(PointerResult {
@@ -1025,14 +1034,8 @@ pub fn memory_uninstall_pointers_impl(
             continue;
         }
         let path = ws.join(fname);
-        let cursor_style = agent == "cursor";
-        let (begin, end) = if cursor_style {
-            (POINTER_BEGIN_CURSOR, POINTER_END_CURSOR)
-        } else {
-            (POINTER_BEGIN, POINTER_END)
-        };
-        let existing = fs::read_to_string(&path).unwrap_or_default();
-        if existing.is_empty() {
+        handled.insert(fname.to_owned());
+        if !path.exists() {
             results.push(PointerResult {
                 agent,
                 path: path.to_string_lossy().into_owned(),
@@ -1041,10 +1044,25 @@ pub fn memory_uninstall_pointers_impl(
             });
             continue;
         }
+        let cursor_style = pointer_cursor_style(&agent);
+        let (begin, end) = if cursor_style {
+            (POINTER_BEGIN_CURSOR, POINTER_END_CURSOR)
+        } else {
+            (POINTER_BEGIN, POINTER_END)
+        };
+        let existing = fs::read_to_string(&path).unwrap_or_default();
         let stripped = strip_block(&existing, begin, end);
         if stripped.trim().is_empty() {
-            let _ = fs::remove_file(&path);
-        } else if let Err(e) = fs::write(&path, stripped.as_bytes()) {
+            if let Err(e) = fs::remove_file(&path) {
+                results.push(PointerResult {
+                    agent,
+                    path: path.to_string_lossy().into_owned(),
+                    installed: false,
+                    note: Some(format!("remove failed: {e}")),
+                });
+                continue;
+            }
+        } else if let Err(e) = fs::write(&path, format!("{stripped}\n").as_bytes()) {
             results.push(PointerResult {
                 agent,
                 path: path.to_string_lossy().into_owned(),
@@ -1053,12 +1071,11 @@ pub fn memory_uninstall_pointers_impl(
             });
             continue;
         }
-        handled.insert(fname.to_owned());
         results.push(PointerResult {
             agent,
             path: path.to_string_lossy().into_owned(),
             installed: false,
-            note: Some("removed".into()),
+            note: None,
         });
     }
     Ok(results)
@@ -1069,24 +1086,120 @@ pub fn memory_pointer_status_impl(workspace_cwd: &str) -> Result<Vec<PointerResu
     let ws = validate_workspace_cwd(workspace_cwd)?;
     let agents = ["claude", "codex", "gemini", "cursor", "opencode"];
     let mut out = Vec::new();
+    let mut handled: BTreeSet<String> = Default::default();
     for a in agents {
         let Some(fname) = pointer_filename(a) else {
             continue;
         };
         let path = ws.join(fname);
+        if handled.contains(fname) {
+            out.push(PointerResult {
+                agent: a.to_owned(),
+                path: path.to_string_lossy().into_owned(),
+                installed: false,
+                note: Some("shared file already handled".into()),
+            });
+            continue;
+        }
+        handled.insert(fname.to_owned());
+        if !path.exists() {
+            out.push(PointerResult {
+                agent: a.to_owned(),
+                path: path.to_string_lossy().into_owned(),
+                installed: false,
+                note: Some("file missing".into()),
+            });
+            continue;
+        }
         let body = fs::read_to_string(&path).unwrap_or_default();
-        let cursor_style = a == "cursor";
-        let begin = if cursor_style {
-            POINTER_BEGIN_CURSOR
+        let cursor_style = pointer_cursor_style(a);
+        let (begin, end) = if cursor_style {
+            (POINTER_BEGIN_CURSOR, POINTER_END_CURSOR)
         } else {
-            POINTER_BEGIN
+            (POINTER_BEGIN, POINTER_END)
         };
         out.push(PointerResult {
             agent: a.to_owned(),
             path: path.to_string_lossy().into_owned(),
-            installed: body.contains(begin),
+            installed: block_installed(&body, begin, end),
             note: None,
         });
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod pointer_tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_ws(name: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("blxcode-pointer-{name}-{nonce}"));
+        fs::create_dir_all(&path).unwrap();
+        path
+    }
+
+    #[test]
+    fn splice_block_appends_to_user_owned_file() {
+        let updated = splice_block("existing\n", POINTER_BEGIN, POINTER_END, "body\n");
+        assert_eq!(
+            updated,
+            format!("existing\n\n{POINTER_BEGIN}\nbody\n{POINTER_END}\n")
+        );
+    }
+
+    #[test]
+    fn strip_block_removes_only_managed_block() {
+        let existing = format!("before\n\n{POINTER_BEGIN}\nbody\n{POINTER_END}\n\nafter\n");
+        let stripped = strip_block(&existing, POINTER_BEGIN, POINTER_END);
+        assert_eq!(stripped, "before\n\n\nafter");
+    }
+
+    #[test]
+    fn status_reports_missing_and_shared_agents() {
+        let ws = temp_ws("status");
+        fs::write(ws.join("AGENTS.md"), "").unwrap();
+        let status = memory_pointer_status_impl(ws.to_str().unwrap()).unwrap();
+        let codex = status.iter().find(|r| r.agent == "codex").unwrap();
+        let opencode = status.iter().find(|r| r.agent == "opencode").unwrap();
+        let claude = status.iter().find(|r| r.agent == "claude").unwrap();
+        assert_eq!(claude.note.as_deref(), Some("file missing"));
+        assert_eq!(codex.note, None);
+        assert_eq!(
+            opencode.note.as_deref(),
+            Some("shared file already handled")
+        );
+        let _ = fs::remove_dir_all(ws);
+    }
+
+    #[test]
+    fn install_replaces_block_and_uses_shared_notes() {
+        let ws = temp_ws("install");
+        fs::create_dir_all(ws.join(MEMORY_REL)).unwrap();
+        fs::write(ws.join(MEMORY_REL).join("README.md"), "# Memory\n").unwrap();
+        fs::write(
+            ws.join("AGENTS.md"),
+            format!("{POINTER_BEGIN}\nold\n{POINTER_END}\n"),
+        )
+        .unwrap();
+        let result = memory_install_pointers_impl(
+            ws.to_str().unwrap(),
+            vec!["codex".into(), "opencode".into()],
+        )
+        .unwrap();
+        assert!(result[0].installed);
+        assert_eq!(
+            result[1].note.as_deref(),
+            Some("shared file already written")
+        );
+        let content = fs::read_to_string(ws.join("AGENTS.md")).unwrap();
+        assert!(content.contains("Workspace memory:"));
+        assert!(content.contains("Global memory:"));
+        assert!(!content.contains("old"));
+        let _ = fs::remove_dir_all(ws);
+    }
 }

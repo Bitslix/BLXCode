@@ -6,7 +6,8 @@ use crate::i18n::I18nKey;
 use crate::memory_paths::slug_to_filename;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    self, note_key, BacklinkRef, GraphData, MemoryScope, NoteContent, NoteMeta, SearchHit,
+    self, note_key, BacklinkRef, GraphData, MemoryScope, MemoryStatusResponse, NoteContent,
+    NoteMeta, PointerResult, SearchHit,
 };
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::memory_graph::{navigate_to_graph_node, MemoryGraphView};
@@ -27,6 +28,46 @@ const LEARNINGS_INDEX_PATHS: &[&str] = &["learnings/README.md"];
 /// Built-in pseudo categories — top-level memory files and the learnings root.
 const CATEGORY_MEMORY: &str = "memory";
 const CATEGORY_LEARNINGS: &str = "learnings";
+const POINTER_AGENTS: &[PointerAgent] = &[
+    PointerAgent {
+        id: "claude",
+        label: "Claude",
+        target: "CLAUDE.md",
+        icon: "/public/brand-icons/anthropic.svg",
+    },
+    PointerAgent {
+        id: "codex",
+        label: "Codex",
+        target: "AGENTS.md",
+        icon: "/public/brand-icons/openai.svg",
+    },
+    PointerAgent {
+        id: "gemini",
+        label: "Gemini",
+        target: "GEMINI.md",
+        icon: "/public/brand-icons/gemini.svg",
+    },
+    PointerAgent {
+        id: "cursor",
+        label: "Cursor",
+        target: ".cursorrules",
+        icon: "/public/brand-icons/cursor.svg",
+    },
+    PointerAgent {
+        id: "opencode",
+        label: "OpenCode",
+        target: "AGENTS.md",
+        icon: "/public/brand-icons/opencode.svg",
+    },
+];
+
+#[derive(Clone, Copy)]
+struct PointerAgent {
+    id: &'static str,
+    label: &'static str,
+    target: &'static str,
+    icon: &'static str,
+}
 
 /// Derive the category key for a given note API path.
 fn category_for_path(path: &str) -> String {
@@ -64,6 +105,13 @@ pub(crate) struct MemoryState {
     pub(crate) graph: RwSignal<Option<GraphData>>,
     pub(crate) search_query: RwSignal<String>,
     pub(crate) search_results: RwSignal<Vec<SearchHit>>,
+    pub(crate) memory_status: RwSignal<Option<MemoryStatusResponse>>,
+    pub(crate) pointer_status: RwSignal<Option<Vec<PointerResult>>>,
+    pub(crate) pointers_open: RwSignal<bool>,
+    pub(crate) pointers_notice_dismissed: RwSignal<bool>,
+    pub(crate) pointers_busy: RwSignal<bool>,
+    pub(crate) selected_pointer_agents: RwSignal<HashSet<String>>,
+    pub(crate) global_readme_preview: RwSignal<Option<String>>,
     /// Expanded category groups in the Files sidebar (keys: plain for workspace, "global:cat" for global).
     pub(crate) groups_open: RwSignal<HashSet<String>>,
     /// User-created workspace categories that have no notes yet.
@@ -97,6 +145,13 @@ impl MemoryState {
             graph: RwSignal::new(None),
             search_query: RwSignal::new(String::new()),
             search_results: RwSignal::new(Vec::new()),
+            memory_status: RwSignal::new(None),
+            pointer_status: RwSignal::new(None),
+            pointers_open: RwSignal::new(false),
+            pointers_notice_dismissed: RwSignal::new(false),
+            pointers_busy: RwSignal::new(false),
+            selected_pointer_agents: RwSignal::new(HashSet::new()),
+            global_readme_preview: RwSignal::new(None),
             groups_open: RwSignal::new(HashSet::new()),
             empty_categories: RwSignal::new(Vec::new()),
             global_subcategories: RwSignal::new(Vec::new()),
@@ -146,9 +201,32 @@ fn load_notes(state: MemoryState, ws: String) {
             Err(e) => state.error.set(Some(e)),
         }
         if let Ok(status) = tauri_bridge::memory_status(&ws).await {
+            state.memory_status.set(Some(status.clone()));
             state
                 .global_bootstrapped
-                .set(status.global.memory || status.global.learnings);
+                .set(status.global.memory && status.global.learnings);
+        }
+        load_global_readme_preview(state, ws);
+    });
+}
+
+fn load_pointer_status(state: MemoryState, ws: String) {
+    spawn_local(async move {
+        match tauri_bridge::memory_pointer_status(&ws).await {
+            Ok(results) => state.pointer_status.set(Some(results)),
+            Err(e) => {
+                state.pointer_status.set(Some(Vec::new()));
+                state.error.set(Some(e));
+            }
+        }
+    });
+}
+
+fn load_global_readme_preview(state: MemoryState, ws: String) {
+    spawn_local(async move {
+        match tauri_bridge::memory_read(&ws, &MemoryScope::Global, "README.md").await {
+            Ok(NoteContent { content, .. }) => state.global_readme_preview.set(Some(content)),
+            Err(_) => state.global_readme_preview.set(None),
         }
     });
 }
@@ -221,7 +299,7 @@ pub fn MemoryPanel() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let state = MemoryState::new();
 
-    // Track active workspace cwd; bootstrap workspace memory and reload notes when it changes.
+    // Track active workspace cwd and reload memory state when it changes.
     let eff_state = state.clone();
     Effect::new(move |_| {
         let cwd = current_workspace_cwd(wb);
@@ -235,14 +313,35 @@ pub fn MemoryPanel() -> impl IntoView {
             eff_state.backlinks.set(Vec::new());
             eff_state.graph.set(None);
             eff_state.notes.set(Vec::new());
+            eff_state.memory_status.set(None);
             eff_state.global_bootstrapped.set(false);
+            eff_state.pointer_status.set(None);
+            eff_state.pointers_notice_dismissed.set(false);
+            eff_state.pointers_open.set(false);
+            eff_state.pointers_busy.set(false);
+            eff_state.selected_pointer_agents.set(HashSet::new());
+            eff_state.global_readme_preview.set(None);
             if let Some(ws) = cwd {
                 let st = eff_state.clone();
                 let ws2 = ws.clone();
                 spawn_local(async move {
-                    let _ = tauri_bridge::memory_bootstrap(&ws2, "workspace").await;
-                    load_notes(st, ws2);
+                    load_notes(st.clone(), ws2.clone());
+                    load_global_readme_preview(st.clone(), ws2.clone());
+                    load_pointer_status(st, ws2);
                 });
+            }
+        }
+    });
+
+    Effect::new({
+        let st = state.clone();
+        move |_| {
+            if !st.pointers_open.get() {
+                return;
+            }
+            st.selected_pointer_agents.set(HashSet::new());
+            if let Some(ws) = st.workspace_cwd.get() {
+                load_pointer_status(st.clone(), ws);
             }
         }
     });
@@ -297,24 +396,44 @@ pub fn MemoryPanel() -> impl IntoView {
                 }
             </Show>
 
+            <Show when={
+                let s = state.clone();
+                move || {
+                    s.workspace_cwd.get().is_some()
+                        && !s.pointers_notice_dismissed.get()
+                        && s.pointer_status
+                            .get()
+                            .is_some_and(|status| !status.iter().any(|entry| entry.installed))
+                }
+            }>
+                <MemoryPointersNotice state=state.clone() />
+            </Show>
+
             <div class="workbench-memory__body">
                 <Show when={
                     let s = state.clone();
-                    move || s.view.get() == MemoryView::Files
+                    move || memory_show_bootstrap_prompt(s)
+                } fallback=move || view! {
+                    <Show when={
+                        let s = state.clone();
+                        move || s.view.get() == MemoryView::Files
+                    }>
+                        <MemoryFilesView state=state.clone() />
+                    </Show>
+                    <Show when={
+                        let s = state.clone();
+                        move || s.view.get() == MemoryView::Graph
+                    }>
+                        <MemoryGraphView state=state.clone() />
+                    </Show>
+                    <Show when={
+                        let s = state.clone();
+                        move || s.view.get() == MemoryView::Search
+                    }>
+                        <MemorySearchView state=state.clone() />
+                    </Show>
                 }>
-                    <MemoryFilesView state=state.clone() />
-                </Show>
-                <Show when={
-                    let s = state.clone();
-                    move || s.view.get() == MemoryView::Graph
-                }>
-                    <MemoryGraphView state=state.clone() />
-                </Show>
-                <Show when={
-                    let s = state.clone();
-                    move || s.view.get() == MemoryView::Search
-                }>
-                    <MemorySearchView state=state.clone() />
+                    <MemoryBootstrapView state=state.clone() />
                 </Show>
             </div>
             <Show when={
@@ -330,8 +449,360 @@ pub fn MemoryPanel() -> impl IntoView {
                     </p>
                 </div>
             </Show>
+            <Show when={
+                let s = state.clone();
+                move || s.pointers_open.get()
+            }>
+                <MemoryPointersDialog state=state.clone() />
+            </Show>
         </div>
     }
+}
+
+fn memory_needs_workspace_bootstrap(status: &MemoryStatusResponse) -> bool {
+    !status.workspace.memory || !status.workspace.learnings
+}
+
+fn memory_needs_global_bootstrap(status: &MemoryStatusResponse) -> bool {
+    !status.global.memory || !status.global.learnings
+}
+
+fn memory_show_bootstrap_prompt(state: MemoryState) -> bool {
+    if state.workspace_cwd.get().is_none() || !state.notes.get().is_empty() {
+        return false;
+    }
+    state.memory_status.get().is_some_and(|status| {
+        memory_needs_workspace_bootstrap(&status) || memory_needs_global_bootstrap(&status)
+    })
+}
+
+#[component]
+fn MemoryBootstrapView(state: MemoryState) -> impl IntoView {
+    view! {
+        {move || {
+            let Some(status) = state.memory_status.get() else {
+                return ().into_any();
+            };
+            let show_workspace = memory_needs_workspace_bootstrap(&status);
+            let show_global = memory_needs_global_bootstrap(&status);
+            view! {
+                <div class="workbench-memory-bootstrap">
+                    <Show when=move || show_workspace>
+                        <MemoryBootstrapCard
+                            state=state
+                            scope=MemoryScope::Workspace
+                            title="Create workspace memory"
+                            path=".agents/memory + .agents/learnings"
+                            description="Create the workspace memory and learnings folders with matching README.md overview files."
+                        />
+                    </Show>
+                    <Show when=move || show_workspace && show_global>
+                        <div class="workbench-memory-bootstrap__divider"></div>
+                    </Show>
+                    <Show when=move || show_global>
+                        <MemoryBootstrapCard
+                            state=state
+                            scope=MemoryScope::Global
+                            title="Create global memory"
+                            path="~/.blxcode/memory + ~/.blxcode/learnings"
+                            description="Create the global memory and learnings folders with matching README.md overview files."
+                        />
+                    </Show>
+                </div>
+            }
+            .into_any()
+        }}
+    }
+}
+
+#[component]
+fn MemoryBootstrapCard(
+    state: MemoryState,
+    scope: MemoryScope,
+    title: &'static str,
+    path: &'static str,
+    description: &'static str,
+) -> impl IntoView {
+    let target = match scope {
+        MemoryScope::Workspace => "workspace",
+        MemoryScope::Global => "global",
+    };
+    view! {
+        <section class="workbench-memory-bootstrap__card">
+            <div class="workbench-memory-bootstrap__icon" aria-hidden="true">
+                <LxIcon icon=icondata::LuFolderOpen width="1.3rem" height="1.3rem" />
+            </div>
+            <h3>{title}</h3>
+            <p>{description}</p>
+            <code>{path}</code>
+            <button
+                type="button"
+                class="workbench-memory-bootstrap__button"
+                on:click=move |_| bootstrap_memory_scope(state, target)
+            >
+                <LxIcon icon=icondata::LuFolderPlus width="0.85rem" height="0.85rem" />
+                <span>"Create folders"</span>
+            </button>
+        </section>
+    }
+}
+
+fn bootstrap_memory_scope(state: MemoryState, target: &'static str) {
+    let Some(ws) = state.workspace_cwd.get_untracked() else {
+        return;
+    };
+    spawn_local(async move {
+        match tauri_bridge::memory_bootstrap(&ws, target).await {
+            Ok(()) => {
+                load_notes(state.clone(), ws.clone());
+                load_global_readme_preview(state, ws);
+            }
+            Err(e) => state.error.set(Some(e)),
+        }
+    });
+}
+
+#[component]
+fn MemoryPointersNotice(state: MemoryState) -> impl IntoView {
+    view! {
+        <div class="workbench-memory-pointers-notice" role="status">
+            <span class="workbench-memory-pointers-notice__icon" aria-hidden="true">
+                <LxIcon icon=icondata::LuInfo width="0.9rem" height="0.9rem" />
+            </span>
+            <p>
+                "No agent memory pointers installed — external agents won't know where memory lives. "
+                <button
+                    type="button"
+                    class="workbench-memory-pointers-notice__setup"
+                    on:click=move |_| state.pointers_open.set(true)
+                >
+                    "Set up pointers"
+                </button>
+            </p>
+            <button
+                type="button"
+                class="workbench-memory-pointers-notice__close"
+                aria-label="Close"
+                on:click=move |_| state.pointers_notice_dismissed.set(true)
+            >
+                <LxIcon icon=icondata::LuX width="0.75rem" height="0.75rem" />
+            </button>
+        </div>
+    }
+}
+
+#[component]
+fn MemoryPointersDialog(state: MemoryState) -> impl IntoView {
+    view! {
+        <div
+            class="workspace-rename-backdrop"
+            on:click=move |_| {
+                if !state.pointers_busy.get_untracked() {
+                    state.pointers_open.set(false);
+                }
+            }
+        >
+            <section
+                class="workspace-rename-dialog memory-pointers-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="memory-pointers-title"
+                on:click=move |ev| ev.stop_propagation()
+            >
+                <header class="memory-pointers-dialog__head">
+                    <div class="memory-pointers-dialog__title-icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuLink2 width="1.1rem" height="1.1rem" />
+                    </div>
+                    <div>
+                        <h2 id="memory-pointers-title">"Agent memory pointers"</h2>
+                        <p>
+                            "Install a marked block in CLAUDE.md, AGENTS.md, or similar so external agents know where memory lives. Target files must already exist."
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        class="workspace-rename-dialog__close"
+                        disabled=move || state.pointers_busy.get()
+                        on:click=move |_| state.pointers_open.set(false)
+                    >
+                        "×"
+                    </button>
+                </header>
+                <ul class="memory-pointers-dialog__agents">
+                    <For
+                        each=move || POINTER_AGENTS.to_vec()
+                        key=|agent| agent.id
+                        children=move |agent: PointerAgent| view! {
+                            <MemoryPointerAgentRow state=state agent=agent />
+                        }
+                    />
+                </ul>
+                <footer class="workspace-rename-dialog__actions memory-pointers-dialog__actions">
+                    <button
+                        type="button"
+                        class="workspace-rename-dialog__btn workspace-rename-dialog__btn--ghost"
+                        disabled=move || {
+                            state.pointers_busy.get()
+                                || state.selected_pointer_agents.with(HashSet::is_empty)
+                        }
+                        on:click=move |_| run_pointer_action(state, false)
+                    >
+                        "Uninstall"
+                    </button>
+                    <button
+                        type="button"
+                        class="workspace-rename-dialog__btn workspace-rename-dialog__btn--primary"
+                        disabled=move || {
+                            state.pointers_busy.get()
+                                || state.selected_pointer_agents.with(HashSet::is_empty)
+                        }
+                        on:click=move |_| run_pointer_action(state, true)
+                    >
+                        "Install"
+                    </button>
+                </footer>
+            </section>
+        </div>
+    }
+}
+
+#[component]
+fn MemoryPointerAgentRow(state: MemoryState, agent: PointerAgent) -> impl IntoView {
+    let input_id = format!("memory-pointer-agent-{}", agent.id);
+    let id_for_status = agent.id;
+    let id_for_checked = agent.id;
+    let id_for_change = agent.id.to_owned();
+    view! {
+        <li>
+            <label class="memory-pointers-dialog__agent" for=input_id.clone()>
+                <input
+                    id=input_id.clone()
+                    type="checkbox"
+                    class="memory-pointers-dialog__checkbox"
+                    prop:checked=move || {
+                        state
+                            .selected_pointer_agents
+                            .with(|selected| selected.contains(id_for_checked))
+                    }
+                    disabled=move || state.pointers_busy.get()
+                    on:change=move |ev| {
+                        let checked = ev
+                            .target()
+                            .and_then(|target| target.dyn_into::<HtmlInputElement>().ok())
+                            .is_some_and(|input| input.checked());
+                        state.selected_pointer_agents.update(|selected| {
+                            if checked {
+                                selected.insert(id_for_change.clone());
+                            } else {
+                                selected.remove(&id_for_change);
+                            }
+                        });
+                    }
+                />
+                <span class="memory-pointers-dialog__brand">
+                    <img src=agent.icon alt="" prop:draggable=false />
+                </span>
+                <span class="memory-pointers-dialog__meta">
+                    <span class="memory-pointers-dialog__label">{agent.label}</span>
+                    <span class="memory-pointers-dialog__target">{agent.target}</span>
+                </span>
+                <PointerStatusBadge state=state agent_id=id_for_status />
+            </label>
+        </li>
+    }
+}
+
+#[component]
+fn PointerStatusBadge(state: MemoryState, agent_id: &'static str) -> impl IntoView {
+    view! {
+        {move || {
+            let entry = state
+                .pointer_status
+                .get()
+                .and_then(|status| status.into_iter().find(|item| item.agent == agent_id));
+            let (class, icon, label) = pointer_status_view(entry.as_ref());
+            view! {
+                <span class=class>
+                    {icon.map(|icon| view! {
+                        <LxIcon icon=icon width="0.7rem" height="0.7rem" />
+                    })}
+                    <span>{label}</span>
+                </span>
+            }
+        }}
+    }
+}
+
+fn pointer_status_view(
+    entry: Option<&PointerResult>,
+) -> (&'static str, Option<icondata::Icon>, &'static str) {
+    if entry.is_some_and(|result| result.installed) {
+        (
+            "memory-pointers-dialog__status memory-pointers-dialog__status--installed",
+            Some(icondata::LuCircleCheck),
+            "Installed",
+        )
+    } else if entry
+        .and_then(|result| result.note.as_deref())
+        .is_some_and(|note| note == "file missing")
+    {
+        (
+            "memory-pointers-dialog__status memory-pointers-dialog__status--missing",
+            Some(icondata::LuFileWarning),
+            "File missing",
+        )
+    } else {
+        (
+            "memory-pointers-dialog__status memory-pointers-dialog__status--pending",
+            None,
+            "Not installed",
+        )
+    }
+}
+
+fn run_pointer_action(state: MemoryState, install: bool) {
+    let Some(ws) = state.workspace_cwd.get_untracked() else {
+        return;
+    };
+    let selected = state.selected_pointer_agents.get_untracked();
+    let agents: Vec<String> = POINTER_AGENTS
+        .iter()
+        .filter(|agent| selected.contains(agent.id))
+        .map(|agent| agent.id.to_owned())
+        .collect();
+    if agents.is_empty() || state.pointers_busy.get_untracked() {
+        return;
+    }
+    state.pointers_busy.set(true);
+    spawn_local(async move {
+        let result = if install {
+            tauri_bridge::memory_install_pointers(&ws, agents).await
+        } else {
+            tauri_bridge::memory_uninstall_pointers(&ws, agents).await
+        };
+        match result {
+            Ok(results) => {
+                merge_pointer_results(state, results);
+                state.error.set(None);
+            }
+            Err(e) => state.error.set(Some(e)),
+        }
+        state.pointers_busy.set(false);
+    });
+}
+
+fn merge_pointer_results(state: MemoryState, results: Vec<PointerResult>) {
+    state.pointer_status.update(|status| {
+        let mut merged = status.take().unwrap_or_default();
+        for result in results {
+            if let Some(existing) = merged.iter_mut().find(|entry| entry.agent == result.agent) {
+                *existing = result;
+            } else {
+                merged.push(result);
+            }
+        }
+        *status = Some(merged);
+    });
 }
 
 #[component]
@@ -481,15 +952,6 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                 >
                     <button
                         type="button"
-                        class="workbench-memory-files__new-btn"
-                        title=move || i18n.tr(I18nKey::MemNewCategory)()
-                        aria-label=move || i18n.tr(I18nKey::MemNewCategory)()
-                        on:click=move |_| new_category_scope.set(Some(MemoryScope::Workspace))
-                    >
-                        <LxIcon icon=icondata::LuFolderPlus width="0.82rem" height="0.82rem" />
-                    </button>
-                    <button
-                        type="button"
                         class="workbench-memory-files__collapse-btn"
                         aria-label=move || {
                             if files_collapsed.get() {
@@ -525,6 +987,15 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                 <div class="workbench-memory-files__scope-section">
                     <div class="workbench-memory-files__scope-head">
                         <span>"Projekt"</span>
+                        <button
+                            type="button"
+                            class="workbench-memory-files__scope-add"
+                            title=move || i18n.tr(I18nKey::MemNewCategory)()
+                            aria-label=move || i18n.tr(I18nKey::MemNewCategory)()
+                            on:click=move |_| new_category_scope.set(Some(MemoryScope::Workspace))
+                        >
+                            <LxIcon icon=icondata::LuPlus width="0.75rem" height="0.75rem" />
+                        </button>
                     </div>
                     {section(MemoryScope::Workspace)}
                 </div>
@@ -536,12 +1007,12 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                         <Show when=move || state.global_bootstrapped.get()>
                             <button
                                 type="button"
-                                class="workbench-memory-files__new-btn"
+                                class="workbench-memory-files__scope-add"
                                 title=move || i18n.tr(I18nKey::MemNewCategory)()
                                 aria-label=move || i18n.tr(I18nKey::MemNewCategory)()
                                 on:click=move |_| new_category_scope.set(Some(MemoryScope::Global))
                             >
-                                <LxIcon icon=icondata::LuFolderPlus width="0.82rem" height="0.82rem" />
+                                <LxIcon icon=icondata::LuPlus width="0.75rem" height="0.75rem" />
                             </button>
                         </Show>
                     </div>
@@ -587,11 +1058,10 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                         move || s.active_path.get().is_some()
                     }
                     fallback={
+                        let s = state.clone();
                         let i = i18n.clone();
                         move || view! {
-                            <div class="workbench-memory-editor__empty">
-                                <p>{move || i.tr(I18nKey::MemSelectNote)()}</p>
-                            </div>
+                            <MemoryEditorFallback state=s i18n=i />
                         }
                     }
                 >
@@ -777,6 +1247,34 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                 }
             </Show>
         </div>
+    }
+}
+
+#[component]
+fn MemoryEditorFallback(state: MemoryState, i18n: I18nService) -> impl IntoView {
+    view! {
+        {move || {
+            if let Some(content) = state.global_readme_preview.get() {
+                view! {
+                    <header class="workbench-memory-editor__toolbar workbench-memory-editor__toolbar--readonly">
+                        <span class="workbench-memory-editor__path">"Global / README.md"</span>
+                        <span class="workbench-memory-editor__readonly">"Read-only preview"</span>
+                    </header>
+                    <div
+                        class="workbench-memory-editor__preview"
+                        inner_html=render_markdown_to_html(&content)
+                    />
+                }
+                .into_any()
+            } else {
+                view! {
+                    <div class="workbench-memory-editor__empty">
+                        <p>{i18n.tr(I18nKey::MemSelectNote)()}</p>
+                    </div>
+                }
+                .into_any()
+            }
+        }}
     }
 }
 

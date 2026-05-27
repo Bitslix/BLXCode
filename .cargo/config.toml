@@ -1,3 +1,6 @@
+[build]
+rustc-wrapper = "sccache"
+
 # Cross-linkers for Linux release builds (see scripts/release/build.sh).
 [target.aarch64-unknown-linux-gnu]
 linker = "aarch64-linux-gnu-gcc"

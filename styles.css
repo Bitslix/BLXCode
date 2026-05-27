@@ -1027,14 +1027,22 @@ body {
   background: var(--danger-soft);
 }
 
+/* Modal scrims: dim + blur so the workbench stays visible behind dialogs. */
+.workspace-rename-backdrop,
+.harness-scrim,
+.blx-sr-dialog__backdrop,
+.agent-image-preview-backdrop {
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  background: var(--scrim-bg);
+}
+
 .workspace-rename-backdrop {
   position: fixed;
   inset: 0;
   z-index: 1100;
   display: grid;
   place-items: center;
-  background: var(--bg-app);
-  backdrop-filter: blur(3px);
 }
 
 .workspace-rename-dialog {
@@ -2543,8 +2551,6 @@ button.workbench-shortcut-row--action:focus-visible {
   display: grid;
   place-items: center;
   padding: 1.4rem;
-  background: var(--scrim-bg);
-  backdrop-filter: blur(3px);
 }
 
 .agent-image-preview-dialog {
@@ -4049,8 +4055,6 @@ button.workbench-shortcut-row--action:focus-visible {
   inset: 0;
   border: none;
   padding: 0;
-  background: var(--overlay-2);
-  backdrop-filter: blur(3px);
   cursor: pointer;
 }
 
@@ -5887,6 +5891,11 @@ button {
 .file-preview__stage--policy-authors { --policy-accent: var(--accent); }
 .file-preview__stage--policy-changelog { --policy-accent: var(--accent); }
 .file-preview__stage--policy-readme { --policy-accent: var(--accent); }
+.file-preview__stage--policy-support { --policy-accent: var(--info, var(--accent)); }
+.file-preview__stage--policy-agents { --policy-accent: var(--accent); }
+.file-preview__stage--policy-claude { --policy-accent: color-mix(in srgb, #d97706 55%, var(--accent)); }
+.file-preview__stage--policy-codex { --policy-accent: var(--accent); }
+.file-preview__stage--policy-gemini { --policy-accent: color-mix(in srgb, #2563eb 45%, var(--accent)); }
 
 .file-preview__policy-hero {
   display: flex;
@@ -7476,6 +7485,70 @@ button {
   padding: 0 0.2rem;
 }
 
+.workbench-memory-pointers-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.5rem 0.55rem;
+  padding: 0.55rem 0.65rem;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--accent, var(--accent-hover)) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent, var(--accent-hover)) 15%, transparent);
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+
+.workbench-memory-pointers-notice__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  color: var(--accent, var(--accent-hover));
+}
+
+.workbench-memory-pointers-notice p {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.workbench-memory-pointers-notice__setup {
+  padding: 0;
+  color: var(--accent, var(--accent-hover));
+  background: transparent;
+  border: none;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.workbench-memory-pointers-notice__setup:hover,
+.workbench-memory-pointers-notice__setup:focus-visible {
+  text-decoration: underline;
+}
+
+.workbench-memory-pointers-notice__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 1.55rem;
+  height: 1.55rem;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.workbench-memory-pointers-notice__close:hover,
+.workbench-memory-pointers-notice__close:focus-visible {
+  color: var(--text);
+  background: var(--overlay-2);
+}
+
 .workbench-memory__body {
   flex: 1;
   min-height: 0;
@@ -7511,6 +7584,93 @@ button {
   color: var(--text-muted);
 }
 
+.workbench-memory-bootstrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 1.4rem;
+}
+
+.workbench-memory-bootstrap__card {
+  width: min(22rem, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+  text-align: center;
+}
+
+.workbench-memory-bootstrap__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3rem;
+  height: 3rem;
+  color: var(--text-muted);
+  background: var(--overlay-1);
+  border: 1px solid var(--overlay-2);
+  border-radius: 8px;
+}
+
+.workbench-memory-bootstrap__card h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+.workbench-memory-bootstrap__card p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.workbench-memory-bootstrap__card code {
+  max-width: 100%;
+  overflow: hidden;
+  padding: 0.18rem 0.45rem;
+  color: var(--text-muted);
+  background: var(--overlay-1);
+  border: 1px solid var(--overlay-2);
+  border-radius: 5px;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-memory-bootstrap__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 2rem;
+  padding: 0.35rem 0.7rem;
+  color: var(--text);
+  background: var(--overlay-2);
+  border: 1px solid var(--overlay-3);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.workbench-memory-bootstrap__button:hover,
+.workbench-memory-bootstrap__button:focus-visible {
+  background: var(--overlay-3);
+}
+
+.workbench-memory-bootstrap__divider {
+  width: min(18rem, 80%);
+  height: 1px;
+  background: var(--overlay-2);
+}
+
 /* --- Files view ----------------------------------------------------- */
 .workbench-memory-files {
   flex: 1;
@@ -7537,7 +7697,7 @@ button {
 
 .workbench-memory-files__new {
   display: flex;
-  gap: 0.3rem;
+  justify-content: flex-end;
   padding: 0.45rem 0.5rem;
   border-bottom: 1px solid var(--overlay-1);
 }
@@ -7562,19 +7722,6 @@ button {
   outline: none;
   border-color: var(--accent, var(--accent-hover));
 }
-.workbench-memory-files__new-btn {
-  padding: 0 0.6rem;
-  font: inherit;
-  color: inherit;
-  background: var(--overlay-2);
-  border: 1px solid var(--overlay-3);
-  border-radius: 4px;
-  cursor: pointer;
-}
-.workbench-memory-files__new-btn:hover {
-  background: var(--overlay-3);
-}
-
 .workbench-memory-files__collapse-btn {
   padding: 0;
   width: 1.8rem;
@@ -7617,6 +7764,31 @@ button {
 }
 .workbench-memory-files__scope-head span {
   flex: 1;
+}
+.workbench-memory-files__scope-add {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.workbench-memory-files__scope-head:hover .workbench-memory-files__scope-add,
+.workbench-memory-files__scope-head:focus-within .workbench-memory-files__scope-add,
+.workbench-memory-files__scope-add:focus-visible {
+  opacity: 1;
+}
+.workbench-memory-files__scope-add:hover {
+  background: var(--overlay-2);
+  color: var(--text);
 }
 /* "Create Global Memory" placeholder */
 .workbench-memory-files__global-init {
@@ -7863,6 +8035,160 @@ button {
   color: var(--text-muted);
   font-size: 0.78rem;
 }
+
+.memory-pointers-dialog {
+  width: min(42rem, calc(100vw - 2rem));
+  padding: 0;
+  overflow: hidden;
+}
+
+.memory-pointers-dialog__head {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: start;
+  padding: 1rem 1.1rem 0.9rem;
+  border-bottom: 1px solid var(--overlay-2);
+  background: linear-gradient(180deg, var(--overlay-1), transparent);
+}
+
+.memory-pointers-dialog__title-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  color: var(--accent, var(--accent-hover));
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent, var(--accent-hover)) 15%, transparent);
+  border-radius: 8px;
+}
+
+.memory-pointers-dialog__head h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.memory-pointers-dialog__head p {
+  margin: 0.25rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.memory-pointers-dialog__agents {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.85rem 1.1rem;
+  list-style: none;
+}
+
+.memory-pointers-dialog__agent {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.7rem;
+  background: color-mix(in srgb, var(--overlay-1) 55%, transparent);
+  border: 1px solid var(--overlay-2);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.memory-pointers-dialog__agent:hover,
+.memory-pointers-dialog__agent:focus-within {
+  background: var(--overlay-1);
+  border-color: var(--overlay-3);
+}
+
+.memory-pointers-dialog__checkbox {
+  flex: 0 0 auto;
+  width: 0.95rem;
+  height: 0.95rem;
+  accent-color: var(--accent, var(--accent-hover));
+}
+
+.memory-pointers-dialog__brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0.35rem;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid var(--overlay-2);
+  border-radius: 8px;
+}
+
+.memory-pointers-dialog__brand img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.memory-pointers-dialog__meta {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.memory-pointers-dialog__label {
+  color: var(--text);
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.memory-pointers-dialog__target {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: ui-monospace, "JetBrains Mono", "Fira Code", monospace;
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memory-pointers-dialog__status {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 0.25rem;
+  padding: 0.16rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid var(--overlay-2);
+  font-size: 0.68rem;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.memory-pointers-dialog__status--installed {
+  color: var(--success, #4ade80);
+  background: color-mix(in srgb, var(--success, #4ade80) 10%, transparent);
+  border-color: color-mix(in srgb, var(--success, #4ade80) 18%, transparent);
+}
+
+.memory-pointers-dialog__status--missing {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.18);
+}
+
+.memory-pointers-dialog__status--pending {
+  color: var(--text-muted);
+  background: var(--overlay-1);
+}
+
+.memory-pointers-dialog__actions {
+  padding: 0.85rem 1.1rem;
+  background: color-mix(in srgb, var(--overlay-1) 40%, transparent);
+  border-top: 1px solid var(--overlay-2);
+}
 .workbench-memory-files__rename-form {
   flex: 1;
   display: flex;
@@ -7976,6 +8302,15 @@ button {
   gap: 0.4rem;
   justify-content: flex-end;
   padding: 0.35rem 0.55rem 0 0.55rem;
+}
+.workbench-memory-editor__toolbar--readonly {
+  justify-content: space-between;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--overlay-1);
+}
+.workbench-memory-editor__readonly {
+  color: var(--text-muted);
+  font-size: 0.7rem;
 }
 .workbench-memory-editor__backlinks {
   border-top: 1px solid var(--overlay-2);
@@ -9245,7 +9580,6 @@ button {
 .blx-sr-dialog__backdrop {
     position: fixed;
     inset: 0;
-    background: var(--scrim-bg);
     z-index: 90;
 }
 .blx-sr-dialog {

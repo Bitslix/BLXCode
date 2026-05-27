@@ -108,6 +108,7 @@ pub fn build_graph(notes: Vec<ScopeNote>, category_hubs: Vec<CategoryHubInput>) 
                 source: source_id.clone(),
                 target: target_id,
                 cross_scope,
+                label: link.alias.clone(),
             });
         }
     }
@@ -132,6 +133,7 @@ pub fn build_graph(notes: Vec<ScopeNote>, category_hubs: Vec<CategoryHubInput>) 
             source: note_id,
             target: hub_id,
             cross_scope: false,
+            label: None,
         });
     }
 

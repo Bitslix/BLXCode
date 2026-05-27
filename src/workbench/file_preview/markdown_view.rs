@@ -135,6 +135,36 @@ fn policy_hero(kind: PolicyKind) -> PolicyHero {
             subtitle_key: I18nKey::FilePreviewPolicyReadmeSubtitle,
             modifier: "readme",
         },
+        PolicyKind::Support => PolicyHero {
+            icon: icondata::LuLifeBuoy,
+            title_key: I18nKey::FilePreviewPolicySupportTitle,
+            subtitle_key: I18nKey::FilePreviewPolicySupportSubtitle,
+            modifier: "support",
+        },
+        PolicyKind::Agents => PolicyHero {
+            icon: icondata::LuBot,
+            title_key: I18nKey::FilePreviewPolicyAgentsTitle,
+            subtitle_key: I18nKey::FilePreviewPolicyAgentsSubtitle,
+            modifier: "agents",
+        },
+        PolicyKind::Claude => PolicyHero {
+            icon: icondata::LuSparkles,
+            title_key: I18nKey::FilePreviewPolicyClaudeTitle,
+            subtitle_key: I18nKey::FilePreviewPolicyClaudeSubtitle,
+            modifier: "claude",
+        },
+        PolicyKind::Codex => PolicyHero {
+            icon: icondata::LuCode,
+            title_key: I18nKey::FilePreviewPolicyCodexTitle,
+            subtitle_key: I18nKey::FilePreviewPolicyCodexSubtitle,
+            modifier: "codex",
+        },
+        PolicyKind::Gemini => PolicyHero {
+            icon: icondata::LuSparkles,
+            title_key: I18nKey::FilePreviewPolicyGeminiTitle,
+            subtitle_key: I18nKey::FilePreviewPolicyGeminiSubtitle,
+            modifier: "gemini",
+        },
     }
 }
 

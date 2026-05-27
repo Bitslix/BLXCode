@@ -53,6 +53,11 @@ pub enum PolicyKind {
     Authors,
     Changelog,
     Readme,
+    Support,
+    Agents,
+    Claude,
+    Codex,
+    Gemini,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -112,6 +117,13 @@ fn classify_policy(stem: &str) -> Option<PolicyKind> {
         "changelog" | "changes" | "history" | "release_notes" | "release-notes"
         | "releasenotes" => Some(PolicyKind::Changelog),
         "readme" => Some(PolicyKind::Readme),
+        "support" => Some(PolicyKind::Support),
+        "agents" | "agent" => Some(PolicyKind::Agents),
+        "claude" => Some(PolicyKind::Claude),
+        "codex" => Some(PolicyKind::Codex),
+        "gemini" => Some(PolicyKind::Gemini),
+        "copilot" | "windsurf" | "aider" | "cursor" | "cody" | "devin" | "junie"
+        | "continue" => Some(PolicyKind::Agents),
         _ => None,
     }
 }
@@ -480,6 +492,26 @@ mod tests {
             classify_policy("readme"),
             Some(PolicyKind::Readme)
         ));
+        assert_eq!(
+            classify_policy("support"),
+            Some(PolicyKind::Support)
+        );
+        assert_eq!(
+            classify_policy("agents"),
+            Some(PolicyKind::Agents)
+        );
+        assert_eq!(
+            classify_policy("claude"),
+            Some(PolicyKind::Claude)
+        );
+        assert_eq!(
+            classify_policy("codex"),
+            Some(PolicyKind::Codex)
+        );
+        assert_eq!(
+            classify_policy("copilot"),
+            Some(PolicyKind::Agents)
+        );
         assert!(classify_policy("random").is_none());
     }
 

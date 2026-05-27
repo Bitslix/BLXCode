@@ -55,6 +55,9 @@ pub struct GraphEdge {
     pub source: String,
     pub target: String,
     pub cross_scope: bool,
+    /// Display label from `[[target|alias]]` wikilink syntax; `None` when no alias was written.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
