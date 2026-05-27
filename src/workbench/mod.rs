@@ -33,6 +33,7 @@ mod sidebar_view_section;
 pub mod skills_rules_panel;
 pub mod state;
 mod terminal_cell;
+mod terminal_context_menu;
 mod terminal_glue;
 mod terminal_slot_dnd;
 mod theme_service;
@@ -292,6 +293,9 @@ pub fn WorkbenchShell() -> impl IntoView {
 
     let contextmenu_handle =
         leptos::leptos_dom::helpers::window_event_listener_untyped("contextmenu", move |ev| {
+            if event_target_in_terminal_xterm(&ev) {
+                return;
+            }
             ev.prevent_default();
         });
     on_cleanup(move || drop(contextmenu_handle));
@@ -492,4 +496,23 @@ pub fn WorkbenchShell() -> impl IntoView {
             <ToastHost />
         </Show>
     }
+}
+
+fn event_target_in_terminal_xterm(ev: &web_sys::Event) -> bool {
+    let Some(target) = ev
+        .target()
+        .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+    else {
+        return false;
+    };
+    target
+        .closest(".ws-term-cell__xterm")
+        .ok()
+        .flatten()
+        .is_some()
+        || target
+            .closest(".xterm")
+            .ok()
+            .flatten()
+            .is_some()
 }

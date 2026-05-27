@@ -244,32 +244,64 @@ window.__blxcodeTerminal = {
     term.loadAddon(webLinks);
     term.open(container);
 
-    // Windows CMD-style right-click: copy selection if text is selected,
-    // otherwise paste from clipboard. xterm.js swallows contextmenu by
-    // default so we need our own handler on the rendered element.
+    const dispatchTerminalEvent = (name, extra = {}) => {
+      window.dispatchEvent(
+        new CustomEvent(name, {
+          detail: { termId: id, ...extra },
+        }),
+      );
+    };
+
     const attachContextMenu = () => {
       const el = term.element;
       if (!el) return;
       el.addEventListener("contextmenu", (e) => {
         e.preventDefault();
-        const sel = term.getSelection();
-        if (sel && sel.length > 0) {
-          navigator.clipboard.writeText(sel).catch(() => {});
-          term.clearSelection();
-        } else {
-          navigator.clipboard
-            .readText()
-            .then((text) => { if (text) term.paste(text); })
-            .catch(() => {});
+        e.stopPropagation();
+        if (e.shiftKey) {
+          dispatchTerminalEvent("blxcode-terminal-paste-request");
+          return;
         }
+        const selection = term.getSelection() || "";
+        dispatchTerminalEvent("blxcode-terminal-contextmenu", {
+          clientX: e.clientX,
+          clientY: e.clientY,
+          selection,
+          hasSelection: selection.length > 0,
+        });
       });
     };
-    // term.element is available after open() but guard with rAF to be safe
     if (term.element) {
       attachContextMenu();
     } else {
       requestAnimationFrame(attachContextMenu);
     }
+
+    term.attachCustomKeyEventHandler((ev) => {
+      const key = ev.key;
+      const ctrl = ev.ctrlKey || ev.metaKey;
+      if (!ctrl) return true;
+      if (ev.shiftKey && (key === "C" || key === "c")) {
+        const sel = term.getSelection();
+        if (sel && sel.length > 0) {
+          dispatchTerminalEvent("blxcode-terminal-copy-request", { selection: sel });
+          return false;
+        }
+        return true;
+      }
+      if (ev.shiftKey && (key === "V" || key === "v")) {
+        dispatchTerminalEvent("blxcode-terminal-paste-request");
+        return false;
+      }
+      if (!ev.shiftKey && (key === "C" || key === "c")) {
+        const sel = term.getSelection();
+        if (sel && sel.length > 0) {
+          dispatchTerminalEvent("blxcode-terminal-copy-request", { selection: sel });
+          return false;
+        }
+      }
+      return true;
+    });
 
     const rec = {
       term,
@@ -360,6 +392,43 @@ window.__blxcodeTerminal = {
     if (!rec) return;
     try {
       rec.term.options.disableStdin = !enabled;
+    } catch (_) {}
+  },
+  getSelection(termId) {
+    const rec = instances.get(termId);
+    if (!rec) return "";
+    try {
+      return rec.term.getSelection() || "";
+    } catch (_) {
+      return "";
+    }
+  },
+  paste(termId, text) {
+    const rec = instances.get(termId);
+    if (!rec || !text) return;
+    try {
+      rec.term.paste(text);
+    } catch (_) {}
+  },
+  selectAll(termId) {
+    const rec = instances.get(termId);
+    if (!rec) return;
+    try {
+      rec.term.selectAll();
+    } catch (_) {}
+  },
+  clearSelection(termId) {
+    const rec = instances.get(termId);
+    if (!rec) return;
+    try {
+      rec.term.clearSelection();
+    } catch (_) {}
+  },
+  focus(termId) {
+    const rec = instances.get(termId);
+    if (!rec) return;
+    try {
+      rec.term.focus();
     } catch (_) {}
   },
   observeWorkspaceGrid(container, workspaceId) {

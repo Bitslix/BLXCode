@@ -585,6 +585,50 @@ pub async fn exit_app_ipc() -> Result<(), String> {
     invoke_unit_js("exit_app", JsValue::UNDEFINED).await
 }
 
+pub async fn clipboard_read_text() -> Result<String, String> {
+    invoke_typed("clipboard_read_text", ()).await
+}
+
+pub async fn clipboard_write_text(text: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        text: String,
+    }
+    invoke_unit_js("clipboard_write_text", args_value(Args { text })?).await
+}
+
+/// Tauri native clipboard when available; otherwise Web Clipboard API.
+pub async fn clipboard_read_text_compat() -> Result<String, String> {
+    if is_tauri_shell() {
+        return clipboard_read_text().await;
+    }
+    let Some(window) = web_sys::window() else {
+        return Err("no window".into());
+    };
+    let clipboard = window.navigator().clipboard();
+    let promise = clipboard.read_text();
+    wasm_bindgen_futures::JsFuture::from(promise)
+        .await
+        .map_err(|e| js_error_to_string(e))
+        .and_then(|v| v.as_string().ok_or_else(|| "clipboard read returned non-string".into()))
+}
+
+/// Tauri native clipboard when available; otherwise Web Clipboard API.
+pub async fn clipboard_write_text_compat(text: String) -> Result<(), String> {
+    if is_tauri_shell() {
+        return clipboard_write_text(text).await;
+    }
+    let Some(window) = web_sys::window() else {
+        return Err("no window".into());
+    };
+    let clipboard = window.navigator().clipboard();
+    let promise = clipboard.write_text(&text);
+    wasm_bindgen_futures::JsFuture::from(promise)
+        .await
+        .map_err(|e| js_error_to_string(e))?;
+    Ok(())
+}
+
 #[allow(dead_code)]
 #[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]

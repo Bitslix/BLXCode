@@ -660,6 +660,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermBootstrapFailed => {
             "L'interface utilisateur du terminal n'a pas pu se charger. Vérifiez la console du navigateur ; le script d'amorçage ou le CDN xterm peut être bloqué."
         }
+        I18nKey::WsTermMenuCopy => "Copier",
+        I18nKey::WsTermMenuPaste => "Coller",
+        I18nKey::WsTermMenuSelectAll => "Tout sélectionner",
+        I18nKey::WsTermMenuAria => "Menu contextuel du terminal",
+        I18nKey::WsTermToastCopied => "Sélection copiée dans le presse-papiers",
+        I18nKey::WsTermToastPasteFailed => "Impossible de coller depuis le presse-papiers : {error}",
+        I18nKey::WsTermToastCopyFailed => "Impossible de copier dans le presse-papiers : {error}",
         I18nKey::EulaAccepted => "Accepté",
         I18nKey::EulaUnknown => "Inconnu",
         I18nKey::VoicePaneTitle => "Voix",

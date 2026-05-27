@@ -652,6 +652,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermBootstrapFailed => {
             "Nie udało się załadować interfejsu terminala. Sprawdź konsolę przeglądarki; skrypt startowy lub xterm CDN mogą być zablokowane."
         }
+        I18nKey::WsTermMenuCopy => "Kopiuj",
+        I18nKey::WsTermMenuPaste => "Wklej",
+        I18nKey::WsTermMenuSelectAll => "Zaznacz wszystko",
+        I18nKey::WsTermMenuAria => "Menu kontekstowe terminala",
+        I18nKey::WsTermToastCopied => "Zaznaczenie skopiowano do schowka",
+        I18nKey::WsTermToastPasteFailed => "Nie udało się wkleić ze schowka: {error}",
+        I18nKey::WsTermToastCopyFailed => "Nie udało się skopiować do schowka: {error}",
         I18nKey::EulaAccepted => "Przyjęty",
         I18nKey::EulaUnknown => "Nieznany",
         I18nKey::VoicePaneTitle => "Głos",

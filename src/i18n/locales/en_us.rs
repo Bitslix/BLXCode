@@ -692,6 +692,13 @@ Classic: Ctrl+O quick open, Ctrl+` new terminal, Ctrl+Shift+P palette."
         I18nKey::WsTermBootstrapFailed => {
             "Terminal UI failed to load. Check the browser console; the bootstrap script or xterm CDN may be blocked."
         }
+        I18nKey::WsTermMenuCopy => "Copy",
+        I18nKey::WsTermMenuPaste => "Paste",
+        I18nKey::WsTermMenuSelectAll => "Select all",
+        I18nKey::WsTermMenuAria => "Terminal context menu",
+        I18nKey::WsTermToastCopied => "Selection copied to clipboard",
+        I18nKey::WsTermToastPasteFailed => "Could not paste from clipboard: {error}",
+        I18nKey::WsTermToastCopyFailed => "Could not copy to clipboard: {error}",
 
         I18nKey::EulaAccepted => "Accepted",
         I18nKey::EulaUnknown => "Unknown",

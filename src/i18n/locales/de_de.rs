@@ -654,6 +654,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermBootstrapFailed => {
             "Die Terminal-Benutzeroberfläche konnte nicht geladen werden. Überprüfen Sie die Browserkonsole. Das Bootstrap-Skript oder das xterm-CDN sind möglicherweise blockiert."
         }
+        I18nKey::WsTermMenuCopy => "Kopieren",
+        I18nKey::WsTermMenuPaste => "Einfügen",
+        I18nKey::WsTermMenuSelectAll => "Alles markieren",
+        I18nKey::WsTermMenuAria => "Terminal-Kontextmenü",
+        I18nKey::WsTermToastCopied => "Auswahl in Zwischenablage kopiert",
+        I18nKey::WsTermToastPasteFailed => "Einfügen aus Zwischenablage fehlgeschlagen: {error}",
+        I18nKey::WsTermToastCopyFailed => "Kopieren in Zwischenablage fehlgeschlagen: {error}",
         I18nKey::EulaAccepted => "Akzeptiert",
         I18nKey::EulaUnknown => "Unbekannt",
         I18nKey::VoicePaneTitle => "Stimme",

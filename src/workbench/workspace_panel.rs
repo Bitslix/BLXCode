@@ -14,6 +14,10 @@ use crate::workbench::state::{
     RightPanelTab, TerminalSplitAxis, WorkspaceEntry, CENTER_TERMINALS_TAB_ID,
 };
 use crate::workbench::terminal_cell::WorkspaceTerminalCell;
+use crate::workbench::terminal_context_menu::{
+    dispatch_terminal_menu_action, install_terminal_clipboard_listeners, TerminalContextMenu,
+    TerminalContextMenuState, TerminalMenuAction,
+};
 use crate::workbench::terminal_glue::{
     terminal_observe_workspace_grid, terminal_unobserve_workspace_grid,
 };
@@ -22,6 +26,7 @@ use crate::workbench::terminal_slot_dnd::{
     TerminalSlotDragService,
 };
 use crate::workbench::WorkbenchService;
+use crate::workbench::toast::ToastService;
 use gloo_timers::future::TimeoutFuture;
 use leptos::callback::Callback;
 use leptos::html;
@@ -56,8 +61,24 @@ struct TerminalRenderSlot {
 pub fn WorkspacePanel() -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
+    let toast = expect_context::<ToastService>();
     let workspaces = wb.workspaces();
     let active_id = wb.active_id();
+    let term_menu_state: RwSignal<Option<TerminalContextMenuState>> = RwSignal::new(None);
+
+    on_cleanup(install_terminal_clipboard_listeners(
+        term_menu_state,
+        i18n,
+        toast,
+    ));
+
+    let on_term_menu_action = Callback::new(move |action: TerminalMenuAction| {
+        let Some(menu) = term_menu_state.get_untracked() else {
+            return;
+        };
+        term_menu_state.set(None);
+        dispatch_terminal_menu_action(action, menu.term_id, i18n, toast);
+    });
 
     view! {
         <section
@@ -84,6 +105,7 @@ pub fn WorkspacePanel() -> impl IntoView {
                     />
                 </Show>
             </div>
+            <TerminalContextMenu state=term_menu_state on_action=on_term_menu_action />
         </section>
     }
 }

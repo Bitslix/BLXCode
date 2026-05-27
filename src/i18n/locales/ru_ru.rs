@@ -652,6 +652,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermBootstrapFailed => {
             "Не удалось загрузить пользовательский интерфейс терминала. Проверьте консоль браузера; сценарий начальной загрузки или xterm CDN могут быть заблокированы."
         }
+        I18nKey::WsTermMenuCopy => "Копировать",
+        I18nKey::WsTermMenuPaste => "Вставить",
+        I18nKey::WsTermMenuSelectAll => "Выделить всё",
+        I18nKey::WsTermMenuAria => "Контекстное меню терминала",
+        I18nKey::WsTermToastCopied => "Выделение скопировано в буфер обмена",
+        I18nKey::WsTermToastPasteFailed => "Не удалось вставить из буфера обмена: {error}",
+        I18nKey::WsTermToastCopyFailed => "Не удалось скопировать в буфер обмена: {error}",
         I18nKey::EulaAccepted => "Принял",
         I18nKey::EulaUnknown => "Неизвестный",
         I18nKey::VoicePaneTitle => "Голос",

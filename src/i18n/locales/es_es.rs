@@ -656,6 +656,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermBootstrapFailed => {
             "La interfaz de usuario del terminal no se pudo cargar. Verifique la consola del navegador; Es posible que el script de arranque o la CDN de xterm estén bloqueados."
         }
+        I18nKey::WsTermMenuCopy => "Copiar",
+        I18nKey::WsTermMenuPaste => "Pegar",
+        I18nKey::WsTermMenuSelectAll => "Seleccionar todo",
+        I18nKey::WsTermMenuAria => "Menú contextual del terminal",
+        I18nKey::WsTermToastCopied => "Selección copiada al portapapeles",
+        I18nKey::WsTermToastPasteFailed => "No se pudo pegar desde el portapapeles: {error}",
+        I18nKey::WsTermToastCopyFailed => "No se pudo copiar al portapapeles: {error}",
         I18nKey::EulaAccepted => "Aceptado",
         I18nKey::EulaUnknown => "Desconocido",
         I18nKey::VoicePaneTitle => "Voz",

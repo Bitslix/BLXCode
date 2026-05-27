@@ -654,6 +654,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermBootstrapFailed => {
             "Falha ao carregar a interface do terminal. Verifique o console do navegador; o script de inicialização ou CDN xterm pode estar bloqueado."
         }
+        I18nKey::WsTermMenuCopy => "Copiar",
+        I18nKey::WsTermMenuPaste => "Colar",
+        I18nKey::WsTermMenuSelectAll => "Selecionar tudo",
+        I18nKey::WsTermMenuAria => "Menu de contexto do terminal",
+        I18nKey::WsTermToastCopied => "Seleção copiada para a área de transferência",
+        I18nKey::WsTermToastPasteFailed => "Não foi possível colar da área de transferência: {error}",
+        I18nKey::WsTermToastCopyFailed => "Não foi possível copiar para a área de transferência: {error}",
         I18nKey::EulaAccepted => "Aceito",
         I18nKey::EulaUnknown => "Desconhecido",
         I18nKey::VoicePaneTitle => "Voz",

@@ -652,6 +652,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermBootstrapFailed => {
             "Impossibile caricare l'interfaccia utente del terminale. Controlla la console del browser; lo script bootstrap o il CDN xterm potrebbero essere bloccati."
         }
+        I18nKey::WsTermMenuCopy => "Copia",
+        I18nKey::WsTermMenuPaste => "Incolla",
+        I18nKey::WsTermMenuSelectAll => "Seleziona tutto",
+        I18nKey::WsTermMenuAria => "Menu contestuale del terminale",
+        I18nKey::WsTermToastCopied => "Selezione copiata negli appunti",
+        I18nKey::WsTermToastPasteFailed => "Impossibile incollare dagli appunti: {error}",
+        I18nKey::WsTermToastCopyFailed => "Impossibile copiare negli appunti: {error}",
         I18nKey::EulaAccepted => "Accettato",
         I18nKey::EulaUnknown => "Sconosciuto",
         I18nKey::VoicePaneTitle => "Voce",

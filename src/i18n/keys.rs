@@ -660,6 +660,13 @@ pub enum I18nKey {
     WsTermDropCreateNewAria,
     WsTermDragMaxSlots,
     WsTermBootstrapFailed,
+    WsTermMenuCopy,
+    WsTermMenuPaste,
+    WsTermMenuSelectAll,
+    WsTermMenuAria,
+    WsTermToastCopied,
+    WsTermToastPasteFailed,
+    WsTermToastCopyFailed,
 
     // Voice subsystem
     VoicePaneTitle,

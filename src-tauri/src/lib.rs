@@ -4,6 +4,7 @@ mod agent_settings;
 mod agents_layout;
 mod api_keys;
 mod browser_host;
+mod clipboard;
 mod commands;
 mod fs_entries;
 mod git_graph;
@@ -28,6 +29,7 @@ use agent_hooks::{agent_hooks_status, install_agent_hooks, uninstall_agent_hooks
 use agent_settings::{agent_provider_models, agent_settings_get, agent_settings_save};
 use api_keys::{api_keys_apply, api_keys_status};
 use browser_host::BrowserHost;
+use clipboard::{clipboard_read_text, clipboard_write_text};
 use commands::*;
 use image::{image_curated_models, image_settings_get, image_settings_save};
 use pty_host::PtyManager;
@@ -239,6 +241,8 @@ pub fn run() {
             agent_environment_invalidate,
             image_curated_models,
             crate::image::commands::generated_image_preview,
+            clipboard_read_text,
+            clipboard_write_text,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

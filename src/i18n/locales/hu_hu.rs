@@ -654,6 +654,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermBootstrapFailed => {
             "Nem sikerült betölteni a terminál felhasználói felületét. Ellenőrizze a böngésző konzolját; a bootstrap szkript vagy az xterm CDN blokkolva lehet."
         }
+        I18nKey::WsTermMenuCopy => "Másolás",
+        I18nKey::WsTermMenuPaste => "Beillesztés",
+        I18nKey::WsTermMenuSelectAll => "Összes kijelölése",
+        I18nKey::WsTermMenuAria => "Terminál helyi menü",
+        I18nKey::WsTermToastCopied => "Kijelölés a vágólapra másolva",
+        I18nKey::WsTermToastPasteFailed => "Nem sikerült beilleszteni a vágólapról: {error}",
+        I18nKey::WsTermToastCopyFailed => "Nem sikerült a vágólapra másolni: {error}",
         I18nKey::EulaAccepted => "Elfogadott",
         I18nKey::EulaUnknown => "Ismeretlen",
         I18nKey::VoicePaneTitle => "Hang",
