@@ -553,7 +553,6 @@ pub async fn agent_web_settings_save(
     .await
 }
 
-
 pub async fn agent_environment_invalidate() -> Result<(), String> {
     invoke_unit_js("agent_environment_invalidate", JsValue::NULL).await
 }
@@ -584,6 +583,50 @@ pub async fn agent_provider_models(
 
 pub async fn exit_app_ipc() -> Result<(), String> {
     invoke_unit_js("exit_app", JsValue::UNDEFINED).await
+}
+
+pub async fn clipboard_read_text() -> Result<String, String> {
+    invoke_typed("clipboard_read_text", ()).await
+}
+
+pub async fn clipboard_write_text(text: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        text: String,
+    }
+    invoke_unit_js("clipboard_write_text", args_value(Args { text })?).await
+}
+
+/// Tauri native clipboard when available; otherwise Web Clipboard API.
+pub async fn clipboard_read_text_compat() -> Result<String, String> {
+    if is_tauri_shell() {
+        return clipboard_read_text().await;
+    }
+    let Some(window) = web_sys::window() else {
+        return Err("no window".into());
+    };
+    let clipboard = window.navigator().clipboard();
+    let promise = clipboard.read_text();
+    wasm_bindgen_futures::JsFuture::from(promise)
+        .await
+        .map_err(|e| js_error_to_string(e))
+        .and_then(|v| v.as_string().ok_or_else(|| "clipboard read returned non-string".into()))
+}
+
+/// Tauri native clipboard when available; otherwise Web Clipboard API.
+pub async fn clipboard_write_text_compat(text: String) -> Result<(), String> {
+    if is_tauri_shell() {
+        return clipboard_write_text(text).await;
+    }
+    let Some(window) = web_sys::window() else {
+        return Err("no window".into());
+    };
+    let clipboard = window.navigator().clipboard();
+    let promise = clipboard.write_text(&text);
+    wasm_bindgen_futures::JsFuture::from(promise)
+        .await
+        .map_err(|e| js_error_to_string(e))?;
+    Ok(())
 }
 
 #[allow(dead_code)]
@@ -693,6 +736,11 @@ pub enum PolicyKind {
     Authors,
     Changelog,
     Readme,
+    Support,
+    Agents,
+    Claude,
+    Codex,
+    Gemini,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -717,10 +765,7 @@ pub struct BinaryFilePreview {
     pub truncated: bool,
 }
 
-pub async fn stat_workspace_file(
-    workspace_root: String,
-    path: String,
-) -> Result<FileMeta, String> {
+pub async fn stat_workspace_file(workspace_root: String, path: String) -> Result<FileMeta, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct A {
@@ -1146,27 +1191,68 @@ pub async fn agent_latest_session_id(agent: String, cwd: String) -> Result<Optio
 }
 
 // ---------------------------------------------------------------------
-// Memory (workspace-scoped Markdown notes, Obsidian-style)
+// Memory (workspace + global Markdown notes, Obsidian-style)
 
 pub async fn workspace_ensure_agents(ws: &str) -> Result<(), String> {
     invoke_typed("workspace_ensure_agents", WsArg { workspace_cwd: ws }).await
 }
 
+// ── Scope ──────────────────────────────────────────────────────────────────────
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MemoryScope {
+    Workspace,
+    Global,
+}
+
+/// Composite key used as node ID and for addressing notes across scopes.
+pub fn note_key(scope: &MemoryScope, path: &str) -> String {
+    let s = match scope {
+        MemoryScope::Workspace => "workspace",
+        MemoryScope::Global => "global",
+    };
+    format!("{s}:{path}")
+}
+
+pub fn parse_note_key(key: &str) -> Option<(MemoryScope, String)> {
+    let idx = key.find(':')?;
+    if idx == 0 {
+        return None;
+    }
+    let scope = match &key[..idx] {
+        "workspace" => MemoryScope::Workspace,
+        "global" => MemoryScope::Global,
+        _ => return None,
+    };
+    Some((scope, key[idx + 1..].to_owned()))
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
 #[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteMeta {
+    pub scope: MemoryScope,
     pub path: String,
     pub name: String,
+    pub title: String,
+    pub enabled: bool,
+    pub tags: Vec<String>,
     pub size: u64,
     pub modified: i64,
     pub is_template: bool,
+    pub is_learning: bool,
+    pub is_overview: bool,
+    pub category: String,
 }
 
 #[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NoteContent {
+    pub scope: MemoryScope,
     pub path: String,
     pub content: String,
     pub modified: i64,
@@ -1177,15 +1263,18 @@ pub struct NoteContent {
 #[serde(rename_all = "camelCase")]
 pub struct GraphNode {
     pub id: String,
+    pub scope: MemoryScope,
+    pub path: String,
     pub label: String,
     pub tags: Vec<String>,
     pub orphan: bool,
+    pub category: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub is_category_hub: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hub_scopes: Option<Vec<MemoryScope>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub color: Option<String>,
-    /// Category key (derived from path prefix). Filled in by the frontend
-    /// after fetching, used by the renderer to cluster nodes per category.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub category: Option<String>,
 }
 
 #[allow(dead_code)]
@@ -1194,6 +1283,7 @@ pub struct GraphNode {
 pub struct GraphEdge {
     pub source: String,
     pub target: String,
+    pub cross_scope: bool,
 }
 
 #[allow(dead_code)]
@@ -1208,9 +1298,51 @@ pub struct GraphData {
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchHit {
+    pub scope: MemoryScope,
     pub path: String,
     pub line: u32,
     pub snippet: String,
+    pub category: String,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BacklinkRef {
+    pub scope: MemoryScope,
+    pub path: String,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryFolderStatus {
+    pub memory: bool,
+    pub learnings: bool,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryStatusResponse {
+    pub workspace: MemoryFolderStatus,
+    pub global: MemoryFolderStatus,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemorySubcategories {
+    pub workspace: Vec<String>,
+    pub global: Vec<String>,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryListResponse {
+    pub notes: Vec<NoteMeta>,
+    pub memory_subcategories: MemorySubcategories,
 }
 
 #[allow(dead_code)]
@@ -1239,32 +1371,63 @@ struct WsArg<'a> {
     workspace_cwd: &'a str,
 }
 
-pub async fn memory_list(ws: &str) -> Result<Vec<NoteMeta>, String> {
-    invoke_typed("memory_list", WsArg { workspace_cwd: ws }).await
+// ── Commands ──────────────────────────────────────────────────────────────────
+
+pub async fn memory_status(ws: &str) -> Result<MemoryStatusResponse, String> {
+    invoke_typed("memory_status", WsArg { workspace_cwd: ws }).await
 }
 
-pub async fn memory_read(ws: &str, path: &str) -> Result<NoteContent, String> {
+pub async fn memory_bootstrap(ws: &str, target: &str) -> Result<(), String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct A<'a> {
         workspace_cwd: &'a str,
+        target: &'a str,
+    }
+    invoke_unit_js(
+        "memory_bootstrap",
+        args_value(A {
+            workspace_cwd: ws,
+            target,
+        })?,
+    )
+    .await
+}
+
+pub async fn memory_list(ws: &str) -> Result<MemoryListResponse, String> {
+    invoke_typed("memory_list", WsArg { workspace_cwd: ws }).await
+}
+
+pub async fn memory_read(ws: &str, scope: &MemoryScope, path: &str) -> Result<NoteContent, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        scope: &'a MemoryScope,
         path: &'a str,
     }
     invoke_typed(
         "memory_read",
         A {
             workspace_cwd: ws,
+            scope,
             path,
         },
     )
     .await
 }
 
-pub async fn memory_write(ws: &str, path: &str, content: &str) -> Result<NoteContent, String> {
+pub async fn memory_write(
+    ws: &str,
+    scope: &MemoryScope,
+    path: &str,
+    content: &str,
+) -> Result<NoteContent, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct A<'a> {
         workspace_cwd: &'a str,
+        scope: &'a MemoryScope,
         path: &'a str,
         content: &'a str,
     }
@@ -1272,6 +1435,7 @@ pub async fn memory_write(ws: &str, path: &str, content: &str) -> Result<NoteCon
         "memory_write",
         A {
             workspace_cwd: ws,
+            scope,
             path,
             content,
         },
@@ -1281,6 +1445,7 @@ pub async fn memory_write(ws: &str, path: &str, content: &str) -> Result<NoteCon
 
 pub async fn memory_create(
     ws: &str,
+    scope: &MemoryScope,
     path: &str,
     content: Option<&str>,
 ) -> Result<NoteMeta, String> {
@@ -1288,6 +1453,7 @@ pub async fn memory_create(
     #[serde(rename_all = "camelCase")]
     struct A<'a> {
         workspace_cwd: &'a str,
+        scope: &'a MemoryScope,
         path: &'a str,
         #[serde(skip_serializing_if = "Option::is_none")]
         content: Option<&'a str>,
@@ -1296,6 +1462,7 @@ pub async fn memory_create(
         "memory_create",
         A {
             workspace_cwd: ws,
+            scope,
             path,
             content,
         },
@@ -1303,38 +1470,42 @@ pub async fn memory_create(
     .await
 }
 
-pub async fn memory_list_categories(ws: &str) -> Result<Vec<String>, String> {
-    invoke_typed("memory_list_categories", WsArg { workspace_cwd: ws }).await
-}
-
-pub async fn memory_create_category(ws: &str, name: &str) -> Result<String, String> {
+pub async fn memory_create_category(
+    ws: &str,
+    scope: &MemoryScope,
+    name: &str,
+) -> Result<String, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct A<'a> {
         workspace_cwd: &'a str,
+        scope: &'a MemoryScope,
         name: &'a str,
     }
     invoke_typed(
         "memory_create_category",
         A {
             workspace_cwd: ws,
+            scope,
             name,
         },
     )
     .await
 }
 
-pub async fn memory_delete(ws: &str, path: &str) -> Result<(), String> {
+pub async fn memory_delete(ws: &str, scope: &MemoryScope, path: &str) -> Result<(), String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct A<'a> {
         workspace_cwd: &'a str,
+        scope: &'a MemoryScope,
         path: &'a str,
     }
     invoke_unit_js(
         "memory_delete",
         args_value(A {
             workspace_cwd: ws,
+            scope,
             path,
         })?,
     )
@@ -1343,6 +1514,7 @@ pub async fn memory_delete(ws: &str, path: &str) -> Result<(), String> {
 
 pub async fn memory_rename(
     ws: &str,
+    scope: &MemoryScope,
     old_path: &str,
     new_path: &str,
     rewrite_links: bool,
@@ -1351,6 +1523,7 @@ pub async fn memory_rename(
     #[serde(rename_all = "camelCase")]
     struct A<'a> {
         workspace_cwd: &'a str,
+        scope: &'a MemoryScope,
         old_path: &'a str,
         new_path: &'a str,
         rewrite_links: bool,
@@ -1359,6 +1532,7 @@ pub async fn memory_rename(
         "memory_rename",
         A {
             workspace_cwd: ws,
+            scope,
             old_path,
             new_path,
             rewrite_links,
@@ -1371,17 +1545,23 @@ pub async fn memory_graph(ws: &str) -> Result<GraphData, String> {
     invoke_typed("memory_graph", WsArg { workspace_cwd: ws }).await
 }
 
-pub async fn memory_backlinks(ws: &str, path: &str) -> Result<Vec<String>, String> {
+pub async fn memory_backlinks(
+    ws: &str,
+    scope: &MemoryScope,
+    path: &str,
+) -> Result<Vec<BacklinkRef>, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct A<'a> {
         workspace_cwd: &'a str,
+        scope: &'a MemoryScope,
         path: &'a str,
     }
     invoke_typed(
         "memory_backlinks",
         A {
             workspace_cwd: ws,
+            scope,
             path,
         },
     )
@@ -1405,7 +1585,10 @@ pub async fn memory_search(ws: &str, query: &str) -> Result<Vec<SearchHit>, Stri
     .await
 }
 
-#[allow(dead_code)]
+pub async fn memory_pointer_status(ws: &str) -> Result<Vec<PointerResult>, String> {
+    invoke_typed("memory_pointer_status", WsArg { workspace_cwd: ws }).await
+}
+
 pub async fn memory_install_pointers(
     ws: &str,
     agents: Vec<String>,
@@ -1418,6 +1601,26 @@ pub async fn memory_install_pointers(
     }
     invoke_typed(
         "memory_install_pointers",
+        A {
+            workspace_cwd: ws,
+            agents,
+        },
+    )
+    .await
+}
+
+pub async fn memory_uninstall_pointers(
+    ws: &str,
+    agents: Vec<String>,
+) -> Result<Vec<PointerResult>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        agents: Vec<String>,
+    }
+    invoke_typed(
+        "memory_uninstall_pointers",
         A {
             workspace_cwd: ws,
             agents,
@@ -1806,14 +2009,21 @@ pub async fn git_commit_graph(cwd: String, limit: Option<u32>) -> Result<GitGrap
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LineStats {
+    pub added: u32,
+    pub removed: u32,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChangedFile {
     pub rel_path: String,
     /// `"modified" | "added" | "deleted" | "renamed" | "untracked" | "conflicted"`.
     pub status: String,
     pub staged: bool,
     pub unstaged: bool,
-    pub added_lines: u32,
-    pub removed_lines: u32,
+    pub staged_stats: Option<LineStats>,
+    pub unstaged_stats: Option<LineStats>,
 }
 
 pub async fn git_status_changes(cwd: String) -> Result<Vec<ChangedFile>, String> {
@@ -1824,11 +2034,7 @@ pub async fn git_status_changes(cwd: String) -> Result<Vec<ChangedFile>, String>
     invoke_typed("git_status_changes", Args { cwd }).await
 }
 
-pub async fn git_file_diff(
-    cwd: String,
-    rel_path: String,
-    staged: bool,
-) -> Result<String, String> {
+pub async fn git_file_diff(cwd: String, rel_path: String, staged: bool) -> Result<String, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Args {
@@ -1905,7 +2111,8 @@ pub fn listen_git_status_dirty(
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(catch, js_namespace = ["window", "__TAURI__", "event"], js_name = listen)]
-    async fn tauri_listen_raw(event: &str, callback: &js_sys::Function) -> Result<JsValue, JsValue>;
+    async fn tauri_listen_raw(event: &str, callback: &js_sys::Function)
+        -> Result<JsValue, JsValue>;
 }
 
 /// RAII handle returned by [`listen_tauri_event`]. Drop calls the

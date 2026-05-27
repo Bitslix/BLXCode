@@ -9,13 +9,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Sidebar File Diff section + center diff viewer**: new collapsible **File Diff** panel sits between Project Files and Git Commits in the sidebar. Backend module `src-tauri/src/git_status.rs` exposes `git_status_changes` (`git status --porcelain=v1 -z` + merged `--numstat` for staged/unstaged, untracked line counts via file read), `git_file_diff` (unified diff, synthetic `+++` body for untracked files), `git_stage_file` / `git_unstage_file`, and `git_status_watch_start` / `git_status_watch_stop` — a `notify`-based recursive watcher on the work tree (debounced 300 ms) emits `git_status_dirty` via Tauri so the UI refreshes without manual polling. `ChangedFile` rows show a status marker (`M`/`A`/`D`/`R`/`?`/`C`), path, and `+N`/`-N` counts; hover reveals **stage** (`+`) and **unstage** (`−`) actions. Clicking a row opens (or focuses) a `CenterTabKind::FileDiff { rel_path, staged }` tab with an inline diff viewer (`src/workbench/file_diff/`) that classifies lines (`@@` hunk headers, `+`/`-`/`---`/`+++`). Frontend bridge mirrors all types and adds `listen_git_status_dirty` with an RAII `TauriEventListener`. Per-workspace `sidebar_diff_open` (default **open**) persists expand/collapse; `open_center_diff_tab` deduplicates tabs per path. Sidebar panels block is now a **three-slot** layout (Explorer → Diff → Graph) with two `SidebarResizer` handles and `SIDEBAR_DIFF_HEIGHT_PCT_*` in `localStorage`. 18 new `SbDiff*` i18n keys in all 13 locales. Component CSS in `file_diff_section/file-diff-section.css` and `file_diff/file-diff.css` (theme tokens only).
+- **Sidebar File Diff section + center diff viewer**: new collapsible **File Diff** panel sits between Project Files and Git Commits in the sidebar. Backend module `src-tauri/src/git_status.rs` exposes `git_status_changes` (`git status --porcelain=v1 -z` + merged `--numstat` for staged/unstaged, untracked line counts via file read), `git_file_diff` (unified diff, synthetic `+++` body for untracked files), `git_stage_file` / `git_unstage_file`, and `git_status_watch_start` / `git_status_watch_stop` — a `notify`-based recursive watcher on the work tree (debounced 300 ms) emits `git_status_dirty` via Tauri so the UI refreshes without manual polling. `ChangedFile` rows show a status marker (`M`/`A`/`D`/`R`/`?`/`C`), path, and `+N`/`-N` counts; hover reveals **stage** (`+`) and **unstage** (`−`) actions. Clicking a row opens (or focuses) a `CenterTabKind::FileDiff { rel_path, staged }` tab with an inline diff viewer (`src/workbench/file_diff/`) that classifies lines (`@@` hunk headers, `+`/`-`/`---`/`+++`). Frontend bridge mirrors all types and adds `listen_git_status_dirty` with an RAII `TauriEventListener`. Per-workspace `sidebar_diff_open` (default **open**) persists expand/collapse; `open_center_diff_tab` deduplicates tabs per path. Sidebar panels block is now a **three-slot** layout (Explorer → Diff → Graph) with two `SidebarResizer` handles and `SIDEBAR_DIFF_HEIGHT_PCT_*` in `localStorage`. 18+ new `SbDiff*` i18n keys in all 13 locales. Component CSS in `file_diff_section/file-diff-section.css` and `file_diff/file-diff.css` (theme tokens only).
+
+- **Terminal context menu + native clipboard (Linux-safe)**: workspace xterm terminals now expose a right-click context menu with **Copy**, **Paste**, and **Select all** (`src/workbench/terminal_context_menu.rs`, mounted from `WorkspacePanel`). **Shift+right-click** pastes directly (Linux terminal convention). Keyboard shortcuts: **Ctrl+Shift+C/V** for copy/paste; **Ctrl+C** copies only when text is selected, otherwise SIGINT goes to the shell. Clipboard I/O bypasses the unreliable WebKitGTK `navigator.clipboard` path via new Tauri commands `clipboard_read_text` / `clipboard_write_text` backed by **`arboard`** (`src-tauri/src/clipboard.rs`, X11 + Wayland); the frontend uses `clipboard_*_text_compat()` in `tauri_bridge.rs` with a Web Clipboard fallback for `trunk serve`. `public/terminal_bootstrap.mjs` dispatches `blxcode-terminal-contextmenu`, `blxcode-terminal-paste-request`, and `blxcode-terminal-copy-request` custom events; `terminal_glue.rs` gained `getSelection`, `paste`, `selectAll`, `clearSelection`, and `focus` wrappers. Copy clears selection only after a successful write; failures surface as toasts (`WsTermToastCopyFailed` / `WsTermToastPasteFailed`). Global `contextmenu` suppression in `workbench/mod.rs` skips `.ws-term-cell__xterm` / `.xterm` targets. 7 new `WsTermMenu*` / `WsTermToast*` i18n keys in all 13 locales. CSS: `.terminal-context-menu` in `styles.css`.
+
+- **Linux browser boot-crash fix (sticky lazy mount + iframe visibility gating)**: `BrowserTabDock` no longer mounts `<iframe>` elements at workbench boot when the Browser tab is inactive — WebKitGTK in the Tauri main webview previously crashed on immediate iframe loads with the default URL. `right_panel.rs` wraps `BrowserTabDock` in a sticky `<Show>` driven by `browser_dock_mounted` (first Browser-tab visit mounts; DOM node stays for tab switches without reload). `browser_tab.rs` gates iframe `src` and the iframable probe behind `browser_layer_visible(wb)` (`right_active_tab == Browser && !right_collapsed`); hidden state uses `about:blank`. Plan documented in `.agents/plans/linux-browser-iframe-boot-fix.md`.
+
+- **Memory panel: agent pointers + bootstrap onboarding**: new **Agent memory pointers** flow installs marked blocks into existing agent policy files (`CLAUDE.md`, `AGENTS.md`, etc.) so external agents know where BLXCode memory lives. Backend `memory_pointer_status` / `memory_install_pointers` / `memory_uninstall_pointers` in the refactored memory store; frontend adds `MemoryPointersNotice`, `MemoryPointersDialog`, and per-agent checkbox rows (`PointerAgent` catalog incl. OpenCode brand icon). **Bootstrap cards** (`MemoryBootstrapView` / `MemoryBootstrapCard`) prompt workspace + global memory setup when directories are empty. `memory_status` drives pointer-status signals; global README preview loads on panel open.
+
+- **Memory backend module split**: monolithic `src-tauri/src/memory.rs` (~1.3k lines) refactored into `memory/{mod,store,paths,types,graph,frontmatter,wikilinks}.rs` — same Tauri command surface, clearer separation of CRUD, graph, wikilink parsing, and path resolution.
+
+- **Agent timeline: tool activity paths**: tool rows in the agent chat timeline now show workspace-relative **file paths** touched by each tool call (`tool.paths`, rendered as `tool-row-paths` with filename tails via `path_tail()`). `TurnUsageKind::ToolExec` metrics attach per tool row for main-agent and subagent cards.
+
+- **Right-panel settings shortcut**: gear button in the right-panel header and collapsed rail opens **Settings → App** via `open_center_settings_tab(HarnessSettingsCategory::App)` without hunting the command palette.
+
+- **Extension-less policy doc preview types**: `classify_policy` / `FilePreviewDock` now recognize `SUPPORT`, `AGENTS`, `CLAUDE`, `CODEX`, and `GEMINI` stems (plus existing LICENSE/CONTRIBUTING/README variants) with dedicated hero banners (`FilePreviewPolicySupport/Agents/Claude/Codex/Gemini` title + subtitle keys in all locales).
+
+- **Memory search scope filters + global note creation**: search tab adds **Workspace** / **Global** filter toggles (`MemSearchFilterWorkspace`, `MemSearchFilterGlobal`); Files tab header gains **Create global note** (`MemGlobalCreate`).
+
+- **Sidebar Git Graph height floor**: new `SIDEBAR_GRAPH_HEIGHT_PCT_MIN` (12 %) in `app.config.rs`; sidebar resizer logic accounts for the three-slot layout (Explorer → Diff → Graph) when computing drag bounds.
 
 ### Changed
 
+- **File Diff sidebar: staged / unstaged groups**: the File Diff section now partitions changed files into collapsible **Staged** and **Unstaged** groups (`DiffGroupVariant`, `SbDiffGroupStaged/Unstaged`, expand/collapse labels, `SbDiffListAria`). Two-tier debounce on `git_status_dirty` (200 ms frontend + 300 ms backend) prevents duplicate reloads during fast index churn.
+
 - **Git Commits auto-refresh**: `GitGraphSection` now listens to the same `git_status_dirty` event (400 ms debounced reload) so the commit graph updates when the index or working tree changes, without a manual refresh.
 
+- **Terminal UX polish**: xterm `selectionBackground` uses `--accent-soft` for clearer drag-selection feedback; scrollback raised to **5000** lines (`terminal_bootstrap.mjs`).
+
+- **Browser host: main-thread navigation**: `browser_navigate` / `browser_sync_bounds` / `browser_close_tab` Tauri commands now run on the main thread (`run_on_main_thread`) for stable WebKitGTK / wry behavior on Linux.
+
+- **Memory panel layout refresh**: expanded Files-tree spacing, grouped Memory/Learnings sections with expand/collapse, editor/preview toggle refinements, and `.workbench-memory-files__*` CSS overhaul (~370 lines in `styles.css`). Clicking the tree spacer or background clears the active note selection (`clear_memory_selection`).
+
+- **File Diff section styling**: toolbar + list chrome aligned with other sidebar view sections; group headers, row hover, and stage/unstage affordances restyled in `file-diff-section.css`.
+
+- **Agent / subagent Rust modules**: broad `thiserror` + `Display` cleanup across `src-tauri/src/agent/*`, `skills_rules`, `plans`, `image`, and `voice` — consistent `{err}` formatting instead of `{err:?}` in user-facing strings; subagent runner prompt and tool-group wiring tightened.
+
+- **CI / developer tooling**: removed repo-level `rustc-wrapper = "sccache"` from `.cargo/config.toml` (sccache unavailable on CI runners); developers opt in via user-level `~/.cargo/config.toml` instead.
+
 ### Fixed
+
+- **Linux workbench boot crash (embedded browser iframe)**: see *sticky lazy mount* entry above — prevents WebKitGTK crash when Browser tab was never opened.
+
+- **Terminal copy/paste silently failing on Linux**: replaced swallowed `navigator.clipboard` calls with native `arboard` IPC; see *Terminal context menu* entry above.
+
+- **PTY spawn with null-padded cwd**: `pty_host.rs` trims `\0` bytes from the working-directory string before `PathBuf` conversion, fixing spurious spawn failures when the cwd arrives null-terminated from IPC.
+
+- **Browser navigate empty URL**: `browser_host.rs` rejects blank URLs early instead of passing them to WebKit.
 
 - **Git commit graph `git log` invocation**: `fetch_graph_entries` passed `-c log.graphWidth=14` as a single argv token, which Git rejects (`unknown option: -c log.graphWidth=14`) and surfaced in the UI as "Could not load commit history." even though the repository was detected and File Diff worked. Split into `-c` + `log.graphWidth=14` as separate arguments.
 

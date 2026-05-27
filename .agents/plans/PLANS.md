@@ -6,6 +6,7 @@ Persistent plans for multi-step work on **blxcode**. Individual plans live as Ma
 
 | Status | Plan | Description |
 |--------|------|-------------|
+| planned | [linux-browser-iframe-boot-fix.md](linux-browser-iframe-boot-fix.md) | Linux Boot-Crash Fix: sticky Lazy Mount für BrowserTabDock + iframe-src-Gating (WebKitGTK nested iframe) |
 | planned | [performance-optimization.md](performance-optimization.md) | Performance-Audit: Agent-Streaming hot path, Auto-Save-Kaskade, Backend-Blocking, Boot/CDN, Terminal-Refit; Phasen P0–P3 |
 | planned | [security-hardening.md](security-hardening.md) | Security-Audit: Subagent shell_write-Bypass, Shell-Allowlist, XSS/CSP, Runtime-Tool-Allowlist, Symlink/URL/PTY-Hardening; Phasen P0–P3 |
 | planned | [v2-roadmap.md](v2-roadmap.md) | V2-Roadmap (Trust Repair): plan_context-Bug, Konversations-Persistenz, Kanban-MVP, web_fetch, Docs-Sync, CI; Phasen V2.0–V2.3+ |

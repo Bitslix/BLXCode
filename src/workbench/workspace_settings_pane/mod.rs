@@ -4,10 +4,10 @@ mod category_colors;
 
 use super::browser_tab::sync_embedded_browser_layer;
 use super::state::{BrowserEmbedSurface, WorkbenchService};
-use category_colors::WorkspaceCategoryColorsSection;
 use crate::config::HARNESS_BROWSER_DEFAULT_URL;
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
+use category_colors::WorkspaceCategoryColorsSection;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
@@ -50,10 +50,7 @@ fn apply_browser_url(wb: WorkbenchService, embed: BrowserEmbedSurface, url: Stri
 }
 
 #[component]
-pub fn WorkspaceSettingsPane(
-    wb: WorkbenchService,
-    embed: BrowserEmbedSurface,
-) -> impl IntoView {
+pub fn WorkspaceSettingsPane(wb: WorkbenchService, embed: BrowserEmbedSurface) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let baseline = RwSignal::new(snapshot_baseline(&wb));
     let status_msg = RwSignal::new(None::<String>);
@@ -74,7 +71,11 @@ pub fn WorkspaceSettingsPane(
         status_msg.set(None);
         let b = baseline.get_untracked();
         let project = wb.default_project_dir().get_untracked().trim().to_owned();
-        let sandbox = wb.harness_workspace_root().get_untracked().trim().to_owned();
+        let sandbox = wb
+            .harness_workspace_root()
+            .get_untracked()
+            .trim()
+            .to_owned();
         let browser = wb.browser_url().get_untracked();
 
         if project != b.project_dir {

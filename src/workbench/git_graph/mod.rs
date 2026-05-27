@@ -131,9 +131,7 @@ pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
         listener_for_cleanup.borrow_mut().take();
     });
 
-    let show = move || {
-        !collapsed.get() && git_repo_available.get() == Some(true)
-    };
+    let show = move || !collapsed.get() && git_repo_available.get() == Some(true);
 
     view! {
         <Show when=show>

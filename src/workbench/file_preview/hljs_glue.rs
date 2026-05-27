@@ -62,8 +62,8 @@ pub async fn ensure_hljs_loaded() -> Result<(), String> {
 pub async fn highlight(code: &str, language: &str) -> Result<String, String> {
     ensure_hljs_loaded().await?;
     let hljs = hljs_global().ok_or("hljs not available")?;
-    let highlight_fn = Reflect::get(&hljs, &JsValue::from_str("highlight"))
-        .map_err(|_| "no hljs.highlight")?;
+    let highlight_fn =
+        Reflect::get(&hljs, &JsValue::from_str("highlight")).map_err(|_| "no hljs.highlight")?;
     let highlight_fn: Function = highlight_fn
         .dyn_into()
         .map_err(|_| "hljs.highlight not callable")?;
@@ -75,12 +75,8 @@ pub async fn highlight(code: &str, language: &str) -> Result<String, String> {
         &JsValue::from_str(language),
     )
     .map_err(|_| "set language")?;
-    Reflect::set(
-        &opts,
-        &JsValue::from_str("ignoreIllegals"),
-        &JsValue::TRUE,
-    )
-    .map_err(|_| "set ignoreIllegals")?;
+    Reflect::set(&opts, &JsValue::from_str("ignoreIllegals"), &JsValue::TRUE)
+        .map_err(|_| "set ignoreIllegals")?;
 
     let result = highlight_fn
         .call2(&hljs, &JsValue::from_str(code), &opts)

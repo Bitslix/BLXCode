@@ -248,16 +248,11 @@ pub fn handle_voice_event(audio_ref: NodeRef<html::Audio>, ev: &AgentEvent) {
 /// True when App voice settings have a non-empty TTS model (provider is always set).
 #[must_use]
 pub fn tts_line_playback_available(settings: Option<&VoiceSettings>) -> bool {
-    settings
-        .is_some_and(|s| !s.tts.model_id.trim().is_empty())
+    settings.is_some_and(|s| !s.tts.model_id.trim().is_empty())
 }
 
 /// Synthesize and play one chat line via configured TTS (same API as voice settings preview).
-pub fn play_line_tts(
-    audio_ref: NodeRef<html::Audio>,
-    settings: VoiceSettings,
-    text: String,
-) {
+pub fn play_line_tts(audio_ref: NodeRef<html::Audio>, settings: VoiceSettings, text: String) {
     let text = text.trim().to_owned();
     if text.is_empty() {
         return;

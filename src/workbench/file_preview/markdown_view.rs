@@ -43,10 +43,8 @@ fn render_markdown(src: &str) -> String {
             Event::End(TagEnd::CodeBlock) if in_mermaid => {
                 let escaped = html_escape(&mermaid_buf);
                 buffered.push(Event::Html(
-                    format!(
-                        r#"<pre class="mermaid file-preview__mermaid-inline">{escaped}</pre>"#
-                    )
-                    .into(),
+                    format!(r#"<pre class="mermaid file-preview__mermaid-inline">{escaped}</pre>"#)
+                        .into(),
                 ));
                 in_mermaid = false;
                 mermaid_buf.clear();
@@ -136,6 +134,36 @@ fn policy_hero(kind: PolicyKind) -> PolicyHero {
             title_key: I18nKey::FilePreviewPolicyReadmeTitle,
             subtitle_key: I18nKey::FilePreviewPolicyReadmeSubtitle,
             modifier: "readme",
+        },
+        PolicyKind::Support => PolicyHero {
+            icon: icondata::LuLifeBuoy,
+            title_key: I18nKey::FilePreviewPolicySupportTitle,
+            subtitle_key: I18nKey::FilePreviewPolicySupportSubtitle,
+            modifier: "support",
+        },
+        PolicyKind::Agents => PolicyHero {
+            icon: icondata::LuBot,
+            title_key: I18nKey::FilePreviewPolicyAgentsTitle,
+            subtitle_key: I18nKey::FilePreviewPolicyAgentsSubtitle,
+            modifier: "agents",
+        },
+        PolicyKind::Claude => PolicyHero {
+            icon: icondata::LuSparkles,
+            title_key: I18nKey::FilePreviewPolicyClaudeTitle,
+            subtitle_key: I18nKey::FilePreviewPolicyClaudeSubtitle,
+            modifier: "claude",
+        },
+        PolicyKind::Codex => PolicyHero {
+            icon: icondata::LuCode,
+            title_key: I18nKey::FilePreviewPolicyCodexTitle,
+            subtitle_key: I18nKey::FilePreviewPolicyCodexSubtitle,
+            modifier: "codex",
+        },
+        PolicyKind::Gemini => PolicyHero {
+            icon: icondata::LuSparkles,
+            title_key: I18nKey::FilePreviewPolicyGeminiTitle,
+            subtitle_key: I18nKey::FilePreviewPolicyGeminiSubtitle,
+            modifier: "gemini",
         },
     }
 }

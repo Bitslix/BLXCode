@@ -29,11 +29,8 @@ fn strip_known_prefixes(path: &str) -> Cow<'_, str> {
     Cow::Borrowed(t)
 }
 
-const MEMORY_PATH_PREFIXES: &[&str] = &[
-    ".agents/learnings/",
-    ".agents/memory/",
-    ".blxcode/memory/",
-];
+const MEMORY_PATH_PREFIXES: &[&str] =
+    &[".agents/learnings/", ".agents/memory/", ".blxcode/memory/"];
 
 fn memory_rel_from_display_path(display_path: &str) -> Option<String> {
     let t = display_path.trim();
@@ -172,6 +169,22 @@ pub fn preprocess_agent_chat_markdown(src: &str) -> String {
         }
     }
     out
+}
+
+fn strip_yaml_frontmatter(src: &str) -> &str {
+    let rest = src
+        .strip_prefix("---\r\n")
+        .or_else(|| src.strip_prefix("---\n"));
+    let Some(rest) = rest else {
+        return src;
+    };
+
+    for marker in ["\n---\r\n", "\n---\n", "\n...\r\n", "\n...\n"] {
+        if let Some(pos) = rest.find(marker) {
+            return &rest[pos + marker.len()..];
+        }
+    }
+    src
 }
 
 /// Strips `blx-open` from fenced-block info lines (first token only) and records whether each
@@ -487,9 +500,7 @@ fn postprocess_html_inline_code_memory_paths(html: &mut String) {
         rest = &rest[en + 7..];
         let trimmed = inner.trim();
         if !inner.contains('\n')
-            && MEMORY_PATH_PREFIXES
-                .iter()
-                .any(|p| trimmed.starts_with(p))
+            && MEMORY_PATH_PREFIXES.iter().any(|p| trimmed.starts_with(p))
             && trimmed.to_ascii_lowercase().ends_with(".md")
         {
             if let Some(rel) = memory_rel_from_display_path(trimmed) {
@@ -510,7 +521,7 @@ fn postprocess_html_inline_code_memory_paths(html: &mut String) {
 
 #[must_use]
 pub fn render_markdown_to_html(src: &str) -> String {
-    let prepped = preprocess_agent_chat_markdown(src);
+    let prepped = preprocess_agent_chat_markdown(strip_yaml_frontmatter(src));
     let (md_for_cmark, fence_expand) = normalize_blx_open_fenced_markers(&prepped);
     let mut opts = Options::empty();
     opts.insert(Options::ENABLE_TABLES);
@@ -581,6 +592,23 @@ fn main() {}
         assert!(html.contains("workbench-md-fence__summary-lang"));
         assert!(html.contains("fence__summary-lang\">rust</span>"));
         assert!(!html.contains("```"));
+    }
+
+    #[test]
+    fn render_strips_yaml_frontmatter() {
+        let md = "---\ntitle: Learnings\nenabled: true\n---\n# Learnings\n";
+        let html = render_markdown_to_html(md);
+        assert!(!html.contains("title:"));
+        assert!(!html.contains("enabled:"));
+        assert!(html.contains("<h1>Learnings</h1>"));
+    }
+
+    #[test]
+    fn render_keeps_horizontal_rule_without_frontmatter_close() {
+        let md = "---\n# Title\n";
+        let html = render_markdown_to_html(md);
+        assert!(html.contains("<hr"));
+        assert!(html.contains("<h1>Title</h1>"));
     }
 
     #[test]

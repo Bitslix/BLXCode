@@ -53,6 +53,11 @@ pub enum PolicyKind {
     Authors,
     Changelog,
     Readme,
+    Support,
+    Agents,
+    Claude,
+    Codex,
+    Gemini,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
@@ -103,18 +108,22 @@ fn stem_lower(path: &Path) -> String {
 /// variant (`LICENSE.md`) since the caller always passes the stem.
 fn classify_policy(stem: &str) -> Option<PolicyKind> {
     match stem {
-        "license" | "licence" | "copying" | "copyright" | "unlicense" => {
-            Some(PolicyKind::License)
-        }
+        "license" | "licence" | "copying" | "copyright" | "unlicense" => Some(PolicyKind::License),
         "contributing" | "contribution" | "contributions" => Some(PolicyKind::Contributing),
         "contributors" | "contributer" | "contributers" => Some(PolicyKind::Contributors),
         "code_of_conduct" | "code-of-conduct" | "codeofconduct" => Some(PolicyKind::CodeOfConduct),
         "security" | "security-policy" | "security_policy" => Some(PolicyKind::Security),
         "authors" | "maintainers" | "owners" | "codeowners" => Some(PolicyKind::Authors),
-        "changelog" | "changes" | "history" | "release_notes" | "release-notes" | "releasenotes" => {
-            Some(PolicyKind::Changelog)
-        }
+        "changelog" | "changes" | "history" | "release_notes" | "release-notes"
+        | "releasenotes" => Some(PolicyKind::Changelog),
         "readme" => Some(PolicyKind::Readme),
+        "support" => Some(PolicyKind::Support),
+        "agents" | "agent" => Some(PolicyKind::Agents),
+        "claude" => Some(PolicyKind::Claude),
+        "codex" => Some(PolicyKind::Codex),
+        "gemini" => Some(PolicyKind::Gemini),
+        "copilot" | "windsurf" | "aider" | "cursor" | "cody" | "devin" | "junie"
+        | "continue" => Some(PolicyKind::Agents),
         _ => None,
     }
 }
@@ -127,24 +136,20 @@ fn classify_kind(ext: &str) -> FileKind {
         "md" | "markdown" => FileKind::Markdown,
         "mmd" | "mermaid" => FileKind::Mermaid,
         // Source code with syntax highlighting.
-        "rs" | "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs"
-        | "py" | "pyw" | "pyi"
-        | "go" | "java" | "kt" | "kts" | "scala" | "groovy" | "gradle"
-        | "swift" | "m" | "mm" | "c" | "h" | "cpp" | "cc" | "cxx" | "hpp" | "hxx"
-        | "cs" | "fs" | "fsx" | "vb" | "rb" | "erb" | "php" | "phtml"
-        | "lua" | "pl" | "pm" | "dart" | "r" | "jl"
-        | "clj" | "cljs" | "cljc" | "edn" | "ex" | "exs" | "eex" | "erl" | "hrl"
-        | "hs" | "lhs" | "purs" | "elm" | "nim" | "zig" | "ml" | "mli" | "ocaml"
-        | "html" | "htm" | "xhtml" | "vue" | "svelte" | "css" | "scss" | "sass" | "less" | "styl"
-        | "json" | "json5" | "jsonc" | "toml" | "yaml" | "yml" | "xml" | "plist"
-        | "sh" | "bash" | "zsh" | "fish" | "ps1" | "bat" | "cmd"
-        | "sql" | "graphql" | "gql" | "proto" | "thrift" | "tf" | "tfvars" | "hcl" | "nix"
-        | "dockerfile" | "containerfile" | "makefile" | "mk" | "cmake"
-        | "diff" | "patch" => FileKind::Code,
+        "rs" | "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "py" | "pyw" | "pyi" | "go"
+        | "java" | "kt" | "kts" | "scala" | "groovy" | "gradle" | "swift" | "m" | "mm" | "c"
+        | "h" | "cpp" | "cc" | "cxx" | "hpp" | "hxx" | "cs" | "fs" | "fsx" | "vb" | "rb"
+        | "erb" | "php" | "phtml" | "lua" | "pl" | "pm" | "dart" | "r" | "jl" | "clj" | "cljs"
+        | "cljc" | "edn" | "ex" | "exs" | "eex" | "erl" | "hrl" | "hs" | "lhs" | "purs" | "elm"
+        | "nim" | "zig" | "ml" | "mli" | "ocaml" | "html" | "htm" | "xhtml" | "vue" | "svelte"
+        | "css" | "scss" | "sass" | "less" | "styl" | "json" | "json5" | "jsonc" | "toml"
+        | "yaml" | "yml" | "xml" | "plist" | "sh" | "bash" | "zsh" | "fish" | "ps1" | "bat"
+        | "cmd" | "sql" | "graphql" | "gql" | "proto" | "thrift" | "tf" | "tfvars" | "hcl"
+        | "nix" | "dockerfile" | "containerfile" | "makefile" | "mk" | "cmake" | "diff"
+        | "patch" => FileKind::Code,
         // Plain text without highlighting (still gets line numbers in the preview).
-        "txt" | "log" | "ini" | "conf" | "cfg" | "env" | "properties"
-        | "lock" | "gitignore" | "gitattributes" | "editorconfig"
-        | "csv" | "tsv" => FileKind::Text,
+        "txt" | "log" | "ini" | "conf" | "cfg" | "env" | "properties" | "lock" | "gitignore"
+        | "gitattributes" | "editorconfig" | "csv" | "tsv" => FileKind::Text,
         _ => FileKind::Binary,
     }
 }
@@ -447,9 +452,18 @@ mod tests {
 
     #[test]
     fn classify_policy_matches_known_stems() {
-        assert!(matches!(classify_policy("license"), Some(PolicyKind::License)));
-        assert!(matches!(classify_policy("licence"), Some(PolicyKind::License)));
-        assert!(matches!(classify_policy("copying"), Some(PolicyKind::License)));
+        assert!(matches!(
+            classify_policy("license"),
+            Some(PolicyKind::License)
+        ));
+        assert!(matches!(
+            classify_policy("licence"),
+            Some(PolicyKind::License)
+        ));
+        assert!(matches!(
+            classify_policy("copying"),
+            Some(PolicyKind::License)
+        ));
         assert!(matches!(
             classify_policy("contributing"),
             Some(PolicyKind::Contributing)
@@ -474,7 +488,30 @@ mod tests {
             classify_policy("changelog"),
             Some(PolicyKind::Changelog)
         ));
-        assert!(matches!(classify_policy("readme"), Some(PolicyKind::Readme)));
+        assert!(matches!(
+            classify_policy("readme"),
+            Some(PolicyKind::Readme)
+        ));
+        assert_eq!(
+            classify_policy("support"),
+            Some(PolicyKind::Support)
+        );
+        assert_eq!(
+            classify_policy("agents"),
+            Some(PolicyKind::Agents)
+        );
+        assert_eq!(
+            classify_policy("claude"),
+            Some(PolicyKind::Claude)
+        );
+        assert_eq!(
+            classify_policy("codex"),
+            Some(PolicyKind::Codex)
+        );
+        assert_eq!(
+            classify_policy("copilot"),
+            Some(PolicyKind::Agents)
+        );
         assert!(classify_policy("random").is_none());
     }
 
@@ -498,10 +535,7 @@ mod tests {
         let root = tmp.to_string_lossy().into_owned();
         let meta = stat_workspace_file(root, "CONTRIBUTING.md".into()).unwrap();
         assert!(matches!(meta.kind, FileKind::Markdown));
-        assert!(matches!(
-            meta.policy_kind,
-            Some(PolicyKind::Contributing)
-        ));
+        assert!(matches!(meta.policy_kind, Some(PolicyKind::Contributing)));
         let _ = fs::remove_dir_all(tmp);
     }
 

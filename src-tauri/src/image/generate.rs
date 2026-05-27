@@ -115,9 +115,7 @@ pub async fn generate(
         return Err(GenerateError::Cancelled);
     }
     if prompt.trim().is_empty() {
-        return Err(GenerateError::Validation(
-            "prompt must not be empty".into(),
-        ));
+        return Err(GenerateError::Validation("prompt must not be empty".into()));
     }
     validate_refs(refs)?;
 
@@ -435,19 +433,14 @@ async fn parse_fal_envelope(
     client: &reqwest::Client,
     body: &str,
 ) -> Result<GeneratedImage, GenerateError> {
-    let env: FalImageEnvelope = serde_json::from_str(body)
-        .map_err(|e| GenerateError::Parse(format!("fal json: {e}")))?;
-    let item = env
-        .images
-        .into_iter()
-        .next()
-        .or(env.image)
-        .ok_or_else(|| {
-            GenerateError::Provider(
-                env.detail
-                    .unwrap_or_else(|| "fal returned no images".into()),
-            )
-        })?;
+    let env: FalImageEnvelope =
+        serde_json::from_str(body).map_err(|e| GenerateError::Parse(format!("fal json: {e}")))?;
+    let item = env.images.into_iter().next().or(env.image).ok_or_else(|| {
+        GenerateError::Provider(
+            env.detail
+                .unwrap_or_else(|| "fal returned no images".into()),
+        )
+    })?;
     let url = item
         .url
         .ok_or_else(|| GenerateError::Provider("fal image had no url".into()))?;
@@ -594,13 +587,19 @@ fn parse_openrouter_envelope(body: &str) -> Result<GeneratedImage, GenerateError
 fn openrouter_text_fallback(content: Option<&Value>) -> Option<String> {
     let value = content?;
     if let Some(s) = value.as_str() {
-        return Some(format!("openrouter returned no image: {}", truncate(s, 240)));
+        return Some(format!(
+            "openrouter returned no image: {}",
+            truncate(s, 240)
+        ));
     }
     if let Some(arr) = value.as_array() {
         for block in arr {
             if block.get("type").and_then(|t| t.as_str()) == Some("text") {
                 if let Some(t) = block.get("text").and_then(|t| t.as_str()) {
-                    return Some(format!("openrouter returned no image: {}", truncate(t, 240)));
+                    return Some(format!(
+                        "openrouter returned no image: {}",
+                        truncate(t, 240)
+                    ));
                 }
             }
         }
@@ -628,9 +627,7 @@ fn decode_data_url(url: &str) -> Result<(String, Vec<u8>), GenerateError> {
         }
     }
     if !is_b64 {
-        return Err(GenerateError::Parse(
-            "data URL not base64-encoded".into(),
-        ));
+        return Err(GenerateError::Parse("data URL not base64-encoded".into()));
     }
     let bytes = BASE64
         .decode(payload.as_bytes())

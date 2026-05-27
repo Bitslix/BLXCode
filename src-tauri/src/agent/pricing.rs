@@ -70,15 +70,14 @@ fn find_in_cache(
 /// OpenRouter id (whose pricing we reuse). Add entries as new direct
 /// models are exposed in the UI — the test below guards against typos.
 #[must_use]
-pub fn map_direct_to_openrouter(provider: AgentProviderKind, model_id: &str) -> Option<&'static str> {
+pub fn map_direct_to_openrouter(
+    provider: AgentProviderKind,
+    model_id: &str,
+) -> Option<&'static str> {
     match (provider, model_id) {
         // Anthropic Direct → OpenRouter
-        (AgentProviderKind::Anthropic, "claude-sonnet-4-5") => {
-            Some("anthropic/claude-sonnet-4.5")
-        }
-        (AgentProviderKind::Anthropic, "claude-sonnet-4-6") => {
-            Some("anthropic/claude-sonnet-4.6")
-        }
+        (AgentProviderKind::Anthropic, "claude-sonnet-4-5") => Some("anthropic/claude-sonnet-4.5"),
+        (AgentProviderKind::Anthropic, "claude-sonnet-4-6") => Some("anthropic/claude-sonnet-4.6"),
         (AgentProviderKind::Anthropic, "claude-opus-4-1") => Some("anthropic/claude-opus-4.1"),
         (AgentProviderKind::Anthropic, "claude-opus-4-7") => Some("anthropic/claude-opus-4.7"),
         (AgentProviderKind::Anthropic, "claude-haiku-4-5-20251001") => {
@@ -96,7 +95,9 @@ pub fn map_direct_to_openrouter(provider: AgentProviderKind, model_id: &str) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent_settings::{AgentProviderKind, ModelPricing, ProviderModelEntry, ThinkingLevel};
+    use crate::agent_settings::{
+        AgentProviderKind, ModelPricing, ProviderModelEntry, ThinkingLevel,
+    };
 
     fn settings_with_openrouter(entries: Vec<ProviderModelEntry>) -> AgentProviderSettings {
         AgentProviderSettings {
@@ -120,8 +121,7 @@ mod tests {
 
     #[test]
     fn openrouter_hit_sums_prompt_and_completion() {
-        let settings =
-            settings_with_openrouter(vec![entry("openai/gpt-5", 0.000_002, 0.000_010)]);
+        let settings = settings_with_openrouter(vec![entry("openai/gpt-5", 0.000_002, 0.000_010)]);
         let cost = resolve_cost(
             &settings,
             AgentProviderKind::Openrouter,
@@ -185,8 +185,7 @@ mod tests {
 
     #[test]
     fn missing_tokens_still_prices_known_side() {
-        let settings =
-            settings_with_openrouter(vec![entry("openai/gpt-5", 0.000_002, 0.000_010)]);
+        let settings = settings_with_openrouter(vec![entry("openai/gpt-5", 0.000_002, 0.000_010)]);
         let cost = resolve_cost(
             &settings,
             AgentProviderKind::Openrouter,
@@ -200,8 +199,7 @@ mod tests {
 
     #[test]
     fn both_tokens_none_returns_none_even_with_pricing() {
-        let settings =
-            settings_with_openrouter(vec![entry("openai/gpt-5", 0.000_002, 0.000_010)]);
+        let settings = settings_with_openrouter(vec![entry("openai/gpt-5", 0.000_002, 0.000_010)]);
         assert!(resolve_cost(
             &settings,
             AgentProviderKind::Openrouter,

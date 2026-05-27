@@ -77,9 +77,8 @@ pub fn git_commit_graph(cwd: String, limit: Option<u32>) -> Result<GitGraphLayou
 }
 
 fn fetch_graph_entries(work_tree: &Path, limit: u32) -> Result<GitGraphLayout, String> {
-    let pretty = format!(
-        "%x1e%H{FIELD_SEP}%P{FIELD_SEP}%s{FIELD_SEP}%an{FIELD_SEP}%ar{FIELD_SEP}%D%x02"
-    );
+    let pretty =
+        format!("%x1e%H{FIELD_SEP}%P{FIELD_SEP}%s{FIELD_SEP}%an{FIELD_SEP}%ar{FIELD_SEP}%D%x02");
     let out = Command::new("git")
         .arg("-C")
         .arg(work_tree)
@@ -235,7 +234,9 @@ mod tests {
 
     #[test]
     fn parse_commit_record_fields() {
-        let rec = format!("deadbeef{FIELD_SEP}{FIELD_SEP}subject{FIELD_SEP}author{FIELD_SEP}1 day ago{FIELD_SEP}");
+        let rec = format!(
+            "deadbeef{FIELD_SEP}{FIELD_SEP}subject{FIELD_SEP}author{FIELD_SEP}1 day ago{FIELD_SEP}"
+        );
         let c = parse_commit_record(&rec).expect("parse");
         assert_eq!(c.oid, "deadbeef");
         assert_eq!(c.subject, "subject");

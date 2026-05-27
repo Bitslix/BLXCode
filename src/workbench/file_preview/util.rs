@@ -338,7 +338,10 @@ fn strip_tag_blocks(input: &str, tag: &str) -> String {
         let open_start = cursor + rel;
         let after_name = open_start + open_tok.len();
         let after_name_ch = lower.as_bytes().get(after_name).copied();
-        if !matches!(after_name_ch, Some(b' ' | b'\t' | b'\n' | b'\r' | b'>' | b'/')) {
+        if !matches!(
+            after_name_ch,
+            Some(b' ' | b'\t' | b'\n' | b'\r' | b'>' | b'/')
+        ) {
             out.push_str(&input[cursor..=open_start]);
             cursor = open_start + 1;
             continue;
@@ -657,30 +660,16 @@ z</span>w</span>"#;
 
     #[test]
     fn build_file_snippet_block_without_language_leaves_fence_tag_empty() {
-        let out = build_file_snippet_block(
-            "notes/log.txt",
-            None,
-            &sample_plain_lines(),
-            (1, 1),
-            None,
-        );
+        let out =
+            build_file_snippet_block("notes/log.txt", None, &sample_plain_lines(), (1, 1), None);
         // Fence opens with bare three backticks (no lang tag).
         assert!(out.contains("```\nlet a = 1;\n```"));
     }
 
     #[test]
     fn build_file_snippet_block_preserves_utf8() {
-        let lines: Vec<String> = vec![
-            "Grüße aus München".into(),
-            "你好世界 ✓".into(),
-        ];
-        let out = build_file_snippet_block(
-            "i18n.md",
-            None,
-            &lines,
-            (1, 2),
-            None,
-        );
+        let lines: Vec<String> = vec!["Grüße aus München".into(), "你好世界 ✓".into()];
+        let out = build_file_snippet_block("i18n.md", None, &lines, (1, 2), None);
         assert!(out.contains("Grüße aus München"));
         assert!(out.contains("你好世界 ✓"));
         // Header sanity-checks UTF-8 path safety too.
@@ -690,13 +679,8 @@ z</span>w</span>"#;
     #[test]
     fn build_file_snippet_block_clamps_out_of_range() {
         // start above total -> clamp to last line; end below start -> raised to start.
-        let out = build_file_snippet_block(
-            "x.rs",
-            Some("rust"),
-            &sample_plain_lines(),
-            (99, 1),
-            None,
-        );
+        let out =
+            build_file_snippet_block("x.rs", Some("rust"), &sample_plain_lines(), (99, 1), None);
         assert!(out.contains("**`x.rs:4`**"));
         assert!(out.contains("let d = 4;"));
     }

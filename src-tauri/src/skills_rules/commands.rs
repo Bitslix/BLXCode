@@ -22,9 +22,7 @@
 
 use crate::skills_rules::install;
 use crate::skills_rules::store;
-use crate::skills_rules::types::{
-    RuleEntry, SkillEntry, SkillSourceInput,
-};
+use crate::skills_rules::types::{RuleEntry, SkillEntry, SkillSourceInput};
 
 /// Idempotently create `.agents/{rules,skills}/` plus their `index.json`
 /// manifests. Safe to call on every workspace open.

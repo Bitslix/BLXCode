@@ -133,7 +133,10 @@ pub fn render_agent_context_block(input: &RenderInputs) -> String {
                         out.push_str(&format!("  - `{p}`\n"));
                     }
                 } else if item.paths.len() > 12 {
-                    out.push_str(&format!("  - ({} paths — see manifest)\n", item.paths.len()));
+                    out.push_str(&format!(
+                        "  - ({} paths — see manifest)\n",
+                        item.paths.len()
+                    ));
                 }
             }
         }
@@ -599,8 +602,8 @@ pub async fn perform_handoff(
 
     // Pull workspace-attached context once. We keep plan items separate from
     // memory-style items so the kind filters can be respected.
-    let attached = context_items
-        .unwrap_or_else(|| wb.agent_context_for_workspace_untracked(workspace_id));
+    let attached =
+        context_items.unwrap_or_else(|| wb.agent_context_for_workspace_untracked(workspace_id));
     let mut effective_items: Vec<AgentContextItem> = Vec::new();
     for item in attached {
         let is_plan = matches!(
@@ -1008,7 +1011,10 @@ fn build_plan_task_snapshot(
     for task in &snapshot.tasks {
         if let Some(path) = task.plan_path.as_deref() {
             if attached_plans.is_empty() || attached_plans.contains(path) {
-                buckets.entry(path.to_owned()).or_default().push(task.clone());
+                buckets
+                    .entry(path.to_owned())
+                    .or_default()
+                    .push(task.clone());
             }
         }
     }
@@ -1120,10 +1126,7 @@ pub fn file_snippet_context_item(
         Some(ws) if !ws.is_empty() => format!("file-snippet:{ws}:{rel_path}:{start}-{end}"),
         _ => format!("file-snippet:{rel_path}:{start}-{end}"),
     };
-    let source = format!(
-        "{} · lines {start}-{end}",
-        language.unwrap_or("text")
-    );
+    let source = format!("{} · lines {start}-{end}", language.unwrap_or("text"));
     AgentContextItem {
         id,
         kind: AgentContextKind::FileSnippet,
@@ -1204,10 +1207,7 @@ mod tests {
             workspace_root: Some("/repo".into()),
             include_memory: true,
             include_images: true,
-            context_items: vec![note_context_item(
-                "learnings/index.md",
-                "Learnings",
-            )],
+            context_items: vec![note_context_item("learnings/index.md", "Learnings")],
             images: vec![RenderImageMeta {
                 id: "img".into(),
                 label: "Shot".into(),
@@ -1352,15 +1352,7 @@ mod tests {
 
     #[test]
     fn file_snippet_item_id_includes_workspace_when_provided() {
-        let item = file_snippet_context_item(
-            "src/foo.rs",
-            1,
-            1,
-            None,
-            "S",
-            "x",
-            Some("Demo"),
-        );
+        let item = file_snippet_context_item("src/foo.rs", 1, 1, None, "S", "x", Some("Demo"));
         assert_eq!(item.id, "file-snippet:Demo:src/foo.rs:1-1");
     }
 

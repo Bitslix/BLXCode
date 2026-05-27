@@ -3,22 +3,23 @@
    not compete with the row's primary content. */
 
 .turn-metrics-bar {
-    display: inline-flex;
+    display: flex;
     flex-wrap: wrap;
-    align-items: center;
+    align-items: baseline;
     gap: 0.4rem;
     margin-top: 0.25rem;
     padding: 0.1rem 0;
     font-family: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
     font-size: 0.7rem;
-    line-height: 1.2;
+    line-height: 1;
     color: var(--text-muted);
 }
 
 .turn-metrics-bar__cell {
     display: inline-flex;
-    align-items: center;
+    align-items: baseline;
     gap: 0.2rem;
+    line-height: 1;
 }
 
 .turn-metrics-bar__cell strong {
@@ -43,21 +44,32 @@
     font-size: 0.66rem;
 }
 
-/* The new synthetic "decision" row for tool-only model rounds —
-   essentially just the metrics bar with a tiny prefix. */
-.agent-chat-line--decision {
-    padding-left: 0;
-}
-
-.agent-chat-line--decision .agent-chat-body {
-    padding: 0.05rem 0 0.05rem 0.1rem;
+/* Model-round row: inference metrics + tool calls grouped in one block. */
+.agent-chat-line--model-round .agent-chat-body {
+    padding-top: 0.15rem;
+    padding-bottom: 0.2rem;
 }
 
 .agent-chat-decision-label {
-    display: inline-block;
+    display: block;
     font-size: 0.65rem;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--text-muted);
-    margin-right: 0.4rem;
+    margin-bottom: 0.25rem;
+}
+
+/* Tool list nested inside the model-round block. */
+.model-round-tools {
+    list-style: none;
+    margin: 0.3rem 0 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.model-round-tool-item {
+    display: flex;
+    flex-direction: column;
 }

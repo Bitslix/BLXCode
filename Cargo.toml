@@ -71,3 +71,4 @@ members = ["src-tauri"]
 [profile.dev]
 debug = 1
 incremental = true
+codegen-units = 256

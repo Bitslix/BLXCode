@@ -29,10 +29,23 @@ pub struct ToolActivity {
     /// Per-row metrics — populated by a matching `TurnUsage` event.
     #[serde(default)]
     pub metrics: TurnMetrics,
+    /// Workspace-relative paths accessed by this tool call (file-reading tools
+    /// only). Populated from tool args at call time; accumulates entries when
+    /// consecutive same-tool calls are grouped in a ModelRound.
+    #[serde(default)]
+    pub paths: Vec<String>,
+    /// Number of individual tool calls merged into this row (1 = ungrouped).
+    #[serde(default = "default_merged_count")]
+    pub merged_count: usize,
+}
+
+fn default_merged_count() -> usize {
+    1
 }
 
 impl ToolActivity {
     pub fn from_call(tool: &str, args: Option<&Value>, loc: Locale) -> Self {
+        let paths = file_arg_path(tool, args).into_iter().collect();
         Self {
             tool: tool.to_owned(),
             label: tool_label(tool, loc),
@@ -41,6 +54,8 @@ impl ToolActivity {
             detail: None,
             call_id: None,
             metrics: TurnMetrics::default(),
+            paths,
+            merged_count: 1,
         }
     }
 
@@ -213,7 +228,9 @@ pub enum AskUserState {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum TimelineItem {
-    User { text: String },
+    User {
+        text: String,
+    },
     Assistant {
         text: String,
         /// Per-row metrics aggregated from `ModelRound` events whose visible
@@ -223,7 +240,10 @@ pub enum TimelineItem {
         metrics: TurnMetrics,
     },
     Tool(ToolActivity),
-    Thinking { text: String, done: bool },
+    Thinking {
+        text: String,
+        done: bool,
+    },
     SubagentGroup(SubagentGroup),
     /// Synthetic row inserted for tool-only model rounds (no assistant
     /// text was emitted). Carries the round's metrics so cost / tokens
@@ -272,7 +292,12 @@ fn summarize_args(tool: &str, args: Option<&Value>) -> String {
     let pick = match tool {
         "harness.create_workspace" => Some("title"),
         "list_workspace_files" => Some("path"),
-        "read_workspace_file" | "memory_read" | "memory_create" | "memory_write" | "memory_delete" | "memory_backlinks" => Some("path"),
+        "read_workspace_file"
+        | "memory_read"
+        | "memory_create"
+        | "memory_write"
+        | "memory_delete"
+        | "memory_backlinks" => Some("path"),
         "memory_rename" => Some("newPath"),
         "memory_search" => Some("query"),
         "memory_category_update" => Some("category"),
@@ -288,6 +313,7 @@ fn summarize_args(tool: &str, args: Option<&Value>) -> String {
         "git_show" => Some("rev"),
         "git_commit" => Some("message"),
         "web_fetch" => Some("url"),
+        "rules_read" | "skills_read" => Some("name"),
         _ => None,
     };
     if let Some(key) = pick {
@@ -301,4 +327,29 @@ fn summarize_args(tool: &str, args: Option<&Value>) -> String {
         }
     }
     String::new()
+}
+
+/// Returns the workspace-relative path that a file-reading tool accesses,
+/// constructed from its arguments. Returns `None` for non-file tools.
+fn file_arg_path(tool: &str, args: Option<&Value>) -> Option<String> {
+    let args = args?;
+    match tool {
+        "rules_read" => {
+            let name = args.get("name")?.as_str()?;
+            Some(format!(".agents/rules/{name}"))
+        }
+        "skills_read" => {
+            let name = args.get("name")?.as_str()?;
+            Some(format!(".agents/skills/{name}/SKILL.md"))
+        }
+        "read_workspace_file"
+        | "memory_read"
+        | "memory_create"
+        | "memory_write"
+        | "memory_delete"
+        | "memory_backlinks"
+        | "list_workspace_files" => args.get("path")?.as_str().map(|s| s.to_owned()),
+        "memory_rename" => args.get("newPath")?.as_str().map(|s| s.to_owned()),
+        _ => None,
+    }
 }

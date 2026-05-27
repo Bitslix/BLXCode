@@ -22,14 +22,13 @@ use crate::workbench::agent_panel::image_context::{
     clear_drop_state, handle_dom_drag_event, handle_dom_drop, install_agent_image_intake,
     DropZoneState,
 };
-use crate::workbench::agent_panel::task_list::TaskSection;
 use crate::workbench::agent_panel::subagent_debounce::{
     is_subagent_timeline_event, SubagentEventDebounce,
 };
+use crate::workbench::agent_panel::task_list::TaskSection;
 use crate::workbench::agent_panel::timeline::{
-    apply_agent_event, compact_timeline, ChatLineIndexColumn, TimelineItem, TimelineRow,
+    apply_agent_event, timeline_display_rows, ChatLineIndexColumn, TimelineItem, TimelineRow,
 };
-use std::rc::Rc;
 use crate::workbench::agent_panel::voice_orb::{
     handle_voice_event, install_ptt_hotkey, VoiceOrb, VoiceOrbHandle,
 };
@@ -38,6 +37,7 @@ use leptos::html;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use std::collections::HashMap;
+use std::rc::Rc;
 use wasm_bindgen::JsCast;
 
 #[component]
@@ -59,6 +59,15 @@ pub fn AgentPanelDock() -> impl IntoView {
     let image_mode = RwSignal::new(false);
     let chat_maximized = RwSignal::new(false);
     let chat_scroll_ref = NodeRef::<html::Div>::new();
+    let compose_input_ref = NodeRef::<html::Input>::new();
+    // Refocus the compose input whenever the agent finishes (busy → false).
+    Effect::new(move |_| {
+        if !busy.get() {
+            if let Some(el) = compose_input_ref.get() {
+                let _ = el.focus();
+            }
+        }
+    });
     let voice_handle = VoiceOrbHandle::new();
     let task_snapshot = RwSignal::new(TaskSnapshot {
         tasks: Vec::new(),
@@ -69,6 +78,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     // display timeline. Lives on the parent so streaming rerenders do not
     // remount the row and reset the local open flag.
     let thinking_open = RwSignal::new(HashMap::<usize, bool>::new());
+    let tool_detail_open = RwSignal::new(HashMap::<String, bool>::new());
 
     // Load authoritative timeline + compose draft when the active workspace
     // changes only (do not subscribe to `workspaces` — timeline writes would
@@ -78,12 +88,14 @@ pub fn AgentPanelDock() -> impl IntoView {
         let Some(id) = active else {
             timeline.set(Vec::new());
             thinking_open.set(HashMap::new());
+            tool_detail_open.set(HashMap::new());
             draft.set(String::new());
             image_mode.set(false);
             return;
         };
         timeline.set(wb.agent_timeline_for_workspace_untracked(id));
         thinking_open.set(HashMap::new());
+        tool_detail_open.set(HashMap::new());
         draft.set(wb.agent_compose_draft_for_workspace_untracked(id));
         image_mode.set(wb.agent_image_mode_for_workspace_untracked(id));
     });
@@ -137,10 +149,7 @@ pub fn AgentPanelDock() -> impl IntoView {
             // Prime the handoff renderer cache so terminal handoffs after
             // a workspace reload see the restored plan-task state.
             if let Some(ws_id) = active {
-                crate::workbench::agent_context_handoff::store_task_snapshot(
-                    ws_id,
-                    next.clone(),
-                );
+                crate::workbench::agent_context_handoff::store_task_snapshot(ws_id, next.clone());
             }
             task_snapshot_sig.set(next);
         });
@@ -167,10 +176,23 @@ pub fn AgentPanelDock() -> impl IntoView {
         context_open.set(count > 0);
     });
 
+    // Autoscroll while following the stream (near bottom or new row). Skip when
+    // the user scrolled up to read/expand older tool or thinking blocks.
+    const AUTOSCROLL_PX: i32 = 80;
+    let last_timeline_len = StoredValue::new(0usize);
     Effect::new(move |_| {
-        let _ = timeline.get().len();
-        if let Some(log) = chat_scroll_ref.get() {
-            log.set_scroll_top(log.scroll_height());
+        let len = timeline.with(|t| t.len());
+        let prev_len = last_timeline_len.get_value();
+        last_timeline_len.set_value(len);
+        let Some(log) = chat_scroll_ref.get() else {
+            return;
+        };
+        let scroll_top = log.scroll_top();
+        let scroll_height = log.scroll_height();
+        let client_height = log.client_height();
+        let near_bottom = scroll_height - scroll_top - client_height < AUTOSCROLL_PX;
+        if len > prev_len || near_bottom {
+            log.set_scroll_top(scroll_height);
         }
     });
 
@@ -190,6 +212,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                     timeline,
                     task_snapshot,
                     thinking_open,
+                    tool_detail_open,
                     voice_handle,
                 );
             } else {
@@ -247,6 +270,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                                 timeline,
                                 task_snapshot,
                                 thinking_open,
+                                tool_detail_open,
                                 voice_handle,
                             );
                         } else {
@@ -290,13 +314,6 @@ pub fn AgentPanelDock() -> impl IntoView {
                     <h3>{move || i18n.tr(I18nKey::AgChatHeading)()}</h3>
                     <SessionCostChip wb=wb />
                     <div class="agent-chat-head__actions">
-                        <span>{move || {
-                            if timeline.get().is_empty() {
-                                i18n.tr(I18nKey::AgBadgeReady)().to_string()
-                            } else {
-                                i18n.tr(I18nKey::AgBadgeLive)().to_string()
-                            }
-                        }}</span>
                         <button
                             type="button"
                             class=move || {
@@ -360,6 +377,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                                 let timeline = timeline;
                                 let draft = draft;
                                 let thinking_open = thinking_open;
+                                let tool_detail_open = tool_detail_open;
                                 leptos::task::spawn_local(async move {
                                     let Some(ws_id) = wb.active_id().get_untracked() else {
                                         status_line.set(Some("Select a workspace tab first.".into()));
@@ -369,9 +387,11 @@ pub fn AgentPanelDock() -> impl IntoView {
                                         Ok(()) => {
                                             timeline.set(Vec::new());
                                             thinking_open.set(HashMap::new());
+                                            tool_detail_open.set(HashMap::new());
                                             draft.set(String::new());
                                             wb.set_workspace_agent_timeline(ws_id, Vec::new());
                                             wb.set_workspace_agent_compose_draft(ws_id, String::new());
+                                            wb.clear_chat_usage(ws_id);
                                             status_line.set(None);
                                         }
                                         Err(msg) => status_line.set(Some(msg)),
@@ -406,22 +426,37 @@ pub fn AgentPanelDock() -> impl IntoView {
                         }
                     >
                         <ol class="agent-chat-list" aria-label=move || i18n.tr(I18nKey::AgTimelineAria)()>
-                            {move || {
+                            {
                                 let on_redo = Callback::new(move |text: String| {
                                     draft.set(text);
                                     submit_turn(
                                         wb, i18n, draft, busy, status_line,
-                                        timeline, task_snapshot, thinking_open, voice_handle,
+                                        timeline, task_snapshot, thinking_open, tool_detail_open, voice_handle,
                                     );
                                 });
-                                compact_timeline(timeline.get())
-                                    .into_iter()
-                                    .enumerate()
-                                    .map(|(idx, entry)| {
-                                        view! { <TimelineRow idx=idx entry=entry i18n=i18n thinking_open=thinking_open voice_handle=voice_handle on_redo=on_redo timeline=timeline /> }
-                                    })
-                                    .collect_view()
-                            }}
+                                view! {
+                                    <For
+                                        each=move || timeline_display_rows(timeline.get())
+                                        key=|row| row.idx
+                                        children=move |row| {
+                                            view! {
+                                                <TimelineRow
+                                                    idx=row.idx
+                                                    entry=row.entry
+                                                    i18n=i18n
+                                                    thinking_open=thinking_open
+                                                    tool_detail_open=tool_detail_open
+                                                    voice_handle=voice_handle
+                                                    on_redo=on_redo
+                                                    timeline=timeline
+                                                    wb=wb
+                                                    workspace_id=wb.active_id().get_untracked()
+                                                />
+                                            }
+                                        }
+                                    />
+                                }
+                            }
                         </ol>
                     </Show>
                 </div>
@@ -431,11 +466,12 @@ pub fn AgentPanelDock() -> impl IntoView {
                 class="agent-compose"
                 on:submit=move |ev| {
                     ev.prevent_default();
-                    submit_turn(wb, i18n, draft, busy, status_line, timeline, task_snapshot, thinking_open, voice_handle);
+                    submit_turn(wb, i18n, draft, busy, status_line, timeline, task_snapshot, thinking_open, tool_detail_open, voice_handle);
                 }
             >
                 <input
                     type="text"
+                    node_ref=compose_input_ref
                     class="workbench-agent-input workbench-agent-input--single"
                     placeholder=move || i18n.tr(I18nKey::AgPromptPh)()
                     prop:value=move || draft.get()
@@ -454,7 +490,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                     on:keydown=move |ev| {
                         if ev.key() == "Enter" && !ev.shift_key() && !ev.ctrl_key() && !ev.meta_key() {
                             ev.prevent_default();
-                            submit_turn(wb, i18n, draft, busy, status_line, timeline, task_snapshot, thinking_open, voice_handle);
+                            submit_turn(wb, i18n, draft, busy, status_line, timeline, task_snapshot, thinking_open, tool_detail_open, voice_handle);
                         }
                     }
                 />
@@ -464,6 +500,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                         type="submit"
                         class="workbench-mini-btn workbench-mini-btn--primary agent-send-btn"
                         prop:disabled=move || busy.get()
+                        on:mousedown=|ev| ev.prevent_default()
                     >
                         <LxIcon icon=icondata::LuSparkles width="0.9rem" height="0.9rem" />
                         <span>{move || i18n.tr(I18nKey::AgSend)()}</span>
@@ -521,6 +558,7 @@ fn submit_turn(
     timeline: RwSignal<Vec<TimelineItem>>,
     task_snapshot: RwSignal<TaskSnapshot>,
     thinking_open: RwSignal<HashMap<usize, bool>>,
+    tool_detail_open: RwSignal<HashMap<String, bool>>,
     voice_handle: VoiceOrbHandle,
 ) {
     if busy.get_untracked() {
@@ -549,6 +587,7 @@ fn submit_turn(
                 Ok(()) => {
                     timeline.set(Vec::new());
                     thinking_open.set(HashMap::new());
+                    tool_detail_open.set(HashMap::new());
                     wb.set_workspace_agent_timeline(ws_id, Vec::new());
                     wb.clear_chat_usage(ws_id);
                     status_line.set(None);

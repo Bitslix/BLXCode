@@ -51,11 +51,9 @@ pub fn tool_workspace_search(args: &Value, root: Option<&WorkspaceRootGuard>) ->
                 },
             }
         }
-        Err(_) => {
-            ToolOutcome {
-                ok: false,
-                content: "rg not available; install ripgrep for workspace_search".into(),
-            }
-        }
+        Err(_) => ToolOutcome {
+            ok: false,
+            content: "rg not available; install ripgrep for workspace_search".into(),
+        },
     }
 }

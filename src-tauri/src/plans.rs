@@ -439,10 +439,7 @@ pub fn plan_create_inner(
     }
     let body = content.unwrap_or("").to_owned();
     let body = if body.is_empty() {
-        let stem = abs
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("Plan");
+        let stem = abs.file_stem().and_then(|s| s.to_str()).unwrap_or("Plan");
         format!("# {stem}\n\n## Tasks\n\n")
     } else {
         body
@@ -528,8 +525,11 @@ pub fn plan_rename_inner(
     }
     fs::rename(&abs_old, &abs_new).map_err(|e| format!("rename: {e}"))?;
     // Plan task records that referenced the old path get rewritten too.
-    tasks::tasks_rewrite_plan_path(workspace_cwd, &rel_from_root(&root, &abs_old).unwrap_or_default(),
-        &rel_from_root(&root, &abs_new).unwrap_or_default())?;
+    tasks::tasks_rewrite_plan_path(
+        workspace_cwd,
+        &rel_from_root(&root, &abs_old).unwrap_or_default(),
+        &rel_from_root(&root, &abs_new).unwrap_or_default(),
+    )?;
     meta_from_abs(&root, &abs_new).ok_or_else(|| "failed to read back renamed plan".to_owned())
 }
 
@@ -675,10 +675,7 @@ pub fn plan_load(workspace_cwd: String, path: String) -> Result<PlanLoadReport, 
 }
 
 #[tauri::command]
-pub fn plan_sync_from_tasks(
-    workspace_cwd: String,
-    path: String,
-) -> Result<PlanSyncReport, String> {
+pub fn plan_sync_from_tasks(workspace_cwd: String, path: String) -> Result<PlanSyncReport, String> {
     plan_sync_from_tasks_inner(&workspace_cwd, &path)
 }
 
@@ -796,9 +793,7 @@ mod tests {
 
     #[test]
     fn load_replaces_only_plan_tasks_and_keeps_free_tasks() {
-        use crate::tasks::{
-            tasks_create_inner, tasks_snapshot, TaskCreateInput, TaskStatus,
-        };
+        use crate::tasks::{tasks_create_inner, tasks_snapshot, TaskCreateInput, TaskStatus};
         let ws = temp_ws("load_keep_free");
         let cwd = ws.to_string_lossy().into_owned();
 

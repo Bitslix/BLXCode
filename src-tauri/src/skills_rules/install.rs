@@ -42,9 +42,7 @@ pub fn install_skill(ws: &str, name: &str, source: SkillSourceInput) -> Result<S
             SkillSourceKind::AgentCreated => {
                 Err("agent-created skills must use skills_write, not skills_install".into())
             }
-            SkillSourceKind::Core => {
-                Err("core skills are built-in and cannot be installed".into())
-            }
+            SkillSourceKind::Core => Err("core skills are built-in and cannot be installed".into()),
         }
     })();
 
@@ -241,8 +239,9 @@ fn is_safe_npm_version(v: &str) -> bool {
     let v = v.trim();
     !v.is_empty()
         && !v.starts_with('-')
-        && v.chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '/' | '-' | '+' | '~' | '^'))
+        && v.chars().all(|c| {
+            c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '/' | '-' | '+' | '~' | '^')
+        })
 }
 
 /// Extracts a `*.tgz` produced by `npm pack` into `dest` by delegating to the

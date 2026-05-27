@@ -7,7 +7,8 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     git_stage_file, git_status_changes, git_status_watch_start, git_status_watch_stop,
-    git_unstage_file, listen_git_status_dirty, ChangedFile, TauriEventListener, GIT_MISSING_CODE,
+    git_unstage_file, listen_git_status_dirty, ChangedFile, LineStats, TauriEventListener,
+    GIT_MISSING_CODE,
 };
 use crate::workbench::sidebar_view_section::{SidebarSectionIconBtn, SidebarViewSection};
 use crate::workbench::WorkbenchService;
@@ -215,29 +216,12 @@ fn FileDiffBody(
     reload: Callback<()>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let staged_open = RwSignal::new(true);
+    let unstaged_open = RwSignal::new(true);
 
     view! {
         <div class="file-diff-section">
-            <Show
-                when=move || error_kind.get().is_some()
-                fallback=move || {
-                    let Some(list) = entries.get() else {
-                        return view! {
-                            <p class="sidebar-view-section__empty">"…"</p>
-                        }
-                        .into_any();
-                    };
-                    if list.is_empty() {
-                        return view! {
-                            <p class="sidebar-view-section__empty">
-                                {move || i18n.tr(I18nKey::SbDiffEmpty)()}
-                            </p>
-                        }
-                        .into_any();
-                    }
-                    view! { <FileDiffList entries=list reload=reload /> }.into_any()
-                }
-            >
+            <Show when=move || error_kind.get().is_some()>
                 <p class="sidebar-view-section__empty">
                     {move || match error_kind.get() {
                         Some(DiffErrorKind::GitMissing) => i18n.tr(I18nKey::SbDiffGitMissing)(),
@@ -245,152 +229,312 @@ fn FileDiffBody(
                     }}
                 </p>
             </Show>
+            <Show when=move || error_kind.get().is_none()>
+                <FileDiffList
+                    entries=entries
+                    reload=reload
+                    staged_open=staged_open
+                    unstaged_open=unstaged_open
+                />
+            </Show>
         </div>
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DiffGroupVariant {
+    Staged,
+    Unstaged,
+}
+
+fn partition_entries(entries: &[ChangedFile]) -> (Vec<ChangedFile>, Vec<ChangedFile>) {
+    let mut staged = Vec::new();
+    let mut unstaged = Vec::new();
+    for entry in entries {
+        if entry.staged {
+            staged.push(entry.clone());
+        }
+        if entry.unstaged {
+            unstaged.push(entry.clone());
+        }
+    }
+    (staged, unstaged)
+}
+
 #[component]
-fn FileDiffList(entries: Vec<ChangedFile>, reload: Callback<()>) -> impl IntoView {
-    let wb = expect_context::<WorkbenchService>();
+fn FileDiffList(
+    entries: RwSignal<Option<Vec<ChangedFile>>>,
+    reload: Callback<()>,
+    staged_open: RwSignal<bool>,
+    unstaged_open: RwSignal<bool>,
+) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
 
     view! {
-        <ul class="file-diff-section__list" role="list">
+        {move || match entries.get() {
+            None => {
+                view! { <p class="sidebar-view-section__empty">"…"</p> }.into_any()
+            }
+            Some(list) if list.is_empty() => {
+                view! {
+                    <p class="sidebar-view-section__empty">
+                        {i18n.tr(I18nKey::SbDiffEmpty)()}
+                    </p>
+                }
+                .into_any()
+            }
+            Some(list) => {
+                let (staged, unstaged) = partition_entries(&list);
+                view! {
+                    <ul
+                        class="file-diff-section__list"
+                        role="list"
+                        aria-label=i18n.tr(I18nKey::SbDiffListAria)()
+                    >
+                        <FileDiffGroup
+                            variant=DiffGroupVariant::Staged
+                            entries=staged
+                            open=staged_open
+                            reload=reload
+                        />
+                        <FileDiffGroup
+                            variant=DiffGroupVariant::Unstaged
+                            entries=unstaged
+                            open=unstaged_open
+                            reload=reload
+                        />
+                    </ul>
+                }
+                .into_any()
+            }
+        }}
+    }
+}
+
+#[component]
+fn FileDiffGroup(
+    variant: DiffGroupVariant,
+    entries: Vec<ChangedFile>,
+    open: RwSignal<bool>,
+    reload: Callback<()>,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    if entries.is_empty() {
+        return ().into_any();
+    }
+
+    let count = entries.len();
+    let panel_id = match variant {
+        DiffGroupVariant::Staged => "file-diff-staged",
+        DiffGroupVariant::Unstaged => "file-diff-unstaged",
+    };
+    let title_base = move || match variant {
+        DiffGroupVariant::Staged => i18n.tr(I18nKey::SbDiffGroupStaged)(),
+        DiffGroupVariant::Unstaged => i18n.tr(I18nKey::SbDiffGroupUnstaged)(),
+    };
+    let title = move || format!("{} ({count})", title_base());
+
+    view! {
+        <li class="file-diff-section__group">
+            <button
+                type="button"
+                class="file-diff-section__group-toggle"
+                id=format!("{panel_id}-header")
+                aria-expanded=move || open.get()
+                aria-controls=panel_id
+                aria-label=move || {
+                    let prefix = if open.get() {
+                        i18n.tr(I18nKey::SbDiffGroupCollapse)()
+                    } else {
+                        i18n.tr(I18nKey::SbDiffGroupExpand)()
+                    };
+                    format!("{prefix} {}", title())
+                }
+                on:click=move |_| open.update(|v| *v = !*v)
+            >
+                <span class="file-diff-section__group-title">{title}</span>
+                <span class="file-diff-section__group-chev" aria-hidden="true">
+                    {move || if open.get() { "▾" } else { "▸" }}
+                </span>
+            </button>
+            <Show when=move || open.get()>
+                <FileDiffGroupList
+                    entries=entries.clone()
+                    variant=variant
+                    reload=reload
+                    panel_id=panel_id
+                />
+            </Show>
+        </li>
+    }
+    .into_any()
+}
+
+#[component]
+fn FileDiffGroupList(
+    entries: Vec<ChangedFile>,
+    variant: DiffGroupVariant,
+    reload: Callback<()>,
+    panel_id: &'static str,
+) -> impl IntoView {
+    view! {
+        <ul
+            id=panel_id
+            role="list"
+            aria-labelledby=format!("{panel_id}-header")
+            class="file-diff-section__group-list"
+        >
             <For
                 each=move || entries.clone()
-                key=|e| (e.rel_path.clone(), e.staged, e.unstaged)
+                key=move |e| (e.rel_path.clone(), variant as u8)
                 children=move |entry: ChangedFile| {
-                    let rel = entry.rel_path.clone();
-                    let rel_for_open = rel.clone();
-                    let rel_for_stage = rel.clone();
-                    let rel_for_unstage = rel.clone();
-                    let staged = entry.staged;
-                    let unstaged = entry.unstaged;
-                    let status_kind = entry.status.clone();
-                    let status_label_key = match status_kind.as_str() {
-                        "added" => I18nKey::SbDiffStatusAdded,
-                        "deleted" => I18nKey::SbDiffStatusDeleted,
-                        "renamed" => I18nKey::SbDiffStatusRenamed,
-                        "untracked" => I18nKey::SbDiffStatusUntracked,
-                        "conflicted" => I18nKey::SbDiffStatusConflicted,
-                        _ => I18nKey::SbDiffStatusModified,
-                    };
-                    let status_marker = status_marker_for(&status_kind);
-                    let added = entry.added_lines;
-                    let removed = entry.removed_lines;
-                    let row_class = format!(
-                        "file-diff-section__row file-diff-section__row--{status_kind}"
-                    );
-                    let marker_class = format!(
-                        "file-diff-section__status file-diff-section__status--{status_kind}"
-                    );
-                    let on_open = move |_| {
-                        let workspace_id = wb.active_id().get_untracked();
-                        let Some(ws_id) = workspace_id else {
-                            return;
-                        };
-                        wb.open_center_diff_tab(ws_id, rel_for_open.clone(), staged && !unstaged);
-                    };
-                    let on_stage = {
-                        let rel = rel_for_stage.clone();
-                        move |ev: web_sys::MouseEvent| {
-                            ev.stop_propagation();
-                            let Some(cwd) = wb.default_workspace_cwd() else {
-                                return;
-                            };
-                            let rel = rel.clone();
-                            let reload = reload;
-                            spawn_local(async move {
-                                let _ = git_stage_file(cwd, rel).await;
-                                reload.run(());
-                            });
-                        }
-                    };
-                    let on_unstage = {
-                        let rel = rel_for_unstage.clone();
-                        move |ev: web_sys::MouseEvent| {
-                            ev.stop_propagation();
-                            let Some(cwd) = wb.default_workspace_cwd() else {
-                                return;
-                            };
-                            let rel = rel.clone();
-                            let reload = reload;
-                            spawn_local(async move {
-                                let _ = git_unstage_file(cwd, rel).await;
-                                reload.run(());
-                            });
-                        }
-                    };
-                    let stage_aria_label = {
-                        let prefix = i18n.tr(I18nKey::SbDiffStageAriaPrefix)();
-                        let path = rel.clone();
-                        move || format!("{prefix} {path}")
-                    };
-                    let unstage_aria_label = {
-                        let prefix = i18n.tr(I18nKey::SbDiffUnstageAriaPrefix)();
-                        let path = rel.clone();
-                        move || format!("{prefix} {path}")
-                    };
-                    let status_title_fn = i18n.tr(status_label_key);
-                    let status_title = StoredValue::new(status_title_fn());
                     view! {
-                        <li class=row_class>
-                            <button
-                                type="button"
-                                class="file-diff-section__row-btn"
-                                title=rel.clone()
-                                on:click=on_open
-                            >
-                                <span
-                                    class=marker_class
-                                    aria-label=move || status_title.get_value()
-                                    title=move || status_title.get_value()
-                                >
-                                    {status_marker}
-                                </span>
-                                <span class="file-diff-section__path">{rel.clone()}</span>
-                                <span class="file-diff-section__counts">
-                                    <Show when=move || { added > 0 }>
-                                        <span class="file-diff-section__count file-diff-section__count--add">
-                                            {format!("+{added}")}
-                                        </span>
-                                    </Show>
-                                    <Show when=move || { removed > 0 }>
-                                        <span class="file-diff-section__count file-diff-section__count--del">
-                                            {format!("-{removed}")}
-                                        </span>
-                                    </Show>
-                                </span>
-                            </button>
-                            <div class="file-diff-section__actions">
-                                <Show when=move || unstaged && status_kind != "conflicted">
-                                    <button
-                                        type="button"
-                                        class="file-diff-section__action file-diff-section__action--stage"
-                                        title=stage_aria_label.clone()
-                                        aria-label=stage_aria_label.clone()
-                                        on:click=on_stage.clone()
-                                    >
-                                        "+"
-                                    </button>
-                                </Show>
-                                <Show when=move || staged>
-                                    <button
-                                        type="button"
-                                        class="file-diff-section__action file-diff-section__action--unstage"
-                                        title=unstage_aria_label.clone()
-                                        aria-label=unstage_aria_label.clone()
-                                        on:click=on_unstage.clone()
-                                    >
-                                        "−"
-                                    </button>
-                                </Show>
-                            </div>
-                        </li>
+                        <FileDiffRow entry=entry variant=variant reload=reload />
                     }
                 }
             />
         </ul>
+    }
+}
+
+#[component]
+fn FileDiffRow(
+    entry: ChangedFile,
+    variant: DiffGroupVariant,
+    reload: Callback<()>,
+) -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+    let i18n = expect_context::<I18nService>();
+
+    let rel = entry.rel_path.clone();
+    let rel_for_open = rel.clone();
+    let rel_for_stage = rel.clone();
+    let rel_for_unstage = rel.clone();
+    let staged = entry.staged;
+    let unstaged = entry.unstaged;
+    let status_kind = entry.status.clone();
+    let stats: Option<LineStats> = match variant {
+        DiffGroupVariant::Staged => entry.staged_stats,
+        DiffGroupVariant::Unstaged => entry.unstaged_stats,
+    };
+    let added = stats.as_ref().map(|s| s.added).unwrap_or(0);
+    let removed = stats.as_ref().map(|s| s.removed).unwrap_or(0);
+    let open_staged = variant == DiffGroupVariant::Staged;
+    let status_label_key = match status_kind.as_str() {
+        "added" => I18nKey::SbDiffStatusAdded,
+        "deleted" => I18nKey::SbDiffStatusDeleted,
+        "renamed" => I18nKey::SbDiffStatusRenamed,
+        "untracked" => I18nKey::SbDiffStatusUntracked,
+        "conflicted" => I18nKey::SbDiffStatusConflicted,
+        _ => I18nKey::SbDiffStatusModified,
+    };
+    let status_marker = status_marker_for(&status_kind);
+    let row_class = format!("file-diff-section__row file-diff-section__row--{status_kind}");
+    let marker_class = format!("file-diff-section__status file-diff-section__status--{status_kind}");
+    let on_open = move |_| {
+        let workspace_id = wb.active_id().get_untracked();
+        let Some(ws_id) = workspace_id else {
+            return;
+        };
+        wb.open_center_diff_tab(ws_id, rel_for_open.clone(), open_staged);
+    };
+    let on_stage = {
+        let rel = rel_for_stage.clone();
+        move |ev: web_sys::MouseEvent| {
+            ev.stop_propagation();
+            let Some(cwd) = wb.default_workspace_cwd() else {
+                return;
+            };
+            let rel = rel.clone();
+            let reload = reload;
+            spawn_local(async move {
+                let _ = git_stage_file(cwd, rel).await;
+                reload.run(());
+            });
+        }
+    };
+    let on_unstage = {
+        let rel = rel_for_unstage.clone();
+        move |ev: web_sys::MouseEvent| {
+            ev.stop_propagation();
+            let Some(cwd) = wb.default_workspace_cwd() else {
+                return;
+            };
+            let rel = rel.clone();
+            let reload = reload;
+            spawn_local(async move {
+                let _ = git_unstage_file(cwd, rel).await;
+                reload.run(());
+            });
+        }
+    };
+    let stage_aria_label = {
+        let prefix = i18n.tr(I18nKey::SbDiffStageAriaPrefix)();
+        let path = rel.clone();
+        move || format!("{prefix} {path}")
+    };
+    let unstage_aria_label = {
+        let prefix = i18n.tr(I18nKey::SbDiffUnstageAriaPrefix)();
+        let path = rel.clone();
+        move || format!("{prefix} {path}")
+    };
+    let status_title_fn = i18n.tr(status_label_key);
+    let status_title = StoredValue::new(status_title_fn());
+
+    view! {
+        <li class=row_class>
+            <button
+                type="button"
+                class="file-diff-section__row-btn"
+                title=rel.clone()
+                on:click=on_open
+            >
+                <span
+                    class=marker_class
+                    aria-label=move || status_title.get_value()
+                    title=move || status_title.get_value()
+                >
+                    {status_marker}
+                </span>
+                <span class="file-diff-section__path">{rel.clone()}</span>
+                <span class="file-diff-section__counts">
+                    <Show when=move || { added > 0 }>
+                        <span class="file-diff-section__count file-diff-section__count--add">
+                            {format!("+{added}")}
+                        </span>
+                    </Show>
+                    <Show when=move || { removed > 0 }>
+                        <span class="file-diff-section__count file-diff-section__count--del">
+                            {format!("-{removed}")}
+                        </span>
+                    </Show>
+                </span>
+            </button>
+            <div class="file-diff-section__actions">
+                <Show when=move || variant == DiffGroupVariant::Unstaged && unstaged && status_kind != "conflicted">
+                    <button
+                        type="button"
+                        class="file-diff-section__action file-diff-section__action--stage"
+                        title=stage_aria_label.clone()
+                        aria-label=stage_aria_label.clone()
+                        on:click=on_stage.clone()
+                    >
+                        "+"
+                    </button>
+                </Show>
+                <Show when=move || variant == DiffGroupVariant::Staged && staged>
+                    <button
+                        type="button"
+                        class="file-diff-section__action file-diff-section__action--unstage"
+                        title=unstage_aria_label.clone()
+                        aria-label=unstage_aria_label.clone()
+                        on:click=on_unstage.clone()
+                    >
+                        "−"
+                    </button>
+                </Show>
+            </div>
+        </li>
     }
 }
 

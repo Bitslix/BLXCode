@@ -13,13 +13,15 @@ const MERMAID_SRC: &str = "/public/vendor/mermaid/mermaid.min.js";
 
 fn mermaid_global() -> Option<JsValue> {
     let w = web_sys::window()?;
-    Reflect::get(&w, &JsValue::from_str("mermaid")).ok().and_then(|v| {
-        if v.is_undefined() || v.is_null() {
-            None
-        } else {
-            Some(v)
-        }
-    })
+    Reflect::get(&w, &JsValue::from_str("mermaid"))
+        .ok()
+        .and_then(|v| {
+            if v.is_undefined() || v.is_null() {
+                None
+            } else {
+                Some(v)
+            }
+        })
 }
 
 /// Returns `Ok(())` once `globalThis.mermaid` exists. Inserts a `<script>`
@@ -58,17 +60,26 @@ pub async fn ensure_mermaid_loaded() -> Result<(), String> {
 
 fn initialize_mermaid() -> Result<(), String> {
     let mermaid = mermaid_global().ok_or("mermaid not available")?;
-    let init = Reflect::get(&mermaid, &JsValue::from_str("initialize"))
-        .map_err(|_| "no initialize")?;
+    let init =
+        Reflect::get(&mermaid, &JsValue::from_str("initialize")).map_err(|_| "no initialize")?;
     let init: Function = init.dyn_into().map_err(|_| "initialize not callable")?;
     let opts = Object::new();
     Reflect::set(&opts, &JsValue::from_str("startOnLoad"), &JsValue::FALSE)
         .map_err(|_| "set startOnLoad")?;
-    Reflect::set(&opts, &JsValue::from_str("securityLevel"), &JsValue::from_str("strict"))
-        .map_err(|_| "set securityLevel")?;
-    Reflect::set(&opts, &JsValue::from_str("theme"), &JsValue::from_str("dark"))
-        .map_err(|_| "set theme")?;
-    init.call1(&mermaid, &opts).map_err(|e| format!("mermaid.initialize: {e:?}"))?;
+    Reflect::set(
+        &opts,
+        &JsValue::from_str("securityLevel"),
+        &JsValue::from_str("strict"),
+    )
+    .map_err(|_| "set securityLevel")?;
+    Reflect::set(
+        &opts,
+        &JsValue::from_str("theme"),
+        &JsValue::from_str("dark"),
+    )
+    .map_err(|_| "set theme")?;
+    init.call1(&mermaid, &opts)
+        .map_err(|e| format!("mermaid.initialize: {e:?}"))?;
     Ok(())
 }
 

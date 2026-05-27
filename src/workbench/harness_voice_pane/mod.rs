@@ -4,11 +4,10 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_provider_models, agent_settings_get, api_keys_status, is_tauri_shell,
-    voice_settings_get, voice_settings_save, voice_tts_preview,
-    AgentProviderKind, AgentProviderSettingsView, ApiKeyEntry, ApiKeysStatus, PostSttFlow,
-    ProviderModelEntry, SttSettings, TtsSettings, VoiceEntry, VoiceGender, VoiceProviderKind,
-    VoiceSettings,
+    agent_provider_models, agent_settings_get, api_keys_status, is_tauri_shell, voice_settings_get,
+    voice_settings_save, voice_tts_preview, AgentProviderKind, AgentProviderSettingsView,
+    ApiKeyEntry, ApiKeysStatus, PostSttFlow, ProviderModelEntry, SttSettings, TtsSettings,
+    VoiceEntry, VoiceGender, VoiceProviderKind, VoiceSettings,
 };
 use crate::workbench::agent_model_picker::AgentModelPicker;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
@@ -254,10 +253,7 @@ fn voice_catalog_for(provider: VoiceProviderKind) -> Vec<VoiceEntry> {
 }
 
 fn voices_pick_enabled(provider: VoiceProviderKind) -> bool {
-    matches!(
-        provider,
-        VoiceProviderKind::Openai | VoiceProviderKind::Aws
-    )
+    matches!(provider, VoiceProviderKind::Openai | VoiceProviderKind::Aws)
 }
 
 fn is_openai_voice_id(id: &str) -> bool {
@@ -911,8 +907,7 @@ fn VoicePicksGrid(
     on_pick: Callback<String>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
-    let picks_enabled =
-        Memo::new(move |_| voices_pick_enabled(voice_provider.get()));
+    let picks_enabled = Memo::new(move |_| voices_pick_enabled(voice_provider.get()));
     view! {
         <div class="voice-pane__voice-picks">
             <div class="voice-pane__gender-row">

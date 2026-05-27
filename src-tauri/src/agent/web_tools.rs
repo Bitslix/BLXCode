@@ -21,14 +21,16 @@ pub fn tool_web_search(args: &Value, _root: Option<&WorkspaceRootGuard>) -> Tool
     let Some((provider, key)) = web_settings::resolve_active_key() else {
         return ToolOutcome {
             ok: false,
-            content: "web tools disabled: configure API keys in Settings → Agent → Web Tools".into(),
+            content: "web tools disabled: configure API keys in Settings → Agent → Web Tools"
+                .into(),
         };
     };
     match provider {
         WebProviderKind::Tavily => tavily_search(query, &key),
         WebProviderKind::Brave => ToolOutcome {
             ok: false,
-            content: "Brave search not implemented in v1; select Tavily in Web Tools settings".into(),
+            content: "Brave search not implemented in v1; select Tavily in Web Tools settings"
+                .into(),
         },
         WebProviderKind::None => ToolOutcome {
             ok: false,

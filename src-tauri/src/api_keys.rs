@@ -11,11 +11,11 @@ use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 
 use crate::agent::web_settings::{self, WebKeyKind};
-use crate::media_keys::{self, MediaKeyKind};
 use crate::agent_settings::{
     self, delete_provider_key_secret, provider_env_var, provider_key_with_source,
     set_provider_key_secret, AgentProviderKind, KeySource,
 };
+use crate::media_keys::{self, MediaKeyKind};
 
 #[derive(Clone, Copy, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -98,7 +98,10 @@ fn media_kind_from_kind(kind: &str) -> Option<MediaKeyKind> {
 
 fn build_status(app: &AppHandle) -> Result<ApiKeysStatus, String> {
     let mut entries = Vec::with_capacity(
-        LLM_KINDS.len() + SEARCH_KINDS.len() + COMING_SOON_LLM.len() + media_keys::MEDIA_KEY_KINDS.len(),
+        LLM_KINDS.len()
+            + SEARCH_KINDS.len()
+            + COMING_SOON_LLM.len()
+            + media_keys::MEDIA_KEY_KINDS.len(),
     );
 
     for (provider, kind, label) in LLM_KINDS {

@@ -97,7 +97,10 @@ fn provider_key_status_text(
     }
 }
 
-fn provider_cache(view: &AgentProviderSettingsView, provider: AgentProviderKind) -> Vec<ProviderModelEntry> {
+fn provider_cache(
+    view: &AgentProviderSettingsView,
+    provider: AgentProviderKind,
+) -> Vec<ProviderModelEntry> {
     match provider {
         AgentProviderKind::Openrouter => view.model_cache_openrouter.clone(),
         AgentProviderKind::Anthropic => view.model_cache_anthropic.clone(),

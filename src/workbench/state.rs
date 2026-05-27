@@ -155,10 +155,15 @@ impl CenterTab {
 pub enum CenterTabKind {
     Terminals,
     Settings,
-    FilePreview { rel_path: String },
+    FilePreview {
+        rel_path: String,
+    },
     /// Side-by-side or inline diff view for one changed file.
     /// `staged` selects between `git diff [--cached]`.
-    FileDiff { rel_path: String, staged: bool },
+    FileDiff {
+        rel_path: String,
+        staged: bool,
+    },
 }
 
 /// Aggregated token / cost stats for a workspace's agent chat. Each
@@ -195,7 +200,11 @@ pub struct ChatUsageStats {
     /// belong to a turn that was cancelled by `agent_clear_conversation`.
     /// Bumped locally on chat reset as well so we don't credit anything
     /// emitted before the reset to the fresh chat.
-    #[serde(default)]
+    ///
+    /// Not persisted: the backend resets its own generation to 0 on every
+    /// app launch, so persisting this value would cause all first-session
+    /// events to be dropped after any prior-session reset.
+    #[serde(skip)]
     pub current_turn_generation: u64,
 }
 
@@ -730,11 +739,12 @@ impl HarnessUiService {
         const COUNTDOWN_SECS: u8 = 3;
         let gen = self.close_terminals_gen.get_untracked().wrapping_add(1);
         self.close_terminals_gen.set(gen);
-        self.close_terminals_confirm.set(Some(CloseTerminalsConfirm {
-            workspace_id,
-            seconds_left: COUNTDOWN_SECS,
-            generation: gen,
-        }));
+        self.close_terminals_confirm
+            .set(Some(CloseTerminalsConfirm {
+                workspace_id,
+                seconds_left: COUNTDOWN_SECS,
+                generation: gen,
+            }));
         let me = *self;
         spawn_local(async move {
             let mut remaining = COUNTDOWN_SECS;
@@ -757,8 +767,7 @@ impl HarnessUiService {
     }
 
     pub fn dismiss_close_terminals_confirm(&self) {
-        self.close_terminals_gen
-            .update(|g| *g = g.wrapping_add(1));
+        self.close_terminals_gen.update(|g| *g = g.wrapping_add(1));
         self.close_terminals_confirm.set(None);
     }
 
@@ -3483,10 +3492,7 @@ mod center_tab_tests {
 
     #[test]
     fn repair_fixes_dangling_active_id() {
-        let mut ws = mk_workspace(
-            1,
-            vec![CenterTab::terminals()],
-        );
+        let mut ws = mk_workspace(1, vec![CenterTab::terminals()]);
         ws.center_active_tab_id = 999;
         repair_center_tab_state(&mut ws);
         assert_eq!(ws.center_active_tab_id, CENTER_TERMINALS_TAB_ID);

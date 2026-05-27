@@ -35,7 +35,8 @@ pub async fn transcribe_wav(
     if provider == VoiceProviderKind::Aws {
         let _ = (model, api_key, wav_path, language);
         return Err(
-            "AWS Transcribe STT ist in den Einstellungen wählbar; die Laufzeit-Anbindung folgt.".into(),
+            "AWS Transcribe STT ist in den Einstellungen wählbar; die Laufzeit-Anbindung folgt."
+                .into(),
         );
     }
     let bytes = tokio::fs::read(wav_path)

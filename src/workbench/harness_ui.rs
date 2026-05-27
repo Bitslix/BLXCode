@@ -3,7 +3,6 @@
 //! Tastenkürzel (tmux-Standard: `Ctrl+b` + zweite Taste; Legacy in App-Einstellungen)
 //! sind im Haupt-Webview gebunden ([`HarnessHost`] → [`super::harness_chords`]).
 use super::app_prefs::{AppPrefsService, ShortcutMode};
-use super::voice_app_controls::{VoicePttControls, VoiceSttLanguageControls};
 use super::browser_tab::sync_embedded_browser_layer;
 use super::harness_chords::handle_harness_keydown;
 use super::state::{
@@ -11,6 +10,7 @@ use super::state::{
     RecentWorkspaceItem, RightPanelTab, WorkbenchService,
 };
 use super::update_service::{UpdateService, UpdateUiStatus};
+use super::voice_app_controls::{VoicePttControls, VoiceSttLanguageControls};
 use crate::i18n::{lookup, I18nKey, Locale, APP_LOCALES};
 use crate::service::I18nService;
 use crate::tauri_bridge::{

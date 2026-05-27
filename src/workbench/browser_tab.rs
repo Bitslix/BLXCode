@@ -95,6 +95,10 @@ fn embed_is_native(surface: BrowserEmbedSurface) -> bool {
     surface.0.get_untracked().as_deref() == Some("native_child")
 }
 
+fn browser_layer_visible(wb: WorkbenchService) -> bool {
+    !wb.right_collapsed().get() && wb.right_active_tab().get() == RightPanelTab::Browser
+}
+
 fn active_tab_url(wb: WorkbenchService) -> String {
     let aid = wb.embedded_browser_active_id().get_untracked();
     wb.embedded_browser_tabs()
@@ -289,6 +293,9 @@ pub fn BrowserTabDock() -> impl IntoView {
     // Wenn sich URL eines Tabs ändert, im iframe-Modus den Iframable-Check fahren.
     Effect::new(move |_| {
         if embed_is_native(surface) {
+            return;
+        }
+        if !browser_layer_visible(wb) {
             return;
         }
         let tabs = wb.embedded_browser_tabs().get();
@@ -534,7 +541,15 @@ pub fn BrowserTabDock() -> impl IntoView {
                         aria-label=move || i18n.tr(I18nKey::BrNativeAria)()
                     >
                         <Show
-                            when=move || active_tab_url(wb).trim().is_empty()
+                            when=move || {
+                                let aid = wb.embedded_browser_active_id().get();
+                                wb.embedded_browser_tabs().with(|tabs| {
+                                    tabs.iter()
+                                        .find(|t| t.id == aid)
+                                        .map(|t| t.url.trim().is_empty())
+                                        .unwrap_or(true)
+                                })
+                            }
                             fallback=move || ().into_any()
                         >
                             <BrowserNewTabPane wb surface />
@@ -600,7 +615,13 @@ pub fn BrowserTabDock() -> impl IntoView {
                                                     id=iframe_id_for(tid)
                                                     class="workbench-browser-iframe"
                                                     title=move || i18n.tr(I18nKey::BrFrameTitle)()
-                                                    prop:src=move || url_memo.get()
+                                                    prop:src=move || {
+                                                        if browser_layer_visible(wb) {
+                                                            url_memo.get()
+                                                        } else {
+                                                            "about:blank".into()
+                                                        }
+                                                    }
                                                 ></iframe>
                                             </Show>
                                         </Show>

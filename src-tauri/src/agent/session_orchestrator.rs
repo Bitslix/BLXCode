@@ -278,10 +278,8 @@ fn render_context_prompt(
                         .first()
                         .cloned()
                         .unwrap_or_else(|| item.source.clone());
-                    let mut line = format!(
-                        "- plan `{plan_path}`: {label}",
-                        label = item.label.trim()
-                    );
+                    let mut line =
+                        format!("- plan `{plan_path}`: {label}", label = item.label.trim());
                     if let Some(ws) = workspace_root {
                         if let Some(meta) = plans::plan_meta_for(ws, &plan_path) {
                             line.push_str(&format!(

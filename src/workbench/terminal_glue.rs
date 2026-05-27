@@ -177,6 +177,70 @@ pub fn terminal_set_stdin_enabled(term_id: f64, enabled: bool) {
     }
 }
 
+fn call_term_id_method(term_id: f64, method: &str) {
+    let Some(w) = web_sys::window() else {
+        return;
+    };
+    let Ok(root) = Reflect::get(&w, &wasm_bindgen::JsValue::from_str("__blxcodeTerminal")) else {
+        return;
+    };
+    let Ok(method_fn) = Reflect::get(&root, &wasm_bindgen::JsValue::from_str(method)) else {
+        return;
+    };
+    if let Some(f) = method_fn.dyn_ref::<Function>() {
+        let _ = f.call1(&root, &wasm_bindgen::JsValue::from_f64(term_id));
+    }
+}
+
+pub fn terminal_get_selection(term_id: f64) -> String {
+    let Some(w) = web_sys::window() else {
+        return String::new();
+    };
+    let Ok(root) = Reflect::get(&w, &wasm_bindgen::JsValue::from_str("__blxcodeTerminal")) else {
+        return String::new();
+    };
+    let Ok(get_sel) = Reflect::get(&root, &wasm_bindgen::JsValue::from_str("getSelection")) else {
+        return String::new();
+    };
+    if let Some(f) = get_sel.dyn_ref::<Function>() {
+        if let Ok(v) = f.call1(&root, &wasm_bindgen::JsValue::from_f64(term_id)) {
+            return v.as_string().unwrap_or_default();
+        }
+    }
+    String::new()
+}
+
+pub fn terminal_paste(term_id: f64, text: &str) {
+    let Some(w) = web_sys::window() else {
+        return;
+    };
+    let Ok(root) = Reflect::get(&w, &wasm_bindgen::JsValue::from_str("__blxcodeTerminal")) else {
+        return;
+    };
+    let Ok(paste_fn) = Reflect::get(&root, &wasm_bindgen::JsValue::from_str("paste")) else {
+        return;
+    };
+    if let Some(f) = paste_fn.dyn_ref::<Function>() {
+        let _ = f.call2(
+            &root,
+            &wasm_bindgen::JsValue::from_f64(term_id),
+            &wasm_bindgen::JsValue::from_str(text),
+        );
+    }
+}
+
+pub fn terminal_select_all(term_id: f64) {
+    call_term_id_method(term_id, "selectAll");
+}
+
+pub fn terminal_clear_selection(term_id: f64) {
+    call_term_id_method(term_id, "clearSelection");
+}
+
+pub fn terminal_focus(term_id: f64) {
+    call_term_id_method(term_id, "focus");
+}
+
 pub fn terminal_observe_workspace_grid(container: &HtmlElement, workspace_id: u64) {
     let Some(w) = web_sys::window() else {
         return;

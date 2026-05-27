@@ -160,10 +160,11 @@ pub fn save(app: &AppHandle, settings: &VoiceSettings) -> Result<VoiceSettings, 
 /// existing agent provider keyring entries.
 pub fn provider_key(app: &AppHandle, provider: VoiceProviderKind) -> Result<String, String> {
     match provider {
-        VoiceProviderKind::Aws => crate::media_keys::resolve_key(crate::media_keys::MediaKeyKind::AwsPolly)
-            .ok_or_else(|| {
-                "AWS API key missing. Add it under Settings → API Keys (Amazon Polly).".into()
-            }),
+        VoiceProviderKind::Aws => {
+            crate::media_keys::resolve_key(crate::media_keys::MediaKeyKind::AwsPolly).ok_or_else(
+                || "AWS API key missing. Add it under Settings → API Keys (Amazon Polly).".into(),
+            )
+        }
         VoiceProviderKind::Openai => {
             agent_settings::provider_key_pub(app, agent_settings::AgentProviderKind::Openai)
         }

@@ -193,8 +193,7 @@ pub fn agent_export_context_images(
     }
     let base_dir = ws_root.join(AGENT_CONTEXT_REL_DIR);
     let images_dir = base_dir.join(AGENT_CONTEXT_IMAGES_DIRNAME);
-    std::fs::create_dir_all(&images_dir)
-        .map_err(|e| format!("create context image dir: {e}"))?;
+    std::fs::create_dir_all(&images_dir).map_err(|e| format!("create context image dir: {e}"))?;
 
     let mut exports: Vec<AgentContextImageExport> = Vec::with_capacity(items.len());
     for item in items {
@@ -357,8 +356,8 @@ mod tests {
             bytes_b64: b64,
             size_bytes: png.len() as u64,
         }];
-        let report = agent_export_context_images(ws.to_string_lossy().into(), items)
-            .expect("export ok");
+        let report =
+            agent_export_context_images(ws.to_string_lossy().into(), items).expect("export ok");
         let dir = std::path::PathBuf::from(&report.dir);
         assert!(dir.ends_with(AGENT_CONTEXT_REL_DIR));
         let manifest = std::path::PathBuf::from(&report.manifest_path);
@@ -366,7 +365,11 @@ mod tests {
         assert_eq!(report.images.len(), 1);
         let exported = std::path::PathBuf::from(&report.images[0].path);
         assert!(exported.is_file());
-        assert!(exported.file_name().unwrap().to_string_lossy().ends_with(".png"));
+        assert!(exported
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .ends_with(".png"));
         let manifest_body = std::fs::read_to_string(&manifest).unwrap();
         assert!(manifest_body.contains("\"images\""));
         assert!(manifest_body.contains("img:1"));
@@ -467,44 +470,69 @@ pub struct BrowserBoundsPayload {
     pub visible: bool,
 }
 
+/// Dispatches `f` to the Tauri main thread and awaits the result.
+/// Required for any WebView2 / wry API call on Windows (add_child, navigate,
+/// show, hide, eval, …) — those must run on the UI message-pump thread.
+async fn dispatch_on_main<F, T>(app: tauri::AppHandle, f: F) -> Result<T, String>
+where
+    F: FnOnce(tauri::AppHandle) -> Result<T, String> + Send + 'static,
+    T: Send + 'static,
+{
+    let (tx, rx) = tokio::sync::oneshot::channel::<Result<T, String>>();
+    app.clone()
+        .run_on_main_thread(move || {
+            let _ = tx.send(f(app));
+        })
+        .map_err(|e| e.to_string())?;
+    rx.await
+        .map_err(|_| "main thread channel dropped".to_string())?
+}
+
 #[tauri::command]
-pub fn browser_sync_bounds(
+pub async fn browser_sync_bounds(
     app: tauri::AppHandle,
-    host: State<'_, BrowserHost>,
     active_tab_id: Option<u64>,
     rect: BrowserBoundsPayload,
     url_optional: Option<String>,
 ) -> Result<(), String> {
-    host.sync_bounds(&app, active_tab_id, rect, url_optional.as_deref())
+    dispatch_on_main(app, move |app| {
+        app.state::<BrowserHost>()
+            .sync_bounds(&app, active_tab_id, rect, url_optional.as_deref())
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn browser_run_js(
-    app: AppHandle,
-    host: State<'_, BrowserHost>,
+pub async fn browser_run_js(
+    app: tauri::AppHandle,
     tab_id: u64,
     script: String,
 ) -> Result<(), String> {
-    host.eval_embedded(&app, tab_id, script)
+    dispatch_on_main(app, move |app| {
+        app.state::<BrowserHost>()
+            .eval_embedded(&app, tab_id, script)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn browser_navigate(
+pub async fn browser_navigate(
     app: tauri::AppHandle,
-    host: State<'_, BrowserHost>,
     tab_id: u64,
     url: String,
 ) -> Result<(), String> {
-    host.navigate(&app, tab_id, &url)
+    dispatch_on_main(app, move |app| {
+        app.state::<BrowserHost>().navigate(&app, tab_id, &url)
+    })
+    .await
 }
 
 #[tauri::command]
-pub fn browser_close_tab(
-    app: tauri::AppHandle,
-    host: State<'_, BrowserHost>,
-    tab_id: u64,
-) -> Result<(), String> {
-    host.close_tab(&app, tab_id)
+pub async fn browser_close_tab(app: tauri::AppHandle, tab_id: u64) -> Result<(), String> {
+    dispatch_on_main(app, move |app| {
+        app.state::<BrowserHost>().close_tab(&app, tab_id)
+    })
+    .await
 }
 
 #[tauri::command]

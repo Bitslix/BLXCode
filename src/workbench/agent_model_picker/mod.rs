@@ -78,13 +78,7 @@ fn focus_by_id(id: &str) {
 fn model_option_dom_id(prefix: &str, model_id: &str) -> String {
     let slug: String = model_id
         .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() {
-                c
-            } else {
-                '-'
-            }
-        })
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect();
     format!("{prefix}-option-{slug}")
 }
@@ -94,10 +88,8 @@ pub fn AgentModelPicker(
     model_id: RwSignal<String>,
     model_entries: RwSignal<Vec<ProviderModelEntry>>,
     loading_models: RwSignal<bool>,
-    #[prop(default = "agent-model")]
-    option_id_prefix: &'static str,
-    #[prop(default = true)]
-    show_custom_field: bool,
+    #[prop(default = "agent-model")] option_id_prefix: &'static str,
+    #[prop(default = true)] show_custom_field: bool,
     #[prop(optional)] on_change: Option<Callback<String>>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();

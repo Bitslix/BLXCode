@@ -1,11 +1,11 @@
 //! Coordinated subagent runs via `subagents.run`.
 
+use crate::agent::protocol::AgentEvent;
+use crate::agent::state::AgentEngineState;
 use crate::agent::subagent_prompts::{self, SubagentRole};
 use crate::agent::subagent_runner::{run_one_subagent, SubagentProvider};
-use crate::agent::state::AgentEngineState;
 use crate::agent::tool_dispatch::DispatchContext;
 use crate::agent::tool_groups::{self, parse_allowed_groups_strict, ToolGroup};
-use crate::agent::protocol::AgentEvent;
 use crate::agent::tools::{ToolOutcome, WorkspaceRootGuard};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -147,10 +147,8 @@ pub async fn run(
         groups.push(ToolGroup::SubagentSubmit);
         groups.retain(|g| !matches!(g, ToolGroup::SubagentsRun | ToolGroup::ShellWrite));
 
-        let tools_openai =
-            tool_groups::render_for_openai_filtered(&groups, web_enabled);
-        let mut tools_anthropic =
-            tool_groups::render_for_anthropic_filtered(&groups, web_enabled);
+        let tools_openai = tool_groups::render_for_openai_filtered(&groups, web_enabled);
+        let mut tools_anthropic = tool_groups::render_for_anthropic_filtered(&groups, web_enabled);
         if let Some(arr) = tools_anthropic.as_array_mut() {
             for entry in arr {
                 if let Some(name) = entry.get("name").and_then(|v| v.as_str()) {

@@ -1,4 +1,4 @@
-//! Workspace `.agents/` bootstrap, legacy memory migration, and learnings wikilink upgrades.
+//! Workspace `.agents/` bootstrap and learnings wikilink upgrades.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -7,7 +7,6 @@ pub const AGENTS_REL: &str = ".agents";
 pub const MEMORY_REL: &str = ".agents/memory";
 pub const LEARNINGS_REL: &str = ".agents/learnings";
 pub const PLANS_REL: &str = ".agents/plans";
-pub const LEGACY_MEMORY_REL: &str = ".blxcode/memory";
 pub const LEARNINGS_API_PREFIX: &str = "learnings/";
 pub const PLANS_INDEX: &str = "PLANS.md";
 const TEMPLATES_DIRNAME: &str = "_templates";
@@ -47,8 +46,6 @@ _(Add learnings here as `[[learnings/topic-filename|Short title]]` — one line 
 
 #[derive(Debug, Clone)]
 pub struct WorkspaceRoots {
-    pub memory: PathBuf,
-    pub learnings: PathBuf,
     pub plans: PathBuf,
 }
 
@@ -67,7 +64,7 @@ pub fn validate_workspace_cwd(ws: &str) -> Result<PathBuf, String> {
     Ok(p)
 }
 
-/// Creates `.agents/memory`, `.agents/learnings`, migrates legacy memory, seeds index, upgrades wikilinks.
+/// Creates `.agents/memory`, `.agents/learnings`, seeds index, upgrades wikilinks.
 pub fn ensure_agents_layout(ws: &str) -> Result<WorkspaceRoots, String> {
     let ws_path = validate_workspace_cwd(ws)?;
     let agents = ws_path.join(AGENTS_REL);
@@ -82,17 +79,12 @@ pub fn ensure_agents_layout(ws: &str) -> Result<WorkspaceRoots, String> {
     fs::create_dir_all(&learnings).map_err(|e| format!("create {LEARNINGS_REL}: {e}"))?;
     fs::create_dir_all(&plans).map_err(|e| format!("create {PLANS_REL}: {e}"))?;
 
-    migrate_legacy_memory(&ws_path, &memory)?;
     seed_learnings_index_if_empty(&learnings)?;
     fix_learnings_index_typo(&learnings)?;
     upgrade_learnings_graph_links(&learnings)?;
     seed_plans_index_if_missing(&plans)?;
 
-    Ok(WorkspaceRoots {
-        memory,
-        learnings,
-        plans,
-    })
+    Ok(WorkspaceRoots { plans })
 }
 
 fn seed_plans_index_if_missing(plans: &Path) -> Result<(), String> {
@@ -124,38 +116,6 @@ fn dir_has_any_md(dir: &Path) -> bool {
         }
     }
     false
-}
-
-fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), String> {
-    if !src.is_dir() {
-        return Ok(());
-    }
-    fs::create_dir_all(dest).map_err(|e| format!("mkdir {}: {e}", dest.display()))?;
-    for entry in fs::read_dir(src).map_err(|e| format!("read {}: {e}", src.display()))? {
-        let entry = entry.map_err(|e| e.to_string())?;
-        let from = entry.path();
-        let to = dest.join(entry.file_name());
-        if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
-            copy_dir_recursive(&from, &to)?;
-        } else {
-            fs::copy(&from, &to).map_err(|e| format!("copy {}: {e}", from.display()))?;
-        }
-    }
-    Ok(())
-}
-
-fn migrate_legacy_memory(ws: &Path, memory: &Path) -> Result<(), String> {
-    let legacy = ws.join(LEGACY_MEMORY_REL);
-    if !legacy.is_dir() {
-        return Ok(());
-    }
-    if dir_has_any_md(memory) {
-        return Ok(());
-    }
-    if !dir_has_any_md(&legacy) {
-        return Ok(());
-    }
-    copy_dir_recursive(&legacy, memory)
 }
 
 fn seed_learnings_index_if_empty(learnings: &Path) -> Result<(), String> {
@@ -246,9 +206,7 @@ fn md_link_target_to_wikilink(target: &str) -> Option<String> {
     if !path_part.to_ascii_lowercase().ends_with(".md") {
         return None;
     }
-    let stem = path_part
-        .trim_end_matches(".md")
-        .trim_end_matches(".MD");
+    let stem = path_part.trim_end_matches(".md").trim_end_matches(".MD");
     if stem.is_empty() || stem.contains("..") || stem.starts_with('/') {
         return None;
     }
@@ -376,29 +334,6 @@ mod tests {
         let line = "- [[learnings/foo|Foo]] and [Foo](foo.md)";
         let out = upgrade_markdown_links_in_line(line);
         assert_eq!(out, line);
-    }
-
-    #[test]
-    fn migrate_legacy_only_when_new_empty() {
-        let ws = std::env::temp_dir().join(format!(
-            "blxcode_agents_migrate_{}_{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        let _ = fs::remove_dir_all(&ws);
-        fs::create_dir_all(ws.join(LEGACY_MEMORY_REL)).unwrap();
-        fs::write(ws.join(LEGACY_MEMORY_REL).join("note.md"), "legacy").unwrap();
-
-        let roots = ensure_agents_layout(&ws.to_string_lossy()).unwrap();
-        assert_eq!(
-            fs::read_to_string(roots.memory.join("note.md")).unwrap(),
-            "legacy"
-        );
-
-        let _ = fs::remove_dir_all(&ws);
     }
 
     #[test]

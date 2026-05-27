@@ -252,7 +252,12 @@ mod tests {
         // Resume step covers EN+DE continuation directives
         assert!(p.contains("**Resume check.**"));
         for kw in [
-            "continue", "keep going", "resume", "weiter", "fortsetzen", "weitermachen",
+            "continue",
+            "keep going",
+            "resume",
+            "weiter",
+            "fortsetzen",
+            "weitermachen",
         ] {
             assert!(p.contains(kw), "missing resume keyword: {kw}");
         }

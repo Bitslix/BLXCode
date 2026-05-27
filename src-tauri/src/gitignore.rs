@@ -43,8 +43,8 @@ pub fn gitignore_append_blxcode(workspace_cwd: String) -> Result<GitignoreAppend
     let path_display = gitignore_path.to_string_lossy().into_owned();
 
     if gitignore_path.is_file() {
-        let body = fs::read_to_string(&gitignore_path)
-            .map_err(|e| format!("read .gitignore: {e}"))?;
+        let body =
+            fs::read_to_string(&gitignore_path).map_err(|e| format!("read .gitignore: {e}"))?;
         if entry_present(&body) {
             return Ok(GitignoreAppendResult {
                 path: path_display,

@@ -180,10 +180,7 @@ fn looks_like_image_model(id: &str) -> bool {
         || l.contains("imagen")
 }
 
-async fn fetch_image_models(
-    provider: ImageProviderKind,
-    out: RwSignal<Vec<ProviderModelEntry>>,
-) {
+async fn fetch_image_models(provider: ImageProviderKind, out: RwSignal<Vec<ProviderModelEntry>>) {
     if provider == ImageProviderKind::Fal {
         if let Ok(resp) = image_curated_models(provider).await {
             let entries = resp

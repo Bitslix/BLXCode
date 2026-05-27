@@ -13,12 +13,12 @@ mod shell_exec;
 mod subagent_prompts;
 mod subagent_runner;
 mod subagents;
-mod web_commands;
-pub(crate) mod web_settings;
 mod system_prompt;
 mod tool_dispatch;
 mod tool_groups;
 mod tools_extra;
+mod web_commands;
+pub(crate) mod web_settings;
 mod web_tools;
 mod workspace_agent;
 

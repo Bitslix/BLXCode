@@ -9,8 +9,7 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{is_tauri_shell, pty_write, read_workspace_text_file};
 use crate::workbench::agent_context_handoff::{
-    file_snippet_context_item, list_terminal_targets_all_workspaces,
-    render_file_snippet_envelope,
+    file_snippet_context_item, list_terminal_targets_all_workspaces, render_file_snippet_envelope,
 };
 use crate::workbench::file_preview::code_context_menu::{
     CodeContextMenu, CodeContextMenuState, CodeMenuAction,
@@ -169,42 +168,36 @@ pub fn CodeView(
 
     // Window-level mouseup ends any in-progress drag, even if the pointer
     // left the code area. We register once and clean up with on_cleanup.
-    let mouseup_handle = leptos::leptos_dom::helpers::window_event_listener_untyped(
-        "mouseup",
-        move |_| {
+    let mouseup_handle =
+        leptos::leptos_dom::helpers::window_event_listener_untyped("mouseup", move |_| {
             if drag_anchor.get_untracked().is_some() {
                 drag_anchor.set(None);
                 drag_moved.set(false);
             }
-        },
-    );
+        });
     on_cleanup(move || drop(mouseup_handle));
 
     // Click anywhere closes the menu. We listen at window level instead of
     // installing per-element listeners so the menu closes consistently for
     // every dismissal path (clicking another row, the page background, etc.).
-    let click_close_handle = leptos::leptos_dom::helpers::window_event_listener_untyped(
-        "mousedown",
-        move |_| {
+    let click_close_handle =
+        leptos::leptos_dom::helpers::window_event_listener_untyped("mousedown", move |_| {
             if menu_state.get_untracked().is_some() {
                 menu_state.set(None);
             }
-        },
-    );
+        });
     on_cleanup(move || drop(click_close_handle));
 
     // Escape key also closes the menu.
-    let escape_handle = leptos::leptos_dom::helpers::window_event_listener_untyped(
-        "keydown",
-        move |ev| {
+    let escape_handle =
+        leptos::leptos_dom::helpers::window_event_listener_untyped("keydown", move |ev| {
             let Some(kev) = ev.dyn_ref::<web_sys::KeyboardEvent>() else {
                 return;
             };
             if kev.key() == "Escape" && menu_state.get_untracked().is_some() {
                 menu_state.set(None);
             }
-        },
-    );
+        });
     on_cleanup(move || drop(escape_handle));
 
     let rel_path_for_actions = rel_path.clone();
@@ -442,7 +435,11 @@ fn handle_menu_action(
                 language,
                 &plain_lines,
                 range,
-                if cross { Some(&preview_workspace_label) } else { None },
+                if cross {
+                    Some(&preview_workspace_label)
+                } else {
+                    None
+                },
             );
             let payload = if snippet.ends_with('\n') {
                 snippet
@@ -458,15 +455,13 @@ fn handle_menu_action(
                 let b64 = base64::engine::general_purpose::STANDARD.encode(payload.as_bytes());
                 match pty_write(session_id, b64).await {
                     Ok(()) => {
-                        let msg = i18n_for_msg
-                            .tr(I18nKey::CodeViewToastSnippetInsertedTerminal)()
+                        let msg = i18n_for_msg.tr(I18nKey::CodeViewToastSnippetInsertedTerminal)()
                             .replace("{terminal}", &target_label)
                             .replace("{workspace}", &ws_label);
                         toast.success(msg);
                     }
                     Err(e) => {
-                        let msg = i18n_for_msg
-                            .tr(I18nKey::CodeViewToastInsertFailed)()
+                        let msg = i18n_for_msg.tr(I18nKey::CodeViewToastInsertFailed)()
                             .replace("{error}", &e);
                         toast.error(msg);
                     }
@@ -484,7 +479,11 @@ fn handle_menu_action(
                 language,
                 &plain_lines,
                 range,
-                if cross { Some(&preview_workspace_label) } else { None },
+                if cross {
+                    Some(&preview_workspace_label)
+                } else {
+                    None
+                },
             );
             let target_workspace_root = wb.workspaces().with_untracked(|all| {
                 all.iter()
@@ -505,7 +504,11 @@ fn handle_menu_action(
                 range,
                 language,
                 &snippet,
-                if cross { Some(&preview_workspace_label) } else { None },
+                if cross {
+                    Some(&preview_workspace_label)
+                } else {
+                    None
+                },
             );
             let toast = toast;
             let i18n_for_msg = i18n;
@@ -516,15 +519,13 @@ fn handle_menu_action(
                 let b64 = base64::engine::general_purpose::STANDARD.encode(envelope.as_bytes());
                 match pty_write(session_id, b64).await {
                     Ok(()) => {
-                        let msg = i18n_for_msg
-                            .tr(I18nKey::CodeViewToastEnvelopeInsertedTerminal)()
+                        let msg = i18n_for_msg.tr(I18nKey::CodeViewToastEnvelopeInsertedTerminal)()
                             .replace("{terminal}", &target_label)
                             .replace("{workspace}", &ws_label);
                         toast.success(msg);
                     }
                     Err(e) => {
-                        let msg = i18n_for_msg
-                            .tr(I18nKey::CodeViewToastInsertFailed)()
+                        let msg = i18n_for_msg.tr(I18nKey::CodeViewToastInsertFailed)()
                             .replace("{error}", &e);
                         toast.error(msg);
                     }
@@ -541,7 +542,11 @@ fn handle_menu_action(
                 language,
                 &plain_lines,
                 range,
-                if cross { Some(&preview_workspace_label) } else { None },
+                if cross {
+                    Some(&preview_workspace_label)
+                } else {
+                    None
+                },
             );
             let item_label = if range.0 == range.1 {
                 format!("Snippet · {}:{}", rel_path, range.0)
@@ -555,24 +560,21 @@ fn handle_menu_action(
                 language,
                 &item_label,
                 &snippet,
-                if cross { Some(&preview_workspace_label) } else { None },
+                if cross {
+                    Some(&preview_workspace_label)
+                } else {
+                    None
+                },
             );
             wb.upsert_workspace_agent_context(workspace_id, item);
-            let msg = i18n
-                .tr(I18nKey::CodeViewToastAgentAttached)()
+            let msg = i18n.tr(I18nKey::CodeViewToastAgentAttached)()
                 .replace("{workspace}", &workspace_label);
             toast.success(msg);
         }
         CodeMenuAction::CopySnippet => {
             let cross_label_unused = (); // always preview workspace for clipboard
             let _ = cross_label_unused;
-            let snippet = build_file_snippet_block(
-                rel_path,
-                language,
-                &plain_lines,
-                range,
-                None,
-            );
+            let snippet = build_file_snippet_block(rel_path, language, &plain_lines, range, None);
             copy_to_clipboard(snippet, i18n, toast, I18nKey::CodeViewToastCopiedSnippet);
         }
         CodeMenuAction::CopyRange => {
@@ -612,8 +614,7 @@ fn copy_to_clipboard(text: String, i18n: I18nService, toast: ToastService, succe
                             .and_then(|v| v.as_string())
                     })
                     .unwrap_or_else(|| "unknown".to_string());
-                let msg = i18n_for_msg
-                    .tr(I18nKey::CodeViewToastClipboardFailed)()
+                let msg = i18n_for_msg.tr(I18nKey::CodeViewToastClipboardFailed)()
                     .replace("{error}", &err);
                 toast.error(msg);
             }

@@ -10,11 +10,11 @@
 //! contracts as the OpenAI-compatible path.
 
 use super::system_prompt::system_prompt;
+use crate::agent::pricing;
 use crate::agent::protocol::{AgentEvent, AgentImageContextItem};
 use crate::agent::state::AgentEngineState;
 use crate::agent::tool_dispatch::{dispatch_tool, DispatchContext};
 use crate::agent::tools::{self, WorkspaceRootGuard};
-use crate::agent::pricing;
 use crate::agent_settings::{AgentProviderKind, AgentProviderSettings, ThinkingLevel};
 use crate::tasks;
 use serde::Deserialize;
@@ -192,8 +192,7 @@ pub async fn run_chat_turn(
                     return;
                 }
             };
-        let round_elapsed_ms =
-            round_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+        let round_elapsed_ms = round_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
 
         // Anthropic's `/v1/messages` doesn't surface a cost field — always
         // fall back to local token×price math via the static id-mapping
@@ -273,18 +272,16 @@ pub async fn run_chat_turn(
             let args_val: Value =
                 serde_json::from_str(&call.arguments).unwrap_or_else(|_| json!({}));
             let tool_start = Instant::now();
-            let outcome =
-                dispatch_tool(
-                    &state,
-                    &call.id,
-                    &call.name,
-                    &args_val,
-                    root_guard.as_ref(),
-                    Some(&dispatch_ctx),
-                )
-                .await;
-            let tool_elapsed_ms =
-                tool_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
+            let outcome = dispatch_tool(
+                &state,
+                &call.id,
+                &call.name,
+                &args_val,
+                root_guard.as_ref(),
+                Some(&dispatch_ctx),
+            )
+            .await;
+            let tool_elapsed_ms = tool_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
 
             if outcome.ok && call.name.starts_with("task_") {
                 maybe_emit_task_snapshot(&state, root_guard.as_ref());
@@ -610,9 +607,9 @@ async fn run_one_round(
                     BlockDelta::TextDelta { text } => {
                         if !text.is_empty() {
                             if acc.ttft_ms.is_none() {
-                                acc.ttft_ms = Some(
-                                    request_sent.elapsed().as_millis().min(u64::MAX as u128) as u64,
-                                );
+                                acc.ttft_ms =
+                                    Some(request_sent.elapsed().as_millis().min(u64::MAX as u128)
+                                        as u64);
                             }
                             if thinking_active && !thinking_closed {
                                 thinking_closed = true;
@@ -627,9 +624,9 @@ async fn run_one_round(
                     BlockDelta::ThinkingDelta { thinking } => {
                         if !thinking.is_empty() {
                             if acc.ttft_ms.is_none() {
-                                acc.ttft_ms = Some(
-                                    request_sent.elapsed().as_millis().min(u64::MAX as u128) as u64,
-                                );
+                                acc.ttft_ms =
+                                    Some(request_sent.elapsed().as_millis().min(u64::MAX as u128)
+                                        as u64);
                             }
                             state.push(AgentEvent::ThinkingDelta {
                                 delta: thinking.clone(),
