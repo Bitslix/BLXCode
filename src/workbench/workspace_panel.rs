@@ -185,7 +185,7 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
             let Some(ev) = ev.dyn_ref::<MouseEvent>() else {
                 return;
             };
-            let Some(drag) = drag_state.get_untracked() else {
+            let Some(drag) = drag_state.try_get_untracked().flatten() else {
                 return;
             };
             ev.prevent_default();
@@ -215,7 +215,7 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
 
     let up_handle = leptos::leptos_dom::helpers::window_event_listener_untyped("mouseup", {
         move |_| {
-            drag_state.set(None);
+            drag_state.try_set(None);
         }
     });
 
