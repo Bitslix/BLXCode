@@ -6356,14 +6356,18 @@ body.blxcode-dragging-terminal * {
 }
 
 .ws-term-cell__drag-handle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   display: inline-flex;
   align-items: center;
-  flex-shrink: 0;
   padding: 0 4px;
-  margin-right: 2px;
   opacity: 0.55;
   color: var(--text-muted);
   cursor: grab;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .ws-term-cell__drag-handle:active {
@@ -6506,6 +6510,7 @@ body.blxcode-dragging-terminal * {
 }
 
 .ws-term-cell__head {
+  position: relative;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -6518,6 +6523,7 @@ body.blxcode-dragging-terminal * {
   border-radius: 4px;
   background: var(--overlay-2);
   box-shadow: 0 1px 3px var(--scrim-bg);
+  user-select: none;
 }
 
 .ws-term-cell__title {
@@ -6587,7 +6593,23 @@ body.blxcode-dragging-terminal * {
 
 .ws-term-cell__slot {
   flex-shrink: 0;
-  color: var(--text-faint);
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.45rem;
+  height: 1.05rem;
+  padding: 0 0.22rem;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  border-left: 2px solid var(--accent);
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.05rem;
+  color: var(--text);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent-soft) 72%, transparent), transparent 74%),
+    color-mix(in srgb, var(--bg-panel-header) 82%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent);
+  font-variant-numeric: tabular-nums;
 }
 
 .ws-term-cell__boot-fail {
@@ -8741,24 +8763,29 @@ body.blxcode-dragging-terminal * {
 }
 .workbench-handoff-menu {
   position: absolute;
-  top: calc(100% + 0.3rem);
+  top: calc(100% + 0.36rem);
   right: 0;
-  min-width: 12rem;
-  max-width: 18rem;
-  background: var(--overlay-2);
-  border: 1px solid var(--overlay-3);
+  min-width: 13rem;
+  max-width: min(20rem, calc(100vw - 2rem));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-raised) 94%, transparent), var(--bg-panel));
+  border: 1px solid var(--border);
   border-radius: 6px;
-  box-shadow: 0 6px 18px var(--scrim-bg);
-  padding: 0.35rem;
+  box-shadow:
+    0 12px 30px color-mix(in srgb, var(--scrim-bg) 84%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent);
+  padding: 0.32rem;
   z-index: 40;
   font-size: 0.78rem;
+  backdrop-filter: blur(10px);
 }
 .workbench-handoff-menu__head {
-  padding: 0.2rem 0.4rem 0.35rem;
+  padding: 0.28rem 0.48rem 0.38rem;
   color: var(--text-muted);
-  font-size: 0.7rem;
+  font-size: 0.66rem;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
 }
 .workbench-handoff-menu__list {
   list-style: none;
@@ -8773,7 +8800,8 @@ body.blxcode-dragging-terminal * {
   align-items: center;
   gap: 0.45rem;
   width: 100%;
-  padding: 0.35rem 0.5rem;
+  min-height: 1.85rem;
+  padding: 0.38rem 0.54rem;
   border-radius: 4px;
   border: 1px solid transparent;
   background: transparent;
@@ -8784,8 +8812,17 @@ body.blxcode-dragging-terminal * {
 }
 .workbench-handoff-menu__item:hover,
 .workbench-handoff-menu__item:focus-visible {
-  background: var(--overlay-2);
-  border-color: var(--overlay-3);
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent-soft) 48%, var(--overlay-2));
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  outline: none;
+}
+.workbench-handoff-menu__item svg {
+  color: var(--text-faint);
+}
+.workbench-handoff-menu__item:hover svg,
+.workbench-handoff-menu__item:focus-visible svg {
+  color: var(--accent);
 }
 .workbench-handoff-menu__empty {
   padding: 0.4rem 0.5rem;
@@ -8793,8 +8830,8 @@ body.blxcode-dragging-terminal * {
 }
 .workbench-handoff-menu__separator {
   height: 1px;
-  margin: 0.35rem -0.1rem;
-  background: var(--overlay-2);
+  margin: 0.38rem 0.08rem;
+  background: var(--border);
 }
 .blx-toast-host {
   position: fixed;

@@ -826,13 +826,17 @@ fn GraphPreviewPopover(
                 <header class="workbench-memory-graph-preview__head">
                     <span class="workbench-memory-graph-preview__title">{move || preview.label.get()}</span>
                     <div class="workbench-memory-graph-preview__actions">
-                        <div class="workbench-handoff-anchor">
+                        <div class="workbench-handoff-anchor" id="memory-graph-handoff">
                             <button
                                 type="button"
                                 class="workbench-memory-graph-preview__btn"
                                 title=move || i18n.tr(I18nKey::MemGraphSendToTerminal)()
                                 aria-label=move || i18n.tr(I18nKey::MemGraphSendToTerminal)()
-                                on:click=move |_| handoff_open.update(|v| *v = !*v)
+                                on:mousedown=move |ev| ev.stop_propagation()
+                                on:click=move |ev| {
+                                    ev.stop_propagation();
+                                    handoff_open.update(|v| *v = !*v);
+                                }
                             >
                                 <LxIcon icon=icondata::LuSquareTerminal width="0.82rem" height="0.82rem" />
                             </button>
@@ -844,6 +848,7 @@ fn GraphPreviewPopover(
                                     source_slot=Signal::derive(|| None::<u64>)
                                     source_terminal_title=Signal::derive(String::new)
                                     on_close=Callback::new(move |_| handoff_open.set(false))
+                                    anchor_id="memory-graph-handoff".to_string()
                                 />
                             </Show>
                         </div>

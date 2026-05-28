@@ -17,9 +17,11 @@ use crate::workbench::notification_sound::play_action_success_sound;
 use crate::workbench::state::{AgentImageContextStatus, WorkbenchService, WorkspaceAgentImage};
 use crate::workbench::toast::ToastService;
 use base64::Engine;
+use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
+use wasm_bindgen::JsCast;
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
@@ -747,10 +749,46 @@ pub fn HandoffMenu(
     source_slot: Signal<Option<u64>>,
     source_terminal_title: Signal<String>,
     on_close: Callback<()>,
+    #[prop(optional)] anchor_id: Option<String>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let toast = expect_context::<ToastService>();
     let prefs = expect_context::<AppPrefsService>();
+    let outside_handle = window_event_listener_untyped("mousedown", {
+        let on_close = on_close.clone();
+        let anchor_id = anchor_id.clone();
+        move |ev| {
+            if let (Some(anchor_id), Some(target)) = (anchor_id.as_deref(), ev.target()) {
+                if let Ok(node) = target.dyn_into::<web_sys::Node>() {
+                    if let Some(anchor) = web_sys::window()
+                        .and_then(|w| w.document())
+                        .and_then(|doc| doc.get_element_by_id(anchor_id))
+                    {
+                        if anchor.contains(Some(&node)) {
+                            return;
+                        }
+                    }
+                }
+            }
+            on_close.run(());
+        }
+    });
+    let escape_handle = window_event_listener_untyped("keydown", {
+        let on_close = on_close.clone();
+        move |ev| {
+            if ev
+                .dyn_ref::<web_sys::KeyboardEvent>()
+                .is_some_and(|kev| kev.key() == "Escape")
+            {
+                on_close.run(());
+            }
+        }
+    });
+    on_cleanup(move || {
+        outside_handle.remove();
+        escape_handle.remove();
+    });
+
     let targets = Memo::new(move |_| {
         // Re-run when the workspace list OR the live PTY session map changes.
         let _ = wb.workspaces().get();
@@ -856,7 +894,11 @@ pub fn HandoffMenu(
     };
 
     view! {
-        <div class="workbench-handoff-menu" on:click=move |ev| ev.stop_propagation()>
+        <div
+            class="workbench-handoff-menu"
+            on:mousedown=move |ev| ev.stop_propagation()
+            on:click=move |ev| ev.stop_propagation()
+        >
             <div class="workbench-handoff-menu__head">
                 {move || i18n.tr(I18nKey::HandoffPickTerminal)()}
             </div>
@@ -922,10 +964,12 @@ pub fn TerminalSlotHandoffButton(
     let i18n = expect_context::<I18nService>();
     let wb = expect_context::<WorkbenchService>();
     let open = RwSignal::new(false);
+    let anchor_id = format!("terminal-handoff-{workspace_id}-{slot_id}-{pane_id}");
+    let anchor_id_for_menu = anchor_id.clone();
     let _ = (slot_id, pane_id, workspace_id, agent_slug);
 
     view! {
-        <div class="workbench-handoff-anchor">
+        <div class="workbench-handoff-anchor" id=anchor_id.clone()>
             <button
                 type="button"
                 class="ws-term-cell__tool"
@@ -948,6 +992,7 @@ pub fn TerminalSlotHandoffButton(
                     source_slot=Signal::derive(move || Some(slot_id))
                     source_terminal_title=terminal_title
                     on_close=Callback::new(move |_| open.set(false))
+                    anchor_id=anchor_id_for_menu.clone()
                 />
             </Show>
         </div>

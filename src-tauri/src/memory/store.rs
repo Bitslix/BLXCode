@@ -6,14 +6,12 @@ use std::fs;
 use std::io::Write as IoWrite;
 use std::path::{Component, Path, PathBuf};
 
-use super::frontmatter::{
-    parse_frontmatter, serialize_frontmatter, MemoryFrontmatter,
-};
+use super::frontmatter::{parse_frontmatter, serialize_frontmatter, MemoryFrontmatter};
 use super::graph::{build_graph, CategoryHubInput, ScopeNote};
 use super::paths::{
     folder_exists, get_global_roots, get_roots_for_scope, graph_category_for,
-    list_memory_subcategories, node_id, validate_category_name, MemoryRoots,
-    CATEGORY_PLACEHOLDER, TEMPLATES_DIRNAME,
+    list_memory_subcategories, node_id, validate_category_name, MemoryRoots, CATEGORY_PLACEHOLDER,
+    TEMPLATES_DIRNAME,
 };
 use super::types::{
     BacklinkRef, GraphData, MemoryFolderStatus, MemoryListResponse, MemoryScope,
@@ -837,7 +835,9 @@ fn pointer_body(workspace_cwd: &Path, cursor_style: bool) -> String {
     let global_roots = get_global_roots();
     let mut s = String::new();
     if cursor_style {
-        s.push_str("blxcode tracks per-workspace and global memory + learnings at the paths below.\n");
+        s.push_str(
+            "blxcode tracks per-workspace and global memory + learnings at the paths below.\n",
+        );
     } else {
         s.push_str("## blxcode workspace memory & learnings\n\n");
         s.push_str(
@@ -853,7 +853,10 @@ non-trivial design choice. Source material: debugging sessions, failed \
 attempts, code review feedback, post-mortems, surprising tool output.\n\n",
         );
     }
-    s.push_str(&format!("Workspace memory:    `{}`\n", memory_dir.display()));
+    s.push_str(&format!(
+        "Workspace memory:    `{}`\n",
+        memory_dir.display()
+    ));
     s.push_str(&format!(
         "Workspace learnings: `{}`  (API paths: `learnings/...`)\n",
         learnings_dir.display()
@@ -941,8 +944,14 @@ mod pointer_tests {
             Some("shared file already written")
         );
         let content = fs::read_to_string(ws.join("AGENTS.md")).unwrap();
-        assert!(content.contains("Workspace memory:"), "missing memory path: {content}");
-        assert!(content.contains("Workspace learnings:"), "missing learnings path: {content}");
+        assert!(
+            content.contains("Workspace memory:"),
+            "missing memory path: {content}"
+        );
+        assert!(
+            content.contains("Workspace learnings:"),
+            "missing learnings path: {content}"
+        );
         assert!(content.contains("Global memory:"));
         assert!(content.contains("Global learnings:"));
         // Pointer body should NOT enumerate notes anymore — it's now path-only.

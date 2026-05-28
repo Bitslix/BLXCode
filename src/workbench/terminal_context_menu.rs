@@ -93,9 +93,7 @@ pub fn paste_terminal_from_clipboard(term_id: f64, i18n: I18nService, toast: Toa
             }
             Ok(_) => {}
             Err(err) => {
-                let msg = i18n
-                    .tr(I18nKey::WsTermToastPasteFailed)()
-                    .replace("{error}", &err);
+                let msg = i18n.tr(I18nKey::WsTermToastPasteFailed)().replace("{error}", &err);
                 toast.error(msg);
             }
         }
@@ -121,9 +119,8 @@ pub fn dispatch_terminal_menu_action(
                         toast.success(i18n.tr(I18nKey::WsTermToastCopied)());
                     }
                     Err(err) => {
-                        let msg = i18n
-                            .tr(I18nKey::WsTermToastCopyFailed)()
-                            .replace("{error}", &err);
+                        let msg =
+                            i18n.tr(I18nKey::WsTermToastCopyFailed)().replace("{error}", &err);
                         toast.error(msg);
                     }
                 }
@@ -154,9 +151,7 @@ pub fn copy_terminal_selection(
                 toast.success(i18n.tr(I18nKey::WsTermToastCopied)());
             }
             Err(err) => {
-                let msg = i18n
-                    .tr(I18nKey::WsTermToastCopyFailed)()
-                    .replace("{error}", &err);
+                let msg = i18n.tr(I18nKey::WsTermToastCopyFailed)().replace("{error}", &err);
                 toast.error(msg);
             }
         }
@@ -191,36 +186,34 @@ pub fn install_terminal_clipboard_listeners(
     i18n: I18nService,
     toast: ToastService,
 ) -> impl FnOnce() + 'static {
-    let contextmenu_handle =
-        leptos::leptos_dom::helpers::window_event_listener_untyped(
-            "blxcode-terminal-contextmenu",
-            {
-                move |ev| {
-                    let Some(ce) = ev.dyn_ref::<web_sys::CustomEvent>() else {
-                        return;
-                    };
-                    let detail = ce.detail();
-                    let Some(term_id) = detail_f64(&detail, "termId") else {
-                        return;
-                    };
-                    let Some(anchor_x) = detail_i32(&detail, "clientX") else {
-                        return;
-                    };
-                    let Some(anchor_y) = detail_i32(&detail, "clientY") else {
-                        return;
-                    };
-                    let has_selection = detail_bool(&detail, "hasSelection")
-                        || detail_string(&detail, "selection")
-                            .is_some_and(|s| !s.is_empty());
-                    menu_state.set(Some(TerminalContextMenuState {
-                        term_id,
-                        anchor_x,
-                        anchor_y,
-                        has_selection,
-                    }));
-                }
-            },
-        );
+    let contextmenu_handle = leptos::leptos_dom::helpers::window_event_listener_untyped(
+        "blxcode-terminal-contextmenu",
+        {
+            move |ev| {
+                let Some(ce) = ev.dyn_ref::<web_sys::CustomEvent>() else {
+                    return;
+                };
+                let detail = ce.detail();
+                let Some(term_id) = detail_f64(&detail, "termId") else {
+                    return;
+                };
+                let Some(anchor_x) = detail_i32(&detail, "clientX") else {
+                    return;
+                };
+                let Some(anchor_y) = detail_i32(&detail, "clientY") else {
+                    return;
+                };
+                let has_selection = detail_bool(&detail, "hasSelection")
+                    || detail_string(&detail, "selection").is_some_and(|s| !s.is_empty());
+                menu_state.set(Some(TerminalContextMenuState {
+                    term_id,
+                    anchor_x,
+                    anchor_y,
+                    has_selection,
+                }));
+            }
+        },
+    );
 
     let paste_handle = leptos::leptos_dom::helpers::window_event_listener_untyped(
         "blxcode-terminal-paste-request",
@@ -269,18 +262,17 @@ pub fn install_terminal_clipboard_listeners(
             }
         });
 
-    let escape_handle =
-        leptos::leptos_dom::helpers::window_event_listener_untyped("keydown", {
-            let menu_state = menu_state;
-            move |ev| {
-                let Some(kev) = ev.dyn_ref::<web_sys::KeyboardEvent>() else {
-                    return;
-                };
-                if kev.key() == "Escape" && menu_state.get_untracked().is_some() {
-                    menu_state.set(None);
-                }
+    let escape_handle = leptos::leptos_dom::helpers::window_event_listener_untyped("keydown", {
+        let menu_state = menu_state;
+        move |ev| {
+            let Some(kev) = ev.dyn_ref::<web_sys::KeyboardEvent>() else {
+                return;
+            };
+            if kev.key() == "Escape" && menu_state.get_untracked().is_some() {
+                menu_state.set(None);
             }
-        });
+        }
+    });
 
     move || {
         drop(contextmenu_handle);

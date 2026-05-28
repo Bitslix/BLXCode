@@ -2330,12 +2330,8 @@ impl WorkbenchService {
     ) -> Result<TerminalSlotMove, String> {
         let mut result: Result<TerminalSlotMove, String> = Err("not run".into());
         self.workspaces.update(|workspaces| {
-            result = transfer_workspace_slot(
-                workspaces,
-                from_workspace_id,
-                to_workspace_id,
-                slot_id,
-            );
+            result =
+                transfer_workspace_slot(workspaces, from_workspace_id, to_workspace_id, slot_id);
         });
         let mv = result?;
         // Set up adoption guards AFTER the state mutation: the source
@@ -2359,21 +2355,21 @@ impl WorkbenchService {
         workspace_id: u64,
         slot_id: u64,
     ) -> Result<TerminalSlotMove, String> {
-        let (cwd, color_seed) = self
-            .workspaces
-            .with_untracked(|list| -> Result<(String, usize), String> {
-                let source = list
-                    .iter()
-                    .find(|w| w.id == workspace_id)
-                    .ok_or_else(|| "source workspace not found".to_string())?;
-                if source.slot_ids.len() <= 1 {
-                    return Err("source workspace must keep at least one slot".into());
-                }
-                if !source.slot_ids.iter().any(|id| *id == slot_id) {
-                    return Err("slot not found in source workspace".into());
-                }
-                Ok((source.cwd.clone(), list.len()))
-            })?;
+        let (cwd, color_seed) =
+            self.workspaces
+                .with_untracked(|list| -> Result<(String, usize), String> {
+                    let source = list
+                        .iter()
+                        .find(|w| w.id == workspace_id)
+                        .ok_or_else(|| "source workspace not found".to_string())?;
+                    if source.slot_ids.len() <= 1 {
+                        return Err("source workspace must keep at least one slot".into());
+                    }
+                    if !source.slot_ids.iter().any(|id| *id == slot_id) {
+                        return Err("slot not found in source workspace".into());
+                    }
+                    Ok((source.cwd.clone(), list.len()))
+                })?;
         let new_id = self.allocate_workspace_id();
         let title = format!("Workspace {new_id}");
         let color = self.workspace_color_for_new_index(color_seed);
@@ -4066,14 +4062,8 @@ mod terminal_slot_tests {
         let mv = transfer_workspace_slot(&mut list, 1, 2, 2).expect("transfer ok");
         let pairs = mv.terminal_key_pairs();
         assert_eq!(pairs.len(), 2);
-        assert!(pairs[0]
-            .0
-            .ends_with(&format!(":{}:7", mv.old_slot_id)));
-        assert!(pairs[0]
-            .1
-            .ends_with(&format!(":{}:7", mv.new_slot_id)));
-        assert!(pairs[1]
-            .0
-            .ends_with(&format!(":{}:11", mv.old_slot_id)));
+        assert!(pairs[0].0.ends_with(&format!(":{}:7", mv.old_slot_id)));
+        assert!(pairs[0].1.ends_with(&format!(":{}:7", mv.new_slot_id)));
+        assert!(pairs[1].0.ends_with(&format!(":{}:11", mv.old_slot_id)));
     }
 }

@@ -182,12 +182,8 @@ fn migrate_legacy_store_if_needed(workspace_path: &Path, new_root: &Path) -> Res
                 new_index.display()
             )
         })?;
-        fs::remove_file(&legacy_index).map_err(|e| {
-            format!(
-                "remove legacy store {}: {e}",
-                legacy_index.display()
-            )
-        })?;
+        fs::remove_file(&legacy_index)
+            .map_err(|e| format!("remove legacy store {}: {e}", legacy_index.display()))?;
     }
 
     // Best-effort cleanup; an error here is non-fatal (folder may hold

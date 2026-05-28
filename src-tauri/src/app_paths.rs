@@ -58,8 +58,7 @@ pub mod test_support {
 
     impl AppDataDirGuard {
         pub fn new(path: PathBuf) -> Self {
-            let previous =
-                TL_OVERRIDE.with(|cell| cell.borrow_mut().replace(path));
+            let previous = TL_OVERRIDE.with(|cell| cell.borrow_mut().replace(path));
             Self { previous }
         }
     }

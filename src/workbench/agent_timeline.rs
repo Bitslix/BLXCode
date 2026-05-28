@@ -373,7 +373,11 @@ pub enum SubagentStatus {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "kind",
+    rename_all = "snake_case",
+    rename_all_fields = "camelCase"
+)]
 pub enum TurnPart {
     Thinking {
         id: String,
@@ -571,26 +575,12 @@ pub fn migrate_legacy_items(items: Vec<TimelineItem>) -> TimelineDoc {
             }
             TimelineItem::Assistant { text, metrics } => {
                 let id = next_part_id(&doc, "text");
-                append_top_part(
-                    &mut doc,
-                    TurnPart::Text {
-                        id,
-                        text,
-                        metrics,
-                    },
-                );
+                append_top_part(&mut doc, TurnPart::Text { id, text, metrics });
                 pending_subagents_run = None;
             }
             TimelineItem::Thinking { text, done } => {
                 let id = next_part_id(&doc, "think");
-                append_top_part(
-                    &mut doc,
-                    TurnPart::Thinking {
-                        id,
-                        text,
-                        done,
-                    },
-                );
+                append_top_part(&mut doc, TurnPart::Thinking { id, text, done });
                 pending_subagents_run = None;
             }
             TimelineItem::Tool(tool) => {
@@ -619,13 +609,7 @@ pub fn migrate_legacy_items(items: Vec<TimelineItem>) -> TimelineDoc {
             }
             TimelineItem::ModelDecision { metrics } => {
                 let id = next_part_id(&doc, "round");
-                append_top_part(
-                    &mut doc,
-                    TurnPart::ModelRound {
-                        id,
-                        metrics,
-                    },
-                );
+                append_top_part(&mut doc, TurnPart::ModelRound { id, metrics });
                 pending_subagents_run = None;
             }
             TimelineItem::GeneratedImage {

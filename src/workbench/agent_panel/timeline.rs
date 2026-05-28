@@ -11,7 +11,7 @@ use crate::workbench::agent_panel::voice_orb::{
 pub use crate::workbench::agent_timeline::TimelineItem;
 use crate::workbench::agent_timeline::{
     migrate_legacy_items, subagent_role_label, subagent_status_label, ActivityStatus,
-    AskUserOption, AskUserState, SubagentCard, SubagentGroup, SubagentStepRow, SubagentStatus,
+    AskUserOption, AskUserState, SubagentCard, SubagentGroup, SubagentStatus, SubagentStepRow,
     TimelineDoc, ToolActivity, ToolState, TurnNode, TurnPart,
 };
 use crate::workbench::chat_markdown::render_markdown_to_html;
@@ -344,23 +344,26 @@ pub fn apply_agent_event(
                 return;
             }
             timeline.update(|rows| {
-                let slot_idx = rows.iter().rposition(|entry| {
-                    matches!(
-                        entry,
-                        TimelineItem::Tool(row)
-                            if call_id.is_some()
-                                && row.call_id.as_deref() == call_id.as_deref()
-                                && row.status == ActivityStatus::Pending
-                    )
-                }).or_else(|| {
-                    rows.iter().rposition(|entry| {
+                let slot_idx = rows
+                    .iter()
+                    .rposition(|entry| {
                         matches!(
                             entry,
                             TimelineItem::Tool(row)
-                                if row.tool == *tool && row.status == ActivityStatus::Pending
+                                if call_id.is_some()
+                                    && row.call_id.as_deref() == call_id.as_deref()
+                                    && row.status == ActivityStatus::Pending
                         )
                     })
-                });
+                    .or_else(|| {
+                        rows.iter().rposition(|entry| {
+                            matches!(
+                                entry,
+                                TimelineItem::Tool(row)
+                                    if row.tool == *tool && row.status == ActivityStatus::Pending
+                            )
+                        })
+                    });
                 let slot = slot_idx.and_then(|idx| match rows.get_mut(idx) {
                     Some(TimelineItem::Tool(row)) => Some(row),
                     _ => None,
@@ -1402,15 +1405,15 @@ fn grouped_turn_render_items(parts: Vec<TurnPart>) -> Vec<TurnRenderItem> {
             }
         }
         if tools.is_empty() {
-            out.push(TurnRenderItem::Part(TurnPart::ModelRound {
-                id,
-                metrics,
-            }));
+            out.push(TurnRenderItem::Part(TurnPart::ModelRound { id, metrics }));
         } else {
-            push_model_round_group(&mut out, TurnRenderItem::ModelRound {
-                metrics,
-                tools: group_consecutive_tools(tools),
-            });
+            push_model_round_group(
+                &mut out,
+                TurnRenderItem::ModelRound {
+                    metrics,
+                    tools: group_consecutive_tools(tools),
+                },
+            );
         }
     }
     out
@@ -1833,8 +1836,7 @@ fn ext_for_mime(mime: &str) -> &'static str {
 #[component]
 fn ThinkingRow(
     idx: usize,
-    #[prop(default = String::new())]
-    scroll_key: String,
+    #[prop(default = String::new())] scroll_key: String,
     line_no: String,
     text: String,
     done: bool,
@@ -1948,8 +1950,7 @@ fn ToolActivityRow(
 
     let detail_key_memo = detail_key.clone();
     let detail_open = Memo::new(move |_| {
-        tool_detail_open
-            .with(|m| m.get(&detail_key_memo).copied().unwrap_or(false))
+        tool_detail_open.with(|m| m.get(&detail_key_memo).copied().unwrap_or(false))
     });
     let has_detail = tool.detail.as_ref().is_some_and(|s| !s.is_empty());
     let detail_text = tool.detail.clone().unwrap_or_default();

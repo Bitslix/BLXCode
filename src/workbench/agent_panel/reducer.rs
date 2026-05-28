@@ -32,7 +32,10 @@ pub fn apply_envelope(
         AgentEvent::TaskSnapshot { snapshot } => {
             task_snapshot.set(snapshot.clone());
             if let Some((wb, ws_id)) = persist {
-                crate::workbench::agent_context_handoff::store_task_snapshot(ws_id, snapshot.clone());
+                crate::workbench::agent_context_handoff::store_task_snapshot(
+                    ws_id,
+                    snapshot.clone(),
+                );
                 let _ = wb;
             }
             return;
@@ -62,8 +65,9 @@ fn apply_event_to_doc(
             args,
         } => {
             if tool == "harness.ask_user" {
-                if let Some((call_id, ask)) =
-                    call_id.clone().zip(args.as_ref().and_then(parse_ask_user_args))
+                if let Some((call_id, ask)) = call_id
+                    .clone()
+                    .zip(args.as_ref().and_then(parse_ask_user_args))
                 {
                     append_part(
                         doc,
@@ -86,7 +90,8 @@ fn apply_event_to_doc(
             let id = call_id
                 .clone()
                 .unwrap_or_else(|| format!("tool-{}", env.seq));
-            let activity = ToolActivity::from_call_with_id(tool, args.as_ref(), loc, Some(id.clone()));
+            let activity =
+                ToolActivity::from_call_with_id(tool, args.as_ref(), loc, Some(id.clone()));
             append_part(
                 doc,
                 env.parent_call_id.as_deref(),
@@ -179,7 +184,8 @@ fn apply_event_to_doc(
             status,
             note,
         } => {
-            if let Some(TurnPart::Subagent { steps, .. }) = find_subagent_mut(&mut doc.turns, agent_id)
+            if let Some(TurnPart::Subagent { steps, .. }) =
+                find_subagent_mut(&mut doc.turns, agent_id)
             {
                 if let Some(step) = steps.iter_mut().find(|s| s.id == *step_id) {
                     step.title = title.clone();
@@ -204,7 +210,8 @@ fn apply_event_to_doc(
             let id = call_id
                 .clone()
                 .unwrap_or_else(|| format!("{agent_id}-tool-{}", env.seq));
-            let activity = ToolActivity::from_call_with_id(tool, args.as_ref(), loc, Some(id.clone()));
+            let activity =
+                ToolActivity::from_call_with_id(tool, args.as_ref(), loc, Some(id.clone()));
             append_part(
                 doc,
                 env.parent_call_id.as_deref(),
@@ -230,7 +237,9 @@ fn apply_event_to_doc(
         AgentEvent::SubagentThinkingDelta { agent_id, delta } => {
             append_thinking(doc, env, Some(agent_id), delta);
         }
-        AgentEvent::SubagentThinkingDone { agent_id } => mark_thinking_done(doc, env, Some(agent_id)),
+        AgentEvent::SubagentThinkingDone { agent_id } => {
+            mark_thinking_done(doc, env, Some(agent_id))
+        }
         AgentEvent::SubagentFinished {
             agent_id,
             status,
@@ -284,11 +293,8 @@ fn apply_event_to_doc(
                 TurnUsageKind::ToolExec => {
                     if let Some(cid) = call_id.as_deref() {
                         if let Some(TurnPart::Tool {
-                            metrics: m,
-                            state,
-                            ..
-                        }) =
-                            find_tool_mut(&mut doc.turns, cid)
+                            metrics: m, state, ..
+                        }) = find_tool_mut(&mut doc.turns, cid)
                         {
                             *m = metrics;
                             if matches!(state, ToolState::Pending | ToolState::Running) {
@@ -367,7 +373,11 @@ fn ensure_turn(doc: &mut TimelineDoc) {
 }
 
 fn append_text(doc: &mut TimelineDoc, env: &EventEnvelope, agent_id: Option<&String>, delta: &str) {
-    let Some(parts) = target_parts_mut(doc, env.parent_call_id.as_deref(), agent_id.map(String::as_str)) else {
+    let Some(parts) = target_parts_mut(
+        doc,
+        env.parent_call_id.as_deref(),
+        agent_id.map(String::as_str),
+    ) else {
         return;
     };
     remove_empty_pending_thinking(parts);
@@ -387,11 +397,17 @@ fn append_thinking(
     agent_id: Option<&String>,
     delta: &str,
 ) {
-    let Some(parts) = target_parts_mut(doc, env.parent_call_id.as_deref(), agent_id.map(String::as_str)) else {
+    let Some(parts) = target_parts_mut(
+        doc,
+        env.parent_call_id.as_deref(),
+        agent_id.map(String::as_str),
+    ) else {
         return;
     };
     match parts.last_mut() {
-        Some(TurnPart::Thinking { text, done: false, .. }) => text.push_str(delta),
+        Some(TurnPart::Thinking {
+            text, done: false, ..
+        }) => text.push_str(delta),
         _ => parts.push(TurnPart::Thinking {
             id: format!("think-{}", env.seq),
             text: delta.to_owned(),
@@ -401,7 +417,11 @@ fn append_thinking(
 }
 
 fn mark_thinking_done(doc: &mut TimelineDoc, env: &EventEnvelope, agent_id: Option<&String>) {
-    if let Some(parts) = target_parts_mut(doc, env.parent_call_id.as_deref(), agent_id.map(String::as_str)) {
+    if let Some(parts) = target_parts_mut(
+        doc,
+        env.parent_call_id.as_deref(),
+        agent_id.map(String::as_str),
+    ) {
         if parts.last().is_some_and(is_empty_pending_thinking) {
             parts.pop();
             return;
@@ -607,10 +627,7 @@ fn find_tool_in_parts_mut<'a>(parts: &'a mut [TurnPart], id: &str) -> Option<&'a
             return Some(part);
         }
         match part {
-            TurnPart::Tool {
-                children,
-                ..
-            } => {
+            TurnPart::Tool { children, .. } => {
                 if let Some(found) = find_tool_in_parts_mut(children, id) {
                     return Some(found);
                 }
@@ -642,8 +659,7 @@ fn find_subagent_in_parts_mut<'a>(parts: &'a mut [TurnPart], id: &str) -> Option
         }
         match part {
             TurnPart::Subagent {
-                parts: child_parts,
-                ..
+                parts: child_parts, ..
             } => {
                 if let Some(found) = find_subagent_in_parts_mut(child_parts, id) {
                     return Some(found);

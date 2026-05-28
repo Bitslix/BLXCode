@@ -16,7 +16,9 @@ use crate::workbench::project_explorer::ProjectExplorerSection;
 use crate::workbench::sidebar_resizer::SidebarResizer;
 use crate::workbench::sidebar_resizer::SidebarResizerClamp;
 use crate::workbench::state::is_shell_workspace;
-use crate::workbench::terminal_slot_dnd::{is_terminal_drag, read_drag_payload, TerminalSlotDragService};
+use crate::workbench::terminal_slot_dnd::{
+    is_terminal_drag, read_drag_payload, TerminalSlotDragService,
+};
 use crate::workbench::toast::ToastService;
 use crate::workbench::WorkbenchService;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;

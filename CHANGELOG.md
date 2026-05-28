@@ -9,11 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Post-update release notes dialog**: after an installed update, BLXCode now checks the current app version on startup and shows a one-time "What's new" dialog for that version. The dialog loads friendly, versioned release notes from `docs/releases/v{version}.md` on the matching Git tag, falls back to the GitHub Release body when needed, parses frontmatter plus sectioned Markdown into structured title/summary/cards, and remembers the acknowledged version in `localStorage` so users are not shown the same notes on every launch. Added the `post_update_release_notes` Tauri command, typed frontend bridge, themed Leptos dialog, i18n strings, parser tests, and an example `docs/releases/v0.2.9.md` template for future releases.
+
 ### Changed
+
+- **Terminal titlebar drag affordance and slot marker**: the whole terminal titlebar is now the drag surface for terminal drag & drop, with the grip shown as a centered visual cue instead of a left-only handle. The left side now shows a compact themed `#N` slot marker using existing theme tokens, so reordered terminals still reveal which stable terminal slot is in each grid cell.
 
 ### Fixed
 
+- **Terminal handoff dropdown dismissal**: the terminal/context handoff menu now closes on outside click and `Escape`, while clicks inside the menu or on its own anchor stay scoped to the open dropdown. The shared handoff menu styling was tightened to match the workbench chrome and use theme-token-backed colors across themes.
+
 ### Removed
+
+- **Post-EULA `.gitignore` prompt and append IPC**: removed the startup dialog that offered to add `.blxcode/` to a workspace ignore file, along with its localStorage gate, Tauri `gitignore_append_blxcode` command, frontend wrapper, prompt translations, CSS, and developer docs. `.gitignore` is no longer listed as a special text-preview extension; the repository root ignore file and release-script staging references are unchanged.
 
 
 ## [0.2.8] - 2026-05-28

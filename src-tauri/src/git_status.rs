@@ -81,11 +81,7 @@ pub fn git_status_changes(cwd: String) -> Result<Vec<ChangedFile>, String> {
             staged_stats = None;
         }
         entry.staged_stats = if entry.staged { staged_stats } else { None };
-        entry.unstaged_stats = if entry.unstaged {
-            unstaged_stats
-        } else {
-            None
-        };
+        entry.unstaged_stats = if entry.unstaged { unstaged_stats } else { None };
     }
 
     entries.sort_by(|a, b| a.rel_path.cmp(&b.rel_path));

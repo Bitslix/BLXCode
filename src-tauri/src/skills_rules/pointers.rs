@@ -127,7 +127,9 @@ mod tests {
 
         // Memory status still reports it as installed.
         let mem_status = memory_pointer_status(ws.to_string_lossy().into_owned()).unwrap();
-        assert!(mem_status.iter().any(|r| r.agent == "claude" && r.installed));
+        assert!(mem_status
+            .iter()
+            .any(|r| r.agent == "claude" && r.installed));
         let _ = fs::remove_dir_all(ws);
     }
 

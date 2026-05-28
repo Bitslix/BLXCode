@@ -430,7 +430,8 @@ fn FileDiffRow(
     };
     let status_marker = status_marker_for(&status_kind);
     let row_class = format!("file-diff-section__row file-diff-section__row--{status_kind}");
-    let marker_class = format!("file-diff-section__status file-diff-section__status--{status_kind}");
+    let marker_class =
+        format!("file-diff-section__status file-diff-section__status--{status_kind}");
     let on_open = move |_| {
         let workspace_id = wb.active_id().get_untracked();
         let Some(ws_id) = workspace_id else {

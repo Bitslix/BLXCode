@@ -122,8 +122,9 @@ fn classify_policy(stem: &str) -> Option<PolicyKind> {
         "claude" => Some(PolicyKind::Claude),
         "codex" => Some(PolicyKind::Codex),
         "gemini" => Some(PolicyKind::Gemini),
-        "copilot" | "windsurf" | "aider" | "cursor" | "cody" | "devin" | "junie"
-        | "continue" => Some(PolicyKind::Agents),
+        "copilot" | "windsurf" | "aider" | "cursor" | "cody" | "devin" | "junie" | "continue" => {
+            Some(PolicyKind::Agents)
+        }
         _ => None,
     }
 }
@@ -492,26 +493,11 @@ mod tests {
             classify_policy("readme"),
             Some(PolicyKind::Readme)
         ));
-        assert_eq!(
-            classify_policy("support"),
-            Some(PolicyKind::Support)
-        );
-        assert_eq!(
-            classify_policy("agents"),
-            Some(PolicyKind::Agents)
-        );
-        assert_eq!(
-            classify_policy("claude"),
-            Some(PolicyKind::Claude)
-        );
-        assert_eq!(
-            classify_policy("codex"),
-            Some(PolicyKind::Codex)
-        );
-        assert_eq!(
-            classify_policy("copilot"),
-            Some(PolicyKind::Agents)
-        );
+        assert_eq!(classify_policy("support"), Some(PolicyKind::Support));
+        assert_eq!(classify_policy("agents"), Some(PolicyKind::Agents));
+        assert_eq!(classify_policy("claude"), Some(PolicyKind::Claude));
+        assert_eq!(classify_policy("codex"), Some(PolicyKind::Codex));
+        assert_eq!(classify_policy("copilot"), Some(PolicyKind::Agents));
         assert!(classify_policy("random").is_none());
     }
 

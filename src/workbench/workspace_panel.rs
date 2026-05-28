@@ -25,8 +25,8 @@ use crate::workbench::terminal_slot_dnd::{
     drag_event_data_transfer, is_terminal_drag, read_drag_payload, GhostPos,
     TerminalSlotDragService,
 };
-use crate::workbench::WorkbenchService;
 use crate::workbench::toast::ToastService;
+use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
 use leptos::callback::Callback;
 use leptos::html;

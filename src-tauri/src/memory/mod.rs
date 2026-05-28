@@ -21,11 +21,11 @@ pub use types::*;
 
 use crate::agents_layout::ensure_agents_layout;
 use store::{
-    memory_backlinks_impl, memory_bootstrap_impl, memory_create_category_impl,
-    memory_create_impl, memory_delete_impl, memory_export_impl, memory_graph_impl,
-    memory_import_impl, memory_install_pointers_impl, memory_list_impl, memory_pointer_status_impl,
-    memory_read_impl, memory_rename_impl, memory_search_impl, memory_status_impl,
-    memory_uninstall_pointers_impl, memory_write_impl,
+    memory_backlinks_impl, memory_bootstrap_impl, memory_create_category_impl, memory_create_impl,
+    memory_delete_impl, memory_export_impl, memory_graph_impl, memory_import_impl,
+    memory_install_pointers_impl, memory_list_impl, memory_pointer_status_impl, memory_read_impl,
+    memory_rename_impl, memory_search_impl, memory_status_impl, memory_uninstall_pointers_impl,
+    memory_write_impl,
 };
 
 // ── Bootstrap / status ────────────────────────────────────────────────────────

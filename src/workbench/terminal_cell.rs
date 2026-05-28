@@ -508,10 +508,16 @@ pub fn WorkspaceTerminalCell(
                     move |_| wb.focus_terminal(terminal_key.clone())
                 }
             >
+                <span
+                    class="ws-term-cell__slot"
+                    title=move || format!("{} {}", i18n.tr(I18nKey::WsTermSlot)(), slot_id)
+                    aria-hidden="true"
+                >
+                    {format!("#{slot_id}")}
+                </span>
                 <Show when=move || slot_drag_enabled.get() && !is_full_size.get() && slot_dnd.is_some()>
                     <span
                         class="ws-term-cell__drag-handle"
-                        aria-label=move || i18n.tr(I18nKey::WsTermDragHandleAria)()
                         title=move || i18n.tr(I18nKey::WsTermDragHandleAria)()
                         aria-hidden="true"
                     >
