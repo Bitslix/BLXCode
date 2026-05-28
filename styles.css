@@ -10002,6 +10002,11 @@ body.blxcode-dragging-terminal * {
   opacity: 1;
 }
 
+/* Project Files toolbar actions stay visible at all times, not only on hover. */
+.sidebar-view-section--sb-explorer .sidebar-view-section__toolbar {
+  opacity: 1;
+}
+
 .sidebar-view-section__toggle {
   flex: 1 1 auto;
   min-width: 0;
@@ -10192,9 +10197,52 @@ body.blxcode-dragging-terminal * {
 }
 
 .project-explorer__name {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.project-explorer__row--selected {
+  background: var(--bg-hover);
+}
+
+.project-explorer__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.05rem;
+  flex-shrink: 0;
+  margin-left: 0.2rem;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.project-explorer__row:hover .project-explorer__actions,
+.project-explorer__row:focus-within .project-explorer__actions {
+  opacity: 1;
+}
+
+.project-explorer__action {
+  flex-shrink: 0;
+  width: 1.05rem;
+  height: 1.05rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.project-explorer__action:hover,
+.project-explorer__action:focus-visible {
+  color: var(--text);
+  background: var(--overlay-3);
+  border-color: var(--border);
 }
 
 .git-graph__list {

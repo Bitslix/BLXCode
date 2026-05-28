@@ -13,12 +13,17 @@ use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
 use std::collections::HashSet;
 
-/// Pending inline-create row at the workspace root. `is_dir` selects whether
-/// Enter creates a folder or an empty file.
-#[derive(Clone, Copy)]
+/// Pending inline-create row. `parent_rel` is the folder it will be created in
+/// (empty string = workspace root); `is_dir` selects folder vs. empty file.
+#[derive(Clone)]
 struct Draft {
+    parent_rel: String,
     is_dir: bool,
 }
+
+/// Starts an inline-create draft in `parent_rel` (empty = root). Threaded down
+/// to the per-folder hover actions so any folder row can begin a draft.
+type StartDraft = Callback<(String, bool)>;
 
 #[component]
 pub fn ProjectExplorerSection() -> impl IntoView {
@@ -48,6 +53,8 @@ pub fn ProjectExplorerSection() -> impl IntoView {
     let error_msg = RwSignal::new(None::<String>);
     let show_hidden = RwSignal::new(read_explorer_show_hidden());
     let draft = RwSignal::new(None::<Draft>);
+    // Folder the toolbar New File/Folder actions target (None = workspace root).
+    let selected_dir = RwSignal::new(None::<String>);
 
     // Re-sync section open state after hydrate / workspace list updates.
     Effect::new(move |_| {
@@ -91,6 +98,33 @@ pub fn ProjectExplorerSection() -> impl IntoView {
         load_gen.update(|g| *g = g.wrapping_add(1));
     };
 
+    // Begin an inline-create draft in `parent_rel`. Expands the target folder
+    // (loading its children if needed) so the editable row is visible, then
+    // opens the section and records the pending draft.
+    let start_draft: StartDraft = Callback::new(move |(parent_rel, is_dir): (String, bool)| {
+        if !parent_rel.is_empty() {
+            let need_fetch = !children_cache.get_untracked().contains_key(&parent_rel);
+            open_paths.update(|s| {
+                s.insert(parent_rel.clone());
+            });
+            if need_fetch {
+                if let Some(ws) = wb.with_active_workspace_entry() {
+                    let root = ws.cwd.clone();
+                    let key = parent_rel.clone();
+                    spawn_local(async move {
+                        if let Ok(list) = list_path_entries(root, key.clone()).await {
+                            children_cache.update(|c| {
+                                c.insert(key, list);
+                            });
+                        }
+                    });
+                }
+            }
+        }
+        explorer_open.set(true);
+        draft.set(Some(Draft { parent_rel, is_dir }));
+    });
+
     let show_section = move || {
         !collapsed.get()
             && active_workspace
@@ -108,8 +142,7 @@ pub fn ProjectExplorerSection() -> impl IntoView {
                     <SidebarSectionIconBtn
                         aria_key=I18nKey::SbExplorerNewFile
                         on_click=Callback::new(move |_| {
-                            explorer_open.set(true);
-                            draft.set(Some(Draft { is_dir: false }));
+                            start_draft.run((selected_dir.get_untracked().unwrap_or_default(), false));
                         })
                     >
                         <LxIcon icon=icondata::LuFilePlus width="0.75rem" height="0.75rem" />
@@ -117,8 +150,7 @@ pub fn ProjectExplorerSection() -> impl IntoView {
                     <SidebarSectionIconBtn
                         aria_key=I18nKey::SbExplorerNewFolder
                         on_click=Callback::new(move |_| {
-                            explorer_open.set(true);
-                            draft.set(Some(Draft { is_dir: true }));
+                            start_draft.run((selected_dir.get_untracked().unwrap_or_default(), true));
                         })
                     >
                         <LxIcon icon=icondata::LuFolderPlus width="0.75rem" height="0.75rem" />
@@ -169,7 +201,8 @@ pub fn ProjectExplorerSection() -> impl IntoView {
                     error_msg=error_msg
                     show_hidden=show_hidden
                     draft=draft
-                    reload=Callback::new(move |_| reload())
+                    selected_dir=selected_dir
+                    start_draft=start_draft
                 />
             </SidebarViewSection>
         </Show>
@@ -185,7 +218,8 @@ fn ProjectExplorerBody(
     error_msg: RwSignal<Option<String>>,
     show_hidden: RwSignal<bool>,
     draft: RwSignal<Option<Draft>>,
-    reload: Callback<()>,
+    selected_dir: RwSignal<Option<String>>,
+    start_draft: StartDraft,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
 
@@ -237,9 +271,6 @@ fn ProjectExplorerBody(
                     }
                 >
                     <ul class="project-explorer__tree" role="tree">
-                        <Show when=move || draft.get().is_some()>
-                            <ExplorerDraftRow draft=draft reload=reload />
-                        </Show>
                         <ExplorerChildren
                             rel_path=String::new()
                             depth=0
@@ -248,6 +279,9 @@ fn ProjectExplorerBody(
                             load_gen=load_gen
                             error_msg=error_msg
                             show_hidden=show_hidden
+                            draft=draft
+                            selected_dir=selected_dir
+                            start_draft=start_draft
                         />
                     </ul>
                 </Show>
@@ -256,17 +290,22 @@ fn ProjectExplorerBody(
     }
 }
 
-/// Inline editable row for creating a new file or folder at the workspace
-/// root — VS Code style. Enter commits, Escape/blur cancels. Errors (e.g. a
-/// duplicate name) keep the row open with an inline message.
+/// Inline editable row for creating a new file or folder inside a folder —
+/// VS Code style. Enter commits in `draft.parent_rel`, Escape/blur cancels.
+/// Errors (e.g. a duplicate name) keep the row open with an inline message.
 #[component]
-fn ExplorerDraftRow(draft: RwSignal<Option<Draft>>, reload: Callback<()>) -> impl IntoView {
+fn ExplorerDraftRow(
+    draft: RwSignal<Option<Draft>>,
+    depth: u8,
+    children_cache: RwSignal<HashMap<String, Vec<FsEntryBrief>>>,
+) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
     let input_ref: NodeRef<leptos::html::Input> = NodeRef::new();
     let error = RwSignal::new(None::<String>);
 
     let is_dir = move || draft.get().map(|d| d.is_dir).unwrap_or(false);
+    let pad = format!("padding-left: {}rem", 0.65 + f64::from(depth) * 0.85);
 
     // Focus the input as soon as a draft begins.
     Effect::new(move |_| {
@@ -281,6 +320,9 @@ fn ExplorerDraftRow(draft: RwSignal<Option<Draft>>, reload: Callback<()>) -> imp
             return;
         };
         let name = el.value().trim().to_string();
+        let Some(d) = draft.get_untracked() else {
+            return;
+        };
         if name.is_empty() {
             draft.set(None);
             return;
@@ -291,20 +333,32 @@ fn ExplorerDraftRow(draft: RwSignal<Option<Draft>>, reload: Callback<()>) -> imp
         };
         let root = ws.cwd.clone();
         let ws_id = ws.id;
-        let dir = is_dir();
+        let dir = d.is_dir;
+        let parent_rel = d.parent_rel.clone();
+        let rel = if parent_rel.is_empty() {
+            name.clone()
+        } else {
+            format!("{parent_rel}/{name}")
+        };
         error.set(None);
         spawn_local(async move {
             let res = if dir {
-                create_workspace_dir(root, name.clone()).await
+                create_workspace_dir(root.clone(), rel.clone()).await
             } else {
-                create_workspace_file(root, name.clone()).await
+                create_workspace_file(root.clone(), rel.clone()).await
             };
             match res {
                 Ok(()) => {
                     draft.set(None);
-                    reload.run(());
+                    // Targeted refresh: re-list just the parent folder so the
+                    // new entry shows without collapsing the rest of the tree.
+                    if let Ok(list) = list_path_entries(root, parent_rel.clone()).await {
+                        children_cache.update(|c| {
+                            c.insert(parent_rel, list);
+                        });
+                    }
                     if !dir {
-                        wb.open_center_file_tab(ws_id, name);
+                        wb.open_center_file_tab(ws_id, rel);
                     }
                 }
                 Err(_) => {
@@ -318,7 +372,7 @@ fn ExplorerDraftRow(draft: RwSignal<Option<Draft>>, reload: Callback<()>) -> imp
 
     view! {
         <li class="project-explorer__node" role="none">
-            <div class="project-explorer__row project-explorer__draft-row">
+            <div class="project-explorer__row project-explorer__draft-row" style=pad>
                 <span class="project-explorer__chev project-explorer__chev--spacer" aria-hidden="true"></span>
                 <span class="project-explorer__icon" aria-hidden="true">
                     <Show
@@ -377,6 +431,9 @@ fn ExplorerChildren(
     load_gen: RwSignal<u32>,
     error_msg: RwSignal<Option<String>>,
     show_hidden: RwSignal<bool>,
+    draft: RwSignal<Option<Draft>>,
+    selected_dir: RwSignal<Option<String>>,
+    start_draft: StartDraft,
 ) -> impl IntoView {
     let parent_rel = rel_path.clone();
     let entries = Memo::new({
@@ -395,9 +452,18 @@ fn ExplorerChildren(
     });
 
     let key_base = parent_rel.clone();
-    let path_base = parent_rel;
+    let path_base = parent_rel.clone();
+    let draft_group = parent_rel;
 
     view! {
+        {move || {
+            draft
+                .get()
+                .filter(|d| d.parent_rel == draft_group)
+                .map(|_| view! {
+                    <ExplorerDraftRow draft=draft depth=depth children_cache=children_cache />
+                })
+        }}
         <For
             each=move || entries.get()
             key={
@@ -429,6 +495,9 @@ fn ExplorerChildren(
                         load_gen=load_gen
                         error_msg=error_msg
                         show_hidden=show_hidden
+                        draft=draft
+                        selected_dir=selected_dir
+                        start_draft=start_draft
                     />
                 }
             }
@@ -448,8 +517,12 @@ fn ExplorerNode(
     load_gen: RwSignal<u32>,
     error_msg: RwSignal<Option<String>>,
     show_hidden: RwSignal<bool>,
+    draft: RwSignal<Option<Draft>>,
+    selected_dir: RwSignal<Option<String>>,
+    start_draft: StartDraft,
 ) -> AnyView {
     let wb = expect_context::<WorkbenchService>();
+    let i18n = expect_context::<I18nService>();
     let name = entry.name.clone();
     let is_dir = entry.is_dir;
     let hidden = entry.hidden;
@@ -505,6 +578,12 @@ fn ExplorerNode(
                         let rel_path = rel_path.clone();
                         move |ev: web_sys::MouseEvent| {
                             ev.stop_propagation();
+                            // New file/folder default to this file's folder.
+                            let parent = rel_path
+                                .rsplit_once('/')
+                                .map(|(p, _)| p.to_string())
+                                .unwrap_or_default();
+                            selected_dir.set((!parent.is_empty()).then_some(parent));
                             if let Some(ws) = wb.with_active_workspace_entry() {
                                 wb.open_center_file_tab(ws.id, rel_path.clone());
                             }
@@ -522,12 +601,20 @@ fn ExplorerNode(
         .into_any();
     }
 
+    let rel_for_sel = rel_path.clone();
+    let rel_for_click = rel_path.clone();
+    let rel_for_newfile = rel_path.clone();
+    let rel_for_newfolder = rel_path.clone();
+
     view! {
         <li class="project-explorer__node" role="none">
             <div
                 class=move || {
                     let mut c = String::from("project-explorer__row project-explorer__row--dir");
                     if hidden { c.push_str(" project-explorer__row--hidden"); }
+                    if selected_dir.get().as_deref() == Some(rel_for_sel.as_str()) {
+                        c.push_str(" project-explorer__row--selected");
+                    }
                     c
                 }
                 style=pad
@@ -535,6 +622,7 @@ fn ExplorerNode(
                 aria-expanded=move || (is_dir && is_open.get()).to_string()
                 on:click=move |ev| {
                     ev.stop_propagation();
+                    selected_dir.set(Some(rel_for_click.clone()));
                     toggle.run(());
                 }
             >
@@ -555,6 +643,32 @@ fn ExplorerNode(
                     <LxIcon icon=icondata::LuFolder width="0.8rem" height="0.8rem" />
                 </span>
                 <span class="project-explorer__name">{name}</span>
+                <span class="project-explorer__actions">
+                    <button
+                        type="button"
+                        class="project-explorer__action"
+                        title=move || i18n.tr(I18nKey::SbExplorerNewFile)()
+                        aria-label=move || i18n.tr(I18nKey::SbExplorerNewFile)()
+                        on:click=move |ev: web_sys::MouseEvent| {
+                            ev.stop_propagation();
+                            start_draft.run((rel_for_newfile.clone(), false));
+                        }
+                    >
+                        <LxIcon icon=icondata::LuFilePlus width="0.7rem" height="0.7rem" />
+                    </button>
+                    <button
+                        type="button"
+                        class="project-explorer__action"
+                        title=move || i18n.tr(I18nKey::SbExplorerNewFolder)()
+                        aria-label=move || i18n.tr(I18nKey::SbExplorerNewFolder)()
+                        on:click=move |ev: web_sys::MouseEvent| {
+                            ev.stop_propagation();
+                            start_draft.run((rel_for_newfolder.clone(), true));
+                        }
+                    >
+                        <LxIcon icon=icondata::LuFolderPlus width="0.7rem" height="0.7rem" />
+                    </button>
+                </span>
             </div>
             {move || {
                 if is_dir && is_open.get() {
@@ -568,6 +682,9 @@ fn ExplorerNode(
                                 load_gen=load_gen
                                 error_msg=error_msg
                                 show_hidden=show_hidden
+                                draft=draft
+                                selected_dir=selected_dir
+                                start_draft=start_draft
                             />
                         </ul>
                     })
