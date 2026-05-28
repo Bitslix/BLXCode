@@ -71,7 +71,6 @@ pub(crate) struct MemoryState {
     pub(crate) pointers_notice_dismissed: RwSignal<bool>,
     pub(crate) pointers_busy: RwSignal<bool>,
     pub(crate) selected_pointer_agents: RwSignal<HashSet<String>>,
-    pub(crate) global_readme_preview: RwSignal<Option<String>>,
     /// Expanded category groups in the Files sidebar (keys: plain for workspace, "global:cat" for global).
     pub(crate) groups_open: RwSignal<HashSet<String>>,
     /// User-created workspace categories that have no notes yet.
@@ -111,7 +110,6 @@ impl MemoryState {
             pointers_notice_dismissed: RwSignal::new(false),
             pointers_busy: RwSignal::new(false),
             selected_pointer_agents: RwSignal::new(HashSet::new()),
-            global_readme_preview: RwSignal::new(None),
             groups_open: RwSignal::new(HashSet::new()),
             empty_categories: RwSignal::new(Vec::new()),
             global_subcategories: RwSignal::new(Vec::new()),
@@ -166,7 +164,6 @@ fn load_notes(state: MemoryState, ws: String) {
                 .global_bootstrapped
                 .set(status.global.memory && status.global.learnings);
         }
-        load_global_readme_preview(state, ws);
     });
 }
 
@@ -178,15 +175,6 @@ fn load_pointer_status(state: MemoryState, ws: String) {
                 state.pointer_status.set(Some(Vec::new()));
                 state.error.set(Some(e));
             }
-        }
-    });
-}
-
-fn load_global_readme_preview(state: MemoryState, ws: String) {
-    spawn_local(async move {
-        match tauri_bridge::memory_read(&ws, &MemoryScope::Global, "README.md").await {
-            Ok(NoteContent { content, .. }) => state.global_readme_preview.set(Some(content)),
-            Err(_) => state.global_readme_preview.set(None),
         }
     });
 }
@@ -292,13 +280,11 @@ pub fn MemoryPanel() -> impl IntoView {
             eff_state.pointers_open.set(false);
             eff_state.pointers_busy.set(false);
             eff_state.selected_pointer_agents.set(HashSet::new());
-            eff_state.global_readme_preview.set(None);
             if let Some(ws) = cwd {
                 let st = eff_state.clone();
                 let ws2 = ws.clone();
                 spawn_local(async move {
                     load_notes(st.clone(), ws2.clone());
-                    load_global_readme_preview(st.clone(), ws2.clone());
                     load_pointer_status(st, ws2);
                 });
             }
@@ -527,7 +513,6 @@ fn bootstrap_memory_scope(state: MemoryState, target: &'static str) {
         match tauri_bridge::memory_bootstrap(&ws, target).await {
             Ok(()) => {
                 load_notes(state.clone(), ws.clone());
-                load_global_readme_preview(state, ws);
             }
             Err(e) => state.error.set(Some(e)),
         }
@@ -1050,10 +1035,9 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                         move || s.active_path.get().is_some()
                     }
                     fallback={
-                        let s = state.clone();
                         let i = i18n.clone();
                         move || view! {
-                            <MemoryEditorFallback state=s i18n=i />
+                            <MemoryEditorFallback i18n=i />
                         }
                     }
                 >
@@ -1243,30 +1227,11 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
 }
 
 #[component]
-fn MemoryEditorFallback(state: MemoryState, i18n: I18nService) -> impl IntoView {
+fn MemoryEditorFallback(i18n: I18nService) -> impl IntoView {
     view! {
-        {move || {
-            if let Some(content) = state.global_readme_preview.get() {
-                view! {
-                    <header class="workbench-memory-editor__toolbar workbench-memory-editor__toolbar--readonly">
-                        <span class="workbench-memory-editor__path">"Global / README.md"</span>
-                        <span class="workbench-memory-editor__readonly">"Read-only preview"</span>
-                    </header>
-                    <div
-                        class="workbench-memory-editor__preview"
-                        inner_html=render_markdown_to_html(&content)
-                    />
-                }
-                .into_any()
-            } else {
-                view! {
-                    <div class="workbench-memory-editor__empty">
-                        <p>{i18n.tr(I18nKey::MemSelectNote)()}</p>
-                    </div>
-                }
-                .into_any()
-            }
-        }}
+        <div class="workbench-memory-editor__empty">
+            <p>{i18n.tr(I18nKey::MemSelectNote)()}</p>
+        </div>
     }
 }
 
@@ -1501,7 +1466,6 @@ fn MemoryFileGroupHead(
     group_key: String,
     group_scope: MemoryScope,
     groups_open: RwSignal<HashSet<String>>,
-    files_collapsed: RwSignal<bool>,
     header_title: String,
     index_path: Option<String>,
     group_paths: Vec<String>,
@@ -1535,7 +1499,6 @@ fn MemoryFileGroupHead(
             class:workbench-memory-files__group-head--sidebar-hidden=move || {
                 !memory_category_settings(wb, &key_for_settings).show_in_sidebar
             }
-            class:workbench-memory-files__group-head--hidden=move || files_collapsed.get()
             class:workbench-memory-files__group-head--active=move || {
                 memory_group_index_active(&state, &index_active)
             }
@@ -1604,6 +1567,63 @@ fn MemoryFileGroupHead(
 }
 
 #[component]
+fn MemoryFileGroupCollapsedHead(
+    state: MemoryState,
+    wb: WorkbenchService,
+    group_key: String,
+    group_scope: MemoryScope,
+    label: String,
+    index_path: Option<String>,
+    group_paths: Vec<String>,
+    context_menu: RwSignal<Option<MemoryContextMenu>>,
+) -> impl IntoView {
+    let plain_key = group_key
+        .strip_prefix("global:")
+        .unwrap_or(&group_key)
+        .to_string();
+    let key_for_color = plain_key.clone();
+    let key_for_ctx = group_key.clone();
+    let label_for_ctx = label.clone();
+    let badge = note_badge_text(&label);
+    let active_index = index_path.clone();
+
+    view! {
+        <li
+            class="workbench-memory-files__item workbench-memory-files__item--collapsed"
+            class:workbench-memory-files__item--active=move || {
+                memory_group_index_active(&state, &active_index)
+            }
+            style=move || format!("--memory-category-color: {}", memory_category_settings(wb, &key_for_color).color)
+        >
+            <button
+                type="button"
+                class="workbench-memory-files__badge workbench-memory-files__badge--category"
+                title=label.clone()
+                aria-label=label
+                on:contextmenu=move |ev: web_sys::MouseEvent| {
+                    ev.prevent_default();
+                    ev.stop_propagation();
+                    context_menu.set(Some(MemoryContextMenu {
+                        x: ev.client_x(),
+                        y: ev.client_y(),
+                        target: MemoryContextTarget::Category {
+                            key: key_for_ctx.clone(),
+                            label: label_for_ctx.clone(),
+                            paths: group_paths.clone(),
+                        },
+                    }));
+                }
+                on:click=move |_| {
+                    memory_open_group_index(state, group_scope.clone(), index_path.clone());
+                }
+            >
+                {badge}
+            </button>
+        </li>
+    }
+}
+
+#[component]
 fn MemoryFileGroupIndexButton(
     state: MemoryState,
     scope: MemoryScope,
@@ -1642,6 +1662,7 @@ fn MemoryFileGroupSection(
     let index_path = group.index.as_ref().map(|n| n.path.clone());
     let index = group.index;
     let group_notes = group.notes;
+    let group_paths = memory_group_paths(&index, &group_notes);
     let plain_key_for_show = group_key
         .strip_prefix("global:")
         .unwrap_or(&group_key)
@@ -1658,25 +1679,48 @@ fn MemoryFileGroupSection(
     };
 
     view! {
-        <MemoryFileGroupHead
-            state=state
-            wb=wb
-            group_key=group_key.clone()
-            group_scope=group_scope
-            groups_open=groups_open
-            files_collapsed=files_collapsed
-            header_title=header_title
-            index_path=index_path
-            group_paths=memory_group_paths(&index, &group_notes)
-            context_menu=context_menu
-            new_note_category=new_note_category
-        />
+        <Show
+            when=move || files_collapsed.get()
+            fallback={
+                let state = state.clone();
+                let group_key = group_key.clone();
+                let group_scope = group_scope.clone();
+                let header_title = header_title.clone();
+                let index_path = index_path.clone();
+                let group_paths = group_paths.clone();
+                move || view! {
+                    <MemoryFileGroupHead
+                        state=state
+                        wb=wb
+                        group_key=group_key.clone()
+                        group_scope=group_scope.clone()
+                        groups_open=groups_open
+                        header_title=header_title.clone()
+                        index_path=index_path.clone()
+                        group_paths=group_paths.clone()
+                        context_menu=context_menu
+                        new_note_category=new_note_category
+                    />
+                }
+            }
+        >
+            <MemoryFileGroupCollapsedHead
+                state=state
+                wb=wb
+                group_key=group_key.clone()
+                group_scope=group_scope.clone()
+                label=header_title.clone()
+                index_path=index_path.clone()
+                group_paths=group_paths.clone()
+                context_menu=context_menu
+            />
+        </Show>
         <For
             each=move || {
                 if !show_sidebar() {
                     Vec::new()
                 } else if files_collapsed.get() {
-                    memory_group_collapsed_items(&index, &group_notes)
+                    Vec::new()
                 } else if groups_open.with(|s| s.contains(&key_for_open_check)) {
                     group_notes.clone()
                 } else {
@@ -2418,15 +2462,6 @@ fn clean_memory_label(raw: &str) -> String {
     } else {
         words.join(" ")
     }
-}
-
-fn memory_group_collapsed_items(index: &Option<NoteMeta>, notes: &[NoteMeta]) -> Vec<NoteMeta> {
-    let mut out = Vec::new();
-    if let Some(idx) = index {
-        out.push(idx.clone());
-    }
-    out.extend(notes.iter().cloned());
-    out
 }
 
 fn memory_display_folder(path: &str) -> Option<String> {
