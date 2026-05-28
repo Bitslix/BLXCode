@@ -139,6 +139,37 @@ def validate_assets(repo: str, tag: str, manifest: dict) -> None:
         raise SystemExit("latest.json references missing release assets: " + ", ".join(sorted(missing)))
 
 
+def asset_name_for_platform(platform: str, desired: str, assets: set[str]) -> str:
+    if desired in assets:
+        return desired
+
+    # tauri-action renames the macOS updater archive for universal builds when uploading
+    # release-new artifacts: locally Tauri emits BLXCode.app.tar.gz, but the release asset
+    # becomes BLXCode_universal.app.tar.gz.
+    if platform == "darwin-universal" and desired.endswith(".app.tar.gz"):
+        candidates = sorted(
+            name
+            for name in assets
+            if name.endswith(".app.tar.gz") and not name.endswith(".app.tar.gz.sig")
+        )
+        if len(candidates) == 1:
+            return candidates[0]
+
+    return desired
+
+
+def reconcile_asset_names(repo: str, tag: str, manifest: dict) -> None:
+    assets = release_asset_names(repo, tag)
+    for platform, entry in manifest.get("platforms", {}).items():
+        url = str(entry.get("url", ""))
+        if "/" not in url:
+            continue
+        base, desired = url.rsplit("/", 1)
+        actual = asset_name_for_platform(platform, desired, assets)
+        if actual != desired:
+            entry["url"] = f"{base}/{actual}"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--repo", required=True)
@@ -156,6 +187,7 @@ def main() -> int:
         args.notes,
         [Path(path) for path in args.artifacts],
     )
+    reconcile_asset_names(args.repo, args.tag, manifest)
     validate_assets(args.repo, args.tag, manifest)
     Path(args.output).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return 0
