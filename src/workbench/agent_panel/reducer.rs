@@ -920,7 +920,8 @@ mod tests {
             None,
         );
 
-        assert_eq!(doc.turns[0].parts.len(), 1);
+        assert_eq!(doc.turns[0].parts.len(), 2);
+        assert!(is_empty_pending_thinking(&doc.turns[0].parts[1]));
         let TurnPart::Tool {
             id,
             state,
