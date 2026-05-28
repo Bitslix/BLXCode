@@ -43,6 +43,9 @@ pub const SUCCESS_SOUND_STORAGE_KEY: &str = "blxcode_success_sound_v1";
 /// `localStorage` key for automatic startup update checks (`1` / `0`).
 pub const UPDATE_AUTO_CHECK_KEY: &str = "blxcode_update_auto_check_v1";
 
+/// `localStorage` key for the app version whose post-update notes were acknowledged.
+pub const POST_UPDATE_NOTES_SEEN_VERSION_KEY: &str = "blxcode_seen_release_notes_version_v1";
+
 /// `localStorage` key for keyboard shortcut mode (`tmux` / `legacy`).
 pub const SHORTCUT_MODE_STORAGE_KEY: &str = "blxcode_shortcut_mode_v1";
 

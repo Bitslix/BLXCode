@@ -114,3 +114,223 @@
     transition: none;
   }
 }
+
+.harness-sheet--post-update {
+  width: min(46rem, calc(100vw - 2rem));
+  max-height: min(46rem, calc(100vh - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+}
+
+.post-update-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.9rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+  background:
+    linear-gradient(135deg, var(--accent-soft), transparent 48%),
+    var(--bg-panel-header);
+}
+
+.post-update-hero__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--accent-soft);
+  border-radius: 8px;
+  background: var(--bg-raised);
+  color: var(--accent);
+  box-shadow: 0 0 28px var(--accent-soft);
+}
+
+.post-update-hero__copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.post-update-hero__eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.post-update-version {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.35rem;
+  padding: 0.12rem 0.45rem;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--text);
+  text-transform: none;
+}
+
+.post-update-hero h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+
+.post-update-hero p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.post-update-section-list {
+  min-height: 0;
+  overflow: auto;
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.85rem 1rem 1rem;
+  background: var(--bg-panel);
+}
+
+.post-update-section {
+  --post-update-accent: var(--accent);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--post-update-accent);
+  border-radius: 6px;
+  background: var(--bg-raised);
+  overflow: hidden;
+}
+
+.post-update-section--highlights {
+  --post-update-accent: var(--accent);
+}
+
+.post-update-section--new,
+.post-update-section--fixed {
+  --post-update-accent: var(--success);
+}
+
+.post-update-section--improved {
+  --post-update-accent: var(--accent-cool);
+}
+
+.post-update-section--removed {
+  --post-update-accent: var(--danger);
+}
+
+.post-update-section__head {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.65rem 0.75rem 0.45rem;
+}
+
+.post-update-section__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--post-update-accent) 35%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--post-update-accent) 12%, transparent);
+  color: var(--post-update-accent);
+}
+
+.post-update-section h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.86rem;
+}
+
+.post-update-items {
+  list-style: none;
+  margin: 0;
+  padding: 0 0.75rem 0.75rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.post-update-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.post-update-item__dot {
+  width: 0.38rem;
+  height: 0.38rem;
+  margin-top: 0.48rem;
+  border-radius: 999px;
+  background: var(--post-update-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--post-update-accent) 14%, transparent);
+}
+
+.post-update-item__copy {
+  min-width: 0;
+}
+
+.post-update-item strong {
+  color: var(--text);
+  margin-right: 0.2rem;
+}
+
+.post-update-loading {
+  min-height: 14rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 1rem;
+  color: var(--text-secondary);
+  background: var(--bg-panel);
+  font-size: 0.85rem;
+}
+
+.post-update-loading__icon {
+  display: inline-grid;
+  color: var(--accent);
+  animation: post-update-spin 900ms linear infinite;
+}
+
+.post-update-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel-header);
+}
+
+@keyframes post-update-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 560px) {
+  .post-update-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .post-update-actions .workbench-mini-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .post-update-loading__icon {
+    animation: none;
+  }
+}

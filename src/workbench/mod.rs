@@ -26,6 +26,7 @@ mod notification_sound;
 mod path_nav;
 mod plans_panel;
 pub(crate) mod pointer_agents;
+mod post_update_notes;
 mod project_explorer;
 mod right_panel;
 mod sidebar;
@@ -82,6 +83,7 @@ use harness_ui::HarnessHost;
 use js_sys;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use post_update_notes::{PostUpdateNotesDialog, PostUpdateNotesService};
 use send_wrapper::SendWrapper;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
@@ -150,6 +152,7 @@ pub fn WorkbenchShell() -> impl IntoView {
     let app_prefs = AppPrefsService::new();
     let toast = ToastService::new();
     let updates = UpdateService::new();
+    let post_update_notes = PostUpdateNotesService::new();
     let slot_dnd = TerminalSlotDragService::new();
 
     provide_context(wb);
@@ -159,6 +162,7 @@ pub fn WorkbenchShell() -> impl IntoView {
     provide_context(app_prefs);
     provide_context(toast);
     provide_context(updates);
+    provide_context(post_update_notes);
     provide_context(slot_dnd);
 
     // Hydrate from persisted snapshot before auto-save kicks in.
@@ -237,6 +241,12 @@ pub fn WorkbenchShell() -> impl IntoView {
     Effect::new(move |_| {
         if hydrated.get() && app_prefs.update_auto_check_enabled().get() {
             updates.check_silent();
+        }
+    });
+
+    Effect::new(move |_| {
+        if hydrated.get() {
+            post_update_notes.check_after_start();
         }
     });
 
@@ -521,6 +531,7 @@ pub fn WorkbenchShell() -> impl IntoView {
             <EmbeddedBrowserGlue />
             <UpdateBanner />
             <UpdateDialog />
+            <PostUpdateNotesDialog />
             <CloseTerminalsTabDialog />
             <HarnessHost />
             <ToastHost />
@@ -541,9 +552,5 @@ fn event_target_in_terminal_xterm(ev: &web_sys::Event) -> bool {
         .ok()
         .flatten()
         .is_some()
-        || target
-            .closest(".xterm")
-            .ok()
-            .flatten()
-            .is_some()
+        || target.closest(".xterm").ok().flatten().is_some()
 }

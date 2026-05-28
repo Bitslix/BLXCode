@@ -37,8 +37,8 @@ use pty_host::PtyManager;
 use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 use updater::{
-    app_relaunch, app_version, updater_check, updater_install_start, updater_poll_progress,
-    BlxUpdaterState,
+    app_relaunch, app_version, post_update_release_notes, updater_check, updater_install_start,
+    updater_poll_progress, BlxUpdaterState,
 };
 use voice::{
     voice_cancel_recording, voice_settings_get, voice_settings_save, voice_start_recording,
@@ -138,6 +138,7 @@ pub fn run() {
             updater_install_start,
             updater_poll_progress,
             app_relaunch,
+            post_update_release_notes,
             agent_submit_turn,
             agent_submit_tool_result,
             agent_poll_events,

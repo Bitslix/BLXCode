@@ -159,6 +159,40 @@ pub async fn app_relaunch() -> Result<(), String> {
     invoke_unit_js("app_relaunch", JsValue::UNDEFINED).await
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostUpdateReleaseNotesResponse {
+    pub version: String,
+    pub title: String,
+    pub summary: String,
+    pub sections: Vec<PostUpdateReleaseNotesSection>,
+    pub source: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostUpdateReleaseNotesSection {
+    pub title: String,
+    pub items: Vec<PostUpdateReleaseNotesItem>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostUpdateReleaseNotesItem {
+    pub title: Option<String>,
+    pub body: String,
+}
+
+pub async fn post_update_release_notes(
+    version: String,
+) -> Result<PostUpdateReleaseNotesResponse, String> {
+    #[derive(Serialize)]
+    struct Args {
+        version: String,
+    }
+    invoke_typed("post_update_release_notes", Args { version }).await
+}
+
 /// Submits the result of a client-side tool back into the running turn.
 /// `call_id` must match the id of the most recent matching `ToolCall`
 /// event drained from the agent queue.
@@ -598,7 +632,10 @@ pub async fn clipboard_read_text_compat() -> Result<String, String> {
     wasm_bindgen_futures::JsFuture::from(promise)
         .await
         .map_err(|e| js_error_to_string(e))
-        .and_then(|v| v.as_string().ok_or_else(|| "clipboard read returned non-string".into()))
+        .and_then(|v| {
+            v.as_string()
+                .ok_or_else(|| "clipboard read returned non-string".into())
+        })
 }
 
 /// Tauri native clipboard when available; otherwise Web Clipboard API.
@@ -1129,9 +1166,7 @@ pub async fn workbench_merge_sessions_workspace(
     .await
 }
 
-pub async fn workbench_rewrite_terminal_keys(
-    pairs: Vec<(String, String)>,
-) -> Result<(), String> {
+pub async fn workbench_rewrite_terminal_keys(pairs: Vec<(String, String)>) -> Result<(), String> {
     #[derive(Serialize)]
     struct A {
         pairs: Vec<(String, String)>,
