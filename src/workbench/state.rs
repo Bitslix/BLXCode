@@ -3193,6 +3193,19 @@ impl WorkbenchService {
         });
     }
 
+    pub fn remove_workspace_agent_context_items(&self, workspace_id: u64, item_ids: &[String]) {
+        if item_ids.is_empty() {
+            return;
+        }
+        let ids: HashSet<&str> = item_ids.iter().map(String::as_str).collect();
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                ws.agent_context_items
+                    .retain(|item| !ids.contains(item.id.as_str()));
+            }
+        });
+    }
+
     #[must_use]
     pub fn agent_images_for_workspace_untracked(
         &self,

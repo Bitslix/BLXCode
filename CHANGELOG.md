@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Terminal resize prompt duplication**: terminal container and workspace resize nudges now fit xterm immediately but debounce PTY resize notifications until the layout settles, avoiding repeated shell prompt redraws after squeezing a terminal narrow and expanding it again.
 
+- **One-shot Agent context cleanup**: terminal-session and file-snippet context attachments are now removed from the Agent context list after a successful model turn consumes them, while persistent Memory/Plans context remains attached across turns.
+
 ### Removed
 
 - **Post-EULA `.gitignore` prompt and append IPC**: removed the startup dialog that offered to add `.blxcode/` to a workspace ignore file, along with its localStorage gate, Tauri `gitignore_append_blxcode` command, frontend wrapper, prompt translations, CSS, and developer docs. `.gitignore` is no longer listed as a special text-preview extension; the repository root ignore file and release-script staging references are unchanged.

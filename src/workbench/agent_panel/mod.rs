@@ -9,7 +9,7 @@ mod timeline;
 pub(crate) mod turn_metrics_bar;
 mod voice_orb;
 
-use crate::agent_wire::{AgentEvent, EventEnvelope, TaskSnapshot, UserTurn};
+use crate::agent_wire::{AgentContextKind, AgentEvent, EventEnvelope, TaskSnapshot, UserTurn};
 use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
@@ -603,6 +603,7 @@ fn submit_turn(
 
     let workspace_root = resolve_effective_workspace_root(&wb);
     let context_items = wb.agent_context_for_workspace_untracked(ws_id);
+    let transient_context_ids = transient_agent_context_ids(&context_items);
     let image_context_items = wb.pending_agent_images_for_workspace_untracked(ws_id);
 
     timeline.update(|doc| doc.push_user_turn_with_pending(prompt.clone()));
@@ -641,6 +642,7 @@ fn submit_turn(
     let task_snapshot_sig = task_snapshot;
     let ws_capture = ws_id;
     let audio_ref = voice_handle.audio_ref;
+    let turn_had_error = RwSignal::new(false);
 
     leptos::task::spawn_local(async move {
         if let Err(msg) = agent_submit_turn(turn).await {
@@ -651,10 +653,14 @@ fn submit_turn(
 
         let i18n_d = i18n;
         let wb_d = wb;
+        let wb_after_drain = wb;
         if let Err(msg) = agent_drain_turn_opts(voice_input, move |batch: Vec<EventEnvelope>| {
             let loc_now = i18n_d.locale().get_untracked();
             for env in &batch {
                 let ev = &env.event;
+                if matches!(ev, AgentEvent::Error { .. }) {
+                    turn_had_error.set(true);
+                }
                 if matches!(ev, AgentEvent::VoiceReady { .. }) {
                     handle_voice_event(audio_ref, ev);
                     continue;
@@ -676,9 +682,27 @@ fn submit_turn(
         .await
         {
             status_sig.set(Some(msg));
+        } else if !turn_had_error.get_untracked() && !transient_context_ids.is_empty() {
+            wb_after_drain.remove_workspace_agent_context_items(
+                ws_capture,
+                &transient_context_ids,
+            );
         }
         busy_sig.set(false);
     });
+}
+
+fn transient_agent_context_ids(items: &[crate::agent_wire::AgentContextItem]) -> Vec<String> {
+    items
+        .iter()
+        .filter(|item| {
+            matches!(
+                item.kind,
+                AgentContextKind::TerminalSession | AgentContextKind::FileSnippet
+            )
+        })
+        .map(|item| item.id.clone())
+        .collect()
 }
 
 /// Compact session-cost chip rendered in the chat header. Replaces the
