@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Terminal handoff dropdown dismissal**: the terminal/context handoff menu now closes on outside click and `Escape`, while clicks inside the menu or on its own anchor stay scoped to the open dropdown. The shared handoff menu styling was tightened to match the workbench chrome and use theme-token-backed colors across themes.
 
+- **Terminal resize prompt duplication**: terminal container and workspace resize nudges now fit xterm immediately but debounce PTY resize notifications until the layout settles, avoiding repeated shell prompt redraws after squeezing a terminal narrow and expanding it again.
+
 ### Removed
 
 - **Post-EULA `.gitignore` prompt and append IPC**: removed the startup dialog that offered to add `.blxcode/` to a workspace ignore file, along with its localStorage gate, Tauri `gitignore_append_blxcode` command, frontend wrapper, prompt translations, CSS, and developer docs. `.gitignore` is no longer listed as a special text-preview extension; the repository root ignore file and release-script staging references are unchanged.

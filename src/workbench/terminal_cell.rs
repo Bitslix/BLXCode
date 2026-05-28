@@ -331,14 +331,14 @@ pub fn WorkspaceTerminalCell(
                     return;
                 }
                 schedule_agent_launch_retries(state.clone());
-                spawn_terminal_refit(state.clone(), 32, 32);
+                spawn_terminal_xterm_fit(state.clone(), 32, 32);
             }
         });
 
     let resize_handle = leptos::leptos_dom::helpers::window_event_listener_untyped("resize", {
         let state = state.clone();
         move |_| {
-            spawn_terminal_refit(state.clone(), 8, 32);
+            spawn_terminal_xterm_fit(state.clone(), 8, 32);
         }
     });
 

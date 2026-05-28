@@ -4,6 +4,7 @@ import { WebLinksAddon } from "https://esm.sh/@xterm/addon-web-links@0.11.0?deps
 
 const instances = new Map();
 let nextId = 1;
+const SETTLED_PTY_RESIZE_MS = 360;
 
 function readCssVar(name, fallback = "") {
   try {
@@ -149,7 +150,7 @@ function schedulePtyResize(termId, rec, size) {
       rows: rec.pendingRows || 0,
       cols: rec.pendingCols || 0,
     });
-  }, 120);
+  }, SETTLED_PTY_RESIZE_MS);
 }
 
 function requestFit(termId) {
