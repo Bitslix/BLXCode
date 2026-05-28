@@ -707,6 +707,44 @@ pub async fn list_path_entries(
     .await
 }
 
+/// Creates an empty file at `path` (relative to `workspace_root`). Errors if it
+/// already exists. Mirrors `fs_entries::create_workspace_file`.
+pub async fn create_workspace_file(workspace_root: String, path: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        workspace_root: String,
+        path: String,
+    }
+    invoke_unit_js(
+        "create_workspace_file",
+        args_value(A {
+            workspace_root,
+            path,
+        })?,
+    )
+    .await
+}
+
+/// Creates an empty directory at `path` (relative to `workspace_root`). Errors
+/// if it already exists. Mirrors `fs_entries::create_workspace_dir`.
+pub async fn create_workspace_dir(workspace_root: String, path: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        workspace_root: String,
+        path: String,
+    }
+    invoke_unit_js(
+        "create_workspace_dir",
+        args_value(A {
+            workspace_root,
+            path,
+        })?,
+    )
+    .await
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TextFilePreview {

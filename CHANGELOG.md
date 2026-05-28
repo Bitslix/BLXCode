@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Close-workspace confirmation on every close path**: the "Close workspace?" confirmation dialog now also appears when closing a workspace via the sidebar × button or the sidebar context menu, not just from the Terminals tab. A new **Confirmations** toggle in Workspace settings ("Confirm before closing a workspace") lets users disable the dialog across all three close paths; the preference is persisted in `localStorage` and defaults to enabled. Added the `confirm_close_workspace` app preference and three localized i18n strings.
 
+- **Create files and folders from the Project Files sidebar**: the Project Explorer toolbar now has **New File** and **New Folder** actions that drop an inline editable row into the tree (VS Code style) instead of opening a dialog. Enter commits — creating the file/folder at the workspace root and, for files, opening the new file in a center tab — while Escape or blur cancels, and errors such as a duplicate name keep the row open with an inline message. Added the sandboxed `create_workspace_file` / `create_workspace_dir` Tauri commands (reject `..`/absolute/out-of-root paths, create missing parents, atomic duplicate detection), typed frontend bridge wrappers, five localized i18n strings, theme-token-based styles, and backend unit tests.
+
 ### Changed
 
 - **Terminal titlebar drag affordance and slot marker**: the whole terminal titlebar is now the drag surface for terminal drag & drop, with the grip shown as a centered visual cue instead of a left-only handle. The left side now shows a compact themed `#N` slot marker using existing theme tokens, so reordered terminals still reveal which stable terminal slot is in each grid cell.

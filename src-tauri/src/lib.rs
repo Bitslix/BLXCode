@@ -181,6 +181,8 @@ pub fn run() {
             git_status::git_status_watch_start,
             git_status::git_status_watch_stop,
             fs_entries::list_path_entries,
+            fs_entries::create_workspace_file,
+            fs_entries::create_workspace_dir,
             fs_entries::read_workspace_text_file,
             fs_entries::stat_workspace_file,
             fs_entries::read_workspace_image_file,

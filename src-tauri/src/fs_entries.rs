@@ -205,6 +205,81 @@ fn canonical_root(workspace_root: &str) -> Result<PathBuf, String> {
     fs::canonicalize(&p).map_err(|e| format!("canonicalize workspace: {e}"))
 }
 
+/// Resolve a target path that does **not** exist yet (used for create
+/// operations). [`resolve_under_root`] cannot be reused because it
+/// `canonicalize`s the full path, which fails when the target is missing.
+///
+/// Rejects absolute paths and any `..` component so the result cannot escape
+/// the (already canonicalized) `root`. Symlinked parents are defended against
+/// by the caller, which canonicalizes the deepest existing ancestor and
+/// re-checks containment before writing.
+fn resolve_new_under_root(root: &Path, rel: &str) -> Result<PathBuf, String> {
+    let rel = rel.trim();
+    if rel.is_empty() {
+        return Err("name is empty".into());
+    }
+    let p = PathBuf::from(rel);
+    if p.is_absolute() {
+        return Err("path must be relative".into());
+    }
+    if p
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Err("path escapes workspace".into());
+    }
+    Ok(root.join(&p))
+}
+
+/// Create `dir` (and missing parents) then verify the canonicalized result
+/// stays under `root` — guards against a symlinked parent redirecting the
+/// write outside the workspace.
+fn ensure_under_root(root: &Path, path: &Path) -> Result<(), String> {
+    let canon = fs::canonicalize(path).map_err(|e| format!("canonicalize: {e}"))?;
+    if !canon.starts_with(root) {
+        return Err("path outside workspace".into());
+    }
+    Ok(())
+}
+
+/// Creates an empty file under `workspace_root`. Fails if it already exists.
+/// Missing parent directories are created. Sandboxed to the workspace root.
+#[tauri::command]
+pub fn create_workspace_file(workspace_root: String, path: String) -> Result<(), String> {
+    let root = canonical_root(&workspace_root)?;
+    let target = resolve_new_under_root(&root, &path)?;
+    if target.exists() {
+        return Err("a file or folder with that name already exists".into());
+    }
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("create parent: {e}"))?;
+        ensure_under_root(&root, parent)?;
+    }
+    fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&target)
+        .map_err(|e| format!("create file: {e}"))?;
+    Ok(())
+}
+
+/// Creates an empty directory (and missing parents) under `workspace_root`.
+/// Fails if it already exists. Sandboxed to the workspace root.
+#[tauri::command]
+pub fn create_workspace_dir(workspace_root: String, path: String) -> Result<(), String> {
+    let root = canonical_root(&workspace_root)?;
+    let target = resolve_new_under_root(&root, &path)?;
+    if target.exists() {
+        return Err("a file or folder with that name already exists".into());
+    }
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("create parent: {e}"))?;
+        ensure_under_root(&root, parent)?;
+    }
+    fs::create_dir(&target).map_err(|e| format!("create dir: {e}"))?;
+    Ok(())
+}
+
 fn resolve_under_root(root: &Path, rel_or_abs: &str) -> Result<PathBuf, String> {
     let target = if rel_or_abs.trim().is_empty() {
         root.to_path_buf()
@@ -604,6 +679,73 @@ mod tests {
         let err =
             read_workspace_video_file(root, "a.png".into()).expect_err("non-video should fail");
         assert!(err.contains("not a video"));
+        let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn create_workspace_file_creates_under_root() {
+        let tmp = std::env::temp_dir().join(format!("blx_fs_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&tmp).unwrap();
+        let root = tmp.to_string_lossy().into_owned();
+        create_workspace_file(root.clone(), "new.txt".into()).unwrap();
+        assert!(tmp.join("new.txt").is_file());
+        let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn create_workspace_file_creates_nested_parents() {
+        let tmp = std::env::temp_dir().join(format!("blx_fs_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&tmp).unwrap();
+        let root = tmp.to_string_lossy().into_owned();
+        create_workspace_file(root, "a/b/c.txt".into()).unwrap();
+        assert!(tmp.join("a").join("b").join("c.txt").is_file());
+        let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn create_workspace_file_rejects_duplicate() {
+        let tmp = std::env::temp_dir().join(format!("blx_fs_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("dup.txt"), b"x").unwrap();
+        let root = tmp.to_string_lossy().into_owned();
+        let err =
+            create_workspace_file(root, "dup.txt".into()).expect_err("duplicate should fail");
+        assert!(err.contains("already exists"));
+        let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn create_workspace_dir_creates_directory() {
+        let tmp = std::env::temp_dir().join(format!("blx_fs_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&tmp).unwrap();
+        let root = tmp.to_string_lossy().into_owned();
+        create_workspace_dir(root, "sub".into()).unwrap();
+        assert!(tmp.join("sub").is_dir());
+        let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn create_rejects_parent_traversal() {
+        let tmp = std::env::temp_dir().join(format!("blx_fs_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&tmp).unwrap();
+        let root = tmp.to_string_lossy().into_owned();
+        let err = create_workspace_file(root.clone(), "../escape.txt".into())
+            .expect_err("traversal should fail");
+        assert!(err.contains("escapes workspace"));
+        let err = create_workspace_dir(root, "../escape".into())
+            .expect_err("traversal should fail");
+        assert!(err.contains("escapes workspace"));
+        let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn create_rejects_empty_name() {
+        let tmp = std::env::temp_dir().join(format!("blx_fs_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&tmp).unwrap();
+        let root = tmp.to_string_lossy().into_owned();
+        let err =
+            create_workspace_file(root, "   ".into()).expect_err("empty name should fail");
+        assert!(err.contains("name is empty"));
         let _ = fs::remove_dir_all(tmp);
     }
 }

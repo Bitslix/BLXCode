@@ -3,13 +3,22 @@
 use crate::config::SIDEBAR_EXPLORER_SHOW_HIDDEN_KEY;
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::tauri_bridge::{is_tauri_shell, list_path_entries, FsEntryBrief};
+use crate::tauri_bridge::{
+    create_workspace_dir, create_workspace_file, is_tauri_shell, list_path_entries, FsEntryBrief,
+};
 use crate::workbench::sidebar_view_section::{SidebarSectionIconBtn, SidebarViewSection};
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
 use std::collections::HashSet;
+
+/// Pending inline-create row at the workspace root. `is_dir` selects whether
+/// Enter creates a folder or an empty file.
+#[derive(Clone, Copy)]
+struct Draft {
+    is_dir: bool,
+}
 
 #[component]
 pub fn ProjectExplorerSection() -> impl IntoView {
@@ -38,6 +47,7 @@ pub fn ProjectExplorerSection() -> impl IntoView {
     let load_gen = RwSignal::new(0u32);
     let error_msg = RwSignal::new(None::<String>);
     let show_hidden = RwSignal::new(read_explorer_show_hidden());
+    let draft = RwSignal::new(None::<Draft>);
 
     // Re-sync section open state after hydrate / workspace list updates.
     Effect::new(move |_| {
@@ -96,6 +106,24 @@ pub fn ProjectExplorerSection() -> impl IntoView {
                 open=explorer_open
                 toolbar=view! {
                     <SidebarSectionIconBtn
+                        aria_key=I18nKey::SbExplorerNewFile
+                        on_click=Callback::new(move |_| {
+                            explorer_open.set(true);
+                            draft.set(Some(Draft { is_dir: false }));
+                        })
+                    >
+                        <LxIcon icon=icondata::LuFilePlus width="0.75rem" height="0.75rem" />
+                    </SidebarSectionIconBtn>
+                    <SidebarSectionIconBtn
+                        aria_key=I18nKey::SbExplorerNewFolder
+                        on_click=Callback::new(move |_| {
+                            explorer_open.set(true);
+                            draft.set(Some(Draft { is_dir: true }));
+                        })
+                    >
+                        <LxIcon icon=icondata::LuFolderPlus width="0.75rem" height="0.75rem" />
+                    </SidebarSectionIconBtn>
+                    <SidebarSectionIconBtn
                         aria_key=I18nKey::SbExplorerRefresh
                         on_click=Callback::new(move |_| reload())
                     >
@@ -140,6 +168,8 @@ pub fn ProjectExplorerSection() -> impl IntoView {
                     load_gen=load_gen
                     error_msg=error_msg
                     show_hidden=show_hidden
+                    draft=draft
+                    reload=Callback::new(move |_| reload())
                 />
             </SidebarViewSection>
         </Show>
@@ -154,6 +184,8 @@ fn ProjectExplorerBody(
     load_gen: RwSignal<u32>,
     error_msg: RwSignal<Option<String>>,
     show_hidden: RwSignal<bool>,
+    draft: RwSignal<Option<Draft>>,
+    reload: Callback<()>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
 
@@ -205,6 +237,9 @@ fn ProjectExplorerBody(
                     }
                 >
                     <ul class="project-explorer__tree" role="tree">
+                        <Show when=move || draft.get().is_some()>
+                            <ExplorerDraftRow draft=draft reload=reload />
+                        </Show>
                         <ExplorerChildren
                             rel_path=String::new()
                             depth=0
@@ -218,6 +253,118 @@ fn ProjectExplorerBody(
                 </Show>
             </Show>
         </div>
+    }
+}
+
+/// Inline editable row for creating a new file or folder at the workspace
+/// root — VS Code style. Enter commits, Escape/blur cancels. Errors (e.g. a
+/// duplicate name) keep the row open with an inline message.
+#[component]
+fn ExplorerDraftRow(draft: RwSignal<Option<Draft>>, reload: Callback<()>) -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+    let i18n = expect_context::<I18nService>();
+    let input_ref: NodeRef<leptos::html::Input> = NodeRef::new();
+    let error = RwSignal::new(None::<String>);
+
+    let is_dir = move || draft.get().map(|d| d.is_dir).unwrap_or(false);
+
+    // Focus the input as soon as a draft begins.
+    Effect::new(move |_| {
+        let _ = draft.get();
+        if let Some(el) = input_ref.get() {
+            let _ = el.focus();
+        }
+    });
+
+    let commit = move || {
+        let Some(el) = input_ref.get_untracked() else {
+            return;
+        };
+        let name = el.value().trim().to_string();
+        if name.is_empty() {
+            draft.set(None);
+            return;
+        }
+        let Some(ws) = wb.with_active_workspace_entry() else {
+            draft.set(None);
+            return;
+        };
+        let root = ws.cwd.clone();
+        let ws_id = ws.id;
+        let dir = is_dir();
+        error.set(None);
+        spawn_local(async move {
+            let res = if dir {
+                create_workspace_dir(root, name.clone()).await
+            } else {
+                create_workspace_file(root, name.clone()).await
+            };
+            match res {
+                Ok(()) => {
+                    draft.set(None);
+                    reload.run(());
+                    if !dir {
+                        wb.open_center_file_tab(ws_id, name);
+                    }
+                }
+                Err(_) => {
+                    error.set(Some(i18n.tr(I18nKey::SbExplorerCreateError)().to_string()));
+                }
+            }
+        });
+    };
+
+    let cancel = move || draft.set(None);
+
+    view! {
+        <li class="project-explorer__node" role="none">
+            <div class="project-explorer__row project-explorer__draft-row">
+                <span class="project-explorer__chev project-explorer__chev--spacer" aria-hidden="true"></span>
+                <span class="project-explorer__icon" aria-hidden="true">
+                    <Show
+                        when=is_dir
+                        fallback=move || view! {
+                            <LxIcon icon=icondata::LuFile width="0.8rem" height="0.8rem" />
+                        }
+                    >
+                        <LxIcon icon=icondata::LuFolder width="0.8rem" height="0.8rem" />
+                    </Show>
+                </span>
+                <input
+                    node_ref=input_ref
+                    class="project-explorer__draft-input"
+                    type="text"
+                    spellcheck="false"
+                    autocomplete="off"
+                    placeholder=move || {
+                        if is_dir() {
+                            i18n.tr(I18nKey::SbExplorerNewFolderPlaceholder)()
+                        } else {
+                            i18n.tr(I18nKey::SbExplorerNewFilePlaceholder)()
+                        }
+                    }
+                    on:keydown=move |ev: web_sys::KeyboardEvent| {
+                        match ev.key().as_str() {
+                            "Enter" => {
+                                ev.prevent_default();
+                                commit();
+                            }
+                            "Escape" => {
+                                ev.prevent_default();
+                                cancel();
+                            }
+                            _ => {}
+                        }
+                    }
+                    on:blur=move |_| cancel()
+                />
+            </div>
+            <Show when=move || error.get().is_some()>
+                <p class="project-explorer__draft-error">
+                    {move || error.get().unwrap_or_default()}
+                </p>
+            </Show>
+        </li>
     }
 }
 

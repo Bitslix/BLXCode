@@ -10119,6 +10119,33 @@ body.blxcode-dragging-terminal * {
   cursor: pointer;
 }
 
+.project-explorer__draft-row {
+  cursor: text;
+}
+
+.project-explorer__draft-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--text);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-focus);
+  border-radius: 3px;
+  padding: 0.05rem 0.3rem;
+  outline: none;
+}
+
+.project-explorer__draft-input::placeholder {
+  color: var(--text-muted);
+}
+
+.project-explorer__draft-error {
+  margin: 0.15rem 0 0.25rem 1.65rem;
+  font-size: 0.72rem;
+  color: var(--accent-warm);
+}
+
 .sidebar-view-section__icon-btn--pressed {
   color: var(--text);
   background: var(--bg-hover);
