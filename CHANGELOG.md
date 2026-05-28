@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Terminal titlebar drag affordance and slot marker**: the whole terminal titlebar is now the drag surface for terminal drag & drop, with the grip shown as a centered visual cue instead of a left-only handle. The left side now shows a compact themed `#N` slot marker using existing theme tokens, so reordered terminals still reveal which stable terminal slot is in each grid cell.
 
+- **Agent tool activity styling**: successful tool rows now use subdued primary/accent theme colors instead of the previous bright success green, keeping model-round activity chrome quieter and better aligned with the active theme.
+
+- **Agent tool activity spacing**: tool-call boxes now keep breathing room from the chat pane edge and cap their maximum width, so model-round rows no longer stretch all the way to the right border.
+
 ### Fixed
 
 - **Terminal handoff dropdown dismissal**: the terminal/context handoff menu now closes on outside click and `Escape`, while clicks inside the menu or on its own anchor stay scoped to the open dropdown. The shared handoff menu styling was tightened to match the workbench chrome and use theme-token-backed colors across themes.

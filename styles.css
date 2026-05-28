@@ -3253,11 +3253,12 @@ button.workbench-shortcut-row--action:focus-visible {
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 0.28rem 0.32rem;
+  padding-right: clamp(1rem, 6vw, 3rem);
 }
 
 .agent-tool-row {
   display: inline-block;
-  max-width: 100%;
+  max-width: min(100%, 36rem);
   border-radius: 0.5rem;
   border: 1px solid var(--overlay-2);
   background: var(--overlay-1);
@@ -3273,7 +3274,8 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .agent-tool-row--ok {
-  border-color: var(--success);
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 18%, var(--overlay-1));
 }
 
 .agent-tool-row--fail {
@@ -3307,7 +3309,7 @@ button.workbench-shortcut-row--action:focus-visible {
   height: 1rem;
   border-radius: 0.28rem;
   background: var(--overlay-1);
-  color: var(--syntax-type, var(--syntax-type));
+  color: var(--accent);
   flex: 0 0 auto;
 }
 
@@ -3342,7 +3344,7 @@ button.workbench-shortcut-row--action:focus-visible {
   width: 1rem;
   height: 1rem;
   border-radius: 999px;
-  color: var(--syntax-type, var(--syntax-type));
+  color: color-mix(in srgb, var(--accent) 78%, var(--text-muted));
   flex: 0 0 auto;
 }
 
@@ -3420,9 +3422,9 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .agent-tool-row--merged.agent-tool-row--ok .agent-tool-row__count {
-  color: var(--text-muted);
-  background: var(--success);
-  border-color: var(--success);
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent-soft) 62%, var(--overlay-2));
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
 }
 
 .agent-tool-row--merged.agent-tool-row--fail .agent-tool-row__count {
@@ -3537,7 +3539,7 @@ button.workbench-shortcut-row--action:focus-visible {
   justify-content: center;
   width: 0.9rem;
   height: 0.9rem;
-  color: var(--syntax-type, var(--syntax-type));
+  color: color-mix(in srgb, var(--accent) 78%, var(--text-muted));
 }
 
 .agent-tool-row__sub--pending .agent-tool-row__sub-status {
