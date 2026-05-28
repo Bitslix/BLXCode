@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Memory root-note creation**: the Memory Files sidebar now exposes separate root-level note and category actions for Project and Global memory, so users can create notes directly in the memory root instead of only inside newly-created subfolders.
 
+- **Recent working directories in the create-workspace wizard**: the layout step now lists previously-opened workspace directories below the Working Directory field (sourced from the recent-workspaces store, deduplicated by path, newest first). Each entry is rendered as a Welcome-screen-style row with the workspace title and full path, and clicking one fills the directory field in a single click instead of re-typing or re-browsing. The section only appears when recent directories with a real folder exist.
+
+- **Close-workspace confirmation on every close path**: the "Close workspace?" confirmation dialog now also appears when closing a workspace via the sidebar × button or the sidebar context menu, not just from the Terminals tab. A new **Confirmations** toggle in Workspace settings ("Confirm before closing a workspace") lets users disable the dialog across all three close paths; the preference is persisted in `localStorage` and defaults to enabled. Added the `confirm_close_workspace` app preference and three localized i18n strings.
+
 ### Changed
 
 - **Terminal titlebar drag affordance and slot marker**: the whole terminal titlebar is now the drag surface for terminal drag & drop, with the grip shown as a centered visual cue instead of a left-only handle. The left side now shows a compact themed `#N` slot marker using existing theme tokens, so reordered terminals still reveal which stable terminal slot is in each grid cell.

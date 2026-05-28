@@ -522,6 +522,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsDefaultProjectDirLabel => "Domyślny katalog projektu",
         I18nKey::WsDefaultProjectDirPlaceholder => "$DOM",
         I18nKey::WsDefaultProjectDirHint => "Wstępnie wypełnia katalog roboczy dla nowych obszarów roboczych.",
+        I18nKey::WsSectionConfirm => "Potwierdzenia",
+        I18nKey::WsConfirmCloseLabel => "Potwierdź przed zamknięciem obszaru roboczego",
+        I18nKey::WsConfirmCloseHint => {
+            "Wyświetl okno dialogowe potwierdzenia podczas zamykania obszaru roboczego z karty Terminale, przycisku zamykania na pasku bocznym lub menu kontekstowego."
+        }
         I18nKey::AgProviderHeading => "Agent BLXCode",
         I18nKey::AgSectionInference => "Wnioskowanie",
         I18nKey::AgSectionModel => "Model",

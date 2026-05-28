@@ -15,7 +15,8 @@ use crate::workbench::git_graph::GitGraphSection;
 use crate::workbench::project_explorer::ProjectExplorerSection;
 use crate::workbench::sidebar_resizer::SidebarResizer;
 use crate::workbench::sidebar_resizer::SidebarResizerClamp;
-use crate::workbench::state::is_shell_workspace;
+use crate::workbench::app_prefs::AppPrefsService;
+use crate::workbench::state::{is_shell_workspace, HarnessUiService};
 use crate::workbench::terminal_slot_dnd::{
     is_terminal_drag, read_drag_payload, TerminalSlotDragService,
 };
@@ -54,9 +55,22 @@ fn workspace_icon_label(title: &str, fallback_num: u64) -> String {
 #[component]
 pub fn Sidebar() -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
+    let ui = expect_context::<HarnessUiService>();
+    let prefs = expect_context::<AppPrefsService>();
     let i18n = expect_context::<I18nService>();
     let toast = expect_context::<ToastService>();
     let slot_dnd = expect_context::<TerminalSlotDragService>();
+
+    // Closing a workspace from the sidebar (× button or context menu) routes
+    // through the same confirmation dialog as the Terminals tab when the
+    // user has it enabled; otherwise it closes immediately.
+    let close_workspace_gated = move |id: u64| {
+        if prefs.confirm_close_workspace_enabled().get_untracked() {
+            ui.request_close_terminals_tab(id);
+        } else {
+            wb.close_workspace(id);
+        }
+    };
 
     let collapsed = wb.sidebar_collapsed();
     let workspaces = wb.workspaces();
@@ -572,7 +586,7 @@ pub fn Sidebar() -> impl IntoView {
                                         aria-label=move || format!("Close {}", title_signal.get())
                                         on:click=move |ev| {
                                             ev.stop_propagation();
-                                            wb.close_workspace(id);
+                                            close_workspace_gated(id);
                                         }
                                     >"×"</button>
                                 </li>
@@ -785,7 +799,7 @@ pub fn Sidebar() -> impl IntoView {
                                 role="menuitem"
                                 on:click=move |_| {
                                     context_menu.set(None);
-                                    wb.close_workspace(menu.workspace_id);
+                                    close_workspace_gated(menu.workspace_id);
                                 }
                             >
                                 {move || i18n.tr(I18nKey::SbCloseWorkspaceMenu)()}

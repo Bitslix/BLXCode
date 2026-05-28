@@ -7227,6 +7227,36 @@ body.blxcode-dragging-terminal * {
   color: var(--text-muted);
 }
 
+/* --- recent working directories --- */
+.ws-config__recent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+}
+
+.ws-config__recent-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.ws-config__recent-list {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.25rem;
+  max-height: 12rem;
+  overflow-y: auto;
+  background: var(--surface-1, var(--overlay-1));
+}
+
+.ws-config__recent-list .harness-cmd-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* --- layout preview row --- */
 .ws-config__layout-row {
   display: grid;

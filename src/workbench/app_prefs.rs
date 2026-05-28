@@ -1,8 +1,8 @@
 //! App-wide UI preferences persisted in `localStorage`.
 
 use crate::config::{
-    SHORTCUT_MODE_LEGACY, SHORTCUT_MODE_STORAGE_KEY, SHORTCUT_MODE_TMUX, SUCCESS_SOUND_STORAGE_KEY,
-    SUCCESS_TOAST_STORAGE_KEY, UPDATE_AUTO_CHECK_KEY,
+    CONFIRM_CLOSE_WORKSPACE_KEY, SHORTCUT_MODE_LEGACY, SHORTCUT_MODE_STORAGE_KEY,
+    SHORTCUT_MODE_TMUX, SUCCESS_SOUND_STORAGE_KEY, SUCCESS_TOAST_STORAGE_KEY, UPDATE_AUTO_CHECK_KEY,
 };
 use leptos::prelude::*;
 
@@ -36,6 +36,7 @@ pub struct AppPrefsService {
     success_sound: RwSignal<bool>,
     shortcut_mode: RwSignal<ShortcutMode>,
     update_auto_check: RwSignal<bool>,
+    confirm_close_workspace: RwSignal<bool>,
 }
 
 impl AppPrefsService {
@@ -48,6 +49,10 @@ impl AppPrefsService {
             success_sound: RwSignal::new(read_bool_storage(SUCCESS_SOUND_STORAGE_KEY, true)),
             shortcut_mode: RwSignal::new(shortcut_mode),
             update_auto_check: RwSignal::new(read_bool_storage(UPDATE_AUTO_CHECK_KEY, true)),
+            confirm_close_workspace: RwSignal::new(read_bool_storage(
+                CONFIRM_CLOSE_WORKSPACE_KEY,
+                true,
+            )),
         }
     }
 
@@ -65,6 +70,10 @@ impl AppPrefsService {
 
     pub fn update_auto_check_enabled(&self) -> RwSignal<bool> {
         self.update_auto_check
+    }
+
+    pub fn confirm_close_workspace_enabled(&self) -> RwSignal<bool> {
+        self.confirm_close_workspace
     }
 
     pub fn set_success_toast(&self, enabled: bool) {
@@ -85,6 +94,11 @@ impl AppPrefsService {
     pub fn set_update_auto_check(&self, enabled: bool) {
         self.update_auto_check.set(enabled);
         write_bool_storage(UPDATE_AUTO_CHECK_KEY, enabled);
+    }
+
+    pub fn set_confirm_close_workspace(&self, enabled: bool) {
+        self.confirm_close_workspace.set(enabled);
+        write_bool_storage(CONFIRM_CLOSE_WORKSPACE_KEY, enabled);
     }
 }
 

@@ -524,6 +524,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsDefaultProjectDirLabel => "Alapértelmezett projektkönyvtár",
         I18nKey::WsDefaultProjectDirPlaceholder => "$HOME",
         I18nKey::WsDefaultProjectDirHint => "Előre kitölti a munkakönyvtárat az új munkaterületekhez.",
+        I18nKey::WsSectionConfirm => "Megerősítések",
+        I18nKey::WsConfirmCloseLabel => "A munkaterület bezárása előtt erősítse meg",
+        I18nKey::WsConfirmCloseHint => {
+            "Megerősítő párbeszédpanel megjelenítése, amikor egy munkaterületet bezár a Terminálok lapról, az oldalsáv bezárás gombjáról vagy a helyi menüből."
+        }
         I18nKey::AgProviderHeading => "BLXCode ügynök",
         I18nKey::AgSectionInference => "Következtetés",
         I18nKey::AgSectionModel => "Modell",

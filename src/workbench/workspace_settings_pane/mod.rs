@@ -2,6 +2,7 @@
 
 mod category_colors;
 
+use super::app_prefs::AppPrefsService;
 use super::browser_tab::sync_embedded_browser_layer;
 use super::state::{BrowserEmbedSurface, WorkbenchService};
 use crate::config::HARNESS_BROWSER_DEFAULT_URL;
@@ -25,6 +26,13 @@ fn input_str(ev: &web_sys::Event) -> Option<String> {
         .dyn_into::<web_sys::HtmlInputElement>()
         .ok()
         .map(|i| i.value())
+}
+
+fn checkbox_checked(ev: &web_sys::Event) -> Option<bool> {
+    ev.target()?
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .ok()
+        .map(|i| i.checked())
 }
 
 fn snapshot_baseline(wb: &WorkbenchService) -> WorkspaceBaseline {
@@ -52,6 +60,7 @@ fn apply_browser_url(wb: WorkbenchService, embed: BrowserEmbedSurface, url: Stri
 #[component]
 pub fn WorkspaceSettingsPane(wb: WorkbenchService, embed: BrowserEmbedSurface) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let prefs = expect_context::<AppPrefsService>();
     let baseline = RwSignal::new(snapshot_baseline(&wb));
     let status_msg = RwSignal::new(None::<String>);
     let busy = RwSignal::new(false);
@@ -211,6 +220,28 @@ pub fn WorkspaceSettingsPane(wb: WorkbenchService, embed: BrowserEmbedSurface) -
                         </p>
                     </li>
                 </ul>
+            </section>
+
+            <section class="harness-subpane">
+                <h4 class="harness-pane-subhead">
+                    <span class="harness-pane-subhead__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuTriangleAlert width="0.82rem" height="0.82rem" />
+                    </span>
+                    <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::WsSectionConfirm)()}</span>
+                </h4>
+                <label class="app-prefs-toggle">
+                    <input
+                        type="checkbox"
+                        prop:checked=move || prefs.confirm_close_workspace_enabled().get()
+                        on:change=move |ev| {
+                            if let Some(checked) = checkbox_checked(&ev) {
+                                prefs.set_confirm_close_workspace(checked);
+                            }
+                        }
+                    />
+                    <span>{move || i18n.tr(I18nKey::WsConfirmCloseLabel)()}</span>
+                </label>
+                <p class="app-prefs-hint">{move || i18n.tr(I18nKey::WsConfirmCloseHint)()}</p>
             </section>
 
             <WorkspaceCategoryColorsSection wb=wb />

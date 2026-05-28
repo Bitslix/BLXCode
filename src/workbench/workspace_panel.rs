@@ -482,10 +482,22 @@ fn CenterTabStrip(workspace_id: u64, active_tab_id: Memo<u64>) -> impl IntoView 
 fn CenterTabButton(workspace_id: u64, tab: CenterTab, active_tab_id: Memo<u64>) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let ui = expect_context::<HarnessUiService>();
+    let prefs = expect_context::<AppPrefsService>();
     let i18n = expect_context::<I18nService>();
     let id = tab.id;
     let title = tab.title.clone();
     let icon = center_tab_icon(&tab.kind);
+
+    // Closing the Terminals tab closes the whole workspace; gate it behind
+    // the confirmation dialog when the user has it enabled, otherwise close
+    // straight away.
+    let close_terminals = move || {
+        if prefs.confirm_close_workspace_enabled().get_untracked() {
+            ui.request_close_terminals_tab(workspace_id);
+        } else {
+            wb.close_workspace(workspace_id);
+        }
+    };
     // Terminals tabs route their close action through the confirmation
     // dialog; every other tab type closes immediately. The Terminals close
     // button is always visible — closing it is what triggers the "close
@@ -516,7 +528,7 @@ fn CenterTabButton(workspace_id: u64, tab: CenterTab, active_tab_id: Memo<u64>) 
                     ev.prevent_default();
                     ev.stop_propagation();
                     if is_terminals {
-                        ui.request_close_terminals_tab(workspace_id);
+                        close_terminals();
                     } else {
                         wb.close_center_tab(workspace_id, id);
                     }
@@ -527,7 +539,7 @@ fn CenterTabButton(workspace_id: u64, tab: CenterTab, active_tab_id: Memo<u64>) 
                         ev.prevent_default();
                         ev.stop_propagation();
                         if is_terminals {
-                            ui.request_close_terminals_tab(workspace_id);
+                            close_terminals();
                         } else {
                             wb.close_center_tab(workspace_id, id);
                         }

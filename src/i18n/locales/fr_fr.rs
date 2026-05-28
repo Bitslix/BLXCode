@@ -528,6 +528,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsDefaultProjectDirLabel => "Répertoire du projet par défaut",
         I18nKey::WsDefaultProjectDirPlaceholder => "$ACCUEIL",
         I18nKey::WsDefaultProjectDirHint => "Pré-remplit le répertoire de travail pour les nouveaux espaces de travail.",
+        I18nKey::WsSectionConfirm => "Confirmation",
+        I18nKey::WsConfirmCloseLabel => "Confirmer avant de fermer un espace de travail",
+        I18nKey::WsConfirmCloseHint => {
+            "Afficher une boîte de dialogue de confirmation lors de la fermeture d'un espace de travail à partir de son onglet Terminaux, du bouton de fermeture de la barre latérale ou du menu contextuel."
+        }
         I18nKey::AgProviderHeading => "Agent BLXCode",
         I18nKey::AgSectionInference => "Inférence",
         I18nKey::AgSectionModel => "Modèle",

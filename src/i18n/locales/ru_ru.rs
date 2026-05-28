@@ -522,6 +522,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsDefaultProjectDirLabel => "Каталог проекта по умолчанию",
         I18nKey::WsDefaultProjectDirPlaceholder => "$HOME",
         I18nKey::WsDefaultProjectDirHint => "Предварительно заполняет рабочий каталог для новых рабочих пространств.",
+        I18nKey::WsSectionConfirm => "Подтверждения",
+        I18nKey::WsConfirmCloseLabel => "Подтвердите перед закрытием рабочей области",
+        I18nKey::WsConfirmCloseHint => {
+            "Показывать диалоговое окно подтверждения при закрытии рабочей области на вкладке «Терминалы», кнопке закрытия боковой панели или контекстном меню."
+        }
         I18nKey::AgProviderHeading => "Агент BLXCode",
         I18nKey::AgSectionInference => "Вывод",
         I18nKey::AgSectionModel => "Модель",

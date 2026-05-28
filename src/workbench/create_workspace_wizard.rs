@@ -225,6 +225,26 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
     let cwd_val = move || draft_memo.get().cwd_display.clone();
     let name_val = move || draft_memo.get().name_input.clone();
 
+    // Distinct working directories from previously opened workspaces, so the
+    // user can refill the cwd field with one click instead of re-typing or
+    // re-browsing. Deduplicated by normalized path, newest first.
+    let recent_dirs = Memo::new(move |_| {
+        let mut seen = std::collections::HashSet::new();
+        let mut out: Vec<(String, String)> = Vec::new();
+        for it in wb.recent_workspaces().get() {
+            if !crate::workbench::state::workspace_entry_has_folder(&it.workspace) {
+                continue;
+            }
+            let cwd = it.workspace.cwd.clone();
+            let key = cwd.trim().trim_end_matches(['/', '\\']).to_string();
+            if key.is_empty() || !seen.insert(key) {
+                continue;
+            }
+            out.push((it.workspace.title.clone(), cwd));
+        }
+        out
+    });
+
     view! {
         <section class="ws-config" aria-label=move || i18n.tr(I18nKey::WzWizardAria)()>
             <div class="ws-config__shell">
@@ -424,6 +444,55 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                                 </div>
                             </Show>
                         </div>
+                        <Show when=move || !recent_dirs.get().is_empty()>
+                            <div class="ws-config__recent">
+                                <span class="ws-config__recent-label">
+                                    {move || i18n.tr(I18nKey::QkRecentHeading)()}
+                                </span>
+                                <ul class="harness-cmd-list ws-config__recent-list" role="list">
+                                    {move || {
+                                        recent_dirs
+                                            .get()
+                                            .into_iter()
+                                            .map(|(title, cwd)| {
+                                                let cwd_set = cwd.clone();
+                                                let base = cwd
+                                                    .trim_end_matches(['/', '\\'])
+                                                    .rsplit(['/', '\\'])
+                                                    .next()
+                                                    .unwrap_or(cwd.as_str())
+                                                    .to_string();
+                                                let label = if title.trim().is_empty() {
+                                                    base
+                                                } else {
+                                                    title
+                                                };
+                                                view! {
+                                                    <li class="harness-cmd-li">
+                                                        <button
+                                                            type="button"
+                                                            class="harness-cmd-btn"
+                                                            title=cwd.clone()
+                                                            on:click=move |_| {
+                                                                wb.set_workspace_cwd(workspace_id, cwd_set.clone());
+                                                            }
+                                                        >
+                                                            <span class="harness-cmd-btn__icon" aria-hidden="true">
+                                                                <LxIcon icon=icondata::LuFolderClock width="0.9rem" height="0.9rem" />
+                                                            </span>
+                                                            <span class="harness-cmd-btn__text">
+                                                                <span class="harness-cmd-title">{label}</span>
+                                                                <span class="harness-cmd-sub">{cwd.clone()}</span>
+                                                            </span>
+                                                        </button>
+                                                    </li>
+                                                }
+                                            })
+                                            .collect_view()
+                                    }}
+                                </ul>
+                            </div>
+                        </Show>
                         <Show when=move || cwd_err.get()>
                             <p class="ws-config__error">{move || i18n.tr(I18nKey::WzCwdEmpty)()}</p>
                         </Show>

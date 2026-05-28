@@ -524,6 +524,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsDefaultProjectDirLabel => "Standardprojektverzeichnis",
         I18nKey::WsDefaultProjectDirPlaceholder => "$HOME",
         I18nKey::WsDefaultProjectDirHint => "Füllt das Arbeitsverzeichnis für neue Arbeitsbereiche vorab aus.",
+        I18nKey::WsSectionConfirm => "Bestätigungen",
+        I18nKey::WsConfirmCloseLabel => "Bestätigen Sie dies, bevor Sie einen Arbeitsbereich schließen",
+        I18nKey::WsConfirmCloseHint => {
+            "Zeigt einen Bestätigungsdialog an, wenn Sie einen Arbeitsbereich über die Registerkarte „Terminals“, die Schaltfläche „Schließen“ in der Seitenleiste oder das Kontextmenü schließen."
+        }
         I18nKey::AgProviderHeading => "BLXCode-Agent",
         I18nKey::AgSectionInference => "Inferenz",
         I18nKey::AgSectionModel => "Modell",

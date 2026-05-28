@@ -524,6 +524,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsDefaultProjectDirLabel => "Directorio de proyecto predeterminado",
         I18nKey::WsDefaultProjectDirPlaceholder => "$INICIO",
         I18nKey::WsDefaultProjectDirHint => "Rellena previamente el directorio de trabajo para nuevos espacios de trabajo.",
+        I18nKey::WsSectionConfirm => "Confirmaciones",
+        I18nKey::WsConfirmCloseLabel => "Confirmar antes de cerrar un espacio de trabajo",
+        I18nKey::WsConfirmCloseHint => {
+            "Muestra un cuadro de diálogo de confirmación al cerrar un espacio de trabajo desde su pestaña Terminales, el botón de cierre de la barra lateral o el menú contextual."
+        }
         I18nKey::AgProviderHeading => "Agente de código BLX",
         I18nKey::AgSectionInference => "Inferencia",
         I18nKey::AgSectionModel => "Modelo",
