@@ -566,7 +566,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "task_list",
-            description: "List tracked tasks under <workspace>/.blxcode/tasks/. Returns a stable JSON snapshot sorted by task position. Optional filters: `status` and `includeCompleted`.",
+            description: "List tracked tasks for the current workspace (stored under the app-data dir, keyed by workspace hash). Returns a stable JSON snapshot sorted by task position. Optional filters: `status` and `includeCompleted`.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -582,7 +582,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "task_get",
-            description: "Read one tracked task by id from <workspace>/.blxcode/tasks/.",
+            description: "Read one tracked task by id from the workspace's task store (under the app-data dir).",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -595,7 +595,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "task_create",
-            description: "Create a new tracked task under <workspace>/.blxcode/tasks/.",
+            description: "Create a new tracked task in the workspace's task store (under the app-data dir).",
             parameters: json!({
                 "type": "object",
                 "properties": {
