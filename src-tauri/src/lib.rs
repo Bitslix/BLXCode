@@ -15,6 +15,7 @@ mod image;
 mod media_keys;
 mod memory;
 mod plans;
+mod pointers;
 mod pty_host;
 mod skills_rules;
 mod tasks;
@@ -239,6 +240,9 @@ pub fn run() {
             skills_rules::commands::rules_write,
             skills_rules::commands::rules_set_enabled,
             skills_rules::commands::rules_remove,
+            skills_rules::commands::rules_pointer_status,
+            skills_rules::commands::rules_install_pointers,
+            skills_rules::commands::rules_uninstall_pointers,
             skills_rules::commands::skills_list,
             skills_rules::commands::skills_read,
             skills_rules::commands::skills_write,

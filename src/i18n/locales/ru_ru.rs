@@ -165,6 +165,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrSkillSource => "Источник",
         I18nKey::SrMissingSkillMd => "SKILL.md отсутствует",
         I18nKey::SrNoWorkspace => "Откройте рабочую область, чтобы увидеть навыки и правила.",
+        I18nKey::SrPointersBannerLead => {
+            "Указатели правил агента не установлены — внешние агенты не будут знать, где находятся правила проекта."
+        }
+        I18nKey::SrPointersBannerCta => "Настройка указателей",
+        I18nKey::SrPointersDialogTitle => "Указатели правил агента",
+        I18nKey::SrPointersDialogLead => {
+            "Установите отмеченный блок в CLAUDE.md, AGENTS.md или аналогичном файле, чтобы внешние агенты использовали правила проекта. Целевые файлы уже должны существовать."
+        }
+        I18nKey::SrPointersInstall => "Установить",
+        I18nKey::SrPointersUninstall => "Удалить",
+        I18nKey::SrPointersClose => "Закрывать",
         I18nKey::MemEmptyTitle => "Нет активного рабочего пространства",
         I18nKey::MemEmptyLead => {
             "Память ограничена рабочей областью. Чтобы начать работу, выберите один из них на боковой панели или создайте новое рабочее пространство."

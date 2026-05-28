@@ -165,6 +165,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrSkillSource => "Forrás",
         I18nKey::SrMissingSkillMd => "SKILL.md hiányzik",
         I18nKey::SrNoWorkspace => "Nyisson meg egy munkaterületet a készségek és szabályok megtekintéséhez.",
+        I18nKey::SrPointersBannerLead => {
+            "Nincsenek telepítve ügynökszabály-mutatók – a külső ügynökök nem fogják tudni, hol találhatók a projektszabályok."
+        }
+        I18nKey::SrPointersBannerCta => "Állítsa be a mutatókat",
+        I18nKey::SrPointersDialogTitle => "Ügynökszabály-mutatók",
+        I18nKey::SrPointersDialogLead => {
+            "Telepítsen egy megjelölt blokkot a CLAUDE.md, AGENTS.md vagy hasonló fájlokban, hogy a külső ügynökök felvegyék a projektszabályokat. A célfájloknak már létezniük kell."
+        }
+        I18nKey::SrPointersInstall => "Telepítés",
+        I18nKey::SrPointersUninstall => "Eltávolítás",
+        I18nKey::SrPointersClose => "Közeli",
         I18nKey::MemEmptyTitle => "Nincs aktív munkaterület",
         I18nKey::MemEmptyLead => {
             "A memória munkaterületre van rendelve. Válasszon egyet az oldalsávon, vagy hozzon létre egy új munkaterületet a kezdéshez."

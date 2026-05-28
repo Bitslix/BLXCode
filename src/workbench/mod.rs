@@ -25,6 +25,7 @@ mod memory_panel;
 mod notification_sound;
 mod path_nav;
 mod plans_panel;
+pub(crate) mod pointer_agents;
 mod project_explorer;
 mod right_panel;
 mod sidebar;

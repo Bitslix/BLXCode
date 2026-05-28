@@ -7661,7 +7661,7 @@ body.blxcode-dragging-terminal * {
   padding: 0 0.2rem;
 }
 
-.workbench-memory-pointers-notice {
+.workbench-pointers-notice {
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -7674,7 +7674,7 @@ body.blxcode-dragging-terminal * {
   font-size: 0.8rem;
 }
 
-.workbench-memory-pointers-notice__icon {
+.workbench-pointers-notice__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -7682,14 +7682,14 @@ body.blxcode-dragging-terminal * {
   color: var(--accent, var(--accent-hover));
 }
 
-.workbench-memory-pointers-notice p {
+.workbench-pointers-notice p {
   flex: 1;
   min-width: 0;
   margin: 0;
   line-height: 1.35;
 }
 
-.workbench-memory-pointers-notice__setup {
+.workbench-pointers-notice__setup {
   padding: 0;
   color: var(--accent, var(--accent-hover));
   background: transparent;
@@ -7699,12 +7699,12 @@ body.blxcode-dragging-terminal * {
   cursor: pointer;
 }
 
-.workbench-memory-pointers-notice__setup:hover,
-.workbench-memory-pointers-notice__setup:focus-visible {
+.workbench-pointers-notice__setup:hover,
+.workbench-pointers-notice__setup:focus-visible {
   text-decoration: underline;
 }
 
-.workbench-memory-pointers-notice__close {
+.workbench-pointers-notice__close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -7719,8 +7719,8 @@ body.blxcode-dragging-terminal * {
   cursor: pointer;
 }
 
-.workbench-memory-pointers-notice__close:hover,
-.workbench-memory-pointers-notice__close:focus-visible {
+.workbench-pointers-notice__close:hover,
+.workbench-pointers-notice__close:focus-visible {
   color: var(--text);
   background: var(--overlay-2);
 }
@@ -8218,13 +8218,13 @@ body.blxcode-dragging-terminal * {
   font-size: 0.78rem;
 }
 
-.memory-pointers-dialog {
+.pointers-dialog {
   width: min(42rem, calc(100vw - 2rem));
   padding: 0;
   overflow: hidden;
 }
 
-.memory-pointers-dialog__head {
+.pointers-dialog__head {
   display: grid;
   grid-template-columns: 2.5rem minmax(0, 1fr) auto;
   gap: 0.75rem;
@@ -8234,7 +8234,7 @@ body.blxcode-dragging-terminal * {
   background: linear-gradient(180deg, var(--overlay-1), transparent);
 }
 
-.memory-pointers-dialog__title-icon {
+.pointers-dialog__title-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -8246,20 +8246,20 @@ body.blxcode-dragging-terminal * {
   border-radius: 8px;
 }
 
-.memory-pointers-dialog__head h2 {
+.pointers-dialog__head h2 {
   margin: 0;
   font-size: 1rem;
   font-weight: 650;
 }
 
-.memory-pointers-dialog__head p {
+.pointers-dialog__head p {
   margin: 0.25rem 0 0;
   color: var(--text-muted);
   font-size: 0.82rem;
   line-height: 1.45;
 }
 
-.memory-pointers-dialog__agents {
+.pointers-dialog__agents {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
@@ -8268,7 +8268,7 @@ body.blxcode-dragging-terminal * {
   list-style: none;
 }
 
-.memory-pointers-dialog__agent {
+.pointers-dialog__agent {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -8280,20 +8280,20 @@ body.blxcode-dragging-terminal * {
   transition: background 0.12s ease, border-color 0.12s ease;
 }
 
-.memory-pointers-dialog__agent:hover,
-.memory-pointers-dialog__agent:focus-within {
+.pointers-dialog__agent:hover,
+.pointers-dialog__agent:focus-within {
   background: var(--overlay-1);
   border-color: var(--overlay-3);
 }
 
-.memory-pointers-dialog__checkbox {
+.pointers-dialog__checkbox {
   flex: 0 0 auto;
   width: 0.95rem;
   height: 0.95rem;
   accent-color: var(--accent, var(--accent-hover));
 }
 
-.memory-pointers-dialog__brand {
+.pointers-dialog__brand {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -8306,14 +8306,14 @@ body.blxcode-dragging-terminal * {
   border-radius: 8px;
 }
 
-.memory-pointers-dialog__brand img {
+.pointers-dialog__brand img {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
 
-.memory-pointers-dialog__meta {
+.pointers-dialog__meta {
   display: flex;
   flex: 1;
   min-width: 0;
@@ -8321,13 +8321,13 @@ body.blxcode-dragging-terminal * {
   gap: 0.1rem;
 }
 
-.memory-pointers-dialog__label {
+.pointers-dialog__label {
   color: var(--text);
   font-size: 0.84rem;
   font-weight: 600;
 }
 
-.memory-pointers-dialog__target {
+.pointers-dialog__target {
   overflow: hidden;
   color: var(--text-muted);
   font-family: ui-monospace, "JetBrains Mono", "Fira Code", monospace;
@@ -8336,7 +8336,7 @@ body.blxcode-dragging-terminal * {
   white-space: nowrap;
 }
 
-.memory-pointers-dialog__status {
+.pointers-dialog__status {
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
@@ -8349,24 +8349,24 @@ body.blxcode-dragging-terminal * {
   line-height: 1.2;
 }
 
-.memory-pointers-dialog__status--installed {
+.pointers-dialog__status--installed {
   color: var(--success, #4ade80);
   background: color-mix(in srgb, var(--success, #4ade80) 10%, transparent);
   border-color: color-mix(in srgb, var(--success, #4ade80) 18%, transparent);
 }
 
-.memory-pointers-dialog__status--missing {
+.pointers-dialog__status--missing {
   color: #fbbf24;
   background: rgba(251, 191, 36, 0.1);
   border-color: rgba(251, 191, 36, 0.18);
 }
 
-.memory-pointers-dialog__status--pending {
+.pointers-dialog__status--pending {
   color: var(--text-muted);
   background: var(--overlay-1);
 }
 
-.memory-pointers-dialog__actions {
+.pointers-dialog__actions {
   padding: 0.85rem 1.1rem;
   background: color-mix(in srgb, var(--overlay-1) 40%, transparent);
   border-top: 1px solid var(--overlay-2);

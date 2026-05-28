@@ -165,6 +165,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrSkillSource => "Fuente",
         I18nKey::SrMissingSkillMd => "Falta SKILL.md",
         I18nKey::SrNoWorkspace => "Abra un espacio de trabajo para ver habilidades y reglas.",
+        I18nKey::SrPointersBannerLead => {
+            "No hay punteros de reglas de agente instalados: los agentes externos no sabrán dónde se encuentran las reglas del proyecto."
+        }
+        I18nKey::SrPointersBannerCta => "Configurar punteros",
+        I18nKey::SrPointersDialogTitle => "Consejos sobre las reglas del agente",
+        I18nKey::SrPointersDialogLead => {
+            "Instale un bloque marcado en CLAUDE.md, AGENTS.md o similar para que los agentes externos recojan las reglas del proyecto. Los archivos de destino ya deben existir."
+        }
+        I18nKey::SrPointersInstall => "Instalar",
+        I18nKey::SrPointersUninstall => "Desinstalar",
+        I18nKey::SrPointersClose => "Cerca",
         I18nKey::MemEmptyTitle => "Ningún espacio de trabajo activo",
         I18nKey::MemEmptyLead => {
             "La memoria tiene como ámbito un espacio de trabajo. Seleccione uno en la barra lateral o cree un nuevo espacio de trabajo para comenzar."

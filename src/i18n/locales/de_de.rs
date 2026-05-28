@@ -165,6 +165,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrSkillSource => "Quelle",
         I18nKey::SrMissingSkillMd => "SKILL.md fehlt",
         I18nKey::SrNoWorkspace => "Öffnen Sie einen Arbeitsbereich, um Fähigkeiten und Regeln anzuzeigen.",
+        I18nKey::SrPointersBannerLead => {
+            "Keine Agentenregelzeiger installiert – externe Agenten wissen nicht, wo sich die Projektregeln befinden."
+        }
+        I18nKey::SrPointersBannerCta => "Richten Sie Zeiger ein",
+        I18nKey::SrPointersDialogTitle => "Zeiger auf Agentenregeln",
+        I18nKey::SrPointersDialogLead => {
+            "Installieren Sie einen markierten Block in CLAUDE.md, AGENTS.md oder ähnlichem, damit externe Agenten die Projektregeln übernehmen. Zieldateien müssen bereits vorhanden sein."
+        }
+        I18nKey::SrPointersInstall => "Installieren",
+        I18nKey::SrPointersUninstall => "Deinstallieren",
+        I18nKey::SrPointersClose => "Schließen",
         I18nKey::MemEmptyTitle => "Kein aktiver Arbeitsbereich",
         I18nKey::MemEmptyLead => {
             "Der Speicher ist auf einen Arbeitsbereich beschränkt. Wählen Sie einen in der Seitenleiste aus oder erstellen Sie einen neuen Arbeitsbereich, um loszulegen."

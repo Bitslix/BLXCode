@@ -167,6 +167,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrSkillSource => "Source",
         I18nKey::SrMissingSkillMd => "SKILL.md manquant",
         I18nKey::SrNoWorkspace => "Ouvrez un espace de travail pour voir les compétences et les règles.",
+        I18nKey::SrPointersBannerLead => {
+            "Aucun pointeur de règles d'agent installé : les agents externes ne sauront pas où se trouvent les règles du projet."
+        }
+        I18nKey::SrPointersBannerCta => "Configurer des pointeurs",
+        I18nKey::SrPointersDialogTitle => "Pointeurs de règles d'agent",
+        I18nKey::SrPointersDialogLead => {
+            "Installez un bloc marqué dans CLAUDE.md, AGENTS.md ou similaire afin que les agents externes reprennent les règles du projet. Les fichiers cibles doivent déjà exister."
+        }
+        I18nKey::SrPointersInstall => "Installer",
+        I18nKey::SrPointersUninstall => "Désinstaller",
+        I18nKey::SrPointersClose => "Fermer",
         I18nKey::MemEmptyTitle => "Aucun espace de travail actif",
         I18nKey::MemEmptyLead => {
             "La mémoire est limitée à un espace de travail. Sélectionnez-en un dans la barre latérale ou créez un nouvel espace de travail pour commencer."

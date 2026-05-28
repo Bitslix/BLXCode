@@ -186,6 +186,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrSkillSource => "Source",
         I18nKey::SrMissingSkillMd => "SKILL.md missing",
         I18nKey::SrNoWorkspace => "Open a workspace to see skills and rules.",
+        I18nKey::SrPointersBannerLead => {
+            "No agent rules pointers installed — external agents won't know where the project rules live. "
+        }
+        I18nKey::SrPointersBannerCta => "Set up pointers",
+        I18nKey::SrPointersDialogTitle => "Agent rules pointers",
+        I18nKey::SrPointersDialogLead => {
+            "Install a marked block in CLAUDE.md, AGENTS.md, or similar so external agents pick up the project rules. Target files must already exist."
+        }
+        I18nKey::SrPointersInstall => "Install",
+        I18nKey::SrPointersUninstall => "Uninstall",
+        I18nKey::SrPointersClose => "Close",
         I18nKey::MemEmptyTitle => "No active workspace",
         I18nKey::MemEmptyLead => {
             "Memory is scoped to a workspace. Select one in the sidebar, or create a new workspace to get started."

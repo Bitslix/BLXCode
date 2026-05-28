@@ -112,14 +112,9 @@ pub struct MemoryListResponse {
     pub memory_subcategories: MemorySubcategories,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct PointerResult {
-    pub agent: String,
-    pub path: String,
-    pub installed: bool,
-    pub note: Option<String>,
-}
+/// Re-exported from the generic `crate::pointers` module so the wire
+/// format stays identical to what the frontend has historically seen.
+pub use crate::pointers::PointerResult;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]

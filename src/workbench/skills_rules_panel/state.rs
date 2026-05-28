@@ -5,11 +5,13 @@
 //! The service is provided as a Leptos context in `WorkbenchShell` and
 //! consumed by the two tab dock components plus the install dialog.
 
+use std::collections::HashSet;
+
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
 use crate::skills_rules_wire::{RuleEntry, SkillEntry, SkillSourceInput};
-use crate::tauri_bridge;
+use crate::tauri_bridge::{self, PointerResult};
 use crate::workbench::WorkbenchService;
 
 #[derive(Clone, Copy)]
@@ -22,6 +24,11 @@ pub struct SkillsRulesService {
     skills_error: RwSignal<Option<String>>,
     install_busy: RwSignal<bool>,
     install_error: RwSignal<Option<String>>,
+    pointer_status: RwSignal<Option<Vec<PointerResult>>>,
+    pointers_open: RwSignal<bool>,
+    pointers_notice_dismissed: RwSignal<bool>,
+    pointers_busy: RwSignal<bool>,
+    selected_pointer_agents: RwSignal<HashSet<String>>,
 }
 
 impl SkillsRulesService {
@@ -36,7 +43,33 @@ impl SkillsRulesService {
             skills_error: RwSignal::new(None),
             install_busy: RwSignal::new(false),
             install_error: RwSignal::new(None),
+            pointer_status: RwSignal::new(None),
+            pointers_open: RwSignal::new(false),
+            pointers_notice_dismissed: RwSignal::new(false),
+            pointers_busy: RwSignal::new(false),
+            selected_pointer_agents: RwSignal::new(HashSet::new()),
         }
+    }
+
+    #[must_use]
+    pub fn pointer_status(&self) -> RwSignal<Option<Vec<PointerResult>>> {
+        self.pointer_status
+    }
+    #[must_use]
+    pub fn pointers_open(&self) -> RwSignal<bool> {
+        self.pointers_open
+    }
+    #[must_use]
+    pub fn pointers_notice_dismissed(&self) -> RwSignal<bool> {
+        self.pointers_notice_dismissed
+    }
+    #[must_use]
+    pub fn pointers_busy(&self) -> RwSignal<bool> {
+        self.pointers_busy
+    }
+    #[must_use]
+    pub fn selected_pointer_agents(&self) -> RwSignal<HashSet<String>> {
+        self.selected_pointer_agents
     }
 
     #[must_use]
@@ -100,6 +133,78 @@ impl SkillsRulesService {
                 Err(e) => err.set(Some(e)),
             }
             loading.set(false);
+        });
+    }
+
+    /// Refreshes the per-agent rules-pointer installation status.
+    /// Called on workspace switch and after install/uninstall actions so
+    /// the banner and dialog reflect the on-disk state.
+    pub fn refresh_pointer_status(self, wb: WorkbenchService) {
+        let Some(cwd) = Self::workspace_cwd(&wb) else {
+            self.pointer_status.set(None);
+            return;
+        };
+        let status = self.pointer_status;
+        let err = self.rules_error;
+        spawn_local(async move {
+            match tauri_bridge::rules_pointer_status(&cwd).await {
+                Ok(results) => status.set(Some(results)),
+                Err(e) => {
+                    status.set(Some(Vec::new()));
+                    err.set(Some(e));
+                }
+            }
+        });
+    }
+
+    /// Clears pointer UI state — called on workspace switch so a stale
+    /// "dismissed" flag from the previous workspace doesn't hide the
+    /// banner in the new one.
+    pub fn reset_pointer_ui(self) {
+        self.pointer_status.set(None);
+        self.pointers_open.set(false);
+        self.pointers_notice_dismissed.set(false);
+        self.pointers_busy.set(false);
+        self.selected_pointer_agents.set(HashSet::new());
+    }
+
+    /// Runs the install or uninstall action for the currently selected
+    /// agent ids, then merges the result into `pointer_status`.
+    pub fn run_pointer_action(self, wb: WorkbenchService, install: bool, agents: Vec<String>) {
+        let Some(cwd) = Self::workspace_cwd(&wb) else {
+            return;
+        };
+        if agents.is_empty() || self.pointers_busy.get_untracked() {
+            return;
+        }
+        self.pointers_busy.set(true);
+        let busy = self.pointers_busy;
+        let status = self.pointer_status;
+        let err = self.rules_error;
+        spawn_local(async move {
+            let result = if install {
+                tauri_bridge::rules_install_pointers(&cwd, agents).await
+            } else {
+                tauri_bridge::rules_uninstall_pointers(&cwd, agents).await
+            };
+            match result {
+                Ok(results) => {
+                    status.update(|cur| {
+                        let mut merged = cur.take().unwrap_or_default();
+                        for r in results {
+                            if let Some(existing) = merged.iter_mut().find(|e| e.agent == r.agent) {
+                                *existing = r;
+                            } else {
+                                merged.push(r);
+                            }
+                        }
+                        *cur = Some(merged);
+                    });
+                    err.set(None);
+                }
+                Err(e) => err.set(Some(e)),
+            }
+            busy.set(false);
         });
     }
 

@@ -52,9 +52,12 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
             `<workspace>/.agents/plans/*.md`) — they survive workspace \
             reload/close/exit, so a \"continue\" after a restart is \
             authoritative.\n\
-         4. **Memory / project context as needed.** Apply the Memory \
-            judgment rules further down (read relevant notes, don't blind-\
-            scan, don't spam writes).\n\
+         4. **Memory / learnings / project context as needed.** Apply the \
+            Memory judgment rules further down (read relevant notes, \
+            don't blind-scan, don't spam writes). Before writing the final \
+            reply, decide whether the turn produced a **learning** worth \
+            persisting (see the Learnings section below) and, if so, call \
+            `memory_create` under `learnings/`.\n\
          5. **Execute.** Do the work, calling tools as required. Update \
             `task_update` on plan-linked tasks as state changes (status \
             write-back to plan Markdown happens automatically).\n\
@@ -160,6 +163,38 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
          asks for subagents, parallel review, or a named role (scout / review / \
          security_analyst). Default: work alone. Parallel runs cost extra API usage.\n\
          \n\
+         # Project docs (auto-preloaded on first turn)\n\
+         When this is the first turn of a session and the workspace ships \
+         repo-level instructions (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`), \
+         the harness injects them into the very first user message inside a \
+         `<project-docs>` block. Treat that block as authoritative project \
+         policy on equal footing with active rules — read it before \
+         touching code or answering. Subsequent turns do not re-inject it; \
+         rely on conversation memory.\n\
+         \n\
+         # Memory vs Learnings\n\
+         The workspace has two durable Markdown stores under \
+         `<workspace>/.agents/`:\n\
+         - `.agents/memory/` — facts, conventions, user/project profile, \
+           ongoing initiatives, references. **Read** before assuming; \
+           **write** new notes when the team should remember something for \
+           future turns. Use `memory_list`, `memory_search`, `memory_read`, \
+           `memory_create`, `memory_write`. Paths are relative under the \
+           memory API (e.g. `user_role.md`, `auth/oauth-flow.md`).\n\
+         - `.agents/learnings/` — short entries capturing a concrete \
+           insight, pattern, fix, or gotcha discovered during a task. Add \
+           one **whenever** you solved something non-obvious, hit a tricky \
+           failure mode, validated a non-trivial design choice, or learned \
+           a constraint that wasn't obvious from the code. Source material: \
+           debugging sessions, failed attempts, code-review feedback, \
+           post-mortems, surprising tool output. API paths are prefixed \
+           `learnings/...` (e.g. `learnings/2026-05-tokio-cancel-shape.md`). \
+           Keep each entry self-contained — one insight, dated, with the \
+           specific symptom and the resolved understanding. Skip generic \
+           or trivial findings.\n\
+         A useful learning is the kind of thing you wish a previous agent \
+         had told you. If unsure, write it: cheap to add, costly to lose.\n\
+         \n\
          # Behaviour\n\
          - Call tools eagerly when they would answer the user's question \
            more reliably than reasoning alone.\n\
@@ -237,6 +272,18 @@ mod tests {
         assert!(p.contains("tasks"));
         assert!(p.contains("rules-skills"));
         assert!(p.contains("harness"));
+    }
+
+    #[test]
+    fn prompt_explains_learnings_and_project_docs_preload() {
+        let p = system_prompt(Some("/tmp/ws"));
+        assert!(p.contains("Memory vs Learnings"));
+        assert!(p.contains(".agents/learnings/"));
+        assert!(p.contains("Project docs (auto-preloaded on first turn)"));
+        assert!(p.contains("<project-docs>"));
+        assert!(p.contains("CLAUDE.md"));
+        assert!(p.contains("AGENTS.md"));
+        assert!(p.contains("GEMINI.md"));
     }
 
     #[test]

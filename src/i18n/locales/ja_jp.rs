@@ -163,6 +163,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrSkillSource => "ソース",
         I18nKey::SrMissingSkillMd => "SKILL.mdがありません",
         I18nKey::SrNoWorkspace => "ワークスペースを開いてスキルとルールを確認します。",
+        I18nKey::SrPointersBannerLead => "エージェント ルール ポインターがインストールされていません。外部エージェントはプロジェクト ルールがどこに存在するかを知りません。",
+        I18nKey::SrPointersBannerCta => "ポインタを設定する",
+        I18nKey::SrPointersDialogTitle => "エージェントルールのポインタ",
+        I18nKey::SrPointersDialogLead => {
+            "CLAUDE.md、AGENTS.md などにマークされたブロックをインストールして、外部エージェントがプロジェクト ルールを取得できるようにします。ターゲット ファイルはすでに存在している必要があります。"
+        }
+        I18nKey::SrPointersInstall => "インストール",
+        I18nKey::SrPointersUninstall => "アンインストール",
+        I18nKey::SrPointersClose => "近い",
         I18nKey::MemEmptyTitle => "アクティブなワークスペースがありません",
         I18nKey::MemEmptyLead => "メモリのスコープはワークスペースに限定されます。サイドバーでいずれかを選択するか、新しいワークスペースを作成して開始します。",
         I18nKey::MemEmptyCreate => "+ ワークスペースの作成",

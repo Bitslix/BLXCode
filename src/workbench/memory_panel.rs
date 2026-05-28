@@ -11,6 +11,7 @@ use crate::tauri_bridge::{
 };
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::memory_graph::{navigate_to_graph_node, MemoryGraphView};
+use crate::workbench::pointer_agents::{PointerAgent, POINTER_AGENTS};
 use crate::workbench::state::{normalize_hex_color, MemoryCategorySettings};
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
@@ -28,47 +29,6 @@ const LEARNINGS_INDEX_PATHS: &[&str] = &["learnings/README.md"];
 /// Built-in pseudo categories — top-level memory files and the learnings root.
 const CATEGORY_MEMORY: &str = "memory";
 const CATEGORY_LEARNINGS: &str = "learnings";
-const POINTER_AGENTS: &[PointerAgent] = &[
-    PointerAgent {
-        id: "claude",
-        label: "Claude",
-        target: "CLAUDE.md",
-        icon: "/public/brand-icons/anthropic.svg",
-    },
-    PointerAgent {
-        id: "codex",
-        label: "Codex",
-        target: "AGENTS.md",
-        icon: "/public/brand-icons/openai.svg",
-    },
-    PointerAgent {
-        id: "gemini",
-        label: "Gemini",
-        target: "GEMINI.md",
-        icon: "/public/brand-icons/gemini.svg",
-    },
-    PointerAgent {
-        id: "cursor",
-        label: "Cursor",
-        target: ".cursorrules",
-        icon: "/public/brand-icons/cursor.svg",
-    },
-    PointerAgent {
-        id: "opencode",
-        label: "OpenCode",
-        target: "AGENTS.md",
-        icon: "/public/brand-icons/opencode.svg",
-    },
-];
-
-#[derive(Clone, Copy)]
-struct PointerAgent {
-    id: &'static str,
-    label: &'static str,
-    target: &'static str,
-    icon: &'static str,
-}
-
 /// Derive the category key for a given note API path.
 fn category_for_path(path: &str) -> String {
     if path.starts_with(LEARNINGS_API_PREFIX) {
@@ -577,15 +537,15 @@ fn bootstrap_memory_scope(state: MemoryState, target: &'static str) {
 #[component]
 fn MemoryPointersNotice(state: MemoryState) -> impl IntoView {
     view! {
-        <div class="workbench-memory-pointers-notice" role="status">
-            <span class="workbench-memory-pointers-notice__icon" aria-hidden="true">
+        <div class="workbench-pointers-notice" role="status">
+            <span class="workbench-pointers-notice__icon" aria-hidden="true">
                 <LxIcon icon=icondata::LuInfo width="0.9rem" height="0.9rem" />
             </span>
             <p>
                 "No agent memory pointers installed — external agents won't know where memory lives. "
                 <button
                     type="button"
-                    class="workbench-memory-pointers-notice__setup"
+                    class="workbench-pointers-notice__setup"
                     on:click=move |_| state.pointers_open.set(true)
                 >
                     "Set up pointers"
@@ -593,7 +553,7 @@ fn MemoryPointersNotice(state: MemoryState) -> impl IntoView {
             </p>
             <button
                 type="button"
-                class="workbench-memory-pointers-notice__close"
+                class="workbench-pointers-notice__close"
                 aria-label="Close"
                 on:click=move |_| state.pointers_notice_dismissed.set(true)
             >
@@ -615,14 +575,14 @@ fn MemoryPointersDialog(state: MemoryState) -> impl IntoView {
             }
         >
             <section
-                class="workspace-rename-dialog memory-pointers-dialog"
+                class="workspace-rename-dialog pointers-dialog"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="memory-pointers-title"
                 on:click=move |ev| ev.stop_propagation()
             >
-                <header class="memory-pointers-dialog__head">
-                    <div class="memory-pointers-dialog__title-icon" aria-hidden="true">
+                <header class="pointers-dialog__head">
+                    <div class="pointers-dialog__title-icon" aria-hidden="true">
                         <LxIcon icon=icondata::LuLink2 width="1.1rem" height="1.1rem" />
                     </div>
                     <div>
@@ -640,7 +600,7 @@ fn MemoryPointersDialog(state: MemoryState) -> impl IntoView {
                         "×"
                     </button>
                 </header>
-                <ul class="memory-pointers-dialog__agents">
+                <ul class="pointers-dialog__agents">
                     <For
                         each=move || POINTER_AGENTS.to_vec()
                         key=|agent| agent.id
@@ -649,7 +609,7 @@ fn MemoryPointersDialog(state: MemoryState) -> impl IntoView {
                         }
                     />
                 </ul>
-                <footer class="workspace-rename-dialog__actions memory-pointers-dialog__actions">
+                <footer class="workspace-rename-dialog__actions pointers-dialog__actions">
                     <button
                         type="button"
                         class="workspace-rename-dialog__btn workspace-rename-dialog__btn--ghost"
@@ -686,11 +646,11 @@ fn MemoryPointerAgentRow(state: MemoryState, agent: PointerAgent) -> impl IntoVi
     let id_for_change = agent.id.to_owned();
     view! {
         <li>
-            <label class="memory-pointers-dialog__agent" for=input_id.clone()>
+            <label class="pointers-dialog__agent" for=input_id.clone()>
                 <input
                     id=input_id.clone()
                     type="checkbox"
-                    class="memory-pointers-dialog__checkbox"
+                    class="pointers-dialog__checkbox"
                     prop:checked=move || {
                         state
                             .selected_pointer_agents
@@ -711,12 +671,12 @@ fn MemoryPointerAgentRow(state: MemoryState, agent: PointerAgent) -> impl IntoVi
                         });
                     }
                 />
-                <span class="memory-pointers-dialog__brand">
+                <span class="pointers-dialog__brand">
                     <img src=agent.icon alt="" prop:draggable=false />
                 </span>
-                <span class="memory-pointers-dialog__meta">
-                    <span class="memory-pointers-dialog__label">{agent.label}</span>
-                    <span class="memory-pointers-dialog__target">{agent.target}</span>
+                <span class="pointers-dialog__meta">
+                    <span class="pointers-dialog__label">{agent.label}</span>
+                    <span class="pointers-dialog__target">{agent.target}</span>
                 </span>
                 <PointerStatusBadge state=state agent_id=id_for_status />
             </label>
@@ -750,7 +710,7 @@ fn pointer_status_view(
 ) -> (&'static str, Option<icondata::Icon>, &'static str) {
     if entry.is_some_and(|result| result.installed) {
         (
-            "memory-pointers-dialog__status memory-pointers-dialog__status--installed",
+            "pointers-dialog__status pointers-dialog__status--installed",
             Some(icondata::LuCircleCheck),
             "Installed",
         )
@@ -759,13 +719,13 @@ fn pointer_status_view(
         .is_some_and(|note| note == "file missing")
     {
         (
-            "memory-pointers-dialog__status memory-pointers-dialog__status--missing",
+            "pointers-dialog__status pointers-dialog__status--missing",
             Some(icondata::LuFileWarning),
             "File missing",
         )
     } else {
         (
-            "memory-pointers-dialog__status memory-pointers-dialog__status--pending",
+            "pointers-dialog__status pointers-dialog__status--pending",
             None,
             "Not installed",
         )

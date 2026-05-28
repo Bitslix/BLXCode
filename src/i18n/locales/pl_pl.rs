@@ -165,6 +165,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrSkillSource => "Źródło",
         I18nKey::SrMissingSkillMd => "Brakuje SKILL.md",
         I18nKey::SrNoWorkspace => "Otwórz obszar roboczy, aby zobaczyć umiejętności i zasady.",
+        I18nKey::SrPointersBannerLead => {
+            "Nie zainstalowano żadnych wskaźników reguł agenta — agenci zewnętrzni nie będą wiedzieć, gdzie znajdują się reguły projektu."
+        }
+        I18nKey::SrPointersBannerCta => "Ustaw wskaźniki",
+        I18nKey::SrPointersDialogTitle => "Wskazówki dotyczące reguł agenta",
+        I18nKey::SrPointersDialogLead => {
+            "Zainstaluj zaznaczony blok w pliku CLAUDE.md, AGENTS.md lub podobnym, aby agenci zewnętrzni przejęli zasady projektu. Pliki docelowe muszą już istnieć."
+        }
+        I18nKey::SrPointersInstall => "Zainstalować",
+        I18nKey::SrPointersUninstall => "Odinstaluj",
+        I18nKey::SrPointersClose => "Zamknąć",
         I18nKey::MemEmptyTitle => "Brak aktywnego obszaru roboczego",
         I18nKey::MemEmptyLead => {
             "Pamięć jest ograniczona do obszaru roboczego. Aby rozpocząć, wybierz jeden na pasku bocznym lub utwórz nowy obszar roboczy."

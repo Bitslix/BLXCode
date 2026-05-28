@@ -1627,6 +1627,50 @@ pub async fn memory_uninstall_pointers(
     .await
 }
 
+pub async fn rules_pointer_status(ws: &str) -> Result<Vec<PointerResult>, String> {
+    invoke_typed("rules_pointer_status", WsArg { workspace_cwd: ws }).await
+}
+
+pub async fn rules_install_pointers(
+    ws: &str,
+    agents: Vec<String>,
+) -> Result<Vec<PointerResult>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        agents: Vec<String>,
+    }
+    invoke_typed(
+        "rules_install_pointers",
+        A {
+            workspace_cwd: ws,
+            agents,
+        },
+    )
+    .await
+}
+
+pub async fn rules_uninstall_pointers(
+    ws: &str,
+    agents: Vec<String>,
+) -> Result<Vec<PointerResult>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        agents: Vec<String>,
+    }
+    invoke_typed(
+        "rules_uninstall_pointers",
+        A {
+            workspace_cwd: ws,
+            agents,
+        },
+    )
+    .await
+}
+
 // ---------------------------------------------------------------------
 // Plans (workspace-scoped Markdown plans under .agents/plans/)
 

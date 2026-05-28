@@ -1,7 +1,7 @@
 //! Core CRUD helpers — called from #[tauri::command] wrappers in mod.rs.
 
 use crate::agents_layout::{LEARNINGS_API_PREFIX, LEARNINGS_REL, MEMORY_REL};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::fs;
 use std::io::Write as IoWrite;
 use std::path::{Component, Path, PathBuf};
@@ -816,316 +816,77 @@ fn import_tree(src: &Path, dest_root: &Path) -> Result<u32, String> {
 
 // ── Pointer files ─────────────────────────────────────────────────────────────
 
+use crate::pointers::{
+    install_pointer_block, pointer_status as generic_pointer_status, uninstall_pointer_block,
+    Markers,
+};
+
 const POINTER_BEGIN: &str = "<!-- blxcode-memory:begin -->";
 const POINTER_END: &str = "<!-- blxcode-memory:end -->";
 const POINTER_BEGIN_CURSOR: &str = "# blxcode-memory:begin";
 const POINTER_END_CURSOR: &str = "# blxcode-memory:end";
 
-fn pointer_filename(agent: &str) -> Option<&'static str> {
-    match agent {
-        "claude" => Some("CLAUDE.md"),
-        "codex" => Some("AGENTS.md"),
-        "gemini" => Some("GEMINI.md"),
-        "cursor" => Some(".cursorrules"),
-        "opencode" => Some("AGENTS.md"),
-        _ => None,
-    }
-}
+const MEMORY_MARKERS: Markers<'static> = Markers {
+    html: (POINTER_BEGIN, POINTER_END),
+    cursor: (POINTER_BEGIN_CURSOR, POINTER_END_CURSOR),
+};
 
-fn pointer_cursor_style(agent: &str) -> bool {
-    agent == "cursor"
-}
-
-fn pointer_body(workspace_cwd: &Path, notes: &[NoteMeta], cursor_style: bool) -> String {
+fn pointer_body(workspace_cwd: &Path, cursor_style: bool) -> String {
     let memory_dir = workspace_cwd.join(MEMORY_REL);
     let learnings_dir = workspace_cwd.join(LEARNINGS_REL);
     let global_roots = get_global_roots();
     let mut s = String::new();
     if cursor_style {
-        s.push_str("blxcode tracks per-workspace and global memory at the paths below.\n");
+        s.push_str("blxcode tracks per-workspace and global memory + learnings at the paths below.\n");
     } else {
-        s.push_str("## blxcode workspace memory\n\n");
+        s.push_str("## blxcode workspace memory & learnings\n\n");
         s.push_str(
-            "This workspace uses **blxcode** to maintain Markdown notes and learnings \
-shared across all agent sessions. Treat the directories below as authoritative \
-context: read notes that are relevant to the task, and propose new notes \
-or edits when you learn something the team should remember.\n\n",
+            "This workspace uses **blxcode** to maintain two kinds of \
+durable agent context, shared across all sessions and agents:\n\n\
+- **Memory notes** — Markdown facts about the user, project conventions, \
+ongoing initiatives, references. Read before assuming. Add a new note when \
+you learn something the team should remember next turn.\n\
+- **Learnings** — short Markdown entries capturing a concrete insight, \
+pattern, fix, or gotcha discovered during a task. Write one whenever you \
+solved something non-obvious, hit a tricky failure mode, or validated a \
+non-trivial design choice. Source material: debugging sessions, failed \
+attempts, code review feedback, post-mortems, surprising tool output.\n\n",
         );
     }
-    s.push_str(&format!("Workspace memory: `{}`\n", memory_dir.display()));
+    s.push_str(&format!("Workspace memory:    `{}`\n", memory_dir.display()));
     s.push_str(&format!(
-        "Workspace learnings: `{}` (API paths: `learnings/...`)\n",
+        "Workspace learnings: `{}`  (API paths: `learnings/...`)\n",
         learnings_dir.display()
     ));
     s.push_str(&format!(
-        "Global memory: `{}`\n",
+        "Global memory:       `{}`\n",
         global_roots.memory.display()
     ));
     s.push_str(&format!(
-        "Global learnings: `{}`\n",
+        "Global learnings:    `{}`\n",
         global_roots.learnings.display()
     ));
-    s.push_str("Cross-scope links: `[[global:...]]` / `[[workspace:...]]`\n\n");
-    let workspace_notes: Vec<_> = notes
-        .iter()
-        .filter(|n| n.scope == MemoryScope::Workspace && !n.is_template)
-        .collect();
-    if workspace_notes.is_empty() {
-        s.push_str("(no notes yet)\n");
-    } else {
-        s.push_str("Current workspace notes:\n");
-        let mut shown = 0;
-        for n in &workspace_notes {
-            s.push_str(&format!("- `{}`\n", n.path));
-            shown += 1;
-            if shown >= 80 {
-                s.push_str(&format!(
-                    "- ... and {} more\n",
-                    workspace_notes.len().saturating_sub(shown)
-                ));
-                break;
-            }
-        }
-    }
+    s.push_str("Cross-scope links: `[[global:...]]` / `[[workspace:...]]`\n");
     s.push('\n');
     s
-}
-
-fn splice_block(existing: &str, begin: &str, end: &str, new_body: &str) -> String {
-    let block = format!("{begin}\n{new_body}{end}\n");
-    if let (Some(bi), Some(ei)) = (existing.find(begin), existing.find(end)) {
-        if ei > bi {
-            let ei_end = ei + end.len();
-            let tail_start = if ei_end < existing.len() && existing.as_bytes()[ei_end] == b'\n' {
-                ei_end + 1
-            } else {
-                ei_end
-            };
-            let mut out = String::with_capacity(bi + block.len() + existing.len() - tail_start);
-            out.push_str(&existing[..bi]);
-            out.push_str(&block);
-            out.push_str(&existing[tail_start..]);
-            return out;
-        }
-    }
-    if existing.trim().is_empty() {
-        block
-    } else {
-        format!("{}\n\n{block}", existing.trim_end())
-    }
-}
-
-fn strip_block(existing: &str, begin: &str, end: &str) -> String {
-    if let (Some(bi), Some(ei)) = (existing.find(begin), existing.find(end)) {
-        if ei <= bi {
-            return existing.to_owned();
-        }
-        let ei_end = ei + end.len();
-        let tail_start = if ei_end < existing.len() && existing.as_bytes()[ei_end] == b'\n' {
-            ei_end + 1
-        } else {
-            ei_end
-        };
-        let mut out = String::new();
-        out.push_str(&existing[..bi]);
-        out.push_str(&existing[tail_start..]);
-        return out.trim_end().to_owned();
-    }
-    existing.to_owned()
-}
-
-fn block_installed(content: &str, begin: &str, end: &str) -> bool {
-    content.contains(begin) && content.contains(end)
 }
 
 pub fn memory_install_pointers_impl(
     workspace_cwd: &str,
     agents: Vec<String>,
 ) -> Result<Vec<PointerResult>, String> {
-    use crate::agents_layout::validate_workspace_cwd;
-    let ws = validate_workspace_cwd(workspace_cwd)?;
-    let notes = collect_notes(&MemoryScope::Workspace, workspace_cwd);
-    let mut results: Vec<PointerResult> = Vec::new();
-    let mut written: BTreeSet<String> = Default::default();
-    for agent in agents {
-        let Some(fname) = pointer_filename(&agent) else {
-            results.push(PointerResult {
-                agent,
-                path: String::new(),
-                installed: false,
-                note: Some("unknown agent".into()),
-            });
-            continue;
-        };
-        let path = ws.join(fname);
-        if written.contains(fname) {
-            results.push(PointerResult {
-                agent,
-                path: path.to_string_lossy().into_owned(),
-                installed: false,
-                note: Some("shared file already written".into()),
-            });
-            continue;
-        }
-        written.insert(fname.to_owned());
-        if !path.exists() {
-            results.push(PointerResult {
-                agent,
-                path: path.to_string_lossy().into_owned(),
-                installed: false,
-                note: Some("file missing — create it first".into()),
-            });
-            continue;
-        }
-        let cursor_style = pointer_cursor_style(&agent);
-        let body = pointer_body(&ws, &notes, cursor_style);
-        let (begin, end) = if cursor_style {
-            (POINTER_BEGIN_CURSOR, POINTER_END_CURSOR)
-        } else {
-            (POINTER_BEGIN, POINTER_END)
-        };
-        let existing = fs::read_to_string(&path).unwrap_or_default();
-        let updated = splice_block(&existing, begin, end, &body);
-        match fs::write(&path, updated.as_bytes()) {
-            Ok(()) => {
-                results.push(PointerResult {
-                    agent,
-                    path: path.to_string_lossy().into_owned(),
-                    installed: true,
-                    note: None,
-                });
-            }
-            Err(e) => results.push(PointerResult {
-                agent,
-                path: path.to_string_lossy().into_owned(),
-                installed: false,
-                note: Some(format!("write failed: {e}")),
-            }),
-        }
-    }
-    Ok(results)
+    install_pointer_block(workspace_cwd, agents, &MEMORY_MARKERS, pointer_body)
 }
 
 pub fn memory_uninstall_pointers_impl(
     workspace_cwd: &str,
     agents: Vec<String>,
 ) -> Result<Vec<PointerResult>, String> {
-    use crate::agents_layout::validate_workspace_cwd;
-    let ws = validate_workspace_cwd(workspace_cwd)?;
-    let mut results = Vec::new();
-    let mut handled: BTreeSet<String> = Default::default();
-    for agent in agents {
-        let Some(fname) = pointer_filename(&agent) else {
-            results.push(PointerResult {
-                agent,
-                path: String::new(),
-                installed: false,
-                note: Some("unknown agent".into()),
-            });
-            continue;
-        };
-        if handled.contains(fname) {
-            results.push(PointerResult {
-                agent,
-                path: ws.join(fname).to_string_lossy().into_owned(),
-                installed: false,
-                note: Some("shared file already cleaned".into()),
-            });
-            continue;
-        }
-        let path = ws.join(fname);
-        handled.insert(fname.to_owned());
-        if !path.exists() {
-            results.push(PointerResult {
-                agent,
-                path: path.to_string_lossy().into_owned(),
-                installed: false,
-                note: Some("no file".into()),
-            });
-            continue;
-        }
-        let cursor_style = pointer_cursor_style(&agent);
-        let (begin, end) = if cursor_style {
-            (POINTER_BEGIN_CURSOR, POINTER_END_CURSOR)
-        } else {
-            (POINTER_BEGIN, POINTER_END)
-        };
-        let existing = fs::read_to_string(&path).unwrap_or_default();
-        let stripped = strip_block(&existing, begin, end);
-        if stripped.trim().is_empty() {
-            if let Err(e) = fs::remove_file(&path) {
-                results.push(PointerResult {
-                    agent,
-                    path: path.to_string_lossy().into_owned(),
-                    installed: false,
-                    note: Some(format!("remove failed: {e}")),
-                });
-                continue;
-            }
-        } else if let Err(e) = fs::write(&path, format!("{stripped}\n").as_bytes()) {
-            results.push(PointerResult {
-                agent,
-                path: path.to_string_lossy().into_owned(),
-                installed: false,
-                note: Some(format!("write failed: {e}")),
-            });
-            continue;
-        }
-        results.push(PointerResult {
-            agent,
-            path: path.to_string_lossy().into_owned(),
-            installed: false,
-            note: None,
-        });
-    }
-    Ok(results)
+    uninstall_pointer_block(workspace_cwd, agents, &MEMORY_MARKERS)
 }
 
 pub fn memory_pointer_status_impl(workspace_cwd: &str) -> Result<Vec<PointerResult>, String> {
-    use crate::agents_layout::validate_workspace_cwd;
-    let ws = validate_workspace_cwd(workspace_cwd)?;
-    let agents = ["claude", "codex", "gemini", "cursor", "opencode"];
-    let mut out = Vec::new();
-    let mut handled: BTreeSet<String> = Default::default();
-    for a in agents {
-        let Some(fname) = pointer_filename(a) else {
-            continue;
-        };
-        let path = ws.join(fname);
-        if handled.contains(fname) {
-            out.push(PointerResult {
-                agent: a.to_owned(),
-                path: path.to_string_lossy().into_owned(),
-                installed: false,
-                note: Some("shared file already handled".into()),
-            });
-            continue;
-        }
-        handled.insert(fname.to_owned());
-        if !path.exists() {
-            out.push(PointerResult {
-                agent: a.to_owned(),
-                path: path.to_string_lossy().into_owned(),
-                installed: false,
-                note: Some("file missing".into()),
-            });
-            continue;
-        }
-        let body = fs::read_to_string(&path).unwrap_or_default();
-        let cursor_style = pointer_cursor_style(a);
-        let (begin, end) = if cursor_style {
-            (POINTER_BEGIN_CURSOR, POINTER_END_CURSOR)
-        } else {
-            (POINTER_BEGIN, POINTER_END)
-        };
-        out.push(PointerResult {
-            agent: a.to_owned(),
-            path: path.to_string_lossy().into_owned(),
-            installed: block_installed(&body, begin, end),
-            note: None,
-        });
-    }
-    Ok(out)
+    generic_pointer_status(workspace_cwd, &MEMORY_MARKERS)
 }
 
 #[cfg(test)]
@@ -1141,22 +902,6 @@ mod pointer_tests {
         let path = std::env::temp_dir().join(format!("blxcode-pointer-{name}-{nonce}"));
         fs::create_dir_all(&path).unwrap();
         path
-    }
-
-    #[test]
-    fn splice_block_appends_to_user_owned_file() {
-        let updated = splice_block("existing\n", POINTER_BEGIN, POINTER_END, "body\n");
-        assert_eq!(
-            updated,
-            format!("existing\n\n{POINTER_BEGIN}\nbody\n{POINTER_END}\n")
-        );
-    }
-
-    #[test]
-    fn strip_block_removes_only_managed_block() {
-        let existing = format!("before\n\n{POINTER_BEGIN}\nbody\n{POINTER_END}\n\nafter\n");
-        let stripped = strip_block(&existing, POINTER_BEGIN, POINTER_END);
-        assert_eq!(stripped, "before\n\n\nafter");
     }
 
     #[test]
@@ -1177,10 +922,9 @@ mod pointer_tests {
     }
 
     #[test]
-    fn install_replaces_block_and_uses_shared_notes() {
+    fn install_replaces_block_and_mentions_learnings() {
         let ws = temp_ws("install");
         fs::create_dir_all(ws.join(MEMORY_REL)).unwrap();
-        fs::write(ws.join(MEMORY_REL).join("README.md"), "# Memory\n").unwrap();
         fs::write(
             ws.join("AGENTS.md"),
             format!("{POINTER_BEGIN}\nold\n{POINTER_END}\n"),
@@ -1197,8 +941,12 @@ mod pointer_tests {
             Some("shared file already written")
         );
         let content = fs::read_to_string(ws.join("AGENTS.md")).unwrap();
-        assert!(content.contains("Workspace memory:"));
+        assert!(content.contains("Workspace memory:"), "missing memory path: {content}");
+        assert!(content.contains("Workspace learnings:"), "missing learnings path: {content}");
         assert!(content.contains("Global memory:"));
+        assert!(content.contains("Global learnings:"));
+        // Pointer body should NOT enumerate notes anymore — it's now path-only.
+        assert!(!content.contains("Current workspace notes:"));
         assert!(!content.contains("old"));
         let _ = fs::remove_dir_all(ws);
     }
