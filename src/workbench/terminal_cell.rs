@@ -354,7 +354,6 @@ pub fn WorkspaceTerminalCell(
             let _ = is_full_size.get();
             if visible {
                 spawn_terminal_xterm_fit(state.clone(), 240, 50);
-                spawn_terminal_refit(state.clone(), 240, 50);
                 if !agent_slug.trim().is_empty() {
                     schedule_agent_launch_retries(state.clone());
                 }
@@ -1009,19 +1008,12 @@ async fn refit_xterm_until_ready(
     attempts: u32,
     delay_ms: u32,
 ) -> Option<TerminalSize> {
-    let mut requested_fit = false;
     for _ in 0..attempts {
         let Some(term_id) = terminal_id(&state) else {
             TimeoutFuture::new(delay_ms).await;
             continue;
         };
-        let size = if requested_fit {
-            terminal_fit(term_id)
-        } else {
-            requested_fit = true;
-            terminal_request_fit(term_id).or_else(|| terminal_fit(term_id))
-        };
-        if let Some(size) = size.and_then(valid_terminal_size) {
+        if let Some(size) = terminal_fit(term_id).and_then(valid_terminal_size) {
             return Some(size);
         }
         TimeoutFuture::new(delay_ms).await;

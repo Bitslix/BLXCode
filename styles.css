@@ -3258,7 +3258,7 @@ button.workbench-shortcut-row--action:focus-visible {
 
 .agent-tool-row {
   display: inline-block;
-  max-width: min(100%, 36rem);
+  max-width: min(100%, 24rem);
   border-radius: 0.5rem;
   border: 1px solid var(--overlay-2);
   background: var(--overlay-1);
