@@ -6,7 +6,8 @@ use crate::config::{
 };
 use crate::tauri_bridge::{
     agent_environment_invalidate, is_tauri_shell, skills_rules_bootstrap, workbench_drop_sessions,
-    workbench_extract_sessions_prefix, workbench_merge_sessions_workspace, workspace_ensure_agents,
+    workbench_extract_sessions_prefix, workbench_merge_sessions_workspace,
+    workbench_rewrite_terminal_keys, workspace_ensure_agents,
 };
 use crate::workbench::agent_timeline::TimelineItem;
 use gloo_timers::future::TimeoutFuture;
@@ -1032,6 +1033,57 @@ pub struct WorkbenchService {
     /// Bumped when the active workspace repo root changes (e.g. inline configure
     /// commit). Agent timeline/draft updates must not re-subscribe sidebar git checks.
     sidebar_repo_epoch: RwSignal<u32>,
+    /// Old `terminal_key`s whose PTY is currently being adopted by a new
+    /// cell mount (Cross-workspace transfer or extract-to-new-workspace).
+    /// While present, the unmounting source cell's cleanup must NOT call
+    /// `pty_kill` — the new cell owns the live PTY under its new key.
+    /// Cleared automatically after the corresponding adoption completes
+    /// or after a short safety timeout.
+    terminal_move_guards: RwSignal<HashMap<String, String>>,
+    /// Adoptable PTY sessions keyed by the **new** `terminal_key`. The
+    /// freshly mounted target cell consumes this to skip `pty_spawn` and
+    /// reuse the live session instead.
+    terminal_adopt_pending: RwSignal<HashMap<String, u64>>,
+}
+
+/// Cross-workspace terminal slot move; returned by
+/// [`WorkbenchService::transfer_terminal_slot`] so the caller can wire up
+/// any follow-up adoption (PTY skip-kill, sessions.json key rewrite).
+///
+/// `pane_ids` lists the per-pane suffix used to build `terminal_key`s on
+/// both sides — `{old_storage_key}:{old_slot_id}:{pane_id}` →
+/// `{new_storage_key}:{new_slot_id}:{pane_id}`. Pane ids are preserved as
+/// they were (locally-unique inside the slot), so an existing xterm/PTY
+/// remount just needs the storage/slot prefix swapped.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TerminalSlotMove {
+    pub from_workspace_id: u64,
+    pub to_workspace_id: u64,
+    pub old_storage_key: String,
+    pub new_storage_key: String,
+    pub old_slot_id: u64,
+    pub new_slot_id: u64,
+    pub pane_ids: Vec<u64>,
+    pub agent_slug: String,
+}
+
+impl TerminalSlotMove {
+    /// `(old_terminal_key, new_terminal_key)` pairs derived from the move,
+    /// in pane order. Both the PTY/session live registries and the on-disk
+    /// `sessions.json` / `notifications.json` are keyed by `terminal_key`,
+    /// so every callsite that needs to remap must walk these pairs.
+    #[must_use]
+    pub fn terminal_key_pairs(&self) -> Vec<(String, String)> {
+        self.pane_ids
+            .iter()
+            .map(|&pane_id| {
+                (
+                    format!("{}:{}:{}", self.old_storage_key, self.old_slot_id, pane_id),
+                    format!("{}:{}:{}", self.new_storage_key, self.new_slot_id, pane_id),
+                )
+            })
+            .collect()
+    }
 }
 
 /// Sidebar badge aggregate for one workspace row. A single total across
@@ -1104,6 +1156,8 @@ impl WorkbenchService {
             memory_color_presets: RwSignal::new(memory_color_presets),
             agent_image_context: RwSignal::new(HashMap::new()),
             sidebar_repo_epoch: RwSignal::new(0),
+            terminal_move_guards: RwSignal::new(HashMap::new()),
+            terminal_adopt_pending: RwSignal::new(HashMap::new()),
         }
     }
 
@@ -2139,25 +2193,231 @@ impl WorkbenchService {
         }
     }
 
-    /// Reorders terminal slots within a workspace. `to_index` is the
-    /// insertion position in the list **after** removing `from_index`
-    /// (same semantics as [`Self::reorder_workspaces`]).
-    pub fn reorder_terminal_slots(&self, workspace_id: u64, from_index: usize, to_index: usize) {
+    /// Swaps two terminal slots by id. Used by the EB-parity grid DnD
+    /// where dropping slot A on slot B exchanges their grid positions
+    /// instead of insert-reordering. Both slots must live in the same
+    /// workspace; no-op for unknown ids or `slot_a == slot_b`.
+    pub fn swap_terminal_slots(&self, workspace_id: u64, slot_a: u64, slot_b: u64) {
+        if slot_a == slot_b {
+            return;
+        }
         self.workspaces.update(|workspaces| {
-            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
-                return;
-            };
-            reorder_workspace_slots(workspace, from_index, to_index);
+            if let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                swap_workspace_slots(workspace, slot_a, slot_b);
+            }
         });
     }
 
-    /// Live index of `slot_id` in the workspace grid (after any reorders).
-    pub fn terminal_slot_index(&self, workspace_id: u64, slot_id: u64) -> Option<usize> {
-        self.workspaces.with_untracked(|list| {
-            list.iter()
-                .find(|w| w.id == workspace_id)
-                .and_then(|w| w.slot_ids.iter().position(|&id| id == slot_id))
-        })
+    /// True while the source cell's `terminal_key` is mid-transfer. The
+    /// cell's `on_cleanup` consults this to decide whether to `pty_kill`
+    /// the underlying session — adopted PTYs must outlive the unmount.
+    #[must_use]
+    pub fn is_terminal_key_moving(&self, terminal_key: &str) -> bool {
+        self.terminal_move_guards
+            .with_untracked(|m| m.contains_key(terminal_key))
+    }
+
+    /// Consume the adoptable PTY session id registered for `new_key` by
+    /// a pending cross-workspace move. Returns `Some(sid)` exactly once;
+    /// the target cell's bootstrap uses this to skip a new `pty_spawn`
+    /// and bind its xterm directly to the live session. Also clears the
+    /// matching `terminal_move_guards` entry so an explicit close on the
+    /// adopted cell behaves normally.
+    pub fn take_terminal_adopt(&self, new_terminal_key: &str) -> Option<u64> {
+        let mut sid: Option<u64> = None;
+        self.terminal_adopt_pending.update(|m| {
+            sid = m.remove(new_terminal_key);
+        });
+        if sid.is_some() {
+            let new_owned = new_terminal_key.to_string();
+            self.terminal_move_guards
+                .update(|m| m.retain(|_old, new| new != &new_owned));
+        }
+        sid
+    }
+
+    /// Rewrite live PTY/notification/focus registries for the given
+    /// `(old_key, new_key)` pairs, register guards so cleanup of the
+    /// source cell does not kill the moved PTY, and queue adopt entries
+    /// for the new cell's bootstrap. Also asks the Tauri layer to rewrite
+    /// `sessions.json` and `notifications.json` so resume + unread state
+    /// follow the slot across workspaces. A safety timeout drops the
+    /// guards even if the new cell never mounts.
+    fn begin_terminal_move(&self, pairs: &[(String, String)]) {
+        if pairs.is_empty() {
+            return;
+        }
+        // Move live PTY session map entries old_key -> new_key.
+        let mut adopt_pairs: Vec<(String, u64)> = Vec::with_capacity(pairs.len());
+        self.pty_sessions.update(|m| {
+            for (old, new) in pairs {
+                if let Some(sid) = m.remove(old) {
+                    m.insert(new.clone(), sid);
+                    adopt_pairs.push((new.clone(), sid));
+                }
+            }
+        });
+        // Move notification counts so the badge follows the slot.
+        self.notifications.update(|m| {
+            for (old, new) in pairs {
+                if let Some(count) = m.remove(old) {
+                    m.insert(new.clone(), count);
+                }
+            }
+        });
+        // Rewrite focused-terminal entries that pointed at the old keys.
+        let lookup: HashMap<&String, &String> = pairs.iter().map(|(o, n)| (o, n)).collect();
+        self.focused_terminal_by_workspace.update(|m| {
+            for v in m.values_mut() {
+                if let Some(new) = lookup.get(v) {
+                    *v = (*new).clone();
+                }
+            }
+        });
+        // Mark old keys as "do not kill PTY on cleanup" + queue adopt sids.
+        self.terminal_move_guards.update(|m| {
+            for (old, new) in pairs {
+                m.insert(old.clone(), new.clone());
+            }
+        });
+        self.terminal_adopt_pending.update(|m| {
+            for (new, sid) in &adopt_pairs {
+                m.insert(new.clone(), *sid);
+            }
+        });
+        // Tauri-side key rewrite — fire and forget; failure is non-fatal
+        // (resume/unread will fall back to the next regular sync).
+        if is_tauri_shell() {
+            let owned: Vec<(String, String)> = pairs.to_vec();
+            spawn_local(async move {
+                if let Err(err) = workbench_rewrite_terminal_keys(owned).await {
+                    leptos::logging::warn!("workbench_rewrite_terminal_keys: {err}");
+                }
+            });
+        }
+        // Drop guards after a brief window so a never-mounted target
+        // (e.g. workspace closed mid-transfer) doesn't keep leaking the
+        // skip-kill bit forever.
+        let svc = *self;
+        let old_keys: Vec<String> = pairs.iter().map(|(o, _)| o.clone()).collect();
+        let new_keys: Vec<String> = pairs.iter().map(|(_, n)| n.clone()).collect();
+        spawn_local(async move {
+            TimeoutFuture::new(5_000).await;
+            svc.terminal_move_guards.update(|m| {
+                for k in &old_keys {
+                    m.remove(k);
+                }
+            });
+            svc.terminal_adopt_pending.update(|m| {
+                for k in &new_keys {
+                    m.remove(k);
+                }
+            });
+        });
+    }
+
+    /// Move a terminal slot from one workspace to another. Reuses the
+    /// MoveGuard / adopt path so the slot's running PTY (and its agent
+    /// CLI inside it) survives the cell remount. Returns the resulting
+    /// [`TerminalSlotMove`] so the caller can react (toast, focus, …);
+    /// callers don't normally need to do anything else — the state
+    /// update + key rewrites are wired internally.
+    pub fn transfer_terminal_slot(
+        &self,
+        from_workspace_id: u64,
+        to_workspace_id: u64,
+        slot_id: u64,
+    ) -> Result<TerminalSlotMove, String> {
+        let mut result: Result<TerminalSlotMove, String> = Err("not run".into());
+        self.workspaces.update(|workspaces| {
+            result = transfer_workspace_slot(
+                workspaces,
+                from_workspace_id,
+                to_workspace_id,
+                slot_id,
+            );
+        });
+        let mv = result?;
+        // Set up adoption guards AFTER the state mutation: the source
+        // cell's `on_cleanup` runs on the next render (Leptos batches),
+        // which is after this synchronous block — the guard will be in
+        // place by then and pty_kill will be skipped.
+        let pairs = mv.terminal_key_pairs();
+        self.begin_terminal_move(&pairs);
+        // Activate the target workspace so the user sees the slot land
+        // (mirrors EB's `extractSlotToNewWorkspace` behaviour).
+        self.select_workspace(to_workspace_id);
+        Ok(mv)
+    }
+
+    /// Extract a slot into a brand-new workspace. Allocates a fresh
+    /// workspace entry that inherits the source workspace's cwd, then
+    /// delegates to [`Self::transfer_terminal_slot`] so the PTY-adopt
+    /// path is identical to a cross-workspace drop on an existing row.
+    pub fn extract_terminal_slot_to_new_workspace(
+        &self,
+        workspace_id: u64,
+        slot_id: u64,
+    ) -> Result<TerminalSlotMove, String> {
+        let (cwd, color_seed) = self
+            .workspaces
+            .with_untracked(|list| -> Result<(String, usize), String> {
+                let source = list
+                    .iter()
+                    .find(|w| w.id == workspace_id)
+                    .ok_or_else(|| "source workspace not found".to_string())?;
+                if source.slot_ids.len() <= 1 {
+                    return Err("source workspace must keep at least one slot".into());
+                }
+                if !source.slot_ids.iter().any(|id| *id == slot_id) {
+                    return Err("slot not found in source workspace".into());
+                }
+                Ok((source.cwd.clone(), list.len()))
+            })?;
+        let new_id = self.allocate_workspace_id();
+        let title = format!("Workspace {new_id}");
+        let color = self.workspace_color_for_new_index(color_seed);
+        self.workspaces.update(|workspaces| {
+            workspaces.push(WorkspaceEntry {
+                id: new_id,
+                storage_key: WorkspaceEntry::new_storage_key(),
+                title,
+                color,
+                cwd: cwd.clone(),
+                terminal_count: 0,
+                grid_rows: 1,
+                grid_cols: 1,
+                next_terminal_id: 1,
+                slot_ids: Vec::new(),
+                slot_agent_labels: Vec::new(),
+                slot_pane_states: Vec::new(),
+                configuring: false,
+                agent_timeline: Vec::new(),
+                agent_compose_draft: String::new(),
+                agent_image_mode: false,
+                agent_context_items: Vec::new(),
+                memory_category_settings: HashMap::new(),
+                agent_chat_usage: ChatUsageStats::default(),
+                sidebar_explorer_open: true,
+                sidebar_graph_open: false,
+                sidebar_diff_open: true,
+                sidebar_explorer_expanded_paths: Vec::new(),
+                center_tabs: default_center_tabs(),
+                center_active_tab_id: default_center_active_tab_id(),
+                center_next_tab_id: default_center_next_tab_id(),
+            });
+        });
+        match self.transfer_terminal_slot(workspace_id, new_id, slot_id) {
+            Ok(mv) => Ok(mv),
+            Err(err) => {
+                // Roll the empty workspace back so a failed extract
+                // doesn't litter the sidebar with empty placeholders.
+                self.workspaces
+                    .update(|list| list.retain(|w| w.id != new_id));
+                self.reset_workspace_id_counter_if_empty();
+                Err(err)
+            }
+        }
     }
 
     #[must_use]
@@ -3403,6 +3663,136 @@ pub fn derive_workspace_name(path: &str) -> Option<String> {
     Some(last.to_string())
 }
 
+/// Pure swap of two slots by id within a single workspace. Returns
+/// `true` when the swap actually happened. Normalises `slot_pane_states`
+/// / `slot_agent_labels` lengths on the way in so callers don't have to
+/// guard against snapshots written before those fields existed.
+fn swap_workspace_slots(workspace: &mut WorkspaceEntry, slot_a: u64, slot_b: u64) -> bool {
+    if slot_a == slot_b {
+        return false;
+    }
+    let Some(idx_a) = workspace.slot_ids.iter().position(|id| *id == slot_a) else {
+        return false;
+    };
+    let Some(idx_b) = workspace.slot_ids.iter().position(|id| *id == slot_b) else {
+        return false;
+    };
+    while workspace.slot_pane_states.len() < workspace.slot_ids.len() {
+        let sid = workspace.slot_ids[workspace.slot_pane_states.len()];
+        workspace
+            .slot_pane_states
+            .push(SlotPaneState::default_for_slot(sid));
+    }
+    while workspace.slot_agent_labels.len() < workspace.slot_ids.len() {
+        workspace.slot_agent_labels.push(String::new());
+    }
+    workspace.slot_ids.swap(idx_a, idx_b);
+    workspace.slot_agent_labels.swap(idx_a, idx_b);
+    workspace.slot_pane_states.swap(idx_a, idx_b);
+    true
+}
+
+/// Pure transfer of a slot between two workspaces, validating inputs and
+/// returning the resulting [`TerminalSlotMove`]. Callers wire any
+/// side-effects (PTY adoption, key rewrites, focus changes) themselves.
+fn transfer_workspace_slot(
+    workspaces: &mut Vec<WorkspaceEntry>,
+    from_workspace_id: u64,
+    to_workspace_id: u64,
+    slot_id: u64,
+) -> Result<TerminalSlotMove, String> {
+    if from_workspace_id == to_workspace_id {
+        return Err("cannot transfer terminal to the same workspace".into());
+    }
+    // Read source + target snapshots up-front so the borrow checker is
+    // happy when we mutate both inside the same Vec.
+    struct SrcInfo {
+        index: usize,
+        storage_key: String,
+        agent_label: String,
+        pane_state: SlotPaneState,
+    }
+    let src = {
+        let source = workspaces
+            .iter()
+            .find(|w| w.id == from_workspace_id)
+            .ok_or_else(|| "source workspace not found".to_string())?;
+        if source.slot_ids.len() <= 1 {
+            return Err("source workspace must keep at least one slot".into());
+        }
+        let index = source
+            .slot_ids
+            .iter()
+            .position(|id| *id == slot_id)
+            .ok_or_else(|| "slot not found in source workspace".to_string())?;
+        let agent_label = source
+            .slot_agent_labels
+            .get(index)
+            .cloned()
+            .unwrap_or_default();
+        let pane_state = source
+            .slot_pane_states
+            .get(index)
+            .cloned()
+            .unwrap_or_else(|| SlotPaneState::default_for_slot(slot_id));
+        SrcInfo {
+            index,
+            storage_key: source.storage_key.clone(),
+            agent_label,
+            pane_state,
+        }
+    };
+    let (target_storage_key, new_slot_id) = {
+        let target = workspaces
+            .iter()
+            .find(|w| w.id == to_workspace_id)
+            .ok_or_else(|| "target workspace not found".to_string())?;
+        if is_shell_workspace(target) {
+            return Err("target workspace is not a valid drop target".into());
+        }
+        if target.slot_ids.len() >= 16 {
+            return Err("target workspace already at maximum (16 slots)".into());
+        }
+        let mut new_slot_id = target.next_terminal_id.max(1);
+        while target.slot_ids.iter().any(|x| *x == new_slot_id) {
+            new_slot_id += 1;
+        }
+        (target.storage_key.clone(), new_slot_id)
+    };
+
+    if let Some(source) = workspaces.iter_mut().find(|w| w.id == from_workspace_id) {
+        source.slot_ids.remove(src.index);
+        if src.index < source.slot_agent_labels.len() {
+            source.slot_agent_labels.remove(src.index);
+        }
+        if src.index < source.slot_pane_states.len() {
+            source.slot_pane_states.remove(src.index);
+        }
+        let next_count = source.slot_ids.len() as u8;
+        source.set_count_and_dims(next_count.max(1));
+    }
+    if let Some(target) = workspaces.iter_mut().find(|w| w.id == to_workspace_id) {
+        target.slot_ids.push(new_slot_id);
+        target.slot_agent_labels.push(src.agent_label.clone());
+        target.slot_pane_states.push(src.pane_state.clone());
+        target.next_terminal_id = new_slot_id.saturating_add(1);
+        let next_count = target.slot_ids.len() as u8;
+        target.set_count_and_dims(next_count.max(1));
+    }
+
+    Ok(TerminalSlotMove {
+        from_workspace_id,
+        to_workspace_id,
+        old_storage_key: src.storage_key,
+        new_storage_key: target_storage_key,
+        old_slot_id: slot_id,
+        new_slot_id,
+        pane_ids: src.pane_state.pane_ids.clone(),
+        agent_slug: src.agent_label,
+    })
+}
+
+#[cfg(test)]
 fn reorder_workspace_slots(workspace: &mut WorkspaceEntry, from_index: usize, to_index: usize) {
     if from_index == to_index {
         return;
@@ -3573,5 +3963,117 @@ mod terminal_slot_tests {
         let mut ws = mk_slots(2);
         reorder_workspace_slots(&mut ws, 0, 1);
         assert_eq!(ws.slot_ids, vec![2, 1]);
+    }
+
+    #[test]
+    fn swap_exchanges_slot_positions() {
+        let mut ws = mk_slots(3);
+        assert!(swap_workspace_slots(&mut ws, 1, 3));
+        assert_eq!(ws.slot_ids, vec![3, 2, 1]);
+        assert_eq!(
+            ws.slot_agent_labels,
+            vec!["label2".to_string(), "label1".into(), "label0".into()]
+        );
+        assert_eq!(ws.slot_pane_states[0], SlotPaneState::default_for_slot(3));
+        assert_eq!(ws.slot_pane_states[2], SlotPaneState::default_for_slot(1));
+    }
+
+    #[test]
+    fn swap_noop_on_same_slot() {
+        let mut ws = mk_slots(3);
+        assert!(!swap_workspace_slots(&mut ws, 2, 2));
+        assert_eq!(ws.slot_ids, vec![1, 2, 3]);
+    }
+
+    #[test]
+    fn swap_normalizes_missing_pane_states() {
+        let mut ws = mk_slots(3);
+        ws.slot_pane_states.clear();
+        assert!(swap_workspace_slots(&mut ws, 1, 3));
+        assert_eq!(ws.slot_ids, vec![3, 2, 1]);
+        assert_eq!(ws.slot_pane_states.len(), 3);
+        assert_eq!(ws.slot_pane_states[0], SlotPaneState::default_for_slot(3));
+        assert_eq!(ws.slot_pane_states[2], SlotPaneState::default_for_slot(1));
+    }
+
+    #[test]
+    fn swap_skipped_for_unknown_id() {
+        let mut ws = mk_slots(2);
+        assert!(!swap_workspace_slots(&mut ws, 1, 99));
+        assert_eq!(ws.slot_ids, vec![1, 2]);
+    }
+
+    fn mk_slots_with_id(id: u64, n: u8) -> WorkspaceEntry {
+        let mut ws = mk_slots(n);
+        ws.id = id;
+        ws.storage_key = format!("ws-storage-{id}");
+        ws
+    }
+
+    #[test]
+    fn transfer_moves_slot_to_target_and_keeps_arrays_aligned() {
+        let mut list = vec![mk_slots_with_id(1, 3), mk_slots_with_id(2, 1)];
+        let mv = transfer_workspace_slot(&mut list, 1, 2, 2).expect("transfer ok");
+        assert_eq!(mv.from_workspace_id, 1);
+        assert_eq!(mv.to_workspace_id, 2);
+        assert_eq!(mv.old_slot_id, 2);
+        let source = list.iter().find(|w| w.id == 1).unwrap();
+        let target = list.iter().find(|w| w.id == 2).unwrap();
+        assert_eq!(source.slot_ids, vec![1, 3]);
+        assert_eq!(source.slot_agent_labels.len(), source.slot_ids.len());
+        assert_eq!(source.slot_pane_states.len(), source.slot_ids.len());
+        assert_eq!(target.slot_ids.len(), 2);
+        assert_eq!(target.slot_ids[1], mv.new_slot_id);
+        assert!(target.next_terminal_id > mv.new_slot_id);
+        // Pane state on the target preserves the source's pane layout.
+        assert_eq!(target.slot_pane_states[1].pane_ids, mv.pane_ids);
+    }
+
+    #[test]
+    fn transfer_rejects_same_workspace_and_last_slot_and_full_target() {
+        let mut list = vec![mk_slots_with_id(1, 2)];
+        assert!(transfer_workspace_slot(&mut list, 1, 1, 1).is_err());
+
+        let mut list = vec![mk_slots_with_id(1, 1), mk_slots_with_id(2, 1)];
+        assert!(transfer_workspace_slot(&mut list, 1, 2, 1).is_err());
+
+        let mut target = mk_slots_with_id(2, 16);
+        target.next_terminal_id = 17;
+        let mut list = vec![mk_slots_with_id(1, 2), target];
+        assert!(transfer_workspace_slot(&mut list, 1, 2, 1).is_err());
+    }
+
+    #[test]
+    fn transfer_mints_fresh_slot_id_on_target() {
+        let mut list = vec![mk_slots_with_id(1, 3), mk_slots_with_id(2, 2)];
+        let mv = transfer_workspace_slot(&mut list, 1, 2, 2).expect("transfer ok");
+        let target = list.iter().find(|w| w.id == 2).unwrap();
+        assert_ne!(mv.new_slot_id, 2);
+        assert!(target.slot_ids.contains(&mv.new_slot_id));
+    }
+
+    #[test]
+    fn terminal_key_pairs_use_per_pane_suffix() {
+        let mut list = vec![mk_slots_with_id(1, 3), mk_slots_with_id(2, 1)];
+        // Inject a multi-pane slot so the pair count exceeds 1.
+        if let Some(ws) = list.iter_mut().find(|w| w.id == 1) {
+            ws.slot_pane_states[1] = SlotPaneState {
+                axis: TerminalSplitAxis::Vertical,
+                pane_ids: vec![7, 11],
+                next_pane_id: 12,
+            };
+        }
+        let mv = transfer_workspace_slot(&mut list, 1, 2, 2).expect("transfer ok");
+        let pairs = mv.terminal_key_pairs();
+        assert_eq!(pairs.len(), 2);
+        assert!(pairs[0]
+            .0
+            .ends_with(&format!(":{}:7", mv.old_slot_id)));
+        assert!(pairs[0]
+            .1
+            .ends_with(&format!(":{}:7", mv.new_slot_id)));
+        assert!(pairs[1]
+            .0
+            .ends_with(&format!(":{}:11", mv.old_slot_id)));
     }
 }

@@ -1,5 +1,11 @@
 use crate::agent_wire::AgentImageContextItem;
-use crate::tauri_bridge::{agent_read_image_file, AgentImageFilePayload};
+use crate::tauri_bridge::{agent_read_image_file, pty_peek_output, AgentImageFilePayload};
+use crate::workbench::agent_context_handoff::{
+    list_workspace_terminal_targets, terminal_session_context_item_with_content,
+};
+use crate::workbench::terminal_slot_dnd::{
+    is_terminal_drag, read_drag_payload, TerminalSlotDragPayload, TerminalSlotDragService,
+};
 use crate::workbench::WorkbenchService;
 use js_sys::{Array, Date, Function, Reflect};
 use leptos::prelude::*;
@@ -12,11 +18,13 @@ use web_sys::{ClipboardEvent, DragEvent, File, FileReader, KeyboardEvent};
 const MAX_IMAGE_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_PENDING_IMAGES: usize = 4;
 const MAX_TURN_IMAGE_BYTES: u64 = 16 * 1024 * 1024;
+const TERMINAL_CONTEXT_TAIL_BYTES: usize = 4096;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DropZoneState {
     Inactive,
-    Accept,
+    AcceptImage,
+    AcceptTerminal,
     Reject,
 }
 
@@ -30,8 +38,9 @@ impl DropZoneState {
     pub fn message(&self) -> &'static str {
         match self {
             Self::Inactive => "",
-            Self::Accept => "Drop images to attach",
-            Self::Reject => "Only image files can be attached",
+            Self::AcceptImage => "Drop images to attach",
+            Self::AcceptTerminal => "Drop terminal to attach session context",
+            Self::Reject => "Only image files or terminal sessions can be attached",
         }
     }
 }
@@ -46,13 +55,25 @@ pub fn install_agent_image_intake(
     install_tauri_drop_listener(wb, drop_state, status_line);
 }
 
-pub fn handle_dom_drag_event(ev: DragEvent, drop_state: RwSignal<DropZoneState>) {
-    if has_image_drag(&ev) {
+pub fn handle_dom_drag_event(
+    ev: DragEvent,
+    drop_state: RwSignal<DropZoneState>,
+    slot_dnd: TerminalSlotDragService,
+) {
+    if has_terminal_drag(&ev, slot_dnd) {
+        ev.prevent_default();
+        ev.stop_propagation();
+        if let Some(dt) = ev.data_transfer() {
+            let _ = dt.set_drop_effect("copy");
+        }
+        slot_dnd.set_overlay_pos_from_event(&ev);
+        drop_state.set(DropZoneState::AcceptTerminal);
+    } else if has_image_drag(&ev) {
         ev.prevent_default();
         if let Some(dt) = ev.data_transfer() {
             let _ = dt.set_drop_effect("copy");
         }
-        drop_state.set(DropZoneState::Accept);
+        drop_state.set(DropZoneState::AcceptImage);
     } else if has_file_drag(&ev) {
         ev.prevent_default();
         if let Some(dt) = ev.data_transfer() {
@@ -67,12 +88,21 @@ pub fn handle_dom_drop(
     wb: WorkbenchService,
     drop_state: RwSignal<DropZoneState>,
     status_line: RwSignal<Option<String>>,
+    slot_dnd: TerminalSlotDragService,
 ) {
     ev.prevent_default();
     drop_state.set(DropZoneState::Inactive);
     let Some(dt) = ev.data_transfer() else {
         return;
     };
+
+    if let Some(payload) = read_drag_payload(&dt).or_else(|| terminal_payload_from_active(slot_dnd))
+    {
+        ev.stop_propagation();
+        attach_terminal_context(payload, wb, status_line, slot_dnd);
+        return;
+    }
+
     let Some(files) = dt.files() else {
         return;
     };
@@ -174,7 +204,7 @@ fn install_tauri_drop_listener(
             .and_then(|v| v.as_string())
             .unwrap_or_default();
         match kind.as_str() {
-            "enter" | "over" => drop_state.set(DropZoneState::Accept),
+            "enter" | "over" => drop_state.set(DropZoneState::AcceptImage),
             "leave" => drop_state.set(DropZoneState::Inactive),
             "drop" => {
                 drop_state.set(DropZoneState::Inactive);
@@ -326,6 +356,85 @@ fn add_image_payload(
     status_line.set(None);
 }
 
+fn attach_terminal_context(
+    payload: TerminalSlotDragPayload,
+    wb: WorkbenchService,
+    status_line: RwSignal<Option<String>>,
+    slot_dnd: TerminalSlotDragService,
+) {
+    let Some(active_ws_id) = wb.active_id().get_untracked() else {
+        slot_dnd.clear();
+        status_line.set(Some("Select a workspace tab first.".into()));
+        return;
+    };
+    if payload.workspace_id != active_ws_id {
+        slot_dnd.clear();
+        status_line.set(Some(
+            "Terminal context can only be attached to its own workspace.".into(),
+        ));
+        return;
+    }
+
+    let target = list_workspace_terminal_targets(&wb, active_ws_id)
+        .into_iter()
+        .find(|target| target.slot_id == payload.slot_id);
+    let Some(target) = target else {
+        slot_dnd.clear();
+        status_line.set(Some(format!(
+            "Terminal slot {} has no running session.",
+            payload.slot_id
+        )));
+        return;
+    };
+
+    status_line.set(None);
+    leptos::task::spawn_local(async move {
+        let tail = match pty_peek_output(target.session_id, TERMINAL_CONTEXT_TAIL_BYTES).await {
+            Ok(text) => terminal_tail_content(&text),
+            Err(err) => Some(format!("Could not read terminal output tail: {err}")),
+        };
+        let agent = if target.agent_slug.trim().is_empty() {
+            "shell".to_string()
+        } else {
+            target.agent_slug.clone()
+        };
+        let source = format!(
+            "Live terminal session: slot {}, pane {}, session {}, agent={}. Use `harness.read_terminal_output` with slotId {} to inspect fresh output if needed.",
+            target.slot_id,
+            target.pane_id,
+            target.session_id,
+            agent,
+            target.slot_id
+        );
+        let item = terminal_session_context_item_with_content(
+            target.slot_id,
+            &target.label,
+            &source,
+            tail,
+        );
+        wb.upsert_workspace_agent_context(active_ws_id, item);
+        slot_dnd.clear();
+    });
+}
+
+fn terminal_payload_from_active(
+    slot_dnd: TerminalSlotDragService,
+) -> Option<TerminalSlotDragPayload> {
+    slot_dnd.active.get().map(|meta| TerminalSlotDragPayload {
+        workspace_id: meta.workspace_id,
+        slot_id: meta.slot_id,
+    })
+}
+
+fn terminal_tail_content(text: &str) -> Option<String> {
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
 fn parse_data_url(data_url: &str) -> Option<(String, String)> {
     let rest = data_url.strip_prefix("data:")?;
     let (meta, body) = rest.split_once(',')?;
@@ -349,6 +458,15 @@ fn has_image_drag(ev: &DragEvent) -> bool {
         }
     }
     false
+}
+
+fn has_terminal_drag(ev: &DragEvent, slot_dnd: TerminalSlotDragService) -> bool {
+    ev.data_transfer()
+        .as_ref()
+        .map(is_terminal_drag)
+        .unwrap_or(false)
+        || slot_dnd.active.get_untracked().is_some()
+        || slot_dnd.session_active()
 }
 
 fn has_file_drag(ev: &DragEvent) -> bool {

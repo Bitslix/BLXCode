@@ -36,6 +36,7 @@ mod terminal_cell;
 mod terminal_context_menu;
 mod terminal_glue;
 mod terminal_slot_dnd;
+mod terminal_slot_drag_overlay;
 mod theme_service;
 mod toast;
 mod update_dialog;
@@ -83,6 +84,8 @@ use leptos::task::spawn_local;
 use send_wrapper::SendWrapper;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use terminal_slot_dnd::TerminalSlotDragService;
+use terminal_slot_drag_overlay::TerminalSlotDragOverlay;
 use toast::{ToastHost, ToastService};
 use update_dialog::{UpdateBanner, UpdateDialog};
 use update_service::UpdateService;
@@ -146,6 +149,7 @@ pub fn WorkbenchShell() -> impl IntoView {
     let app_prefs = AppPrefsService::new();
     let toast = ToastService::new();
     let updates = UpdateService::new();
+    let slot_dnd = TerminalSlotDragService::new();
 
     provide_context(wb);
     provide_context(harness);
@@ -154,6 +158,7 @@ pub fn WorkbenchShell() -> impl IntoView {
     provide_context(app_prefs);
     provide_context(toast);
     provide_context(updates);
+    provide_context(slot_dnd);
 
     // Hydrate from persisted snapshot before auto-save kicks in.
     let hydrated = RwSignal::new(false);
@@ -167,10 +172,16 @@ pub fn WorkbenchShell() -> impl IntoView {
         spawn_local(async move {
             let mut allow_save = true;
             match workbench_load_state().await {
-                Err(_) => allow_save = false,
+                Err(err) => {
+                    leptos::logging::error!("failed to load workbench state: {err}");
+                    allow_save = false;
+                }
                 Ok(None) => {}
                 Ok(Some(json)) => match serde_json::from_str::<WorkbenchSnapshot>(&json) {
-                    Err(_) => allow_save = false,
+                    Err(err) => {
+                        leptos::logging::error!("failed to parse workbench state: {err}");
+                        allow_save = false;
+                    }
                     Ok(mut snap) => {
                         let migrations = snap.backfill_storage_keys();
                         if !migrations.is_empty() {
@@ -299,6 +310,24 @@ pub fn WorkbenchShell() -> impl IntoView {
             ev.prevent_default();
         });
     on_cleanup(move || drop(contextmenu_handle));
+
+    // Apply EB's `document.body.cursor = grabbing` while a terminal slot
+    // is mid-drag. Restored when the active signal flips back to None.
+    Effect::new(move |_| {
+        let dragging = slot_dnd.active.get().is_some();
+        let Some(body) = web_sys::window()
+            .and_then(|w| w.document())
+            .and_then(|d| d.body())
+        else {
+            return;
+        };
+        let class_list = body.class_list();
+        if dragging {
+            let _ = class_list.add_1("blxcode-dragging-terminal");
+        } else {
+            let _ = class_list.remove_1("blxcode-dragging-terminal");
+        }
+    });
 
     Effect::new(move |_| {
         if !is_tauri_shell() {
@@ -494,6 +523,7 @@ pub fn WorkbenchShell() -> impl IntoView {
             <CloseTerminalsTabDialog />
             <HarnessHost />
             <ToastHost />
+            <TerminalSlotDragOverlay />
         </Show>
     }
 }

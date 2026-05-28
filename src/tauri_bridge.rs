@@ -1141,6 +1141,16 @@ pub async fn workbench_merge_sessions_workspace(
     .await
 }
 
+pub async fn workbench_rewrite_terminal_keys(
+    pairs: Vec<(String, String)>,
+) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct A {
+        pairs: Vec<(String, String)>,
+    }
+    invoke_unit_js("workbench_rewrite_terminal_keys", args_value(A { pairs })?).await
+}
+
 pub async fn agent_session_exists(
     agent: String,
     cwd: String,

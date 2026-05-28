@@ -47,7 +47,8 @@ use workbench_state::{
     workbench_drop_sessions, workbench_extract_sessions_prefix, workbench_load_notifications,
     workbench_load_sessions, workbench_load_state, workbench_merge_sessions_workspace,
     workbench_notifications_path, workbench_prune_notifications, workbench_prune_sessions,
-    workbench_save_state, workbench_sessions_path, WorkbenchSessionsFileLock,
+    workbench_rewrite_terminal_keys, workbench_save_state, workbench_sessions_path,
+    WorkbenchSessionsFileLock,
 };
 
 #[tauri::command]
@@ -60,6 +61,11 @@ fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+#[tauri::command]
+fn frontend_console_log(level: String, message: String) {
+    eprintln!("[frontend:{level}] {message}");
 }
 
 #[tauri::command]
@@ -113,6 +119,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             open_external_url,
             greet,
+            frontend_console_log,
             exit_app,
             app_version,
             updater_check,
@@ -180,6 +187,7 @@ pub fn run() {
             workbench_clear_terminal_notifications,
             workbench_prune_notifications,
             workbench_prune_sessions,
+            workbench_rewrite_terminal_keys,
             agent_session_exists,
             agent_latest_session_id,
             gitignore::gitignore_append_blxcode,

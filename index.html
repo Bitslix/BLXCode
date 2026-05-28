@@ -12,6 +12,71 @@
     />
     <script>
       (function () {
+        var consoleQueue = [];
+        function serializeConsoleValue(value) {
+          if (value instanceof Error) {
+            return value.stack || value.message || String(value);
+          }
+          if (typeof value === "string") {
+            return value;
+          }
+          try {
+            return JSON.stringify(value);
+          } catch (_) {
+            return String(value);
+          }
+        }
+        function invokeConsoleLog(level, message) {
+          var invoke =
+            window.__TAURI__ &&
+            window.__TAURI__.core &&
+            window.__TAURI__.core.invoke;
+          if (!invoke) {
+            if (window.__TAURI__) {
+              consoleQueue.push([level, message]);
+            }
+            return;
+          }
+          invoke("frontend_console_log", { level: level, message: message }).catch(function () {});
+        }
+        function flushConsoleQueue() {
+          if (
+            !window.__TAURI__ ||
+            !window.__TAURI__.core ||
+            !window.__TAURI__.core.invoke
+          ) {
+            return;
+          }
+          var pending = consoleQueue.splice(0);
+          pending.forEach(function (entry) {
+            invokeConsoleLog(entry[0], entry[1]);
+          });
+        }
+        ["error"].forEach(function (level) {
+          var original = console[level];
+          console[level] = function () {
+            var args = Array.prototype.slice.call(arguments);
+            invokeConsoleLog(level, args.map(serializeConsoleValue).join(" "));
+            return original.apply(console, args);
+          };
+        });
+        window.addEventListener("error", function (event) {
+          invokeConsoleLog(
+            "error",
+            [
+              event.message,
+              event.filename ? event.filename + ":" + event.lineno + ":" + event.colno : "",
+              event.error ? serializeConsoleValue(event.error) : "",
+            ]
+              .filter(Boolean)
+              .join(" ")
+          );
+        });
+        window.addEventListener("unhandledrejection", function (event) {
+          invokeConsoleLog("error", "Unhandled rejection: " + serializeConsoleValue(event.reason));
+        });
+        setInterval(flushConsoleQueue, 250);
+
         var KEY = "blxcode_theme_v1";
         var DEFAULT = "blxcode-dark";
         var VALID = {

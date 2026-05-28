@@ -379,11 +379,20 @@ pub fn WorkspaceTerminalCell(
                 let st = state.lock().expect("cell");
                 (st.term_id, st.pty_session)
             };
-            wb.unregister_pty_session(&terminal_key_cleanup);
+            // Cross-workspace transfer / extract-to-new-workspace
+            // unmounts this cell and remounts an identical one under a
+            // new `terminal_key`. While the move is in flight, the live
+            // PTY belongs to the target cell — killing it here would
+            // tear down the agent CLI mid-transfer. The target cell
+            // re-registers the session under its own key.
+            let moving = wb.is_terminal_key_moving(&terminal_key_cleanup);
+            if !moving {
+                wb.unregister_pty_session(&terminal_key_cleanup);
+            }
             if let Some(t) = t {
                 terminal_dispose(t);
             }
-            if let Some(sid) = sid {
+            if let (Some(sid), false) = (sid, moving) {
                 leptos::task::spawn_local(async move {
                     let _ = pty_kill(sid).await;
                 });
@@ -426,7 +435,68 @@ pub fn WorkspaceTerminalCell(
             }
         >
             <div
-                class="ws-term-cell__head"
+                class=move || {
+                    let mut c = String::from("ws-term-cell__head");
+                    if slot_drag_enabled.get() && !is_full_size.get() && slot_dnd.is_some() {
+                        c.push_str(" ws-term-cell__head--draggable");
+                    }
+                    c
+                }
+                prop:draggable=move || {
+                    slot_drag_enabled.get() && !is_full_size.get() && slot_dnd.is_some()
+                }
+                on:dragstart={
+                    let workspace_id = workspace_id;
+                    let slot_id = slot_id;
+                    let title_snap = dynamic_title;
+                    let agent_snap = agent_label;
+                    move |ev: DragEvent| {
+                        if is_full_size.get_untracked() || !slot_drag_enabled.get_untracked() {
+                            ev.prevent_default();
+                            return;
+                        }
+                        let Some(dnd) = slot_dnd else {
+                            return;
+                        };
+                        let Some(dt) = ev.data_transfer() else {
+                            return;
+                        };
+                        let payload = TerminalSlotDragPayload {
+                            workspace_id,
+                            slot_id,
+                        };
+                        set_drag_payload(&dt, &payload);
+                        let gen = dnd.begin_session();
+                        let meta = TerminalDragMeta {
+                            workspace_id,
+                            slot_id,
+                            title: title_snap.get_untracked(),
+                            agent_label: agent_snap.get_untracked(),
+                        };
+                        // Seed the overlay at the cursor before the
+                        // first `drag` event fires so the preview shows
+                        // up immediately, not after the first move.
+                        dnd.set_overlay_pos_from_event(&ev);
+                        leptos::task::spawn_local(async move {
+                            TimeoutFuture::new(0).await;
+                            dnd.try_set_active(gen, meta);
+                        });
+                    }
+                }
+                on:drag={
+                    move |ev: DragEvent| {
+                        if let Some(dnd) = slot_dnd {
+                            dnd.set_overlay_pos_from_event(&ev);
+                        }
+                    }
+                }
+                on:dragend={
+                    move |_ev: DragEvent| {
+                        if let Some(dnd) = slot_dnd {
+                            dnd.clear();
+                        }
+                    }
+                }
                 on:mousedown={
                     let terminal_key = terminal_key.clone();
                     let wb = wb;
@@ -443,53 +513,9 @@ pub fn WorkspaceTerminalCell(
                         class="ws-term-cell__drag-handle"
                         aria-label=move || i18n.tr(I18nKey::WsTermDragHandleAria)()
                         title=move || i18n.tr(I18nKey::WsTermDragHandleAria)()
-                        prop:draggable=true
-                        on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
-                        on:dragstart={
-                            let workspace_id = workspace_id;
-                            let slot_id = slot_id;
-                            let title_snap = dynamic_title;
-                            let agent_snap = agent_label;
-                            move |ev: DragEvent| {
-                                ev.stop_propagation();
-                                if is_full_size.get_untracked() || !slot_drag_enabled.get_untracked() {
-                                    ev.prevent_default();
-                                    return;
-                                }
-                                let Some(dnd) = slot_dnd else {
-                                    return;
-                                };
-                                let Some(dt) = ev.data_transfer() else {
-                                    return;
-                                };
-                                let payload = TerminalSlotDragPayload {
-                                    workspace_id,
-                                    slot_id,
-                                };
-                                set_drag_payload(&dt, &payload);
-                                let gen = dnd.begin_session();
-                                let meta = TerminalDragMeta {
-                                    workspace_id,
-                                    slot_id,
-                                    title: title_snap.get_untracked(),
-                                    agent_label: agent_snap.get_untracked(),
-                                };
-                                leptos::task::spawn_local(async move {
-                                    TimeoutFuture::new(0).await;
-                                    dnd.try_set_active(gen, meta);
-                                });
-                            }
-                        }
-                        on:dragend={
-                            move |ev: DragEvent| {
-                                ev.stop_propagation();
-                                if let Some(dnd) = slot_dnd {
-                                    dnd.clear();
-                                }
-                            }
-                        }
+                        aria-hidden="true"
                     >
-                        <LxIcon icon=icondata::LuGripVertical width="0.8rem" height="0.8rem" />
+                        <LxIcon icon=icondata::LuGripHorizontal width="0.85rem" height="0.85rem" />
                     </span>
                 </Show>
                 <span class="ws-term-cell__title">{move || dynamic_title.get()}</span>
@@ -512,6 +538,8 @@ pub fn WorkspaceTerminalCell(
                 <button
                     type="button"
                     class="ws-term-cell__tool"
+                    prop:draggable=false
+                    on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
                     title=move || {
                         if is_full_size.get() {
                             i18n.tr(I18nKey::WsTermRestoreSize)()
@@ -539,6 +567,8 @@ pub fn WorkspaceTerminalCell(
                 <button
                     type="button"
                     class="ws-term-cell__tool"
+                    prop:draggable=false
+                    on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
                     title=move || i18n.tr(I18nKey::WsTermSplitVerticalAria)()
                     aria-label=move || i18n.tr(I18nKey::WsTermSplitVerticalAria)()
                     on:click=move |_| on_split_vertical.run(())
@@ -548,6 +578,8 @@ pub fn WorkspaceTerminalCell(
                 <button
                     type="button"
                     class="ws-term-cell__tool"
+                    prop:draggable=false
+                    on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
                     title=move || i18n.tr(I18nKey::WsTermSplitHorizontalAria)()
                     aria-label=move || i18n.tr(I18nKey::WsTermSplitHorizontalAria)()
                     on:click=move |_| on_split_horizontal.run(())
@@ -558,6 +590,8 @@ pub fn WorkspaceTerminalCell(
                     <button
                         type="button"
                         class="ws-term-cell__tool ws-term-cell__tool--danger"
+                        prop:draggable=false
+                        on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
                         title=move || i18n.tr(I18nKey::BtnClose)()
                         aria-label=move || i18n.tr(I18nKey::WsTermCloseAria)()
                         on:click=move |_| on_close.run(())
@@ -642,6 +676,60 @@ async fn bootstrap_terminal_cell(
     let initial_size = terminal_request_fit(tid).or_else(|| terminal_fit(tid));
 
     let pty_sid = if is_tauri_shell() {
+        // Adoption fast-path: when this cell mounted via a cross-workspace
+        // transfer / extract-to-new-workspace, the original PTY is still
+        // alive and registered under our (new) `terminal_key`. Skip
+        // `pty_spawn_with_env` entirely and bind the existing session —
+        // the agent CLI keeps running, no re-launch attempt.
+        if let Some(sid) = wb.take_terminal_adopt(&terminal_key) {
+            terminal_set_stdin_enabled(tid, true);
+            {
+                let mut st = state.lock().expect("cell");
+                st.pty_session = Some(sid);
+                // Don't trigger the auto-launch loop: the slot already
+                // has an agent running. Marking `launch_sent` keeps the
+                // retry loop quiet.
+                st.launch_sent = true;
+                st.agent_launch = None;
+            }
+            wb.register_pty_session(terminal_key.clone(), sid);
+            let resize_target = initial_size.map(|s| (s.rows, s.cols));
+            if let Some((rows, cols)) = resize_target {
+                let _ = pty_resize(sid, rows, cols).await;
+            }
+            let state2 = state.clone();
+            let i18n2 = i18n.clone();
+            leptos::task::spawn_local(async move {
+                loop {
+                    if state2.lock().expect("cell").disposed {
+                        break;
+                    }
+                    match pty_drain_wait(sid, 65536, 250).await {
+                        Ok(b64) if !b64.is_empty() => {
+                            if let Some(t) = state2.lock().expect("cell").term_id {
+                                terminal_write_b64(t, &b64);
+                            }
+                        }
+                        Ok(_) => {}
+                        Err(err) => {
+                            if let Some(t) = state2.lock().expect("cell").term_id {
+                                let msg = format!(
+                                    "{}\n{}",
+                                    i18n2.tr(I18nKey::WsPtySpawnFailed)(),
+                                    err
+                                );
+                                terminal_show_fallback(t, &msg);
+                            }
+                            break;
+                        }
+                    }
+                }
+            });
+            spawn_terminal_refit(state.clone(), 240, 50);
+            // Adopted; skip the normal spawn path.
+            state.lock().expect("cell").pty_session = Some(sid);
+            return;
+        }
         let sessions_path = workbench_sessions_path().await.ok();
         let notifications_path = workbench_notifications_path().await.ok();
         let mut env: Vec<(String, String)> = Vec::new();

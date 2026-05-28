@@ -9,9 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **New terminal drag & drop workflow**: terminal slots now have a dedicated drag grip and a cursor-following terminal preview card while dragging. Dropping a terminal onto another slot in the same workspace swaps the slots with a clear dashed move/drop effect; dropping onto a different workspace row transfers the live terminal session into that workspace; dropping onto the sidebar's new-workspace target extracts the terminal into a fresh workspace. The drag payload uses a dedicated `application/x-blxcode-terminal-slot` MIME type and preserves PTY/session mappings across slot moves by rewriting terminal storage keys instead of killing and respawning the running agent.
+
+- **Terminal drop to Agent context**: dragging a terminal onto the Agent tab now attaches that live terminal session as `TerminalSession` context, alongside the existing image drop/paste intake. The Agent dropzone shows a terminal-specific accept overlay, leaves the terminal in place, and stores a stable slot reference, pane/session metadata, the active agent label, and a short output tail so the Agent can reason about the session immediately and call `harness.read_terminal_output` for fresh output when needed.
+
 ### Changed
 
+- **Right panel and terminal drag rendering**: the right-panel body is now lazy-mounted while collapsed to avoid boot-time rendering of heavy hidden tab contents, and terminal drag visuals use dashed outlines for potential and active drop zones. Terminal DnD is no longer tied to sidebar visibility, so grips remain available in full-width terminal layouts.
+
 ### Fixed
+
+- **Workbench boot crash during empty-workspace restore**: fixed a Tauri/WebKit boot path where the workbench could remain stuck after hydration when the restored workspace list was empty. The fix avoids eagerly mounting hidden right-panel content and makes frontend runtime errors visible in the Tauri console through a `[frontend:error]` bridge.
+
+- **Terminal DnD warnings and stale debug code**: removed unused terminal-slot reorder APIs and the unused drag overlay phase state, eliminating dead-code warnings from `cargo check`.
 
 ### Removed
 

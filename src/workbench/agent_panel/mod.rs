@@ -32,6 +32,7 @@ use crate::workbench::agent_panel::timeline::{
 use crate::workbench::agent_panel::voice_orb::{
     handle_voice_event, install_ptt_hotkey, VoiceOrb, VoiceOrbHandle,
 };
+use crate::workbench::terminal_slot_dnd::TerminalSlotDragService;
 use crate::workbench::WorkbenchService;
 use leptos::html;
 use leptos::prelude::*;
@@ -44,6 +45,7 @@ use wasm_bindgen::JsCast;
 pub fn AgentPanelDock() -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
+    let slot_dnd = expect_context::<TerminalSlotDragService>();
 
     let draft = RwSignal::new(String::new());
     let timeline = RwSignal::new(Vec::<TimelineItem>::new());
@@ -232,17 +234,19 @@ pub fn AgentPanelDock() -> impl IntoView {
                     class.push_str(" workbench-agent-pane--chat-maximized");
                 }
                 match drop_state.get() {
-                    DropZoneState::Accept => class.push_str(" workbench-agent-pane--drop-active"),
+                    DropZoneState::AcceptImage | DropZoneState::AcceptTerminal => {
+                        class.push_str(" workbench-agent-pane--drop-active")
+                    }
                     DropZoneState::Reject => class.push_str(" workbench-agent-pane--drop-reject"),
                     DropZoneState::Inactive => {}
                 }
                 class
             }
             aria-label=move || i18n.tr(I18nKey::AgAriaPane)()
-            on:dragenter=move |ev| handle_dom_drag_event(ev, drop_state)
-            on:dragover=move |ev| handle_dom_drag_event(ev, drop_state)
+            on:dragenter=move |ev| handle_dom_drag_event(ev, drop_state, slot_dnd)
+            on:dragover=move |ev| handle_dom_drag_event(ev, drop_state, slot_dnd)
             on:dragleave=move |_| clear_drop_state(drop_state)
-            on:drop=move |ev| handle_dom_drop(ev, wb, drop_state, status_line)
+            on:drop=move |ev| handle_dom_drop(ev, wb, drop_state, status_line, slot_dnd)
         >
             <Show when=move || drop_state.get().is_active()>
                 <div class="agent-drop-overlay" aria-hidden="true">

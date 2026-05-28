@@ -650,6 +650,79 @@ pub fn workbench_clear_terminal_notifications(
     atomic_write_json(&target, &state)
 }
 
+/// Rewrite terminal-key entries in both `sessions.json` and
+/// `notifications.json` from each `old` key to its paired `new` key in
+/// one locked operation. Used by cross-workspace terminal slot moves so
+/// the resumed agent CLI session and the unread badge follow the slot
+/// across workspaces without losing on-disk state. No-op for pairs whose
+/// `old` key isn't present, and pairs whose `new` key is already taken
+/// are skipped (we never silently overwrite an unrelated entry).
+#[tauri::command]
+pub fn workbench_rewrite_terminal_keys(
+    app: AppHandle,
+    pairs: Vec<(String, String)>,
+    lock: tauri::State<'_, WorkbenchSessionsFileLock>,
+) -> Result<(), String> {
+    let _guard = lock
+        .0
+        .lock()
+        .map_err(|e| format!("sessions file lock poisoned: {e}"))?;
+    if pairs.is_empty() {
+        return Ok(());
+    }
+
+    // sessions.json
+    let sessions_target = sessions_path_impl(&app)?;
+    let mut sessions_state = load_sessions_document(&sessions_target)?;
+    let mut sessions_changed = false;
+    if let Some(terminals) = sessions_state
+        .get_mut("terminals")
+        .and_then(|t| t.as_object_mut())
+    {
+        for (old_key, new_key) in &pairs {
+            if old_key == new_key || old_key.is_empty() || new_key.is_empty() {
+                continue;
+            }
+            if terminals.contains_key(new_key) {
+                continue;
+            }
+            if let Some(entry) = terminals.remove(old_key) {
+                terminals.insert(new_key.clone(), entry);
+                sessions_changed = true;
+            }
+        }
+    }
+    if sessions_changed {
+        atomic_write_json(&sessions_target, &sessions_state)?;
+    }
+
+    // notifications.json
+    let notifications_target = notifications_path_impl(&app)?;
+    let mut notifications_state = load_notifications_document(&notifications_target)?;
+    let mut notifications_changed = false;
+    if let Some(terminals) = notifications_state
+        .get_mut("terminals")
+        .and_then(|t| t.as_object_mut())
+    {
+        for (old_key, new_key) in &pairs {
+            if old_key == new_key || old_key.is_empty() || new_key.is_empty() {
+                continue;
+            }
+            if terminals.contains_key(new_key) {
+                continue;
+            }
+            if let Some(entry) = terminals.remove(old_key) {
+                terminals.insert(new_key.clone(), entry);
+                notifications_changed = true;
+            }
+        }
+    }
+    if notifications_changed {
+        atomic_write_json(&notifications_target, &notifications_state)?;
+    }
+    Ok(())
+}
+
 /// Drop notification entries whose terminal key no longer exists in any
 /// open workspace. Called from the workbench auto-save effect after a
 /// terminal slot is closed or a workspace is rebuilt; without it, stale

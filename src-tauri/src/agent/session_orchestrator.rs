@@ -217,6 +217,7 @@ fn render_context_prompt(
 
     let mut plans: Vec<&AgentContextItem> = Vec::new();
     let mut snippets: Vec<&AgentContextItem> = Vec::new();
+    let mut terminals: Vec<&AgentContextItem> = Vec::new();
     let mut memory_like: Vec<&AgentContextItem> = Vec::new();
     for item in context_items {
         match item.kind {
@@ -224,11 +225,13 @@ fn render_context_prompt(
             | AgentContextKind::PlanFile
             | AgentContextKind::PlanTaskGroup => plans.push(item),
             AgentContextKind::FileSnippet => snippets.push(item),
+            AgentContextKind::TerminalSession => terminals.push(item),
             _ => memory_like.push(item),
         }
     }
 
     let mut out = String::new();
+    let mut wrote_section = false;
 
     if !memory_like.is_empty() {
         out.push_str("Attached BLXCode context (paths only; read files if needed):\n");
@@ -240,10 +243,30 @@ fn render_context_prompt(
             };
             out.push_str(&format!("- {}: {}\n", item.label.trim(), paths));
         }
+        wrote_section = true;
+    }
+
+    if !terminals.is_empty() {
+        if wrote_section {
+            out.push('\n');
+        }
+        out.push_str("Attached terminal sessions (live; use `harness.read_terminal_output` with the listed slotId for fresh output):\n");
+        for item in &terminals {
+            out.push_str(&format!("- {}: {}\n", item.label.trim(), item.source));
+            if let Some(body) = item.content.as_deref().filter(|s| !s.trim().is_empty()) {
+                out.push_str("  Current output tail:\n");
+                for line in body.trim_end().lines() {
+                    out.push_str("  | ");
+                    out.push_str(line);
+                    out.push('\n');
+                }
+            }
+        }
+        wrote_section = true;
     }
 
     if !snippets.is_empty() {
-        if !memory_like.is_empty() {
+        if wrote_section {
             out.push('\n');
         }
         out.push_str("Attached file snippets (verbatim, line-numbered headers):\n");
@@ -257,10 +280,11 @@ fn render_context_prompt(
                 }
             }
         }
+        wrote_section = true;
     }
 
     if !plans.is_empty() {
-        if !memory_like.is_empty() {
+        if wrote_section {
             out.push('\n');
         }
         out.push_str("Attached plans (call `plan_read` for details, `plan_load` to sync tasks):\n");
@@ -432,4 +456,30 @@ fn last_assistant_text(state: &Arc<AgentEngineState>) -> Option<String> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn render_context_prompt_includes_terminal_session_tail() {
+        let item = AgentContextItem {
+            id: "terminal-slot:7".into(),
+            kind: AgentContextKind::TerminalSession,
+            label: "Slot 7 · codex".into(),
+            source: "Live terminal session: slot 7, pane 1, session 42, agent=codex. Use `harness.read_terminal_output` with slotId 7 to inspect fresh output if needed.".into(),
+            paths: Vec::new(),
+            added_at: 0,
+            content: Some("cargo check\nFinished dev profile".into()),
+        };
+
+        let rendered = render_context_prompt("continue".into(), &[item], None);
+
+        assert!(rendered.contains("Attached terminal sessions"));
+        assert!(rendered.contains("Slot 7 · codex"));
+        assert!(rendered.contains("slotId 7"));
+        assert!(rendered.contains("  | cargo check"));
+        assert!(rendered.contains("User prompt:\ncontinue"));
+    }
 }

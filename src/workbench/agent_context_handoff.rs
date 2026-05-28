@@ -544,14 +544,24 @@ pub fn terminal_session_context_item(
     title: &str,
     handoff_excerpt: &str,
 ) -> AgentContextItem {
+    terminal_session_context_item_with_content(slot_id, title, handoff_excerpt, None)
+}
+
+#[must_use]
+pub fn terminal_session_context_item_with_content(
+    slot_id: u64,
+    title: &str,
+    source: &str,
+    content: Option<String>,
+) -> AgentContextItem {
     AgentContextItem {
         id: format!("terminal-slot:{slot_id}"),
         kind: AgentContextKind::TerminalSession,
         label: title.trim().to_owned(),
-        source: handoff_excerpt.to_owned(),
+        source: source.to_owned(),
         paths: Vec::new(),
         added_at: context_now_ms(),
-        content: None,
+        content,
     }
 }
 

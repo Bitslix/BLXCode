@@ -651,8 +651,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermPaneTitleSingle => "{rol} · {término} {n}",
         I18nKey::WsTermPaneTitleMulti => "{rol} · {término} {espacio}.{panel}",
         I18nKey::WsTermDragHandleAria => "Arrastre para reordenar la terminal",
+        I18nKey::WsTermDragHandleDisabled => "Arrastre deshabilitado (división o único slot)",
         I18nKey::WsTermDropCreateNewAria => "Soltar para agregar ranura de terminal",
+        I18nKey::WsTermDropHere => "Soltar para intercambiar",
+        I18nKey::WsTermDragging => "Moviendo terminal…",
         I18nKey::WsTermDragMaxSlots => "Número máximo de ranuras de terminales alcanzadas (16)",
+        I18nKey::WsTermTransferFailed => "No se pudo mover el terminal: {error}",
+        I18nKey::WsWorkspaceDropToCreate => "Soltar aquí para nuevo workspace",
         I18nKey::WsTermBootstrapFailed => {
             "La interfaz de usuario del terminal no se pudo cargar. Verifique la consola del navegador; Es posible que el script de arranque o la CDN de xterm estén bloqueados."
         }

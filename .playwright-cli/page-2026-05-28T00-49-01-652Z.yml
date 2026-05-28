@@ -1,0 +1,29 @@
+- dialog "Terms of use and license" [ref=e4]:
+  - generic [ref=e5]:
+    - paragraph [ref=e6]:
+      - emphasis [ref=e7]: Legal
+    - heading "Terms of use and license" [level=1] [ref=e8]
+    - paragraph [ref=e9]: Please review the following before using BLXCode.
+    - separator [ref=e10]
+    - heading "Open source license" [level=2] [ref=e11]
+    - paragraph [ref=e12]:
+      - text: BLXCode is
+      - strong [ref=e13]: open source software
+      - text: distributed under the
+      - strong [ref=e14]: MIT License
+      - text: . A copy of the license ships with the application and appears in the
+      - code [ref=e15]: LICENSE
+      - text: file in the source repository. By using BLXCode you agree to the MIT License terms.
+    - heading "Scope" [level=2] [ref=e16]
+    - paragraph [ref=e17]: BLXCode is a local desktop workbench for AI-assisted development. The software runs on your machine; workspace files, memory notes, tasks, and configuration remain under paths you control unless you connect to external services.
+    - heading "Permitted use" [level=2] [ref=e18]
+    - paragraph [ref=e19]: Use BLXCode only in compliance with applicable laws. You must not use the software to circumvent security controls, distribute malware, or interfere with systems you are not authorized to access.
+    - heading "Third-party services" [level=2] [ref=e20]
+    - paragraph [ref=e21]: Features such as the coding agent, voice transcription, and text-to-speech may send data to third-party APIs when you configure provider keys. Those requests are governed by the respective provider terms, pricing, and privacy policies. You are responsible for securing your keys and for any charges incurred.
+    - heading "Disclaimer" [level=2] [ref=e22]
+    - paragraph [ref=e23]: THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING WITHOUT LIMITATION THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+    - heading "Contact" [level=2] [ref=e24]
+    - paragraph [ref=e25]: Questions about BLXCode can be directed to the project maintainers through the repository where you obtained the software (issues and discussions).
+  - contentinfo [ref=e26]:
+    - button "Decline" [ref=e27] [cursor=pointer]
+    - button "Accept" [ref=e28] [cursor=pointer]

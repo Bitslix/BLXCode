@@ -649,8 +649,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermPaneTitleSingle => "{função} · {termo} {n}",
         I18nKey::WsTermPaneTitleMulti => "{role} · {term} {slot}.{painel}",
         I18nKey::WsTermDragHandleAria => "Arraste para reordenar o terminal",
+        I18nKey::WsTermDragHandleDisabled => "Arrastar desativado (divisão ou único slot)",
         I18nKey::WsTermDropCreateNewAria => "Solte para adicionar slot de terminal",
+        I18nKey::WsTermDropHere => "Solte para trocar",
+        I18nKey::WsTermDragging => "Movendo terminal…",
         I18nKey::WsTermDragMaxSlots => "Número máximo de slots de terminal atingido (16)",
+        I18nKey::WsTermTransferFailed => "Não foi possível mover o terminal: {error}",
+        I18nKey::WsWorkspaceDropToCreate => "Solte aqui para novo workspace",
         I18nKey::WsTermBootstrapFailed => {
             "Falha ao carregar a interface do terminal. Verifique o console do navegador; o script de inicialização ou CDN xterm pode estar bloqueado."
         }
