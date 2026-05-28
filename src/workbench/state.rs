@@ -2193,18 +2193,6 @@ impl WorkbenchService {
         }
     }
 
-    /// Reorders terminal slots within a workspace. `to_index` is the
-    /// insertion position in the list **after** removing `from_index`
-    /// (same semantics as [`Self::reorder_workspaces`]).
-    pub fn reorder_terminal_slots(&self, workspace_id: u64, from_index: usize, to_index: usize) {
-        self.workspaces.update(|workspaces| {
-            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
-                return;
-            };
-            reorder_workspace_slots(workspace, from_index, to_index);
-        });
-    }
-
     /// Swaps two terminal slots by id. Used by the EB-parity grid DnD
     /// where dropping slot A on slot B exchanges their grid positions
     /// instead of insert-reordering. Both slots must live in the same
@@ -2430,15 +2418,6 @@ impl WorkbenchService {
                 Err(err)
             }
         }
-    }
-
-    /// Live index of `slot_id` in the workspace grid (after any reorders).
-    pub fn terminal_slot_index(&self, workspace_id: u64, slot_id: u64) -> Option<usize> {
-        self.workspaces.with_untracked(|list| {
-            list.iter()
-                .find(|w| w.id == workspace_id)
-                .and_then(|w| w.slot_ids.iter().position(|&id| id == slot_id))
-        })
     }
 
     #[must_use]
@@ -3813,6 +3792,7 @@ fn transfer_workspace_slot(
     })
 }
 
+#[cfg(test)]
 fn reorder_workspace_slots(workspace: &mut WorkspaceEntry, from_index: usize, to_index: usize) {
     if from_index == to_index {
         return;

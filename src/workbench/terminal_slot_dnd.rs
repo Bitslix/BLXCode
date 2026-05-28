@@ -27,16 +27,6 @@ pub struct TerminalDragMeta {
     pub agent_label: String,
 }
 
-/// Lifecycle phase of the floating drag preview. `Active` while the user
-/// is dragging; `Dropping` briefly during the EB-style fade-out so the
-/// overlay can animate away after the drop instead of disappearing
-/// instantly. Currently consumed for CSS hooks only.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DragOverlayPhase {
-    Active,
-    Dropping,
-}
-
 #[derive(Clone, Copy)]
 pub struct TerminalSlotDragService {
     session: StoredValue<bool>,
@@ -48,7 +38,6 @@ pub struct TerminalSlotDragService {
     /// preview. `None` until the first `drag`/`dragover` event with valid
     /// coordinates lands during this session.
     pub overlay_pos: RwSignal<Option<(f64, f64)>>,
-    pub phase: RwSignal<DragOverlayPhase>,
 }
 
 impl TerminalSlotDragService {
@@ -60,7 +49,6 @@ impl TerminalSlotDragService {
             active: RwSignal::new(None),
             ghost: RwSignal::new(None),
             overlay_pos: RwSignal::new(None),
-            phase: RwSignal::new(DragOverlayPhase::Active),
         }
     }
 
@@ -69,7 +57,6 @@ impl TerminalSlotDragService {
         let gen = self.session_gen.get_value().wrapping_add(1);
         self.session_gen.set_value(gen);
         self.overlay_pos.set(None);
-        self.phase.set(DragOverlayPhase::Active);
         gen
     }
 
@@ -105,7 +92,6 @@ impl TerminalSlotDragService {
         self.active.set(None);
         self.ghost.set(None);
         self.overlay_pos.set(None);
-        self.phase.set(DragOverlayPhase::Active);
     }
 }
 

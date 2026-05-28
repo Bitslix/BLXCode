@@ -11,7 +11,7 @@
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::workbench::terminal_slot_dnd::{DragOverlayPhase, TerminalSlotDragService};
+use crate::workbench::terminal_slot_dnd::TerminalSlotDragService;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 
@@ -37,13 +37,7 @@ pub fn TerminalSlotDragOverlay() -> impl IntoView {
                 let agent_label = meta.agent_label.clone();
                 view! {
                     <div
-                        class=move || {
-                            let mut c = String::from("ws-term-drag-preview");
-                            if matches!(slot_dnd.phase.get(), DragOverlayPhase::Dropping) {
-                                c.push_str(" ws-term-drag-preview--dropping");
-                            }
-                            c
-                        }
+                        class="ws-term-drag-preview"
                         aria-hidden="true"
                         style=move || {
                             let (x, y) = slot_dnd.overlay_pos.get().unwrap_or((-9999.0, -9999.0));
