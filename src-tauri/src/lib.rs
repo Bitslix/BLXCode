@@ -3,6 +3,7 @@ mod agent_hooks;
 mod agent_settings;
 mod agents_layout;
 mod api_keys;
+mod app_paths;
 mod browser_host;
 mod clipboard;
 mod commands;
@@ -32,6 +33,7 @@ use clipboard::{clipboard_read_text, clipboard_write_text};
 use commands::*;
 use image::{image_curated_models, image_settings_get, image_settings_save};
 use pty_host::PtyManager;
+use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 use updater::{
     app_relaunch, app_version, updater_check, updater_install_start, updater_poll_progress,
@@ -108,6 +110,16 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .setup(|app| {
+            let dir = app
+                .path()
+                .app_data_dir()
+                .map_err(|e| format!("app data dir unavailable: {e}"))?;
+            std::fs::create_dir_all(&dir)
+                .map_err(|e| format!("create app data dir {}: {e}", dir.display()))?;
+            app_paths::init(dir);
+            Ok(())
+        })
         .manage(AgentEngineState::new())
         .manage(BlxUpdaterState::default())
         .manage(BrowserHost::default())

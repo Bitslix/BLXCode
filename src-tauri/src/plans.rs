@@ -691,6 +691,7 @@ pub fn plan_meta_for(workspace_cwd: &str, path: &str) -> Option<PlanMeta> {
 mod tests {
     use super::*;
     use crate::agents_layout::PLANS_REL;
+    use crate::app_paths::test_support::AppDataDirGuard;
     use std::time::SystemTime;
 
     fn temp_ws(label: &str) -> PathBuf {
@@ -705,6 +706,17 @@ mod tests {
         let _ = fs::remove_dir_all(&p);
         fs::create_dir_all(&p).unwrap();
         p
+    }
+
+    /// Tests that touch the tasks store need an app-data dir override
+    /// because tasks now live under `{app_data_dir}/tasks/<hash>/`.
+    fn temp_ws_with_tasks(label: &str) -> (PathBuf, AppDataDirGuard) {
+        let ws = temp_ws(label);
+        let app_data = ws.with_extension("appdata");
+        let _ = fs::remove_dir_all(&app_data);
+        fs::create_dir_all(&app_data).unwrap();
+        let guard = AppDataDirGuard::new(app_data);
+        (ws, guard)
     }
 
     #[test]
@@ -794,7 +806,7 @@ mod tests {
     #[test]
     fn load_replaces_only_plan_tasks_and_keeps_free_tasks() {
         use crate::tasks::{tasks_create_inner, tasks_snapshot, TaskCreateInput, TaskStatus};
-        let ws = temp_ws("load_keep_free");
+        let (ws, _guard) = temp_ws_with_tasks("load_keep_free");
         let cwd = ws.to_string_lossy().into_owned();
 
         // Create a free task (no plan link).
@@ -844,7 +856,7 @@ mod tests {
     #[test]
     fn task_update_status_writes_back_to_plan_markdown() {
         use crate::tasks::{tasks_snapshot, tasks_update_inner, TaskStatus, TaskUpdatePatch};
-        let ws = temp_ws("writeback");
+        let (ws, _guard) = temp_ws_with_tasks("writeback");
         let cwd = ws.to_string_lossy().into_owned();
 
         plan_create_inner(
@@ -883,7 +895,7 @@ mod tests {
     #[test]
     fn sync_from_tasks_round_trip_preserves_other_sections() {
         use crate::tasks::{tasks_snapshot, tasks_update_inner, TaskStatus, TaskUpdatePatch};
-        let ws = temp_ws("sync");
+        let (ws, _guard) = temp_ws_with_tasks("sync");
         let cwd = ws.to_string_lossy().into_owned();
 
         plan_create_inner(
