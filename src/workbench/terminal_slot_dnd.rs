@@ -113,7 +113,7 @@ pub fn set_drag_payload(dt: &DataTransfer, payload: &TerminalSlotDragPayload) {
     if let Ok(json) = serde_json::to_string(payload) {
         let _ = dt.set_data(TERMINAL_SLOT_MIME, &json);
         let _ = dt.set_data("text/plain", &payload.slot_id.to_string());
-        let _ = dt.set_effect_allowed("move");
+        let _ = dt.set_effect_allowed("copyMove");
     }
 }
 

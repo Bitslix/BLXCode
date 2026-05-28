@@ -6235,8 +6235,8 @@ button {
 
 .ws-term-slot--drag-over {
   transform: scale(1.01);
-  outline: 2px dashed color-mix(in srgb, var(--accent) 70%, transparent);
-  outline-offset: -2px;
+  outline: 2px dashed color-mix(in srgb, var(--accent) 80%, transparent);
+  outline-offset: -1px;
   box-shadow:
     0 0 24px 0 color-mix(in srgb, var(--accent) 20%, transparent);
 }
