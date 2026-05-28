@@ -649,8 +649,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermPaneTitleSingle => "{Rolle} · {Begriff} {n}",
         I18nKey::WsTermPaneTitleMulti => "{role} · {term} {slot}.{pane}",
         I18nKey::WsTermDragHandleAria => "Terminal zum Umsortieren ziehen",
+        I18nKey::WsTermDragHandleDisabled => "Ziehen deaktiviert (Split oder einziger Slot)",
         I18nKey::WsTermDropCreateNewAria => "Ablegen, um Terminal-Slot hinzuzufügen",
+        I18nKey::WsTermDropHere => "Zum Tauschen ablegen",
+        I18nKey::WsTermDragging => "Terminal verschieben…",
         I18nKey::WsTermDragMaxSlots => "Maximale Terminal-Slots erreicht (16)",
+        I18nKey::WsTermTransferFailed => "Terminal konnte nicht verschoben werden: {error}",
+        I18nKey::WsWorkspaceDropToCreate => "Hier ablegen für neuen Workspace",
         I18nKey::WsTermBootstrapFailed => {
             "Die Terminal-Benutzeroberfläche konnte nicht geladen werden. Überprüfen Sie die Browserkonsole. Das Bootstrap-Skript oder das xterm-CDN sind möglicherweise blockiert."
         }

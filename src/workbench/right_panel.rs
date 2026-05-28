@@ -314,144 +314,145 @@ pub fn RightPanel() -> impl IntoView {
             <Show when=move || resizing.get()>
                 <div class="workbench-resize-shield" aria-hidden="true"></div>
             </Show>
-            <aside
-                class="workbench-right"
-                class:workbench-right--hidden=move || collapsed.get()
-                style:width=move || width_style.get()
-            >
-                <header class="workbench-right__header">
-                    <div class="workbench-right__toolbar">
-                        <button
-                            type="button"
-                            class="workbench-icon-btn workbench-right-panel-toggle"
-                            aria-expanded="true"
-                            aria-label=move || i18n.tr(I18nKey::RpCollapse)()
-                            title=move || i18n.tr(I18nKey::RpCollapse)()
-                            on:click=move |_| wb.toggle_right_panel()
-                        >
-                            <span class="workbench-right-panel-toggle__icon" aria-hidden="true">
-                                <LxIcon icon=icondata::LuPanelRight width="1rem" height="1rem" />
-                            </span>
-                        </button>
-                        <div class="workbench-right-tabstrip" role="tablist" aria-label=move || i18n.tr(I18nKey::RpTabsAria)()>
+            <Show when=move || !collapsed.get()>
+                <aside
+                    class="workbench-right"
+                    style:width=move || width_style.get()
+                >
+                    <header class="workbench-right__header">
+                        <div class="workbench-right__toolbar">
                             <button
                                 type="button"
-                                role="tab"
-                                aria-selected=move || active_tab.get() == RightPanelTab::Agent
-                                class="workbench-right-tab"
-                                class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Agent
-                                aria-label=move || i18n.tr(I18nKey::TabAgent)()
-                                title=move || i18n.tr(I18nKey::TabAgent)()
-                                on:click=move |_| wb.set_right_tab(RightPanelTab::Agent)
+                                class="workbench-icon-btn workbench-right-panel-toggle"
+                                aria-expanded="true"
+                                aria-label=move || i18n.tr(I18nKey::RpCollapse)()
+                                title=move || i18n.tr(I18nKey::RpCollapse)()
+                                on:click=move |_| wb.toggle_right_panel()
                             >
-                                <span class="workbench-right-tab__icon" aria-hidden="true">
-                                    <LxIcon icon=icondata::LuSparkles width="14px" height="14px" />
+                                <span class="workbench-right-panel-toggle__icon" aria-hidden="true">
+                                    <LxIcon icon=icondata::LuPanelRight width="1rem" height="1rem" />
                                 </span>
-                                <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabAgent)()}</span>
                             </button>
-                            <button
-                                type="button"
-                                role="tab"
-                                aria-selected=move || active_tab.get() == RightPanelTab::Browser
-                                class="workbench-right-tab"
-                                class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Browser
-                                aria-label=move || i18n.tr(I18nKey::TabBrowser)()
-                                title=move || i18n.tr(I18nKey::TabBrowser)()
-                                on:click=move |_| wb.set_right_tab(RightPanelTab::Browser)
-                            >
-                                <span class="workbench-right-tab__icon" aria-hidden="true">
-                                    <LxIcon icon=icondata::LuGlobe width="14px" height="14px" />
-                                </span>
-                                <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabBrowser)()}</span>
-                            </button>
-                            <button
-                                type="button"
-                                role="tab"
-                                aria-selected=move || active_tab.get() == RightPanelTab::Plans
-                                class="workbench-right-tab"
-                                class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Plans
-                                aria-label=move || i18n.tr(I18nKey::TabPlans)()
-                                title=move || i18n.tr(I18nKey::TabPlans)()
-                                on:click=move |_| wb.set_right_tab(RightPanelTab::Plans)
-                            >
-                                <span class="workbench-right-tab__icon" aria-hidden="true">
-                                    <LxIcon icon=icondata::LuClipboardList width="14px" height="14px" />
-                                </span>
-                                <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabPlans)()}</span>
-                            </button>
-                            <button
-                                type="button"
-                                role="tab"
-                                aria-selected=move || active_tab.get() == RightPanelTab::Memory
-                                class="workbench-right-tab"
-                                class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Memory
-                                aria-label=move || i18n.tr(I18nKey::TabMemory)()
-                                title=move || i18n.tr(I18nKey::TabMemory)()
-                                on:click=move |_| wb.set_right_tab(RightPanelTab::Memory)
-                            >
-                                <span class="workbench-right-tab__icon" aria-hidden="true">
-                                    <LxIcon icon=icondata::LuLayers width="14px" height="14px" />
-                                </span>
-                                <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabMemory)()}</span>
-                            </button>
-                            <button
-                                type="button"
-                                role="tab"
-                                aria-selected=move || active_tab.get() == RightPanelTab::Rules
-                                class="workbench-right-tab"
-                                class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Rules
-                                aria-label=move || i18n.tr(I18nKey::TabRules)()
-                                title=move || i18n.tr(I18nKey::TabRules)()
-                                on:click=move |_| wb.set_right_tab(RightPanelTab::Rules)
-                            >
-                                <span class="workbench-right-tab__icon" aria-hidden="true">
-                                    <LxIcon icon=icondata::LuShield width="14px" height="14px" />
-                                </span>
-                                <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabRules)()}</span>
-                            </button>
-                            <button
-                                type="button"
-                                role="tab"
-                                aria-selected=move || active_tab.get() == RightPanelTab::Skills
-                                class="workbench-right-tab"
-                                class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Skills
-                                aria-label=move || i18n.tr(I18nKey::TabSkills)()
-                                title=move || i18n.tr(I18nKey::TabSkills)()
-                                on:click=move |_| wb.set_right_tab(RightPanelTab::Skills)
-                            >
-                                <span class="workbench-right-tab__icon" aria-hidden="true">
-                                    <LxIcon icon=icondata::LuPuzzle width="14px" height="14px" />
-                                </span>
-                                <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabSkills)()}</span>
-                            </button>
+                            <div class="workbench-right-tabstrip" role="tablist" aria-label=move || i18n.tr(I18nKey::RpTabsAria)()>
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected=move || active_tab.get() == RightPanelTab::Agent
+                                    class="workbench-right-tab"
+                                    class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Agent
+                                    aria-label=move || i18n.tr(I18nKey::TabAgent)()
+                                    title=move || i18n.tr(I18nKey::TabAgent)()
+                                    on:click=move |_| wb.set_right_tab(RightPanelTab::Agent)
+                                >
+                                    <span class="workbench-right-tab__icon" aria-hidden="true">
+                                        <LxIcon icon=icondata::LuSparkles width="14px" height="14px" />
+                                    </span>
+                                    <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabAgent)()}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected=move || active_tab.get() == RightPanelTab::Browser
+                                    class="workbench-right-tab"
+                                    class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Browser
+                                    aria-label=move || i18n.tr(I18nKey::TabBrowser)()
+                                    title=move || i18n.tr(I18nKey::TabBrowser)()
+                                    on:click=move |_| wb.set_right_tab(RightPanelTab::Browser)
+                                >
+                                    <span class="workbench-right-tab__icon" aria-hidden="true">
+                                        <LxIcon icon=icondata::LuGlobe width="14px" height="14px" />
+                                    </span>
+                                    <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabBrowser)()}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected=move || active_tab.get() == RightPanelTab::Plans
+                                    class="workbench-right-tab"
+                                    class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Plans
+                                    aria-label=move || i18n.tr(I18nKey::TabPlans)()
+                                    title=move || i18n.tr(I18nKey::TabPlans)()
+                                    on:click=move |_| wb.set_right_tab(RightPanelTab::Plans)
+                                >
+                                    <span class="workbench-right-tab__icon" aria-hidden="true">
+                                        <LxIcon icon=icondata::LuClipboardList width="14px" height="14px" />
+                                    </span>
+                                    <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabPlans)()}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected=move || active_tab.get() == RightPanelTab::Memory
+                                    class="workbench-right-tab"
+                                    class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Memory
+                                    aria-label=move || i18n.tr(I18nKey::TabMemory)()
+                                    title=move || i18n.tr(I18nKey::TabMemory)()
+                                    on:click=move |_| wb.set_right_tab(RightPanelTab::Memory)
+                                >
+                                    <span class="workbench-right-tab__icon" aria-hidden="true">
+                                        <LxIcon icon=icondata::LuLayers width="14px" height="14px" />
+                                    </span>
+                                    <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabMemory)()}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected=move || active_tab.get() == RightPanelTab::Rules
+                                    class="workbench-right-tab"
+                                    class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Rules
+                                    aria-label=move || i18n.tr(I18nKey::TabRules)()
+                                    title=move || i18n.tr(I18nKey::TabRules)()
+                                    on:click=move |_| wb.set_right_tab(RightPanelTab::Rules)
+                                >
+                                    <span class="workbench-right-tab__icon" aria-hidden="true">
+                                        <LxIcon icon=icondata::LuShield width="14px" height="14px" />
+                                    </span>
+                                    <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabRules)()}</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    aria-selected=move || active_tab.get() == RightPanelTab::Skills
+                                    class="workbench-right-tab"
+                                    class:workbench-right-tab--active=move || active_tab.get() == RightPanelTab::Skills
+                                    aria-label=move || i18n.tr(I18nKey::TabSkills)()
+                                    title=move || i18n.tr(I18nKey::TabSkills)()
+                                    on:click=move |_| wb.set_right_tab(RightPanelTab::Skills)
+                                >
+                                    <span class="workbench-right-tab__icon" aria-hidden="true">
+                                        <LxIcon icon=icondata::LuPuzzle width="14px" height="14px" />
+                                    </span>
+                                    <span class="workbench-right-tab__label">{move || i18n.tr(I18nKey::TabSkills)()}</span>
+                                </button>
 
+                            </div>
+                            <RightPanelSettingsButton />
                         </div>
-                        <RightPanelSettingsButton />
-                    </div>
-                </header>
-                <div id="blx-right-panel-body" class="workbench-right__body">
-                    <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Agent>
-                        <AgentPanelDock />
-                    </div>
-                    <Show when=move || browser_dock_mounted.get()>
-                        <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Browser>
-                            <BrowserTabDock />
+                    </header>
+                    <div id="blx-right-panel-body" class="workbench-right__body">
+                        <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Agent>
+                            <AgentPanelDock />
                         </div>
-                    </Show>
-                    <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Plans>
-                        <PlansTabDock />
+                        <Show when=move || browser_dock_mounted.get()>
+                            <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Browser>
+                                <BrowserTabDock />
+                            </div>
+                        </Show>
+                        <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Plans>
+                            <PlansTabDock />
+                        </div>
+                        <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Memory>
+                            <MemoryTabDock />
+                        </div>
+                        <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Rules>
+                            <RulesTabDock />
+                        </div>
+                        <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Skills>
+                            <SkillsTabDock />
+                        </div>
                     </div>
-                    <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Memory>
-                        <MemoryTabDock />
-                    </div>
-                    <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Rules>
-                        <RulesTabDock />
-                    </div>
-                    <div class="workbench-right-tab-panel" class:workbench-right-tab-panel--hidden=move || active_tab.get() != RightPanelTab::Skills>
-                        <SkillsTabDock />
-                    </div>
-                </div>
-            </aside>
+                </aside>
+            </Show>
         </div>
     }
 }

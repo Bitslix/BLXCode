@@ -686,9 +686,14 @@ Classic: Ctrl+O quick open, Ctrl+` new terminal, Ctrl+Shift+P palette."
         I18nKey::WsTermRestoreSize => "Restore terminal size",
         I18nKey::WsTermPaneTitleSingle => "{role} · {term} {n}",
         I18nKey::WsTermPaneTitleMulti => "{role} · {term} {slot}.{pane}",
-        I18nKey::WsTermDragHandleAria => "Drag to reorder terminal",
+        I18nKey::WsTermDragHandleAria => "Drag to move terminal",
+        I18nKey::WsTermDragHandleDisabled => "Drag disabled (split or only slot)",
         I18nKey::WsTermDropCreateNewAria => "Drop to add terminal slot",
+        I18nKey::WsTermDropHere => "Drop to swap",
+        I18nKey::WsTermDragging => "Moving terminal\u{2026}",
         I18nKey::WsTermDragMaxSlots => "Maximum terminal slots reached (16)",
+        I18nKey::WsTermTransferFailed => "Could not move terminal: {error}",
+        I18nKey::WsWorkspaceDropToCreate => "Drop here for new workspace",
         I18nKey::WsTermBootstrapFailed => {
             "Terminal UI failed to load. Check the browser console; the bootstrap script or xterm CDN may be blocked."
         }

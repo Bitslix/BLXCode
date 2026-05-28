@@ -649,8 +649,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermPaneTitleSingle => "{role} · {term} {n}",
         I18nKey::WsTermPaneTitleMulti => "{role} · {term} {slot}.{pane}",
         I18nKey::WsTermDragHandleAria => "Húzza a terminál átrendezéséhez",
+        I18nKey::WsTermDragHandleDisabled => "Húzás letiltva (osztás vagy egyetlen slot)",
         I18nKey::WsTermDropCreateNewAria => "Emelje le a terminálnyílás hozzáadásához",
+        I18nKey::WsTermDropHere => "Engedje el a cseréhez",
+        I18nKey::WsTermDragging => "Terminál áthelyezése…",
         I18nKey::WsTermDragMaxSlots => "Elérte a terminálhelyek maximális számát (16)",
+        I18nKey::WsTermTransferFailed => "A terminál áthelyezése nem sikerült: {error}",
+        I18nKey::WsWorkspaceDropToCreate => "Engedje ide új workspace létrehozásához",
         I18nKey::WsTermBootstrapFailed => {
             "Nem sikerült betölteni a terminál felhasználói felületét. Ellenőrizze a böngésző konzolját; a bootstrap szkript vagy az xterm CDN blokkolva lehet."
         }

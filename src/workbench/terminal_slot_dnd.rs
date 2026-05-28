@@ -27,6 +27,16 @@ pub struct TerminalDragMeta {
     pub agent_label: String,
 }
 
+/// Lifecycle phase of the floating drag preview. `Active` while the user
+/// is dragging; `Dropping` briefly during the EB-style fade-out so the
+/// overlay can animate away after the drop instead of disappearing
+/// instantly. Currently consumed for CSS hooks only.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DragOverlayPhase {
+    Active,
+    Dropping,
+}
+
 #[derive(Clone, Copy)]
 pub struct TerminalSlotDragService {
     session: StoredValue<bool>,
@@ -34,6 +44,11 @@ pub struct TerminalSlotDragService {
     session_gen: StoredValue<u64>,
     pub active: RwSignal<Option<TerminalDragMeta>>,
     pub ghost: RwSignal<Option<GhostPos>>,
+    /// Cursor position (viewport-relative px) for the floating drag
+    /// preview. `None` until the first `drag`/`dragover` event with valid
+    /// coordinates lands during this session.
+    pub overlay_pos: RwSignal<Option<(f64, f64)>>,
+    pub phase: RwSignal<DragOverlayPhase>,
 }
 
 impl TerminalSlotDragService {
@@ -44,6 +59,8 @@ impl TerminalSlotDragService {
             session_gen: StoredValue::new(0),
             active: RwSignal::new(None),
             ghost: RwSignal::new(None),
+            overlay_pos: RwSignal::new(None),
+            phase: RwSignal::new(DragOverlayPhase::Active),
         }
     }
 
@@ -51,6 +68,8 @@ impl TerminalSlotDragService {
         self.session.set_value(true);
         let gen = self.session_gen.get_value().wrapping_add(1);
         self.session_gen.set_value(gen);
+        self.overlay_pos.set(None);
+        self.phase.set(DragOverlayPhase::Active);
         gen
     }
 
@@ -64,12 +83,29 @@ impl TerminalSlotDragService {
         }
     }
 
+    /// Update the overlay's cursor coordinates from a native drag event.
+    /// WebKit can emit `(0, 0)` at the end of a drag; we skip those so
+    /// the preview doesn't snap to the viewport corner on release.
+    pub fn set_overlay_pos_from_event(&self, ev: &web_sys::DragEvent) {
+        if !self.session.get_value() {
+            return;
+        }
+        let x = ev.client_x() as f64;
+        let y = ev.client_y() as f64;
+        if x <= 0.0 && y <= 0.0 {
+            return;
+        }
+        self.overlay_pos.set(Some((x, y)));
+    }
+
     pub fn clear(&self) {
         self.session.set_value(false);
         self.session_gen
             .set_value(self.session_gen.get_value().wrapping_add(1));
         self.active.set(None);
         self.ghost.set(None);
+        self.overlay_pos.set(None);
+        self.phase.set(DragOverlayPhase::Active);
     }
 }
 
@@ -95,20 +131,6 @@ pub fn is_terminal_drag(dt: &DataTransfer) -> bool {
         }
     }
     false
-}
-
-pub fn ghost_style(pos: &GhostPos, target_index: usize) -> String {
-    let rows = pos.rows.max(1) as f64;
-    let cols = pos.cols.max(1) as f64;
-    let row = (target_index as f64 / cols).floor();
-    let col = target_index as f64 % cols;
-    format!(
-        "left:{:.4}%;top:{:.4}%;width:{:.4}%;height:{:.4}%;",
-        (col / cols) * 100.0,
-        (row / rows) * 100.0,
-        100.0 / cols,
-        100.0 / rows,
-    )
 }
 
 pub fn drag_event_data_transfer(ev: &web_sys::DragEvent) -> Option<web_sys::DataTransfer> {

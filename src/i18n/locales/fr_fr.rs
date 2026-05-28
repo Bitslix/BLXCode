@@ -655,8 +655,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermPaneTitleSingle => "{rôle} · {terme} {n}",
         I18nKey::WsTermPaneTitleMulti => "{rôle} · {terme} {emplacement}.{volet}",
         I18nKey::WsTermDragHandleAria => "Faites glisser pour réorganiser le terminal",
+        I18nKey::WsTermDragHandleDisabled => "Glissement désactivé (split ou seul emplacement)",
         I18nKey::WsTermDropCreateNewAria => "Déposer pour ajouter un emplacement de terminal",
+        I18nKey::WsTermDropHere => "Déposer pour permuter",
+        I18nKey::WsTermDragging => "Déplacement du terminal…",
         I18nKey::WsTermDragMaxSlots => "Nombre maximal d'emplacements de borne atteint (16)",
+        I18nKey::WsTermTransferFailed => "Impossible de déplacer le terminal : {error}",
+        I18nKey::WsWorkspaceDropToCreate => "Déposer ici pour un nouveau workspace",
         I18nKey::WsTermBootstrapFailed => {
             "L'interface utilisateur du terminal n'a pas pu se charger. Vérifiez la console du navigateur ; le script d'amorçage ou le CDN xterm peut être bloqué."
         }

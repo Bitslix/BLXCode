@@ -22,7 +22,7 @@ use crate::workbench::terminal_glue::{
     terminal_observe_workspace_grid, terminal_unobserve_workspace_grid,
 };
 use crate::workbench::terminal_slot_dnd::{
-    drag_event_data_transfer, ghost_style, is_terminal_drag, read_drag_payload, GhostPos,
+    drag_event_data_transfer, is_terminal_drag, read_drag_payload, GhostPos,
     TerminalSlotDragService,
 };
 use crate::workbench::WorkbenchService;
@@ -105,7 +105,9 @@ pub fn WorkspacePanel() -> impl IntoView {
                     />
                 </Show>
             </div>
-            <TerminalContextMenu state=term_menu_state on_action=on_term_menu_action />
+            <Show when=move || !workspaces.get().is_empty()>
+                <TerminalContextMenu state=term_menu_state on_action=on_term_menu_action />
+            </Show>
         </section>
     }
 }
@@ -224,12 +226,10 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
 
     let is_configuring =
         Memo::new(move |_| workspace.get().map(|w| w.configuring).unwrap_or(false));
-    let slot_dnd = TerminalSlotDragService::new();
-    provide_context(slot_dnd);
+    let slot_dnd = expect_context::<TerminalSlotDragService>();
 
-    let slot_drag_enabled = Memo::new(move |_| {
-        !is_configuring.get() && !wb.sidebar_collapsed().get() && full_size_terminal.get().is_none()
-    });
+    let slot_drag_enabled =
+        Memo::new(move |_| !is_configuring.get() && full_size_terminal.get().is_none());
     let term_grid_ref = NodeRef::<html::Div>::new();
 
     Effect::new({
@@ -376,9 +376,6 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                                     }
                                 }
                             />
-                            <Show when=move || slot_dnd.active.get().is_some()>
-                                <TerminalSlotGhost slot_dnd=slot_dnd />
-                            </Show>
                             <Show when=move || full_size_terminal.get().is_none()>
                                 <For
                                     each=move || {
@@ -678,7 +675,7 @@ fn WorkspaceEmptyState() -> impl IntoView {
                                         }
                                     >
                                         <span class="harness-cmd-btn__icon" aria-hidden="true">
-                                            <LxIcon icon=icondata::LuFolder width="1rem" height="1rem" />
+                                            <span class="workbench-shortcut-row__icon-dot"></span>
                                         </span>
                                         <span class="harness-cmd-btn__text">
                                             <span class="harness-cmd-title">{title}</span>
@@ -696,7 +693,7 @@ fn WorkspaceEmptyState() -> impl IntoView {
                                         }
                                     >
                                         <span aria-hidden="true">
-                                            <LxIcon icon=icondata::LuX width="0.85rem" height="0.85rem" />
+                                            "x"
                                         </span>
                                     </button>
                                 </li>
@@ -790,39 +787,6 @@ fn WorkspaceEmptyState() -> impl IntoView {
     }
 }
 
-fn render_shortcut_keys(keys: ShortcutKeys, i18n: I18nService) -> impl IntoView {
-    match keys {
-        ShortcutKeys::Combo(parts) => view! {
-            {parts
-                .iter()
-                .enumerate()
-                .map(|(i, key)| view! {
-                    <Show when=move || i != 0>
-                        <span class="workbench-kbd-gap">"+"</span>
-                    </Show>
-                    <kbd class="workbench-kbd">{*key}</kbd>
-                })
-                .collect_view()}
-        }
-        .into_any(),
-        ShortcutKeys::Chord { prefix, second } => view! {
-            {prefix
-                .iter()
-                .enumerate()
-                .map(|(i, key)| view! {
-                    <Show when=move || i != 0>
-                        <span class="workbench-kbd-gap">"+"</span>
-                    </Show>
-                    <kbd class="workbench-kbd">{*key}</kbd>
-                })
-                .collect_view()}
-            <span class="workbench-kbd-chord-gap">{move || i18n.tr(I18nKey::WsKwThen)()}</span>
-            <kbd class="workbench-kbd">{second}</kbd>
-        }
-        .into_any(),
-    }
-}
-
 fn shortcut_cb(
     action: HarnessShortcutAction,
     ui: HarnessUiService,
@@ -839,6 +803,7 @@ fn ShortcutActionRow(
     keys: impl Fn() -> ShortcutKeys + Send + Sync + 'static,
     on_activate: Callback<(), ()>,
 ) -> impl IntoView {
+    let _ = icon;
     let i18n = expect_context::<I18nService>();
     view! {
         <li class="workbench-shortcut-li">
@@ -849,15 +814,31 @@ fn ShortcutActionRow(
             >
                 <span class="workbench-shortcut-row__lead">
                     <span class="workbench-shortcut-row__icon-wrap" aria-hidden="true">
-                        <LxIcon icon=icon width="0.9rem" height="0.9rem" />
+                        <span class="workbench-shortcut-row__icon-dot"></span>
                     </span>
                     <span class="workbench-shortcut-row__label">{move || i18n.tr(label)()}</span>
                 </span>
                 <span class="workbench-shortcut-row__keys">
-                    {move || render_shortcut_keys(keys(), i18n).into_any()}
+                    <kbd class="workbench-kbd">
+                        {move || format_shortcut_keys(keys(), i18n)}
+                    </kbd>
                 </span>
             </button>
         </li>
+    }
+}
+
+fn format_shortcut_keys(keys: ShortcutKeys, i18n: I18nService) -> String {
+    match keys {
+        ShortcutKeys::Combo(parts) => parts.join(" + "),
+        ShortcutKeys::Chord { prefix, second } => {
+            format!(
+                "{} {} {}",
+                prefix.join(" + "),
+                lookup(i18n.locale().get_untracked(), I18nKey::WsKwThen),
+                second
+            )
+        }
     }
 }
 
@@ -884,6 +865,39 @@ fn TerminalSlotSurface(
     let next_pane_id = RwSignal::new(persisted.next_pane_id);
     let split_axis = RwSignal::new(persisted.axis);
 
+    // Per-slot drag-eligibility gate. Split panes can't be reordered
+    // piecewise, but the slot chrome should still expose a grab handle for
+    // every leaf terminal. The drop handlers decide whether a concrete target
+    // is valid and surface the existing transfer error as a toast.
+    let can_drag_slot = Memo::new(move |_| {
+        if !slot_drag_enabled.get() || is_full_size.get() {
+            return false;
+        }
+        pane_ids.with(|ids| ids.len() == 1)
+    });
+    // Memo: this slot is a *potential* drop target during a drag (any
+    // other slot in the same workspace). Used for the dashed-accent
+    // chrome on idle peers.
+    let is_potential_target = Memo::new(move |_| {
+        slot_dnd
+            .active
+            .get()
+            .is_some_and(|m| m.workspace_id == workspace_id && m.slot_id != slot_id)
+    });
+    let is_drag_source = Memo::new(move |_| {
+        slot_dnd
+            .active
+            .get()
+            .is_some_and(|m| m.workspace_id == workspace_id && m.slot_id == slot_id)
+    });
+    let is_drop_over = Memo::new(move |_| {
+        is_potential_target.get()
+            && slot_dnd
+                .ghost
+                .get()
+                .is_some_and(|g| g.target_slot_id == slot_id)
+    });
+
     // Push every change back into the workspace so the workbench
     // auto-save effect can persist it. set_slot_panes deduplicates so
     // unchanged ticks don't trigger spurious saves.
@@ -903,22 +917,12 @@ fn TerminalSlotSurface(
                 if hidden.get() {
                     class.push_str(" ws-term-slot--hidden");
                 }
-                if slot_dnd
-                    .active
-                    .get()
-                    .is_some_and(|meta| meta.slot_id == slot_id)
-                {
+                if is_drag_source.get() {
                     class.push_str(" ws-term-slot--drag-source");
+                } else if is_potential_target.get() {
+                    class.push_str(" ws-term-slot--drag-potential");
                 }
-                if slot_dnd
-                    .ghost
-                    .get()
-                    .is_some_and(|g| g.target_slot_id == slot_id)
-                    && slot_dnd
-                        .active
-                        .get()
-                        .is_some_and(|m| m.slot_id != slot_id)
-                {
+                if is_drop_over.get() {
                     class.push_str(" ws-term-slot--drag-over");
                 }
                 class
@@ -933,10 +937,14 @@ fn TerminalSlotSurface(
                 let Some(dt) = drag_event_data_transfer(de) else {
                     return;
                 };
-                if is_terminal_drag(&dt)
-                    || slot_dnd.session_active()
-                    || slot_dnd.active.get_untracked().is_some()
-                {
+                // Only accept terminal-MIME drops that originate in the
+                // same workspace; cross-workspace transfers land on the
+                // sidebar, not the grid.
+                let active = slot_dnd.active.get_untracked();
+                let same_ws_active = active
+                    .as_ref()
+                    .is_some_and(|m| m.workspace_id == workspace_id && m.slot_id != slot_id);
+                if (is_terminal_drag(&dt) || slot_dnd.session_active()) && same_ws_active {
                     de.prevent_default();
                 }
             }
@@ -956,8 +964,6 @@ fn TerminalSlotSurface(
                 {
                     return;
                 }
-                de.prevent_default();
-                let _ = dt.set_drop_effect("move");
                 let payload = read_drag_payload(&dt).or_else(|| {
                     slot_dnd.active.get().map(|meta| {
                         crate::workbench::terminal_slot_dnd::TerminalSlotDragPayload {
@@ -970,8 +976,13 @@ fn TerminalSlotSurface(
                     return;
                 };
                 if payload.workspace_id != workspace_id || payload.slot_id == slot_id {
+                    // Different workspace → grid is a no-op target,
+                    // sidebar handles the transfer.
                     return;
                 }
+                de.prevent_default();
+                let _ = dt.set_drop_effect("move");
+                slot_dnd.set_overlay_pos_from_event(de);
                 let (rows, cols) = wb.workspaces().with_untracked(|list| {
                     list.iter()
                         .find(|w| w.id == workspace_id)
@@ -983,6 +994,18 @@ fn TerminalSlotSurface(
                     rows,
                     cols,
                 }));
+            }
+            on:dragleave=move |ev| {
+                if let Some(de) = ev.dyn_ref::<DragEvent>() {
+                    if slot_dnd
+                        .ghost
+                        .get_untracked()
+                        .is_some_and(|g| g.target_slot_id == slot_id)
+                    {
+                        slot_dnd.ghost.set(None);
+                    }
+                    de.prevent_default();
+                }
             }
             on:drop=move |ev| {
                 ev.prevent_default();
@@ -1005,19 +1028,7 @@ fn TerminalSlotSurface(
                     });
                 if let Some(payload) = payload {
                     if payload.workspace_id == workspace_id && payload.slot_id != slot_id {
-                        let Some(from_index) =
-                            wb.terminal_slot_index(workspace_id, payload.slot_id)
-                        else {
-                            slot_dnd.clear();
-                            return;
-                        };
-                        let Some(to_index) = wb.terminal_slot_index(workspace_id, slot_id) else {
-                            slot_dnd.clear();
-                            return;
-                        };
-                        if from_index != to_index {
-                            wb.reorder_terminal_slots(workspace_id, from_index, to_index);
-                        }
+                        wb.swap_terminal_slots(workspace_id, payload.slot_id, slot_id);
                     }
                 }
                 slot_dnd.clear();
@@ -1123,12 +1134,18 @@ fn TerminalSlotSurface(
                                 on_split_horizontal=on_split_horizontal
                                 on_close=on_close
                                 can_close=can_close
-                                slot_drag_enabled=Signal::derive(move || slot_drag_enabled.get())
+                                slot_drag_enabled=Signal::derive(move || can_drag_slot.get())
                             />
                         }
                     }
                 />
             </div>
+            <Show when=move || is_drop_over.get()>
+                <div class="ws-term-slot__drop-hint" aria-hidden="true">
+                    <LxIcon icon=icondata::LuArrowLeftRight width="0.9rem" height="0.9rem" />
+                    <span>{move || i18n.tr(I18nKey::WsTermDropHere)()}</span>
+                </div>
+            </Show>
         </div>
     }
 }
@@ -1155,56 +1172,6 @@ fn pane_grid_style(axis: TerminalSplitAxis, count: usize) -> String {
         TerminalSplitAxis::Horizontal => format!(
             "display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:repeat({count},minmax(0,1fr));gap:4px;flex:1;min-width:0;min-height:0;"
         ),
-    }
-}
-
-#[component]
-fn TerminalSlotGhost(slot_dnd: TerminalSlotDragService) -> impl IntoView {
-    let wb = expect_context::<WorkbenchService>();
-    view! {
-        <Show when=move || slot_dnd.ghost.get().is_some() && slot_dnd.active.get().is_some()>
-            <div
-                class="ws-term-slot-ghost"
-                style=move || {
-                    let Some(ghost) = slot_dnd.ghost.get() else {
-                        return String::new();
-                    };
-                    let Some(meta) = slot_dnd.active.get() else {
-                        return String::new();
-                    };
-                    let idx = wb
-                        .terminal_slot_index(meta.workspace_id, ghost.target_slot_id)
-                        .unwrap_or(0);
-                    ghost_style(&ghost, idx)
-                }
-            >
-                <span class="ws-term-slot-ghost__title">
-                    {move || {
-                        slot_dnd
-                            .active
-                            .get()
-                            .map(|m| m.title)
-                            .unwrap_or_default()
-                    }}
-                </span>
-                <Show when=move || {
-                    slot_dnd
-                        .active
-                        .get()
-                        .is_some_and(|m| !m.agent_label.is_empty())
-                }>
-                    <span class="ws-term-slot-ghost__badge">
-                        {move || {
-                            slot_dnd
-                                .active
-                                .get()
-                                .map(|m| m.agent_label)
-                                .unwrap_or_default()
-                        }}
-                    </span>
-                </Show>
-            </div>
-        </Show>
     }
 }
 

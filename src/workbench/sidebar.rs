@@ -16,6 +16,8 @@ use crate::workbench::project_explorer::ProjectExplorerSection;
 use crate::workbench::sidebar_resizer::SidebarResizer;
 use crate::workbench::sidebar_resizer::SidebarResizerClamp;
 use crate::workbench::state::is_shell_workspace;
+use crate::workbench::terminal_slot_dnd::{is_terminal_drag, read_drag_payload, TerminalSlotDragService};
+use crate::workbench::toast::ToastService;
 use crate::workbench::WorkbenchService;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
@@ -51,6 +53,8 @@ fn workspace_icon_label(title: &str, fallback_num: u64) -> String {
 pub fn Sidebar() -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
+    let toast = expect_context::<ToastService>();
+    let slot_dnd = expect_context::<TerminalSlotDragService>();
 
     let collapsed = wb.sidebar_collapsed();
     let workspaces = wb.workspaces();
@@ -72,6 +76,11 @@ pub fn Sidebar() -> impl IntoView {
     let workspace_color_input = RwSignal::new(String::new());
     let drag_from = RwSignal::new(None::<usize>);
     let drag_over = RwSignal::new(None::<usize>);
+    // Terminal-drop hover (a slot being dragged onto this workspace row).
+    // Tracked by workspace `id` so the highlight survives the `<For>`
+    // re-keying that workspace reorder triggers.
+    let term_drop_over_id = RwSignal::new(None::<u64>);
+    let new_ws_drop_active = RwSignal::new(false);
     let git_repo_available = RwSignal::new(None::<bool>);
     let last_git_cwd = StoredValue::new(None::<String>);
 
@@ -192,6 +201,77 @@ pub fn Sidebar() -> impl IntoView {
             </header>
 
             <nav class="workbench-sidebar__nav">
+                <Show when=move || !collapsed.get() && slot_dnd.active.get().is_some()>
+                    <div
+                        class=move || {
+                            let mut c = String::from("workbench-sidebar__new-ws-drop");
+                            if new_ws_drop_active.get() {
+                                c.push_str(" workbench-sidebar__new-ws-drop--over");
+                            }
+                            c
+                        }
+                        role="button"
+                        aria-label=move || i18n.tr(I18nKey::WsTermDropCreateNewAria)()
+                        on:dragenter=move |ev| {
+                            if let Some(de) = ev.dyn_ref::<DragEvent>() {
+                                de.prevent_default();
+                                new_ws_drop_active.set(true);
+                            }
+                        }
+                        on:dragover=move |ev| {
+                            let Some(de) = ev.dyn_ref::<DragEvent>() else {
+                                return;
+                            };
+                            if slot_dnd.active.get_untracked().is_none() {
+                                return;
+                            }
+                            de.prevent_default();
+                            if let Some(dt) = de.data_transfer() {
+                                let _ = dt.set_drop_effect("copy");
+                            }
+                            slot_dnd.set_overlay_pos_from_event(de);
+                            new_ws_drop_active.set(true);
+                        }
+                        on:dragleave=move |_| {
+                            new_ws_drop_active.set(false);
+                        }
+                        on:drop=move |ev| {
+                            ev.prevent_default();
+                            ev.stop_propagation();
+                            new_ws_drop_active.set(false);
+                            let Some(de) = ev.dyn_ref::<DragEvent>() else {
+                                return;
+                            };
+                            let payload = de
+                                .data_transfer()
+                                .as_ref()
+                                .and_then(|dt| read_drag_payload(dt))
+                                .or_else(|| {
+                                    slot_dnd.active.get().map(|meta| {
+                                        crate::workbench::terminal_slot_dnd::TerminalSlotDragPayload {
+                                            workspace_id: meta.workspace_id,
+                                            slot_id: meta.slot_id,
+                                        }
+                                    })
+                                });
+                            if let Some(payload) = payload {
+                                if let Err(err) = wb.extract_terminal_slot_to_new_workspace(
+                                    payload.workspace_id,
+                                    payload.slot_id,
+                                ) {
+                                    let template = i18n.tr(I18nKey::WsTermTransferFailed)();
+                                    toast.error(template.replace("{error}", &err));
+                                }
+                            }
+                            slot_dnd.clear();
+                        }
+                    >
+                        <span class="workbench-sidebar__new-ws-drop__plus" aria-hidden="true">"+"</span>
+                        <span class="workbench-sidebar__new-ws-drop__label">
+                            {move || i18n.tr(I18nKey::WsWorkspaceDropToCreate)()}
+                        </span>
+                    </div>
+                </Show>
                 <ul id="workbench-workspace-list" class="workbench-sidebar__list">
                     <For
                         each=move || {
@@ -254,6 +334,19 @@ pub fn Sidebar() -> impl IntoView {
                                         {
                                             c.push_str(" workbench-sidebar__item--drag-over");
                                         }
+                                        // Terminal-drag classes — the row
+                                        // is a *potential* target while a
+                                        // slot drag is in flight, and the
+                                        // *hover* target when the cursor
+                                        // is over it.
+                                        if let Some(active) = slot_dnd.active.get() {
+                                            if active.workspace_id != id {
+                                                c.push_str(" workbench-sidebar__item--terminal-drop-target");
+                                                if term_drop_over_id.get() == Some(id) {
+                                                    c.push_str(" workbench-sidebar__item--terminal-drop-over");
+                                                }
+                                            }
+                                        }
                                         c
                                     }
                                     prop:draggable=move || !collapsed.get()
@@ -271,21 +364,116 @@ pub fn Sidebar() -> impl IntoView {
                                         }
                                     }
                                     on:dragover=move |ev| {
-                                        if collapsed.get_untracked() || drag_from.get_untracked().is_none()
-                                        {
+                                        if collapsed.get_untracked() {
                                             return;
                                         }
-                                        ev.prevent_default();
-                                        if let Some(de) = ev.dyn_ref::<DragEvent>() {
+                                        let Some(de) = ev.dyn_ref::<DragEvent>() else {
+                                            return;
+                                        };
+                                        // Terminal-MIME drops take priority over
+                                        // workspace reorder — without this, a
+                                        // slot drag's `text/plain` fallback would
+                                        // also satisfy the workspace handler and
+                                        // swallow the cross-workspace transfer.
+                                        let term_active = slot_dnd.active.get_untracked();
+                                        let is_term_drag = de
+                                            .data_transfer()
+                                            .as_ref()
+                                            .map(is_terminal_drag)
+                                            .unwrap_or(false)
+                                            || term_active.is_some();
+                                        if is_term_drag {
+                                            let same_ws = term_active
+                                                .as_ref()
+                                                .is_some_and(|m| m.workspace_id == id);
+                                            if same_ws {
+                                                if let Some(dt) = de.data_transfer() {
+                                                    let _ = dt.set_drop_effect("none");
+                                                }
+                                                return;
+                                            }
+                                            // Block when target already at max slots.
+                                            let full = workspaces.with_untracked(|ws| {
+                                                ws.iter()
+                                                    .find(|w| w.id == id)
+                                                    .map(|w| w.slot_ids.len() >= 16)
+                                                    .unwrap_or(false)
+                                            });
+                                            if full {
+                                                if let Some(dt) = de.data_transfer() {
+                                                    let _ = dt.set_drop_effect("none");
+                                                }
+                                                return;
+                                            }
+                                            de.prevent_default();
+                                            de.stop_propagation();
                                             if let Some(dt) = de.data_transfer() {
                                                 let _ = dt.set_drop_effect("move");
                                             }
+                                            slot_dnd.set_overlay_pos_from_event(de);
+                                            term_drop_over_id.set(Some(id));
+                                            return;
+                                        }
+                                        if drag_from.get_untracked().is_none() {
+                                            return;
+                                        }
+                                        ev.prevent_default();
+                                        if let Some(dt) = de.data_transfer() {
+                                            let _ = dt.set_drop_effect("move");
                                         }
                                         drag_over.set(Some(idx));
+                                    }
+                                    on:dragleave=move |ev| {
+                                        if let Some(de) = ev.dyn_ref::<DragEvent>() {
+                                            if term_drop_over_id.get_untracked() == Some(id) {
+                                                term_drop_over_id.set(None);
+                                            }
+                                            de.prevent_default();
+                                        }
                                     }
                                     on:drop=move |ev| {
                                         ev.prevent_default();
                                         if collapsed.get_untracked() {
+                                            return;
+                                        }
+                                        let Some(de) = ev.dyn_ref::<DragEvent>() else {
+                                            return;
+                                        };
+                                        // Cross-workspace terminal transfer first.
+                                        let payload = de
+                                            .data_transfer()
+                                            .as_ref()
+                                            .and_then(|dt| read_drag_payload(dt))
+                                            .or_else(|| {
+                                                slot_dnd.active.get().map(|meta| {
+                                                    crate::workbench::terminal_slot_dnd::TerminalSlotDragPayload {
+                                                        workspace_id: meta.workspace_id,
+                                                        slot_id: meta.slot_id,
+                                                    }
+                                                })
+                                            });
+                                        if let Some(payload) = payload {
+                                            ev.stop_propagation();
+                                            if payload.workspace_id != id {
+                                                match wb.transfer_terminal_slot(
+                                                    payload.workspace_id,
+                                                    id,
+                                                    payload.slot_id,
+                                                ) {
+                                                    Ok(_) => {}
+                                                    Err(err) => {
+                                                        let template =
+                                                            i18n.tr(I18nKey::WsTermTransferFailed)();
+                                                        toast.error(
+                                                            template.replace("{error}", &err),
+                                                        );
+                                                    }
+                                                }
+                                            }
+                                            slot_dnd.clear();
+                                            term_drop_over_id.set(None);
+                                            drag_from.set(None);
+                                            drag_over.set(None);
                                             return;
                                         }
                                         if let Some(from) = drag_from.get_untracked() {

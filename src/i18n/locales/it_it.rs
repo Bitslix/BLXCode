@@ -647,8 +647,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermPaneTitleSingle => "{ruolo} · {termine} {n}",
         I18nKey::WsTermPaneTitleMulti => "{ruolo} · {termine} {slot}.{riquadro}",
         I18nKey::WsTermDragHandleAria => "Trascina per riordinare il terminale",
+        I18nKey::WsTermDragHandleDisabled => "Trascinamento disabilitato (split o unico slot)",
         I18nKey::WsTermDropCreateNewAria => "Rilascia per aggiungere lo slot del terminale",
+        I18nKey::WsTermDropHere => "Rilascia per scambiare",
+        I18nKey::WsTermDragging => "Spostamento terminale…",
         I18nKey::WsTermDragMaxSlots => "Numero massimo di slot terminali raggiunti (16)",
+        I18nKey::WsTermTransferFailed => "Impossibile spostare il terminale: {error}",
+        I18nKey::WsWorkspaceDropToCreate => "Rilascia qui per nuovo workspace",
         I18nKey::WsTermBootstrapFailed => {
             "Impossibile caricare l'interfaccia utente del terminale. Controlla la console del browser; lo script bootstrap o il CDN xterm potrebbero essere bloccati."
         }

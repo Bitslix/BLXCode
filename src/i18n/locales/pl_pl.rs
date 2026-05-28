@@ -647,8 +647,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermPaneTitleSingle => "{rola} · {termin} {n.}",
         I18nKey::WsTermPaneTitleMulti => "{rola} · {termin} {slot}.{panel}",
         I18nKey::WsTermDragHandleAria => "Przeciągnij, aby zmienić kolejność terminala",
+        I18nKey::WsTermDragHandleDisabled => "Przeciąganie wyłączone (podział lub jedyny slot)",
         I18nKey::WsTermDropCreateNewAria => "Upuść, aby dodać gniazdo terminala",
+        I18nKey::WsTermDropHere => "Upuść, aby zamienić",
+        I18nKey::WsTermDragging => "Przenoszenie terminala…",
         I18nKey::WsTermDragMaxSlots => "Osiągnięto maksymalną liczbę gniazd terminali (16)",
+        I18nKey::WsTermTransferFailed => "Nie można przenieść terminala: {error}",
+        I18nKey::WsWorkspaceDropToCreate => "Upuść tutaj, aby utworzyć nowy workspace",
         I18nKey::WsTermBootstrapFailed => {
             "Nie udało się załadować interfejsu terminala. Sprawdź konsolę przeglądarki; skrypt startowy lub xterm CDN mogą być zablokowane."
         }

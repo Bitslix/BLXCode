@@ -647,8 +647,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermPaneTitleSingle => "{роль} · {термин} {n}",
         I18nKey::WsTermPaneTitleMulti => "{роль} · {термин} {слот}.{панель}",
         I18nKey::WsTermDragHandleAria => "Перетащите, чтобы изменить порядок терминалов",
+        I18nKey::WsTermDragHandleDisabled => "Перетаскивание отключено (разделение или единственный слот)",
         I18nKey::WsTermDropCreateNewAria => "Отпустите, чтобы добавить слот терминала",
+        I18nKey::WsTermDropHere => "Отпустите для обмена",
+        I18nKey::WsTermDragging => "Перемещение терминала…",
         I18nKey::WsTermDragMaxSlots => "Достигнуто максимальное количество разъемов терминала (16)",
+        I18nKey::WsTermTransferFailed => "Не удалось переместить терминал: {error}",
+        I18nKey::WsWorkspaceDropToCreate => "Отпустите здесь для нового рабочего пространства",
         I18nKey::WsTermBootstrapFailed => {
             "Не удалось загрузить пользовательский интерфейс терминала. Проверьте консоль браузера; сценарий начальной загрузки или xterm CDN могут быть заблокированы."
         }
