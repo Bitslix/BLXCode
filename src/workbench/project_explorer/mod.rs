@@ -640,7 +640,14 @@ fn ExplorerNode(
                     </span>
                 </button>
                 <span class="project-explorer__icon" aria-hidden="true">
-                    <LxIcon icon=icondata::LuFolder width="0.8rem" height="0.8rem" />
+                    <Show
+                        when=move || is_open.get()
+                        fallback=move || view! {
+                            <LxIcon icon=icondata::LuFolder width="0.8rem" height="0.8rem" />
+                        }
+                    >
+                        <LxIcon icon=icondata::LuFolderOpen width="0.8rem" height="0.8rem" />
+                    </Show>
                 </span>
                 <span class="project-explorer__name">{name}</span>
                 <span class="project-explorer__actions">

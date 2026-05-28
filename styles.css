@@ -10204,8 +10204,13 @@ body.blxcode-dragging-terminal * {
   white-space: nowrap;
 }
 
-.project-explorer__row--selected {
-  background: var(--bg-hover);
+/* Persistent selection — accent-tinted so it stays distinct from the
+   mouse-following :hover background. Declared after the :hover rule so a
+   selected row keeps its mark even while hovered. */
+.project-explorer__row--selected,
+.project-explorer__row--selected:hover {
+  background: var(--accent-soft);
+  color: var(--text);
 }
 
 .project-explorer__actions {
