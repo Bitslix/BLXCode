@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Post-update release notes dialog**: after an installed update, BLXCode now checks the current app version on startup and shows a one-time "What's new" dialog for that version. The dialog loads friendly, versioned release notes from `docs/releases/v{version}.md` on the matching Git tag, falls back to the GitHub Release body when needed, parses frontmatter plus sectioned Markdown into structured title/summary/cards, and remembers the acknowledged version in `localStorage` so users are not shown the same notes on every launch. Added the `post_update_release_notes` Tauri command, typed frontend bridge, themed Leptos dialog, i18n strings, parser tests, and an example `docs/releases/v0.2.9.md` template for future releases.
 
+- **Memory root-note creation**: the Memory Files sidebar now exposes separate root-level note and category actions for Project and Global memory, so users can create notes directly in the memory root instead of only inside newly-created subfolders.
+
 ### Changed
 
 - **Terminal titlebar drag affordance and slot marker**: the whole terminal titlebar is now the drag surface for terminal drag & drop, with the grip shown as a centered visual cue instead of a left-only handle. The left side now shows a compact themed `#N` slot marker using existing theme tokens, so reordered terminals still reveal which stable terminal slot is in each grid cell.

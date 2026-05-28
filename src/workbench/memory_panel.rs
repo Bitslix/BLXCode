@@ -959,11 +959,25 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                         <button
                             type="button"
                             class="workbench-memory-files__scope-add"
+                            title=move || i18n.tr(I18nKey::MemNewNoteTitle)()
+                            aria-label=move || i18n.tr(I18nKey::MemNewNoteTitle)()
+                            on:click=move |_| {
+                                new_note_category.set(Some((
+                                    MemoryScope::Workspace,
+                                    CATEGORY_MEMORY.to_string(),
+                                )));
+                            }
+                        >
+                            <LxIcon icon=icondata::LuFilePlus width="0.75rem" height="0.75rem" />
+                        </button>
+                        <button
+                            type="button"
+                            class="workbench-memory-files__scope-add"
                             title=move || i18n.tr(I18nKey::MemNewCategory)()
                             aria-label=move || i18n.tr(I18nKey::MemNewCategory)()
                             on:click=move |_| new_category_scope.set(Some(MemoryScope::Workspace))
                         >
-                            <LxIcon icon=icondata::LuPlus width="0.75rem" height="0.75rem" />
+                            <LxIcon icon=icondata::LuFolderPlus width="0.75rem" height="0.75rem" />
                         </button>
                     </div>
                     {section(MemoryScope::Workspace)}
@@ -974,15 +988,31 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                     <div class="workbench-memory-files__scope-head">
                         <span>"Global"</span>
                         <Show when=move || state.global_bootstrapped.get()>
-                            <button
-                                type="button"
-                                class="workbench-memory-files__scope-add"
-                                title=move || i18n.tr(I18nKey::MemNewCategory)()
-                                aria-label=move || i18n.tr(I18nKey::MemNewCategory)()
-                                on:click=move |_| new_category_scope.set(Some(MemoryScope::Global))
-                            >
-                                <LxIcon icon=icondata::LuPlus width="0.75rem" height="0.75rem" />
-                            </button>
+                            <div class="workbench-memory-files__scope-actions">
+                                <button
+                                    type="button"
+                                    class="workbench-memory-files__scope-add"
+                                    title=move || i18n.tr(I18nKey::MemNewNoteTitle)()
+                                    aria-label=move || i18n.tr(I18nKey::MemNewNoteTitle)()
+                                    on:click=move |_| {
+                                        new_note_category.set(Some((
+                                            MemoryScope::Global,
+                                            CATEGORY_MEMORY.to_string(),
+                                        )));
+                                    }
+                                >
+                                    <LxIcon icon=icondata::LuFilePlus width="0.75rem" height="0.75rem" />
+                                </button>
+                                <button
+                                    type="button"
+                                    class="workbench-memory-files__scope-add"
+                                    title=move || i18n.tr(I18nKey::MemNewCategory)()
+                                    aria-label=move || i18n.tr(I18nKey::MemNewCategory)()
+                                    on:click=move |_| new_category_scope.set(Some(MemoryScope::Global))
+                                >
+                                    <LxIcon icon=icondata::LuFolderPlus width="0.75rem" height="0.75rem" />
+                                </button>
+                            </div>
                         </Show>
                     </div>
                     <Show

@@ -7922,7 +7922,8 @@ body.blxcode-dragging-terminal * {
 }
 
 .workbench-memory-files__tree--collapsed .workbench-memory-files__scope-head span,
-.workbench-memory-files__tree--collapsed .workbench-memory-files__scope-add {
+.workbench-memory-files__tree--collapsed .workbench-memory-files__scope-add,
+.workbench-memory-files__tree--collapsed .workbench-memory-files__scope-actions {
   display: none;
 }
 
@@ -7995,6 +7996,12 @@ body.blxcode-dragging-terminal * {
 }
 .workbench-memory-files__scope-head span {
   flex: 1;
+}
+.workbench-memory-files__scope-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.12rem;
 }
 .workbench-memory-files__scope-add {
   flex: 0 0 auto;
