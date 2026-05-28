@@ -2,8 +2,8 @@ use crate::agent_wire::{AgentEvent, EventEnvelope, TaskSnapshot, TurnMetrics, Tu
 use crate::i18n::Locale;
 use crate::workbench::agent_panel::timeline::parse_ask_user_args;
 use crate::workbench::agent_timeline::{
-    tool_label, ActivityStatus, AskUserState, TimelineDoc, ToolActivity, ToolState, TurnPart,
-    SubagentStatus, TurnNode,
+    is_empty_pending_thinking, tool_label, ActivityStatus, AskUserState, SubagentStatus,
+    TimelineDoc, ToolActivity, ToolState, TurnNode, TurnPart,
 };
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
@@ -298,7 +298,11 @@ fn apply_event_to_doc(
                         {
                             m.merge(&metrics);
                         }
-                    } else {
+                    } else if !merge_model_metrics_into_latest_text(
+                        doc,
+                        env.parent_call_id.as_deref(),
+                        metrics,
+                    ) {
                         append_part(
                             doc,
                             env.parent_call_id.as_deref(),
@@ -344,7 +348,9 @@ fn apply_event_to_doc(
         AgentEvent::Done
         | AgentEvent::TaskSnapshot { .. }
         | AgentEvent::VoiceReady { .. }
-        | AgentEvent::ImageContextConsumed { .. } => {}
+        | AgentEvent::ImageContextConsumed { .. } => {
+            remove_empty_pending_top_level_thinking(doc);
+        }
     }
 }
 
@@ -358,6 +364,7 @@ fn append_text(doc: &mut TimelineDoc, env: &EventEnvelope, agent_id: Option<&Str
     let Some(parts) = target_parts_mut(doc, env.parent_call_id.as_deref(), agent_id.map(String::as_str)) else {
         return;
     };
+    remove_empty_pending_thinking(parts);
     match parts.last_mut() {
         Some(TurnPart::Text { text, .. }) => text.push_str(delta),
         _ => parts.push(TurnPart::Text {
@@ -389,6 +396,10 @@ fn append_thinking(
 
 fn mark_thinking_done(doc: &mut TimelineDoc, env: &EventEnvelope, agent_id: Option<&String>) {
     if let Some(parts) = target_parts_mut(doc, env.parent_call_id.as_deref(), agent_id.map(String::as_str)) {
+        if parts.last().is_some_and(is_empty_pending_thinking) {
+            parts.pop();
+            return;
+        }
         if let Some(TurnPart::Thinking { done, .. }) = parts
             .iter_mut()
             .rev()
@@ -406,8 +417,41 @@ fn append_part(
     part: TurnPart,
 ) {
     if let Some(parts) = target_parts_mut(doc, parent_call_id, agent_id.map(String::as_str)) {
+        remove_empty_pending_thinking(parts);
         parts.push(part);
     }
+}
+
+fn remove_empty_pending_top_level_thinking(doc: &mut TimelineDoc) {
+    if let Some(turn) = doc.turns.last_mut() {
+        remove_empty_pending_thinking(&mut turn.parts);
+    }
+}
+
+fn remove_empty_pending_thinking(parts: &mut Vec<TurnPart>) {
+    parts.retain(|part| !is_empty_pending_thinking(part));
+}
+
+fn merge_model_metrics_into_latest_text(
+    doc: &mut TimelineDoc,
+    parent_call_id: Option<&str>,
+    metrics: TurnMetrics,
+) -> bool {
+    let Some(parts) = target_parts_mut(doc, parent_call_id, None) else {
+        return false;
+    };
+    remove_empty_pending_thinking(parts);
+    for part in parts.iter_mut().rev() {
+        match part {
+            TurnPart::Text { metrics: m, .. } => {
+                m.merge(&metrics);
+                return true;
+            }
+            TurnPart::Thinking { .. } => continue,
+            _ => break,
+        }
+    }
+    false
 }
 
 fn target_parts_mut<'a>(
@@ -713,6 +757,49 @@ mod tests {
             })
             .collect::<Vec<_>>();
         assert_eq!(text_ids, vec!["text-1", "text-4"]);
+    }
+
+    #[test]
+    fn reducer_model_round_metrics_merge_into_latest_text_part() {
+        let mut doc = TimelineDoc::default();
+        doc.push_user_turn("hi".to_owned());
+        apply_event_to_doc(
+            &mut doc,
+            &env(1, None, AgentEvent::AssistantDelta { delta: "hi".into() }),
+            Locale::EnUs,
+            None,
+        );
+        apply_event_to_doc(
+            &mut doc,
+            &env(
+                2,
+                None,
+                AgentEvent::TurnUsage {
+                    kind: TurnUsageKind::ModelRound,
+                    agent_id: None,
+                    call_id: None,
+                    round_index: Some(0),
+                    turn_generation: 0,
+                    input_tokens: Some(90),
+                    output_tokens: Some(4),
+                    ttft_ms: Some(100),
+                    elapsed_ms: 200,
+                    cost_usd: Some(0.01),
+                },
+            ),
+            Locale::EnUs,
+            None,
+        );
+
+        assert_eq!(doc.turns[0].parts.len(), 1);
+        match &doc.turns[0].parts[0] {
+            TurnPart::Text { metrics, .. } => {
+                assert_eq!(metrics.input_tokens, Some(90));
+                assert_eq!(metrics.output_tokens, Some(4));
+                assert_eq!(metrics.cost_usd, Some(0.01));
+            }
+            other => panic!("expected text part, got {other:?}"),
+        }
     }
 
     #[test]

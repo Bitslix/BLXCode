@@ -490,6 +490,18 @@ impl TimelineDoc {
         });
     }
 
+    pub fn push_user_turn_with_pending(&mut self, text: String) {
+        let pending_id = format!("think-pending-{}", self.turns.len());
+        self.push_user_turn(text);
+        if let Some(turn) = self.turns.last_mut() {
+            turn.parts.push(TurnPart::Thinking {
+                id: pending_id,
+                text: String::new(),
+                done: false,
+            });
+        }
+    }
+
     pub fn sanitize_for_persistence(mut self) -> Self {
         for turn in &mut self.turns {
             sanitize_parts_for_persistence(&mut turn.parts);
@@ -519,7 +531,7 @@ fn sanitize_parts_for_persistence(parts: &mut Vec<TurnPart>) {
                 state: AskUserState::Open,
                 ..
             }
-        )
+        ) && !is_empty_pending_thinking(part)
     });
     for part in parts {
         match part {
@@ -537,6 +549,14 @@ fn sanitize_parts_for_persistence(parts: &mut Vec<TurnPart>) {
             _ => {}
         }
     }
+}
+
+pub fn is_empty_pending_thinking(part: &TurnPart) -> bool {
+    matches!(
+        part,
+        TurnPart::Thinking { id, text, done }
+            if id.starts_with("think-pending-") && text.trim().is_empty() && !done
+    )
 }
 
 #[must_use]

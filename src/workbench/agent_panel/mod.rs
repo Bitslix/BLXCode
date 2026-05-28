@@ -605,7 +605,7 @@ fn submit_turn(
     let context_items = wb.agent_context_for_workspace_untracked(ws_id);
     let image_context_items = wb.pending_agent_images_for_workspace_untracked(ws_id);
 
-    timeline.update(|doc| doc.push_user_turn(prompt.clone()));
+    timeline.update(|doc| doc.push_user_turn_with_pending(prompt.clone()));
     wb.set_workspace_agent_timeline(ws_id, timeline.get_untracked());
 
     status_line.set(None);
