@@ -159,18 +159,6 @@ pub async fn app_relaunch() -> Result<(), String> {
     invoke_unit_js("app_relaunch", JsValue::UNDEFINED).await
 }
 
-pub async fn gitignore_append_blxcode(workspace_cwd: &str) -> Result<(), String> {
-    #[derive(Serialize)]
-    struct Args<'a> {
-        workspace_cwd: &'a str,
-    }
-    invoke_unit_js(
-        "gitignore_append_blxcode",
-        args_value(Args { workspace_cwd })?,
-    )
-    .await
-}
-
 /// Submits the result of a client-side tool back into the running turn.
 /// `call_id` must match the id of the most recent matching `ToolCall`
 /// event drained from the agent queue.

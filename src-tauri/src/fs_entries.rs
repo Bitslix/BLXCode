@@ -148,7 +148,7 @@ fn classify_kind(ext: &str) -> FileKind {
         | "nix" | "dockerfile" | "containerfile" | "makefile" | "mk" | "cmake" | "diff"
         | "patch" => FileKind::Code,
         // Plain text without highlighting (still gets line numbers in the preview).
-        "txt" | "log" | "ini" | "conf" | "cfg" | "env" | "properties" | "lock" | "gitignore"
+        "txt" | "log" | "ini" | "conf" | "cfg" | "env" | "properties" | "lock"
         | "gitattributes" | "editorconfig" | "csv" | "tsv" => FileKind::Text,
         _ => FileKind::Binary,
     }
@@ -561,7 +561,6 @@ mod tests {
         assert!(matches!(classify_kind("txt"), FileKind::Text));
         assert!(matches!(classify_kind("log"), FileKind::Text));
         assert!(matches!(classify_kind("env"), FileKind::Text));
-        assert!(matches!(classify_kind("gitignore"), FileKind::Text));
         assert!(matches!(classify_kind("unknown"), FileKind::Binary));
     }
 

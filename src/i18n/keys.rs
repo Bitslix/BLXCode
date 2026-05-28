@@ -8,10 +8,6 @@
 pub enum I18nKey {
     Decline,
     Accept,
-    GitignorePromptTitle,
-    GitignorePromptBody,
-    GitignorePromptYes,
-    GitignorePromptNo,
     BtnClose,
     BtnApply,
     BtnSave,

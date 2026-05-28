@@ -13,7 +13,7 @@ The preview picks a renderer based on the file extension:
 | **Markdown** | `md`, `markdown` | `pulldown-cmark` (GFM tables, strikethrough, task lists, footnotes, smart punctuation) with sanitized HTML and inline Mermaid blocks |
 | **Mermaid** | `mmd`, `mermaid` | Lazy-loaded [Mermaid 11](https://mermaid.js.org/) diagram via vendored bundle |
 | **Code** | `rs`, `ts`, `tsx`, `js`, `jsx`, `mjs`, `cjs`, `py`, `go`, `java`, `kt`, `scala`, `swift`, `c`, `cpp`, `cs`, `rb`, `php`, `lua`, `dart`, `r`, `clj`, `ex`, `hs`, `elm`, `zig`, `nim`, `html`, `vue`, `svelte`, `css`, `scss`, `less`, `json`, `toml`, `yaml`, `xml`, `sh`, `bash`, `ps1`, `sql`, `graphql`, `proto`, `tf`, `nix`, `dockerfile`, `makefile`, `diff`, … | Two-column code view: gutter with **line numbers** + syntax-highlighted code (highlight.js 11). Click any row to **toggle a selection highlight** for that line. |
-| **Text** | `txt`, `log`, `ini`, `conf`, `env`, `properties`, `csv`, `tsv`, `gitignore`, `editorconfig`, … | Same gutter + row-selection layout as Code, but without syntax highlighting (plain monospaced text). |
+| **Text** | `txt`, `log`, `ini`, `conf`, `env`, `properties`, `csv`, `tsv`, `editorconfig`, … | Same gutter + row-selection layout as Code, but without syntax highlighting (plain monospaced text). |
 | **Binary** | everything else | "Preview not available for this file type" placeholder |
 
 > **Note** — Common repository "policy" documents (`LICENSE`, `LICENCE`, `COPYING`, `CONTRIBUTING`, `CONTRIBUTORS`, `CODE_OF_CONDUCT`, `SECURITY`, `AUTHORS` / `MAINTAINERS` / `OWNERS` / `CODEOWNERS`, `CHANGELOG`, `README`) are detected by their **filename stem**, not their extension. They render as Markdown **with or without** a `.md` / `.markdown` suffix and get a special hero banner — see [Repository policy documents](#repository-policy-documents) below.
@@ -125,7 +125,7 @@ Why this matters: previously a stand-alone `LICENSE` (no extension) would be cla
 
 ## Source code & plain text
 
-Code files (Rust, TypeScript, JavaScript, Python, Go, Java, Kotlin, Swift, C/C++, C#, Ruby, PHP, Lua, Dart, R, Clojure, Elixir, Haskell, Elm, Zig, Nim, HTML, Vue, Svelte, CSS, SCSS, JSON, TOML, YAML, XML, shell scripts, SQL, GraphQL, Protobuf, Terraform/HCL, Nix, Dockerfile, Makefile, diff/patch, …) and plain-text files (txt, log, ini, conf, env, properties, csv, tsv, gitignore, editorconfig) both render in a dedicated two-column **CodeView**:
+Code files (Rust, TypeScript, JavaScript, Python, Go, Java, Kotlin, Swift, C/C++, C#, Ruby, PHP, Lua, Dart, R, Clojure, Elixir, Haskell, Elm, Zig, Nim, HTML, Vue, Svelte, CSS, SCSS, JSON, TOML, YAML, XML, shell scripts, SQL, GraphQL, Protobuf, Terraform/HCL, Nix, Dockerfile, Makefile, diff/patch, …) and plain-text files (txt, log, ini, conf, env, properties, csv, tsv, editorconfig) both render in a dedicated two-column **CodeView**:
 
 - **Line numbers gutter** on the left — right-aligned, tabular numerals, separated by a hairline divider. The gutter width auto-sizes to the largest line number (`--code-view-gutter-width`).
 - **Syntax highlighting** on the right via [highlight.js 11](https://highlightjs.org/) for every file whose extension maps to a known language. The bundle is vendored at `public/vendor/highlight/highlight.min.js` (~127 KiB, 38 common languages) and lazy-loaded on first use; subsequent code previews reuse `globalThis.hljs` without re-downloading.

@@ -5,12 +5,6 @@ pub fn msg(key: I18nKey) -> &'static str {
     match key {
         I18nKey::Decline => "Hanyatlás",
         I18nKey::Accept => "Elfogadás",
-        I18nKey::GitignorePromptTitle => "Hozzáadja a .blxcode-ot a .gitignore fájlhoz?",
-        I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \nAdd it to this project's `.gitignore` so it is not committed by mistake?"
-        }
-        I18nKey::GitignorePromptYes => "Igen, add hozzá",
-        I18nKey::GitignorePromptNo => "Most nem",
         I18nKey::BtnClose => "Közeli",
         I18nKey::BtnApply => "Alkalmazni",
         I18nKey::BtnSave => "Megtakarítás",

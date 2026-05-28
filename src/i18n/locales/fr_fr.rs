@@ -5,12 +5,6 @@ pub fn msg(key: I18nKey) -> &'static str {
     match key {
         I18nKey::Decline => "Déclin",
         I18nKey::Accept => "Accepter",
-        I18nKey::GitignorePromptTitle => "Ajouter .blxcode à .gitignore ?",
-        I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \nAdd it to this project's `.gitignore` so it is not committed by mistake?"
-        }
-        I18nKey::GitignorePromptYes => "Oui, ajoute-le",
-        I18nKey::GitignorePromptNo => "Pas maintenant",
         I18nKey::BtnClose => "Fermer",
         I18nKey::BtnApply => "Appliquer",
         I18nKey::BtnSave => "Sauvegarder",

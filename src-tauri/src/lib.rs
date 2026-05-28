@@ -10,7 +10,6 @@ mod fs_entries;
 mod git_graph;
 mod git_info;
 mod git_status;
-mod gitignore;
 mod image;
 mod media_keys;
 mod memory;
@@ -190,7 +189,6 @@ pub fn run() {
             workbench_rewrite_terminal_keys,
             agent_session_exists,
             agent_latest_session_id,
-            gitignore::gitignore_append_blxcode,
             memory::workspace_ensure_agents,
             memory::memory_root,
             memory::memory_status,
