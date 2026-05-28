@@ -11,6 +11,7 @@ mod fs_entries;
 mod git_graph;
 mod git_info;
 mod git_status;
+mod git_sync;
 mod image;
 mod media_keys;
 mod memory;
@@ -180,6 +181,10 @@ pub fn run() {
             git_status::git_unstage_file,
             git_status::git_status_watch_start,
             git_status::git_status_watch_stop,
+            git_sync::git_sync_status,
+            git_sync::git_fetch,
+            git_sync::git_pull,
+            git_sync::git_push,
             fs_entries::list_path_entries,
             fs_entries::create_workspace_file,
             fs_entries::create_workspace_dir,

@@ -2204,6 +2204,61 @@ pub async fn git_status_watch_stop(token: u64) -> Result<(), String> {
     invoke_unit_js("git_status_watch_stop", args_value(Args { token })?).await
 }
 
+/// Mirrors `git_sync::SyncStatus`.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncStatus {
+    pub branch: Option<String>,
+    pub upstream: Option<String>,
+    pub ahead: u32,
+    pub behind: u32,
+    pub has_remote: bool,
+    pub detached: bool,
+    pub dirty: bool,
+}
+
+/// Mirrors `git_sync::SyncOutcome`. `kind` is a stable code (see backend doc).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncOutcome {
+    pub kind: String,
+    pub detail: String,
+}
+
+pub async fn git_sync_status(cwd: String) -> Result<SyncStatus, String> {
+    #[derive(Serialize)]
+    struct Args {
+        cwd: String,
+    }
+    invoke_typed("git_sync_status", Args { cwd }).await
+}
+
+pub async fn git_fetch(cwd: String) -> Result<SyncOutcome, String> {
+    #[derive(Serialize)]
+    struct Args {
+        cwd: String,
+    }
+    invoke_typed("git_fetch", Args { cwd }).await
+}
+
+pub async fn git_pull(cwd: String) -> Result<SyncOutcome, String> {
+    #[derive(Serialize)]
+    struct Args {
+        cwd: String,
+    }
+    invoke_typed("git_pull", Args { cwd }).await
+}
+
+pub async fn git_push(cwd: String, set_upstream: bool) -> Result<SyncOutcome, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        cwd: String,
+        set_upstream: bool,
+    }
+    invoke_typed("git_push", Args { cwd, set_upstream }).await
+}
+
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitStatusDirtyPayload {
