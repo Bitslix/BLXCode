@@ -1,5 +1,5 @@
 //! Typisierte Aufrufe von Tauri `invoke` (vgl. `quit.rs`).
-use crate::agent_wire::{AgentEvent, BrowserBoundsPayload, TaskSnapshot, UserTurn};
+use crate::agent_wire::{AgentEvent, BrowserBoundsPayload, EventEnvelope, TaskSnapshot, UserTurn};
 use crate::skills_rules_wire::{RuleEntry, SkillEntry, SkillSourceInput};
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Reflect;
@@ -70,7 +70,7 @@ pub async fn agent_submit_turn(turn: UserTurn) -> Result<(), String> {
     invoke_unit_js("agent_submit_turn", args_value(Args { turn })?).await
 }
 
-pub async fn agent_poll_events(max: usize) -> Result<Vec<AgentEvent>, String> {
+pub async fn agent_poll_events(max: usize) -> Result<Vec<EventEnvelope>, String> {
     #[derive(Serialize)]
     struct MaxArgs {
         max: usize,
@@ -2225,7 +2225,7 @@ pub async fn pty_kill(session_id: u64) -> Result<(), String> {
 }
 /// Draint Events bis `Done`/`Error`; bei leeren Batches kurz warten (Streaming).
 #[allow(dead_code)]
-pub async fn agent_drain_turn(on_batch: impl Fn(Vec<AgentEvent>)) -> Result<(), String> {
+pub async fn agent_drain_turn(on_batch: impl Fn(Vec<EventEnvelope>)) -> Result<(), String> {
     agent_drain_turn_opts(false, on_batch).await
 }
 
@@ -2235,7 +2235,7 @@ pub async fn agent_drain_turn(on_batch: impl Fn(Vec<AgentEvent>)) -> Result<(), 
 /// regulären `Done` gepusht wird.
 pub async fn agent_drain_turn_opts(
     expect_voice: bool,
-    on_batch: impl Fn(Vec<AgentEvent>),
+    on_batch: impl Fn(Vec<EventEnvelope>),
 ) -> Result<(), String> {
     let mut seen_done = false;
     let mut idle_after_done: u32 = 0;
@@ -2254,10 +2254,10 @@ pub async fn agent_drain_turn_opts(
         }
         let has_done = batch
             .iter()
-            .any(|e| matches!(e, AgentEvent::Done | AgentEvent::Error { .. }));
+            .any(|e| matches!(e.event, AgentEvent::Done | AgentEvent::Error { .. }));
         let has_voice = batch
             .iter()
-            .any(|e| matches!(e, AgentEvent::VoiceReady { .. }));
+            .any(|e| matches!(e.event, AgentEvent::VoiceReady { .. }));
         on_batch(batch);
         if has_done {
             if !expect_voice || has_voice {

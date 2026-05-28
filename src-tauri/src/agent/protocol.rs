@@ -4,6 +4,16 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct EventEnvelope {
+    pub seq: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent_call_id: Option<String>,
+    #[serde(flatten)]
+    pub event: AgentEvent,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UserTurn {
     pub prompt: String,
     /// Sandbox root for read-only tools; must be canonical if set (caller responsibility).
@@ -97,6 +107,8 @@ pub enum AgentEvent {
     #[serde(rename = "tool_result")]
     ToolResult {
         tool: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        call_id: Option<String>,
         ok: bool,
         #[serde(skip_serializing_if = "Option::is_none")]
         message: Option<String>,

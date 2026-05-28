@@ -24,6 +24,7 @@ pub fn dispatch_user_turn(
     if agent.busy() {
         return Err("Agent ist noch beschäftigt.".into());
     }
+    agent.start_turn();
 
     // Image-mode branch: short-circuits the text-agent pipeline. Loads the
     // image settings + the image-provider's API key (NOT the text-agent

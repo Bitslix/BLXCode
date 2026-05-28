@@ -9,7 +9,7 @@ use crate::tauri_bridge::{
     workbench_extract_sessions_prefix, workbench_merge_sessions_workspace,
     workbench_rewrite_terminal_keys, workspace_ensure_agents,
 };
-use crate::workbench::agent_timeline::TimelineItem;
+use crate::workbench::agent_timeline::TimelineDoc;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -66,7 +66,7 @@ pub struct WorkspaceEntry {
     pub configuring: bool,
     /// Persisted agent chat timeline for this workspace folder.
     #[serde(default)]
-    pub agent_timeline: Vec<TimelineItem>,
+    pub agent_timeline: TimelineDoc,
     /// Draft text in the agent compose field (same workspace binding).
     #[serde(default)]
     pub agent_compose_draft: String,
@@ -417,7 +417,7 @@ impl WorkspaceEntry {
             slot_agent_labels: Vec::new(),
             slot_pane_states: Vec::new(),
             configuring: false,
-            agent_timeline: Vec::new(),
+            agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
             agent_context_items: Vec::new(),
@@ -1801,7 +1801,7 @@ impl WorkbenchService {
             slot_agent_labels: Vec::new(),
             slot_pane_states: Vec::new(),
             configuring: false,
-            agent_timeline: Vec::new(),
+            agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
             agent_context_items: Vec::new(),
@@ -1928,7 +1928,7 @@ impl WorkbenchService {
                 slot_agent_labels,
                 slot_pane_states,
                 configuring: false,
-                agent_timeline: Vec::new(),
+                agent_timeline: TimelineDoc::default(),
                 agent_compose_draft: String::new(),
                 agent_image_mode: false,
                 agent_context_items: Vec::new(),
@@ -2392,7 +2392,7 @@ impl WorkbenchService {
                 slot_agent_labels: Vec::new(),
                 slot_pane_states: Vec::new(),
                 configuring: false,
-                agent_timeline: Vec::new(),
+                agent_timeline: TimelineDoc::default(),
                 agent_compose_draft: String::new(),
                 agent_image_mode: false,
                 agent_context_items: Vec::new(),
@@ -2750,7 +2750,7 @@ impl WorkbenchService {
             slot_agent_labels: Vec::new(),
             slot_pane_states: Vec::new(),
             configuring: true,
-            agent_timeline: Vec::new(),
+            agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
             agent_context_items: Vec::new(),
@@ -3027,7 +3027,7 @@ impl WorkbenchService {
         });
     }
 
-    pub fn set_workspace_agent_timeline(&self, workspace_id: u64, items: Vec<TimelineItem>) {
+    pub fn set_workspace_agent_timeline(&self, workspace_id: u64, items: TimelineDoc) {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
                 ws.agent_timeline = items;
@@ -3110,7 +3110,7 @@ impl WorkbenchService {
     }
 
     #[must_use]
-    pub fn agent_timeline_for_workspace_untracked(&self, workspace_id: u64) -> Vec<TimelineItem> {
+    pub fn agent_timeline_for_workspace_untracked(&self, workspace_id: u64) -> TimelineDoc {
         self.workspaces.with_untracked(|workspaces| {
             workspaces
                 .iter()
@@ -3836,7 +3836,7 @@ mod center_tab_tests {
             slot_agent_labels: vec![String::new()],
             slot_pane_states: vec![SlotPaneState::default_for_slot(1)],
             configuring: false,
-            agent_timeline: Vec::new(),
+            agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
             agent_context_items: Vec::new(),
@@ -3927,7 +3927,7 @@ mod terminal_slot_tests {
             slot_agent_labels: (0..n as usize).map(|i| format!("label{i}")).collect(),
             slot_pane_states,
             configuring: false,
-            agent_timeline: Vec::new(),
+            agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
             agent_context_items: Vec::new(),

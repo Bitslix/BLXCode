@@ -3,13 +3,13 @@ mod ask_user_card;
 mod client_tools;
 mod context_list;
 mod image_context;
-mod subagent_debounce;
+mod reducer;
 mod task_list;
 mod timeline;
 pub(crate) mod turn_metrics_bar;
 mod voice_orb;
 
-use crate::agent_wire::{AgentEvent, TaskSnapshot, UserTurn};
+use crate::agent_wire::{AgentEvent, EventEnvelope, TaskSnapshot, UserTurn};
 use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
@@ -22,23 +22,19 @@ use crate::workbench::agent_panel::image_context::{
     clear_drop_state, handle_dom_drag_event, handle_dom_drop, install_agent_image_intake,
     DropZoneState,
 };
-use crate::workbench::agent_panel::subagent_debounce::{
-    is_subagent_timeline_event, SubagentEventDebounce,
-};
+use crate::workbench::agent_panel::reducer::apply_envelope;
 use crate::workbench::agent_panel::task_list::TaskSection;
-use crate::workbench::agent_panel::timeline::{
-    apply_agent_event, timeline_display_rows, ChatLineIndexColumn, TimelineItem, TimelineRow,
-};
+use crate::workbench::agent_panel::timeline::{ChatLineIndexColumn, TurnNodeView};
 use crate::workbench::agent_panel::voice_orb::{
     handle_voice_event, install_ptt_hotkey, VoiceOrb, VoiceOrbHandle,
 };
+use crate::workbench::agent_timeline::TimelineDoc;
 use crate::workbench::terminal_slot_dnd::TerminalSlotDragService;
 use crate::workbench::WorkbenchService;
 use leptos::html;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use std::collections::HashMap;
-use std::rc::Rc;
 use wasm_bindgen::JsCast;
 
 #[component]
@@ -48,7 +44,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     let slot_dnd = expect_context::<TerminalSlotDragService>();
 
     let draft = RwSignal::new(String::new());
-    let timeline = RwSignal::new(Vec::<TimelineItem>::new());
+    let timeline = RwSignal::new(TimelineDoc::default());
     let busy = RwSignal::new(false);
     let status_line = RwSignal::new(Option::<String>::None);
     let tasks_open = RwSignal::new(false);
@@ -88,7 +84,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     Effect::new(move |_| {
         let active = wb.active_id().get();
         let Some(id) = active else {
-            timeline.set(Vec::new());
+            timeline.set(TimelineDoc::default());
             thinking_open.set(HashMap::new());
             tool_detail_open.set(HashMap::new());
             draft.set(String::new());
@@ -183,7 +179,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     const AUTOSCROLL_PX: i32 = 80;
     let last_timeline_len = StoredValue::new(0usize);
     Effect::new(move |_| {
-        let len = timeline.with(|t| t.len());
+        let len = timeline.with(|t| t.display_len());
         let prev_len = last_timeline_len.get_value();
         last_timeline_len.set_value(len);
         let Some(log) = chat_scroll_ref.get() else {
@@ -389,11 +385,11 @@ pub fn AgentPanelDock() -> impl IntoView {
                                     };
                                     match agent_clear_conversation().await {
                                         Ok(()) => {
-                                            timeline.set(Vec::new());
+                                            timeline.set(TimelineDoc::default());
                                             thinking_open.set(HashMap::new());
                                             tool_detail_open.set(HashMap::new());
                                             draft.set(String::new());
-                                            wb.set_workspace_agent_timeline(ws_id, Vec::new());
+                                            wb.set_workspace_agent_timeline(ws_id, TimelineDoc::default());
                                             wb.set_workspace_agent_compose_draft(ws_id, String::new());
                                             wb.clear_chat_usage(ws_id);
                                             status_line.set(None);
@@ -439,26 +435,29 @@ pub fn AgentPanelDock() -> impl IntoView {
                                     );
                                 });
                                 view! {
-                                    <For
-                                        each=move || timeline_display_rows(timeline.get())
-                                        key=|row| row.idx
-                                        children=move |row| {
+                                    {move || {
+                                        timeline.get()
+                                            .turns
+                                            .into_iter()
+                                            .enumerate()
+                                            .map(|(idx, turn)| {
                                             view! {
-                                                <TimelineRow
-                                                    idx=row.idx
-                                                    entry=row.entry
+                                                <TurnNodeView
+                                                    idx=idx
+                                                    turn=turn
                                                     i18n=i18n
                                                     thinking_open=thinking_open
                                                     tool_detail_open=tool_detail_open
                                                     voice_handle=voice_handle
-                                                    on_redo=on_redo
                                                     timeline=timeline
                                                     wb=wb
                                                     workspace_id=wb.active_id().get_untracked()
+                                                    on_redo=on_redo
                                                 />
                                             }
-                                        }
-                                    />
+                                            })
+                                            .collect_view()
+                                    }}
                                 }
                             }
                         </ol>
@@ -559,7 +558,7 @@ fn submit_turn(
     draft: RwSignal<String>,
     busy: RwSignal<bool>,
     status_line: RwSignal<Option<String>>,
-    timeline: RwSignal<Vec<TimelineItem>>,
+    timeline: RwSignal<TimelineDoc>,
     task_snapshot: RwSignal<TaskSnapshot>,
     thinking_open: RwSignal<HashMap<usize, bool>>,
     tool_detail_open: RwSignal<HashMap<String, bool>>,
@@ -589,10 +588,10 @@ fn submit_turn(
         leptos::task::spawn_local(async move {
             match agent_clear_conversation().await {
                 Ok(()) => {
-                    timeline.set(Vec::new());
+                    timeline.set(TimelineDoc::default());
                     thinking_open.set(HashMap::new());
                     tool_detail_open.set(HashMap::new());
-                    wb.set_workspace_agent_timeline(ws_id, Vec::new());
+                    wb.set_workspace_agent_timeline(ws_id, TimelineDoc::default());
                     wb.clear_chat_usage(ws_id);
                     status_line.set(None);
                 }
@@ -606,11 +605,7 @@ fn submit_turn(
     let context_items = wb.agent_context_for_workspace_untracked(ws_id);
     let image_context_items = wb.pending_agent_images_for_workspace_untracked(ws_id);
 
-    timeline.update(|items| {
-        items.push(TimelineItem::User {
-            text: prompt.clone(),
-        });
-    });
+    timeline.update(|doc| doc.push_user_turn(prompt.clone()));
     wb.set_workspace_agent_timeline(ws_id, timeline.get_untracked());
 
     status_line.set(None);
@@ -656,22 +651,10 @@ fn submit_turn(
 
         let i18n_d = i18n;
         let wb_d = wb;
-        let subagent_debounce = SubagentEventDebounce::new();
-        let flush_subagent = Rc::new(move |debounced: Vec<AgentEvent>| {
+        if let Err(msg) = agent_drain_turn_opts(voice_input, move |batch: Vec<EventEnvelope>| {
             let loc_now = i18n_d.locale().get_untracked();
-            for ev in &debounced {
-                apply_agent_event(
-                    ev,
-                    timeline_sig,
-                    task_snapshot_sig,
-                    loc_now,
-                    Some((wb_d, ws_capture)),
-                );
-            }
-        });
-        if let Err(msg) = agent_drain_turn_opts(voice_input, move |batch| {
-            let loc_now = i18n_d.locale().get_untracked();
-            for ev in &batch {
+            for env in &batch {
+                let ev = &env.event;
                 if matches!(ev, AgentEvent::VoiceReady { .. }) {
                     handle_voice_event(audio_ref, ev);
                     continue;
@@ -680,12 +663,8 @@ fn submit_turn(
                     wb_d.mark_workspace_agent_images_read(ws_capture, ids);
                     continue;
                 }
-                if is_subagent_timeline_event(ev) {
-                    subagent_debounce.push(ev.clone(), flush_subagent.clone());
-                    continue;
-                }
-                apply_agent_event(
-                    ev,
+                apply_envelope(
+                    env,
                     timeline_sig,
                     task_snapshot_sig,
                     loc_now,

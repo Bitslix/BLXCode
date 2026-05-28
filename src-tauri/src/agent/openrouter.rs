@@ -181,6 +181,7 @@ pub async fn run_chat_turn(
     image_context_items: Vec<AgentImageContextItem>,
     workspace_root: Option<String>,
 ) {
+    state.start_turn();
     state.clear_cancel();
     state.set_busy(true);
 
@@ -386,6 +387,7 @@ pub async fn run_chat_turn(
 
             state.push(AgentEvent::ToolResult {
                 tool: internal_name.clone(),
+                call_id: Some(call.id.clone()),
                 ok: outcome.ok,
                 message: Some(truncate_for_ui(&outcome.content)),
             });

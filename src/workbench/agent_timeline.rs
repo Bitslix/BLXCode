@@ -285,6 +285,456 @@ fn ask_user_state_default() -> AskUserState {
     AskUserState::Cancelled
 }
 
+pub const TIMELINE_SCHEMA_VERSION: u32 = 2;
+
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimelineDoc {
+    pub version: u32,
+    #[serde(default)]
+    pub turns: Vec<TurnNode>,
+}
+
+impl Default for TimelineDoc {
+    fn default() -> Self {
+        Self {
+            version: TIMELINE_SCHEMA_VERSION,
+            turns: Vec::new(),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for TimelineDoc {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Wire {
+            Doc(TimelineDocRaw),
+            Legacy(Vec<TimelineItem>),
+        }
+
+        match Wire::deserialize(deserializer)? {
+            Wire::Doc(raw) => Ok(Self {
+                version: raw.version.max(TIMELINE_SCHEMA_VERSION),
+                turns: raw.turns,
+            }),
+            Wire::Legacy(items) => Ok(migrate_legacy_items(items)),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TimelineDocRaw {
+    #[serde(default = "timeline_schema_version_default")]
+    version: u32,
+    #[serde(default)]
+    turns: Vec<TurnNode>,
+}
+
+fn timeline_schema_version_default() -> u32 {
+    TIMELINE_SCHEMA_VERSION
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TurnNode {
+    pub id: String,
+    pub user: UserPart,
+    #[serde(default)]
+    pub parts: Vec<TurnPart>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserPart {
+    pub id: String,
+    pub text: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolState {
+    Pending,
+    Running,
+    Success,
+    Error,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SubagentStatus {
+    Running,
+    Done,
+    Error,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", rename_all_fields = "camelCase")]
+pub enum TurnPart {
+    Thinking {
+        id: String,
+        text: String,
+        done: bool,
+    },
+    Text {
+        id: String,
+        text: String,
+        #[serde(default)]
+        metrics: TurnMetrics,
+    },
+    Tool {
+        id: String,
+        tool: String,
+        label: String,
+        args_summary: String,
+        #[serde(default)]
+        args: Option<Value>,
+        state: ToolState,
+        #[serde(default)]
+        result: Option<String>,
+        #[serde(default)]
+        metrics: TurnMetrics,
+        #[serde(default)]
+        children: Vec<TurnPart>,
+        #[serde(default)]
+        paths: Vec<String>,
+        #[serde(default = "default_merged_count")]
+        merged_count: usize,
+    },
+    Subagent {
+        id: String,
+        role: String,
+        display_name: String,
+        status: SubagentStatus,
+        #[serde(default)]
+        parts: Vec<TurnPart>,
+        #[serde(default)]
+        metrics: TurnMetrics,
+        #[serde(default)]
+        summary: Option<String>,
+        #[serde(default)]
+        steps: Vec<SubagentStepRow>,
+    },
+    ModelRound {
+        id: String,
+        #[serde(default)]
+        metrics: TurnMetrics,
+    },
+    GeneratedImage {
+        id: String,
+        prompt: String,
+        mime: String,
+        preview_src: String,
+        #[serde(default)]
+        saved_path: Option<String>,
+        #[serde(default)]
+        filename: Option<String>,
+    },
+    AskUser {
+        id: String,
+        call_id: String,
+        question: String,
+        #[serde(default)]
+        header: Option<String>,
+        options: Vec<AskUserOption>,
+        #[serde(default)]
+        multi_select: bool,
+        #[serde(default)]
+        allow_other: bool,
+        #[serde(default = "ask_user_state_default")]
+        state: AskUserState,
+    },
+}
+
+impl TurnPart {
+    #[must_use]
+    #[allow(dead_code)]
+    pub fn id(&self) -> &str {
+        match self {
+            TurnPart::Thinking { id, .. }
+            | TurnPart::Text { id, .. }
+            | TurnPart::Tool { id, .. }
+            | TurnPart::Subagent { id, .. }
+            | TurnPart::ModelRound { id, .. }
+            | TurnPart::GeneratedImage { id, .. }
+            | TurnPart::AskUser { id, .. } => id,
+        }
+    }
+}
+
+impl TimelineDoc {
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.turns.is_empty()
+    }
+
+    #[must_use]
+    pub fn display_len(&self) -> usize {
+        self.turns
+            .iter()
+            .map(|turn| 1 + count_parts(&turn.parts))
+            .sum()
+    }
+
+    pub fn push_user_turn(&mut self, text: String) {
+        let id = format!("turn-{}", self.turns.len());
+        let user_id = format!("user-{}", self.turns.len());
+        self.turns.push(TurnNode {
+            id,
+            user: UserPart { id: user_id, text },
+            parts: Vec::new(),
+        });
+    }
+
+    pub fn sanitize_for_persistence(mut self) -> Self {
+        for turn in &mut self.turns {
+            sanitize_parts_for_persistence(&mut turn.parts);
+        }
+        self
+    }
+}
+
+fn count_parts(parts: &[TurnPart]) -> usize {
+    parts
+        .iter()
+        .map(|part| {
+            1 + match part {
+                TurnPart::Tool { children, .. } => count_parts(children),
+                TurnPart::Subagent { parts, .. } => count_parts(parts),
+                _ => 0,
+            }
+        })
+        .sum::<usize>()
+}
+
+fn sanitize_parts_for_persistence(parts: &mut Vec<TurnPart>) {
+    parts.retain(|part| {
+        !matches!(
+            part,
+            TurnPart::AskUser {
+                state: AskUserState::Open,
+                ..
+            }
+        )
+    });
+    for part in parts {
+        match part {
+            TurnPart::GeneratedImage {
+                preview_src,
+                saved_path,
+                ..
+            } => {
+                if saved_path.as_deref().is_some_and(|p| !p.trim().is_empty()) {
+                    preview_src.clear();
+                }
+            }
+            TurnPart::Tool { children, .. } => sanitize_parts_for_persistence(children),
+            TurnPart::Subagent { parts, .. } => sanitize_parts_for_persistence(parts),
+            _ => {}
+        }
+    }
+}
+
+#[must_use]
+pub fn migrate_legacy_items(items: Vec<TimelineItem>) -> TimelineDoc {
+    let mut doc = TimelineDoc::default();
+    let mut pending_subagents_run: Option<usize> = None;
+    for item in items {
+        match item {
+            TimelineItem::User { text } => {
+                doc.push_user_turn(text);
+                pending_subagents_run = None;
+            }
+            TimelineItem::Assistant { text, metrics } => {
+                let id = next_part_id(&doc, "text");
+                append_top_part(
+                    &mut doc,
+                    TurnPart::Text {
+                        id,
+                        text,
+                        metrics,
+                    },
+                );
+                pending_subagents_run = None;
+            }
+            TimelineItem::Thinking { text, done } => {
+                let id = next_part_id(&doc, "think");
+                append_top_part(
+                    &mut doc,
+                    TurnPart::Thinking {
+                        id,
+                        text,
+                        done,
+                    },
+                );
+                pending_subagents_run = None;
+            }
+            TimelineItem::Tool(tool) => {
+                let idx = current_turn_parts(&doc);
+                let is_subagents_run = tool.tool == "subagents.run";
+                append_top_part(&mut doc, legacy_tool_to_part(tool));
+                pending_subagents_run = is_subagents_run.then_some(idx);
+            }
+            TimelineItem::SubagentGroup(group) => {
+                let subagents = group
+                    .agents
+                    .into_iter()
+                    .map(legacy_subagent_to_part)
+                    .collect::<Vec<_>>();
+                if let Some(tool_idx) = pending_subagents_run.take() {
+                    if let Some(TurnPart::Tool { children, .. }) =
+                        doc.turns.last_mut().and_then(|t| t.parts.get_mut(tool_idx))
+                    {
+                        children.extend(subagents);
+                        continue;
+                    }
+                }
+                for part in subagents {
+                    append_top_part(&mut doc, part);
+                }
+            }
+            TimelineItem::ModelDecision { metrics } => {
+                let id = next_part_id(&doc, "round");
+                append_top_part(
+                    &mut doc,
+                    TurnPart::ModelRound {
+                        id,
+                        metrics,
+                    },
+                );
+                pending_subagents_run = None;
+            }
+            TimelineItem::GeneratedImage {
+                prompt,
+                mime,
+                preview_src,
+                saved_path,
+                filename,
+            } => {
+                let id = next_part_id(&doc, "image");
+                append_top_part(
+                    &mut doc,
+                    TurnPart::GeneratedImage {
+                        id,
+                        prompt,
+                        mime,
+                        preview_src,
+                        saved_path,
+                        filename,
+                    },
+                );
+                pending_subagents_run = None;
+            }
+            TimelineItem::AskUser {
+                call_id,
+                question,
+                header,
+                options,
+                multi_select,
+                allow_other,
+                state,
+            } => {
+                append_top_part(
+                    &mut doc,
+                    TurnPart::AskUser {
+                        id: call_id.clone(),
+                        call_id,
+                        question,
+                        header,
+                        options,
+                        multi_select,
+                        allow_other,
+                        state,
+                    },
+                );
+                pending_subagents_run = None;
+            }
+        }
+    }
+    doc
+}
+
+fn current_turn_parts(doc: &TimelineDoc) -> usize {
+    doc.turns.last().map(|t| t.parts.len()).unwrap_or(0)
+}
+
+fn append_top_part(doc: &mut TimelineDoc, part: TurnPart) {
+    if doc.turns.is_empty() {
+        doc.push_user_turn(String::new());
+    }
+    if let Some(turn) = doc.turns.last_mut() {
+        turn.parts.push(part);
+    }
+}
+
+fn next_part_id(doc: &TimelineDoc, prefix: &str) -> String {
+    format!("{prefix}-legacy-{}", doc.display_len())
+}
+
+fn legacy_tool_to_part(tool: ToolActivity) -> TurnPart {
+    let state = match tool.status {
+        ActivityStatus::Pending => ToolState::Pending,
+        ActivityStatus::Ok => ToolState::Success,
+        ActivityStatus::Fail => ToolState::Error,
+    };
+    TurnPart::Tool {
+        id: tool.call_id.clone().unwrap_or_else(|| {
+            format!(
+                "tool-legacy-{}-{}",
+                tool.tool,
+                tool.args_summary.replace(char::is_whitespace, "-")
+            )
+        }),
+        tool: tool.tool,
+        label: tool.label,
+        args_summary: tool.args_summary,
+        args: None,
+        state,
+        result: tool.detail,
+        metrics: tool.metrics,
+        children: Vec::new(),
+        paths: tool.paths,
+        merged_count: tool.merged_count,
+    }
+}
+
+fn legacy_subagent_to_part(card: SubagentCard) -> TurnPart {
+    let mut parts = Vec::new();
+    if !card.live_thinking.is_empty() {
+        parts.push(TurnPart::Thinking {
+            id: format!("think-{}", card.agent_id),
+            text: card.live_thinking,
+            done: card.thinking_done,
+        });
+    }
+    if !card.live_text.is_empty() {
+        parts.push(TurnPart::Text {
+            id: format!("text-{}", card.agent_id),
+            text: card.live_text,
+            metrics: TurnMetrics::default(),
+        });
+    }
+    parts.extend(card.tools.into_iter().map(legacy_tool_to_part));
+    TurnPart::Subagent {
+        id: card.agent_id,
+        role: card.role,
+        display_name: card.display_name,
+        status: match card.status.as_str() {
+            "failed" | "error" => SubagentStatus::Error,
+            "completed" | "done" => SubagentStatus::Done,
+            _ => SubagentStatus::Running,
+        },
+        parts,
+        metrics: card.metrics,
+        summary: (!card.summary.is_empty()).then_some(card.summary),
+        steps: card.steps,
+    }
+}
+
 fn summarize_args(tool: &str, args: Option<&Value>) -> String {
     let Some(args) = args else {
         return String::new();
@@ -351,5 +801,100 @@ fn file_arg_path(tool: &str, args: Option<&Value>) -> Option<String> {
         | "list_workspace_files" => args.get("path")?.as_str().map(|s| s.to_owned()),
         "memory_rename" => args.get("newPath")?.as_str().map(|s| s.to_owned()),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn migration_old_subagent_layout_to_tree() {
+        let items = vec![
+            TimelineItem::User { text: "run".into() },
+            TimelineItem::Tool(ToolActivity {
+                tool: "subagents.run".into(),
+                label: "Run subagents".into(),
+                args_summary: String::new(),
+                status: ActivityStatus::Ok,
+                detail: Some("done".into()),
+                call_id: Some("cid-run".into()),
+                metrics: TurnMetrics::default(),
+                paths: Vec::new(),
+                merged_count: 1,
+            }),
+            TimelineItem::SubagentGroup(SubagentGroup {
+                agents: vec![
+                    SubagentCard {
+                        agent_id: "sa1".into(),
+                        role: "scout".into(),
+                        display_name: "Scout".into(),
+                        status: "completed".into(),
+                        summary: "one".into(),
+                        steps: Vec::new(),
+                        tools: Vec::new(),
+                        metrics: TurnMetrics::default(),
+                        live_text: String::new(),
+                        live_thinking: String::new(),
+                        thinking_done: false,
+                    },
+                    SubagentCard {
+                        agent_id: "sa2".into(),
+                        role: "review".into(),
+                        display_name: "Review".into(),
+                        status: "completed".into(),
+                        summary: "two".into(),
+                        steps: Vec::new(),
+                        tools: Vec::new(),
+                        metrics: TurnMetrics::default(),
+                        live_text: String::new(),
+                        live_thinking: String::new(),
+                        thinking_done: false,
+                    },
+                ],
+            }),
+            TimelineItem::Assistant {
+                text: "final".into(),
+                metrics: TurnMetrics::default(),
+            },
+        ];
+
+        let doc = migrate_legacy_items(items);
+        assert_eq!(doc.version, TIMELINE_SCHEMA_VERSION);
+        assert_eq!(doc.turns.len(), 1);
+        assert_eq!(doc.turns[0].parts.len(), 2);
+        let TurnPart::Tool { children, .. } = &doc.turns[0].parts[0] else {
+            panic!("expected subagents.run tool");
+        };
+        assert_eq!(children.len(), 2);
+        assert!(matches!(&children[0], TurnPart::Subagent { id, .. } if id == "sa1"));
+        assert!(matches!(&doc.turns[0].parts[1], TurnPart::Text { text, .. } if text == "final"));
+    }
+
+    #[test]
+    fn migration_orphan_subagent_group() {
+        let doc = migrate_legacy_items(vec![
+            TimelineItem::User { text: "run".into() },
+            TimelineItem::SubagentGroup(SubagentGroup {
+                agents: vec![SubagentCard {
+                    agent_id: "sa1".into(),
+                    role: "scout".into(),
+                    display_name: "Scout".into(),
+                    status: "completed".into(),
+                    summary: "done".into(),
+                    steps: Vec::new(),
+                    tools: Vec::new(),
+                    metrics: TurnMetrics::default(),
+                    live_text: String::new(),
+                    live_thinking: String::new(),
+                    thinking_done: false,
+                }],
+            }),
+        ]);
+
+        assert!(matches!(
+            &doc.turns[0].parts[0],
+            TurnPart::Subagent { id, .. } if id == "sa1"
+        ));
     }
 }

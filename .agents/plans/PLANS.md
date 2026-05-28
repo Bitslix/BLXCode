@@ -6,6 +6,7 @@ Persistent plans for multi-step work on **blxcode**. Individual plans live as Ma
 
 | Status | Plan | Description |
 |--------|------|-------------|
+| done | [agent-timeline-tree-refactor.md](agent-timeline-tree-refactor.md) | AgentTab-Refactor: Tree-Modell mit `EventEnvelope` (seq + parent_call_id), stabile IDs, reaktive Part-Signals, rekursive Subagent-Verschachtelung, verlustfreie Auto-Migration |
 | planned | [linux-browser-iframe-boot-fix.md](linux-browser-iframe-boot-fix.md) | Linux Boot-Crash Fix: sticky Lazy Mount für BrowserTabDock + iframe-src-Gating (WebKitGTK nested iframe) |
 | planned | [performance-optimization.md](performance-optimization.md) | Performance-Audit: Agent-Streaming hot path, Auto-Save-Kaskade, Backend-Blocking, Boot/CDN, Terminal-Refit; Phasen P0–P3 |
 | planned | [security-hardening.md](security-hardening.md) | Security-Audit: Subagent shell_write-Bypass, Shell-Allowlist, XSS/CSP, Runtime-Tool-Allowlist, Symlink/URL/PTY-Hardening; Phasen P0–P3 |

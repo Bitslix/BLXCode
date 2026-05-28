@@ -57,6 +57,17 @@ pub struct AgentImageContextItem {
     pub added_at: i64,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EventEnvelope {
+    #[serde(default)]
+    pub seq: u64,
+    #[serde(default)]
+    pub parent_call_id: Option<String>,
+    #[serde(flatten)]
+    pub event: AgentEvent,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TaskStatus {
@@ -119,6 +130,8 @@ pub enum AgentEvent {
     #[serde(rename = "tool_result")]
     ToolResult {
         tool: String,
+        #[serde(default)]
+        call_id: Option<String>,
         ok: bool,
         #[serde(default)]
         message: Option<String>,

@@ -27,6 +27,6 @@ pub use web_commands::{
     agent_environment_invalidate, agent_web_settings_get, agent_web_settings_save,
 };
 
-pub use protocol::{AgentEvent, UserTurn};
+pub use protocol::{EventEnvelope, UserTurn};
 pub use session_orchestrator::dispatch_user_turn;
 pub use state::AgentEngineState;

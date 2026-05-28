@@ -3711,6 +3711,20 @@ button.workbench-shortcut-row--action:focus-visible {
   border: 1px solid var(--success);
 }
 
+.timeline-tree {
+  margin-left: calc(var(--timeline-depth, 0) * 1rem);
+}
+
+.timeline-tree__children {
+  margin-left: calc((var(--timeline-depth, 0) + 1) * 1rem);
+  padding-left: 0.75rem;
+  border-left: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.timeline-tree__children:empty {
+  display: none;
+}
+
 .agent-tool-row__sub-detail {
   grid-column: 1 / -1;
   margin: 0.12rem 0 0 1.32rem;

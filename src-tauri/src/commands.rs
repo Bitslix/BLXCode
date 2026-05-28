@@ -1,4 +1,4 @@
-use crate::agent::{dispatch_user_turn, AgentEngineState, AgentEvent, UserTurn};
+use crate::agent::{dispatch_user_turn, AgentEngineState, EventEnvelope, UserTurn};
 use crate::agent_settings::provider_status_json;
 use crate::browser_host::BrowserHost;
 use crate::pty_host::{path_nav_exec, PathNavResult, PtyManager};
@@ -19,7 +19,10 @@ pub fn agent_submit_turn(
 }
 
 #[tauri::command]
-pub fn agent_poll_events(max: usize, agent: State<'_, Arc<AgentEngineState>>) -> Vec<AgentEvent> {
+pub fn agent_poll_events(
+    max: usize,
+    agent: State<'_, Arc<AgentEngineState>>,
+) -> Vec<EventEnvelope> {
     agent.drain(max.max(1).min(512))
 }
 
