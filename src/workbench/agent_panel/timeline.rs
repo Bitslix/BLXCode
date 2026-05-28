@@ -1331,7 +1331,7 @@ pub fn TurnNodeView(
 ) -> impl IntoView {
     let user_line = format!("{:02}", idx.saturating_mul(10) + 1);
     let user_text = turn.user.text.clone();
-    let parts = turn.parts;
+    let render_items = grouped_turn_render_items(turn.parts);
     view! {
         <>
             <li class="agent-chat-line agent-chat-line--user">
@@ -1341,26 +1341,144 @@ pub fn TurnNodeView(
                     <p>{user_text.clone()}</p>
                 </div>
             </li>
-            {parts.into_iter().enumerate().map(|(part_idx, part)| {
+            {render_items.into_iter().enumerate().map(|(part_idx, item)| {
                 let line_no = format!("{:02}", idx.saturating_mul(10) + part_idx + 2);
-                view! {
-                    <TurnPartView
-                        part=part
-                        line_no=line_no
-                        depth=0
-                        i18n=i18n
-                        thinking_open=thinking_open
-                        tool_detail_open=tool_detail_open
-                        voice_handle=voice_handle
-                        timeline=timeline
-                        wb=wb
-                        workspace_id=workspace_id
-                        on_redo=on_redo
-                    />
+                match item {
+                    TurnRenderItem::Part(part) => view! {
+                        <TurnPartView
+                            part=part
+                            line_no=line_no
+                            depth=0
+                            i18n=i18n
+                            thinking_open=thinking_open
+                            tool_detail_open=tool_detail_open
+                            voice_handle=voice_handle
+                            timeline=timeline
+                            wb=wb
+                            workspace_id=workspace_id
+                            on_redo=on_redo
+                        />
+                    }.into_any(),
+                    TurnRenderItem::ModelRound { metrics, tools } => view! {
+                        <TimelineRow
+                            idx=stable_index(&line_no)
+                            entry=DisplayTimelineItem::ModelRound { metrics, tools }
+                            i18n=i18n
+                            thinking_open=thinking_open
+                            tool_detail_open=tool_detail_open
+                            voice_handle=voice_handle
+                            on_redo=on_redo
+                            timeline=timeline
+                            wb=wb
+                            workspace_id=workspace_id
+                        />
+                    }.into_any(),
                 }
             }).collect_view()}
         </>
     }
+}
+
+enum TurnRenderItem {
+    Part(TurnPart),
+    ModelRound {
+        metrics: TurnMetrics,
+        tools: Vec<ToolActivity>,
+    },
+}
+
+fn grouped_turn_render_items(parts: Vec<TurnPart>) -> Vec<TurnRenderItem> {
+    let mut out = Vec::new();
+    let mut iter = parts.into_iter().peekable();
+    while let Some(part) = iter.next() {
+        let TurnPart::ModelRound { id, metrics } = part else {
+            out.push(TurnRenderItem::Part(part));
+            continue;
+        };
+        let mut tools = Vec::new();
+        while iter.peek().is_some_and(is_groupable_tool_part) {
+            if let Some(tool) = iter.next().and_then(tool_activity_from_part) {
+                tools.push(tool);
+            }
+        }
+        if tools.is_empty() {
+            out.push(TurnRenderItem::Part(TurnPart::ModelRound {
+                id,
+                metrics,
+            }));
+        } else {
+            push_model_round_group(&mut out, TurnRenderItem::ModelRound {
+                metrics,
+                tools: group_consecutive_tools(tools),
+            });
+        }
+    }
+    out
+}
+
+fn push_model_round_group(out: &mut Vec<TurnRenderItem>, next: TurnRenderItem) {
+    let (metrics, mut tools) = match next {
+        TurnRenderItem::ModelRound { metrics, tools } => (metrics, tools),
+        other => {
+            out.push(other);
+            return;
+        }
+    };
+    if let Some(TurnRenderItem::ModelRound {
+        metrics: prev_metrics,
+        tools: prev_tools,
+    }) = out.last_mut()
+    {
+        if prev_tools.len() == 1 && tools.len() == 1 && prev_tools[0].tool == tools[0].tool {
+            let incoming = tools.remove(0);
+            prev_tools[0].paths.extend(incoming.paths);
+            prev_tools[0].metrics.merge(&incoming.metrics);
+            prev_tools[0].merged_count += incoming.merged_count;
+            if incoming.status == ActivityStatus::Fail {
+                prev_tools[0].status = ActivityStatus::Fail;
+            } else if prev_tools[0].status == ActivityStatus::Ok
+                && incoming.status == ActivityStatus::Pending
+            {
+                prev_tools[0].status = ActivityStatus::Pending;
+            }
+            prev_metrics.merge(&metrics);
+            return;
+        }
+    }
+    out.push(TurnRenderItem::ModelRound { metrics, tools });
+}
+
+fn is_groupable_tool_part(part: &TurnPart) -> bool {
+    matches!(part, TurnPart::Tool { children, .. } if children.is_empty())
+}
+
+fn tool_activity_from_part(part: TurnPart) -> Option<ToolActivity> {
+    let TurnPart::Tool {
+        id,
+        tool,
+        label,
+        args_summary,
+        state,
+        result,
+        metrics,
+        paths,
+        merged_count,
+        ..
+    } = part
+    else {
+        return None;
+    };
+    Some(ToolActivity {
+        tool,
+        label,
+        args_summary,
+        status: activity_status_from_tool_state(&state),
+        detail: result,
+        call_id: Some(id),
+        metrics,
+        paths,
+        merged_count,
+    })
 }
 
 #[allow(clippy::too_many_arguments)]

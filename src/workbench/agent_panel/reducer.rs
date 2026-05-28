@@ -118,6 +118,9 @@ fn apply_event_to_doc(
             if let Some(cid) = call_id.as_deref() {
                 if let Some(part) = find_tool_mut(&mut doc.turns, cid) {
                     set_tool_result(part, *ok, message.clone());
+                    if env.parent_call_id.is_none() {
+                        append_waiting_placeholder(doc, env.seq);
+                    }
                     return;
                 }
             }
@@ -146,6 +149,9 @@ fn apply_event_to_doc(
                     merged_count: 1,
                 },
             );
+            if env.parent_call_id.is_none() {
+                append_waiting_placeholder(doc, env.seq);
+            }
         }
         AgentEvent::SubagentStarted {
             agent_id,
@@ -420,6 +426,20 @@ fn append_part(
         remove_empty_pending_thinking(parts);
         parts.push(part);
     }
+}
+
+fn append_waiting_placeholder(doc: &mut TimelineDoc, seq: u64) {
+    let Some(turn) = doc.turns.last_mut() else {
+        return;
+    };
+    if turn.parts.last().is_some_and(is_empty_pending_thinking) {
+        return;
+    }
+    turn.parts.push(TurnPart::Thinking {
+        id: format!("think-pending-after-tool-{seq}"),
+        text: String::new(),
+        done: false,
+    });
 }
 
 fn remove_empty_pending_top_level_thinking(doc: &mut TimelineDoc) {
