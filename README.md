@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-f4a261?style=for-the-badge" alt="MIT License" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.2.6-8a7cff?style=for-the-badge" alt="Version 0.2.6" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.2.8-8a7cff?style=for-the-badge" alt="Version 0.2.8" /></a>
   <img src="https://img.shields.io/badge/Rust-2021-b7410e?style=for-the-badge&logo=rust&logoColor=white" alt="Rust 2021" />
   <img src="https://img.shields.io/badge/Tauri-2-24c8db?style=for-the-badge&logo=tauri&logoColor=white" alt="Tauri 2" />
   <img src="https://img.shields.io/badge/Leptos-0.8-ef3939?style=for-the-badge" alt="Leptos 0.8" />
@@ -96,13 +96,15 @@ Create a workspace, assign terminal slots to Claude, Codex, Gemini, OpenCode, or
 
 ## What's new
 
-**Latest release: [0.2.6](CHANGELOG.md#026---2026-05-23)** — terminal slot drag-and-drop, code preview with syntax highlighting and context-menu handoff, policy-doc preview (`LICENSE`, `README`, …), closeable Terminals tab, and documentation sync.
+**Latest release: [0.2.8](CHANGELOG.md#028---2026-05-28)** — drag terminals between slots and workspaces, drop a terminal onto the Agent as live context, and boot more reliably when restoring an empty workspace.
+
+**[0.2.7](CHANGELOG.md#027---2026-05-27)** — File Diff sidebar, center diff viewer, Linux-safe terminal clipboard menu, memory onboarding, browser stability fixes, and Git graph refresh polish.
 
 **[0.2.3](CHANGELOG.md#023---2026-05-22)** — center multi-view tabs, rich file preview, docked Settings, 20 themes, GitHub auto-updater, centralized API Keys, per-turn chat metrics, agent question cards.
 
 **[0.2.0](CHANGELOG.md#020---2026-05-21)** — Kanban board, expandable Rules/Skills cards, agent chat maximize, Leptos 0.8 upgrade.
 
-See [CHANGELOG.md](CHANGELOG.md) for the full history and [Unreleased](CHANGELOG.md#unreleased) for work in progress (sidebar File Diff, center diff viewer).
+See [CHANGELOG.md](CHANGELOG.md) for the full history and [Unreleased](CHANGELOG.md#unreleased) for work in progress.
 
 ## Screenshots
 
@@ -284,7 +286,7 @@ BLXCode ships **14 locales** with compile-time string checks. Change language vi
 
 ## Status
 
-BLXCode is early-stage open source. The workbench, agent harness, file preview, Git tooling, and settings revamp are in active use on `main`; APIs and on-disk formats may still evolve. Current crate version: **0.2.6**.
+BLXCode is early-stage open source. The workbench, agent harness, file preview, Git tooling, and settings revamp are in active use on `main`; APIs and on-disk formats may still evolve. Current crate version: **0.2.8**.
 
 ## Community
 

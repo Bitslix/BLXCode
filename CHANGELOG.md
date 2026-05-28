@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+
+## [0.2.8] - 2026-05-28
+
+### Highlights
+
+- Drag terminals where you need them: swap slots, move a running terminal to another workspace, or extract it into a new workspace without killing the session.
+- Drop a terminal onto the Agent panel to attach the live terminal session as context, including session metadata and a recent output tail.
+- Restoring BLXCode with no saved workspaces is more reliable on Linux/WebKit, with frontend startup errors surfaced in the Tauri console.
+
+### Added
+
 - **New terminal drag & drop workflow**: terminal slots now have a dedicated drag grip and a cursor-following terminal preview card while dragging. Dropping a terminal onto another slot in the same workspace swaps the slots with a clear dashed move/drop effect; dropping onto a different workspace row transfers the live terminal session into that workspace; dropping onto the sidebar's new-workspace target extracts the terminal into a fresh workspace. The drag payload uses a dedicated `application/x-blxcode-terminal-slot` MIME type and preserves PTY/session mappings across slot moves by rewriting terminal storage keys instead of killing and respawning the running agent.
 
 - **Terminal drop to Agent context**: dragging a terminal onto the Agent tab now attaches that live terminal session as `TerminalSession` context, alongside the existing image drop/paste intake. The Agent dropzone shows a terminal-specific accept overlay, leaves the terminal in place, and stores a stable slot reference, pane/session metadata, the active agent label, and a short output tail so the Agent can reason about the session immediately and call `harness.read_terminal_output` for fresh output when needed.

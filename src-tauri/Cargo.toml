@@ -1,6 +1,6 @@
 [package]
 name = "blxcode"
-version = "0.2.7"
+version = "0.2.8"
 description = "Local-first desktop workbench for AI coding agents, terminals, memory, tasks, and an embedded browser."
 authors = ["BLXCode contributors"]
 edition = "2021"
