@@ -98,5 +98,15 @@ pub const SIDEBAR_WIDTH_PX_DEFAULT: f64 = 260.0;
 
 pub const SIDEBAR_WIDTH_PX_MIN: f64 = 200.0;
 
+/// `localStorage` key for the Memory Files tree (left column) width in pixels.
+pub const MEMORY_TREE_WIDTH_PX_KEY: &str = "blxcode_memory_tree_width_px_v1";
+
+/// Default width of the Memory Files tree column.
+pub const MEMORY_TREE_WIDTH_PX_DEFAULT: f64 = 224.0;
+
+/// Min/max clamp for the Memory Files tree column width.
+pub const MEMORY_TREE_WIDTH_PX_MIN: f64 = 160.0;
+pub const MEMORY_TREE_WIDTH_PX_MAX: f64 = 520.0;
+
 /// `localStorage` key for showing dot-hidden files in the project explorer (`1` / `0`).
 pub const SIDEBAR_EXPLORER_SHOW_HIDDEN_KEY: &str = "blxcode_sidebar_explorer_show_hidden_v1";

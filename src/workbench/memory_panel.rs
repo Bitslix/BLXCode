@@ -2,6 +2,10 @@
 //! graph view, search, agent-pointer installer. Mirrors the Phase 1–5
 //! design discussed for blxcode's Obsidian-style memory feature.
 use crate::agent_wire::{AgentContextItem, AgentContextKind};
+use crate::config::{
+    MEMORY_TREE_WIDTH_PX_DEFAULT, MEMORY_TREE_WIDTH_PX_KEY, MEMORY_TREE_WIDTH_PX_MAX,
+    MEMORY_TREE_WIDTH_PX_MIN,
+};
 use crate::i18n::I18nKey;
 use crate::memory_paths::slug_to_filename;
 use crate::service::I18nService;
@@ -17,6 +21,7 @@ use crate::workbench::toast::ToastService;
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Date;
+use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
@@ -92,6 +97,18 @@ pub(crate) struct MemoryState {
     pub(crate) graph_focus_generation: RwSignal<u32>,
     /// When true, Graph tab should prefer 3D mode (e.g. jump from Search).
     pub(crate) graph_prefer_3d: RwSignal<bool>,
+    /// Width (px) of the Files tree column; user-resizable, persisted.
+    pub(crate) tree_width: RwSignal<f64>,
+}
+
+/// Read the persisted Memory tree column width, clamped to the allowed range.
+fn initial_tree_width() -> f64 {
+    web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten())
+        .and_then(|s| s.get_item(MEMORY_TREE_WIDTH_PX_KEY).ok().flatten())
+        .and_then(|raw| raw.parse::<f64>().ok())
+        .unwrap_or(MEMORY_TREE_WIDTH_PX_DEFAULT)
+        .clamp(MEMORY_TREE_WIDTH_PX_MIN, MEMORY_TREE_WIDTH_PX_MAX)
 }
 
 impl MemoryState {
@@ -125,6 +142,7 @@ impl MemoryState {
             graph_selected_node: RwSignal::new(None),
             graph_focus_generation: RwSignal::new(0),
             graph_prefer_3d: RwSignal::new(false),
+            tree_width: RwSignal::new(initial_tree_width()),
         }
     }
 }
@@ -871,6 +889,50 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
     let new_category_scope: RwSignal<Option<MemoryScope>> = RwSignal::new(None);
     let new_note_category: RwSignal<Option<(MemoryScope, String)>> = RwSignal::new(None);
 
+    // ── Resizable tree column ────────────────────────────────────────────────
+    let tree_width = state.tree_width;
+    let resizing = RwSignal::new(false);
+    let drag_anchor_x = RwSignal::new(0.0_f64);
+    let drag_anchor_w = RwSignal::new(0.0_f64);
+
+    // Persist the width whenever it settles.
+    Effect::new(move |_| {
+        let w = tree_width.get();
+        if let Some(storage) = web_sys::window().and_then(|win| win.local_storage().ok().flatten()) {
+            let _ = storage.set_item(MEMORY_TREE_WIDTH_PX_KEY, &format!("{w:.0}"));
+        }
+    });
+
+    Effect::new(move |_| {
+        if !resizing.get() {
+            return;
+        }
+        let move_h = window_event_listener_untyped("mousemove", move |ev| {
+            let Ok(me) = ev.dyn_into::<web_sys::MouseEvent>() else {
+                return;
+            };
+            let dx = f64::from(me.client_x()) - drag_anchor_x.get_untracked();
+            let next = (drag_anchor_w.get_untracked() + dx)
+                .clamp(MEMORY_TREE_WIDTH_PX_MIN, MEMORY_TREE_WIDTH_PX_MAX);
+            tree_width.set(next);
+        });
+        let up_h = window_event_listener_untyped("mouseup", move |_| resizing.set(false));
+        on_cleanup(move || {
+            move_h.remove();
+            up_h.remove();
+        });
+    });
+
+    let on_splitter_down = move |ev: web_sys::MouseEvent| {
+        if files_collapsed.get_untracked() {
+            return;
+        }
+        ev.prevent_default();
+        drag_anchor_x.set(ev.client_x() as f64);
+        drag_anchor_w.set(tree_width.get_untracked());
+        resizing.set(true);
+    };
+
     let make_groups = {
         let s = state.clone();
         move |scope: MemoryScope| {
@@ -965,6 +1027,17 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
         <div
             class="workbench-memory-files"
             class:workbench-memory-files--collapsed=move || files_collapsed.get()
+            class:workbench-memory-files--resizing=move || resizing.get()
+            style=move || {
+                if files_collapsed.get() {
+                    String::new()
+                } else {
+                    format!(
+                        "grid-template-columns: {}px 4px minmax(0, 1fr);",
+                        tree_width.get()
+                    )
+                }
+            }
             on:click=move |_| context_menu.set(None)
         >
             <aside
@@ -1126,6 +1199,16 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                     }
                 ></div>
             </aside>
+            <Show when=move || !files_collapsed.get()>
+                <div
+                    class="workbench-memory-files__col-resizer"
+                    class:workbench-memory-files__col-resizer--active=move || resizing.get()
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label=move || i18n.tr(I18nKey::SbWidthSplitterAria)()
+                    on:mousedown=on_splitter_down
+                ></div>
+            </Show>
             <section class="workbench-memory-editor">
                 <Show
                     when={

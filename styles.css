@@ -7958,6 +7958,29 @@ body.blxcode-dragging-terminal * {
   background: var(--overlay-1);
 }
 
+.workbench-memory-files--resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.workbench-memory-files__col-resizer {
+  position: relative;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+
+.workbench-memory-files__col-resizer::before {
+  content: "";
+  position: absolute;
+  inset: 0 -3px;
+}
+
+.workbench-memory-files__col-resizer:hover,
+.workbench-memory-files__col-resizer--active {
+  background: var(--accent-soft);
+}
+
 .workbench-memory-files__tree-spacer {
   flex: 1 1 auto;
   min-height: 2rem;
