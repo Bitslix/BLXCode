@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 
+## [0.3.2] - 2026-05-29
+
+### Added
+
+### Changed
+
+### Fixed
+
+- **Terminal drag & drop now works on Windows**: dragging a terminal slot let you grab it (and showed the floating preview) but never produced a drop — the slot could not be moved or dropped onto another slot. Two compounding causes, both Windows/WebView2-specific: (1) Tauri's window `dragDropEnabled` defaults to `true`, which installs an OS-level drag-drop handler on the WebView2 control that intercepts native `drag`/`dragover`/`drop` events before the DOM ever sees them — so in-webview HTML5 drag & drop is a no-op while it is enabled. Setting `dragDropEnabled: false` on the main window restores native WebView2 DnD. (2) The grid slot `dragover` handler resolved the drag payload via `DataTransfer.getData()`, which Chromium/WebView2 blocks during `dragover`/`dragenter` ("protected mode"); the read returned `None` and the handler bailed out *before* `preventDefault()`, so the slot was never registered as a valid drop target. The accept decision now keys off the synchronous in-flight drag session and the in-memory drag meta instead of `getData()` (new `accepts_slot_drop` helper), and the `drop` handler re-validates once the payload is readable. Image drops from the OS still work: they now arrive as native DOM `drop` events carrying `DataTransfer.files` (handled by the existing agent-pane intake) rather than Tauri's OS-level drop event, which `dragDropEnabled: false` disables.
+
+### Removed
+
+
 ## [0.3.1] - 2026-05-29
 
 ### Added
