@@ -14,7 +14,7 @@ Run from repo root:
   python scripts/tools/render_i18n_locales_from_en.py --patch-english-matches -j 4
 
   # Only specific keys (comma-separated variant names)
-  python scripts/tools/render_i18n_locales_from_en.py --keys GitignorePromptTitle,GitignorePromptBody
+  python scripts/tools/render_i18n_locales_from_en.py --keys BtnClose,BtnApply
 
   # Full rewrite of every non-English locale (all strings — slow, overwrites good rows)
   python scripts/tools/render_i18n_locales_from_en.py --full
@@ -395,7 +395,7 @@ def run_selective_translate(
                 )
                 print(
                     "  • Translate those rows:  --patch-english-matches\n"
-                    "  • Or only specific keys: --keys GitignorePromptTitle,…"
+                    "  • Or only specific keys: --keys BtnClose,…"
                 )
             else:
                 print("All locale files already contain every key from en_us.rs.")

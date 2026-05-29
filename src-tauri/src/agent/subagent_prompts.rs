@@ -103,6 +103,7 @@ fn render_tool_inventory(groups: &[ToolGroup]) -> String {
                 "memory_search",
                 "memory_graph",
                 "memory_backlinks",
+                "memory_lint_architecture",
                 "memory_category_list",
                 "memory_context_list",
             ],
@@ -166,6 +167,16 @@ pub fn subagent_system_prompt(
     };
     let inventory = render_tool_inventory(groups);
     let has_workspace_read = groups.iter().any(|g| matches!(g, ToolGroup::WorkspaceRead));
+    let scout_architecture_step = if role == SubagentRole::Scout && has_workspace_read {
+        " For scout runs with memory tools, step 2 is: call `memory_read` on `ARCHITECTURE.md`, then read 1-3 relevant `architecture/modules/*.md` notes before broad filesystem enumeration. If the architecture map is absent or stale, report that and continue with the fallback tools."
+    } else {
+        ""
+    };
+    let scout_criteria = if role == SubagentRole::Scout && has_workspace_read {
+        " Scout results must cite `ARCHITECTURE.md` plus 1-3 module note paths when those notes are available."
+    } else {
+        ""
+    };
     let mandatory_first = if has_workspace_read {
         "Your FIRST tool call MUST be `list_workspace_files` with `{\"path\": \".\"}` to enumerate the workspace root. \
          This is non-negotiable — do not skip it, do not call `submit_result` first."
@@ -182,10 +193,10 @@ pub fn subagent_system_prompt(
          \n\
          # Required execution flow\n\
          1. {mandatory_first}\n\
-         2. After confirming access, call any other tools above as the task requires.\n\
+         2. After confirming access, call any other tools above as the task requires.{scout_architecture_step}\n\
          3. Call `environment_detect` before any `shell_exec` or `git_*` tool.\n\
          4. Finish by calling `submit_result` exactly once with structured JSON \
-         (free-form assistant text is ignored).\n\
+         (free-form assistant text is ignored).{scout_criteria}\n\
          \n\
          # Forbidden behaviors\n\
          - Do NOT claim the workspace/file-access tools are missing. They are listed above \

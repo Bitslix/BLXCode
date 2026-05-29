@@ -16,5 +16,6 @@
 
 pub mod commands;
 pub mod install;
+pub mod pointers;
 pub mod store;
 pub mod types;

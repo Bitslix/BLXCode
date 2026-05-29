@@ -9,7 +9,7 @@ use crate::tauri_bridge::{
     workbench_extract_sessions_prefix, workbench_merge_sessions_workspace,
     workbench_rewrite_terminal_keys, workspace_ensure_agents,
 };
-use crate::workbench::agent_timeline::TimelineItem;
+use crate::workbench::agent_timeline::TimelineDoc;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -66,13 +66,17 @@ pub struct WorkspaceEntry {
     pub configuring: bool,
     /// Persisted agent chat timeline for this workspace folder.
     #[serde(default)]
-    pub agent_timeline: Vec<TimelineItem>,
+    pub agent_timeline: TimelineDoc,
     /// Draft text in the agent compose field (same workspace binding).
     #[serde(default)]
     pub agent_compose_draft: String,
     /// Image-generation toggle for the agent chat (per workspace).
     #[serde(default)]
     pub agent_image_mode: bool,
+    /// Default-off setting for future optional LLM prose synthesis into the
+    /// architecture map. Current rebuilds remain deterministic and non-LLM.
+    #[serde(default)]
+    pub architecture_llm_prose: bool,
     /// Memory/Learnings context attached to the next BLXCode Agent turns.
     #[serde(default)]
     pub agent_context_items: Vec<AgentContextItem>,
@@ -417,9 +421,10 @@ impl WorkspaceEntry {
             slot_agent_labels: Vec::new(),
             slot_pane_states: Vec::new(),
             configuring: false,
-            agent_timeline: Vec::new(),
+            agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),
@@ -688,6 +693,22 @@ pub struct CloseTerminalsConfirm {
     pub generation: u32,
 }
 
+/// A pending confirmation request rendered by the shared `ConfirmDialog`
+/// overlay. The component is generic — every string is supplied by the
+/// caller — so it can stand in for any destructive action's confirmation.
+/// `on_confirm` runs when the user accepts; the dialog dismisses itself
+/// afterwards either way.
+#[derive(Clone)]
+pub struct ConfirmRequest {
+    pub title: String,
+    pub body: String,
+    pub confirm_label: String,
+    pub cancel_label: String,
+    /// Style the confirm button as destructive (red).
+    pub danger: bool,
+    pub on_confirm: Callback<()>,
+}
+
 #[derive(Clone, Copy)]
 pub struct HarnessUiService {
     palette_open: RwSignal<bool>,
@@ -703,6 +724,7 @@ pub struct HarnessUiService {
     prefix_gen: RwSignal<u32>,
     close_terminals_confirm: RwSignal<Option<CloseTerminalsConfirm>>,
     close_terminals_gen: RwSignal<u32>,
+    confirm_request: RwSignal<Option<ConfirmRequest>>,
 }
 
 impl HarnessUiService {
@@ -721,7 +743,25 @@ impl HarnessUiService {
             prefix_gen: RwSignal::new(0),
             close_terminals_confirm: RwSignal::new(None),
             close_terminals_gen: RwSignal::new(0),
+            confirm_request: RwSignal::new(None),
         }
+    }
+
+    /// Reactive accessor for the shared confirmation overlay.
+    /// `None` = closed; `Some(_)` = dialog visible.
+    #[must_use]
+    pub fn confirm_request(&self) -> RwSignal<Option<ConfirmRequest>> {
+        self.confirm_request
+    }
+
+    /// Open the shared confirmation dialog. Replaces any pending request.
+    pub fn request_confirm(&self, request: ConfirmRequest) {
+        self.confirm_request.set(Some(request));
+    }
+
+    /// Close the shared confirmation dialog without running its action.
+    pub fn dismiss_confirm(&self) {
+        self.confirm_request.set(None);
     }
 
     /// Reactive accessor for the Terminals-close confirmation overlay.
@@ -1801,9 +1841,10 @@ impl WorkbenchService {
             slot_agent_labels: Vec::new(),
             slot_pane_states: Vec::new(),
             configuring: false,
-            agent_timeline: Vec::new(),
+            agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),
@@ -1928,9 +1969,10 @@ impl WorkbenchService {
                 slot_agent_labels,
                 slot_pane_states,
                 configuring: false,
-                agent_timeline: Vec::new(),
+                agent_timeline: TimelineDoc::default(),
                 agent_compose_draft: String::new(),
                 agent_image_mode: false,
+                architecture_llm_prose: false,
                 agent_context_items: Vec::new(),
                 memory_category_settings: HashMap::new(),
                 agent_chat_usage: ChatUsageStats::default(),
@@ -2330,12 +2372,8 @@ impl WorkbenchService {
     ) -> Result<TerminalSlotMove, String> {
         let mut result: Result<TerminalSlotMove, String> = Err("not run".into());
         self.workspaces.update(|workspaces| {
-            result = transfer_workspace_slot(
-                workspaces,
-                from_workspace_id,
-                to_workspace_id,
-                slot_id,
-            );
+            result =
+                transfer_workspace_slot(workspaces, from_workspace_id, to_workspace_id, slot_id);
         });
         let mv = result?;
         // Set up adoption guards AFTER the state mutation: the source
@@ -2359,21 +2397,21 @@ impl WorkbenchService {
         workspace_id: u64,
         slot_id: u64,
     ) -> Result<TerminalSlotMove, String> {
-        let (cwd, color_seed) = self
-            .workspaces
-            .with_untracked(|list| -> Result<(String, usize), String> {
-                let source = list
-                    .iter()
-                    .find(|w| w.id == workspace_id)
-                    .ok_or_else(|| "source workspace not found".to_string())?;
-                if source.slot_ids.len() <= 1 {
-                    return Err("source workspace must keep at least one slot".into());
-                }
-                if !source.slot_ids.iter().any(|id| *id == slot_id) {
-                    return Err("slot not found in source workspace".into());
-                }
-                Ok((source.cwd.clone(), list.len()))
-            })?;
+        let (cwd, color_seed) =
+            self.workspaces
+                .with_untracked(|list| -> Result<(String, usize), String> {
+                    let source = list
+                        .iter()
+                        .find(|w| w.id == workspace_id)
+                        .ok_or_else(|| "source workspace not found".to_string())?;
+                    if source.slot_ids.len() <= 1 {
+                        return Err("source workspace must keep at least one slot".into());
+                    }
+                    if !source.slot_ids.iter().any(|id| *id == slot_id) {
+                        return Err("slot not found in source workspace".into());
+                    }
+                    Ok((source.cwd.clone(), list.len()))
+                })?;
         let new_id = self.allocate_workspace_id();
         let title = format!("Workspace {new_id}");
         let color = self.workspace_color_for_new_index(color_seed);
@@ -2392,9 +2430,10 @@ impl WorkbenchService {
                 slot_agent_labels: Vec::new(),
                 slot_pane_states: Vec::new(),
                 configuring: false,
-                agent_timeline: Vec::new(),
+                agent_timeline: TimelineDoc::default(),
                 agent_compose_draft: String::new(),
                 agent_image_mode: false,
+                architecture_llm_prose: false,
                 agent_context_items: Vec::new(),
                 memory_category_settings: HashMap::new(),
                 agent_chat_usage: ChatUsageStats::default(),
@@ -2750,9 +2789,10 @@ impl WorkbenchService {
             slot_agent_labels: Vec::new(),
             slot_pane_states: Vec::new(),
             configuring: true,
-            agent_timeline: Vec::new(),
+            agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),
@@ -3027,7 +3067,7 @@ impl WorkbenchService {
         });
     }
 
-    pub fn set_workspace_agent_timeline(&self, workspace_id: u64, items: Vec<TimelineItem>) {
+    pub fn set_workspace_agent_timeline(&self, workspace_id: u64, items: TimelineDoc) {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
                 ws.agent_timeline = items;
@@ -3110,7 +3150,7 @@ impl WorkbenchService {
     }
 
     #[must_use]
-    pub fn agent_timeline_for_workspace_untracked(&self, workspace_id: u64) -> Vec<TimelineItem> {
+    pub fn agent_timeline_for_workspace_untracked(&self, workspace_id: u64) -> TimelineDoc {
         self.workspaces.with_untracked(|workspaces| {
             workspaces
                 .iter()
@@ -3159,6 +3199,36 @@ impl WorkbenchService {
     }
 
     #[must_use]
+    pub fn architecture_llm_prose_for_workspace_untracked(&self, workspace_id: u64) -> bool {
+        self.workspaces.with_untracked(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.architecture_llm_prose)
+                .unwrap_or(false)
+        })
+    }
+
+    #[must_use]
+    pub fn architecture_llm_prose_for_workspace(&self, workspace_id: u64) -> bool {
+        self.workspaces.with(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.architecture_llm_prose)
+                .unwrap_or(false)
+        })
+    }
+
+    pub fn set_workspace_architecture_llm_prose(&self, workspace_id: u64, enabled: bool) {
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                ws.architecture_llm_prose = enabled;
+            }
+        });
+    }
+
+    #[must_use]
     pub fn agent_context_for_workspace_untracked(
         &self,
         workspace_id: u64,
@@ -3193,6 +3263,19 @@ impl WorkbenchService {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
                 ws.agent_context_items.retain(|item| item.id != item_id);
+            }
+        });
+    }
+
+    pub fn remove_workspace_agent_context_items(&self, workspace_id: u64, item_ids: &[String]) {
+        if item_ids.is_empty() {
+            return;
+        }
+        let ids: HashSet<&str> = item_ids.iter().map(String::as_str).collect();
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                ws.agent_context_items
+                    .retain(|item| !ids.contains(item.id.as_str()));
             }
         });
     }
@@ -3836,9 +3919,10 @@ mod center_tab_tests {
             slot_agent_labels: vec![String::new()],
             slot_pane_states: vec![SlotPaneState::default_for_slot(1)],
             configuring: false,
-            agent_timeline: Vec::new(),
+            agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),
@@ -3927,9 +4011,10 @@ mod terminal_slot_tests {
             slot_agent_labels: (0..n as usize).map(|i| format!("label{i}")).collect(),
             slot_pane_states,
             configuring: false,
-            agent_timeline: Vec::new(),
+            agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),
@@ -4066,14 +4151,8 @@ mod terminal_slot_tests {
         let mv = transfer_workspace_slot(&mut list, 1, 2, 2).expect("transfer ok");
         let pairs = mv.terminal_key_pairs();
         assert_eq!(pairs.len(), 2);
-        assert!(pairs[0]
-            .0
-            .ends_with(&format!(":{}:7", mv.old_slot_id)));
-        assert!(pairs[0]
-            .1
-            .ends_with(&format!(":{}:7", mv.new_slot_id)));
-        assert!(pairs[1]
-            .0
-            .ends_with(&format!(":{}:11", mv.old_slot_id)));
+        assert!(pairs[0].0.ends_with(&format!(":{}:7", mv.old_slot_id)));
+        assert!(pairs[0].1.ends_with(&format!(":{}:7", mv.new_slot_id)));
+        assert!(pairs[1].0.ends_with(&format!(":{}:11", mv.old_slot_id)));
     }
 }

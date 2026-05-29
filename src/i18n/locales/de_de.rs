@@ -5,12 +5,6 @@ pub fn msg(key: I18nKey) -> &'static str {
     match key {
         I18nKey::Decline => "Ablehnen",
         I18nKey::Accept => "Annehmen",
-        I18nKey::GitignorePromptTitle => ".blxcode zur .gitignore hinzufügen?",
-        I18nKey::GitignorePromptBody => {
-            "BLXCode speichert lokale Workspace-Daten (Aufgaben, Sitzungen) im Ordner `.blxcode`. \nSoll dieser Eintrag in die `.gitignore` dieses Projekts aufgenommen werden, damit er nicht versehentlich committed wird?"
-        }
-        I18nKey::GitignorePromptYes => "Ja, hinzufügen",
-        I18nKey::GitignorePromptNo => "Nicht jetzt",
         I18nKey::BtnClose => "Schließen",
         I18nKey::BtnApply => "Anwenden",
         I18nKey::BtnSave => "Speichern",
@@ -50,6 +44,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbSectionExpand => "Bereich aufklappen",
         I18nKey::SbSectionCollapse => "Bereich einklappen",
         I18nKey::SbExplorerRefresh => "Dateibaum aktualisieren",
+        I18nKey::SbExplorerNewFile => "Neue Datei",
+        I18nKey::SbExplorerNewFolder => "Neuer Ordner",
+        I18nKey::SbExplorerNewFilePlaceholder => "Dateiname",
+        I18nKey::SbExplorerNewFolderPlaceholder => "Ordnername",
+        I18nKey::SbExplorerCreateError => "Konnte nicht erstellt werden. Der Name existiert möglicherweise bereits.",
         I18nKey::SbExplorerShowHidden => "Ausgeblendete Dateien anzeigen",
         I18nKey::SbExplorerHideHidden => "Ausgeblendete Dateien verbergen",
         I18nKey::SbExplorerResizeAria => "Projektdateien- und Graph-Bereich vergrößern",
@@ -80,7 +79,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbDiffStatusConflicted => "Konflikt",
         I18nKey::SbDiffStageAll => "Stage all changes",
         I18nKey::SbDiffUnstageAll => "Unstage all changes",
-        I18nKey::SbDiffCommitAi => "Commit with AI",
+        I18nKey::SbDiffCommitAi => "Mit KI committen",
+        I18nKey::SbDiffCommit => "Commit",
+        I18nKey::SbDiffCommitTitle => "Commit erstellen",
+        I18nKey::SbDiffCommitPlaceholder => "Beschreibe deine Änderungen…",
+        I18nKey::SbDiffCommitGenerating => "Wird generiert…",
+        I18nKey::SbDiffCommitEmptyMsg => "Gib zuerst eine Commit-Nachricht ein.",
+        I18nKey::SbDiffCommitSuccess => "Änderungen committet.",
+        I18nKey::SbDiffCommitFailed => "Commit fehlgeschlagen.",
+        I18nKey::SbDiffCommitNothingStaged => "Änderungen vor dem Commit stagen.",
+        I18nKey::SbDiffCommitGenFailed => "Commit-Nachricht konnte nicht generiert werden.",
+        I18nKey::SbDiffCommitNeedStaged => "Änderungen zum Committen stagen.",
         I18nKey::SbDiffPushToBranch => "Push to",
         I18nKey::SbDiffPushDisabled => "Commit or discard local changes before pushing.",
         I18nKey::SbDiffPushFailed => "Could not push to remote.",
@@ -89,6 +98,25 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbDiffGroupExpand => "Expand",
         I18nKey::SbDiffGroupCollapse => "Collapse",
         I18nKey::SbDiffListAria => "Changed files",
+        I18nKey::SbDiffFetch => "Bringen",
+        I18nKey::SbDiffPull => "Pull (Abrufen + Zusammenführen)",
+        I18nKey::SbDiffPush => "Drücken",
+        I18nKey::SbDiffSyncUpToDate => "Schon aktuell.",
+        I18nKey::SbDiffFetched => "Von der Fernbedienung abgerufen.",
+        I18nKey::SbDiffPulled => "Änderungen aus der Ferne übernommen.",
+        I18nKey::SbDiffPushed => "Auf Fernbedienung geschoben.",
+        I18nKey::SbDiffPullConflict => "Pull gestoppt: Zusammenführungskonflikte lösen.",
+        I18nKey::SbDiffDirtyBlocked => "Übernehmen oder speichern Sie zuerst Ihre lokalen Änderungen.",
+        I18nKey::SbDiffNonFastForward => "Remote hat neue Commits – zuerst ziehen.",
+        I18nKey::SbDiffNoUpstream => "Für diesen Zweig ist kein Upstream-Zweig festgelegt.",
+        I18nKey::SbDiffAuthFailed => "Die Authentifizierung für die Fernbedienung ist fehlgeschlagen.",
+        I18nKey::SbDiffNoRemote => "Für dieses Repository ist kein Remote konfiguriert.",
+        I18nKey::SbDiffSyncLocked => "Ein weiterer Git-Prozess läuft. Versuchen Sie es in Kürze noch einmal.",
+        I18nKey::SbDiffNetworkError => "Die Fernbedienung konnte nicht erreicht werden (Netzwerkfehler).",
+        I18nKey::SbDiffSyncError => "Git-Vorgang ist fehlgeschlagen.",
+        I18nKey::SbDiffPushNeedStaged => "Stellen Sie alle Änderungen bereit, bevor Sie sie pushen.",
+        I18nKey::SbDiffPushDetached => "Freistehender KOPF – Wechseln Sie zum Schieben zu einem Ast.",
+        I18nKey::SbDiffSyncBusy => "Eine weitere Git-Operation ist im Gange.",
         I18nKey::RpRailAria => "Rechtes Panel",
         I18nKey::RpExpand => "Rechtes Panel einblenden",
         I18nKey::RpCollapse => "Rechtes Panel ausblenden",
@@ -141,6 +169,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrRemove => "Entfernen",
         I18nKey::SrRefresh => "Aktualisieren",
         I18nKey::SrConfirmRemove => "Diesen Eintrag entfernen? Dadurch wird die Datei auf der Festplatte gelöscht.",
+        I18nKey::SrConfirmRemoveTitle => "Datei löschen?",
         I18nKey::SrNewRule => "Neue Regel",
         I18nKey::SrRuleTitlePh => "Regeltitel",
         I18nKey::SrRuleBodyPh => "Regel in Markdown schreiben...",
@@ -171,6 +200,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrSkillSource => "Quelle",
         I18nKey::SrMissingSkillMd => "SKILL.md fehlt",
         I18nKey::SrNoWorkspace => "Öffnen Sie einen Arbeitsbereich, um Fähigkeiten und Regeln anzuzeigen.",
+        I18nKey::SrPointersBannerLead => {
+            "Keine Agentenregelzeiger installiert – externe Agenten wissen nicht, wo sich die Projektregeln befinden."
+        }
+        I18nKey::SrPointersBannerCta => "Richten Sie Zeiger ein",
+        I18nKey::SrPointersDialogTitle => "Zeiger auf Agentenregeln",
+        I18nKey::SrPointersDialogLead => {
+            "Installieren Sie einen markierten Block in CLAUDE.md, AGENTS.md oder ähnlichem, damit externe Agenten die Projektregeln übernehmen. Zieldateien müssen bereits vorhanden sein."
+        }
+        I18nKey::SrPointersInstall => "Installieren",
+        I18nKey::SrPointersUninstall => "Deinstallieren",
+        I18nKey::SrPointersClose => "Schließen",
         I18nKey::MemEmptyTitle => "Kein aktiver Arbeitsbereich",
         I18nKey::MemEmptyLead => {
             "Der Speicher ist auf einen Arbeitsbereich beschränkt. Wählen Sie einen in der Seitenleiste aus oder erstellen Sie einen neuen Arbeitsbereich, um loszulegen."
@@ -242,6 +282,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::UpdateDialogRetry => "Erneut versuchen",
         I18nKey::UpdateDialogError => "Update fehlgeschlagen",
         I18nKey::UpdateDialogNotes => "Release Notes",
+        I18nKey::PostUpdateEyebrow => "Was neu ist",
+        I18nKey::PostUpdateGotIt => "Verstanden",
+        I18nKey::PostUpdateLoading => "Release Notes werden geladen...",
+        I18nKey::PostUpdateNoNotes => "Release Notes sind gerade nicht verfügbar.",
         I18nKey::AppShortcutHeading => "Tastenkürzel",
         I18nKey::AppShortcutModeTmux => "Tmux-Stil (Ctrl+b, dann Taste)",
         I18nKey::AppShortcutModeLegacy => "Klassisch (Ctrl / Ctrl+Shift)",
@@ -515,6 +559,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsDefaultProjectDirLabel => "Standardprojektverzeichnis",
         I18nKey::WsDefaultProjectDirPlaceholder => "$HOME",
         I18nKey::WsDefaultProjectDirHint => "Füllt das Arbeitsverzeichnis für neue Arbeitsbereiche vorab aus.",
+        I18nKey::WsSectionConfirm => "Bestätigungen",
+        I18nKey::WsConfirmCloseLabel => "Bestätigen Sie dies, bevor Sie einen Arbeitsbereich schließen",
+        I18nKey::WsConfirmCloseHint => {
+            "Zeigt einen Bestätigungsdialog an, wenn Sie einen Arbeitsbereich über die Registerkarte „Terminals“, die Schaltfläche „Schließen“ in der Seitenleiste oder das Kontextmenü schließen."
+        }
         I18nKey::AgProviderHeading => "BLXCode-Agent",
         I18nKey::AgSectionInference => "Inferenz",
         I18nKey::AgSectionModel => "Modell",

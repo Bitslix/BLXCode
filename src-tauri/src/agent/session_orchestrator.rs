@@ -3,6 +3,7 @@
 //! key/model is available.
 use crate::agent::anthropic::run_chat_turn as run_anthropic_turn;
 use crate::agent::openrouter::{run_chat_turn, Endpoint};
+use crate::agent::project_docs;
 use crate::agent::protocol::{
     AgentContextItem, AgentContextKind, AgentEvent, AgentImageContextItem, UserTurn,
 };
@@ -23,6 +24,7 @@ pub fn dispatch_user_turn(
     if agent.busy() {
         return Err("Agent ist noch beschäftigt.".into());
     }
+    agent.start_turn();
 
     // Image-mode branch: short-circuits the text-agent pipeline. Loads the
     // image settings + the image-provider's API key (NOT the text-agent
@@ -52,10 +54,20 @@ pub fn dispatch_user_turn(
     let state = Arc::clone(agent);
     let app_handle = app.clone();
     let voice_input = turn.voice_input;
+    // First turn of a session pulls in repo-level agent docs (CLAUDE.md,
+    // AGENTS.md, GEMINI.md) so they are seen exactly once and become
+    // authoritative project policy alongside active rules.
+    let is_first_turn = agent.conversation_snapshot().is_empty();
+    let project_docs_block = if is_first_turn {
+        project_docs::render_first_turn_block(turn.workspace_root.as_deref())
+    } else {
+        None
+    };
     let prompt = render_context_prompt(
         turn.prompt,
         &turn.context_items,
         turn.workspace_root.as_deref(),
+        project_docs_block,
     );
     let workspace_root = turn.workspace_root.clone();
     crate::agent::environment::note_workspace_change(workspace_root.as_deref());
@@ -210,8 +222,9 @@ fn render_context_prompt(
     prompt: String,
     context_items: &[AgentContextItem],
     workspace_root: Option<&str>,
+    project_docs_block: Option<String>,
 ) -> String {
-    if context_items.is_empty() {
+    if context_items.is_empty() && project_docs_block.is_none() {
         return prompt;
     }
 
@@ -232,6 +245,11 @@ fn render_context_prompt(
 
     let mut out = String::new();
     let mut wrote_section = false;
+
+    if let Some(block) = project_docs_block.as_ref() {
+        out.push_str(block);
+        wrote_section = true;
+    }
 
     if !memory_like.is_empty() {
         out.push_str("Attached BLXCode context (paths only; read files if needed):\n");
@@ -474,12 +492,26 @@ mod tests {
             content: Some("cargo check\nFinished dev profile".into()),
         };
 
-        let rendered = render_context_prompt("continue".into(), &[item], None);
+        let rendered = render_context_prompt("continue".into(), &[item], None, None);
 
         assert!(rendered.contains("Attached terminal sessions"));
         assert!(rendered.contains("Slot 7 · codex"));
         assert!(rendered.contains("slotId 7"));
         assert!(rendered.contains("  | cargo check"));
         assert!(rendered.contains("User prompt:\ncontinue"));
+    }
+
+    #[test]
+    fn render_context_prompt_prepends_project_docs_block_on_first_turn() {
+        let docs = "<project-docs>\nclaude policy\n</project-docs>\n\n".to_owned();
+        let rendered = render_context_prompt("hi".into(), &[], None, Some(docs.clone()));
+        assert!(rendered.starts_with(&docs));
+        assert!(rendered.contains("User prompt:\nhi"));
+    }
+
+    #[test]
+    fn render_context_prompt_no_project_docs_when_none() {
+        let rendered = render_context_prompt("hi".into(), &[], None, None);
+        assert_eq!(rendered, "hi");
     }
 }

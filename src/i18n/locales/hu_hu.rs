@@ -5,12 +5,6 @@ pub fn msg(key: I18nKey) -> &'static str {
     match key {
         I18nKey::Decline => "Hanyatlás",
         I18nKey::Accept => "Elfogadás",
-        I18nKey::GitignorePromptTitle => "Hozzáadja a .blxcode-ot a .gitignore fájlhoz?",
-        I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \nAdd it to this project's `.gitignore` so it is not committed by mistake?"
-        }
-        I18nKey::GitignorePromptYes => "Igen, add hozzá",
-        I18nKey::GitignorePromptNo => "Most nem",
         I18nKey::BtnClose => "Közeli",
         I18nKey::BtnApply => "Alkalmazni",
         I18nKey::BtnSave => "Megtakarítás",
@@ -50,6 +44,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbSectionExpand => "szakasz kibontása",
         I18nKey::SbSectionCollapse => "Szakasz összecsukása",
         I18nKey::SbExplorerRefresh => "Fájlfa frissítése",
+        I18nKey::SbExplorerNewFile => "Új fájl",
+        I18nKey::SbExplorerNewFolder => "Új mappa",
+        I18nKey::SbExplorerNewFilePlaceholder => "Fájlnév",
+        I18nKey::SbExplorerNewFolderPlaceholder => "Mappa neve",
+        I18nKey::SbExplorerCreateError => "Nem sikerült létrehozni. Lehet, hogy a név már létezik.",
         I18nKey::SbExplorerShowHidden => "Rejtett fájlok megjelenítése",
         I18nKey::SbExplorerHideHidden => "Rejtett fájlok elrejtése",
         I18nKey::SbExplorerResizeAria => "A projektfájlok és a diagrampanelek átméretezése",
@@ -80,7 +79,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbDiffStatusConflicted => "konfliktus",
         I18nKey::SbDiffStageAll => "Stage all changes",
         I18nKey::SbDiffUnstageAll => "Unstage all changes",
-        I18nKey::SbDiffCommitAi => "Commit with AI",
+        I18nKey::SbDiffCommitAi => "Commit AI-val",
+        I18nKey::SbDiffCommit => "Commit",
+        I18nKey::SbDiffCommitTitle => "Commit létrehozása",
+        I18nKey::SbDiffCommitPlaceholder => "Írd le a változtatásaidat…",
+        I18nKey::SbDiffCommitGenerating => "Generálás…",
+        I18nKey::SbDiffCommitEmptyMsg => "Először adj meg egy commit üzenetet.",
+        I18nKey::SbDiffCommitSuccess => "Változások commitolva.",
+        I18nKey::SbDiffCommitFailed => "A commit sikertelen.",
+        I18nKey::SbDiffCommitNothingStaged => "Commit előtt készítsd elő a változásokat.",
+        I18nKey::SbDiffCommitGenFailed => "Nem sikerült commit üzenetet generálni.",
+        I18nKey::SbDiffCommitNeedStaged => "Készítsd elő a változásokat a commithoz.",
         I18nKey::SbDiffPushToBranch => "Push to",
         I18nKey::SbDiffPushDisabled => "Commit or discard local changes before pushing.",
         I18nKey::SbDiffPushFailed => "Could not push to remote.",
@@ -89,6 +98,25 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbDiffGroupExpand => "Expand",
         I18nKey::SbDiffGroupCollapse => "Collapse",
         I18nKey::SbDiffListAria => "Changed files",
+        I18nKey::SbDiffFetch => "Fetch",
+        I18nKey::SbDiffPull => "Húzás (lekérés + összevonás)",
+        I18nKey::SbDiffPush => "Nyomja meg",
+        I18nKey::SbDiffSyncUpToDate => "Már aktuális.",
+        I18nKey::SbDiffFetched => "Távirányítóról letöltve.",
+        I18nKey::SbDiffPulled => "Távirányítóról lehívott változtatások.",
+        I18nKey::SbDiffPushed => "Távirányítóra tolva.",
+        I18nKey::SbDiffPullConflict => "A húzás leállt: oldja meg az összevonási ütközéseket.",
+        I18nKey::SbDiffDirtyBlocked => "Először kötelezze el vagy rejtse el a helyi változtatásokat.",
+        I18nKey::SbDiffNonFastForward => "A távirányítónak új véglegesítései vannak – húzza először.",
+        I18nKey::SbDiffNoUpstream => "Ehhez az ághoz nincs beállítva upstream ág.",
+        I18nKey::SbDiffAuthFailed => "A távvezérlő hitelesítése nem sikerült.",
+        I18nKey::SbDiffNoRemote => "Ehhez a tárolóhoz nincs távirányító beállítva.",
+        I18nKey::SbDiffSyncLocked => "Egy másik git folyamat fut. Próbálja újra rövidesen.",
+        I18nKey::SbDiffNetworkError => "Nem sikerült elérni a távirányítót (hálózati hiba).",
+        I18nKey::SbDiffSyncError => "A Git művelet meghiúsult.",
+        I18nKey::SbDiffPushNeedStaged => "Végezze el az összes változtatást, mielőtt megnyomná.",
+        I18nKey::SbDiffPushDetached => "Leválasztott FEJ — válts egy ágra a toláshoz.",
+        I18nKey::SbDiffSyncBusy => "Egy másik git-művelet van folyamatban.",
         I18nKey::RpRailAria => "Jobb panel",
         I18nKey::RpExpand => "Jobb oldali panel megjelenítése",
         I18nKey::RpCollapse => "A jobb oldali panel elrejtése",
@@ -141,6 +169,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrRemove => "Távolítsa el",
         I18nKey::SrRefresh => "Frissítés",
         I18nKey::SrConfirmRemove => "Eltávolítja ezt a bejegyzést? Ezzel törli a fájlt a lemezen.",
+        I18nKey::SrConfirmRemoveTitle => "Fájl törlése?",
         I18nKey::SrNewRule => "Új szabály",
         I18nKey::SrRuleTitlePh => "Szabály címe",
         I18nKey::SrRuleBodyPh => "Írd meg a szabályt Markdownban...",
@@ -171,6 +200,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrSkillSource => "Forrás",
         I18nKey::SrMissingSkillMd => "SKILL.md hiányzik",
         I18nKey::SrNoWorkspace => "Nyisson meg egy munkaterületet a készségek és szabályok megtekintéséhez.",
+        I18nKey::SrPointersBannerLead => {
+            "Nincsenek telepítve ügynökszabály-mutatók – a külső ügynökök nem fogják tudni, hol találhatók a projektszabályok."
+        }
+        I18nKey::SrPointersBannerCta => "Állítsa be a mutatókat",
+        I18nKey::SrPointersDialogTitle => "Ügynökszabály-mutatók",
+        I18nKey::SrPointersDialogLead => {
+            "Telepítsen egy megjelölt blokkot a CLAUDE.md, AGENTS.md vagy hasonló fájlokban, hogy a külső ügynökök felvegyék a projektszabályokat. A célfájloknak már létezniük kell."
+        }
+        I18nKey::SrPointersInstall => "Telepítés",
+        I18nKey::SrPointersUninstall => "Eltávolítás",
+        I18nKey::SrPointersClose => "Közeli",
         I18nKey::MemEmptyTitle => "Nincs aktív munkaterület",
         I18nKey::MemEmptyLead => {
             "A memória munkaterületre van rendelve. Válasszon egyet az oldalsávon, vagy hozzon létre egy új munkaterületet a kezdéshez."
@@ -244,6 +284,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::UpdateDialogRetry => "Próbálja újra",
         I18nKey::UpdateDialogError => "A frissítés nem sikerült",
         I18nKey::UpdateDialogNotes => "Kiadási megjegyzések",
+        I18nKey::PostUpdateEyebrow => "What changed",
+        I18nKey::PostUpdateGotIt => "Got it",
+        I18nKey::PostUpdateLoading => "Loading release notes...",
+        I18nKey::PostUpdateNoNotes => "Release notes are not available right now.",
         I18nKey::AppShortcutHeading => "Billentyűparancsok",
         I18nKey::AppShortcutModeTmux => "Tmux stílus (Ctrl+b, majd billentyű)",
         I18nKey::AppShortcutModeLegacy => "Klasszikus (Ctrl / Ctrl+Shift)",
@@ -515,6 +559,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsDefaultProjectDirLabel => "Alapértelmezett projektkönyvtár",
         I18nKey::WsDefaultProjectDirPlaceholder => "$HOME",
         I18nKey::WsDefaultProjectDirHint => "Előre kitölti a munkakönyvtárat az új munkaterületekhez.",
+        I18nKey::WsSectionConfirm => "Megerősítések",
+        I18nKey::WsConfirmCloseLabel => "A munkaterület bezárása előtt erősítse meg",
+        I18nKey::WsConfirmCloseHint => {
+            "Megerősítő párbeszédpanel megjelenítése, amikor egy munkaterületet bezár a Terminálok lapról, az oldalsáv bezárás gombjáról vagy a helyi menüből."
+        }
         I18nKey::AgProviderHeading => "BLXCode ügynök",
         I18nKey::AgSectionInference => "Következtetés",
         I18nKey::AgSectionModel => "Modell",

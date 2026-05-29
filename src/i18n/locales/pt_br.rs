@@ -5,12 +5,6 @@ pub fn msg(key: I18nKey) -> &'static str {
     match key {
         I18nKey::Decline => "Declínio",
         I18nKey::Accept => "Aceitar",
-        I18nKey::GitignorePromptTitle => "Adicionar .blxcode a .gitignore?",
-        I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \nAdd it to this project's `.gitignore` so it is not committed by mistake?"
-        }
-        I18nKey::GitignorePromptYes => "Sim, adicione",
-        I18nKey::GitignorePromptNo => "Agora não",
         I18nKey::BtnClose => "Fechar",
         I18nKey::BtnApply => "Aplicar",
         I18nKey::BtnSave => "Salvar",
@@ -50,6 +44,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbSectionExpand => "Expandir seção",
         I18nKey::SbSectionCollapse => "Recolher seção",
         I18nKey::SbExplorerRefresh => "Atualizar árvore de arquivos",
+        I18nKey::SbExplorerNewFile => "Novo arquivo",
+        I18nKey::SbExplorerNewFolder => "Nova pasta",
+        I18nKey::SbExplorerNewFilePlaceholder => "Nome do arquivo",
+        I18nKey::SbExplorerNewFolderPlaceholder => "Nome da pasta",
+        I18nKey::SbExplorerCreateError => "Não foi possível criar. O nome pode já existir.",
         I18nKey::SbExplorerShowHidden => "Mostrar arquivos ocultos",
         I18nKey::SbExplorerHideHidden => "Ocultar arquivos ocultos",
         I18nKey::SbExplorerResizeAria => "Redimensione arquivos de projeto e painéis gráficos",
@@ -80,7 +79,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbDiffStatusConflicted => "em conflito",
         I18nKey::SbDiffStageAll => "Stage all changes",
         I18nKey::SbDiffUnstageAll => "Unstage all changes",
-        I18nKey::SbDiffCommitAi => "Commit with AI",
+        I18nKey::SbDiffCommitAi => "Commit com IA",
+        I18nKey::SbDiffCommit => "Commit",
+        I18nKey::SbDiffCommitTitle => "Criar commit",
+        I18nKey::SbDiffCommitPlaceholder => "Descreva suas alterações…",
+        I18nKey::SbDiffCommitGenerating => "Gerando…",
+        I18nKey::SbDiffCommitEmptyMsg => "Digite primeiro uma mensagem de commit.",
+        I18nKey::SbDiffCommitSuccess => "Alterações confirmadas.",
+        I18nKey::SbDiffCommitFailed => "Falha no commit.",
+        I18nKey::SbDiffCommitNothingStaged => "Prepare as alterações antes de confirmar.",
+        I18nKey::SbDiffCommitGenFailed => "Não foi possível gerar a mensagem de commit.",
+        I18nKey::SbDiffCommitNeedStaged => "Prepare as alterações para confirmar.",
         I18nKey::SbDiffPushToBranch => "Push to",
         I18nKey::SbDiffPushDisabled => "Commit or discard local changes before pushing.",
         I18nKey::SbDiffPushFailed => "Could not push to remote.",
@@ -89,6 +98,25 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbDiffGroupExpand => "Expand",
         I18nKey::SbDiffGroupCollapse => "Collapse",
         I18nKey::SbDiffListAria => "Changed files",
+        I18nKey::SbDiffFetch => "Buscar",
+        I18nKey::SbDiffPull => "Puxar (buscar + mesclar)",
+        I18nKey::SbDiffPush => "Empurrar",
+        I18nKey::SbDiffSyncUpToDate => "Já atualizado.",
+        I18nKey::SbDiffFetched => "Obtido remotamente.",
+        I18nKey::SbDiffPulled => "Extraiu alterações do controle remoto.",
+        I18nKey::SbDiffPushed => "Empurrado para remoto.",
+        I18nKey::SbDiffPullConflict => "Pull interrompido: resolva os conflitos de mesclagem.",
+        I18nKey::SbDiffDirtyBlocked => "Confirme ou esconda suas alterações locais primeiro.",
+        I18nKey::SbDiffNonFastForward => "Remote tem novos commits – pull primeiro.",
+        I18nKey::SbDiffNoUpstream => "Nenhuma ramificação upstream está definida para esta ramificação.",
+        I18nKey::SbDiffAuthFailed => "Falha na autenticação do controle remoto.",
+        I18nKey::SbDiffNoRemote => "Nenhum controle remoto está configurado para este repositório.",
+        I18nKey::SbDiffSyncLocked => "Outro processo git está em execução. Tente novamente em breve.",
+        I18nKey::SbDiffNetworkError => "Não foi possível acessar o controle remoto (erro de rede).",
+        I18nKey::SbDiffSyncError => "A operação do Git falhou.",
+        I18nKey::SbDiffPushNeedStaged => "Prepare todas as mudanças antes de prosseguir.",
+        I18nKey::SbDiffPushDetached => "HEAD desanexado – mude para um ramo para empurrar.",
+        I18nKey::SbDiffSyncBusy => "Outra operação git está em andamento.",
         I18nKey::RpRailAria => "Painel direito",
         I18nKey::RpExpand => "Mostrar painel direito",
         I18nKey::RpCollapse => "Ocultar painel direito",
@@ -141,6 +169,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrRemove => "Remover",
         I18nKey::SrRefresh => "Atualizar",
         I18nKey::SrConfirmRemove => "Remover esta entrada? Isso exclui o arquivo no disco.",
+        I18nKey::SrConfirmRemoveTitle => "Remover arquivo?",
         I18nKey::SrNewRule => "Nova regra",
         I18nKey::SrRuleTitlePh => "Título da regra",
         I18nKey::SrRuleBodyPh => "Escreva a regra em Markdown...",
@@ -171,6 +200,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrSkillSource => "Fonte",
         I18nKey::SrMissingSkillMd => "HABILIDADE.md ausente",
         I18nKey::SrNoWorkspace => "Abra um espaço de trabalho para ver habilidades e regras.",
+        I18nKey::SrPointersBannerLead => {
+            "Nenhum ponteiro de regras do agente instalado — os agentes externos não saberão onde estão as regras do projeto."
+        }
+        I18nKey::SrPointersBannerCta => "Configurar ponteiros",
+        I18nKey::SrPointersDialogTitle => "Ponteiros de regras do agente",
+        I18nKey::SrPointersDialogLead => {
+            "Instale um bloco marcado em CLAUDE.md, AGENTS.md ou similar para que agentes externos obtenham as regras do projeto. Os arquivos de destino já devem existir."
+        }
+        I18nKey::SrPointersInstall => "Instalar",
+        I18nKey::SrPointersUninstall => "Desinstalar",
+        I18nKey::SrPointersClose => "Fechar",
         I18nKey::MemEmptyTitle => "Nenhum espaço de trabalho ativo",
         I18nKey::MemEmptyLead => {
             "A memória tem como escopo um espaço de trabalho. Selecione um na barra lateral ou crie um novo espaço de trabalho para começar."
@@ -244,6 +284,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::UpdateDialogRetry => "Tentar novamente",
         I18nKey::UpdateDialogError => "Falha na atualização",
         I18nKey::UpdateDialogNotes => "Notas de lançamento",
+        I18nKey::PostUpdateEyebrow => "What changed",
+        I18nKey::PostUpdateGotIt => "Got it",
+        I18nKey::PostUpdateLoading => "Loading release notes...",
+        I18nKey::PostUpdateNoNotes => "Release notes are not available right now.",
         I18nKey::AppShortcutHeading => "Atalhos de teclado",
         I18nKey::AppShortcutModeTmux => "Estilo Tmux (Ctrl + b e depois tecla)",
         I18nKey::AppShortcutModeLegacy => "Clássico (Ctrl / Ctrl+Shift)",
@@ -515,6 +559,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsDefaultProjectDirLabel => "Diretório padrão do projeto",
         I18nKey::WsDefaultProjectDirPlaceholder => "$HOME",
         I18nKey::WsDefaultProjectDirHint => "Preenche previamente o diretório de trabalho para novos espaços de trabalho.",
+        I18nKey::WsSectionConfirm => "Confirmações",
+        I18nKey::WsConfirmCloseLabel => "Confirme antes de fechar um espaço de trabalho",
+        I18nKey::WsConfirmCloseHint => {
+            "Mostre uma caixa de diálogo de confirmação ao fechar um espaço de trabalho na guia Terminais, no botão Fechar da barra lateral ou no menu de contexto."
+        }
         I18nKey::AgProviderHeading => "Agente BLXCode",
         I18nKey::AgSectionInference => "Inferência",
         I18nKey::AgSectionModel => "Modelo",

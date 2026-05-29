@@ -2,6 +2,7 @@
 
 mod category_colors;
 
+use super::app_prefs::AppPrefsService;
 use super::browser_tab::sync_embedded_browser_layer;
 use super::state::{BrowserEmbedSurface, WorkbenchService};
 use crate::config::HARNESS_BROWSER_DEFAULT_URL;
@@ -18,6 +19,7 @@ struct WorkspaceBaseline {
     project_dir: String,
     sandbox_root: String,
     browser_url: String,
+    architecture_llm_prose: bool,
 }
 
 fn input_str(ev: &web_sys::Event) -> Option<String> {
@@ -27,11 +29,24 @@ fn input_str(ev: &web_sys::Event) -> Option<String> {
         .map(|i| i.value())
 }
 
+fn checkbox_checked(ev: &web_sys::Event) -> Option<bool> {
+    ev.target()?
+        .dyn_into::<web_sys::HtmlInputElement>()
+        .ok()
+        .map(|i| i.checked())
+}
+
 fn snapshot_baseline(wb: &WorkbenchService) -> WorkspaceBaseline {
+    let architecture_llm_prose = wb
+        .active_id()
+        .get_untracked()
+        .map(|id| wb.architecture_llm_prose_for_workspace_untracked(id))
+        .unwrap_or(false);
     WorkspaceBaseline {
         project_dir: wb.default_project_dir().get_untracked(),
         sandbox_root: wb.harness_workspace_root().get_untracked(),
         browser_url: wb.browser_url().get_untracked(),
+        architecture_llm_prose,
     }
 }
 
@@ -52,15 +67,22 @@ fn apply_browser_url(wb: WorkbenchService, embed: BrowserEmbedSurface, url: Stri
 #[component]
 pub fn WorkspaceSettingsPane(wb: WorkbenchService, embed: BrowserEmbedSurface) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let prefs = expect_context::<AppPrefsService>();
     let baseline = RwSignal::new(snapshot_baseline(&wb));
     let status_msg = RwSignal::new(None::<String>);
     let busy = RwSignal::new(false);
 
     let dirty = Memo::new(move |_| {
         let b = baseline.get();
+        let architecture_llm_prose = wb
+            .active_id()
+            .get()
+            .map(|id| wb.architecture_llm_prose_for_workspace(id))
+            .unwrap_or(false);
         wb.default_project_dir().get() != b.project_dir
             || wb.harness_workspace_root().get() != b.sandbox_root
             || wb.browser_url().get() != b.browser_url
+            || architecture_llm_prose != b.architecture_llm_prose
     });
 
     let save = move || {
@@ -94,6 +116,12 @@ pub fn WorkspaceSettingsPane(wb: WorkbenchService, embed: BrowserEmbedSurface) -
                 sync_embedded_browser_layer(w, embed).await;
             });
         }
+        if let Some(id) = wb.active_id().get_untracked() {
+            let enabled = wb.architecture_llm_prose_for_workspace_untracked(id);
+            if enabled != b.architecture_llm_prose {
+                wb.set_workspace_architecture_llm_prose(id, enabled);
+            }
+        }
 
         baseline.set(snapshot_baseline(&wb));
         status_msg.set(Some(i18n.tr(I18nKey::ApiKeysSaved)().to_string()));
@@ -108,6 +136,9 @@ pub fn WorkspaceSettingsPane(wb: WorkbenchService, embed: BrowserEmbedSurface) -
         wb.set_default_project_dir_text(b.project_dir);
         wb.set_harness_workspace_root_text(b.sandbox_root);
         wb.set_browser_url_text(b.browser_url);
+        if let Some(id) = wb.active_id().get_untracked() {
+            wb.set_workspace_architecture_llm_prose(id, b.architecture_llm_prose);
+        }
         status_msg.set(None);
     };
 
@@ -124,6 +155,14 @@ pub fn WorkspaceSettingsPane(wb: WorkbenchService, embed: BrowserEmbedSurface) -
     let on_browser_input = move |ev: web_sys::Event| {
         if let Some(txt) = input_str(&ev) {
             wb.set_browser_url_text(txt);
+        }
+    };
+    let on_architecture_prose_change = move |ev: web_sys::Event| {
+        let Some(id) = wb.active_id().get_untracked() else {
+            return;
+        };
+        if let Some(checked) = checkbox_checked(&ev) {
+            wb.set_workspace_architecture_llm_prose(id, checked);
         }
     };
 
@@ -213,7 +252,54 @@ pub fn WorkspaceSettingsPane(wb: WorkbenchService, embed: BrowserEmbedSurface) -
                 </ul>
             </section>
 
+            <section class="harness-subpane">
+                <h4 class="harness-pane-subhead">
+                    <span class="harness-pane-subhead__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuTriangleAlert width="0.82rem" height="0.82rem" />
+                    </span>
+                    <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::WsSectionConfirm)()}</span>
+                </h4>
+                <label class="app-prefs-toggle">
+                    <input
+                        type="checkbox"
+                        prop:checked=move || prefs.confirm_close_workspace_enabled().get()
+                        on:change=move |ev| {
+                            if let Some(checked) = checkbox_checked(&ev) {
+                                prefs.set_confirm_close_workspace(checked);
+                            }
+                        }
+                    />
+                    <span>{move || i18n.tr(I18nKey::WsConfirmCloseLabel)()}</span>
+                </label>
+                <p class="app-prefs-hint">{move || i18n.tr(I18nKey::WsConfirmCloseHint)()}</p>
+            </section>
+
             <WorkspaceCategoryColorsSection wb=wb />
+
+            <section class="harness-subpane">
+                <h4 class="harness-pane-subhead">
+                    <span class="harness-pane-subhead__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuNetwork width="0.82rem" height="0.82rem" />
+                    </span>
+                    <span class="harness-pane-subhead__text">"Architecture map"</span>
+                </h4>
+                <label class="app-prefs-toggle">
+                    <input
+                        type="checkbox"
+                        prop:checked=move || {
+                            wb.active_id()
+                                .get()
+                                .map(|id| wb.architecture_llm_prose_for_workspace(id))
+                                .unwrap_or(false)
+                        }
+                        on:change=on_architecture_prose_change
+                    />
+                    <span>"LLM prose ingest"</span>
+                </label>
+                <p class="app-prefs-hint">
+                    "Default off. Rebuilds stay deterministic; enabling this only permits future explicit prose synthesis into manual architecture sections."
+                </p>
+            </section>
 
             <Show when=move || status_msg.with(|m| m.is_some())>
                 <p class="harness-status">{move || status_msg.get().unwrap_or_default()}</p>

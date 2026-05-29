@@ -8,6 +8,9 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::skills_rules_wire::RuleEntry;
 use crate::workbench::skills_rules_panel::rule_card::RuleCard;
+use crate::workbench::skills_rules_panel::rules_pointers::{
+    RulesPointersDialog, RulesPointersNotice,
+};
 use crate::workbench::skills_rules_panel::SkillsRulesService;
 use crate::workbench::{RightPanelTab, WorkbenchService};
 
@@ -68,7 +71,20 @@ pub fn RulesTabDock() -> impl IntoView {
             // Touch active_id so we react to workspace switches too.
             let _ = active_id.get();
             svc.refresh_rules(wb);
+            svc.refresh_pointer_status(wb);
         }
+    });
+
+    // Reset pointer UI when the workspace itself changes so a stale
+    // "dismissed" flag from the previous workspace doesn't suppress the
+    // banner in the new one.
+    Effect::new(move |prev: Option<Option<u64>>| {
+        let id = active_id.get();
+        if prev.is_some() && prev.unwrap() != id {
+            svc.reset_pointer_ui();
+            svc.refresh_pointer_status(wb);
+        }
+        id
     });
 
     view! {
@@ -106,6 +122,16 @@ pub fn RulesTabDock() -> impl IntoView {
             </header>
             <div class="blx-sr-pane__body">
                 {move || error.get().map(|e| view! { <p class="blx-sr-pane__err">{e}</p> })}
+                <Show when=move || {
+                    active_id.get().is_some()
+                        && !svc.pointers_notice_dismissed().get()
+                        && svc
+                            .pointer_status()
+                            .get()
+                            .is_some_and(|status| !status.iter().any(|e| e.installed))
+                }>
+                    <RulesPointersNotice />
+                </Show>
                 {move || composer_open.get().then(|| {
                     let is_saving = saving.get();
                     view! {
@@ -191,6 +217,9 @@ pub fn RulesTabDock() -> impl IntoView {
                     }
                 }}
             </div>
+            <Show when=move || svc.pointers_open().get()>
+                <RulesPointersDialog />
+            </Show>
         </div>
     }
 }

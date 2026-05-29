@@ -826,13 +826,17 @@ fn GraphPreviewPopover(
                 <header class="workbench-memory-graph-preview__head">
                     <span class="workbench-memory-graph-preview__title">{move || preview.label.get()}</span>
                     <div class="workbench-memory-graph-preview__actions">
-                        <div class="workbench-handoff-anchor">
+                        <div class="workbench-handoff-anchor" id="memory-graph-handoff">
                             <button
                                 type="button"
                                 class="workbench-memory-graph-preview__btn"
                                 title=move || i18n.tr(I18nKey::MemGraphSendToTerminal)()
                                 aria-label=move || i18n.tr(I18nKey::MemGraphSendToTerminal)()
-                                on:click=move |_| handoff_open.update(|v| *v = !*v)
+                                on:mousedown=move |ev| ev.stop_propagation()
+                                on:click=move |ev| {
+                                    ev.stop_propagation();
+                                    handoff_open.update(|v| *v = !*v);
+                                }
                             >
                                 <LxIcon icon=icondata::LuSquareTerminal width="0.82rem" height="0.82rem" />
                             </button>
@@ -844,6 +848,7 @@ fn GraphPreviewPopover(
                                     source_slot=Signal::derive(|| None::<u64>)
                                     source_terminal_title=Signal::derive(String::new)
                                     on_close=Callback::new(move |_| handoff_open.set(false))
+                                    anchor_id="memory-graph-handoff".to_string()
                                 />
                             </Show>
                         </div>
@@ -899,8 +904,27 @@ fn open_graph_preview(state: MemoryState, preview: GraphPreviewState, node_id: S
 
     if let Some(category) = node_id.strip_prefix("hub:") {
         preview.scope.set(MemoryScope::Workspace);
-        preview.path.set(None);
         preview.label.set(clean_display_label(category));
+        // The architecture category's overview is ARCHITECTURE.md (folded onto
+        // this hub node), so show its curated content rather than a note summary.
+        if category.eq_ignore_ascii_case("architecture") {
+            let path = "ARCHITECTURE.md".to_string();
+            preview.path.set(Some(path.clone()));
+            if let Some(ws) = state.workspace_cwd.get_untracked() {
+                spawn_local(async move {
+                    TimeoutFuture::new(40).await;
+                    match tauri_bridge::memory_read(&ws, &MemoryScope::Workspace, &path).await {
+                        Ok(NoteContent { content, .. }) => preview.content.set(content),
+                        Err(e) => preview.content.set(e),
+                    }
+                    preview.loading.set(false);
+                });
+            } else {
+                preview.loading.set(false);
+            }
+            return;
+        }
+        preview.path.set(None);
         preview.content.set(hub_summary_markdown(&state, category));
         preview.loading.set(false);
         return;
@@ -1084,6 +1108,9 @@ fn configured_graph(wb: WorkbenchService, graph: Option<GraphData>) -> Option<Gr
 pub(crate) fn graph_category_for_path(path: &str) -> String {
     if path.starts_with("learnings/") {
         return "learnings".to_string();
+    }
+    if path.eq_ignore_ascii_case("ARCHITECTURE.md") {
+        return "architecture".to_string();
     }
     if let Some((head, _)) = path.split_once('/') {
         if !head.is_empty() {

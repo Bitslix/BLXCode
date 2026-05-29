@@ -48,7 +48,7 @@ fn handle_memory_category_list(call_id: String, wb: WorkbenchService) {
         submit_async(call_id, false, "no active workspace".into(), None);
         return;
     };
-    let categories: Vec<serde_json::Value> = ["memory", "learnings"]
+    let categories: Vec<serde_json::Value> = ["memory", "learnings", "architecture"]
         .into_iter()
         .map(|key| {
             let settings = wb.memory_category_settings_for_workspace_untracked(ws_id, key);
@@ -82,11 +82,11 @@ fn handle_memory_category_update(
         submit_async(call_id, false, "missing category".into(), None);
         return;
     };
-    if category != "memory" && category != "learnings" {
+    if category != "memory" && category != "learnings" && category != "architecture" {
         submit_async(
             call_id,
             false,
-            "category must be memory or learnings".into(),
+            "category must be memory, learnings, or architecture".into(),
             None,
         );
         return;
@@ -242,6 +242,7 @@ fn handle_memory_context_attach(
     let kind = match kind_raw {
         "memory_category" => AgentContextKind::MemoryCategory,
         "learning_category" => AgentContextKind::LearningCategory,
+        "architecture_category" => AgentContextKind::MemoryCategory,
         "memory_note" => AgentContextKind::MemoryNote,
         "learning_note" => AgentContextKind::LearningNote,
         "terminal_session" => AgentContextKind::TerminalSession,
@@ -261,8 +262,9 @@ fn handle_memory_context_attach(
         AgentContextKind::MemoryCategory | AgentContextKind::LearningCategory
     );
     if is_category {
-        let category = match kind {
+        let category = match &kind {
             AgentContextKind::LearningCategory => "learnings",
+            _ if kind_raw == "architecture_category" => "architecture",
             _ => "memory",
         };
         let settings = wb.memory_category_settings_for_workspace_untracked(ws_id, category);
@@ -280,8 +282,11 @@ fn handle_memory_context_attach(
                         .filter(|n| {
                             if category == "learnings" {
                                 n.path.starts_with(LEARNINGS_PREFIX)
+                            } else if category == "architecture" {
+                                n.category == "architecture"
                             } else {
                                 !n.path.starts_with(LEARNINGS_PREFIX)
+                                    && n.category != "architecture"
                             }
                         })
                         .map(|n| n.path)

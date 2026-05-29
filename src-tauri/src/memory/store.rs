@@ -1,19 +1,17 @@
 //! Core CRUD helpers — called from #[tauri::command] wrappers in mod.rs.
 
 use crate::agents_layout::{LEARNINGS_API_PREFIX, LEARNINGS_REL, MEMORY_REL};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::fs;
 use std::io::Write as IoWrite;
 use std::path::{Component, Path, PathBuf};
 
-use super::frontmatter::{
-    parse_frontmatter, serialize_frontmatter, MemoryFrontmatter,
-};
+use super::frontmatter::{parse_frontmatter, serialize_frontmatter, MemoryFrontmatter};
 use super::graph::{build_graph, CategoryHubInput, ScopeNote};
 use super::paths::{
     folder_exists, get_global_roots, get_roots_for_scope, graph_category_for,
-    list_memory_subcategories, node_id, validate_category_name, MemoryRoots,
-    CATEGORY_PLACEHOLDER, TEMPLATES_DIRNAME,
+    list_memory_subcategories, node_id, validate_category_name, MemoryRoots, ARCHITECTURE_CATEGORY,
+    ARCHITECTURE_INDEX, CATEGORY_PLACEHOLDER, META_DIRNAME, TEMPLATES_DIRNAME,
 };
 use super::types::{
     BacklinkRef, GraphData, MemoryFolderStatus, MemoryListResponse, MemoryScope,
@@ -89,6 +87,13 @@ fn walk_md(root: &Path, out: &mut Vec<PathBuf>) {
         let path = entry.path();
         let Ok(ft) = entry.file_type() else { continue };
         if ft.is_dir() {
+            if entry
+                .file_name()
+                .to_str()
+                .is_some_and(|name| name.starts_with('.') || name == META_DIRNAME)
+            {
+                continue;
+            }
             walk_md(&path, out);
             continue;
         }
@@ -158,16 +163,31 @@ fn safe_join(root: &Path, rel: &str, enforce_md: bool) -> Result<PathBuf, String
     }
     let abs = root.join(&candidate);
     let canon_root = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
-    let canon_abs = abs
-        .parent()
-        .and_then(|p| fs::canonicalize(p).ok())
-        .map(|p| p.join(abs.file_name().unwrap_or_default()))
-        .unwrap_or(abs.clone());
-    if !canon_abs.starts_with(&canon_root) {
+    // Resolve symlinks on the nearest existing ancestor of `abs`. Canonicalizing
+    // `abs` (or its parent) directly fails when the target file or its directory
+    // does not exist yet, and on Windows that mismatch (canonical root carries a
+    // `\\?\` prefix, a non-canonical `abs` does not) produced a spurious "path
+    // escapes memory root". Because every component above is `Normal` (no `..`),
+    // the not-yet-existing tail cannot escape the canonicalized ancestor.
+    let mut existing = abs.as_path();
+    let canon_existing = loop {
+        if let Ok(canon) = fs::canonicalize(existing) {
+            break Some(canon);
+        }
+        match existing.parent() {
+            Some(parent) => existing = parent,
+            None => break None,
+        }
+    };
+    let escapes = match canon_existing {
+        Some(canon) => !canon.starts_with(&canon_root),
+        None => true,
+    };
+    if escapes {
         return err("path escapes memory root");
     }
     if enforce_md {
-        let is_md = canon_abs
+        let is_md = abs
             .extension()
             .and_then(|e| e.to_str())
             .map(|e| e.eq_ignore_ascii_case("md"))
@@ -195,7 +215,11 @@ fn meta_from_file(scope: &MemoryScope, api_path: &str, abs: &Path) -> Option<Not
         .and_then(|s| s.to_str())
         .unwrap_or("")
         .to_owned();
-    let is_overview = basename.eq_ignore_ascii_case("README.md");
+    // README.md is a category's overview; ARCHITECTURE.md is the overview of the
+    // harness-managed `architecture` category, so it is folded onto the category
+    // hub node in the graph instead of appearing as a standalone node.
+    let is_overview =
+        basename.eq_ignore_ascii_case("README.md") || basename.eq_ignore_ascii_case("ARCHITECTURE.md");
     let is_template = !is_learnings && api_path.starts_with(&format!("{TEMPLATES_DIRNAME}/"));
     let title = fm
         .title
@@ -215,6 +239,8 @@ fn meta_from_file(scope: &MemoryScope, api_path: &str, abs: &Path) -> Option<Not
         is_learning: is_learnings,
         is_overview,
         category: graph_category_for(api_path),
+        managed: fm.managed,
+        stale: fm.stale,
     })
 }
 
@@ -291,6 +317,7 @@ fn seed_memory(memory_dir: &Path) -> Result<(), String> {
             title: Some("Memory".into()),
             enabled: Some(true),
             tags: Some(Vec::new()),
+            ..Default::default()
         };
         let content = serialize_frontmatter(&fm, MEMORY_OVERVIEW_BODY);
         fs::write(&readme, content.as_bytes()).map_err(|e| format!("write README: {e}"))?;
@@ -306,6 +333,7 @@ fn seed_learnings(learnings_dir: &Path) -> Result<(), String> {
             title: Some("Learnings".into()),
             enabled: Some(true),
             tags: Some(Vec::new()),
+            ..Default::default()
         };
         let content = serialize_frontmatter(&fm, LEARNINGS_OVERVIEW_BODY);
         fs::write(&readme, content.as_bytes()).map_err(|e| format!("write README: {e}"))?;
@@ -429,6 +457,7 @@ pub fn memory_write_impl(
 ) -> Result<NoteContent, String> {
     let roots = get_roots_for_scope(scope, workspace_cwd)?;
     let abs = note_abs(&roots, path)?;
+    validate_architecture_write(&abs, path, content)?;
     if let Some(parent) = abs.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
     }
@@ -451,6 +480,7 @@ pub fn memory_create_impl(
 ) -> Result<NoteMeta, String> {
     let roots = get_roots_for_scope(scope, workspace_cwd)?;
     let abs = note_abs(&roots, path)?;
+    validate_architecture_create(path)?;
     if abs.exists() {
         return err(format!("already exists: {path}"));
     }
@@ -469,6 +499,7 @@ pub fn memory_delete_impl(
 ) -> Result<(), String> {
     let roots = get_roots_for_scope(scope, workspace_cwd)?;
     let (is_learnings, _) = resolve_api_path(path)?;
+    validate_architecture_delete(path)?;
     let root = if is_learnings {
         &roots.learnings
     } else {
@@ -500,6 +531,66 @@ pub fn memory_delete_impl(
     Ok(())
 }
 
+fn validate_architecture_create(path: &str) -> Result<(), String> {
+    if is_architecture_module_path(path) || path.eq_ignore_ascii_case(ARCHITECTURE_INDEX) {
+        return err("architecture/ is harness-managed; run memory_rebuild_architecture");
+    }
+    Ok(())
+}
+
+fn validate_architecture_delete(path: &str) -> Result<(), String> {
+    if is_architecture_module_path(path) || path.eq_ignore_ascii_case(ARCHITECTURE_INDEX) {
+        return err("architecture/ is harness-managed; run memory_rebuild_architecture");
+    }
+    Ok(())
+}
+
+fn validate_architecture_rename(old_path: &str, new_path: &str) -> Result<(), String> {
+    if is_architecture_module_path(old_path)
+        || is_architecture_module_path(new_path)
+        || old_path.eq_ignore_ascii_case(ARCHITECTURE_INDEX)
+        || new_path.eq_ignore_ascii_case(ARCHITECTURE_INDEX)
+    {
+        return err("architecture/ is harness-managed; run memory_rebuild_architecture");
+    }
+    Ok(())
+}
+
+fn validate_architecture_write(abs: &Path, path: &str, content: &str) -> Result<(), String> {
+    if is_architecture_module_path(path) {
+        return err("architecture/ is harness-managed; run memory_rebuild_architecture");
+    }
+    if !path.eq_ignore_ascii_case(ARCHITECTURE_INDEX) {
+        return Ok(());
+    }
+    let existing = fs::read_to_string(abs)
+        .map_err(|_| "ARCHITECTURE.md is harness-managed; run memory_rebuild_architecture")?;
+    let existing_static = marker_region(&existing);
+    let next_static = marker_region(content);
+    if existing_static.is_none() || next_static.is_none() || existing_static != next_static {
+        return err(
+            "ARCHITECTURE.md generated section is harness-managed; edit only ## Manual or run memory_rebuild_architecture",
+        );
+    }
+    Ok(())
+}
+
+fn is_architecture_module_path(path: &str) -> bool {
+    let p = path.trim_start_matches('/');
+    p.starts_with(&format!("{ARCHITECTURE_CATEGORY}/"))
+}
+
+fn marker_region(content: &str) -> Option<&str> {
+    let begin = super::architecture::STATIC_BEGIN;
+    let end = super::architecture::STATIC_END;
+    let start = content.find(begin)?;
+    let end_idx = content.find(end)?;
+    if end_idx < start {
+        return None;
+    }
+    Some(&content[start..end_idx + end.len()])
+}
+
 pub fn memory_rename_impl(
     scope: &MemoryScope,
     workspace_cwd: &str,
@@ -508,6 +599,7 @@ pub fn memory_rename_impl(
     rewrite_links: bool,
 ) -> Result<RenameReport, String> {
     let roots = get_roots_for_scope(scope, workspace_cwd)?;
+    validate_architecture_rename(old_path, new_path)?;
     let (old_learn, _) = resolve_api_path(old_path)?;
     let (new_learn, _) = resolve_api_path(new_path)?;
     if old_learn != new_learn {
@@ -816,316 +908,175 @@ fn import_tree(src: &Path, dest_root: &Path) -> Result<u32, String> {
 
 // ── Pointer files ─────────────────────────────────────────────────────────────
 
+use crate::pointers::{
+    install_pointer_block, pointer_status as generic_pointer_status, uninstall_pointer_block,
+    Markers,
+};
+
 const POINTER_BEGIN: &str = "<!-- blxcode-memory:begin -->";
 const POINTER_END: &str = "<!-- blxcode-memory:end -->";
 const POINTER_BEGIN_CURSOR: &str = "# blxcode-memory:begin";
 const POINTER_END_CURSOR: &str = "# blxcode-memory:end";
 
-fn pointer_filename(agent: &str) -> Option<&'static str> {
-    match agent {
-        "claude" => Some("CLAUDE.md"),
-        "codex" => Some("AGENTS.md"),
-        "gemini" => Some("GEMINI.md"),
-        "cursor" => Some(".cursorrules"),
-        "opencode" => Some("AGENTS.md"),
-        _ => None,
-    }
-}
+const MEMORY_MARKERS: Markers<'static> = Markers {
+    html: (POINTER_BEGIN, POINTER_END),
+    cursor: (POINTER_BEGIN_CURSOR, POINTER_END_CURSOR),
+};
 
-fn pointer_cursor_style(agent: &str) -> bool {
-    agent == "cursor"
-}
-
-fn pointer_body(workspace_cwd: &Path, notes: &[NoteMeta], cursor_style: bool) -> String {
+fn pointer_body(workspace_cwd: &Path, cursor_style: bool) -> String {
     let memory_dir = workspace_cwd.join(MEMORY_REL);
     let learnings_dir = workspace_cwd.join(LEARNINGS_REL);
     let global_roots = get_global_roots();
     let mut s = String::new();
     if cursor_style {
-        s.push_str("blxcode tracks per-workspace and global memory at the paths below.\n");
-    } else {
-        s.push_str("## blxcode workspace memory\n\n");
         s.push_str(
-            "This workspace uses **blxcode** to maintain Markdown notes and learnings \
-shared across all agent sessions. Treat the directories below as authoritative \
-context: read notes that are relevant to the task, and propose new notes \
-or edits when you learn something the team should remember.\n\n",
+            "blxcode tracks per-workspace and global memory + learnings at the paths below.\n",
+        );
+    } else {
+        s.push_str("## blxcode workspace memory & learnings\n\n");
+        s.push_str(
+            "This workspace uses **blxcode** to maintain two kinds of \
+durable agent context, shared across all sessions and agents:\n\n\
+- **Memory notes** — Markdown facts about the user, project conventions, \
+ongoing initiatives, references. Read before assuming. Add a new note when \
+you learn something the team should remember next turn.\n\
+- **Learnings** — short Markdown entries capturing a concrete insight, \
+pattern, fix, or gotcha discovered during a task. Write one whenever you \
+solved something non-obvious, hit a tricky failure mode, or validated a \
+non-trivial design choice. Source material: debugging sessions, failed \
+attempts, code review feedback, post-mortems, surprising tool output.\n\n",
         );
     }
-    s.push_str(&format!("Workspace memory: `{}`\n", memory_dir.display()));
     s.push_str(&format!(
-        "Workspace learnings: `{}` (API paths: `learnings/...`)\n",
+        "Workspace memory:    `{}`\n",
+        memory_dir.display()
+    ));
+    s.push_str(&format!(
+        "Workspace learnings: `{}`  (API paths: `learnings/...`)\n",
         learnings_dir.display()
     ));
     s.push_str(&format!(
-        "Global memory: `{}`\n",
+        "Global memory:       `{}`\n",
         global_roots.memory.display()
     ));
     s.push_str(&format!(
-        "Global learnings: `{}`\n",
+        "Global learnings:    `{}`\n",
         global_roots.learnings.display()
     ));
-    s.push_str("Cross-scope links: `[[global:...]]` / `[[workspace:...]]`\n\n");
-    let workspace_notes: Vec<_> = notes
-        .iter()
-        .filter(|n| n.scope == MemoryScope::Workspace && !n.is_template)
-        .collect();
-    if workspace_notes.is_empty() {
-        s.push_str("(no notes yet)\n");
-    } else {
-        s.push_str("Current workspace notes:\n");
-        let mut shown = 0;
-        for n in &workspace_notes {
-            s.push_str(&format!("- `{}`\n", n.path));
-            shown += 1;
-            if shown >= 80 {
-                s.push_str(&format!(
-                    "- ... and {} more\n",
-                    workspace_notes.len().saturating_sub(shown)
-                ));
-                break;
-            }
-        }
-    }
+    s.push_str("Cross-scope links: `[[global:...]]` / `[[workspace:...]]`\n");
     s.push('\n');
     s
-}
-
-fn splice_block(existing: &str, begin: &str, end: &str, new_body: &str) -> String {
-    let block = format!("{begin}\n{new_body}{end}\n");
-    if let (Some(bi), Some(ei)) = (existing.find(begin), existing.find(end)) {
-        if ei > bi {
-            let ei_end = ei + end.len();
-            let tail_start = if ei_end < existing.len() && existing.as_bytes()[ei_end] == b'\n' {
-                ei_end + 1
-            } else {
-                ei_end
-            };
-            let mut out = String::with_capacity(bi + block.len() + existing.len() - tail_start);
-            out.push_str(&existing[..bi]);
-            out.push_str(&block);
-            out.push_str(&existing[tail_start..]);
-            return out;
-        }
-    }
-    if existing.trim().is_empty() {
-        block
-    } else {
-        format!("{}\n\n{block}", existing.trim_end())
-    }
-}
-
-fn strip_block(existing: &str, begin: &str, end: &str) -> String {
-    if let (Some(bi), Some(ei)) = (existing.find(begin), existing.find(end)) {
-        if ei <= bi {
-            return existing.to_owned();
-        }
-        let ei_end = ei + end.len();
-        let tail_start = if ei_end < existing.len() && existing.as_bytes()[ei_end] == b'\n' {
-            ei_end + 1
-        } else {
-            ei_end
-        };
-        let mut out = String::new();
-        out.push_str(&existing[..bi]);
-        out.push_str(&existing[tail_start..]);
-        return out.trim_end().to_owned();
-    }
-    existing.to_owned()
-}
-
-fn block_installed(content: &str, begin: &str, end: &str) -> bool {
-    content.contains(begin) && content.contains(end)
 }
 
 pub fn memory_install_pointers_impl(
     workspace_cwd: &str,
     agents: Vec<String>,
 ) -> Result<Vec<PointerResult>, String> {
-    use crate::agents_layout::validate_workspace_cwd;
-    let ws = validate_workspace_cwd(workspace_cwd)?;
-    let notes = collect_notes(&MemoryScope::Workspace, workspace_cwd);
-    let mut results: Vec<PointerResult> = Vec::new();
-    let mut written: BTreeSet<String> = Default::default();
-    for agent in agents {
-        let Some(fname) = pointer_filename(&agent) else {
-            results.push(PointerResult {
-                agent,
-                path: String::new(),
-                installed: false,
-                note: Some("unknown agent".into()),
-            });
-            continue;
-        };
-        let path = ws.join(fname);
-        if written.contains(fname) {
-            results.push(PointerResult {
-                agent,
-                path: path.to_string_lossy().into_owned(),
-                installed: false,
-                note: Some("shared file already written".into()),
-            });
-            continue;
-        }
-        written.insert(fname.to_owned());
-        if !path.exists() {
-            results.push(PointerResult {
-                agent,
-                path: path.to_string_lossy().into_owned(),
-                installed: false,
-                note: Some("file missing — create it first".into()),
-            });
-            continue;
-        }
-        let cursor_style = pointer_cursor_style(&agent);
-        let body = pointer_body(&ws, &notes, cursor_style);
-        let (begin, end) = if cursor_style {
-            (POINTER_BEGIN_CURSOR, POINTER_END_CURSOR)
-        } else {
-            (POINTER_BEGIN, POINTER_END)
-        };
-        let existing = fs::read_to_string(&path).unwrap_or_default();
-        let updated = splice_block(&existing, begin, end, &body);
-        match fs::write(&path, updated.as_bytes()) {
-            Ok(()) => {
-                results.push(PointerResult {
-                    agent,
-                    path: path.to_string_lossy().into_owned(),
-                    installed: true,
-                    note: None,
-                });
-            }
-            Err(e) => results.push(PointerResult {
-                agent,
-                path: path.to_string_lossy().into_owned(),
-                installed: false,
-                note: Some(format!("write failed: {e}")),
-            }),
-        }
-    }
-    Ok(results)
+    install_pointer_block(workspace_cwd, agents, &MEMORY_MARKERS, pointer_body)
 }
 
 pub fn memory_uninstall_pointers_impl(
     workspace_cwd: &str,
     agents: Vec<String>,
 ) -> Result<Vec<PointerResult>, String> {
-    use crate::agents_layout::validate_workspace_cwd;
-    let ws = validate_workspace_cwd(workspace_cwd)?;
-    let mut results = Vec::new();
-    let mut handled: BTreeSet<String> = Default::default();
-    for agent in agents {
-        let Some(fname) = pointer_filename(&agent) else {
-            results.push(PointerResult {
-                agent,
-                path: String::new(),
-                installed: false,
-                note: Some("unknown agent".into()),
-            });
-            continue;
-        };
-        if handled.contains(fname) {
-            results.push(PointerResult {
-                agent,
-                path: ws.join(fname).to_string_lossy().into_owned(),
-                installed: false,
-                note: Some("shared file already cleaned".into()),
-            });
-            continue;
-        }
-        let path = ws.join(fname);
-        handled.insert(fname.to_owned());
-        if !path.exists() {
-            results.push(PointerResult {
-                agent,
-                path: path.to_string_lossy().into_owned(),
-                installed: false,
-                note: Some("no file".into()),
-            });
-            continue;
-        }
-        let cursor_style = pointer_cursor_style(&agent);
-        let (begin, end) = if cursor_style {
-            (POINTER_BEGIN_CURSOR, POINTER_END_CURSOR)
-        } else {
-            (POINTER_BEGIN, POINTER_END)
-        };
-        let existing = fs::read_to_string(&path).unwrap_or_default();
-        let stripped = strip_block(&existing, begin, end);
-        if stripped.trim().is_empty() {
-            if let Err(e) = fs::remove_file(&path) {
-                results.push(PointerResult {
-                    agent,
-                    path: path.to_string_lossy().into_owned(),
-                    installed: false,
-                    note: Some(format!("remove failed: {e}")),
-                });
-                continue;
-            }
-        } else if let Err(e) = fs::write(&path, format!("{stripped}\n").as_bytes()) {
-            results.push(PointerResult {
-                agent,
-                path: path.to_string_lossy().into_owned(),
-                installed: false,
-                note: Some(format!("write failed: {e}")),
-            });
-            continue;
-        }
-        results.push(PointerResult {
-            agent,
-            path: path.to_string_lossy().into_owned(),
-            installed: false,
-            note: None,
-        });
-    }
-    Ok(results)
+    uninstall_pointer_block(workspace_cwd, agents, &MEMORY_MARKERS)
 }
 
 pub fn memory_pointer_status_impl(workspace_cwd: &str) -> Result<Vec<PointerResult>, String> {
-    use crate::agents_layout::validate_workspace_cwd;
-    let ws = validate_workspace_cwd(workspace_cwd)?;
-    let agents = ["claude", "codex", "gemini", "cursor", "opencode"];
-    let mut out = Vec::new();
-    let mut handled: BTreeSet<String> = Default::default();
-    for a in agents {
-        let Some(fname) = pointer_filename(a) else {
-            continue;
-        };
-        let path = ws.join(fname);
-        if handled.contains(fname) {
-            out.push(PointerResult {
-                agent: a.to_owned(),
-                path: path.to_string_lossy().into_owned(),
-                installed: false,
-                note: Some("shared file already handled".into()),
-            });
-            continue;
-        }
-        handled.insert(fname.to_owned());
-        if !path.exists() {
-            out.push(PointerResult {
-                agent: a.to_owned(),
-                path: path.to_string_lossy().into_owned(),
-                installed: false,
-                note: Some("file missing".into()),
-            });
-            continue;
-        }
-        let body = fs::read_to_string(&path).unwrap_or_default();
-        let cursor_style = pointer_cursor_style(a);
-        let (begin, end) = if cursor_style {
-            (POINTER_BEGIN_CURSOR, POINTER_END_CURSOR)
-        } else {
-            (POINTER_BEGIN, POINTER_END)
-        };
-        out.push(PointerResult {
-            agent: a.to_owned(),
-            path: path.to_string_lossy().into_owned(),
-            installed: block_installed(&body, begin, end),
-            note: None,
-        });
+    generic_pointer_status(workspace_cwd, &MEMORY_MARKERS)
+}
+
+#[cfg(test)]
+mod architecture_guard_tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_ws(name: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("blxcode-memory-guard-{name}-{nonce}"));
+        fs::create_dir_all(path.join(MEMORY_REL)).unwrap();
+        fs::create_dir_all(path.join(LEARNINGS_REL)).unwrap();
+        path
     }
-    Ok(out)
+
+    fn architecture_body(generated: &str) -> String {
+        format!(
+            "# Architecture\n\n## Manual\n\nmanual\n\n{}\n{generated}\n{}\n",
+            super::super::architecture::STATIC_BEGIN,
+            super::super::architecture::STATIC_END
+        )
+    }
+
+    #[test]
+    fn rejects_architecture_category_creation() {
+        let ws = temp_ws("category");
+        let err = memory_create_category_impl(
+            &MemoryScope::Workspace,
+            ws.to_str().unwrap(),
+            ARCHITECTURE_CATEGORY,
+        )
+        .unwrap_err();
+        assert!(err.contains("reserved category"));
+        let _ = fs::remove_dir_all(ws);
+    }
+
+    #[test]
+    fn rejects_create_write_delete_under_architecture_dir() {
+        let ws = temp_ws("dir");
+        let scope = MemoryScope::Workspace;
+        let create = memory_create_impl(
+            &scope,
+            ws.to_str().unwrap(),
+            "architecture/modules/test.md",
+            Some("# Test\n".to_owned()),
+        )
+        .unwrap_err();
+        assert!(create.contains("harness-managed"));
+
+        let path = ws.join(MEMORY_REL).join("architecture/modules/test.md");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "# Test\n").unwrap();
+        let write = memory_write_impl(
+            &scope,
+            ws.to_str().unwrap(),
+            "architecture/modules/test.md",
+            "# Changed\n",
+        )
+        .unwrap_err();
+        assert!(write.contains("harness-managed"));
+        let delete =
+            memory_delete_impl(&scope, ws.to_str().unwrap(), "architecture/modules/test.md")
+                .unwrap_err();
+        assert!(delete.contains("harness-managed"));
+        let _ = fs::remove_dir_all(ws);
+    }
+
+    #[test]
+    fn architecture_index_allows_manual_only_edits() {
+        let ws = temp_ws("manual");
+        let scope = MemoryScope::Workspace;
+        let arch = ws.join(MEMORY_REL).join(ARCHITECTURE_INDEX);
+        let original = architecture_body("generated");
+        fs::write(&arch, &original).unwrap();
+
+        let edited = original.replace("manual", "manual changed");
+        let ok = memory_write_impl(&scope, ws.to_str().unwrap(), ARCHITECTURE_INDEX, &edited);
+        assert!(ok.is_ok());
+
+        let generated_changed = edited.replace("generated", "generated changed");
+        let err = memory_write_impl(
+            &scope,
+            ws.to_str().unwrap(),
+            ARCHITECTURE_INDEX,
+            &generated_changed,
+        )
+        .unwrap_err();
+        assert!(err.contains("generated section"));
+        let _ = fs::remove_dir_all(ws);
+    }
 }
 
 #[cfg(test)]
@@ -1141,22 +1092,6 @@ mod pointer_tests {
         let path = std::env::temp_dir().join(format!("blxcode-pointer-{name}-{nonce}"));
         fs::create_dir_all(&path).unwrap();
         path
-    }
-
-    #[test]
-    fn splice_block_appends_to_user_owned_file() {
-        let updated = splice_block("existing\n", POINTER_BEGIN, POINTER_END, "body\n");
-        assert_eq!(
-            updated,
-            format!("existing\n\n{POINTER_BEGIN}\nbody\n{POINTER_END}\n")
-        );
-    }
-
-    #[test]
-    fn strip_block_removes_only_managed_block() {
-        let existing = format!("before\n\n{POINTER_BEGIN}\nbody\n{POINTER_END}\n\nafter\n");
-        let stripped = strip_block(&existing, POINTER_BEGIN, POINTER_END);
-        assert_eq!(stripped, "before\n\n\nafter");
     }
 
     #[test]
@@ -1177,10 +1112,9 @@ mod pointer_tests {
     }
 
     #[test]
-    fn install_replaces_block_and_uses_shared_notes() {
+    fn install_replaces_block_and_mentions_learnings() {
         let ws = temp_ws("install");
         fs::create_dir_all(ws.join(MEMORY_REL)).unwrap();
-        fs::write(ws.join(MEMORY_REL).join("README.md"), "# Memory\n").unwrap();
         fs::write(
             ws.join("AGENTS.md"),
             format!("{POINTER_BEGIN}\nold\n{POINTER_END}\n"),
@@ -1197,8 +1131,18 @@ mod pointer_tests {
             Some("shared file already written")
         );
         let content = fs::read_to_string(ws.join("AGENTS.md")).unwrap();
-        assert!(content.contains("Workspace memory:"));
+        assert!(
+            content.contains("Workspace memory:"),
+            "missing memory path: {content}"
+        );
+        assert!(
+            content.contains("Workspace learnings:"),
+            "missing learnings path: {content}"
+        );
         assert!(content.contains("Global memory:"));
+        assert!(content.contains("Global learnings:"));
+        // Pointer body should NOT enumerate notes anymore — it's now path-only.
+        assert!(!content.contains("Current workspace notes:"));
         assert!(!content.contains("old"));
         let _ = fs::remove_dir_all(ws);
     }

@@ -1,13 +1,6 @@
 /// `localStorage` key for persisted EULA acceptance.
 pub const EULA_STORAGE_KEY: &str = "blxcode_eula_v2";
 
-/// `localStorage` key for the one-time ".blxcode in .gitignore" prompt (`yes` / `no`).
-pub const GITIGNORE_PROMPT_STORAGE_KEY: &str = "blxcode_gitignore_prompt_v1";
-
-/// Stored when the user completed the gitignore prompt (`yes` or `no`).
-pub const GITIGNORE_PROMPT_ANSWER_YES: &str = "yes";
-pub const GITIGNORE_PROMPT_ANSWER_NO: &str = "no";
-
 /// `localStorage` key for UI locale (BCP-47, e.g. `de-DE`, `en-US`).
 pub const I18N_LOCALE_STORAGE_KEY: &str = "blxcode_locale_v1";
 
@@ -49,6 +42,12 @@ pub const SUCCESS_SOUND_STORAGE_KEY: &str = "blxcode_success_sound_v1";
 
 /// `localStorage` key for automatic startup update checks (`1` / `0`).
 pub const UPDATE_AUTO_CHECK_KEY: &str = "blxcode_update_auto_check_v1";
+
+/// `localStorage` key for showing the close-workspace confirmation dialog (`1` / `0`).
+pub const CONFIRM_CLOSE_WORKSPACE_KEY: &str = "blxcode_confirm_close_workspace_v1";
+
+/// `localStorage` key for the app version whose post-update notes were acknowledged.
+pub const POST_UPDATE_NOTES_SEEN_VERSION_KEY: &str = "blxcode_seen_release_notes_version_v1";
 
 /// `localStorage` key for keyboard shortcut mode (`tmux` / `legacy`).
 pub const SHORTCUT_MODE_STORAGE_KEY: &str = "blxcode_shortcut_mode_v1";
@@ -98,6 +97,16 @@ pub const SIDEBAR_WIDTH_PX_KEY: &str = "blxcode_sidebar_width_px_v1";
 pub const SIDEBAR_WIDTH_PX_DEFAULT: f64 = 260.0;
 
 pub const SIDEBAR_WIDTH_PX_MIN: f64 = 200.0;
+
+/// `localStorage` key for the Memory Files tree (left column) width in pixels.
+pub const MEMORY_TREE_WIDTH_PX_KEY: &str = "blxcode_memory_tree_width_px_v1";
+
+/// Default width of the Memory Files tree column.
+pub const MEMORY_TREE_WIDTH_PX_DEFAULT: f64 = 224.0;
+
+/// Min/max clamp for the Memory Files tree column width.
+pub const MEMORY_TREE_WIDTH_PX_MIN: f64 = 160.0;
+pub const MEMORY_TREE_WIDTH_PX_MAX: f64 = 520.0;
 
 /// `localStorage` key for showing dot-hidden files in the project explorer (`1` / `0`).
 pub const SIDEBAR_EXPLORER_SHOW_HIDDEN_KEY: &str = "blxcode_sidebar_explorer_show_hidden_v1";

@@ -5,12 +5,6 @@ pub fn msg(key: I18nKey) -> &'static str {
     match key {
         I18nKey::Decline => "Отклонить",
         I18nKey::Accept => "Принимать",
-        I18nKey::GitignorePromptTitle => "Добавить .blxcode в .gitignore?",
-        I18nKey::GitignorePromptBody => {
-            "BLXCode stores local workspace data (tasks, sessions) under a `.blxcode` folder. \nAdd it to this project's `.gitignore` so it is not committed by mistake?"
-        }
-        I18nKey::GitignorePromptYes => "Да, добавь",
-        I18nKey::GitignorePromptNo => "Не сейчас",
         I18nKey::BtnClose => "Закрывать",
         I18nKey::BtnApply => "Применять",
         I18nKey::BtnSave => "Сохранять",
@@ -50,6 +44,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbSectionExpand => "Развернуть раздел",
         I18nKey::SbSectionCollapse => "Свернуть раздел",
         I18nKey::SbExplorerRefresh => "Обновить дерево файлов",
+        I18nKey::SbExplorerNewFile => "Новый файл",
+        I18nKey::SbExplorerNewFolder => "Новая папка",
+        I18nKey::SbExplorerNewFilePlaceholder => "Имя файла",
+        I18nKey::SbExplorerNewFolderPlaceholder => "Имя папки",
+        I18nKey::SbExplorerCreateError => "Не удалось создать. Возможно, это имя уже существует.",
         I18nKey::SbExplorerShowHidden => "Показать скрытые файлы",
         I18nKey::SbExplorerHideHidden => "Скрыть скрытые файлы",
         I18nKey::SbExplorerResizeAria => "Изменение размера файлов проекта и графических панелей",
@@ -80,7 +79,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbDiffStatusConflicted => "конфликт",
         I18nKey::SbDiffStageAll => "Stage all changes",
         I18nKey::SbDiffUnstageAll => "Unstage all changes",
-        I18nKey::SbDiffCommitAi => "Commit with AI",
+        I18nKey::SbDiffCommitAi => "Коммит с ИИ",
+        I18nKey::SbDiffCommit => "Коммит",
+        I18nKey::SbDiffCommitTitle => "Создать коммит",
+        I18nKey::SbDiffCommitPlaceholder => "Опишите изменения…",
+        I18nKey::SbDiffCommitGenerating => "Генерация…",
+        I18nKey::SbDiffCommitEmptyMsg => "Сначала введите сообщение коммита.",
+        I18nKey::SbDiffCommitSuccess => "Изменения закоммичены.",
+        I18nKey::SbDiffCommitFailed => "Не удалось выполнить коммит.",
+        I18nKey::SbDiffCommitNothingStaged => "Подготовьте изменения перед коммитом.",
+        I18nKey::SbDiffCommitGenFailed => "Не удалось сгенерировать сообщение коммита.",
+        I18nKey::SbDiffCommitNeedStaged => "Подготовьте изменения для коммита.",
         I18nKey::SbDiffPushToBranch => "Push to",
         I18nKey::SbDiffPushDisabled => "Commit or discard local changes before pushing.",
         I18nKey::SbDiffPushFailed => "Could not push to remote.",
@@ -89,6 +98,25 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbDiffGroupExpand => "Expand",
         I18nKey::SbDiffGroupCollapse => "Collapse",
         I18nKey::SbDiffListAria => "Changed files",
+        I18nKey::SbDiffFetch => "Принести",
+        I18nKey::SbDiffPull => "Вытащить (извлечь + объединить)",
+        I18nKey::SbDiffPush => "Толкать",
+        I18nKey::SbDiffSyncUpToDate => "Уже в курсе.",
+        I18nKey::SbDiffFetched => "Получено с пульта.",
+        I18nKey::SbDiffPulled => "Вытащил изменения с удаленного.",
+        I18nKey::SbDiffPushed => "Перевели на удаленку.",
+        I18nKey::SbDiffPullConflict => "Pull остановлен: разрешите конфликты слияния.",
+        I18nKey::SbDiffDirtyBlocked => "Сначала зафиксируйте или сохраните локальные изменения.",
+        I18nKey::SbDiffNonFastForward => "У Remote есть новые коммиты — сначала сделайте это.",
+        I18nKey::SbDiffNoUpstream => "Для этой ветки не установлена ​​восходящая ветвь.",
+        I18nKey::SbDiffAuthFailed => "Не удалось выполнить аутентификацию на удаленном устройстве.",
+        I18nKey::SbDiffNoRemote => "Для этого репозитория не настроен удаленный доступ.",
+        I18nKey::SbDiffSyncLocked => "Выполняется другой процесс git. Повторите попытку через некоторое время.",
+        I18nKey::SbDiffNetworkError => "Не удалось связаться с пультом (ошибка сети).",
+        I18nKey::SbDiffSyncError => "Операция Git не удалась.",
+        I18nKey::SbDiffPushNeedStaged => "Подготовьте все изменения перед отправкой.",
+        I18nKey::SbDiffPushDetached => "Detached HEAD — переключитесь на ветку для отправки.",
+        I18nKey::SbDiffSyncBusy => "Выполняется еще одна операция git.",
         I18nKey::RpRailAria => "Правая панель",
         I18nKey::RpExpand => "Показать правую панель",
         I18nKey::RpCollapse => "Скрыть правую панель",
@@ -141,6 +169,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrRemove => "Удалять",
         I18nKey::SrRefresh => "Обновить",
         I18nKey::SrConfirmRemove => "Удалить эту запись? Это удалит файл на диске.",
+        I18nKey::SrConfirmRemoveTitle => "Удалить файл?",
         I18nKey::SrNewRule => "Новое правило",
         I18nKey::SrRuleTitlePh => "Название правила",
         I18nKey::SrRuleBodyPh => "Напишите правило в Markdown...",
@@ -171,6 +200,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrSkillSource => "Источник",
         I18nKey::SrMissingSkillMd => "SKILL.md отсутствует",
         I18nKey::SrNoWorkspace => "Откройте рабочую область, чтобы увидеть навыки и правила.",
+        I18nKey::SrPointersBannerLead => {
+            "Указатели правил агента не установлены — внешние агенты не будут знать, где находятся правила проекта."
+        }
+        I18nKey::SrPointersBannerCta => "Настройка указателей",
+        I18nKey::SrPointersDialogTitle => "Указатели правил агента",
+        I18nKey::SrPointersDialogLead => {
+            "Установите отмеченный блок в CLAUDE.md, AGENTS.md или аналогичном файле, чтобы внешние агенты использовали правила проекта. Целевые файлы уже должны существовать."
+        }
+        I18nKey::SrPointersInstall => "Установить",
+        I18nKey::SrPointersUninstall => "Удалить",
+        I18nKey::SrPointersClose => "Закрывать",
         I18nKey::MemEmptyTitle => "Нет активного рабочего пространства",
         I18nKey::MemEmptyLead => {
             "Память ограничена рабочей областью. Чтобы начать работу, выберите один из них на боковой панели или создайте новое рабочее пространство."
@@ -242,6 +282,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::UpdateDialogRetry => "Повторить попытку",
         I18nKey::UpdateDialogError => "Обновление не выполнено",
         I18nKey::UpdateDialogNotes => "Примечания к выпуску",
+        I18nKey::PostUpdateEyebrow => "What changed",
+        I18nKey::PostUpdateGotIt => "Got it",
+        I18nKey::PostUpdateLoading => "Loading release notes...",
+        I18nKey::PostUpdateNoNotes => "Release notes are not available right now.",
         I18nKey::AppShortcutHeading => "Сочетания клавиш",
         I18nKey::AppShortcutModeTmux => "Стиль Tmux (Ctrl+b, затем клавиша)",
         I18nKey::AppShortcutModeLegacy => "Классический (Ctrl / Ctrl+Shift)",
@@ -513,6 +557,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsDefaultProjectDirLabel => "Каталог проекта по умолчанию",
         I18nKey::WsDefaultProjectDirPlaceholder => "$HOME",
         I18nKey::WsDefaultProjectDirHint => "Предварительно заполняет рабочий каталог для новых рабочих пространств.",
+        I18nKey::WsSectionConfirm => "Подтверждения",
+        I18nKey::WsConfirmCloseLabel => "Подтвердите перед закрытием рабочей области",
+        I18nKey::WsConfirmCloseHint => {
+            "Показывать диалоговое окно подтверждения при закрытии рабочей области на вкладке «Терминалы», кнопке закрытия боковой панели или контекстном меню."
+        }
         I18nKey::AgProviderHeading => "Агент BLXCode",
         I18nKey::AgSectionInference => "Вывод",
         I18nKey::AgSectionModel => "Модель",

@@ -6,7 +6,9 @@ use crate::tauri_bridge::{
     git_commit_graph, listen_git_status_dirty, GitGraphEntry, GitGraphLayout, TauriEventListener,
     GIT_MISSING_CODE,
 };
-use crate::workbench::sidebar_view_section::{SidebarSectionIconBtn, SidebarViewSection};
+use crate::workbench::git_sync_controls::{run_sync_op, GitSyncControls, SyncOp};
+use crate::workbench::sidebar_view_section::SidebarViewSection;
+use crate::workbench::toast::ToastService;
 use crate::workbench::WorkbenchService;
 use gloo_timers::callback::Timeout;
 use leptos::prelude::*;
@@ -20,7 +22,11 @@ use std::rc::Rc;
 pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
+    let toast = expect_context::<ToastService>();
+    let git_sync = expect_context::<GitSyncControls>();
     let collapsed = wb.sidebar_collapsed();
+    let sync = git_sync.status;
+    let busy = git_sync.busy;
 
     let graph_open = RwSignal::new(wb.active_sidebar_graph_open());
     let layout = RwSignal::new(None::<GitGraphLayout>);
@@ -44,8 +50,6 @@ pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
             wb.set_active_sidebar_graph_open(open);
         }
     });
-
-    let reload = move || load_gen.update(|g| *g = g.wrapping_add(1));
 
     let last_graph_cwd = StoredValue::new(None::<String>);
     let last_load_gen = StoredValue::new(0u32);
@@ -131,6 +135,52 @@ pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
         listener_for_cleanup.borrow_mut().take();
     });
 
+    // Keep the shared sync status fresh for the Fetch/Pull buttons.
+    Effect::new(move |_| {
+        let _ = load_gen.get();
+        let _ = wb.sidebar_repo_epoch().get();
+        if git_repo_available.get() != Some(true) {
+            git_sync.clear();
+            return;
+        }
+        let Some(cwd) = wb.default_workspace_cwd() else {
+            return;
+        };
+        git_sync.refresh(cwd);
+    });
+
+    let can_fetch = move || busy.get().is_none() && sync.get().is_some_and(|s| s.has_remote);
+    let can_pull = move || {
+        busy.get().is_none()
+            && sync
+                .get()
+                .is_some_and(|s| s.has_remote && !s.detached && s.upstream.is_some())
+    };
+    let fetch_title = move || format!("{}", i18n.tr(I18nKey::SbDiffFetch)());
+    let pull_title = move || {
+        let base = i18n.tr(I18nKey::SbDiffPull)();
+        match sync.get() {
+            Some(s) if s.behind > 0 => format!("{base} \u{2193}{}", s.behind),
+            _ => format!("{base}"),
+        }
+    };
+
+    let run_sync = move |op: SyncOp| {
+        let Some(cwd) = wb.default_workspace_cwd() else {
+            return;
+        };
+        let set_upstream = git_sync.needs_upstream();
+        run_sync_op(
+            git_sync,
+            op,
+            cwd,
+            set_upstream,
+            toast,
+            i18n,
+            move || wb.sidebar_repo_epoch().update(|n| *n = n.wrapping_add(1)),
+        );
+    };
+
     let show = move || !collapsed.get() && git_repo_available.get() == Some(true);
 
     view! {
@@ -140,12 +190,44 @@ pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
                 section_id="sb-graph"
                 open=graph_open
                 toolbar=view! {
-                    <SidebarSectionIconBtn
-                        aria_key=I18nKey::SbGraphRefresh
-                        on_click=Callback::new(move |_| reload())
+                    <button
+                        type="button"
+                        class="sidebar-view-section__icon-btn"
+                        disabled=move || !can_fetch()
+                        aria-label=fetch_title
+                        title=fetch_title
+                        on:click=move |_| run_sync(SyncOp::Fetch)
                     >
-                        <LxIcon icon=icondata::LuRefreshCw width="0.75rem" height="0.75rem" />
-                    </SidebarSectionIconBtn>
+                        <Show
+                            when=move || busy.get() == Some(SyncOp::Fetch)
+                            fallback=move || view! {
+                                <LxIcon icon=icondata::LuDownload width="0.75rem" height="0.75rem" />
+                            }
+                        >
+                            <span class="sidebar-view-section__sync-spin">
+                                <LxIcon icon=icondata::LuLoaderCircle width="0.75rem" height="0.75rem" />
+                            </span>
+                        </Show>
+                    </button>
+                    <button
+                        type="button"
+                        class="sidebar-view-section__icon-btn"
+                        disabled=move || !can_pull()
+                        aria-label=pull_title
+                        title=pull_title
+                        on:click=move |_| run_sync(SyncOp::Pull)
+                    >
+                        <Show
+                            when=move || busy.get() == Some(SyncOp::Pull)
+                            fallback=move || view! {
+                                <LxIcon icon=icondata::LuArrowDownToLine width="0.75rem" height="0.75rem" />
+                            }
+                        >
+                            <span class="sidebar-view-section__sync-spin">
+                                <LxIcon icon=icondata::LuLoaderCircle width="0.75rem" height="0.75rem" />
+                            </span>
+                        </Show>
+                    </button>
                 }.into_any()
             >
                 <GitGraphBody layout=layout error_kind=error_kind />

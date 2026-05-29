@@ -14,3 +14,6 @@
 frontend-js/node_modules/
 .env.release
 /.tauri/
+.agents/memory/.meta/
+.tauri/
+.venv-i18n/

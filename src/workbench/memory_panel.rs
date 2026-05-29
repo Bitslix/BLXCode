@@ -2,6 +2,10 @@
 //! graph view, search, agent-pointer installer. Mirrors the Phase 1–5
 //! design discussed for blxcode's Obsidian-style memory feature.
 use crate::agent_wire::{AgentContextItem, AgentContextKind};
+use crate::config::{
+    MEMORY_TREE_WIDTH_PX_DEFAULT, MEMORY_TREE_WIDTH_PX_KEY, MEMORY_TREE_WIDTH_PX_MAX,
+    MEMORY_TREE_WIDTH_PX_MIN,
+};
 use crate::i18n::I18nKey;
 use crate::memory_paths::slug_to_filename;
 use crate::service::I18nService;
@@ -11,10 +15,13 @@ use crate::tauri_bridge::{
 };
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::memory_graph::{navigate_to_graph_node, MemoryGraphView};
+use crate::workbench::pointer_agents::{PointerAgent, POINTER_AGENTS};
 use crate::workbench::state::{normalize_hex_color, MemoryCategorySettings};
+use crate::workbench::toast::ToastService;
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Date;
+use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
@@ -28,51 +35,15 @@ const LEARNINGS_INDEX_PATHS: &[&str] = &["learnings/README.md"];
 /// Built-in pseudo categories — top-level memory files and the learnings root.
 const CATEGORY_MEMORY: &str = "memory";
 const CATEGORY_LEARNINGS: &str = "learnings";
-const POINTER_AGENTS: &[PointerAgent] = &[
-    PointerAgent {
-        id: "claude",
-        label: "Claude",
-        target: "CLAUDE.md",
-        icon: "/public/brand-icons/anthropic.svg",
-    },
-    PointerAgent {
-        id: "codex",
-        label: "Codex",
-        target: "AGENTS.md",
-        icon: "/public/brand-icons/openai.svg",
-    },
-    PointerAgent {
-        id: "gemini",
-        label: "Gemini",
-        target: "GEMINI.md",
-        icon: "/public/brand-icons/gemini.svg",
-    },
-    PointerAgent {
-        id: "cursor",
-        label: "Cursor",
-        target: ".cursorrules",
-        icon: "/public/brand-icons/cursor.svg",
-    },
-    PointerAgent {
-        id: "opencode",
-        label: "OpenCode",
-        target: "AGENTS.md",
-        icon: "/public/brand-icons/opencode.svg",
-    },
-];
-
-#[derive(Clone, Copy)]
-struct PointerAgent {
-    id: &'static str,
-    label: &'static str,
-    target: &'static str,
-    icon: &'static str,
-}
-
+const CATEGORY_ARCHITECTURE: &str = "architecture";
+const ARCHITECTURE_INDEX_PATH: &str = "ARCHITECTURE.md";
 /// Derive the category key for a given note API path.
 fn category_for_path(path: &str) -> String {
     if path.starts_with(LEARNINGS_API_PREFIX) {
         return CATEGORY_LEARNINGS.to_string();
+    }
+    if path.eq_ignore_ascii_case(ARCHITECTURE_INDEX_PATH) {
+        return CATEGORY_ARCHITECTURE.to_string();
     }
     if let Some((head, _)) = path.split_once('/') {
         if !head.is_empty() {
@@ -110,8 +81,8 @@ pub(crate) struct MemoryState {
     pub(crate) pointers_open: RwSignal<bool>,
     pub(crate) pointers_notice_dismissed: RwSignal<bool>,
     pub(crate) pointers_busy: RwSignal<bool>,
+    pub(crate) architecture_rebuild_busy: RwSignal<bool>,
     pub(crate) selected_pointer_agents: RwSignal<HashSet<String>>,
-    pub(crate) global_readme_preview: RwSignal<Option<String>>,
     /// Expanded category groups in the Files sidebar (keys: plain for workspace, "global:cat" for global).
     pub(crate) groups_open: RwSignal<HashSet<String>>,
     /// User-created workspace categories that have no notes yet.
@@ -126,6 +97,18 @@ pub(crate) struct MemoryState {
     pub(crate) graph_focus_generation: RwSignal<u32>,
     /// When true, Graph tab should prefer 3D mode (e.g. jump from Search).
     pub(crate) graph_prefer_3d: RwSignal<bool>,
+    /// Width (px) of the Files tree column; user-resizable, persisted.
+    pub(crate) tree_width: RwSignal<f64>,
+}
+
+/// Read the persisted Memory tree column width, clamped to the allowed range.
+fn initial_tree_width() -> f64 {
+    web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten())
+        .and_then(|s| s.get_item(MEMORY_TREE_WIDTH_PX_KEY).ok().flatten())
+        .and_then(|raw| raw.parse::<f64>().ok())
+        .unwrap_or(MEMORY_TREE_WIDTH_PX_DEFAULT)
+        .clamp(MEMORY_TREE_WIDTH_PX_MIN, MEMORY_TREE_WIDTH_PX_MAX)
 }
 
 impl MemoryState {
@@ -150,8 +133,8 @@ impl MemoryState {
             pointers_open: RwSignal::new(false),
             pointers_notice_dismissed: RwSignal::new(false),
             pointers_busy: RwSignal::new(false),
+            architecture_rebuild_busy: RwSignal::new(false),
             selected_pointer_agents: RwSignal::new(HashSet::new()),
-            global_readme_preview: RwSignal::new(None),
             groups_open: RwSignal::new(HashSet::new()),
             empty_categories: RwSignal::new(Vec::new()),
             global_subcategories: RwSignal::new(Vec::new()),
@@ -159,6 +142,7 @@ impl MemoryState {
             graph_selected_node: RwSignal::new(None),
             graph_focus_generation: RwSignal::new(0),
             graph_prefer_3d: RwSignal::new(false),
+            tree_width: RwSignal::new(initial_tree_width()),
         }
     }
 }
@@ -206,7 +190,6 @@ fn load_notes(state: MemoryState, ws: String) {
                 .global_bootstrapped
                 .set(status.global.memory && status.global.learnings);
         }
-        load_global_readme_preview(state, ws);
     });
 }
 
@@ -218,15 +201,6 @@ fn load_pointer_status(state: MemoryState, ws: String) {
                 state.pointer_status.set(Some(Vec::new()));
                 state.error.set(Some(e));
             }
-        }
-    });
-}
-
-fn load_global_readme_preview(state: MemoryState, ws: String) {
-    spawn_local(async move {
-        match tauri_bridge::memory_read(&ws, &MemoryScope::Global, "README.md").await {
-            Ok(NoteContent { content, .. }) => state.global_readme_preview.set(Some(content)),
-            Err(_) => state.global_readme_preview.set(None),
         }
     });
 }
@@ -299,6 +273,43 @@ pub(crate) fn refresh_graph(state: MemoryState, ws: String) {
     });
 }
 
+fn rebuild_architecture_map(state: MemoryState, toast: ToastService) {
+    let Some(ws) = state.workspace_cwd.get_untracked() else {
+        return;
+    };
+    if state.architecture_rebuild_busy.get_untracked() {
+        return;
+    }
+    state.architecture_rebuild_busy.set(true);
+    spawn_local(async move {
+        match tauri_bridge::memory_rebuild_architecture(&ws).await {
+            Ok(report) => {
+                load_notes(state.clone(), ws.clone());
+                refresh_graph(state.clone(), ws.clone());
+                let kinds = if report.kinds.is_empty() {
+                    String::new()
+                } else {
+                    format!(" ({})", report.kinds.join(", "))
+                };
+                let mut msg = format!(
+                    "Architecture map rebuilt: {} units{}, {} modules, {} files changed",
+                    report.unit_count, kinds, report.module_count, report.files_changed
+                );
+                if !report.warnings.is_empty() {
+                    msg.push_str(&format!(", {} warning(s)", report.warnings.len()));
+                }
+                toast.success(msg);
+                state.error.set(None);
+            }
+            Err(e) => {
+                toast.error(format!("Architecture rebuild failed: {e}"));
+                state.error.set(Some(e));
+            }
+        }
+        state.architecture_rebuild_busy.set(false);
+    });
+}
+
 fn input_value(ev: web_sys::Event) -> Option<String> {
     let t = ev.target()?;
     let el = t.dyn_into::<HtmlInputElement>().ok()?;
@@ -309,6 +320,7 @@ fn input_value(ev: web_sys::Event) -> Option<String> {
 pub fn MemoryPanel() -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
+    let toast = expect_context::<ToastService>();
     let state = MemoryState::new();
 
     // Track active workspace cwd and reload memory state when it changes.
@@ -331,14 +343,13 @@ pub fn MemoryPanel() -> impl IntoView {
             eff_state.pointers_notice_dismissed.set(false);
             eff_state.pointers_open.set(false);
             eff_state.pointers_busy.set(false);
+            eff_state.architecture_rebuild_busy.set(false);
             eff_state.selected_pointer_agents.set(HashSet::new());
-            eff_state.global_readme_preview.set(None);
             if let Some(ws) = cwd {
                 let st = eff_state.clone();
                 let ws2 = ws.clone();
                 spawn_local(async move {
                     load_notes(st.clone(), ws2.clone());
-                    load_global_readme_preview(st.clone(), ws2.clone());
                     load_pointer_status(st, ws2);
                 });
             }
@@ -382,6 +393,27 @@ pub fn MemoryPanel() -> impl IntoView {
                 <MemoryTabBtn label=I18nKey::MemTabFiles state=state.clone() target=MemoryView::Files icon=icondata::LuFiles />
                 <MemoryTabBtn label=I18nKey::MemTabGraph state=state.clone() target=MemoryView::Graph icon=icondata::LuNetwork />
                 <MemoryTabBtn label=I18nKey::MemTabSearch state=state.clone() target=MemoryView::Search icon=icondata::LuSearch />
+                <button
+                    type="button"
+                    class="workbench-memory__action"
+                    title="Rebuild architecture map"
+                    aria-label="Rebuild architecture map"
+                    disabled=move || state.architecture_rebuild_busy.get()
+                    on:click={
+                        let state = state.clone();
+                        let toast = toast;
+                        move |_| rebuild_architecture_map(state.clone(), toast)
+                    }
+                >
+                    <Show
+                        when=move || state.architecture_rebuild_busy.get()
+                        fallback=move || view! {
+                            <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
+                        }
+                    >
+                        <LxIcon icon=icondata::LuLoaderCircle width="0.78rem" height="0.78rem" />
+                    </Show>
+                </button>
             </header>
 
             <Show when={
@@ -567,7 +599,6 @@ fn bootstrap_memory_scope(state: MemoryState, target: &'static str) {
         match tauri_bridge::memory_bootstrap(&ws, target).await {
             Ok(()) => {
                 load_notes(state.clone(), ws.clone());
-                load_global_readme_preview(state, ws);
             }
             Err(e) => state.error.set(Some(e)),
         }
@@ -577,15 +608,15 @@ fn bootstrap_memory_scope(state: MemoryState, target: &'static str) {
 #[component]
 fn MemoryPointersNotice(state: MemoryState) -> impl IntoView {
     view! {
-        <div class="workbench-memory-pointers-notice" role="status">
-            <span class="workbench-memory-pointers-notice__icon" aria-hidden="true">
+        <div class="workbench-pointers-notice" role="status">
+            <span class="workbench-pointers-notice__icon" aria-hidden="true">
                 <LxIcon icon=icondata::LuInfo width="0.9rem" height="0.9rem" />
             </span>
             <p>
                 "No agent memory pointers installed — external agents won't know where memory lives. "
                 <button
                     type="button"
-                    class="workbench-memory-pointers-notice__setup"
+                    class="workbench-pointers-notice__setup"
                     on:click=move |_| state.pointers_open.set(true)
                 >
                     "Set up pointers"
@@ -593,7 +624,7 @@ fn MemoryPointersNotice(state: MemoryState) -> impl IntoView {
             </p>
             <button
                 type="button"
-                class="workbench-memory-pointers-notice__close"
+                class="workbench-pointers-notice__close"
                 aria-label="Close"
                 on:click=move |_| state.pointers_notice_dismissed.set(true)
             >
@@ -615,14 +646,14 @@ fn MemoryPointersDialog(state: MemoryState) -> impl IntoView {
             }
         >
             <section
-                class="workspace-rename-dialog memory-pointers-dialog"
+                class="workspace-rename-dialog pointers-dialog"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="memory-pointers-title"
                 on:click=move |ev| ev.stop_propagation()
             >
-                <header class="memory-pointers-dialog__head">
-                    <div class="memory-pointers-dialog__title-icon" aria-hidden="true">
+                <header class="pointers-dialog__head">
+                    <div class="pointers-dialog__title-icon" aria-hidden="true">
                         <LxIcon icon=icondata::LuLink2 width="1.1rem" height="1.1rem" />
                     </div>
                     <div>
@@ -640,7 +671,7 @@ fn MemoryPointersDialog(state: MemoryState) -> impl IntoView {
                         "×"
                     </button>
                 </header>
-                <ul class="memory-pointers-dialog__agents">
+                <ul class="pointers-dialog__agents">
                     <For
                         each=move || POINTER_AGENTS.to_vec()
                         key=|agent| agent.id
@@ -649,7 +680,7 @@ fn MemoryPointersDialog(state: MemoryState) -> impl IntoView {
                         }
                     />
                 </ul>
-                <footer class="workspace-rename-dialog__actions memory-pointers-dialog__actions">
+                <footer class="workspace-rename-dialog__actions pointers-dialog__actions">
                     <button
                         type="button"
                         class="workspace-rename-dialog__btn workspace-rename-dialog__btn--ghost"
@@ -686,11 +717,11 @@ fn MemoryPointerAgentRow(state: MemoryState, agent: PointerAgent) -> impl IntoVi
     let id_for_change = agent.id.to_owned();
     view! {
         <li>
-            <label class="memory-pointers-dialog__agent" for=input_id.clone()>
+            <label class="pointers-dialog__agent" for=input_id.clone()>
                 <input
                     id=input_id.clone()
                     type="checkbox"
-                    class="memory-pointers-dialog__checkbox"
+                    class="pointers-dialog__checkbox"
                     prop:checked=move || {
                         state
                             .selected_pointer_agents
@@ -711,12 +742,12 @@ fn MemoryPointerAgentRow(state: MemoryState, agent: PointerAgent) -> impl IntoVi
                         });
                     }
                 />
-                <span class="memory-pointers-dialog__brand">
+                <span class="pointers-dialog__brand">
                     <img src=agent.icon alt="" prop:draggable=false />
                 </span>
-                <span class="memory-pointers-dialog__meta">
-                    <span class="memory-pointers-dialog__label">{agent.label}</span>
-                    <span class="memory-pointers-dialog__target">{agent.target}</span>
+                <span class="pointers-dialog__meta">
+                    <span class="pointers-dialog__label">{agent.label}</span>
+                    <span class="pointers-dialog__target">{agent.target}</span>
                 </span>
                 <PointerStatusBadge state=state agent_id=id_for_status />
             </label>
@@ -750,7 +781,7 @@ fn pointer_status_view(
 ) -> (&'static str, Option<icondata::Icon>, &'static str) {
     if entry.is_some_and(|result| result.installed) {
         (
-            "memory-pointers-dialog__status memory-pointers-dialog__status--installed",
+            "pointers-dialog__status pointers-dialog__status--installed",
             Some(icondata::LuCircleCheck),
             "Installed",
         )
@@ -759,13 +790,13 @@ fn pointer_status_view(
         .is_some_and(|note| note == "file missing")
     {
         (
-            "memory-pointers-dialog__status memory-pointers-dialog__status--missing",
+            "pointers-dialog__status pointers-dialog__status--missing",
             Some(icondata::LuFileWarning),
             "File missing",
         )
     } else {
         (
-            "memory-pointers-dialog__status memory-pointers-dialog__status--pending",
+            "pointers-dialog__status pointers-dialog__status--pending",
             None,
             "Not installed",
         )
@@ -857,6 +888,50 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
     // Some(scope) = dialog open for that scope; None = closed.
     let new_category_scope: RwSignal<Option<MemoryScope>> = RwSignal::new(None);
     let new_note_category: RwSignal<Option<(MemoryScope, String)>> = RwSignal::new(None);
+
+    // ── Resizable tree column ────────────────────────────────────────────────
+    let tree_width = state.tree_width;
+    let resizing = RwSignal::new(false);
+    let drag_anchor_x = RwSignal::new(0.0_f64);
+    let drag_anchor_w = RwSignal::new(0.0_f64);
+
+    // Persist the width whenever it settles.
+    Effect::new(move |_| {
+        let w = tree_width.get();
+        if let Some(storage) = web_sys::window().and_then(|win| win.local_storage().ok().flatten()) {
+            let _ = storage.set_item(MEMORY_TREE_WIDTH_PX_KEY, &format!("{w:.0}"));
+        }
+    });
+
+    Effect::new(move |_| {
+        if !resizing.get() {
+            return;
+        }
+        let move_h = window_event_listener_untyped("mousemove", move |ev| {
+            let Ok(me) = ev.dyn_into::<web_sys::MouseEvent>() else {
+                return;
+            };
+            let dx = f64::from(me.client_x()) - drag_anchor_x.get_untracked();
+            let next = (drag_anchor_w.get_untracked() + dx)
+                .clamp(MEMORY_TREE_WIDTH_PX_MIN, MEMORY_TREE_WIDTH_PX_MAX);
+            tree_width.set(next);
+        });
+        let up_h = window_event_listener_untyped("mouseup", move |_| resizing.set(false));
+        on_cleanup(move || {
+            move_h.remove();
+            up_h.remove();
+        });
+    });
+
+    let on_splitter_down = move |ev: web_sys::MouseEvent| {
+        if files_collapsed.get_untracked() {
+            return;
+        }
+        ev.prevent_default();
+        drag_anchor_x.set(ev.client_x() as f64);
+        drag_anchor_w.set(tree_width.get_untracked());
+        resizing.set(true);
+    };
 
     let make_groups = {
         let s = state.clone();
@@ -952,6 +1027,17 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
         <div
             class="workbench-memory-files"
             class:workbench-memory-files--collapsed=move || files_collapsed.get()
+            class:workbench-memory-files--resizing=move || resizing.get()
+            style=move || {
+                if files_collapsed.get() {
+                    String::new()
+                } else {
+                    format!(
+                        "grid-template-columns: {}px 4px minmax(0, 1fr);",
+                        tree_width.get()
+                    )
+                }
+            }
             on:click=move |_| context_menu.set(None)
         >
             <aside
@@ -1014,11 +1100,25 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                         <button
                             type="button"
                             class="workbench-memory-files__scope-add"
+                            title=move || i18n.tr(I18nKey::MemNewNoteTitle)()
+                            aria-label=move || i18n.tr(I18nKey::MemNewNoteTitle)()
+                            on:click=move |_| {
+                                new_note_category.set(Some((
+                                    MemoryScope::Workspace,
+                                    CATEGORY_MEMORY.to_string(),
+                                )));
+                            }
+                        >
+                            <LxIcon icon=icondata::LuFilePlus width="0.75rem" height="0.75rem" />
+                        </button>
+                        <button
+                            type="button"
+                            class="workbench-memory-files__scope-add"
                             title=move || i18n.tr(I18nKey::MemNewCategory)()
                             aria-label=move || i18n.tr(I18nKey::MemNewCategory)()
                             on:click=move |_| new_category_scope.set(Some(MemoryScope::Workspace))
                         >
-                            <LxIcon icon=icondata::LuPlus width="0.75rem" height="0.75rem" />
+                            <LxIcon icon=icondata::LuFolderPlus width="0.75rem" height="0.75rem" />
                         </button>
                     </div>
                     {section(MemoryScope::Workspace)}
@@ -1029,15 +1129,31 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                     <div class="workbench-memory-files__scope-head">
                         <span>"Global"</span>
                         <Show when=move || state.global_bootstrapped.get()>
-                            <button
-                                type="button"
-                                class="workbench-memory-files__scope-add"
-                                title=move || i18n.tr(I18nKey::MemNewCategory)()
-                                aria-label=move || i18n.tr(I18nKey::MemNewCategory)()
-                                on:click=move |_| new_category_scope.set(Some(MemoryScope::Global))
-                            >
-                                <LxIcon icon=icondata::LuPlus width="0.75rem" height="0.75rem" />
-                            </button>
+                            <div class="workbench-memory-files__scope-actions">
+                                <button
+                                    type="button"
+                                    class="workbench-memory-files__scope-add"
+                                    title=move || i18n.tr(I18nKey::MemNewNoteTitle)()
+                                    aria-label=move || i18n.tr(I18nKey::MemNewNoteTitle)()
+                                    on:click=move |_| {
+                                        new_note_category.set(Some((
+                                            MemoryScope::Global,
+                                            CATEGORY_MEMORY.to_string(),
+                                        )));
+                                    }
+                                >
+                                    <LxIcon icon=icondata::LuFilePlus width="0.75rem" height="0.75rem" />
+                                </button>
+                                <button
+                                    type="button"
+                                    class="workbench-memory-files__scope-add"
+                                    title=move || i18n.tr(I18nKey::MemNewCategory)()
+                                    aria-label=move || i18n.tr(I18nKey::MemNewCategory)()
+                                    on:click=move |_| new_category_scope.set(Some(MemoryScope::Global))
+                                >
+                                    <LxIcon icon=icondata::LuFolderPlus width="0.75rem" height="0.75rem" />
+                                </button>
+                            </div>
                         </Show>
                     </div>
                     <Show
@@ -1083,6 +1199,16 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                     }
                 ></div>
             </aside>
+            <Show when=move || !files_collapsed.get()>
+                <div
+                    class="workbench-memory-files__col-resizer"
+                    class:workbench-memory-files__col-resizer--active=move || resizing.get()
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label=move || i18n.tr(I18nKey::SbWidthSplitterAria)()
+                    on:mousedown=on_splitter_down
+                ></div>
+            </Show>
             <section class="workbench-memory-editor">
                 <Show
                     when={
@@ -1090,10 +1216,9 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                         move || s.active_path.get().is_some()
                     }
                     fallback={
-                        let s = state.clone();
                         let i = i18n.clone();
                         move || view! {
-                            <MemoryEditorFallback state=s i18n=i />
+                            <MemoryEditorFallback i18n=i />
                         }
                     }
                 >
@@ -1172,6 +1297,14 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                     >
                         <textarea
                             class="workbench-memory-editor__textarea"
+                            prop:readOnly={
+                                let s = state.clone();
+                                move || {
+                                    s.active_path
+                                        .get()
+                                        .is_some_and(|path| path.starts_with("architecture/"))
+                                }
+                            }
                             prop:value={
                                 let s = state.clone();
                                 move || s.editor_content.get()
@@ -1283,30 +1416,11 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
 }
 
 #[component]
-fn MemoryEditorFallback(state: MemoryState, i18n: I18nService) -> impl IntoView {
+fn MemoryEditorFallback(i18n: I18nService) -> impl IntoView {
     view! {
-        {move || {
-            if let Some(content) = state.global_readme_preview.get() {
-                view! {
-                    <header class="workbench-memory-editor__toolbar workbench-memory-editor__toolbar--readonly">
-                        <span class="workbench-memory-editor__path">"Global / README.md"</span>
-                        <span class="workbench-memory-editor__readonly">"Read-only preview"</span>
-                    </header>
-                    <div
-                        class="workbench-memory-editor__preview"
-                        inner_html=render_markdown_to_html(&content)
-                    />
-                }
-                .into_any()
-            } else {
-                view! {
-                    <div class="workbench-memory-editor__empty">
-                        <p>{i18n.tr(I18nKey::MemSelectNote)()}</p>
-                    </div>
-                }
-                .into_any()
-            }
-        }}
+        <div class="workbench-memory-editor__empty">
+            <p>{i18n.tr(I18nKey::MemSelectNote)()}</p>
+        </div>
     }
 }
 
@@ -1324,6 +1438,12 @@ fn NewCategoryDialog(
         let raw = name.get_untracked();
         let trimmed = raw.trim();
         if trimmed.is_empty() {
+            return;
+        }
+        if trimmed.eq_ignore_ascii_case(CATEGORY_ARCHITECTURE) {
+            error.set(Some(
+                "architecture/ is harness-managed; use rebuild architecture map".to_string(),
+            ));
             return;
         }
         let Some(ws) = state.workspace_cwd.get_untracked() else {
@@ -1430,6 +1550,12 @@ fn NewNoteDialog(
         let raw = title.get_untracked();
         let trimmed = raw.trim();
         if trimmed.is_empty() {
+            return;
+        }
+        if category_for_submit == CATEGORY_ARCHITECTURE {
+            error.set(Some(
+                "architecture/ is harness-managed; use rebuild architecture map".to_string(),
+            ));
             return;
         }
         let Some(ws) = state.workspace_cwd.get_untracked() else {
@@ -1541,7 +1667,6 @@ fn MemoryFileGroupHead(
     group_key: String,
     group_scope: MemoryScope,
     groups_open: RwSignal<HashSet<String>>,
-    files_collapsed: RwSignal<bool>,
     header_title: String,
     index_path: Option<String>,
     group_paths: Vec<String>,
@@ -1568,6 +1693,7 @@ fn MemoryFileGroupHead(
         .strip_prefix("global:")
         .unwrap_or(&group_key)
         .to_string();
+    let can_add_note = cat_for_new != CATEGORY_ARCHITECTURE;
     let scope_for_new = group_scope.clone();
     view! {
         <li
@@ -1575,7 +1701,6 @@ fn MemoryFileGroupHead(
             class:workbench-memory-files__group-head--sidebar-hidden=move || {
                 !memory_category_settings(wb, &key_for_settings).show_in_sidebar
             }
-            class:workbench-memory-files__group-head--hidden=move || files_collapsed.get()
             class:workbench-memory-files__group-head--active=move || {
                 memory_group_index_active(&state, &index_active)
             }
@@ -1630,6 +1755,7 @@ fn MemoryFileGroupHead(
             <button
                 type="button"
                 class="workbench-memory-files__group-add"
+                hidden=move || !can_add_note
                 title=move || i18n.tr(I18nKey::MemNewNoteInGroup)()
                 aria-label=move || i18n.tr(I18nKey::MemNewNoteInGroup)()
                 on:click=move |ev: web_sys::MouseEvent| {
@@ -1637,7 +1763,64 @@ fn MemoryFileGroupHead(
                     new_note_category.set(Some((scope_for_new.clone(), cat_for_new.clone())));
                 }
             >
-                <LxIcon icon=icondata::LuPlus width="0.75rem" height="0.75rem" />
+                <LxIcon icon=icondata::LuFilePlus width="0.75rem" height="0.75rem" />
+            </button>
+        </li>
+    }
+}
+
+#[component]
+fn MemoryFileGroupCollapsedHead(
+    state: MemoryState,
+    wb: WorkbenchService,
+    group_key: String,
+    group_scope: MemoryScope,
+    label: String,
+    index_path: Option<String>,
+    group_paths: Vec<String>,
+    context_menu: RwSignal<Option<MemoryContextMenu>>,
+) -> impl IntoView {
+    let plain_key = group_key
+        .strip_prefix("global:")
+        .unwrap_or(&group_key)
+        .to_string();
+    let key_for_color = plain_key.clone();
+    let key_for_ctx = group_key.clone();
+    let label_for_ctx = label.clone();
+    let badge = note_badge_text(&label);
+    let active_index = index_path.clone();
+
+    view! {
+        <li
+            class="workbench-memory-files__item workbench-memory-files__item--collapsed"
+            class:workbench-memory-files__item--active=move || {
+                memory_group_index_active(&state, &active_index)
+            }
+            style=move || format!("--memory-category-color: {}", memory_category_settings(wb, &key_for_color).color)
+        >
+            <button
+                type="button"
+                class="workbench-memory-files__badge workbench-memory-files__badge--category"
+                title=label.clone()
+                aria-label=label
+                on:contextmenu=move |ev: web_sys::MouseEvent| {
+                    ev.prevent_default();
+                    ev.stop_propagation();
+                    context_menu.set(Some(MemoryContextMenu {
+                        x: ev.client_x(),
+                        y: ev.client_y(),
+                        target: MemoryContextTarget::Category {
+                            key: key_for_ctx.clone(),
+                            label: label_for_ctx.clone(),
+                            paths: group_paths.clone(),
+                        },
+                    }));
+                }
+                on:click=move |_| {
+                    memory_open_group_index(state, group_scope.clone(), index_path.clone());
+                }
+            >
+                {badge}
             </button>
         </li>
     }
@@ -1682,6 +1865,7 @@ fn MemoryFileGroupSection(
     let index_path = group.index.as_ref().map(|n| n.path.clone());
     let index = group.index;
     let group_notes = group.notes;
+    let group_paths = memory_group_paths(&index, &group_notes);
     let plain_key_for_show = group_key
         .strip_prefix("global:")
         .unwrap_or(&group_key)
@@ -1698,25 +1882,48 @@ fn MemoryFileGroupSection(
     };
 
     view! {
-        <MemoryFileGroupHead
-            state=state
-            wb=wb
-            group_key=group_key.clone()
-            group_scope=group_scope
-            groups_open=groups_open
-            files_collapsed=files_collapsed
-            header_title=header_title
-            index_path=index_path
-            group_paths=memory_group_paths(&index, &group_notes)
-            context_menu=context_menu
-            new_note_category=new_note_category
-        />
+        <Show
+            when=move || files_collapsed.get()
+            fallback={
+                let state = state.clone();
+                let group_key = group_key.clone();
+                let group_scope = group_scope.clone();
+                let header_title = header_title.clone();
+                let index_path = index_path.clone();
+                let group_paths = group_paths.clone();
+                move || view! {
+                    <MemoryFileGroupHead
+                        state=state
+                        wb=wb
+                        group_key=group_key.clone()
+                        group_scope=group_scope.clone()
+                        groups_open=groups_open
+                        header_title=header_title.clone()
+                        index_path=index_path.clone()
+                        group_paths=group_paths.clone()
+                        context_menu=context_menu
+                        new_note_category=new_note_category
+                    />
+                }
+            }
+        >
+            <MemoryFileGroupCollapsedHead
+                state=state
+                wb=wb
+                group_key=group_key.clone()
+                group_scope=group_scope.clone()
+                label=header_title.clone()
+                index_path=index_path.clone()
+                group_paths=group_paths.clone()
+                context_menu=context_menu
+            />
+        </Show>
         <For
             each=move || {
                 if !show_sidebar() {
                     Vec::new()
                 } else if files_collapsed.get() {
-                    memory_group_collapsed_items(&index, &group_notes)
+                    Vec::new()
                 } else if groups_open.with(|s| s.contains(&key_for_open_check)) {
                     group_notes.clone()
                 } else {
@@ -1808,6 +2015,20 @@ fn MemoryFileCollapsedRow(
 }
 
 #[component]
+fn NoteStatusBadges(managed: Option<String>, stale: bool) -> impl IntoView {
+    view! {
+        <span class="workbench-memory-files__note-flags">
+            <Show when=move || managed.is_some()>
+                <span class="workbench-memory-files__note-flag">"managed"</span>
+            </Show>
+            <Show when=move || stale>
+                <span class="workbench-memory-files__note-flag workbench-memory-files__note-flag--stale">"stale"</span>
+            </Show>
+        </span>
+    }
+}
+
+#[component]
 fn MemoryFileExpandedRow(
     state: MemoryState,
     note: NoteMeta,
@@ -1824,6 +2045,8 @@ fn MemoryFileExpandedRow(
     let path_for_del = note_path.clone();
     let path_for_ren = note_path.clone();
     let label_for_ren = label.clone();
+    let managed = note.managed.clone();
+    let stale = note.stale.unwrap_or(false);
 
     view! {
         {move || {
@@ -1893,6 +2116,9 @@ fn MemoryFileExpandedRow(
                 let scope_for_ctx = note_scope.clone();
                 let scope_for_open = note_scope.clone();
                 let scope_for_del = note_scope.clone();
+                let managed_for_badge = managed.clone();
+                let managed_for_rename = managed.clone();
+                let managed_for_delete = managed.clone();
                 view! {
                     <button
                         type="button"
@@ -1923,11 +2149,13 @@ fn MemoryFileExpandedRow(
                     >
                         <span class="workbench-memory-files__name-text">{label.clone()}</span>
                         {folder.clone().map(|f| view! { <small class="workbench-memory-files__folder">{f}</small> })}
+                        <NoteStatusBadges managed=managed_for_badge stale=stale />
                     </button>
                     <button
                         type="button"
                         class="workbench-memory-files__action"
                         title=move || i18n.tr(I18nKey::MemRename)()
+                        disabled=move || managed_for_rename.is_some()
                         on:click=move |_| {
                             rename_input.set(label_for_ren.clone());
                             renaming.set(Some(path_for_ren.clone()));
@@ -1937,6 +2165,7 @@ fn MemoryFileExpandedRow(
                         type="button"
                         class="workbench-memory-files__action workbench-memory-files__action--danger"
                         title=move || i18n.tr(I18nKey::MemDelete)()
+                        disabled=move || managed_for_delete.is_some()
                         on:click=move |_| {
                             let Some(ws) = state.workspace_cwd.get_untracked() else {
                                 return;
@@ -2307,6 +2536,7 @@ fn memory_note_groups_for_scope(
         let bucket = buckets.remove(&cat).unwrap_or_default();
         let (index, notes) = match cat.as_str() {
             CATEGORY_LEARNINGS => split_group_index(bucket, is_learnings_index_note),
+            CATEGORY_ARCHITECTURE => split_group_index(bucket, is_architecture_index_note),
             _ => split_group_index(bucket, is_category_index_note),
         };
         // Global groups use a "global:" prefix on the key so they don't clash with workspace keys.
@@ -2351,6 +2581,12 @@ fn is_category_index_note(note: &NoteMeta) -> bool {
         .file_name()
         .and_then(|name| name.to_str())
         .is_some_and(|name| name.eq_ignore_ascii_case("README.md"))
+}
+
+/// The architecture category's index is `ARCHITECTURE.md` (not a `README.md`),
+/// so it is shown as the category README rather than a standalone file row.
+fn is_architecture_index_note(note: &NoteMeta) -> bool {
+    note.path.eq_ignore_ascii_case(ARCHITECTURE_INDEX_PATH)
 }
 
 fn root_memory_notes_for_scope(notes: &[NoteMeta], scope: &MemoryScope) -> Vec<NoteMeta> {
@@ -2460,18 +2696,14 @@ fn clean_memory_label(raw: &str) -> String {
     }
 }
 
-fn memory_group_collapsed_items(index: &Option<NoteMeta>, notes: &[NoteMeta]) -> Vec<NoteMeta> {
-    let mut out = Vec::new();
-    if let Some(idx) = index {
-        out.push(idx.clone());
-    }
-    out.extend(notes.iter().cloned());
-    out
-}
-
 fn memory_display_folder(path: &str) -> Option<String> {
-    let tail = path.strip_prefix(LEARNINGS_API_PREFIX).unwrap_or(path);
-    tail.rsplit_once('/').map(|(d, _)| d.to_string())
+    let dir = path.rsplit_once('/').map(|(d, _)| d)?;
+    // The note already sits inside its category group, so drop the leading
+    // category segment and show only the sub-path beneath it (e.g.
+    // `architecture/modules/rust-blxcode.md` → `modules`, with the filename
+    // itself rendered as the row label). Categories with no sub-path show none.
+    let sub = dir.split_once('/').map(|(_, rest)| rest).unwrap_or("");
+    (!sub.is_empty()).then(|| sub.to_string())
 }
 
 fn note_badge_text(name: &str) -> String {

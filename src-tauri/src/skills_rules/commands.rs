@@ -20,7 +20,9 @@
 //! The store and install modules already enforce path sandboxing and atomic
 //! writes; these wrappers keep the Tauri surface thin.
 
+use crate::pointers::PointerResult;
 use crate::skills_rules::install;
+use crate::skills_rules::pointers as rule_pointers;
 use crate::skills_rules::store;
 use crate::skills_rules::types::{RuleEntry, SkillEntry, SkillSourceInput};
 
@@ -58,6 +60,27 @@ pub fn rules_set_enabled(ws: String, name: String, enabled: bool) -> Result<Rule
 #[tauri::command]
 pub fn rules_remove(ws: String, name: String) -> Result<(), String> {
     store::remove_rule(&ws, &name)
+}
+
+#[tauri::command]
+pub fn rules_pointer_status(workspace_cwd: String) -> Result<Vec<PointerResult>, String> {
+    rule_pointers::rules_pointer_status_impl(&workspace_cwd)
+}
+
+#[tauri::command]
+pub fn rules_install_pointers(
+    workspace_cwd: String,
+    agents: Vec<String>,
+) -> Result<Vec<PointerResult>, String> {
+    rule_pointers::rules_install_pointers_impl(&workspace_cwd, agents)
+}
+
+#[tauri::command]
+pub fn rules_uninstall_pointers(
+    workspace_cwd: String,
+    agents: Vec<String>,
+) -> Result<Vec<PointerResult>, String> {
+    rule_pointers::rules_uninstall_pointers_impl(&workspace_cwd, agents)
 }
 
 // ---------------------------------------------------------------------------

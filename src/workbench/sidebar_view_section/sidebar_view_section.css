@@ -96,6 +96,12 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
+  /* Reserve a dedicated scrollbar lane so the (overlay) scrollbar never sits
+     on top of right-aligned controls — folder New File/Folder icons, the
+     per-row stage/unstage buttons, and the Stage-all/Unstage-all group
+     buttons — which would otherwise sit under the scrollbar and never
+     receive their clicks. */
+  scrollbar-gutter: stable;
 }
 
 .sidebar-view-section__body--collapsed {

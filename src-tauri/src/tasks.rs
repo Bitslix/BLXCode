@@ -1,12 +1,17 @@
 //! Workspace-scoped task tracking for the BLXCode agent.
 //!
-//! Layout per workspace:
+//! Storage layout (global, one subdirectory per workspace):
 //!
 //! ```text
-//! <workspace_cwd>/.blxcode/tasks/
-//!   index.json
+//! {app_data_dir}/tasks/<workspace_hash>/
+//!   index.json   # contains "workspaceRoot" pointing back at the cwd
 //! ```
+//!
+//! Tasks used to live under `<workspace_cwd>/.blxcode/tasks/`. On first
+//! access per workspace we migrate any legacy file into the new path and
+//! delete the empty source folder.
 
+use crate::app_paths;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
@@ -14,7 +19,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const TASKS_REL: &str = ".blxcode/tasks";
+const LEGACY_TASKS_REL: &str = ".blxcode/tasks";
 const TASKS_INDEX: &str = "index.json";
 const TASK_STORE_VERSION: u32 = 1;
 
@@ -102,6 +107,10 @@ struct TaskStore {
     tasks: Vec<TaskRecord>,
     #[serde(default)]
     active_plan_path: Option<String>,
+    /// Original workspace cwd this store belongs to. Written so the file
+    /// is still attributable when inspected outside the app.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    workspace_root: Option<String>,
 }
 
 impl Default for TaskStore {
@@ -110,6 +119,7 @@ impl Default for TaskStore {
             version: TASK_STORE_VERSION,
             tasks: Vec::new(),
             active_plan_path: None,
+            workspace_root: None,
         }
     }
 }
@@ -142,9 +152,44 @@ fn validate_workspace_cwd(ws: &str) -> Result<PathBuf, String> {
 
 fn ensure_tasks_root(ws: &str) -> Result<PathBuf, String> {
     let ws_path = validate_workspace_cwd(ws)?;
-    let root = ws_path.join(TASKS_REL);
-    fs::create_dir_all(&root).map_err(|e| format!("create tasks root: {e}"))?;
+    let root = app_paths::tasks_root_for(ws)?;
+    migrate_legacy_store_if_needed(&ws_path, &root)?;
     Ok(root)
+}
+
+/// One-shot migration: if the workspace still holds a legacy
+/// `<ws>/.blxcode/tasks/index.json` and no new store exists yet, move it
+/// into the app-data location and clean up the empty source folder. Any
+/// error is treated as fatal so the user sees the problem instead of
+/// silently losing data.
+fn migrate_legacy_store_if_needed(workspace_path: &Path, new_root: &Path) -> Result<(), String> {
+    let legacy_dir = workspace_path.join(LEGACY_TASKS_REL);
+    let legacy_index = legacy_dir.join(TASKS_INDEX);
+    let new_index = new_root.join(TASKS_INDEX);
+
+    if !legacy_index.is_file() || new_index.exists() {
+        return Ok(());
+    }
+
+    // Try rename first; fall back to copy + remove if the rename crosses
+    // filesystems (EXDEV) — the new tasks dir often lives on a different
+    // mount than the workspace.
+    if fs::rename(&legacy_index, &new_index).is_err() {
+        fs::copy(&legacy_index, &new_index).map_err(|e| {
+            format!(
+                "migrate {} -> {}: {e}",
+                legacy_index.display(),
+                new_index.display()
+            )
+        })?;
+        fs::remove_file(&legacy_index)
+            .map_err(|e| format!("remove legacy store {}: {e}", legacy_index.display()))?;
+    }
+
+    // Best-effort cleanup; an error here is non-fatal (folder may hold
+    // unrelated files some day).
+    let _ = fs::remove_dir(&legacy_dir);
+    Ok(())
 }
 
 fn index_path(root: &Path) -> PathBuf {
@@ -182,7 +227,8 @@ fn normalize_store(store: &mut TaskStore) {
     }
 }
 
-fn write_store(root: &Path, store: &TaskStore) -> Result<(), String> {
+fn write_store(root: &Path, store: &mut TaskStore, workspace_cwd: &str) -> Result<(), String> {
+    store.workspace_root = Some(workspace_cwd.to_owned());
     let path = index_path(root);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("mkdir {}: {e}", parent.display()))?;
@@ -314,7 +360,7 @@ pub fn tasks_create_inner(
         demote_other_in_progress(&mut store.tasks, &id, now);
     }
     normalize_store(&mut store);
-    write_store(&root, &store)?;
+    write_store(&root, &mut store, workspace_cwd)?;
     store
         .tasks
         .into_iter()
@@ -372,7 +418,7 @@ pub fn tasks_update_inner(
         store.tasks[task_idx].plan_task_id.clone(),
     );
     normalize_store(&mut store);
-    write_store(&root, &store)?;
+    write_store(&root, &mut store, workspace_cwd)?;
 
     // Write back to plan markdown when the task is plan-linked.
     if let (Some(plan_path), Some(plan_task_id)) = plan_link {
@@ -454,7 +500,7 @@ pub fn tasks_replace_plan_set(
     }
     store.active_plan_path = Some(plan_path.to_owned());
     normalize_store(&mut store);
-    write_store(&root, &store)?;
+    write_store(&root, &mut store, workspace_cwd)?;
     Ok(ReplacePlanReport {
         replaced: removed,
         added,
@@ -492,7 +538,7 @@ pub fn tasks_rewrite_plan_path(
         changed = true;
     }
     if changed {
-        write_store(&root, &store)?;
+        write_store(&root, &mut store, workspace_cwd)?;
     }
     Ok(())
 }
@@ -506,7 +552,7 @@ pub fn tasks_clear_active_plan(workspace_cwd: &str) -> Result<(), String> {
         return Ok(());
     }
     store.active_plan_path = None;
-    write_store(&root, &store)?;
+    write_store(&root, &mut store, workspace_cwd)?;
     Ok(())
 }
 
@@ -525,7 +571,7 @@ pub fn tasks_delete_inner(workspace_cwd: &str, id: &str) -> Result<TaskSnapshot,
         }
     }
     normalize_store(&mut store);
-    write_store(&root, &store)?;
+    write_store(&root, &mut store, workspace_cwd)?;
     Ok(snapshot_from_store(&store))
 }
 
@@ -562,7 +608,7 @@ pub fn tasks_reorder_inner(
     }
     store.tasks = reordered;
     normalize_store(&mut store);
-    write_store(&root, &store)?;
+    write_store(&root, &mut store, workspace_cwd)?;
     Ok(snapshot_from_store(&store))
 }
 
@@ -606,11 +652,18 @@ pub fn tasks_reorder(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app_paths::test_support::AppDataDirGuard;
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static TEMP_SEQ: AtomicU64 = AtomicU64::new(1);
 
-    fn temp_workspace() -> PathBuf {
+    struct TestEnv {
+        workspace: PathBuf,
+        _app_data: PathBuf,
+        _guard: AppDataDirGuard,
+    }
+
+    fn setup() -> TestEnv {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map(|d| d.as_nanos())
@@ -622,8 +675,16 @@ mod tests {
             nanos,
             seq
         ));
-        fs::create_dir_all(&base).expect("create temp workspace");
-        base
+        let workspace = base.join("ws");
+        let app_data = base.join("app-data");
+        fs::create_dir_all(&workspace).expect("create workspace");
+        fs::create_dir_all(&app_data).expect("create app data dir");
+        let guard = AppDataDirGuard::new(app_data.clone());
+        TestEnv {
+            workspace,
+            _app_data: app_data,
+            _guard: guard,
+        }
     }
 
     fn ws_string(path: &Path) -> String {
@@ -632,8 +693,8 @@ mod tests {
 
     #[test]
     fn create_initializes_store_and_lists_task() {
-        let ws = temp_workspace();
-        let workspace_cwd = ws_string(&ws);
+        let env = setup();
+        let workspace_cwd = ws_string(&env.workspace);
 
         let created = tasks_create_inner(
             &workspace_cwd,
@@ -650,13 +711,16 @@ mod tests {
         let snapshot = tasks_snapshot(&workspace_cwd).expect("snapshot");
         assert_eq!(snapshot.tasks.len(), 1);
         assert_eq!(snapshot.tasks[0].id, created.id);
-        assert!(ws.join(TASKS_REL).join(TASKS_INDEX).is_file());
+
+        let root = ensure_tasks_root(&workspace_cwd).expect("tasks root");
+        assert!(root.join(TASKS_INDEX).is_file());
+        assert!(!env.workspace.join(LEGACY_TASKS_REL).exists());
     }
 
     #[test]
     fn update_only_changes_patched_fields_and_manages_status() {
-        let ws = temp_workspace();
-        let workspace_cwd = ws_string(&ws);
+        let env = setup();
+        let workspace_cwd = ws_string(&env.workspace);
 
         let first = tasks_create_inner(
             &workspace_cwd,
@@ -704,8 +768,8 @@ mod tests {
 
     #[test]
     fn completed_status_sets_completed_at() {
-        let ws = temp_workspace();
-        let workspace_cwd = ws_string(&ws);
+        let env = setup();
+        let workspace_cwd = ws_string(&env.workspace);
         let task = tasks_create_inner(
             &workspace_cwd,
             TaskCreateInput {
@@ -735,8 +799,8 @@ mod tests {
 
     #[test]
     fn reorder_requires_exact_set_and_rewrites_positions() {
-        let ws = temp_workspace();
-        let workspace_cwd = ws_string(&ws);
+        let env = setup();
+        let workspace_cwd = ws_string(&env.workspace);
         let first = tasks_create_inner(
             &workspace_cwd,
             TaskCreateInput {
@@ -776,14 +840,15 @@ mod tests {
 
     #[test]
     fn relative_workspace_is_rejected() {
+        let _env = setup();
         let err = tasks_snapshot("relative/path").expect_err("must fail");
         assert!(err.contains("absolute"));
     }
 
     #[test]
     fn empty_or_missing_store_reads_as_empty() {
-        let ws = temp_workspace();
-        let workspace_cwd = ws_string(&ws);
+        let env = setup();
+        let workspace_cwd = ws_string(&env.workspace);
         let snapshot = tasks_snapshot(&workspace_cwd).expect("snapshot");
         assert!(snapshot.tasks.is_empty());
 
@@ -791,5 +856,60 @@ mod tests {
         fs::write(index_path(&root), "").expect("write empty index");
         let snapshot = tasks_snapshot(&workspace_cwd).expect("snapshot after empty file");
         assert!(snapshot.tasks.is_empty());
+    }
+
+    #[test]
+    fn migrate_legacy_store_moves_file_once() {
+        let env = setup();
+        let workspace_cwd = ws_string(&env.workspace);
+
+        // Seed a legacy store inside the workspace.
+        let legacy_dir = env.workspace.join(LEGACY_TASKS_REL);
+        fs::create_dir_all(&legacy_dir).expect("create legacy dir");
+        let legacy_file = legacy_dir.join(TASKS_INDEX);
+        fs::write(
+            &legacy_file,
+            r#"{"version":1,"tasks":[{"id":"legacy-1","title":"Migrated","description":"","status":"pending","position":0,"createdAt":1,"updatedAt":1,"completedAt":null,"parentId":null,"notes":null}],"activePlanPath":null}"#,
+        )
+        .expect("seed legacy store");
+
+        // First snapshot should surface the legacy task.
+        let snapshot = tasks_snapshot(&workspace_cwd).expect("snapshot");
+        assert_eq!(snapshot.tasks.len(), 1);
+        assert_eq!(snapshot.tasks[0].id, "legacy-1");
+        assert_eq!(snapshot.tasks[0].title, "Migrated");
+
+        // Legacy file is gone, new file present.
+        assert!(!legacy_file.exists());
+        let new_root = ensure_tasks_root(&workspace_cwd).expect("new root");
+        assert!(new_root.join(TASKS_INDEX).is_file());
+    }
+
+    #[test]
+    fn workspace_root_field_is_written_into_index() {
+        let env = setup();
+        let workspace_cwd = ws_string(&env.workspace);
+        tasks_create_inner(
+            &workspace_cwd,
+            TaskCreateInput {
+                title: "Stamped".into(),
+                description: None,
+                status: None,
+                parent_id: None,
+                notes: None,
+            },
+        )
+        .expect("create");
+        let root = ensure_tasks_root(&workspace_cwd).expect("tasks root");
+        let raw = fs::read_to_string(root.join(TASKS_INDEX)).expect("read index");
+        assert!(raw.contains("\"workspaceRoot\""));
+        // Parse rather than substring-match the raw bytes: on Windows the path
+        // contains backslashes that JSON escapes (`C:\\...`), so a raw
+        // `contains(&workspace_cwd)` would spuriously fail.
+        let parsed: serde_json::Value = serde_json::from_str(&raw).expect("parse index");
+        assert_eq!(
+            parsed.get("workspaceRoot").and_then(|v| v.as_str()),
+            Some(workspace_cwd.as_str())
+        );
     }
 }

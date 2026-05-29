@@ -48,7 +48,6 @@ Authoritative list from `src-tauri/src/lib.rs` (grouped for navigation):
 ### Workspace paths
 
 - `default_cwd`, `path_nav_exec_cmd`, `list_directory`, `create_directory`
-- `gitignore_append_blxcode`
 
 ### PTY
 

@@ -19,6 +19,42 @@
   list-style: none;
 }
 
+.file-diff-section__group-head {
+  display: flex;
+  align-items: stretch;
+  /* Trailing space keeps the Stage-all / Unstage-all action clear of the body
+     scrollbar; the header background fills it so the bar stays full-width. */
+  padding-right: 0.6rem;
+  background: var(--surface-2, var(--overlay-1));
+}
+
+.file-diff-section__group-head:hover .file-diff-section__group-action,
+.file-diff-section__group-head:focus-within .file-diff-section__group-action {
+  opacity: 1;
+}
+
+.file-diff-section__group-action {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.file-diff-section__group-action:hover,
+.file-diff-section__group-action:focus-visible {
+  color: var(--text);
+  background: var(--overlay-2);
+  outline: none;
+  opacity: 1;
+}
+
 .file-diff-section__group-toggle {
   display: flex;
   align-items: center;
@@ -70,7 +106,9 @@
   display: flex;
   align-items: center;
   min-height: 22px;
-  padding: 0.05rem 0.15rem 0.05rem 0.25rem;
+  /* Right padding keeps the per-row stage/unstage buttons clear of the body
+     scrollbar; the row background fills it so the row still reads full-width. */
+  padding: 0.05rem 0.6rem 0.05rem 0.25rem;
   font-size: 0.74rem;
   position: relative;
 }

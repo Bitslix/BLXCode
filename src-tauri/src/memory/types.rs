@@ -22,6 +22,8 @@ pub struct NoteMeta {
     pub is_learning: bool,
     pub is_overview: bool,
     pub category: String,
+    pub managed: Option<String>,
+    pub stale: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -112,14 +114,9 @@ pub struct MemoryListResponse {
     pub memory_subcategories: MemorySubcategories,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct PointerResult {
-    pub agent: String,
-    pub path: String,
-    pub installed: bool,
-    pub note: Option<String>,
-}
+/// Re-exported from the generic `crate::pointers` module so the wire
+/// format stays identical to what the frontend has historically seen.
+pub use crate::pointers::PointerResult;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -128,4 +125,31 @@ pub struct RenameReport {
     pub new_path: String,
     pub link_rewrites: u32,
     pub files_changed: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RebuildReport {
+    pub git_rev: Option<String>,
+    /// Number of project units detected. Retained as `crate_count` for
+    /// backward compatibility; equals `unit_count`.
+    pub crate_count: u32,
+    pub unit_count: u32,
+    pub module_count: u32,
+    pub files_changed: u32,
+    /// Distinct unit kinds present (e.g. `["rust", "node"]`).
+    pub kinds: Vec<String>,
+    /// Non-fatal indexer problems. Rebuild never fails just because a
+    /// manifest is missing; recoverable issues land here instead.
+    pub warnings: Vec<String>,
+    pub generated_paths: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchitectureLintReport {
+    pub git_rev: Option<String>,
+    pub state_git_rev: Option<String>,
+    pub stale: bool,
+    pub stale_paths: Vec<String>,
 }

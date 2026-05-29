@@ -3253,11 +3253,12 @@ button.workbench-shortcut-row--action:focus-visible {
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 0.28rem 0.32rem;
+  padding-right: clamp(1rem, 6vw, 3rem);
 }
 
 .agent-tool-row {
   display: inline-block;
-  max-width: 100%;
+  max-width: min(100%, 24rem);
   border-radius: 0.5rem;
   border: 1px solid var(--overlay-2);
   background: var(--overlay-1);
@@ -3273,7 +3274,8 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .agent-tool-row--ok {
-  border-color: var(--success);
+  border-color: color-mix(in srgb, var(--accent) 46%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 18%, var(--overlay-1));
 }
 
 .agent-tool-row--fail {
@@ -3307,7 +3309,7 @@ button.workbench-shortcut-row--action:focus-visible {
   height: 1rem;
   border-radius: 0.28rem;
   background: var(--overlay-1);
-  color: var(--syntax-type, var(--syntax-type));
+  color: var(--accent);
   flex: 0 0 auto;
 }
 
@@ -3342,7 +3344,7 @@ button.workbench-shortcut-row--action:focus-visible {
   width: 1rem;
   height: 1rem;
   border-radius: 999px;
-  color: var(--syntax-type, var(--syntax-type));
+  color: color-mix(in srgb, var(--accent) 78%, var(--text-muted));
   flex: 0 0 auto;
 }
 
@@ -3420,9 +3422,9 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .agent-tool-row--merged.agent-tool-row--ok .agent-tool-row__count {
-  color: var(--text-muted);
-  background: var(--success);
-  border-color: var(--success);
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent-soft) 62%, var(--overlay-2));
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
 }
 
 .agent-tool-row--merged.agent-tool-row--fail .agent-tool-row__count {
@@ -3537,7 +3539,7 @@ button.workbench-shortcut-row--action:focus-visible {
   justify-content: center;
   width: 0.9rem;
   height: 0.9rem;
-  color: var(--syntax-type, var(--syntax-type));
+  color: color-mix(in srgb, var(--accent) 78%, var(--text-muted));
 }
 
 .agent-tool-row__sub--pending .agent-tool-row__sub-status {
@@ -3709,6 +3711,20 @@ button.workbench-shortcut-row--action:focus-visible {
   color: var(--text-muted);
   background: var(--accent-cool-soft);
   border: 1px solid var(--success);
+}
+
+.timeline-tree {
+  margin-left: calc(var(--timeline-depth, 0) * 1rem);
+}
+
+.timeline-tree__children {
+  margin-left: calc((var(--timeline-depth, 0) + 1) * 1rem);
+  padding-left: 0.75rem;
+  border-left: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.timeline-tree__children:empty {
+  display: none;
 }
 
 .agent-tool-row__sub-detail {
@@ -4894,20 +4910,6 @@ button.workbench-shortcut-row--action:focus-visible {
 
 .eula-sheet--compact {
   max-height: min(70vh, 22rem);
-}
-
-.gitignore-prompt__title {
-  margin: 0 0 0.75rem;
-  font-size: 1.125rem;
-  font-weight: 600;
-  line-height: 1.35;
-}
-
-.gitignore-prompt__body {
-  margin: 0;
-  font-size: 0.9375rem;
-  line-height: 1.55;
-  color: var(--text-muted, var(--text));
 }
 
 .eula-sheet {
@@ -6356,14 +6358,18 @@ body.blxcode-dragging-terminal * {
 }
 
 .ws-term-cell__drag-handle {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   display: inline-flex;
   align-items: center;
-  flex-shrink: 0;
   padding: 0 4px;
-  margin-right: 2px;
   opacity: 0.55;
   color: var(--text-muted);
   cursor: grab;
+  pointer-events: none;
+  z-index: 1;
 }
 
 .ws-term-cell__drag-handle:active {
@@ -6506,6 +6512,7 @@ body.blxcode-dragging-terminal * {
 }
 
 .ws-term-cell__head {
+  position: relative;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -6518,6 +6525,7 @@ body.blxcode-dragging-terminal * {
   border-radius: 4px;
   background: var(--overlay-2);
   box-shadow: 0 1px 3px var(--scrim-bg);
+  user-select: none;
 }
 
 .ws-term-cell__title {
@@ -6587,7 +6595,23 @@ body.blxcode-dragging-terminal * {
 
 .ws-term-cell__slot {
   flex-shrink: 0;
-  color: var(--text-faint);
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.45rem;
+  height: 1.05rem;
+  padding: 0 0.22rem;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
+  border-left: 2px solid var(--accent);
+  border-radius: 4px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1.05rem;
+  color: var(--text);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent-soft) 72%, transparent), transparent 74%),
+    color-mix(in srgb, var(--bg-panel-header) 82%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent);
+  font-variant-numeric: tabular-nums;
 }
 
 .ws-term-cell__boot-fail {
@@ -7203,6 +7227,36 @@ body.blxcode-dragging-terminal * {
   color: var(--text-muted);
 }
 
+/* --- recent working directories --- */
+.ws-config__recent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+}
+
+.ws-config__recent-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.ws-config__recent-list {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.25rem;
+  max-height: 12rem;
+  overflow-y: auto;
+  background: var(--surface-1, var(--overlay-1));
+}
+
+.ws-config__recent-list .harness-cmd-sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* --- layout preview row --- */
 .ws-config__layout-row {
   display: grid;
@@ -7652,6 +7706,29 @@ body.blxcode-dragging-terminal * {
   border-bottom-color: var(--accent, var(--accent-hover));
 }
 
+.workbench-memory__action {
+  margin-left: auto;
+  width: 1.9rem;
+  height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.workbench-memory__action:hover {
+  color: var(--text);
+  background: var(--overlay-1);
+  border-color: var(--overlay-2);
+}
+.workbench-memory__action:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
 .workbench-memory__error {
   display: flex;
   align-items: center;
@@ -7675,7 +7752,7 @@ body.blxcode-dragging-terminal * {
   padding: 0 0.2rem;
 }
 
-.workbench-memory-pointers-notice {
+.workbench-pointers-notice {
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -7688,7 +7765,7 @@ body.blxcode-dragging-terminal * {
   font-size: 0.8rem;
 }
 
-.workbench-memory-pointers-notice__icon {
+.workbench-pointers-notice__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -7696,14 +7773,14 @@ body.blxcode-dragging-terminal * {
   color: var(--accent, var(--accent-hover));
 }
 
-.workbench-memory-pointers-notice p {
+.workbench-pointers-notice p {
   flex: 1;
   min-width: 0;
   margin: 0;
   line-height: 1.35;
 }
 
-.workbench-memory-pointers-notice__setup {
+.workbench-pointers-notice__setup {
   padding: 0;
   color: var(--accent, var(--accent-hover));
   background: transparent;
@@ -7713,12 +7790,12 @@ body.blxcode-dragging-terminal * {
   cursor: pointer;
 }
 
-.workbench-memory-pointers-notice__setup:hover,
-.workbench-memory-pointers-notice__setup:focus-visible {
+.workbench-pointers-notice__setup:hover,
+.workbench-pointers-notice__setup:focus-visible {
   text-decoration: underline;
 }
 
-.workbench-memory-pointers-notice__close {
+.workbench-pointers-notice__close {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -7733,8 +7810,8 @@ body.blxcode-dragging-terminal * {
   cursor: pointer;
 }
 
-.workbench-memory-pointers-notice__close:hover,
-.workbench-memory-pointers-notice__close:focus-visible {
+.workbench-pointers-notice__close:hover,
+.workbench-pointers-notice__close:focus-visible {
   color: var(--text);
   background: var(--overlay-2);
 }
@@ -7881,6 +7958,29 @@ body.blxcode-dragging-terminal * {
   background: var(--overlay-1);
 }
 
+.workbench-memory-files--resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.workbench-memory-files__col-resizer {
+  position: relative;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.12s ease;
+}
+
+.workbench-memory-files__col-resizer::before {
+  content: "";
+  position: absolute;
+  inset: 0 -3px;
+}
+
+.workbench-memory-files__col-resizer:hover,
+.workbench-memory-files__col-resizer--active {
+  background: var(--accent-soft);
+}
+
 .workbench-memory-files__tree-spacer {
   flex: 1 1 auto;
   min-height: 2rem;
@@ -7889,6 +7989,18 @@ body.blxcode-dragging-terminal * {
 
 .workbench-memory-files__tree--collapsed {
   align-items: center;
+}
+
+.workbench-memory-files__tree--collapsed .workbench-memory-files__scope-head {
+  justify-content: center;
+  width: 100%;
+  padding: 0.35rem 0 0.1rem;
+}
+
+.workbench-memory-files__tree--collapsed .workbench-memory-files__scope-head span,
+.workbench-memory-files__tree--collapsed .workbench-memory-files__scope-add,
+.workbench-memory-files__tree--collapsed .workbench-memory-files__scope-actions {
+  display: none;
 }
 
 .workbench-memory-files__new {
@@ -7961,6 +8073,12 @@ body.blxcode-dragging-terminal * {
 .workbench-memory-files__scope-head span {
   flex: 1;
 }
+.workbench-memory-files__scope-actions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.12rem;
+}
 .workbench-memory-files__scope-add {
   flex: 0 0 auto;
   display: inline-flex;
@@ -8021,9 +8139,6 @@ body.blxcode-dragging-terminal * {
 }
 .workbench-memory-files__group-head:first-child {
   margin-top: 0.15rem;
-}
-.workbench-memory-files__group-head--hidden {
-  display: none;
 }
 .workbench-memory-files__group-head--active .workbench-memory-files__group-index {
   color: var(--text-muted);
@@ -8135,11 +8250,18 @@ body.blxcode-dragging-terminal * {
   background: var(--overlay-1);
 }
 .workbench-memory-files__name-text {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .workbench-memory-files__folder {
+  flex: 0 1 auto;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.7rem;
   color: var(--text-muted);
 }
@@ -8155,6 +8277,31 @@ body.blxcode-dragging-terminal * {
 .workbench-memory-files__action:hover {
   background: var(--overlay-2);
   color: var(--text);
+}
+.workbench-memory-files__action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.workbench-memory-files__note-flags {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.workbench-memory-files__note-flag {
+  padding: 0.05rem 0.28rem;
+  border: 1px solid var(--overlay-2);
+  border-radius: 3px;
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  line-height: 1.2;
+}
+
+.workbench-memory-files__note-flag--stale {
+  color: var(--danger);
+  border-color: var(--danger-soft);
 }
 
 .workbench-memory-files__badge {
@@ -8179,6 +8326,19 @@ body.blxcode-dragging-terminal * {
 .workbench-memory-files__badge:hover {
   background: linear-gradient(180deg, var(--accent-soft), var(--accent-soft));
   border-color: var(--accent-soft);
+}
+
+.workbench-memory-files__badge--category {
+  color: var(--text);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--memory-category-color) 34%, transparent), color-mix(in srgb, var(--memory-category-color) 20%, transparent));
+  border-color: color-mix(in srgb, var(--memory-category-color) 62%, var(--overlay-3));
+}
+
+.workbench-memory-files__badge--category:hover {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--memory-category-color) 42%, transparent), color-mix(in srgb, var(--memory-category-color) 26%, transparent));
+  border-color: var(--memory-category-color);
 }
 
 .memory-context-menu {
@@ -8232,13 +8392,13 @@ body.blxcode-dragging-terminal * {
   font-size: 0.78rem;
 }
 
-.memory-pointers-dialog {
+.pointers-dialog {
   width: min(42rem, calc(100vw - 2rem));
   padding: 0;
   overflow: hidden;
 }
 
-.memory-pointers-dialog__head {
+.pointers-dialog__head {
   display: grid;
   grid-template-columns: 2.5rem minmax(0, 1fr) auto;
   gap: 0.75rem;
@@ -8248,7 +8408,7 @@ body.blxcode-dragging-terminal * {
   background: linear-gradient(180deg, var(--overlay-1), transparent);
 }
 
-.memory-pointers-dialog__title-icon {
+.pointers-dialog__title-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -8260,20 +8420,20 @@ body.blxcode-dragging-terminal * {
   border-radius: 8px;
 }
 
-.memory-pointers-dialog__head h2 {
+.pointers-dialog__head h2 {
   margin: 0;
   font-size: 1rem;
   font-weight: 650;
 }
 
-.memory-pointers-dialog__head p {
+.pointers-dialog__head p {
   margin: 0.25rem 0 0;
   color: var(--text-muted);
   font-size: 0.82rem;
   line-height: 1.45;
 }
 
-.memory-pointers-dialog__agents {
+.pointers-dialog__agents {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
@@ -8282,7 +8442,7 @@ body.blxcode-dragging-terminal * {
   list-style: none;
 }
 
-.memory-pointers-dialog__agent {
+.pointers-dialog__agent {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -8294,20 +8454,20 @@ body.blxcode-dragging-terminal * {
   transition: background 0.12s ease, border-color 0.12s ease;
 }
 
-.memory-pointers-dialog__agent:hover,
-.memory-pointers-dialog__agent:focus-within {
+.pointers-dialog__agent:hover,
+.pointers-dialog__agent:focus-within {
   background: var(--overlay-1);
   border-color: var(--overlay-3);
 }
 
-.memory-pointers-dialog__checkbox {
+.pointers-dialog__checkbox {
   flex: 0 0 auto;
   width: 0.95rem;
   height: 0.95rem;
   accent-color: var(--accent, var(--accent-hover));
 }
 
-.memory-pointers-dialog__brand {
+.pointers-dialog__brand {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -8320,14 +8480,14 @@ body.blxcode-dragging-terminal * {
   border-radius: 8px;
 }
 
-.memory-pointers-dialog__brand img {
+.pointers-dialog__brand img {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: contain;
 }
 
-.memory-pointers-dialog__meta {
+.pointers-dialog__meta {
   display: flex;
   flex: 1;
   min-width: 0;
@@ -8335,13 +8495,13 @@ body.blxcode-dragging-terminal * {
   gap: 0.1rem;
 }
 
-.memory-pointers-dialog__label {
+.pointers-dialog__label {
   color: var(--text);
   font-size: 0.84rem;
   font-weight: 600;
 }
 
-.memory-pointers-dialog__target {
+.pointers-dialog__target {
   overflow: hidden;
   color: var(--text-muted);
   font-family: ui-monospace, "JetBrains Mono", "Fira Code", monospace;
@@ -8350,7 +8510,7 @@ body.blxcode-dragging-terminal * {
   white-space: nowrap;
 }
 
-.memory-pointers-dialog__status {
+.pointers-dialog__status {
   display: inline-flex;
   align-items: center;
   flex: 0 0 auto;
@@ -8363,24 +8523,24 @@ body.blxcode-dragging-terminal * {
   line-height: 1.2;
 }
 
-.memory-pointers-dialog__status--installed {
+.pointers-dialog__status--installed {
   color: var(--success, #4ade80);
   background: color-mix(in srgb, var(--success, #4ade80) 10%, transparent);
   border-color: color-mix(in srgb, var(--success, #4ade80) 18%, transparent);
 }
 
-.memory-pointers-dialog__status--missing {
+.pointers-dialog__status--missing {
   color: #fbbf24;
   background: rgba(251, 191, 36, 0.1);
   border-color: rgba(251, 191, 36, 0.18);
 }
 
-.memory-pointers-dialog__status--pending {
+.pointers-dialog__status--pending {
   color: var(--text-muted);
   background: var(--overlay-1);
 }
 
-.memory-pointers-dialog__actions {
+.pointers-dialog__actions {
   padding: 0.85rem 1.1rem;
   background: color-mix(in srgb, var(--overlay-1) 40%, transparent);
   border-top: 1px solid var(--overlay-2);
@@ -8720,24 +8880,29 @@ body.blxcode-dragging-terminal * {
 }
 .workbench-handoff-menu {
   position: absolute;
-  top: calc(100% + 0.3rem);
+  top: calc(100% + 0.36rem);
   right: 0;
-  min-width: 12rem;
-  max-width: 18rem;
-  background: var(--overlay-2);
-  border: 1px solid var(--overlay-3);
+  min-width: 13rem;
+  max-width: min(20rem, calc(100vw - 2rem));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-raised) 94%, transparent), var(--bg-panel));
+  border: 1px solid var(--border);
   border-radius: 6px;
-  box-shadow: 0 6px 18px var(--scrim-bg);
-  padding: 0.35rem;
+  box-shadow:
+    0 12px 30px color-mix(in srgb, var(--scrim-bg) 84%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--text) 7%, transparent);
+  padding: 0.32rem;
   z-index: 40;
   font-size: 0.78rem;
+  backdrop-filter: blur(10px);
 }
 .workbench-handoff-menu__head {
-  padding: 0.2rem 0.4rem 0.35rem;
+  padding: 0.28rem 0.48rem 0.38rem;
   color: var(--text-muted);
-  font-size: 0.7rem;
+  font-size: 0.66rem;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
 }
 .workbench-handoff-menu__list {
   list-style: none;
@@ -8752,7 +8917,8 @@ body.blxcode-dragging-terminal * {
   align-items: center;
   gap: 0.45rem;
   width: 100%;
-  padding: 0.35rem 0.5rem;
+  min-height: 1.85rem;
+  padding: 0.38rem 0.54rem;
   border-radius: 4px;
   border: 1px solid transparent;
   background: transparent;
@@ -8763,8 +8929,17 @@ body.blxcode-dragging-terminal * {
 }
 .workbench-handoff-menu__item:hover,
 .workbench-handoff-menu__item:focus-visible {
-  background: var(--overlay-2);
-  border-color: var(--overlay-3);
+  color: var(--text);
+  background: color-mix(in srgb, var(--accent-soft) 48%, var(--overlay-2));
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  outline: none;
+}
+.workbench-handoff-menu__item svg {
+  color: var(--text-faint);
+}
+.workbench-handoff-menu__item:hover svg,
+.workbench-handoff-menu__item:focus-visible svg {
+  color: var(--accent);
 }
 .workbench-handoff-menu__empty {
   padding: 0.4rem 0.5rem;
@@ -8772,8 +8947,8 @@ body.blxcode-dragging-terminal * {
 }
 .workbench-handoff-menu__separator {
   height: 1px;
-  margin: 0.35rem -0.1rem;
-  background: var(--overlay-2);
+  margin: 0.38rem 0.08rem;
+  background: var(--border);
 }
 .blx-toast-host {
   position: fixed;
@@ -9905,6 +10080,31 @@ body.blxcode-dragging-terminal * {
   opacity: 1;
 }
 
+/* Project Files and git toolbars keep their actions visible at all times,
+   not only on hover. */
+.sidebar-view-section--sb-explorer .sidebar-view-section__toolbar,
+.sidebar-view-section--sb-diff .sidebar-view-section__toolbar,
+.sidebar-view-section--sb-graph .sidebar-view-section__toolbar {
+  opacity: 1;
+}
+
+/* Wrapper that carries the tooltip for a possibly-disabled toolbar button —
+   a disabled button receives no hover events, so its own title never shows. */
+.sidebar-view-section__icon-btn-wrap {
+  display: inline-flex;
+}
+
+.sidebar-view-section__sync-spin {
+  display: inline-flex;
+  animation: sidebar-view-section-spin 0.8s linear infinite;
+}
+
+@keyframes sidebar-view-section-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .sidebar-view-section__toggle {
   flex: 1 1 auto;
   min-width: 0;
@@ -9970,6 +10170,17 @@ body.blxcode-dragging-terminal * {
   border-color: var(--border);
 }
 
+.sidebar-view-section__icon-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.sidebar-view-section__icon-btn:disabled:hover {
+  color: var(--text-muted);
+  background: transparent;
+  border-color: transparent;
+}
+
 .sidebar-view-section__body {
   flex: 1 1 auto;
   min-height: 0;
@@ -9999,7 +10210,10 @@ body.blxcode-dragging-terminal * {
   align-items: center;
   gap: 0.2rem;
   min-height: 22px;
-  padding: 0.1rem 0.35rem 0.1rem 0;
+  /* Extra right padding keeps the hover actions (New File / New Folder) clear
+     of the body scrollbar so it can't sit on top of them and swallow clicks.
+     The row background fills the padding, so the row still reads full-width. */
+  padding: 0.1rem 0.75rem 0.1rem 0;
   font-size: 0.78rem;
   color: var(--text);
   cursor: default;
@@ -10020,6 +10234,33 @@ body.blxcode-dragging-terminal * {
 
 .project-explorer__row--dir {
   cursor: pointer;
+}
+
+.project-explorer__draft-row {
+  cursor: text;
+}
+
+.project-explorer__draft-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--text);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-focus);
+  border-radius: 3px;
+  padding: 0.05rem 0.3rem;
+  outline: none;
+}
+
+.project-explorer__draft-input::placeholder {
+  color: var(--text-muted);
+}
+
+.project-explorer__draft-error {
+  margin: 0.15rem 0 0.25rem 1.65rem;
+  font-size: 0.72rem;
+  color: var(--accent-warm);
 }
 
 .sidebar-view-section__icon-btn--pressed {
@@ -10057,9 +10298,57 @@ body.blxcode-dragging-terminal * {
 }
 
 .project-explorer__name {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Persistent selection — accent-tinted so it stays distinct from the
+   mouse-following :hover background. Declared after the :hover rule so a
+   selected row keeps its mark even while hovered. */
+.project-explorer__row--selected,
+.project-explorer__row--selected:hover {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.project-explorer__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.05rem;
+  flex-shrink: 0;
+  margin-left: 0.2rem;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.project-explorer__row:hover .project-explorer__actions,
+.project-explorer__row:focus-within .project-explorer__actions {
+  opacity: 1;
+}
+
+.project-explorer__action {
+  flex-shrink: 0;
+  width: 1.05rem;
+  height: 1.05rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 0;
+  cursor: pointer;
+}
+
+.project-explorer__action:hover,
+.project-explorer__action:focus-visible {
+  color: var(--text);
+  background: var(--overlay-3);
+  border-color: var(--border);
 }
 
 .git-graph__list {

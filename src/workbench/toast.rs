@@ -27,19 +27,23 @@ pub struct ToastItem {
 #[derive(Clone, Copy)]
 pub struct ToastService {
     items: RwSignal<Vec<ToastItem>>,
+    prefs: AppPrefsService,
 }
 
 impl ToastService {
     #[must_use]
-    pub fn new() -> Self {
+    pub fn new(prefs: AppPrefsService) -> Self {
         Self {
             items: RwSignal::new(Vec::new()),
+            prefs,
         }
     }
 
     pub fn success(&self, message: impl Into<String>) {
-        let prefs = expect_context::<AppPrefsService>();
-        if !prefs.success_toast_enabled().get_untracked() {
+        // Read the stored prefs handle rather than `expect_context`: toasts are
+        // frequently emitted from inside `spawn_local` futures where the
+        // reactive owner (and thus context) is no longer present.
+        if !self.prefs.success_toast_enabled().get_untracked() {
             return;
         }
         self.push(ToastKind::Success, message.into());

@@ -249,4 +249,4 @@ Erinnerung aus `CLAUDE.md`: Alle Sprach-Locale-Files müssen die neuen Keys habe
 - [x] `code-actions` - `pty_write` für Snippet & Envelope, `upsert_workspace_agent_context` für Attach, `navigator.clipboard.writeText` für Copy-Snippet/Range/Raw mit Toast-Feedback
 - [x] `code-i18n-handoff` - 22 neue Keys (`CodeViewMenu*` + `CodeViewToast*`) + Übersetzungen in allen 13 Locales (en/de/fr/es/it/pt_br/pl/hu/ru/ja/ko/zh_cn/zh_tw)
 - [x] `code-css-menu` - `user-select:none` auf `.code-view` + `.code-context-menu` Stile (Sektionen, Workspace-Gruppen, Slot-Items, Badge)
-- [ ] `manual-verify` - Manuelle Checks aus Test-Tabelle inkl. PNG, SVG, MD, MMD, MP4, sowie TS/JS/RS-Files mit Line-Selection + Drag-Selection + Rechtsklick → Terminal/Agent/Clipboard (auch cross-workspace)
+- [x] `manual-verify` - Manuelle Checks aus Test-Tabelle inkl. PNG, SVG, MD, MMD, MP4, sowie TS/JS/RS-Files mit Line-Selection + Drag-Selection + Rechtsklick → Terminal/Agent/Clipboard (auch cross-workspace)

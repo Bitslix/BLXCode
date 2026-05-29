@@ -1,6 +1,6 @@
 # BLXCode Plan Manager
 
-**Status:** implemented
+**Status:** done
 
 ## Summary
 

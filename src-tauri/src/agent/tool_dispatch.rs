@@ -23,15 +23,6 @@ pub async fn dispatch_tool(
     root: Option<&WorkspaceRootGuard>,
     ctx: Option<&DispatchContext>,
 ) -> tools::ToolOutcome {
-    if name == "subagents.run" {
-        return match ctx {
-            Some(c) => crate::agent::subagents::run(state, args, root, c).await,
-            None => tools::ToolOutcome {
-                ok: false,
-                content: "subagents.run requires dispatch context".into(),
-            },
-        };
-    }
     if name == "submit_result" {
         return tools::ToolOutcome {
             ok: true,
@@ -44,6 +35,29 @@ pub async fn dispatch_tool(
         args: Some(args.clone()),
     });
 
+    state.push_parent(call_id.to_owned());
+    let outcome = if name == "subagents.run" {
+        match ctx {
+            Some(c) => crate::agent::subagents::run(state, args, root, c).await,
+            None => tools::ToolOutcome {
+                ok: false,
+                content: "subagents.run requires dispatch context".into(),
+            },
+        }
+    } else {
+        dispatch_regular_tool(state, call_id, name, args, root).await
+    };
+    state.pop_parent();
+    outcome
+}
+
+async fn dispatch_regular_tool(
+    state: &Arc<AgentEngineState>,
+    call_id: &str,
+    name: &str,
+    args: &Value,
+    root: Option<&WorkspaceRootGuard>,
+) -> tools::ToolOutcome {
     let Some(def) = tools::find(name) else {
         return tools::ToolOutcome {
             ok: false,

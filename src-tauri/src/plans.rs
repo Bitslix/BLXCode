@@ -136,7 +136,7 @@ fn safe_plan_path(root: &Path, rel: &str) -> Result<PathBuf, String> {
     Ok(abs)
 }
 
-fn rel_from_root(root: &Path, abs: &Path) -> Option<String> {
+pub(crate) fn rel_from_root(root: &Path, abs: &Path) -> Option<String> {
     abs.strip_prefix(root)
         .ok()
         .map(|rel| rel.to_string_lossy().replace('\\', "/"))
@@ -151,7 +151,7 @@ fn mtime_secs(p: &Path) -> i64 {
         .unwrap_or(0)
 }
 
-fn walk_md(root: &Path, out: &mut Vec<PathBuf>) {
+pub(crate) fn walk_md(root: &Path, out: &mut Vec<PathBuf>) {
     let Ok(read) = fs::read_dir(root) else { return };
     for entry in read.flatten() {
         let path = entry.path();
@@ -173,7 +173,7 @@ fn walk_md(root: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-fn extract_title(body: &str, fallback: &str) -> String {
+pub(crate) fn extract_title(body: &str, fallback: &str) -> String {
     for line in body.lines() {
         let t = line.trim_start();
         if let Some(rest) = t.strip_prefix("# ") {
@@ -445,6 +445,9 @@ pub fn plan_create_inner(
         body
     };
     fs::write(&abs, body.as_bytes()).map_err(|e| format!("write {path}: {e}"))?;
+    // Keep the PLANS.md index in sync with the new file. Best-effort: a
+    // failed index rewrite must not fail the create itself.
+    let _ = crate::plans_index::sync_plans_index(&root);
     meta_from_abs(&root, &abs).ok_or_else(|| "failed to read back created plan".to_owned())
 }
 
@@ -463,6 +466,11 @@ pub fn plan_write_inner(
         .map_err(|e| format!("write {path}: {e}"))?;
     let rel = rel_from_root(&root, &abs).unwrap_or_else(|| path.to_owned());
     let is_index = rel.eq_ignore_ascii_case(PLANS_INDEX);
+    // A write can create a brand-new plan file; keep the index in sync.
+    // Skip when the index itself is the target so we don't recurse.
+    if !is_index {
+        let _ = crate::plans_index::sync_plans_index(&root);
+    }
     Ok(PlanContent {
         path: rel,
         content: content.to_owned(),
@@ -499,6 +507,8 @@ pub fn plan_delete_inner(workspace_cwd: &str, path: &str) -> Result<(), String> 
             }
         }
     }
+    // Drop the deleted file's row from the PLANS.md index.
+    let _ = crate::plans_index::sync_plans_index(&root);
     Ok(())
 }
 
@@ -530,6 +540,10 @@ pub fn plan_rename_inner(
         &rel_from_root(&root, &abs_old).unwrap_or_default(),
         &rel_from_root(&root, &abs_new).unwrap_or_default(),
     )?;
+    // Rewrite the index so the row's path/link follows the rename, carrying
+    // the curated status/description over to the new path. Best-effort.
+    let rel_new = rel_from_root(&root, &abs_new).unwrap_or_else(|| new_path.to_owned());
+    let _ = crate::plans_index::sync_plans_index_after_rename(&root, &rel_old, &rel_new);
     meta_from_abs(&root, &abs_new).ok_or_else(|| "failed to read back renamed plan".to_owned())
 }
 
@@ -691,6 +705,7 @@ pub fn plan_meta_for(workspace_cwd: &str, path: &str) -> Option<PlanMeta> {
 mod tests {
     use super::*;
     use crate::agents_layout::PLANS_REL;
+    use crate::app_paths::test_support::AppDataDirGuard;
     use std::time::SystemTime;
 
     fn temp_ws(label: &str) -> PathBuf {
@@ -705,6 +720,17 @@ mod tests {
         let _ = fs::remove_dir_all(&p);
         fs::create_dir_all(&p).unwrap();
         p
+    }
+
+    /// Tests that touch the tasks store need an app-data dir override
+    /// because tasks now live under `{app_data_dir}/tasks/<hash>/`.
+    fn temp_ws_with_tasks(label: &str) -> (PathBuf, AppDataDirGuard) {
+        let ws = temp_ws(label);
+        let app_data = ws.with_extension("appdata");
+        let _ = fs::remove_dir_all(&app_data);
+        fs::create_dir_all(&app_data).unwrap();
+        let guard = AppDataDirGuard::new(app_data);
+        (ws, guard)
     }
 
     #[test]
@@ -746,6 +772,54 @@ mod tests {
             .iter()
             .all(|m| m.path != "my-plan.md"));
 
+        let _ = fs::remove_dir_all(&ws);
+    }
+
+    #[test]
+    fn create_delete_keep_plans_index_in_sync() {
+        let ws = temp_ws("index_sync");
+        let cwd = ws.to_string_lossy().into_owned();
+        let index = ws.join(PLANS_REL).join(PLANS_INDEX);
+
+        plan_create_inner(&cwd, "synced.md", Some("# Synced Plan\n")).unwrap();
+        let body = fs::read_to_string(&index).unwrap();
+        assert!(
+            body.contains("[synced.md](synced.md)"),
+            "index missing row after create: {body}"
+        );
+        assert!(body.contains("Synced Plan"));
+
+        plan_delete_inner(&cwd, "synced.md").unwrap();
+        let body = fs::read_to_string(&index).unwrap();
+        assert!(
+            !body.contains("synced.md"),
+            "index kept row after delete: {body}"
+        );
+        let _ = fs::remove_dir_all(&ws);
+    }
+
+    #[test]
+    fn rename_updates_index_and_keeps_curated_cells() {
+        let (ws, _guard) = temp_ws_with_tasks("index_rename");
+        let cwd = ws.to_string_lossy().into_owned();
+        let index = ws.join(PLANS_REL).join(PLANS_INDEX);
+
+        plan_create_inner(&cwd, "before.md", Some("# Before\n")).unwrap();
+        // Mark the row as done with a curated description.
+        let body = fs::read_to_string(&index).unwrap();
+        let edited = body.replace(
+            "| planned | [before.md](before.md) | Before |",
+            "| done | [before.md](before.md) | Curated |",
+        );
+        fs::write(&index, edited).unwrap();
+
+        plan_rename_inner(&cwd, "before.md", "after.md").unwrap();
+        let body = fs::read_to_string(&index).unwrap();
+        assert!(
+            body.contains("| done | [after.md](after.md) | Curated |"),
+            "rename lost curated cells: {body}"
+        );
+        assert!(!body.contains("before.md"));
         let _ = fs::remove_dir_all(&ws);
     }
 
@@ -794,7 +868,7 @@ mod tests {
     #[test]
     fn load_replaces_only_plan_tasks_and_keeps_free_tasks() {
         use crate::tasks::{tasks_create_inner, tasks_snapshot, TaskCreateInput, TaskStatus};
-        let ws = temp_ws("load_keep_free");
+        let (ws, _guard) = temp_ws_with_tasks("load_keep_free");
         let cwd = ws.to_string_lossy().into_owned();
 
         // Create a free task (no plan link).
@@ -844,7 +918,7 @@ mod tests {
     #[test]
     fn task_update_status_writes_back_to_plan_markdown() {
         use crate::tasks::{tasks_snapshot, tasks_update_inner, TaskStatus, TaskUpdatePatch};
-        let ws = temp_ws("writeback");
+        let (ws, _guard) = temp_ws_with_tasks("writeback");
         let cwd = ws.to_string_lossy().into_owned();
 
         plan_create_inner(
@@ -883,7 +957,7 @@ mod tests {
     #[test]
     fn sync_from_tasks_round_trip_preserves_other_sections() {
         use crate::tasks::{tasks_snapshot, tasks_update_inner, TaskStatus, TaskUpdatePatch};
-        let ws = temp_ws("sync");
+        let (ws, _guard) = temp_ws_with_tasks("sync");
         let cwd = ws.to_string_lossy().into_owned();
 
         plan_create_inner(

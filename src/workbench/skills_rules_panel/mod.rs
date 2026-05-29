@@ -5,6 +5,7 @@
 
 pub mod install_dialog;
 pub mod rule_card;
+pub mod rules_pointers;
 pub mod rules_tab;
 pub mod skill_card;
 pub mod skills_tab;

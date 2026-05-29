@@ -1,13 +1,12 @@
 //! Interactive question card rendered when the agent invokes the
 //! `harness.ask_user` client-tool. Submits the user's choice back via
-//! `agent_submit_tool_result` and updates the matching `TimelineItem::AskUser`
+//! `agent_submit_tool_result` and updates the matching `TurnPart::AskUser`
 //! row state so the bubble stays in the chat with disabled controls.
 
 use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
 use crate::tauri_bridge::agent_submit_tool_result;
-use crate::workbench::agent_panel::timeline::TimelineItem;
-use crate::workbench::agent_timeline::{AskUserOption, AskUserState};
+use crate::workbench::agent_timeline::{AskUserOption, AskUserState, TimelineDoc, TurnPart};
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use serde_json::json;
@@ -24,7 +23,7 @@ pub fn AskUserCard(
     multi_select: bool,
     allow_other: bool,
     state: AskUserState,
-    timeline: RwSignal<Vec<TimelineItem>>,
+    timeline: RwSignal<TimelineDoc>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let loc = i18n.locale().get_untracked();
@@ -257,47 +256,62 @@ pub fn AskUserCard(
 }
 
 fn mark_answered(
-    timeline: RwSignal<Vec<TimelineItem>>,
+    timeline: RwSignal<TimelineDoc>,
     call_id: &str,
     selected: Vec<String>,
     other: Option<String>,
 ) {
-    timeline.update(|rows| {
-        for row in rows.iter_mut() {
-            if let TimelineItem::AskUser {
-                call_id: cid,
-                state,
-                ..
-            } = row
-            {
-                if cid == call_id {
-                    *state = AskUserState::Answered {
-                        selected: selected.clone(),
-                        other: other.clone(),
-                    };
-                    break;
-                }
+    timeline.update(|doc| {
+        for turn in &mut doc.turns {
+            if update_ask_user_state(
+                &mut turn.parts,
+                call_id,
+                AskUserState::Answered {
+                    selected: selected.clone(),
+                    other: other.clone(),
+                },
+            ) {
+                break;
             }
         }
     });
 }
 
-fn mark_cancelled(timeline: RwSignal<Vec<TimelineItem>>, call_id: &str) {
-    timeline.update(|rows| {
-        for row in rows.iter_mut() {
-            if let TimelineItem::AskUser {
-                call_id: cid,
-                state,
-                ..
-            } = row
-            {
-                if cid == call_id {
-                    *state = AskUserState::Cancelled;
-                    break;
-                }
+fn mark_cancelled(timeline: RwSignal<TimelineDoc>, call_id: &str) {
+    timeline.update(|doc| {
+        for turn in &mut doc.turns {
+            if update_ask_user_state(&mut turn.parts, call_id, AskUserState::Cancelled) {
+                break;
             }
         }
     });
+}
+
+fn update_ask_user_state(parts: &mut [TurnPart], call_id: &str, next: AskUserState) -> bool {
+    for part in parts {
+        match part {
+            TurnPart::AskUser {
+                call_id: cid,
+                state,
+                ..
+            } if cid == call_id => {
+                *state = next;
+                return true;
+            }
+            TurnPart::Tool { children, .. } => {
+                if update_ask_user_state(children, call_id, next.clone()) {
+                    return true;
+                }
+            }
+            TurnPart::Subagent { parts, .. } => {
+                if update_ask_user_state(parts, call_id, next.clone()) {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 fn submit_async(call_id: String, ok: bool, message: String, data: Option<serde_json::Value>) {

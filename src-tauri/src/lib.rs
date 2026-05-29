@@ -3,18 +3,22 @@ mod agent_hooks;
 mod agent_settings;
 mod agents_layout;
 mod api_keys;
+mod app_paths;
 mod browser_host;
 mod clipboard;
 mod commands;
 mod fs_entries;
+mod git_commit_ai;
 mod git_graph;
 mod git_info;
 mod git_status;
-mod gitignore;
+mod git_sync;
 mod image;
 mod media_keys;
 mod memory;
 mod plans;
+mod plans_index;
+mod pointers;
 mod pty_host;
 mod skills_rules;
 mod tasks;
@@ -33,10 +37,11 @@ use clipboard::{clipboard_read_text, clipboard_write_text};
 use commands::*;
 use image::{image_curated_models, image_settings_get, image_settings_save};
 use pty_host::PtyManager;
+use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 use updater::{
-    app_relaunch, app_version, updater_check, updater_install_start, updater_poll_progress,
-    BlxUpdaterState,
+    app_relaunch, app_version, post_update_release_notes, updater_check, updater_install_start,
+    updater_poll_progress, BlxUpdaterState,
 };
 use voice::{
     voice_cancel_recording, voice_settings_get, voice_settings_save, voice_start_recording,
@@ -109,6 +114,16 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .setup(|app| {
+            let dir = app
+                .path()
+                .app_data_dir()
+                .map_err(|e| format!("app data dir unavailable: {e}"))?;
+            std::fs::create_dir_all(&dir)
+                .map_err(|e| format!("create app data dir {}: {e}", dir.display()))?;
+            app_paths::init(dir);
+            Ok(())
+        })
         .manage(AgentEngineState::new())
         .manage(BlxUpdaterState::default())
         .manage(BrowserHost::default())
@@ -126,6 +141,7 @@ pub fn run() {
             updater_install_start,
             updater_poll_progress,
             app_relaunch,
+            post_update_release_notes,
             agent_submit_turn,
             agent_submit_tool_result,
             agent_poll_events,
@@ -165,9 +181,19 @@ pub fn run() {
             git_status::git_file_diff,
             git_status::git_stage_file,
             git_status::git_unstage_file,
+            git_status::git_stage_all,
+            git_status::git_unstage_all,
+            git_status::git_commit,
+            git_commit_ai::git_generate_commit_message,
             git_status::git_status_watch_start,
             git_status::git_status_watch_stop,
+            git_sync::git_sync_status,
+            git_sync::git_fetch,
+            git_sync::git_pull,
+            git_sync::git_push,
             fs_entries::list_path_entries,
+            fs_entries::create_workspace_file,
+            fs_entries::create_workspace_dir,
             fs_entries::read_workspace_text_file,
             fs_entries::stat_workspace_file,
             fs_entries::read_workspace_image_file,
@@ -190,11 +216,12 @@ pub fn run() {
             workbench_rewrite_terminal_keys,
             agent_session_exists,
             agent_latest_session_id,
-            gitignore::gitignore_append_blxcode,
             memory::workspace_ensure_agents,
             memory::memory_root,
             memory::memory_status,
             memory::memory_bootstrap,
+            memory::memory_rebuild_architecture,
+            memory::memory_lint_architecture,
             memory::memory_list,
             memory::memory_read,
             memory::memory_write,
@@ -229,6 +256,9 @@ pub fn run() {
             skills_rules::commands::rules_write,
             skills_rules::commands::rules_set_enabled,
             skills_rules::commands::rules_remove,
+            skills_rules::commands::rules_pointer_status,
+            skills_rules::commands::rules_install_pointers,
+            skills_rules::commands::rules_uninstall_pointers,
             skills_rules::commands::skills_list,
             skills_rules::commands::skills_read,
             skills_rules::commands::skills_write,

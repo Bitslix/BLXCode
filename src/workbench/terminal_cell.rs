@@ -331,14 +331,14 @@ pub fn WorkspaceTerminalCell(
                     return;
                 }
                 schedule_agent_launch_retries(state.clone());
-                spawn_terminal_refit(state.clone(), 32, 32);
+                spawn_terminal_xterm_fit(state.clone(), 32, 32);
             }
         });
 
     let resize_handle = leptos::leptos_dom::helpers::window_event_listener_untyped("resize", {
         let state = state.clone();
         move |_| {
-            spawn_terminal_refit(state.clone(), 8, 32);
+            spawn_terminal_xterm_fit(state.clone(), 8, 32);
         }
     });
 
@@ -354,7 +354,6 @@ pub fn WorkspaceTerminalCell(
             let _ = is_full_size.get();
             if visible {
                 spawn_terminal_xterm_fit(state.clone(), 240, 50);
-                spawn_terminal_refit(state.clone(), 240, 50);
                 if !agent_slug.trim().is_empty() {
                     schedule_agent_launch_retries(state.clone());
                 }
@@ -508,10 +507,16 @@ pub fn WorkspaceTerminalCell(
                     move |_| wb.focus_terminal(terminal_key.clone())
                 }
             >
+                <span
+                    class="ws-term-cell__slot"
+                    title=move || format!("{} {}", i18n.tr(I18nKey::WsTermSlot)(), slot_id)
+                    aria-hidden="true"
+                >
+                    {format!("#{slot_id}")}
+                </span>
                 <Show when=move || slot_drag_enabled.get() && !is_full_size.get() && slot_dnd.is_some()>
                     <span
                         class="ws-term-cell__drag-handle"
-                        aria-label=move || i18n.tr(I18nKey::WsTermDragHandleAria)()
                         title=move || i18n.tr(I18nKey::WsTermDragHandleAria)()
                         aria-hidden="true"
                     >
@@ -1003,19 +1008,12 @@ async fn refit_xterm_until_ready(
     attempts: u32,
     delay_ms: u32,
 ) -> Option<TerminalSize> {
-    let mut requested_fit = false;
     for _ in 0..attempts {
         let Some(term_id) = terminal_id(&state) else {
             TimeoutFuture::new(delay_ms).await;
             continue;
         };
-        let size = if requested_fit {
-            terminal_fit(term_id)
-        } else {
-            requested_fit = true;
-            terminal_request_fit(term_id).or_else(|| terminal_fit(term_id))
-        };
-        if let Some(size) = size.and_then(valid_terminal_size) {
+        if let Some(size) = terminal_fit(term_id).and_then(valid_terminal_size) {
             return Some(size);
         }
         TimeoutFuture::new(delay_ms).await;

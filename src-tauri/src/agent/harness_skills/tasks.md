@@ -1,6 +1,10 @@
 # Task Tracking
 
-Live task execution state stored at `<workspace>/.blxcode/tasks/index.json`. Survives workspace reload and OS exit.
+Live task execution state stored at `{app_data_dir}/tasks/<workspace_hash>/index.json` — a global, per-installation location, with one subdirectory per workspace (hash derived from the canonicalised workspace cwd). Survives workspace reload, workspace move, and OS exit.
+
+The store file embeds the originating `workspaceRoot` so the index is still attributable when inspected outside the app. Legacy stores at `<workspace>/.blxcode/tasks/index.json` are migrated into the new path on first access and the empty source folder is cleaned up.
+
+You never need to know the on-disk path: always go through the `task_*` tools, which resolve the right store from the current `workspace_cwd`. Do not read or write the index file directly via `file_*` / `shell_exec`.
 
 Use tasks for multi-step work. Prefer plan-linked tasks (via `plan_load`) for structured implementation; use free tasks for ad-hoc tracking.
 

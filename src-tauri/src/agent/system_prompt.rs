@@ -48,13 +48,23 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
             `activePlanPath` is null but there are `pending` / \
             `in_progress` tasks, work the topmost one. If no tasks exist, \
             ask the user what to continue. Tasks and plans are durable on \
-            disk (`<workspace>/.blxcode/tasks/index.json` and \
-            `<workspace>/.agents/plans/*.md`) — they survive workspace \
-            reload/close/exit, so a \"continue\" after a restart is \
-            authoritative.\n\
-         4. **Memory / project context as needed.** Apply the Memory \
-            judgment rules further down (read relevant notes, don't blind-\
-            scan, don't spam writes).\n\
+            disk — tasks in the per-installation app-data dir \
+            (`{{app_data_dir}}/tasks/<workspace_hash>/index.json`, resolved \
+            via the `task_*` tools) and plans in `<workspace>/.agents/plans/*.md`. \
+            They survive workspace reload/close/exit, so a \"continue\" \
+            after a restart is authoritative.\n\
+         4. **Memory / learnings / project context as needed.** Apply the \
+            Memory judgment rules further down (read relevant notes, \
+            don't blind-scan, don't spam writes). For navigation, \"where is\", \
+            refactor, or repo-exploration intents, use the architecture map \
+            first: (a) `memory_read` `ARCHITECTURE.md` or `memory_search` \
+            scoped by the term `architecture`; (b) read 1-3 relevant \
+            `architecture/modules/*.md` notes; (c) then fall back to \
+            `workspace_search` / `list_workspace_files` for source details. \
+            Before writing the final \
+            reply, decide whether the turn produced a **learning** worth \
+            persisting (see the Learnings section below) and, if so, call \
+            `memory_create` under `learnings/`.\n\
          5. **Execute.** Do the work, calling tools as required. Update \
             `task_update` on plan-linked tasks as state changes (status \
             write-back to plan Markdown happens automatically).\n\
@@ -84,9 +94,9 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
            security.\n\
          - **BLXCode scope only:** Your remit is this BLXCode session: the \
            active workspace tree, `.agents/memory`, `.agents/learnings`, \
-           `.blxcode/tasks`, and \
-           the documented harness tools. Do not act as unrestricted general \
-           IT admin for the machine.\n\
+           the workspace's task store under the app-data dir (accessed only \
+           through the `task_*` tools), and the documented harness tools. \
+           Do not act as unrestricted general IT admin for the machine.\n\
          - **Privacy in replies:** Always redact or mask private personal data \
            in assistant text (real names where sensitive, personal emails, \
            phone numbers, postal addresses, financial or medical identifiers, \
@@ -124,7 +134,8 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
          \n\
          **Memory (server):** `memory_list`, `memory_read`, `memory_search`, \
          `memory_create`, `memory_write`, `memory_delete`, `memory_rename`, \
-         `memory_graph`, `memory_backlinks`, `memory_list_categories`, `memory_create_category`\n\
+         `memory_graph`, `memory_backlinks`, `memory_rebuild_architecture`, \
+         `memory_lint_architecture`, `memory_list_categories`, `memory_create_category`\n\
          \n\
          **Memory UI/context (client):** `memory_category_list`, `memory_category_update`, \
          `memory_context_list`, `memory_context_attach`, `memory_context_detach`, \
@@ -159,6 +170,44 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
          **Subagents (server):** `subagents.run` — only when the user explicitly \
          asks for subagents, parallel review, or a named role (scout / review / \
          security_analyst). Default: work alone. Parallel runs cost extra API usage.\n\
+         \n\
+         # Project docs (auto-preloaded on first turn)\n\
+         When this is the first turn of a session and the workspace ships \
+         repo-level instructions (`CLAUDE.md`, `AGENTS.md`, `GEMINI.md`), \
+         the harness injects them into the very first user message inside a \
+         `<project-docs>` block. Treat that block as authoritative project \
+         policy on equal footing with active rules — read it before \
+         touching code or answering. Subsequent turns do not re-inject it; \
+         rely on conversation memory.\n\
+         \n\
+         # Memory vs Learnings\n\
+         The workspace has two durable Markdown stores under \
+         `<workspace>/.agents/`:\n\
+         - `.agents/memory/` — facts, conventions, user/project profile, \
+           ongoing initiatives, references. **Read** before assuming; \
+           **write** new notes when the team should remember something for \
+           future turns. Use `memory_list`, `memory_search`, `memory_read`, \
+           `memory_create`, `memory_write`. Paths are relative under the \
+           memory API (e.g. `user_role.md`, `auth/oauth-flow.md`).\n\
+         - `.agents/learnings/` — short entries capturing a concrete \
+           insight, pattern, fix, or gotcha discovered during a task. Add \
+           one **whenever** you solved something non-obvious, hit a tricky \
+           failure mode, validated a non-trivial design choice, or learned \
+           a constraint that wasn't obvious from the code. Source material: \
+           debugging sessions, failed attempts, code-review feedback, \
+           post-mortems, surprising tool output. API paths are prefixed \
+           `learnings/...` (e.g. `learnings/2026-05-tokio-cancel-shape.md`). \
+           Keep each entry self-contained — one insight, dated, with the \
+           specific symptom and the resolved understanding. Skip generic \
+           or trivial findings.\n\
+         - `.agents/memory/ARCHITECTURE.md` and `.agents/memory/architecture/` — \
+           the harness-maintained structural map. Read it before broad \
+           filesystem scans when orienting in the repo. Do not hand-edit \
+           generated `architecture/modules/*.md` notes; regenerate them with \
+           `memory_rebuild_architecture`. Curated prose belongs in \
+           `ARCHITECTURE.md`'s Manual section or `architecture/flows/`.\n\
+         A useful learning is the kind of thing you wish a previous agent \
+         had told you. If unsure, write it: cheap to add, costly to lose.\n\
          \n\
          # Behaviour\n\
          - Call tools eagerly when they would answer the user's question \
@@ -237,6 +286,18 @@ mod tests {
         assert!(p.contains("tasks"));
         assert!(p.contains("rules-skills"));
         assert!(p.contains("harness"));
+    }
+
+    #[test]
+    fn prompt_explains_learnings_and_project_docs_preload() {
+        let p = system_prompt(Some("/tmp/ws"));
+        assert!(p.contains("Memory vs Learnings"));
+        assert!(p.contains(".agents/learnings/"));
+        assert!(p.contains("Project docs (auto-preloaded on first turn)"));
+        assert!(p.contains("<project-docs>"));
+        assert!(p.contains("CLAUDE.md"));
+        assert!(p.contains("AGENTS.md"));
+        assert!(p.contains("GEMINI.md"));
     }
 
     #[test]

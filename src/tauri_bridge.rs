@@ -1,5 +1,5 @@
 //! Typisierte Aufrufe von Tauri `invoke` (vgl. `quit.rs`).
-use crate::agent_wire::{AgentEvent, BrowserBoundsPayload, TaskSnapshot, UserTurn};
+use crate::agent_wire::{AgentEvent, BrowserBoundsPayload, EventEnvelope, TaskSnapshot, UserTurn};
 use crate::skills_rules_wire::{RuleEntry, SkillEntry, SkillSourceInput};
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Reflect;
@@ -70,7 +70,7 @@ pub async fn agent_submit_turn(turn: UserTurn) -> Result<(), String> {
     invoke_unit_js("agent_submit_turn", args_value(Args { turn })?).await
 }
 
-pub async fn agent_poll_events(max: usize) -> Result<Vec<AgentEvent>, String> {
+pub async fn agent_poll_events(max: usize) -> Result<Vec<EventEnvelope>, String> {
     #[derive(Serialize)]
     struct MaxArgs {
         max: usize,
@@ -159,16 +159,38 @@ pub async fn app_relaunch() -> Result<(), String> {
     invoke_unit_js("app_relaunch", JsValue::UNDEFINED).await
 }
 
-pub async fn gitignore_append_blxcode(workspace_cwd: &str) -> Result<(), String> {
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostUpdateReleaseNotesResponse {
+    pub version: String,
+    pub title: String,
+    pub summary: String,
+    pub sections: Vec<PostUpdateReleaseNotesSection>,
+    pub source: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostUpdateReleaseNotesSection {
+    pub title: String,
+    pub items: Vec<PostUpdateReleaseNotesItem>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostUpdateReleaseNotesItem {
+    pub title: Option<String>,
+    pub body: String,
+}
+
+pub async fn post_update_release_notes(
+    version: String,
+) -> Result<PostUpdateReleaseNotesResponse, String> {
     #[derive(Serialize)]
-    struct Args<'a> {
-        workspace_cwd: &'a str,
+    struct Args {
+        version: String,
     }
-    invoke_unit_js(
-        "gitignore_append_blxcode",
-        args_value(Args { workspace_cwd })?,
-    )
-    .await
+    invoke_typed("post_update_release_notes", Args { version }).await
 }
 
 /// Submits the result of a client-side tool back into the running turn.
@@ -610,7 +632,10 @@ pub async fn clipboard_read_text_compat() -> Result<String, String> {
     wasm_bindgen_futures::JsFuture::from(promise)
         .await
         .map_err(|e| js_error_to_string(e))
-        .and_then(|v| v.as_string().ok_or_else(|| "clipboard read returned non-string".into()))
+        .and_then(|v| {
+            v.as_string()
+                .ok_or_else(|| "clipboard read returned non-string".into())
+        })
 }
 
 /// Tauri native clipboard when available; otherwise Web Clipboard API.
@@ -678,6 +703,44 @@ pub async fn list_path_entries(
             workspace_root,
             path,
         },
+    )
+    .await
+}
+
+/// Creates an empty file at `path` (relative to `workspace_root`). Errors if it
+/// already exists. Mirrors `fs_entries::create_workspace_file`.
+pub async fn create_workspace_file(workspace_root: String, path: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        workspace_root: String,
+        path: String,
+    }
+    invoke_unit_js(
+        "create_workspace_file",
+        args_value(A {
+            workspace_root,
+            path,
+        })?,
+    )
+    .await
+}
+
+/// Creates an empty directory at `path` (relative to `workspace_root`). Errors
+/// if it already exists. Mirrors `fs_entries::create_workspace_dir`.
+pub async fn create_workspace_dir(workspace_root: String, path: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        workspace_root: String,
+        path: String,
+    }
+    invoke_unit_js(
+        "create_workspace_dir",
+        args_value(A {
+            workspace_root,
+            path,
+        })?,
     )
     .await
 }
@@ -1141,9 +1204,7 @@ pub async fn workbench_merge_sessions_workspace(
     .await
 }
 
-pub async fn workbench_rewrite_terminal_keys(
-    pairs: Vec<(String, String)>,
-) -> Result<(), String> {
+pub async fn workbench_rewrite_terminal_keys(pairs: Vec<(String, String)>) -> Result<(), String> {
     #[derive(Serialize)]
     struct A {
         pairs: Vec<(String, String)>,
@@ -1256,6 +1317,8 @@ pub struct NoteMeta {
     pub is_learning: bool,
     pub is_overview: bool,
     pub category: String,
+    pub managed: Option<String>,
+    pub stale: Option<bool>,
 }
 
 #[allow(dead_code)]
@@ -1375,6 +1438,30 @@ pub struct RenameReport {
     pub files_changed: u32,
 }
 
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RebuildReport {
+    pub git_rev: Option<String>,
+    pub crate_count: u32,
+    pub unit_count: u32,
+    pub module_count: u32,
+    pub files_changed: u32,
+    pub kinds: Vec<String>,
+    pub warnings: Vec<String>,
+    pub generated_paths: Vec<String>,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchitectureLintReport {
+    pub git_rev: Option<String>,
+    pub state_git_rev: Option<String>,
+    pub stale: bool,
+    pub stale_paths: Vec<String>,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct WsArg<'a> {
@@ -1402,6 +1489,15 @@ pub async fn memory_bootstrap(ws: &str, target: &str) -> Result<(), String> {
         })?,
     )
     .await
+}
+
+pub async fn memory_rebuild_architecture(ws: &str) -> Result<RebuildReport, String> {
+    invoke_typed("memory_rebuild_architecture", WsArg { workspace_cwd: ws }).await
+}
+
+#[allow(dead_code)]
+pub async fn memory_lint_architecture(ws: &str) -> Result<ArchitectureLintReport, String> {
+    invoke_typed("memory_lint_architecture", WsArg { workspace_cwd: ws }).await
 }
 
 pub async fn memory_list(ws: &str) -> Result<MemoryListResponse, String> {
@@ -1631,6 +1727,50 @@ pub async fn memory_uninstall_pointers(
     }
     invoke_typed(
         "memory_uninstall_pointers",
+        A {
+            workspace_cwd: ws,
+            agents,
+        },
+    )
+    .await
+}
+
+pub async fn rules_pointer_status(ws: &str) -> Result<Vec<PointerResult>, String> {
+    invoke_typed("rules_pointer_status", WsArg { workspace_cwd: ws }).await
+}
+
+pub async fn rules_install_pointers(
+    ws: &str,
+    agents: Vec<String>,
+) -> Result<Vec<PointerResult>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        agents: Vec<String>,
+    }
+    invoke_typed(
+        "rules_install_pointers",
+        A {
+            workspace_cwd: ws,
+            agents,
+        },
+    )
+    .await
+}
+
+pub async fn rules_uninstall_pointers(
+    ws: &str,
+    agents: Vec<String>,
+) -> Result<Vec<PointerResult>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        agents: Vec<String>,
+    }
+    invoke_typed(
+        "rules_uninstall_pointers",
         A {
             workspace_cwd: ws,
             agents,
@@ -2083,6 +2223,41 @@ pub async fn git_unstage_file(cwd: String, rel_path: String) -> Result<(), Strin
     invoke_unit_js("git_unstage_file", args_value(Args { cwd, rel_path })?).await
 }
 
+pub async fn git_stage_all(cwd: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        cwd: String,
+    }
+    invoke_unit_js("git_stage_all", args_value(Args { cwd })?).await
+}
+
+pub async fn git_unstage_all(cwd: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        cwd: String,
+    }
+    invoke_unit_js("git_unstage_all", args_value(Args { cwd })?).await
+}
+
+pub async fn git_commit(cwd: String, message: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        cwd: String,
+        message: String,
+    }
+    invoke_unit_js("git_commit", args_value(Args { cwd, message })?).await
+}
+
+/// Generates a commit message from the staged diff via the agent tab's
+/// configured provider. Returns the message text (already cleaned).
+pub async fn git_generate_commit_message(cwd: String) -> Result<String, String> {
+    #[derive(Serialize)]
+    struct Args {
+        cwd: String,
+    }
+    invoke_typed("git_generate_commit_message", Args { cwd }).await
+}
+
 pub async fn git_status_watch_start(cwd: String) -> Result<u64, String> {
     #[derive(Serialize)]
     struct Args {
@@ -2097,6 +2272,61 @@ pub async fn git_status_watch_stop(token: u64) -> Result<(), String> {
         token: u64,
     }
     invoke_unit_js("git_status_watch_stop", args_value(Args { token })?).await
+}
+
+/// Mirrors `git_sync::SyncStatus`.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncStatus {
+    pub branch: Option<String>,
+    pub upstream: Option<String>,
+    pub ahead: u32,
+    pub behind: u32,
+    pub has_remote: bool,
+    pub detached: bool,
+    pub dirty: bool,
+}
+
+/// Mirrors `git_sync::SyncOutcome`. `kind` is a stable code (see backend doc).
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncOutcome {
+    pub kind: String,
+    pub detail: String,
+}
+
+pub async fn git_sync_status(cwd: String) -> Result<SyncStatus, String> {
+    #[derive(Serialize)]
+    struct Args {
+        cwd: String,
+    }
+    invoke_typed("git_sync_status", Args { cwd }).await
+}
+
+pub async fn git_fetch(cwd: String) -> Result<SyncOutcome, String> {
+    #[derive(Serialize)]
+    struct Args {
+        cwd: String,
+    }
+    invoke_typed("git_fetch", Args { cwd }).await
+}
+
+pub async fn git_pull(cwd: String) -> Result<SyncOutcome, String> {
+    #[derive(Serialize)]
+    struct Args {
+        cwd: String,
+    }
+    invoke_typed("git_pull", Args { cwd }).await
+}
+
+pub async fn git_push(cwd: String, set_upstream: bool) -> Result<SyncOutcome, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        cwd: String,
+        set_upstream: bool,
+    }
+    invoke_typed("git_push", Args { cwd, set_upstream }).await
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -2193,7 +2423,7 @@ pub async fn pty_kill(session_id: u64) -> Result<(), String> {
 }
 /// Draint Events bis `Done`/`Error`; bei leeren Batches kurz warten (Streaming).
 #[allow(dead_code)]
-pub async fn agent_drain_turn(on_batch: impl Fn(Vec<AgentEvent>)) -> Result<(), String> {
+pub async fn agent_drain_turn(on_batch: impl Fn(Vec<EventEnvelope>)) -> Result<(), String> {
     agent_drain_turn_opts(false, on_batch).await
 }
 
@@ -2203,7 +2433,7 @@ pub async fn agent_drain_turn(on_batch: impl Fn(Vec<AgentEvent>)) -> Result<(), 
 /// regulären `Done` gepusht wird.
 pub async fn agent_drain_turn_opts(
     expect_voice: bool,
-    on_batch: impl Fn(Vec<AgentEvent>),
+    on_batch: impl Fn(Vec<EventEnvelope>),
 ) -> Result<(), String> {
     let mut seen_done = false;
     let mut idle_after_done: u32 = 0;
@@ -2222,10 +2452,10 @@ pub async fn agent_drain_turn_opts(
         }
         let has_done = batch
             .iter()
-            .any(|e| matches!(e, AgentEvent::Done | AgentEvent::Error { .. }));
+            .any(|e| matches!(e.event, AgentEvent::Done | AgentEvent::Error { .. }));
         let has_voice = batch
             .iter()
-            .any(|e| matches!(e, AgentEvent::VoiceReady { .. }));
+            .any(|e| matches!(e.event, AgentEvent::VoiceReady { .. }));
         on_batch(batch);
         if has_done {
             if !expect_voice || has_voice {
