@@ -1,0 +1,73 @@
+.blx-commit {
+  margin-top: 8vh;
+  width: min(92vw, 32rem);
+  box-sizing: border-box;
+  padding: 1rem 1.1rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  box-shadow:
+    0 24px 70px var(--scrim-bg),
+    0 0 0 1px var(--overlay-1);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.blx-commit__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.blx-commit__message {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 5.5rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset, var(--bg));
+  color: var(--text);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.blx-commit__message:focus {
+  outline: none;
+  border-color: var(--accent, var(--border));
+}
+
+.blx-commit__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.blx-commit__spacer {
+  flex: 1 1 auto;
+}
+
+.blx-commit__ai {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.blx-commit__ai-icon,
+.blx-commit__spin {
+  display: inline-flex;
+  align-items: center;
+}
+
+.blx-commit__spin {
+  animation: blx-commit-spin 0.8s linear infinite;
+}
+
+@keyframes blx-commit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

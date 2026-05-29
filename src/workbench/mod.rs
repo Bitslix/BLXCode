@@ -11,6 +11,7 @@ mod appearance_settings_pane;
 mod browser_tab;
 mod chat_markdown;
 mod close_terminals_tab_dialog;
+mod commit_dialog;
 mod confirm_dialog;
 mod create_workspace_wizard;
 mod file_diff;

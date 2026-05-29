@@ -6,10 +6,11 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    git_stage_file, git_status_changes, git_status_watch_start, git_status_watch_stop,
-    git_unstage_file, listen_git_status_dirty, ChangedFile, LineStats, TauriEventListener,
-    GIT_MISSING_CODE,
+    git_stage_all, git_stage_file, git_status_changes, git_status_watch_start,
+    git_status_watch_stop, git_unstage_all, git_unstage_file, listen_git_status_dirty, ChangedFile,
+    LineStats, TauriEventListener, GIT_MISSING_CODE,
 };
+use crate::workbench::commit_dialog::CommitDialog;
 use crate::workbench::git_sync_controls::{run_sync_op, GitSyncControls, SyncOp};
 use crate::workbench::sidebar_view_section::SidebarViewSection;
 use crate::workbench::toast::ToastService;
@@ -260,6 +261,28 @@ pub fn FileDiffSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
         );
     };
 
+    // Commit lives next to Push in this section. Enabled once something is
+    // staged; a fresh staged set is what `git commit` would record.
+    let commit_open = RwSignal::new(false);
+    let has_staged = move || {
+        entries
+            .get()
+            .map(|list| list.iter().any(|e| e.staged))
+            .unwrap_or(false)
+    };
+    let can_commit = move || busy.get().is_none() && has_staged();
+    let commit_title = move || {
+        if has_staged() {
+            i18n.tr(I18nKey::SbDiffCommit)().to_string()
+        } else {
+            i18n.tr(I18nKey::SbDiffCommitNeedStaged)().to_string()
+        }
+    };
+    // After a commit, bump the repo epoch so the diff list, graph and sync
+    // status all refresh (mirrors the push `after` callback).
+    let after_commit =
+        Callback::new(move |()| wb.sidebar_repo_epoch().update(|n| *n = n.wrapping_add(1)));
+
     let show = move || !collapsed.get() && git_repo_available.get() == Some(true);
 
     view! {
@@ -272,6 +295,17 @@ pub fn FileDiffSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
                     // The title lives on the wrapper span: a `disabled` button
                     // does not receive hover events (WebKitGTK), so a title on
                     // the button itself would never show while it's disabled.
+                    <span class="sidebar-view-section__icon-btn-wrap" title=commit_title>
+                        <button
+                            type="button"
+                            class="sidebar-view-section__icon-btn"
+                            disabled=move || !can_commit()
+                            aria-label=commit_title
+                            on:click=move |_| commit_open.set(true)
+                        >
+                            <LxIcon icon=icondata::LuGitCommitHorizontal width="0.75rem" height="0.75rem" />
+                        </button>
+                    </span>
                     <span class="sidebar-view-section__icon-btn-wrap" title=push_title>
                         <button
                             type="button"
@@ -296,6 +330,7 @@ pub fn FileDiffSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
             >
                 <FileDiffBody entries=entries error_kind=error_kind reload=Callback::new(move |_| reload()) />
             </SidebarViewSection>
+            <CommitDialog open=commit_open after=after_commit />
         </Show>
     }
 }
@@ -410,6 +445,7 @@ fn FileDiffGroup(
     reload: Callback<()>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let wb = expect_context::<WorkbenchService>();
     if entries.is_empty() {
         return ().into_any();
     }
@@ -425,29 +461,67 @@ fn FileDiffGroup(
     };
     let title = move || format!("{} ({count})", title_base());
 
+    // Stage-all (unstaged group) / unstage-all (staged group) for the whole
+    // working tree in one click; refresh the list afterwards.
+    let bulk_label = move || match variant {
+        DiffGroupVariant::Staged => i18n.tr(I18nKey::SbDiffUnstageAll)().to_string(),
+        DiffGroupVariant::Unstaged => i18n.tr(I18nKey::SbDiffStageAll)().to_string(),
+    };
+    let on_bulk = move |ev: web_sys::MouseEvent| {
+        ev.stop_propagation();
+        let Some(cwd) = wb.default_workspace_cwd() else {
+            return;
+        };
+        spawn_local(async move {
+            let _ = match variant {
+                DiffGroupVariant::Staged => git_unstage_all(cwd).await,
+                DiffGroupVariant::Unstaged => git_stage_all(cwd).await,
+            };
+            reload.run(());
+        });
+    };
+
     view! {
         <li class="file-diff-section__group">
-            <button
-                type="button"
-                class="file-diff-section__group-toggle"
-                id=format!("{panel_id}-header")
-                aria-expanded=move || open.get()
-                aria-controls=panel_id
-                aria-label=move || {
-                    let prefix = if open.get() {
-                        i18n.tr(I18nKey::SbDiffGroupCollapse)()
-                    } else {
-                        i18n.tr(I18nKey::SbDiffGroupExpand)()
-                    };
-                    format!("{prefix} {}", title())
-                }
-                on:click=move |_| open.update(|v| *v = !*v)
-            >
-                <span class="file-diff-section__group-title">{title}</span>
-                <span class="file-diff-section__group-chev" aria-hidden="true">
-                    {move || if open.get() { "▾" } else { "▸" }}
-                </span>
-            </button>
+            <div class="file-diff-section__group-head">
+                <button
+                    type="button"
+                    class="file-diff-section__group-toggle"
+                    id=format!("{panel_id}-header")
+                    aria-expanded=move || open.get()
+                    aria-controls=panel_id
+                    aria-label=move || {
+                        let prefix = if open.get() {
+                            i18n.tr(I18nKey::SbDiffGroupCollapse)()
+                        } else {
+                            i18n.tr(I18nKey::SbDiffGroupExpand)()
+                        };
+                        format!("{prefix} {}", title())
+                    }
+                    on:click=move |_| open.update(|v| *v = !*v)
+                >
+                    <span class="file-diff-section__group-title">{title}</span>
+                    <span class="file-diff-section__group-chev" aria-hidden="true">
+                        {move || if open.get() { "▾" } else { "▸" }}
+                    </span>
+                </button>
+                <button
+                    type="button"
+                    class="file-diff-section__group-action"
+                    title=bulk_label
+                    aria-label=bulk_label
+                    on:click=on_bulk
+                >
+                    {move || match variant {
+                        DiffGroupVariant::Staged => view! {
+                            <LxIcon icon=icondata::LuListMinus width="0.8rem" height="0.8rem" />
+                        }.into_any(),
+                        DiffGroupVariant::Unstaged => view! {
+                            <LxIcon icon=icondata::LuListPlus width="0.8rem" height="0.8rem" />
+                        }.into_any(),
+                    }}
+                </button>
+            </div>
             <Show when=move || open.get()>
                 <FileDiffGroupList
                     entries=entries.clone()

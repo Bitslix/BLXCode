@@ -149,6 +149,45 @@ pub fn git_unstage_file(cwd: String, rel_path: String) -> Result<(), String> {
     run_git(&work_tree, &["restore", "--staged", "--", rel]).map(|_| ())
 }
 
+#[tauri::command]
+pub fn git_stage_all(cwd: String) -> Result<(), String> {
+    if !git_cli_available() {
+        return Err(GIT_MISSING_CODE.into());
+    }
+    let work_tree = resolve_work_tree(&cwd)?;
+    // `add -A` stages modifications, new files, and deletions in one pass.
+    run_git(&work_tree, &["add", "-A"]).map(|_| ())
+}
+
+#[tauri::command]
+pub fn git_unstage_all(cwd: String) -> Result<(), String> {
+    if !git_cli_available() {
+        return Err(GIT_MISSING_CODE.into());
+    }
+    let work_tree = resolve_work_tree(&cwd)?;
+    // `reset` needs a HEAD to reset against. A repo without an initial commit
+    // has nothing to reset to, so unstage by removing entries from the index.
+    let has_head = run_git(&work_tree, &["rev-parse", "--verify", "--quiet", "HEAD"]).is_ok();
+    if has_head {
+        run_git(&work_tree, &["reset", "-q"]).map(|_| ())
+    } else {
+        run_git(&work_tree, &["rm", "-r", "--cached", "-q", "--", "."]).map(|_| ())
+    }
+}
+
+#[tauri::command]
+pub fn git_commit(cwd: String, message: String) -> Result<(), String> {
+    if !git_cli_available() {
+        return Err(GIT_MISSING_CODE.into());
+    }
+    let work_tree = resolve_work_tree(&cwd)?;
+    let trimmed = message.trim();
+    if trimmed.is_empty() {
+        return Err("commit message is empty".into());
+    }
+    run_git(&work_tree, &["commit", "-m", trimmed]).map(|_| ())
+}
+
 fn resolve_work_tree(cwd: &str) -> Result<PathBuf, String> {
     let trimmed = cwd.trim();
     if trimmed.is_empty() {

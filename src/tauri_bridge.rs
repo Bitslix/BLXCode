@@ -2223,6 +2223,41 @@ pub async fn git_unstage_file(cwd: String, rel_path: String) -> Result<(), Strin
     invoke_unit_js("git_unstage_file", args_value(Args { cwd, rel_path })?).await
 }
 
+pub async fn git_stage_all(cwd: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        cwd: String,
+    }
+    invoke_unit_js("git_stage_all", args_value(Args { cwd })?).await
+}
+
+pub async fn git_unstage_all(cwd: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        cwd: String,
+    }
+    invoke_unit_js("git_unstage_all", args_value(Args { cwd })?).await
+}
+
+pub async fn git_commit(cwd: String, message: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        cwd: String,
+        message: String,
+    }
+    invoke_unit_js("git_commit", args_value(Args { cwd, message })?).await
+}
+
+/// Generates a commit message from the staged diff via the agent tab's
+/// configured provider. Returns the message text (already cleaned).
+pub async fn git_generate_commit_message(cwd: String) -> Result<String, String> {
+    #[derive(Serialize)]
+    struct Args {
+        cwd: String,
+    }
+    invoke_typed("git_generate_commit_message", Args { cwd }).await
+}
+
 pub async fn git_status_watch_start(cwd: String) -> Result<u64, String> {
     #[derive(Serialize)]
     struct Args {

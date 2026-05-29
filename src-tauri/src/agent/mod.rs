@@ -5,6 +5,7 @@ pub mod tools;
 mod anthropic;
 mod environment;
 mod git_agent;
+pub(crate) mod oneshot;
 mod openrouter;
 pub(crate) mod pricing;
 mod project_docs;

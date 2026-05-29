@@ -19,6 +19,39 @@
   list-style: none;
 }
 
+.file-diff-section__group-head {
+  display: flex;
+  align-items: stretch;
+  background: var(--surface-2, var(--overlay-1));
+}
+
+.file-diff-section__group-head:hover .file-diff-section__group-action,
+.file-diff-section__group-head:focus-within .file-diff-section__group-action {
+  opacity: 1;
+}
+
+.file-diff-section__group-action {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.file-diff-section__group-action:hover,
+.file-diff-section__group-action:focus-visible {
+  color: var(--text);
+  background: var(--overlay-2);
+  outline: none;
+  opacity: 1;
+}
+
 .file-diff-section__group-toggle {
   display: flex;
   align-items: center;
