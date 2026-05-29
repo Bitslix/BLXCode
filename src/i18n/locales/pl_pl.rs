@@ -289,7 +289,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppShortcutHeading => "Skróty klawiaturowe",
         I18nKey::AppShortcutModeTmux => "Styl Tmux (Ctrl+b, następnie klawisz)",
         I18nKey::AppShortcutModeLegacy => "Klasyczny (Ctrl / Ctrl+Shift)",
-        I18nKey::AppShortcutModeHint => "Tmux: prefix Ctrl+b then a second key. Classic: Ctrl+O, Ctrl+`, Ctrl+Shift+P.",
+        I18nKey::AppShortcutModeHint => "Tmux: prefix Ctrl+b then a second key. Classic: Ctrl+O, Ctrl+Shift+N, Ctrl+Shift+P.",
         I18nKey::MemShowInGraph => "Pokaż na wykresie",
         I18nKey::MemGraph3dLoadFailed => "Nie można wczytać wykresu 3D. Wyświetlanie wykresu 2D.",
         I18nKey::MemSearchPh => "Wyszukaj notatki…",

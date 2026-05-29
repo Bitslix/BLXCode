@@ -289,7 +289,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppShortcutHeading => "Сочетания клавиш",
         I18nKey::AppShortcutModeTmux => "Стиль Tmux (Ctrl+b, затем клавиша)",
         I18nKey::AppShortcutModeLegacy => "Классический (Ctrl / Ctrl+Shift)",
-        I18nKey::AppShortcutModeHint => "Tmux: prefix Ctrl+b then a second key. Classic: Ctrl+O, Ctrl+`, Ctrl+Shift+P.",
+        I18nKey::AppShortcutModeHint => "Tmux: prefix Ctrl+b then a second key. Classic: Ctrl+O, Ctrl+Shift+N, Ctrl+Shift+P.",
         I18nKey::MemShowInGraph => "Показать на графике",
         I18nKey::MemGraph3dLoadFailed => "Не удалось загрузить 3D-график. Показан 2D-график.",
         I18nKey::MemSearchPh => "Поиск заметок…",

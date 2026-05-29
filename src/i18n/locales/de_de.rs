@@ -290,7 +290,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppShortcutModeTmux => "Tmux-Stil (Ctrl+b, dann Taste)",
         I18nKey::AppShortcutModeLegacy => "Klassisch (Ctrl / Ctrl+Shift)",
         I18nKey::AppShortcutModeHint => {
-            "Tmux: Prefix Ctrl+b, dann zweite Taste (z. B. n für neues Terminal, p für Befehlspalette). \nKlassisch: Ctrl+O Schnell öffnen, Ctrl+` neues Terminal, Ctrl+Shift+P Palette."
+            "Tmux: Prefix Ctrl+b, dann zweite Taste (z. B. n für neues Terminal, p für Befehlspalette). \nKlassisch: Ctrl+O Schnell öffnen, Ctrl+Shift+N neues Terminal, Ctrl+Shift+P Palette."
         }
         I18nKey::MemShowInGraph => "Im Graph zeigen",
         I18nKey::MemGraph3dLoadFailed => "3D-Grafik konnte nicht geladen werden. 2D-Grafik wird angezeigt.",

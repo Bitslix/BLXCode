@@ -281,7 +281,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppShortcutHeading => "键盘快捷键",
         I18nKey::AppShortcutModeTmux => "Tmux 风格（Ctrl+b，然后按键）",
         I18nKey::AppShortcutModeLegacy => "经典（Ctrl / Ctrl+Shift）",
-        I18nKey::AppShortcutModeHint => "Tmux: prefix Ctrl+b then a second key. Classic: Ctrl+O, Ctrl+`, Ctrl+Shift+P.",
+        I18nKey::AppShortcutModeHint => "Tmux: prefix Ctrl+b then a second key. Classic: Ctrl+O, Ctrl+Shift+N, Ctrl+Shift+P.",
         I18nKey::MemShowInGraph => "显示在图表中",
         I18nKey::MemGraph3dLoadFailed => "3D 图表无法加载。显示 2D 图表。",
         I18nKey::MemSearchPh => "搜索笔记...",

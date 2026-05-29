@@ -314,7 +314,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppShortcutModeLegacy => "Classic (Ctrl / Ctrl+Shift)",
         I18nKey::AppShortcutModeHint => {
             "Tmux: prefix Ctrl+b then a second key (e.g. n for new terminal, p for command palette). \
-Classic: Ctrl+O quick open, Ctrl+` new terminal, Ctrl+Shift+P palette."
+Classic: Ctrl+O quick open, Ctrl+Shift+N new terminal, Ctrl+Shift+P palette."
         }
         I18nKey::MemShowInGraph => "Show in graph",
         I18nKey::MemGraph3dLoadFailed => "3D graph could not load. Showing 2D graph.",

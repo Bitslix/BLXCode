@@ -291,7 +291,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppShortcutHeading => "Atalhos de teclado",
         I18nKey::AppShortcutModeTmux => "Estilo Tmux (Ctrl + b e depois tecla)",
         I18nKey::AppShortcutModeLegacy => "Clássico (Ctrl / Ctrl+Shift)",
-        I18nKey::AppShortcutModeHint => "Tmux: prefix Ctrl+b then a second key. Classic: Ctrl+O, Ctrl+`, Ctrl+Shift+P.",
+        I18nKey::AppShortcutModeHint => "Tmux: prefix Ctrl+b then a second key. Classic: Ctrl+O, Ctrl+Shift+N, Ctrl+Shift+P.",
         I18nKey::MemShowInGraph => "Mostrar no gráfico",
         I18nKey::MemGraph3dLoadFailed => "O gráfico 3D não pôde ser carregado. Mostrando gráfico 2D.",
         I18nKey::MemSearchPh => "Notas de pesquisa…",

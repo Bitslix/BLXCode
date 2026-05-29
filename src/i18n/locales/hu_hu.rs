@@ -291,7 +291,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppShortcutHeading => "Billentyűparancsok",
         I18nKey::AppShortcutModeTmux => "Tmux stílus (Ctrl+b, majd billentyű)",
         I18nKey::AppShortcutModeLegacy => "Klasszikus (Ctrl / Ctrl+Shift)",
-        I18nKey::AppShortcutModeHint => "Tmux: prefix Ctrl+b then a second key. Classic: Ctrl+O, Ctrl+`, Ctrl+Shift+P.",
+        I18nKey::AppShortcutModeHint => "Tmux: prefix Ctrl+b then a second key. Classic: Ctrl+O, Ctrl+Shift+N, Ctrl+Shift+P.",
         I18nKey::MemShowInGraph => "Megjelenítés grafikonon",
         I18nKey::MemGraph3dLoadFailed => "A 3D-s grafikont nem sikerült betölteni. 2D grafikon megjelenítése.",
         I18nKey::MemSearchPh => "Jegyzetek keresése…",

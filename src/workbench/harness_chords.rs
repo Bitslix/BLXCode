@@ -93,7 +93,7 @@ impl ShortcutKeys {
                 prefix: PREFIX_KEYS,
                 second: "n",
             },
-            ShortcutMode::Legacy => Self::Combo(&["Ctrl", "`"]),
+            ShortcutMode::Legacy => Self::Combo(&["Ctrl", "Shift", "N"]),
         }
     }
 
@@ -245,7 +245,6 @@ fn handle_legacy_keydown(
 ) -> bool {
     let ctrl_or_meta = ke.ctrl_key() || ke.meta_key();
     let key = ke.key();
-    let code = ke.code();
 
     if ctrl_or_meta && ke.shift_key() {
         match key.as_str() {
@@ -289,18 +288,16 @@ fn handle_legacy_keydown(
                 );
                 return true;
             }
+            "n" | "N" => {
+                ke.prevent_default();
+                dispatch_shortcut_action(HarnessShortcutAction::OpenNewTerminal, ui, wb, embed);
+                return true;
+            }
             _ => {}
         }
     }
 
     if ctrl_or_meta && !ke.shift_key() {
-        let open_terminal =
-            matches!(key.as_str(), "`" | "Backquote") || code.as_str() == "Backquote";
-        if open_terminal {
-            ke.prevent_default();
-            dispatch_shortcut_action(HarnessShortcutAction::OpenNewTerminal, ui, wb, embed);
-            return true;
-        }
         match key.as_str() {
             "p" | "P" => {
                 ke.prevent_default();

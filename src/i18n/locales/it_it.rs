@@ -291,7 +291,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppShortcutHeading => "Scorciatoie da tastiera",
         I18nKey::AppShortcutModeTmux => "Stile Tmux (Ctrl+b, quindi tasto)",
         I18nKey::AppShortcutModeLegacy => "Classico (Ctrl/Ctrl+Maiusc)",
-        I18nKey::AppShortcutModeHint => "Tmux: prefix Ctrl+b then a second key. Classic: Ctrl+O, Ctrl+`, Ctrl+Shift+P.",
+        I18nKey::AppShortcutModeHint => "Tmux: prefix Ctrl+b then a second key. Classic: Ctrl+O, Ctrl+Shift+N, Ctrl+Shift+P.",
         I18nKey::MemShowInGraph => "Mostra nel grafico",
         I18nKey::MemGraph3dLoadFailed => "Impossibile caricare il grafico 3D. Mostra il grafico 2D.",
         I18nKey::MemSearchPh => "Cerca note...",

@@ -281,7 +281,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppShortcutHeading => "키보드 단축키",
         I18nKey::AppShortcutModeTmux => "Tmux 스타일(Ctrl+b를 누른 다음 키)",
         I18nKey::AppShortcutModeLegacy => "클래식(Ctrl / Ctrl+Shift)",
-        I18nKey::AppShortcutModeHint => "Tmux: prefix Ctrl+b then a second key. Classic: Ctrl+O, Ctrl+`, Ctrl+Shift+P.",
+        I18nKey::AppShortcutModeHint => "Tmux: prefix Ctrl+b then a second key. Classic: Ctrl+O, Ctrl+Shift+N, Ctrl+Shift+P.",
         I18nKey::MemShowInGraph => "그래프로 표시",
         I18nKey::MemGraph3dLoadFailed => "3D 그래프를 로드할 수 없습니다. 2D 그래프를 표시합니다.",
         I18nKey::MemSearchPh => "메모 검색…",
