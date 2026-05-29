@@ -35,6 +35,44 @@ use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
 use web_sys::{DragEvent, HtmlElement, MouseEvent};
 
+/// Whether a terminal-slot drag in flight should be accepted as a drop on the
+/// grid slot `(workspace_id, slot_id)`.
+///
+/// The accept decision is keyed on our own synchronous session flag, not on
+/// `DataTransfer` contents: Chromium/WebView2 (Windows) blocks `getData()`
+/// during `dragenter`/`dragover`, so the payload is unreadable there and the
+/// in-memory drag meta (`slot_dnd.active`) is the reliable source. When the
+/// source slot is not yet known (meta not populated, payload protected) we
+/// optimistically accept and let the `drop` handler make the final call —
+/// without `preventDefault` on dragover, WebView2 never fires `drop` at all.
+fn accepts_slot_drop(
+    slot_dnd: &TerminalSlotDragService,
+    de: &DragEvent,
+    workspace_id: u64,
+    slot_id: u64,
+) -> bool {
+    let dt = drag_event_data_transfer(de);
+    let is_slot_drag =
+        slot_dnd.session_active() || dt.as_ref().is_some_and(is_terminal_drag);
+    if !is_slot_drag {
+        return false;
+    }
+    // Prefer the in-memory meta (works on every platform); fall back to the
+    // DataTransfer payload (WebKit only — Chromium protects it here).
+    let source = slot_dnd
+        .active
+        .get_untracked()
+        .map(|m| (m.workspace_id, m.slot_id))
+        .or_else(|| dt.as_ref().and_then(read_drag_payload).map(|p| (p.workspace_id, p.slot_id)));
+    match source {
+        // Same-workspace, non-source slot → valid grid target. A foreign
+        // workspace's terminal is transferred via the sidebar, not the grid.
+        Some((src_ws, src_slot)) => src_ws == workspace_id && src_slot != slot_id,
+        // Source unknown yet — accept; `drop` re-validates with readable data.
+        None => true,
+    }
+}
+
 #[derive(Clone, Copy)]
 enum GridResizeAxis {
     Row,
@@ -946,17 +984,12 @@ fn TerminalSlotSurface(
                 let Some(de) = ev.dyn_ref::<DragEvent>() else {
                     return;
                 };
-                let Some(dt) = drag_event_data_transfer(de) else {
-                    return;
-                };
-                // Only accept terminal-MIME drops that originate in the
-                // same workspace; cross-workspace transfers land on the
-                // sidebar, not the grid.
-                let active = slot_dnd.active.get_untracked();
-                let same_ws_active = active
-                    .as_ref()
-                    .is_some_and(|m| m.workspace_id == workspace_id && m.slot_id != slot_id);
-                if (is_terminal_drag(&dt) || slot_dnd.session_active()) && same_ws_active {
+                // Register this slot as a drop target as early as possible.
+                // Chromium/WebView2 (Windows) protects the DataTransfer during
+                // dragenter/dragover — `getData` returns "" — so we key off our
+                // own synchronous session flag rather than the payload. Without
+                // an accepted dragenter, WebView2 never fires `drop`.
+                if accepts_slot_drop(&slot_dnd, de, workspace_id, slot_id) {
                     de.prevent_default();
                 }
             }
@@ -967,33 +1000,13 @@ fn TerminalSlotSurface(
                 let Some(de) = ev.dyn_ref::<DragEvent>() else {
                     return;
                 };
-                let Some(dt) = drag_event_data_transfer(de) else {
-                    return;
-                };
-                if !is_terminal_drag(&dt)
-                    && !slot_dnd.session_active()
-                    && slot_dnd.active.get_untracked().is_none()
-                {
-                    return;
-                }
-                let payload = read_drag_payload(&dt).or_else(|| {
-                    slot_dnd.active.get().map(|meta| {
-                        crate::workbench::terminal_slot_dnd::TerminalSlotDragPayload {
-                            workspace_id: meta.workspace_id,
-                            slot_id: meta.slot_id,
-                        }
-                    })
-                });
-                let Some(payload) = payload else {
-                    return;
-                };
-                if payload.workspace_id != workspace_id || payload.slot_id == slot_id {
-                    // Different workspace → grid is a no-op target,
-                    // sidebar handles the transfer.
+                if !accepts_slot_drop(&slot_dnd, de, workspace_id, slot_id) {
                     return;
                 }
                 de.prevent_default();
-                let _ = dt.set_drop_effect("move");
+                if let Some(dt) = drag_event_data_transfer(de) {
+                    let _ = dt.set_drop_effect("move");
+                }
                 slot_dnd.set_overlay_pos_from_event(de);
                 let (rows, cols) = wb.workspaces().with_untracked(|list| {
                     list.iter()

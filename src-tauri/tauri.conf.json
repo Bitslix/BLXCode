@@ -17,7 +17,8 @@
         "title": "BLXCode",
         "width": 1600,
         "height": 900,
-        "transparent": false
+        "transparent": false,
+        "dragDropEnabled": false
       }
     ],
     "security": {
