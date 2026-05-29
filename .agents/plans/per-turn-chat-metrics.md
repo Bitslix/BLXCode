@@ -142,28 +142,28 @@ Neue `I18nKey`-Enum-Einträge (alle 12 Locale-Dateien wegen Compile-Time-Exhaust
 
 ## Tests
 
-- [ ] Langer Chat: Metriken pro Assistant-, Tool- und Subagent-Zeile sichtbar
-- [ ] Subagent-Run: Kosten in Karte + Session-Titel
-- [ ] Tool-only Round: `ModelDecision`-Zeile wird eingefügt, Metriken landen dort und nicht beim Tool
-- [ ] Workspace-Reload: Metriken und Session-Cost aus `workbench.json` wiederhergestellt
-- [ ] Chat-Reset mit laufender Runde: späte `TurnUsage`-Events werden verworfen (Generation-Counter)
-- [ ] Chat-Reset: Titel-Cost und Zeilen-Metriken zurückgesetzt
-- [ ] OpenRouter mit `usage.cost`: nativer Wert > Token-Fallback
-- [ ] OpenRouter ohne Pricing-Eintrag: `—` angezeigt
-- [ ] Direct Anthropic mit gemappter ID: Cost via OpenRouter-Preise
-- [ ] Direct Provider ohne Mapping: `—`
-- [ ] Pluralisierung `turn` / `turns` in allen Locales
-- [ ] `cargo check -p blxcode-ui --target wasm32-unknown-unknown`
-- [ ] `cargo test --workspace` (pricing/turn_metrics Unit-Tests)
-- [ ] Pricing-Unit-Tests: id-Mapping hit/miss, OpenRouter-`usage.cost` Override schlägt Token-Berechnung
+- [x] Langer Chat: Metriken pro Assistant-, Tool- und Subagent-Zeile sichtbar
+- [x] Subagent-Run: Kosten in Karte + Session-Titel
+- [x] Tool-only Round: `ModelDecision`-Zeile wird eingefügt, Metriken landen dort und nicht beim Tool
+- [x] Workspace-Reload: Metriken und Session-Cost aus `workbench.json` wiederhergestellt
+- [x] Chat-Reset mit laufender Runde: späte `TurnUsage`-Events werden verworfen (Generation-Counter)
+- [x] Chat-Reset: Titel-Cost und Zeilen-Metriken zurückgesetzt
+- [x] OpenRouter mit `usage.cost`: nativer Wert > Token-Fallback
+- [x] OpenRouter ohne Pricing-Eintrag: `—` angezeigt
+- [x] Direct Anthropic mit gemappter ID: Cost via OpenRouter-Preise
+- [x] Direct Provider ohne Mapping: `—`
+- [x] Pluralisierung `turn` / `turns` in allen Locales
+- [x] `cargo check -p blxcode-ui --target wasm32-unknown-unknown`
+- [x] `cargo test --workspace` (pricing/turn_metrics Unit-Tests)
+- [x] Pricing-Unit-Tests: id-Mapping hit/miss, OpenRouter-`usage.cost` Override schlägt Token-Berechnung
 
 ## Tasks
 
-- [ ] `turn-metrics-model` — `TurnMetrics` + `TurnUsageKind`; `ToolActivity`/`SubagentCard`/`Assistant`/`ModelDecision` metrics-Felder; `ChatUsageStats.total_cost_usd`; `ttft_sum_ms`/`ttft_sample_count` entfernen (Schema-Migration); `record_chat_turn_usage`-Signaturwechsel (Breaking, alle Aufrufer mit)
-- [ ] `pricing-module` — `ProviderModelEntry.pricing`; OpenRouter Models-API um Preise erweitern; `pricing.rs` mit `resolve_cost` + dokumentierter Direct-Provider-ID-Mapping-Tabelle + Unit-Tests
-- [ ] `backend-emit-main` — `TurnUsage` pro `ModelRound`/`ToolExec` in `openrouter.rs` und `anthropic.rs`; `usage: { include: true }` für OpenRouter; `StreamUsage.cost` parsen; finales aggregiertes Event entfernen
-- [ ] `backend-emit-subagent` — Token-/TTFT-/Cost-Erfassung in `subagent_runner.rs` (Greenfield, bisher keine Usage); `call_id`-Garantie; per-Round + per-Tool Events
-- [ ] `late-event-guard` — `turn_generation` in `AgentEngineState` (atomic), Inkrement in `agent_clear_conversation`; Event-Drop im Frontend bei veralteter Generation
-- [ ] `frontend-apply` — `apply_agent_event`: 4 Routing-Fälle gem. Tabelle; `record_chat_turn_usage` mit neuer Signatur; `ModelDecision`-Insertion-Logik
-- [ ] `ui-per-row` — `turn_metrics_bar/` Komponente (eigener Ordner + CSS); Tools einzeln (`ToolGroup`-Variant entfernen); Chat-Titel Session-Cost; `ChatUsageFooter` entfernen; Subagent-Card-Header mit Cost
-- [ ] `i18n-keys` — Neue Keys (siehe Liste) + Strings in allen 12 Locale-Dateien via Render-Skript; Pluralisierungs-Keys; Tooltip-Strings; Titel-Format-String
+- [x] `turn-metrics-model` — `TurnMetrics` + `TurnUsageKind`; `ToolActivity`/`SubagentCard`/`Assistant`/`ModelDecision` metrics-Felder; `ChatUsageStats.total_cost_usd`; `ttft_sum_ms`/`ttft_sample_count` entfernen (Schema-Migration); `record_chat_turn_usage`-Signaturwechsel (Breaking, alle Aufrufer mit)
+- [x] `pricing-module` — `ProviderModelEntry.pricing`; OpenRouter Models-API um Preise erweitern; `pricing.rs` mit `resolve_cost` + dokumentierter Direct-Provider-ID-Mapping-Tabelle + Unit-Tests
+- [x] `backend-emit-main` — `TurnUsage` pro `ModelRound`/`ToolExec` in `openrouter.rs` und `anthropic.rs`; `usage: { include: true }` für OpenRouter; `StreamUsage.cost` parsen; finales aggregiertes Event entfernen
+- [x] `backend-emit-subagent` — Token-/TTFT-/Cost-Erfassung in `subagent_runner.rs` (Greenfield, bisher keine Usage); `call_id`-Garantie; per-Round + per-Tool Events
+- [x] `late-event-guard` — `turn_generation` in `AgentEngineState` (atomic), Inkrement in `agent_clear_conversation`; Event-Drop im Frontend bei veralteter Generation
+- [x] `frontend-apply` — `apply_agent_event`: 4 Routing-Fälle gem. Tabelle; `record_chat_turn_usage` mit neuer Signatur; `ModelDecision`-Insertion-Logik
+- [x] `ui-per-row` — `turn_metrics_bar/` Komponente (eigener Ordner + CSS); Tools einzeln (`ToolGroup`-Variant entfernen); Chat-Titel Session-Cost; `ChatUsageFooter` entfernen; Subagent-Card-Header mit Cost
+- [x] `i18n-keys` — Neue Keys (siehe Liste) + Strings in allen 12 Locale-Dateien via Render-Skript; Pluralisierungs-Keys; Tooltip-Strings; Titel-Format-String

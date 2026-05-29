@@ -97,11 +97,11 @@ Grid-Reihenfolge folgt `WorkspaceEntry.slot_ids` (+ parallele `slot_agent_labels
 
 ## Tasks
 
-- [ ] `dnd-module` - Neues Modul `terminal_slot_dnd/` mit MIME-Payload, Drag-Context und Hilfsfunktionen
-- [ ] `state-reorder` - `reorder_terminal_slots` + Unit-Tests für parallele Vektor-Permutation
-- [ ] `state-transfer` - `transfer_terminal_slot` mit Validierung, PendingTransfer, Session-Migration und Fokus-Update
-- [ ] `pty-adopt` - PTY-Erhalt in `terminal_cell.rs`: preserve on cleanup, adopt + peek_tail on bootstrap
-- [ ] `grid-ui` - Drag-Handle + Drop-Handler auf `TerminalSlotSurface` in `workspace_panel.rs`
-- [ ] `sidebar-drop` - Sidebar `drop`/`dragover` für Terminal-Payload neben Workspace-Reorder
-- [ ] `css-i18n` - Drag-Feedback-CSS + i18n-Fehlermeldungen (letzter Slot, Ziel voll)
-- [ ] `notifications-migrate` - `workbench_rewrite_notifications_prefix` für Unread-Erhalt beim Transfer
+- [x] `dnd-module` - Neues Modul `terminal_slot_dnd/` mit MIME-Payload, Drag-Context und Hilfsfunktionen
+- [x] `state-reorder` - `reorder_terminal_slots` + Unit-Tests für parallele Vektor-Permutation
+- [x] `state-transfer` - `transfer_terminal_slot` mit Validierung, PendingTransfer, Session-Migration und Fokus-Update
+- [x] `pty-adopt` - PTY-Erhalt in `terminal_cell.rs`: preserve on cleanup, adopt + peek_tail on bootstrap
+- [x] `grid-ui` - Drag-Handle + Drop-Handler auf `TerminalSlotSurface` in `workspace_panel.rs`
+- [x] `sidebar-drop` - Sidebar `drop`/`dragover` für Terminal-Payload neben Workspace-Reorder
+- [x] `css-i18n` - Drag-Feedback-CSS + i18n-Fehlermeldungen (letzter Slot, Ziel voll)
+- [x] `notifications-migrate` - `workbench_rewrite_notifications_prefix` für Unread-Erhalt beim Transfer

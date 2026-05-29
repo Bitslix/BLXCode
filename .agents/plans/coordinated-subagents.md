@@ -278,18 +278,18 @@ Vor dem Subagent-Feature wird der Tool-Dispatch-Pfad fuer Anthropic, OpenRouter 
 
 Abhaengigkeiten: `A → B` bedeutet B startet erst nach A. Phase C (Web) ist optional parallel zu Phase B nach Phase A.
 
-- [ ] `dispatch-unify` - Anthropic, OpenRouter und OpenAI-compatible Tool-Dispatch zu einem gemeinsamen internen Dispatcher (`tool_dispatch.rs`) refaktorieren. **Blockiert:** alle weiteren Tasks.
-- [ ] `toolgroup-filtering` - Toolgruppenmodell, `registry_filtered`, Coordinator/Subagent-Kataloge implementieren und testen. **Abhaengig von:** `dispatch-unify`. **Blockiert:** `subagent-orchestrator`, `shell-tool-skill` (Allowlist via Gruppen).
-- [ ] `environment-tool-skill` - `environment_detect` Tool und `environment` Core Skill, Session-Cache, serverseitige Ablehnung von Shell/Git ohne Cache. **Abhaengig von:** `dispatch-unify`. Phase A.
-- [ ] `shell-tool-skill` - `shell_exec`, Shell-Child-Registry, `shell` Core Skill, Allowlist, read-only `git` via shell, SIGTERM/SIGKILL Cancellation; `shell_write` nur Coordinator. **Abhaengig von:** `dispatch-unify`, `toolgroup-filtering`, `environment-tool-skill`. Phase A.
-- [ ] `git-tool-skill` - Read-only und erlaubte mutierende Git Tools, `workspace_git_*` vs `git_*` Semantik, `git` Core Skill. **Abhaengig von:** `dispatch-unify`, `environment-tool-skill`. Phase A.
-- [ ] `workspace-search-diff` - `workspace_search`, `workspace_git_status`, `workspace_diff`. **Abhaengig von:** `dispatch-unify`. Phase A.
-- [ ] `subagent-orchestrator` - `subagents.run`, Parallelitaetslimit, Cancellation, Provider-Reuse, `submit_result`, Token/Iteration-Caps, Toolresult-Size-Caps. **Abhaengig von:** `toolgroup-filtering`, `environment-tool-skill`. Phase B.
-- [ ] `subagent-role-prompts` - Rollenprofile, i18n Displaynamen, Auto-Suffix, `subagent_system_prompt`, Coordinator-Trigger, Harness-vs-Shell in Core Skills. **Abhaengig von:** `subagent-orchestrator` (Prompt-Vertrag). Phase B.
-- [ ] `subagent-protocol` - Backend/Frontend Wire Types, `AgentEvent` Subagent-Events. **Abhaengig von:** `subagent-orchestrator`. **Blockiert:** `subagent-chat-ui`. Phase B.
-- [ ] `subagent-chat-ui` - Inline-Subcards, Live Steps/Tasks, Toolcall-Icons, 50ms Debounce, `TimelineItem::SubagentGroup` mit Serde-Migration, `friendly_label`/`summarize_args`. **Abhaengig von:** `subagent-protocol`, `i18n-subagents-tools` (Labels). Phase B.
-- [ ] `core-skill-index-prompt` - `CORE_SKILLS`, Core Skill Docs (inkl. Harness-vs-Shell), `list_skills` web-`availability`, `system_prompt.rs` Toolindex. **Abhaengig von:** `environment-tool-skill`, `shell-tool-skill`, `git-tool-skill`; Web-Teil optional nach `web-tools-skill`. Phase B.
-- [ ] `i18n-subagents-tools` - Alle neuen UI-, Rollen-, Tool-, Settings- und Disabled-State-Labels in allen Locale-Dateien. **Blockiert:** `subagent-chat-ui`, `verification`. Phase B.
-- [ ] `settings-web-api-keys` - Settings `agent.web`, Keyring fuer Tavily/Brave, Agent-Tab UI, Env-Fallback, i18n. Phase C; **blockiert:** `web-tools-skill`.
-- [ ] `web-tools-skill` - `web_search`, `web_fetch`, `web` Core Skill, `availability: disabled_no_key` in `list_skills`. **Abhaengig von:** `settings-web-api-keys`, `toolgroup-filtering`. Phase C.
-- [ ] `verification` - Rust Tests, Frontend Check, Backend Check, manuelle Chat-View-Pruefung. **Abhaengig von:** allen Phase-B-Tasks; Web-Checks wenn Phase C erledigt.
+- [x] `dispatch-unify` - Anthropic, OpenRouter und OpenAI-compatible Tool-Dispatch zu einem gemeinsamen internen Dispatcher (`tool_dispatch.rs`) refaktorieren. **Blockiert:** alle weiteren Tasks.
+- [x] `toolgroup-filtering` - Toolgruppenmodell, `registry_filtered`, Coordinator/Subagent-Kataloge implementieren und testen. **Abhaengig von:** `dispatch-unify`. **Blockiert:** `subagent-orchestrator`, `shell-tool-skill` (Allowlist via Gruppen).
+- [x] `environment-tool-skill` - `environment_detect` Tool und `environment` Core Skill, Session-Cache, serverseitige Ablehnung von Shell/Git ohne Cache. **Abhaengig von:** `dispatch-unify`. Phase A.
+- [x] `shell-tool-skill` - `shell_exec`, Shell-Child-Registry, `shell` Core Skill, Allowlist, read-only `git` via shell, SIGTERM/SIGKILL Cancellation; `shell_write` nur Coordinator. **Abhaengig von:** `dispatch-unify`, `toolgroup-filtering`, `environment-tool-skill`. Phase A.
+- [x] `git-tool-skill` - Read-only und erlaubte mutierende Git Tools, `workspace_git_*` vs `git_*` Semantik, `git` Core Skill. **Abhaengig von:** `dispatch-unify`, `environment-tool-skill`. Phase A.
+- [x] `workspace-search-diff` - `workspace_search`, `workspace_git_status`, `workspace_diff`. **Abhaengig von:** `dispatch-unify`. Phase A.
+- [x] `subagent-orchestrator` - `subagents.run`, Parallelitaetslimit, Cancellation, Provider-Reuse, `submit_result`, Token/Iteration-Caps, Toolresult-Size-Caps. **Abhaengig von:** `toolgroup-filtering`, `environment-tool-skill`. Phase B.
+- [x] `subagent-role-prompts` - Rollenprofile, i18n Displaynamen, Auto-Suffix, `subagent_system_prompt`, Coordinator-Trigger, Harness-vs-Shell in Core Skills. **Abhaengig von:** `subagent-orchestrator` (Prompt-Vertrag). Phase B.
+- [x] `subagent-protocol` - Backend/Frontend Wire Types, `AgentEvent` Subagent-Events. **Abhaengig von:** `subagent-orchestrator`. **Blockiert:** `subagent-chat-ui`. Phase B.
+- [x] `subagent-chat-ui` - Inline-Subcards, Live Steps/Tasks, Toolcall-Icons, 50ms Debounce, `TimelineItem::SubagentGroup` mit Serde-Migration, `friendly_label`/`summarize_args`. **Abhaengig von:** `subagent-protocol`, `i18n-subagents-tools` (Labels). Phase B.
+- [x] `core-skill-index-prompt` - `CORE_SKILLS`, Core Skill Docs (inkl. Harness-vs-Shell), `list_skills` web-`availability`, `system_prompt.rs` Toolindex. **Abhaengig von:** `environment-tool-skill`, `shell-tool-skill`, `git-tool-skill`; Web-Teil optional nach `web-tools-skill`. Phase B.
+- [x] `i18n-subagents-tools` - Alle neuen UI-, Rollen-, Tool-, Settings- und Disabled-State-Labels in allen Locale-Dateien. **Blockiert:** `subagent-chat-ui`, `verification`. Phase B.
+- [x] `settings-web-api-keys` - Settings `agent.web`, Keyring fuer Tavily/Brave, Agent-Tab UI, Env-Fallback, i18n. Phase C; **blockiert:** `web-tools-skill`.
+- [x] `web-tools-skill` - `web_search`, `web_fetch`, `web` Core Skill, `availability: disabled_no_key` in `list_skills`. **Abhaengig von:** `settings-web-api-keys`, `toolgroup-filtering`. Phase C.
+- [x] `verification` - Rust Tests, Frontend Check, Backend Check, manuelle Chat-View-Pruefung. **Abhaengig von:** allen Phase-B-Tasks; Web-Checks wenn Phase C erledigt.
