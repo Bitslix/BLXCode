@@ -903,6 +903,13 @@ mod tests {
         let root = ensure_tasks_root(&workspace_cwd).expect("tasks root");
         let raw = fs::read_to_string(root.join(TASKS_INDEX)).expect("read index");
         assert!(raw.contains("\"workspaceRoot\""));
-        assert!(raw.contains(&workspace_cwd));
+        // Parse rather than substring-match the raw bytes: on Windows the path
+        // contains backslashes that JSON escapes (`C:\\...`), so a raw
+        // `contains(&workspace_cwd)` would spuriously fail.
+        let parsed: serde_json::Value = serde_json::from_str(&raw).expect("parse index");
+        assert_eq!(
+            parsed.get("workspaceRoot").and_then(|v| v.as_str()),
+            Some(workspace_cwd.as_str())
+        );
     }
 }

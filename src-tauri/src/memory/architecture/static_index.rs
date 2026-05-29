@@ -1,56 +1,24 @@
-use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::Path;
 #[cfg(test)]
 use std::path::PathBuf;
-use std::process::Command;
 
 use crate::agents_layout::{validate_workspace_cwd, MEMORY_REL};
-use crate::git_info::{head_commit, is_git_repository};
+use crate::git_info::head_commit;
 use crate::memory::frontmatter::{serialize_frontmatter, MemoryFrontmatter};
 use crate::memory::paths::{ARCHITECTURE_CATEGORY, ARCHITECTURE_INDEX};
 use crate::memory::types::{ArchitectureLintReport, RebuildReport};
 use crate::pointers::splice_block;
 
+use super::common::enumerate_tracked_files;
+use super::indexers::run_all_indexers;
 use super::state::{now_unix_string, read_state, write_state, ArchitectureState};
+use super::unit::ProjectUnit;
 
 pub const STATIC_BEGIN: &str = "<!-- architecture:static:begin -->";
 pub const STATIC_END: &str = "<!-- architecture:static:end -->";
 const MODULES_DIR: &str = "architecture/modules";
 const FLOWS_DIR: &str = "architecture/flows";
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct CrateInfo {
-    name: String,
-    manifest_rel: String,
-    source_rel: String,
-}
-
-#[derive(Debug)]
-struct CrateIndex {
-    info: CrateInfo,
-    source_paths: Vec<String>,
-    top_modules: BTreeMap<String, ModuleSummary>,
-    root_declarations: Vec<String>,
-}
-
-impl CrateIndex {
-    fn new(info: CrateInfo) -> Self {
-        Self {
-            info,
-            source_paths: Vec::new(),
-            top_modules: BTreeMap::new(),
-            root_declarations: Vec::new(),
-        }
-    }
-}
-
-#[derive(Debug, Default)]
-struct ModuleSummary {
-    second_level: BTreeSet<String>,
-    declarations: BTreeSet<String>,
-    deeper_count: usize,
-}
 
 pub fn rebuild_architecture_impl(workspace_cwd: &str) -> Result<RebuildReport, String> {
     let workspace_root = validate_workspace_cwd(workspace_cwd)?;
@@ -94,13 +62,7 @@ pub fn generated_section_from_architecture_index(workspace_root: &Path) -> Optio
     let body = fs::read_to_string(path).ok()?;
     extract_static_block_inner(&body)
         .map(str::trim)
-        .and_then(|s| {
-            if s.is_empty() {
-                None
-            } else {
-                Some(s.to_owned())
-            }
-        })
+        .and_then(|s| if s.is_empty() { None } else { Some(s.to_owned()) })
 }
 
 fn rebuild_architecture_at(workspace_root: &Path) -> Result<RebuildReport, String> {
@@ -111,331 +73,107 @@ fn rebuild_architecture_at(workspace_root: &Path) -> Result<RebuildReport, Strin
         .map_err(|e| format!("create {FLOWS_DIR}: {e}"))?;
 
     let git_rev = head_commit(workspace_root);
-    let crates = detect_crates(workspace_root)?;
-    let rust_files = enumerate_rust_sources(workspace_root)?;
-    let mut indexes = Vec::new();
-    for info in crates {
-        indexes.push(index_crate(workspace_root, info, &rust_files));
-    }
+    let tracked = enumerate_tracked_files(workspace_root);
+    let (units, warnings) = run_all_indexers(workspace_root, &tracked);
 
     let mut files_changed = 0u32;
     let mut generated_paths = Vec::new();
-    for index in &indexes {
-        let rel = format!("{MODULES_DIR}/{}.md", index.info.name);
-        let rendered = render_module_note(index, git_rev.as_deref());
+    for unit in &units {
+        let rel = format!("{MODULES_DIR}/{}.md", unit.slug());
+        let rendered = render_module_note(unit, git_rev.as_deref());
         if write_if_changed(&memory_root.join(&rel), &rendered)? {
             files_changed += 1;
         }
         generated_paths.push(rel);
     }
 
-    let index_body = render_architecture_index(&indexes, &generated_paths, git_rev.as_deref());
+    let index_body =
+        render_architecture_index(&units, &generated_paths, &warnings, git_rev.as_deref());
     if write_if_changed(&memory_root.join(ARCHITECTURE_INDEX), &index_body)? {
         files_changed += 1;
     }
 
-    let module_count = indexes
+    let module_count = units
         .iter()
-        .map(|idx| idx.top_modules.len() as u32)
+        .map(|unit| unit.top_modules.len() as u32)
         .sum::<u32>();
+    let unit_count = units.len() as u32;
+    let mut kinds: Vec<String> = units.iter().map(|u| u.kind.as_str().to_owned()).collect();
+    kinds.sort();
+    kinds.dedup();
+
     write_state(
         workspace_root,
         &ArchitectureState {
             git_rev: git_rev.clone(),
             generated_at: now_unix_string(),
-            crate_count: indexes.len() as u32,
+            crate_count: unit_count,
             module_count,
         },
     )?;
 
     Ok(RebuildReport {
         git_rev,
-        crate_count: indexes.len() as u32,
+        crate_count: unit_count,
+        unit_count,
         module_count,
         files_changed,
+        kinds,
+        warnings,
         generated_paths,
     })
 }
 
-fn detect_crates(workspace_root: &Path) -> Result<Vec<CrateInfo>, String> {
-    let root_manifest = workspace_root.join("Cargo.toml");
-    let root_body = fs::read_to_string(&root_manifest)
-        .map_err(|e| format!("read {}: {e}", root_manifest.display()))?;
-    let mut crates = Vec::new();
-    if let Some(name) = package_name(&root_body) {
-        crates.push(CrateInfo {
-            name,
-            manifest_rel: "Cargo.toml".to_owned(),
-            source_rel: "src".to_owned(),
-        });
-    }
-    for member in workspace_members(&root_body) {
-        let manifest_rel = format!("{}/Cargo.toml", member.trim_matches('/'));
-        let manifest = workspace_root.join(&manifest_rel);
-        let Ok(body) = fs::read_to_string(&manifest) else {
-            continue;
-        };
-        let Some(name) = package_name(&body) else {
-            continue;
-        };
-        crates.push(CrateInfo {
-            name,
-            manifest_rel,
-            source_rel: format!("{}/src", member.trim_matches('/')),
-        });
-    }
-    crates.sort_by(|a, b| a.name.cmp(&b.name));
-    crates.dedup_by(|a, b| a.name == b.name);
-    Ok(crates)
-}
-
-fn package_name(toml: &str) -> Option<String> {
-    let mut in_package = false;
-    for line in toml.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') {
-            in_package = trimmed == "[package]";
-            continue;
-        }
-        if in_package {
-            if let Some(value) = parse_string_assignment(trimmed, "name") {
-                return Some(value);
-            }
-        }
-    }
-    None
-}
-
-fn workspace_members(toml: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut in_workspace = false;
-    let mut collecting = false;
-    let mut buffer = String::new();
-    for line in toml.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') {
-            in_workspace = trimmed == "[workspace]";
-            collecting = false;
-            buffer.clear();
-            continue;
-        }
-        if !in_workspace {
-            continue;
-        }
-        if collecting {
-            buffer.push_str(trimmed);
-            if trimmed.contains(']') {
-                out.extend(parse_string_array(&buffer));
-                collecting = false;
-            }
-            continue;
-        }
-        if let Some(rest) = trimmed.strip_prefix("members") {
-            let Some(eq) = rest.find('=') else { continue };
-            let value = rest[eq + 1..].trim();
-            if value.contains('[') && !value.contains(']') {
-                collecting = true;
-                buffer.push_str(value);
-            } else {
-                out.extend(parse_string_array(value));
-            }
-        }
-    }
-    out
-}
-
-fn parse_string_assignment(line: &str, key: &str) -> Option<String> {
-    let rest = line.strip_prefix(key)?.trim_start();
-    let value = rest.strip_prefix('=')?.trim();
-    parse_quoted(value)
-}
-
-fn parse_string_array(value: &str) -> Vec<String> {
-    let Some(start) = value.find('[') else {
-        return Vec::new();
-    };
-    let Some(end) = value.rfind(']') else {
-        return Vec::new();
-    };
-    value[start + 1..end]
-        .split(',')
-        .filter_map(|part| parse_quoted(part.trim()))
-        .collect()
-}
-
-fn parse_quoted(value: &str) -> Option<String> {
-    let value = value.trim();
-    let quote = value.chars().next()?;
-    if quote != '"' && quote != '\'' {
-        return None;
-    }
-    let end = value[1..].find(quote)? + 1;
-    Some(value[1..end].to_owned())
-}
-
-fn enumerate_rust_sources(workspace_root: &Path) -> Result<Vec<String>, String> {
-    if is_git_repository(workspace_root) {
-        if let Ok(output) = Command::new("git")
-            .arg("-C")
-            .arg(workspace_root)
-            .arg("ls-files")
-            .output()
-        {
-            if output.status.success() {
-                let mut files: Vec<String> = String::from_utf8_lossy(&output.stdout)
-                    .lines()
-                    .map(str::trim)
-                    .filter(|line| line.ends_with(".rs"))
-                    .map(str::to_owned)
-                    .collect();
-                files.sort();
-                return Ok(files);
-            }
-        }
-    }
-
-    let mut files = Vec::new();
-    walk_rust_sources(workspace_root, workspace_root, &mut files);
-    files.sort();
-    Ok(files)
-}
-
-fn walk_rust_sources(root: &Path, dir: &Path, out: &mut Vec<String>) {
-    let Ok(read) = fs::read_dir(dir) else { return };
-    for entry in read.flatten() {
-        let path = entry.path();
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
-            if matches!(
-                name.as_ref(),
-                "target" | "node_modules" | "dist" | ".git" | ".tauri"
-            ) {
-                continue;
-            }
-            walk_rust_sources(root, &path, out);
-            continue;
-        }
-        if path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
-            if let Ok(rel) = path.strip_prefix(root) {
-                out.push(rel.to_string_lossy().replace('\\', "/"));
-            }
-        }
-    }
-}
-
-fn index_crate(workspace_root: &Path, info: CrateInfo, rust_files: &[String]) -> CrateIndex {
-    let source_prefix = format!("{}/", info.source_rel.trim_matches('/'));
-    let mut index = CrateIndex::new(info);
-    for rel in rust_files
-        .iter()
-        .filter(|rel| rel.starts_with(&source_prefix))
-        .cloned()
-    {
-        add_file_to_index(workspace_root, &mut index, rel);
-    }
-    index
-}
-
-fn add_file_to_index(workspace_root: &Path, index: &mut CrateIndex, rel: String) {
-    let source_rel = index.info.source_rel.trim_matches('/');
-    let module_rel = rel
-        .strip_prefix(&format!("{source_rel}/"))
-        .unwrap_or(rel.as_str());
-    let module_parts = module_path_parts(module_rel);
-    let declarations = fs::read_to_string(workspace_root.join(&rel))
-        .map(|body| parse_mod_declarations(&body))
-        .unwrap_or_default();
-    index.source_paths.push(rel);
-    if module_parts.is_empty() {
-        index.root_declarations.extend(declarations);
-        return;
-    }
-    let top = module_parts[0].clone();
-    let summary = index.top_modules.entry(top).or_default();
-    if let Some(second) = module_parts.get(1) {
-        summary.second_level.insert(second.clone());
-        if module_parts.len() > 2 {
-            summary.deeper_count += 1;
-        }
-    }
-    for decl in declarations {
-        summary.declarations.insert(decl);
-    }
-}
-
-fn module_path_parts(module_rel: &str) -> Vec<String> {
-    let without_ext = module_rel.trim_end_matches(".rs");
-    if without_ext == "lib" || without_ext == "main" || without_ext == "mod" {
-        return Vec::new();
-    }
-    let mut parts: Vec<String> = without_ext
-        .split('/')
-        .filter(|part| *part != "mod" && !part.is_empty())
-        .map(str::to_owned)
-        .collect();
-    if parts
-        .last()
-        .is_some_and(|part| part == "lib" || part == "main")
-    {
-        parts.pop();
-    }
-    parts
-}
-
-fn parse_mod_declarations(body: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    for line in body.lines() {
-        let trimmed = line.trim_start();
-        let trimmed = trimmed.strip_prefix("pub ").unwrap_or(trimmed);
-        let Some(rest) = trimmed.strip_prefix("mod ") else {
-            continue;
-        };
-        let name: String = rest
-            .chars()
-            .take_while(|ch| ch.is_ascii_alphanumeric() || *ch == '_')
-            .collect();
-        if !name.is_empty() {
-            out.push(name);
-        }
-    }
-    out.sort();
-    out.dedup();
-    out
-}
-
 fn render_architecture_index(
-    indexes: &[CrateIndex],
+    units: &[ProjectUnit],
     generated_paths: &[String],
+    warnings: &[String],
     git_rev: Option<&str>,
 ) -> String {
-    let source_paths: Vec<String> = indexes
+    let source_paths: Vec<String> = units
         .iter()
-        .flat_map(|idx| idx.source_paths.iter().take(8).cloned())
+        .flat_map(|unit| unit.source_paths.iter().take(8).cloned())
         .collect();
-    let fm = frontmatter("Architecture", git_rev, source_paths, false);
+    let fm = frontmatter("Architecture", None, git_rev, source_paths, false);
     let mut generated = String::new();
     generated.push_str("## Generated\n\n");
-    generated.push_str("| Crate | Source root | Module map |\n");
-    generated.push_str("|---|---|---|\n");
-    for (idx, path) in indexes.iter().zip(generated_paths) {
+    generated.push_str("| Unit | Kind | Root | Map |\n");
+    generated.push_str("|---|---|---|---|\n");
+    for (unit, path) in units.iter().zip(generated_paths) {
+        let root = if unit.root_rel.is_empty() {
+            ".".to_owned()
+        } else {
+            format!("`{}`", unit.root_rel)
+        };
         generated.push_str(&format!(
-            "| `{}` | `{}` | [[{}|{}]] |\n",
-            idx.info.name, idx.info.source_rel, path, idx.info.name
+            "| `{}` | {} | {} | [[{}|{}]] |\n",
+            unit.name,
+            unit.kind.as_str(),
+            root,
+            path,
+            unit.slug()
         ));
     }
     generated.push('\n');
+
+    let mut kinds: Vec<&str> = units.iter().map(|u| u.kind.as_str()).collect();
+    kinds.sort_unstable();
+    kinds.dedup();
     generated.push_str("### Counts\n\n");
-    generated.push_str(&format!("- Crates: {}\n", indexes.len()));
+    generated.push_str(&format!("- Units: {}\n", units.len()));
+    generated.push_str(&format!("- Kinds: {}\n", kinds.join(", ")));
     generated.push_str(&format!(
         "- Top-level modules: {}\n",
-        indexes
-            .iter()
-            .map(|idx| idx.top_modules.len())
-            .sum::<usize>()
+        units.iter().map(|u| u.top_modules.len()).sum::<usize>()
     ));
     if let Some(rev) = git_rev {
         generated.push_str(&format!("- Git revision: `{rev}`\n"));
+    }
+    if !warnings.is_empty() {
+        generated.push_str("\n### Warnings\n\n");
+        for warning in warnings {
+            generated.push_str(&format!("- {warning}\n"));
+        }
     }
 
     let mut body = serialize_frontmatter(
@@ -446,30 +184,49 @@ fn render_architecture_index(
     body
 }
 
-fn render_module_note(index: &CrateIndex, git_rev: Option<&str>) -> String {
+fn render_module_note(unit: &ProjectUnit, git_rev: Option<&str>) -> String {
     let fm = frontmatter(
-        &format!("{} modules", index.info.name),
+        &format!("{} ({})", unit.name, unit.kind.as_str()),
+        Some(unit.kind.as_str()),
         git_rev,
-        index.source_paths.clone(),
+        unit.source_paths.clone(),
         false,
     );
     let mut generated = String::new();
-    generated.push_str(&format!("## `{}`\n\n", index.info.name));
-    generated.push_str(&format!("- Manifest: `{}`\n", index.info.manifest_rel));
-    generated.push_str(&format!("- Source root: `{}`\n", index.info.source_rel));
-    generated.push_str(&format!("- Rust sources: {}\n", index.source_paths.len()));
-    if !index.root_declarations.is_empty() {
-        generated.push_str(&format!(
-            "- Root declarations: `{}`\n",
-            index.root_declarations.join("`, `")
-        ));
+    generated.push_str(&format!("## `{}`\n\n", unit.name));
+    generated.push_str(&format!("- Kind: `{}`\n", unit.kind.as_str()));
+    if let Some(manifest) = &unit.manifest_rel {
+        generated.push_str(&format!("- Manifest: `{manifest}`\n"));
     }
+    let root = if unit.root_rel.is_empty() {
+        "."
+    } else {
+        unit.root_rel.as_str()
+    };
+    generated.push_str(&format!("- Root: `{root}`\n"));
+    if let Some(src) = &unit.source_root_rel {
+        generated.push_str(&format!("- Source root: `{src}`\n"));
+    }
+    generated.push_str(&format!("- Source files: {}\n", unit.source_paths.len()));
+    if !unit.root_declarations.is_empty() {
+        let mut decls = unit.root_declarations.clone();
+        decls.sort();
+        decls.dedup();
+        generated.push_str(&format!("- Root declarations: `{}`\n", decls.join("`, `")));
+    }
+    for note in &unit.extra_notes {
+        generated.push_str(&format!("- {note}\n"));
+    }
+
     generated.push_str("\n### Top-Level Modules\n\n");
-    if index.top_modules.is_empty() {
+    if unit.top_modules.is_empty() {
         generated.push_str("_No top-level modules detected._\n");
     } else {
-        for (name, summary) in &index.top_modules {
+        for (name, summary) in &unit.top_modules {
             generated.push_str(&format!("- `{name}`"));
+            if summary.file_count > 0 {
+                generated.push_str(&format!(" ({} files)", summary.file_count));
+            }
             if !summary.second_level.is_empty() {
                 generated.push_str(&format!(
                     " — submodules: `{}`",
@@ -501,22 +258,24 @@ fn render_module_note(index: &CrateIndex, git_rev: Option<&str>) -> String {
             generated.push('\n');
         }
     }
+
     generated.push_str("\n### Source Paths\n\n");
-    for source in index.source_paths.iter().take(80) {
+    for source in unit.source_paths.iter().take(80) {
         generated.push_str(&format!("- `{source}`\n"));
     }
-    if index.source_paths.len() > 80 {
+    if unit.source_paths.len() > 80 {
         generated.push_str(&format!(
             "- ... {} more source paths omitted\n",
-            index.source_paths.len() - 80
+            unit.source_paths.len() - 80
         ));
     }
 
     let body = serialize_frontmatter(
         &fm,
         &format!(
-            "# {} Modules\n\nManual notes about this crate can live above or below the generated block.\n",
-            index.info.name
+            "# {} ({})\n\nManual notes about this unit can live above or below the generated block.\n",
+            unit.name,
+            unit.kind.as_str()
         ),
     );
     splice_block(&body, STATIC_BEGIN, STATIC_END, &generated)
@@ -524,6 +283,7 @@ fn render_module_note(index: &CrateIndex, git_rev: Option<&str>) -> String {
 
 fn frontmatter(
     title: &str,
+    kind: Option<&str>,
     git_rev: Option<&str>,
     source_paths: Vec<String>,
     stale: bool,
@@ -533,6 +293,7 @@ fn frontmatter(
         enabled: Some(true),
         tags: Some(vec![ARCHITECTURE_CATEGORY.to_owned()]),
         managed: Some("static".to_owned()),
+        kind: kind.map(str::to_owned),
         stale: Some(stale),
         git_rev: git_rev.map(str::to_owned),
         source_paths: Some(source_paths),
@@ -568,7 +329,11 @@ fn extract_static_block_inner(content: &str) -> Option<&str> {
     if end < start {
         return None;
     }
-    Some(content[start..end].strip_prefix('\n').unwrap_or(&content[start..end]))
+    Some(
+        content[start..end]
+            .strip_prefix('\n')
+            .unwrap_or(&content[start..end]),
+    )
 }
 
 fn mark_stale_frontmatter(workspace_root: &Path, api_paths: &[String]) -> Result<(), String> {
@@ -620,31 +385,141 @@ members = ["backend"]
         fs::create_dir_all(ws.join("src/workbench/agent_panel")).unwrap();
         fs::write(ws.join("src/lib.rs"), "pub mod workbench;\n").unwrap();
         fs::write(ws.join("src/workbench/mod.rs"), "pub mod agent_panel;\n").unwrap();
-        fs::write(
-            ws.join("src/workbench/agent_panel/mod.rs"),
-            "mod timeline;\n",
-        )
-        .unwrap();
+        fs::write(ws.join("src/workbench/agent_panel/mod.rs"), "mod timeline;\n").unwrap();
         fs::write(ws.join("src/workbench/agent_panel/timeline.rs"), "").unwrap();
         fs::create_dir_all(ws.join("backend/src")).unwrap();
-        fs::write(
-            ws.join("backend/Cargo.toml"),
-            "[package]\nname = \"backend\"\n",
-        )
-        .unwrap();
+        fs::write(ws.join("backend/Cargo.toml"), "[package]\nname = \"backend\"\n").unwrap();
         fs::write(ws.join("backend/src/lib.rs"), "mod api;\n").unwrap();
         fs::write(ws.join("backend/src/api.rs"), "").unwrap();
 
         let report = rebuild_architecture_at(&ws).unwrap();
+        assert_eq!(report.unit_count, 2);
         assert_eq!(report.crate_count, 2);
+        assert_eq!(report.kinds, vec!["rust".to_owned()]);
+        assert!(report.warnings.is_empty());
         assert!(ws
-            .join(".agents/memory/architecture/modules/root-ui.md")
+            .join(".agents/memory/architecture/modules/rust-root-ui.md")
             .is_file());
         let body =
-            fs::read_to_string(ws.join(".agents/memory/architecture/modules/root-ui.md")).unwrap();
+            fs::read_to_string(ws.join(".agents/memory/architecture/modules/rust-root-ui.md"))
+                .unwrap();
+        assert!(body.contains("kind: rust"));
         assert!(body.contains("`workbench`"));
         assert!(body.contains("submodules: `agent_panel`"));
         assert!(body.contains("deeper source files aggregated here"));
+        let _ = fs::remove_dir_all(ws);
+    }
+
+    #[test]
+    fn node_only_workspace_without_cargo() {
+        let ws = temp_ws("node");
+        fs::write(ws.join("package.json"), "{\n  \"name\": \"blxcode-eb\"\n}\n").unwrap();
+        fs::create_dir_all(ws.join("src/views")).unwrap();
+        fs::create_dir_all(ws.join("src/bun")).unwrap();
+        fs::write(ws.join("src/index.ts"), "export {};\n").unwrap();
+        fs::write(ws.join("src/views/app.tsx"), "export {};\n").unwrap();
+        fs::write(ws.join("src/bun/main.ts"), "export {};\n").unwrap();
+
+        let report = rebuild_architecture_at(&ws).unwrap();
+        assert_eq!(report.unit_count, 1);
+        assert_eq!(report.kinds, vec!["node".to_owned()]);
+        let note = ws.join(".agents/memory/architecture/modules/node-blxcode-eb.md");
+        assert!(note.is_file());
+        let body = fs::read_to_string(&note).unwrap();
+        assert!(body.contains("kind: node"));
+        assert!(body.contains("`views`"));
+        assert!(body.contains("`bun`"));
+        let _ = fs::remove_dir_all(ws);
+    }
+
+    #[test]
+    fn no_manifest_falls_back_to_generic() {
+        let ws = temp_ws("nomanifest");
+        fs::create_dir_all(ws.join("scripts")).unwrap();
+        fs::write(ws.join("README.md"), "# hi\n").unwrap();
+        fs::write(ws.join("scripts/build.sh"), "echo hi\n").unwrap();
+
+        let report = rebuild_architecture_at(&ws).unwrap();
+        assert_eq!(report.unit_count, 1);
+        assert_eq!(report.kinds, vec!["generic".to_owned()]);
+        let slug = format!(
+            "generic-{}",
+            super::super::unit::sanitize_slug(ws.file_name().unwrap().to_str().unwrap())
+        );
+        assert!(ws
+            .join(format!(".agents/memory/architecture/modules/{slug}.md"))
+            .is_file());
+        let _ = fs::remove_dir_all(ws);
+    }
+
+    #[test]
+    fn makefile_c_project_uses_make_fallback() {
+        let ws = temp_ws("makec");
+        fs::write(ws.join("Makefile"), "all:\n\tcc -o app src/main.c\n").unwrap();
+        fs::create_dir_all(ws.join("src")).unwrap();
+        fs::create_dir_all(ws.join("include")).unwrap();
+        fs::write(ws.join("src/main.c"), "int main(){return 0;}\n").unwrap();
+        fs::write(ws.join("src/util.c"), "").unwrap();
+        fs::write(ws.join("include/util.h"), "").unwrap();
+
+        let report = rebuild_architecture_at(&ws).unwrap();
+        assert_eq!(report.unit_count, 1);
+        assert_eq!(report.kinds, vec!["make".to_owned()]);
+        let slug = format!(
+            "make-{}",
+            super::super::unit::sanitize_slug(ws.file_name().unwrap().to_str().unwrap())
+        );
+        let note = ws.join(format!(".agents/memory/architecture/modules/{slug}.md"));
+        assert!(note.is_file());
+        let body = fs::read_to_string(&note).unwrap();
+        assert!(body.contains("kind: make"));
+        assert!(body.contains("Languages: C"));
+        assert!(body.contains("`src`"));
+        let _ = fs::remove_dir_all(ws);
+    }
+
+    #[test]
+    fn unknown_language_generic_names_it() {
+        let ws = temp_ws("ocaml");
+        fs::create_dir_all(ws.join("lib")).unwrap();
+        fs::write(ws.join("lib/main.ml"), "let () = ()\n").unwrap();
+        fs::write(ws.join("lib/types.mli"), "").unwrap();
+
+        let report = rebuild_architecture_at(&ws).unwrap();
+        assert_eq!(report.unit_count, 1);
+        assert_eq!(report.kinds, vec!["generic".to_owned()]);
+        let slug = format!(
+            "generic-{}",
+            super::super::unit::sanitize_slug(ws.file_name().unwrap().to_str().unwrap())
+        );
+        let body = fs::read_to_string(
+            ws.join(format!(".agents/memory/architecture/modules/{slug}.md")),
+        )
+        .unwrap();
+        assert!(body.contains("Languages: OCaml"));
+        let _ = fs::remove_dir_all(ws);
+    }
+
+    #[test]
+    fn mixed_rust_and_node() {
+        let ws = temp_ws("mixed");
+        fs::write(ws.join("Cargo.toml"), "[package]\nname = \"core\"\n").unwrap();
+        fs::create_dir_all(ws.join("src")).unwrap();
+        fs::write(ws.join("src/lib.rs"), "pub mod thing;\n").unwrap();
+        fs::write(ws.join("src/thing.rs"), "").unwrap();
+        fs::write(ws.join("package.json"), "{ \"name\": \"frontend\" }\n").unwrap();
+        fs::create_dir_all(ws.join("src/ui")).unwrap();
+        fs::write(ws.join("src/ui/app.ts"), "export {};\n").unwrap();
+
+        let report = rebuild_architecture_at(&ws).unwrap();
+        assert_eq!(report.unit_count, 2);
+        assert_eq!(report.kinds, vec!["node".to_owned(), "rust".to_owned()]);
+        assert!(ws
+            .join(".agents/memory/architecture/modules/rust-core.md")
+            .is_file());
+        assert!(ws
+            .join(".agents/memory/architecture/modules/node-frontend.md")
+            .is_file());
         let _ = fs::remove_dir_all(ws);
     }
 

@@ -6,8 +6,8 @@ Use this skill when a task asks where code lives, how modules relate, how to sta
 
 BLXCode keeps a harness-generated architecture map in workspace memory:
 
-- `ARCHITECTURE.md` is the curated index. Its generated block is refreshed by the harness; its Manual section is safe for prose.
-- `architecture/modules/*.md` are static per-crate module skeletons generated from Rust source layout and Cargo workspace membership.
+- `ARCHITECTURE.md` is the curated index. Its generated block is a **Unit / Kind / Root / Map** table refreshed by the harness; its Manual section is safe for prose.
+- `architecture/modules/*.md` are static per-unit module skeletons. The indexer is multi-language: a plugin registry detects Rust (`Cargo.toml`), Node/TypeScript/JavaScript (`package.json`), Python (`pyproject.toml`/`setup.py`), and CMake (`CMakeLists.txt`) units; falls back to a **Make** map for plain `Makefile`/`GNUmakefile` projects (C/C++ without CMake); and finally to a **Generic** whole-tree map when no manifest is recognized. Generic and Make maps label the detected source languages by extension, so any language without a dedicated indexer (Go, Ada, OCaml, Haskell, Zig, pure JavaScript, …) is still covered. Note files are named `<kind>-<name>.md` (e.g. `rust-blxcode`, `node-blxcode-eb`) and carry a `kind:` frontmatter field. A rebuild never fails just because a manifest is missing.
 - `architecture/flows/` is reserved for hand-authored flow notes.
 
 The map is part of memory, so graph, search, wikilinks, and context attach work with existing memory tools.

@@ -9,6 +9,7 @@ pub struct MemoryFrontmatter {
     pub enabled: Option<bool>,
     pub tags: Option<Vec<String>>,
     pub managed: Option<String>,
+    pub kind: Option<String>,
     pub stale: Option<bool>,
     pub git_rev: Option<String>,
     pub source_paths: Option<Vec<String>>,
@@ -54,6 +55,9 @@ pub fn parse_frontmatter(body: &str) -> (MemoryFrontmatter, String) {
             "managed" => {
                 fm.managed = Some(value.trim_matches(|c| c == '"' || c == '\'').to_owned());
             }
+            "kind" => {
+                fm.kind = Some(value.trim_matches(|c| c == '"' || c == '\'').to_owned());
+            }
             "stale" => {
                 fm.stale = Some(value == "true");
             }
@@ -82,6 +86,9 @@ pub fn serialize_frontmatter(fm: &MemoryFrontmatter, body: &str) -> String {
     }
     if let Some(managed) = &fm.managed {
         lines.push(format!("managed: {managed}"));
+    }
+    if let Some(kind) = &fm.kind {
+        lines.push(format!("kind: {kind}"));
     }
     if let Some(stale) = fm.stale {
         lines.push(format!("stale: {stale}"));

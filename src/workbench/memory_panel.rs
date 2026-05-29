@@ -268,10 +268,19 @@ fn rebuild_architecture_map(state: MemoryState, toast: ToastService) {
             Ok(report) => {
                 load_notes(state.clone(), ws.clone());
                 refresh_graph(state.clone(), ws.clone());
-                toast.success(format!(
-                    "Architecture map rebuilt: {} crates, {} modules, {} files changed",
-                    report.crate_count, report.module_count, report.files_changed
-                ));
+                let kinds = if report.kinds.is_empty() {
+                    String::new()
+                } else {
+                    format!(" ({})", report.kinds.join(", "))
+                };
+                let mut msg = format!(
+                    "Architecture map rebuilt: {} units{}, {} modules, {} files changed",
+                    report.unit_count, kinds, report.module_count, report.files_changed
+                );
+                if !report.warnings.is_empty() {
+                    msg.push_str(&format!(", {} warning(s)", report.warnings.len()));
+                }
+                toast.success(msg);
                 state.error.set(None);
             }
             Err(e) => {

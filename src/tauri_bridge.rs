@@ -1444,8 +1444,11 @@ pub struct RenameReport {
 pub struct RebuildReport {
     pub git_rev: Option<String>,
     pub crate_count: u32,
+    pub unit_count: u32,
     pub module_count: u32,
     pub files_changed: u32,
+    pub kinds: Vec<String>,
+    pub warnings: Vec<String>,
     pub generated_paths: Vec<String>,
 }
 

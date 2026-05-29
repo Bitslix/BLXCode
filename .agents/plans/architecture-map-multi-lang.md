@@ -1,6 +1,6 @@
 # Architecture-Map: mehrsprachige Plugin-Registry
 
-**Status:** planned  
+**Status:** done  
 **Related:** [code-wiki-architecture-map.md](code-wiki-architecture-map.md) (done — Rust-only MVP; this plan fixes multi-language workspaces)
 
 ## Overview
@@ -9,13 +9,13 @@
 
 ## Todos
 
-- [ ] `arch-unit-model` — `ProjectUnit` + `RebuildReport.warnings`; `detect_project_stack` in `detect.rs`
-- [ ] `arch-generic-indexer` — `generic.rs`: git ls-files/walk, depth-2 modules, never fail rebuild
-- [ ] `arch-rust-extract` — `rust.rs`: extract current Cargo/mod logic without root Cargo hard-error
-- [ ] `arch-node-indexer` — `node.rs`: `package.json` + workspaces + `src/` top-level modules
-- [ ] `arch-python-cmake` — `python.rs` + `cmake.rs` indexers
-- [ ] `arch-render-unify` — kind-aware `ARCHITECTURE.md` + module notes in `static_index.rs`
-- [ ] `arch-tests-docs` — fixtures + tests; update `memory-architecture.md`, `CLAUDE.md`, `CHANGELOG`
+- [x] `arch-unit-model` — `ProjectUnit` + `RebuildReport.warnings`; `detect_project_stack` in `detect.rs`
+- [x] `arch-generic-indexer` — `generic.rs`: git ls-files/walk, depth-2 modules, never fail rebuild
+- [x] `arch-rust-extract` — `rust.rs`: extract current Cargo/mod logic without root Cargo hard-error
+- [x] `arch-node-indexer` — `node.rs`: `package.json` + workspaces + `src/` top-level modules
+- [x] `arch-python-cmake` — `python.rs` + `cmake.rs` indexers
+- [x] `arch-render-unify` — kind-aware `ARCHITECTURE.md` + module notes in `static_index.rs`
+- [x] `arch-tests-docs` — fixtures + tests; update `memory-architecture.md`, `CLAUDE.md`, `CHANGELOG`
 
 ---
 

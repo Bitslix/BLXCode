@@ -6,7 +6,7 @@ Persistent plans for multi-step work on **blxcode**. Individual plans live as Ma
 
 | Status | Plan | Description |
 |--------|------|-------------|
-| planned | [architecture-map-multi-lang.md](architecture-map-multi-lang.md) | Architecture-Map Plugin-Registry: Rust/Node/Python/CMake/Generic Indexer; Rebuild ohne Cargo.toml-Pflicht (Fix für TS/Python/C++-Workspaces wie blxcode-eb) |
+| done | [architecture-map-multi-lang.md](architecture-map-multi-lang.md) | Architecture-Map Plugin-Registry: Rust/Node/Python/CMake/Generic Indexer; Rebuild ohne Cargo.toml-Pflicht (Fix für TS/Python/C++/etc-Workspaces) |
 | done | [code-wiki-architecture-map.md](code-wiki-architecture-map.md) | Architektur-Karte im Workspace-Memory: reservierte Kategorie `architecture/` + `ARCHITECTURE.md`, statischer Indexer (`memory_rebuild_architecture`), Write-Guards, Frontmatter-Roundtrip, Shared-Preload, Checklist/Skill/Scout, UI-Pin/Block/Rebuild-Button; MVP + alle Phase-2-Punkte |
 | planned | [leptos-to-typescript-migration.md](leptos-to-typescript-migration.md) | Leptos/WASM restlos entfernen: Vite+React+TS Frontend (~53k LOC), Tauri-Backend unverändert, atomarer Cutover; validiert (5 Subagent-Reviews); ~9–12 PM |
 | done | [agent-timeline-tree-refactor.md](agent-timeline-tree-refactor.md) | AgentTab-Refactor: Tree-Modell mit `EventEnvelope` (seq + parent_call_id), stabile IDs, reaktive Part-Signals, rekursive Subagent-Verschachtelung, verlustfreie Auto-Migration | AgentTab-Refactor: Tree-Modell mit `EventEnvelope` (seq + parent_call_id), stabile IDs, reaktive Part-Signals, rekursive Subagent-Verschachtelung, verlustfreie Auto-Migration |

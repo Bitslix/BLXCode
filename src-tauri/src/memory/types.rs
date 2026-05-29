@@ -131,9 +131,17 @@ pub struct RenameReport {
 #[serde(rename_all = "camelCase")]
 pub struct RebuildReport {
     pub git_rev: Option<String>,
+    /// Number of project units detected. Retained as `crate_count` for
+    /// backward compatibility; equals `unit_count`.
     pub crate_count: u32,
+    pub unit_count: u32,
     pub module_count: u32,
     pub files_changed: u32,
+    /// Distinct unit kinds present (e.g. `["rust", "node"]`).
+    pub kinds: Vec<String>,
+    /// Non-fatal indexer problems. Rebuild never fails just because a
+    /// manifest is missing; recoverable issues land here instead.
+    pub warnings: Vec<String>,
     pub generated_paths: Vec<String>,
 }
 

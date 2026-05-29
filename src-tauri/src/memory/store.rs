@@ -163,16 +163,31 @@ fn safe_join(root: &Path, rel: &str, enforce_md: bool) -> Result<PathBuf, String
     }
     let abs = root.join(&candidate);
     let canon_root = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
-    let canon_abs = abs
-        .parent()
-        .and_then(|p| fs::canonicalize(p).ok())
-        .map(|p| p.join(abs.file_name().unwrap_or_default()))
-        .unwrap_or(abs.clone());
-    if !canon_abs.starts_with(&canon_root) {
+    // Resolve symlinks on the nearest existing ancestor of `abs`. Canonicalizing
+    // `abs` (or its parent) directly fails when the target file or its directory
+    // does not exist yet, and on Windows that mismatch (canonical root carries a
+    // `\\?\` prefix, a non-canonical `abs` does not) produced a spurious "path
+    // escapes memory root". Because every component above is `Normal` (no `..`),
+    // the not-yet-existing tail cannot escape the canonicalized ancestor.
+    let mut existing = abs.as_path();
+    let canon_existing = loop {
+        if let Ok(canon) = fs::canonicalize(existing) {
+            break Some(canon);
+        }
+        match existing.parent() {
+            Some(parent) => existing = parent,
+            None => break None,
+        }
+    };
+    let escapes = match canon_existing {
+        Some(canon) => !canon.starts_with(&canon_root),
+        None => true,
+    };
+    if escapes {
         return err("path escapes memory root");
     }
     if enforce_md {
-        let is_md = canon_abs
+        let is_md = abs
             .extension()
             .and_then(|e| e.to_str())
             .map(|e| e.eq_ignore_ascii_case("md"))
