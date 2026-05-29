@@ -115,6 +115,14 @@ The Bash pipeline remains the Linux/macOS path. The PowerShell pipeline mirrors 
 
 Bundled hook scripts live under `content/hooks/` and are included as Tauri bundle resources. EULA markdown lives under `content/eula/` and is compiled into the frontend. Core harness skill Markdown lives under `src-tauri/src/agent/harness_skills/` — see [Agent Harness](agent-harness.md).
 
+**App icons** — source artwork: `public/blxcode.png`. Tauri bundle icons under `src-tauri/icons/` (`.ico`, `.icns`, PNG sizes, Windows Store, Android, iOS). Regenerate after changing the logo:
+
+```bash
+./scripts/generate-app-icons.sh
+```
+
+`src-tauri/tauri.conf.json` → `bundle.icon` lists the paths used for desktop installers and the window/taskbar icon.
+
 ## See also
 
 - [Architecture](architecture.md)
