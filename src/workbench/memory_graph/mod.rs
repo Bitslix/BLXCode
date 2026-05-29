@@ -904,8 +904,27 @@ fn open_graph_preview(state: MemoryState, preview: GraphPreviewState, node_id: S
 
     if let Some(category) = node_id.strip_prefix("hub:") {
         preview.scope.set(MemoryScope::Workspace);
-        preview.path.set(None);
         preview.label.set(clean_display_label(category));
+        // The architecture category's overview is ARCHITECTURE.md (folded onto
+        // this hub node), so show its curated content rather than a note summary.
+        if category.eq_ignore_ascii_case("architecture") {
+            let path = "ARCHITECTURE.md".to_string();
+            preview.path.set(Some(path.clone()));
+            if let Some(ws) = state.workspace_cwd.get_untracked() {
+                spawn_local(async move {
+                    TimeoutFuture::new(40).await;
+                    match tauri_bridge::memory_read(&ws, &MemoryScope::Workspace, &path).await {
+                        Ok(NoteContent { content, .. }) => preview.content.set(content),
+                        Err(e) => preview.content.set(e),
+                    }
+                    preview.loading.set(false);
+                });
+            } else {
+                preview.loading.set(false);
+            }
+            return;
+        }
+        preview.path.set(None);
         preview.content.set(hub_summary_markdown(&state, category));
         preview.loading.set(false);
         return;

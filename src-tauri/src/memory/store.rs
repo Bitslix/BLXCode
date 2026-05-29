@@ -215,7 +215,11 @@ fn meta_from_file(scope: &MemoryScope, api_path: &str, abs: &Path) -> Option<Not
         .and_then(|s| s.to_str())
         .unwrap_or("")
         .to_owned();
-    let is_overview = basename.eq_ignore_ascii_case("README.md");
+    // README.md is a category's overview; ARCHITECTURE.md is the overview of the
+    // harness-managed `architecture` category, so it is folded onto the category
+    // hub node in the graph instead of appearing as a standalone node.
+    let is_overview =
+        basename.eq_ignore_ascii_case("README.md") || basename.eq_ignore_ascii_case("ARCHITECTURE.md");
     let is_template = !is_learnings && api_path.starts_with(&format!("{TEMPLATES_DIRNAME}/"));
     let title = fm
         .title

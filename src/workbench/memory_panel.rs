@@ -2453,6 +2453,7 @@ fn memory_note_groups_for_scope(
         let bucket = buckets.remove(&cat).unwrap_or_default();
         let (index, notes) = match cat.as_str() {
             CATEGORY_LEARNINGS => split_group_index(bucket, is_learnings_index_note),
+            CATEGORY_ARCHITECTURE => split_group_index(bucket, is_architecture_index_note),
             _ => split_group_index(bucket, is_category_index_note),
         };
         // Global groups use a "global:" prefix on the key so they don't clash with workspace keys.
@@ -2497,6 +2498,12 @@ fn is_category_index_note(note: &NoteMeta) -> bool {
         .file_name()
         .and_then(|name| name.to_str())
         .is_some_and(|name| name.eq_ignore_ascii_case("README.md"))
+}
+
+/// The architecture category's index is `ARCHITECTURE.md` (not a `README.md`),
+/// so it is shown as the category README rather than a standalone file row.
+fn is_architecture_index_note(note: &NoteMeta) -> bool {
+    note.path.eq_ignore_ascii_case(ARCHITECTURE_INDEX_PATH)
 }
 
 fn root_memory_notes_for_scope(notes: &[NoteMeta], scope: &MemoryScope) -> Vec<NoteMeta> {
