@@ -501,6 +501,81 @@ members = ["backend"]
     }
 
     #[test]
+    fn go_module_from_go_mod() {
+        let ws = temp_ws("go");
+        fs::write(ws.join("go.mod"), "module github.com/acme/widget\n\ngo 1.22\n").unwrap();
+        fs::create_dir_all(ws.join("internal/store")).unwrap();
+        fs::write(ws.join("main.go"), "package main\n").unwrap();
+        fs::write(ws.join("internal/store/db.go"), "package store\n").unwrap();
+
+        let report = rebuild_architecture_at(&ws).unwrap();
+        assert_eq!(report.unit_count, 1);
+        assert_eq!(report.kinds, vec!["go".to_owned()]);
+        let body = fs::read_to_string(
+            ws.join(".agents/memory/architecture/modules/go-widget.md"),
+        )
+        .unwrap();
+        assert!(body.contains("kind: go"));
+        assert!(body.contains("`internal`"));
+        let _ = fs::remove_dir_all(ws);
+    }
+
+    #[test]
+    fn zig_project_from_build_zig() {
+        let ws = temp_ws("zig");
+        fs::write(ws.join("build.zig"), "// build\n").unwrap();
+        fs::write(ws.join("build.zig.zon"), ".{\n    .name = \"raylib_game\",\n}\n").unwrap();
+        fs::create_dir_all(ws.join("src/render")).unwrap();
+        fs::write(ws.join("src/main.zig"), "pub fn main() void {}\n").unwrap();
+        fs::write(ws.join("src/render/draw.zig"), "").unwrap();
+
+        let report = rebuild_architecture_at(&ws).unwrap();
+        assert_eq!(report.unit_count, 1);
+        assert_eq!(report.kinds, vec!["zig".to_owned()]);
+        let body = fs::read_to_string(
+            ws.join(".agents/memory/architecture/modules/zig-raylib-game.md"),
+        )
+        .unwrap();
+        assert!(body.contains("kind: zig"));
+        assert!(body.contains("`render`"));
+        let _ = fs::remove_dir_all(ws);
+    }
+
+    #[test]
+    fn jai_project_by_extension() {
+        let ws = temp_ws("jai");
+        fs::create_dir_all(ws.join("modules")).unwrap();
+        fs::write(ws.join("first.jai"), "main :: () {}\n").unwrap();
+        fs::write(ws.join("modules/math.jai"), "").unwrap();
+
+        let report = rebuild_architecture_at(&ws).unwrap();
+        assert_eq!(report.unit_count, 1);
+        assert_eq!(report.kinds, vec!["jai".to_owned()]);
+        let slug = format!(
+            "jai-{}",
+            super::super::unit::sanitize_slug(ws.file_name().unwrap().to_str().unwrap())
+        );
+        let body = fs::read_to_string(
+            ws.join(format!(".agents/memory/architecture/modules/{slug}.md")),
+        )
+        .unwrap();
+        assert!(body.contains("kind: jai"));
+        assert!(body.contains("`modules`"));
+        let _ = fs::remove_dir_all(ws);
+    }
+
+    #[test]
+    fn go_without_go_mod_still_dedicated() {
+        let ws = temp_ws("gopath");
+        fs::create_dir_all(ws.join("cmd")).unwrap();
+        fs::write(ws.join("cmd/app.go"), "package main\n").unwrap();
+
+        let report = rebuild_architecture_at(&ws).unwrap();
+        assert_eq!(report.kinds, vec!["go".to_owned()]);
+        let _ = fs::remove_dir_all(ws);
+    }
+
+    #[test]
     fn mixed_rust_and_node() {
         let ws = temp_ws("mixed");
         fs::write(ws.join("Cargo.toml"), "[package]\nname = \"core\"\n").unwrap();

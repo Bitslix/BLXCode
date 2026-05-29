@@ -6,6 +6,7 @@
 //! a recognized single-language workspace does not also get a redundant
 //! whole-tree generic map.
 
+use super::common::ext_in;
 use super::unit::UnitKind;
 
 fn basename(path: &str) -> &str {
@@ -14,6 +15,10 @@ fn basename(path: &str) -> &str {
 
 fn has_manifest(tracked: &[String], filename: &str) -> bool {
     tracked.iter().any(|p| basename(p) == filename)
+}
+
+fn has_ext(tracked: &[String], ext: &str) -> bool {
+    tracked.iter().any(|p| ext_in(p, &[ext]))
 }
 
 /// Specialized unit kinds to index, in priority order. May be empty (e.g. a
@@ -32,6 +37,19 @@ pub fn detect_project_stack(tracked: &[String]) -> Vec<UnitKind> {
     }
     if has_manifest(tracked, "CMakeLists.txt") {
         kinds.push(UnitKind::Cmake);
+    }
+    // Go and Zig: manifest-based when present (rich per-module units), but also
+    // triggered by source extension so a manifest-less project still gets a
+    // dedicated unit instead of the Generic map.
+    if has_manifest(tracked, "go.mod") || has_ext(tracked, "go") {
+        kinds.push(UnitKind::Go);
+    }
+    if has_manifest(tracked, "build.zig") || has_ext(tracked, "zig") {
+        kinds.push(UnitKind::Zig);
+    }
+    // Jai has no standard manifest, so it is detected purely by extension.
+    if has_ext(tracked, "jai") {
+        kinds.push(UnitKind::Jai);
     }
     kinds
 }

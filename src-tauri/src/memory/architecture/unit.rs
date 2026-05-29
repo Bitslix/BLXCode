@@ -15,6 +15,9 @@ pub enum UnitKind {
     Python,
     Cmake,
     Make,
+    Go,
+    Zig,
+    Jai,
     Generic,
 }
 
@@ -26,6 +29,9 @@ impl UnitKind {
             UnitKind::Python => "python",
             UnitKind::Cmake => "cmake",
             UnitKind::Make => "make",
+            UnitKind::Go => "go",
+            UnitKind::Zig => "zig",
+            UnitKind::Jai => "jai",
             UnitKind::Generic => "generic",
         }
     }

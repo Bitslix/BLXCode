@@ -6,10 +6,13 @@
 
 mod cmake;
 mod generic;
+mod go;
+mod jai;
 mod make;
 mod node;
 mod python;
 mod rust;
+mod zig;
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -36,6 +39,9 @@ fn indexer_for(kind: UnitKind) -> Box<dyn Indexer> {
         UnitKind::Python => Box::new(python::PythonIndexer),
         UnitKind::Cmake => Box::new(cmake::CmakeIndexer),
         UnitKind::Make => Box::new(make::MakeIndexer),
+        UnitKind::Go => Box::new(go::GoIndexer),
+        UnitKind::Zig => Box::new(zig::ZigIndexer),
+        UnitKind::Jai => Box::new(jai::JaiIndexer),
         UnitKind::Generic => Box::new(generic::GenericIndexer),
     }
 }

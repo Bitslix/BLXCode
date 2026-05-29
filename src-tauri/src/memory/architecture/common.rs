@@ -7,6 +7,7 @@ use std::path::Path;
 use std::process::Command;
 
 use crate::git_info::is_git_repository;
+use crate::memory::architecture::unit::{ProjectUnit, UnitKind};
 
 /// Directory names skipped during enumeration. Any dot-prefixed directory is
 /// also skipped (covers `.git`, `.tauri`, `.venv`, `.next`, `.idea`, …).
@@ -121,6 +122,7 @@ pub fn language_for_extension(ext: &str) -> Option<&'static str> {
         "rb" => "Ruby",
         "go" => "Go",
         "zig" => "Zig",
+        "jai" => "Jai",
         "c" | "h" => "C",
         "cc" | "cpp" | "cxx" | "c++" | "hpp" | "hh" | "hxx" | "h++" | "inl" | "ipp" => "C++",
         "m" | "mm" => "Objective-C",
@@ -157,6 +159,97 @@ pub fn language_for_extension(ext: &str) -> Option<&'static str> {
         _ => return None,
     };
     Some(lang)
+}
+
+/// Directory portion of a forward-slash path (`""` for a root-level entry).
+pub fn directory_of(path: &str) -> String {
+    match path.rfind('/') {
+        Some(i) => path[..i].to_owned(),
+        None => String::new(),
+    }
+}
+
+/// Join a relative directory with a child segment (`""` dir = the child itself).
+pub fn join_rel(dir: &str, child: &str) -> String {
+    if dir.is_empty() {
+        child.to_owned()
+    } else {
+        format!("{dir}/{child}")
+    }
+}
+
+/// Whether `rel` lives under directory `dir` (`dir == ""` is the workspace root).
+pub fn under(dir: &str, rel: &str) -> bool {
+    if dir.is_empty() {
+        true
+    } else {
+        rel.starts_with(&format!("{dir}/"))
+    }
+}
+
+fn strip_base<'a>(rel: &'a str, base: &str) -> &'a str {
+    if base.is_empty() {
+        rel
+    } else {
+        rel.strip_prefix(&format!("{base}/")).unwrap_or(rel)
+    }
+}
+
+/// Whether a path's extension is one of `exts` (case-insensitive, no dot).
+pub fn ext_in(rel: &str, exts: &[&str]) -> bool {
+    extension_of(rel)
+        .map(|e| exts.contains(&e.as_str()))
+        .unwrap_or(false)
+}
+
+/// Attribute one source file to a unit by its first path segment below `base`.
+/// A file directly under `base` is recorded as a root declaration; otherwise the
+/// first segment becomes a top-level module and the second its submodule.
+pub fn attribute_by_top_segment(unit: &mut ProjectUnit, base: &str, rel: String) {
+    let parts: Vec<String> = strip_base(&rel, base)
+        .split('/')
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+        .collect();
+    unit.source_paths.push(rel);
+    match parts.as_slice() {
+        [] => {}
+        [file] => unit.root_declarations.push(file.clone()),
+        [first, rest @ ..] => {
+            let summary = unit.top_modules.entry(first.clone()).or_default();
+            summary.file_count += 1;
+            if let Some(second) = rest.first() {
+                summary.second_level.insert(second.clone());
+                if rest.len() > 1 {
+                    summary.deeper_count += 1;
+                }
+            }
+        }
+    }
+}
+
+/// Build a single whole-tree unit of `kind`, named after the workspace
+/// directory, grouping every tracked file with one of `exts` by its first path
+/// segment. Used as the no-manifest path for language indexers (e.g. Jai, or Go
+/// without a `go.mod`) so those languages still get a dedicated, named unit
+/// rather than falling through to the Generic map.
+pub fn whole_tree_unit(
+    workspace_root: &Path,
+    tracked: &[String],
+    kind: UnitKind,
+    exts: &[&str],
+) -> ProjectUnit {
+    let name = workspace_root
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("workspace")
+        .to_owned();
+    let mut unit = ProjectUnit::new(kind, name);
+    unit.source_root_rel = Some(".".to_owned());
+    for rel in tracked.iter().filter(|r| ext_in(r, exts)) {
+        attribute_by_top_segment(&mut unit, "", rel.clone());
+    }
+    unit
 }
 
 /// Count source files per language label, sorted by descending count then name.

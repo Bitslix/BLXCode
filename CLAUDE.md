@@ -89,7 +89,7 @@ Module layout:
 Workspace memory includes a harness-generated architecture map:
 
 - `.agents/memory/ARCHITECTURE.md` — curated index with a harness-managed Generated block (a **Unit / Kind / Root / Map** table) and a Manual section for human prose.
-- `.agents/memory/architecture/modules/*.md` — generated per-unit module skeletons named `<kind>-<name>.md`. The indexer is a multi-language plugin registry (`src-tauri/src/memory/architecture/`): `detect.rs` selects Rust/Node/Python/CMake indexers under `indexers/`, with a Make fallback (plain `Makefile` projects, e.g. C without CMake) and a Generic whole-tree fallback so a rebuild never fails when no manifest is present (e.g. the TypeScript `blxcode-eb` workspace indexes as `node-blxcode-eb`). Generic/Make maps label detected source languages by extension, so any language without a dedicated indexer (Go, Ada, OCaml, …) is still covered.
+- `.agents/memory/architecture/modules/*.md` — generated per-unit module skeletons named `<kind>-<name>.md`. The indexer is a multi-language plugin registry (`src-tauri/src/memory/architecture/`): `detect.rs` selects Rust/Node/Python/CMake/Go/Zig/Jai indexers under `indexers/`, with a Make fallback (plain `Makefile` projects, e.g. C without CMake) and a Generic whole-tree fallback so a rebuild never fails when no manifest is present (e.g. the TypeScript `blxcode-eb` workspace indexes as `node-blxcode-eb`). Generic/Make maps label detected source languages by extension, so any language without a dedicated indexer (Go, Ada, OCaml, …) is still covered.
 - `.agents/memory/architecture/flows/` — reserved for hand-authored flow notes.
 - `.agents/memory/.meta/architecture-state.json` — local state used for staleness checks; ignored by git.
 
