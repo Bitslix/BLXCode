@@ -51,6 +51,16 @@ Open **Settings → API Keys**, set the key for the provider shown in the error 
 
 See [Agent Harness](agent-harness.md).
 
+## Windows: Flashing Console Windows Or Frozen UI With Git Open
+
+On Windows, older builds could flash a console window for every short Git subprocess, or feel frozen while File Diff / Git Commits refreshed — especially in repos where `cargo tauri dev` keeps writing to `target/`.
+
+**0.3.1 and later** hide those subprocess windows, run blocking Git work off the UI thread, and ignore build/dependency folders in the status watcher. Update to the latest release if you still see the issue.
+
+## Linux: Window Stutters While Git Sidebar Is Active
+
+If the workbench stutters when dragging the window during active Git refreshes (common during `cargo tauri dev` with a `target/` directory), upgrade to **0.3.1+** — Git commands no longer block the main thread, and the watcher skips `target/`, `node_modules/`, and similar paths.
+
 ## Shell Or Git Tool Says Call environment_detect First
 
 The agent must run `environment_detect` once per workspace session before `shell_exec` or Git tools. Switching workspaces clears the cache — start a new turn after switching so the agent can detect again.

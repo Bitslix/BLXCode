@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+### Fixed
+
+### Removed
+
+
+## [0.3.1] - 2026-05-29
+
+### Added
+
+### Changed
+
 - **Git subprocesses no longer pop console windows on Windows**: every child process the app spawns (git, `rg`, `npm`, `tar`, and the agent's non-interactive shell) now goes through a new `proc::command` helper that sets the `CREATE_NO_WINDOW` (`0x0800_0000`) creation flag on Windows. Previously each short-lived child flashed a console window; under the busy git-status watcher this became a storm of flickering terminals that made the window unusable. No behavior change on macOS/Linux. Replaced all ~15 direct `Command::new` call sites (`git_status`, `git_info`, `git_graph`, `git_sync`, `git_commit_ai`, `memory/architecture/common`, `agent/git_agent`, `agent/workspace_agent`, `agent/environment`, `agent/shell_exec`, `skills_rules/install`).
 
 - **Blocking git commands run off the main thread**: synchronous `#[tauri::command]` handlers execute on the main thread, so a blocking `git` subprocess there stalled the event loop and made the window stutter (visible when dragging it across the desktop). The git read/write commands triggered by the status watcher and the File Diff / Git Commits toolbars — `git_status_changes`, `git_file_diff`, `git_stage_file`, `git_unstage_file`, `git_stage_all`, `git_unstage_all`, `git_commit`, `git_commit_graph`, `git_sync_status`, `git_fetch`, `git_pull`, `git_push` — are now `async` and offload their work via a new `proc::run_blocking` helper (`tauri::async_runtime::spawn_blocking`), keeping the UI thread free to pump events. `fetch`/`pull`/`push` (network operations) no longer freeze the UI either. The frontend interface is unchanged.

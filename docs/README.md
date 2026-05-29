@@ -64,4 +64,4 @@ BLXCode is a local-first desktop workbench. Workspaces, terminals, memory, plans
 
 ## Release notes
 
-User-facing notes for each version live in [`docs/releases/`](releases/) (for example [`v0.3.0.md`](releases/v0.3.0.md)). They power the in-app **What's new** dialog after updates and should stay non-technical. The technical changelog remains in [`CHANGELOG.md`](../CHANGELOG.md) at the repository root.
+User-facing notes for each version live in [`docs/releases/`](releases/) (for example [`v0.3.1.md`](releases/v0.3.1.md)). They power the in-app **What's new** dialog after updates and should stay non-technical. The technical changelog remains in [`CHANGELOG.md`](../CHANGELOG.md) at the repository root.
