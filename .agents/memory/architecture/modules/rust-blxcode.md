@@ -19,8 +19,8 @@ Manual notes about this unit can live above or below the generated block.
 - Manifest: `src-tauri/Cargo.toml`
 - Root: `src-tauri`
 - Source root: `src-tauri/src`
-- Source files: 85
-- Root declarations: `agent`, `agent_hooks`, `agent_settings`, `agents_layout`, `api_keys`, `app_paths`, `browser_host`, `clipboard`, `commands`, `fs_entries`, `git_graph`, `git_info`, `git_status`, `git_sync`, `image`, `media_keys`, `memory`, `plans`, `pointers`, `pty_host`, `skills_rules`, `tasks`, `updater`, `voice`, `workbench_state`
+- Source files: 86
+- Root declarations: `agent`, `agent_hooks`, `agent_settings`, `agents_layout`, `api_keys`, `app_paths`, `browser_host`, `clipboard`, `commands`, `fs_entries`, `git_graph`, `git_info`, `git_status`, `git_sync`, `image`, `media_keys`, `memory`, `plans`, `plans_index`, `pointers`, `pty_host`, `skills_rules`, `tasks`, `updater`, `voice`, `workbench_state`
 
 ### Top-Level Modules
 
@@ -42,6 +42,7 @@ Manual notes about this unit can live above or below the generated block.
 - `media_keys` (1 files)
 - `memory` (23 files) — submodules: `architecture`, `frontmatter`, `graph`, `paths`, `store`, `types`, `wikilinks`; declarations: `architecture_guard_tests`, `cmake`, `common`, `detect`, `frontmatter`, `generic`, `go`, `graph`, `indexers`, `jai`, `make`, `node`, `paths`, `pointer_tests`, `python`, `rust`, `state`, `static_index`, `store`, `tests`, `types`, `unit`, `wikilinks`, `zig`; 15 deeper source files aggregated here
 - `plans` (1 files); declarations: `tests`
+- `plans_index` (1 files); declarations: `tests`
 - `pointers` (1 files); declarations: `tests`
 - `pty_host` (1 files)
 - `skills_rules` (6 files) — submodules: `commands`, `install`, `pointers`, `store`, `types`; declarations: `commands`, `install`, `pointers`, `store`, `tests`, `types`
@@ -120,6 +121,7 @@ Manual notes about this unit can live above or below the generated block.
 - `src-tauri/src/memory/types.rs`
 - `src-tauri/src/memory/wikilinks.rs`
 - `src-tauri/src/plans.rs`
+- `src-tauri/src/plans_index.rs`
 - `src-tauri/src/pointers/mod.rs`
 - `src-tauri/src/pty_host.rs`
 - `src-tauri/src/skills_rules/commands.rs`
@@ -131,6 +133,5 @@ Manual notes about this unit can live above or below the generated block.
 - `src-tauri/src/tasks.rs`
 - `src-tauri/src/updater.rs`
 - `src-tauri/src/voice/commands.rs`
-- `src-tauri/src/voice/mod.rs`
-- ... 5 more source paths omitted
+- ... 6 more source paths omitted
 <!-- architecture:static:end -->
