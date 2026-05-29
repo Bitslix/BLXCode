@@ -206,7 +206,7 @@ fn handle_tmux_keydown(
         return false;
     }
 
-    if active_workspace_terminal_focused(wb) {
+    if terminal_has_live_focus() {
         return false;
     }
 
@@ -357,20 +357,27 @@ fn key_event_in_text_field(ke: &KeyboardEvent) -> bool {
         .is_some_and(|v| v.eq_ignore_ascii_case("true"))
 }
 
-fn active_workspace_terminal_focused(wb: WorkbenchService) -> bool {
-    let Some(workspace_id) = wb.active_id().get_untracked() else {
+/// True when keyboard focus *currently* sits inside a workspace terminal
+/// (xterm) cell.
+///
+/// We must read the live DOM focus here, not the sticky
+/// `focused_terminal_by_workspace` map: that map remembers the last-focused
+/// terminal per workspace for notification/accent purposes and is never
+/// cleared on blur. Consulting it would permanently disable tmux chords once
+/// any terminal was ever focused — notably on Windows (WebView2), where the
+/// xterm textarea grabs focus as soon as the terminal grid mounts.
+fn terminal_has_live_focus() -> bool {
+    let Some(active) = web_sys::window()
+        .and_then(|w| w.document())
+        .and_then(|d| d.active_element())
+    else {
         return false;
     };
-    let storage_key = wb.workspaces().with_untracked(|list| {
-        list.iter()
-            .find(|w| w.id == workspace_id)
-            .map(|w| w.storage_key.clone())
-    });
-    let Some(storage_key) = storage_key else {
-        return false;
-    };
-    wb.focused_terminal_by_workspace()
-        .with_untracked(|m| m.contains_key(&storage_key))
+    active
+        .closest(".ws-term-cell")
+        .ok()
+        .flatten()
+        .is_some()
 }
 
 fn defer_browser_bounds(wb: WorkbenchService, embed: BrowserEmbedSurface) {
