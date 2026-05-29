@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-f4a261?style=for-the-badge" alt="MIT License" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.2.8-8a7cff?style=for-the-badge" alt="Version 0.2.8" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.3.2-8a7cff?style=for-the-badge" alt="Version 0.3.2" /></a>
   <img src="https://img.shields.io/badge/Rust-2021-b7410e?style=for-the-badge&logo=rust&logoColor=white" alt="Rust 2021" />
   <img src="https://img.shields.io/badge/Tauri-2-24c8db?style=for-the-badge&logo=tauri&logoColor=white" alt="Tauri 2" />
   <img src="https://img.shields.io/badge/Leptos-0.8-ef3939?style=for-the-badge" alt="Leptos 0.8" />
@@ -49,7 +49,7 @@ Create a workspace, assign terminal slots to Claude, Codex, Gemini, OpenCode, or
 | 🖥️ **Native shell** | Tauri 2 + Leptos 0.8 WASM (Trunk) on Linux, macOS, and Windows |
 | 📑 **Center tabs** | VS Code–style tab strip: Terminals, file preview, diff viewer, Settings |
 | 🧩 **Multi-terminal grids** | Preset layouts, split panes, drag-and-drop slot reorder, session resume |
-| 📂 **Sidebar** | Project Files tree, **File Diff** panel with stage/unstage, Git commit graph |
+| 📂 **Sidebar** | Project Files (new file/folder), **File Diff** (stage, commit, push), Git graph (fetch/pull) |
 | ⌨️ **Shortcuts** | tmux-style `Ctrl+b` chords (default) or legacy direct chords |
 | 🎨 **20 themes** | BLXCode, Dracula, Catppuccin, Nord, Rosé Pine, GitHub Dark, and more |
 
@@ -59,17 +59,17 @@ Create a workspace, assign terminal slots to Claude, Codex, Gemini, OpenCode, or
 |---|---|
 | 👁️ **Rich preview** | Images, video, Markdown, Mermaid, syntax-highlighted code (highlight.js) |
 | 📜 **Policy docs** | `LICENSE`, `README`, `CONTRIBUTING`, `SECURITY` — rendered with hero banners |
-| 🔀 **Diff viewer** | Unified diffs in center tabs; live refresh via filesystem watcher |
-| 🌿 **Git graph** | Swim-lane commit history; auto-refresh on working-tree changes |
+| 🔀 **Diff viewer** | Unified diffs in center tabs; commit (optional AI message) from the toolbar |
+| 🌿 **Git sync** | Fetch, pull, and push from the sidebar; swim-lane graph; live status watcher |
 | ✂️ **Code handoff** | Drag-select line ranges → insert into terminal or attach to agent |
 
 ### Plans, memory & tasks
 
 | | |
 |---|---|
-| 📋 **Plan Manager** | Markdown plans under `.agents/plans/`, task syntax, load-into-agent |
+| 📋 **Plan Manager** | Markdown plans under `.agents/plans/`, auto `PLANS.md` index, load-into-agent |
 | 📊 **Kanban board** | Drag-and-drop columns across plan tasks with Markdown write-back |
-| 🧠 **Memory** | Dynamic categories, learnings, 2D/3D graph with category clustering |
+| 🧠 **Memory** | Categories, learnings, **architecture map**, 2D/3D graph; agent memory pointers |
 | ✅ **Tasks** | `.blxcode/tasks/` with plan-linked grouping in the agent panel |
 
 ### BLXCode Agent
@@ -96,13 +96,13 @@ Create a workspace, assign terminal slots to Claude, Codex, Gemini, OpenCode, or
 
 ## What's new
 
-**Latest release: [0.2.8](CHANGELOG.md#028---2026-05-28)** — drag terminals between slots and workspaces, drop a terminal onto the Agent as live context, and boot more reliably when restoring an empty workspace.
+**Latest release: [0.3.2](CHANGELOG.md#032---2026-05-29)** · [friendly notes](docs/releases/v0.3.2.md) — terminal drag & drop works on Windows (WebView2).
 
-**[0.2.7](CHANGELOG.md#027---2026-05-27)** — File Diff sidebar, center diff viewer, Linux-safe terminal clipboard menu, memory onboarding, browser stability fixes, and Git graph refresh polish.
+**[0.3.1](CHANGELOG.md#031---2026-05-29)** · [notes](docs/releases/v0.3.1.md) — smoother sidebar Git (background thread); no flashing console windows on Windows; calmer status watcher during `cargo tauri dev`.
 
-**[0.2.3](CHANGELOG.md#023---2026-05-22)** — center multi-view tabs, rich file preview, docked Settings, 20 themes, GitHub auto-updater, centralized API Keys, per-turn chat metrics, agent question cards.
+**[0.3.0](CHANGELOG.md#030---2026-05-29)** · [notes](docs/releases/v0.3.0.md) — commit and sync from File Diff / Git Commits; project architecture map in Memory; post-update “What’s new” dialog; themed confirmations; plans index auto-sync.
 
-**[0.2.0](CHANGELOG.md#020---2026-05-21)** — Kanban board, expandable Rules/Skills cards, agent chat maximize, Leptos 0.8 upgrade.
+**[0.2.8](CHANGELOG.md#028---2026-05-28)** — drag terminals between slots and workspaces; terminal → Agent context; reliable empty-workspace boot on Linux.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full history and [Unreleased](CHANGELOG.md#unreleased) for work in progress.
 
@@ -286,7 +286,7 @@ BLXCode ships **14 locales** with compile-time string checks. Change language vi
 
 ## Status
 
-BLXCode is early-stage open source. The workbench, agent harness, file preview, Git tooling, and settings revamp are in active use on `main`; APIs and on-disk formats may still evolve. Current crate version: **0.2.8**.
+BLXCode is early-stage open source. The workbench, agent harness, sidebar Git, memory architecture map, and settings revamp are in active use on `main`; APIs and on-disk formats may still evolve. Current crate version: **0.3.2**.
 
 ## Community
 
@@ -298,7 +298,7 @@ BLXCode is early-stage open source. The workbench, agent harness, file preview, 
 | 🆘 **Help** | [SUPPORT.md](SUPPORT.md) — docs, troubleshooting, and where to ask |
 | 🤝 **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) — setup, conventions, PR checklist |
 
-The in-app auto-updater pulls signed builds from GitHub Releases. Release notes live in [CHANGELOG.md](CHANGELOG.md).
+The in-app auto-updater pulls signed builds from GitHub Releases. User-facing release notes: [docs/releases/](docs/releases/). Technical history: [CHANGELOG.md](CHANGELOG.md).
 
 ## Contributing
 
