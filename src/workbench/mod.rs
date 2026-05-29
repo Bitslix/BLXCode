@@ -16,6 +16,7 @@ mod file_diff;
 mod file_diff_section;
 mod file_preview;
 mod git_graph;
+mod git_sync_controls;
 mod harness_chords;
 mod harness_image_pane;
 mod harness_ui;
@@ -154,6 +155,7 @@ pub fn WorkbenchShell() -> impl IntoView {
     let updates = UpdateService::new();
     let post_update_notes = PostUpdateNotesService::new();
     let slot_dnd = TerminalSlotDragService::new();
+    let git_sync = git_sync_controls::GitSyncControls::new();
 
     provide_context(wb);
     provide_context(harness);
@@ -164,6 +166,7 @@ pub fn WorkbenchShell() -> impl IntoView {
     provide_context(updates);
     provide_context(post_update_notes);
     provide_context(slot_dnd);
+    provide_context(git_sync);
 
     // Hydrate from persisted snapshot before auto-save kicks in.
     let hydrated = RwSignal::new(false);

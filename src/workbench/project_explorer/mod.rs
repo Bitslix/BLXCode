@@ -8,10 +8,12 @@ use crate::tauri_bridge::{
 };
 use crate::workbench::sidebar_view_section::{SidebarSectionIconBtn, SidebarViewSection};
 use crate::workbench::WorkbenchService;
+use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
 use std::collections::HashSet;
+use wasm_bindgen::JsCast;
 
 /// Pending inline-create row. `parent_rel` is the folder it will be created in
 /// (empty string = workspace root); `is_dir` selects folder vs. empty file.
@@ -55,6 +57,24 @@ pub fn ProjectExplorerSection() -> impl IntoView {
     let draft = RwSignal::new(None::<Draft>);
     // Folder the toolbar New File/Folder actions target (None = workspace root).
     let selected_dir = RwSignal::new(None::<String>);
+
+    // Clear the selection when the user clicks anywhere outside the explorer
+    // section (empty-space clicks *inside* the tree are handled by the body's
+    // own click handler, since rows stop propagation).
+    let outside_click = window_event_listener_untyped("mousedown", move |ev| {
+        if selected_dir.get_untracked().is_none() {
+            return;
+        }
+        let inside = ev
+            .target()
+            .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+            .and_then(|el| el.closest(".sidebar-view-section--sb-explorer").ok().flatten())
+            .is_some();
+        if !inside {
+            selected_dir.set(None);
+        }
+    });
+    on_cleanup(move || outside_click.remove());
 
     // Re-sync section open state after hydrate / workspace list updates.
     Effect::new(move |_| {
@@ -251,7 +271,10 @@ fn ProjectExplorerBody(
     });
 
     view! {
-        <div class="project-explorer">
+        <div
+            class="project-explorer"
+            on:click=move |_| selected_dir.set(None)
+        >
             <Show
                 when=move || is_tauri_shell()
                 fallback=move || {

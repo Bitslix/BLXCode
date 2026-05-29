@@ -6,10 +6,11 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    git_fetch, git_pull, git_push, git_stage_file, git_status_changes, git_status_watch_start,
-    git_status_watch_stop, git_sync_status, git_unstage_file, listen_git_status_dirty, ChangedFile,
-    LineStats, SyncStatus, TauriEventListener, GIT_MISSING_CODE,
+    git_stage_file, git_status_changes, git_status_watch_start, git_status_watch_stop,
+    git_unstage_file, listen_git_status_dirty, ChangedFile, LineStats, TauriEventListener,
+    GIT_MISSING_CODE,
 };
+use crate::workbench::git_sync_controls::{run_sync_op, GitSyncControls, SyncOp};
 use crate::workbench::sidebar_view_section::{SidebarSectionIconBtn, SidebarViewSection};
 use crate::workbench::toast::ToastService;
 use crate::workbench::WorkbenchService;
@@ -27,60 +28,22 @@ enum DiffErrorKind {
     LoadFailed,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum SyncOp {
-    Fetch,
-    Pull,
-    Push,
-}
-
-/// Maps a (op, `SyncOutcome.kind`) pair to `(is_success, message key)` so the
-/// frontend can toast a localized result without parsing git text.
-fn sync_message(op: SyncOp, kind: &str) -> (bool, I18nKey) {
-    match kind {
-        "ok" => (
-            true,
-            match op {
-                SyncOp::Fetch => I18nKey::SbDiffFetched,
-                SyncOp::Pull => I18nKey::SbDiffPulled,
-                SyncOp::Push => I18nKey::SbDiffPushed,
-            },
-        ),
-        "updated" => (
-            true,
-            if matches!(op, SyncOp::Push) {
-                I18nKey::SbDiffPushed
-            } else {
-                I18nKey::SbDiffPulled
-            },
-        ),
-        "up_to_date" => (true, I18nKey::SbDiffSyncUpToDate),
-        "conflict" => (false, I18nKey::SbDiffPullConflict),
-        "dirty" => (false, I18nKey::SbDiffDirtyBlocked),
-        "non_fast_forward" => (false, I18nKey::SbDiffNonFastForward),
-        "no_upstream" => (false, I18nKey::SbDiffNoUpstream),
-        "auth" => (false, I18nKey::SbDiffAuthFailed),
-        "no_remote" => (false, I18nKey::SbDiffNoRemote),
-        "lock" => (false, I18nKey::SbDiffSyncLocked),
-        "network" => (false, I18nKey::SbDiffNetworkError),
-        _ => (false, I18nKey::SbDiffSyncError),
-    }
-}
-
 #[component]
 pub fn FileDiffSection(git_repo_available: ReadSignal<Option<bool>>) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
     let toast = expect_context::<ToastService>();
+    let git_sync = expect_context::<GitSyncControls>();
     let collapsed = wb.sidebar_collapsed();
 
     let diff_open = RwSignal::new(wb.active_sidebar_diff_open());
     let entries = RwSignal::new(None::<Vec<ChangedFile>>);
     let error_kind = RwSignal::new(None::<DiffErrorKind>);
     let load_gen = RwSignal::new(0u32);
-    // Remote-sync state for the Fetch/Pull/Push toolbar buttons.
-    let sync = RwSignal::new(None::<SyncStatus>);
-    let busy = RwSignal::new(None::<SyncOp>);
+    // Shared remote-sync state (Push lives here; Fetch/Pull in the graph
+    // section). `sync` mirrors `git_sync.status` for terse use below.
+    let sync = git_sync.status;
+    let busy = git_sync.busy;
 
     let title = Signal::derive(move || i18n.tr(I18nKey::SbDiffTitle)().to_uppercase());
 
@@ -231,83 +194,34 @@ pub fn FileDiffSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
         listener_for_cleanup.borrow_mut().take();
     });
 
-    // Refresh branch / upstream / ahead-behind whenever the repo state changes
-    // (reload bump, repo epoch, or the shared dirty watcher via load_gen).
+    // Refresh shared branch / upstream / ahead-behind state whenever the repo
+    // changes (reload bump, repo epoch, or the dirty watcher via load_gen).
     Effect::new(move |_| {
         let _ = load_gen.get();
         let _ = wb.sidebar_repo_epoch().get();
         if git_repo_available.get() != Some(true) {
-            sync.set(None);
+            git_sync.clear();
             return;
         }
         let Some(cwd) = wb.default_workspace_cwd() else {
             return;
         };
-        spawn_local(async move {
-            if let Ok(s) = git_sync_status(cwd).await {
-                sync.set(Some(s));
-            }
-        });
+        git_sync.refresh(cwd);
     });
 
-    // Run a fetch/pull/push, toast the localized outcome, then bump the repo
-    // epoch so the diff list, commit graph and sync status all refresh.
-    let run_op = move |op: SyncOp| {
-        if busy.get_untracked().is_some() {
-            return;
-        }
-        let Some(cwd) = wb.default_workspace_cwd() else {
-            return;
-        };
-        let set_upstream = sync
-            .get_untracked()
-            .map(|s| s.upstream.is_none())
-            .unwrap_or(false);
-        busy.set(Some(op));
-        spawn_local(async move {
-            let res = match op {
-                SyncOp::Fetch => git_fetch(cwd).await,
-                SyncOp::Pull => git_pull(cwd).await,
-                SyncOp::Push => git_push(cwd, set_upstream).await,
-            };
-            busy.set(None);
-            match res {
-                Ok(outcome) => {
-                    let (ok, key) = sync_message(op, &outcome.kind);
-                    if ok {
-                        toast.success(i18n.tr(key)());
-                    } else {
-                        toast.error(i18n.tr(key)());
-                    }
-                }
-                Err(e) if e == GIT_MISSING_CODE => {
-                    toast.error(i18n.tr(I18nKey::SbDiffGitMissing)());
-                }
-                Err(_) => {
-                    toast.error(i18n.tr(I18nKey::SbDiffSyncError)());
-                }
-            }
-            wb.sidebar_repo_epoch().update(|n| *n = n.wrapping_add(1));
-        });
+    // Push lives in this section; Fetch/Pull are in the Git Commits section.
+    // Push is only offered once every change is staged (no unstaged/untracked
+    // entries remain) and a remote branch is reachable.
+    let all_staged = move || {
+        entries
+            .get()
+            .map(|list| list.iter().all(|e| !e.unstaged))
+            .unwrap_or(false)
     };
-
-    // Per-button enable + tooltip helpers.
-    let can_fetch = move || busy.get().is_none() && sync.get().is_some_and(|s| s.has_remote);
-    let can_pull = move || {
+    let can_push = move || {
         busy.get().is_none()
-            && sync
-                .get()
-                .is_some_and(|s| s.has_remote && !s.detached && s.upstream.is_some())
-    };
-    let can_push =
-        move || busy.get().is_none() && sync.get().is_some_and(|s| s.has_remote && !s.detached);
-    let fetch_title = move || format!("{}", i18n.tr(I18nKey::SbDiffFetch)());
-    let pull_title = move || {
-        let base = i18n.tr(I18nKey::SbDiffPull)();
-        match sync.get() {
-            Some(s) if s.behind > 0 => format!("{base} \u{2193}{}", s.behind),
-            _ => format!("{base}"),
-        }
+            && all_staged()
+            && sync.get().is_some_and(|s| s.has_remote && !s.detached)
     };
     let push_title = move || {
         let base = i18n.tr(I18nKey::SbDiffPush)();
@@ -315,6 +229,22 @@ pub fn FileDiffSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
             Some(s) if s.ahead > 0 => format!("{base} \u{2191}{}", s.ahead),
             _ => format!("{base}"),
         }
+    };
+
+    let run_push = move |_| {
+        let Some(cwd) = wb.default_workspace_cwd() else {
+            return;
+        };
+        let set_upstream = git_sync.needs_upstream();
+        run_sync_op(
+            git_sync,
+            SyncOp::Push,
+            cwd,
+            set_upstream,
+            toast,
+            i18n,
+            move || wb.sidebar_repo_epoch().update(|n| *n = n.wrapping_add(1)),
+        );
     };
 
     let show = move || !collapsed.get() && git_repo_available.get() == Some(true);
@@ -329,48 +259,10 @@ pub fn FileDiffSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
                     <button
                         type="button"
                         class="sidebar-view-section__icon-btn"
-                        disabled=move || !can_fetch()
-                        aria-label=fetch_title
-                        title=fetch_title
-                        on:click=move |_| run_op(SyncOp::Fetch)
-                    >
-                        <Show
-                            when=move || busy.get() == Some(SyncOp::Fetch)
-                            fallback=move || view! {
-                                <LxIcon icon=icondata::LuDownload width="0.75rem" height="0.75rem" />
-                            }
-                        >
-                            <span class="file-diff-section__sync-spin">
-                                <LxIcon icon=icondata::LuLoaderCircle width="0.75rem" height="0.75rem" />
-                            </span>
-                        </Show>
-                    </button>
-                    <button
-                        type="button"
-                        class="sidebar-view-section__icon-btn"
-                        disabled=move || !can_pull()
-                        aria-label=pull_title
-                        title=pull_title
-                        on:click=move |_| run_op(SyncOp::Pull)
-                    >
-                        <Show
-                            when=move || busy.get() == Some(SyncOp::Pull)
-                            fallback=move || view! {
-                                <LxIcon icon=icondata::LuArrowDownToLine width="0.75rem" height="0.75rem" />
-                            }
-                        >
-                            <span class="file-diff-section__sync-spin">
-                                <LxIcon icon=icondata::LuLoaderCircle width="0.75rem" height="0.75rem" />
-                            </span>
-                        </Show>
-                    </button>
-                    <button
-                        type="button"
-                        class="sidebar-view-section__icon-btn"
                         disabled=move || !can_push()
                         aria-label=push_title
                         title=push_title
-                        on:click=move |_| run_op(SyncOp::Push)
+                        on:click=run_push
                     >
                         <Show
                             when=move || busy.get() == Some(SyncOp::Push)
@@ -378,7 +270,7 @@ pub fn FileDiffSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
                                 <LxIcon icon=icondata::LuArrowUpFromLine width="0.75rem" height="0.75rem" />
                             }
                         >
-                            <span class="file-diff-section__sync-spin">
+                            <span class="sidebar-view-section__sync-spin">
                                 <LxIcon icon=icondata::LuLoaderCircle width="0.75rem" height="0.75rem" />
                             </span>
                         </Show>

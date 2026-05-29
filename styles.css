@@ -10002,9 +10002,23 @@ body.blxcode-dragging-terminal * {
   opacity: 1;
 }
 
-/* Project Files toolbar actions stay visible at all times, not only on hover. */
-.sidebar-view-section--sb-explorer .sidebar-view-section__toolbar {
+/* Project Files and git toolbars keep their actions visible at all times,
+   not only on hover. */
+.sidebar-view-section--sb-explorer .sidebar-view-section__toolbar,
+.sidebar-view-section--sb-diff .sidebar-view-section__toolbar,
+.sidebar-view-section--sb-graph .sidebar-view-section__toolbar {
   opacity: 1;
+}
+
+.sidebar-view-section__sync-spin {
+  display: inline-flex;
+  animation: sidebar-view-section-spin 0.8s linear infinite;
+}
+
+@keyframes sidebar-view-section-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .sidebar-view-section__toggle {
