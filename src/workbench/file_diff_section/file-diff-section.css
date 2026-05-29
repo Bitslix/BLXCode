@@ -22,6 +22,9 @@
 .file-diff-section__group-head {
   display: flex;
   align-items: stretch;
+  /* Trailing space keeps the Stage-all / Unstage-all action clear of the body
+     scrollbar; the header background fills it so the bar stays full-width. */
+  padding-right: 0.6rem;
   background: var(--surface-2, var(--overlay-1));
 }
 
@@ -103,7 +106,9 @@
   display: flex;
   align-items: center;
   min-height: 22px;
-  padding: 0.05rem 0.15rem 0.05rem 0.25rem;
+  /* Right padding keeps the per-row stage/unstage buttons clear of the body
+     scrollbar; the row background fills it so the row still reads full-width. */
+  padding: 0.05rem 0.6rem 0.05rem 0.25rem;
   font-size: 0.74rem;
   position: relative;
 }

@@ -10210,7 +10210,10 @@ body.blxcode-dragging-terminal * {
   align-items: center;
   gap: 0.2rem;
   min-height: 22px;
-  padding: 0.1rem 0.35rem 0.1rem 0;
+  /* Extra right padding keeps the hover actions (New File / New Folder) clear
+     of the body scrollbar so it can't sit on top of them and swallow clicks.
+     The row background fills the padding, so the row still reads full-width. */
+  padding: 0.1rem 0.75rem 0.1rem 0;
   font-size: 0.78rem;
   color: var(--text);
   cursor: default;
