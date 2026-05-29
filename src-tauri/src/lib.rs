@@ -16,6 +16,7 @@ mod image;
 mod media_keys;
 mod memory;
 mod plans;
+mod plans_index;
 mod pointers;
 mod pty_host;
 mod skills_rules;

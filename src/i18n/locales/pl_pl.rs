@@ -159,6 +159,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrRemove => "Usunąć",
         I18nKey::SrRefresh => "Odświeżać",
         I18nKey::SrConfirmRemove => "Usunąć ten wpis? Spowoduje to usunięcie pliku na dysku.",
+        I18nKey::SrConfirmRemoveTitle => "Usunąć plik?",
         I18nKey::SrNewRule => "Nowa reguła",
         I18nKey::SrRuleTitlePh => "Tytuł reguły",
         I18nKey::SrRuleBodyPh => "Napisz regułę w Markdown...",

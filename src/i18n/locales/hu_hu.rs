@@ -159,6 +159,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrRemove => "Távolítsa el",
         I18nKey::SrRefresh => "Frissítés",
         I18nKey::SrConfirmRemove => "Eltávolítja ezt a bejegyzést? Ezzel törli a fájlt a lemezen.",
+        I18nKey::SrConfirmRemoveTitle => "Fájl törlése?",
         I18nKey::SrNewRule => "Új szabály",
         I18nKey::SrRuleTitlePh => "Szabály címe",
         I18nKey::SrRuleBodyPh => "Írd meg a szabályt Markdownban...",

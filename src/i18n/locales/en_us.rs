@@ -180,6 +180,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrRemove => "Remove",
         I18nKey::SrRefresh => "Refresh",
         I18nKey::SrConfirmRemove => "Remove this entry? This deletes the file on disk.",
+        I18nKey::SrConfirmRemoveTitle => "Remove file?",
         I18nKey::SrNewRule => "New rule",
         I18nKey::SrRuleTitlePh => "Rule title",
         I18nKey::SrRuleBodyPh => "Write the rule in Markdown...",

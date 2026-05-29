@@ -167,6 +167,7 @@ pub enum I18nKey {
     SrRemove,
     SrRefresh,
     SrConfirmRemove,
+    SrConfirmRemoveTitle,
     SrNewRule,
     SrRuleTitlePh,
     SrRuleBodyPh,

@@ -157,6 +157,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SrRemove => "消除",
         I18nKey::SrRefresh => "重新整理",
         I18nKey::SrConfirmRemove => "刪除此條目？這將刪除磁碟上的檔案。",
+        I18nKey::SrConfirmRemoveTitle => "刪除檔案？",
         I18nKey::SrNewRule => "新規則",
         I18nKey::SrRuleTitlePh => "規則標題",
         I18nKey::SrRuleBodyPh => "用 Markdown 編寫規則...",

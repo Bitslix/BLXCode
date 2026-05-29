@@ -693,6 +693,22 @@ pub struct CloseTerminalsConfirm {
     pub generation: u32,
 }
 
+/// A pending confirmation request rendered by the shared `ConfirmDialog`
+/// overlay. The component is generic — every string is supplied by the
+/// caller — so it can stand in for any destructive action's confirmation.
+/// `on_confirm` runs when the user accepts; the dialog dismisses itself
+/// afterwards either way.
+#[derive(Clone)]
+pub struct ConfirmRequest {
+    pub title: String,
+    pub body: String,
+    pub confirm_label: String,
+    pub cancel_label: String,
+    /// Style the confirm button as destructive (red).
+    pub danger: bool,
+    pub on_confirm: Callback<()>,
+}
+
 #[derive(Clone, Copy)]
 pub struct HarnessUiService {
     palette_open: RwSignal<bool>,
@@ -708,6 +724,7 @@ pub struct HarnessUiService {
     prefix_gen: RwSignal<u32>,
     close_terminals_confirm: RwSignal<Option<CloseTerminalsConfirm>>,
     close_terminals_gen: RwSignal<u32>,
+    confirm_request: RwSignal<Option<ConfirmRequest>>,
 }
 
 impl HarnessUiService {
@@ -726,7 +743,25 @@ impl HarnessUiService {
             prefix_gen: RwSignal::new(0),
             close_terminals_confirm: RwSignal::new(None),
             close_terminals_gen: RwSignal::new(0),
+            confirm_request: RwSignal::new(None),
         }
+    }
+
+    /// Reactive accessor for the shared confirmation overlay.
+    /// `None` = closed; `Some(_)` = dialog visible.
+    #[must_use]
+    pub fn confirm_request(&self) -> RwSignal<Option<ConfirmRequest>> {
+        self.confirm_request
+    }
+
+    /// Open the shared confirmation dialog. Replaces any pending request.
+    pub fn request_confirm(&self, request: ConfirmRequest) {
+        self.confirm_request.set(Some(request));
+    }
+
+    /// Close the shared confirmation dialog without running its action.
+    pub fn dismiss_confirm(&self) {
+        self.confirm_request.set(None);
     }
 
     /// Reactive accessor for the Terminals-close confirmation overlay.

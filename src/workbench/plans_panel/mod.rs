@@ -10,6 +10,7 @@ use crate::tauri_bridge::{
     PlanContent, PlanMeta, PlanTaskSummaryWire,
 };
 use crate::workbench::chat_markdown::render_markdown_to_html;
+use crate::workbench::state::{ConfirmRequest, HarnessUiService};
 use crate::workbench::{RightPanelTab, WorkbenchService};
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Date;
@@ -574,6 +575,7 @@ fn PlanGroupView(state: PlansState, group: PlanGroup) -> impl IntoView {
 fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
+    let ui = expect_context::<HarnessUiService>();
     let path = plan.path.clone();
     let path_for_read = path.clone();
     let path_for_save = path.clone();
@@ -796,10 +798,17 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
                                         disabled=is_index
                                         on:click=move |ev: web_sys::MouseEvent| {
                                             ev.stop_propagation();
-                                            let msg = i18n.tr(I18nKey::SrConfirmRemove)();
-                                            if confirm_window(&msg) {
-                                                remove_plan(state, on_delete.get_value());
-                                            }
+                                            let path = on_delete.get_value();
+                                            ui.request_confirm(ConfirmRequest {
+                                                title: i18n.tr(I18nKey::SrConfirmRemoveTitle)().to_string(),
+                                                body: i18n.tr(I18nKey::SrConfirmRemove)().to_string(),
+                                                confirm_label: i18n.tr(I18nKey::SrRemove)().to_string(),
+                                                cancel_label: i18n.tr(I18nKey::SrCancel)().to_string(),
+                                                danger: true,
+                                                on_confirm: Callback::new(move |_| {
+                                                    remove_plan(state, path.clone());
+                                                }),
+                                            });
                                         }
                                     >
                                         <LxIcon icon=icondata::LuTrash2 width="13px" height="13px" />
@@ -1108,10 +1117,4 @@ fn textarea_value(ev: &web_sys::Event) -> String {
         .and_then(|t| t.dyn_into::<web_sys::HtmlTextAreaElement>().ok())
         .map(|i| i.value())
         .unwrap_or_default()
-}
-
-fn confirm_window(msg: &str) -> bool {
-    web_sys::window()
-        .and_then(|w| w.confirm_with_message(msg).ok())
-        .unwrap_or(true)
 }

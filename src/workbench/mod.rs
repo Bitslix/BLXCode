@@ -11,6 +11,7 @@ mod appearance_settings_pane;
 mod browser_tab;
 mod chat_markdown;
 mod close_terminals_tab_dialog;
+mod confirm_dialog;
 mod create_workspace_wizard;
 mod file_diff;
 mod file_diff_section;
@@ -79,6 +80,7 @@ use crate::tauri_bridge::{
 };
 use app_prefs::AppPrefsService;
 use close_terminals_tab_dialog::CloseTerminalsTabDialog;
+use confirm_dialog::ConfirmDialog;
 use gloo_timers::future::TimeoutFuture;
 use harness_ui::HarnessHost;
 use js_sys;
@@ -536,6 +538,7 @@ pub fn WorkbenchShell() -> impl IntoView {
             <UpdateDialog />
             <PostUpdateNotesDialog />
             <CloseTerminalsTabDialog />
+            <ConfirmDialog />
             <HarnessHost />
             <ToastHost />
             <TerminalSlotDragOverlay />

@@ -18,14 +18,16 @@ Add curated overview notes here. The generated block below is refreshed by `memo
 <!-- architecture:static:begin -->
 ## Generated
 
-| Crate | Source root | Module map |
-|---|---|---|
-| `blxcode` | `src-tauri/src` | [[architecture/modules/blxcode.md|blxcode]] |
-| `blxcode-ui` | `src` | [[architecture/modules/blxcode-ui.md|blxcode-ui]] |
+| Unit | Kind | Root | Map |
+|---|---|---|---|
+| `blxcode` | rust | `src-tauri` | [[architecture/modules/rust-blxcode.md|rust-blxcode]] |
+| `blxcode-ui` | rust | . | [[architecture/modules/rust-blxcode-ui.md|rust-blxcode-ui]] |
+| `blxcode-frontend-js` | node | `frontend-js` | [[architecture/modules/node-blxcode-frontend-js.md|node-blxcode-frontend-js]] |
 
 ### Counts
 
-- Crates: 2
-- Top-level modules: 38
-- Git revision: `d366fffff77386626c1d371e043344a023099d41`
+- Units: 3
+- Kinds: node, rust
+- Top-level modules: 39
+- Git revision: `2bd555e33cd66810235467822b853e084e4b7a45`
 <!-- architecture:static:end -->
