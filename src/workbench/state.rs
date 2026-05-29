@@ -73,6 +73,10 @@ pub struct WorkspaceEntry {
     /// Image-generation toggle for the agent chat (per workspace).
     #[serde(default)]
     pub agent_image_mode: bool,
+    /// Default-off setting for future optional LLM prose synthesis into the
+    /// architecture map. Current rebuilds remain deterministic and non-LLM.
+    #[serde(default)]
+    pub architecture_llm_prose: bool,
     /// Memory/Learnings context attached to the next BLXCode Agent turns.
     #[serde(default)]
     pub agent_context_items: Vec<AgentContextItem>,
@@ -420,6 +424,7 @@ impl WorkspaceEntry {
             agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),
@@ -1804,6 +1809,7 @@ impl WorkbenchService {
             agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),
@@ -1931,6 +1937,7 @@ impl WorkbenchService {
                 agent_timeline: TimelineDoc::default(),
                 agent_compose_draft: String::new(),
                 agent_image_mode: false,
+                architecture_llm_prose: false,
                 agent_context_items: Vec::new(),
                 memory_category_settings: HashMap::new(),
                 agent_chat_usage: ChatUsageStats::default(),
@@ -2391,6 +2398,7 @@ impl WorkbenchService {
                 agent_timeline: TimelineDoc::default(),
                 agent_compose_draft: String::new(),
                 agent_image_mode: false,
+                architecture_llm_prose: false,
                 agent_context_items: Vec::new(),
                 memory_category_settings: HashMap::new(),
                 agent_chat_usage: ChatUsageStats::default(),
@@ -2749,6 +2757,7 @@ impl WorkbenchService {
             agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),
@@ -3150,6 +3159,36 @@ impl WorkbenchService {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
                 ws.agent_image_mode = image_mode;
+            }
+        });
+    }
+
+    #[must_use]
+    pub fn architecture_llm_prose_for_workspace_untracked(&self, workspace_id: u64) -> bool {
+        self.workspaces.with_untracked(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.architecture_llm_prose)
+                .unwrap_or(false)
+        })
+    }
+
+    #[must_use]
+    pub fn architecture_llm_prose_for_workspace(&self, workspace_id: u64) -> bool {
+        self.workspaces.with(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.architecture_llm_prose)
+                .unwrap_or(false)
+        })
+    }
+
+    pub fn set_workspace_architecture_llm_prose(&self, workspace_id: u64, enabled: bool) {
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                ws.architecture_llm_prose = enabled;
             }
         });
     }
@@ -3848,6 +3887,7 @@ mod center_tab_tests {
             agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),
@@ -3939,6 +3979,7 @@ mod terminal_slot_tests {
             agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
             agent_chat_usage: ChatUsageStats::default(),

@@ -17,9 +17,8 @@ use std::path::Path;
 /// one of these and concatenating is cheaper than picking favourites.
 const CANDIDATE_FILES: &[&str] = &["CLAUDE.md", "AGENTS.md", "GEMINI.md"];
 
-/// Per-file byte cap. Keeps the first turn from blowing the context
-/// budget when a project ships a very large AGENTS.md.
-const MAX_FILE_BYTES: usize = 16 * 1024;
+/// Shared preload cap across repo docs and the generated architecture map.
+const PRELOAD_BUDGET_BYTES: usize = 12 * 1024;
 
 /// Returns `Some(block)` when at least one candidate file exists under
 /// `workspace_root` and is non-empty after trim. Returns `None` for an
@@ -35,8 +34,12 @@ pub fn render_first_turn_block(workspace_root: Option<&str>) -> Option<String> {
         return None;
     }
 
+    let mut remaining = PRELOAD_BUDGET_BYTES;
     let mut sections: Vec<(String, String)> = Vec::new();
     for name in CANDIDATE_FILES {
+        if remaining == 0 {
+            break;
+        }
         let path = ws.join(name);
         let Ok(content) = fs::read_to_string(&path) else {
             continue;
@@ -45,51 +48,87 @@ pub fn render_first_turn_block(workspace_root: Option<&str>) -> Option<String> {
         if trimmed.is_empty() {
             continue;
         }
-        let mut body = trimmed.to_owned();
-        let truncated = if body.len() > MAX_FILE_BYTES {
-            // Cut at a char boundary; nearby trailing partial code-fence
-            // is fine — we add a clear truncation marker after.
-            let cut = body
-                .char_indices()
-                .take_while(|(i, _)| *i < MAX_FILE_BYTES)
-                .last()
-                .map(|(i, c)| i + c.len_utf8())
-                .unwrap_or(MAX_FILE_BYTES);
-            body.truncate(cut);
-            true
-        } else {
-            false
-        };
-        if truncated {
-            body.push_str("\n\n[... truncated by BLXCode project-docs preload — open the file for full text ...]");
-        }
+        let (body, used) = take_budgeted(
+            trimmed,
+            remaining,
+            "[... truncated by BLXCode project-docs preload - open the file for full text ...]",
+        )?;
+        remaining = remaining.saturating_sub(used);
         sections.push(((*name).to_owned(), body));
     }
 
-    if sections.is_empty() {
+    let architecture = if remaining > 0 {
+        crate::memory::architecture::generated_section_from_architecture_index(ws).and_then(
+            |generated| {
+                take_budgeted(
+                    generated.trim(),
+                    remaining,
+                    "[... truncated by BLXCode architecture preload - read ARCHITECTURE.md for full text ...]",
+                )
+                .map(|(body, _)| body)
+            },
+        )
+    } else {
+        None
+    };
+
+    if sections.is_empty() && architecture.is_none() {
         return None;
     }
 
     let mut block = String::new();
-    block.push_str("<project-docs>\n");
-    block.push_str(
-        "The following repo-level agent instruction files were detected in this \
+    if !sections.is_empty() {
+        block.push_str("<project-docs>\n");
+        block.push_str(
+            "The following repo-level agent instruction files were detected in this \
 workspace root. Treat their content as authoritative project policy on the \
 same level as active rules. They are injected once per session (this first \
 turn) — rely on conversation history for subsequent turns.\n\n",
-    );
-    for (i, (name, body)) in sections.iter().enumerate() {
-        if i > 0 {
-            block.push('\n');
+        );
+        for (i, (name, body)) in sections.iter().enumerate() {
+            if i > 0 {
+                block.push('\n');
+            }
+            block.push_str(&format!("--- {name} ---\n"));
+            block.push_str(body);
+            if !body.ends_with('\n') {
+                block.push('\n');
+            }
         }
-        block.push_str(&format!("--- {name} ---\n"));
-        block.push_str(body);
-        if !body.ends_with('\n') {
-            block.push('\n');
-        }
+        block.push_str("</project-docs>\n\n");
     }
-    block.push_str("</project-docs>\n\n");
+    if let Some(architecture) = architecture {
+        block.push_str("<memory-architecture>\n");
+        block.push_str(
+            "Generated architecture map excerpt. Prefer reading ARCHITECTURE.md \
+and architecture/modules/*.md before broad filesystem scans.\n\n",
+        );
+        block.push_str(&architecture);
+        if !architecture.ends_with('\n') {
+            block.push('\n');
+        }
+        block.push_str("</memory-architecture>\n\n");
+    }
     Some(block)
+}
+
+fn take_budgeted(input: &str, budget: usize, marker: &str) -> Option<(String, usize)> {
+    if budget == 0 || input.trim().is_empty() {
+        return None;
+    }
+    if input.len() <= budget {
+        return Some((input.to_owned(), input.len()));
+    }
+    let cut = input
+        .char_indices()
+        .take_while(|(i, _)| *i < budget)
+        .last()
+        .map(|(i, c)| i + c.len_utf8())
+        .unwrap_or(budget);
+    let mut body = input[..cut].to_owned();
+    body.push_str("\n\n");
+    body.push_str(marker);
+    Some((body, budget))
 }
 
 #[cfg(test)]
@@ -150,9 +189,9 @@ mod tests {
     }
 
     #[test]
-    fn truncates_files_exceeding_cap() {
+    fn truncates_files_exceeding_shared_budget() {
         let ws = temp_ws("trunc");
-        let huge = "a".repeat(MAX_FILE_BYTES * 2);
+        let huge = "a".repeat(PRELOAD_BUDGET_BYTES * 2);
         fs::write(ws.join("CLAUDE.md"), &huge).unwrap();
         let block = render_first_turn_block(Some(ws.to_str().unwrap())).unwrap();
         assert!(block.contains("truncated by BLXCode project-docs preload"));
@@ -167,6 +206,27 @@ mod tests {
         let block = render_first_turn_block(Some(ws.to_str().unwrap())).unwrap();
         assert!(!block.contains("CLAUDE.md"));
         assert!(block.contains("AGENTS.md"));
+        let _ = fs::remove_dir_all(ws);
+    }
+
+    #[test]
+    fn includes_architecture_after_project_docs_when_budget_remains() {
+        let ws = temp_ws("architecture");
+        fs::create_dir_all(ws.join(".agents/memory")).unwrap();
+        fs::write(ws.join("CLAUDE.md"), "short policy").unwrap();
+        fs::write(
+            ws.join(".agents/memory/ARCHITECTURE.md"),
+            format!(
+                "# Architecture\n\n{}\n## Generated\n\n- crate map\n{}\n",
+                crate::memory::architecture::STATIC_BEGIN,
+                crate::memory::architecture::STATIC_END
+            ),
+        )
+        .unwrap();
+        let block = render_first_turn_block(Some(ws.to_str().unwrap())).unwrap();
+        assert!(block.contains("<project-docs>"));
+        assert!(block.contains("<memory-architecture>"));
+        assert!(block.contains("- crate map"));
         let _ = fs::remove_dir_all(ws);
     }
 }

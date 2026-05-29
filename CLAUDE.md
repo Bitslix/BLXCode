@@ -83,3 +83,14 @@ Module layout:
 - **`src/config/app.config.rs`** — localStorage keys, embedded-browser defaults.
 - **`BLX_ANTHROPIC_API_KEY`** env var — enables real Anthropic provider path (currently stub only).
 - **`tauri.conf.json`** — app identifier `com.bitslix.blxcode`, window size, CSP, bundle targets.
+
+## Architecture Map
+
+Workspace memory includes a harness-generated architecture map:
+
+- `.agents/memory/ARCHITECTURE.md` — curated index with a harness-managed Generated block and a Manual section for human prose.
+- `.agents/memory/architecture/modules/*.md` — generated per-crate Rust module skeletons.
+- `.agents/memory/architecture/flows/` — reserved for hand-authored flow notes.
+- `.agents/memory/.meta/architecture-state.json` — local state used for staleness checks; ignored by git.
+
+Regenerate after large refactors with `memory_rebuild_architecture` from the app/agent tooling. Use `memory_lint_architecture` to mark generated notes stale when git `HEAD` changed without a rebuild. Commit `ARCHITECTURE.md` and `architecture/modules/*.md` so structural diffs travel with PRs; do not commit `.agents/memory/.meta/`.

@@ -214,6 +214,8 @@ pub fn run() {
             memory::memory_root,
             memory::memory_status,
             memory::memory_bootstrap,
+            memory::memory_rebuild_architecture,
+            memory::memory_lint_architecture,
             memory::memory_list,
             memory::memory_read,
             memory::memory_write,

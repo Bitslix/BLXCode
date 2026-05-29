@@ -1,5 +1,8 @@
 # Code-Wiki / Architecture-Map Integration
 
+**Status:** done  
+**Plan:** `.cursor/plans/code-wiki_integration_ed50f6b5.plan.md`
+
 ## Context
 
 blxcode agents currently navigate a codebase by blind-scanning the filesystem (`list_workspace_files`, `workspace_search`, ad-hoc `rg`) on every turn. There is no durable, structured "map" of the repo's architecture, so each session re-derives layout from scratch and the team has no committed structural overview.

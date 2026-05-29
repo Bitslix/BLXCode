@@ -7,6 +7,9 @@ use std::path::{Path, PathBuf};
 use super::types::MemoryScope;
 
 pub const TEMPLATES_DIRNAME: &str = "_templates";
+pub const ARCHITECTURE_CATEGORY: &str = "architecture";
+pub const ARCHITECTURE_INDEX: &str = "ARCHITECTURE.md";
+pub const META_DIRNAME: &str = ".meta";
 pub const CATEGORY_PLACEHOLDER: &str = ".gitkeep";
 pub const CATEGORY_HUB_ID_PREFIX: &str = "hub:";
 pub const CATEGORY_HUB_PATH_PREFIX: &str = "@category/";
@@ -80,6 +83,9 @@ pub fn graph_category_for(api_path: &str) -> String {
     if api_path.starts_with(LEARNINGS_API_PREFIX) {
         return "learnings".to_string();
     }
+    if api_path.eq_ignore_ascii_case(ARCHITECTURE_INDEX) {
+        return ARCHITECTURE_CATEGORY.to_string();
+    }
     if let Some((head, _)) = api_path.split_once('/') {
         if !head.is_empty() && !head.ends_with(".md") {
             return head.to_string();
@@ -133,6 +139,7 @@ pub fn validate_category_name(name: &str) -> Result<String, String> {
 
 fn is_reserved_category(name: &str) -> bool {
     name.eq_ignore_ascii_case(TEMPLATES_DIRNAME)
+        || name.eq_ignore_ascii_case(ARCHITECTURE_CATEGORY)
         || name.eq_ignore_ascii_case("memory")
         || name.eq_ignore_ascii_case("learnings")
 }

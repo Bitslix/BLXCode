@@ -333,6 +333,26 @@ pub fn registry() -> Vec<ToolDef> {
             site: ToolSite::Server,
         },
         ToolDef {
+            name: "memory_rebuild_architecture",
+            description: "Regenerate the harness-managed architecture map under .agents/memory/ARCHITECTURE.md and architecture/modules/*.md for the active workspace.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "memory_lint_architecture",
+            description: "Check whether the generated architecture map is stale relative to the current git HEAD and mark architecture notes stale when needed.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
             name: "memory_category_list",
             description: "List Memory sidebar categories (`memory`, `learnings`) with display label, color, and sidebar/graph visibility for the active workspace.",
             parameters: json!({
@@ -344,11 +364,11 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "memory_category_update",
-            description: "Update display settings for a Memory category (`memory` or `learnings`). Omitted fields stay unchanged. Color must be `#rrggbb`.",
+            description: "Update display settings for a Memory category (`memory`, `learnings`, or `architecture`). Omitted fields stay unchanged. Color must be `#rrggbb`.",
             parameters: json!({
                 "type": "object",
                 "properties": {
-                    "category": { "type": "string", "enum": ["memory", "learnings"] },
+                    "category": { "type": "string", "enum": ["memory", "learnings", "architecture"] },
                     "label": { "type": "string" },
                     "color": { "type": "string", "description": "Hex color, e.g. #7dd3fc" },
                     "showInSidebar": { "type": "boolean" },
@@ -377,7 +397,7 @@ pub fn registry() -> Vec<ToolDef> {
                 "properties": {
                     "kind": {
                         "type": "string",
-                        "enum": ["memory_category", "learning_category", "memory_note", "learning_note"]
+                        "enum": ["memory_category", "learning_category", "architecture_category", "memory_note", "learning_note"]
                     },
                     "path": { "type": "string", "description": "Required for note kinds; API path ending in .md." },
                     "label": { "type": "string", "description": "Optional display label; defaults from path or category." }
@@ -1066,6 +1086,8 @@ pub fn execute_server_tool(
         "memory_rename" => tool_memory_rename(args, root),
         "memory_graph" => tool_memory_graph(root),
         "memory_backlinks" => tool_memory_backlinks(args, root),
+        "memory_rebuild_architecture" => tool_memory_rebuild_architecture(root),
+        "memory_lint_architecture" => tool_memory_lint_architecture(root),
         "task_list" => tool_task_list(args, root),
         "task_get" => tool_task_get(args, root),
         "task_create" => tool_task_create(args, root),
@@ -1687,6 +1709,48 @@ fn tool_memory_backlinks(args: &Value, root: Option<&WorkspaceRootGuard>) -> Too
     }
 }
 
+fn tool_memory_rebuild_architecture(root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match memory::memory_rebuild_architecture(ws.to_owned()) {
+        Ok(report) => {
+            let body =
+                serde_json::to_string(&report).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
+            ToolOutcome {
+                ok: true,
+                content: body,
+            }
+        }
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e,
+        },
+    }
+}
+
+fn tool_memory_lint_architecture(root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match memory::memory_lint_architecture(ws.to_owned()) {
+        Ok(report) => {
+            let body =
+                serde_json::to_string(&report).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
+            ToolOutcome {
+                ok: true,
+                content: body,
+            }
+        }
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: e,
+        },
+    }
+}
+
 fn parse_task_status(raw: Option<&str>) -> Result<Option<TaskStatus>, String> {
     match raw {
         None => Ok(None),
@@ -2196,6 +2260,8 @@ mod tests {
             "memory_rename",
             "memory_graph",
             "memory_backlinks",
+            "memory_rebuild_architecture",
+            "memory_lint_architecture",
             "memory_category_list",
             "memory_category_update",
             "memory_context_list",

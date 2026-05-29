@@ -10,8 +10,8 @@ use super::frontmatter::{parse_frontmatter, serialize_frontmatter, MemoryFrontma
 use super::graph::{build_graph, CategoryHubInput, ScopeNote};
 use super::paths::{
     folder_exists, get_global_roots, get_roots_for_scope, graph_category_for,
-    list_memory_subcategories, node_id, validate_category_name, MemoryRoots, CATEGORY_PLACEHOLDER,
-    TEMPLATES_DIRNAME,
+    list_memory_subcategories, node_id, validate_category_name, MemoryRoots, ARCHITECTURE_CATEGORY,
+    ARCHITECTURE_INDEX, CATEGORY_PLACEHOLDER, META_DIRNAME, TEMPLATES_DIRNAME,
 };
 use super::types::{
     BacklinkRef, GraphData, MemoryFolderStatus, MemoryListResponse, MemoryScope,
@@ -87,6 +87,13 @@ fn walk_md(root: &Path, out: &mut Vec<PathBuf>) {
         let path = entry.path();
         let Ok(ft) = entry.file_type() else { continue };
         if ft.is_dir() {
+            if entry
+                .file_name()
+                .to_str()
+                .is_some_and(|name| name.starts_with('.') || name == META_DIRNAME)
+            {
+                continue;
+            }
             walk_md(&path, out);
             continue;
         }
@@ -213,6 +220,8 @@ fn meta_from_file(scope: &MemoryScope, api_path: &str, abs: &Path) -> Option<Not
         is_learning: is_learnings,
         is_overview,
         category: graph_category_for(api_path),
+        managed: fm.managed,
+        stale: fm.stale,
     })
 }
 
@@ -289,6 +298,7 @@ fn seed_memory(memory_dir: &Path) -> Result<(), String> {
             title: Some("Memory".into()),
             enabled: Some(true),
             tags: Some(Vec::new()),
+            ..Default::default()
         };
         let content = serialize_frontmatter(&fm, MEMORY_OVERVIEW_BODY);
         fs::write(&readme, content.as_bytes()).map_err(|e| format!("write README: {e}"))?;
@@ -304,6 +314,7 @@ fn seed_learnings(learnings_dir: &Path) -> Result<(), String> {
             title: Some("Learnings".into()),
             enabled: Some(true),
             tags: Some(Vec::new()),
+            ..Default::default()
         };
         let content = serialize_frontmatter(&fm, LEARNINGS_OVERVIEW_BODY);
         fs::write(&readme, content.as_bytes()).map_err(|e| format!("write README: {e}"))?;
@@ -427,6 +438,7 @@ pub fn memory_write_impl(
 ) -> Result<NoteContent, String> {
     let roots = get_roots_for_scope(scope, workspace_cwd)?;
     let abs = note_abs(&roots, path)?;
+    validate_architecture_write(&abs, path, content)?;
     if let Some(parent) = abs.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
     }
@@ -449,6 +461,7 @@ pub fn memory_create_impl(
 ) -> Result<NoteMeta, String> {
     let roots = get_roots_for_scope(scope, workspace_cwd)?;
     let abs = note_abs(&roots, path)?;
+    validate_architecture_create(path)?;
     if abs.exists() {
         return err(format!("already exists: {path}"));
     }
@@ -467,6 +480,7 @@ pub fn memory_delete_impl(
 ) -> Result<(), String> {
     let roots = get_roots_for_scope(scope, workspace_cwd)?;
     let (is_learnings, _) = resolve_api_path(path)?;
+    validate_architecture_delete(path)?;
     let root = if is_learnings {
         &roots.learnings
     } else {
@@ -498,6 +512,66 @@ pub fn memory_delete_impl(
     Ok(())
 }
 
+fn validate_architecture_create(path: &str) -> Result<(), String> {
+    if is_architecture_module_path(path) || path.eq_ignore_ascii_case(ARCHITECTURE_INDEX) {
+        return err("architecture/ is harness-managed; run memory_rebuild_architecture");
+    }
+    Ok(())
+}
+
+fn validate_architecture_delete(path: &str) -> Result<(), String> {
+    if is_architecture_module_path(path) || path.eq_ignore_ascii_case(ARCHITECTURE_INDEX) {
+        return err("architecture/ is harness-managed; run memory_rebuild_architecture");
+    }
+    Ok(())
+}
+
+fn validate_architecture_rename(old_path: &str, new_path: &str) -> Result<(), String> {
+    if is_architecture_module_path(old_path)
+        || is_architecture_module_path(new_path)
+        || old_path.eq_ignore_ascii_case(ARCHITECTURE_INDEX)
+        || new_path.eq_ignore_ascii_case(ARCHITECTURE_INDEX)
+    {
+        return err("architecture/ is harness-managed; run memory_rebuild_architecture");
+    }
+    Ok(())
+}
+
+fn validate_architecture_write(abs: &Path, path: &str, content: &str) -> Result<(), String> {
+    if is_architecture_module_path(path) {
+        return err("architecture/ is harness-managed; run memory_rebuild_architecture");
+    }
+    if !path.eq_ignore_ascii_case(ARCHITECTURE_INDEX) {
+        return Ok(());
+    }
+    let existing = fs::read_to_string(abs)
+        .map_err(|_| "ARCHITECTURE.md is harness-managed; run memory_rebuild_architecture")?;
+    let existing_static = marker_region(&existing);
+    let next_static = marker_region(content);
+    if existing_static.is_none() || next_static.is_none() || existing_static != next_static {
+        return err(
+            "ARCHITECTURE.md generated section is harness-managed; edit only ## Manual or run memory_rebuild_architecture",
+        );
+    }
+    Ok(())
+}
+
+fn is_architecture_module_path(path: &str) -> bool {
+    let p = path.trim_start_matches('/');
+    p.starts_with(&format!("{ARCHITECTURE_CATEGORY}/"))
+}
+
+fn marker_region(content: &str) -> Option<&str> {
+    let begin = super::architecture::STATIC_BEGIN;
+    let end = super::architecture::STATIC_END;
+    let start = content.find(begin)?;
+    let end_idx = content.find(end)?;
+    if end_idx < start {
+        return None;
+    }
+    Some(&content[start..end_idx + end.len()])
+}
+
 pub fn memory_rename_impl(
     scope: &MemoryScope,
     workspace_cwd: &str,
@@ -506,6 +580,7 @@ pub fn memory_rename_impl(
     rewrite_links: bool,
 ) -> Result<RenameReport, String> {
     let roots = get_roots_for_scope(scope, workspace_cwd)?;
+    validate_architecture_rename(old_path, new_path)?;
     let (old_learn, _) = resolve_api_path(old_path)?;
     let (new_learn, _) = resolve_api_path(new_path)?;
     if old_learn != new_learn {
@@ -890,6 +965,99 @@ pub fn memory_uninstall_pointers_impl(
 
 pub fn memory_pointer_status_impl(workspace_cwd: &str) -> Result<Vec<PointerResult>, String> {
     generic_pointer_status(workspace_cwd, &MEMORY_MARKERS)
+}
+
+#[cfg(test)]
+mod architecture_guard_tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn temp_ws(name: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let path = std::env::temp_dir().join(format!("blxcode-memory-guard-{name}-{nonce}"));
+        fs::create_dir_all(path.join(MEMORY_REL)).unwrap();
+        fs::create_dir_all(path.join(LEARNINGS_REL)).unwrap();
+        path
+    }
+
+    fn architecture_body(generated: &str) -> String {
+        format!(
+            "# Architecture\n\n## Manual\n\nmanual\n\n{}\n{generated}\n{}\n",
+            super::super::architecture::STATIC_BEGIN,
+            super::super::architecture::STATIC_END
+        )
+    }
+
+    #[test]
+    fn rejects_architecture_category_creation() {
+        let ws = temp_ws("category");
+        let err = memory_create_category_impl(
+            &MemoryScope::Workspace,
+            ws.to_str().unwrap(),
+            ARCHITECTURE_CATEGORY,
+        )
+        .unwrap_err();
+        assert!(err.contains("reserved category"));
+        let _ = fs::remove_dir_all(ws);
+    }
+
+    #[test]
+    fn rejects_create_write_delete_under_architecture_dir() {
+        let ws = temp_ws("dir");
+        let scope = MemoryScope::Workspace;
+        let create = memory_create_impl(
+            &scope,
+            ws.to_str().unwrap(),
+            "architecture/modules/test.md",
+            Some("# Test\n".to_owned()),
+        )
+        .unwrap_err();
+        assert!(create.contains("harness-managed"));
+
+        let path = ws.join(MEMORY_REL).join("architecture/modules/test.md");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "# Test\n").unwrap();
+        let write = memory_write_impl(
+            &scope,
+            ws.to_str().unwrap(),
+            "architecture/modules/test.md",
+            "# Changed\n",
+        )
+        .unwrap_err();
+        assert!(write.contains("harness-managed"));
+        let delete =
+            memory_delete_impl(&scope, ws.to_str().unwrap(), "architecture/modules/test.md")
+                .unwrap_err();
+        assert!(delete.contains("harness-managed"));
+        let _ = fs::remove_dir_all(ws);
+    }
+
+    #[test]
+    fn architecture_index_allows_manual_only_edits() {
+        let ws = temp_ws("manual");
+        let scope = MemoryScope::Workspace;
+        let arch = ws.join(MEMORY_REL).join(ARCHITECTURE_INDEX);
+        let original = architecture_body("generated");
+        fs::write(&arch, &original).unwrap();
+
+        let edited = original.replace("manual", "manual changed");
+        let ok = memory_write_impl(&scope, ws.to_str().unwrap(), ARCHITECTURE_INDEX, &edited);
+        assert!(ok.is_ok());
+
+        let generated_changed = edited.replace("generated", "generated changed");
+        let err = memory_write_impl(
+            &scope,
+            ws.to_str().unwrap(),
+            ARCHITECTURE_INDEX,
+            &generated_changed,
+        )
+        .unwrap_err();
+        assert!(err.contains("generated section"));
+        let _ = fs::remove_dir_all(ws);
+    }
 }
 
 #[cfg(test)]

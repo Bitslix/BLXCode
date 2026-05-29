@@ -1090,6 +1090,9 @@ pub(crate) fn graph_category_for_path(path: &str) -> String {
     if path.starts_with("learnings/") {
         return "learnings".to_string();
     }
+    if path.eq_ignore_ascii_case("ARCHITECTURE.md") {
+        return "architecture".to_string();
+    }
     if let Some((head, _)) = path.split_once('/') {
         if !head.is_empty() {
             return head.to_string();

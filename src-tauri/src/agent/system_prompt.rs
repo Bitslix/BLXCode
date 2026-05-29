@@ -55,7 +55,13 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
             after a restart is authoritative.\n\
          4. **Memory / learnings / project context as needed.** Apply the \
             Memory judgment rules further down (read relevant notes, \
-            don't blind-scan, don't spam writes). Before writing the final \
+            don't blind-scan, don't spam writes). For navigation, \"where is\", \
+            refactor, or repo-exploration intents, use the architecture map \
+            first: (a) `memory_read` `ARCHITECTURE.md` or `memory_search` \
+            scoped by the term `architecture`; (b) read 1-3 relevant \
+            `architecture/modules/*.md` notes; (c) then fall back to \
+            `workspace_search` / `list_workspace_files` for source details. \
+            Before writing the final \
             reply, decide whether the turn produced a **learning** worth \
             persisting (see the Learnings section below) and, if so, call \
             `memory_create` under `learnings/`.\n\
@@ -128,7 +134,8 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
          \n\
          **Memory (server):** `memory_list`, `memory_read`, `memory_search`, \
          `memory_create`, `memory_write`, `memory_delete`, `memory_rename`, \
-         `memory_graph`, `memory_backlinks`, `memory_list_categories`, `memory_create_category`\n\
+         `memory_graph`, `memory_backlinks`, `memory_rebuild_architecture`, \
+         `memory_lint_architecture`, `memory_list_categories`, `memory_create_category`\n\
          \n\
          **Memory UI/context (client):** `memory_category_list`, `memory_category_update`, \
          `memory_context_list`, `memory_context_attach`, `memory_context_detach`, \
@@ -193,6 +200,12 @@ pub fn system_prompt(workspace_root: Option<&str>) -> String {
            Keep each entry self-contained — one insight, dated, with the \
            specific symptom and the resolved understanding. Skip generic \
            or trivial findings.\n\
+         - `.agents/memory/ARCHITECTURE.md` and `.agents/memory/architecture/` — \
+           the harness-maintained structural map. Read it before broad \
+           filesystem scans when orienting in the repo. Do not hand-edit \
+           generated `architecture/modules/*.md` notes; regenerate them with \
+           `memory_rebuild_architecture`. Curated prose belongs in \
+           `ARCHITECTURE.md`'s Manual section or `architecture/flows/`.\n\
          A useful learning is the kind of thing you wish a previous agent \
          had told you. If unsure, write it: cheap to add, costly to lose.\n\
          \n\

@@ -7706,6 +7706,29 @@ body.blxcode-dragging-terminal * {
   border-bottom-color: var(--accent, var(--accent-hover));
 }
 
+.workbench-memory__action {
+  margin-left: auto;
+  width: 1.9rem;
+  height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.workbench-memory__action:hover {
+  color: var(--text);
+  background: var(--overlay-1);
+  border-color: var(--overlay-2);
+}
+.workbench-memory__action:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
 .workbench-memory__error {
   display: flex;
   align-items: center;
@@ -8224,6 +8247,31 @@ body.blxcode-dragging-terminal * {
 .workbench-memory-files__action:hover {
   background: var(--overlay-2);
   color: var(--text);
+}
+.workbench-memory-files__action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.workbench-memory-files__note-flags {
+  display: inline-flex;
+  gap: 0.25rem;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.workbench-memory-files__note-flag {
+  padding: 0.05rem 0.28rem;
+  border: 1px solid var(--overlay-2);
+  border-radius: 3px;
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  line-height: 1.2;
+}
+
+.workbench-memory-files__note-flag--stale {
+  color: var(--danger);
+  border-color: var(--danger-soft);
 }
 
 .workbench-memory-files__badge {

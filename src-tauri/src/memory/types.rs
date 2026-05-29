@@ -22,6 +22,8 @@ pub struct NoteMeta {
     pub is_learning: bool,
     pub is_overview: bool,
     pub category: String,
+    pub managed: Option<String>,
+    pub stale: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -123,4 +125,23 @@ pub struct RenameReport {
     pub new_path: String,
     pub link_rewrites: u32,
     pub files_changed: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RebuildReport {
+    pub git_rev: Option<String>,
+    pub crate_count: u32,
+    pub module_count: u32,
+    pub files_changed: u32,
+    pub generated_paths: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchitectureLintReport {
+    pub git_rev: Option<String>,
+    pub state_git_rev: Option<String>,
+    pub stale: bool,
+    pub stale_paths: Vec<String>,
 }

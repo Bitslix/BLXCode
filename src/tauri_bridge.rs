@@ -1317,6 +1317,8 @@ pub struct NoteMeta {
     pub is_learning: bool,
     pub is_overview: bool,
     pub category: String,
+    pub managed: Option<String>,
+    pub stale: Option<bool>,
 }
 
 #[allow(dead_code)]
@@ -1436,6 +1438,27 @@ pub struct RenameReport {
     pub files_changed: u32,
 }
 
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RebuildReport {
+    pub git_rev: Option<String>,
+    pub crate_count: u32,
+    pub module_count: u32,
+    pub files_changed: u32,
+    pub generated_paths: Vec<String>,
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArchitectureLintReport {
+    pub git_rev: Option<String>,
+    pub state_git_rev: Option<String>,
+    pub stale: bool,
+    pub stale_paths: Vec<String>,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct WsArg<'a> {
@@ -1463,6 +1486,15 @@ pub async fn memory_bootstrap(ws: &str, target: &str) -> Result<(), String> {
         })?,
     )
     .await
+}
+
+pub async fn memory_rebuild_architecture(ws: &str) -> Result<RebuildReport, String> {
+    invoke_typed("memory_rebuild_architecture", WsArg { workspace_cwd: ws }).await
+}
+
+#[allow(dead_code)]
+pub async fn memory_lint_architecture(ws: &str) -> Result<ArchitectureLintReport, String> {
+    invoke_typed("memory_lint_architecture", WsArg { workspace_cwd: ws }).await
 }
 
 pub async fn memory_list(ws: &str) -> Result<MemoryListResponse, String> {

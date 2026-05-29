@@ -10,6 +10,7 @@
 //!
 //! Node IDs: `{scope}:{api_path}` (e.g. `workspace:decisions/note.md`)
 
+pub(crate) mod architecture;
 mod frontmatter;
 mod graph;
 pub mod paths;
@@ -19,7 +20,8 @@ pub mod wikilinks;
 
 pub use types::*;
 
-use crate::agents_layout::ensure_agents_layout;
+use crate::agents_layout::{ensure_agents_layout, validate_workspace_cwd, MEMORY_REL};
+use crate::git_info::head_commit;
 use store::{
     memory_backlinks_impl, memory_bootstrap_impl, memory_create_category_impl, memory_create_impl,
     memory_delete_impl, memory_export_impl, memory_graph_impl, memory_import_impl,
@@ -33,6 +35,21 @@ use store::{
 #[tauri::command]
 pub fn workspace_ensure_agents(workspace_cwd: String) -> Result<(), String> {
     ensure_agents_layout(&workspace_cwd)?;
+    maybe_rebuild_workspace_architecture(&workspace_cwd)?;
+    Ok(())
+}
+
+fn maybe_rebuild_workspace_architecture(workspace_cwd: &str) -> Result<(), String> {
+    let ws = validate_workspace_cwd(workspace_cwd)?;
+    let state = architecture::state::read_state(&ws);
+    let current = head_commit(&ws);
+    let missing_index = !ws
+        .join(MEMORY_REL)
+        .join(paths::ARCHITECTURE_INDEX)
+        .is_file();
+    if missing_index || state.as_ref().map(|s| s.git_rev.as_ref()) != Some(current.as_ref()) {
+        let _ = architecture::rebuild_architecture_impl(workspace_cwd)?;
+    }
     Ok(())
 }
 
@@ -44,6 +61,16 @@ pub fn memory_status(workspace_cwd: String) -> Result<MemoryStatusResponse, Stri
 #[tauri::command]
 pub fn memory_bootstrap(workspace_cwd: String, target: String) -> Result<(), String> {
     memory_bootstrap_impl(&target, &workspace_cwd)
+}
+
+#[tauri::command]
+pub fn memory_rebuild_architecture(workspace_cwd: String) -> Result<RebuildReport, String> {
+    architecture::rebuild_architecture_impl(&workspace_cwd)
+}
+
+#[tauri::command]
+pub fn memory_lint_architecture(workspace_cwd: String) -> Result<ArchitectureLintReport, String> {
+    architecture::lint_architecture_impl(&workspace_cwd)
 }
 
 // ── List ──────────────────────────────────────────────────────────────────────

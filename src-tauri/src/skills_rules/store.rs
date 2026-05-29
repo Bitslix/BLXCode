@@ -31,6 +31,10 @@ pub const CORE_SKILLS: &[(&str, &str)] = &[
         include_str!("../agent/harness_skills/file-access.md"),
     ),
     ("memory", include_str!("../agent/harness_skills/memory.md")),
+    (
+        "memory-architecture",
+        include_str!("../agent/harness_skills/memory-architecture.md"),
+    ),
     ("plans", include_str!("../agent/harness_skills/plans.md")),
     ("tasks", include_str!("../agent/harness_skills/tasks.md")),
     (
