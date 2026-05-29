@@ -11,7 +11,7 @@ use crate::tauri_bridge::{
     GIT_MISSING_CODE,
 };
 use crate::workbench::git_sync_controls::{run_sync_op, GitSyncControls, SyncOp};
-use crate::workbench::sidebar_view_section::{SidebarSectionIconBtn, SidebarViewSection};
+use crate::workbench::sidebar_view_section::SidebarViewSection;
 use crate::workbench::toast::ToastService;
 use crate::workbench::WorkbenchService;
 use gloo_timers::callback::Timeout;
@@ -275,12 +275,6 @@ pub fn FileDiffSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
                             </span>
                         </Show>
                     </button>
-                    <SidebarSectionIconBtn
-                        aria_key=I18nKey::SbDiffRefresh
-                        on_click=Callback::new(move |_| reload())
-                    >
-                        <LxIcon icon=icondata::LuRefreshCw width="0.75rem" height="0.75rem" />
-                    </SidebarSectionIconBtn>
                 }.into_any()
             >
                 <FileDiffBody entries=entries error_kind=error_kind reload=Callback::new(move |_| reload()) />

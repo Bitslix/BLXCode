@@ -7,7 +7,7 @@ use crate::tauri_bridge::{
     GIT_MISSING_CODE,
 };
 use crate::workbench::git_sync_controls::{run_sync_op, GitSyncControls, SyncOp};
-use crate::workbench::sidebar_view_section::{SidebarSectionIconBtn, SidebarViewSection};
+use crate::workbench::sidebar_view_section::SidebarViewSection;
 use crate::workbench::toast::ToastService;
 use crate::workbench::WorkbenchService;
 use gloo_timers::callback::Timeout;
@@ -50,8 +50,6 @@ pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
             wb.set_active_sidebar_graph_open(open);
         }
     });
-
-    let reload = move || load_gen.update(|g| *g = g.wrapping_add(1));
 
     let last_graph_cwd = StoredValue::new(None::<String>);
     let last_load_gen = StoredValue::new(0u32);
@@ -230,12 +228,6 @@ pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
                             </span>
                         </Show>
                     </button>
-                    <SidebarSectionIconBtn
-                        aria_key=I18nKey::SbGraphRefresh
-                        on_click=Callback::new(move |_| reload())
-                    >
-                        <LxIcon icon=icondata::LuRefreshCw width="0.75rem" height="0.75rem" />
-                    </SidebarSectionIconBtn>
                 }.into_any()
             >
                 <GitGraphBody layout=layout error_kind=error_kind />
