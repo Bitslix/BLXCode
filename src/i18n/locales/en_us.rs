@@ -109,6 +109,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::SbDiffSyncLocked => "Another git process is running. Try again shortly.",
         I18nKey::SbDiffNetworkError => "Could not reach the remote (network error).",
         I18nKey::SbDiffSyncError => "Git operation failed.",
+        I18nKey::SbDiffPushNeedStaged => "Stage all changes before pushing.",
+        I18nKey::SbDiffPushDetached => "Detached HEAD — switch to a branch to push.",
+        I18nKey::SbDiffSyncBusy => "Another git operation is in progress.",
 
         I18nKey::RpRailAria => "Right panel",
         I18nKey::RpExpand => "Show right panel",

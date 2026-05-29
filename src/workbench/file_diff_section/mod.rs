@@ -223,11 +223,24 @@ pub fn FileDiffSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
             && all_staged()
             && sync.get().is_some_and(|s| s.has_remote && !s.detached)
     };
+    // Tooltip explains *why* Push is disabled, otherwise shows the ahead count.
     let push_title = move || {
+        if busy.get().is_some() {
+            return i18n.tr(I18nKey::SbDiffSyncBusy)().to_string();
+        }
+        match sync.get() {
+            None => return i18n.tr(I18nKey::SbDiffPush)().to_string(),
+            Some(s) if !s.has_remote => return i18n.tr(I18nKey::SbDiffNoRemote)().to_string(),
+            Some(s) if s.detached => return i18n.tr(I18nKey::SbDiffPushDetached)().to_string(),
+            Some(_) => {}
+        }
+        if !all_staged() {
+            return i18n.tr(I18nKey::SbDiffPushNeedStaged)().to_string();
+        }
         let base = i18n.tr(I18nKey::SbDiffPush)();
         match sync.get() {
             Some(s) if s.ahead > 0 => format!("{base} \u{2191}{}", s.ahead),
-            _ => format!("{base}"),
+            _ => base.to_string(),
         }
     };
 
@@ -256,25 +269,29 @@ pub fn FileDiffSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
                 section_id="sb-diff"
                 open=diff_open
                 toolbar=view! {
-                    <button
-                        type="button"
-                        class="sidebar-view-section__icon-btn"
-                        disabled=move || !can_push()
-                        aria-label=push_title
-                        title=push_title
-                        on:click=run_push
-                    >
-                        <Show
-                            when=move || busy.get() == Some(SyncOp::Push)
-                            fallback=move || view! {
-                                <LxIcon icon=icondata::LuArrowUpFromLine width="0.75rem" height="0.75rem" />
-                            }
+                    // The title lives on the wrapper span: a `disabled` button
+                    // does not receive hover events (WebKitGTK), so a title on
+                    // the button itself would never show while it's disabled.
+                    <span class="sidebar-view-section__icon-btn-wrap" title=push_title>
+                        <button
+                            type="button"
+                            class="sidebar-view-section__icon-btn"
+                            disabled=move || !can_push()
+                            aria-label=push_title
+                            on:click=run_push
                         >
-                            <span class="sidebar-view-section__sync-spin">
-                                <LxIcon icon=icondata::LuLoaderCircle width="0.75rem" height="0.75rem" />
-                            </span>
-                        </Show>
-                    </button>
+                            <Show
+                                when=move || busy.get() == Some(SyncOp::Push)
+                                fallback=move || view! {
+                                    <LxIcon icon=icondata::LuArrowUpFromLine width="0.75rem" height="0.75rem" />
+                                }
+                            >
+                                <span class="sidebar-view-section__sync-spin">
+                                    <LxIcon icon=icondata::LuLoaderCircle width="0.75rem" height="0.75rem" />
+                                </span>
+                            </Show>
+                        </button>
+                    </span>
                 }.into_any()
             >
                 <FileDiffBody entries=entries error_kind=error_kind reload=Callback::new(move |_| reload()) />

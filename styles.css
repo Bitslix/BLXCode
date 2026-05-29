@@ -10010,6 +10010,12 @@ body.blxcode-dragging-terminal * {
   opacity: 1;
 }
 
+/* Wrapper that carries the tooltip for a possibly-disabled toolbar button —
+   a disabled button receives no hover events, so its own title never shows. */
+.sidebar-view-section__icon-btn-wrap {
+  display: inline-flex;
+}
+
 .sidebar-view-section__sync-spin {
   display: inline-flex;
   animation: sidebar-view-section-spin 0.8s linear infinite;

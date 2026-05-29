@@ -107,6 +107,9 @@ pub enum I18nKey {
     SbDiffSyncLocked,
     SbDiffNetworkError,
     SbDiffSyncError,
+    SbDiffPushNeedStaged,
+    SbDiffPushDetached,
+    SbDiffSyncBusy,
 
     RpRailAria,
     RpExpand,
