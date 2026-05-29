@@ -1,9 +1,9 @@
 //! Commit graph for the sidebar via native `git log --graph` (no custom lane layout).
 
 use crate::git_info::{find_git_dir, git_cli_available};
+use crate::proc::command;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
-use std::process::Command;
 
 pub const GIT_MISSING_CODE: &str = "git_missing";
 const DEFAULT_LIMIT: u32 = 100;
@@ -79,7 +79,7 @@ pub fn git_commit_graph(cwd: String, limit: Option<u32>) -> Result<GitGraphLayou
 fn fetch_graph_entries(work_tree: &Path, limit: u32) -> Result<GitGraphLayout, String> {
     let pretty =
         format!("%x1e%H{FIELD_SEP}%P{FIELD_SEP}%s{FIELD_SEP}%an{FIELD_SEP}%ar{FIELD_SEP}%D%x02");
-    let out = Command::new("git")
+    let out = command("git")
         .arg("-C")
         .arg(work_tree)
         .arg("-c")

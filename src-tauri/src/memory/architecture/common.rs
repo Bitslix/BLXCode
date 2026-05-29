@@ -4,9 +4,9 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 
 use crate::git_info::is_git_repository;
+use crate::proc::command;
 use crate::memory::architecture::unit::{ProjectUnit, UnitKind};
 
 /// Directory names skipped during enumeration. Any dot-prefixed directory is
@@ -47,7 +47,7 @@ fn path_is_skipped(rel: &str) -> bool {
 /// an empty list.
 pub fn enumerate_tracked_files(workspace_root: &Path) -> Vec<String> {
     if is_git_repository(workspace_root) {
-        if let Ok(output) = Command::new("git")
+        if let Ok(output) = command("git")
             .arg("-C")
             .arg(workspace_root)
             .arg("ls-files")

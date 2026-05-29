@@ -122,3 +122,4 @@ Manual notes about this unit can live above or below the generated block.
 - `src/workbench/harness_voice_pane/mod.rs`
 - ... 36 more source paths omitted
 <!-- architecture:static:end -->
+

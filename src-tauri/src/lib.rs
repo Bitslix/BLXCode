@@ -19,6 +19,7 @@ mod memory;
 mod plans;
 mod plans_index;
 mod pointers;
+mod proc;
 mod pty_host;
 mod skills_rules;
 mod tasks;

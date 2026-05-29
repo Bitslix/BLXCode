@@ -3,12 +3,12 @@
 //! or `.git` index changes. Used by the sidebar `File Diff` section.
 
 use crate::git_info::{find_git_dir, git_cli_available};
+use crate::proc::command;
 use notify::event::{AccessKind, EventKind};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -202,9 +202,14 @@ fn resolve_work_tree(cwd: &str) -> Result<PathBuf, String> {
 }
 
 fn run_git(work_tree: &Path, args: &[&str]) -> Result<String, String> {
-    let out = Command::new("git")
+    // `--no-optional-locks` stops `git status` from opportunistically
+    // rewriting `.git/index` (the lstat cache). Without it, every status
+    // refresh dirties `.git/index`, the FS watcher fires `git_status_dirty`,
+    // and the frontend runs status again — a self-sustaining loop.
+    let out = command("git")
         .arg("-C")
         .arg(work_tree)
+        .arg("--no-optional-locks")
         .args(args)
         .output()
         .map_err(|e| format!("git {}: {e}", args.first().copied().unwrap_or("?")))?;
@@ -503,10 +508,19 @@ fn is_ignored_subpath(path: &Path, work_tree: &Path) -> bool {
     let mut comps = rel.components();
     let first = comps.next().and_then(|c| c.as_os_str().to_str());
     let second = comps.next().and_then(|c| c.as_os_str().to_str());
-    matches!(
-        (first, second),
-        (Some(".git"), Some("objects")) | (Some(".git"), Some("logs"))
-    )
+    let Some(".git") = first else {
+        return false;
+    };
+    let Some(second) = second else {
+        return false;
+    };
+    // `objects`/`logs` churn on every commit/gc without changing status output.
+    // `*.lock` files (`index.lock`, `HEAD.lock`, …) are transient create/remove
+    // pairs that always accompany the real change, and the editor/transient
+    // files below never affect `git status`. Suppressing them keeps the watcher
+    // from amplifying a single operation into a burst of `git_status_dirty`.
+    matches!(second, "objects" | "logs" | "COMMIT_EDITMSG" | "FETCH_HEAD" | "ORIG_HEAD")
+        || second.ends_with(".lock")
 }
 
 #[cfg(test)]

@@ -1,8 +1,8 @@
 //! Workspace environment detection and session cache.
 
 use crate::agent::tools::{ToolOutcome, WorkspaceRootGuard};
+use crate::proc::command;
 use serde_json::{json, Value};
-use std::process::Command;
 use std::sync::{Mutex, OnceLock};
 
 #[derive(Clone, Debug)]
@@ -81,7 +81,7 @@ fn available_shells() -> Vec<&'static str> {
 }
 
 fn git_available() -> bool {
-    Command::new("git")
+    command("git")
         .arg("--version")
         .output()
         .map(|o| o.status.success())

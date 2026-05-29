@@ -4,7 +4,7 @@ use crate::agent::environment;
 use crate::agent::tools::{ToolOutcome, WorkspaceRootGuard};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::thread;
@@ -140,7 +140,7 @@ pub fn tool_shell_exec(
     };
 
     let id = NEXT_ID.fetch_add(1, Ordering::SeqCst);
-    let child = match Command::new(shell)
+    let child = match crate::proc::command(shell)
         .args(&shell_arg)
         .current_dir(root.as_str())
         .stdout(Stdio::piped())

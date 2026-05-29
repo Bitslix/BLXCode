@@ -1,5 +1,5 @@
+use crate::proc::command;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 pub fn current_branch(start: &Path) -> Option<String> {
     let git_dir = find_git_dir(start)?;
@@ -23,7 +23,7 @@ pub fn current_branch(start: &Path) -> Option<String> {
 
 pub fn head_commit(start: &Path) -> Option<String> {
     if git_cli_available() {
-        let output = Command::new("git")
+        let output = command("git")
             .arg("-C")
             .arg(start)
             .arg("rev-parse")
@@ -49,7 +49,7 @@ pub fn is_git_repository(start: &Path) -> bool {
 /// Whether the `git` executable runs successfully (`git --version`).
 #[must_use]
 pub fn git_cli_available() -> bool {
-    Command::new("git")
+    command("git")
         .arg("--version")
         .output()
         .map(|o| o.status.success())

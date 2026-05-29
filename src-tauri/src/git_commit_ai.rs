@@ -6,8 +6,8 @@ use crate::agent::oneshot;
 use crate::agent_settings::{load_settings_pub, provider_key_pub};
 use crate::git_info::{find_git_dir, git_cli_available};
 use crate::git_status::GIT_MISSING_CODE;
+use crate::proc::command;
 use std::path::Path;
-use std::process::Command;
 use tauri::AppHandle;
 
 /// Cap the diff we send to the model so a huge staged change set doesn't blow
@@ -77,7 +77,7 @@ fn resolve_work_tree(cwd: &str) -> Result<std::path::PathBuf, String> {
 }
 
 fn staged_diff(work_tree: &Path) -> Result<String, String> {
-    let out = Command::new("git")
+    let out = command("git")
         .arg("-C")
         .arg(work_tree)
         .args(["diff", "--cached", "--no-color"])

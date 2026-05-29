@@ -136,3 +136,4 @@ Manual notes about this unit can live above or below the generated block.
 - `src-tauri/src/tasks.rs`
 - ... 8 more source paths omitted
 <!-- architecture:static:end -->
+

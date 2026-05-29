@@ -11,6 +11,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
+use crate::proc::command;
+
 use crate::skills_rules::store::{
     ensure_skills_rules_roots, record_installed_skill, validate_skill_name,
 };
@@ -95,7 +97,7 @@ fn install_git(staging: &Path, src: &SkillSourceInput) -> Result<SkillSourceMeta
     let clone_dir = staging.join("_clone");
     fs::create_dir_all(&clone_dir).map_err(|e| format!("mkdir clone dir: {e}"))?;
     run_with_timeout(
-        Command::new("git")
+        command("git")
             .arg("clone")
             .arg("--depth=1")
             .arg("--branch")
@@ -172,7 +174,7 @@ fn install_npm(staging: &Path, src: &SkillSourceInput) -> Result<SkillSourceMeta
     fs::create_dir_all(&pack_dir).map_err(|e| format!("mkdir pack dir: {e}"))?;
 
     // `npm pack <spec>` writes a `*.tgz` into the cwd and prints the filename.
-    let output = Command::new("npm")
+    let output = command("npm")
         .arg("pack")
         .arg("--silent")
         .arg("--")
@@ -254,7 +256,7 @@ fn is_safe_npm_version(v: &str) -> bool {
 fn extract_tarball_via_tar(tgz: &Path, dest: &Path) -> Result<(), String> {
     fs::create_dir_all(dest).map_err(|e| format!("mkdir extract dest: {e}"))?;
     run_with_timeout(
-        Command::new("tar")
+        command("tar")
             .arg("--strip-components=1")
             .arg("-xzf")
             .arg(tgz)

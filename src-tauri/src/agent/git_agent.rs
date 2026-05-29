@@ -2,14 +2,14 @@
 
 use crate::agent::environment;
 use crate::agent::tools::{ToolOutcome, WorkspaceRootGuard};
+use crate::proc::command;
 use serde_json::Value;
 use std::path::Path;
-use std::process::Command;
 
 const MAX_GIT_OUTPUT: usize = 64 * 1024;
 
 fn run_git(root: &WorkspaceRootGuard, args: &[&str]) -> ToolOutcome {
-    let output = Command::new("git")
+    let output = command("git")
         .args(args)
         .current_dir(root.as_str())
         .output();
@@ -89,7 +89,7 @@ pub fn tool_git_status(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolO
         Ok(p) => p,
         Err(o) => return o,
     };
-    let output = Command::new("git")
+    let output = command("git")
         .args(["status", "--short", "--branch"])
         .current_dir(&cwd)
         .output();
@@ -123,7 +123,7 @@ pub fn tool_git_diff(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOut
     if args.get("staged").and_then(|v| v.as_bool()) == Some(true) {
         cmd_args.push("--staged");
     }
-    let output = Command::new("git")
+    let output = command("git")
         .args(&cmd_args)
         .current_dir(&cwd)
         .output();
@@ -242,7 +242,7 @@ pub fn tool_git_apply_patch(args: &Value, root: Option<&WorkspaceRootGuard>) -> 
     };
     use std::io::Write;
     use std::process::Stdio;
-    let mut child = match Command::new("git")
+    let mut child = match command("git")
         .args(["apply", "--whitespace=nowarn"])
         .current_dir(root.as_str())
         .stdin(Stdio::piped())

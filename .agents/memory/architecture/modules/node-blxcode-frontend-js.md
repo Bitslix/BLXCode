@@ -32,3 +32,4 @@ Manual notes about this unit can live above or below the generated block.
 - `frontend-js/graph3d_entry.mjs`
 - `frontend-js/scripts/tauri-before-build.cjs`
 <!-- architecture:static:end -->
+

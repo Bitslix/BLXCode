@@ -7,9 +7,10 @@
 
 use crate::git_info::{find_git_dir, git_cli_available};
 use crate::git_status::GIT_MISSING_CODE;
+use crate::proc::command;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Output;
 
 /// Branch / upstream / divergence snapshot used to enable-disable the sync
 /// buttons and fill their tooltips.
@@ -68,7 +69,7 @@ fn work_tree(cwd: &str) -> Result<PathBuf, String> {
 }
 
 fn run(work_tree: &Path, args: &[&str]) -> Result<Output, String> {
-    Command::new("git")
+    command("git")
         .arg("-C")
         .arg(work_tree)
         .args(args)

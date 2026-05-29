@@ -1,8 +1,8 @@
 //! Workspace search and scoped git helpers.
 
 use crate::agent::tools::{ToolOutcome, WorkspaceRootGuard};
+use crate::proc::command;
 use serde_json::Value;
-use std::process::Command;
 
 const MAX_SEARCH_HITS: usize = 50;
 
@@ -28,7 +28,7 @@ pub fn tool_workspace_search(args: &Value, root: Option<&WorkspaceRootGuard>) ->
         .unwrap_or(MAX_SEARCH_HITS as u64)
         .min(100) as usize;
 
-    let output = Command::new("rg")
+    let output = command("rg")
         .args([
             "--line-number",
             "--max-count",
