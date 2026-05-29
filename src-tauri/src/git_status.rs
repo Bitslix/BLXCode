@@ -585,4 +585,22 @@ mod tests {
         let p = root.join("src").join("foo.rs");
         assert!(!is_ignored_subpath(&p, root));
     }
+
+    #[test]
+    fn ignored_subpath_filters_transient_git_files() {
+        let root = Path::new("/tmp/blx-test");
+        // Lock files and editor/transient state never change status output and
+        // would otherwise feed the watcher back into itself.
+        for name in ["index.lock", "HEAD.lock", "COMMIT_EDITMSG", "FETCH_HEAD", "ORIG_HEAD"] {
+            let p = root.join(".git").join(name);
+            assert!(is_ignored_subpath(&p, root), "{name} should be ignored");
+        }
+        // But real index/ref changes (e.g. external `git add`, branch switch)
+        // must still trigger a refresh.
+        assert!(!is_ignored_subpath(&root.join(".git").join("index"), root));
+        assert!(!is_ignored_subpath(
+            &root.join(".git").join("refs").join("heads").join("main"),
+            root
+        ));
+    }
 }
