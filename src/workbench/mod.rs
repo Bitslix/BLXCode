@@ -153,7 +153,7 @@ pub fn WorkbenchShell() -> impl IntoView {
     let embed_surface = BrowserEmbedSurface(RwSignal::new(None));
     let skills_rules = SkillsRulesService::new();
     let app_prefs = AppPrefsService::new();
-    let toast = ToastService::new();
+    let toast = ToastService::new(app_prefs);
     let updates = UpdateService::new();
     let post_update_notes = PostUpdateNotesService::new();
     let slot_dnd = TerminalSlotDragService::new();
