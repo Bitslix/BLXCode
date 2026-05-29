@@ -14,6 +14,8 @@ Opening or switching to a workspace runs `workspace_ensure_agents`, which create
 
 `PLANS.md` is the plan index. BLXCode will not delete it through the UI. Other `.md` files in this folder are normal plans you can create, rename, or remove.
 
+The index table inside `PLANS.md` is **maintained automatically** when you create, rename, delete, or save a plan — you do not need to edit the table by hand. BLXCode derives which plans exist from the `.md` files on disk and preserves your **Status** and **Description** cells per plan path across syncs. New plans get a default `planned` status and their Markdown heading as the description.
+
 ## Task syntax in plan Markdown
 
 Each plan can declare a canonical task section:

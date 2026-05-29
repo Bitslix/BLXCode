@@ -18,7 +18,7 @@ Durable repo learnings (conventions, pitfalls, decisions) live here:
 <workspace>/.agents/learnings/
 ```
 
-Built-in categories **memory** (default notes at the memory root) and **learnings** keep their existing behavior and default colors. User-created folders get a deterministic accent color derived from the folder name.
+Built-in categories **memory** (default notes at the memory root) and **learnings** keep their existing behavior and default colors. The harness-managed **`architecture`** category holds the workspace architecture map (see below). User-created folders get a deterministic accent color derived from the folder name.
 
 In the Memory panel and agent tools, learnings use API paths with a `learnings/` prefix (for example `learnings/my-topic.md`). General notes use paths relative to `.agents/memory/` (for example `decisions/idea.md`).
 
@@ -51,7 +51,22 @@ Open the Memory panel from the right workbench rail (legacy: `Ctrl+Shift+M`; tmu
 The Files toolbar provides:
 
 - **+ Kategorie** — create a new folder under `.agents/memory/` (empty categories persist with a `.gitkeep`).
+- **+ Note** / **+ Category** at the project or global root — create a note or folder directly under the memory root (not only inside subfolders).
 - **Collapse** — collapse or expand the file tree.
+- **Rebuild architecture** — regenerate the architecture map for the active workspace (when the architecture category exists).
+
+Drag the vertical divider between the file tree and the editor to resize the tree column (160–520 px; persisted as `blxcode_memory_tree_width_px_v1`).
+
+### Architecture map
+
+BLXCode can build a **project architecture map** under `.agents/memory/architecture/`:
+
+- `ARCHITECTURE.md` — curated index with a generated unit table and a manual section for your prose.
+- `architecture/modules/*.md` — per-package or per-crate skeleton notes (names like `rust-blxcode`, `node-my-app`).
+
+Rebuild works for Rust, Node/TypeScript, Python, CMake, Go, Zig, Makefile-based C/C++, and other trees via a generic fallback — not only `Cargo.toml` workspaces. In the Files tree, `ARCHITECTURE.md` opens from the **architecture** category header (it is not a duplicate row). The BLXCode Agent can call `memory_rebuild_architecture` / `memory_lint_architecture` and is steered to read the map before broad repo searches.
+
+Commit `ARCHITECTURE.md` and `architecture/modules/*.md` with structural PRs; local staleness metadata lives in `.agents/memory/.meta/` (gitignored).
 
 Each category header has a hover **+** button to create a note prefilled for that category.
 

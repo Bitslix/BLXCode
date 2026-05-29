@@ -76,8 +76,10 @@ Details: [Agent Providers](agent-providers.md), [Image Mode](image.md), [Voice](
 - **Paths & sandbox** — default folder for new workspaces and BLXCode Agent file sandbox root.
 - **Embedded browser** — default URL for the Browser tab.
 - **Category colors** — presets used for Memory category dots and sidebar accents (formerly under a separate Memory settings tab).
+- **Confirm before closing a workspace** — when enabled (default), BLXCode asks before closing a workspace from the sidebar ×, context menu, or Terminals tab close path.
+- **Architecture LLM prose** — reserved for a future optional LLM pass when rebuilding the architecture map; rebuilds today are deterministic and do not call a model.
 
-See [Workspaces](workspaces.md).
+See [Workspaces](workspaces.md) for File Diff, Git sync, and the architecture map in Memory.
 
 ## See also
 

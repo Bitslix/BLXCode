@@ -97,7 +97,17 @@ The state model includes workspaces, active workspace ID, recent workspaces, sid
 
 ## Memory And Tasks
 
-Memory lives in `src-tauri/src/memory.rs` and `src-tauri/src/agents_layout.rs`. Notes are stored under `<workspace>/.agents/memory/` and learnings under `<workspace>/.agents/learnings/` (API paths `learnings/…`). Legacy `.blxcode/memory/` is migrated on workspace bootstrap via `workspace_ensure_agents`.
+Memory lives under `src-tauri/src/memory/` (`mod.rs`, `store`, `paths`, `graph`, `frontmatter`, `wikilinks`, …) and `src-tauri/src/agents_layout.rs`. Notes are stored under `<workspace>/.agents/memory/` and learnings under `<workspace>/.agents/learnings/` (API paths `learnings/…`). Legacy `.blxcode/memory/` is migrated on workspace bootstrap via `workspace_ensure_agents`.
+
+### Architecture map
+
+`src-tauri/src/memory/architecture/` implements `memory_rebuild_architecture` and `memory_lint_architecture`:
+
+- `detect.rs` — plugin registry (Rust, Node, Python, CMake, Go, Zig, Jai, Make, Generic fallback).
+- `indexers/*.rs` — per-manifest unit discovery and generated `architecture/modules/<kind>-<name>.md` skeletons.
+- Generated `ARCHITECTURE.md` (`## Generated` / `## Manual`) and `.meta/architecture-state.json` (gitignored) for staleness.
+
+Agents must not overwrite harness-managed sections; the Memory UI treats `architecture/` as a reserved category. See `.agents/memory/ARCHITECTURE.md` in a checked-out workspace for the index format.
 
 ```mermaid
 flowchart LR
@@ -157,6 +167,8 @@ flowchart LR
 
 `src-tauri/src/plans.rs` parses and writes the canonical `## Tasks` / `## Todos` section. `PLANS.md` is protected. Path traversal is rejected relative to the plans root.
 
+`src-tauri/src/plans_index.rs` keeps the `PLANS.md` index table in sync on `plan_create` / `plan_write` / `plan_delete` / `plan_rename` (generated membership, preserved Status/Description cells).
+
 ## Skills And Rules
 
 `src-tauri/src/skills_rules/` implements list/read/write, enable flags in `index.json`, and install staging (`git`, `npm`, local). **Core skills** are embedded via `CORE_SKILLS` in `store.rs` (`SkillSourceKind::Core`) and merged into `skills_list` on every workspace. `skills_rules_bootstrap` runs on workspace open via `workspace_ensure_agents` / layout helpers.
@@ -170,6 +182,11 @@ flowchart LR
   - `read_workspace_video_file` → base64 + MIME, **64 MiB** cap (`MAX_VIDEO_PREVIEW_BYTES`).
   All four commands reuse the same `canonical_root` / `resolve_under_root` sandbox so traversal-out-of-root, missing files, and non-files behave identically.
 - `src-tauri/src/git_graph.rs` — `git_is_repository`, `git_commit_graph` (lane layout, unit-tested).
+- `src-tauri/src/git_status.rs` — porcelain status, unified diff, stage/unstage, `git_status_watch_*` (`notify` → `git_status_dirty` event).
+- `src-tauri/src/git_sync.rs` — `git_sync_status`, `git_fetch`, `git_pull`, `git_push` (`GIT_TERMINAL_PROMPT=0`).
+- `src-tauri/src/git_commit_ai.rs` — `git_generate_commit_message` via `agent::oneshot`.
+- `src/workbench/confirm_dialog/` — themed `ConfirmDialog` + `HarnessUiService::ConfirmRequest` (replaces `window.confirm` for destructive actions).
+- `src-tauri/src/updater.rs` — `post_update_release_notes` loads `docs/releases/v{version}.md` from the matching Git tag (GitHub Release body fallback).
 
 Frontend:
 

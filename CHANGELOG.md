@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+### Removed
+
+
+## [0.3.0] - 2026-05-29
+
+### Added
+
 - **Commit changes from the File Diff section (manual or AI-generated message)**: the File Diff toolbar now has a **Commit** button next to Push (enabled once something is staged; the tooltip explains "Stage changes to commit." otherwise), and each diff group header has a hover/focus bulk action — **Stage all** on the *Changes* group (`git add -A`) and **Unstage all** on the *Staged Changes* group (`git reset`, falling back to `git rm --cached` in a repo without an initial commit). The commit button opens a themed in-app dialog where the user can type a commit message by hand or click **Commit with AI** to generate a Conventional-Commits message from the staged diff. AI generation reuses the agent tab's configured provider/model/key (Anthropic, OpenAI, or OpenRouter) via a new non-streaming one-shot completion path, caps the diff sent to the model at 24 KiB, and cleans wrapping code fences/quotes from the result. Committing runs `git commit`, toasts the localized outcome, and refreshes the diff list, commit graph and sync status. Added the `git_stage_all` / `git_unstage_all` / `git_commit` / `git_generate_commit_message` Tauri commands, the `agent::oneshot` provider helper (with `clean_message` unit tests), typed frontend bridge wrappers, a reusable `CommitDialog` component with theme-token styling, and ten new i18n strings (plus a translated "Commit with AI" label) across all 13 locales.
 
 - **Workspace architecture map (memory)**: extends workspace memory with a harness-maintained repo structure map (Karpathy-style index, no separate wiki). Reserved category `.agents/memory/architecture/` holds generated `architecture/modules/*.md` skeletons (Cargo workspace: root `blxcode-ui` + `src-tauri`, depth-limited `mod` tree, merge markers) and curated `ARCHITECTURE.md` (`## Generated` / `## Manual`). Adds `memory_rebuild_architecture` and `memory_lint_architecture` (Tauri + agent tools), write-guards so agents cannot overwrite harness-managed sections, extended frontmatter (`managed`, `stale`, `git_rev`, `source_paths`), and `.meta/architecture-state.json` (gitignored). Agents consult the map before broad filesystem search (system-prompt checklist, scout reads `ARCHITECTURE.md` first, `memory-architecture` harness skill). First user turn shares a ~12 KiB preload budget between `<project-docs>` and `<memory-architecture>`. Memory UI: rebuild control, `ARCHITECTURE.md` pinned under the architecture category, no user “new note” under `architecture/`. Workspace setting **Architecture LLM prose** (default off) for optional future prose synthesis. Commit `ARCHITECTURE.md` and `architecture/modules/*.md` with structural PRs; regenerate after large refactors.

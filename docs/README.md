@@ -11,9 +11,9 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 | Topic | Guide |
 |-------|--------|
 | Settings (API Keys, BLXCode Agent, Workspace, **Appearance / themes**) | [Settings](user/settings.md) · [Appearance & Themes](user/appearance-themes.md) |
-| Workbench, terminals, sidebar, handoff | [Workspaces](user/workspaces.md) |
+| Workbench, terminals, sidebar, Git diff/sync, handoff | [Workspaces](user/workspaces.md) |
 | File preview (images, video, Markdown, Mermaid) | [File Preview](user/file-preview.md) |
-| Memory, learnings, graph, categories | [Memory And Tasks](user/memory-and-tasks.md) |
+| Memory, learnings, architecture map, graph | [Memory And Tasks](user/memory-and-tasks.md) |
 | Markdown plans and plan-linked tasks | [Plans](user/plans.md) |
 | Workspace rules and skills | [Rules And Skills](user/rules-and-skills.md) |
 | Core skills, shell/git/web tools | [Agent Harness](user/agent-harness.md) |
@@ -31,10 +31,10 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 - [Getting Started](user/getting-started.md) — prerequisites, run BLXCode, first workspace, where data lives.
 - [Settings](user/settings.md) — docked center-tab settings, API Keys, BLXCode Agent grid, Workspace, **Appearance / themes**.
 - [Appearance & Themes](user/appearance-themes.md) — theme picker, presets, persistence, exceptions.
-- [Workspaces](user/workspaces.md) — creation, terminal grids, sidebar explorer, Git graph, handoff, persistence.
+- [Workspaces](user/workspaces.md) — creation, terminal grids, sidebar explorer, File Diff (stage/commit/push), Git graph (fetch/pull), handoff, persistence.
 - [File Preview](user/file-preview.md) — center-tab previews for images (incl. SVG), video, rendered Markdown, syntax-highlighted source code, and Mermaid diagrams. Repository policy docs (`LICENSE`, `CONTRIBUTING`, `SECURITY`, `CHANGELOG`, …) render as Markdown with a kind-specific hero banner — with or without a `.md` extension.
-- [Memory And Tasks](user/memory-and-tasks.md) — Memory panel (Files, Graph, Search), dynamic categories, tasks, agent memory tools.
-- [Plans](user/plans.md) — `.agents/plans/`, Kanban board, task syntax, Plans panel, agent tools.
+- [Memory And Tasks](user/memory-and-tasks.md) — Memory panel (Files, Graph, Search), architecture map, dynamic categories, tasks, agent memory tools.
+- [Plans](user/plans.md) — `.agents/plans/`, auto-maintained `PLANS.md` index, Kanban board, task syntax, Plans panel, agent tools.
 - [Rules And Skills](user/rules-and-skills.md) — expandable rule/skill cards, core vs user skills, install dialog.
 - [Agent Harness](user/agent-harness.md) — core skills, slim prompt, environment/shell/git/web, web API keys.
 - [Subagents](user/subagents.md) — parallel runs, roles, timeline, tool groups, limits.
@@ -61,3 +61,7 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 ## Project principles
 
 BLXCode is a local-first desktop workbench. Workspaces, terminals, memory, plans, tasks, and agent context stay close together without hiding where data lives on disk. When behavior changes, update the docs beside the code so users and contributors can move forward without reverse-engineering the app.
+
+## Release notes
+
+User-facing notes for each version live in [`docs/releases/`](releases/) (for example [`v0.3.0.md`](releases/v0.3.0.md)). They power the in-app **What's new** dialog after updates and should stay non-technical. The technical changelog remains in [`CHANGELOG.md`](../CHANGELOG.md) at the repository root.

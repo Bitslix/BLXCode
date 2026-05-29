@@ -22,7 +22,7 @@ Authoritative list from `src-tauri/src/lib.rs` (grouped for navigation):
 
 ### App shell
 
-- `open_external_url`, `greet`, `exit_app`
+- `open_external_url`, `greet`, `exit_app`, `app_version`, `post_update_release_notes`
 
 ### Agent runtime
 
@@ -57,7 +57,9 @@ Authoritative list from `src-tauri/src/lib.rs` (grouped for navigation):
 
 - `git_branch`
 - `git_is_repository`, `git_commit_graph` (`git_graph` module)
-- `list_path_entries`, `read_workspace_text_file`, `stat_workspace_file`, `read_workspace_image_file`, `read_workspace_video_file` (`fs_entries` module) — explorer tree + center-tab file preview dispatcher (see [File Preview](../user/file-preview.md))
+- `git_status_changes`, `git_file_diff`, `git_stage_file`, `git_unstage_file`, `git_stage_all`, `git_unstage_all`, `git_commit`, `git_generate_commit_message`, `git_status_watch_start`, `git_status_watch_stop` (`git_status`, `git_commit_ai`)
+- `git_sync_status`, `git_fetch`, `git_pull`, `git_push` (`git_sync`)
+- `list_path_entries`, `read_workspace_text_file`, `stat_workspace_file`, `read_workspace_image_file`, `read_workspace_video_file`, `create_workspace_file`, `create_workspace_dir` (`fs_entries` module) — explorer tree + center-tab file preview dispatcher (see [File Preview](../user/file-preview.md))
 
 ### Hooks
 
@@ -78,6 +80,7 @@ Authoritative list from `src-tauri/src/lib.rs` (grouped for navigation):
 - `memory_delete`, `memory_rename`, `memory_graph`, `memory_backlinks`, `memory_search`
 - `memory_export`, `memory_import`
 - `memory_install_pointers`, `memory_uninstall_pointers`, `memory_pointer_status`
+- `memory_rebuild_architecture`, `memory_lint_architecture`
 
 ### Tasks and plans
 

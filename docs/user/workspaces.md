@@ -11,6 +11,7 @@ The workspace configurator lets you:
 - Pick a terminal-grid preset.
 - Assign terminal slots to a fleet of coding tools.
 - Skip agent assignment when you only want plain terminals.
+- **Recent directories** — when you have opened workspaces before, previously used folders appear below the working-directory field; click a row to fill the path in one step.
 
 The supported fleet labels are:
 
@@ -131,24 +132,46 @@ The left sidebar combines the workspace list with a resizable bottom panel for p
 ### Layout and resize
 
 - **Sidebar width** — drag the right edge of the sidebar (default **260px**, persisted as `blxcode_sidebar_width_px_v1`).
-- **Workspace list vs. bottom panel** — drag the horizontal handle between the workspace list and the combined Explorer/Git block (default **50%** of sidebar height, `blxcode_sidebar_panels_height_pct_v1`).
-- **Project Files vs. Git** — drag the inner handle between Explorer and graph (`blxcode_sidebar_explorer_height_pct_v1`, clamped 15–85%).
+- **Workspace list vs. bottom panel** — drag the horizontal handle between the workspace list and the combined Explorer/Diff/Git block (default **50%** of sidebar height, `blxcode_sidebar_panels_height_pct_v1`).
+- **Three inner panels** — drag the handles between **Project Files**, **File Diff**, and **Git Commits** (`blxcode_sidebar_explorer_height_pct_v1`, `blxcode_sidebar_diff_height_pct_v1`; each clamped so no section collapses below its minimum).
 
 ### Project Files (Explorer)
 
 - Lazy file tree for the active workspace `cwd` (sandboxed under the workspace root).
 - **Refresh** toolbar action.
+- **New File** and **New Folder** — always-visible toolbar actions; inline naming (VS Code style). The selected folder (or a file’s parent folder) is the creation target. Hover a folder row for per-folder **New File** / **New Folder** icons.
 - **Show/hide hidden files** — eye toggle for dot-prefixed entries (`blxcode_sidebar_explorer_show_hidden_v1`, default off).
-- Click a folder row to expand or collapse; chevron still works without double-toggling.
+- Click a folder row to expand or collapse; clicking a folder also selects it as the creation target.
 - **Click a file row** to open it in a shared center preview tab. Images, video, Markdown, source code (with line numbers + syntax highlighting), and Mermaid render as rich content; text falls back to a gutter-and-selection monospaced view; binary types show an "unsupported" placeholder. Repository policy docs (`LICENSE`, `CONTRIBUTING`, `CONTRIBUTORS`, `SECURITY`, `CHANGELOG`, `README`, …) render as Markdown with a kind-specific hero banner whether or not they ship with a `.md` extension. See [File Preview](file-preview.md) for the full feature matrix, byte caps, and security notes.
+
+### File Diff
+
+When the workspace is a Git repository, the **File Diff** section lists changed files in two collapsible groups:
+
+| Group | Contents |
+|-------|----------|
+| **Changes** | Unstaged and untracked files |
+| **Staged Changes** | Index entries ready to commit |
+
+Each row shows status (`M` / `A` / `D` / `?` / …), path, and `+`/`-` line counts. Hover for **stage** (`+`) or **unstage** (`−`) on a single file; group headers offer **Stage all** / **Unstage all**.
+
+The toolbar provides:
+
+- **Commit** — opens a dialog to enter a message or use **Commit with AI** (uses your BLXCode Agent text provider and API key from Settings).
+- **Push** — enabled only when every change is staged and a remote branch is reachable (see Git sync below).
+
+Click a row to open a center **diff** tab with inline `+`/`-` highlighting. The list refreshes automatically when Git reports a dirty index (`git status` watcher).
 
 ### Git Commits
 
 - Swim-lane commit graph (up to 100 commits) when `.git` is present.
 - Ref badges and author/time metadata.
+- Toolbar **Fetch** and **Pull** (fetch + merge) when a remote is configured; buttons reflect ahead/behind counts and disable during an in-flight sync.
 - If `git` is not on `PATH`, the section stays visible with a hint instead of an empty graph.
 
-Explorer and Git section open/collapsed state restores per workspace after reload.
+Fetch, pull, and push share one busy state with File Diff so only one Git network operation runs at a time. Outcomes appear as localized toasts (up to date, merge conflict, auth failure, missing upstream, and more). Force-push, rebase-pull, submodules, and stash are not in scope.
+
+Explorer, File Diff, and Git section open/collapsed state restores per workspace after reload.
 
 ## Workspace settings
 
@@ -159,6 +182,8 @@ Explorer and Git section open/collapsed state restores per workspace after reloa
 | **Paths & sandbox** | Default directory for new workspaces; agent sandbox root for file tools |
 | **Embedded browser** | Default URL when opening the Browser tab |
 | **Category colors** | Named color presets for Memory categories (sidebar dots, graph accents) |
+| **Confirmations** | Optional “Confirm before closing a workspace” (sidebar ×, context menu, and Terminals tab) |
+| **Architecture map** | Per-workspace toggle for future LLM prose on rebuild (default off; rebuilds are deterministic today) |
 
 One **Save** / **Discard** footer applies path and browser changes together. Category color edits save immediately when you change a swatch or label.
 
