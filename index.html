@@ -6,12 +6,10 @@
     <title>BLXCode</title>
     <link rel="icon" href="/blxcode.png" type="image/png" sizes="500x500" />
     <link rel="apple-touch-icon" href="/blxcode.png" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap"
-      rel="stylesheet"
-    />
+    <!-- JetBrains Mono is bundled locally (Nerd Font) via @font-face in
+         styles.css — no Google Fonts CDN dependency, works offline. -->
+    <link rel="preload" as="font" type="font/woff2" crossorigin
+      href="/public/fonts/JetBrainsMonoNerdFontMono-Regular.woff2" />
     <script>
       (function () {
         var consoleQueue = [];

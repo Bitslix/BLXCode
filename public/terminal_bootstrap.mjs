@@ -222,7 +222,12 @@ window.__blxcodeTerminal = {
   create(container) {
     const id = nextId++;
     const term = new Terminal({
-      fontFamily: "JetBrains Mono, ui-monospace, monospace",
+      // Windows has neither JetBrains Mono nor SF Mono, and Chromium maps the
+      // bare `monospace` generic to Courier New (bad box-drawing/block metrics,
+      // which mangles TUI art). Fall back to fonts that actually ship on each
+      // OS — Cascadia Mono / Consolas on Windows — before the generic.
+      fontFamily:
+        '"JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, "SF Mono", Menlo, ui-monospace, monospace',
       fontSize: 12,
       allowTransparency: true,
       theme: xtermThemeFromDom(),
@@ -244,6 +249,22 @@ window.__blxcodeTerminal = {
     });
     term.loadAddon(webLinks);
     term.open(container);
+
+    // The bundled "JetBrains Mono" may still be loading when xterm measures the
+    // cell on first paint, which would lock in the fallback font's metrics and
+    // misalign the grid. Re-measure once the font is ready.
+    if (document.fonts && typeof document.fonts.load === "function") {
+      document.fonts
+        .load('12px "JetBrains Mono"')
+        .then(() => {
+          try {
+            term.clearTextureAtlas?.();
+            fit.fit();
+            term.refresh(0, term.rows - 1);
+          } catch (_) {}
+        })
+        .catch(() => {});
+    }
 
     const dispatchTerminalEvent = (name, extra = {}) => {
       window.dispatchEvent(

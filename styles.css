@@ -3,6 +3,30 @@
  * Deep dark surfaces, crisp separators, cool blue active states, and restrained depth.
  */
 
+/*
+ * Bundled JetBrains Mono Nerd Font (Mono variant) — shipped locally so the
+ * terminal and all monospace UI render identically on every OS, offline, and
+ * with Nerd Font glyphs (powerline, dev icons) available. This @font-face
+ * intentionally claims the family name "JetBrains Mono" so it overrides any
+ * same-named system/CDN font and is picked up by every existing `--font-mono`
+ * / xterm reference without further changes. The Mono variant keeps icon
+ * glyphs at single cell width so TUI grids stay aligned.
+ */
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/public/fonts/JetBrainsMonoNerdFontMono-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/public/fonts/JetBrainsMonoNerdFontMono-Bold.woff2") format("woff2");
+}
+
 :root {
   font-family: var(--font-mono);
   font-size: 15px;
