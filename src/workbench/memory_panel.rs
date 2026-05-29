@@ -1590,7 +1590,7 @@ fn MemoryFileGroupHead(
                     new_note_category.set(Some((scope_for_new.clone(), cat_for_new.clone())));
                 }
             >
-                <LxIcon icon=icondata::LuPlus width="0.75rem" height="0.75rem" />
+                <LxIcon icon=icondata::LuFilePlus width="0.75rem" height="0.75rem" />
             </button>
         </li>
     }
