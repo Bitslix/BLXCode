@@ -45,7 +45,11 @@ pub struct GitStatusDirtyPayload {
 }
 
 #[tauri::command]
-pub fn git_status_changes(cwd: String) -> Result<Vec<ChangedFile>, String> {
+pub async fn git_status_changes(cwd: String) -> Result<Vec<ChangedFile>, String> {
+    crate::proc::run_blocking(move || git_status_changes_impl(cwd)).await
+}
+
+fn git_status_changes_impl(cwd: String) -> Result<Vec<ChangedFile>, String> {
     if !git_cli_available() {
         return Err(GIT_MISSING_CODE.into());
     }
@@ -89,7 +93,11 @@ pub fn git_status_changes(cwd: String) -> Result<Vec<ChangedFile>, String> {
 }
 
 #[tauri::command]
-pub fn git_file_diff(cwd: String, rel_path: String, staged: bool) -> Result<String, String> {
+pub async fn git_file_diff(cwd: String, rel_path: String, staged: bool) -> Result<String, String> {
+    crate::proc::run_blocking(move || git_file_diff_impl(cwd, rel_path, staged)).await
+}
+
+fn git_file_diff_impl(cwd: String, rel_path: String, staged: bool) -> Result<String, String> {
     if !git_cli_available() {
         return Err(GIT_MISSING_CODE.into());
     }
@@ -124,7 +132,11 @@ pub fn git_file_diff(cwd: String, rel_path: String, staged: bool) -> Result<Stri
 }
 
 #[tauri::command]
-pub fn git_stage_file(cwd: String, rel_path: String) -> Result<(), String> {
+pub async fn git_stage_file(cwd: String, rel_path: String) -> Result<(), String> {
+    crate::proc::run_blocking(move || git_stage_file_impl(cwd, rel_path)).await
+}
+
+fn git_stage_file_impl(cwd: String, rel_path: String) -> Result<(), String> {
     if !git_cli_available() {
         return Err(GIT_MISSING_CODE.into());
     }
@@ -137,7 +149,11 @@ pub fn git_stage_file(cwd: String, rel_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn git_unstage_file(cwd: String, rel_path: String) -> Result<(), String> {
+pub async fn git_unstage_file(cwd: String, rel_path: String) -> Result<(), String> {
+    crate::proc::run_blocking(move || git_unstage_file_impl(cwd, rel_path)).await
+}
+
+fn git_unstage_file_impl(cwd: String, rel_path: String) -> Result<(), String> {
     if !git_cli_available() {
         return Err(GIT_MISSING_CODE.into());
     }
@@ -150,7 +166,11 @@ pub fn git_unstage_file(cwd: String, rel_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn git_stage_all(cwd: String) -> Result<(), String> {
+pub async fn git_stage_all(cwd: String) -> Result<(), String> {
+    crate::proc::run_blocking(move || git_stage_all_impl(cwd)).await
+}
+
+fn git_stage_all_impl(cwd: String) -> Result<(), String> {
     if !git_cli_available() {
         return Err(GIT_MISSING_CODE.into());
     }
@@ -160,7 +180,11 @@ pub fn git_stage_all(cwd: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn git_unstage_all(cwd: String) -> Result<(), String> {
+pub async fn git_unstage_all(cwd: String) -> Result<(), String> {
+    crate::proc::run_blocking(move || git_unstage_all_impl(cwd)).await
+}
+
+fn git_unstage_all_impl(cwd: String) -> Result<(), String> {
     if !git_cli_available() {
         return Err(GIT_MISSING_CODE.into());
     }
@@ -176,7 +200,11 @@ pub fn git_unstage_all(cwd: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn git_commit(cwd: String, message: String) -> Result<(), String> {
+pub async fn git_commit(cwd: String, message: String) -> Result<(), String> {
+    crate::proc::run_blocking(move || git_commit_impl(cwd, message)).await
+}
+
+fn git_commit_impl(cwd: String, message: String) -> Result<(), String> {
     if !git_cli_available() {
         return Err(GIT_MISSING_CODE.into());
     }
@@ -501,17 +529,37 @@ fn relevant_event(event: &notify::Event, work_tree: &Path) -> bool {
         .any(|p| !is_ignored_subpath(p, work_tree))
 }
 
+/// Build/dependency output directories that churn constantly without ever
+/// affecting tracked `git status` (they are gitignored). `target/` in
+/// particular is rewritten continuously by `cargo tauri dev`; watching it
+/// would fire `git_status_dirty` every few hundred ms and stall the UI.
+/// Kept in sync with the architecture indexer's skip list.
+const SKIP_TOP_DIRS: &[&str] = &[
+    "target",
+    "node_modules",
+    "dist",
+    "build",
+    "out",
+    "vendor",
+    "__pycache__",
+    "coverage",
+];
+
 fn is_ignored_subpath(path: &Path, work_tree: &Path) -> bool {
     let Ok(rel) = path.strip_prefix(work_tree) else {
         return false;
     };
     let mut comps = rel.components();
-    let first = comps.next().and_then(|c| c.as_os_str().to_str());
-    let second = comps.next().and_then(|c| c.as_os_str().to_str());
-    let Some(".git") = first else {
+    let Some(first) = comps.next().and_then(|c| c.as_os_str().to_str()) else {
         return false;
     };
-    let Some(second) = second else {
+    if SKIP_TOP_DIRS.contains(&first) {
+        return true;
+    }
+    if first != ".git" {
+        return false;
+    }
+    let Some(second) = comps.next().and_then(|c| c.as_os_str().to_str()) else {
         return false;
     };
     // `objects`/`logs` churn on every commit/gc without changing status output.
@@ -602,5 +650,21 @@ mod tests {
             &root.join(".git").join("refs").join("heads").join("main"),
             root
         ));
+    }
+
+    #[test]
+    fn ignored_subpath_filters_build_dirs() {
+        let root = Path::new("/tmp/blx-test");
+        // `target/` churn (cargo dev builds) must never wake the status watcher.
+        assert!(is_ignored_subpath(
+            &root.join("target").join("debug").join("blxcode.exe"),
+            root
+        ));
+        assert!(is_ignored_subpath(
+            &root.join("node_modules").join("foo").join("index.js"),
+            root
+        ));
+        // Real source edits still trigger a refresh.
+        assert!(!is_ignored_subpath(&root.join("src").join("lib.rs"), root));
     }
 }

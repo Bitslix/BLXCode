@@ -32,3 +32,21 @@ fn apply_no_window(mut cmd: Command) -> Command {
 fn apply_no_window(cmd: Command) -> Command {
     cmd
 }
+
+/// Run blocking work (e.g. a git subprocess) off the main thread.
+///
+/// Synchronous `#[tauri::command]` handlers execute on the main thread, so a
+/// blocking `Command::output()` there stalls the event loop and makes the
+/// window stutter (visible when dragging it). Wrapping the work in
+/// [`tauri::async_runtime::spawn_blocking`] moves it to a dedicated blocking
+/// pool; the command stays `async` and the UI thread keeps pumping events.
+pub async fn run_blocking<T, F>(f: F) -> Result<T, String>
+where
+    F: FnOnce() -> Result<T, String> + Send + 'static,
+    T: Send + 'static,
+{
+    match tauri::async_runtime::spawn_blocking(f).await {
+        Ok(result) => result,
+        Err(e) => Err(format!("background task failed: {e}")),
+    }
+}

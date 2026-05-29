@@ -19,8 +19,8 @@ Manual notes about this unit can live above or below the generated block.
 - Manifest: `src-tauri/Cargo.toml`
 - Root: `src-tauri`
 - Source root: `src-tauri/src`
-- Source files: 88
-- Root declarations: `agent`, `agent_hooks`, `agent_settings`, `agents_layout`, `api_keys`, `app_paths`, `browser_host`, `clipboard`, `commands`, `fs_entries`, `git_commit_ai`, `git_graph`, `git_info`, `git_status`, `git_sync`, `image`, `media_keys`, `memory`, `plans`, `plans_index`, `pointers`, `pty_host`, `skills_rules`, `tasks`, `updater`, `voice`, `workbench_state`
+- Source files: 89
+- Root declarations: `agent`, `agent_hooks`, `agent_settings`, `agents_layout`, `api_keys`, `app_paths`, `browser_host`, `clipboard`, `commands`, `fs_entries`, `git_commit_ai`, `git_graph`, `git_info`, `git_status`, `git_sync`, `image`, `media_keys`, `memory`, `plans`, `plans_index`, `pointers`, `proc`, `pty_host`, `skills_rules`, `tasks`, `updater`, `voice`, `workbench_state`
 
 ### Top-Level Modules
 
@@ -45,6 +45,7 @@ Manual notes about this unit can live above or below the generated block.
 - `plans` (1 files); declarations: `tests`
 - `plans_index` (1 files); declarations: `tests`
 - `pointers` (1 files); declarations: `tests`
+- `proc` (1 files)
 - `pty_host` (1 files)
 - `skills_rules` (6 files) — submodules: `commands`, `install`, `pointers`, `store`, `types`; declarations: `commands`, `install`, `pointers`, `store`, `tests`, `types`
 - `tasks` (1 files); declarations: `tests`
@@ -126,6 +127,7 @@ Manual notes about this unit can live above or below the generated block.
 - `src-tauri/src/plans.rs`
 - `src-tauri/src/plans_index.rs`
 - `src-tauri/src/pointers/mod.rs`
+- `src-tauri/src/proc.rs`
 - `src-tauri/src/pty_host.rs`
 - `src-tauri/src/skills_rules/commands.rs`
 - `src-tauri/src/skills_rules/install.rs`
@@ -133,7 +135,6 @@ Manual notes about this unit can live above or below the generated block.
 - `src-tauri/src/skills_rules/pointers.rs`
 - `src-tauri/src/skills_rules/store.rs`
 - `src-tauri/src/skills_rules/types.rs`
-- `src-tauri/src/tasks.rs`
-- ... 8 more source paths omitted
+- ... 9 more source paths omitted
 <!-- architecture:static:end -->
 

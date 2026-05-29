@@ -59,7 +59,11 @@ pub fn git_is_repository(cwd: String) -> bool {
 }
 
 #[tauri::command]
-pub fn git_commit_graph(cwd: String, limit: Option<u32>) -> Result<GitGraphLayout, String> {
+pub async fn git_commit_graph(cwd: String, limit: Option<u32>) -> Result<GitGraphLayout, String> {
+    crate::proc::run_blocking(move || git_commit_graph_impl(cwd, limit)).await
+}
+
+fn git_commit_graph_impl(cwd: String, limit: Option<u32>) -> Result<GitGraphLayout, String> {
     if !git_cli_available() {
         return Err(GIT_MISSING_CODE.into());
     }

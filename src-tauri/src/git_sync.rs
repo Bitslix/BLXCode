@@ -139,7 +139,11 @@ fn classify(text: &str) -> &'static str {
 
 /// Branch / upstream / ahead-behind / dirty snapshot.
 #[tauri::command]
-pub fn git_sync_status(cwd: String) -> Result<SyncStatus, String> {
+pub async fn git_sync_status(cwd: String) -> Result<SyncStatus, String> {
+    crate::proc::run_blocking(move || git_sync_status_impl(cwd)).await
+}
+
+fn git_sync_status_impl(cwd: String) -> Result<SyncStatus, String> {
     if !git_cli_available() {
         return Err(GIT_MISSING_CODE.into());
     }
@@ -195,7 +199,11 @@ pub fn git_sync_status(cwd: String) -> Result<SyncStatus, String> {
 
 /// `git fetch --prune` on the configured remote.
 #[tauri::command]
-pub fn git_fetch(cwd: String) -> Result<SyncOutcome, String> {
+pub async fn git_fetch(cwd: String) -> Result<SyncOutcome, String> {
+    crate::proc::run_blocking(move || git_fetch_impl(cwd)).await
+}
+
+fn git_fetch_impl(cwd: String) -> Result<SyncOutcome, String> {
     if !git_cli_available() {
         return Err(GIT_MISSING_CODE.into());
     }
@@ -214,7 +222,11 @@ pub fn git_fetch(cwd: String) -> Result<SyncOutcome, String> {
 
 /// `git pull --no-edit --no-rebase` (fetch + merge).
 #[tauri::command]
-pub fn git_pull(cwd: String) -> Result<SyncOutcome, String> {
+pub async fn git_pull(cwd: String) -> Result<SyncOutcome, String> {
+    crate::proc::run_blocking(move || git_pull_impl(cwd)).await
+}
+
+fn git_pull_impl(cwd: String) -> Result<SyncOutcome, String> {
     if !git_cli_available() {
         return Err(GIT_MISSING_CODE.into());
     }
@@ -240,7 +252,11 @@ pub fn git_pull(cwd: String) -> Result<SyncOutcome, String> {
 /// `git push`. When `set_upstream` is true, pushes the current branch with
 /// `--set-upstream origin <branch>` (used when no tracking branch exists yet).
 #[tauri::command]
-pub fn git_push(cwd: String, set_upstream: bool) -> Result<SyncOutcome, String> {
+pub async fn git_push(cwd: String, set_upstream: bool) -> Result<SyncOutcome, String> {
+    crate::proc::run_blocking(move || git_push_impl(cwd, set_upstream)).await
+}
+
+fn git_push_impl(cwd: String, set_upstream: bool) -> Result<SyncOutcome, String> {
     if !git_cli_available() {
         return Err(GIT_MISSING_CODE.into());
     }
