@@ -8227,11 +8227,18 @@ body.blxcode-dragging-terminal * {
   background: var(--overlay-1);
 }
 .workbench-memory-files__name-text {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .workbench-memory-files__folder {
+  flex: 0 1 auto;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.7rem;
   color: var(--text-muted);
 }

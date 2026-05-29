@@ -2614,8 +2614,13 @@ fn clean_memory_label(raw: &str) -> String {
 }
 
 fn memory_display_folder(path: &str) -> Option<String> {
-    let tail = path.strip_prefix(LEARNINGS_API_PREFIX).unwrap_or(path);
-    tail.rsplit_once('/').map(|(d, _)| d.to_string())
+    let dir = path.rsplit_once('/').map(|(d, _)| d)?;
+    // The note already sits inside its category group, so drop the leading
+    // category segment and show only the sub-path beneath it (e.g.
+    // `architecture/modules/rust-blxcode.md` → `modules`, with the filename
+    // itself rendered as the row label). Categories with no sub-path show none.
+    let sub = dir.split_once('/').map(|(_, rest)| rest).unwrap_or("");
+    (!sub.is_empty()).then(|| sub.to_string())
 }
 
 fn note_badge_text(name: &str) -> String {
