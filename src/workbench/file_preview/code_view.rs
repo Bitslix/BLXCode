@@ -170,7 +170,12 @@ pub fn CodeView(
     // left the code area. We register once and clean up with on_cleanup.
     let mouseup_handle =
         leptos::leptos_dom::helpers::window_event_listener_untyped("mouseup", move |_| {
-            if drag_anchor.get_untracked().is_some() {
+            // `try_get_untracked` returns `None` once this component's reactive
+            // owner is disposed (e.g. the file preview was closed). The window
+            // listener can still fire during that teardown window before the
+            // handle below is dropped, so we must not panic by reading a
+            // disposed signal. `Some(Some(_))` means alive + drag in progress.
+            if matches!(drag_anchor.try_get_untracked(), Some(Some(_))) {
                 drag_anchor.set(None);
                 drag_moved.set(false);
             }
@@ -182,7 +187,9 @@ pub fn CodeView(
     // every dismissal path (clicking another row, the page background, etc.).
     let click_close_handle =
         leptos::leptos_dom::helpers::window_event_listener_untyped("mousedown", move |_| {
-            if menu_state.get_untracked().is_some() {
+            // See the mouseup listener: guard against a disposed owner so a
+            // late window event after the preview closes can't panic.
+            if matches!(menu_state.try_get_untracked(), Some(Some(_))) {
                 menu_state.set(None);
             }
         });
@@ -194,7 +201,7 @@ pub fn CodeView(
             let Some(kev) = ev.dyn_ref::<web_sys::KeyboardEvent>() else {
                 return;
             };
-            if kev.key() == "Escape" && menu_state.get_untracked().is_some() {
+            if kev.key() == "Escape" && matches!(menu_state.try_get_untracked(), Some(Some(_))) {
                 menu_state.set(None);
             }
         });
