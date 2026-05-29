@@ -51,6 +51,10 @@ Open **Settings → API Keys**, set the key for the provider shown in the error 
 
 See [Agent Harness](agent-harness.md).
 
+## Windows: Terminal Drag And Drop Does Nothing
+
+If you can grab a terminal titlebar and see the ghost preview but dropping on another slot never swaps positions, upgrade to **0.3.2+**. Older Windows builds blocked in-webview HTML5 drag & drop because of WebView2’s default OS-level drag handler.
+
 ## Windows: Flashing Console Windows Or Frozen UI With Git Open
 
 On Windows, older builds could flash a console window for every short Git subprocess, or feel frozen while File Diff / Git Commits refreshed — especially in repos where `cargo tauri dev` keeps writing to `target/`.
