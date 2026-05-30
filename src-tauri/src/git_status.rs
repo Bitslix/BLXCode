@@ -3,7 +3,10 @@
 //! or `.git` index changes. Used by the sidebar `File Diff` section.
 
 use crate::git_info::{find_git_dir, git_cli_available};
+use crate::git_remote::{remote_work_tree, run_git_remote, run_git_remote_lenient};
 use crate::proc::command;
+use crate::pty_host::PtyManager;
+use crate::ssh_exec::RemoteExecManager;
 use notify::event::{AccessKind, EventKind};
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 use serde::{Deserialize, Serialize};
@@ -12,7 +15,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 pub const GIT_MISSING_CODE: &str = "git_missing";
 
@@ -45,8 +48,58 @@ pub struct GitStatusDirtyPayload {
 }
 
 #[tauri::command]
-pub async fn git_status_changes(cwd: String) -> Result<Vec<ChangedFile>, String> {
+pub async fn git_status_changes(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<Vec<ChangedFile>, String> {
+    if let Some(cid) = connection_id {
+        return git_status_changes_remote(&app, &pty, &exec, &cid, &cwd);
+    }
     crate::proc::run_blocking(move || git_status_changes_impl(cwd)).await
+}
+
+fn git_status_changes_remote(
+    app: &AppHandle,
+    pty: &PtyManager,
+    exec: &RemoteExecManager,
+    cid: &str,
+    cwd: &str,
+) -> Result<Vec<ChangedFile>, String> {
+    let work_tree = remote_work_tree(app, pty, exec, cid, cwd)?;
+    let porcelain = run_git_remote(
+        app,
+        pty,
+        exec,
+        cid,
+        &work_tree,
+        &["status", "--porcelain=v1", "-z"],
+    )?;
+    let mut entries = parse_porcelain(&porcelain);
+    let unstaged = run_git_remote(app, pty, exec, cid, &work_tree, &["diff", "--numstat", "-z"])?;
+    let staged = run_git_remote(
+        app,
+        pty,
+        exec,
+        cid,
+        &work_tree,
+        &["diff", "--cached", "--numstat", "-z"],
+    )?;
+    let unstaged_counts = parse_numstat(&unstaged);
+    let staged_counts = parse_numstat(&staged);
+    for entry in &mut entries {
+        let path = entry.rel_path.clone();
+        // Untracked line counts are skipped over SSH (would need an extra
+        // remote `wc`); the file still lists, just without a +N badge.
+        let unstaged_stats = unstaged_counts.get(&path).copied().and_then(normalize_stats);
+        let staged_stats = staged_counts.get(&path).copied().and_then(normalize_stats);
+        entry.staged_stats = if entry.staged { staged_stats } else { None };
+        entry.unstaged_stats = if entry.unstaged { unstaged_stats } else { None };
+    }
+    entries.sort_by(|a, b| a.rel_path.cmp(&b.rel_path));
+    Ok(entries)
 }
 
 fn git_status_changes_impl(cwd: String) -> Result<Vec<ChangedFile>, String> {
@@ -93,8 +146,57 @@ fn git_status_changes_impl(cwd: String) -> Result<Vec<ChangedFile>, String> {
 }
 
 #[tauri::command]
-pub async fn git_file_diff(cwd: String, rel_path: String, staged: bool) -> Result<String, String> {
+pub async fn git_file_diff(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
+    cwd: String,
+    rel_path: String,
+    staged: bool,
+    connection_id: Option<String>,
+) -> Result<String, String> {
+    if let Some(cid) = connection_id {
+        return git_file_diff_remote(&app, &pty, &exec, &cid, &cwd, &rel_path, staged);
+    }
     crate::proc::run_blocking(move || git_file_diff_impl(cwd, rel_path, staged)).await
+}
+
+fn git_file_diff_remote(
+    app: &AppHandle,
+    pty: &PtyManager,
+    exec: &RemoteExecManager,
+    cid: &str,
+    cwd: &str,
+    rel_path: &str,
+    staged: bool,
+) -> Result<String, String> {
+    let rel = rel_path.trim();
+    if rel.is_empty() {
+        return Err("rel_path is empty".into());
+    }
+    let work_tree = remote_work_tree(app, pty, exec, cid, cwd)?;
+    let mut args: Vec<&str> = vec!["diff"];
+    if staged {
+        args.push("--cached");
+    }
+    args.push("--no-color");
+    args.push("--");
+    args.push(rel);
+    let output = run_git_remote(app, pty, exec, cid, &work_tree, &args)?;
+    if !output.is_empty() {
+        return Ok(output);
+    }
+    // Untracked file: synthesize an all-added diff (exit 1 = differences).
+    let synth = run_git_remote_lenient(
+        app,
+        pty,
+        exec,
+        cid,
+        &work_tree,
+        &["diff", "--no-color", "--no-index", "--", "/dev/null", rel],
+    )
+    .unwrap_or_default();
+    Ok(synth)
 }
 
 fn git_file_diff_impl(cwd: String, rel_path: String, staged: bool) -> Result<String, String> {
@@ -132,7 +234,22 @@ fn git_file_diff_impl(cwd: String, rel_path: String, staged: bool) -> Result<Str
 }
 
 #[tauri::command]
-pub async fn git_stage_file(cwd: String, rel_path: String) -> Result<(), String> {
+pub async fn git_stage_file(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
+    cwd: String,
+    rel_path: String,
+    connection_id: Option<String>,
+) -> Result<(), String> {
+    if let Some(cid) = connection_id {
+        let rel = rel_path.trim();
+        if rel.is_empty() {
+            return Err("rel_path is empty".into());
+        }
+        let wt = remote_work_tree(&app, &pty, &exec, &cid, &cwd)?;
+        return run_git_remote(&app, &pty, &exec, &cid, &wt, &["add", "--", rel]).map(|_| ());
+    }
     crate::proc::run_blocking(move || git_stage_file_impl(cwd, rel_path)).await
 }
 
@@ -149,7 +266,23 @@ fn git_stage_file_impl(cwd: String, rel_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn git_unstage_file(cwd: String, rel_path: String) -> Result<(), String> {
+pub async fn git_unstage_file(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
+    cwd: String,
+    rel_path: String,
+    connection_id: Option<String>,
+) -> Result<(), String> {
+    if let Some(cid) = connection_id {
+        let rel = rel_path.trim();
+        if rel.is_empty() {
+            return Err("rel_path is empty".into());
+        }
+        let wt = remote_work_tree(&app, &pty, &exec, &cid, &cwd)?;
+        return run_git_remote(&app, &pty, &exec, &cid, &wt, &["restore", "--staged", "--", rel])
+            .map(|_| ());
+    }
     crate::proc::run_blocking(move || git_unstage_file_impl(cwd, rel_path)).await
 }
 
@@ -166,7 +299,17 @@ fn git_unstage_file_impl(cwd: String, rel_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn git_stage_all(cwd: String) -> Result<(), String> {
+pub async fn git_stage_all(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<(), String> {
+    if let Some(cid) = connection_id {
+        let wt = remote_work_tree(&app, &pty, &exec, &cid, &cwd)?;
+        return run_git_remote(&app, &pty, &exec, &cid, &wt, &["add", "-A"]).map(|_| ());
+    }
     crate::proc::run_blocking(move || git_stage_all_impl(cwd)).await
 }
 
@@ -180,7 +323,38 @@ fn git_stage_all_impl(cwd: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn git_unstage_all(cwd: String) -> Result<(), String> {
+pub async fn git_unstage_all(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<(), String> {
+    if let Some(cid) = connection_id {
+        let wt = remote_work_tree(&app, &pty, &exec, &cid, &cwd)?;
+        let has_head = run_git_remote(
+            &app,
+            &pty,
+            &exec,
+            &cid,
+            &wt,
+            &["rev-parse", "--verify", "--quiet", "HEAD"],
+        )
+        .is_ok();
+        return if has_head {
+            run_git_remote(&app, &pty, &exec, &cid, &wt, &["reset", "-q"]).map(|_| ())
+        } else {
+            run_git_remote(
+                &app,
+                &pty,
+                &exec,
+                &cid,
+                &wt,
+                &["rm", "-r", "--cached", "-q", "--", "."],
+            )
+            .map(|_| ())
+        };
+    }
     crate::proc::run_blocking(move || git_unstage_all_impl(cwd)).await
 }
 
@@ -200,7 +374,22 @@ fn git_unstage_all_impl(cwd: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn git_commit(cwd: String, message: String) -> Result<(), String> {
+pub async fn git_commit(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
+    cwd: String,
+    message: String,
+    connection_id: Option<String>,
+) -> Result<(), String> {
+    if let Some(cid) = connection_id {
+        let trimmed = message.trim();
+        if trimmed.is_empty() {
+            return Err("commit message is empty".into());
+        }
+        let wt = remote_work_tree(&app, &pty, &exec, &cid, &cwd)?;
+        return run_git_remote(&app, &pty, &exec, &cid, &wt, &["commit", "-m", trimmed]).map(|_| ());
+    }
     crate::proc::run_blocking(move || git_commit_impl(cwd, message)).await
 }
 
@@ -416,7 +605,17 @@ pub struct GitWatcherState {
 const DEBOUNCE_WINDOW: Duration = Duration::from_millis(300);
 
 #[tauri::command]
-pub fn git_status_watch_start(app: AppHandle, cwd: String) -> Result<u64, String> {
+pub fn git_status_watch_start(
+    app: AppHandle,
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<u64, String> {
+    // Remote work trees can't use the local `notify` watcher — the frontend
+    // polls instead. Return a sentinel token so `git_status_watch_stop` is a
+    // harmless no-op.
+    if connection_id.is_some() {
+        return Ok(0);
+    }
     let work_tree = resolve_work_tree(&cwd)?;
     let state = app.state::<GitWatcherState>();
     let token = state.next_token.fetch_add(1, Ordering::Relaxed) + 1;

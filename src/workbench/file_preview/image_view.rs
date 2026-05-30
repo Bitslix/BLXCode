@@ -35,10 +35,10 @@ pub fn ImageView(
             payload.set(Some(Err(FilePreviewError::NoTauri)));
             return;
         }
-        let Some(root) = wb.workspaces().with_untracked(|list| {
+        let Some((root, conn)) = wb.workspaces().with_untracked(|list| {
             list.iter()
                 .find(|w| w.id == workspace_id)
-                .map(|w| w.cwd.clone())
+                .map(|w| (w.cwd.clone(), w.remote_connection_id.clone()))
         }) else {
             payload.set(Some(Err(FilePreviewError::WorkspaceNotFound)));
             return;
@@ -47,14 +47,14 @@ pub fn ImageView(
         let is_svg = rel.to_ascii_lowercase().ends_with(".svg");
         spawn_local(async move {
             if is_svg {
-                match read_workspace_text_file(root, rel).await {
+                match read_workspace_text_file(root, rel, conn).await {
                     Ok(text) => payload.set(Some(Ok(ImagePayload::Svg {
                         sanitized: sanitize_svg(&text.content),
                     }))),
                     Err(e) => payload.set(Some(Err(FilePreviewError::Failed(e)))),
                 }
             } else {
-                match read_workspace_image_file(root, rel).await {
+                match read_workspace_image_file(root, rel, conn).await {
                     Ok(BinaryFilePreview {
                         base64,
                         mime,

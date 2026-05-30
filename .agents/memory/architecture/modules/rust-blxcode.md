@@ -20,7 +20,7 @@ Manual notes about this unit can live above or below the generated block.
 - Root: `src-tauri`
 - Source root: `src-tauri/src`
 - Source files: 91
-- Root declarations: `agent`, `agent_hooks`, `agent_settings`, `agents_layout`, `api_keys`, `app_paths`, `browser_host`, `clipboard`, `commands`, `fs_entries`, `git_commit_ai`, `git_graph`, `git_info`, `git_status`, `git_sync`, `image`, `media_keys`, `memory`, `plans`, `plans_index`, `pointers`, `proc`, `pty_host`, `skills_rules`, `ssh_remotes`, `ssh_secrets`, `tasks`, `updater`, `voice`, `workbench_state`
+- Root declarations: `agent`, `agent_hooks`, `agent_settings`, `agents_layout`, `api_keys`, `app_paths`, `browser_host`, `clipboard`, `commands`, `fs_entries`, `git_commit_ai`, `git_graph`, `git_info`, `git_remote`, `git_status`, `git_sync`, `image`, `media_keys`, `memory`, `plans`, `plans_index`, `pointers`, `proc`, `pty_host`, `skills_rules`, `ssh_exec`, `ssh_remotes`, `ssh_secrets`, `tasks`, `updater`, `voice`, `workbench_state`
 
 ### Top-Level Modules
 

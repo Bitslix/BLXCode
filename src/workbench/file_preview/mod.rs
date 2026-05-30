@@ -51,17 +51,17 @@ pub fn FilePreviewDock(workspace_id: u64, rel_path: String) -> impl IntoView {
             meta_sig.set(Some(Err(FilePreviewError::NoTauri)));
             return;
         }
-        let Some(root) = wb.workspaces().with_untracked(|list| {
+        let Some((root, conn)) = wb.workspaces().with_untracked(|list| {
             list.iter()
                 .find(|w| w.id == workspace_id)
-                .map(|w| w.cwd.clone())
+                .map(|w| (w.cwd.clone(), w.remote_connection_id.clone()))
         }) else {
             meta_sig.set(Some(Err(FilePreviewError::WorkspaceNotFound)));
             return;
         };
         let rel = rel_for_meta.clone();
         spawn_local(async move {
-            match stat_workspace_file(root, rel).await {
+            match stat_workspace_file(root, rel, conn).await {
                 Ok(m) => meta_sig.set(Some(Ok(m))),
                 Err(e) => meta_sig.set(Some(Err(FilePreviewError::Failed(e)))),
             }

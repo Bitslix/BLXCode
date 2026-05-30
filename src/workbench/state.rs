@@ -1218,7 +1218,7 @@ impl WorkbenchService {
         self.sidebar_repo_epoch
     }
 
-    fn bump_sidebar_repo_epoch(&self) {
+    pub fn bump_sidebar_repo_epoch(&self) {
         self.sidebar_repo_epoch.update(|n| *n = n.wrapping_add(1));
     }
 
@@ -1595,6 +1595,13 @@ impl WorkbenchService {
         let root = self.harness_workspace_root.get_untracked();
         let root = root.trim();
         (!root.is_empty()).then(|| root.to_string())
+    }
+
+    /// SSH connection id of the active workspace, or `None` when it is local.
+    /// Drives the remote-vs-local fs/git command routing.
+    pub fn active_remote_connection_id(&self) -> Option<String> {
+        self.with_active_workspace(|w| w.remote_connection_id.clone())
+            .flatten()
     }
 
     pub fn active_sidebar_explorer_open(&self) -> bool {
@@ -2050,6 +2057,7 @@ impl WorkbenchService {
     }
 
     fn finalize_workspace_close(&self, id: u64, entry: WorkspaceEntry, sessions_json: String) {
+        let closed_remote = entry.remote_connection_id.clone();
         self.push_recent_workspace_internal(entry, sessions_json);
         self.workspaces.update(|workspaces| {
             let Some(index) = workspaces.iter().position(|w| w.id == id) else {
@@ -2076,6 +2084,19 @@ impl WorkbenchService {
         // Must run after `workspaces.update` — re-entering the same signal inside
         // the closure can deadlock Leptos and freeze close / add workspace.
         self.reset_workspace_id_counter_if_empty();
+        // Close the SSH exec channel when the last workspace on that connection
+        // is gone (app-exit `kill_all` covers the rest).
+        if let Some(cid) = closed_remote {
+            let still_used = self.workspaces.with_untracked(|ws| {
+                ws.iter()
+                    .any(|w| w.remote_connection_id.as_deref() == Some(cid.as_str()))
+            });
+            if !still_used && is_tauri_shell() {
+                spawn_local(async move {
+                    let _ = crate::tauri_bridge::remote_exec_close(cid).await;
+                });
+            }
+        }
     }
 
     pub fn close_workspace(&self, id: u64) {

@@ -125,8 +125,9 @@ pub fn Sidebar() -> impl IntoView {
         }
         last_git_cwd.set_value(Some(cwd.clone()));
         let cwd_check = cwd.clone();
+        let conn = wb.active_remote_connection_id();
         spawn_local(async move {
-            let ok = git_is_repository(cwd_check).await.unwrap_or(false);
+            let ok = git_is_repository(cwd_check, conn).await.unwrap_or(false);
             git_repo_available.set(Some(ok));
         });
     });

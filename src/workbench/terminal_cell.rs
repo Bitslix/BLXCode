@@ -1,7 +1,8 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_latest_session_id, agent_session_exists, git_branch, is_tauri_shell, pty_drain_wait,
+    agent_latest_session_id, agent_remote_latest_session_id, agent_session_exists, git_branch,
+    is_tauri_shell, pty_drain_wait,
     pty_kill, pty_resize, pty_spawn_remote, pty_spawn_with_env, pty_write, workbench_drop_sessions,
     workbench_load_sessions, workbench_notifications_path, workbench_sessions_path,
 };
@@ -30,6 +31,9 @@ struct AgentLaunchPending {
     cwd: String,
     terminal_key: String,
     sid: u64,
+    /// `Some` for remote (SSH) workspaces — resume discovery runs on the
+    /// remote host instead of the local sessions.json/transcript files.
+    remote_connection_id: Option<String>,
 }
 
 #[derive(Clone, Default)]
@@ -111,8 +115,9 @@ pub fn WorkspaceTerminalCell(
 
     if is_tauri_shell() {
         let cwd_for_branch = cwd.clone();
+        let conn_for_branch = wb.remote_connection_for_terminal_key(&terminal_key);
         leptos::task::spawn_local(async move {
-            if let Ok(Some(name)) = git_branch(cwd_for_branch).await {
+            if let Ok(Some(name)) = git_branch(cwd_for_branch, conn_for_branch).await {
                 branch.set(Some(name));
             }
         });
@@ -821,6 +826,8 @@ async fn bootstrap_terminal_cell(
                         cwd: cwd.clone(),
                         terminal_key: terminal_key.clone(),
                         sid,
+                        remote_connection_id: wb
+                            .remote_connection_for_terminal_key(&terminal_key),
                     });
                     schedule_agent_launch_retries(state.clone());
                 }
@@ -938,7 +945,13 @@ async fn spawn_agent_launch_when_ready(state: Arc<Mutex<CellState>>) {
         let _ = pty_resize(pending.sid, 24, 80).await;
     }
 
-    let resume_id = lookup_resume_session(&pending.terminal_key, &pending.slug, &pending.cwd).await;
+    let resume_id = lookup_resume_session(
+        &pending.terminal_key,
+        &pending.slug,
+        &pending.cwd,
+        pending.remote_connection_id.as_deref(),
+    )
+    .await;
     if state.lock().expect("cell").launch_sent || state.lock().expect("cell").disposed {
         return;
     }
@@ -1060,7 +1073,33 @@ async fn refit_pty_until_ready(state: Arc<Mutex<CellState>>, attempts: u32, dela
 /// longer exists, e.g. an empty session that Claude never wrote) are
 /// dropped from `sessions.json` so we stop trying to resume them on
 /// every restart.
-async fn lookup_resume_session(terminal_key: &str, agent_slug: &str, cwd: &str) -> Option<String> {
+async fn lookup_resume_session(
+    terminal_key: &str,
+    agent_slug: &str,
+    cwd: &str,
+    connection_id: Option<&str>,
+) -> Option<String> {
+    // Remote workspaces have no local sessions.json / transcript files and we
+    // don't install hooks on the remote. Resume via the newest agent session
+    // for this remote cwd (discovered over the exec channel). tmux mode already
+    // covers exact live resume; this handles a dead remote process.
+    if let Some(cid) = connection_id {
+        match agent_remote_latest_session_id(
+            cid.to_string(),
+            agent_slug.to_string(),
+            cwd.to_string(),
+        )
+        .await
+        {
+            Ok(Some(id)) if !id.trim().is_empty() => {
+                web_sys::console::log_1(
+                    &format!("[blxcode resume] {terminal_key}: remote resume_id={id}").into(),
+                );
+                return Some(id);
+            }
+            _ => return None,
+        }
+    }
     let raw = match workbench_load_sessions().await {
         Ok(Some(s)) => s,
         Ok(None) => {

@@ -137,10 +137,10 @@ pub fn CodeView(
             result.set(Some(Err(FilePreviewError::NoTauri)));
             return;
         }
-        let Some(root) = wb.workspaces().with_untracked(|list| {
+        let Some((root, conn)) = wb.workspaces().with_untracked(|list| {
             list.iter()
                 .find(|w| w.id == workspace_id)
-                .map(|w| w.cwd.clone())
+                .map(|w| (w.cwd.clone(), w.remote_connection_id.clone()))
         }) else {
             result.set(Some(Err(FilePreviewError::WorkspaceNotFound)));
             return;
@@ -148,7 +148,7 @@ pub fn CodeView(
         let rel = rel_for_effect.clone();
         let lang = language_hint;
         spawn_local(async move {
-            match read_workspace_text_file(root, rel).await {
+            match read_workspace_text_file(root, rel, conn).await {
                 Ok(t) => {
                     let truncated = t.truncated;
                     let byte_len = t.byte_len;

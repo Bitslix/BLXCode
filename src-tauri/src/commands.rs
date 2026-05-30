@@ -773,6 +773,25 @@ pub fn pty_peek_output(
 }
 
 #[tauri::command]
-pub fn git_branch(cwd: String) -> Option<String> {
+pub fn git_branch(
+    app: tauri::AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, crate::ssh_exec::RemoteExecManager>,
+    cwd: String,
+    connection_id: Option<String>,
+) -> Option<String> {
+    if let Some(cid) = connection_id.as_deref() {
+        let branch = crate::git_remote::run_git_remote(
+            &app,
+            &pty,
+            &exec,
+            cid,
+            cwd.trim(),
+            &["rev-parse", "--abbrev-ref", "HEAD"],
+        )
+        .ok()?;
+        let branch = branch.trim();
+        return (!branch.is_empty() && branch != "HEAD").then(|| branch.to_string());
+    }
     crate::git_info::current_branch(std::path::Path::new(&cwd))
 }

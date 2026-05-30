@@ -11,6 +11,7 @@ mod fs_entries;
 mod git_commit_ai;
 mod git_graph;
 mod git_info;
+mod git_remote;
 mod git_status;
 mod git_sync;
 mod image;
@@ -22,6 +23,7 @@ mod pointers;
 mod proc;
 mod pty_host;
 mod skills_rules;
+mod ssh_exec;
 mod ssh_remotes;
 mod ssh_secrets;
 mod tasks;
@@ -132,6 +134,7 @@ pub fn run() {
         .manage(BrowserHost::default())
         .manage(git_status::GitWatcherState::default())
         .manage(PtyManager::default())
+        .manage(ssh_exec::RemoteExecManager::default())
         .manage(VoiceRecorderState::new())
         .manage(WorkbenchSessionsFileLock::default())
         .invoke_handler(tauri::generate_handler![
@@ -182,6 +185,8 @@ pub fn run() {
             ssh_remotes::ssh_remote_save,
             ssh_remotes::ssh_remote_delete,
             ssh_remotes::ssh_remote_test,
+            ssh_exec::remote_exec_close,
+            ssh_exec::agent_remote_latest_session_id,
             git_branch,
             git_graph::git_is_repository,
             git_graph::git_commit_graph,

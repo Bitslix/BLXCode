@@ -623,7 +623,7 @@ fn tmux_session_name(terminal_key: &str) -> String {
 }
 
 /// POSIX single-quote a string for safe interpolation into a remote command.
-fn sh_quote(s: &str) -> String {
+pub(crate) fn sh_quote(s: &str) -> String {
     let mut out = String::with_capacity(s.len() + 2);
     out.push('\'');
     for c in s.chars() {

@@ -690,18 +690,22 @@ pub struct FsEntryBrief {
 pub async fn list_path_entries(
     workspace_root: String,
     path: String,
+    connection_id: Option<String>,
 ) -> Result<Vec<FsEntryBrief>, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct A {
         workspace_root: String,
         path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
     invoke_typed(
         "list_path_entries",
         A {
             workspace_root,
             path,
+            connection_id,
         },
     )
     .await
@@ -709,18 +713,25 @@ pub async fn list_path_entries(
 
 /// Creates an empty file at `path` (relative to `workspace_root`). Errors if it
 /// already exists. Mirrors `fs_entries::create_workspace_file`.
-pub async fn create_workspace_file(workspace_root: String, path: String) -> Result<(), String> {
+pub async fn create_workspace_file(
+    workspace_root: String,
+    path: String,
+    connection_id: Option<String>,
+) -> Result<(), String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct A {
         workspace_root: String,
         path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
     invoke_unit_js(
         "create_workspace_file",
         args_value(A {
             workspace_root,
             path,
+            connection_id,
         })?,
     )
     .await
@@ -728,18 +739,25 @@ pub async fn create_workspace_file(workspace_root: String, path: String) -> Resu
 
 /// Creates an empty directory at `path` (relative to `workspace_root`). Errors
 /// if it already exists. Mirrors `fs_entries::create_workspace_dir`.
-pub async fn create_workspace_dir(workspace_root: String, path: String) -> Result<(), String> {
+pub async fn create_workspace_dir(
+    workspace_root: String,
+    path: String,
+    connection_id: Option<String>,
+) -> Result<(), String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct A {
         workspace_root: String,
         path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
     invoke_unit_js(
         "create_workspace_dir",
         args_value(A {
             workspace_root,
             path,
+            connection_id,
         })?,
     )
     .await
@@ -756,18 +774,22 @@ pub struct TextFilePreview {
 pub async fn read_workspace_text_file(
     workspace_root: String,
     path: String,
+    connection_id: Option<String>,
 ) -> Result<TextFilePreview, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct A {
         workspace_root: String,
         path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
     invoke_typed(
         "read_workspace_text_file",
         A {
             workspace_root,
             path,
+            connection_id,
         },
     )
     .await
@@ -828,18 +850,25 @@ pub struct BinaryFilePreview {
     pub truncated: bool,
 }
 
-pub async fn stat_workspace_file(workspace_root: String, path: String) -> Result<FileMeta, String> {
+pub async fn stat_workspace_file(
+    workspace_root: String,
+    path: String,
+    connection_id: Option<String>,
+) -> Result<FileMeta, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct A {
         workspace_root: String,
         path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
     invoke_typed(
         "stat_workspace_file",
         A {
             workspace_root,
             path,
+            connection_id,
         },
     )
     .await
@@ -848,18 +877,22 @@ pub async fn stat_workspace_file(workspace_root: String, path: String) -> Result
 pub async fn read_workspace_image_file(
     workspace_root: String,
     path: String,
+    connection_id: Option<String>,
 ) -> Result<BinaryFilePreview, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct A {
         workspace_root: String,
         path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
     invoke_typed(
         "read_workspace_image_file",
         A {
             workspace_root,
             path,
+            connection_id,
         },
     )
     .await
@@ -868,18 +901,22 @@ pub async fn read_workspace_image_file(
 pub async fn read_workspace_video_file(
     workspace_root: String,
     path: String,
+    connection_id: Option<String>,
 ) -> Result<BinaryFilePreview, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct A {
         workspace_root: String,
         path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
     invoke_typed(
         "read_workspace_video_file",
         A {
             workspace_root,
             path,
+            connection_id,
         },
     )
     .await
@@ -1055,6 +1092,16 @@ struct PtySpawnRemoteArgs {
     terminal_key: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     env: Vec<(String, String)>,
+}
+
+/// Close the SSH exec channel for a connection (last remote workspace closed).
+pub async fn remote_exec_close(connection_id: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        connection_id: String,
+    }
+    invoke_unit_js("remote_exec_close", args_value(Args { connection_id })?).await
 }
 
 /// Spawn an ssh terminal bound to a saved remote connection. Secrets stay in
@@ -1412,6 +1459,31 @@ pub async fn agent_latest_session_id(agent: String, cwd: String) -> Result<Optio
         "agent_latest_session_id",
         Args {
             probe: Probe { agent, cwd },
+        },
+    )
+    .await
+}
+
+/// Newest agent session id for a remote cwd, discovered over the SSH exec
+/// channel (no remote hooks). Used for remote-workspace resume.
+pub async fn agent_remote_latest_session_id(
+    connection_id: String,
+    agent: String,
+    cwd: String,
+) -> Result<Option<String>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        connection_id: String,
+        agent: String,
+        cwd: String,
+    }
+    invoke_typed(
+        "agent_remote_latest_session_id",
+        Args {
+            connection_id,
+            agent,
+            cwd,
         },
     )
     .await
@@ -2254,20 +2326,32 @@ pub async fn skills_install(
 
 // ---------------------------------------------------------------------
 
-pub async fn git_branch(cwd: String) -> Result<Option<String>, String> {
+pub async fn git_branch(
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<Option<String>, String> {
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct Args {
         cwd: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
-    invoke_typed("git_branch", Args { cwd }).await
+    invoke_typed("git_branch", Args { cwd, connection_id }).await
 }
 
-pub async fn git_is_repository(cwd: String) -> Result<bool, String> {
+pub async fn git_is_repository(
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<bool, String> {
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct Args {
         cwd: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
-    invoke_typed("git_is_repository", Args { cwd }).await
+    invoke_typed("git_is_repository", Args { cwd, connection_id }).await
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
@@ -2304,13 +2388,28 @@ pub struct GitGraphLayout {
 
 pub const GIT_MISSING_CODE: &str = "git_missing";
 
-pub async fn git_commit_graph(cwd: String, limit: Option<u32>) -> Result<GitGraphLayout, String> {
+pub async fn git_commit_graph(
+    cwd: String,
+    limit: Option<u32>,
+    connection_id: Option<String>,
+) -> Result<GitGraphLayout, String> {
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct Args {
         cwd: String,
         limit: Option<u32>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
-    invoke_typed("git_commit_graph", Args { cwd, limit }).await
+    invoke_typed(
+        "git_commit_graph",
+        Args {
+            cwd,
+            limit,
+            connection_id,
+        },
+    )
+    .await
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
@@ -2332,21 +2431,34 @@ pub struct ChangedFile {
     pub unstaged_stats: Option<LineStats>,
 }
 
-pub async fn git_status_changes(cwd: String) -> Result<Vec<ChangedFile>, String> {
+pub async fn git_status_changes(
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<Vec<ChangedFile>, String> {
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct Args {
         cwd: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
-    invoke_typed("git_status_changes", Args { cwd }).await
+    invoke_typed("git_status_changes", Args { cwd, connection_id }).await
 }
 
-pub async fn git_file_diff(cwd: String, rel_path: String, staged: bool) -> Result<String, String> {
+pub async fn git_file_diff(
+    cwd: String,
+    rel_path: String,
+    staged: bool,
+    connection_id: Option<String>,
+) -> Result<String, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Args {
         cwd: String,
         rel_path: String,
         staged: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
     invoke_typed(
         "git_file_diff",
@@ -2354,72 +2466,134 @@ pub async fn git_file_diff(cwd: String, rel_path: String, staged: bool) -> Resul
             cwd,
             rel_path,
             staged,
+            connection_id,
         },
     )
     .await
 }
 
-pub async fn git_stage_file(cwd: String, rel_path: String) -> Result<(), String> {
+pub async fn git_stage_file(
+    cwd: String,
+    rel_path: String,
+    connection_id: Option<String>,
+) -> Result<(), String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Args {
         cwd: String,
         rel_path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
-    invoke_unit_js("git_stage_file", args_value(Args { cwd, rel_path })?).await
+    invoke_unit_js(
+        "git_stage_file",
+        args_value(Args {
+            cwd,
+            rel_path,
+            connection_id,
+        })?,
+    )
+    .await
 }
 
-pub async fn git_unstage_file(cwd: String, rel_path: String) -> Result<(), String> {
+pub async fn git_unstage_file(
+    cwd: String,
+    rel_path: String,
+    connection_id: Option<String>,
+) -> Result<(), String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Args {
         cwd: String,
         rel_path: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
-    invoke_unit_js("git_unstage_file", args_value(Args { cwd, rel_path })?).await
+    invoke_unit_js(
+        "git_unstage_file",
+        args_value(Args {
+            cwd,
+            rel_path,
+            connection_id,
+        })?,
+    )
+    .await
 }
 
-pub async fn git_stage_all(cwd: String) -> Result<(), String> {
+pub async fn git_stage_all(cwd: String, connection_id: Option<String>) -> Result<(), String> {
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct Args {
         cwd: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
-    invoke_unit_js("git_stage_all", args_value(Args { cwd })?).await
+    invoke_unit_js("git_stage_all", args_value(Args { cwd, connection_id })?).await
 }
 
-pub async fn git_unstage_all(cwd: String) -> Result<(), String> {
+pub async fn git_unstage_all(cwd: String, connection_id: Option<String>) -> Result<(), String> {
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct Args {
         cwd: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
-    invoke_unit_js("git_unstage_all", args_value(Args { cwd })?).await
+    invoke_unit_js("git_unstage_all", args_value(Args { cwd, connection_id })?).await
 }
 
-pub async fn git_commit(cwd: String, message: String) -> Result<(), String> {
+pub async fn git_commit(
+    cwd: String,
+    message: String,
+    connection_id: Option<String>,
+) -> Result<(), String> {
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct Args {
         cwd: String,
         message: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
-    invoke_unit_js("git_commit", args_value(Args { cwd, message })?).await
+    invoke_unit_js(
+        "git_commit",
+        args_value(Args {
+            cwd,
+            message,
+            connection_id,
+        })?,
+    )
+    .await
 }
 
 /// Generates a commit message from the staged diff via the agent tab's
 /// configured provider. Returns the message text (already cleaned).
-pub async fn git_generate_commit_message(cwd: String) -> Result<String, String> {
+pub async fn git_generate_commit_message(
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<String, String> {
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct Args {
         cwd: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
-    invoke_typed("git_generate_commit_message", Args { cwd }).await
+    invoke_typed("git_generate_commit_message", Args { cwd, connection_id }).await
 }
 
-pub async fn git_status_watch_start(cwd: String) -> Result<u64, String> {
+pub async fn git_status_watch_start(
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<u64, String> {
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct Args {
         cwd: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
-    invoke_typed("git_status_watch_start", Args { cwd }).await
+    invoke_typed("git_status_watch_start", Args { cwd, connection_id }).await
 }
 
 pub async fn git_status_watch_stop(token: u64) -> Result<(), String> {
@@ -2451,38 +2625,64 @@ pub struct SyncOutcome {
     pub detail: String,
 }
 
-pub async fn git_sync_status(cwd: String) -> Result<SyncStatus, String> {
+pub async fn git_sync_status(
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<SyncStatus, String> {
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct Args {
         cwd: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
-    invoke_typed("git_sync_status", Args { cwd }).await
+    invoke_typed("git_sync_status", Args { cwd, connection_id }).await
 }
 
-pub async fn git_fetch(cwd: String) -> Result<SyncOutcome, String> {
+pub async fn git_fetch(cwd: String, connection_id: Option<String>) -> Result<SyncOutcome, String> {
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct Args {
         cwd: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
-    invoke_typed("git_fetch", Args { cwd }).await
+    invoke_typed("git_fetch", Args { cwd, connection_id }).await
 }
 
-pub async fn git_pull(cwd: String) -> Result<SyncOutcome, String> {
+pub async fn git_pull(cwd: String, connection_id: Option<String>) -> Result<SyncOutcome, String> {
     #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
     struct Args {
         cwd: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
-    invoke_typed("git_pull", Args { cwd }).await
+    invoke_typed("git_pull", Args { cwd, connection_id }).await
 }
 
-pub async fn git_push(cwd: String, set_upstream: bool) -> Result<SyncOutcome, String> {
+pub async fn git_push(
+    cwd: String,
+    set_upstream: bool,
+    connection_id: Option<String>,
+) -> Result<SyncOutcome, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Args {
         cwd: String,
         set_upstream: bool,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
     }
-    invoke_typed("git_push", Args { cwd, set_upstream }).await
+    invoke_typed(
+        "git_push",
+        Args {
+            cwd,
+            set_upstream,
+            connection_id,
+        },
+    )
+    .await
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]

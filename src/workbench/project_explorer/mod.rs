@@ -38,14 +38,15 @@ pub fn ProjectExplorerSection() -> impl IntoView {
     // file browser doesn't re-render or invalidate its cache when unrelated
     // workspace state (e.g. the agent chat timeline) changes — that previously
     // caused the left tree to flicker on every right-side chat update.
-    let active_workspace: Memo<Option<(u64, String, bool)>> = Memo::new(move |_| {
-        let active_id = wb.active_id().get();
-        wb.workspaces()
-            .get()
-            .into_iter()
-            .find(|w| Some(w.id) == active_id)
-            .map(|w| (w.id, w.cwd, w.configuring))
-    });
+    let active_workspace: Memo<Option<(u64, String, bool, Option<String>)>> =
+        Memo::new(move |_| {
+            let active_id = wb.active_id().get();
+            wb.workspaces()
+                .get()
+                .into_iter()
+                .find(|w| Some(w.id) == active_id)
+                .map(|w| (w.id, w.cwd, w.configuring, w.remote_connection_id))
+        });
     let section_title = Signal::derive(move || i18n.tr(I18nKey::SbExplorerTitle)().to_string());
 
     let explorer_open = RwSignal::new(wb.active_sidebar_explorer_open());
@@ -130,9 +131,10 @@ pub fn ProjectExplorerSection() -> impl IntoView {
             if need_fetch {
                 if let Some(ws) = wb.with_active_workspace_entry() {
                     let root = ws.cwd.clone();
+                    let conn = ws.remote_connection_id.clone();
                     let key = parent_rel.clone();
                     spawn_local(async move {
-                        if let Ok(list) = list_path_entries(root, key.clone()).await {
+                        if let Ok(list) = list_path_entries(root, key.clone(), conn).await {
                             children_cache.update(|c| {
                                 c.insert(key, list);
                             });
@@ -149,7 +151,7 @@ pub fn ProjectExplorerSection() -> impl IntoView {
         !collapsed.get()
             && active_workspace
                 .get()
-                .is_some_and(|(_, cwd, configuring)| !configuring && !cwd.trim().is_empty())
+                .is_some_and(|(_, cwd, configuring, _)| !configuring && !cwd.trim().is_empty())
     };
 
     view! {
@@ -231,7 +233,7 @@ pub fn ProjectExplorerSection() -> impl IntoView {
 
 #[component]
 fn ProjectExplorerBody(
-    active_workspace: Memo<Option<(u64, String, bool)>>,
+    active_workspace: Memo<Option<(u64, String, bool, Option<String>)>>,
     open_paths: RwSignal<HashSet<String>>,
     children_cache: RwSignal<HashMap<String, Vec<FsEntryBrief>>>,
     load_gen: RwSignal<u32>,
@@ -245,7 +247,7 @@ fn ProjectExplorerBody(
 
     Effect::new(move |_| {
         let _gen = load_gen.get();
-        let Some((_, cwd, configuring)) = active_workspace.get() else {
+        let Some((_, cwd, configuring, conn)) = active_workspace.get() else {
             return;
         };
         if configuring || cwd.trim().is_empty() {
@@ -259,7 +261,7 @@ fn ProjectExplorerBody(
         error_msg.set(None);
         let root_key = String::new();
         spawn_local(async move {
-            match list_path_entries(root.clone(), root.clone()).await {
+            match list_path_entries(root.clone(), root.clone(), conn).await {
                 Ok(entries) => {
                     children_cache.update(|c| {
                         c.insert(root_key, entries);
@@ -355,6 +357,7 @@ fn ExplorerDraftRow(
             return;
         };
         let root = ws.cwd.clone();
+        let conn = ws.remote_connection_id.clone();
         let ws_id = ws.id;
         let dir = d.is_dir;
         let parent_rel = d.parent_rel.clone();
@@ -366,16 +369,16 @@ fn ExplorerDraftRow(
         error.set(None);
         spawn_local(async move {
             let res = if dir {
-                create_workspace_dir(root.clone(), rel.clone()).await
+                create_workspace_dir(root.clone(), rel.clone(), conn.clone()).await
             } else {
-                create_workspace_file(root.clone(), rel.clone()).await
+                create_workspace_file(root.clone(), rel.clone(), conn.clone()).await
             };
             match res {
                 Ok(()) => {
                     draft.set(None);
                     // Targeted refresh: re-list just the parent folder so the
                     // new entry shows without collapsing the rest of the tree.
-                    if let Ok(list) = list_path_entries(root, parent_rel.clone()).await {
+                    if let Ok(list) = list_path_entries(root, parent_rel.clone(), conn).await {
                         children_cache.update(|c| {
                             c.insert(parent_rel, list);
                         });
@@ -568,10 +571,11 @@ fn ExplorerNode(
                     return;
                 }
                 let root = ws.cwd.clone();
+                let conn = ws.remote_connection_id.clone();
                 let path = rel_path.clone();
                 let cache_key = rel_path.clone();
                 spawn_local(async move {
-                    match list_path_entries(root, path).await {
+                    match list_path_entries(root, path, conn).await {
                         Ok(list) => {
                             children_cache.update(|c| {
                                 c.insert(cache_key, list);
