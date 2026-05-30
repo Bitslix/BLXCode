@@ -17,3 +17,4 @@ frontend-js/node_modules/
 .agents/memory/.meta/
 .tauri/
 .venv-i18n/
+.i18n-venv/

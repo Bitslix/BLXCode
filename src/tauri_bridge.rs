@@ -919,6 +919,162 @@ pub async fn pty_spawn_with_env(cwd: String, env: Vec<(String, String)>) -> Resu
     invoke_typed("pty_spawn", PtySpawnArgs { cwd, env }).await
 }
 
+// ---------------------------------------------------------------------------
+// SSH remote connections
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RemoteAuthKind {
+    Password,
+    Key,
+    Agent,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RemoteResume {
+    Tmux,
+    KeepaliveOnly,
+}
+
+/// Mirror of `src-tauri/src/ssh_remotes.rs::RemoteConnection`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteConnection {
+    #[serde(default)]
+    pub id: String,
+    pub label: String,
+    pub host: String,
+    pub port: u16,
+    pub username: String,
+    pub auth_kind: RemoteAuthKind,
+    #[serde(default)]
+    pub key_path: Option<String>,
+    #[serde(default)]
+    pub resume: RemoteResume,
+    #[serde(default)]
+    pub default_remote_dir: Option<String>,
+}
+
+impl Default for RemoteResume {
+    fn default() -> Self {
+        Self::KeepaliveOnly
+    }
+}
+
+/// Preset + secret-presence flags returned by `ssh_remotes_list`/`ssh_remote_save`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteConnectionView {
+    pub connection: RemoteConnection,
+    #[serde(default)]
+    pub has_password: bool,
+    #[serde(default)]
+    pub has_passphrase: bool,
+}
+
+pub async fn ssh_remotes_list() -> Result<Vec<RemoteConnectionView>, String> {
+    invoke_typed("ssh_remotes_list", serde_json::json!({})).await
+}
+
+pub async fn ssh_remote_save(
+    connection: RemoteConnection,
+    password: Option<String>,
+    passphrase: Option<String>,
+) -> Result<RemoteConnectionView, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Payload {
+        connection: RemoteConnection,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        password: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        passphrase: Option<String>,
+    }
+    #[derive(Serialize)]
+    struct Args {
+        payload: Payload,
+    }
+    invoke_typed(
+        "ssh_remote_save",
+        Args {
+            payload: Payload {
+                connection,
+                password,
+                passphrase,
+            },
+        },
+    )
+    .await
+}
+
+pub async fn ssh_remote_delete(id: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        id: String,
+    }
+    invoke_unit_js("ssh_remote_delete", args_value(Args { id })?).await
+}
+
+pub async fn ssh_remote_test(
+    connection: RemoteConnection,
+    password: Option<String>,
+    passphrase: Option<String>,
+) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Payload {
+        connection: RemoteConnection,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        password: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        passphrase: Option<String>,
+    }
+    #[derive(Serialize)]
+    struct Args {
+        payload: Payload,
+    }
+    invoke_unit_js(
+        "ssh_remote_test",
+        args_value(Args {
+            payload: Payload {
+                connection,
+                password,
+                passphrase,
+            },
+        })?,
+    )
+    .await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PtySpawnRemoteArgs {
+    connection_id: String,
+    terminal_key: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    env: Vec<(String, String)>,
+}
+
+/// Spawn an ssh terminal bound to a saved remote connection. Secrets stay in
+/// the Rust backend; only the connection id crosses the bridge.
+pub async fn pty_spawn_remote(
+    connection_id: String,
+    terminal_key: String,
+    env: Vec<(String, String)>,
+) -> Result<u64, String> {
+    invoke_typed(
+        "pty_spawn_remote",
+        PtySpawnRemoteArgs {
+            connection_id,
+            terminal_key,
+            env,
+        },
+    )
+    .await
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentContextImageInput {

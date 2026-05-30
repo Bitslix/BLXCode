@@ -22,6 +22,8 @@ mod pointers;
 mod proc;
 mod pty_host;
 mod skills_rules;
+mod ssh_remotes;
+mod ssh_secrets;
 mod tasks;
 mod updater;
 mod voice;
@@ -169,12 +171,17 @@ pub fn run() {
             create_directory,
             default_cwd,
             pty_spawn,
+            pty_spawn_remote,
             pty_write,
             pty_resize,
             pty_kill,
             pty_drain,
             pty_drain_wait,
             pty_peek_output,
+            ssh_remotes::ssh_remotes_list,
+            ssh_remotes::ssh_remote_save,
+            ssh_remotes::ssh_remote_delete,
+            ssh_remotes::ssh_remote_test,
             git_branch,
             git_graph::git_is_repository,
             git_graph::git_commit_graph,
@@ -283,6 +290,15 @@ pub fn run() {
             clipboard_read_text,
             clipboard_write_text,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            // Kill all live PTY/ssh children on exit so nothing is orphaned.
+            // tmux-resume remote sessions survive (they live server-side).
+            if let tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit = event {
+                if let Some(pty) = app_handle.try_state::<PtyManager>() {
+                    pty.kill_all();
+                }
+            }
+        });
 }

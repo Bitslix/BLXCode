@@ -112,6 +112,11 @@ pub struct WorkspaceEntry {
     /// Next id for dynamically-created center tabs.
     #[serde(default = "default_center_next_tab_id")]
     pub center_next_tab_id: u64,
+    /// `Some(connection_id)` when this is an SSH remote workspace — its
+    /// terminals spawn `ssh` to the saved [`RemoteConnection`] preset instead
+    /// of a local shell. `None` (default, back-compat) means a local workspace.
+    #[serde(default)]
+    pub remote_connection_id: Option<String>,
 }
 
 fn default_sidebar_section_open() -> bool {
@@ -435,6 +440,7 @@ impl WorkspaceEntry {
             center_tabs: default_center_tabs(),
             center_active_tab_id: default_center_active_tab_id(),
             center_next_tab_id: default_center_next_tab_id(),
+            remote_connection_id: None,
         }
     }
 
@@ -570,6 +576,10 @@ pub struct CreateWorkspaceDraft {
     pub grid_cols: u8,
     pub agent_counts: [u8; 5],
     pub agents_skipped: bool,
+    /// `Some(connection_id)` selects an SSH remote for this workspace. `None`
+    /// (default) keeps it local. For remote, `cwd_display` becomes the optional
+    /// remote start directory rather than a validated local path.
+    pub remote_connection_id: Option<String>,
 }
 
 impl Default for CreateWorkspaceDraft {
@@ -583,6 +593,7 @@ impl Default for CreateWorkspaceDraft {
             grid_cols: c,
             agent_counts: [0; 5],
             agents_skipped: false,
+            remote_connection_id: None,
         }
     }
 }
@@ -678,6 +689,7 @@ pub enum HarnessSettingsCategory {
     ApiKeys,
     Workspace,
     AgentProvider,
+    Remote,
     Memory,
     Voice,
     Image,
@@ -1320,6 +1332,17 @@ impl WorkbenchService {
         })
     }
 
+    /// `Some(connection_id)` when the terminal belongs to an SSH remote
+    /// workspace. Drives `pty_spawn_remote` vs the local `pty_spawn` path.
+    pub fn remote_connection_for_terminal_key(&self, terminal_key: &str) -> Option<String> {
+        let storage_key = super::agent_accent::terminal_key_storage_key(terminal_key)?;
+        self.workspaces.with_untracked(|list| {
+            list.iter()
+                .find(|w| w.storage_key == storage_key)
+                .and_then(|w| w.remote_connection_id.clone())
+        })
+    }
+
     fn notification_ack_keys_for_terminal(&self, terminal_key: &str) -> Vec<String> {
         let mut keys = vec![terminal_key.to_string()];
         let Some(storage_key) = super::agent_accent::terminal_key_storage_key(terminal_key) else {
@@ -1856,6 +1879,7 @@ impl WorkbenchService {
             center_tabs: Vec::new(),
             center_active_tab_id: 0,
             center_next_tab_id: default_center_next_tab_id(),
+            remote_connection_id: None,
         };
         self.workspaces.update(|v| v.push(entry));
         self.active_id.set(Some(id));
@@ -1984,6 +2008,7 @@ impl WorkbenchService {
                 center_tabs: default_center_tabs(),
                 center_active_tab_id: default_center_active_tab_id(),
                 center_next_tab_id: default_center_next_tab_id(),
+                remote_connection_id: None,
             });
         });
         Ok(id)
@@ -2445,6 +2470,7 @@ impl WorkbenchService {
                 center_tabs: default_center_tabs(),
                 center_active_tab_id: default_center_active_tab_id(),
                 center_next_tab_id: default_center_next_tab_id(),
+                remote_connection_id: None,
             });
         });
         match self.transfer_terminal_slot(workspace_id, new_id, slot_id) {
@@ -2804,6 +2830,7 @@ impl WorkbenchService {
             center_tabs: default_center_tabs(),
             center_active_tab_id: default_center_active_tab_id(),
             center_next_tab_id: default_center_next_tab_id(),
+            remote_connection_id: None,
         };
         self.active_id.set(Some(id));
         self.workspaces.update(|v| v.push(entry));
@@ -2834,11 +2861,18 @@ impl WorkbenchService {
 
     pub fn workspace_go_to_fleet_step(&self, id: u64) -> Result<(), ()> {
         let d = self.workspace_draft(id);
-        if d.cwd_display.trim().is_empty() {
+        // Remote workspaces may proceed without a local cwd (the remote start
+        // directory is optional and comes from the connection preset).
+        if d.remote_connection_id.is_none() && d.cwd_display.trim().is_empty() {
             return Err(());
         }
         self.set_workspace_config_step(id, 1);
         Ok(())
+    }
+
+    /// Select (or clear) the SSH remote connection for a workspace draft.
+    pub fn set_workspace_remote_connection(&self, id: u64, connection_id: Option<String>) {
+        self.update_workspace_draft(id, |d| d.remote_connection_id = connection_id);
     }
 
     pub fn workspace_back_to_layout(&self, id: u64) {
@@ -2937,7 +2971,10 @@ impl WorkbenchService {
     pub fn commit_inline_configure(&self, id: u64) {
         let draft = self.workspace_draft(id);
         let cwd = draft.cwd_display.trim().to_string();
-        if cwd.is_empty() {
+        let remote_connection_id = draft.remote_connection_id.clone();
+        // Local workspaces require a working directory; remote ones may omit it
+        // (the remote start dir is resolved from the connection preset).
+        if cwd.is_empty() && remote_connection_id.is_none() {
             return;
         }
         let cwd_for_agents = cwd.clone();
@@ -2999,6 +3036,7 @@ impl WorkbenchService {
             ws.slot_agent_labels = slot_agent_labels;
             ws.slot_pane_states = slot_pane_states;
             ws.next_terminal_id = n as u64 + 1;
+            ws.remote_connection_id = remote_connection_id.clone();
             ws.configuring = false;
         });
 
@@ -3934,6 +3972,7 @@ mod center_tab_tests {
             center_tabs: tabs,
             center_active_tab_id: active,
             center_next_tab_id: default_center_next_tab_id(),
+            remote_connection_id: None,
         }
     }
 
@@ -4026,6 +4065,7 @@ mod terminal_slot_tests {
             center_tabs: default_center_tabs(),
             center_active_tab_id: default_center_active_tab_id(),
             center_next_tab_id: default_center_next_tab_id(),
+            remote_connection_id: None,
         }
     }
 

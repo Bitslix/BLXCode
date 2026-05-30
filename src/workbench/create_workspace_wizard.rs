@@ -2,8 +2,8 @@ use crate::i18n::I18nKey;
 
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    create_directory, default_cwd, is_tauri_shell, list_directory, path_nav_invoke, DirEntryBrief,
-    PathNavResult,
+    create_directory, default_cwd, is_tauri_shell, list_directory, path_nav_invoke,
+    ssh_remotes_list, DirEntryBrief, PathNavResult, RemoteConnectionView,
 };
 use crate::workbench::path_nav::path_nav_wasm_string;
 use crate::workbench::state::{CreateWorkspaceDraft, WorkbenchService};
@@ -63,6 +63,22 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
     let new_folder_name = RwSignal::new(String::new());
     let new_folder_err: RwSignal<String> = RwSignal::new(String::new());
     let refresh_token = RwSignal::new(0u64);
+    // Saved SSH remote connections (for the Local/Remote selector).
+    let remote_conns: RwSignal<Vec<RemoteConnectionView>> = RwSignal::new(Vec::new());
+
+    Effect::new(move |_| {
+        if !is_tauri_shell() {
+            return;
+        }
+        spawn_local(async move {
+            if let Ok(list) = ssh_remotes_list().await {
+                remote_conns.set(list);
+            }
+        });
+    });
+
+    // True when the draft targets an SSH remote connection.
+    let is_remote = move || draft_memo.get().remote_connection_id.is_some();
 
     let wrap_id = format!("wz-cwd-wrap-{workspace_id}");
     let wrap_id_for_measure = wrap_id.clone();
@@ -266,6 +282,37 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
 
                 <Show when=step0.clone()>
                     <div class="ws-config__group">
+                        <label class="ws-config__label">{move || i18n.tr(I18nKey::WsConnectionType)()}</label>
+                        <select
+                            class="ws-config__field"
+                            prop:value=move || draft_memo.get().remote_connection_id.unwrap_or_default()
+                            on:change=move |ev| {
+                                let v = select_value(&ev);
+                                wb.set_workspace_remote_connection(
+                                    workspace_id,
+                                    if v.is_empty() { None } else { Some(v) },
+                                );
+                            }
+                        >
+                            <option value="">{move || i18n.tr(I18nKey::WsConnectionLocal)()}</option>
+                            {move || {
+                                remote_conns
+                                    .get()
+                                    .into_iter()
+                                    .map(|c| {
+                                        let id = c.connection.id.clone();
+                                        let label = format!("{} · SSH", c.connection.label);
+                                        view! { <option value=id>{label}</option> }
+                                    })
+                                    .collect_view()
+                            }}
+                        </select>
+                        <Show when=move || is_tauri_shell() && remote_conns.get().is_empty()>
+                            <p class="ws-config__hint">{move || i18n.tr(I18nKey::WsRemoteNoPresets)()}</p>
+                        </Show>
+                    </div>
+
+                    <div class="ws-config__group">
                         <label class="ws-config__label">{move || i18n.tr(I18nKey::WzNameLabel)()}</label>
                         <input
                             class="ws-config__field"
@@ -280,7 +327,13 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                     </div>
 
                     <div class="ws-config__group">
-                        <label class="ws-config__label">{move || i18n.tr(I18nKey::WzCwdLabel)()}</label>
+                        <label class="ws-config__label">{move || {
+                            if is_remote() {
+                                i18n.tr(I18nKey::WsRemoteDir)()
+                            } else {
+                                i18n.tr(I18nKey::WzCwdLabel)()
+                            }
+                        }}</label>
                         <div id=wrap_id.clone() class="ws-config__cwd">
                             <span class="ws-config__cwd-icon" aria-hidden="true">
                                 <LxIcon icon=icondata::LuFolder width="1rem" height="1rem" />
@@ -290,7 +343,8 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                                 type="text"
                                 prop:value=cwd_val
                                 placeholder=move || i18n.tr(I18nKey::WzCwdExamplePh)()
-                                on:focus=move |_| browser_open.set(true)
+                                // Local directory browser is meaningless over SSH.
+                                on:focus=move |_| { if !is_remote() { browser_open.set(true); } }
                                 on:input=move |ev| {
                                     cwd_err.set(false);
                                     let v = input_value(&ev);
@@ -614,7 +668,8 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                             on:click=move |_| wb.commit_inline_configure(workspace_id)
                             prop:disabled=move || {
                                 let d = draft_memo.get();
-                                if d.cwd_display.trim().is_empty() {
+                                // Local needs a cwd; remote may omit it.
+                                if d.remote_connection_id.is_none() && d.cwd_display.trim().is_empty() {
                                     return true;
                                 }
                                 if d.agents_skipped {
@@ -725,5 +780,12 @@ fn input_value(ev: &web_sys::Event) -> String {
     ev.target()
         .and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok())
         .map(|i| i.value())
+        .unwrap_or_default()
+}
+
+fn select_value(ev: &web_sys::Event) -> String {
+    ev.target()
+        .and_then(|t| t.dyn_into::<web_sys::HtmlSelectElement>().ok())
+        .map(|s| s.value())
         .unwrap_or_default()
 }

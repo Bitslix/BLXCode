@@ -301,7 +301,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::ShortcutsResetOne => "Reset",
         I18nKey::ShortcutsResetAll => "Reset all to preset",
         I18nKey::ShortcutsConflict => "Conflicts with another shortcut",
-        I18nKey::ShortcutsHint => "Chords are always captured, even inside a terminal. Set the prefix and per-action keys; the preset only fills in defaults.",
+        I18nKey::ShortcutsHint => {
+            "Chords are always captured, even inside a terminal. Set the prefix and per-action keys; the preset only fills in defaults."
+        }
         I18nKey::MemShowInGraph => "Mostrar en gráfico",
         I18nKey::MemGraph3dLoadFailed => "No se pudo cargar el gráfico 3D. Mostrando gráfico 2D.",
         I18nKey::MemSearchPh => "Notas de búsqueda...",
@@ -478,6 +480,57 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatProvider => "Proveedor de agentes",
         I18nKey::HsCatVoice => "Voz",
         I18nKey::HsCatImage => "Imagen",
+        I18nKey::HsCatRemote => "Remoto",
+        I18nKey::RemoteHeading => "Conexiones remotas SSH",
+        I18nKey::RemoteSubtitle => {
+            "Guarde los ajustes preestablecidos de conexión para abrir espacios de trabajo en una máquina remota a través de SSH."
+        }
+        I18nKey::RemoteEmpty => "Aún no hay conexiones remotas. Agregue uno para comenzar.",
+        I18nKey::RemoteAddConnection => "Agregar conexión",
+        I18nKey::RemoteName => "Nombre",
+        I18nKey::RemoteHost => "Anfitrión",
+        I18nKey::RemotePort => "Puerto",
+        I18nKey::RemoteUser => "Nombre de usuario",
+        I18nKey::RemoteAuthMethod => "Autenticación",
+        I18nKey::RemoteAuthPassword => "Contraseña",
+        I18nKey::RemoteAuthKey => "archivo clave",
+        I18nKey::RemoteAuthAgent => "Agente SSH",
+        I18nKey::RemotePassword => "Contraseña",
+        I18nKey::RemoteKeyPath => "archivo de clave privada",
+        I18nKey::RemotePassphrase => "Frase de contraseña clave",
+        I18nKey::RemoteDefaultDir => "directorio remoto",
+        I18nKey::RemoteResumeModel => "reanudar la sesión",
+        I18nKey::RemoteResumeTmux => "Persistente (tmux)",
+        I18nKey::RemoteResumeKeepalive => "Sólo mantener vivo",
+        I18nKey::RemoteResumeTmuxHint => {
+            "Vuelve a conectar una sesión tmux del lado del servidor: el trabajo permanece inactivo, el espacio de trabajo se cierra y la aplicación se reinicia. Requiere tmux en el control remoto."
+        }
+        I18nKey::RemoteResumeKeepaliveHint => {
+            "Permanece conectado mientras está inactivo, pero al volver a conectarse se inicia un shell nuevo. Sin dependencia remota."
+        }
+        I18nKey::RemoteSecretStored => "almacenado",
+        I18nKey::RemoteSecretNotSet => "No establecido",
+        I18nKey::RemoteSecretKeepHint => "Déjelo en blanco para conservar el valor almacenado.",
+        I18nKey::RemoteTest => "Conexión de prueba",
+        I18nKey::RemoteTesting => "Pruebas…",
+        I18nKey::RemoteTestOk => "Conexión exitosa",
+        I18nKey::RemoteTestFailed => "La conexión falló",
+        I18nKey::RemoteSave => "Ahorrar",
+        I18nKey::RemoteSaved => "Conexión guardada",
+        I18nKey::RemoteSaveError => "No se pudo guardar la conexión",
+        I18nKey::RemoteDelete => "Borrar",
+        I18nKey::RemoteDeleteConfirm => "¿Eliminar esta conexión y sus secretos almacenados?",
+        I18nKey::RemoteCancel => "Cancelar",
+        I18nKey::RemoteRequiresTauri => "Las conexiones remotas solo están disponibles en la aplicación de escritorio.",
+        I18nKey::WsConnectionType => "Conexión",
+        I18nKey::WsConnectionLocal => "Local",
+        I18nKey::WsConnectionRemote => "Remoto (SSH)",
+        I18nKey::WsRemoteConnection => "Conexión remota",
+        I18nKey::WsRemoteNoPresets => "Aún no se han guardado conexiones remotas.",
+        I18nKey::WsRemoteManage => "Administrar conexiones",
+        I18nKey::WsRemoteDir => "directorio remoto",
+        I18nKey::WsRemoteDirHint => "Opcional. El valor predeterminado es el directorio de la conexión o el hogar remoto.",
+        I18nKey::SidebarRemoteTitle => "Espacio de trabajo remoto (SSH)",
         I18nKey::AppHeading => "Aplicación",
         I18nKey::AppearanceHeading => "Apariencia",
         I18nKey::AppearanceHeroTitle => "Hazlo tuyo.",

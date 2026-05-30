@@ -701,6 +701,21 @@ pub fn pty_spawn(
     manager.spawn_session(cwd, env.unwrap_or_default())
 }
 
+/// Spawn an ssh terminal for a saved remote connection. The preset and its
+/// secrets are resolved server-side (`ssh_remotes::resolve_spec`) so passwords
+/// and passphrases never cross into the frontend/JS.
+#[tauri::command]
+pub fn pty_spawn_remote(
+    app: tauri::AppHandle,
+    manager: State<'_, PtyManager>,
+    connection_id: String,
+    terminal_key: String,
+    env: Option<Vec<(String, String)>>,
+) -> Result<u64, String> {
+    let spec = crate::ssh_remotes::resolve_spec(&app, &connection_id, terminal_key)?;
+    manager.spawn_remote_session(spec, env.unwrap_or_default())
+}
+
 #[tauri::command]
 pub fn pty_write(
     manager: State<'_, PtyManager>,
