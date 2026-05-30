@@ -2,7 +2,7 @@
 //!
 //! Tastenkürzel (tmux-Standard: `Ctrl+b` + zweite Taste; Legacy in App-Einstellungen)
 //! sind im Haupt-Webview gebunden ([`HarnessHost`] → [`super::harness_chords`]).
-use super::app_prefs::{AppPrefsService, ShortcutMode};
+use super::app_prefs::AppPrefsService;
 use super::browser_tab::sync_embedded_browser_layer;
 use super::harness_chords::handle_harness_keydown;
 use super::state::{
@@ -676,6 +676,7 @@ fn harness_settings_cat_icon(cat: HarnessSettingsCategory) -> icondata::Icon {
     match cat {
         HarnessSettingsCategory::App => icondata::LuLayoutDashboard,
         HarnessSettingsCategory::Appearance => icondata::LuSunMoon,
+        HarnessSettingsCategory::Shortcuts => icondata::LuKeyboard,
         HarnessSettingsCategory::ApiKeys => icondata::LuKeyRound,
         HarnessSettingsCategory::Workspace => icondata::LuFolderOpen,
         HarnessSettingsCategory::AgentProvider => icondata::LuCpu,
@@ -698,6 +699,7 @@ pub fn SettingsDock(
             <nav class="harness-settings-cats" aria-label=move || i18n.tr(I18nKey::HsAriaCats)()>
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::App label=I18nKey::HsCatApp />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Appearance label=I18nKey::HsCatAppearance />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Shortcuts label=I18nKey::HsCatShortcuts />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::ApiKeys label=I18nKey::HsCatApiKeys />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Workspace label=I18nKey::HsCatWorkspace />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::AgentProvider label=I18nKey::HsCatProvider />
@@ -710,6 +712,9 @@ pub fn SettingsDock(
                     }.into_any(),
                     HarnessSettingsCategory::Appearance => view! {
                         <crate::workbench::AppearanceSettingsPane />
+                    }.into_any(),
+                    HarnessSettingsCategory::Shortcuts => view! {
+                        <crate::workbench::ShortcutsSettingsPane />
                     }.into_any(),
                     HarnessSettingsCategory::ApiKeys => view! {
                         <ApiKeysSettingsPane />
@@ -920,7 +925,6 @@ fn LocalePicker() -> impl IntoView {
 fn AppSettingsPane() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let prefs = expect_context::<AppPrefsService>();
-    let ui = expect_context::<HarnessUiService>();
     let updates = expect_context::<UpdateService>();
     let voice_settings = RwSignal::new(Option::<VoiceSettings>::None);
     let ptt_recording = RwSignal::new(false);
@@ -970,37 +974,6 @@ fn AppSettingsPane() -> impl IntoView {
                     </span>
                     <span>{move || i18n.tr(I18nKey::AppShortcutHeading)()}</span>
                 </h4>
-                <div class="app-prefs-toggle-grid">
-                    <div class="app-prefs-toggle-cell">
-                        <label class="app-prefs-radio">
-                            <input
-                                type="radio"
-                                name="shortcut-mode"
-                                prop:checked=move || prefs.shortcut_mode().get() == ShortcutMode::Tmux
-                                on:change=move |_| {
-                                    prefs.set_shortcut_mode(ShortcutMode::Tmux);
-                                    ui.clear_prefix();
-                                }
-                            />
-                            <span>{move || i18n.tr(I18nKey::AppShortcutModeTmux)()}</span>
-                        </label>
-                    </div>
-                    <div class="app-prefs-toggle-cell">
-                        <label class="app-prefs-radio">
-                            <input
-                                type="radio"
-                                name="shortcut-mode"
-                                prop:checked=move || prefs.shortcut_mode().get() == ShortcutMode::Legacy
-                                on:change=move |_| {
-                                    prefs.set_shortcut_mode(ShortcutMode::Legacy);
-                                    ui.clear_prefix();
-                                }
-                            />
-                            <span>{move || i18n.tr(I18nKey::AppShortcutModeLegacy)()}</span>
-                        </label>
-                    </div>
-                </div>
-                <p class="app-prefs-hint">{move || i18n.tr(I18nKey::AppShortcutModeHint)()}</p>
                 <VoicePttControls
                     settings=voice_settings
                     recording=ptt_recording

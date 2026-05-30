@@ -58,6 +58,10 @@ pub const SHORTCUT_MODE_TMUX: &str = "tmux";
 /// Stored value for direct Ctrl/Ctrl+Shift shortcuts.
 pub const SHORTCUT_MODE_LEGACY: &str = "legacy";
 
+/// `localStorage` key for the JSON-serialized custom keybindings
+/// ([`crate::workbench`] `ShortcutConfig`).
+pub const SHORTCUT_BINDINGS_STORAGE_KEY: &str = "blxcode_shortcut_bindings_v1";
+
 /// `localStorage` key for the combined explorer+graph panel height (percent of sidebar).
 pub const SIDEBAR_PANELS_HEIGHT_PCT_KEY: &str = "blxcode_sidebar_panels_height_pct_v1";
 

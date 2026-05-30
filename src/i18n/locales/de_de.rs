@@ -292,6 +292,19 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppShortcutModeHint => {
             "Tmux: Prefix Ctrl+b, dann zweite Taste (z. B. n für neues Terminal, p für Befehlspalette). \nKlassisch: Ctrl+O Schnell öffnen, Ctrl+Shift+N neues Terminal, Ctrl+Shift+P Palette."
         }
+        I18nKey::ShortcutsHeading => "Tastenkürzel",
+        I18nKey::ShortcutsPresetHeading => "Voreinstellung",
+        I18nKey::ShortcutsBindingsHeading => "Belegungen",
+        I18nKey::ShortcutsPrefixLabel => "Prefix-Taste",
+        I18nKey::ShortcutsRebind => "Neu belegen",
+        I18nKey::ShortcutsCapturePrompt => "Tastenkombination drücken… (Esc zum Abbrechen)",
+        I18nKey::ShortcutsResetOne => "Zurücksetzen",
+        I18nKey::ShortcutsResetAll => "Alle auf Voreinstellung zurücksetzen",
+        I18nKey::ShortcutsConflict => "Kollidiert mit einem anderen Kürzel",
+        I18nKey::ShortcutsHint => {
+            "Chords werden immer abgefangen, auch im Terminal. Lege Prefix und Tasten je Aktion \
+fest; die Voreinstellung füllt nur die Standardwerte."
+        }
         I18nKey::MemShowInGraph => "Im Graph zeigen",
         I18nKey::MemGraph3dLoadFailed => "3D-Grafik konnte nicht geladen werden. 2D-Grafik wird angezeigt.",
         I18nKey::MemSearchPh => "Notizen durchsuchen…",
@@ -462,6 +475,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsAriaCats => "Kategorien",
         I18nKey::HsCatApp => "App",
         I18nKey::HsCatAppearance => "Erscheinungsbild",
+        I18nKey::HsCatShortcuts => "Tastenkürzel",
         I18nKey::HsCatApiKeys => "API-Schlüssel",
         I18nKey::HsCatWorkspace => "Arbeitsplatz",
         I18nKey::HsCatProvider => "BLXCode-Agent",

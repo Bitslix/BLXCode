@@ -5,13 +5,12 @@ use crate::workbench::browser_tab::sync_embedded_browser_layer;
 use crate::workbench::create_workspace_wizard::WorkspaceConfigurator;
 use crate::workbench::file_diff::FileDiffDock;
 use crate::workbench::file_preview::FilePreviewDock;
-use crate::workbench::harness_chords::{
-    dispatch_shortcut_action, HarnessShortcutAction, ShortcutKeys,
-};
+use crate::workbench::harness_chords::dispatch_shortcut_action;
 use crate::workbench::harness_ui::SettingsDock;
+use crate::workbench::shortcut_config::ShortcutAction;
 use crate::workbench::state::{
     workspace_entry_has_folder, BrowserEmbedSurface, CenterTab, CenterTabKind, HarnessUiService,
-    RightPanelTab, TerminalSplitAxis, WorkspaceEntry, CENTER_TERMINALS_TAB_ID,
+    TerminalSplitAxis, WorkspaceEntry, CENTER_TERMINALS_TAB_ID,
 };
 use crate::workbench::terminal_cell::WorkspaceTerminalCell;
 use crate::workbench::terminal_context_menu::{
@@ -655,12 +654,8 @@ fn center_tab_icon(kind: &CenterTabKind) -> icondata::Icon {
 #[component]
 fn WorkspaceEmptyState() -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
-    let ui = expect_context::<HarnessUiService>();
     let embed = expect_context::<BrowserEmbedSurface>();
-    let prefs = expect_context::<AppPrefsService>();
     let i18n = expect_context::<I18nService>();
-
-    let shortcut_mode = move || prefs.shortcut_mode().get();
 
     view! {
         <div class="workbench-empty-editor">
@@ -753,114 +748,37 @@ fn WorkspaceEmptyState() -> impl IntoView {
                 </Show>
             </ul>
             <ul class="workbench-shortcut-list">
-                <ShortcutActionRow
-                    icon=icondata::LuFolderSearch
-                    label=I18nKey::WsKwQuickOpen
-                    keys=move || ShortcutKeys::quick_open(shortcut_mode())
-                    on_activate=shortcut_cb(
-                        HarnessShortcutAction::OpenQuickOpen,
-                        ui,
-                        wb,
-                        embed,
-                    )
-                />
-                <ShortcutActionRow
-                    icon=icondata::LuPanelRight
-                    label=I18nKey::WsKwSidePanel
-                    keys=move || ShortcutKeys::side_panel(shortcut_mode())
-                    on_activate=shortcut_cb(
-                        HarnessShortcutAction::ToggleRightPanel,
-                        ui,
-                        wb,
-                        embed,
-                    )
-                />
+                <ShortcutActionRow icon=icondata::LuFolderSearch action=ShortcutAction::QuickOpen />
+                <ShortcutActionRow icon=icondata::LuPanelRight action=ShortcutAction::SidePanel />
                 <li class="workbench-shortcut-row workbench-shortcut-row--spacer" aria-hidden="true"></li>
-                <ShortcutActionRow
-                    icon=icondata::LuSparkles
-                    label=I18nKey::WsKwAgent
-                    keys=move || ShortcutKeys::agent(shortcut_mode())
-                    on_activate=shortcut_cb(
-                        HarnessShortcutAction::RightTab(RightPanelTab::Agent),
-                        ui,
-                        wb,
-                        embed,
-                    )
-                />
-                <ShortcutActionRow
-                    icon=icondata::LuGlobe
-                    label=I18nKey::WsKwBrowser
-                    keys=move || ShortcutKeys::browser(shortcut_mode())
-                    on_activate=shortcut_cb(
-                        HarnessShortcutAction::RightTab(RightPanelTab::Browser),
-                        ui,
-                        wb,
-                        embed,
-                    )
-                />
-                <ShortcutActionRow
-                    icon=icondata::LuLayers
-                    label=I18nKey::WsKwMemory
-                    keys=move || ShortcutKeys::memory(shortcut_mode())
-                    on_activate=shortcut_cb(
-                        HarnessShortcutAction::RightTab(RightPanelTab::Memory),
-                        ui,
-                        wb,
-                        embed,
-                    )
-                />
+                <ShortcutActionRow icon=icondata::LuSparkles action=ShortcutAction::Agent />
+                <ShortcutActionRow icon=icondata::LuGlobe action=ShortcutAction::Browser />
+                <ShortcutActionRow icon=icondata::LuLayers action=ShortcutAction::Memory />
                 <li class="workbench-shortcut-row workbench-shortcut-row--spacer" aria-hidden="true"></li>
-                <ShortcutActionRow
-                    icon=icondata::LuTerminal
-                    label=I18nKey::WsKwTerminal
-                    keys=move || ShortcutKeys::terminal(shortcut_mode())
-                    on_activate=shortcut_cb(
-                        HarnessShortcutAction::OpenNewTerminal,
-                        ui,
-                        wb,
-                        embed,
-                    )
-                />
-                <ShortcutActionRow
-                    icon=icondata::LuCommand
-                    label=I18nKey::WsKwCmdPalette
-                    keys=move || ShortcutKeys::command_palette(shortcut_mode())
-                    on_activate=shortcut_cb(
-                        HarnessShortcutAction::ToggleCommandPalette,
-                        ui,
-                        wb,
-                        embed,
-                    )
-                />
+                <ShortcutActionRow icon=icondata::LuTerminal action=ShortcutAction::Terminal />
+                <ShortcutActionRow icon=icondata::LuCommand action=ShortcutAction::CommandPalette />
             </ul>
         </div>
     }
 }
 
-fn shortcut_cb(
-    action: HarnessShortcutAction,
-    ui: HarnessUiService,
-    wb: WorkbenchService,
-    embed: BrowserEmbedSurface,
-) -> Callback<(), ()> {
-    Callback::new(move |()| dispatch_shortcut_action(action, ui, wb, embed))
-}
-
 #[component]
-fn ShortcutActionRow(
-    icon: icondata::Icon,
-    label: I18nKey,
-    keys: impl Fn() -> ShortcutKeys + Send + Sync + 'static,
-    on_activate: Callback<(), ()>,
-) -> impl IntoView {
+fn ShortcutActionRow(icon: icondata::Icon, action: ShortcutAction) -> impl IntoView {
     let _ = icon;
     let i18n = expect_context::<I18nService>();
+    let prefs = expect_context::<AppPrefsService>();
+    let ui = expect_context::<HarnessUiService>();
+    let wb = expect_context::<WorkbenchService>();
+    let embed = expect_context::<BrowserEmbedSurface>();
+    let label = action.label_key();
     view! {
         <li class="workbench-shortcut-li">
             <button
                 type="button"
                 class="workbench-shortcut-row workbench-shortcut-row--action"
-                on:click=move |_| on_activate.run(())
+                on:click=move |_| {
+                    dispatch_shortcut_action(action.to_harness_action(), ui, wb, embed)
+                }
             >
                 <span class="workbench-shortcut-row__lead">
                     <span class="workbench-shortcut-row__icon-wrap" aria-hidden="true">
@@ -870,25 +788,15 @@ fn ShortcutActionRow(
                 </span>
                 <span class="workbench-shortcut-row__keys">
                     <kbd class="workbench-kbd">
-                        {move || format_shortcut_keys(keys(), i18n)}
+                        {move || {
+                            let cfg = prefs.shortcut_config().get();
+                            let then = lookup(i18n.locale().get(), I18nKey::WsKwThen);
+                            cfg.binding(action).display(&cfg.prefix, then)
+                        }}
                     </kbd>
                 </span>
             </button>
         </li>
-    }
-}
-
-fn format_shortcut_keys(keys: ShortcutKeys, i18n: I18nService) -> String {
-    match keys {
-        ShortcutKeys::Combo(parts) => parts.join(" + "),
-        ShortcutKeys::Chord { prefix, second } => {
-            format!(
-                "{} {} {}",
-                prefix.join(" + "),
-                lookup(i18n.locale().get_untracked(), I18nKey::WsKwThen),
-                second
-            )
-        }
     }
 }
 

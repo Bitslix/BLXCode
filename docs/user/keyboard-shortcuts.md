@@ -1,45 +1,48 @@
 # Keyboard Shortcuts
 
-BLXCode supports two shortcut modes: **Tmux-style** prefix chords (default) and **Legacy** direct chords. The welcome screen and this page reflect the active mode.
+BLXCode ships two shortcut **presets**: **Tmux-style** prefix chords (default) and **Classic** direct chords. Every binding is also individually **rebindable**.
 
-Change the mode in **BLXCode Settings** → **App** → **Keyboard shortcuts** (`blxcode_shortcut_mode_v1`: `tmux` or `legacy`).
+Manage everything in **BLXCode Settings** → **Shortcuts**:
 
-## Tmux mode (default)
+- **Preset** — Tmux or Classic. Selecting a preset fills in its default bindings.
+- **Prefix key** — the chord prefix used by tmux-style bindings (default **Ctrl+B**). Click **Rebind** and press a new combination.
+- **Bindings** — per action: the current key, a **Rebind** button (press a key combination; rebinding a tmux chord changes its second key, rebinding a direct combo changes the whole combo), and a **Reset** button. **Reset all to preset** restores the current preset's defaults.
 
-Press **Ctrl+b**, then a second key within **1.5 seconds**. Press **Esc** to cancel an armed prefix.
+Bindings persist in `localStorage` (`blxcode_shortcut_bindings_v1`); the chosen preset is stored in `blxcode_shortcut_mode_v1`.
 
-While a workspace **terminal** has focus, **Ctrl+b** is not intercepted — the shell keeps the prefix (for example tmux inside the PTY).
+## Chords are always captured
+
+Shortcut chords fire **even while a workspace terminal has focus** — so `Ctrl+b` `n` opens a new terminal from a plain shell instead of sending `^B` to it. Typing into other app inputs (agent box, search fields) is never intercepted.
+
+> If you run real **tmux** inside a PTY, its prefix also defaults to `Ctrl+b`. Rebind the BLXCode prefix (e.g. to `Ctrl+a`) in **Settings → Shortcuts** so the two don't collide.
+
+## Tmux preset (default)
+
+Press the **prefix** (**Ctrl+b**), then a second key within **1.5 seconds**. Press **Esc** to cancel an armed prefix.
 
 | Second key | Action |
-|------------|--------|
+| ---------- | ------ |
 | `o` | Quick Open |
-| `p` | Toggle right panel |
+| `r` | Toggle right panel |
 | `a` | Agent tab |
 | `b` | Browser tab |
 | `m` | Memory tab |
 | `n` | New terminal slot (active workspace) |
-| `:` | Command palette |
+| `p` | Command palette |
 
-## Legacy mode
+## Classic preset
 
 Direct chords (no prefix):
 
 | Shortcut | Action |
-|----------|--------|
+| -------- | ------ |
 | `Ctrl+O` | Quick Open |
 | `Ctrl+P` | Toggle right panel |
 | `Ctrl+Shift+A` | Agent tab |
 | `Ctrl+Shift+B` | Browser tab |
 | `Ctrl+Shift+M` | Memory tab |
-| `` Ctrl+` `` | New terminal slot (active workspace) |
+| `Ctrl+Shift+N` | New terminal slot (active workspace) |
 | `Ctrl+Shift+P` | Command palette |
-
-## Other shortcuts
-
-These are unchanged by shortcut mode:
-
-- **Ctrl+Shift+P** (command palette entry) also opens **BLXCode settings** from the palette when not using the tmux `:` binding in legacy mode — use the palette's settings action or the gear control.
-- Right-panel tabs **Plans**, **Rules**, and **Skills** are reachable from the tab strip; there are no default tmux second-keys for them yet.
 
 ## Notifications (handoff feedback)
 

@@ -316,6 +316,19 @@ pub fn msg(key: I18nKey) -> &'static str {
             "Tmux: prefix Ctrl+b then a second key (e.g. n for new terminal, p for command palette). \
 Classic: Ctrl+O quick open, Ctrl+Shift+N new terminal, Ctrl+Shift+P palette."
         }
+        I18nKey::ShortcutsHeading => "Keyboard shortcuts",
+        I18nKey::ShortcutsPresetHeading => "Preset",
+        I18nKey::ShortcutsBindingsHeading => "Bindings",
+        I18nKey::ShortcutsPrefixLabel => "Prefix key",
+        I18nKey::ShortcutsRebind => "Rebind",
+        I18nKey::ShortcutsCapturePrompt => "Press a key combination… (Esc to cancel)",
+        I18nKey::ShortcutsResetOne => "Reset",
+        I18nKey::ShortcutsResetAll => "Reset all to preset",
+        I18nKey::ShortcutsConflict => "Conflicts with another shortcut",
+        I18nKey::ShortcutsHint => {
+            "Chords are always captured, even inside a terminal. Set the prefix and per-action \
+keys; the preset only fills in defaults."
+        }
         I18nKey::MemShowInGraph => "Show in graph",
         I18nKey::MemGraph3dLoadFailed => "3D graph could not load. Showing 2D graph.",
         I18nKey::MemSearchPh => "Search notes…",
@@ -500,6 +513,7 @@ Classic: Ctrl+O quick open, Ctrl+Shift+N new terminal, Ctrl+Shift+P palette."
         I18nKey::HsAriaCats => "Categories",
         I18nKey::HsCatApp => "App",
         I18nKey::HsCatAppearance => "Appearance",
+        I18nKey::HsCatShortcuts => "Shortcuts",
         I18nKey::HsCatApiKeys => "API Keys",
         I18nKey::HsCatWorkspace => "Workspace",
         I18nKey::HsCatProvider => "BLXCode Agent",

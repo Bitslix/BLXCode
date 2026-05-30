@@ -6,8 +6,9 @@ BLXCode opens settings in a **center workbench tab** (not a modal). The command 
 
 | Category | What it configures |
 |----------|-------------------|
-| **App** | UI language, STT language + push-to-talk, keyboard shortcut mode, notifications, terminal hooks, app updates |
+| **App** | UI language, STT language + push-to-talk, notifications, terminal hooks, app updates |
 | **Appearance** | App themes — 20 presets, search, Dark/Light filters; see [Appearance & Themes](appearance-themes.md) |
+| **Shortcuts** | Keyboard shortcut preset, prefix key, and per-action rebinding; see [Keyboard Shortcuts](keyboard-shortcuts.md) |
 | **API Keys** | All provider secrets in one pane — see below |
 | **Workspace** | Default project directory, agent sandbox root, embedded browser URL, **category colors** for Memory |
 | **BLXCode Agent** | Text, image, and voice inference — see below |
@@ -16,7 +17,7 @@ Legacy saved categories (`Image`, `Voice`, `Memory`) still open the correct pane
 
 ## App
 
-**Settings → App** collects shell-wide preferences that aren't tied to a single workspace: UI language, voice/STT defaults, keyboard shortcut mode (Tmux-style vs Classic), notification toasts and sounds, terminal hooks, and the GitHub Releases auto-updater.
+**Settings → App** collects shell-wide preferences that aren't tied to a single workspace: UI language, voice/STT defaults, push-to-talk, notification toasts and sounds, terminal hooks, and the GitHub Releases auto-updater. Keyboard shortcuts moved to their own **Shortcuts** category (see [Keyboard Shortcuts](keyboard-shortcuts.md)).
 
 <p align="center">
   <img src="../images/screenshot-2026-05-22_17-32-41.png" alt="Settings → App pane with UI Language (English), Input language (Follow app language / Auto-detect / Manual), Keyboard shortcuts (Tmux style / Classic), push-to-talk toggle, Notifications (Show success toasts, Play success sound), Terminal hooks for claude/codex/gemini/cursor/opencode with Install hooks button, and App updates (Check for updates on startup, Current version 0.2.3)" />

@@ -1,7 +1,13 @@
-//! Workbench keyboard shortcuts (tmux prefix chords and legacy direct chords).
+//! Workbench keyboard shortcuts.
+//!
+//! Bindings are data-driven (see [`super::shortcut_config`]): a single
+//! configurable prefix plus one binding per action, each either a direct
+//! combo or a tmux-style prefix-then-key chord. The same config feeds both
+//! the matching here and the on-screen display.
 
-use super::app_prefs::{AppPrefsService, ShortcutMode};
+use super::app_prefs::AppPrefsService;
 use super::browser_tab::sync_embedded_browser_layer;
+use super::shortcut_config::ShortcutConfig;
 use super::state::{
     BrowserEmbedSurface, HarnessUiService, RightPanelTab, SlotPaneState, WorkbenchService,
 };
@@ -10,8 +16,6 @@ use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::KeyboardEvent;
 
-const PREFIX_KEYS: &[&str] = &["Ctrl", "b"];
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HarnessShortcutAction {
     OpenQuickOpen,
@@ -19,94 +23,6 @@ pub enum HarnessShortcutAction {
     RightTab(RightPanelTab),
     OpenNewTerminal,
     ToggleCommandPalette,
-}
-
-#[derive(Clone, Copy)]
-pub enum ShortcutKeys {
-    Combo(&'static [&'static str]),
-    Chord {
-        prefix: &'static [&'static str],
-        second: &'static str,
-    },
-}
-
-impl ShortcutKeys {
-    #[must_use]
-    pub fn quick_open(mode: ShortcutMode) -> Self {
-        match mode {
-            ShortcutMode::Tmux => Self::Chord {
-                prefix: PREFIX_KEYS,
-                second: "o",
-            },
-            ShortcutMode::Legacy => Self::Combo(&["Ctrl", "O"]),
-        }
-    }
-
-    #[must_use]
-    pub fn side_panel(mode: ShortcutMode) -> Self {
-        match mode {
-            ShortcutMode::Tmux => Self::Chord {
-                prefix: PREFIX_KEYS,
-                second: "r",
-            },
-            ShortcutMode::Legacy => Self::Combo(&["Ctrl", "P"]),
-        }
-    }
-
-    #[must_use]
-    pub fn agent(mode: ShortcutMode) -> Self {
-        match mode {
-            ShortcutMode::Tmux => Self::Chord {
-                prefix: PREFIX_KEYS,
-                second: "a",
-            },
-            ShortcutMode::Legacy => Self::Combo(&["Ctrl", "Shift", "A"]),
-        }
-    }
-
-    #[must_use]
-    pub fn browser(mode: ShortcutMode) -> Self {
-        match mode {
-            ShortcutMode::Tmux => Self::Chord {
-                prefix: PREFIX_KEYS,
-                second: "b",
-            },
-            ShortcutMode::Legacy => Self::Combo(&["Ctrl", "Shift", "B"]),
-        }
-    }
-
-    #[must_use]
-    pub fn memory(mode: ShortcutMode) -> Self {
-        match mode {
-            ShortcutMode::Tmux => Self::Chord {
-                prefix: PREFIX_KEYS,
-                second: "m",
-            },
-            ShortcutMode::Legacy => Self::Combo(&["Ctrl", "Shift", "M"]),
-        }
-    }
-
-    #[must_use]
-    pub fn terminal(mode: ShortcutMode) -> Self {
-        match mode {
-            ShortcutMode::Tmux => Self::Chord {
-                prefix: PREFIX_KEYS,
-                second: "n",
-            },
-            ShortcutMode::Legacy => Self::Combo(&["Ctrl", "Shift", "N"]),
-        }
-    }
-
-    #[must_use]
-    pub fn command_palette(mode: ShortcutMode) -> Self {
-        match mode {
-            ShortcutMode::Tmux => Self::Chord {
-                prefix: PREFIX_KEYS,
-                second: "p",
-            },
-            ShortcutMode::Legacy => Self::Combo(&["Ctrl", "Shift", "P"]),
-        }
-    }
 }
 
 pub fn dispatch_shortcut_action(
@@ -190,127 +106,55 @@ pub fn handle_harness_keydown(
         return false;
     }
 
-    match prefs.shortcut_mode().get_untracked() {
-        ShortcutMode::Tmux => handle_tmux_keydown(ke, ui, wb, embed),
-        ShortcutMode::Legacy => handle_legacy_keydown(ke, ui, wb, embed),
-    }
+    let cfg = prefs.shortcut_config().get_untracked();
+    handle_shortcut_keydown(ke, &cfg, ui, wb, embed)
 }
 
-fn handle_tmux_keydown(
+fn handle_shortcut_keydown(
     ke: &KeyboardEvent,
+    cfg: &ShortcutConfig,
     ui: HarnessUiService,
     wb: WorkbenchService,
     embed: BrowserEmbedSurface,
 ) -> bool {
-    if key_event_in_text_field(ke) {
-        return false;
-    }
-
-    if terminal_has_live_focus() {
+    // Don't steal keystrokes while the user is typing in a genuine app text
+    // field. The terminal (xterm) is deliberately *not* treated as one: our
+    // chords must fire there too (e.g. `Ctrl+b n` in a plain shell), which is
+    // the configured default.
+    if key_event_in_non_terminal_text_field(ke) {
         return false;
     }
 
     let key = ke.key();
 
-    if ui.prefix_armed().get_untracked() && key.as_str() == "Escape" {
-        ke.prevent_default();
-        ui.clear_prefix();
-        return true;
-    }
-
+    // Prefix armed: resolve the second key, cancel on Escape, or fall through
+    // on an unrecognised key.
     if ui.prefix_armed().get_untracked() {
         ui.clear_prefix();
-        if let Some(action) = tmux_second_key_action(&key) {
+        if key.as_str() == "Escape" {
             ke.prevent_default();
-            dispatch_shortcut_action(action, ui, wb, embed);
+            return true;
+        }
+        if let Some(action) = cfg.chord_match(ke) {
+            ke.prevent_default();
+            dispatch_shortcut_action(action.to_harness_action(), ui, wb, embed);
             return true;
         }
         return false;
     }
 
-    if is_prefix_keydown(ke) {
+    // The prefix itself: arm and wait for the second key.
+    if cfg.prefix.matches(ke) {
         ke.prevent_default();
         ui.arm_prefix();
         return true;
     }
 
-    false
-}
-
-fn handle_legacy_keydown(
-    ke: &KeyboardEvent,
-    ui: HarnessUiService,
-    wb: WorkbenchService,
-    embed: BrowserEmbedSurface,
-) -> bool {
-    let ctrl_or_meta = ke.ctrl_key() || ke.meta_key();
-    let key = ke.key();
-
-    if ctrl_or_meta && ke.shift_key() {
-        match key.as_str() {
-            "p" | "P" => {
-                ke.prevent_default();
-                dispatch_shortcut_action(
-                    HarnessShortcutAction::ToggleCommandPalette,
-                    ui,
-                    wb,
-                    embed,
-                );
-                return true;
-            }
-            "a" | "A" => {
-                ke.prevent_default();
-                dispatch_shortcut_action(
-                    HarnessShortcutAction::RightTab(RightPanelTab::Agent),
-                    ui,
-                    wb,
-                    embed,
-                );
-                return true;
-            }
-            "b" | "B" => {
-                ke.prevent_default();
-                dispatch_shortcut_action(
-                    HarnessShortcutAction::RightTab(RightPanelTab::Browser),
-                    ui,
-                    wb,
-                    embed,
-                );
-                return true;
-            }
-            "m" | "M" => {
-                ke.prevent_default();
-                dispatch_shortcut_action(
-                    HarnessShortcutAction::RightTab(RightPanelTab::Memory),
-                    ui,
-                    wb,
-                    embed,
-                );
-                return true;
-            }
-            "n" | "N" => {
-                ke.prevent_default();
-                dispatch_shortcut_action(HarnessShortcutAction::OpenNewTerminal, ui, wb, embed);
-                return true;
-            }
-            _ => {}
-        }
-    }
-
-    if ctrl_or_meta && !ke.shift_key() {
-        match key.as_str() {
-            "p" | "P" => {
-                ke.prevent_default();
-                dispatch_shortcut_action(HarnessShortcutAction::ToggleRightPanel, ui, wb, embed);
-                return true;
-            }
-            "o" | "O" => {
-                ke.prevent_default();
-                dispatch_shortcut_action(HarnessShortcutAction::OpenQuickOpen, ui, wb, embed);
-                return true;
-            }
-            _ => {}
-        }
+    // Direct combo bindings (classic style).
+    if let Some(action) = cfg.combo_match(ke) {
+        ke.prevent_default();
+        dispatch_shortcut_action(action.to_harness_action(), ui, wb, embed);
+        return true;
     }
 
     if key.as_str() == "Escape" {
@@ -320,28 +164,10 @@ fn handle_legacy_keydown(
     false
 }
 
-fn tmux_second_key_action(key: &str) -> Option<HarnessShortcutAction> {
-    match key {
-        "o" | "O" => Some(HarnessShortcutAction::OpenQuickOpen),
-        "r" | "R" => Some(HarnessShortcutAction::ToggleRightPanel),
-        "a" | "A" => Some(HarnessShortcutAction::RightTab(RightPanelTab::Agent)),
-        "b" | "B" => Some(HarnessShortcutAction::RightTab(RightPanelTab::Browser)),
-        "m" | "M" => Some(HarnessShortcutAction::RightTab(RightPanelTab::Memory)),
-        "n" | "N" => Some(HarnessShortcutAction::OpenNewTerminal),
-        "p" | "P" => Some(HarnessShortcutAction::ToggleCommandPalette),
-        _ => None,
-    }
-}
-
-fn is_prefix_keydown(ke: &KeyboardEvent) -> bool {
-    ke.ctrl_key()
-        && !ke.shift_key()
-        && !ke.alt_key()
-        && !ke.meta_key()
-        && matches!(ke.key().as_str(), "b" | "B")
-}
-
-fn key_event_in_text_field(ke: &KeyboardEvent) -> bool {
+/// True when the event originates from a real app text input that is **not**
+/// the terminal. The xterm hidden textarea lives inside `.ws-term-cell`; we
+/// intentionally let chords fire there, so it is excluded.
+fn key_event_in_non_terminal_text_field(ke: &KeyboardEvent) -> bool {
     let Some(target) = ke.target() else {
         return false;
     };
@@ -349,35 +175,16 @@ fn key_event_in_text_field(ke: &KeyboardEvent) -> bool {
         return false;
     };
     let tag = el.tag_name();
-    if tag == "INPUT" || tag == "TEXTAREA" {
-        return true;
-    }
-    el.get_attribute("contenteditable")
-        .as_deref()
-        .is_some_and(|v| v.eq_ignore_ascii_case("true"))
-}
-
-/// True when keyboard focus *currently* sits inside a workspace terminal
-/// (xterm) cell.
-///
-/// We must read the live DOM focus here, not the sticky
-/// `focused_terminal_by_workspace` map: that map remembers the last-focused
-/// terminal per workspace for notification/accent purposes and is never
-/// cleared on blur. Consulting it would permanently disable tmux chords once
-/// any terminal was ever focused — notably on Windows (WebView2), where the
-/// xterm textarea grabs focus as soon as the terminal grid mounts.
-fn terminal_has_live_focus() -> bool {
-    let Some(active) = web_sys::window()
-        .and_then(|w| w.document())
-        .and_then(|d| d.active_element())
-    else {
+    let is_text = tag == "INPUT"
+        || tag == "TEXTAREA"
+        || el
+            .get_attribute("contenteditable")
+            .as_deref()
+            .is_some_and(|v| v.eq_ignore_ascii_case("true"));
+    if !is_text {
         return false;
-    };
-    active
-        .closest(".ws-term-cell")
-        .ok()
-        .flatten()
-        .is_some()
+    }
+    el.closest(".ws-term-cell").ok().flatten().is_none()
 }
 
 fn defer_browser_bounds(wb: WorkbenchService, embed: BrowserEmbedSurface) {

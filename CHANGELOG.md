@@ -9,9 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Configurable keyboard shortcuts**: a new **Settings → Shortcuts** category lets you pick the preset (Tmux / Classic), rebind the shared **prefix key** (default `Ctrl+B`), and rebind or reset every individual action via key capture. Bindings are data-driven (`ShortcutConfig`) and persist in `localStorage` (`blxcode_shortcut_bindings_v1`); the welcome screen reflects custom bindings live. The pane is fully theme-token styled.
+
 ### Changed
 
+- **Shortcut chords are now always captured, even while a terminal has focus** (configurable default). Previously `Ctrl+b` was passed through to a focused terminal so real tmux in the PTY kept the prefix; on Windows the xterm textarea grabs focus on mount, which permanently disabled the tmux chords. Chords now fire from the terminal too (e.g. `Ctrl+b n` opens a new terminal from a plain shell); genuine app text inputs (agent box, search) are still never intercepted. If you run real tmux, rebind the BLXCode prefix in **Settings → Shortcuts**.
+- **The Tmux/Classic shortcut toggle moved** from **Settings → App** into the new **Settings → Shortcuts** category, where it now acts as a preset that fills in default bindings.
+
 ### Fixed
+
+- **File preview no longer panics on close**: closing a code preview could fire a window-level mouse/key listener against an already-disposed reactive signal (`reactive_graph … already been disposed`). The listeners now read signals with `try_get_untracked` and no-op after teardown.
 
 ### Removed
 

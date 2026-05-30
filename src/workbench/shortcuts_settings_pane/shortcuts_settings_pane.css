@@ -1,0 +1,137 @@
+/* Shortcuts settings pane. Colours/spacing come entirely from theme tokens
+   (themes/tokens.css) so every theme is honoured automatically. */
+
+.shortcuts-pane__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.shortcuts-pane__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-raised);
+}
+
+.shortcuts-pane__lead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.shortcuts-pane__icon {
+  display: inline-flex;
+  color: var(--text-muted);
+}
+
+.shortcuts-pane__label {
+  color: var(--text);
+  font-size: 0.86rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shortcuts-pane__keys {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.shortcuts-pane__conflict {
+  display: inline-flex;
+  color: var(--warning);
+}
+
+.shortcuts-pane__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.shortcuts-pane__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  font-size: 0.78rem;
+  color: var(--text);
+  background: var(--overlay-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.shortcuts-pane__btn:hover {
+  background: var(--overlay-3);
+  border-color: var(--border-strong);
+}
+
+.shortcuts-pane__btn:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+.shortcuts-pane__btn--icon {
+  padding: 4px 6px;
+  color: var(--text-muted);
+}
+
+.shortcuts-pane__btn--reset-all {
+  margin-top: 10px;
+}
+
+/* Prefix row reuses the bordered row look without the list wrapper. */
+.shortcuts-pane .shortcuts-pane__row:only-child,
+.harness-subpane > .shortcuts-pane__row {
+  width: 100%;
+}
+
+/* Full-width key-capture catcher. Hidden until a capture is armed. */
+.shortcuts-pane__capture {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.shortcuts-pane__capture--active {
+  position: static;
+  width: auto;
+  height: auto;
+  margin-top: 10px;
+  padding: 10px 12px;
+  clip: auto;
+  overflow: visible;
+  opacity: 1;
+  pointer-events: auto;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px dashed var(--accent);
+  border-radius: 8px;
+  font-size: 0.84rem;
+  text-align: center;
+  cursor: pointer;
+}
+
+.shortcuts-pane__capture--active:focus-visible {
+  outline: none;
+}

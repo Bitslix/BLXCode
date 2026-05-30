@@ -35,6 +35,8 @@ mod right_panel;
 mod sidebar;
 mod sidebar_resizer;
 mod sidebar_view_section;
+mod shortcut_config;
+mod shortcuts_settings_pane;
 pub mod skills_rules_panel;
 pub mod state;
 mod terminal_cell;
@@ -58,6 +60,7 @@ pub use browser_tab::{BrowserTabDock, EmbeddedBrowserGlue};
 pub use memory_panel::MemoryPanel;
 pub use plans_panel::PlansPanel;
 pub use right_panel::RightPanel;
+pub use shortcuts_settings_pane::ShortcutsSettingsPane;
 pub use sidebar::Sidebar;
 pub use skills_rules_panel::SkillsRulesService;
 pub use state::{

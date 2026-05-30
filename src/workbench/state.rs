@@ -674,6 +674,7 @@ pub enum RightPanelTab {
 pub enum HarnessSettingsCategory {
     App,
     Appearance,
+    Shortcuts,
     ApiKeys,
     Workspace,
     AgentProvider,
