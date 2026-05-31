@@ -83,6 +83,14 @@ Details: [Agent Providers](agent-providers.md), [Image Mode](image.md), [Voice](
 
 See [Workspaces](workspaces.md) for File Diff, Git sync, and the architecture map in Memory.
 
+## Themed UI chrome
+
+BLXCode replaces several browser-native controls with theme-aware alternatives:
+
+- **`<select>` popups** — dropdown menus in the Create Workspace wizard, Remote connection picks, and other settings selectors use the active theme's surface and text colors instead of the OS default white background.
+- **Confirmation dialogs** — destructive actions (closing a workspace, removing plans, deleting SSH connections) show a themed modal dialog instead of `window.confirm()`. The dialog uses the app's accent/ danger tokens and keyboard navigation (Tab, Enter, Esc).
+- **Create Workspace backdrop** — the wizard overlay has a soft top-edge glow (`box-shadow`) that matches the active theme's accent color. This replaces a flat dimmed backdrop.
+
 ## See also
 
 - [Agent Harness](agent-harness.md) — core skills, web tools behavior

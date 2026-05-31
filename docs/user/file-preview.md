@@ -272,4 +272,5 @@ The Tauri backend never reads or writes outside the workspace root: the file com
 
 - [Workspaces → Sidebar → Project Files](workspaces.md#project-files-explorer) — the file tree that opens the preview.
 - [Settings](settings.md) — UI language picker (changes the preview labels and errors on the fly).
+- [Quick Open (File Finder)](file-finder.md) — fuzzy file navigation from the keyboard.
 - [Architecture → Sidebar Explorer And Git Graph](../developer/architecture.md#sidebar-explorer-and-git-graph) — backend commands and frontend module layout.
