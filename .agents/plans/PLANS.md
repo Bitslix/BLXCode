@@ -8,6 +8,7 @@ Persistent plans for multi-step work on **blxcode**. Individual plans live as Ma
 |--------|------|-------------|
 | done | [coordinated-subagents.md](coordinated-subagents.md) | Coordinated Subagents: Rollen, i18n Subcards, Provider-Reuse, Environment/Shell/Git/Web-Tools, scoped Toolgruppen, Inline-Timeline |
 | done | [file-browser-rich-preview.md](file-browser-rich-preview.md) | File-Browser-Preview: Bilder (SVG/Raster), Video, gerendertes Markdown, Mermaid; neue Topbar mit Datei-Metadaten und sandboxed Backend-Commands |
+| planned | [file-editor.md](file-editor.md) | File-Preview → leichter Code-Editor: textarea-Overlay über bestehendem hljs-Backdrop, Edit/Save/Revert/Conflict, read-only Policy-Docs mit Edit-Button, Folding, write_workspace_text_file (atomar, Sandbox); Milestones M1–M12 |
 | planned | [kanban-board-view.md](kanban-board-view.md) | Kanban-View im Plans-Panel: Status-Spalten, DnD fuer Karten/Spalten, Spalten ein-/ausblenden, Markdown-Writeback (Full Scope; MVP in v2-roadmap) |
 | planned | [leptos-to-typescript-migration.md](leptos-to-typescript-migration.md) | Leptos/WASM restlos entfernen: Vite+React+TS Frontend (~53k LOC), Tauri-Backend unverändert, atomarer Cutover; validiert (5 Subagent-Reviews); ~9–12 PM |
 | planned | [performance-optimization.md](performance-optimization.md) | Performance-Audit: Agent-Streaming hot path, Auto-Save-Kaskade, Backend-Blocking, Boot/CDN, Terminal-Refit; Phasen P0–P3 |
