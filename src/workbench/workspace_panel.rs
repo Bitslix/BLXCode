@@ -51,8 +51,7 @@ fn accepts_slot_drop(
     slot_id: u64,
 ) -> bool {
     let dt = drag_event_data_transfer(de);
-    let is_slot_drag =
-        slot_dnd.session_active() || dt.as_ref().is_some_and(is_terminal_drag);
+    let is_slot_drag = slot_dnd.session_active() || dt.as_ref().is_some_and(is_terminal_drag);
     if !is_slot_drag {
         return false;
     }
@@ -62,7 +61,11 @@ fn accepts_slot_drop(
         .active
         .get_untracked()
         .map(|m| (m.workspace_id, m.slot_id))
-        .or_else(|| dt.as_ref().and_then(read_drag_payload).map(|p| (p.workspace_id, p.slot_id)));
+        .or_else(|| {
+            dt.as_ref()
+                .and_then(read_drag_payload)
+                .map(|p| (p.workspace_id, p.slot_id))
+        });
     match source {
         // Same-workspace, non-source slot → valid grid target. A foreign
         // workspace's terminal is transferred via the sidebar, not the grid.

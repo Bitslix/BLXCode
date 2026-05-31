@@ -2,9 +2,9 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_latest_session_id, agent_remote_latest_session_id, agent_session_exists, git_branch,
-    is_tauri_shell, pty_drain_wait,
-    pty_kill, pty_resize, pty_spawn_remote, pty_spawn_with_env, pty_write, workbench_drop_sessions,
-    workbench_load_sessions, workbench_notifications_path, workbench_sessions_path,
+    is_tauri_shell, pty_drain_wait, pty_kill, pty_resize, pty_spawn_remote, pty_spawn_with_env,
+    pty_write, workbench_drop_sessions, workbench_load_sessions, workbench_notifications_path,
+    workbench_sessions_path,
 };
 use crate::workbench::agent_accent::agent_accent_class;
 use crate::workbench::agent_context_handoff::TerminalSlotHandoffButton;
@@ -723,11 +723,8 @@ async fn bootstrap_terminal_cell(
                         Ok(_) => {}
                         Err(err) => {
                             if let Some(t) = state2.lock().expect("cell").term_id {
-                                let msg = format!(
-                                    "{}\n{}",
-                                    i18n2.tr(I18nKey::WsPtySpawnFailed)(),
-                                    err
-                                );
+                                let msg =
+                                    format!("{}\n{}", i18n2.tr(I18nKey::WsPtySpawnFailed)(), err);
                                 terminal_show_fallback(t, &msg);
                             }
                             break;
@@ -768,9 +765,7 @@ async fn bootstrap_terminal_cell(
         // local workspaces spawn the local shell. `cwd` is ignored remotely —
         // the remote start directory comes from the connection preset.
         let spawn_result = match wb.remote_connection_for_terminal_key(&terminal_key) {
-            Some(connection_id) => {
-                pty_spawn_remote(connection_id, terminal_key.clone(), env).await
-            }
+            Some(connection_id) => pty_spawn_remote(connection_id, terminal_key.clone(), env).await,
             None => pty_spawn_with_env(cwd.clone(), env).await,
         };
         match spawn_result {
@@ -826,8 +821,7 @@ async fn bootstrap_terminal_cell(
                         cwd: cwd.clone(),
                         terminal_key: terminal_key.clone(),
                         sid,
-                        remote_connection_id: wb
-                            .remote_connection_for_terminal_key(&terminal_key),
+                        remote_connection_id: wb.remote_connection_for_terminal_key(&terminal_key),
                     });
                     schedule_agent_launch_retries(state.clone());
                 }

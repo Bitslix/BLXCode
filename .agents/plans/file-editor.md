@@ -1,7 +1,31 @@
 # Implementation Plan: File Preview → Lightweight Code Editor
 
-**Status:** Plan only — not yet implemented.
+**Status:** Implemented (core). See "Implementation notes" below for what shipped vs. deferred.
 **Branch:** `feat/fileeditor`
+
+## Implementation notes (what shipped)
+
+Done: backend read (mtime + FNV-1a hash) + `write_workspace_text_file` (atomic temp+rename,
+hash conflict guard, protected-folder denylist) local **and** remote, registered in `lib.rs`, with
+`#[cfg(test)]` coverage (M1); bridge mirror + `WriteResult` + `is_conflict_error` (M2); pure
+`editor/{policy,buffer,folding}.rs` with unit tests (M3); transparent-`<textarea>` edit overlay over
+the reused highlight.js backdrop with debounced re-highlight and a stable textarea decoupled from
+backdrop re-renders (M4); header View/Edit/Save/Revert + chips + dirty dot + `Ctrl/Cmd+S`/`Tab`/`Esc`
+(M5); markdown/policy Edit toggle into the raw editor (M6); save + revert + conflict dialog via the
+shared `ConfirmDialog` (M7); view-mode folding gutter + chevrons (M9, "expand-all on edit" baseline
+per M10); i18n `FilePreviewEditor*` keys across all 13 locales (English fallback — regenerate
+non-English with `render_i18n_locales_from_en.py`); CSS in `styles.css`; CHANGELOG + `docs/user/file-preview.md`.
+
+Editor state is held component-locally in the kept-alive `FilePreviewDock` (center panels are hidden,
+not unmounted), which resolves §1.8 without service-held `OpenDoc`. `open_center_file_tab` reuses a
+tab per `rel_path` (open question 2). Remote writes are implemented (open question 1 → shipped).
+
+Deviations / deferred (follow-ups): editable files are **preview-first with an Edit button** instead
+of double-click-open-in-Edit (no explorer plumbing needed — §11.1 double-click deferred); the conflict
+dialog offers **Overwrite / Cancel** (reload-from-disk via the Refresh button; "View diff" deferred);
+close-tab / workspace-switch / app-exit dirty guards (M8) are deferred (the conflict hash guard already
+prevents data corruption); edit-mode folding, `.blxbak` backup, open-in-system-editor, and formatter
+integration remain optional/deferred as in the plan.
 **Goal:** Extend the existing File Browser / file-preview flow so supported text/code/config
 files can be **edited and saved** in-app, while fully **reusing the existing highlight.js
 highlighting pipeline**. Add VS Code-style folding, a read-only-by-default policy for important

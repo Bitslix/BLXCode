@@ -116,8 +116,9 @@ impl PtyManager {
         mut injector: Option<Injector>,
     ) -> Result<u64, String> {
         let reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
-        let writer: Arc<Mutex<Box<dyn Write + Send>>> =
-            Arc::new(Mutex::new(pair.master.take_writer().map_err(|e| e.to_string())?));
+        let writer: Arc<Mutex<Box<dyn Write + Send>>> = Arc::new(Mutex::new(
+            pair.master.take_writer().map_err(|e| e.to_string())?,
+        ));
 
         let queue: Arc<Mutex<VecDeque<Vec<u8>>>> = Arc::new(Mutex::new(VecDeque::new()));
         let q_reader = Arc::clone(&queue);
@@ -573,7 +574,10 @@ fn build_ssh_args(spec: &RemoteSpawnSpec, remote_command_override: Option<&str>)
 
     match &spec.auth {
         RemoteAuthMode::Password(_) => {
-            push_opt(&mut args, "PreferredAuthentications=password,keyboard-interactive");
+            push_opt(
+                &mut args,
+                "PreferredAuthentications=password,keyboard-interactive",
+            );
             push_opt(&mut args, "PubkeyAuthentication=no");
         }
         RemoteAuthMode::Key {
@@ -593,10 +597,9 @@ fn build_ssh_args(spec: &RemoteSpawnSpec, remote_command_override: Option<&str>)
         }
     }
 
-    let remote_command =
-        remote_command_override
-            .map(str::to_string)
-            .or_else(|| spec.default_remote_command());
+    let remote_command = remote_command_override
+        .map(str::to_string)
+        .or_else(|| spec.default_remote_command());
     if remote_command.is_some() {
         // Force remote PTY allocation for tmux / interactive shell.
         args.push("-t".into());
@@ -640,16 +643,25 @@ pub(crate) fn sh_quote(s: &str) -> String {
 /// Detect a fatal ssh failure in accumulated output, returning a short reason.
 fn probe_failure(output: &str) -> Option<String> {
     const FAILURES: &[(&str, &str)] = &[
-        ("permission denied", "authentication failed (permission denied)"),
+        (
+            "permission denied",
+            "authentication failed (permission denied)",
+        ),
         ("could not resolve hostname", "could not resolve hostname"),
         ("name or service not known", "could not resolve hostname"),
         ("connection refused", "connection refused"),
         ("connection timed out", "connection timed out"),
         ("operation timed out", "connection timed out"),
         ("connection closed", "connection closed by remote host"),
-        ("host key verification failed", "host key verification failed"),
+        (
+            "host key verification failed",
+            "host key verification failed",
+        ),
         ("no such file or directory", "key file not found"),
-        ("too many authentication failures", "too many authentication failures"),
+        (
+            "too many authentication failures",
+            "too many authentication failures",
+        ),
     ];
     let hay = output.to_ascii_lowercase();
     FAILURES
@@ -808,7 +820,9 @@ mod tests {
             },
             ResumeMode::KeepaliveOnly,
         );
-        assert!(build_ssh_args(&no_pp, None).join(" ").contains("BatchMode=yes"));
+        assert!(build_ssh_args(&no_pp, None)
+            .join(" ")
+            .contains("BatchMode=yes"));
     }
 
     #[test]

@@ -6,7 +6,9 @@
 //! none of the manifest-based stacks (Rust/Node/Python/CMake) matched.
 
 use super::{IndexContext, Indexer};
-use crate::memory::architecture::common::{dominant_languages, extension_of, language_for_extension};
+use crate::memory::architecture::common::{
+    dominant_languages, extension_of, language_for_extension,
+};
 use crate::memory::architecture::unit::{ProjectUnit, UnitKind};
 
 pub struct MakeIndexer;

@@ -898,7 +898,8 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
     // Persist the width whenever it settles.
     Effect::new(move |_| {
         let w = tree_width.get();
-        if let Some(storage) = web_sys::window().and_then(|win| win.local_storage().ok().flatten()) {
+        if let Some(storage) = web_sys::window().and_then(|win| win.local_storage().ok().flatten())
+        {
             let _ = storage.set_item(MEMORY_TREE_WIDTH_PX_KEY, &format!("{w:.0}"));
         }
     });

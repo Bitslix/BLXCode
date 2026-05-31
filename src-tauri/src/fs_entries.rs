@@ -28,6 +28,69 @@ pub struct TextFilePreview {
     pub content: String,
     pub truncated: bool,
     pub byte_len: u64,
+    /// Modification timestamp (Unix ms) when available. Used by the editor as
+    /// one input to the save-time conflict check. Remote reads currently omit
+    /// this (`None`) because portable remote mtime is unavailable.
+    pub modified_ms: Option<i64>,
+    /// Fast non-cryptographic content hash (FNV-1a, hex) of the raw bytes.
+    /// Primary signal for the save-time conflict guard.
+    pub hash: String,
+}
+
+/// Result of a successful [`write_workspace_text_file`]. Lets the frontend
+/// reset its conflict baseline without re-reading the file.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WriteResult {
+    pub modified_ms: Option<i64>,
+    pub hash: String,
+    pub byte_len: u64,
+}
+
+/// Marker prefix on the error string returned when a save is refused because
+/// the on-disk content changed since it was read. The frontend matches this
+/// prefix to surface the conflict dialog instead of a generic error toast.
+pub const CONFLICT_PREFIX: &str = "conflict:";
+
+/// Path components that are never writable in-app: VCS internals, the agent
+/// memory/skills store, build outputs and dependency trees. Matched
+/// case-sensitively against every component of the relative path.
+const PROTECTED_COMPONENTS: &[&str] = &[
+    ".git",
+    ".agents",
+    ".blxcode",
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    "out",
+    ".next",
+    ".cache",
+    "vendor",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "coverage",
+];
+
+/// FNV-1a 64-bit hash of `bytes`, rendered as lowercase hex. Cheap, dependency
+/// free, and good enough to detect an out-of-band change for the conflict guard
+/// (not used for security).
+fn content_hash(bytes: &[u8]) -> String {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for &b in bytes {
+        hash ^= u64::from(b);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    format!("{hash:016x}")
+}
+
+/// `true` when any component of the relative path matches a protected folder.
+/// Operates on the caller-supplied relative string so it works identically for
+/// local and remote writes.
+fn is_protected_rel(rel: &str) -> bool {
+    rel.split(['/', '\\'])
+        .any(|c| PROTECTED_COMPONENTS.contains(&c))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
@@ -226,8 +289,7 @@ fn resolve_new_under_root(root: &Path, rel: &str) -> Result<PathBuf, String> {
     if p.is_absolute() {
         return Err("path must be relative".into());
     }
-    if p
-        .components()
+    if p.components()
         .any(|c| matches!(c, std::path::Component::ParentDir))
     {
         return Err("path escapes workspace".into());
@@ -431,12 +493,15 @@ fn remote_read_text_file(
         return Err(out.stderr_string());
     }
     let truncated = byte_len > MAX_TEXT_PREVIEW_BYTES;
+    let hash = content_hash(&out.stdout);
     let content =
         String::from_utf8(out.stdout).map_err(|_| "file is not valid UTF-8 text".to_string())?;
     Ok(TextFilePreview {
         content,
         truncated,
         byte_len,
+        modified_ms: None, // portable remote mtime omitted; best-effort only
+        hash,
     })
 }
 
@@ -635,11 +700,149 @@ fn local_read_text_file(workspace_root: &str, path: &str) -> Result<TextFilePrev
     if truncated {
         bytes.truncate(MAX_TEXT_PREVIEW_BYTES as usize);
     }
+    let modified = modified_ms(&meta);
+    let hash = content_hash(&bytes);
     let content =
         String::from_utf8(bytes).map_err(|_| "file is not valid UTF-8 text".to_string())?;
     Ok(TextFilePreview {
         content,
         truncated,
+        byte_len,
+        modified_ms: modified,
+        hash,
+    })
+}
+
+/// Writes UTF-8 `content` over an existing file under `workspace_root`.
+///
+/// Refuses files in [`PROTECTED_COMPONENTS`]. When `expected_hash` is `Some`
+/// and the current on-disk hash differs, the write is refused with a
+/// [`CONFLICT_PREFIX`]-tagged error and the file is left untouched. The write
+/// itself is atomic (temp sibling + rename). Returns a fresh baseline so the
+/// frontend can clear its dirty/conflict state without reloading.
+#[tauri::command]
+pub fn write_workspace_text_file(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
+    workspace_root: String,
+    path: String,
+    content: String,
+    expected_hash: Option<String>,
+    connection_id: Option<String>,
+) -> Result<WriteResult, String> {
+    if let Some(cid) = connection_id.as_deref() {
+        return remote_write_text_file(
+            &app,
+            &pty,
+            &exec,
+            cid,
+            &workspace_root,
+            &path,
+            &content,
+            expected_hash.as_deref(),
+        );
+    }
+    local_write_text_file(&workspace_root, &path, &content, expected_hash.as_deref())
+}
+
+fn local_write_text_file(
+    workspace_root: &str,
+    path: &str,
+    content: &str,
+    expected_hash: Option<&str>,
+) -> Result<WriteResult, String> {
+    if is_protected_rel(path) {
+        return Err("this file is in a protected folder and can't be edited here".into());
+    }
+    let root = canonical_root(workspace_root)?;
+    // The file must already exist — the editor only saves opened documents.
+    let file = resolve_under_root(&root, path)?;
+    if !file.is_file() {
+        return Err("not a file".into());
+    }
+    // Conflict guard: compare the caller's expected hash against the current
+    // bytes on disk. `None` means "force write" (after explicit user consent).
+    if let Some(expected) = expected_hash {
+        let current = fs::read(&file).map_err(|e| e.to_string())?;
+        let current_hash = content_hash(&current);
+        if current_hash != expected {
+            return Err(format!("{CONFLICT_PREFIX}file changed on disk"));
+        }
+    }
+    let parent = file
+        .parent()
+        .ok_or_else(|| "file has no parent directory".to_string())?;
+    // Atomic write: write a sibling temp file, then rename over the target so a
+    // partial write can never leave a corrupt file in place.
+    let tmp = parent.join(format!(".blxcode-write-{}.tmp", uuid::Uuid::new_v4()));
+    fs::write(&tmp, content.as_bytes()).map_err(|e| {
+        let _ = fs::remove_file(&tmp);
+        format!("write temp: {e}")
+    })?;
+    if let Err(e) = ensure_under_root(&root, &tmp) {
+        let _ = fs::remove_file(&tmp);
+        return Err(e);
+    }
+    if let Err(e) = fs::rename(&tmp, &file) {
+        let _ = fs::remove_file(&tmp);
+        return Err(format!("rename: {e}"));
+    }
+    let byte_len = content.len() as u64;
+    let hash = content_hash(content.as_bytes());
+    let modified = fs::metadata(&file).ok().and_then(|m| modified_ms(&m));
+    Ok(WriteResult {
+        modified_ms: modified,
+        hash,
+        byte_len,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn remote_write_text_file(
+    app: &AppHandle,
+    pty: &PtyManager,
+    exec: &RemoteExecManager,
+    connection_id: &str,
+    workspace_root: &str,
+    path: &str,
+    content: &str,
+    expected_hash: Option<&str>,
+) -> Result<WriteResult, String> {
+    if is_protected_rel(path) {
+        return Err("this file is in a protected folder and can't be edited here".into());
+    }
+    let target = remote_target(workspace_root, path)?;
+    let q = sh_quote(&target);
+    // Conflict guard: re-read the remote bytes (capped, same as the read path)
+    // and compare hashes before writing. Best-effort — if the read fails we
+    // surface the error rather than blindly overwriting.
+    if let Some(expected) = expected_hash {
+        let read_cmd = format!("head -c {MAX_TEXT_PREVIEW_BYTES} -- {q}");
+        let out = exec.run(app, pty, connection_id, &read_cmd, EXEC_TIMEOUT_MS)?;
+        if !out.ok() {
+            return Err(out.stderr_string());
+        }
+        if content_hash(&out.stdout) != expected {
+            return Err(format!("{CONFLICT_PREFIX}file changed on disk"));
+        }
+    }
+    // base64-encode the new content and decode it remotely into a temp sibling,
+    // then move it over the target so the write is atomic on the remote too.
+    let b64 = BASE64_STANDARD.encode(content.as_bytes());
+    let tmp = format!("{target}.blxcode-write.tmp");
+    let qtmp = sh_quote(&tmp);
+    let cmd = format!(
+        "printf %s {} | base64 -d > {qtmp} && mv -f -- {qtmp} {q}",
+        sh_quote(&b64)
+    );
+    exec.run_check(app, pty, connection_id, &cmd, EXEC_TIMEOUT_MS)
+        .map_err(|e| format!("remote write failed: {e}"))?;
+    let byte_len = content.len() as u64;
+    let hash = content_hash(content.as_bytes());
+    Ok(WriteResult {
+        modified_ms: None,
+        hash,
         byte_len,
     })
 }
@@ -1062,11 +1265,9 @@ mod tests {
         let tmp = std::env::temp_dir().join(format!("blx_fs_{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&tmp).unwrap();
         let root = tmp.to_string_lossy().into_owned();
-        let err = local_create_file(&root, "../escape.txt")
-            .expect_err("traversal should fail");
+        let err = local_create_file(&root, "../escape.txt").expect_err("traversal should fail");
         assert!(err.contains("escapes workspace"));
-        let err = local_create_dir(&root, "../escape")
-            .expect_err("traversal should fail");
+        let err = local_create_dir(&root, "../escape").expect_err("traversal should fail");
         assert!(err.contains("escapes workspace"));
         let _ = fs::remove_dir_all(tmp);
     }
@@ -1095,5 +1296,120 @@ mod tests {
         let err = local_create_file(&root, "   ").expect_err("empty name should fail");
         assert!(err.contains("name is empty"));
         let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn read_text_file_returns_hash_and_mtime() {
+        let tmp = std::env::temp_dir().join(format!("blx_fs_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("a.txt"), b"hello").unwrap();
+        let root = tmp.to_string_lossy().into_owned();
+        let first = local_read_text_file(&root, "a.txt").unwrap();
+        assert!(first.modified_ms.is_some());
+        assert_eq!(first.hash, content_hash(b"hello"));
+        // Hash changes when content changes.
+        fs::write(tmp.join("a.txt"), b"world").unwrap();
+        let second = local_read_text_file(&root, "a.txt").unwrap();
+        assert_ne!(first.hash, second.hash);
+        let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn write_text_file_happy_path_is_atomic() {
+        let tmp = std::env::temp_dir().join(format!("blx_fs_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("note.txt"), b"old").unwrap();
+        let root = tmp.to_string_lossy().into_owned();
+        let res = local_write_text_file(&root, "note.txt", "new content", None).unwrap();
+        assert_eq!(res.byte_len, "new content".len() as u64);
+        assert_eq!(res.hash, content_hash(b"new content"));
+        assert_eq!(
+            fs::read_to_string(tmp.join("note.txt")).unwrap(),
+            "new content"
+        );
+        // No temp files left behind.
+        let leftovers: Vec<_> = fs::read_dir(&tmp)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().contains("blxcode-write"))
+            .collect();
+        assert!(leftovers.is_empty(), "temp file leaked");
+        let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn write_text_file_conflict_guard() {
+        let tmp = std::env::temp_dir().join(format!("blx_fs_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&tmp).unwrap();
+        fs::write(tmp.join("c.txt"), b"disk").unwrap();
+        let root = tmp.to_string_lossy().into_owned();
+        // Stale expected hash ⇒ conflict, file unchanged.
+        let stale = content_hash(b"what we thought");
+        let err = local_write_text_file(&root, "c.txt", "mine", Some(&stale))
+            .expect_err("stale hash should conflict");
+        assert!(err.starts_with(CONFLICT_PREFIX));
+        assert_eq!(fs::read_to_string(tmp.join("c.txt")).unwrap(), "disk");
+        // Matching hash ⇒ success.
+        let current = content_hash(b"disk");
+        local_write_text_file(&root, "c.txt", "mine", Some(&current)).unwrap();
+        assert_eq!(fs::read_to_string(tmp.join("c.txt")).unwrap(), "mine");
+        let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn write_text_file_rejects_protected_paths() {
+        let tmp = std::env::temp_dir().join(format!("blx_fs_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(tmp.join(".git")).unwrap();
+        fs::write(tmp.join(".git").join("config"), b"x").unwrap();
+        fs::create_dir_all(tmp.join("node_modules")).unwrap();
+        fs::write(tmp.join("node_modules").join("p.js"), b"x").unwrap();
+        let root = tmp.to_string_lossy().into_owned();
+        for rel in [
+            ".git/config",
+            "node_modules/p.js",
+            "target/x",
+            ".agents/m.md",
+        ] {
+            let err = local_write_text_file(&root, rel, "y", None)
+                .expect_err("protected path should be rejected");
+            assert!(err.contains("protected folder"), "rel={rel} err={err}");
+        }
+        // .git/config must be untouched.
+        assert_eq!(
+            fs::read_to_string(tmp.join(".git").join("config")).unwrap(),
+            "x"
+        );
+        let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn write_text_file_rejects_escape_and_missing() {
+        let tmp = std::env::temp_dir().join(format!("blx_fs_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&tmp).unwrap();
+        let root = tmp.to_string_lossy().into_owned();
+        let err = local_write_text_file(&root, "../escape.txt", "y", None)
+            .expect_err("traversal should fail");
+        // resolve_under_root canonicalizes; the missing target fails to resolve.
+        assert!(err.contains("path not found") || err.contains("outside workspace"));
+        let err = local_write_text_file(&root, "missing.txt", "y", None)
+            .expect_err("missing file should fail");
+        assert!(err.contains("path not found") || err.contains("not a file"));
+        let _ = fs::remove_dir_all(tmp);
+    }
+
+    #[test]
+    fn is_protected_rel_matches_components() {
+        assert!(is_protected_rel(".git/config"));
+        assert!(is_protected_rel("a/b/target/x.rs"));
+        assert!(is_protected_rel("node_modules/pkg/index.js"));
+        assert!(!is_protected_rel("src/main.rs"));
+        assert!(!is_protected_rel("targets.txt")); // not a full component
+    }
+
+    #[test]
+    fn content_hash_is_stable_and_distinct() {
+        assert_eq!(content_hash(b"abc"), content_hash(b"abc"));
+        assert_ne!(content_hash(b"abc"), content_hash(b"abd"));
+        assert_eq!(content_hash(b"").len(), 16);
     }
 }

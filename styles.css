@@ -5646,7 +5646,10 @@ button {
   overflow: auto;
   font-family: var(--font-mono);
   font-size: 0.78rem;
-  line-height: 1.55;
+  /* Integer-px line box, shared by preview rows, edit-mode rows, and the
+     overlay textarea, so all three have identical line height and the caret
+     never drifts off the highlighted text. */
+  line-height: 1.25rem;
   color: var(--text);
   background: transparent;
   --code-view-gutter-width: 3ch;
@@ -5698,7 +5701,152 @@ button {
   display: inline-block;
   padding: 0 0.85rem;
   white-space: pre;
-  min-height: 1.55em;
+  min-height: 1.25rem;
+}
+
+/* Gutter wraps the optional fold chevron + line number and carries the
+   gutter's background/separator so the chevron column matches the numbers. */
+.code-view__gutter {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.1rem;
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.code-view__gutter .code-view__lineno {
+  border-right: 0;
+  background: transparent;
+}
+
+.code-view__fold-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0.7;
+  cursor: pointer;
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.code-view__fold-toggle:hover {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.code-view__row--hidden {
+  display: none;
+}
+
+/* --- Edit overlay: transparent textarea over the highlighted backdrop --- */
+
+.code-view__edit-host {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+}
+
+.code-view__edit-inner {
+  position: relative;
+  min-height: 100%;
+  width: 100%;
+}
+
+/* In edit mode the backdrop only paints; the host scrolls and the textarea
+   takes all pointer input. */
+.code-view--editing {
+  flex: none;
+  overflow: visible;
+  pointer-events: none;
+  user-select: none;
+}
+
+.code-view__textarea {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  margin: 0;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  /* Integer-px line box so the textarea and the div backdrop advance by the
+     exact same amount per line (no sub-pixel drift accumulating downward). */
+  line-height: 1.25rem;
+  white-space: pre;
+  overflow: hidden;
+  tab-size: 2;
+  -moz-tab-size: 2;
+  padding: 0 0.85rem 0 calc(var(--code-view-gutter-width) + 1.4rem + 0.85rem);
+  /* The app chrome disables text selection; re-enable it for the editor. */
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Match the backdrop's tab width to the textarea (line height is already
+   unified on `.code-view`) so tab-indented code lines up under the caret. */
+.code-view {
+  tab-size: 2;
+  -moz-tab-size: 2;
+}
+
+/* The textarea is a sibling of `.code-view`, so it does NOT inherit
+   `--code-view-selection-bg` (defined on `.code-view`). Use the accent token
+   directly — a semi-transparent band lets the highlighted backdrop text show
+   through the selection. */
+.code-view__textarea::selection {
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+  color: transparent;
+}
+
+.code-view__textarea::-moz-selection {
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+  color: transparent;
+}
+
+/* --- Header editor chips + dirty marker --- */
+
+.file-preview__dirty-dot {
+  margin-left: 0.35rem;
+  color: var(--accent);
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.file-preview__state-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  color: var(--text-muted);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.file-preview__state-chip--edit {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--accent);
+}
+
+.file-preview__state-chip--dirty {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--accent);
 }
 
 .code-context-menu {

@@ -75,8 +75,7 @@ pub fn FileDiffSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
         let epoch = wb.sidebar_repo_epoch().get();
         // An epoch bump (manual sync, or the remote poll below) forces a reload
         // even when the cwd is unchanged.
-        let force_reload =
-            gen != last_load_gen.get_value() || epoch != last_repo_epoch.get_value();
+        let force_reload = gen != last_load_gen.get_value() || epoch != last_repo_epoch.get_value();
         last_load_gen.set_value(gen);
         last_repo_epoch.set_value(epoch);
         match git_repo_available.get() {

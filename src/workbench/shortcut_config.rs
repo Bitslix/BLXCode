@@ -105,7 +105,12 @@ impl Binding {
         match self {
             Self::Combo(chord) => chord.parts().join(" + "),
             Self::Chord { second } => {
-                format!("{} {} {}", prefix.parts().join(" + "), then_word, display_key(second))
+                format!(
+                    "{} {} {}",
+                    prefix.parts().join(" + "),
+                    then_word,
+                    display_key(second)
+                )
             }
         }
     }
@@ -235,9 +240,12 @@ impl ShortcutConfig {
     /// missing from the map.
     #[must_use]
     pub fn binding(&self, action: ShortcutAction) -> Binding {
-        self.bindings.get(&action).cloned().unwrap_or(Binding::Chord {
-            second: action.default_second().to_owned(),
-        })
+        self.bindings
+            .get(&action)
+            .cloned()
+            .unwrap_or(Binding::Chord {
+                second: action.default_second().to_owned(),
+            })
     }
 
     /// Find the action bound as a tmux *chord* whose second key matches `ev`
@@ -245,19 +253,23 @@ impl ShortcutConfig {
     #[must_use]
     pub fn chord_match(&self, ev: &KeyboardEvent) -> Option<ShortcutAction> {
         let key = normalize_key(&ev.key());
-        self.bindings.iter().find_map(|(action, binding)| match binding {
-            Binding::Chord { second } if *second == key => Some(*action),
-            _ => None,
-        })
+        self.bindings
+            .iter()
+            .find_map(|(action, binding)| match binding {
+                Binding::Chord { second } if *second == key => Some(*action),
+                _ => None,
+            })
     }
 
     /// Find the action bound as a direct *combo* matching `ev` exactly.
     #[must_use]
     pub fn combo_match(&self, ev: &KeyboardEvent) -> Option<ShortcutAction> {
-        self.bindings.iter().find_map(|(action, binding)| match binding {
-            Binding::Combo(chord) if chord.matches(ev) => Some(*action),
-            _ => None,
-        })
+        self.bindings
+            .iter()
+            .find_map(|(action, binding)| match binding {
+                Binding::Combo(chord) if chord.matches(ev) => Some(*action),
+                _ => None,
+            })
     }
 
     /// Actions that collide with `action`'s current binding (same combo, or
@@ -322,7 +334,9 @@ mod tests {
         assert_eq!(cfg.prefix, KeyChord::new(true, false, false, "b"));
         assert_eq!(
             cfg.binding(ShortcutAction::Terminal),
-            Binding::Chord { second: "n".to_owned() }
+            Binding::Chord {
+                second: "n".to_owned()
+            }
         );
     }
 
@@ -343,7 +357,10 @@ mod tests {
             "Ctrl + Shift + N"
         );
         assert_eq!(
-            Binding::Chord { second: "n".to_owned() }.display(&prefix, "then"),
+            Binding::Chord {
+                second: "n".to_owned()
+            }
+            .display(&prefix, "then"),
             "Ctrl + B then N"
         );
     }
@@ -360,7 +377,9 @@ mod tests {
         let mut cfg = ShortcutConfig::preset(ShortcutMode::Legacy);
         let dup = cfg.binding(ShortcutAction::QuickOpen);
         cfg.bindings.insert(ShortcutAction::Terminal, dup);
-        assert!(cfg.conflicts(ShortcutAction::Terminal).contains(&ShortcutAction::QuickOpen));
+        assert!(cfg
+            .conflicts(ShortcutAction::Terminal)
+            .contains(&ShortcutAction::QuickOpen));
         assert!(cfg.conflicts(ShortcutAction::Agent).is_empty());
     }
 

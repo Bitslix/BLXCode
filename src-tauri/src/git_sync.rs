@@ -315,7 +315,9 @@ fn git_sync_status_impl(cwd: String) -> Result<SyncStatus, String> {
         &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
     )?;
     let upstream = if upstream_out.status.success() {
-        let u = String::from_utf8_lossy(&upstream_out.stdout).trim().to_string();
+        let u = String::from_utf8_lossy(&upstream_out.stdout)
+            .trim()
+            .to_string();
         if u.is_empty() {
             None
         } else {
@@ -493,30 +495,45 @@ mod tests {
 
     #[test]
     fn classify_auth_failures() {
-        assert_eq!(classify("fatal: Authentication failed for 'https://...'"), "auth");
-        assert_eq!(classify("git@github.com: Permission denied (publickey)."), "auth");
         assert_eq!(
-            classify("could not read from remote repository"),
+            classify("fatal: Authentication failed for 'https://...'"),
             "auth"
         );
+        assert_eq!(
+            classify("git@github.com: Permission denied (publickey)."),
+            "auth"
+        );
+        assert_eq!(classify("could not read from remote repository"), "auth");
         assert_eq!(classify("Host key verification failed."), "auth");
     }
 
     #[test]
     fn classify_non_fast_forward() {
-        let stderr = "! [rejected]        main -> main (non-fast-forward)\nerror: failed to push some refs";
+        let stderr =
+            "! [rejected]        main -> main (non-fast-forward)\nerror: failed to push some refs";
         assert_eq!(classify(stderr), "non_fast_forward");
-        assert_eq!(classify("Updates were rejected because the tip is behind"), "non_fast_forward");
+        assert_eq!(
+            classify("Updates were rejected because the tip is behind"),
+            "non_fast_forward"
+        );
     }
 
     #[test]
     fn classify_conflict_and_dirty() {
-        assert_eq!(classify("CONFLICT (content): Merge conflict in a.txt"), "conflict");
         assert_eq!(
-            classify("error: Your local changes to the following files would be overwritten by merge"),
+            classify("CONFLICT (content): Merge conflict in a.txt"),
+            "conflict"
+        );
+        assert_eq!(
+            classify(
+                "error: Your local changes to the following files would be overwritten by merge"
+            ),
             "dirty"
         );
-        assert_eq!(classify("Please commit your changes or stash them"), "dirty");
+        assert_eq!(
+            classify("Please commit your changes or stash them"),
+            "dirty"
+        );
     }
 
     #[test]
@@ -525,8 +542,14 @@ mod tests {
             classify("There is no tracking information for the current branch."),
             "no_upstream"
         );
-        assert_eq!(classify("fatal: Unable to create '.git/index.lock': File exists"), "lock");
-        assert_eq!(classify("fatal: unable to access 'https://...': Could not resolve host: github.com"), "network");
+        assert_eq!(
+            classify("fatal: Unable to create '.git/index.lock': File exists"),
+            "lock"
+        );
+        assert_eq!(
+            classify("fatal: unable to access 'https://...': Could not resolve host: github.com"),
+            "network"
+        );
     }
 
     #[test]

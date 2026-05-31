@@ -683,10 +683,7 @@ fn submit_turn(
         {
             status_sig.set(Some(msg));
         } else if !turn_had_error.get_untracked() && !transient_context_ids.is_empty() {
-            wb_after_drain.remove_workspace_agent_context_items(
-                ws_capture,
-                &transient_context_ids,
-            );
+            wb_after_drain.remove_workspace_agent_context_items(ws_capture, &transient_context_ids);
         }
         busy_sig.set(false);
     });

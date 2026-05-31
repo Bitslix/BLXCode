@@ -208,6 +208,7 @@ pub fn run() {
             fs_entries::create_workspace_file,
             fs_entries::create_workspace_dir,
             fs_entries::read_workspace_text_file,
+            fs_entries::write_workspace_text_file,
             fs_entries::stat_workspace_file,
             fs_entries::read_workspace_image_file,
             fs_entries::read_workspace_video_file,

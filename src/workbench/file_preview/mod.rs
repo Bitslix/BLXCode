@@ -5,6 +5,7 @@
 
 mod code_context_menu;
 mod code_view;
+mod editor;
 mod header;
 mod hljs_glue;
 mod image_view;
@@ -19,6 +20,8 @@ use crate::service::I18nService;
 use crate::tauri_bridge::{is_tauri_shell, stat_workspace_file, FileKind, FileMeta, PolicyKind};
 use crate::workbench::WorkbenchService;
 use code_view::CodeView;
+use editor::policy::{resolve_editability, Editability};
+use editor::{EditMode, EditorSession};
 use header::FilePreviewHeader;
 use image_view::ImageView;
 use leptos::prelude::*;
@@ -77,7 +80,35 @@ pub fn FilePreviewDock(workspace_id: u64, rel_path: String) -> impl IntoView {
         set_reload_tick.update(|n| *n = n.wrapping_add(1));
     });
 
-    let dispatcher_workspace_id = workspace_id;
+    // One editor session per open document; survives tab switches because the
+    // center panels are kept alive (hidden, not unmounted).
+    let session = EditorSession::new(workspace_id, rel_path.clone());
+
+    // Base editability derives from metadata; the body refines it for
+    // too-large files once the read returns. The first time metadata resolves
+    // we also pick the initial mode: editable **code/text** files open straight
+    // in Edit; markdown and policy docs (README/LICENSE/…) stay preview-first
+    // in View. (A too-large code file is downgraded back to View by `CodeView`.)
+    let rel_for_policy = rel_path.clone();
+    let mode_initialized = RwSignal::new(false);
+    Effect::new(move |_| {
+        if let Some(meta) = meta_memo.get() {
+            let editability =
+                resolve_editability(meta.kind, meta.policy_kind, &rel_for_policy, false);
+            session.editability.set(editability);
+            if !mode_initialized.get_untracked() {
+                mode_initialized.set(true);
+                let open_in_edit = matches!(editability, Editability::Editable)
+                    && matches!(meta.kind, FileKind::Code | FileKind::Text);
+                session.mode.set(if open_in_edit {
+                    EditMode::Edit
+                } else {
+                    EditMode::View
+                });
+            }
+        }
+    });
+
     let dispatcher_rel_path = rel_path.clone();
 
     view! {
@@ -86,6 +117,7 @@ pub fn FilePreviewDock(workspace_id: u64, rel_path: String) -> impl IntoView {
                 meta=meta_memo
                 rel_path=rel_path.clone()
                 on_refresh=on_refresh
+                session=session
             />
             {move || match meta_sig.get() {
                 None => view! {
@@ -95,7 +127,7 @@ pub fn FilePreviewDock(workspace_id: u64, rel_path: String) -> impl IntoView {
                 Some(Ok(meta)) => render_for_kind(
                     meta.kind,
                     meta.policy_kind,
-                    dispatcher_workspace_id,
+                    session,
                     dispatcher_rel_path.clone(),
                     reload_tick,
                 ),
@@ -107,10 +139,11 @@ pub fn FilePreviewDock(workspace_id: u64, rel_path: String) -> impl IntoView {
 fn render_for_kind(
     kind: FileKind,
     policy_kind: Option<PolicyKind>,
-    workspace_id: u64,
+    session: EditorSession,
     rel_path: String,
     reload_tick: ReadSignal<u32>,
 ) -> AnyView {
+    let workspace_id = session.workspace_id;
     match kind {
         FileKind::Image => view! {
             <ImageView workspace_id=workspace_id rel_path=rel_path reload_tick=reload_tick />
@@ -126,6 +159,7 @@ fn render_for_kind(
                 rel_path=rel_path
                 reload_tick=reload_tick
                 policy_kind=policy_kind
+                session=session
             />
         }
         .into_any(),
@@ -135,8 +169,9 @@ fn render_for_kind(
         .into_any(),
         FileKind::Code | FileKind::Text => view! {
             <CodeView
-                workspace_id=workspace_id
-                rel_path=rel_path
+                session=session
+                kind=kind
+                policy_kind=policy_kind
                 reload_tick=reload_tick
             />
         }

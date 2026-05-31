@@ -769,6 +769,12 @@ pub struct TextFilePreview {
     pub content: String,
     pub truncated: bool,
     pub byte_len: u64,
+    /// Modification timestamp (Unix ms) when available; `None` for remote reads.
+    #[serde(default)]
+    pub modified_ms: Option<i64>,
+    /// FNV-1a content hash of the raw bytes — the conflict-guard baseline.
+    #[serde(default)]
+    pub hash: String,
 }
 
 pub async fn read_workspace_text_file(
@@ -793,6 +799,59 @@ pub async fn read_workspace_text_file(
         },
     )
     .await
+}
+
+/// Result of a successful [`write_workspace_text_file`] — mirrors
+/// `fs_entries::WriteResult`. Used to reset the editor's conflict baseline.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WriteResult {
+    #[serde(default)]
+    pub modified_ms: Option<i64>,
+    pub hash: String,
+    pub byte_len: u64,
+}
+
+/// Writes `content` over an existing workspace file. When `expected_hash` is
+/// `Some`, the backend refuses the write if the on-disk content changed
+/// (the returned error string starts with `conflict:`). Mirrors
+/// `fs_entries::write_workspace_text_file`.
+pub async fn write_workspace_text_file(
+    workspace_root: String,
+    path: String,
+    content: String,
+    expected_hash: Option<String>,
+    connection_id: Option<String>,
+) -> Result<WriteResult, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        workspace_root: String,
+        path: String,
+        content: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        expected_hash: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
+    }
+    invoke_typed(
+        "write_workspace_text_file",
+        A {
+            workspace_root,
+            path,
+            content,
+            expected_hash,
+            connection_id,
+        },
+    )
+    .await
+}
+
+/// `true` when a save error string denotes an on-disk conflict (vs a generic
+/// I/O / permission error). Matches the backend `CONFLICT_PREFIX`.
+#[must_use]
+pub fn is_conflict_error(err: &str) -> bool {
+    err.starts_with("conflict:")
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -2340,10 +2399,7 @@ pub async fn git_branch(
     invoke_typed("git_branch", Args { cwd, connection_id }).await
 }
 
-pub async fn git_is_repository(
-    cwd: String,
-    connection_id: Option<String>,
-) -> Result<bool, String> {
+pub async fn git_is_repository(cwd: String, connection_id: Option<String>) -> Result<bool, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Args {

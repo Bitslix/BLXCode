@@ -38,7 +38,11 @@ impl Indexer for CmakeIndexer {
             let mut unit = ProjectUnit::new(UnitKind::Cmake, name);
             unit.root_rel = dir.clone();
             unit.manifest_rel = Some(manifest_rel.clone());
-            unit.source_root_rel = Some(if dir.is_empty() { ".".to_owned() } else { dir.clone() });
+            unit.source_root_rel = Some(if dir.is_empty() {
+                ".".to_owned()
+            } else {
+                dir.clone()
+            });
 
             for rel in ctx.tracked.iter().filter(|rel| {
                 under(&dir, rel)

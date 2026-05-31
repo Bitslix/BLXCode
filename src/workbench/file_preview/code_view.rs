@@ -1,32 +1,56 @@
-//! Source-code preview with line numbers, syntax highlighting via
-//! highlight.js and click/drag row range selection.
+//! Source-code view + lightweight editor.
 //!
-//! Pure text (e.g. `.txt`, `.log`, `.env`) is rendered through this same
-//! component without syntax highlighting, but still receives line numbers
-//! and row selection.
+//! Read mode renders line numbers, highlight.js syntax highlighting, click/drag
+//! row selection, a context menu, and (view-mode) code folding. Edit mode
+//! reuses the *same* highlighted backdrop and overlays a transparent
+//! `<textarea>` so highlighting, caret, IME and native undo all come for free —
+//! the backdrop is re-highlighted on a debounce as the buffer changes.
+//!
+//! All editor state lives in the shared [`EditorSession`] (created by
+//! `FilePreviewDock`), so the same handle drives the header controls.
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::tauri_bridge::{is_tauri_shell, pty_write, read_workspace_text_file};
+use crate::tauri_bridge::{pty_write, FileKind, PolicyKind};
 use crate::workbench::agent_context_handoff::{
     file_snippet_context_item, list_terminal_targets_all_workspaces, render_file_snippet_envelope,
 };
 use crate::workbench::file_preview::code_context_menu::{
     CodeContextMenu, CodeContextMenuState, CodeMenuAction,
 };
+use crate::workbench::file_preview::editor::folding::compute_folds;
+use crate::workbench::file_preview::editor::policy::Editability;
+use crate::workbench::file_preview::editor::{DocStatus, EditMode, EditorSession};
 use crate::workbench::file_preview::hljs_glue::highlight;
 use crate::workbench::file_preview::util::{
     build_file_snippet_block, hljs_lang_for_ext, html_escape, render_load_error,
     split_highlighted_into_lines, FilePreviewError,
 };
 use crate::workbench::toast::ToastService;
-use crate::workbench::WorkbenchService;
+use crate::workbench::{HarnessUiService, WorkbenchService};
 use base64::Engine;
+use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::sync::Arc;
 use wasm_bindgen::JsCast;
 use web_sys::MouseEvent;
+
+/// Debounce before re-highlighting while typing (ms).
+const HIGHLIGHT_DEBOUNCE_MS: u32 = 90;
+/// Above this buffer size we skip syntax highlighting (plain text) to keep
+/// keystrokes responsive.
+const MAX_HIGHLIGHT_BYTES: usize = 256 * 1024;
+
+/// Coarse render phase. Derived via a deduplicating `Memo` so the editing
+/// scaffold (and the textarea inside it) is *not* rebuilt as the buffer is
+/// highlighted or saved — only when we move between loading / error / content.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Phase {
+    Loading,
+    Error,
+    Content,
+}
 
 /// Pre-rendered code data: one HTML fragment per source line plus a raw
 /// plaintext mirror used for snippet/clipboard handoff.
@@ -35,22 +59,15 @@ struct PreparedCode {
     /// Already-escaped (and possibly hljs-highlighted) HTML fragments, one per
     /// line. Safe to embed via `inner_html`.
     lines: Vec<String>,
-    /// Raw text per line (no HTML), mirrored 1:1 with `lines`. Used to build
-    /// fenced-code snippets and clipboard payloads.
+    /// Raw text per line (no HTML), mirrored 1:1 with `lines`.
     plain_lines: Arc<Vec<String>>,
-    /// `true` when the backend capped the file content; surfaces a notice
-    /// banner above the gutter.
-    truncated: bool,
-    /// Raw byte length of the file as reported by the backend (used in the
-    /// truncation notice).
-    byte_len: u64,
     /// Language alias that was highlighted with, or `None` for plain text.
     language: Option<&'static str>,
 }
 
 /// Resolves the language hint for `rel_path`'s extension. Returns `None` for
 /// extensions that have no reliable highlight.js mapping (plain text path).
-fn lang_for_path(rel_path: &str) -> Option<&'static str> {
+pub fn lang_for_path(rel_path: &str) -> Option<&'static str> {
     let ext = rel_path.rsplit('.').next()?.to_ascii_lowercase();
     let lower = rel_path.to_ascii_lowercase();
     if lower.ends_with("dockerfile") || lower.ends_with("containerfile") {
@@ -62,10 +79,7 @@ fn lang_for_path(rel_path: &str) -> Option<&'static str> {
     hljs_lang_for_ext(&ext)
 }
 
-/// Returns `(html_lines, raw_lines, used_language)`. When `language` is
-/// `Some`, highlight.js is invoked first and its output is split with span
-/// balancing; otherwise the raw text is HTML-escaped and split on `\n`.
-/// `raw_lines` is always the plain `\n`-split source.
+/// Returns `(html_lines, raw_lines, used_language)`.
 async fn prepare_lines(
     content: String,
     language: Option<&'static str>,
@@ -98,83 +112,91 @@ fn escape_lines(content: &str) -> Vec<String> {
     out
 }
 
+/// Code view/editor bound to a shared [`EditorSession`]. `kind`/`policy_kind`
+/// set the editability policy; `reload_tick` forces a re-read from disk.
 #[component]
 pub fn CodeView(
-    workspace_id: u64,
-    rel_path: String,
+    session: EditorSession,
+    kind: FileKind,
+    #[prop(default = None)] policy_kind: Option<PolicyKind>,
     reload_tick: ReadSignal<u32>,
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
     let toast = expect_context::<ToastService>();
-    let result: RwSignal<Option<Result<PreparedCode, FilePreviewError>>> = RwSignal::new(None);
-    // Selection is always stored as an ordered (start, end) pair, 1-based,
-    // inclusive. `None` means "no selection".
+    let ui = expect_context::<HarnessUiService>();
+
+    let prepared: RwSignal<Option<PreparedCode>> = RwSignal::new(None);
     let selected: RwSignal<Option<(usize, usize)>> = RwSignal::new(None);
-    // Drag anchor: the row the user pressed mousedown on. `Some(line)` means
-    // a drag is in progress. Cleared on global mouseup.
     let drag_anchor: RwSignal<Option<usize>> = RwSignal::new(None);
-    // `true` once a drag has crossed at least one row boundary. Lets us
-    // distinguish a pure click (toggle) from a drag (replace selection).
     let drag_moved: RwSignal<bool> = RwSignal::new(false);
-    // Context menu state. `Some(_)` is open; `None` is closed.
     let menu_state: RwSignal<Option<CodeContextMenuState>> = RwSignal::new(None);
 
+    let rel_path = session.rel_path();
     let language_hint = lang_for_path(&rel_path);
 
-    let rel_for_effect = rel_path.clone();
+    // (Re)load on reload tick. The editability policy is recomputed once the
+    // backend reports truncation; do it here so a too-large file is read-only.
     Effect::new(move |_| {
-        // Only react to `reload_tick`. Reading `wb.workspaces().get()`
-        // reactively would re-fetch + remount on every tab switch (see
-        // FilePreviewDock for the same fix).
         let _ = reload_tick.get();
-        result.set(None);
         selected.set(None);
         drag_anchor.set(None);
         drag_moved.set(false);
         menu_state.set(None);
-        if !is_tauri_shell() {
-            result.set(Some(Err(FilePreviewError::NoTauri)));
-            return;
-        }
-        let Some((root, conn)) = wb.workspaces().with_untracked(|list| {
-            list.iter()
-                .find(|w| w.id == workspace_id)
-                .map(|w| (w.cwd.clone(), w.remote_connection_id.clone()))
-        }) else {
-            result.set(Some(Err(FilePreviewError::WorkspaceNotFound)));
-            return;
-        };
-        let rel = rel_for_effect.clone();
-        let lang = language_hint;
-        spawn_local(async move {
-            match read_workspace_text_file(root, rel, conn).await {
-                Ok(t) => {
-                    let truncated = t.truncated;
-                    let byte_len = t.byte_len;
-                    let (lines, plain, used_lang) = prepare_lines(t.content, lang).await;
-                    result.set(Some(Ok(PreparedCode {
-                        lines,
-                        plain_lines: Arc::new(plain),
-                        truncated,
-                        byte_len,
-                        language: used_lang,
-                    })));
-                }
-                Err(e) => result.set(Some(Err(FilePreviewError::Failed(e)))),
+        session.reload(wb);
+    });
+
+    // The base editability is set centrally by `FilePreviewDock` from the file
+    // metadata. Truncation is only known after the read returns, so downgrade
+    // a too-large file to read-only here.
+    let _ = (kind, policy_kind);
+    Effect::new(move |_| {
+        if matches!(session.status.get(), DocStatus::TooLarge) {
+            session.editability.set(Editability::NeverEdit);
+            if matches!(session.mode.get_untracked(), EditMode::Edit) {
+                session.mode.set(EditMode::View);
             }
+        }
+    });
+
+    // Re-highlight the backdrop from the live buffer. Debounced while editing
+    // so a burst of keystrokes collapses into one highlight pass.
+    let highlight_gen = RwSignal::new(0u32);
+    Effect::new(move |_| {
+        let text = session.buffer.get();
+        let editing = matches!(session.mode.get(), EditMode::Edit);
+        let lang = language_hint;
+        let gen = highlight_gen.get_untracked().wrapping_add(1);
+        highlight_gen.set(gen);
+        spawn_local(async move {
+            if editing {
+                TimeoutFuture::new(HIGHLIGHT_DEBOUNCE_MS).await;
+                if highlight_gen.get_untracked() != gen {
+                    return; // superseded by a newer keystroke
+                }
+            }
+            let lang_use = if text.len() > MAX_HIGHLIGHT_BYTES {
+                None
+            } else {
+                lang
+            };
+            let folds = compute_folds(&text, lang_use);
+            let (lines, plain, used) = prepare_lines(text, lang_use).await;
+            if highlight_gen.get_untracked() != gen {
+                return;
+            }
+            session.folds.update(|f| f.ranges = folds);
+            prepared.set(Some(PreparedCode {
+                lines,
+                plain_lines: Arc::new(plain),
+                language: used,
+            }));
         });
     });
 
-    // Window-level mouseup ends any in-progress drag, even if the pointer
-    // left the code area. We register once and clean up with on_cleanup.
+    // Window-level mouseup ends any in-progress drag (view mode only).
     let mouseup_handle =
         leptos::leptos_dom::helpers::window_event_listener_untyped("mouseup", move |_| {
-            // `try_get_untracked` returns `None` once this component's reactive
-            // owner is disposed (e.g. the file preview was closed). The window
-            // listener can still fire during that teardown window before the
-            // handle below is dropped, so we must not panic by reading a
-            // disposed signal. `Some(Some(_))` means alive + drag in progress.
             if matches!(drag_anchor.try_get_untracked(), Some(Some(_))) {
                 drag_anchor.set(None);
                 drag_moved.set(false);
@@ -182,20 +204,14 @@ pub fn CodeView(
         });
     on_cleanup(move || drop(mouseup_handle));
 
-    // Click anywhere closes the menu. We listen at window level instead of
-    // installing per-element listeners so the menu closes consistently for
-    // every dismissal path (clicking another row, the page background, etc.).
     let click_close_handle =
         leptos::leptos_dom::helpers::window_event_listener_untyped("mousedown", move |_| {
-            // See the mouseup listener: guard against a disposed owner so a
-            // late window event after the preview closes can't panic.
             if matches!(menu_state.try_get_untracked(), Some(Some(_))) {
                 menu_state.set(None);
             }
         });
     on_cleanup(move || drop(click_close_handle));
 
-    // Escape key also closes the menu.
     let escape_handle =
         leptos::leptos_dom::helpers::window_event_listener_untyped("keydown", move |ev| {
             let Some(kev) = ev.dyn_ref::<web_sys::KeyboardEvent>() else {
@@ -207,13 +223,12 @@ pub fn CodeView(
         });
     on_cleanup(move || drop(escape_handle));
 
-    let rel_path_for_actions = rel_path.clone();
     let on_action = Callback::new(move |action: CodeMenuAction| {
         let Some(menu) = menu_state.get_untracked() else {
             return;
         };
         menu_state.set(None);
-        let Some(Ok(prepared)) = result.get_untracked() else {
+        let Some(prepared) = prepared.get_untracked() else {
             return;
         };
         let plain = prepared.plain_lines.clone();
@@ -223,53 +238,113 @@ pub fn CodeView(
             wb,
             i18n,
             toast,
-            workspace_id,
-            &rel_path_for_actions,
+            session.workspace_id,
+            &session.rel_path(),
             lang_tag,
             menu.range,
             plain,
         );
     });
 
+    // Gutter width tracks the live line count so the textarea indent stays
+    // aligned with the numbers even before a re-highlight lands.
+    let gutter_ch = Memo::new(move |_| {
+        let n = session.buffer.with(|b| b.split('\n').count()).max(1);
+        n.to_string().len().max(2) + 1
+    });
+    let phase = Memo::new(move |_| match session.status.get() {
+        DocStatus::Loading => Phase::Loading,
+        DocStatus::Error(_) => Phase::Error,
+        _ => Phase::Content,
+    });
+
     view! {
         <div class="file-preview__stage file-preview__stage--code">
-            {move || match result.get() {
-                None => view! {
-                    <div class="file-preview__status">{i18n.tr(I18nKey::FilePreviewLoading)}</div>
-                }.into_any(),
-                Some(Err(err)) => render_load_error(i18n, I18nKey::FilePreviewLoadFailedText, err),
-                Some(Ok(prepared)) => render_code(
-                    prepared,
-                    selected,
-                    drag_anchor,
-                    drag_moved,
-                    menu_state,
-                    workspace_id,
-                    i18n,
-                    wb,
-                ).into_any(),
+            {move || render_banner(session, i18n)}
+            {move || {
+                match phase.get() {
+                    Phase::Loading => view! {
+                        <div class="file-preview__status">{i18n.tr(I18nKey::FilePreviewLoading)}</div>
+                    }.into_any(),
+                    Phase::Error => {
+                        let msg = session.status.with_untracked(|s| match s {
+                            DocStatus::Error(e) => e.clone(),
+                            _ => String::new(),
+                        });
+                        render_load_error(
+                            i18n,
+                            I18nKey::FilePreviewLoadFailedText,
+                            FilePreviewError::Failed(msg),
+                        )
+                    }
+                    // The editing scaffold + textarea are built once per
+                    // enter-edit (this closure only depends on `phase` + `mode`),
+                    // while the highlighted backdrop re-renders on `prepared`.
+                    Phase::Content => if matches!(session.mode.get(), EditMode::Edit) {
+                        view! {
+                            <div class="code-view__edit-host">
+                                <div
+                                    class="code-view__edit-inner"
+                                    style=move || format!("--code-view-gutter-width: {}ch;", gutter_ch.get())
+                                >
+                                    {move || prepared.get().map(|p| render_backdrop(
+                                        p, session, selected, drag_anchor, drag_moved,
+                                        menu_state, i18n, wb, true, gutter_ch.get_untracked(),
+                                    ))}
+                                    <CodeTextarea session=session toast=toast ui=ui wb=wb i18n=i18n menu_state=menu_state />
+                                </div>
+                            </div>
+                        }.into_any()
+                    } else {
+                        view! {
+                            {move || prepared.get().map(|p| render_backdrop(
+                                p, session, selected, drag_anchor, drag_moved,
+                                menu_state, i18n, wb, false, gutter_ch.get_untracked(),
+                            ))}
+                        }.into_any()
+                    },
+                }
             }}
             <CodeContextMenu state=menu_state on_action=on_action />
         </div>
     }
 }
 
+/// A read-only / protected / too-large explanatory banner above the code area.
+/// `None` when no banner applies.
+fn render_banner(session: EditorSession, i18n: I18nService) -> Option<AnyView> {
+    let editability = session.editability.get();
+    let mode = session.mode.get();
+    let status = session.status.get();
+    let key = match (status, editability, mode) {
+        (DocStatus::TooLarge, _, _) => I18nKey::FilePreviewEditorTooLargeBanner,
+        (_, Editability::NeverEdit, _) => I18nKey::FilePreviewEditorProtectedBanner,
+        (_, Editability::ReadOnlyByDefault, EditMode::View) => {
+            I18nKey::FilePreviewEditorReadOnlyBanner
+        }
+        _ => return None,
+    };
+    Some(view! { <div class="file-preview__notice">{i18n.tr(key)}</div> }.into_any())
+}
+
+/// Renders the highlighted, line-numbered `.code-view` backdrop. In view mode
+/// it carries selection + context-menu + fold interactions; in edit mode it is
+/// purely visual (the overlay textarea, mounted separately, owns input).
 #[allow(clippy::too_many_arguments)]
-fn render_code(
+fn render_backdrop(
     prepared: PreparedCode,
+    session: EditorSession,
     selected: RwSignal<Option<(usize, usize)>>,
     drag_anchor: RwSignal<Option<usize>>,
     drag_moved: RwSignal<bool>,
     menu_state: RwSignal<Option<CodeContextMenuState>>,
-    workspace_id: u64,
     i18n: I18nService,
     wb: WorkbenchService,
+    editing: bool,
+    gutter_width_ch: usize,
 ) -> impl IntoView {
-    let truncated = prepared.truncated;
-    let byte_len = prepared.byte_len;
+    let workspace_id = session.workspace_id;
     let language = prepared.language;
-    let total_lines = prepared.lines.len();
-    let gutter_width_ch = total_lines.to_string().len().max(2) + 1;
 
     let row_views: Vec<_> = prepared
         .lines
@@ -277,6 +352,14 @@ fn render_code(
         .enumerate()
         .map(|(idx, html)| {
             let line_no = idx + 1;
+            let has_fold = move || {
+                session
+                    .folds
+                    .with(|f| f.range_starting_at(line_no).is_some())
+            };
+            let collapsed = move || session.folds.with(|f| f.collapsed.contains(&line_no));
+            // View-mode folding hides rows inside a collapsed range.
+            let hidden = move || !editing && session.folds.with(|f| f.is_hidden(line_no));
             view! {
                 <div
                     class="code-view__row"
@@ -286,9 +369,39 @@ fn render_code(
                             .map(|(s, e)| s <= line_no && line_no <= e)
                             .unwrap_or(false)
                     }
+                    class:code-view__row--hidden=hidden
                     data-line=line_no.to_string()
                 >
-                    <span class="code-view__lineno" aria-hidden="true">{line_no}</span>
+                    <span class="code-view__gutter">
+                        <Show when=move || !editing && has_fold()>
+                            <button
+                                type="button"
+                                class="code-view__fold-toggle"
+                                class:code-view__fold-toggle--collapsed=collapsed
+                                title=move || if collapsed() {
+                                    i18n.tr(I18nKey::FilePreviewEditorUnfold)().to_string()
+                                } else {
+                                    i18n.tr(I18nKey::FilePreviewEditorFold)().to_string()
+                                }
+                                aria-label=move || if collapsed() {
+                                    i18n.tr(I18nKey::FilePreviewEditorUnfold)().to_string()
+                                } else {
+                                    i18n.tr(I18nKey::FilePreviewEditorFold)().to_string()
+                                }
+                                on:mousedown=move |ev: MouseEvent| {
+                                    ev.stop_propagation();
+                                    ev.prevent_default();
+                                }
+                                on:click=move |ev: MouseEvent| {
+                                    ev.stop_propagation();
+                                    session.folds.update(|f| f.toggle(line_no));
+                                }
+                            >
+                                {move || if collapsed() { "▸" } else { "▾" }}
+                            </button>
+                        </Show>
+                        <span class="code-view__lineno" aria-hidden="true">{line_no}</span>
+                    </span>
                     <span class="code-view__line" inner_html=html />
                 </div>
             }
@@ -302,23 +415,21 @@ fn render_code(
         } else {
             c.push_str(" code-view--plain");
         }
+        if editing {
+            c.push_str(" code-view--editing");
+        }
         c
     };
 
-    view! {
-        <Show when=move || truncated>
-            <div class="file-preview__notice">
-                {move || i18n
-                    .tr(I18nKey::FilePreviewTextTruncated)()
-                    .replace("{bytes}", &byte_len.to_string())}
-            </div>
-        </Show>
+    // The backdrop carries selection/context-menu interactions only in view
+    // mode; in edit mode the textarea handles selection and the backdrop is
+    // purely visual (pointer-events disabled via CSS).
+    let backdrop = view! {
         <div
             class=container_class
             style=format!("--code-view-gutter-width: {gutter_width_ch}ch;")
             on:mousedown=move |ev: MouseEvent| {
-                // Only left-button drags select.
-                if ev.button() != 0 {
+                if editing || ev.button() != 0 {
                     return;
                 }
                 let Some(line_no) = closest_data_line(&ev) else {
@@ -329,6 +440,9 @@ fn render_code(
                 selected.set(Some((line_no, line_no)));
             }
             on:mousemove=move |ev: MouseEvent| {
+                if editing {
+                    return;
+                }
                 let Some(anchor) = drag_anchor.get_untracked() else {
                     return;
                 };
@@ -350,11 +464,7 @@ fn render_code(
                 });
             }
             on:click=move |ev: MouseEvent| {
-                // Pure click (no drag): toggle a single-line selection. The
-                // mousedown above already set `Some((n, n))`; if no drag
-                // happened, we treat a second click on the same line as a
-                // deselect to match the previous UX.
-                if drag_moved.get_untracked() {
+                if editing || drag_moved.get_untracked() {
                     return;
                 }
                 let Some(line_no) = closest_data_line(&ev) else {
@@ -369,13 +479,14 @@ fn render_code(
                 });
             }
             on:contextmenu=move |ev: MouseEvent| {
+                if editing {
+                    return;
+                }
                 ev.prevent_default();
                 ev.stop_propagation();
                 let Some(line_no) = closest_data_line(&ev) else {
                     return;
                 };
-                // If the click happened outside the current range, replace
-                // the selection with that single line.
                 selected.update(|cur| match *cur {
                     Some((s, e)) if s <= line_no && line_no <= e => {}
                     _ => *cur = Some((line_no, line_no)),
@@ -393,6 +504,131 @@ fn render_code(
         >
             {row_views}
         </div>
+    };
+
+    backdrop
+}
+
+/// 1-based line number containing the given selection offset. The offset is a
+/// UTF-16 code-unit index (as returned by `selectionStart`/`selectionEnd`), so
+/// we count `\n` among the first `offset` UTF-16 units — accurate regardless of
+/// any multi-byte characters earlier in the buffer.
+fn line_at_utf16_offset(value: &str, offset: usize) -> usize {
+    value
+        .encode_utf16()
+        .take(offset)
+        .filter(|u| *u == 0x000A)
+        .count()
+        + 1
+}
+
+/// The transparent editing surface layered over the highlighted backdrop.
+#[component]
+fn CodeTextarea(
+    session: EditorSession,
+    toast: ToastService,
+    ui: HarnessUiService,
+    wb: WorkbenchService,
+    i18n: I18nService,
+    menu_state: RwSignal<Option<CodeContextMenuState>>,
+) -> impl IntoView {
+    let ta_ref = NodeRef::<leptos::html::Textarea>::new();
+
+    // Sync the DOM value from the buffer only when it actually differs, so a
+    // self-originated keystroke never resets the caret. Depends on `mode` too
+    // so entering edit mode populates the freshly-mounted textarea.
+    Effect::new(move |_| {
+        let v = session.buffer.get();
+        let _ = session.mode.get();
+        if let Some(el) = ta_ref.get() {
+            if el.value() != v {
+                el.set_value(&v);
+            }
+        }
+    });
+
+    let on_keydown = move |ev: web_sys::KeyboardEvent| {
+        let key = ev.key();
+        let mods = ev.ctrl_key() || ev.meta_key();
+        if mods && key.eq_ignore_ascii_case("s") {
+            ev.prevent_default();
+            session.save(wb, toast, ui, i18n, false);
+            return;
+        }
+        if key == "Escape" && !session.dirty.get_untracked() {
+            ev.prevent_default();
+            session.exit_edit();
+            if let Some(el) = ta_ref.get() {
+                let _ = el.blur();
+            }
+            return;
+        }
+        if key == "Tab" {
+            // Insert two spaces at the caret rather than moving focus. Esc then
+            // Tab still lets keyboard users leave the field. Offsets from the
+            // DOM are UTF-16 units; only take the fast byte-slice path when they
+            // line up with UTF-8 char boundaries (always true for ASCII), else
+            // no-op rather than risk a panic on a non-boundary index.
+            if let Some(el) = ta_ref.get() {
+                ev.prevent_default();
+                let start = el.selection_start().ok().flatten().unwrap_or(0);
+                let end = el.selection_end().ok().flatten().unwrap_or(start);
+                let (start, end) = (start as usize, end as usize);
+                let mut value = el.value();
+                if start <= end
+                    && end <= value.len()
+                    && value.is_char_boundary(start)
+                    && value.is_char_boundary(end)
+                {
+                    value.replace_range(start..end, "  ");
+                    el.set_value(&value);
+                    let caret = (start + 2) as u32;
+                    let _ = el.set_selection_range(caret, caret);
+                    session.buffer.set(value);
+                }
+            }
+        }
+    };
+
+    // Right-click opens the same handoff menu as view mode. The line range is
+    // derived from the textarea selection: a collapsed caret yields its single
+    // line; a non-empty selection yields the full span it covers.
+    let on_contextmenu = move |ev: MouseEvent| {
+        ev.prevent_default();
+        ev.stop_propagation();
+        let Some(el) = ta_ref.get() else {
+            return;
+        };
+        let value = el.value();
+        let start = el.selection_start().ok().flatten().unwrap_or(0);
+        let end = el.selection_end().ok().flatten().unwrap_or(start);
+        let (start, end) = (start as usize, end as usize);
+        let s_line = line_at_utf16_offset(&value, start);
+        // For a real selection use the last *selected* unit so a selection that
+        // stops at a line start doesn't pull in the following (empty) line.
+        let e_off = if end > start { end - 1 } else { end };
+        let e_line = line_at_utf16_offset(&value, e_off);
+        let lo = s_line.min(e_line) as u32;
+        let hi = s_line.max(e_line) as u32;
+        let groups = list_terminal_targets_all_workspaces(&wb, Some(session.workspace_id));
+        menu_state.set(Some(CodeContextMenuState {
+            anchor_x: ev.client_x(),
+            anchor_y: ev.client_y(),
+            range: (lo, hi),
+            groups,
+            preview_workspace_id: session.workspace_id,
+        }));
+    };
+
+    view! {
+        <textarea
+            class="code-view__textarea"
+            spellcheck="false"
+            node_ref=ta_ref
+            on:input=move |ev| session.buffer.set(event_target_value(&ev))
+            on:keydown=on_keydown
+            on:contextmenu=on_contextmenu
+        />
     }
 }
 
@@ -579,8 +815,6 @@ fn handle_menu_action(
             toast.success(msg);
         }
         CodeMenuAction::CopySnippet => {
-            let cross_label_unused = (); // always preview workspace for clipboard
-            let _ = cross_label_unused;
             let snippet = build_file_snippet_block(rel_path, language, &plain_lines, range, None);
             copy_to_clipboard(snippet, i18n, toast, I18nKey::CodeViewToastCopiedSnippet);
         }
@@ -627,4 +861,28 @@ fn copy_to_clipboard(text: String, i18n: I18nService, toast: ToastService, succe
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::line_at_utf16_offset;
+
+    #[test]
+    fn line_at_offset_counts_newlines() {
+        let s = "ab\ncd\nef";
+        assert_eq!(line_at_utf16_offset(s, 0), 1); // start of line 1
+        assert_eq!(line_at_utf16_offset(s, 2), 1); // before the first \n
+        assert_eq!(line_at_utf16_offset(s, 3), 2); // just after the first \n
+        assert_eq!(line_at_utf16_offset(s, 5), 2); // before the second \n
+        assert_eq!(line_at_utf16_offset(s, 7), 3); // on line 3
+    }
+
+    #[test]
+    fn line_at_offset_handles_multibyte_before_caret() {
+        // "é" is 1 UTF-16 unit; "😀" is 2. Newline counting must stay correct.
+        let s = "é😀\nx";
+        // Offsets: é=1 unit, 😀=2 units, \n at unit index 3.
+        assert_eq!(line_at_utf16_offset(s, 3), 1); // before the \n
+        assert_eq!(line_at_utf16_offset(s, 4), 2); // after the \n
+    }
 }

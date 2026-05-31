@@ -6,8 +6,8 @@ use std::fs;
 use std::path::Path;
 
 use crate::git_info::is_git_repository;
-use crate::proc::command;
 use crate::memory::architecture::unit::{ProjectUnit, UnitKind};
+use crate::proc::command;
 
 /// Directory names skipped during enumeration. Any dot-prefixed directory is
 /// also skipped (covers `.git`, `.tauri`, `.venv`, `.next`, `.idea`, …).
@@ -256,7 +256,10 @@ pub fn whole_tree_unit(
 pub fn dominant_languages(files: &[String]) -> Vec<(&'static str, usize)> {
     let mut counts: BTreeMap<&'static str, usize> = BTreeMap::new();
     for rel in files {
-        if let Some(lang) = extension_of(rel).as_deref().and_then(language_for_extension) {
+        if let Some(lang) = extension_of(rel)
+            .as_deref()
+            .and_then(language_for_extension)
+        {
             *counts.entry(lang).or_default() += 1;
         }
     }

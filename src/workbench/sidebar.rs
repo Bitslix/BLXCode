@@ -10,22 +10,22 @@ use crate::config::{
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{git_is_repository, is_tauri_shell};
+use crate::workbench::app_prefs::AppPrefsService;
 use crate::workbench::file_diff_section::FileDiffSection;
 use crate::workbench::git_graph::GitGraphSection;
 use crate::workbench::project_explorer::ProjectExplorerSection;
 use crate::workbench::sidebar_resizer::SidebarResizer;
 use crate::workbench::sidebar_resizer::SidebarResizerClamp;
-use crate::workbench::app_prefs::AppPrefsService;
 use crate::workbench::state::{is_shell_workspace, HarnessUiService};
 use crate::workbench::terminal_slot_dnd::{
     is_terminal_drag, read_drag_payload, TerminalSlotDragService,
 };
-use leptos_icons::Icon as LxIcon;
 use crate::workbench::toast::ToastService;
 use crate::workbench::WorkbenchService;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
 use web_sys::{DragEvent, HtmlInputElement};
 
