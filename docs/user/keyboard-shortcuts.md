@@ -22,7 +22,8 @@ Press the **prefix** (**Ctrl+b**), then a second key within **1.5 seconds**. Pre
 
 | Second key | Action |
 | ---------- | ------ |
-| `o` | [Quick Open](file-finder.md) |
+| `o` | Quick Open (workspaces) |
+| `f` | Find file (fuzzy file finder) |
 | `r` | Toggle right panel |
 | `a` | Agent tab |
 | `b` | Browser tab |
@@ -36,7 +37,8 @@ Direct chords (no prefix):
 
 | Shortcut | Action |
 | -------- | ------ |
-| `Ctrl+O` | [Quick Open](file-finder.md) |
+| `Ctrl+O` | Quick Open (workspaces) |
+| `Ctrl+Alt+F` | Find file (fuzzy file finder) |
 | `Ctrl+P` | Toggle right panel |
 | `Ctrl+Shift+A` | Agent tab |
 | `Ctrl+Shift+B` | Browser tab |

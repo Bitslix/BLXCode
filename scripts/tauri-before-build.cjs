@@ -38,4 +38,6 @@ function run(cmd, args, cwd) {
 }
 
 run(npm, ["--prefix", path.join(root, "frontend-js"), "run", "build:graph3d"], root);
-run("trunk", [dev ? "serve" : "build"], root);
+// Release bundles must compile the WASM frontend with Cargo's release profile
+// (optimized, no debug info). Plain `trunk build` defaults to the dev profile.
+run("trunk", dev ? ["serve"] : ["build", "--release"], root);

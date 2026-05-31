@@ -74,6 +74,7 @@ release_linux_tauri_build() {
     release_info "Would: cargo tauri build ${args[*]}"
     return 0
   fi
+  release_apply_build_env
   release_check_signing
   (cd "$RELEASE_ROOT/src-tauri" && cargo tauri build "${args[@]}")
 }

@@ -1,5 +1,11 @@
 # Pre-build deps and cargo tauri build - dot-source only.
 
+function Set-ReleaseBuildEnv {
+    $env:TRUNK_BUILD_RELEASE = "true"
+    $env:CARGO_PROFILE_RELEASE_DEBUG = "false"
+    Write-ReleaseInfo "Release build env: TRUNK_BUILD_RELEASE=true, CARGO_PROFILE_RELEASE_DEBUG=false"
+}
+
 function Invoke-ReleasePrepareDeps {
     Assert-ReleaseCommand "npm"
     Assert-ReleaseCommand "cargo"
@@ -38,6 +44,7 @@ function Invoke-ReleaseMacOSBuild {
 
     Write-ReleaseInfo "macOS: universal binary (aarch64 + x86_64) for Apple Silicon and Intel Macs"
     Test-ReleaseSigning
+    Set-ReleaseBuildEnv
     Push-Location (Join-Path $script:RELEASE_ROOT "src-tauri")
     try {
         & cargo tauri build --target universal-apple-darwin
@@ -59,6 +66,7 @@ function Invoke-ReleaseWindowsBuild {
     }
 
     Test-ReleaseSigning
+    Set-ReleaseBuildEnv
     Push-Location (Join-Path $script:RELEASE_ROOT "src-tauri")
     try {
         & cargo @cargoArgs
