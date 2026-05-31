@@ -680,6 +680,7 @@ fn harness_settings_cat_icon(cat: HarnessSettingsCategory) -> icondata::Icon {
         HarnessSettingsCategory::ApiKeys => icondata::LuKeyRound,
         HarnessSettingsCategory::Workspace => icondata::LuFolderOpen,
         HarnessSettingsCategory::AgentProvider => icondata::LuCpu,
+        HarnessSettingsCategory::Remote => icondata::LuServer,
         HarnessSettingsCategory::Memory => icondata::LuPalette,
         HarnessSettingsCategory::Voice => icondata::LuMic,
         HarnessSettingsCategory::Image => icondata::LuImage,
@@ -703,6 +704,7 @@ pub fn SettingsDock(
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::ApiKeys label=I18nKey::HsCatApiKeys />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Workspace label=I18nKey::HsCatWorkspace />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::AgentProvider label=I18nKey::HsCatProvider />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Remote label=I18nKey::HsCatRemote />
             </nav>
 
             <div class="harness-settings-detail">
@@ -724,6 +726,9 @@ pub fn SettingsDock(
                     }.into_any(),
                     HarnessSettingsCategory::AgentProvider => view! {
                         <crate::workbench::AgentProviderPane />
+                    }.into_any(),
+                    HarnessSettingsCategory::Remote => view! {
+                        <crate::workbench::RemoteSettingsPane />
                     }.into_any(),
                     HarnessSettingsCategory::Memory => view! {
                         <crate::workbench::WorkspaceSettingsPane wb=wb embed=embed />

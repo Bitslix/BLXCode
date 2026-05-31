@@ -12,6 +12,7 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 |-------|--------|
 | Settings (API Keys, BLXCode Agent, Workspace, **Appearance / themes**) | [Settings](user/settings.md) · [Appearance & Themes](user/appearance-themes.md) |
 | Workbench, terminals, sidebar, Git diff/sync, handoff | [Workspaces](user/workspaces.md) |
+| Remote workspaces over SSH (connections, terminals, file/git, resume) | [Remote (SSH)](user/remote-ssh.md) |
 | File preview (images, video, Markdown, Mermaid) | [File Preview](user/file-preview.md) |
 | Memory, learnings, architecture map, graph | [Memory And Tasks](user/memory-and-tasks.md) |
 | Markdown plans and plan-linked tasks | [Plans](user/plans.md) |
@@ -32,6 +33,7 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 - [Settings](user/settings.md) — docked center-tab settings, API Keys, BLXCode Agent grid, Workspace, **Appearance / themes**.
 - [Appearance & Themes](user/appearance-themes.md) — theme picker, presets, persistence, exceptions.
 - [Workspaces](user/workspaces.md) — creation, terminal grids, sidebar explorer, File Diff (stage/commit/push), Git graph (fetch/pull), handoff, persistence.
+- [Remote (SSH)](user/remote-ssh.md) — Settings → Remote connection presets (password / key / agent, encrypted secrets), creating remote workspaces, remote terminals + file/git + session resume (tmux vs keepalive).
 - [File Preview](user/file-preview.md) — center-tab previews for images (incl. SVG), video, rendered Markdown, syntax-highlighted source code, and Mermaid diagrams. Repository policy docs (`LICENSE`, `CONTRIBUTING`, `SECURITY`, `CHANGELOG`, …) render as Markdown with a kind-specific hero banner — with or without a `.md` extension.
 - [Memory And Tasks](user/memory-and-tasks.md) — Memory panel (Files, Graph, Search), architecture map, dynamic categories, tasks, agent memory tools.
 - [Plans](user/plans.md) — `.agents/plans/`, auto-maintained `PLANS.md` index, Kanban board, task syntax, Plans panel, agent tools.
@@ -53,6 +55,7 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 - [Agent Harness](developer/agent-harness.md) — core skills, tool dispatch, web settings, extension guide.
 - [Subagents](developer/subagents.md) — `subagents.run`, runner, protocol, tool groups, new roles.
 - [Tauri IPC](developer/tauri-ipc.md) — command registration, wrappers, command groups.
+- [SSH Remote Transport](developer/ssh-remote.md) — wrapped-`ssh` terminals, persistent exec channel, fs/git remote routing, secrets, resume, teardown, russh follow-up.
 - [Voice Architecture](developer/voice.md) — STT/TTS modules and flows.
 - [Internationalization](developer/i18n.md) — locales, EULA content, translation workflow.
 - [Themes](developer/themes.md) — tokens, `ThemeService`, adding themes, lint rules.

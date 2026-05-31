@@ -12,6 +12,7 @@ BLXCode opens settings in a **center workbench tab** (not a modal). The command 
 | **API Keys** | All provider secrets in one pane — see below |
 | **Workspace** | Default project directory, agent sandbox root, embedded browser URL, **category colors** for Memory |
 | **BLXCode Agent** | Text, image, and voice inference — see below |
+| **Remote** | SSH connection presets for remote workspaces (host/port/user, password / key / agent auth, encrypted secrets, session-resume model); see [Remote (SSH)](remote-ssh.md) |
 
 Legacy saved categories (`Image`, `Voice`, `Memory`) still open the correct pane.
 

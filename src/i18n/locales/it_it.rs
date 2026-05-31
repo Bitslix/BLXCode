@@ -301,7 +301,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::ShortcutsResetOne => "Reset",
         I18nKey::ShortcutsResetAll => "Reset all to preset",
         I18nKey::ShortcutsConflict => "Conflicts with another shortcut",
-        I18nKey::ShortcutsHint => "Chords are always captured, even inside a terminal. Set the prefix and per-action keys; the preset only fills in defaults.",
+        I18nKey::ShortcutsHint => {
+            "Chords are always captured, even inside a terminal. Set the prefix and per-action keys; the preset only fills in defaults."
+        }
         I18nKey::MemShowInGraph => "Mostra nel grafico",
         I18nKey::MemGraph3dLoadFailed => "Impossibile caricare il grafico 3D. Mostra il grafico 2D.",
         I18nKey::MemSearchPh => "Cerca note...",
@@ -478,6 +480,57 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatProvider => "Fornitore di agenti",
         I18nKey::HsCatVoice => "Voce",
         I18nKey::HsCatImage => "Immagine",
+        I18nKey::HsCatRemote => "Remoto",
+        I18nKey::RemoteHeading => "Connessioni remote SSH",
+        I18nKey::RemoteSubtitle => {
+            "Salva le preimpostazioni di connessione per aprire spazi di lavoro su un computer remoto tramite SSH."
+        }
+        I18nKey::RemoteEmpty => "Nessuna connessione remota ancora. Aggiungine uno per iniziare.",
+        I18nKey::RemoteAddConnection => "Aggiungi connessione",
+        I18nKey::RemoteName => "Nome",
+        I18nKey::RemoteHost => "Ospite",
+        I18nKey::RemotePort => "Porta",
+        I18nKey::RemoteUser => "Nome utente",
+        I18nKey::RemoteAuthMethod => "Autenticazione",
+        I18nKey::RemoteAuthPassword => "Password",
+        I18nKey::RemoteAuthKey => "Fascicolo chiave",
+        I18nKey::RemoteAuthAgent => "Agente SSH",
+        I18nKey::RemotePassword => "Password",
+        I18nKey::RemoteKeyPath => "File di chiave privata",
+        I18nKey::RemotePassphrase => "Frase chiave",
+        I18nKey::RemoteDefaultDir => "Directory remota",
+        I18nKey::RemoteResumeModel => "Ripresa della sessione",
+        I18nKey::RemoteResumeTmux => "Persistente (tmux)",
+        I18nKey::RemoteResumeKeepalive => "Solo Keepalive",
+        I18nKey::RemoteResumeTmuxHint => {
+            "Ricollega una sessione tmux lato server: il lavoro sopravvive allo stato di inattività, alla chiusura dell'area di lavoro e al riavvio dell'app. Richiede tmux sul telecomando."
+        }
+        I18nKey::RemoteResumeKeepaliveHint => {
+            "Rimane connesso mentre è inattivo, ma la riconnessione avvia una nuova shell. Nessuna dipendenza remota."
+        }
+        I18nKey::RemoteSecretStored => "Memorizzato",
+        I18nKey::RemoteSecretNotSet => "Non impostato",
+        I18nKey::RemoteSecretKeepHint => "Lasciare vuoto per mantenere il valore memorizzato.",
+        I18nKey::RemoteTest => "Testare la connessione",
+        I18nKey::RemoteTesting => "Prova…",
+        I18nKey::RemoteTestOk => "Connessione riuscita",
+        I18nKey::RemoteTestFailed => "Connessione non riuscita",
+        I18nKey::RemoteSave => "Salva",
+        I18nKey::RemoteSaved => "Connessione salvata",
+        I18nKey::RemoteSaveError => "Impossibile salvare la connessione",
+        I18nKey::RemoteDelete => "Eliminare",
+        I18nKey::RemoteDeleteConfirm => "Eliminare questa connessione e i relativi segreti archiviati?",
+        I18nKey::RemoteCancel => "Cancellare",
+        I18nKey::RemoteRequiresTauri => "Le connessioni remote sono disponibili solo nell'app desktop.",
+        I18nKey::WsConnectionType => "Connessione",
+        I18nKey::WsConnectionLocal => "Locale",
+        I18nKey::WsConnectionRemote => "Remoto (SSH)",
+        I18nKey::WsRemoteConnection => "Connessione remota",
+        I18nKey::WsRemoteNoPresets => "Nessuna connessione remota ancora salvata.",
+        I18nKey::WsRemoteManage => "Gestisci le connessioni",
+        I18nKey::WsRemoteDir => "Directory remota",
+        I18nKey::WsRemoteDirHint => "Opzionale. Il valore predefinito è la directory della connessione o la casa remota.",
+        I18nKey::SidebarRemoteTitle => "Spazio di lavoro remoto (SSH)",
         I18nKey::AppHeading => "App",
         I18nKey::AppearanceHeading => "Aspetto",
         I18nKey::AppearanceHeroTitle => "Rendilo tuo.",

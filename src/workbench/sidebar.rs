@@ -20,6 +20,7 @@ use crate::workbench::state::{is_shell_workspace, HarnessUiService};
 use crate::workbench::terminal_slot_dnd::{
     is_terminal_drag, read_drag_payload, TerminalSlotDragService,
 };
+use leptos_icons::Icon as LxIcon;
 use crate::workbench::toast::ToastService;
 use crate::workbench::WorkbenchService;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
@@ -124,8 +125,9 @@ pub fn Sidebar() -> impl IntoView {
         }
         last_git_cwd.set_value(Some(cwd.clone()));
         let cwd_check = cwd.clone();
+        let conn = wb.active_remote_connection_id();
         spawn_local(async move {
-            let ok = git_is_repository(cwd_check).await.unwrap_or(false);
+            let ok = git_is_repository(cwd_check, conn).await.unwrap_or(false);
             git_repo_available.set(Some(ok));
         });
     });
@@ -338,6 +340,14 @@ pub fn Sidebar() -> impl IntoView {
                                 let _ = wb.workspaces().get();
                                 wb.workspace_notification_counts(id)
                             });
+                            let is_remote = Memo::new(move |_| {
+                                workspaces.with(|list| {
+                                    list.iter()
+                                        .find(|w| w.id == id)
+                                        .map(|w| w.remote_connection_id.is_some())
+                                        .unwrap_or(false)
+                                })
+                            });
                             view! {
                                 <li
                                     class=move || {
@@ -512,6 +522,9 @@ pub fn Sidebar() -> impl IntoView {
                                             if wb.active_id().get() == Some(id) {
                                                 c.push_str(" workbench-sidebar__row--active");
                                             }
+                                            if is_remote.get() {
+                                                c.push_str(" workbench-sidebar__row--remote");
+                                            }
                                             c
                                         }
                                         style=move || {
@@ -532,6 +545,15 @@ pub fn Sidebar() -> impl IntoView {
                                         <span class="workbench-sidebar__icon" aria-hidden="true">
                                             {icon_label}
                                         </span>
+                                        <Show when=move || is_remote.get()>
+                                            <span
+                                                class="workbench-sidebar__remote"
+                                                aria-label=move || i18n.tr(I18nKey::SidebarRemoteTitle)()
+                                                title=move || i18n.tr(I18nKey::SidebarRemoteTitle)()
+                                            >
+                                                <LxIcon icon=icondata::LuServer width="0.7rem" height="0.7rem" />
+                                            </span>
+                                        </Show>
                                         <Show when=move || !collapsed.get() && (terminal_slot_count.get() >= 1)>
                                             {move || {
                                                 let count = terminal_slot_count.get();

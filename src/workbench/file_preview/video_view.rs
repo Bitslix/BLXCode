@@ -33,17 +33,17 @@ pub fn VideoView(
             video.set(Some(Err(FilePreviewError::NoTauri)));
             return;
         }
-        let Some(root) = wb.workspaces().with_untracked(|list| {
+        let Some((root, conn)) = wb.workspaces().with_untracked(|list| {
             list.iter()
                 .find(|w| w.id == workspace_id)
-                .map(|w| w.cwd.clone())
+                .map(|w| (w.cwd.clone(), w.remote_connection_id.clone()))
         }) else {
             video.set(Some(Err(FilePreviewError::WorkspaceNotFound)));
             return;
         };
         let rel = rel_for_effect.clone();
         spawn_local(async move {
-            match read_workspace_video_file(root, rel).await {
+            match read_workspace_video_file(root, rel, conn).await {
                 Ok(BinaryFilePreview {
                     base64,
                     mime,

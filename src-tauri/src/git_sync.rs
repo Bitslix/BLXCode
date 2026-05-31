@@ -6,11 +6,15 @@
 //! fails fast instead of hanging the (poll-based) UI on an interactive prompt.
 
 use crate::git_info::{find_git_dir, git_cli_available};
+use crate::git_remote::{remote_work_tree, run_git_remote_raw};
 use crate::git_status::GIT_MISSING_CODE;
 use crate::proc::command;
+use crate::pty_host::PtyManager;
+use crate::ssh_exec::{ExecOutput, RemoteExecManager};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Output;
+use tauri::{AppHandle, State};
 
 /// Branch / upstream / divergence snapshot used to enable-disable the sync
 /// buttons and fill their tooltips.
@@ -84,6 +88,141 @@ fn has_remote(work_tree: &Path) -> bool {
         .unwrap_or(false)
 }
 
+// --- Remote (SSH) variants -------------------------------------------------
+
+/// Bundle of the exec-channel handles a remote sync op threads through.
+struct RemoteCtx<'a> {
+    app: &'a AppHandle,
+    pty: &'a PtyManager,
+    exec: &'a RemoteExecManager,
+    cid: &'a str,
+}
+
+impl RemoteCtx<'_> {
+    fn run(&self, wt: &str, args: &[&str], long: bool) -> Result<ExecOutput, String> {
+        run_git_remote_raw(self.app, self.pty, self.exec, self.cid, wt, args, long)
+    }
+
+    fn has_remote(&self, wt: &str) -> bool {
+        self.run(wt, &["remote"], false)
+            .map(|o| !o.stdout_string().trim().is_empty())
+            .unwrap_or(false)
+    }
+}
+
+fn git_sync_status_remote(ctx: &RemoteCtx, cwd: &str) -> Result<SyncStatus, String> {
+    let wt = remote_work_tree(ctx.app, ctx.pty, ctx.exec, ctx.cid, cwd)?;
+
+    let head = ctx.run(&wt, &["rev-parse", "--abbrev-ref", "HEAD"], false)?;
+    let branch_raw = head.stdout_string().trim().to_string();
+    let detached = !head.ok() || branch_raw.is_empty() || branch_raw == "HEAD";
+    let branch = if detached { None } else { Some(branch_raw) };
+
+    let has_remote = ctx.has_remote(&wt);
+
+    let upstream_out = ctx.run(
+        &wt,
+        &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+        false,
+    )?;
+    let upstream = if upstream_out.ok() {
+        let u = upstream_out.stdout_string().trim().to_string();
+        (!u.is_empty()).then_some(u)
+    } else {
+        None
+    };
+
+    let (mut ahead, mut behind) = (0u32, 0u32);
+    if upstream.is_some() {
+        let counts = ctx.run(
+            &wt,
+            &["rev-list", "--left-right", "--count", "@{u}...HEAD"],
+            false,
+        )?;
+        if counts.ok() {
+            let text = counts.stdout_string();
+            let mut it = text.split_whitespace();
+            behind = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+            ahead = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+        }
+    }
+
+    let status = ctx.run(&wt, &["status", "--porcelain"], false)?;
+    let dirty = !status.stdout_string().trim().is_empty();
+
+    Ok(SyncStatus {
+        branch,
+        upstream,
+        ahead,
+        behind,
+        has_remote,
+        detached,
+        dirty,
+    })
+}
+
+fn git_fetch_remote(ctx: &RemoteCtx, cwd: &str) -> Result<SyncOutcome, String> {
+    let wt = remote_work_tree(ctx.app, ctx.pty, ctx.exec, ctx.cid, cwd)?;
+    if !ctx.has_remote(&wt) {
+        return Ok(SyncOutcome::new("no_remote", ""));
+    }
+    let out = ctx.run(&wt, &["fetch", "--prune"], true)?;
+    let stderr = out.stderr_string();
+    if out.ok() {
+        Ok(SyncOutcome::new("ok", tail(&stderr)))
+    } else {
+        Ok(SyncOutcome::new(classify(&stderr), tail(&stderr)))
+    }
+}
+
+fn git_pull_remote(ctx: &RemoteCtx, cwd: &str) -> Result<SyncOutcome, String> {
+    let wt = remote_work_tree(ctx.app, ctx.pty, ctx.exec, ctx.cid, cwd)?;
+    if !ctx.has_remote(&wt) {
+        return Ok(SyncOutcome::new("no_remote", ""));
+    }
+    let out = ctx.run(&wt, &["pull", "--no-edit", "--no-rebase"], true)?;
+    let stdout = out.stdout_string();
+    let stderr = out.stderr_string();
+    if out.ok() {
+        let kind = if stdout.contains("Already up to date") {
+            "up_to_date"
+        } else {
+            "updated"
+        };
+        return Ok(SyncOutcome::new(kind, tail(&stdout)));
+    }
+    let combined = format!("{stdout}\n{stderr}");
+    Ok(SyncOutcome::new(classify(&combined), tail(&stderr)))
+}
+
+fn git_push_remote(ctx: &RemoteCtx, cwd: &str, set_upstream: bool) -> Result<SyncOutcome, String> {
+    let wt = remote_work_tree(ctx.app, ctx.pty, ctx.exec, ctx.cid, cwd)?;
+    if !ctx.has_remote(&wt) {
+        return Ok(SyncOutcome::new("no_remote", ""));
+    }
+    let out = if set_upstream {
+        let head = ctx.run(&wt, &["rev-parse", "--abbrev-ref", "HEAD"], false)?;
+        let branch = head.stdout_string().trim().to_string();
+        if branch.is_empty() || branch == "HEAD" {
+            return Ok(SyncOutcome::new("error", "detached HEAD"));
+        }
+        ctx.run(&wt, &["push", "--set-upstream", "origin", &branch], true)?
+    } else {
+        ctx.run(&wt, &["push"], true)?
+    };
+    let stderr = out.stderr_string();
+    if out.ok() {
+        let kind = if stderr.contains("Everything up-to-date") {
+            "up_to_date"
+        } else {
+            "ok"
+        };
+        Ok(SyncOutcome::new(kind, tail(&stderr)))
+    } else {
+        Ok(SyncOutcome::new(classify(&stderr), tail(&stderr)))
+    }
+}
+
 /// Keep the last ~600 chars of git output for the tooltip (char-boundary safe).
 fn tail(s: &str) -> String {
     let t = s.trim();
@@ -139,7 +278,22 @@ fn classify(text: &str) -> &'static str {
 
 /// Branch / upstream / ahead-behind / dirty snapshot.
 #[tauri::command]
-pub async fn git_sync_status(cwd: String) -> Result<SyncStatus, String> {
+pub async fn git_sync_status(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<SyncStatus, String> {
+    if let Some(cid) = connection_id {
+        let ctx = RemoteCtx {
+            app: &app,
+            pty: &pty,
+            exec: &exec,
+            cid: &cid,
+        };
+        return git_sync_status_remote(&ctx, &cwd);
+    }
     crate::proc::run_blocking(move || git_sync_status_impl(cwd)).await
 }
 
@@ -199,7 +353,22 @@ fn git_sync_status_impl(cwd: String) -> Result<SyncStatus, String> {
 
 /// `git fetch --prune` on the configured remote.
 #[tauri::command]
-pub async fn git_fetch(cwd: String) -> Result<SyncOutcome, String> {
+pub async fn git_fetch(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<SyncOutcome, String> {
+    if let Some(cid) = connection_id {
+        let ctx = RemoteCtx {
+            app: &app,
+            pty: &pty,
+            exec: &exec,
+            cid: &cid,
+        };
+        return git_fetch_remote(&ctx, &cwd);
+    }
     crate::proc::run_blocking(move || git_fetch_impl(cwd)).await
 }
 
@@ -222,7 +391,22 @@ fn git_fetch_impl(cwd: String) -> Result<SyncOutcome, String> {
 
 /// `git pull --no-edit --no-rebase` (fetch + merge).
 #[tauri::command]
-pub async fn git_pull(cwd: String) -> Result<SyncOutcome, String> {
+pub async fn git_pull(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<SyncOutcome, String> {
+    if let Some(cid) = connection_id {
+        let ctx = RemoteCtx {
+            app: &app,
+            pty: &pty,
+            exec: &exec,
+            cid: &cid,
+        };
+        return git_pull_remote(&ctx, &cwd);
+    }
     crate::proc::run_blocking(move || git_pull_impl(cwd)).await
 }
 
@@ -252,7 +436,23 @@ fn git_pull_impl(cwd: String) -> Result<SyncOutcome, String> {
 /// `git push`. When `set_upstream` is true, pushes the current branch with
 /// `--set-upstream origin <branch>` (used when no tracking branch exists yet).
 #[tauri::command]
-pub async fn git_push(cwd: String, set_upstream: bool) -> Result<SyncOutcome, String> {
+pub async fn git_push(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
+    cwd: String,
+    set_upstream: bool,
+    connection_id: Option<String>,
+) -> Result<SyncOutcome, String> {
+    if let Some(cid) = connection_id {
+        let ctx = RemoteCtx {
+            app: &app,
+            pty: &pty,
+            exec: &exec,
+            cid: &cid,
+        };
+        return git_push_remote(&ctx, &cwd, set_upstream);
+    }
     crate::proc::run_blocking(move || git_push_impl(cwd, set_upstream)).await
 }
 
