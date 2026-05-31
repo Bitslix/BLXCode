@@ -8,7 +8,6 @@ mod code_view;
 mod codemirror_glue;
 mod editor;
 mod header;
-mod hljs_glue;
 mod image_view;
 mod markdown_view;
 mod mermaid_glue;

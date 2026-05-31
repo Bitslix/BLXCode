@@ -62,11 +62,15 @@ fn call_method(obj: &JsValue, name: &str, args: &Array) -> Result<JsValue, Strin
 }
 
 /// Mount an editor inside `parent`. `on_change(text)` fires on every user edit;
-/// `on_save()` fires on `Mod-s`. Returns the opaque `EditorView` handle.
+/// `on_save()` fires on `Mod-s`. When `read_only` is set the document is shown
+/// for preview only (no edits) while keeping the same gutter, folding, syntax
+/// highlighting and selection as edit mode. Returns the opaque `EditorView`
+/// handle.
 pub async fn create_editor(
     parent: &web_sys::Element,
     doc: &str,
     language: Option<&str>,
+    read_only: bool,
     on_change: &Function,
     on_save: &Function,
 ) -> Result<JsValue, String> {
@@ -76,6 +80,7 @@ pub async fn create_editor(
     let _ = Reflect::set(&opts, &"doc".into(), &JsValue::from_str(doc));
     let lang = language.map(JsValue::from_str).unwrap_or(JsValue::NULL);
     let _ = Reflect::set(&opts, &"language".into(), &lang);
+    let _ = Reflect::set(&opts, &"readOnly".into(), &JsValue::from_bool(read_only));
     let _ = Reflect::set(&opts, &"onChange".into(), on_change);
     let _ = Reflect::set(&opts, &"onSave".into(), on_save);
     let parent_val: JsValue = parent.clone().into();

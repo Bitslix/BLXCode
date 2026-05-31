@@ -25,6 +25,9 @@ type EditorClosures = (Closure<dyn Fn(String)>, Closure<dyn Fn()>);
 pub fn CodeMirrorEditor(
     session: EditorSession,
     #[prop(default = None)] language: Option<&'static str>,
+    /// Mount the editor read-only (preview mode). Same chrome as edit mode, but
+    /// edits and `Mod-s` save are disabled.
+    #[prop(default = false)] read_only: bool,
     menu_state: RwSignal<Option<CodeContextMenuState>>,
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
@@ -51,7 +54,9 @@ pub fn CodeMirrorEditor(
             session.buffer.set(s);
         });
         let on_save = Closure::<dyn Fn()>::new(move || {
-            session.save(wb, toast, ui, i18n, false);
+            if !read_only {
+                session.save(wb, toast, ui, i18n, false);
+            }
         });
         let on_change_fn: js_sys::Function = on_change
             .as_ref()
@@ -64,7 +69,9 @@ pub fn CodeMirrorEditor(
         let host_el: web_sys::Element = host.unchecked_into();
         let doc = session.buffer.get_untracked();
         spawn_local(async move {
-            match cm::create_editor(&host_el, &doc, language, &on_change_fn, &on_save_fn).await {
+            match cm::create_editor(&host_el, &doc, language, read_only, &on_change_fn, &on_save_fn)
+                .await
+            {
                 Ok(view) => view_handle.set_value(Some(view)),
                 Err(e) => {
                     web_sys::console::error_1(&format!("codemirror init: {e}").into());
