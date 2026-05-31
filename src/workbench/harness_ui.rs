@@ -585,7 +585,6 @@ fn FindFileChrome(ui: HarnessUiService, wb: WorkbenchService) -> impl IntoView {
                                     .next()
                                     .unwrap_or(&path)
                                     .to_string();
-                                let open_file = open_file;
                                 let path_for_click = path.clone();
                                 view! {
                                     <li class="harness-cmd-li">
