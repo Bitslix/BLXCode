@@ -123,10 +123,7 @@ pub fn tool_git_diff(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOut
     if args.get("staged").and_then(|v| v.as_bool()) == Some(true) {
         cmd_args.push("--staged");
     }
-    let output = command("git")
-        .args(&cmd_args)
-        .current_dir(&cwd)
-        .output();
+    let output = command("git").args(&cmd_args).current_dir(&cwd).output();
     match output {
         Ok(o) => ToolOutcome {
             ok: true,

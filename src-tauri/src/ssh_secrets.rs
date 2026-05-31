@@ -83,7 +83,12 @@ fn read_fallback(app: &AppHandle, id: &str, kind: SshSecretKind) -> Result<Optio
     }
 }
 
-fn write_fallback(app: &AppHandle, id: &str, kind: SshSecretKind, secret: &str) -> Result<(), String> {
+fn write_fallback(
+    app: &AppHandle,
+    id: &str,
+    kind: SshSecretKind,
+    secret: &str,
+) -> Result<(), String> {
     let dir = secrets_dir(app)?;
     ensure_private_dir(&dir)?;
     let path = fallback_path(app, id, kind)?;

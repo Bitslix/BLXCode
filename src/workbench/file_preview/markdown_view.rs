@@ -2,7 +2,9 @@
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::tauri_bridge::{is_tauri_shell, read_workspace_text_file, PolicyKind};
+use crate::tauri_bridge::{is_tauri_shell, read_workspace_text_file, FileKind, PolicyKind};
+use crate::workbench::file_preview::code_view::CodeView;
+use crate::workbench::file_preview::editor::{EditMode, EditorSession};
 use crate::workbench::file_preview::mermaid_glue::run_mermaid_on;
 use crate::workbench::file_preview::util::{
     render_load_error, sanitize_markdown_html, FilePreviewError,
@@ -78,6 +80,7 @@ fn html_escape(s: &str) -> String {
 
 /// Static metadata for a [`PolicyKind`] hero banner: icon glyph, title key,
 /// and short subtitle key.
+#[derive(Clone, Copy)]
 struct PolicyHero {
     icon: icondata::Icon,
     title_key: I18nKey,
@@ -174,6 +177,7 @@ pub fn MarkdownView(
     rel_path: String,
     reload_tick: ReadSignal<u32>,
     #[prop(default = None)] policy_kind: Option<PolicyKind>,
+    session: EditorSession,
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
@@ -245,18 +249,25 @@ pub fn MarkdownView(
     });
 
     let hero = policy_kind.map(policy_hero);
-    let hero_class = hero
-        .as_ref()
-        .map(|h| {
+    let hero_class = move || {
+        hero.map(|h| {
             format!(
                 "file-preview__stage file-preview__stage--markdown file-preview__stage--policy file-preview__stage--policy-{}",
                 h.modifier
             )
         })
-        .unwrap_or_else(|| "file-preview__stage file-preview__stage--markdown".to_string());
+        .unwrap_or_else(|| "file-preview__stage file-preview__stage--markdown".to_string())
+    };
+
+    // Edit mode swaps the rendered document for the raw text editor (markdown
+    // syntax highlighting), reusing the shared session.
+    let editing = move || matches!(session.mode.get(), EditMode::Edit);
 
     view! {
-        <div class=hero_class>
+        <Show
+            when=editing
+            fallback=move || view! {
+        <div class=hero_class()>
             {hero.map(|h| view! {
                 <header class=format!("file-preview__policy-hero file-preview__policy-hero--{}", h.modifier)>
                     <span class="file-preview__policy-hero__icon" aria-hidden="true">
@@ -291,5 +302,14 @@ pub fn MarkdownView(
                 }.into_any(),
             }}
         </div>
+            }
+        >
+            <CodeView
+                session=session
+                kind=FileKind::Markdown
+                policy_kind=policy_kind
+                reload_tick=reload_tick
+            />
+        </Show>
     }
 }

@@ -35,7 +35,14 @@ pub async fn git_generate_commit_message(
 ) -> Result<String, String> {
     let diff = if let Some(cid) = connection_id.as_deref() {
         let wt = remote_work_tree(&app, &pty, &exec, cid, &cwd)?;
-        run_git_remote(&app, &pty, &exec, cid, &wt, &["diff", "--cached", "--no-color"])?
+        run_git_remote(
+            &app,
+            &pty,
+            &exec,
+            cid,
+            &wt,
+            &["diff", "--cached", "--no-color"],
+        )?
     } else {
         if !git_cli_available() {
             return Err(GIT_MISSING_CODE.into());
@@ -82,7 +89,8 @@ fn resolve_work_tree(cwd: &str) -> Result<std::path::PathBuf, String> {
     if trimmed.is_empty() {
         return Err("cwd is empty".into());
     }
-    let git_dir = find_git_dir(Path::new(trimmed)).ok_or_else(|| "not a git repository".to_string())?;
+    let git_dir =
+        find_git_dir(Path::new(trimmed)).ok_or_else(|| "not a git repository".to_string())?;
     git_dir
         .parent()
         .map(Path::to_path_buf)

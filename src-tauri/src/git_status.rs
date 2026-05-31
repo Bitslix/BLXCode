@@ -78,7 +78,14 @@ fn git_status_changes_remote(
         &["status", "--porcelain=v1", "-z"],
     )?;
     let mut entries = parse_porcelain(&porcelain);
-    let unstaged = run_git_remote(app, pty, exec, cid, &work_tree, &["diff", "--numstat", "-z"])?;
+    let unstaged = run_git_remote(
+        app,
+        pty,
+        exec,
+        cid,
+        &work_tree,
+        &["diff", "--numstat", "-z"],
+    )?;
     let staged = run_git_remote(
         app,
         pty,
@@ -93,7 +100,10 @@ fn git_status_changes_remote(
         let path = entry.rel_path.clone();
         // Untracked line counts are skipped over SSH (would need an extra
         // remote `wc`); the file still lists, just without a +N badge.
-        let unstaged_stats = unstaged_counts.get(&path).copied().and_then(normalize_stats);
+        let unstaged_stats = unstaged_counts
+            .get(&path)
+            .copied()
+            .and_then(normalize_stats);
         let staged_stats = staged_counts.get(&path).copied().and_then(normalize_stats);
         entry.staged_stats = if entry.staged { staged_stats } else { None };
         entry.unstaged_stats = if entry.unstaged { unstaged_stats } else { None };
@@ -280,8 +290,15 @@ pub async fn git_unstage_file(
             return Err("rel_path is empty".into());
         }
         let wt = remote_work_tree(&app, &pty, &exec, &cid, &cwd)?;
-        return run_git_remote(&app, &pty, &exec, &cid, &wt, &["restore", "--staged", "--", rel])
-            .map(|_| ());
+        return run_git_remote(
+            &app,
+            &pty,
+            &exec,
+            &cid,
+            &wt,
+            &["restore", "--staged", "--", rel],
+        )
+        .map(|_| ());
     }
     crate::proc::run_blocking(move || git_unstage_file_impl(cwd, rel_path)).await
 }
@@ -388,7 +405,8 @@ pub async fn git_commit(
             return Err("commit message is empty".into());
         }
         let wt = remote_work_tree(&app, &pty, &exec, &cid, &cwd)?;
-        return run_git_remote(&app, &pty, &exec, &cid, &wt, &["commit", "-m", trimmed]).map(|_| ());
+        return run_git_remote(&app, &pty, &exec, &cid, &wt, &["commit", "-m", trimmed])
+            .map(|_| ());
     }
     crate::proc::run_blocking(move || git_commit_impl(cwd, message)).await
 }
@@ -766,8 +784,10 @@ fn is_ignored_subpath(path: &Path, work_tree: &Path) -> bool {
     // pairs that always accompany the real change, and the editor/transient
     // files below never affect `git status`. Suppressing them keeps the watcher
     // from amplifying a single operation into a burst of `git_status_dirty`.
-    matches!(second, "objects" | "logs" | "COMMIT_EDITMSG" | "FETCH_HEAD" | "ORIG_HEAD")
-        || second.ends_with(".lock")
+    matches!(
+        second,
+        "objects" | "logs" | "COMMIT_EDITMSG" | "FETCH_HEAD" | "ORIG_HEAD"
+    ) || second.ends_with(".lock")
 }
 
 #[cfg(test)]
@@ -838,7 +858,13 @@ mod tests {
         let root = Path::new("/tmp/blx-test");
         // Lock files and editor/transient state never change status output and
         // would otherwise feed the watcher back into itself.
-        for name in ["index.lock", "HEAD.lock", "COMMIT_EDITMSG", "FETCH_HEAD", "ORIG_HEAD"] {
+        for name in [
+            "index.lock",
+            "HEAD.lock",
+            "COMMIT_EDITMSG",
+            "FETCH_HEAD",
+            "ORIG_HEAD",
+        ] {
             let p = root.join(".git").join(name);
             assert!(is_ignored_subpath(&p, root), "{name} should be ignored");
         }

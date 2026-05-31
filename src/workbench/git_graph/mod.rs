@@ -58,8 +58,7 @@ pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
     Effect::new(move |_| {
         let gen = load_gen.get();
         let epoch = wb.sidebar_repo_epoch().get();
-        let force_reload =
-            gen != last_load_gen.get_value() || epoch != last_repo_epoch.get_value();
+        let force_reload = gen != last_load_gen.get_value() || epoch != last_repo_epoch.get_value();
         last_load_gen.set_value(gen);
         last_repo_epoch.set_value(epoch);
         match git_repo_available.get() {

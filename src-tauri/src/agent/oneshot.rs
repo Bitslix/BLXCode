@@ -34,7 +34,15 @@ pub async fn complete_text(
 
     match settings.provider {
         AgentProviderKind::Anthropic => {
-            anthropic_complete(&client, api_key, &settings.model_id, system, user, max_tokens).await
+            anthropic_complete(
+                &client,
+                api_key,
+                &settings.model_id,
+                system,
+                user,
+                max_tokens,
+            )
+            .await
         }
         AgentProviderKind::Openrouter | AgentProviderKind::Openai => {
             let endpoint = Endpoint::from_provider(settings.provider)

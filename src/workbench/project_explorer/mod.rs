@@ -69,7 +69,11 @@ pub fn ProjectExplorerSection() -> impl IntoView {
         let inside = ev
             .target()
             .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
-            .and_then(|el| el.closest(".sidebar-view-section--sb-explorer").ok().flatten())
+            .and_then(|el| {
+                el.closest(".sidebar-view-section--sb-explorer")
+                    .ok()
+                    .flatten()
+            })
             .is_some();
         if !inside {
             selected_dir.set(None);

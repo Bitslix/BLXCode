@@ -33,7 +33,15 @@ pub fn run_git_remote(
     work_tree: &str,
     args: &[&str],
 ) -> Result<String, String> {
-    run_git_remote_timeout(app, pty, exec, connection_id, work_tree, args, EXEC_TIMEOUT_MS)
+    run_git_remote_timeout(
+        app,
+        pty,
+        exec,
+        connection_id,
+        work_tree,
+        args,
+        EXEC_TIMEOUT_MS,
+    )
 }
 
 fn run_git_remote_timeout(
@@ -111,8 +119,15 @@ pub fn remote_work_tree(
     if cwd.is_empty() {
         return Err("cwd is empty".into());
     }
-    let top = run_git_remote(app, pty, exec, connection_id, cwd, &["rev-parse", "--show-toplevel"])
-        .map_err(|_| "not a git repository".to_string())?;
+    let top = run_git_remote(
+        app,
+        pty,
+        exec,
+        connection_id,
+        cwd,
+        &["rev-parse", "--show-toplevel"],
+    )
+    .map_err(|_| "not a git repository".to_string())?;
     let top = top.trim();
     if top.is_empty() {
         Err("not a git repository".into())

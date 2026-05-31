@@ -50,7 +50,11 @@ impl Indexer for GoIndexer {
             let mut unit = ProjectUnit::new(UnitKind::Go, name);
             unit.root_rel = dir.clone();
             unit.manifest_rel = Some(manifest_rel.clone());
-            unit.source_root_rel = Some(if dir.is_empty() { ".".to_owned() } else { dir.clone() });
+            unit.source_root_rel = Some(if dir.is_empty() {
+                ".".to_owned()
+            } else {
+                dir.clone()
+            });
 
             let owned: Vec<String> = ctx
                 .tracked

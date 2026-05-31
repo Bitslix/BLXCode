@@ -164,7 +164,10 @@ impl RemoteExecManager {
         });
 
         // Install, but lose the race gracefully if another caller opened one.
-        let mut map = self.channels.lock().map_err(|_| "exec map lock".to_string())?;
+        let mut map = self
+            .channels
+            .lock()
+            .map_err(|_| "exec map lock".to_string())?;
         if let Some(existing) = map.get(connection_id).cloned() {
             drop(map);
             let _ = pty.kill(session_id);
@@ -310,9 +313,7 @@ fn find_subslice(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.is_empty() || haystack.len() < needle.len() {
         return None;
     }
-    haystack
-        .windows(needle.len())
-        .position(|w| w == needle)
+    haystack.windows(needle.len()).position(|w| w == needle)
 }
 
 fn remote_error(out: &ExecOutput) -> String {

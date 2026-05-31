@@ -5646,7 +5646,10 @@ button {
   overflow: auto;
   font-family: var(--font-mono);
   font-size: 0.78rem;
-  line-height: 1.55;
+  /* Integer-px line box, shared by preview rows, edit-mode rows, and the
+     overlay textarea, so all three have identical line height and the caret
+     never drifts off the highlighted text. */
+  line-height: 1.25rem;
   color: var(--text);
   background: transparent;
   --code-view-gutter-width: 3ch;
@@ -5698,7 +5701,104 @@ button {
   display: inline-block;
   padding: 0 0.85rem;
   white-space: pre;
-  min-height: 1.55em;
+  min-height: 1.25rem;
+}
+
+/* Gutter wraps the optional fold chevron + line number and carries the
+   gutter's background/separator so the chevron column matches the numbers. */
+.code-view__gutter {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.1rem;
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+}
+
+.code-view__gutter .code-view__lineno {
+  border-right: 0;
+  background: transparent;
+}
+
+.code-view__fold-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0.7;
+  cursor: pointer;
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.code-view__fold-toggle:hover {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.code-view__row--hidden {
+  display: none;
+}
+
+/* Read-view tab width matches the editor's so tab-indented code lines up
+   between preview and edit. */
+.code-view {
+  tab-size: 2;
+  -moz-tab-size: 2;
+}
+
+/* --- Edit mode: CodeMirror 6 host (its own gutter/folding/highlighting) --- */
+
+.code-view__cm {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.code-view__cm .cm-editor {
+  height: 100%;
+}
+
+.code-view__cm .cm-editor.cm-focused {
+  outline: none;
+}
+
+/* --- Header editor chips + dirty marker --- */
+
+.file-preview__dirty-dot {
+  margin-left: 0.35rem;
+  color: var(--accent);
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.file-preview__state-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 55%, transparent);
+  color: var(--text-muted);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.file-preview__state-chip--edit {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--accent);
+}
+
+.file-preview__state-chip--dirty {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--accent);
 }
 
 .code-context-menu {

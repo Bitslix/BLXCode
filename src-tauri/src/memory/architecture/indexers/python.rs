@@ -21,11 +21,15 @@ impl Indexer for PythonIndexer {
             .tracked
             .iter()
             .filter(|p| {
-                matches!(p.rsplit('/').next(), Some("pyproject.toml") | Some("setup.py"))
+                matches!(
+                    p.rsplit('/').next(),
+                    Some("pyproject.toml") | Some("setup.py")
+                )
             })
             .collect();
         // Prefer one unit per directory, favoring pyproject.toml over setup.py.
-        let mut by_dir: std::collections::BTreeMap<String, &String> = std::collections::BTreeMap::new();
+        let mut by_dir: std::collections::BTreeMap<String, &String> =
+            std::collections::BTreeMap::new();
         for m in manifests {
             let dir = directory_of(m);
             let is_pyproject = m.ends_with("pyproject.toml");
@@ -56,7 +60,11 @@ impl Indexer for PythonIndexer {
 
             let src_base = join_rel(&dir, "src");
             let has_src = py_files.iter().any(|rel| under(&src_base, rel));
-            let base = if has_src { src_base.clone() } else { dir.clone() };
+            let base = if has_src {
+                src_base.clone()
+            } else {
+                dir.clone()
+            };
 
             let mut unit = ProjectUnit::new(UnitKind::Python, name);
             unit.root_rel = dir.clone();

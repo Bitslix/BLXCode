@@ -193,7 +193,13 @@ fn RemoteConnectionRow(
     let auth_kind = RwSignal::new(initial.connection.auth_kind);
     let key_path = RwSignal::new(initial.connection.key_path.clone().unwrap_or_default());
     let resume = RwSignal::new(initial.connection.resume);
-    let remote_dir = RwSignal::new(initial.connection.default_remote_dir.clone().unwrap_or_default());
+    let remote_dir = RwSignal::new(
+        initial
+            .connection
+            .default_remote_dir
+            .clone()
+            .unwrap_or_default(),
+    );
     let password_input = RwSignal::new(String::new());
     let passphrase_input = RwSignal::new(String::new());
     let has_password = RwSignal::new(initial.has_password);
@@ -214,22 +220,38 @@ fn RemoteConnectionRow(
         auth_kind: auth_kind.get_untracked(),
         key_path: {
             let k = key_path.get_untracked().trim().to_string();
-            if k.is_empty() { None } else { Some(k) }
+            if k.is_empty() {
+                None
+            } else {
+                Some(k)
+            }
         },
         resume: resume.get_untracked(),
         default_remote_dir: {
             let d = remote_dir.get_untracked().trim().to_string();
-            if d.is_empty() { None } else { Some(d) }
+            if d.is_empty() {
+                None
+            } else {
+                Some(d)
+            }
         },
     };
     // Secrets are sent only when the user typed a new value.
     let current_password = move || {
         let v = password_input.get_untracked();
-        if v.is_empty() { None } else { Some(v) }
+        if v.is_empty() {
+            None
+        } else {
+            Some(v)
+        }
     };
     let current_passphrase = move || {
         let v = passphrase_input.get_untracked();
-        if v.is_empty() { None } else { Some(v) }
+        if v.is_empty() {
+            None
+        } else {
+            Some(v)
+        }
     };
 
     let on_save = move |_| {

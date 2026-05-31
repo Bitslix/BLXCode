@@ -192,6 +192,38 @@ If a file uses an extension that highlight.js does not support, the preview fall
 
 The code-view chrome (gutter, hover, selection bar) is built with `color-mix` against the active BLXCode theme tokens (`--accent`, `--text`, `--text-muted`, `--surface`, `--border`), so switching themes from **Settings → Appearance** immediately re-tints both the layout and the syntax-highlighted tokens. Light themes (`blxcode-light`, `solarized-light`, `gruvbox-light`, `catppuccin-latte`) override a few of the brighter dark-theme colors (strings, numbers, types, attributes, tags) so the code stays legible on bright backgrounds.
 
+## Editing files
+
+The preview doubles as a real editor. **Code and plain-text files open straight in edit mode**; **Markdown and policy docs (README/LICENSE/CONTRIBUTING/…) open preview-first** and the topbar **Edit** button switches them into the raw editor.
+
+- **Editor** — edit mode is powered by [CodeMirror 6](https://codemirror.net/), vendored locally at `public/vendor/codemirror/codemirror.min.js` (built from `scripts/codemirror-bundle/`, lazy-loaded on first use like the highlight.js bundle). It provides native syntax highlighting, **code folding**, multiple cursors, search, bracket matching, and selection, themed to follow the active BLXCode tokens. The read-only preview continues to use highlight.js.
+- **Save** — the **Save** button (or `Ctrl/Cmd+S`) writes the buffer to disk. Saves are **atomic** (written to a temp sibling and renamed over the target) so a partial write can never corrupt the file. A brief *Saved* toast confirms success.
+- **Revert** — restores the buffer to the last-saved content (prompts first if there are unsaved changes).
+- **View** — returns to the rendered/read-only view (prompts if there are unsaved changes).
+- **Status** — the topbar shows **View**/**Edit** and **Read-only** chips, a **Modified** chip, and a dirty dot next to the file name while there are unsaved edits.
+- **Keyboard** — `Ctrl/Cmd+S` saves, `Tab` inserts two spaces, and `Esc` leaves a clean edit (press `Esc` then `Tab` to move focus out of the field).
+
+### What can be edited
+
+| Policy | Files | Behavior |
+|---|---|---|
+| **Editable** | code + plain text (and plain Markdown) | Open in view; **Edit** button (Markdown opens preview-first). |
+| **Read-only by default** | policy docs (`README`, `LICENSE`, `CONTRIBUTING`, …) | Render with the hero banner; **Edit** promotes to the raw text editor. |
+| **Never editable** | binary, too-large/truncated, or files in a protected folder | Read-only with an explanatory banner and no Edit button. |
+
+**Protected folders** are never writable from the editor — `.git/`, `.agents/`, `.blxcode/`, `node_modules/`, `target/`, `dist/`, `build/`, `out/`, `.next/`, `.cache/`, `vendor/`, `__pycache__/`, `.venv/`, `venv/`, `coverage/`. The backend enforces this on write regardless of the UI.
+
+### Conflict handling
+
+When you open a file the editor records a content hash. On save, that hash is checked against the file on disk. If the file changed **outside** the editor since you opened it, the save is refused and a **File changed on disk** dialog offers to **Overwrite** (write your version anyway) or **Cancel** (keep the on-disk version; use **Refresh** to reload it). Your buffer is never silently clobbered, and a stale write never lands.
+
+### Folding
+
+- **Edit mode** — CodeMirror's own fold gutter folds language-aware blocks (functions, braces, etc.); click the gutter arrow to collapse/expand.
+- **View mode** — a custom fold chevron appears in the gutter on foldable lines — function/braced blocks, contiguous import groups, indented blocks (Python/YAML), `#region` markers, and Markdown heading sections / fenced code.
+
+> Remote (SSH) workspaces support editing and saving over the connection's exec channel; the remote sandbox is enforced the same way as remote reads.
+
 ## Mermaid files
 
 `.mmd` and `.mermaid` files render as a single full-tab diagram. The first preview on a session lazily loads the vendored Mermaid bundle from `public/vendor/mermaid/mermaid.min.js` and calls `mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'dark' })`; subsequent previews reuse `globalThis.mermaid` without re-downloading.
@@ -228,7 +260,7 @@ The previewer never injects raw HTML from disk verbatim:
 - **Markdown** — output from `pulldown-cmark` is passed through the same sanitizer: `<script>`, `<style>`, `<iframe>`, `<object>`, `<embed>` blocks are removed, event handlers stripped, and dangerous URI schemes neutralized. Multi-byte UTF-8 codepoints (`ü`, `€`, `你好`, emoji, …) are preserved because the sanitizer scans only ASCII delimiters and copies content via UTF-8-safe string slicing.
 - **Mermaid** — initialized with `securityLevel: 'strict'`, so Mermaid sanitizes the graph source itself.
 
-The Tauri backend never reads outside the workspace root: all three file commands (`stat_workspace_file`, `read_workspace_image_file`, `read_workspace_video_file`) reuse the existing `canonical_root` / `resolve_under_root` sandbox from `fs_entries.rs`, the same one the file tree already uses.
+The Tauri backend never reads or writes outside the workspace root: the file commands (`stat_workspace_file`, `read_workspace_text_file`, `write_workspace_text_file`, `read_workspace_image_file`, `read_workspace_video_file`) reuse the existing `canonical_root` / `resolve_under_root` sandbox from `fs_entries.rs`, the same one the file tree already uses. `write_workspace_text_file` additionally refuses protected folders, checks a content hash to prevent clobbering out-of-band changes, and writes atomically (temp file + rename).
 
 ## Tips
 

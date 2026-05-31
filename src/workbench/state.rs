@@ -727,6 +727,9 @@ pub struct HarnessUiService {
     palette_open: RwSignal<bool>,
     settings_open: RwSignal<bool>,
     quick_open_open: RwSignal<bool>,
+    find_file_open: RwSignal<bool>,
+    find_file_query: RwSignal<String>,
+    find_file_selection: RwSignal<usize>,
     palette_query: RwSignal<String>,
     palette_selection: RwSignal<usize>,
     quick_open_query: RwSignal<String>,
@@ -747,6 +750,9 @@ impl HarnessUiService {
             palette_open: RwSignal::new(false),
             settings_open: RwSignal::new(false),
             quick_open_open: RwSignal::new(false),
+            find_file_open: RwSignal::new(false),
+            find_file_query: RwSignal::new(String::new()),
+            find_file_selection: RwSignal::new(0),
             palette_query: RwSignal::new(String::new()),
             palette_selection: RwSignal::new(0),
             quick_open_query: RwSignal::new(String::new()),
@@ -925,6 +931,44 @@ impl HarnessUiService {
             self.open_quick_open();
         } else {
             self.close_quick_open();
+        }
+    }
+
+    /// Reactive accessors for the fuzzy file finder palette.
+    #[must_use]
+    pub fn find_file_open(&self) -> RwSignal<bool> {
+        self.find_file_open
+    }
+
+    #[must_use]
+    pub fn find_file_query(&self) -> RwSignal<String> {
+        self.find_file_query
+    }
+
+    #[must_use]
+    pub fn find_file_selection(&self) -> RwSignal<usize> {
+        self.find_file_selection
+    }
+
+    pub fn open_find_file(&self) {
+        self.close_command_palette();
+        self.close_settings();
+        self.close_quick_open();
+        self.find_file_query.set(String::new());
+        self.find_file_selection.set(0);
+        self.find_file_open.set(true);
+    }
+
+    pub fn close_find_file(&self) {
+        self.find_file_open.set(false);
+    }
+
+    pub fn toggle_find_file(&self) {
+        let next = !self.find_file_open.get_untracked();
+        if next {
+            self.open_find_file();
+        } else {
+            self.close_find_file();
         }
     }
 
