@@ -18,3 +18,7 @@ frontend-js/node_modules/
 .tauri/
 .venv-i18n/
 .i18n-venv/
+# CodeMirror bundle build deps (vendored output is committed, not these)
+scripts/codemirror-bundle/node_modules/
+scripts/codemirror-bundle/bun.lock
+scripts/codemirror-bundle/package-lock.json

@@ -20,12 +20,19 @@ Editor state is held component-locally in the kept-alive `FilePreviewDock` (cent
 not unmounted), which resolves §1.8 without service-held `OpenDoc`. `open_center_file_tab` reuses a
 tab per `rel_path` (open question 2). Remote writes are implemented (open question 1 → shipped).
 
-Deviations / deferred (follow-ups): editable files are **preview-first with an Edit button** instead
-of double-click-open-in-Edit (no explorer plumbing needed — §11.1 double-click deferred); the conflict
-dialog offers **Overwrite / Cancel** (reload-from-disk via the Refresh button; "View diff" deferred);
-close-tab / workspace-switch / app-exit dirty guards (M8) are deferred (the conflict hash guard already
-prevents data corruption); edit-mode folding, `.blxbak` backup, open-in-system-editor, and formatter
-integration remain optional/deferred as in the plan.
+**Update — CodeMirror escape hatch taken (M10 / §2.3).** Edit mode now uses **CodeMirror 6** instead
+of the textarea overlay, so edit-mode **folding**, multi-cursor, search and selection work natively
+(the original §2.1 hard limit — a textarea can't hide folded lines — forced this). The bundle is
+vendored offline at `public/vendor/codemirror/codemirror.min.js` (built from `scripts/codemirror-bundle/`
+with esbuild, exposing global `BlxCM`), loaded lazily like highlight.js via `codemirror_glue.rs`; the
+`CodeMirrorEditor` component (`editor/code_mirror.rs`) bridges edits ↔ `session.buffer`, `Mod-s` → save,
+and right-click → handoff menu. **View mode keeps highlight.js** (backdrop, row selection, custom fold
+chevrons). Code/text files open directly in Edit; markdown + policy docs open preview-first.
+
+Still deferred (follow-ups): double-click-open semantics (§11.1 — superseded by open-code-in-edit +
+Edit button); conflict dialog is **Overwrite / Cancel** (reload via Refresh; "View diff" deferred);
+close-tab / workspace-switch / app-exit dirty guards (M8); `.blxbak` backup, open-in-system-editor,
+and formatter integration (all optional in the plan).
 **Goal:** Extend the existing File Browser / file-preview flow so supported text/code/config
 files can be **edited and saved** in-app, while fully **reusing the existing highlight.js
 highlighting pipeline**. Add VS Code-style folding, a read-only-by-default policy for important

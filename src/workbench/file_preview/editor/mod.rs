@@ -9,6 +9,7 @@
 //! isolation.
 
 pub mod buffer;
+pub mod code_mirror;
 pub mod folding;
 pub mod policy;
 

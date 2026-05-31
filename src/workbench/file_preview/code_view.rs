@@ -18,6 +18,7 @@ use crate::workbench::agent_context_handoff::{
 use crate::workbench::file_preview::code_context_menu::{
     CodeContextMenu, CodeContextMenuState, CodeMenuAction,
 };
+use crate::workbench::file_preview::editor::code_mirror::CodeMirrorEditor;
 use crate::workbench::file_preview::editor::folding::compute_folds;
 use crate::workbench::file_preview::editor::policy::Editability;
 use crate::workbench::file_preview::editor::{DocStatus, EditMode, EditorSession};
@@ -27,7 +28,7 @@ use crate::workbench::file_preview::util::{
     split_highlighted_into_lines, FilePreviewError,
 };
 use crate::workbench::toast::ToastService;
-use crate::workbench::{HarnessUiService, WorkbenchService};
+use crate::workbench::WorkbenchService;
 use base64::Engine;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
@@ -79,6 +80,38 @@ pub fn lang_for_path(rel_path: &str) -> Option<&'static str> {
     hljs_lang_for_ext(&ext)
 }
 
+/// Maps `rel_path`'s extension to a CodeMirror language name understood by the
+/// vendored bundle's `create({ language })` (see `cm-entry.js`). Returns `None`
+/// for extensions with no bundled grammar (edited as plain text).
+fn cm_lang_for_path(rel_path: &str) -> Option<&'static str> {
+    let lower = rel_path.to_ascii_lowercase();
+    if lower.ends_with("dockerfile") || lower.ends_with("containerfile") {
+        return None; // no bundled Dockerfile grammar; plain text is fine
+    }
+    let ext = lower.rsplit('.').next()?;
+    Some(match ext {
+        "rs" => "rust",
+        "ts" => "typescript",
+        "tsx" => "tsx",
+        "jsx" => "jsx",
+        "js" | "mjs" | "cjs" => "javascript",
+        "py" | "pyw" | "pyi" => "python",
+        "json" | "json5" | "jsonc" => "json",
+        "css" | "scss" | "sass" | "less" | "styl" => "css",
+        "html" | "htm" | "xhtml" | "vue" | "svelte" => "html",
+        "md" | "markdown" => "markdown",
+        "xml" | "svg" | "plist" => "xml",
+        "c" | "h" => "c",
+        "cpp" | "cc" | "cxx" | "hpp" | "hxx" | "mm" => "cpp",
+        "java" => "java",
+        "php" | "phtml" => "php",
+        "sql" => "sql",
+        "yaml" | "yml" => "yaml",
+        "go" => "go",
+        _ => return None,
+    })
+}
+
 /// Returns `(html_lines, raw_lines, used_language)`.
 async fn prepare_lines(
     content: String,
@@ -124,7 +157,6 @@ pub fn CodeView(
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
     let toast = expect_context::<ToastService>();
-    let ui = expect_context::<HarnessUiService>();
 
     let prepared: RwSignal<Option<PreparedCode>> = RwSignal::new(None);
     let selected: RwSignal<Option<(usize, usize)>> = RwSignal::new(None);
@@ -159,8 +191,9 @@ pub fn CodeView(
         }
     });
 
-    // Re-highlight the backdrop from the live buffer. Debounced while editing
-    // so a burst of keystrokes collapses into one highlight pass.
+    // Build the view-mode backdrop (highlight.js) + fold ranges from the live
+    // buffer. In edit mode CodeMirror does its own highlighting, so we skip the
+    // hljs pass and only keep the plain line mirror used by the handoff menu.
     let highlight_gen = RwSignal::new(0u32);
     Effect::new(move |_| {
         let text = session.buffer.get();
@@ -175,7 +208,7 @@ pub fn CodeView(
                     return; // superseded by a newer keystroke
                 }
             }
-            let lang_use = if text.len() > MAX_HIGHLIGHT_BYTES {
+            let lang_use = if editing || text.len() > MAX_HIGHLIGHT_BYTES {
                 None
             } else {
                 lang
@@ -232,7 +265,9 @@ pub fn CodeView(
             return;
         };
         let plain = prepared.plain_lines.clone();
-        let lang_tag = prepared.language;
+        // Use the static language for the fenced snippet so it's correct even
+        // in edit mode, where the hljs pass (and thus `prepared.language`) is
+        // skipped in favor of CodeMirror's own highlighting.
         handle_menu_action(
             action,
             wb,
@@ -240,7 +275,7 @@ pub fn CodeView(
             toast,
             session.workspace_id,
             &session.rel_path(),
-            lang_tag,
+            language_hint,
             menu.range,
             plain,
         );
@@ -277,23 +312,18 @@ pub fn CodeView(
                             FilePreviewError::Failed(msg),
                         )
                     }
-                    // The editing scaffold + textarea are built once per
-                    // enter-edit (this closure only depends on `phase` + `mode`),
-                    // while the highlighted backdrop re-renders on `prepared`.
+                    // Edit mode mounts CodeMirror (its own gutter, folding,
+                    // selection, highlighting); view mode keeps the highlight.js
+                    // backdrop with row selection + fold chevrons. This closure
+                    // only depends on `phase` + `mode`, so the CodeMirror editor
+                    // is created once per enter-edit, not on every keystroke.
                     Phase::Content => if matches!(session.mode.get(), EditMode::Edit) {
                         view! {
-                            <div class="code-view__edit-host">
-                                <div
-                                    class="code-view__edit-inner"
-                                    style=move || format!("--code-view-gutter-width: {}ch;", gutter_ch.get())
-                                >
-                                    {move || prepared.get().map(|p| render_backdrop(
-                                        p, session, selected, drag_anchor, drag_moved,
-                                        menu_state, i18n, wb, true, gutter_ch.get_untracked(),
-                                    ))}
-                                    <CodeTextarea session=session toast=toast ui=ui wb=wb i18n=i18n menu_state=menu_state />
-                                </div>
-                            </div>
+                            <CodeMirrorEditor
+                                session=session
+                                language=cm_lang_for_path(&session.rel_path())
+                                menu_state=menu_state
+                            />
                         }.into_any()
                     } else {
                         view! {
@@ -507,129 +537,6 @@ fn render_backdrop(
     };
 
     backdrop
-}
-
-/// 1-based line number containing the given selection offset. The offset is a
-/// UTF-16 code-unit index (as returned by `selectionStart`/`selectionEnd`), so
-/// we count `\n` among the first `offset` UTF-16 units — accurate regardless of
-/// any multi-byte characters earlier in the buffer.
-fn line_at_utf16_offset(value: &str, offset: usize) -> usize {
-    value
-        .encode_utf16()
-        .take(offset)
-        .filter(|u| *u == 0x000A)
-        .count()
-        + 1
-}
-
-/// The transparent editing surface layered over the highlighted backdrop.
-#[component]
-fn CodeTextarea(
-    session: EditorSession,
-    toast: ToastService,
-    ui: HarnessUiService,
-    wb: WorkbenchService,
-    i18n: I18nService,
-    menu_state: RwSignal<Option<CodeContextMenuState>>,
-) -> impl IntoView {
-    let ta_ref = NodeRef::<leptos::html::Textarea>::new();
-
-    // Sync the DOM value from the buffer only when it actually differs, so a
-    // self-originated keystroke never resets the caret. Depends on `mode` too
-    // so entering edit mode populates the freshly-mounted textarea.
-    Effect::new(move |_| {
-        let v = session.buffer.get();
-        let _ = session.mode.get();
-        if let Some(el) = ta_ref.get() {
-            if el.value() != v {
-                el.set_value(&v);
-            }
-        }
-    });
-
-    let on_keydown = move |ev: web_sys::KeyboardEvent| {
-        let key = ev.key();
-        let mods = ev.ctrl_key() || ev.meta_key();
-        if mods && key.eq_ignore_ascii_case("s") {
-            ev.prevent_default();
-            session.save(wb, toast, ui, i18n, false);
-            return;
-        }
-        if key == "Escape" && !session.dirty.get_untracked() {
-            ev.prevent_default();
-            session.exit_edit();
-            if let Some(el) = ta_ref.get() {
-                let _ = el.blur();
-            }
-            return;
-        }
-        if key == "Tab" {
-            // Insert two spaces at the caret rather than moving focus. Esc then
-            // Tab still lets keyboard users leave the field. Offsets from the
-            // DOM are UTF-16 units; only take the fast byte-slice path when they
-            // line up with UTF-8 char boundaries (always true for ASCII), else
-            // no-op rather than risk a panic on a non-boundary index.
-            if let Some(el) = ta_ref.get() {
-                ev.prevent_default();
-                let start = el.selection_start().ok().flatten().unwrap_or(0);
-                let end = el.selection_end().ok().flatten().unwrap_or(start);
-                let (start, end) = (start as usize, end as usize);
-                let mut value = el.value();
-                if start <= end
-                    && end <= value.len()
-                    && value.is_char_boundary(start)
-                    && value.is_char_boundary(end)
-                {
-                    value.replace_range(start..end, "  ");
-                    el.set_value(&value);
-                    let caret = (start + 2) as u32;
-                    let _ = el.set_selection_range(caret, caret);
-                    session.buffer.set(value);
-                }
-            }
-        }
-    };
-
-    // Right-click opens the same handoff menu as view mode. The line range is
-    // derived from the textarea selection: a collapsed caret yields its single
-    // line; a non-empty selection yields the full span it covers.
-    let on_contextmenu = move |ev: MouseEvent| {
-        ev.prevent_default();
-        ev.stop_propagation();
-        let Some(el) = ta_ref.get() else {
-            return;
-        };
-        let value = el.value();
-        let start = el.selection_start().ok().flatten().unwrap_or(0);
-        let end = el.selection_end().ok().flatten().unwrap_or(start);
-        let (start, end) = (start as usize, end as usize);
-        let s_line = line_at_utf16_offset(&value, start);
-        // For a real selection use the last *selected* unit so a selection that
-        // stops at a line start doesn't pull in the following (empty) line.
-        let e_off = if end > start { end - 1 } else { end };
-        let e_line = line_at_utf16_offset(&value, e_off);
-        let lo = s_line.min(e_line) as u32;
-        let hi = s_line.max(e_line) as u32;
-        let groups = list_terminal_targets_all_workspaces(&wb, Some(session.workspace_id));
-        menu_state.set(Some(CodeContextMenuState {
-            anchor_x: ev.client_x(),
-            anchor_y: ev.client_y(),
-            range: (lo, hi),
-            groups,
-            preview_workspace_id: session.workspace_id,
-        }));
-    };
-
-    view! {
-        <textarea
-            class="code-view__textarea"
-            spellcheck="false"
-            node_ref=ta_ref
-            on:input=move |ev| session.buffer.set(event_target_value(&ev))
-            on:keydown=on_keydown
-            on:contextmenu=on_contextmenu
-        />
-    }
 }
 
 fn closest_data_line(ev: &MouseEvent) -> Option<usize> {
@@ -861,28 +768,4 @@ fn copy_to_clipboard(text: String, i18n: I18nService, toast: ToastService, succe
             }
         }
     });
-}
-
-#[cfg(test)]
-mod tests {
-    use super::line_at_utf16_offset;
-
-    #[test]
-    fn line_at_offset_counts_newlines() {
-        let s = "ab\ncd\nef";
-        assert_eq!(line_at_utf16_offset(s, 0), 1); // start of line 1
-        assert_eq!(line_at_utf16_offset(s, 2), 1); // before the first \n
-        assert_eq!(line_at_utf16_offset(s, 3), 2); // just after the first \n
-        assert_eq!(line_at_utf16_offset(s, 5), 2); // before the second \n
-        assert_eq!(line_at_utf16_offset(s, 7), 3); // on line 3
-    }
-
-    #[test]
-    fn line_at_offset_handles_multibyte_before_caret() {
-        // "é" is 1 UTF-16 unit; "😀" is 2. Newline counting must stay correct.
-        let s = "é😀\nx";
-        // Offsets: é=1 unit, 😀=2 units, \n at unit index 3.
-        assert_eq!(line_at_utf16_offset(s, 3), 1); // before the \n
-        assert_eq!(line_at_utf16_offset(s, 4), 2); // after the \n
-    }
 }

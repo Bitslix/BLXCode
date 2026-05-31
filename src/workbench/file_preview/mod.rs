@@ -5,6 +5,7 @@
 
 mod code_context_menu;
 mod code_view;
+mod codemirror_glue;
 mod editor;
 mod header;
 mod hljs_glue;

@@ -194,9 +194,9 @@ The code-view chrome (gutter, hover, selection bar) is built with `color-mix` ag
 
 ## Editing files
 
-The preview doubles as a lightweight editor. Code, plain-text, and Markdown files open **preview-first**; an **Edit** button in the topbar switches the open document into edit mode.
+The preview doubles as a real editor. **Code and plain-text files open straight in edit mode**; **Markdown and policy docs (README/LICENSE/CONTRIBUTING/…) open preview-first** and the topbar **Edit** button switches them into the raw editor.
 
-- **Edit overlay** — edit mode keeps the exact same highlight.js backdrop and lays a transparent `<textarea>` over it, so syntax highlighting, the caret, IME input, and native undo/redo all keep working. The backdrop re-highlights on a short debounce as you type. No second editor and no extra dependency are involved.
+- **Editor** — edit mode is powered by [CodeMirror 6](https://codemirror.net/), vendored locally at `public/vendor/codemirror/codemirror.min.js` (built from `scripts/codemirror-bundle/`, lazy-loaded on first use like the highlight.js bundle). It provides native syntax highlighting, **code folding**, multiple cursors, search, bracket matching, and selection, themed to follow the active BLXCode tokens. The read-only preview continues to use highlight.js.
 - **Save** — the **Save** button (or `Ctrl/Cmd+S`) writes the buffer to disk. Saves are **atomic** (written to a temp sibling and renamed over the target) so a partial write can never corrupt the file. A brief *Saved* toast confirms success.
 - **Revert** — restores the buffer to the last-saved content (prompts first if there are unsaved changes).
 - **View** — returns to the rendered/read-only view (prompts if there are unsaved changes).
@@ -217,9 +217,10 @@ The preview doubles as a lightweight editor. Code, plain-text, and Markdown file
 
 When you open a file the editor records a content hash. On save, that hash is checked against the file on disk. If the file changed **outside** the editor since you opened it, the save is refused and a **File changed on disk** dialog offers to **Overwrite** (write your version anyway) or **Cancel** (keep the on-disk version; use **Refresh** to reload it). Your buffer is never silently clobbered, and a stale write never lands.
 
-### Folding (view mode)
+### Folding
 
-In view mode a fold chevron appears in the gutter on foldable lines — function/braced blocks, contiguous import groups, indented blocks (Python/YAML), `#region` markers, and Markdown heading sections / fenced code. Click the chevron to collapse or expand. Folding is disabled while editing (entering edit mode expands everything).
+- **Edit mode** — CodeMirror's own fold gutter folds language-aware blocks (functions, braces, etc.); click the gutter arrow to collapse/expand.
+- **View mode** — a custom fold chevron appears in the gutter on foldable lines — function/braced blocks, contiguous import groups, indented blocks (Python/YAML), `#region` markers, and Markdown heading sections / fenced code.
 
 > Remote (SSH) workspaces support editing and saving over the connection's exec channel; the remote sandbox is enforced the same way as remote reads.
 
