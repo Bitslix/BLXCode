@@ -711,6 +711,30 @@ pub async fn list_path_entries(
     .await
 }
 
+/// Lists workspace files (relative paths) for the fuzzy file finder. Skips
+/// protected/vendor/build dirs and is capped backend-side. Mirrors
+/// `fs_entries::list_workspace_files`.
+pub async fn list_workspace_files(
+    workspace_root: String,
+    connection_id: Option<String>,
+) -> Result<Vec<String>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        workspace_root: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
+    }
+    invoke_typed(
+        "list_workspace_files",
+        A {
+            workspace_root,
+            connection_id,
+        },
+    )
+    .await
+}
+
 /// Creates an empty file at `path` (relative to `workspace_root`). Errors if it
 /// already exists. Mirrors `fs_entries::create_workspace_file`.
 pub async fn create_workspace_file(

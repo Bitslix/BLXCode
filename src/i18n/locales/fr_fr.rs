@@ -18,6 +18,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         }
         I18nKey::WsKwCmdPalette => "Palette de commandes",
         I18nKey::WsKwQuickOpen => "Ouverture rapide",
+        I18nKey::WsKwFindFile => "Find file",
         I18nKey::WsKwSidePanel => "Panneau latéral",
         I18nKey::WsKwAgent => "Agent",
         I18nKey::WsKwBrowser => "Navigateur",
@@ -28,6 +29,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsResizeTermRows => "Redimensionner les lignes de terminaux",
         I18nKey::QkTitle => "Ouverture rapide",
         I18nKey::QkFilterPh => "Recherchez des espaces de travail récents ou entrez un chemin…",
+        I18nKey::FfTitle => "Find file",
+        I18nKey::FfFilterPh => "Search files by name…",
+        I18nKey::FfEmpty => "No matching files",
         I18nKey::QkHint => "↑↓ pour sélectionner · Enter pour ouvrir · Esc pour fermer",
         I18nKey::QkRecentHeading => "Récent",
         I18nKey::QkEmptyRecent => "Aucun espace de travail récent pour l'instant.",

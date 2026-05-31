@@ -19,6 +19,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         }
         I18nKey::WsKwCmdPalette => "Command palette",
         I18nKey::WsKwQuickOpen => "Quick open",
+        I18nKey::WsKwFindFile => "Find file",
         I18nKey::WsKwSidePanel => "Side panel",
         I18nKey::WsKwAgent => "Agent",
         I18nKey::WsKwBrowser => "Browser",
@@ -30,6 +31,9 @@ pub fn msg(key: I18nKey) -> &'static str {
 
         I18nKey::QkTitle => "Quick open",
         I18nKey::QkFilterPh => "Search recent workspaces or enter a path…",
+        I18nKey::FfTitle => "Find file",
+        I18nKey::FfFilterPh => "Search files by name…",
+        I18nKey::FfEmpty => "No matching files",
         I18nKey::QkHint => "↑↓ to select · Enter to open · Esc to close",
         I18nKey::QkRecentHeading => "Recent",
         I18nKey::QkEmptyRecent => "No recent workspaces yet.",

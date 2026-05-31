@@ -19,6 +19,7 @@ use web_sys::KeyboardEvent;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HarnessShortcutAction {
     OpenQuickOpen,
+    OpenFindFile,
     ToggleRightPanel,
     RightTab(RightPanelTab),
     OpenNewTerminal,
@@ -33,6 +34,7 @@ pub fn dispatch_shortcut_action(
 ) {
     match action {
         HarnessShortcutAction::OpenQuickOpen => ui.toggle_quick_open(),
+        HarnessShortcutAction::OpenFindFile => ui.toggle_find_file(),
         HarnessShortcutAction::ToggleRightPanel => {
             wb.toggle_right_panel();
             defer_browser_bounds(wb, embed);
@@ -84,7 +86,8 @@ pub fn handle_harness_keydown(
 ) -> bool {
     let blocked = ui.palette_open().get_untracked()
         || ui.settings_open().get_untracked()
-        || ui.quick_open_open().get_untracked();
+        || ui.quick_open_open().get_untracked()
+        || ui.find_file_open().get_untracked();
     // While the Terminals-close countdown is active we swallow every
     // shortcut except Escape (which dismisses the dialog) so the user
     // can't accidentally rebind keys to other workspace actions.
@@ -99,6 +102,7 @@ pub fn handle_harness_keydown(
         ui.close_command_palette();
         ui.close_settings();
         ui.close_quick_open();
+        ui.close_find_file();
         return true;
     }
 

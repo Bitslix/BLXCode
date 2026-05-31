@@ -205,6 +205,7 @@ pub fn run() {
             git_sync::git_pull,
             git_sync::git_push,
             fs_entries::list_path_entries,
+            fs_entries::list_workspace_files,
             fs_entries::create_workspace_file,
             fs_entries::create_workspace_dir,
             fs_entries::read_workspace_text_file,

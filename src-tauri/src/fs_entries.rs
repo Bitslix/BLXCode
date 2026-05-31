@@ -13,6 +13,9 @@ use crate::ssh_exec::{RemoteExecManager, EXEC_TIMEOUT_MS};
 const MAX_TEXT_PREVIEW_BYTES: u64 = 512 * 1024;
 const MAX_IMAGE_PREVIEW_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_VIDEO_PREVIEW_BYTES: u64 = 64 * 1024 * 1024;
+/// Upper bound on entries returned by [`list_workspace_files`] so the fuzzy
+/// file finder stays responsive on huge trees.
+const MAX_FILE_INDEX: usize = 20_000;
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -668,6 +671,97 @@ fn local_list_path_entries(workspace_root: &str, path: &str) -> Result<Vec<FsEnt
             .to_ascii_lowercase()
             .cmp(&b.name.to_ascii_lowercase()),
     });
+    Ok(out)
+}
+
+/// Recursively lists files under `workspace_root` (relative paths, `/`-joined,
+/// sorted) for the fuzzy file finder. Skips [`PROTECTED_COMPONENTS`] directories
+/// (`.git`, `node_modules`, `target`, …) and caps the result at
+/// [`MAX_FILE_INDEX`] entries.
+#[tauri::command]
+pub fn list_workspace_files(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
+    workspace_root: String,
+    connection_id: Option<String>,
+) -> Result<Vec<String>, String> {
+    if let Some(cid) = connection_id.as_deref() {
+        return remote_list_workspace_files(&app, &pty, &exec, cid, &workspace_root);
+    }
+    local_list_workspace_files(&workspace_root)
+}
+
+fn local_list_workspace_files(workspace_root: &str) -> Result<Vec<String>, String> {
+    let root = canonical_root(workspace_root)?;
+    let mut out: Vec<String> = Vec::new();
+    // Iterative DFS. `file_type()` does not follow symlinks, so symlinked
+    // directories report as symlinks (not dirs) and are skipped — no cycles.
+    let mut stack: Vec<PathBuf> = vec![root.clone()];
+    while let Some(dir) = stack.pop() {
+        if out.len() >= MAX_FILE_INDEX {
+            break;
+        }
+        let Ok(rd) = fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in rd.flatten() {
+            let Ok(ft) = entry.file_type() else {
+                continue;
+            };
+            if ft.is_dir() {
+                let name = entry.file_name();
+                let name = name.to_string_lossy();
+                if PROTECTED_COMPONENTS.contains(&name.as_ref()) {
+                    continue;
+                }
+                stack.push(entry.path());
+            } else if ft.is_file() {
+                if out.len() >= MAX_FILE_INDEX {
+                    break;
+                }
+                if let Ok(rel) = entry.path().strip_prefix(&root) {
+                    out.push(rel.to_string_lossy().replace('\\', "/"));
+                }
+            }
+        }
+    }
+    out.sort();
+    out.truncate(MAX_FILE_INDEX);
+    Ok(out)
+}
+
+fn remote_list_workspace_files(
+    app: &AppHandle,
+    pty: &PtyManager,
+    exec: &RemoteExecManager,
+    connection_id: &str,
+    workspace_root: &str,
+) -> Result<Vec<String>, String> {
+    let target = remote_target(workspace_root, "")?;
+    let prunes = PROTECTED_COMPONENTS
+        .iter()
+        .map(|c| format!("-name {}", sh_quote(c)))
+        .collect::<Vec<_>>()
+        .join(" -o ");
+    // Prune protected dirs, print files, cap with head.
+    let cmd = format!(
+        "find {} \\( {} \\) -prune -o -type f -print 2>/dev/null | head -n {}",
+        sh_quote(&target),
+        prunes,
+        MAX_FILE_INDEX
+    );
+    let stdout = exec.run_text(app, pty, connection_id, &cmd, EXEC_TIMEOUT_MS)?;
+    let prefix = format!("{}/", target.trim_end_matches('/'));
+    let mut out: Vec<String> = stdout
+        .lines()
+        .map(|l| l.trim_end_matches('\r'))
+        .filter_map(|l| l.strip_prefix(&prefix))
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect();
+    out.sort();
+    out.truncate(MAX_FILE_INDEX);
     Ok(out)
 }
 
@@ -1404,6 +1498,29 @@ mod tests {
         assert!(is_protected_rel("node_modules/pkg/index.js"));
         assert!(!is_protected_rel("src/main.rs"));
         assert!(!is_protected_rel("targets.txt")); // not a full component
+    }
+
+    #[test]
+    fn list_workspace_files_walks_and_skips_protected() {
+        let tmp = std::env::temp_dir().join(format!("blx_fs_{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(tmp.join("src")).unwrap();
+        fs::create_dir_all(tmp.join(".git")).unwrap();
+        fs::create_dir_all(tmp.join("node_modules").join("pkg")).unwrap();
+        fs::write(tmp.join("README.md"), b"x").unwrap();
+        fs::write(tmp.join("src").join("main.rs"), b"x").unwrap();
+        fs::write(tmp.join(".git").join("config"), b"x").unwrap();
+        fs::write(tmp.join("node_modules").join("pkg").join("i.js"), b"x").unwrap();
+        let root = tmp.to_string_lossy().into_owned();
+        let files = local_list_workspace_files(&root).unwrap();
+        assert!(files.contains(&"README.md".to_string()));
+        assert!(files.contains(&"src/main.rs".to_string()));
+        assert!(!files.iter().any(|f| f.starts_with(".git/")));
+        assert!(!files.iter().any(|f| f.starts_with("node_modules/")));
+        // Sorted.
+        let mut sorted = files.clone();
+        sorted.sort();
+        assert_eq!(files, sorted);
+        let _ = fs::remove_dir_all(tmp);
     }
 
     #[test]

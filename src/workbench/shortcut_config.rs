@@ -116,10 +116,11 @@ impl Binding {
     }
 }
 
-/// The bindable harness actions (the 7 rows shown on the welcome screen).
+/// The bindable harness actions (the rows shown on the welcome screen).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ShortcutAction {
     QuickOpen,
+    FindFile,
     SidePanel,
     Agent,
     Browser,
@@ -130,8 +131,9 @@ pub enum ShortcutAction {
 
 impl ShortcutAction {
     /// Stable iteration order (mirrors the welcome-screen layout).
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::QuickOpen,
+        Self::FindFile,
         Self::SidePanel,
         Self::Agent,
         Self::Browser,
@@ -144,6 +146,7 @@ impl ShortcutAction {
     pub fn label_key(self) -> I18nKey {
         match self {
             Self::QuickOpen => I18nKey::WsKwQuickOpen,
+            Self::FindFile => I18nKey::WsKwFindFile,
             Self::SidePanel => I18nKey::WsKwSidePanel,
             Self::Agent => I18nKey::WsKwAgent,
             Self::Browser => I18nKey::WsKwBrowser,
@@ -157,6 +160,7 @@ impl ShortcutAction {
     pub fn to_harness_action(self) -> HarnessShortcutAction {
         match self {
             Self::QuickOpen => HarnessShortcutAction::OpenQuickOpen,
+            Self::FindFile => HarnessShortcutAction::OpenFindFile,
             Self::SidePanel => HarnessShortcutAction::ToggleRightPanel,
             Self::Agent => HarnessShortcutAction::RightTab(RightPanelTab::Agent),
             Self::Browser => HarnessShortcutAction::RightTab(RightPanelTab::Browser),
@@ -171,6 +175,7 @@ impl ShortcutAction {
     fn default_second(self) -> &'static str {
         match self {
             Self::QuickOpen => "o",
+            Self::FindFile => "f",
             Self::SidePanel => "r",
             Self::Agent => "a",
             Self::Browser => "b",
@@ -185,6 +190,8 @@ impl ShortcutAction {
     fn default_combo(self) -> KeyChord {
         match self {
             Self::QuickOpen => KeyChord::new(true, false, false, "o"),
+            // Ctrl+Alt+F so it doesn't clobber the in-editor find (Ctrl+F).
+            Self::FindFile => KeyChord::new(true, true, false, "f"),
             Self::SidePanel => KeyChord::new(true, false, false, "p"),
             Self::Agent => KeyChord::new(true, true, false, "a"),
             Self::Browser => KeyChord::new(true, true, false, "b"),

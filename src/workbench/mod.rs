@@ -17,6 +17,7 @@ mod create_workspace_wizard;
 mod file_diff;
 mod file_diff_section;
 mod file_preview;
+mod fuzzy;
 mod git_graph;
 mod git_sync_controls;
 mod harness_chords;
