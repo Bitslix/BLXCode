@@ -6,7 +6,9 @@ use crate::tauri_bridge::{
     ssh_remotes_list, DirEntryBrief, PathNavResult, RemoteConnectionView,
 };
 use crate::workbench::path_nav::path_nav_wasm_string;
-use crate::workbench::state::{CreateWorkspaceDraft, WorkbenchService};
+use crate::workbench::state::{
+    CreateWorkspaceDraft, HarnessSettingsCategory, HarnessUiService, WorkbenchService,
+};
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -45,6 +47,7 @@ fn parent_of(path: &str) -> Option<String> {
 #[component]
 pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
+    let ui = expect_context::<HarnessUiService>();
     let i18n = expect_context::<I18nService>();
     let drafts = wb.workspace_drafts();
     let draft_memo =
@@ -288,6 +291,16 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                             prop:value=move || draft_memo.get().remote_connection_id.unwrap_or_default()
                             on:change=move |ev| {
                                 let v = select_value(&ev);
+                                // Sentinel: jump to Settings → Remote to create a
+                                // connection. The draft is left unchanged, so the
+                                // select snaps back to its bound value; returning to
+                                // the Terminals tab remounts the wizard and reloads
+                                // the connection list.
+                                if v == "__add_remote__" {
+                                    ui.settings_category().set(HarnessSettingsCategory::Remote);
+                                    wb.open_center_settings_tab(HarnessSettingsCategory::Remote);
+                                    return;
+                                }
                                 wb.set_workspace_remote_connection(
                                     workspace_id,
                                     if v.is_empty() { None } else { Some(v) },
@@ -306,6 +319,9 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                                     })
                                     .collect_view()
                             }}
+                            <option value="__add_remote__">
+                                {move || format!("+ {}", i18n.tr(I18nKey::RemoteAddConnection)())}
+                            </option>
                         </select>
                         <Show when=move || is_tauri_shell() && remote_conns.get().is_empty()>
                             <p class="ws-config__hint">{move || i18n.tr(I18nKey::WsRemoteNoPresets)()}</p>

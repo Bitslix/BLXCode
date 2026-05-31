@@ -1329,8 +1329,10 @@ body {
   padding: clamp(1.35rem, 4vh, 2.35rem);
   /* Tuned in sync with `.app-shell`: the editor backdrop is just a touch
      darker than the surrounding chrome so the empty state still reads as
-     a distinct surface without bleeding the wallpaper through. */
+     a distinct surface without bleeding the wallpaper through. The top glow
+     matches the Create-Workspace screen (`.ws-config`). */
   background:
+    radial-gradient(ellipse at top, var(--overlay-1), transparent 60%),
     linear-gradient(180deg, var(--bg-app), var(--bg-app)),
     var(--overlay-2);
   backdrop-filter: blur(14px);
@@ -5464,7 +5466,11 @@ button {
   flex: 1 1 0;
   min-height: 0;
   height: 100%;
-  background: var(--scrim-bg);
+  /* Same top glow as the Create-Workspace screen (`.ws-config`) over the
+     scrim base, so Settings shares the workbench backdrop. Theme-token based. */
+  background:
+    radial-gradient(ellipse at top, var(--overlay-1), transparent 60%),
+    var(--scrim-bg);
 }
 
 .harness-settings-grid--docked .harness-settings-detail {
@@ -7217,6 +7223,22 @@ body.blxcode-dragging-terminal * {
   border-color: var(--border-strong);
   background: var(--overlay-1);
   box-shadow: 0 0 0 3px var(--overlay-1);
+}
+
+/* Native <select> popup options: the OS/WebView renders these outside the
+   control, so they must be themed explicitly (otherwise white-on-white in
+   dark themes). Uses theme tokens so every theme is honoured. Covers the
+   workspace wizard's Connection select and the Remote settings pane selects. */
+.ws-config__field option,
+.workbench-plain-input option {
+  background-color: var(--bg-panel);
+  color: var(--text);
+}
+
+.ws-config__field option:checked,
+.workbench-plain-input option:checked {
+  background-color: var(--bg-panel-header);
+  color: var(--text-bright);
 }
 
 .ws-config__cwd {
