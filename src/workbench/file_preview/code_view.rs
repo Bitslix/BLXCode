@@ -1,10 +1,9 @@
-//! Source-code view + lightweight editor.
+//! Source-code view (read mode) + dispatch to the editor (edit mode).
 //!
-//! Read mode renders line numbers, highlight.js syntax highlighting, click/drag
-//! row selection, a context menu, and (view-mode) code folding. Edit mode
-//! reuses the *same* highlighted backdrop and overlays a transparent
-//! `<textarea>` so highlighting, caret, IME and native undo all come for free —
-//! the backdrop is re-highlighted on a debounce as the buffer changes.
+//! View mode renders line numbers, highlight.js syntax highlighting, click/drag
+//! row selection, a context menu, and code folding. Edit mode mounts a
+//! CodeMirror 6 editor (`super::editor::code_mirror::CodeMirrorEditor`) which
+//! brings its own gutter, folding, selection, search and highlighting.
 //!
 //! All editor state lives in the shared [`EditorSession`] (created by
 //! `FilePreviewDock`), so the same handle drives the header controls.
@@ -81,12 +80,17 @@ pub fn lang_for_path(rel_path: &str) -> Option<&'static str> {
 }
 
 /// Maps `rel_path`'s extension to a CodeMirror language name understood by the
-/// vendored bundle's `create({ language })` (see `cm-entry.js`). Returns `None`
-/// for extensions with no bundled grammar (edited as plain text).
+/// vendored bundle's `create({ language })` (see `cm-entry.js`). Aims to match
+/// the highlight.js viewer's coverage; returns `None` for the few extensions
+/// with no bundled grammar (edited as plain text, same as the viewer's
+/// plain-text fallback).
 fn cm_lang_for_path(rel_path: &str) -> Option<&'static str> {
     let lower = rel_path.to_ascii_lowercase();
     if lower.ends_with("dockerfile") || lower.ends_with("containerfile") {
-        return None; // no bundled Dockerfile grammar; plain text is fine
+        return Some("dockerfile");
+    }
+    if lower.ends_with("makefile") {
+        return None; // no bundled Makefile grammar
     }
     let ext = lower.rsplit('.').next()?;
     Some(match ext {
@@ -96,18 +100,45 @@ fn cm_lang_for_path(rel_path: &str) -> Option<&'static str> {
         "jsx" => "jsx",
         "js" | "mjs" | "cjs" => "javascript",
         "py" | "pyw" | "pyi" => "python",
-        "json" | "json5" | "jsonc" => "json",
+        "json" | "json5" | "jsonc" | "edn" => "json",
         "css" | "scss" | "sass" | "less" | "styl" => "css",
         "html" | "htm" | "xhtml" | "vue" | "svelte" => "html",
         "md" | "markdown" => "markdown",
         "xml" | "svg" | "plist" => "xml",
         "c" | "h" => "c",
-        "cpp" | "cc" | "cxx" | "hpp" | "hxx" | "mm" => "cpp",
+        "cpp" | "cc" | "cxx" | "hpp" | "hxx" => "cpp",
+        "m" | "mm" => "objc",
         "java" => "java",
+        "kt" | "kts" => "kotlin",
+        "scala" | "sc" => "scala",
+        "groovy" | "gradle" => "groovy",
+        "cs" => "csharp",
+        "fs" | "fsx" => "fsharp",
+        "vb" => "vb",
+        "dart" => "dart",
         "php" | "phtml" => "php",
         "sql" => "sql",
         "yaml" | "yml" => "yaml",
         "go" => "go",
+        "rb" | "erb" => "ruby",
+        "lua" => "lua",
+        "pl" | "pm" => "perl",
+        "r" => "r",
+        "jl" => "julia",
+        "clj" | "cljs" | "cljc" => "clojure",
+        "erl" | "hrl" => "erlang",
+        "hs" | "lhs" => "haskell",
+        "swift" => "swift",
+        "ml" | "mli" | "ocaml" => "ocaml",
+        "sh" | "bash" | "zsh" | "fish" => "shell",
+        "ps1" => "powershell",
+        "toml" => "toml",
+        "ini" | "conf" | "cfg" | "env" | "properties" | "editorconfig" | "gitattributes" => {
+            "properties"
+        }
+        "proto" => "protobuf",
+        "cmake" | "mk" => "cmake",
+        "diff" | "patch" => "diff",
         _ => return None,
     })
 }
@@ -768,4 +799,30 @@ fn copy_to_clipboard(text: String, i18n: I18nService, toast: ToastService, succe
             }
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::cm_lang_for_path;
+
+    #[test]
+    fn cm_lang_maps_common_extensions() {
+        assert_eq!(cm_lang_for_path("src/main.rs"), Some("rust"));
+        assert_eq!(cm_lang_for_path("a/b.tsx"), Some("tsx"));
+        assert_eq!(cm_lang_for_path("x.py"), Some("python"));
+        assert_eq!(cm_lang_for_path("s.sh"), Some("shell"));
+        assert_eq!(cm_lang_for_path("Cargo.toml"), Some("toml"));
+        assert_eq!(cm_lang_for_path("app.rb"), Some("ruby"));
+        assert_eq!(cm_lang_for_path("m.kt"), Some("kotlin"));
+        assert_eq!(cm_lang_for_path(".env"), Some("properties"));
+        assert_eq!(cm_lang_for_path("Dockerfile"), Some("dockerfile"));
+        assert_eq!(cm_lang_for_path("a.patch"), Some("diff"));
+    }
+
+    #[test]
+    fn cm_lang_unknown_is_none() {
+        assert_eq!(cm_lang_for_path("notes.unknownext"), None);
+        assert_eq!(cm_lang_for_path("Makefile"), None);
+        assert_eq!(cm_lang_for_path("noext"), None);
+    }
 }
