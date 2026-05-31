@@ -12,6 +12,7 @@ BLXCode opens settings in a **center workbench tab** (not a modal). The command 
 | **API Keys** | All provider secrets in one pane — see below |
 | **Workspace** | Default project directory, agent sandbox root, embedded browser URL, **category colors** for Memory |
 | **BLXCode Agent** | Text, image, and voice inference — see below |
+| **Remote** | SSH connection presets for remote workspaces (host/port/user, password / key / agent auth, encrypted secrets, session-resume model); see [Remote (SSH)](remote-ssh.md) |
 
 Legacy saved categories (`Image`, `Voice`, `Memory`) still open the correct pane.
 
@@ -81,6 +82,14 @@ Details: [Agent Providers](agent-providers.md), [Image Mode](image.md), [Voice](
 - **Architecture LLM prose** — reserved for a future optional LLM pass when rebuilding the architecture map; rebuilds today are deterministic and do not call a model.
 
 See [Workspaces](workspaces.md) for File Diff, Git sync, and the architecture map in Memory.
+
+## Themed UI chrome
+
+BLXCode replaces several browser-native controls with theme-aware alternatives:
+
+- **`<select>` popups** — dropdown menus in the Create Workspace wizard, Remote connection picks, and other settings selectors use the active theme's surface and text colors instead of the OS default white background.
+- **Confirmation dialogs** — destructive actions (closing a workspace, removing plans, deleting SSH connections) show a themed modal dialog instead of `window.confirm()`. The dialog uses the app's accent/ danger tokens and keyboard navigation (Tab, Enter, Esc).
+- **Create Workspace backdrop** — the wizard overlay has a soft top-edge glow (`box-shadow`) that matches the active theme's accent color. This replaces a flat dimmed backdrop.
 
 ## See also
 

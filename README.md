@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-f4a261?style=for-the-badge" alt="MIT License" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.3.2-8a7cff?style=for-the-badge" alt="Version 0.3.2" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.3.3-8a7cff?style=for-the-badge" alt="Version 0.3.3" /></a>
   <img src="https://img.shields.io/badge/Rust-2021-b7410e?style=for-the-badge&logo=rust&logoColor=white" alt="Rust 2021" />
   <img src="https://img.shields.io/badge/Tauri-2-24c8db?style=for-the-badge&logo=tauri&logoColor=white" alt="Tauri 2" />
   <img src="https://img.shields.io/badge/Leptos-0.8-ef3939?style=for-the-badge" alt="Leptos 0.8" />
@@ -96,7 +96,7 @@ Create a workspace, assign terminal slots to Claude, Codex, Gemini, OpenCode, or
 
 ## What's new
 
-**Latest release: [0.3.2](CHANGELOG.md#032---2026-05-29)** · [friendly notes](docs/releases/v0.3.2.md) — terminal drag & drop works on Windows (WebView2).
+**Latest release: [0.3.3](CHANGELOG.md#033---2026-05-31)** · [friendly notes](docs/releases/v0.3.3.md) — SSH remote workspaces and in-app file editor.
 
 **[0.3.1](CHANGELOG.md#031---2026-05-29)** · [notes](docs/releases/v0.3.1.md) — smoother sidebar Git (background thread); no flashing console windows on Windows; calmer status watcher during `cargo tauri dev`.
 
@@ -286,7 +286,7 @@ BLXCode ships **14 locales** with compile-time string checks. Change language vi
 
 ## Status
 
-BLXCode is early-stage open source. The workbench, agent harness, sidebar Git, memory architecture map, and settings revamp are in active use on `main`; APIs and on-disk formats may still evolve. Current crate version: **0.3.2**.
+BLXCode is early-stage open source. The workbench, agent harness, sidebar Git, memory architecture map, and settings revamp are in active use on `main`; APIs and on-disk formats may still evolve. Current crate version: **0.3.3**.
 
 ## Community
 

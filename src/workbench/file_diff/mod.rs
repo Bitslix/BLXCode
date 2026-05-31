@@ -26,17 +26,17 @@ pub fn FileDiffDock(workspace_id: u64, rel_path: String, staged: bool) -> impl I
     Effect::new(move |_| {
         let _ = wb.workspaces().get();
         let _ = wb.sidebar_repo_epoch().get();
-        let cwd = wb.workspaces().with_untracked(|list| {
+        let lookup = wb.workspaces().with_untracked(|list| {
             list.iter()
                 .find(|w| w.id == workspace_id)
-                .map(|w| w.cwd.clone())
+                .map(|w| (w.cwd.clone(), w.remote_connection_id.clone()))
         });
-        let Some(cwd) = cwd.filter(|c| !c.trim().is_empty()) else {
+        let Some((cwd, conn)) = lookup.filter(|(c, _)| !c.trim().is_empty()) else {
             return;
         };
         let rel = rel_for_load.clone();
         spawn_local(async move {
-            match git_file_diff(cwd, rel, staged).await {
+            match git_file_diff(cwd, rel, staged, conn).await {
                 Ok(text) => {
                     diff_text.set(Some(text));
                     error_kind.set(None);

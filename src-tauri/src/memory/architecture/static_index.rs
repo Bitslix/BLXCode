@@ -62,7 +62,13 @@ pub fn generated_section_from_architecture_index(workspace_root: &Path) -> Optio
     let body = fs::read_to_string(path).ok()?;
     extract_static_block_inner(&body)
         .map(str::trim)
-        .and_then(|s| if s.is_empty() { None } else { Some(s.to_owned()) })
+        .and_then(|s| {
+            if s.is_empty() {
+                None
+            } else {
+                Some(s.to_owned())
+            }
+        })
 }
 
 fn rebuild_architecture_at(workspace_root: &Path) -> Result<RebuildReport, String> {
@@ -385,10 +391,18 @@ members = ["backend"]
         fs::create_dir_all(ws.join("src/workbench/agent_panel")).unwrap();
         fs::write(ws.join("src/lib.rs"), "pub mod workbench;\n").unwrap();
         fs::write(ws.join("src/workbench/mod.rs"), "pub mod agent_panel;\n").unwrap();
-        fs::write(ws.join("src/workbench/agent_panel/mod.rs"), "mod timeline;\n").unwrap();
+        fs::write(
+            ws.join("src/workbench/agent_panel/mod.rs"),
+            "mod timeline;\n",
+        )
+        .unwrap();
         fs::write(ws.join("src/workbench/agent_panel/timeline.rs"), "").unwrap();
         fs::create_dir_all(ws.join("backend/src")).unwrap();
-        fs::write(ws.join("backend/Cargo.toml"), "[package]\nname = \"backend\"\n").unwrap();
+        fs::write(
+            ws.join("backend/Cargo.toml"),
+            "[package]\nname = \"backend\"\n",
+        )
+        .unwrap();
         fs::write(ws.join("backend/src/lib.rs"), "mod api;\n").unwrap();
         fs::write(ws.join("backend/src/api.rs"), "").unwrap();
 
@@ -413,7 +427,11 @@ members = ["backend"]
     #[test]
     fn node_only_workspace_without_cargo() {
         let ws = temp_ws("node");
-        fs::write(ws.join("package.json"), "{\n  \"name\": \"blxcode-eb\"\n}\n").unwrap();
+        fs::write(
+            ws.join("package.json"),
+            "{\n  \"name\": \"blxcode-eb\"\n}\n",
+        )
+        .unwrap();
         fs::create_dir_all(ws.join("src/views")).unwrap();
         fs::create_dir_all(ws.join("src/bun")).unwrap();
         fs::write(ws.join("src/index.ts"), "export {};\n").unwrap();
@@ -492,10 +510,9 @@ members = ["backend"]
             "generic-{}",
             super::super::unit::sanitize_slug(ws.file_name().unwrap().to_str().unwrap())
         );
-        let body = fs::read_to_string(
-            ws.join(format!(".agents/memory/architecture/modules/{slug}.md")),
-        )
-        .unwrap();
+        let body =
+            fs::read_to_string(ws.join(format!(".agents/memory/architecture/modules/{slug}.md")))
+                .unwrap();
         assert!(body.contains("Languages: OCaml"));
         let _ = fs::remove_dir_all(ws);
     }
@@ -503,7 +520,11 @@ members = ["backend"]
     #[test]
     fn go_module_from_go_mod() {
         let ws = temp_ws("go");
-        fs::write(ws.join("go.mod"), "module github.com/acme/widget\n\ngo 1.22\n").unwrap();
+        fs::write(
+            ws.join("go.mod"),
+            "module github.com/acme/widget\n\ngo 1.22\n",
+        )
+        .unwrap();
         fs::create_dir_all(ws.join("internal/store")).unwrap();
         fs::write(ws.join("main.go"), "package main\n").unwrap();
         fs::write(ws.join("internal/store/db.go"), "package store\n").unwrap();
@@ -511,10 +532,8 @@ members = ["backend"]
         let report = rebuild_architecture_at(&ws).unwrap();
         assert_eq!(report.unit_count, 1);
         assert_eq!(report.kinds, vec!["go".to_owned()]);
-        let body = fs::read_to_string(
-            ws.join(".agents/memory/architecture/modules/go-widget.md"),
-        )
-        .unwrap();
+        let body = fs::read_to_string(ws.join(".agents/memory/architecture/modules/go-widget.md"))
+            .unwrap();
         assert!(body.contains("kind: go"));
         assert!(body.contains("`internal`"));
         let _ = fs::remove_dir_all(ws);
@@ -524,7 +543,11 @@ members = ["backend"]
     fn zig_project_from_build_zig() {
         let ws = temp_ws("zig");
         fs::write(ws.join("build.zig"), "// build\n").unwrap();
-        fs::write(ws.join("build.zig.zon"), ".{\n    .name = \"raylib_game\",\n}\n").unwrap();
+        fs::write(
+            ws.join("build.zig.zon"),
+            ".{\n    .name = \"raylib_game\",\n}\n",
+        )
+        .unwrap();
         fs::create_dir_all(ws.join("src/render")).unwrap();
         fs::write(ws.join("src/main.zig"), "pub fn main() void {}\n").unwrap();
         fs::write(ws.join("src/render/draw.zig"), "").unwrap();
@@ -532,10 +555,9 @@ members = ["backend"]
         let report = rebuild_architecture_at(&ws).unwrap();
         assert_eq!(report.unit_count, 1);
         assert_eq!(report.kinds, vec!["zig".to_owned()]);
-        let body = fs::read_to_string(
-            ws.join(".agents/memory/architecture/modules/zig-raylib-game.md"),
-        )
-        .unwrap();
+        let body =
+            fs::read_to_string(ws.join(".agents/memory/architecture/modules/zig-raylib-game.md"))
+                .unwrap();
         assert!(body.contains("kind: zig"));
         assert!(body.contains("`render`"));
         let _ = fs::remove_dir_all(ws);
@@ -555,10 +577,9 @@ members = ["backend"]
             "jai-{}",
             super::super::unit::sanitize_slug(ws.file_name().unwrap().to_str().unwrap())
         );
-        let body = fs::read_to_string(
-            ws.join(format!(".agents/memory/architecture/modules/{slug}.md")),
-        )
-        .unwrap();
+        let body =
+            fs::read_to_string(ws.join(format!(".agents/memory/architecture/modules/{slug}.md")))
+                .unwrap();
         assert!(body.contains("kind: jai"));
         assert!(body.contains("`modules`"));
         let _ = fs::remove_dir_all(ws);

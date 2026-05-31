@@ -68,12 +68,16 @@ pub fn FileDiffSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
 
     let last_cwd = StoredValue::new(None::<String>);
     let last_load_gen = StoredValue::new(0u32);
+    let last_repo_epoch = StoredValue::new(0u32);
 
     Effect::new(move |_| {
         let gen = load_gen.get();
-        let force_reload = gen != last_load_gen.get_value();
+        let epoch = wb.sidebar_repo_epoch().get();
+        // An epoch bump (manual sync, or the remote poll below) forces a reload
+        // even when the cwd is unchanged.
+        let force_reload = gen != last_load_gen.get_value() || epoch != last_repo_epoch.get_value();
         last_load_gen.set_value(gen);
-        let _ = wb.sidebar_repo_epoch().get();
+        last_repo_epoch.set_value(epoch);
         match git_repo_available.get() {
             Some(true) => {}
             Some(false) => {
@@ -87,6 +91,7 @@ pub fn FileDiffSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
         let Some(cwd) = wb.default_workspace_cwd() else {
             return;
         };
+        let conn = wb.active_remote_connection_id();
         let cwd_load = cwd.clone();
         let same_cwd = last_cwd.with_value(|prev| prev.as_deref() == Some(cwd.as_str()));
         let had_data = entries.get_untracked().is_some();
@@ -99,7 +104,7 @@ pub fn FileDiffSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
             error_kind.set(None);
         }
         spawn_local(async move {
-            match git_status_changes(cwd_load).await {
+            match git_status_changes(cwd_load, conn).await {
                 Ok(list) => {
                     entries.set(Some(list));
                     error_kind.set(None);
@@ -141,11 +146,38 @@ pub fn FileDiffSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
         let Some(cwd) = cwd else {
             return;
         };
+        // Remote repos can't use the local notify watcher (the backend returns
+        // a sentinel token); the polling effect below drives refreshes instead.
+        let conn = wb.active_remote_connection_id();
         spawn_local(async move {
-            if let Ok(token) = git_status_watch_start(cwd).await {
+            if let Ok(token) = git_status_watch_start(cwd, conn).await {
                 watch_token.set_value(Some(token));
             }
         });
+    });
+
+    // Remote polling: the notify watcher is local-only, so for SSH workspaces
+    // bump the repo epoch on an interval while the section is mounted. The
+    // status/graph/sync effects all key off `sidebar_repo_epoch`.
+    let poll_handle: SendWrapper<Rc<RefCell<Option<gloo_timers::callback::Interval>>>> =
+        SendWrapper::new(Rc::new(RefCell::new(None)));
+    let poll_for_cleanup = poll_handle.clone();
+    Effect::new(move |_| {
+        let is_remote = wb.active_remote_connection_id().is_some();
+        let available = matches!(git_repo_available.get(), Some(true));
+        if is_remote && available {
+            if poll_handle.borrow().is_none() {
+                let interval = gloo_timers::callback::Interval::new(4_000, move || {
+                    wb.bump_sidebar_repo_epoch();
+                });
+                *poll_handle.borrow_mut() = Some(interval);
+            }
+        } else {
+            poll_handle.borrow_mut().take();
+        }
+    });
+    on_cleanup(move || {
+        poll_for_cleanup.borrow_mut().take();
     });
 
     on_cleanup(move || {
@@ -207,7 +239,7 @@ pub fn FileDiffSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
         let Some(cwd) = wb.default_workspace_cwd() else {
             return;
         };
-        git_sync.refresh(cwd);
+        git_sync.refresh(cwd, wb.active_remote_connection_id());
     });
 
     // Push lives in this section; Fetch/Pull are in the Git Commits section.
@@ -250,11 +282,13 @@ pub fn FileDiffSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
             return;
         };
         let set_upstream = git_sync.needs_upstream();
+        let conn = wb.active_remote_connection_id();
         run_sync_op(
             git_sync,
             SyncOp::Push,
             cwd,
             set_upstream,
+            conn,
             toast,
             i18n,
             move || wb.sidebar_repo_epoch().update(|n| *n = n.wrapping_add(1)),
@@ -472,10 +506,11 @@ fn FileDiffGroup(
         let Some(cwd) = wb.default_workspace_cwd() else {
             return;
         };
+        let conn = wb.active_remote_connection_id();
         spawn_local(async move {
             let _ = match variant {
-                DiffGroupVariant::Staged => git_unstage_all(cwd).await,
-                DiffGroupVariant::Unstaged => git_stage_all(cwd).await,
+                DiffGroupVariant::Staged => git_unstage_all(cwd, conn).await,
+                DiffGroupVariant::Unstaged => git_stage_all(cwd, conn).await,
             };
             reload.run(());
         });
@@ -611,10 +646,11 @@ fn FileDiffRow(
             let Some(cwd) = wb.default_workspace_cwd() else {
                 return;
             };
+            let conn = wb.active_remote_connection_id();
             let rel = rel.clone();
             let reload = reload;
             spawn_local(async move {
-                let _ = git_stage_file(cwd, rel).await;
+                let _ = git_stage_file(cwd, rel, conn).await;
                 reload.run(());
             });
         }
@@ -626,10 +662,11 @@ fn FileDiffRow(
             let Some(cwd) = wb.default_workspace_cwd() else {
                 return;
             };
+            let conn = wb.active_remote_connection_id();
             let rel = rel.clone();
             let reload = reload;
             spawn_local(async move {
-                let _ = git_unstage_file(cwd, rel).await;
+                let _ = git_unstage_file(cwd, rel, conn).await;
                 reload.run(());
             });
         }

@@ -40,11 +40,12 @@ impl GitSyncControls {
         }
     }
 
-    /// Re-read branch/upstream/ahead-behind/dirty state for `cwd`.
-    pub fn refresh(&self, cwd: String) {
+    /// Re-read branch/upstream/ahead-behind/dirty state for `cwd`. `conn` is
+    /// the SSH connection id for remote workspaces (`None` = local).
+    pub fn refresh(&self, cwd: String, conn: Option<String>) {
         let status = self.status;
         spawn_local(async move {
-            if let Ok(s) = git_sync_status(cwd).await {
+            if let Ok(s) = git_sync_status(cwd, conn).await {
                 status.set(Some(s));
             }
         });
@@ -105,6 +106,7 @@ pub fn run_sync_op(
     op: SyncOp,
     cwd: String,
     set_upstream: bool,
+    conn: Option<String>,
     toast: ToastService,
     i18n: I18nService,
     after: impl Fn() + 'static,
@@ -115,9 +117,9 @@ pub fn run_sync_op(
     controls.busy.set(Some(op));
     spawn_local(async move {
         let res = match op {
-            SyncOp::Fetch => git_fetch(cwd).await,
-            SyncOp::Pull => git_pull(cwd).await,
-            SyncOp::Push => git_push(cwd, set_upstream).await,
+            SyncOp::Fetch => git_fetch(cwd, conn).await,
+            SyncOp::Pull => git_pull(cwd, conn).await,
+            SyncOp::Push => git_push(cwd, set_upstream, conn).await,
         };
         controls.busy.set(None);
         match res {

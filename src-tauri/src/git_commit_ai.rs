@@ -5,10 +5,13 @@
 use crate::agent::oneshot;
 use crate::agent_settings::{load_settings_pub, provider_key_pub};
 use crate::git_info::{find_git_dir, git_cli_available};
+use crate::git_remote::{remote_work_tree, run_git_remote};
 use crate::git_status::GIT_MISSING_CODE;
 use crate::proc::command;
+use crate::pty_host::PtyManager;
+use crate::ssh_exec::RemoteExecManager;
 use std::path::Path;
-use tauri::AppHandle;
+use tauri::{AppHandle, State};
 
 /// Cap the diff we send to the model so a huge staged change set doesn't blow
 /// the context window (and cost). The model still sees enough to summarize.
@@ -23,13 +26,30 @@ brief body only if the change genuinely needs explanation. Do not wrap the messa
 quotes or code fences, and do not add any commentary.";
 
 #[tauri::command]
-pub async fn git_generate_commit_message(app: AppHandle, cwd: String) -> Result<String, String> {
-    if !git_cli_available() {
-        return Err(GIT_MISSING_CODE.into());
-    }
-    let work_tree = resolve_work_tree(&cwd)?;
-
-    let diff = staged_diff(&work_tree)?;
+pub async fn git_generate_commit_message(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<String, String> {
+    let diff = if let Some(cid) = connection_id.as_deref() {
+        let wt = remote_work_tree(&app, &pty, &exec, cid, &cwd)?;
+        run_git_remote(
+            &app,
+            &pty,
+            &exec,
+            cid,
+            &wt,
+            &["diff", "--cached", "--no-color"],
+        )?
+    } else {
+        if !git_cli_available() {
+            return Err(GIT_MISSING_CODE.into());
+        }
+        let work_tree = resolve_work_tree(&cwd)?;
+        staged_diff(&work_tree)?
+    };
     if diff.trim().is_empty() {
         return Err("nothing staged".into());
     }
@@ -69,7 +89,8 @@ fn resolve_work_tree(cwd: &str) -> Result<std::path::PathBuf, String> {
     if trimmed.is_empty() {
         return Err("cwd is empty".into());
     }
-    let git_dir = find_git_dir(Path::new(trimmed)).ok_or_else(|| "not a git repository".to_string())?;
+    let git_dir =
+        find_git_dir(Path::new(trimmed)).ok_or_else(|| "not a git repository".to_string())?;
     git_dir
         .parent()
         .map(Path::to_path_buf)

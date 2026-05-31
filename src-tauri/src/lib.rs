@@ -11,6 +11,7 @@ mod fs_entries;
 mod git_commit_ai;
 mod git_graph;
 mod git_info;
+mod git_remote;
 mod git_status;
 mod git_sync;
 mod image;
@@ -22,6 +23,9 @@ mod pointers;
 mod proc;
 mod pty_host;
 mod skills_rules;
+mod ssh_exec;
+mod ssh_remotes;
+mod ssh_secrets;
 mod tasks;
 mod updater;
 mod voice;
@@ -130,6 +134,7 @@ pub fn run() {
         .manage(BrowserHost::default())
         .manage(git_status::GitWatcherState::default())
         .manage(PtyManager::default())
+        .manage(ssh_exec::RemoteExecManager::default())
         .manage(VoiceRecorderState::new())
         .manage(WorkbenchSessionsFileLock::default())
         .invoke_handler(tauri::generate_handler![
@@ -169,12 +174,19 @@ pub fn run() {
             create_directory,
             default_cwd,
             pty_spawn,
+            pty_spawn_remote,
             pty_write,
             pty_resize,
             pty_kill,
             pty_drain,
             pty_drain_wait,
             pty_peek_output,
+            ssh_remotes::ssh_remotes_list,
+            ssh_remotes::ssh_remote_save,
+            ssh_remotes::ssh_remote_delete,
+            ssh_remotes::ssh_remote_test,
+            ssh_exec::remote_exec_close,
+            ssh_exec::agent_remote_latest_session_id,
             git_branch,
             git_graph::git_is_repository,
             git_graph::git_commit_graph,
@@ -193,9 +205,11 @@ pub fn run() {
             git_sync::git_pull,
             git_sync::git_push,
             fs_entries::list_path_entries,
+            fs_entries::list_workspace_files,
             fs_entries::create_workspace_file,
             fs_entries::create_workspace_dir,
             fs_entries::read_workspace_text_file,
+            fs_entries::write_workspace_text_file,
             fs_entries::stat_workspace_file,
             fs_entries::read_workspace_image_file,
             fs_entries::read_workspace_video_file,
@@ -283,6 +297,15 @@ pub fn run() {
             clipboard_read_text,
             clipboard_write_text,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            // Kill all live PTY/ssh children on exit so nothing is orphaned.
+            // tmux-resume remote sessions survive (they live server-side).
+            if let tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit = event {
+                if let Some(pty) = app_handle.try_state::<PtyManager>() {
+                    pty.kill_all();
+                }
+            }
+        });
 }

@@ -1,9 +1,13 @@
 //! Commit graph for the sidebar via native `git log --graph` (no custom lane layout).
 
 use crate::git_info::{find_git_dir, git_cli_available};
+use crate::git_remote::{remote_is_repository, remote_work_tree, run_git_remote};
 use crate::proc::command;
+use crate::pty_host::PtyManager;
+use crate::ssh_exec::RemoteExecManager;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use tauri::{AppHandle, State};
 
 pub const GIT_MISSING_CODE: &str = "git_missing";
 const DEFAULT_LIMIT: u32 = 100;
@@ -50,17 +54,66 @@ pub struct GitGraphLayout {
 }
 
 #[tauri::command]
-pub fn git_is_repository(cwd: String) -> bool {
+pub fn git_is_repository(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
+    cwd: String,
+    connection_id: Option<String>,
+) -> bool {
     let trimmed = cwd.trim();
     if trimmed.is_empty() {
         return false;
+    }
+    if let Some(cid) = connection_id {
+        return remote_is_repository(&app, &pty, &exec, &cid, trimmed);
     }
     crate::git_info::is_git_repository(Path::new(trimmed))
 }
 
 #[tauri::command]
-pub async fn git_commit_graph(cwd: String, limit: Option<u32>) -> Result<GitGraphLayout, String> {
+pub async fn git_commit_graph(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
+    cwd: String,
+    limit: Option<u32>,
+    connection_id: Option<String>,
+) -> Result<GitGraphLayout, String> {
+    if let Some(cid) = connection_id {
+        return git_commit_graph_remote(&app, &pty, &exec, &cid, &cwd, limit);
+    }
     crate::proc::run_blocking(move || git_commit_graph_impl(cwd, limit)).await
+}
+
+fn graph_log_args(limit: u32, pretty: &str) -> Vec<String> {
+    vec![
+        "-c".into(),
+        format!("log.graphWidth={GRAPH_WIDTH}"),
+        "log".into(),
+        "--graph".into(),
+        "--topo-order".into(),
+        format!("-n{limit}"),
+        format!("--pretty=format:{pretty}"),
+    ]
+}
+
+fn git_commit_graph_remote(
+    app: &AppHandle,
+    pty: &PtyManager,
+    exec: &RemoteExecManager,
+    cid: &str,
+    cwd: &str,
+    limit: Option<u32>,
+) -> Result<GitGraphLayout, String> {
+    let work_tree = remote_work_tree(app, pty, exec, cid, cwd)?;
+    let limit = limit.unwrap_or(DEFAULT_LIMIT);
+    let pretty =
+        format!("%x1e%H{FIELD_SEP}%P{FIELD_SEP}%s{FIELD_SEP}%an{FIELD_SEP}%ar{FIELD_SEP}%D%x02");
+    let args = graph_log_args(limit, &pretty);
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    let text = run_git_remote(app, pty, exec, cid, &work_tree, &arg_refs)?;
+    Ok(parse_graph_layout(&text))
 }
 
 fn git_commit_graph_impl(cwd: String, limit: Option<u32>) -> Result<GitGraphLayout, String> {
@@ -102,6 +155,12 @@ fn fetch_graph_entries(work_tree: &Path, limit: u32) -> Result<GitGraphLayout, S
         return Err(format!("git log: {stderr}"));
     }
     let text = String::from_utf8_lossy(&out.stdout);
+    Ok(parse_graph_layout(&text))
+}
+
+/// Parse `git log --graph` output (local or remote) into the layout. The git
+/// invocation differs by transport; the parsing is identical.
+fn parse_graph_layout(text: &str) -> GitGraphLayout {
     let mut entries = Vec::new();
     let mut gutter_pending = String::new();
 
@@ -134,10 +193,10 @@ fn fetch_graph_entries(work_tree: &Path, limit: u32) -> Result<GitGraphLayout, S
         entry.gutter = pad_gutter_lines(&entry.gutter, gutter_cols);
     }
 
-    Ok(GitGraphLayout {
+    GitGraphLayout {
         entries,
         gutter_cols,
-    })
+    }
 }
 
 fn split_graph_line(line: &str) -> Option<(&str, &str)> {

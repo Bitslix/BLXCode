@@ -53,12 +53,14 @@ pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
 
     let last_graph_cwd = StoredValue::new(None::<String>);
     let last_load_gen = StoredValue::new(0u32);
+    let last_repo_epoch = StoredValue::new(0u32);
 
     Effect::new(move |_| {
         let gen = load_gen.get();
-        let force_reload = gen != last_load_gen.get_value();
+        let epoch = wb.sidebar_repo_epoch().get();
+        let force_reload = gen != last_load_gen.get_value() || epoch != last_repo_epoch.get_value();
         last_load_gen.set_value(gen);
-        let _ = wb.sidebar_repo_epoch().get();
+        last_repo_epoch.set_value(epoch);
         match git_repo_available.get() {
             Some(true) => {}
             Some(false) => {
@@ -72,6 +74,7 @@ pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
         let Some(cwd) = wb.default_workspace_cwd() else {
             return;
         };
+        let conn = wb.active_remote_connection_id();
         let cwd_load = cwd.clone();
         let had_layout = layout.get_untracked().is_some();
         let same_cwd = last_graph_cwd.with_value(|prev| prev.as_deref() == Some(cwd.as_str()));
@@ -84,7 +87,7 @@ pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
             error_kind.set(None);
         }
         spawn_local(async move {
-            match git_commit_graph(cwd_load, Some(100)).await {
+            match git_commit_graph(cwd_load, Some(100), conn).await {
                 Ok(g) => {
                     layout.set(Some(g));
                     error_kind.set(None);
@@ -146,7 +149,7 @@ pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
         let Some(cwd) = wb.default_workspace_cwd() else {
             return;
         };
-        git_sync.refresh(cwd);
+        git_sync.refresh(cwd, wb.active_remote_connection_id());
     });
 
     let can_fetch = move || busy.get().is_none() && sync.get().is_some_and(|s| s.has_remote);
@@ -170,11 +173,13 @@ pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
             return;
         };
         let set_upstream = git_sync.needs_upstream();
+        let conn = wb.active_remote_connection_id();
         run_sync_op(
             git_sync,
             op,
             cwd,
             set_upstream,
+            conn,
             toast,
             i18n,
             move || wb.sidebar_repo_epoch().update(|n| *n = n.wrapping_add(1)),

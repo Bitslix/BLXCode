@@ -50,9 +50,10 @@ pub fn CommitDialog(
         let Some(cwd) = wb.default_workspace_cwd() else {
             return;
         };
+        let conn = wb.active_remote_connection_id();
         generating.set(true);
         spawn_local(async move {
-            match git_generate_commit_message(cwd).await {
+            match git_generate_commit_message(cwd, conn).await {
                 Ok(msg) => {
                     message.set(msg);
                 }
@@ -79,9 +80,10 @@ pub fn CommitDialog(
         let Some(cwd) = wb.default_workspace_cwd() else {
             return;
         };
+        let conn = wb.active_remote_connection_id();
         committing.set(true);
         spawn_local(async move {
-            match git_commit(cwd, text).await {
+            match git_commit(cwd, text, conn).await {
                 Ok(()) => {
                     toast.success(i18n.tr(I18nKey::SbDiffCommitSuccess)());
                     committing.set(false);

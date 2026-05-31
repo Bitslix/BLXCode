@@ -4,6 +4,7 @@
 //! sind im Haupt-Webview gebunden ([`HarnessHost`] → [`super::harness_chords`]).
 use super::app_prefs::AppPrefsService;
 use super::browser_tab::sync_embedded_browser_layer;
+use super::fuzzy::fuzzy_score;
 use super::harness_chords::handle_harness_keydown;
 use super::state::{
     workspace_entry_has_folder, BrowserEmbedSurface, HarnessSettingsCategory, HarnessUiService,
@@ -14,8 +15,9 @@ use super::voice_app_controls::{VoicePttControls, VoiceSttLanguageControls};
 use crate::i18n::{lookup, I18nKey, Locale, APP_LOCALES};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_hooks_status, install_agent_hooks, is_tauri_shell, uninstall_agent_hooks,
-    voice_settings_get, voice_settings_save, AgentHooksReport, VoiceSettings,
+    agent_hooks_status, install_agent_hooks, is_tauri_shell, list_workspace_files,
+    uninstall_agent_hooks, voice_settings_get, voice_settings_save, AgentHooksReport,
+    VoiceSettings,
 };
 use gloo_timers::future::TimeoutFuture;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
@@ -124,6 +126,9 @@ pub fn HarnessHost() -> impl IntoView {
     view! {
         <Show when=move || ui.quick_open_open().get()>
             <QuickOpenChrome ui=ui wb=wb embed=embed />
+        </Show>
+        <Show when=move || ui.find_file_open().get()>
+            <FindFileChrome ui=ui wb=wb />
         </Show>
         <Show when=move || ui.palette_open().get()>
             <PaletteChrome ui=ui wb=wb embed=embed />
@@ -413,6 +418,209 @@ fn quick_open_filter_input(ev: web_sys::Event, ui: HarnessUiService) {
     ui.quick_open_selection().set(0);
 }
 
+/// Max rows rendered in the file finder (the index can hold up to 20k entries;
+/// only the top matches are shown to keep the DOM light).
+const FIND_FILE_MAX_RESULTS: usize = 300;
+
+/// Fuzzy file finder palette. Mounted only while open, so it fetches the file
+/// index fresh each time it appears.
+#[component]
+fn FindFileChrome(ui: HarnessUiService, wb: WorkbenchService) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let files = RwSignal::new(Vec::<String>::new());
+
+    // Fetch the workspace file index for the active workspace on mount.
+    Effect::new(move |_| {
+        let Some((root, conn)) = wb.workspaces().with_untracked(|list| {
+            let active = wb.active_id().get_untracked()?;
+            list.iter()
+                .find(|w| w.id == active)
+                .map(|w| (w.cwd.clone(), w.remote_connection_id.clone()))
+        }) else {
+            return;
+        };
+        if root.trim().is_empty() {
+            return;
+        }
+        leptos::task::spawn_local(async move {
+            if let Ok(list) = list_workspace_files(root, conn).await {
+                files.set(list);
+            }
+        });
+    });
+
+    // Rank by fuzzy score (empty query ⇒ first N sorted files).
+    let ranked = Memo::new(move |_| {
+        let q = ui.find_file_query().get();
+        let q = q.trim().to_string();
+        files.with(|all| {
+            if q.is_empty() {
+                all.iter()
+                    .take(FIND_FILE_MAX_RESULTS)
+                    .cloned()
+                    .collect::<Vec<_>>()
+            } else {
+                let mut scored: Vec<(i32, &String)> = all
+                    .iter()
+                    .filter_map(|p| fuzzy_score(&q, p).map(|s| (s, p)))
+                    .collect();
+                scored.sort_by(|a, b| {
+                    b.0.cmp(&a.0)
+                        .then(a.1.len().cmp(&b.1.len()))
+                        .then(a.1.cmp(b.1))
+                });
+                scored
+                    .into_iter()
+                    .take(FIND_FILE_MAX_RESULTS)
+                    .map(|(_, p)| p.clone())
+                    .collect()
+            }
+        })
+    });
+
+    // Focus the filter input shortly after mount.
+    Effect::new(move |_| {
+        leptos::task::spawn_local(async {
+            TimeoutFuture::new(32).await;
+            if let Some(el) = web_sys::window()
+                .and_then(|w| w.document())
+                .and_then(|d| d.get_element_by_id("harness-findfile-filter"))
+            {
+                if let Ok(inp) = el.dyn_into::<web_sys::HtmlInputElement>() {
+                    let _ = inp.focus();
+                }
+            }
+        });
+    });
+
+    let open_file = move |path: String| {
+        if let Some(id) = wb.active_id().get_untracked() {
+            wb.open_center_file_tab(id, path);
+        }
+        ui.close_find_file();
+    };
+
+    view! {
+        <div class="harness-overlay harness-overlay--modal" role="presentation">
+            <div
+                class="harness-sheet harness-sheet--palette harness-sheet--quickopen"
+                role="dialog"
+                aria-modal="true"
+            >
+                <h2 class="harness-quickopen-title">{move || i18n.tr(I18nKey::FfTitle)()}</h2>
+                <div class="harness-palette-filter-wrap">
+                    <span class="harness-palette-filter__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuFileSearch width="0.92rem" height="0.92rem" />
+                    </span>
+                    <input
+                        class="workbench-plain-input harness-filter harness-filter--with-icon"
+                        id="harness-findfile-filter"
+                        placeholder=move || i18n.tr(I18nKey::FfFilterPh)()
+                        type="text"
+                        autocomplete="off"
+                        spellcheck="false"
+                        prop:value=move || ui.find_file_query().get()
+                        on:input=move |ev| {
+                            if let Some(s) = input_str(&ev) {
+                                ui.find_file_query().set(s);
+                            }
+                            ui.find_file_selection().set(0);
+                        }
+                        on:keydown=move |ev: web_sys::KeyboardEvent| {
+                            let rows = ranked.get_untracked();
+                            let n = rows.len();
+                            match ev.key().as_str() {
+                                "ArrowDown" => {
+                                    ev.prevent_default();
+                                    if n > 0 {
+                                        let next = ui
+                                            .find_file_selection()
+                                            .get_untracked()
+                                            .saturating_add(1)
+                                            .min(n - 1);
+                                        ui.find_file_selection().set(next);
+                                    }
+                                }
+                                "ArrowUp" => {
+                                    ev.prevent_default();
+                                    let sel =
+                                        ui.find_file_selection().get_untracked().saturating_sub(1);
+                                    ui.find_file_selection().set(sel);
+                                }
+                                "Enter" => {
+                                    ev.prevent_default();
+                                    if n > 0 {
+                                        let sel =
+                                            ui.find_file_selection().get_untracked().min(n - 1);
+                                        if let Some(p) = rows.get(sel) {
+                                            open_file(p.clone());
+                                        }
+                                    }
+                                }
+                                "Escape" => {
+                                    ev.prevent_default();
+                                    ui.close_find_file();
+                                }
+                                _ => {}
+                            }
+                        }
+                    />
+                </div>
+
+                <ul class="harness-cmd-list" role="listbox">
+                    {move || {
+                        let rows = ranked.get();
+                        if rows.is_empty() {
+                            return view! {
+                                <li class="harness-muted">{move || i18n.tr(I18nKey::FfEmpty)()}</li>
+                            }
+                            .into_any();
+                        }
+                        rows.into_iter()
+                            .enumerate()
+                            .map(|(rank, path)| {
+                                let sel = ui.find_file_selection();
+                                let name = path
+                                    .rsplit('/')
+                                    .next()
+                                    .unwrap_or(&path)
+                                    .to_string();
+                                let path_for_click = path.clone();
+                                view! {
+                                    <li class="harness-cmd-li">
+                                        <button
+                                            type="button"
+                                            class="harness-cmd-btn"
+                                            class:harness-cmd-btn--active=move || sel.get() == rank
+                                            on:click=move |_| open_file(path_for_click.clone())
+                                        >
+                                            <span class="harness-cmd-btn__icon" aria-hidden="true">
+                                                <LxIcon icon=icondata::LuFile width="1rem" height="1rem" />
+                                            </span>
+                                            <span class="harness-cmd-btn__text">
+                                                <span class="harness-cmd-title">{name}</span>
+                                                <span class="harness-cmd-sub">{path}</span>
+                                            </span>
+                                        </button>
+                                    </li>
+                                }
+                            })
+                            .collect_view()
+                            .into_any()
+                    }}
+                </ul>
+            </div>
+            <button
+                type="button"
+                class="harness-scrim"
+                tabindex="-1"
+                aria-label=move || i18n.tr(I18nKey::BtnClose)()
+                on:click=move |_| ui.close_find_file()
+            ></button>
+        </div>
+    }
+}
+
 fn clamp_quick_open_selection_after_recent_change(ui: HarnessUiService, wb: WorkbenchService) {
     let n = wb.recent_workspaces().with(|list| {
         list.iter()
@@ -680,6 +888,7 @@ fn harness_settings_cat_icon(cat: HarnessSettingsCategory) -> icondata::Icon {
         HarnessSettingsCategory::ApiKeys => icondata::LuKeyRound,
         HarnessSettingsCategory::Workspace => icondata::LuFolderOpen,
         HarnessSettingsCategory::AgentProvider => icondata::LuCpu,
+        HarnessSettingsCategory::Remote => icondata::LuServer,
         HarnessSettingsCategory::Memory => icondata::LuPalette,
         HarnessSettingsCategory::Voice => icondata::LuMic,
         HarnessSettingsCategory::Image => icondata::LuImage,
@@ -703,6 +912,7 @@ pub fn SettingsDock(
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::ApiKeys label=I18nKey::HsCatApiKeys />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Workspace label=I18nKey::HsCatWorkspace />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::AgentProvider label=I18nKey::HsCatProvider />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Remote label=I18nKey::HsCatRemote />
             </nav>
 
             <div class="harness-settings-detail">
@@ -724,6 +934,9 @@ pub fn SettingsDock(
                     }.into_any(),
                     HarnessSettingsCategory::AgentProvider => view! {
                         <crate::workbench::AgentProviderPane />
+                    }.into_any(),
+                    HarnessSettingsCategory::Remote => view! {
+                        <crate::workbench::RemoteSettingsPane />
                     }.into_any(),
                     HarnessSettingsCategory::Memory => view! {
                         <crate::workbench::WorkspaceSettingsPane wb=wb embed=embed />

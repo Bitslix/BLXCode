@@ -22,7 +22,7 @@ Press the **prefix** (**Ctrl+b**), then a second key within **1.5 seconds**. Pre
 
 | Second key | Action |
 | ---------- | ------ |
-| `o` | Quick Open |
+| `o` | [Quick Open](file-finder.md) |
 | `r` | Toggle right panel |
 | `a` | Agent tab |
 | `b` | Browser tab |
@@ -36,7 +36,7 @@ Direct chords (no prefix):
 
 | Shortcut | Action |
 | -------- | ------ |
-| `Ctrl+O` | Quick Open |
+| `Ctrl+O` | [Quick Open](file-finder.md) |
 | `Ctrl+P` | Toggle right panel |
 | `Ctrl+Shift+A` | Agent tab |
 | `Ctrl+Shift+B` | Browser tab |
@@ -58,3 +58,4 @@ Errors always show an error toast regardless of the success-toast toggle.
 - [Getting Started](getting-started.md) — first launch and welcome screen
 - [Workspaces](workspaces.md) — terminal focus and handoff
 - [Agent Providers](agent-providers.md) — agent panel and settings
+- [Quick Open (File Finder)](file-finder.md) — fuzzy file navigation

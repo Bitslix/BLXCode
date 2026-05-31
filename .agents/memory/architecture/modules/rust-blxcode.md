@@ -19,8 +19,8 @@ Manual notes about this unit can live above or below the generated block.
 - Manifest: `src-tauri/Cargo.toml`
 - Root: `src-tauri`
 - Source root: `src-tauri/src`
-- Source files: 89
-- Root declarations: `agent`, `agent_hooks`, `agent_settings`, `agents_layout`, `api_keys`, `app_paths`, `browser_host`, `clipboard`, `commands`, `fs_entries`, `git_commit_ai`, `git_graph`, `git_info`, `git_status`, `git_sync`, `image`, `media_keys`, `memory`, `plans`, `plans_index`, `pointers`, `proc`, `pty_host`, `skills_rules`, `tasks`, `updater`, `voice`, `workbench_state`
+- Source files: 93
+- Root declarations: `agent`, `agent_hooks`, `agent_settings`, `agents_layout`, `api_keys`, `app_paths`, `browser_host`, `clipboard`, `commands`, `fs_entries`, `git_commit_ai`, `git_graph`, `git_info`, `git_remote`, `git_status`, `git_sync`, `image`, `media_keys`, `memory`, `plans`, `plans_index`, `pointers`, `proc`, `pty_host`, `skills_rules`, `ssh_exec`, `ssh_remotes`, `ssh_secrets`, `tasks`, `updater`, `voice`, `workbench_state`
 
 ### Top-Level Modules
 
@@ -37,6 +37,7 @@ Manual notes about this unit can live above or below the generated block.
 - `git_commit_ai` (1 files); declarations: `tests`
 - `git_graph` (1 files); declarations: `tests`
 - `git_info` (1 files); declarations: `tests`
+- `git_remote` (1 files)
 - `git_status` (1 files); declarations: `tests`
 - `git_sync` (1 files); declarations: `tests`
 - `image` (4 files) — submodules: `commands`, `generate`, `settings`; declarations: `commands`, `generate`, `settings`, `tests`
@@ -46,8 +47,11 @@ Manual notes about this unit can live above or below the generated block.
 - `plans_index` (1 files); declarations: `tests`
 - `pointers` (1 files); declarations: `tests`
 - `proc` (1 files)
-- `pty_host` (1 files)
+- `pty_host` (1 files); declarations: `tests`
 - `skills_rules` (6 files) — submodules: `commands`, `install`, `pointers`, `store`, `types`; declarations: `commands`, `install`, `pointers`, `store`, `tests`, `types`
+- `ssh_exec` (1 files); declarations: `tests`
+- `ssh_remotes` (1 files)
+- `ssh_secrets` (1 files)
 - `tasks` (1 files); declarations: `tests`
 - `updater` (1 files); declarations: `tests`
 - `voice` (6 files) — submodules: `commands`, `recorder`, `settings`, `stt`, `tts`; declarations: `commands`, `recorder`, `settings`, `stt`, `tts`
@@ -92,6 +96,7 @@ Manual notes about this unit can live above or below the generated block.
 - `src-tauri/src/git_commit_ai.rs`
 - `src-tauri/src/git_graph.rs`
 - `src-tauri/src/git_info.rs`
+- `src-tauri/src/git_remote.rs`
 - `src-tauri/src/git_status.rs`
 - `src-tauri/src/git_sync.rs`
 - `src-tauri/src/image/commands.rs`
@@ -134,7 +139,7 @@ Manual notes about this unit can live above or below the generated block.
 - `src-tauri/src/skills_rules/mod.rs`
 - `src-tauri/src/skills_rules/pointers.rs`
 - `src-tauri/src/skills_rules/store.rs`
-- `src-tauri/src/skills_rules/types.rs`
-- ... 9 more source paths omitted
+- ... 13 more source paths omitted
 <!-- architecture:static:end -->
+
 

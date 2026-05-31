@@ -105,16 +105,22 @@ impl Binding {
         match self {
             Self::Combo(chord) => chord.parts().join(" + "),
             Self::Chord { second } => {
-                format!("{} {} {}", prefix.parts().join(" + "), then_word, display_key(second))
+                format!(
+                    "{} {} {}",
+                    prefix.parts().join(" + "),
+                    then_word,
+                    display_key(second)
+                )
             }
         }
     }
 }
 
-/// The bindable harness actions (the 7 rows shown on the welcome screen).
+/// The bindable harness actions (the rows shown on the welcome screen).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ShortcutAction {
     QuickOpen,
+    FindFile,
     SidePanel,
     Agent,
     Browser,
@@ -125,8 +131,9 @@ pub enum ShortcutAction {
 
 impl ShortcutAction {
     /// Stable iteration order (mirrors the welcome-screen layout).
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::QuickOpen,
+        Self::FindFile,
         Self::SidePanel,
         Self::Agent,
         Self::Browser,
@@ -139,6 +146,7 @@ impl ShortcutAction {
     pub fn label_key(self) -> I18nKey {
         match self {
             Self::QuickOpen => I18nKey::WsKwQuickOpen,
+            Self::FindFile => I18nKey::WsKwFindFile,
             Self::SidePanel => I18nKey::WsKwSidePanel,
             Self::Agent => I18nKey::WsKwAgent,
             Self::Browser => I18nKey::WsKwBrowser,
@@ -152,6 +160,7 @@ impl ShortcutAction {
     pub fn to_harness_action(self) -> HarnessShortcutAction {
         match self {
             Self::QuickOpen => HarnessShortcutAction::OpenQuickOpen,
+            Self::FindFile => HarnessShortcutAction::OpenFindFile,
             Self::SidePanel => HarnessShortcutAction::ToggleRightPanel,
             Self::Agent => HarnessShortcutAction::RightTab(RightPanelTab::Agent),
             Self::Browser => HarnessShortcutAction::RightTab(RightPanelTab::Browser),
@@ -166,6 +175,7 @@ impl ShortcutAction {
     fn default_second(self) -> &'static str {
         match self {
             Self::QuickOpen => "o",
+            Self::FindFile => "f",
             Self::SidePanel => "r",
             Self::Agent => "a",
             Self::Browser => "b",
@@ -180,6 +190,8 @@ impl ShortcutAction {
     fn default_combo(self) -> KeyChord {
         match self {
             Self::QuickOpen => KeyChord::new(true, false, false, "o"),
+            // Ctrl+Alt+F so it doesn't clobber the in-editor find (Ctrl+F).
+            Self::FindFile => KeyChord::new(true, true, false, "f"),
             Self::SidePanel => KeyChord::new(true, false, false, "p"),
             Self::Agent => KeyChord::new(true, true, false, "a"),
             Self::Browser => KeyChord::new(true, true, false, "b"),
@@ -235,9 +247,12 @@ impl ShortcutConfig {
     /// missing from the map.
     #[must_use]
     pub fn binding(&self, action: ShortcutAction) -> Binding {
-        self.bindings.get(&action).cloned().unwrap_or(Binding::Chord {
-            second: action.default_second().to_owned(),
-        })
+        self.bindings
+            .get(&action)
+            .cloned()
+            .unwrap_or(Binding::Chord {
+                second: action.default_second().to_owned(),
+            })
     }
 
     /// Find the action bound as a tmux *chord* whose second key matches `ev`
@@ -245,19 +260,23 @@ impl ShortcutConfig {
     #[must_use]
     pub fn chord_match(&self, ev: &KeyboardEvent) -> Option<ShortcutAction> {
         let key = normalize_key(&ev.key());
-        self.bindings.iter().find_map(|(action, binding)| match binding {
-            Binding::Chord { second } if *second == key => Some(*action),
-            _ => None,
-        })
+        self.bindings
+            .iter()
+            .find_map(|(action, binding)| match binding {
+                Binding::Chord { second } if *second == key => Some(*action),
+                _ => None,
+            })
     }
 
     /// Find the action bound as a direct *combo* matching `ev` exactly.
     #[must_use]
     pub fn combo_match(&self, ev: &KeyboardEvent) -> Option<ShortcutAction> {
-        self.bindings.iter().find_map(|(action, binding)| match binding {
-            Binding::Combo(chord) if chord.matches(ev) => Some(*action),
-            _ => None,
-        })
+        self.bindings
+            .iter()
+            .find_map(|(action, binding)| match binding {
+                Binding::Combo(chord) if chord.matches(ev) => Some(*action),
+                _ => None,
+            })
     }
 
     /// Actions that collide with `action`'s current binding (same combo, or
@@ -322,7 +341,9 @@ mod tests {
         assert_eq!(cfg.prefix, KeyChord::new(true, false, false, "b"));
         assert_eq!(
             cfg.binding(ShortcutAction::Terminal),
-            Binding::Chord { second: "n".to_owned() }
+            Binding::Chord {
+                second: "n".to_owned()
+            }
         );
     }
 
@@ -343,7 +364,10 @@ mod tests {
             "Ctrl + Shift + N"
         );
         assert_eq!(
-            Binding::Chord { second: "n".to_owned() }.display(&prefix, "then"),
+            Binding::Chord {
+                second: "n".to_owned()
+            }
+            .display(&prefix, "then"),
             "Ctrl + B then N"
         );
     }
@@ -360,7 +384,9 @@ mod tests {
         let mut cfg = ShortcutConfig::preset(ShortcutMode::Legacy);
         let dup = cfg.binding(ShortcutAction::QuickOpen);
         cfg.bindings.insert(ShortcutAction::Terminal, dup);
-        assert!(cfg.conflicts(ShortcutAction::Terminal).contains(&ShortcutAction::QuickOpen));
+        assert!(cfg
+            .conflicts(ShortcutAction::Terminal)
+            .contains(&ShortcutAction::QuickOpen));
         assert!(cfg.conflicts(ShortcutAction::Agent).is_empty());
     }
 

@@ -6,6 +6,7 @@ A BLXCode workspace is a project folder plus the UI state needed to work inside 
 
 The workspace configurator lets you:
 
+- Choose a **Local** workspace or a **Remote (SSH)** connection — pick a saved preset (or **+ Add connection**) to run the workspace, its terminals, files, and Git on a remote host. See [Remote (SSH)](remote-ssh.md).
 - Select or create a project directory.
 - Type `cd ...` style navigation commands for fast path movement.
 - Pick a terminal-grid preset.

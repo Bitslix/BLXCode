@@ -1,0 +1,70 @@
+/* Remote (SSH) settings pane. Colours/spacing come from theme tokens
+   (themes/tokens.css) so every theme is honoured automatically. */
+
+.remote-conn-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.remote-conn-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.remote-conn-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px 12px;
+}
+
+.remote-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.remote-field--wide {
+  grid-column: 1 / -1;
+}
+
+.remote-field--port {
+  max-width: 110px;
+}
+
+.remote-field__label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  opacity: 0.8;
+}
+
+.remote-conn-row__hint {
+  margin: 0;
+  font-size: 0.74rem;
+}
+
+.remote-conn-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+/* Sidebar remote marker */
+.workbench-sidebar__remote {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 2px;
+  opacity: 0.75;
+}
+
+.workbench-sidebar__row--remote .workbench-sidebar__icon {
+  position: relative;
+}

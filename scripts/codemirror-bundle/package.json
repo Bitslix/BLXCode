@@ -1,0 +1,37 @@
+{
+  "name": "blxcode-codemirror-bundle",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Builds the single-file CodeMirror 6 bundle vendored at public/vendor/codemirror/codemirror.min.js (global BlxCM), used by the in-app code editor (edit mode).",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild cm-entry.js --bundle --minify --format=iife --global-name=BlxCM --legal-comments=none --outfile=../../public/vendor/codemirror/codemirror.min.js"
+  },
+  "dependencies": {
+    "@codemirror/commands": "^6.7.1",
+    "@codemirror/lang-cpp": "^6.0.2",
+    "@codemirror/lang-css": "^6.3.1",
+    "@codemirror/lang-go": "^6.0.1",
+    "@codemirror/lang-html": "^6.4.9",
+    "@codemirror/lang-java": "^6.0.1",
+    "@codemirror/lang-javascript": "^6.2.2",
+    "@codemirror/lang-json": "^6.0.1",
+    "@codemirror/lang-markdown": "^6.3.1",
+    "@codemirror/lang-php": "^6.0.1",
+    "@codemirror/lang-python": "^6.1.6",
+    "@codemirror/lang-rust": "^6.0.1",
+    "@codemirror/lang-sql": "^6.8.0",
+    "@codemirror/lang-xml": "^6.1.0",
+    "@codemirror/lang-yaml": "^6.1.2",
+    "@codemirror/language": "^6.10.8",
+    "@codemirror/legacy-modes": "^6.4.2",
+    "@codemirror/state": "^6.5.0",
+    "@codemirror/theme-one-dark": "^6.1.2",
+    "@codemirror/view": "^6.36.1",
+    "@lezer/highlight": "^1.2.1",
+    "codemirror": "^6.0.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.2"
+  }
+}
