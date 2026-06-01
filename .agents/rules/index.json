@@ -3,22 +3,60 @@
   "rules": {
     "rule-no-monolith-structure.md": {
       "enabled": true,
-      "updatedAt": "2026-05-20T11:32:10Z"
+      "updatedAt": "2026-05-20T11:32:10Z",
+      "tags": [
+        "architecture",
+        "modularity",
+        "code-organization"
+      ]
     },
     "rule-reusable-components.md": {
       "enabled": true,
-      "updatedAt": "2026-05-20T11:32:10Z"
+      "updatedAt": "2026-05-20T11:32:10Z",
+      "tags": [
+        "frontend",
+        "components",
+        "reuse"
+      ]
     },
     "rule-theme-tokens.md": {
       "enabled": true,
       "updatedAt": "2026-05-22T08:02:09Z",
-      "tags": [],
+      "tags": [
+        "frontend",
+        "css",
+        "theme"
+      ],
       "source": "user"
     },
     "rule-use-enabled-rust-skills.md": {
       "enabled": true,
       "updatedAt": "2026-05-22T08:02:09Z",
-      "tags": [],
+      "tags": [
+        "rust",
+        "skills",
+        "tauri"
+      ],
+      "source": "user"
+    },
+    "rule-manage-plans-required.md": {
+      "enabled": true,
+      "updatedAt": "2026-06-01T19:27:50Z",
+      "tags": [
+        "plans",
+        "workflow",
+        "skills"
+      ],
+      "source": "user"
+    },
+    "rule-branch-and-phase-commits.md": {
+      "enabled": true,
+      "updatedAt": "2026-06-01T19:27:50Z",
+      "tags": [
+        "git",
+        "commits",
+        "workflow"
+      ],
       "source": "user"
     }
   }

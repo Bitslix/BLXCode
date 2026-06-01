@@ -33,3 +33,4 @@ Manual notes about this unit can live above or below the generated block.
 - `public/terminal_bootstrap.mjs`
 - `scripts/tauri-before-build.cjs`
 <!-- architecture:static:end -->
+
