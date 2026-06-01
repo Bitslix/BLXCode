@@ -229,14 +229,22 @@ sha-Verify). So bleibt der Katalog rein deklarativ.
 ### Backend-Commands + Download-Events
 
 - `whisper_models_list() -> Vec<WhisperModelView>` — Katalog + `installed: bool`
-  + `installed_path`. Treibt die Liste.
+  + `installed_path` + `partial_bytes: Option<u64>` (Größe eines vorhandenen
+  `.part` → Resume-Anzeige). Treibt die Liste.
 - `whisper_model_download(id)` — streamt die Datei nach
   `app_data_dir/voice/models/<id>.bin.part`, atomar umbenennen nach Erfolg +
   sha256-Verify. Läuft in einem Background-Task (`spawn`), **nicht** blockierend.
+  **Resume**: existiert bereits ein `.part`, wird mit `Range: bytes=<len>-`
+  fortgesetzt und an die Datei angehängt (`OpenOptions::append`); der Server
+  muss `206 Partial Content` liefern — bei `200` (kein Range-Support) wird das
+  `.part` verworfen und von vorn geladen. `received` startet beim bestehenden
+  `.part`-Offset, `total` = Offset + `Content-Length` bzw. Katalog-`size_bytes`.
   Fortschritt über eigenen Event-Kanal (derselbe wie PTT-Events, P3):
   `WhisperDownloadProgress { id, received, total, speed_bps }` (throttled
   ~200 ms) und `WhisperDownloadDone { id }` / `WhisperDownloadError { id, msg }`.
-- `whisper_model_cancel(id)` — bricht laufenden Download ab, `.part` löschen.
+- `whisper_model_cancel(id)` — pausiert/bricht laufenden Download ab; das `.part`
+  **bleibt erhalten**, damit ein erneuter Download per Range fortsetzt
+  (explizites „Verwerfen" löscht das `.part`).
 - `whisper_model_delete(id)` — entfernt installierte Datei.
 
 `speed_bps`/ETA werden im Backend aus einem gleitenden Fenster der empfangenen
@@ -250,8 +258,10 @@ Bytes berechnet (kein Verlass auf Server-`Content-Length` allein).
   Beschreibung, Größe, Speed-/Accuracy-Punkte (gefüllte/leere Dots aus
   `speed_rating`/`accuracy_rating`), „Best for"-Zeile (muted), und rechts der
   Aktionsbereich:
-  - nicht installiert → **Download**-Button
-  - läuft → **Progressbar** (received/total %), Speed (MB/s), ETA, Cancel
+  - nicht installiert, kein `.part` → **Download**-Button
+  - läuft → **Progressbar** (received/total %), Speed (MB/s), ETA, Pause/Cancel
+  - pausiert/unvollständig (`.part` vorhanden) → **Resume**-Button (zeigt
+    bereits geladenen Anteil) + „Verwerfen"
   - installiert → „Installed"-Badge + **Delete**-Button; aktives Modell
     zusätzlich markiert (das in `PttSettings.local_model_path` gewählte)
 - Auswahl eines installierten Modells setzt `PttSettings.local_model_path` →
@@ -295,7 +305,7 @@ und Decode-Qualität sind getrennte Achsen; UI erklärt das knapp per Hint.
 ### P5 — i18n, Doku, Tests
 - Fehlende `VoicePtt*`-Keys in **allen** `locales/*.rs` (Exhaustiveness-Pflicht); Deutsch sauber, Rest via `scripts/render_i18n_locales_from_en.py`.
 - Doku: User-Doku Voice/PTT + Troubleshooting (Modell fehlt, Mic, langsame Transkription, Cloud nicht konfiguriert, Feedback-Loop).
-- Tests: Settings-Serde/Defaults (inkl. `partial_transcript=true`), Ziel-Routing, Remember-Target, Kollisions-Machine, Modellpfad-Validierung, Katalog-Integrität (URLs/sha vorhanden, IDs eindeutig), Installed-Detection, Insert-Auswahl, i18n-Key-Presence (falls vorhanden), Voice-Envelope-Non-Regression.
+- Tests: Settings-Serde/Defaults (inkl. `partial_transcript=true`), Ziel-Routing, Remember-Target, Kollisions-Machine, Modellpfad-Validierung, Katalog-Integrität (URLs/sha vorhanden, IDs eindeutig), Installed-Detection, Resume-Offset-Logik (`.part`-Größe → Range-Header, 206 vs. 200-Fallback), Insert-Auswahl, i18n-Key-Presence (falls vorhanden), Voice-Envelope-Non-Regression.
 
 ## Akzeptanzkriterien (gegen Prompt gespiegelt)
 
@@ -315,4 +325,4 @@ bestehende Voice-Features intakt ✓ · Rust-Tests ✓ · Doku ✓.
 - **Window-level Hotkey** deckt nur fokussierte App ab — als bekannte Einschränkung dokumentieren.
 - **Hold vs. Press**: PTT darf nicht in den press-fire-Dispatcher von `harness_chords`; Tests/Review sicherstellen, dass eine als PTT belegte Taste nicht zusätzlich eine reguläre Aktion auslöst (`conflicts()` warnt, blockt aber nicht).
 - **`KeyChord`-Migration**: Umstieg von `ev.code()`/bare-Space auf `KeyChord` (`ev.key()`, Ctrl/Meta gefaltet) — Default-Combo bewusst kollisionsfrei wählen; `PttHotkey`-Key-Feld deprecaten ohne alte Configs zu brechen.
-- **Modell-Download**: große Dateien (74 MB–1,5 GB) — atomarer `.part`→Rename, sha256-Verify gegen korrupte/abgebrochene Downloads, Resume optional (TODO); Katalog-URLs/Hashes müssen gepflegt werden (brechen, wenn HF-Pfade sich ändern → Test prüft Form, nicht Erreichbarkeit).
+- **Modell-Download**: große Dateien (74 MB–1,5 GB) — atomarer `.part`→Rename, sha256-Verify gegen korrupte/abgebrochene Downloads, **Resume via HTTP-Range** (Fallback auf Full-Download bei `200` statt `206`); Katalog-URLs/Hashes müssen gepflegt werden (brechen, wenn HF-Pfade sich ändern → Test prüft Form, nicht Erreichbarkeit).
