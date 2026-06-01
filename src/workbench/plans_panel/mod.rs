@@ -378,6 +378,22 @@ pub fn PlansPanel() -> impl IntoView {
     });
     let visible_groups = Signal::derive(move || grouped_plans(&displayed_plans.get()));
 
+    // Accordion state for the grouped (All) view: at most one status group is
+    // open at a time, defaulting to the topmost group. Reset to the first group
+    // whenever the current selection is gone (e.g. after a refresh or filter).
+    let open_bucket = RwSignal::<Option<String>>::new(None);
+    Effect::new(move |_| {
+        let groups = visible_groups.get();
+        let first = groups.first().map(|g| g.bucket.key().to_string());
+        let still_valid = open_bucket.with_untracked(|cur| {
+            cur.as_deref()
+                .is_some_and(|key| groups.iter().any(|g| g.bucket.key() == key))
+        });
+        if !still_valid {
+            open_bucket.set(first);
+        }
+    });
+
     view! {
         <div class="blx-sr-pane blx-plans-pane" role="region" aria-label=move || i18n.tr(I18nKey::TabPlans)()>
             <header class="blx-sr-pane__header">
@@ -542,7 +558,7 @@ pub fn PlansPanel() -> impl IntoView {
                                     each=move || visible_groups.get()
                                     key=|group| group.bucket.key()
                                     children=move |group| view! {
-                                        <PlanGroupView state=state group=group />
+                                        <PlanGroupView state=state group=group open_bucket=open_bucket />
                                     }
                                 />
                             }.into_any()
@@ -568,12 +584,17 @@ pub fn PlansPanel() -> impl IntoView {
 }
 
 #[component]
-fn PlanGroupView(state: PlansState, group: PlanGroup) -> impl IntoView {
+fn PlanGroupView(
+    state: PlansState,
+    group: PlanGroup,
+    open_bucket: RwSignal<Option<String>>,
+) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let bucket = group.bucket;
+    let key = bucket.key();
     let count = group.plans.len();
     let plans = StoredValue::new(group.plans);
-    let expanded = RwSignal::new(true);
+    let expanded = Memo::new(move |_| open_bucket.with(|cur| cur.as_deref() == Some(key)));
     view! {
         <section
             class="blx-plans-group"
@@ -584,7 +605,13 @@ fn PlanGroupView(state: PlansState, group: PlanGroup) -> impl IntoView {
                 type="button"
                 class="blx-plans-group__header"
                 aria-expanded=move || if expanded.get() { "true" } else { "false" }
-                on:click=move |_| expanded.update(|open| *open = !*open)
+                on:click=move |_| {
+                    if expanded.get_untracked() {
+                        open_bucket.set(None);
+                    } else {
+                        open_bucket.set(Some(key.to_string()));
+                    }
+                }
             >
                 <span class="blx-plans-group__icon" aria-hidden="true">
                     <LxIcon icon=bucket.icon() width="13px" height="13px" />

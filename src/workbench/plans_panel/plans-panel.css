@@ -157,13 +157,12 @@
 .blx-plans-card__quick {
     display: flex;
     align-items: center;
-    align-self: start;
+    align-self: center;
     gap: 0.25rem;
-    margin-top: 0.05rem;
 }
 
 .blx-plans-card__edit-toggle {
-    align-self: start;
+    align-self: center;
 }
 
 .blx-plans-card__quick-btn:disabled {
