@@ -148,7 +148,7 @@ The frontend polls `agent_poll_events` (not SSE). Voice turns set `voice_input`;
 BLXCode bundles helper scripts under `content/hooks/` for session and title capture: Claude, Codex, Gemini, OpenCode, Cursor.
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-18_17-57-52.png" alt="BLXCode settings showing installed terminal hooks" />
+  <img src="../images/settings-terminal-hooks.png" alt="BLXCode settings showing installed terminal hooks" />
 </p>
 
 ## Missing Key Behavior

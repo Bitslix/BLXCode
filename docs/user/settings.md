@@ -21,7 +21,7 @@ Legacy saved categories (`Image`, `Voice`, `Memory`) still open the correct pane
 **Settings → App** collects shell-wide preferences that aren't tied to a single workspace: UI language, voice/STT defaults, push-to-talk, notification toasts and sounds, terminal hooks, and the GitHub Releases auto-updater. Keyboard shortcuts moved to their own **Shortcuts** category (see [Keyboard Shortcuts](keyboard-shortcuts.md)).
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-22_17-32-41.png" alt="Settings → App pane with UI Language (English), Input language (Follow app language / Auto-detect / Manual), Keyboard shortcuts (Tmux style / Classic), push-to-talk toggle, Notifications (Show success toasts, Play success sound), Terminal hooks for claude/codex/gemini/cursor/opencode with Install hooks button, and App updates (Check for updates on startup, Current version 0.2.3)" />
+  <img src="../images/settings-app.png" alt="Settings → App pane with UI Language (English), Input language (Follow app language / Auto-detect / Manual), Keyboard shortcuts (Tmux style / Classic), push-to-talk toggle, Notifications (Show success toasts, Play success sound), Terminal hooks for claude/codex/gemini/cursor/opencode with Install hooks button, and App updates (Check for updates on startup, Current version 0.2.3)" />
 </p>
 
 ## Appearance
@@ -49,7 +49,7 @@ Full guide: [Appearance & Themes](appearance-themes.md).
 Agent, image, and voice panes show a short status line pointing here — they do not contain password fields.
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-22_17-33-08.png" alt="Settings → API Keys pane with LLM Providers (OpenRouter configured ********4b6e, Anthropic NOT SET with BLX_ANTHROPIC_API_KEY env fallback hint, OpenAI NOT SET, Google/Mistral/Grok xAI COMING SOON), Search Providers (Tavily NOT SET, Brave Search NOT SET), and Image/Video/Voice section with fal.ai row" />
+  <img src="../images/settings-api-keys.png" alt="Settings → API Keys pane with LLM Providers (OpenRouter configured ********4b6e, Anthropic NOT SET with BLX_ANTHROPIC_API_KEY env fallback hint, OpenAI NOT SET, Google/Mistral/Grok xAI COMING SOON), Search Providers (Tavily NOT SET, Brave Search NOT SET), and Image/Video/Voice section with fal.ai row" />
 </p>
 
 ## BLXCode Agent
@@ -67,7 +67,7 @@ Agent, image, and voice panes show a short status line pointing here — they do
 One **Save** / **Discard** at the bottom persists text provider, tool-loop limit, auto-compact, and web tools together. Image and voice sections auto-save on change.
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-22_17-33-18.png" alt="Settings → BLXCode Agent pane with Text card (Provider OpenRouter, Thinking level Medium, Model openai/gpt-5 with pricing $1.25 in / $10.00 out per 1M tokens), Image card (Provider OpenRouter, Quality level Medium, Model google/gemini-2.5-flash-image with pricing $0.30 in / $2.50 out), Voice card (Provider OpenRouter, STT model gpt-4o-mini-transcribe, TTS model neural, recording quality Low / Standard / High, post-STT behavior, 6-voice picker grid, Speak agent replies toggle), and Web Tools row (Disabled / Tavily / Brave)" />
+  <img src="../images/settings-blxcode-agent.png" alt="Settings → BLXCode Agent pane with Text card (Provider OpenRouter, Thinking level Medium, Model openai/gpt-5 with pricing $1.25 in / $10.00 out per 1M tokens), Image card (Provider OpenRouter, Quality level Medium, Model google/gemini-2.5-flash-image with pricing $0.30 in / $2.50 out), Voice card (Provider OpenRouter, STT model gpt-4o-mini-transcribe, TTS model neural, recording quality Low / Standard / High, post-STT behavior, 6-voice picker grid, Speak agent replies toggle), and Web Tools row (Disabled / Tavily / Brave)" />
 </p>
 
 Details: [Agent Providers](agent-providers.md), [Image Mode](image.md), [Voice](voice.md).

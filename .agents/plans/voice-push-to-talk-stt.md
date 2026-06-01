@@ -1,5 +1,9 @@
 # Push-to-Talk STT (lokal whisper.cpp + Cloud)
 
+> **Status: done** — implementiert (P0–P5), beide Crates bauen warnungsfrei,
+> 16 Backend-Tests grün, Changelog aktualisiert. Folge-Review zu Nebenläufigkeit
+> & Fehler-Toasts: [voice-ptt-concurrency-error-review.md](voice-ptt-concurrency-error-review.md).
+
 Push-to-Talk-Spracheingabe für BLXCode: lokaler, warm gehaltener
 `whisper.cpp`-Backend als Default plus optionaler Cloud-Pfad. Taste gedrückt →
 sofort aufnehmen → Taste los → finaler Transkript wird in das gemerkte Ziel

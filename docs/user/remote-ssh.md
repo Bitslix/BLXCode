@@ -17,7 +17,7 @@ Open **Settings → Remote** to create and edit connection presets. Each preset 
 workspaces.
 
 <p align="center">
-  <img src="../images/Screenshot%202026-05-31%20024717.png" alt="Settings → Remote: SSH Remote Connections pane with a connection form — Name, Host, Port (22), Username, Authentication (Password), Session resume (Keepalive only) with the hint 'Stays connected while idle, but reconnecting starts a fresh shell. No remote dependency.', a Password field (Not set), Remote directory, and Save / Test connection / Delete buttons plus an Add connection button" />
+  <img src="../images/settings-remote-ssh.png" alt="Settings → Remote: SSH Remote Connections pane with a connection form — Name, Host, Port (22), Username, Authentication (Password), Session resume (Keepalive only) with the hint 'Stays connected while idle, but reconnecting starts a fresh shell. No remote dependency.', a Password field (Not set), Remote directory, and Save / Test connection / Delete buttons plus an Add connection button" />
 </p>
 
 Fields:
@@ -49,7 +49,7 @@ file, shown in the UI again, or passed on the `ssh` command line.
 In the **Create workspace** wizard, the **Connection** dropdown chooses where the workspace runs:
 
 <p align="center">
-  <img src="../images/Screenshot%202026-05-31%20024709.png" alt="Create workspace wizard with the Connection dropdown open, showing 'Local' and a '+ Add connection' entry, above the Name, Working directory, Recent, and Layout preset controls" />
+  <img src="../images/create-workspace-connection-dropdown.png" alt="Create workspace wizard with the Connection dropdown open, showing 'Local' and a '+ Add connection' entry, above the Name, Working directory, Recent, and Layout preset controls" />
 </p>
 
 - **Local** — a normal local workspace (default).

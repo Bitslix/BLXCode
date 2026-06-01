@@ -128,16 +128,16 @@ See [CHANGELOG.md](CHANGELOG.md) for the full history and [Unreleased](CHANGELOG
 <summary>More screenshots (boot screen, settings, providers, voice)</summary>
 
 <p align="center">
-  <img src="docs/images/screenshot-2026-05-22_11-00-42.png" alt="BLXCode boot loading screen" width="720" />
+  <img src="docs/images/boot-loading-screen.png" alt="BLXCode boot loading screen" width="720" />
 </p>
 
 | Welcome | Workspace setup |
 |:---:|:---:|
-| <img src="docs/images/screenshot-2026-05-18_17-45-25.png" alt="Welcome screen with recent workspaces" width="360" /> | <img src="docs/images/screenshot-2026-05-18_17-45-40.png" alt="Create workspace layout" width="360" /> |
+| <img src="docs/images/welcome-screen.png" alt="Welcome screen with recent workspaces" width="360" /> | <img src="docs/images/create-workspace-step-1.png" alt="Create workspace layout" width="360" /> |
 
 | Provider settings | Voice settings |
 |:---:|:---:|
-| <img src="docs/images/screenshot-2026-05-18_17-58-05.png" alt="Agent provider settings" width="360" /> | <img src="docs/images/screenshot-2026-05-18_17-58-12.png" alt="Voice STT and TTS settings" width="360" /> |
+| <img src="docs/images/settings-agent-providers.png" alt="Agent provider settings" width="360" /> | <img src="docs/images/settings-voice-stt-tts.png" alt="Voice STT and TTS settings" width="360" /> |
 
 </details>
 

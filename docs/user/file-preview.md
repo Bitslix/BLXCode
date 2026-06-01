@@ -31,7 +31,7 @@ Every renderer shares the same topbar:
 - **Refresh** — re-reads the file from disk (file content **and** metadata).
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-22_21-45-53.png" alt="File preview showing a PNG image centered on a dark stage, with file name, path, size, and modified date in the topbar" />
+  <img src="../images/file-preview-image-png.png" alt="File preview showing a PNG image centered on a dark stage, with file name, path, size, and modified date in the topbar" />
 </p>
 
 *Image preview: BLXCode logo (`public/blxcode.png`) rendered centered with a `drop-shadow` and the topbar showing `Size: 87.2 KiB · Modified: 5/15/2026, 12:44:29 AM`.*
@@ -61,7 +61,7 @@ The Markdown renderer uses [`pulldown-cmark`](https://docs.rs/pulldown-cmark) wi
 Headings, blockquotes, tables, inline code, and code blocks are styled to match the active BLXCode theme. Links keep their `href` but `javascript:` / `vbscript:` URIs are stripped on the way in.
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-22_21-45-59.png" alt="File preview rendering a Markdown EULA document with headings, paragraphs, and German umlauts" />
+  <img src="../images/file-preview-markdown-eula.png" alt="File preview rendering a Markdown EULA document with headings, paragraphs, and German umlauts" />
 </p>
 
 *Markdown preview: `content/eula/de-DE.md` rendered with headings, paragraphs, and proper UTF-8 (umlauts and special characters preserved end-to-end through the sanitizer).*
@@ -112,13 +112,13 @@ The match is performed on the **stem only** (the filename minus its extension), 
 Why this matters: previously a stand-alone `LICENSE` (no extension) would be classified as `Binary` and the preview would show "Preview not available for this file type." Now you get a properly rendered, theme-aware Markdown view with an obvious "License" banner — same for every other policy doc in the table above.
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-23_00-40-23.png" alt="LICENSE file preview with the License hero banner (Scale icon, success-green accent bar, 'Legal terms governing the use, distribution, and modification of this project.' subtitle), MIT License text rendered as Markdown" />
+  <img src="../images/workspace-center-tabs.png" alt="LICENSE file preview with the License hero banner (Scale icon, success-green accent bar, 'Legal terms governing the use, distribution, and modification of this project.' subtitle), MIT License text rendered as Markdown" />
 </p>
 
 *Bare `LICENSE` (no extension, 1.1 KiB) opens with the **License** hero banner — Scale icon, success-green left bar, translated title, and a one-line subtitle — followed by the MIT license text rendered as Markdown.*
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-23_00-40-09.png" alt="README.md file preview with the Readme hero banner (Book-open icon, accent-blue bar, 'Project overview, setup instructions, and quick reference.' subtitle) and the rendered BLXCode README" />
+  <img src="../images/file-preview-readme.png" alt="README.md file preview with the Readme hero banner (Book-open icon, accent-blue bar, 'Project overview, setup instructions, and quick reference.' subtitle) and the rendered BLXCode README" />
 </p>
 
 *`README.md` opens with the **Readme** hero banner (Book-open icon, accent-blue left bar) above the rendered README body — including badge rows, headings, and lists.*
@@ -138,7 +138,7 @@ Selection is CodeMirror's own: click to place the caret, drag to select a range,
 ### Right-click handoff menu
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-23_00-22-11.png" alt="Right-click context menu in the code preview showing four sections: Snippet → Insert into terminal (per-workspace slot list), Full context block → Insert into terminal, Snippet → Attach to agent, and Clipboard (Copy snippet / range / raw text)" />
+  <img src="../images/file-preview-context-menu.png" alt="Right-click context menu in the code preview showing four sections: Snippet → Insert into terminal (per-workspace slot list), Full context block → Insert into terminal, Snippet → Attach to agent, and Clipboard (Copy snippet / range / raw text)" />
 </p>
 
 *Right-clicking on a selected line range in `Cargo.toml` opens the handoff menu — the selected lines are highlighted in the gutter, and the menu lists every terminal slot in the **Test** workspace (Slots 1–4 · shell) under both *Snippet → Insert into terminal* and *Full context block → Insert into terminal*, plus *Attach to agent in Test* and the *Clipboard* actions.*

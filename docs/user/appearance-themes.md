@@ -17,7 +17,7 @@ The pane shows:
 Click a card to apply the theme immediately. The active card shows an **ACTIVE** badge and accent border.
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-22_17-32-52.png" alt="Settings → Appearance pane titled 'Make it yours.' with 20 theme cards in a 4-column grid: BLXCode (active), BLXCode Light, Dracula, Gruvbox Dark/Light, Solarized Dark/Light, Nord, One Dark, Catppuccin Mocha/Latte/Frappé, Tokyo Night, Rosé Pine, Rosé Pine Dawn, Everforest Dark, Kanagawa, GitHub Dark, Night Owl, Ayu Mirage" />
+  <img src="../images/settings-appearance-themes.png" alt="Settings → Appearance pane titled 'Make it yours.' with 20 theme cards in a 4-column grid: BLXCode (active), BLXCode Light, Dracula, Gruvbox Dark/Light, Solarized Dark/Light, Nord, One Dark, Catppuccin Mocha/Latte/Frappé, Tokyo Night, Rosé Pine, Rosé Pine Dawn, Everforest Dark, Kanagawa, GitHub Dark, Night Owl, Ayu Mirage" />
 </p>
 
 ## Default theme

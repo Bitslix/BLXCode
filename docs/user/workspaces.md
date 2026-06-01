@@ -23,15 +23,15 @@ The supported fleet labels are:
 - `cursor`
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-18_17-45-40.png" alt="Create workspace step 1: name, working directory, and terminal grid preset" />
+  <img src="../images/create-workspace-step-1.png" alt="Create workspace step 1: name, working directory, and terminal grid preset" />
 </p>
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-18_17-45-53.png" alt="Create workspace step 2: assign coding agents to terminal slots" />
+  <img src="../images/create-workspace-step-2.png" alt="Create workspace step 2: assign coding agents to terminal slots" />
 </p>
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-18_17-46-07.png" alt="New workspace with a 2x2 terminal grid running Claude Code in each slot" />
+  <img src="../images/workspace-grid-2x2-claude.png" alt="New workspace with a 2x2 terminal grid running Claude Code in each slot" />
 </p>
 
 ## Center tabs
@@ -39,7 +39,7 @@ The supported fleet labels are:
 The workspace pane uses a VS Code–style **tab strip** above the terminal grid. Tabs share the same workspace context (sidebar, agent panel, right panel) and let you keep multiple views side-by-side without unmounting the live terminals.
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-23_00-40-23.png" alt="Workspace with multiple center tabs open: Terminals, LICENSE, README.md" />
+  <img src="../images/workspace-center-tabs.png" alt="Workspace with multiple center tabs open: Terminals, LICENSE, README.md" />
 </p>
 
 *Three center tabs open in the same workspace: the pinned **Terminals** tab, the **LICENSE** file preview with its policy-doc hero banner, and **README.md**. Switching tabs hides the inactive views — the running PTYs in the Terminals tab keep their state, scrollback, and agent sessions.*
@@ -101,7 +101,7 @@ By default, the terminal titlebar shows `#1`, `#2`, `…` — the slot's grid nu
 - **The agent knows the names** — `harness.list_terminals` returns the resolved `name` plus `namingMode` for every slot, and `harness.send_terminal_keys` / `send_agent_context` / `read_terminal_output` accept a `name` argument (case-insensitive) alongside `slotId` and `agentSlug`. You can therefore ask the BLXCode Agent *"ask Devon to run the tests"* and it will route the request to the right slot.
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-18_18-10-48.png" alt="Workspace terminal grid after the agent opens two additional Claude terminal slots" />
+  <img src="../images/workspace-grid-agent-extra-slots.png" alt="Workspace terminal grid after the agent opens two additional Claude terminal slots" />
 </p>
 
 ### Reordering terminals with drag & drop
@@ -238,7 +238,7 @@ Unread counts clear when you **focus** the terminal cell (click or tab into it).
 Re-run **Install agent hooks** after upgrading blxcode so notify hooks are registered alongside title and session-capture hooks.
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-19_00-34-22.png" alt="BLXCode workspace with resumed agent sessions, terminal titles, and workspace notification badges showing active and total unread counts" />
+  <img src="../images/workspace-resumed-agent-sessions.png" alt="BLXCode workspace with resumed agent sessions, terminal titles, and workspace notification badges showing active and total unread counts" />
 </p>
 
 *Example: four resumed sessions in a 2×2 grid; the **Test** workspace shows **6** active and **18** total unread completions.*

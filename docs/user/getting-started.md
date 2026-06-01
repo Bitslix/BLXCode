@@ -34,7 +34,7 @@ This launches the Tauri app and automatically starts Trunk using the command con
 Before the WASM bundle is ready, BLXCode shows a branded boot screen — logo, eyebrow text, a faux workbench preview, and an animated progress rail — so the first paint happens immediately on the Trunk-served HTML, well before the Leptos app mounts. Once the workbench is ready, the boot screen hands off to the workbench shell.
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-22_11-00-42.png" alt="BLXCode boot loading screen with logo, 'Restoring workspace' eyebrow, animated workbench preview skeleton and progress rail" />
+  <img src="../images/boot-loading-screen.png" alt="BLXCode boot loading screen with logo, 'Restoring workspace' eyebrow, animated workbench preview skeleton and progress rail" />
 </p>
 
 The eyebrow copy cycles through three phases — **Starting BLXCode** → **Restoring workspace** → **Opening workbench** — so you can tell whether the app is initializing fresh or rehydrating a saved snapshot.
@@ -46,7 +46,7 @@ On first launch, BLXCode shows the EULA gate in your detected UI language. Accep
 After accepting, the workbench opens. In the desktop shell, BLXCode also creates a default sandbox folder under the app data directory so the agent always has a writable fallback workspace.
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-18_17-45-25.png" alt="BLXCode welcome screen with recent workspaces and keyboard shortcuts" />
+  <img src="../images/welcome-screen.png" alt="BLXCode welcome screen with recent workspaces and keyboard shortcuts" />
 </p>
 
 ## Create A Workspace
