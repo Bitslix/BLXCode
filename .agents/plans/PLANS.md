@@ -6,7 +6,7 @@ Persistent plans for multi-step work on **blxcode**. Individual plans live as Ma
 
 | Status | Plan | Description |
 |--------|------|-------------|
-| planned | [custom-app-titlebar.md](custom-app-titlebar.md) | Custom cross-plattform BLXCode-Titelbar (decorations:false): Brand+Version, Breadcrumb, Sidebar-Toggles (links/rechts) aus den Panels in die Bar verschoben, NAVIGATE-Popover (Terminal/New Terminal/Plans/Memory/Skills/Settings/Fullscreen), Notifications-Popover, Window-Controls; Drag via data-tauri-drag-region, Min/Max/Close/Fullscreen als Rust-Commands |
+| active | [custom-app-titlebar.md](custom-app-titlebar.md) | Custom cross-plattform BLXCode-Titelbar (decorations:false): Brand+Version, Breadcrumb, Sidebar-Toggles (links/rechts) aus den Panels in die Bar verschoben, NAVIGATE-Popover (Terminal/New Terminal/Plans/Memory/Skills/Settings/Fullscreen), Notifications-Popover, Window-Controls; Drag via data-tauri-drag-region, Min/Max/Close/Fullscreen als Rust-Commands |
 | planned | [kanban-board-view.md](kanban-board-view.md) | Kanban-View im Plans-Panel: Status-Spalten, DnD fuer Karten/Spalten, Spalten ein-/ausblenden, Markdown-Writeback (Full Scope; MVP in v2-roadmap) |
 | planned | [leptos-to-typescript-migration.md](leptos-to-typescript-migration.md) | Leptos/WASM restlos entfernen: Vite+React+TS Frontend (~53k LOC), Tauri-Backend unverändert, atomarer Cutover; validiert (5 Subagent-Reviews); ~9–12 PM |
 | planned | [performance-optimization.md](performance-optimization.md) | Performance-Audit: Agent-Streaming hot path, Auto-Save-Kaskade, Backend-Blocking, Boot/CDN, Terminal-Refit; Phasen P0–P3 |

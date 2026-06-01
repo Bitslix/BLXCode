@@ -29,6 +29,7 @@ mod ssh_secrets;
 mod tasks;
 mod updater;
 mod voice;
+mod window_controls;
 mod workbench_state;
 
 use agent::{
@@ -151,6 +152,12 @@ pub fn run() {
             greet,
             frontend_console_log,
             exit_app,
+            window_controls::window_minimize,
+            window_controls::window_toggle_maximize,
+            window_controls::window_is_maximized,
+            window_controls::window_close,
+            window_controls::window_toggle_fullscreen,
+            window_controls::window_is_fullscreen,
             app_version,
             updater_check,
             updater_install_start,
