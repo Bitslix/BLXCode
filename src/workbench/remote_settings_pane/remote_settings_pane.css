@@ -1,6 +1,24 @@
 /* Remote (SSH) settings pane. Colours/spacing come from theme tokens
    (themes/tokens.css) so every theme is honoured automatically. */
 
+/* Topbar: pane header on the left, "Add connection" on the top right. */
+.remote-pane__topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.remote-pane__topbar .harness-pane-header {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.remote-pane__add {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
 .remote-conn-list {
   list-style: none;
   margin: 0;
@@ -14,6 +32,109 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* --- List view: connection cards --- */
+.remote-conn-card-item {
+  display: block;
+}
+
+.remote-conn-card {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  gap: 0.55rem;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.remote-conn-card:hover,
+.remote-conn-card:focus-visible {
+  border-color: var(--border-strong);
+  background: var(--overlay-2);
+  outline: none;
+}
+
+.remote-conn-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.remote-conn-card__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.remote-conn-card__icon {
+  display: inline-flex;
+  color: var(--text-muted);
+}
+
+.remote-conn-card__name {
+  font-weight: 650;
+  font-size: 0.92rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remote-conn-card__chevron {
+  display: inline-flex;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+
+.remote-conn-card__endpoint,
+.remote-conn-card__dir {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remote-conn-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.remote-conn-card__badge {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: var(--overlay-2);
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+
+.remote-conn-card__badge--muted {
+  background: var(--overlay-1);
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+/* --- Editor (detail) view --- */
+.remote-conn-editor {
+  gap: 0.75rem;
+}
+
+.remote-conn-editor__head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.remote-conn-editor__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--text);
 }
 
 .remote-conn-grid {

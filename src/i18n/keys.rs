@@ -578,6 +578,10 @@ pub enum I18nKey {
     RemoteDeleteConfirm,
     RemoteCancel,
     RemoteRequiresTauri,
+    RemoteNewConnection,
+    RemoteEditConnection,
+    RemoteBackToList,
+    RemoteCardEditHint,
     // --- Workspace creation: local vs. remote ---
     WsConnectionType,
     WsConnectionLocal,
