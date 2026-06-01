@@ -546,6 +546,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteKeyPath => "Файл закрытого ключа",
         I18nKey::RemotePassphrase => "Ключевая фраза-пароль",
         I18nKey::RemoteDefaultDir => "Удаленный каталог",
+        I18nKey::RemoteBrowseDirs => "Browse remote directories",
+        I18nKey::RemoteSelectDir => "Select remote directory",
+        I18nKey::RemoteDirUp => "Up",
+        I18nKey::RemoteDirSaveFirst => {
+            "Save this remote connection before browsing directories."
+        }
         I18nKey::RemoteResumeModel => "Возобновление сеанса",
         I18nKey::RemoteResumeTmux => "Постоянный (tmux)",
         I18nKey::RemoteResumeKeepalive => "Только поддержка активности",

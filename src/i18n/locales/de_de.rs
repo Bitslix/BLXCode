@@ -552,6 +552,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteKeyPath => "Private Schlüsseldatei",
         I18nKey::RemotePassphrase => "Schlüsselpassphrase",
         I18nKey::RemoteDefaultDir => "Remote-Verzeichnis",
+        I18nKey::RemoteBrowseDirs => "Remote-Verzeichnisse durchsuchen",
+        I18nKey::RemoteSelectDir => "Remote-Verzeichnis auswählen",
+        I18nKey::RemoteDirUp => "Hoch",
+        I18nKey::RemoteDirSaveFirst => {
+            "Speichern Sie diese Remote-Verbindung, bevor Sie Verzeichnisse durchsuchen."
+        }
         I18nKey::RemoteResumeModel => "Fortsetzung der Sitzung",
         I18nKey::RemoteResumeTmux => "Persistent (tmux)",
         I18nKey::RemoteResumeKeepalive => "Nur Keepalive",

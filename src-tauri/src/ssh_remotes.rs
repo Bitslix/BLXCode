@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State};
 
 use crate::pty_host::{PtyManager, RemoteAuthMode, RemoteSpawnSpec, ResumeMode};
+use crate::ssh_exec::{RemoteExecManager, EXEC_TIMEOUT_MS};
 use crate::ssh_secrets::{self, SshSecretKind};
 
 const STORE_FILE: &str = "remote_connections.json";
@@ -85,6 +86,21 @@ pub struct RemoteTestRequest {
     pub password: Option<String>,
     #[serde(default)]
     pub passphrase: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteDirEntry {
+    pub name: String,
+    pub path: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteDirListing {
+    pub path: String,
+    pub parent: Option<String>,
+    pub entries: Vec<RemoteDirEntry>,
 }
 
 fn store_path(app: &AppHandle) -> Result<PathBuf, String> {
@@ -289,4 +305,91 @@ pub fn ssh_remote_test(
     };
     let spec = build_spec(&conn, password, passphrase, format!("test:{}", conn.id));
     manager.run_remote_probe(spec, 15_000)
+}
+
+#[tauri::command]
+pub fn ssh_remote_list_dirs(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
+    connection_id: String,
+    path: String,
+) -> Result<RemoteDirListing, String> {
+    if connection_id.trim().is_empty() {
+        return Err("save the remote connection before browsing directories".into());
+    }
+    let target = path.trim();
+    let cd = if target.is_empty() {
+        "cd".to_string()
+    } else {
+        format!("cd -- {}", sh_quote_local(target))
+    };
+    let command = format!(
+        "{cd} && printf '__BLX_PWD__%s\\n' \"$PWD\" && \
+         {{ for d in ./* ./.[!.]* ./..?*; do [ -d \"$d\" ] || continue; b=${{d#./}}; printf '%s\\n' \"$b\"; done | sort; }}"
+    );
+    let out = exec.run_text(&app, &pty, &connection_id, &command, EXEC_TIMEOUT_MS)?;
+    parse_remote_dir_listing(&out)
+}
+
+fn parse_remote_dir_listing(raw: &str) -> Result<RemoteDirListing, String> {
+    let mut lines = raw.lines();
+    let Some(first) = lines.next() else {
+        return Err("remote directory listing returned no output".into());
+    };
+    let Some(path) = first.strip_prefix("__BLX_PWD__") else {
+        return Err("remote directory listing returned an unexpected response".into());
+    };
+    let path = normalize_remote_dir(path);
+    let parent = remote_parent(&path);
+    let entries = lines
+        .filter(|line| !line.trim().is_empty())
+        .filter(|line| *line != "." && *line != "..")
+        .map(|name| {
+            let name = name.to_string();
+            let path = remote_join(&path, &name);
+            RemoteDirEntry { name, path }
+        })
+        .collect();
+    Ok(RemoteDirListing {
+        path,
+        parent,
+        entries,
+    })
+}
+
+fn normalize_remote_dir(path: &str) -> String {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        "/".into()
+    } else if trimmed.len() > 1 {
+        trimmed.trim_end_matches('/').to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn remote_parent(path: &str) -> Option<String> {
+    if path == "/" {
+        return None;
+    }
+    let trimmed = path.trim_end_matches('/');
+    let idx = trimmed.rfind('/')?;
+    if idx == 0 {
+        Some("/".into())
+    } else {
+        Some(trimmed[..idx].to_string())
+    }
+}
+
+fn remote_join(base: &str, name: &str) -> String {
+    if base == "/" {
+        format!("/{name}")
+    } else {
+        format!("{}/{}", base.trim_end_matches('/'), name)
+    }
+}
+
+fn sh_quote_local(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
 }

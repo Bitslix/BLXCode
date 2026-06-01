@@ -1255,6 +1255,41 @@ pub async fn ssh_remote_test(
     .await
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteDirEntry {
+    pub name: String,
+    pub path: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteDirListing {
+    pub path: String,
+    pub parent: Option<String>,
+    pub entries: Vec<RemoteDirEntry>,
+}
+
+pub async fn ssh_remote_list_dirs(
+    connection_id: String,
+    path: String,
+) -> Result<RemoteDirListing, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        connection_id: String,
+        path: String,
+    }
+    invoke_typed(
+        "ssh_remote_list_dirs",
+        Args {
+            connection_id,
+            path,
+        },
+    )
+    .await
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PtySpawnRemoteArgs {

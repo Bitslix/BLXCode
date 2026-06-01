@@ -196,6 +196,7 @@ pub fn run() {
             ssh_remotes::ssh_remote_save,
             ssh_remotes::ssh_remote_delete,
             ssh_remotes::ssh_remote_test,
+            ssh_remotes::ssh_remote_list_dirs,
             ssh_exec::remote_exec_close,
             ssh_exec::agent_remote_latest_session_id,
             git_branch,

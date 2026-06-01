@@ -552,6 +552,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteKeyPath => "File di chiave privata",
         I18nKey::RemotePassphrase => "Frase chiave",
         I18nKey::RemoteDefaultDir => "Directory remota",
+        I18nKey::RemoteBrowseDirs => "Browse remote directories",
+        I18nKey::RemoteSelectDir => "Select remote directory",
+        I18nKey::RemoteDirUp => "Up",
+        I18nKey::RemoteDirSaveFirst => {
+            "Save this remote connection before browsing directories."
+        }
         I18nKey::RemoteResumeModel => "Ripresa della sessione",
         I18nKey::RemoteResumeTmux => "Persistente (tmux)",
         I18nKey::RemoteResumeKeepalive => "Solo Keepalive",

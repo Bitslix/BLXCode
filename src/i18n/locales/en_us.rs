@@ -593,6 +593,12 @@ keys; the preset only fills in defaults."
         I18nKey::RemoteKeyPath => "Private key file",
         I18nKey::RemotePassphrase => "Key passphrase",
         I18nKey::RemoteDefaultDir => "Remote directory",
+        I18nKey::RemoteBrowseDirs => "Browse remote directories",
+        I18nKey::RemoteSelectDir => "Select remote directory",
+        I18nKey::RemoteDirUp => "Up",
+        I18nKey::RemoteDirSaveFirst => {
+            "Save this remote connection before browsing directories."
+        }
         I18nKey::RemoteResumeModel => "Session resume",
         I18nKey::RemoteResumeTmux => "Persistent (tmux)",
         I18nKey::RemoteResumeKeepalive => "Keepalive only",

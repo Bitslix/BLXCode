@@ -7,8 +7,9 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    is_tauri_shell, ssh_remote_delete, ssh_remote_save, ssh_remote_test, ssh_remotes_list,
-    RemoteAuthKind, RemoteConnection, RemoteConnectionView, RemoteResume,
+    is_tauri_shell, ssh_remote_delete, ssh_remote_list_dirs, ssh_remote_save, ssh_remote_test,
+    ssh_remotes_list, RemoteAuthKind, RemoteConnection, RemoteConnectionView, RemoteDirEntry,
+    RemoteResume,
 };
 use crate::workbench::SettingsPaneHeader;
 use leptos::prelude::*;
@@ -208,6 +209,12 @@ fn RemoteConnectionRow(
     let testing = RwSignal::new(false);
     let status_msg: RwSignal<Option<String>> = RwSignal::new(None);
     let error_msg: RwSignal<Option<String>> = RwSignal::new(None);
+    let browser_open = RwSignal::new(false);
+    let browser_loading = RwSignal::new(false);
+    let browser_path = RwSignal::new(String::new());
+    let browser_parent = RwSignal::new(Option::<String>::None);
+    let browser_entries = RwSignal::new(Vec::<RemoteDirEntry>::new());
+    let browser_error = RwSignal::new(Option::<String>::None);
 
     // Assemble the current preset (no secrets) from the row's fields.
     let build_connection = move || RemoteConnection {
@@ -339,6 +346,36 @@ fn RemoteConnectionRow(
         }
     };
 
+    let load_remote_dir = move |path: String| {
+        let connection_id = id.get_untracked();
+        if connection_id.trim().is_empty() {
+            browser_open.set(true);
+            browser_error.set(Some(i18n.tr(I18nKey::RemoteDirSaveFirst)().to_string()));
+            browser_entries.set(Vec::new());
+            browser_parent.set(None);
+            return;
+        }
+        browser_loading.set(true);
+        browser_error.set(None);
+        leptos::task::spawn_local(async move {
+            match ssh_remote_list_dirs(connection_id, path).await {
+                Ok(listing) => {
+                    browser_path.set(listing.path);
+                    browser_parent.set(listing.parent);
+                    browser_entries.set(listing.entries);
+                }
+                Err(err) => browser_error.set(Some(err)),
+            }
+            browser_loading.set(false);
+        });
+    };
+
+    let open_browser = move |_| {
+        browser_open.set(true);
+        let start = remote_dir.get_untracked();
+        load_remote_dir(start);
+    };
+
     view! {
         <li class="settings-field-card remote-conn-row">
             <div class="remote-conn-grid">
@@ -461,15 +498,126 @@ fn RemoteConnectionRow(
 
             <label class="remote-field remote-field--wide">
                 <span class="remote-field__label">{move || i18n.tr(I18nKey::RemoteDefaultDir)()}</span>
-                <input
-                    class="workbench-plain-input"
-                    type="text"
-                    autocomplete="off"
-                    spellcheck="false"
-                    prop:value=move || remote_dir.get()
-                    on:input=move |ev| remote_dir.set(input_value(&ev))
-                />
+                <span class="remote-dir-input">
+                    <input
+                        class="workbench-plain-input remote-dir-input__field"
+                        type="text"
+                        autocomplete="off"
+                        spellcheck="false"
+                        prop:value=move || remote_dir.get()
+                        on:input=move |ev| remote_dir.set(input_value(&ev))
+                    />
+                    <button
+                        type="button"
+                        class="remote-dir-input__browse"
+                        title=move || i18n.tr(I18nKey::RemoteBrowseDirs)()
+                        aria-label=move || i18n.tr(I18nKey::RemoteBrowseDirs)()
+                        disabled=move || !is_tauri_shell() || busy.get() || testing.get()
+                        on:click=open_browser
+                    >
+                        <LxIcon icon=icondata::LuFolderSearch width="0.9rem" height="0.9rem" />
+                    </button>
+                </span>
             </label>
+
+            <Show when=move || browser_open.get()>
+                <div class="remote-dir-dialog__scrim" role="presentation">
+                    <section
+                        class="remote-dir-dialog"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label=move || i18n.tr(I18nKey::RemoteSelectDir)()
+                    >
+                        <header class="remote-dir-dialog__head">
+                            <div class="remote-dir-dialog__title">
+                                <LxIcon icon=icondata::LuFolderOpen width="0.95rem" height="0.95rem" />
+                                <span>{move || i18n.tr(I18nKey::RemoteDefaultDir)()}</span>
+                            </div>
+                            <button
+                                type="button"
+                                class="remote-dir-dialog__icon-btn"
+                                aria-label=move || i18n.tr(I18nKey::BtnClose)()
+                                on:click=move |_| browser_open.set(false)
+                            >
+                                <LxIcon icon=icondata::LuX width="0.85rem" height="0.85rem" />
+                            </button>
+                        </header>
+                        <div class="remote-dir-dialog__path">
+                            <button
+                                type="button"
+                                class="workbench-mini-btn"
+                                disabled=move || browser_loading.get() || browser_parent.get().is_none()
+                                on:click=move |_| {
+                                    if let Some(parent) = browser_parent.get_untracked() {
+                                        load_remote_dir(parent);
+                                    }
+                                }
+                            >
+                                <span class="harness-btn-inline">
+                                    <LxIcon icon=icondata::LuArrowUp width="0.78rem" height="0.78rem" />
+                                    <span>{move || i18n.tr(I18nKey::RemoteDirUp)()}</span>
+                                </span>
+                            </button>
+                            <code>{move || browser_path.get()}</code>
+                        </div>
+
+                        <Show when=move || browser_error.get().is_some()>
+                            <p class="harness-error remote-dir-dialog__message">{move || browser_error.get().unwrap_or_default()}</p>
+                        </Show>
+                        <Show when=move || browser_loading.get()>
+                            <p class="harness-muted remote-dir-dialog__message">{move || i18n.tr(I18nKey::BlxLoading)()}</p>
+                        </Show>
+
+                        <ul class="remote-dir-dialog__list">
+                            <For
+                                each=move || browser_entries.get()
+                                key=|entry| entry.path.clone()
+                                children=move |entry: RemoteDirEntry| {
+                                    let path_for_open = entry.path.clone();
+                                    let path_for_pick = entry.path.clone();
+                                    view! {
+                                        <li>
+                                            <button
+                                                type="button"
+                                                class="remote-dir-dialog__item"
+                                                on:click=move |_| load_remote_dir(path_for_open.clone())
+                                                on:dblclick=move |_| {
+                                                    remote_dir.set(path_for_pick.clone());
+                                                    browser_open.set(false);
+                                                }
+                                            >
+                                                <LxIcon icon=icondata::LuFolder width="0.9rem" height="0.9rem" />
+                                                <span>{entry.name}</span>
+                                            </button>
+                                        </li>
+                                    }
+                                }
+                            />
+                        </ul>
+
+                        <footer class="remote-dir-dialog__actions">
+                            <button
+                                type="button"
+                                class="workbench-mini-btn"
+                                on:click=move |_| browser_open.set(false)
+                            >
+                                {move || i18n.tr(I18nKey::MemCancel)()}
+                            </button>
+                            <button
+                                type="button"
+                                class="workbench-mini-btn workbench-mini-btn--primary"
+                                disabled=move || browser_path.get().is_empty()
+                                on:click=move |_| {
+                                    remote_dir.set(browser_path.get_untracked());
+                                    browser_open.set(false);
+                                }
+                            >
+                                {move || i18n.tr(I18nKey::Accept)()}
+                            </button>
+                        </footer>
+                    </section>
+                </div>
+            </Show>
 
             <Show when=move || status_msg.with(|m| m.is_some())>
                 <p class="harness-status">{move || status_msg.get().unwrap_or_default()}</p>

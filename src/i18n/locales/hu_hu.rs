@@ -548,6 +548,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteKeyPath => "Privát kulcs fájl",
         I18nKey::RemotePassphrase => "Kulcs jelszó",
         I18nKey::RemoteDefaultDir => "Távoli címtár",
+        I18nKey::RemoteBrowseDirs => "Browse remote directories",
+        I18nKey::RemoteSelectDir => "Select remote directory",
+        I18nKey::RemoteDirUp => "Up",
+        I18nKey::RemoteDirSaveFirst => {
+            "Save this remote connection before browsing directories."
+        }
         I18nKey::RemoteResumeModel => "Munkamenet folytatása",
         I18nKey::RemoteResumeTmux => "Állandó (tmux)",
         I18nKey::RemoteResumeKeepalive => "Csak életben maradni",

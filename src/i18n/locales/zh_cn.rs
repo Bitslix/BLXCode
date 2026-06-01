@@ -532,6 +532,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteKeyPath => "私钥文件",
         I18nKey::RemotePassphrase => "关键密码",
         I18nKey::RemoteDefaultDir => "远程目录",
+        I18nKey::RemoteBrowseDirs => "Browse remote directories",
+        I18nKey::RemoteSelectDir => "Select remote directory",
+        I18nKey::RemoteDirUp => "Up",
+        I18nKey::RemoteDirSaveFirst => {
+            "Save this remote connection before browsing directories."
+        }
         I18nKey::RemoteResumeModel => "会议恢复",
         I18nKey::RemoteResumeTmux => "持久 (tmux)",
         I18nKey::RemoteResumeKeepalive => "仅保持活动状态",

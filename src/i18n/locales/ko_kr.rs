@@ -534,6 +534,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteKeyPath => "개인 키 파일",
         I18nKey::RemotePassphrase => "주요 암호",
         I18nKey::RemoteDefaultDir => "원격 디렉토리",
+        I18nKey::RemoteBrowseDirs => "Browse remote directories",
+        I18nKey::RemoteSelectDir => "Select remote directory",
+        I18nKey::RemoteDirUp => "Up",
+        I18nKey::RemoteDirSaveFirst => {
+            "Save this remote connection before browsing directories."
+        }
         I18nKey::RemoteResumeModel => "세션 재개",
         I18nKey::RemoteResumeTmux => "지속적(tmux)",
         I18nKey::RemoteResumeKeepalive => "Keepalive만 해당",

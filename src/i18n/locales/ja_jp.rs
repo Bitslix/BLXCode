@@ -536,6 +536,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteKeyPath => "秘密鍵ファイル",
         I18nKey::RemotePassphrase => "キーのパスフレーズ",
         I18nKey::RemoteDefaultDir => "リモートディレクトリ",
+        I18nKey::RemoteBrowseDirs => "Browse remote directories",
+        I18nKey::RemoteSelectDir => "Select remote directory",
+        I18nKey::RemoteDirUp => "Up",
+        I18nKey::RemoteDirSaveFirst => {
+            "Save this remote connection before browsing directories."
+        }
         I18nKey::RemoteResumeModel => "セッションの再開",
         I18nKey::RemoteResumeTmux => "永続的 (tmux)",
         I18nKey::RemoteResumeKeepalive => "キープアライブのみ",

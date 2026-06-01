@@ -56,6 +56,161 @@
   margin-top: 2px;
 }
 
+.remote-dir-input {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.remote-dir-input__field {
+  width: 100%;
+  padding-right: 2.45rem;
+}
+
+.remote-dir-input__browse {
+  position: absolute;
+  top: 50%;
+  right: 0.38rem;
+  transform: translateY(-50%);
+  width: 1.75rem;
+  height: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.remote-dir-input__browse:hover,
+.remote-dir-input__browse:focus-visible {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--overlay-2);
+  outline: none;
+}
+
+.remote-dir-input__browse:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.remote-dir-dialog__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 9300;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: color-mix(in srgb, var(--scrim-bg) 68%, transparent);
+}
+
+.remote-dir-dialog {
+  width: min(38rem, calc(100vw - 3rem));
+  max-height: min(34rem, calc(100vh - 3rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  box-shadow: 0 18px 54px var(--scrim-bg);
+}
+
+.remote-dir-dialog__head,
+.remote-dir-dialog__path,
+.remote-dir-dialog__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.remote-dir-dialog__head {
+  justify-content: space-between;
+}
+
+.remote-dir-dialog__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.remote-dir-dialog__icon-btn {
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.remote-dir-dialog__path {
+  min-width: 0;
+}
+
+.remote-dir-dialog__path code {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-raised);
+  color: var(--text-muted);
+}
+
+.remote-dir-dialog__message {
+  margin: 0;
+}
+
+.remote-dir-dialog__list {
+  min-height: 10rem;
+  overflow: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-app);
+}
+
+.remote-dir-dialog__item {
+  width: 100%;
+  min-height: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.42rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.remote-dir-dialog__item:hover,
+.remote-dir-dialog__item:focus-visible {
+  border-color: var(--border);
+  background: var(--overlay-2);
+  outline: none;
+}
+
+.remote-dir-dialog__actions {
+  justify-content: flex-end;
+}
+
 /* Sidebar remote marker */
 .workbench-sidebar__remote {
   display: inline-flex;
