@@ -160,6 +160,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansBodyPh => "Escribe el plan en Markdown...",
         I18nKey::PlansTitleRequired => "Primero, déle un título al plan.",
         I18nKey::PlansNoFilteredPlans => "No hay planes para este filtro.",
+        I18nKey::PlansGroupDescBlocked => "Planes esperando a un bloqueador antes de que el trabajo pueda continuar.",
+        I18nKey::PlansGroupDescInProgress => "Planes en los que el agente está trabajando activamente en este momento.",
+        I18nKey::PlansGroupDescPending => "Planes en cola con tareas aún no iniciadas.",
+        I18nKey::PlansGroupDescCompleted => "Planes con cada tarea terminada.",
+        I18nKey::PlansGroupDescCancelled => "Planes que fueron cancelados.",
+        I18nKey::PlansGroupDescEmpty => "Planes sin tareas todavía.",
         I18nKey::SrSkillsTabCore => "Centro",
         I18nKey::SrSkillsTabUser => "Usuario",
         I18nKey::SrSourceCore => "centro",
@@ -675,13 +681,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingHigh => "Alto",
         I18nKey::AgThinkingMax => "máx.",
         I18nKey::AgToolLoopLimitField => "Límite de bucle de herramientas",
-        I18nKey::AgToolLoopLimitHint => {
-            "Máximo de rondas de llamadas a herramientas por turno antes de detener un bucle descontrolado."
-        }
+        I18nKey::AgToolLoopLimitHint => "Máximo de rondas de llamadas a herramientas por turno antes de detener un bucle descontrolado.",
         I18nKey::AgAutoCompactField => "Auto-compactar",
-        I18nKey::AgAutoCompactHint => {
-            "Resumir automáticamente la sesión cuando se acerque al límite de contexto."
-        }
+        I18nKey::AgAutoCompactHint => "Resumir automáticamente la sesión cuando se acerque al límite de contexto.",
         I18nKey::AgAutoCompactThresholdField => "Auto-compactar al (%)",
         I18nKey::AgContextWindowAria => "Uso de la ventana de contexto",
         I18nKey::AgContextWindowLabel => "Ventana de contexto",

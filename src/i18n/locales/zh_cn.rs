@@ -158,6 +158,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansBodyPh => "用 Markdown 写下计划...",
         I18nKey::PlansTitleRequired => "首先给计划起一个标题。",
         I18nKey::PlansNoFilteredPlans => "没有此过滤器的计划。",
+        I18nKey::PlansGroupDescBlocked => "计划在工作可以继续之前等待阻止者。",
+        I18nKey::PlansGroupDescInProgress => "代理目前正在积极制定计划。",
+        I18nKey::PlansGroupDescPending => "计划与尚未开始的任务一起排队。",
+        I18nKey::PlansGroupDescCompleted => "完成每项任务的计划。",
+        I18nKey::PlansGroupDescCancelled => "被取消的计划。",
+        I18nKey::PlansGroupDescEmpty => "计划还没有任何任务。",
         I18nKey::SrSkillsTabCore => "核心",
         I18nKey::SrSkillsTabUser => "用户",
         I18nKey::SrSourceCore => "核",
@@ -653,13 +659,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingHigh => "高的",
         I18nKey::AgThinkingMax => "最大限度",
         I18nKey::AgToolLoopLimitField => "工具循环上限",
-        I18nKey::AgToolLoopLimitHint => {
-            "每轮中工具调用的最大次数，超过后代理将停止失控循环。"
-        }
+        I18nKey::AgToolLoopLimitHint => "每轮中工具调用的最大次数，超过后代理将停止失控循环。",
         I18nKey::AgAutoCompactField => "自动压缩",
-        I18nKey::AgAutoCompactHint => {
-            "当会话接近上下文上限时自动进行摘要压缩。"
-        }
+        I18nKey::AgAutoCompactHint => "当会话接近上下文上限时自动进行摘要压缩。",
         I18nKey::AgAutoCompactThresholdField => "自动压缩阈值 (%)",
         I18nKey::AgContextWindowAria => "上下文窗口使用情况",
         I18nKey::AgContextWindowLabel => "上下文窗口",

@@ -158,6 +158,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansBodyPh => "計画をMarkdownで書きます...",
         I18nKey::PlansTitleRequired => "まず計画にタイトルを付けます。",
         I18nKey::PlansNoFilteredPlans => "このフィルターの予定はありません。",
+        I18nKey::PlansGroupDescBlocked => "計画は作業を続行する前にブロッカーを待機します。",
+        I18nKey::PlansGroupDescInProgress => "エージェントが現在積極的に取り組んでいる計画。",
+        I18nKey::PlansGroupDescPending => "まだ開始されていないタスクを含む計画がキューに入れられています。",
+        I18nKey::PlansGroupDescCompleted => "すべてのタスクが完了した状態で計画を立てます。",
+        I18nKey::PlansGroupDescCancelled => "キャンセルされた計画。",
+        I18nKey::PlansGroupDescEmpty => "まだタスクのない計画。",
         I18nKey::SrSkillsTabCore => "コア",
         I18nKey::SrSkillsTabUser => "ユーザー",
         I18nKey::SrSourceCore => "コア",
@@ -657,13 +663,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingHigh => "高い",
         I18nKey::AgThinkingMax => "マックス",
         I18nKey::AgToolLoopLimitField => "ツールループ上限",
-        I18nKey::AgToolLoopLimitHint => {
-            "暴走ループを停止するまでの、1ターンあたりのツール呼び出し回数の上限。"
-        }
+        I18nKey::AgToolLoopLimitHint => "暴走ループを停止するまでの、1ターンあたりのツール呼び出し回数の上限。",
         I18nKey::AgAutoCompactField => "自動コンパクト",
-        I18nKey::AgAutoCompactHint => {
-            "コンテキスト上限に近づいたらセッションを自動的に要約します。"
-        }
+        I18nKey::AgAutoCompactHint => "コンテキスト上限に近づいたらセッションを自動的に要約します。",
         I18nKey::AgAutoCompactThresholdField => "自動コンパクトの閾値 (%)",
         I18nKey::AgContextWindowAria => "コンテキストウィンドウの使用量",
         I18nKey::AgContextWindowLabel => "コンテキストウィンドウ",

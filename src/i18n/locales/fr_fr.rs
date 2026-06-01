@@ -162,6 +162,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansBodyPh => "Écrivez le plan en Markdown...",
         I18nKey::PlansTitleRequired => "Donnez d'abord un titre au plan.",
         I18nKey::PlansNoFilteredPlans => "Aucun projet pour ce filtre.",
+        I18nKey::PlansGroupDescBlocked => "Les plans attendent un bloqueur avant que les travaux puissent continuer.",
+        I18nKey::PlansGroupDescInProgress => "Plans sur lesquels l'agent travaille activement en ce moment.",
+        I18nKey::PlansGroupDescPending => "Plans en file d'attente avec des tâches non encore démarrées.",
+        I18nKey::PlansGroupDescCompleted => "Plans avec chaque tâche terminée.",
+        I18nKey::PlansGroupDescCancelled => "Des plans qui ont été annulés.",
+        I18nKey::PlansGroupDescEmpty => "Plans sans aucune tâche pour le moment.",
         I18nKey::SrSkillsTabCore => "Noyau",
         I18nKey::SrSkillsTabUser => "Utilisateur",
         I18nKey::SrSourceCore => "cœur",
@@ -681,13 +687,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingHigh => "Haut",
         I18nKey::AgThinkingMax => "Max.",
         I18nKey::AgToolLoopLimitField => "Limite de boucle d'outils",
-        I18nKey::AgToolLoopLimitHint => {
-            "Nombre maximal de tours d'appels d'outils par tour avant l'arrêt d'une boucle infinie."
-        }
+        I18nKey::AgToolLoopLimitHint => "Nombre maximal de tours d'appels d'outils par tour avant l'arrêt d'une boucle infinie.",
         I18nKey::AgAutoCompactField => "Compactage auto",
-        I18nKey::AgAutoCompactHint => {
-            "Résumer automatiquement la session lorsqu'elle approche de la limite de contexte."
-        }
+        I18nKey::AgAutoCompactHint => "Résumer automatiquement la session lorsqu'elle approche de la limite de contexte.",
         I18nKey::AgAutoCompactThresholdField => "Compactage auto à (%)",
         I18nKey::AgContextWindowAria => "Utilisation de la fenêtre de contexte",
         I18nKey::AgContextWindowLabel => "Fenêtre de contexte",

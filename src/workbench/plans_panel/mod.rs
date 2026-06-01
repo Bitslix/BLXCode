@@ -90,6 +90,17 @@ impl PlanBucket {
             Self::Empty => I18nKey::PlansFilterEmpty,
         }
     }
+
+    fn desc_key(self) -> I18nKey {
+        match self {
+            Self::Blocked => I18nKey::PlansGroupDescBlocked,
+            Self::InProgress => I18nKey::PlansGroupDescInProgress,
+            Self::Pending => I18nKey::PlansGroupDescPending,
+            Self::Completed => I18nKey::PlansGroupDescCompleted,
+            Self::Cancelled => I18nKey::PlansGroupDescCancelled,
+            Self::Empty => I18nKey::PlansGroupDescEmpty,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -345,9 +356,19 @@ pub fn PlansPanel() -> impl IntoView {
         });
     };
 
+    // The protected PLANS.md index is never listed as a plan card.
+    let displayed_plans = Signal::derive(move || {
+        state.plans.with(|plans| {
+            plans
+                .iter()
+                .filter(|p| !p.is_index)
+                .cloned()
+                .collect::<Vec<_>>()
+        })
+    });
     let visible_plans = Signal::derive(move || {
         let mode = filter.get();
-        state.plans.with(|plans| {
+        displayed_plans.with(|plans| {
             plans
                 .iter()
                 .filter(|p| filter_matches(mode, p))
@@ -355,7 +376,7 @@ pub fn PlansPanel() -> impl IntoView {
                 .collect()
         })
     });
-    let visible_groups = Signal::derive(move || grouped_plans(&state.plans.get()));
+    let visible_groups = Signal::derive(move || grouped_plans(&displayed_plans.get()));
 
     view! {
         <div class="blx-sr-pane blx-plans-pane" role="region" aria-label=move || i18n.tr(I18nKey::TabPlans)()>
@@ -410,7 +431,7 @@ pub fn PlansPanel() -> impl IntoView {
                             <LxIcon icon=mode.icon() width="13px" height="13px" />
                             <span>{i18n.tr(mode.label_key())}</span>
                             <span class="blx-sr-tab__count">
-                                {move || state.plans.with(|plans| filter_count(mode, plans))}
+                                {move || displayed_plans.with(|plans| filter_count(mode, plans))}
                             </span>
                         </button>
                     }
@@ -496,9 +517,9 @@ pub fn PlansPanel() -> impl IntoView {
                     })}
 
                     {move || {
-                        if state.loading.get() && state.plans.with(|plans| plans.is_empty()) {
+                        if state.loading.get() && displayed_plans.with(|plans| plans.is_empty()) {
                             view! { <p class="blx-sr-pane__hint">{i18n.tr(I18nKey::SrLoading)}</p> }.into_any()
-                        } else if state.plans.with(|plans| plans.is_empty()) && !composer_open.get() {
+                        } else if displayed_plans.with(|plans| plans.is_empty()) && !composer_open.get() {
                             view! {
                                 <div class="blx-sr-empty">
                                     <span class="blx-sr-empty__icon" aria-hidden="true">
@@ -550,23 +571,42 @@ pub fn PlansPanel() -> impl IntoView {
 fn PlanGroupView(state: PlansState, group: PlanGroup) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let bucket = group.bucket;
-    let plans = group.plans;
+    let count = group.plans.len();
+    let plans = StoredValue::new(group.plans);
+    let expanded = RwSignal::new(true);
     view! {
-        <section class="blx-plans-group" data-state=bucket.key()>
-            <header class="blx-plans-group__header">
+        <section
+            class="blx-plans-group"
+            class:blx-plans-group--collapsed=move || !expanded.get()
+            data-state=bucket.key()
+        >
+            <button
+                type="button"
+                class="blx-plans-group__header"
+                aria-expanded=move || if expanded.get() { "true" } else { "false" }
+                on:click=move |_| expanded.update(|open| *open = !*open)
+            >
                 <span class="blx-plans-group__icon" aria-hidden="true">
                     <LxIcon icon=bucket.icon() width="13px" height="13px" />
                 </span>
-                <span class="blx-plans-group__title">{i18n.tr(bucket.label_key())}</span>
-                <span class="blx-plans-group__count">{plans.len()}</span>
-            </header>
-            <div class="blx-plans-group__cards">
-                <For
-                    each=move || plans.clone()
-                    key=|plan| plan.path.clone()
-                    children=move |plan| view! { <PlanCard state=state plan=plan /> }
-                />
-            </div>
+                <span class="blx-plans-group__head-text">
+                    <span class="blx-plans-group__title">{i18n.tr(bucket.label_key())}</span>
+                    <span class="blx-plans-group__desc">{i18n.tr(bucket.desc_key())}</span>
+                </span>
+                <span class="blx-plans-group__count">{count}</span>
+                <span class="blx-plans-group__chevron" aria-hidden="true">
+                    <LxIcon icon=icondata::LuChevronDown width="14px" height="14px" />
+                </span>
+            </button>
+            <Show when=move || expanded.get()>
+                <div class="blx-plans-group__cards">
+                    <For
+                        each=move || plans.get_value()
+                        key=|plan| plan.path.clone()
+                        children=move |plan| view! { <PlanCard state=state plan=plan /> }
+                    />
+                </div>
+            </Show>
         </section>
     }
 }

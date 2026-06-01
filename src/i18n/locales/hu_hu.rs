@@ -160,6 +160,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansBodyPh => "Írd be a tervet a Markdownba...",
         I18nKey::PlansTitleRequired => "Először adjon címet a tervnek.",
         I18nKey::PlansNoFilteredPlans => "Nincs terv erre a szűrőre.",
+        I18nKey::PlansGroupDescBlocked => "A tervek blokkolásra várnak a munka folytatása előtt.",
+        I18nKey::PlansGroupDescInProgress => "Tervek, amelyeken az ügynök jelenleg aktívan dolgozik.",
+        I18nKey::PlansGroupDescPending => "A tervek sorban állnak a még el nem indult feladatokkal.",
+        I18nKey::PlansGroupDescCompleted => "Tervek minden feladat elvégzésével.",
+        I18nKey::PlansGroupDescCancelled => "Törölt tervek.",
+        I18nKey::PlansGroupDescEmpty => "Tervek még feladatok nélkül.",
         I18nKey::SrSkillsTabCore => "Alap",
         I18nKey::SrSkillsTabUser => "Felhasználói",
         I18nKey::SrSourceCore => "mag",
@@ -673,13 +679,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingHigh => "Magas",
         I18nKey::AgThinkingMax => "Max",
         I18nKey::AgToolLoopLimitField => "Eszközhurok-korlát",
-        I18nKey::AgToolLoopLimitHint => {
-            "Eszközhívási körök maximális száma fordulónként, mielőtt az ügynök leállítja az elszabadult hurkot."
-        }
+        I18nKey::AgToolLoopLimitHint => "Eszközhívási körök maximális száma fordulónként, mielőtt az ügynök leállítja az elszabadult hurkot.",
         I18nKey::AgAutoCompactField => "Auto-tömörítés",
-        I18nKey::AgAutoCompactHint => {
-            "A munkamenet automatikus összefoglalása, amikor közelít a kontextushatárhoz."
-        }
+        I18nKey::AgAutoCompactHint => "A munkamenet automatikus összefoglalása, amikor közelít a kontextushatárhoz.",
         I18nKey::AgAutoCompactThresholdField => "Auto-tömörítés ennél (%)",
         I18nKey::AgContextWindowAria => "Kontextusablak kihasználtsága",
         I18nKey::AgContextWindowLabel => "Kontextusablak",

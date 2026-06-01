@@ -160,6 +160,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansBodyPh => "Напишите план в Markdown...",
         I18nKey::PlansTitleRequired => "Сначала дайте плану название.",
         I18nKey::PlansNoFilteredPlans => "Планов по этому фильтру нет.",
+        I18nKey::PlansGroupDescBlocked => "Планы ждут блокировщика, прежде чем работа сможет продолжиться.",
+        I18nKey::PlansGroupDescInProgress => "Планы, над которыми агент сейчас активно работает.",
+        I18nKey::PlansGroupDescPending => "Планы в очереди с еще не начатыми задачами.",
+        I18nKey::PlansGroupDescCompleted => "Планы с завершением каждой задачи.",
+        I18nKey::PlansGroupDescCancelled => "Планы, которые были отменены.",
+        I18nKey::PlansGroupDescEmpty => "В планах пока никаких задач.",
         I18nKey::SrSkillsTabCore => "Ядро",
         I18nKey::SrSkillsTabUser => "Пользователь",
         I18nKey::SrSourceCore => "основной",
@@ -673,13 +679,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingHigh => "Высокий",
         I18nKey::AgThinkingMax => "Макс",
         I18nKey::AgToolLoopLimitField => "Лимит цикла инструментов",
-        I18nKey::AgToolLoopLimitHint => {
-            "Максимум раундов вызова инструментов за ход, прежде чем агент остановит зацикливание."
-        }
+        I18nKey::AgToolLoopLimitHint => "Максимум раундов вызова инструментов за ход, прежде чем агент остановит зацикливание.",
         I18nKey::AgAutoCompactField => "Авто-сжатие",
-        I18nKey::AgAutoCompactHint => {
-            "Автоматически сжимать сессию при приближении к лимиту контекста."
-        }
+        I18nKey::AgAutoCompactHint => "Автоматически сжимать сессию при приближении к лимиту контекста.",
         I18nKey::AgAutoCompactThresholdField => "Авто-сжатие при (%)",
         I18nKey::AgContextWindowAria => "Использование окна контекста",
         I18nKey::AgContextWindowLabel => "Окно контекста",

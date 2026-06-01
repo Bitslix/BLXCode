@@ -166,6 +166,12 @@ pub enum I18nKey {
     PlansBodyPh,
     PlansTitleRequired,
     PlansNoFilteredPlans,
+    PlansGroupDescBlocked,
+    PlansGroupDescInProgress,
+    PlansGroupDescPending,
+    PlansGroupDescCompleted,
+    PlansGroupDescCancelled,
+    PlansGroupDescEmpty,
 
     // Skills & Rules panel
     SrSkillsTabCore,

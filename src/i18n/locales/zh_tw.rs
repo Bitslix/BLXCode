@@ -158,6 +158,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansBodyPh => "用 Markdown 寫下計畫...",
         I18nKey::PlansTitleRequired => "首先給計劃一個標題。",
         I18nKey::PlansNoFilteredPlans => "沒有此過濾器的計劃。",
+        I18nKey::PlansGroupDescBlocked => "計劃在工作可以繼續之前等待阻止者。",
+        I18nKey::PlansGroupDescInProgress => "代理目前正在積極制定計劃。",
+        I18nKey::PlansGroupDescPending => "計劃與尚未開始的任務一起排隊。",
+        I18nKey::PlansGroupDescCompleted => "完成每項任務的計劃。",
+        I18nKey::PlansGroupDescCancelled => "被取消的計劃。",
+        I18nKey::PlansGroupDescEmpty => "計劃還沒有任何任務。",
         I18nKey::SrSkillsTabCore => "核心",
         I18nKey::SrSkillsTabUser => "用戶",
         I18nKey::SrSourceCore => "核",
@@ -653,13 +659,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingHigh => "高的",
         I18nKey::AgThinkingMax => "最大限度",
         I18nKey::AgToolLoopLimitField => "工具迴圈上限",
-        I18nKey::AgToolLoopLimitHint => {
-            "每輪中工具呼叫的最大次數，超過後代理將停止失控迴圈。"
-        }
+        I18nKey::AgToolLoopLimitHint => "每輪中工具呼叫的最大次數，超過後代理將停止失控迴圈。",
         I18nKey::AgAutoCompactField => "自動壓縮",
-        I18nKey::AgAutoCompactHint => {
-            "當工作階段接近上下文上限時自動進行摘要壓縮。"
-        }
+        I18nKey::AgAutoCompactHint => "當工作階段接近上下文上限時自動進行摘要壓縮。",
         I18nKey::AgAutoCompactThresholdField => "自動壓縮閾值 (%)",
         I18nKey::AgContextWindowAria => "上下文視窗使用情況",
         I18nKey::AgContextWindowLabel => "上下文視窗",

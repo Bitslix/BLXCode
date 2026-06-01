@@ -160,6 +160,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansBodyPh => "Plan in Markdown schreiben...",
         I18nKey::PlansTitleRequired => "Gib dem Plan zuerst einen Titel.",
         I18nKey::PlansNoFilteredPlans => "Keine Pläne für diesen Filter.",
+        I18nKey::PlansGroupDescBlocked => "Pläne, die auf einen Blocker warten, bevor es weitergeht.",
+        I18nKey::PlansGroupDescInProgress => "Pläne, an denen der Agent gerade aktiv arbeitet.",
+        I18nKey::PlansGroupDescPending => "Pläne in der Warteschlange mit noch nicht gestarteten Aufgaben.",
+        I18nKey::PlansGroupDescCompleted => "Pläne, deren Aufgaben alle abgeschlossen sind.",
+        I18nKey::PlansGroupDescCancelled => "Abgebrochene Pläne.",
+        I18nKey::PlansGroupDescEmpty => "Pläne ohne Aufgaben.",
         I18nKey::SrSkillsTabCore => "Kern",
         I18nKey::SrSkillsTabUser => "Benutzer",
         I18nKey::SrSourceCore => "Kern",
@@ -675,13 +681,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingHigh => "Hoch",
         I18nKey::AgThinkingMax => "Max",
         I18nKey::AgToolLoopLimitField => "Tool-Schleifen-Limit",
-        I18nKey::AgToolLoopLimitHint => {
-            "Maximale Tool-Aufruf-Runden pro Durchlauf, bevor der Agent eine Endlosschleife stoppt."
-        }
+        I18nKey::AgToolLoopLimitHint => "Maximale Tool-Aufruf-Runden pro Durchlauf, bevor der Agent eine Endlosschleife stoppt.",
         I18nKey::AgAutoCompactField => "Auto-Kompaktierung",
-        I18nKey::AgAutoCompactHint => {
-            "Sitzung automatisch zusammenfassen, wenn sie sich dem Kontextlimit nähert."
-        }
+        I18nKey::AgAutoCompactHint => "Sitzung automatisch zusammenfassen, wenn sie sich dem Kontextlimit nähert.",
         I18nKey::AgAutoCompactThresholdField => "Auto-Kompaktierung bei (%)",
         I18nKey::AgContextWindowAria => "Kontextfenster-Auslastung",
         I18nKey::AgContextWindowLabel => "Kontextfenster",

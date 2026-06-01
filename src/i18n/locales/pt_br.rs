@@ -160,6 +160,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansBodyPh => "Escreva o plano em Markdown...",
         I18nKey::PlansTitleRequired => "Dê um título ao plano primeiro.",
         I18nKey::PlansNoFilteredPlans => "Não há planos para este filtro.",
+        I18nKey::PlansGroupDescBlocked => "Planos aguardando um bloqueador antes que o trabalho possa continuar.",
+        I18nKey::PlansGroupDescInProgress => "Planos nos quais o agente está trabalhando ativamente no momento.",
+        I18nKey::PlansGroupDescPending => "Planos na fila com tarefas ainda não iniciadas.",
+        I18nKey::PlansGroupDescCompleted => "Planos com cada tarefa concluída.",
+        I18nKey::PlansGroupDescCancelled => "Planos que foram cancelados.",
+        I18nKey::PlansGroupDescEmpty => "Planos sem nenhuma tarefa ainda.",
         I18nKey::SrSkillsTabCore => "Essencial",
         I18nKey::SrSkillsTabUser => "Usuário",
         I18nKey::SrSourceCore => "essencial",
@@ -673,13 +679,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingHigh => "Alto",
         I18nKey::AgThinkingMax => "Máx.",
         I18nKey::AgToolLoopLimitField => "Limite de loop de ferramentas",
-        I18nKey::AgToolLoopLimitHint => {
-            "Máximo de rodadas de chamadas de ferramentas por turno antes de interromper um loop descontrolado."
-        }
+        I18nKey::AgToolLoopLimitHint => "Máximo de rodadas de chamadas de ferramentas por turno antes de interromper um loop descontrolado.",
         I18nKey::AgAutoCompactField => "Auto-compactar",
-        I18nKey::AgAutoCompactHint => {
-            "Resumir automaticamente a sessão quando ela se aproximar do limite de contexto."
-        }
+        I18nKey::AgAutoCompactHint => "Resumir automaticamente a sessão quando ela se aproximar do limite de contexto.",
         I18nKey::AgAutoCompactThresholdField => "Auto-compactar em (%)",
         I18nKey::AgContextWindowAria => "Uso da janela de contexto",
         I18nKey::AgContextWindowLabel => "Janela de contexto",

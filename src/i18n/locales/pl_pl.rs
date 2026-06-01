@@ -160,6 +160,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansBodyPh => "Napisz plan w Markdown...",
         I18nKey::PlansTitleRequired => "Najpierw nadaj planowi tytuł.",
         I18nKey::PlansNoFilteredPlans => "Brak planów dotyczących tego filtra.",
+        I18nKey::PlansGroupDescBlocked => "Plany czekają na blokadę, zanim będzie można kontynuować pracę.",
+        I18nKey::PlansGroupDescInProgress => "Plany, nad którymi agent aktywnie pracuje w tej chwili.",
+        I18nKey::PlansGroupDescPending => "Plany w kolejce z zadaniami, które nie zostały jeszcze rozpoczęte.",
+        I18nKey::PlansGroupDescCompleted => "Plany z każdym zadaniem ukończonym.",
+        I18nKey::PlansGroupDescCancelled => "Plany, które zostały anulowane.",
+        I18nKey::PlansGroupDescEmpty => "Plany bez jeszcze żadnych zadań.",
         I18nKey::SrSkillsTabCore => "Rdzeń",
         I18nKey::SrSkillsTabUser => "Użytkownik",
         I18nKey::SrSourceCore => "rdzeń",
@@ -673,13 +679,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingHigh => "Wysoki",
         I18nKey::AgThinkingMax => "Maks",
         I18nKey::AgToolLoopLimitField => "Limit pętli narzędzi",
-        I18nKey::AgToolLoopLimitHint => {
-            "Maksymalna liczba rund wywołań narzędzi na turę, zanim agent przerwie niekontrolowaną pętlę."
-        }
+        I18nKey::AgToolLoopLimitHint => "Maksymalna liczba rund wywołań narzędzi na turę, zanim agent przerwie niekontrolowaną pętlę.",
         I18nKey::AgAutoCompactField => "Auto-kompaktowanie",
-        I18nKey::AgAutoCompactHint => {
-            "Automatycznie podsumuj sesję, gdy zbliża się do limitu kontekstu."
-        }
+        I18nKey::AgAutoCompactHint => "Automatycznie podsumuj sesję, gdy zbliża się do limitu kontekstu.",
         I18nKey::AgAutoCompactThresholdField => "Auto-kompaktowanie przy (%)",
         I18nKey::AgContextWindowAria => "Wykorzystanie okna kontekstu",
         I18nKey::AgContextWindowLabel => "Okno kontekstu",

@@ -160,6 +160,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansBodyPh => "Scrivi il piano in Markdown...",
         I18nKey::PlansTitleRequired => "Dai prima un titolo al piano.",
         I18nKey::PlansNoFilteredPlans => "Nessun piano per questo filtro.",
+        I18nKey::PlansGroupDescBlocked => "I piani attendono un bloccante prima che il lavoro possa continuare.",
+        I18nKey::PlansGroupDescInProgress => "Piani su cui l'agente sta lavorando attivamente in questo momento.",
+        I18nKey::PlansGroupDescPending => "Piani in coda con attività non ancora avviate.",
+        I18nKey::PlansGroupDescCompleted => "Pianifica con ogni attività completata.",
+        I18nKey::PlansGroupDescCancelled => "Piani che sono stati cancellati.",
+        I18nKey::PlansGroupDescEmpty => "Piani senza ancora alcuna attività.",
         I18nKey::SrSkillsTabCore => "Nucleo",
         I18nKey::SrSkillsTabUser => "Utente",
         I18nKey::SrSourceCore => "nucleo",
@@ -683,9 +689,7 @@ pub fn msg(key: I18nKey) -> &'static str {
             "Numero massimo di cicli di chiamata agli strumenti per turno prima di interrompere un ciclo infinito."
         }
         I18nKey::AgAutoCompactField => "Compattazione automatica",
-        I18nKey::AgAutoCompactHint => {
-            "Riassumi automaticamente la sessione quando si avvicina al limite di contesto."
-        }
+        I18nKey::AgAutoCompactHint => "Riassumi automaticamente la sessione quando si avvicina al limite di contesto.",
         I18nKey::AgAutoCompactThresholdField => "Compattazione automatica al (%)",
         I18nKey::AgContextWindowAria => "Utilizzo della finestra di contesto",
         I18nKey::AgContextWindowLabel => "Finestra di contesto",

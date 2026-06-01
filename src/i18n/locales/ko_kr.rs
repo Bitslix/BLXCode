@@ -158,6 +158,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansBodyPh => "마크다운으로 계획을 작성하세요...",
         I18nKey::PlansTitleRequired => "먼저 계획에 제목을 부여하세요.",
         I18nKey::PlansNoFilteredPlans => "이 필터에 대한 계획은 없습니다.",
+        I18nKey::PlansGroupDescBlocked => "작업을 계속하기 전에 방해물을 기다리는 계획.",
+        I18nKey::PlansGroupDescInProgress => "에이전트가 현재 적극적으로 작업하고 있는 계획입니다.",
+        I18nKey::PlansGroupDescPending => "아직 시작되지 않은 작업이 대기 중인 계획입니다.",
+        I18nKey::PlansGroupDescCompleted => "모든 작업이 완료된 계획입니다.",
+        I18nKey::PlansGroupDescCancelled => "취소된 계획.",
+        I18nKey::PlansGroupDescEmpty => "아직 작업이 없는 계획입니다.",
         I18nKey::SrSkillsTabCore => "핵심",
         I18nKey::SrSkillsTabUser => "사용자",
         I18nKey::SrSourceCore => "핵심",
@@ -655,13 +661,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingHigh => "높은",
         I18nKey::AgThinkingMax => "맥스",
         I18nKey::AgToolLoopLimitField => "도구 루프 한도",
-        I18nKey::AgToolLoopLimitHint => {
-            "에이전트가 무한 루프를 중단하기 전 턴당 최대 도구 호출 횟수입니다."
-        }
+        I18nKey::AgToolLoopLimitHint => "에이전트가 무한 루프를 중단하기 전 턴당 최대 도구 호출 횟수입니다.",
         I18nKey::AgAutoCompactField => "자동 압축",
-        I18nKey::AgAutoCompactHint => {
-            "세션이 컨텍스트 한도에 가까워지면 자동으로 요약합니다."
-        }
+        I18nKey::AgAutoCompactHint => "세션이 컨텍스트 한도에 가까워지면 자동으로 요약합니다.",
         I18nKey::AgAutoCompactThresholdField => "자동 압축 기준 (%)",
         I18nKey::AgContextWindowAria => "컨텍스트 창 사용량",
         I18nKey::AgContextWindowLabel => "컨텍스트 창",
