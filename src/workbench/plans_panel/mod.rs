@@ -248,6 +248,12 @@ fn grouped_plans(plans: &[PlanMeta]) -> Vec<PlanGroup> {
         .collect()
 }
 
+fn plan_matches_search(plan: &PlanMeta, query: &str) -> bool {
+    plan.title.to_lowercase().contains(query)
+        || plan.name.to_lowercase().contains(query)
+        || plan.path.to_lowercase().contains(query)
+}
+
 fn open_plan_composer(composer_open: RwSignal<bool>, draft_error: RwSignal<Option<String>>) {
     composer_open.set(true);
     draft_error.set(None);
@@ -292,6 +298,7 @@ pub fn PlansPanel() -> impl IntoView {
     let active_id = wb.active_id();
     let filter = RwSignal::new(PlanFilter::All);
     let composer_open = RwSignal::new(false);
+    let search_query = RwSignal::new(String::new());
     let draft_title = RwSignal::new(String::new());
     let draft_body = RwSignal::new(String::new());
     let draft_error = RwSignal::<Option<String>>::new(None);
@@ -371,9 +378,22 @@ pub fn PlansPanel() -> impl IntoView {
                 .collect::<Vec<_>>()
         })
     });
+    let searched_plans = Signal::derive(move || {
+        let query = search_query.get().trim().to_lowercase();
+        displayed_plans.with(|plans| {
+            if query.is_empty() {
+                return plans.clone();
+            }
+            plans
+                .iter()
+                .filter(|plan| plan_matches_search(plan, &query))
+                .cloned()
+                .collect::<Vec<_>>()
+        })
+    });
     let visible_plans = Signal::derive(move || {
         let mode = filter.get();
-        displayed_plans.with(|plans| {
+        searched_plans.with(|plans| {
             plans
                 .iter()
                 .filter(|p| filter_matches(mode, p))
@@ -381,7 +401,7 @@ pub fn PlansPanel() -> impl IntoView {
                 .collect()
         })
     });
-    let visible_groups = Signal::derive(move || grouped_plans(&displayed_plans.get()));
+    let visible_groups = Signal::derive(move || grouped_plans(&searched_plans.get()));
 
     // Accordion state for the grouped (All) view: at most one status group is
     // open at a time, defaulting to the topmost group. Reset to the first group
@@ -496,6 +516,19 @@ pub fn PlansPanel() -> impl IntoView {
                         </div>
                     }
                 >
+                    <label class="blx-sr-search">
+                        <span class="blx-sr-search__icon" aria-hidden="true">
+                            <LxIcon icon=icondata::LuSearch width="14px" height="14px" />
+                        </span>
+                        <input
+                            type="search"
+                            class="blx-sr-search__input"
+                            placeholder="Search plans..."
+                            aria-label="Search plans"
+                            prop:value=move || search_query.get()
+                            on:input=move |ev| search_query.set(input_value(&ev))
+                        />
+                    </label>
                     {move || composer_open.get().then(|| {
                         let is_saving = saving.get();
                         view! {
@@ -581,6 +614,8 @@ pub fn PlansPanel() -> impl IntoView {
                                     </button>
                                 </div>
                             }.into_any()
+                        } else if searched_plans.with(|plans| plans.is_empty()) {
+                            view! { <p class="blx-sr-pane__hint">{i18n.tr(I18nKey::PlansNoFilteredPlans)}</p> }.into_any()
                         } else if filter.get() == PlanFilter::All {
                             view! {
                                 <For

@@ -16,6 +16,8 @@ pub struct RuleEntry {
     pub name: String,
     pub title: String,
     pub summary: String,
+    #[serde(default)]
+    pub category: Option<String>,
     pub enabled: bool,
     pub size_bytes: u64,
     pub updated_at: String,

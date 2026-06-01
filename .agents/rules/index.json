@@ -4,59 +4,35 @@
     "rule-no-monolith-structure.md": {
       "enabled": true,
       "updatedAt": "2026-05-20T11:32:10Z",
-      "tags": [
-        "architecture",
-        "modularity",
-        "code-organization"
-      ]
+      "category": "architecture"
     },
     "rule-reusable-components.md": {
       "enabled": true,
       "updatedAt": "2026-05-20T11:32:10Z",
-      "tags": [
-        "frontend",
-        "components",
-        "reuse"
-      ]
+      "category": "frontend"
     },
     "rule-theme-tokens.md": {
       "enabled": true,
       "updatedAt": "2026-05-22T08:02:09Z",
-      "tags": [
-        "frontend",
-        "css",
-        "theme"
-      ],
+      "category": "frontend",
       "source": "user"
     },
     "rule-use-enabled-rust-skills.md": {
       "enabled": true,
       "updatedAt": "2026-05-22T08:02:09Z",
-      "tags": [
-        "rust",
-        "skills",
-        "tauri"
-      ],
+      "category": "rust",
       "source": "user"
     },
     "rule-manage-plans-required.md": {
       "enabled": true,
       "updatedAt": "2026-06-01T19:27:50Z",
-      "tags": [
-        "plans",
-        "workflow",
-        "skills"
-      ],
+      "category": "workflow",
       "source": "user"
     },
     "rule-branch-and-phase-commits.md": {
       "enabled": true,
       "updatedAt": "2026-06-01T19:27:50Z",
-      "tags": [
-        "git",
-        "commits",
-        "workflow"
-      ],
+      "category": "workflow",
       "source": "user"
     }
   }

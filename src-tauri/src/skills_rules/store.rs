@@ -117,6 +117,8 @@ fn bootstrap_rules_index(rules_dir: &Path) -> Result<(), String> {
             RuleIndexEntry {
                 enabled: true,
                 updated_at: now.clone(),
+                category: None,
+                legacy_tags: Vec::new(),
             },
         );
     }
@@ -287,8 +289,63 @@ fn read_or_default_json<T: serde::de::DeserializeOwned + Default>(path: &Path) -
         .unwrap_or_default()
 }
 
-/// Strip leading `# Heading` line if present and shrink to `SUMMARY_MAX_CHARS`.
+fn markdown_body_without_frontmatter(body: &str) -> &str {
+    let Some(rest) = body.strip_prefix("---") else {
+        return body;
+    };
+    let rest = rest
+        .strip_prefix('\r')
+        .or_else(|| rest.strip_prefix('\n'))
+        .unwrap_or(rest);
+    for marker in ["\n---\n", "\n---\r\n", "\r\n---\r\n", "\r\n---\n"] {
+        if let Some(pos) = rest.find(marker) {
+            return &rest[pos + marker.len()..];
+        }
+    }
+    body
+}
+
+fn normalize_rule_category(raw: &str) -> Option<String> {
+    let value = raw
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.chars().take(48).collect())
+    }
+}
+
+fn extract_rule_category(body: &str) -> Option<String> {
+    let rest = body.strip_prefix("---")?;
+    let rest = rest
+        .strip_prefix('\r')
+        .or_else(|| rest.strip_prefix('\n'))
+        .unwrap_or(rest);
+    for line in rest.lines() {
+        let trimmed = line.trim();
+        if trimmed == "---" {
+            break;
+        }
+        let Some((key, value)) = trimmed.split_once(':') else {
+            continue;
+        };
+        if key.trim().eq_ignore_ascii_case("category") {
+            return normalize_rule_category(value);
+        }
+    }
+    None
+}
+
+/// Use the first H1 as title, then summarize the first body paragraph.
+/// Markdown section headings are skipped so a rule starting with `## Ziel`
+/// shows the paragraph under it instead of the heading text itself.
 fn extract_title_and_summary(body: &str, fallback_title: &str) -> (String, String) {
+    let body = markdown_body_without_frontmatter(body);
     let mut title = fallback_title.to_owned();
     let mut summary = String::new();
     let mut seen_title = false;
@@ -300,9 +357,14 @@ fn extract_title_and_summary(body: &str, fallback_title: &str) -> (String, Strin
             }
             continue;
         }
-        if !seen_title && trimmed.starts_with('#') {
-            title = trimmed.trim_start_matches('#').trim().to_owned();
+        if trimmed.starts_with('#') {
+            if !seen_title && trimmed.starts_with("# ") {
+                title = trimmed.trim_start_matches('#').trim().to_owned();
+            }
             seen_title = true;
+            continue;
+        }
+        if trimmed == "---" && summary.is_empty() {
             continue;
         }
         if !summary.is_empty() {
@@ -371,12 +433,9 @@ pub fn list_rules(ws: &str) -> Result<Vec<RuleEntry>, String> {
         .filter(|k| !known.contains(*k))
         .cloned()
         .collect();
-    let dirty = !stale.is_empty();
+    let mut dirty = !stale.is_empty();
     for k in stale {
         idx.rules.remove(&k);
-    }
-    if dirty {
-        let _ = write_rules_index(&roots.rules, &idx);
     }
 
     let mut entries = Vec::with_capacity(files.len());
@@ -384,16 +443,45 @@ pub fn list_rules(ws: &str) -> Result<Vec<RuleEntry>, String> {
         let path = roots.rules.join(&name);
         let body = fs::read_to_string(&path).unwrap_or_default();
         let meta = fs::metadata(&path).ok();
+        let updated_at = meta.as_ref().map(modified_rfc3339).unwrap_or_default();
         let (title, summary) = extract_title_and_summary(&body, name.trim_end_matches(".md"));
-        let enabled = idx.rules.get(&name).map(|e| e.enabled).unwrap_or(true);
+        let file_category = extract_rule_category(&body);
+        let index_entry = idx.rules.get(&name);
+        let enabled = index_entry.map(|e| e.enabled).unwrap_or(true);
+        let category = index_entry
+            .and_then(|e| e.category.clone())
+            .or_else(|| index_entry.and_then(|e| e.legacy_tags.first().cloned()))
+            .or_else(|| file_category.clone());
+        if let Some(category) = category.clone() {
+            let needs_update = idx
+                .rules
+                .get(&name)
+                .is_none_or(|entry| entry.category.as_deref() != Some(category.as_str()));
+            if needs_update {
+                idx.rules
+                    .entry(name.clone())
+                    .and_modify(|entry| entry.category = Some(category.clone()))
+                    .or_insert_with(|| RuleIndexEntry {
+                        enabled: true,
+                        updated_at: updated_at.clone(),
+                        category: Some(category.clone()),
+                        legacy_tags: Vec::new(),
+                    });
+                dirty = true;
+            }
+        }
         entries.push(RuleEntry {
             name,
             title,
             summary,
+            category,
             enabled,
             size_bytes: meta.as_ref().map(|m| m.len()).unwrap_or(0),
-            updated_at: meta.map(|m| modified_rfc3339(&m)).unwrap_or_default(),
+            updated_at,
         });
+    }
+    if dirty {
+        let _ = write_rules_index(&roots.rules, &idx);
     }
     Ok(entries)
 }
@@ -415,10 +503,17 @@ pub fn write_rule(ws: &str, name: &str, content: &str) -> Result<RuleEntry, Stri
     let now = now_rfc3339();
     idx.rules
         .entry(name.to_owned())
-        .and_modify(|e| e.updated_at = now.clone())
+        .and_modify(|e| {
+            e.updated_at = now.clone();
+            if let Some(category) = extract_rule_category(content) {
+                e.category = Some(category);
+            }
+        })
         .or_insert(RuleIndexEntry {
             enabled: true,
             updated_at: now.clone(),
+            category: extract_rule_category(content),
+            legacy_tags: Vec::new(),
         });
     write_rules_index(&roots.rules, &idx)?;
     list_rules(ws)?
@@ -444,6 +539,8 @@ pub fn set_rule_enabled(ws: &str, name: &str, enabled: bool) -> Result<RuleEntry
         .or_insert(RuleIndexEntry {
             enabled,
             updated_at: now.clone(),
+            category: None,
+            legacy_tags: Vec::new(),
         });
     write_rules_index(&roots.rules, &idx)?;
     list_rules(ws)?
@@ -837,6 +934,8 @@ mod tests {
             RuleIndexEntry {
                 enabled: true,
                 updated_at: now_rfc3339(),
+                category: None,
+                legacy_tags: Vec::new(),
             },
         );
         write_rules_index(&roots.rules, &idx).unwrap();
@@ -967,5 +1066,27 @@ mod tests {
         assert_eq!(s, "bar baz");
         let (t2, _s2) = extract_title_and_summary("no heading text", "fallback");
         assert_eq!(t2, "fallback");
+    }
+
+    #[test]
+    fn extract_summary_skips_section_heading() {
+        let (t, s) =
+            extract_title_and_summary("# Foo\n\n## Ziel\n\nActual description", "fallback");
+        assert_eq!(t, "Foo");
+        assert_eq!(s, "Actual description");
+    }
+
+    #[test]
+    fn extract_category_from_rule_frontmatter() {
+        let category = extract_rule_category("---\ncategory: workflow\n---\n# Foo");
+        assert_eq!(category.as_deref(), Some("workflow"));
+    }
+
+    #[test]
+    fn title_summary_ignore_frontmatter() {
+        let (title, summary) =
+            extract_title_and_summary("---\ncategory: workflow\n---\n# Foo\n\nBody", "fallback");
+        assert_eq!(title, "Foo");
+        assert_eq!(summary, "Body");
     }
 }

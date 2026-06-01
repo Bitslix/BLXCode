@@ -27,6 +27,8 @@ pub struct RuleEntry {
     pub name: String,
     pub title: String,
     pub summary: String,
+    #[serde(default)]
+    pub category: Option<String>,
     pub enabled: bool,
     pub size_bytes: u64,
     pub updated_at: String,
@@ -117,6 +119,10 @@ pub struct RulesIndex {
 pub struct RuleIndexEntry {
     pub enabled: bool,
     pub updated_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
+    #[serde(default, rename = "tags", skip_serializing)]
+    pub legacy_tags: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -176,6 +182,7 @@ mod tests {
             name: "rule-foo.md".into(),
             title: "Foo".into(),
             summary: "bar".into(),
+            category: Some("workflow".into()),
             enabled: true,
             size_bytes: 42,
             updated_at: "2026-05-20T11:00:00Z".into(),

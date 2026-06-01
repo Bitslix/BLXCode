@@ -10,7 +10,7 @@
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::tauri_bridge::{plan_create, plan_load, plan_generate_ai, GeneratedPlan, PlanMeta};
+use crate::tauri_bridge::{plan_create, plan_generate_ai, plan_load, GeneratedPlan, PlanMeta};
 use crate::workbench::toast::ToastService;
 use leptos::prelude::*;
 use leptos::task::spawn_local;

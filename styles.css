@@ -9442,6 +9442,56 @@ body.blxcode-dragging-terminal * {
 .blx-sr-pane__body > * {
     flex-shrink: 0;
 }
+.blx-sr-search {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 0.45rem;
+    min-height: 34px;
+    padding: 0 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: 0.45rem;
+    background: var(--bg-raised);
+    color: var(--text-muted);
+}
+.blx-sr-search:focus-within {
+    border-color: var(--accent-soft);
+    box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.blx-sr-search__icon {
+    display: inline-flex;
+    color: var(--text-faint);
+}
+.blx-sr-search__input {
+    min-width: 0;
+    height: 32px;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 0.78rem;
+}
+.blx-sr-search__input::placeholder {
+    color: var(--text-faint);
+}
+.blx-sr-category-filter {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.35rem 0.65rem;
+    overflow: visible;
+}
+.blx-sr-category-filter .blx-sr-tab {
+    justify-content: center;
+    min-width: 0;
+    padding-inline: 0.45rem;
+}
+.blx-sr-category-filter .blx-sr-tab > span:not(.blx-sr-tab__count) {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .blx-sr-pane__hint,
 .blx-sr-pane__err {
     margin: 0;
@@ -9643,6 +9693,36 @@ body.blxcode-dragging-terminal * {
     background: var(--accent-soft);
     color: var(--accent-cool);
     border-color: var(--accent-soft);
+}
+.blx-sr-card__category-line {
+    display: inline-flex;
+    min-width: 0;
+    max-width: 100%;
+}
+.blx-sr-card__category {
+    max-width: 9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 0.1rem 0.35rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--overlay-1);
+    color: var(--text-muted);
+    font-size: 0.62rem;
+    font-weight: 600;
+    line-height: 1.35;
+}
+.blx-sr-card--open .blx-sr-card__category {
+    border-color: var(--accent-soft);
+    color: var(--accent-cool);
+}
+.blx-sr-card__main > .blx-sr-card__category-line {
+    margin-top: 0.05rem;
+}
+.blx-sr-card__body > .blx-sr-card__category-line {
+    padding-top: 0.1rem;
+    justify-content: flex-start;
 }
 .blx-sr-card__badge[data-kind="git"] {
     background: var(--overlay-2);
@@ -10296,7 +10376,7 @@ body.blxcode-dragging-terminal * {
   gap: 0.4rem;
   min-height: 22px;
   padding: 0.12rem 0.4rem 0.12rem 0.2rem;
-  font-size: 0.74rem;
+  font-size: 0.78rem;
 }
 
 /* Native `git log --graph` gutter (same art as terminal git). */
@@ -10305,7 +10385,7 @@ body.blxcode-dragging-terminal * {
   margin: 0;
   padding: 0;
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.68rem;
+  font-size: 0.78rem;
   line-height: 1.35;
   color: var(--git-lane-0);
   white-space: pre;
@@ -10344,7 +10424,7 @@ body.blxcode-dragging-terminal * {
 
 .git-graph__meta {
   display: block;
-  font-size: 0.65rem;
+  font-size: 0.78rem;
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;

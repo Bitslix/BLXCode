@@ -1,5 +1,7 @@
 //! Right-panel tab body for `.agents/rules/*.md`.
 
+use std::collections::BTreeMap;
+
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
@@ -26,6 +28,8 @@ pub fn RulesTabDock() -> impl IntoView {
     let active_tab = wb.right_active_tab();
     let active_id = wb.active_id();
     let composer_open = RwSignal::new(false);
+    let search_query = RwSignal::new(String::new());
+    let selected_category = RwSignal::<Option<String>>::new(None);
     let draft_title = RwSignal::new(String::new());
     let draft_body = RwSignal::new(String::new());
     let draft_error = RwSignal::<Option<String>>::new(None);
@@ -41,6 +45,40 @@ pub fn RulesTabDock() -> impl IntoView {
     let preview_name = Signal::derive(move || {
         let existing = rules.get();
         next_rule_name(&draft_title.get(), &existing)
+    });
+
+    let filtered_rules = Memo::new(move |_| {
+        let query = search_query.get().trim().to_lowercase();
+        let category_filter = selected_category.get();
+        let mut list = rules.get();
+        if query.is_empty() && category_filter.is_none() {
+            return list;
+        }
+        list.retain(|rule| {
+            let matches_query = query.is_empty()
+                || rule.name.to_lowercase().contains(&query)
+                || rule.title.to_lowercase().contains(&query)
+                || rule.summary.to_lowercase().contains(&query)
+                || rule
+                    .category
+                    .as_ref()
+                    .is_some_and(|category| category.to_lowercase().contains(&query));
+            let matches_category = category_filter
+                .as_ref()
+                .is_none_or(|selected| rule.category.as_deref() == Some(selected.as_str()));
+            matches_query && matches_category
+        });
+        list
+    });
+
+    let category_counts = Memo::new(move |_| {
+        let mut counts = BTreeMap::<String, usize>::new();
+        for rule in rules.get() {
+            if let Some(category) = rule.category {
+                *counts.entry(category).or_insert(0) += 1;
+            }
+        }
+        counts.into_iter().collect::<Vec<_>>()
     });
 
     let submit_new_rule = move |_| {
@@ -120,6 +158,60 @@ pub fn RulesTabDock() -> impl IntoView {
                     </button>
                 </div>
             </header>
+            <Show when=move || !category_counts.with(|categories| categories.is_empty())>
+                <div class="blx-sr-tabs blx-sr-category-filter" role="tablist" aria-label="Filter rules by category">
+                    <button
+                        type="button"
+                        role="tab"
+                        class="blx-sr-tab"
+                        class:blx-sr-tab--active=move || selected_category.get().is_none()
+                        aria-selected=move || if selected_category.get().is_none() { "true" } else { "false" }
+                        on:click=move |_| selected_category.set(None)
+                    >
+                        <LxIcon icon=icondata::LuLayers width="13px" height="13px" />
+                        <span>"All"</span>
+                        <span class="blx-sr-tab__count">{move || rules.with(|r| r.len())}</span>
+                    </button>
+                    <For
+                        each=move || category_counts.get()
+                        key=|(category, _)| category.clone()
+                        children=move |(category, count)| {
+                            let category_for_active = category.clone();
+                            let category_for_aria = category.clone();
+                            let category_for_click = category.clone();
+                            view! {
+                                <button
+                                    type="button"
+                                    role="tab"
+                                    class="blx-sr-tab"
+                                    class:blx-sr-tab--active=move || {
+                                        selected_category.with(|selected| selected.as_deref() == Some(category_for_active.as_str()))
+                                    }
+                                    aria-selected=move || {
+                                        if selected_category.with(|selected| selected.as_deref() == Some(category_for_aria.as_str())) {
+                                            "true"
+                                        } else {
+                                            "false"
+                                        }
+                                    }
+                                    on:click=move |_| {
+                                        selected_category.update(|selected| {
+                                            if selected.as_deref() == Some(category_for_click.as_str()) {
+                                                *selected = None;
+                                            } else {
+                                                *selected = Some(category_for_click.clone());
+                                            }
+                                        });
+                                    }
+                                >
+                                    <span>{category}</span>
+                                    <span class="blx-sr-tab__count">{count}</span>
+                                </button>
+                            }
+                        }
+                    />
+                </div>
+            </Show>
             <div class="blx-sr-pane__body">
                 {move || error.get().map(|e| view! { <p class="blx-sr-pane__err">{e}</p> })}
                 <Show when=move || {
@@ -132,6 +224,19 @@ pub fn RulesTabDock() -> impl IntoView {
                 }>
                     <RulesPointersNotice />
                 </Show>
+                <label class="blx-sr-search">
+                    <span class="blx-sr-search__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuSearch width="14px" height="14px" />
+                    </span>
+                    <input
+                        type="search"
+                        class="blx-sr-search__input"
+                        placeholder="Search rules..."
+                        aria-label="Search rules"
+                        prop:value=move || search_query.get()
+                        on:input=move |ev| search_query.set(input_value(&ev))
+                    />
+                </label>
                 {move || composer_open.get().then(|| {
                     let is_saving = saving.get();
                     view! {
@@ -205,10 +310,16 @@ pub fn RulesTabDock() -> impl IntoView {
                     } else if rules.with(|r| r.is_empty()) && !composer_open.get() {
                         view! { <p class="blx-sr-pane__hint">{i18n.tr(I18nKey::SrRulesEmpty)}</p> }
                             .into_any()
+                    } else if (!search_query.with(|q| q.trim().is_empty())
+                        || selected_category.with(|category| category.is_some()))
+                        && filtered_rules.with(|r| r.is_empty())
+                    {
+                        view! { <p class="blx-sr-pane__hint">"No rules match this search."</p> }
+                            .into_any()
                     } else {
                         view! {
                             <For
-                                each=move || rules.get()
+                                each=move || filtered_rules.get()
                                 key=|r| r.name.clone()
                                 children=move |entry| view! { <RuleCard entry=entry /> }
                             />
