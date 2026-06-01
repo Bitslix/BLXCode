@@ -7,8 +7,10 @@ use crate::agent_wire::AgentEvent;
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    is_tauri_shell, voice_cancel_recording, voice_settings_get, voice_start_recording,
-    voice_stop_and_transcribe, voice_tts_preview, PostSttFlow, SttLanguageMode, VoiceSettings,
+    agent_settings_get, api_keys_status, is_tauri_shell, voice_cancel_recording,
+    voice_settings_get, voice_start_recording, voice_stop_and_transcribe, voice_tts_preview,
+    AgentProviderKind, AgentProviderSettingsView, ApiKeysStatus, PostSttFlow, SttLanguageMode,
+    VoiceProviderKind, VoiceSettings,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use js_sys::Uint8Array;
@@ -28,6 +30,9 @@ pub struct VoiceOrbHandle {
     pub state: RwSignal<VoiceOrbState>,
     pub voice_pending: RwSignal<bool>,
     pub settings: RwSignal<Option<VoiceSettings>>,
+    /// True only when TTS is enabled *and* the configured TTS provider has an
+    /// API key set in settings — gates the per-line "Play" button.
+    pub tts_ready: RwSignal<bool>,
     pub audio_ref: NodeRef<html::Audio>,
 }
 
@@ -37,9 +42,73 @@ impl VoiceOrbHandle {
             state: RwSignal::new(VoiceOrbState::Idle),
             voice_pending: RwSignal::new(false),
             settings: RwSignal::new(None),
+            tts_ready: RwSignal::new(false),
             audio_ref: NodeRef::<html::Audio>::new(),
         }
     }
+}
+
+/// True when the TTS provider selected in `settings` has a configured API key.
+fn tts_provider_key_configured(
+    settings: &VoiceSettings,
+    agent_settings: Option<&AgentProviderSettingsView>,
+    api_keys: Option<&ApiKeysStatus>,
+) -> bool {
+    if !settings.tts.enabled {
+        return false;
+    }
+    match settings.tts.provider {
+        VoiceProviderKind::Aws => api_keys.is_some_and(|s| {
+            s.entries
+                .iter()
+                .any(|e| e.kind == "aws_polly" && e.configured)
+        }),
+        VoiceProviderKind::Openai => {
+            agent_provider_key_configured(agent_settings, AgentProviderKind::Openai)
+        }
+        VoiceProviderKind::Openrouter => {
+            agent_provider_key_configured(agent_settings, AgentProviderKind::Openrouter)
+        }
+    }
+}
+
+fn agent_provider_key_configured(
+    view: Option<&AgentProviderSettingsView>,
+    provider: AgentProviderKind,
+) -> bool {
+    view.is_some_and(|v| {
+        v.key_statuses
+            .iter()
+            .any(|s| s.provider == provider && s.configured)
+    })
+}
+
+/// Fetch voice settings + API-key status and update `handle.tts_ready` so the
+/// per-line Play button only appears once voice chat is actually configured.
+pub async fn refresh_tts_ready(handle: VoiceOrbHandle) {
+    if !is_tauri_shell() {
+        return;
+    }
+    let settings = match handle.settings.get_untracked() {
+        Some(s) => s,
+        None => match voice_settings_get().await {
+            Ok(s) => {
+                handle.settings.set(Some(s.clone()));
+                s
+            }
+            Err(_) => {
+                handle.tts_ready.set(false);
+                return;
+            }
+        },
+    };
+    let agent_settings = agent_settings_get().await.ok();
+    let api_keys = api_keys_status().await.ok();
+    handle.tts_ready.set(tts_provider_key_configured(
+        &settings,
+        agent_settings.as_ref(),
+        api_keys.as_ref(),
+    ));
 }
 
 #[component]
@@ -56,6 +125,7 @@ where
             if let Ok(v) = voice_settings_get().await {
                 handle.settings.set(Some(v));
             }
+            refresh_tts_ready(handle).await;
         });
     }
 

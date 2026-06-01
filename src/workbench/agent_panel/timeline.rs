@@ -934,6 +934,7 @@ pub fn ChatLineIndexColumn(
     let play_text = StoredValue::new(tts_text.clone().unwrap_or_default());
     let show_play = move || {
         is_tauri_shell()
+            && voice_handle.tts_ready.get()
             && play_text.with_value(|t| !t.trim().is_empty())
             && tts_line_playback_available(voice_handle.settings.get().as_ref())
     };

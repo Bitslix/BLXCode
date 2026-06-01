@@ -620,27 +620,35 @@ pub fn AgentPanelDock() -> impl IntoView {
 
                 <div class="workbench-agent-actions">
                     <button
-                        type="submit"
-                        class="workbench-mini-btn workbench-mini-btn--primary agent-send-btn"
-                        prop:disabled=move || busy.get()
-                        on:mousedown=|ev| ev.prevent_default()
-                    >
-                        <LxIcon icon=icondata::LuSparkles width="0.9rem" height="0.9rem" />
-                        <span>{move || i18n.tr(I18nKey::AgSend)()}</span>
-                    </button>
-
-                    <button
                         type="button"
-                        class="workbench-mini-btn agent-cancel-btn"
-                        prop:disabled=move || !busy.get()
+                        class=move || {
+                            if busy.get() {
+                                "workbench-mini-btn agent-cancel-btn"
+                            } else {
+                                "workbench-mini-btn workbench-mini-btn--primary agent-send-btn"
+                            }
+                        }
+                        on:mousedown=|ev| ev.prevent_default()
                         on:click=move |_| {
-                            leptos::task::spawn_local(async move {
-                                let _ = agent_abort().await;
-                            });
+                            if busy.get_untracked() {
+                                leptos::task::spawn_local(async move {
+                                    let _ = agent_abort().await;
+                                });
+                            } else {
+                                submit_turn(wb, i18n, draft, busy, status_line, timeline, task_snapshot, thinking_open, tool_detail_open, voice_handle);
+                            }
                         }
                     >
-                        <LxIcon icon=icondata::LuX width="0.9rem" height="0.9rem" />
-                        <span>{move || i18n.tr(I18nKey::AgCancel)()}</span>
+                        {move || if busy.get() {
+                            view! { <LxIcon icon=icondata::LuSquare width="0.9rem" height="0.9rem" /> }.into_any()
+                        } else {
+                            view! { <LxIcon icon=icondata::LuSparkles width="0.9rem" height="0.9rem" /> }.into_any()
+                        }}
+                        <span>{move || if busy.get() {
+                            i18n.tr(I18nKey::AgCancel)()
+                        } else {
+                            i18n.tr(I18nKey::AgSend)()
+                        }}</span>
                     </button>
                 </div>
             </form>
