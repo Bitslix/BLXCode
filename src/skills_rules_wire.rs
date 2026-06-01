@@ -29,6 +29,8 @@ pub struct SkillEntry {
     pub name: String,
     pub title: String,
     pub summary: String,
+    #[serde(default)]
+    pub category: Option<String>,
     pub enabled: bool,
     pub source: SkillSourceMeta,
     pub installed_at: String,

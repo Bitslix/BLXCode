@@ -27,6 +27,9 @@ pub fn SkillCard(entry: SkillEntry) -> impl IntoView {
     let enabled = entry.enabled;
     let title = entry.title.clone();
     let summary = entry.summary.clone();
+    let category = entry.category.clone();
+    let closed_category = category.clone();
+    let open_category = category.clone();
     let missing_skill_md = entry.missing_skill_md;
     let is_core = entry.source.kind == SkillSourceKind::Core;
 
@@ -81,6 +84,11 @@ pub fn SkillCard(entry: SkillEntry) -> impl IntoView {
                         <span class="blx-sr-card__badge" data-kind=source_label>{source_label}</span>
                     </span>
                     <span class="blx-sr-card__summary">{summary}</span>
+                    {move || (!expanded.get()).then(|| {
+                        closed_category.clone().map(|category| {
+                            view! { <SkillCategoryLine category=category /> }
+                        })
+                    })}
                 </span>
                 <span
                     class="blx-switch"
@@ -122,6 +130,9 @@ pub fn SkillCard(entry: SkillEntry) -> impl IntoView {
                                 />
                             }.into_any()
                         }}
+                        {open_category.clone().map(|category| {
+                            view! { <SkillCategoryLine category=category /> }
+                        })}
                         <div class="blx-sr-card__actions">
                             {(!is_core).then(|| view! {
                                 <button
@@ -151,5 +162,14 @@ pub fn SkillCard(entry: SkillEntry) -> impl IntoView {
                 }
             })}
         </article>
+    }
+}
+
+#[component]
+fn SkillCategoryLine(category: String) -> impl IntoView {
+    view! {
+        <span class="blx-sr-card__category-line" aria-label="Skill category">
+            <span class="blx-sr-card__category">{category}</span>
+        </span>
     }
 }

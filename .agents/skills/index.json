@@ -7,7 +7,8 @@
         "kind": "local"
       },
       "installedAt": "2026-05-20T11:32:10Z",
-      "updatedAt": "2026-05-20T11:32:10Z"
+      "updatedAt": "2026-05-20T11:32:10Z",
+      "category": "docs"
     },
     "frontend-design": {
       "enabled": true,
@@ -15,7 +16,8 @@
         "kind": "local"
       },
       "installedAt": "2026-05-20T11:32:10Z",
-      "updatedAt": "2026-05-20T11:32:10Z"
+      "updatedAt": "2026-05-20T11:32:10Z",
+      "category": "frontend"
     },
     "gpt-image-2": {
       "enabled": true,
@@ -23,7 +25,8 @@
         "kind": "local"
       },
       "installedAt": "2026-05-20T11:32:10Z",
-      "updatedAt": "2026-05-20T11:32:10Z"
+      "updatedAt": "2026-05-20T11:32:10Z",
+      "category": "media"
     },
     "leptos-guide": {
       "enabled": true,
@@ -31,7 +34,8 @@
         "kind": "local"
       },
       "installedAt": "2026-05-20T11:32:10Z",
-      "updatedAt": "2026-05-20T11:32:10Z"
+      "updatedAt": "2026-05-20T11:32:10Z",
+      "category": "frontend"
     },
     "manage-plans": {
       "enabled": true,
@@ -39,7 +43,8 @@
         "kind": "local"
       },
       "installedAt": "2026-05-21T00:00:00Z",
-      "updatedAt": "2026-05-21T00:00:00Z"
+      "updatedAt": "2026-05-21T00:00:00Z",
+      "category": "workflow"
     },
     "rust-async-patterns": {
       "enabled": true,
@@ -47,7 +52,8 @@
         "kind": "local"
       },
       "installedAt": "2026-05-20T11:32:10Z",
-      "updatedAt": "2026-05-20T11:32:10Z"
+      "updatedAt": "2026-05-20T11:32:10Z",
+      "category": "rust"
     },
     "rust-best-practices": {
       "enabled": true,
@@ -55,7 +61,8 @@
         "kind": "local"
       },
       "installedAt": "2026-05-20T11:32:10Z",
-      "updatedAt": "2026-05-20T11:32:10Z"
+      "updatedAt": "2026-05-20T11:32:10Z",
+      "category": "rust"
     },
     "tauri-v2": {
       "enabled": true,
@@ -63,7 +70,8 @@
         "kind": "local"
       },
       "installedAt": "2026-05-20T11:32:10Z",
-      "updatedAt": "2026-05-20T11:32:10Z"
+      "updatedAt": "2026-05-20T11:32:10Z",
+      "category": "tauri"
     },
     "rust-patterns": {
       "enabled": true,
@@ -71,7 +79,8 @@
         "kind": "local"
       },
       "installedAt": "2026-05-20T11:32:10Z",
-      "updatedAt": "2026-05-20T11:32:10Z"
+      "updatedAt": "2026-05-20T11:32:10Z",
+      "category": "rust"
     },
     "rust-testing": {
       "enabled": true,
@@ -79,7 +88,8 @@
         "kind": "local"
       },
       "installedAt": "2026-05-20T11:32:10Z",
-      "updatedAt": "2026-05-20T11:32:10Z"
+      "updatedAt": "2026-05-20T11:32:10Z",
+      "category": "rust"
     }
   }
 }

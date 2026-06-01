@@ -68,6 +68,20 @@ fn core_skill_availability(name: &str) -> Option<String> {
     }
 }
 
+fn core_skill_category(name: &str) -> Option<String> {
+    let category = match name {
+        "file-access" | "environment" | "harness" | "shell" => "workspace",
+        "memory" | "memory-architecture" => "memory",
+        "plans" | "tasks" => "planning",
+        "rules-skills" => "workflow",
+        "git" => "git",
+        "web" => "web",
+        "subagents" => "agents",
+        _ => return None,
+    };
+    Some(category.into())
+}
+
 const RULES_INDEX_FILE: &str = "index.json";
 const SKILLS_INDEX_FILE: &str = "index.json";
 const SKILL_DOC: &str = "SKILL.md";
@@ -151,6 +165,7 @@ fn bootstrap_skills_index(skills_dir: &Path) -> Result<(), String> {
                 },
                 installed_at: now.clone(),
                 updated_at: now.clone(),
+                category: None,
             },
         );
     }
@@ -320,7 +335,7 @@ fn normalize_rule_category(raw: &str) -> Option<String> {
     }
 }
 
-fn extract_rule_category(body: &str) -> Option<String> {
+fn extract_frontmatter_category(body: &str) -> Option<String> {
     let rest = body.strip_prefix("---")?;
     let rest = rest
         .strip_prefix('\r')
@@ -339,6 +354,14 @@ fn extract_rule_category(body: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn extract_rule_category(body: &str) -> Option<String> {
+    extract_frontmatter_category(body)
+}
+
+fn extract_skill_category(body: &str) -> Option<String> {
+    extract_frontmatter_category(body)
 }
 
 /// Use the first H1 as title, then summarize the first body paragraph.
@@ -611,12 +634,9 @@ pub fn list_skills(ws: &str) -> Result<Vec<SkillEntry>, String> {
         .filter(|k| !known.contains(*k) && !core_names.contains(k.as_str()))
         .cloned()
         .collect();
-    let dirty = !stale.is_empty();
+    let mut dirty = !stale.is_empty();
     for k in stale {
         idx.skills.remove(&k);
-    }
-    if dirty {
-        let _ = write_skills_index(&roots.skills, &idx);
     }
 
     // Prepend core skills.
@@ -637,6 +657,7 @@ pub fn list_skills(ws: &str) -> Result<Vec<SkillEntry>, String> {
                 name: name.to_string(),
                 title,
                 summary,
+                category: core_skill_category(name),
                 enabled,
                 source: core_source.clone(),
                 installed_at: CORE_INSTALLED_AT.to_string(),
@@ -654,13 +675,15 @@ pub fn list_skills(ws: &str) -> Result<Vec<SkillEntry>, String> {
         let body = fs::read_to_string(&doc_path).unwrap_or_default();
         let missing = body.is_empty() && !doc_path.is_file();
         let (title, summary) = extract_title_and_summary(&body, &name);
+        let file_category = extract_skill_category(&body);
 
-        let (source, installed_at, updated_at, enabled) = match idx.skills.get(&name) {
+        let (source, installed_at, updated_at, enabled, category) = match idx.skills.get(&name) {
             Some(e) => (
                 e.source.clone(),
                 e.installed_at.clone(),
                 e.updated_at.clone(),
                 e.enabled,
+                e.category.clone().or_else(|| file_category.clone()),
             ),
             None => (
                 SkillSourceMeta {
@@ -681,13 +704,41 @@ pub fn list_skills(ws: &str) -> Result<Vec<SkillEntry>, String> {
                     .map(|m| modified_rfc3339(&m))
                     .unwrap_or_default(),
                 true,
+                file_category.clone(),
             ),
         };
+        if let Some(category) = category.clone() {
+            let needs_update = idx
+                .skills
+                .get(&name)
+                .is_none_or(|entry| entry.category.as_deref() != Some(category.as_str()));
+            if needs_update {
+                idx.skills
+                    .entry(name.clone())
+                    .and_modify(|entry| entry.category = Some(category.clone()))
+                    .or_insert_with(|| SkillIndexEntry {
+                        enabled: true,
+                        source: SkillSourceMeta {
+                            kind: SkillSourceKind::Local,
+                            url: None,
+                            git_ref: None,
+                            package: None,
+                            version: None,
+                            path: None,
+                        },
+                        installed_at: installed_at.clone(),
+                        updated_at: updated_at.clone(),
+                        category: Some(category.clone()),
+                    });
+                dirty = true;
+            }
+        }
 
         entries.push(SkillEntry {
             name,
             title,
             summary,
+            category,
             enabled,
             source,
             installed_at,
@@ -695,6 +746,9 @@ pub fn list_skills(ws: &str) -> Result<Vec<SkillEntry>, String> {
             missing_skill_md: missing,
             availability: None,
         });
+    }
+    if dirty {
+        let _ = write_skills_index(&roots.skills, &idx);
     }
     Ok(entries)
 }
@@ -725,6 +779,9 @@ pub fn write_skill(ws: &str, name: &str, content: &str) -> Result<SkillEntry, St
         .entry(name.to_owned())
         .and_modify(|e| {
             e.updated_at = now.clone();
+            if let Some(category) = extract_skill_category(content) {
+                e.category = Some(category);
+            }
         })
         .or_insert(SkillIndexEntry {
             enabled: true,
@@ -738,6 +795,7 @@ pub fn write_skill(ws: &str, name: &str, content: &str) -> Result<SkillEntry, St
             },
             installed_at: now.clone(),
             updated_at: now.clone(),
+            category: extract_skill_category(content),
         });
     write_skills_index(&roots.skills, &idx)?;
 
@@ -775,6 +833,7 @@ pub fn set_skill_enabled(ws: &str, name: &str, enabled: bool) -> Result<SkillEnt
             },
             installed_at: now.clone(),
             updated_at: now.clone(),
+            category: None,
         });
     write_skills_index(&roots.skills, &idx)?;
     list_skills(ws)?
@@ -819,6 +878,7 @@ pub fn record_installed_skill(
             source,
             installed_at: now.clone(),
             updated_at: now,
+            category: None,
         },
     );
     write_skills_index(&roots.skills, &idx)?;
@@ -1080,6 +1140,12 @@ mod tests {
     fn extract_category_from_rule_frontmatter() {
         let category = extract_rule_category("---\ncategory: workflow\n---\n# Foo");
         assert_eq!(category.as_deref(), Some("workflow"));
+    }
+
+    #[test]
+    fn extract_category_from_skill_frontmatter() {
+        let category = extract_skill_category("---\ncategory: frontend\n---\n# Skill");
+        assert_eq!(category.as_deref(), Some("frontend"));
     }
 
     #[test]
