@@ -1,6 +1,9 @@
 //! App-wide UI preferences persisted in `localStorage`.
 
 use super::shortcut_config::{Binding, KeyChord, ShortcutAction, ShortcutConfig};
+use super::terminal_naming::{
+    self, TerminalNamingMode, NAME_POOL_KEY, NAMING_MODE_KEY,
+};
 use crate::config::{
     CONFIRM_CLOSE_WORKSPACE_KEY, SHORTCUT_BINDINGS_STORAGE_KEY, SHORTCUT_MODE_LEGACY,
     SHORTCUT_MODE_STORAGE_KEY, SHORTCUT_MODE_TMUX, SUCCESS_SOUND_STORAGE_KEY,
@@ -40,6 +43,8 @@ pub struct AppPrefsService {
     shortcut_config: RwSignal<ShortcutConfig>,
     update_auto_check: RwSignal<bool>,
     confirm_close_workspace: RwSignal<bool>,
+    terminal_naming_mode: RwSignal<TerminalNamingMode>,
+    terminal_name_pool: RwSignal<Vec<String>>,
 }
 
 impl AppPrefsService {
@@ -62,6 +67,12 @@ impl AppPrefsService {
             confirm_close_workspace: RwSignal::new(read_bool_storage(
                 CONFIRM_CLOSE_WORKSPACE_KEY,
                 true,
+            )),
+            terminal_naming_mode: RwSignal::new(TerminalNamingMode::from_storage(
+                read_string_storage(NAMING_MODE_KEY).as_deref(),
+            )),
+            terminal_name_pool: RwSignal::new(terminal_naming::parse_pool(
+                read_string_storage(NAME_POOL_KEY).as_deref(),
             )),
         }
     }
@@ -151,6 +162,43 @@ impl AppPrefsService {
     pub fn set_confirm_close_workspace(&self, enabled: bool) {
         self.confirm_close_workspace.set(enabled);
         write_bool_storage(CONFIRM_CLOSE_WORKSPACE_KEY, enabled);
+    }
+
+    #[must_use]
+    pub fn terminal_naming_mode(&self) -> RwSignal<TerminalNamingMode> {
+        self.terminal_naming_mode
+    }
+
+    pub fn set_terminal_naming_mode(&self, mode: TerminalNamingMode) {
+        self.terminal_naming_mode.set(mode);
+        write_string_storage(NAMING_MODE_KEY, mode.storage_value());
+    }
+
+    #[must_use]
+    pub fn terminal_name_pool(&self) -> RwSignal<Vec<String>> {
+        self.terminal_name_pool
+    }
+
+    /// Replace the entire pool (trimmed, blanks dropped) and persist it.
+    /// An empty result resets to the built-in default pool.
+    pub fn set_terminal_name_pool(&self, pool: Vec<String>) {
+        let cleaned: Vec<String> = pool
+            .into_iter()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        let next = if cleaned.is_empty() {
+            terminal_naming::default_pool()
+        } else {
+            cleaned
+        };
+        write_string_storage(NAME_POOL_KEY, &terminal_naming::serialize_pool(&next));
+        self.terminal_name_pool.set(next);
+    }
+
+    /// Restore the built-in default name pool.
+    pub fn reset_terminal_name_pool(&self) {
+        self.set_terminal_name_pool(terminal_naming::default_pool());
     }
 }
 

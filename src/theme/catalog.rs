@@ -184,13 +184,13 @@ pub const THEMES: &[AppTheme] = &[
         },
     },
     AppTheme {
-        id: "github-dark",
+        id: "claude-code",
         mode: ThemeMode::Dark,
         preview: ThemePreviewColors {
-            sidebar: "#0d1117",
-            background: "#161b22",
-            accent: "#58a6ff",
-            text: "#e6edf3",
+            sidebar: "#1f1e1d",
+            background: "#262624",
+            accent: "#d97757",
+            text: "#ededeb",
         },
     },
     AppTheme {

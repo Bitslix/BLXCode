@@ -1,6 +1,7 @@
 //! Workspace settings pane — same row/list layout as API Keys (`api-keys-row`).
 
 mod category_colors;
+mod terminal_naming_section;
 
 use super::app_prefs::AppPrefsService;
 use super::browser_tab::sync_embedded_browser_layer;
@@ -9,6 +10,7 @@ use crate::config::HARNESS_BROWSER_DEFAULT_URL;
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use category_colors::WorkspaceCategoryColorsSection;
+use terminal_naming_section::TerminalNamingSection;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
@@ -273,6 +275,8 @@ pub fn WorkspaceSettingsPane(wb: WorkbenchService, embed: BrowserEmbedSurface) -
                 </label>
                 <p class="app-prefs-hint">{move || i18n.tr(I18nKey::WsConfirmCloseHint)()}</p>
             </section>
+
+            <TerminalNamingSection />
 
             <WorkspaceCategoryColorsSection wb=wb />
 

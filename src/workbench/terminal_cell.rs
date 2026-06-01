@@ -8,6 +8,8 @@ use crate::tauri_bridge::{
 };
 use crate::workbench::agent_accent::agent_accent_class;
 use crate::workbench::agent_context_handoff::TerminalSlotHandoffButton;
+use crate::workbench::app_prefs::AppPrefsService;
+use crate::workbench::terminal_naming;
 use crate::workbench::terminal_glue::{
     terminal_create, terminal_dispose, terminal_fit, terminal_request_fit,
     terminal_set_stdin_enabled, terminal_show_fallback, terminal_size_from_js,
@@ -112,6 +114,58 @@ pub fn WorkspaceTerminalCell(
     let branch = RwSignal::new(None::<String>);
     let initial_title = title.clone();
     let dynamic_title = RwSignal::new(initial_title);
+
+    // Terminal naming: the header shows either the native `#slot_id` or a
+    // friendly name (per-slot override > deterministic pool), depending on
+    // the app-wide naming mode. `slot_id` itself never changes.
+    let prefs = expect_context::<AppPrefsService>();
+    let naming_mode = prefs.terminal_naming_mode();
+    let name_pool = prefs.terminal_name_pool();
+    let slot_label = Memo::new(move |_| {
+        let mode = naming_mode.get();
+        let pool = name_pool.get();
+        let override_name = wb.slot_name_override(workspace_id, slot_id);
+        let siblings = wb.slot_ids_for_workspace(workspace_id);
+        terminal_naming::display_label(mode, slot_id, override_name.as_deref(), &pool, &siblings)
+    });
+    // Inline rename state for the header name (double-click to edit).
+    let renaming = RwSignal::new(false);
+    let rename_draft = RwSignal::new(String::new());
+    let rename_input = NodeRef::<html::Input>::new();
+    // Lightweight header context menu (Rename / Reset name) — positioned at
+    // the cursor. `None` when closed.
+    let header_menu = RwSignal::new(None::<(i32, i32)>);
+    let has_name_override =
+        Signal::derive(move || wb.slot_name_override(workspace_id, slot_id).is_some());
+    Effect::new(move |_| {
+        if renaming.get() {
+            if let Some(el) = rename_input.get() {
+                let _ = el.focus();
+                el.select();
+            }
+        }
+    });
+    let commit_rename = move || {
+        if !renaming.get_untracked() {
+            return;
+        }
+        let value = rename_draft.get_untracked();
+        wb.set_slot_name_override(workspace_id, slot_id, value);
+        renaming.set(false);
+    };
+    let begin_rename = move || {
+        // Seed the editor with the current friendly name (override or pool
+        // pick) — never the raw `#id`, so editing starts from the name even
+        // in slot-number mode.
+        let pool = name_pool.get_untracked();
+        let siblings = wb.slot_ids_for_workspace(workspace_id);
+        let override_name = wb.slot_name_override(workspace_id, slot_id);
+        let seed =
+            terminal_naming::resolve_slot_name(slot_id, override_name.as_deref(), &pool, &siblings)
+                .unwrap_or_default();
+        rename_draft.set(seed);
+        renaming.set(true);
+    };
 
     if is_tauri_shell() {
         let cwd_for_branch = cwd.clone();
@@ -347,6 +401,22 @@ pub fn WorkspaceTerminalCell(
         }
     });
 
+    // Close the header context menu on any outside mousedown / Escape.
+    let header_menu_close_handle =
+        leptos::leptos_dom::helpers::window_event_listener_untyped("mousedown", move |_| {
+            if header_menu.get_untracked().is_some() {
+                header_menu.set(None);
+            }
+        });
+    let header_menu_escape_handle =
+        leptos::leptos_dom::helpers::window_event_listener_untyped("keydown", move |ev| {
+            if let Some(kev) = ev.dyn_ref::<web_sys::KeyboardEvent>() {
+                if kev.key() == "Escape" && header_menu.get_untracked().is_some() {
+                    header_menu.set(None);
+                }
+            }
+        });
+
     Effect::new({
         let state = state.clone();
         let agent_slug = agent_slug.clone();
@@ -376,6 +446,8 @@ pub fn WorkspaceTerminalCell(
             drop(pty_resize_handle);
             drop(grid_ready_handle);
             drop(resize_handle);
+            drop(header_menu_close_handle);
+            drop(header_menu_escape_handle);
             if let Ok(mut st) = state.lock() {
                 st.disposed = true;
             }
@@ -501,6 +573,11 @@ pub fn WorkspaceTerminalCell(
                         }
                     }
                 }
+                on:contextmenu=move |ev: web_sys::MouseEvent| {
+                    ev.prevent_default();
+                    ev.stop_propagation();
+                    header_menu.set(Some((ev.client_x(), ev.client_y())));
+                }
                 on:mousedown={
                     let terminal_key = terminal_key.clone();
                     let wb = wb;
@@ -512,13 +589,66 @@ pub fn WorkspaceTerminalCell(
                     move |_| wb.focus_terminal(terminal_key.clone())
                 }
             >
-                <span
-                    class="ws-term-cell__slot"
-                    title=move || format!("{} {}", i18n.tr(I18nKey::WsTermSlot)(), slot_id)
-                    aria-hidden="true"
+                <Show
+                    when=move || renaming.get()
+                    fallback=move || view! {
+                        <span
+                            class="ws-term-cell__slot"
+                            title=move || format!(
+                                "{} {} — {}",
+                                i18n.tr(I18nKey::WsTermSlot)(),
+                                slot_id,
+                                i18n.tr(I18nKey::WsTermRenameHint)(),
+                            )
+                            on:dblclick={
+                                let begin_rename = begin_rename;
+                                move |ev: web_sys::MouseEvent| {
+                                    ev.stop_propagation();
+                                    begin_rename();
+                                }
+                            }
+                        >
+                            {move || slot_label.get()}
+                        </span>
+                    }
                 >
-                    {format!("#{slot_id}")}
-                </span>
+                    <input
+                        node_ref=rename_input
+                        class="ws-term-cell__slot-edit"
+                        prop:value=move || rename_draft.get()
+                        prop:draggable=false
+                        placeholder=move || i18n.tr(I18nKey::WsTermRenamePlaceholder)()
+                        on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
+                        on:click=|ev: web_sys::MouseEvent| ev.stop_propagation()
+                        on:input=move |ev| {
+                            if let Some(t) = ev.target()
+                                .and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok())
+                            {
+                                rename_draft.set(t.value());
+                            }
+                        }
+                        on:blur={
+                            let commit_rename = commit_rename;
+                            move |_| commit_rename()
+                        }
+                        on:keydown={
+                            let commit_rename = commit_rename;
+                            move |ev: web_sys::KeyboardEvent| {
+                                match ev.key().as_str() {
+                                    "Enter" => {
+                                        ev.prevent_default();
+                                        commit_rename();
+                                    }
+                                    "Escape" => {
+                                        ev.prevent_default();
+                                        renaming.set(false);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    />
+                </Show>
                 <Show when=move || slot_drag_enabled.get() && !is_full_size.get() && slot_dnd.is_some()>
                     <span
                         class="ws-term-cell__drag-handle"
@@ -610,6 +740,55 @@ pub fn WorkspaceTerminalCell(
                     </button>
                 </Show>
             </div>
+            <Show when=move || header_menu.get().is_some()>
+                {move || {
+                    let Some((x, y)) = header_menu.get() else {
+                        return view! {}.into_any();
+                    };
+                    let style = format!("left: {x}px; top: {y}px;");
+                    view! {
+                        <div
+                            class="terminal-context-menu"
+                            role="menu"
+                            style=style
+                            on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
+                            on:click=|ev: web_sys::MouseEvent| ev.stop_propagation()
+                            on:contextmenu=|ev: web_sys::MouseEvent| ev.prevent_default()
+                        >
+                            <button
+                                type="button"
+                                class="terminal-context-menu__item"
+                                role="menuitem"
+                                on:click={
+                                    let begin_rename = begin_rename;
+                                    move |_| {
+                                        header_menu.set(None);
+                                        begin_rename();
+                                    }
+                                }
+                            >
+                                {move || i18n.tr(I18nKey::WsTermMenuRename)()}
+                            </button>
+                            <button
+                                type="button"
+                                class="terminal-context-menu__item"
+                                role="menuitem"
+                                disabled=move || !has_name_override.get()
+                                on:click={
+                                    let wb = wb;
+                                    move |_| {
+                                        header_menu.set(None);
+                                        wb.clear_slot_name_override(workspace_id, slot_id);
+                                    }
+                                }
+                            >
+                                {move || i18n.tr(I18nKey::WsTermMenuResetName)()}
+                            </button>
+                        </div>
+                    }
+                    .into_any()
+                }}
+            </Show>
             <Show when=move || load_failed.get()>
                 <p class="ws-term-cell__boot-fail">{move || i18n.tr(I18nKey::WsTermBootstrapFailed)()}</p>
             </Show>

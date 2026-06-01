@@ -117,6 +117,13 @@ pub struct WorkspaceEntry {
     /// of a local shell. `None` (default, back-compat) means a local workspace.
     #[serde(default)]
     pub remote_connection_id: Option<String>,
+    /// Per-slot friendly-name overrides, keyed by `slot_id`. Empty by
+    /// default; an entry takes precedence over the deterministic name pool
+    /// when the terminal naming mode is `names`. Keyed by `slot_id` (not a
+    /// parallel vector) so it survives slot insertion/removal without
+    /// index maintenance.
+    #[serde(default)]
+    pub slot_name_overrides: HashMap<u64, String>,
 }
 
 fn default_sidebar_section_open() -> bool {
@@ -450,6 +457,7 @@ impl WorkspaceEntry {
             center_active_tab_id: default_center_active_tab_id(),
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
+            slot_name_overrides: HashMap::new(),
         }
     }
 
@@ -1940,6 +1948,7 @@ impl WorkbenchService {
             center_active_tab_id: 0,
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
+            slot_name_overrides: std::collections::HashMap::new(),
         };
         self.workspaces.update(|v| v.push(entry));
         self.active_id.set(Some(id));
@@ -2069,6 +2078,7 @@ impl WorkbenchService {
                 center_active_tab_id: default_center_active_tab_id(),
                 center_next_tab_id: default_center_next_tab_id(),
                 remote_connection_id: None,
+                slot_name_overrides: std::collections::HashMap::new(),
             });
         });
         Ok(id)
@@ -2325,6 +2335,7 @@ impl WorkbenchService {
             };
             workspace.slot_ids.remove(index);
             workspace.slot_agent_labels.remove(index);
+            workspace.slot_name_overrides.remove(&terminal_id);
             if index < workspace.slot_pane_states.len() {
                 workspace.slot_pane_states.remove(index);
             }
@@ -2333,6 +2344,51 @@ impl WorkbenchService {
         if let Some(storage_key) = storage_key {
             drop_sessions_for_prefix(format!("{storage_key}:{terminal_id}:"));
         }
+    }
+
+    /// All slot ids of a workspace (reactive). Used to compute collision-free
+    /// auto names for the terminal naming feature.
+    #[must_use]
+    pub fn slot_ids_for_workspace(&self, workspace_id: u64) -> Vec<u64> {
+        self.workspaces.with(|list| {
+            list.iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.slot_ids.clone())
+                .unwrap_or_default()
+        })
+    }
+
+    /// The per-slot friendly-name override, if any (reactive).
+    #[must_use]
+    pub fn slot_name_override(&self, workspace_id: u64, slot_id: u64) -> Option<String> {
+        self.workspaces.with(|list| {
+            list.iter()
+                .find(|w| w.id == workspace_id)
+                .and_then(|w| w.slot_name_overrides.get(&slot_id).cloned())
+        })
+    }
+
+    /// Set (non-empty) or clear (empty/whitespace) the friendly-name override
+    /// for a slot. Persistence rides the workspaces autosave.
+    pub fn set_slot_name_override(&self, workspace_id: u64, slot_id: u64, name: String) {
+        let trimmed = name.trim().to_string();
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            if trimmed.is_empty() {
+                workspace.slot_name_overrides.remove(&slot_id);
+            } else {
+                workspace
+                    .slot_name_overrides
+                    .insert(slot_id, trimmed.clone());
+            }
+        });
+    }
+
+    /// Clear the friendly-name override for a slot (revert to the auto name).
+    pub fn clear_slot_name_override(&self, workspace_id: u64, slot_id: u64) {
+        self.set_slot_name_override(workspace_id, slot_id, String::new());
     }
 
     /// Swaps two terminal slots by id. Used by the EB-parity grid DnD
@@ -2545,6 +2601,7 @@ impl WorkbenchService {
                 center_active_tab_id: default_center_active_tab_id(),
                 center_next_tab_id: default_center_next_tab_id(),
                 remote_connection_id: None,
+                slot_name_overrides: std::collections::HashMap::new(),
             });
         });
         match self.transfer_terminal_slot(workspace_id, new_id, slot_id) {
@@ -2905,6 +2962,7 @@ impl WorkbenchService {
             center_active_tab_id: default_center_active_tab_id(),
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
+            slot_name_overrides: std::collections::HashMap::new(),
         };
         self.active_id.set(Some(id));
         self.workspaces.update(|v| v.push(entry));
@@ -4066,6 +4124,7 @@ mod center_tab_tests {
             center_active_tab_id: active,
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
+            slot_name_overrides: std::collections::HashMap::new(),
         }
     }
 
@@ -4159,6 +4218,7 @@ mod terminal_slot_tests {
             center_active_tab_id: default_center_active_tab_id(),
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
+            slot_name_overrides: std::collections::HashMap::new(),
         }
     }
 

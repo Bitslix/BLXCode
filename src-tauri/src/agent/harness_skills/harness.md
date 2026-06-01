@@ -23,21 +23,24 @@ Example — open 3 Codex terminals: `{ "count": 3, "agentSlug": "codex" }`
 ## Inspecting & driving other CLI agents
 
 ### `harness.list_terminals`
-Returns `[{ slotId, agentSlug, running }]` for the active workspace. **Always call this first** when you intend to interact with another agent.
+Returns `[{ slotId, name, namingMode, agentSlug, running }]` for the active workspace. **Always call this first** when you intend to interact with another agent.
+- `slotId` is the stable unique identifier — always prefer it for addressing.
+- `name` is the user-facing terminal name (e.g. `Devon`). When the user refers to a terminal by name, map that name to its `slotId` from this list.
+- `namingMode` is `slots` (titles show `#slotId`) or `names` (titles show `name`).
 
-### `harness.send_terminal_keys { slotId? | agentSlug?, text, submit? }`
+### `harness.send_terminal_keys { slotId? | name? | agentSlug?, text, submit? }`
 Types `text` into a slot's PTY.
 - `submit: true` — appends a newline so the command/prompt is executed
-- Address by `slotId` when possible (unique); `agentSlug` picks the first matching slot
+- Address by `slotId` when possible (unique). `name` matches the terminal's friendly name (case-insensitive); `agentSlug` picks the first matching slot
 - Use to ask a running CLI agent for status, delegate work, or drive plain shells
 
-### `harness.send_agent_context { slotId? | agentSlug?, instruction?, includeKinds?, submit? }`
+### `harness.send_agent_context { slotId? | name? | agentSlug?, instruction?, includeKinds?, submit? }`
 Hands off BLXCode-attached context to a terminal CLI agent. Prefer this over raw `send_terminal_keys` when the other agent needs workspace context (memory/learnings, plans, tasks, images).
 - Image bytes are exported to `<workspace>/.blxcode/agent-context/images/`; base64 is never written into the prompt
 - `includeKinds` defaults to all four: `["memory", "plans", "tasks", "images"]`
 - Call `harness.list_terminals` first when multiple slots could match
 
-### `harness.read_terminal_output { slotId? | agentSlug?, maxBytes? }`
+### `harness.read_terminal_output { slotId? | name? | agentSlug?, maxBytes? }`
 Non-destructively reads the last bytes from a slot's rolling tail buffer (cap 64 KiB). Use after `send_terminal_keys` to observe the response. Output contains ANSI escapes — focus on the readable text.
 
 ## Delegation pattern

@@ -1205,64 +1205,64 @@
 
 
 /* GitHub Dark — primer design tokens */
-[data-theme="github-dark"] {
+[data-theme="claude-code"] {
   color-scheme: dark;
 
-  --bg-app: #0d1117;
-  --bg-raised: #010409;
-  --bg-panel: #161b22;
-  --bg-panel-header: #21262d;
+  --bg-app: #1f1e1d;
+  --bg-raised: #191817;
+  --bg-panel: #262624;
+  --bg-panel-header: #30302e;
 
-  --border: rgba(240, 246, 252, 0.1);
-  --border-strong: rgba(240, 246, 252, 0.16);
-  --border-focus: #58a6ff;
+  --border: rgba(245, 244, 239, 0.1);
+  --border-strong: rgba(245, 244, 239, 0.17);
+  --border-focus: #d97757;
 
-  --text: #e6edf3;
-  --text-muted: #8b949e;
-  --text-faint: #6e7681;
-  --text-bright: #f0f6fc;
+  --text: #ededeb;
+  --text-muted: #a3a098;
+  --text-faint: #6f6d66;
+  --text-bright: #faf9f5;
 
-  --accent: #58a6ff;
-  --accent-hover: #79b8ff;
-  --accent-soft: rgba(88, 166, 255, 0.16);
-  --accent-cool: #79c0ff;
-  --accent-cool-soft: rgba(121, 192, 255, 0.12);
+  --accent: #d97757;
+  --accent-hover: #e6906f;
+  --accent-soft: rgba(217, 119, 87, 0.16);
+  --accent-cool: #e0a589;
+  --accent-cool-soft: rgba(217, 119, 87, 0.12);
 
-  --syntax-type: #79c0ff;
-  --syntax-keyword: #d2a8ff;
+  --syntax-type: #c9a987;
+  --syntax-keyword: #d97757;
 
-  --overlay-1: rgba(240, 246, 252, 0.04);
-  --overlay-2: rgba(240, 246, 252, 0.07);
-  --overlay-3: rgba(240, 246, 252, 0.1);
-  --overlay-4: rgba(240, 246, 252, 0.13);
-  --overlay-5: rgba(240, 246, 252, 0.18);
-  --overlay-6: rgba(240, 246, 252, 0.26);
+  --overlay-1: rgba(245, 244, 239, 0.04);
+  --overlay-2: rgba(245, 244, 239, 0.07);
+  --overlay-3: rgba(245, 244, 239, 0.1);
+  --overlay-4: rgba(245, 244, 239, 0.13);
+  --overlay-5: rgba(245, 244, 239, 0.18);
+  --overlay-6: rgba(245, 244, 239, 0.26);
 
-  --danger: #f85149;
-  --danger-soft: rgba(248, 81, 73, 0.18);
-  --warning: #d29922;
-  --success: #3fb950;
+  --danger: #e5604d;
+  --danger-soft: rgba(229, 96, 77, 0.18);
+  --warning: #d9a05b;
+  --success: #7fa563;
 
-  --term-fg: #e6edf3;
-  --term-bg: #0d1117;
-  --term-surface: #161b22;
-  --term-cursor: #58a6ff;
+  --term-fg: #ededeb;
+  --term-bg: #1f1e1d;
+  --term-surface: #262624;
+  --term-cursor: #d97757;
 
-  --on-accent: #0d1117;
-  --scrim-bg: rgba(0, 0, 0, 0.6);
+  --on-accent: #2a1a12;
+  --scrim-bg: rgba(0, 0, 0, 0.62);
 
-  --agent-claude: #ffa657;
-  --agent-codex: #3fb950;
-  --agent-gemini: #58a6ff;
-  --agent-copilot: #d2a8ff;
-  --agent-cursor: #79c0ff;
+  --agent-claude: #d97757;
+  --agent-codex: #7fa563;
+  --agent-gemini: #7aa2c4;
+  --agent-copilot: #b89ad1;
+  --agent-cursor: #e0a589;
 
-  --git-lane-0: #58a6ff;
-  --git-lane-1: #d2a8ff;
-  --git-lane-2: #3fb950;
-  --git-lane-3: #d29922;
-  --git-lane-4: #f85149;
-  --git-lane-5: #79c0ff;
+  --git-lane-0: #d97757;
+  --git-lane-1: #c9a987;
+  --git-lane-2: #7fa563;
+  --git-lane-3: #d9a05b;
+  --git-lane-4: #e5604d;
+  --git-lane-5: #7aa2c4;
 
   --fg-main: var(--text);
   --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);

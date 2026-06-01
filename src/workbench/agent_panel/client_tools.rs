@@ -4,6 +4,9 @@ use crate::workbench::agent_context_handoff::{
     perform_handoff, HandoffRequest, WorkspaceTerminalTarget,
 };
 use crate::workbench::state::normalize_hex_color;
+use crate::workbench::terminal_naming::{
+    self, TerminalNamingMode, NAME_POOL_KEY, NAMING_MODE_KEY,
+};
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Date;
@@ -11,6 +14,37 @@ use leptos::prelude::*;
 
 const PTY_READY_ATTEMPTS: u32 = 40;
 const PTY_READY_DELAY_MS: u32 = 50;
+
+/// Read a localStorage value (the agent tool handlers run inside a spawned
+/// task where the reactive owner — and thus `expect_context` — may be
+/// unavailable, so we read the persisted naming prefs directly).
+fn read_local_storage(key: &str) -> Option<String> {
+    web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten())
+        .and_then(|s| s.get_item(key).ok().flatten())
+}
+
+fn current_naming_mode() -> TerminalNamingMode {
+    TerminalNamingMode::from_storage(read_local_storage(NAMING_MODE_KEY).as_deref())
+}
+
+fn current_name_pool() -> Vec<String> {
+    terminal_naming::parse_pool(read_local_storage(NAME_POOL_KEY).as_deref())
+}
+
+/// Friendly name for a slot (override > deterministic pool), independent of
+/// the active display mode so the agent can address terminals by name even
+/// when the user currently sees slot numbers.
+fn resolved_slot_name(
+    wb: &WorkbenchService,
+    workspace_id: u64,
+    slot_id: u64,
+    pool: &[String],
+    siblings: &[u64],
+) -> Option<String> {
+    let override_name = wb.slot_name_override(workspace_id, slot_id);
+    terminal_naming::resolve_slot_name(slot_id, override_name.as_deref(), pool, siblings)
+}
 
 pub fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
     let AgentEvent::ToolCall {
@@ -537,6 +571,12 @@ fn resolve_target_session(
         .as_ref()
         .and_then(|v| v.get("slotId"))
         .and_then(|v| v.as_u64());
+    let name_filter = args
+        .as_ref()
+        .and_then(|v| v.get("name"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty());
     let agent_slug = args
         .as_ref()
         .and_then(|v| v.get("agentSlug"))
@@ -568,6 +608,22 @@ fn resolve_target_session(
             return Ok((sid, pane));
         }
         return Err(format!("slot {slot} not running"));
+    }
+    if let Some(name) = name_filter {
+        let pool = current_name_pool();
+        let siblings = wb.slot_ids_for_workspace(workspace_id);
+        let target = name.to_lowercase();
+        for (slot, pane, sid) in &entries {
+            let resolved = resolved_slot_name(wb, workspace_id, *slot, &pool, &siblings);
+            if resolved
+                .as_deref()
+                .map(|n| n.to_lowercase() == target)
+                .unwrap_or(false)
+            {
+                return Ok((*sid, *pane));
+            }
+        }
+        return Err(format!("no running terminal named '{name}'"));
     }
     if let Some(slug) = agent_slug {
         for (slot, pane, sid) in &entries {
@@ -621,18 +677,25 @@ fn handle_list_terminals(call_id: String, wb: WorkbenchService) {
         return;
     };
     let running = wb.pty_sessions_for_workspace(workspace_id);
+    let pool = current_name_pool();
+    let mode = current_naming_mode();
     let entries = wb.workspaces().with_untracked(|ws| {
         let Some(w) = ws.iter().find(|w| w.id == workspace_id) else {
             return Vec::new();
         };
+        let siblings = w.slot_ids.clone();
         w.slot_ids
             .iter()
             .enumerate()
             .map(|(idx, slot_id)| {
                 let agent = w.slot_agent_labels.get(idx).cloned().unwrap_or_default();
                 let running = running.iter().any(|(s, _, _)| *s == *slot_id);
+                let name = resolved_slot_name(&wb, workspace_id, *slot_id, &pool, &siblings)
+                    .unwrap_or_else(|| format!("#{slot_id}"));
                 serde_json::json!({
                     "slotId": slot_id,
+                    "name": name,
+                    "namingMode": mode.storage_value(),
                     "agentSlug": agent,
                     "running": running,
                 })
