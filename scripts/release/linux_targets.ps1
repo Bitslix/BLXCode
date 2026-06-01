@@ -84,6 +84,7 @@ function Invoke-ReleaseLinuxTauriBuild {
     }
 
     Test-ReleaseSigning
+    Set-ReleaseBuildEnv
     Push-Location (Join-Path $script:RELEASE_ROOT "src-tauri")
     try {
         & cargo @cargoArgs

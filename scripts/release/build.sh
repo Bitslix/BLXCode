@@ -4,6 +4,12 @@
 # shellcheck source=linux_targets.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/linux_targets.sh"
 
+release_apply_build_env() {
+  export TRUNK_BUILD_RELEASE=true
+  export CARGO_PROFILE_RELEASE_DEBUG=false
+  release_info "Release build env: TRUNK_BUILD_RELEASE=true, CARGO_PROFILE_RELEASE_DEBUG=false"
+}
+
 release_prepare_deps() {
   release_require_cmd npm
   release_require_cmd cargo
@@ -33,6 +39,7 @@ release_macos_build() {
   fi
   rustup target add aarch64-apple-darwin x86_64-apple-darwin
   release_info "macOS: universal binary (aarch64 + x86_64) for Apple Silicon and Intel Macs"
+  release_apply_build_env
   release_check_signing
   (cd "$RELEASE_ROOT/src-tauri" && cargo tauri build --target universal-apple-darwin)
 }
@@ -47,6 +54,7 @@ release_windows_build() {
     release_info "Would: cargo tauri build ${args[*]}"
     return 0
   fi
+  release_apply_build_env
   release_check_signing
   (cd "$RELEASE_ROOT/src-tauri" && cargo tauri build "${args[@]}")
 }

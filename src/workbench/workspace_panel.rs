@@ -752,6 +752,7 @@ fn WorkspaceEmptyState() -> impl IntoView {
             </ul>
             <ul class="workbench-shortcut-list">
                 <ShortcutActionRow icon=icondata::LuFolderSearch action=ShortcutAction::QuickOpen />
+                <ShortcutActionRow icon=icondata::LuFileSearch action=ShortcutAction::FindFile />
                 <ShortcutActionRow icon=icondata::LuPanelRight action=ShortcutAction::SidePanel />
                 <li class="workbench-shortcut-row workbench-shortcut-row--spacer" aria-hidden="true"></li>
                 <ShortcutActionRow icon=icondata::LuSparkles action=ShortcutAction::Agent />

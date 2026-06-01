@@ -72,3 +72,9 @@ members = ["src-tauri"]
 debug = 1
 incremental = true
 codegen-units = 256
+
+[profile.release]
+debug = false
+strip = true
+lto = "thin"
+codegen-units = 1
