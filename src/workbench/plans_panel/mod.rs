@@ -641,37 +641,89 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
                         </span>
                     </span>
                 </button>
-                <button
-                    type="button"
-                    class="blx-sr-btn blx-sr-btn--icon blx-plans-card__edit-toggle"
-                    disabled=move || body_loading.get() || saving.get()
-                    aria-label=move || {
-                        if editing.get() {
-                            i18n.tr(I18nKey::PlansPreview)()
-                        } else {
-                            i18n.tr(I18nKey::PlansEdit)()
+                <div class="blx-plans-card__quick">
+                    {move || (!expanded.get()).then(|| view! {
+                        <button
+                            type="button"
+                            class="blx-sr-btn blx-sr-btn--icon blx-sr-btn--primary blx-plans-card__quick-btn"
+                            aria-label=move || i18n.tr(I18nKey::PlansLoadIntoAgent)()
+                            title=move || i18n.tr(I18nKey::PlansLoadIntoAgent)()
+                            on:click=move |ev: web_sys::MouseEvent| {
+                                ev.stop_propagation();
+                                load_plan_into_agent(state, wb, on_load.get_value());
+                            }
+                        >
+                            <LxIcon icon=icondata::LuBot width="13px" height="13px" />
+                        </button>
+                        <button
+                            type="button"
+                            class="blx-sr-btn blx-sr-btn--icon blx-plans-card__quick-btn"
+                            disabled=is_index
+                            aria-label=move || i18n.tr(I18nKey::PlansRename)()
+                            title=move || i18n.tr(I18nKey::PlansRename)()
+                            on:click=move |ev: web_sys::MouseEvent| {
+                                ev.stop_propagation();
+                                open_rename_from_header(state, card_path.get_value(), expanded, renaming, rename_input, body, body_loading);
+                            }
+                        >
+                            <LxIcon icon=icondata::LuFilePenLine width="13px" height="13px" />
+                        </button>
+                        <button
+                            type="button"
+                            class="blx-sr-btn blx-sr-btn--icon blx-sr-btn--danger blx-plans-card__quick-btn"
+                            disabled=is_index
+                            aria-label=move || i18n.tr(I18nKey::SrRemove)()
+                            title=move || i18n.tr(I18nKey::SrRemove)()
+                            on:click=move |ev: web_sys::MouseEvent| {
+                                ev.stop_propagation();
+                                let path = on_delete.get_value();
+                                ui.request_confirm(ConfirmRequest {
+                                    title: i18n.tr(I18nKey::SrConfirmRemoveTitle)().to_string(),
+                                    body: i18n.tr(I18nKey::SrConfirmRemove)().to_string(),
+                                    confirm_label: i18n.tr(I18nKey::SrRemove)().to_string(),
+                                    cancel_label: i18n.tr(I18nKey::SrCancel)().to_string(),
+                                    danger: true,
+                                    on_confirm: Callback::new(move |_| {
+                                        remove_plan(state, path.clone());
+                                    }),
+                                });
+                            }
+                        >
+                            <LxIcon icon=icondata::LuTrash2 width="13px" height="13px" />
+                        </button>
+                    })}
+                    <button
+                        type="button"
+                        class="blx-sr-btn blx-sr-btn--icon blx-plans-card__edit-toggle"
+                        disabled=move || body_loading.get() || saving.get()
+                        aria-label=move || {
+                            if editing.get() {
+                                i18n.tr(I18nKey::PlansPreview)()
+                            } else {
+                                i18n.tr(I18nKey::PlansEdit)()
+                            }
                         }
-                    }
-                    title=move || {
-                        if editing.get() {
-                            i18n.tr(I18nKey::PlansPreview)()
-                        } else {
-                            i18n.tr(I18nKey::PlansEdit)()
+                        title=move || {
+                            if editing.get() {
+                                i18n.tr(I18nKey::PlansPreview)()
+                            } else {
+                                i18n.tr(I18nKey::PlansEdit)()
+                            }
                         }
-                    }
-                    on:click=move |ev: web_sys::MouseEvent| {
-                        ev.stop_propagation();
-                        toggle_plan_edit_from_header(state, card_path.get_value(), expanded, editing, body, draft, body_loading);
-                    }
-                >
-                    {move || {
-                        if editing.get() {
-                            view! { <LxIcon icon=icondata::LuEye width="13px" height="13px" /> }.into_any()
-                        } else {
-                            view! { <LxIcon icon=icondata::LuPencil width="13px" height="13px" /> }.into_any()
+                        on:click=move |ev: web_sys::MouseEvent| {
+                            ev.stop_propagation();
+                            toggle_plan_edit_from_header(state, card_path.get_value(), expanded, editing, body, draft, body_loading);
                         }
-                    }}
-                </button>
+                    >
+                        {move || {
+                            if editing.get() {
+                                view! { <LxIcon icon=icondata::LuEye width="13px" height="13px" /> }.into_any()
+                            } else {
+                                view! { <LxIcon icon=icondata::LuPencil width="13px" height="13px" /> }.into_any()
+                            }
+                        }}
+                    </button>
+                </div>
             </div>
 
             {move || expanded.get().then(|| {
@@ -886,6 +938,23 @@ fn toggle_plan_edit_from_header(
         }
         loading.set(false);
     });
+}
+
+fn open_rename_from_header(
+    state: PlansState,
+    path: String,
+    expanded: RwSignal<bool>,
+    renaming: RwSignal<bool>,
+    rename_input: RwSignal<String>,
+    body: RwSignal<Option<String>>,
+    loading: RwSignal<bool>,
+) {
+    expanded.set(true);
+    rename_input.set(path.clone());
+    renaming.set(true);
+    if body.with_untracked(|b| b.is_none()) && !loading.get_untracked() {
+        read_plan_into(state, path, body, loading);
+    }
 }
 
 fn write_plan_body(
