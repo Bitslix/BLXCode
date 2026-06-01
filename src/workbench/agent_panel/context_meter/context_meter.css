@@ -1,0 +1,43 @@
+/* Chat-header context-window occupancy meter. */
+.agent-context-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.agent-context-meter__icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+}
+
+.agent-context-meter__bar {
+  position: relative;
+  width: 3.25rem;
+  height: 0.3rem;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.agent-context-meter__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
+
+.agent-context-meter__fill--warn {
+  background: var(--warning);
+}
+
+.agent-context-meter__fill--danger {
+  background: var(--danger);
+}
+
+.agent-context-meter__text {
+  font-variant-numeric: tabular-nums;
+}

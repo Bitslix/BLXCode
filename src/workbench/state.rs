@@ -205,6 +205,15 @@ pub struct ChatUsageStats {
     /// main agent and subagents). Rendered as `N turns` in the chat header.
     #[serde(default)]
     pub turn_count: u32,
+    /// Input tokens reported by the **most recent main-agent `ModelRound`**.
+    /// Unlike `total_input_tokens` (a cumulative sum used for cost), this is
+    /// the live context-window occupancy: each provider round re-sends the
+    /// whole conversation, so the latest round's prompt size is "tokens
+    /// currently in the window". Drives the chat-header context meter; reset
+    /// on clear and overwritten after a compaction. Subagent rounds are
+    /// excluded (they don't sit in the main conversation window).
+    #[serde(default)]
+    pub last_round_input_tokens: u64,
     /// Highest `turn_generation` observed in a `TurnUsage` event for this
     /// workspace. Events stamped with a lower generation are dropped — they
     /// belong to a turn that was cancelled by `agent_clear_conversation`.
@@ -3206,6 +3215,10 @@ impl WorkbenchService {
         output_tokens: Option<u64>,
         elapsed_ms: u64,
         cost_usd: Option<f64>,
+        // Some(tokens) only for a **main-agent `ModelRound`** event — the
+        // caller decides this from `kind`/`agent_id`. Overwrites the live
+        // context-window occupancy with the newest round's prompt size.
+        round_input_tokens: Option<u64>,
     ) -> bool {
         let mut applied = false;
         self.workspaces.update(|workspaces| {
@@ -3228,10 +3241,25 @@ impl WorkbenchService {
                 if let Some(c) = cost_usd {
                     u.total_cost_usd += c;
                 }
+                if let Some(t) = round_input_tokens {
+                    u.last_round_input_tokens = t;
+                }
                 applied = true;
             }
         });
         applied
+    }
+
+    /// Overwrite the live context-window occupancy directly. Called after a
+    /// compaction replaces the conversation with a much smaller summary, so
+    /// the meter reflects the new (estimated) prompt size immediately rather
+    /// than waiting for the next real turn's `TurnUsage`.
+    pub fn set_last_round_input_tokens(&self, workspace_id: u64, tokens: u64) {
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                ws.agent_chat_usage.last_round_input_tokens = tokens;
+            }
+        });
     }
 
     /// Reset the chat-usage aggregate (call alongside `agent_clear_conversation`).

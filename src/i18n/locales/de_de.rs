@@ -678,6 +678,20 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgToolLoopLimitHint => {
             "Maximale Tool-Aufruf-Runden pro Durchlauf, bevor der Agent eine Endlosschleife stoppt."
         }
+        I18nKey::AgAutoCompactField => "Auto-Kompaktierung",
+        I18nKey::AgAutoCompactHint => {
+            "Sitzung automatisch zusammenfassen, wenn sie sich dem Kontextlimit nähert."
+        }
+        I18nKey::AgAutoCompactThresholdField => "Auto-Kompaktierung bei (%)",
+        I18nKey::AgContextWindowAria => "Kontextfenster-Auslastung",
+        I18nKey::AgContextWindowLabel => "Kontextfenster",
+        I18nKey::AgContextWindowUnknown => "Kontextfenstergröße für dieses Modell unbekannt",
+        I18nKey::AgCompactSession => "Sitzung kompaktieren",
+        I18nKey::AgCompactSessionAria => "Konversation zusammenfassen, um Kontext freizugeben",
+        I18nKey::AgCompactRunning => "Sitzung wird kompaktiert…",
+        I18nKey::AgCompactDone => "Sitzung kompaktiert",
+        I18nKey::AgCompactNothing => "Noch nichts zu kompaktieren",
+        I18nKey::AgAutoCompactStatus => "Automatisch kompaktiert, um im Kontextfenster zu bleiben.",
         I18nKey::AgImageQualityField => "Qualitätsstufe",
         I18nKey::AgImageQualityLow => "Niedrig",
         I18nKey::AgImageQualityMedium => "Mittel",

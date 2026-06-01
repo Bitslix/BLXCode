@@ -488,6 +488,11 @@ pub fn apply_agent_event(
                     *output_tokens,
                     *elapsed_ms,
                     *cost_usd,
+                    if matches!(kind, TurnUsageKind::ModelRound) && agent_id.is_none() {
+                        *input_tokens
+                    } else {
+                        None
+                    },
                 ),
                 None => true,
             };

@@ -1,6 +1,20 @@
 # Session Context Window + Compaction
 
-**Status:** planned
+**Status:** done
+
+## Implementation notes (as built)
+
+Phases 1–4 are implemented. One deliberate deviation from the original
+design: **no `ConversationCompacted` `AgentEvent`**. Instead
+`agent_compact_conversation` runs synchronously and returns the result
+(`summary`, `beforeTokens`, `afterTokensEstimate`, `messagesBefore`)
+directly — simpler, no protocol/agent_wire/reducer surface. On success the
+frontend **resets the visible timeline to a fresh chat** (matching the
+backend's now-compacted memory and the user's "start fresh with the
+compacted information" request) and shows a status line; the backend keeps
+the summary as a synthetic `user`→`assistant` pair so the next turn resumes
+from it. Occupancy tracks `ChatUsageStats.last_round_input_tokens` (newest
+main-agent `ModelRound` prompt size), reset to the post-compaction estimate.
 
 ## Summary
 

@@ -656,6 +656,20 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgToolLoopLimitHint => {
             "每輪中工具呼叫的最大次數，超過後代理將停止失控迴圈。"
         }
+        I18nKey::AgAutoCompactField => "自動壓縮",
+        I18nKey::AgAutoCompactHint => {
+            "當工作階段接近上下文上限時自動進行摘要壓縮。"
+        }
+        I18nKey::AgAutoCompactThresholdField => "自動壓縮閾值 (%)",
+        I18nKey::AgContextWindowAria => "上下文視窗使用情況",
+        I18nKey::AgContextWindowLabel => "上下文視窗",
+        I18nKey::AgContextWindowUnknown => "此模型的上下文視窗大小未知",
+        I18nKey::AgCompactSession => "壓縮工作階段",
+        I18nKey::AgCompactSessionAria => "壓縮對話以釋放上下文",
+        I18nKey::AgCompactRunning => "正在壓縮工作階段…",
+        I18nKey::AgCompactDone => "工作階段已壓縮",
+        I18nKey::AgCompactNothing => "暫無可壓縮的內容",
+        I18nKey::AgAutoCompactStatus => "已自動壓縮以保持在上下文視窗內。",
         I18nKey::AgImageQualityField => "品質級別",
         I18nKey::AgImageQualityLow => "低的",
         I18nKey::AgImageQualityMedium => "中等的",

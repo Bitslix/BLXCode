@@ -660,6 +660,20 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgToolLoopLimitHint => {
             "暴走ループを停止するまでの、1ターンあたりのツール呼び出し回数の上限。"
         }
+        I18nKey::AgAutoCompactField => "自動コンパクト",
+        I18nKey::AgAutoCompactHint => {
+            "コンテキスト上限に近づいたらセッションを自動的に要約します。"
+        }
+        I18nKey::AgAutoCompactThresholdField => "自動コンパクトの閾値 (%)",
+        I18nKey::AgContextWindowAria => "コンテキストウィンドウの使用量",
+        I18nKey::AgContextWindowLabel => "コンテキストウィンドウ",
+        I18nKey::AgContextWindowUnknown => "このモデルのコンテキストウィンドウサイズは不明です",
+        I18nKey::AgCompactSession => "セッションをコンパクト化",
+        I18nKey::AgCompactSessionAria => "会話をコンパクト化してコンテキストを解放します",
+        I18nKey::AgCompactRunning => "セッションをコンパクト化中…",
+        I18nKey::AgCompactDone => "セッションをコンパクト化しました",
+        I18nKey::AgCompactNothing => "コンパクト化するものはまだありません",
+        I18nKey::AgAutoCompactStatus => "コンテキストウィンドウ内に収めるため自動コンパクト化しました。",
         I18nKey::AgImageQualityField => "品質レベル",
         I18nKey::AgImageQualityLow => "低い",
         I18nKey::AgImageQualityMedium => "中くらい",

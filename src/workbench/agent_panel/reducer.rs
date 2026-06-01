@@ -280,6 +280,15 @@ fn apply_event_to_doc(
                 cost_usd: *cost_usd,
             };
             if let Some((wb, ws_id)) = persist {
+                // Context-window occupancy tracks only the main agent's
+                // provider rounds — subagent rounds (agent_id Some) live in
+                // their own windows, and tool-exec events carry no prompt.
+                let round_input_tokens =
+                    if matches!(kind, TurnUsageKind::ModelRound) && agent_id.is_none() {
+                        *input_tokens
+                    } else {
+                        None
+                    };
                 let _ = wb.record_chat_turn_usage(
                     ws_id,
                     *turn_generation,
@@ -287,6 +296,7 @@ fn apply_event_to_doc(
                     *output_tokens,
                     *elapsed_ms,
                     *cost_usd,
+                    round_input_tokens,
                 );
             }
             match kind {

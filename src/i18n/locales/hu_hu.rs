@@ -676,6 +676,20 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgToolLoopLimitHint => {
             "Eszközhívási körök maximális száma fordulónként, mielőtt az ügynök leállítja az elszabadult hurkot."
         }
+        I18nKey::AgAutoCompactField => "Auto-tömörítés",
+        I18nKey::AgAutoCompactHint => {
+            "A munkamenet automatikus összefoglalása, amikor közelít a kontextushatárhoz."
+        }
+        I18nKey::AgAutoCompactThresholdField => "Auto-tömörítés ennél (%)",
+        I18nKey::AgContextWindowAria => "Kontextusablak kihasználtsága",
+        I18nKey::AgContextWindowLabel => "Kontextusablak",
+        I18nKey::AgContextWindowUnknown => "A kontextusablak mérete ismeretlen ehhez a modellhez",
+        I18nKey::AgCompactSession => "Munkamenet tömörítése",
+        I18nKey::AgCompactSessionAria => "A beszélgetés tömörítése a kontextus felszabadításához",
+        I18nKey::AgCompactRunning => "Munkamenet tömörítése…",
+        I18nKey::AgCompactDone => "Munkamenet tömörítve",
+        I18nKey::AgCompactNothing => "Még nincs mit tömöríteni",
+        I18nKey::AgAutoCompactStatus => "Automatikusan tömörítve, hogy a kontextusablakon belül maradjon.",
         I18nKey::AgImageQualityField => "Minőségi szint",
         I18nKey::AgImageQualityLow => "Alacsony",
         I18nKey::AgImageQualityMedium => "Közepes",

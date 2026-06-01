@@ -676,6 +676,20 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgToolLoopLimitHint => {
             "Максимум раундов вызова инструментов за ход, прежде чем агент остановит зацикливание."
         }
+        I18nKey::AgAutoCompactField => "Авто-сжатие",
+        I18nKey::AgAutoCompactHint => {
+            "Автоматически сжимать сессию при приближении к лимиту контекста."
+        }
+        I18nKey::AgAutoCompactThresholdField => "Авто-сжатие при (%)",
+        I18nKey::AgContextWindowAria => "Использование окна контекста",
+        I18nKey::AgContextWindowLabel => "Окно контекста",
+        I18nKey::AgContextWindowUnknown => "Размер окна контекста для этой модели неизвестен",
+        I18nKey::AgCompactSession => "Сжать сессию",
+        I18nKey::AgCompactSessionAria => "Сжать диалог, чтобы освободить контекст",
+        I18nKey::AgCompactRunning => "Сжатие сессии…",
+        I18nKey::AgCompactDone => "Сессия сжата",
+        I18nKey::AgCompactNothing => "Пока нечего сжимать",
+        I18nKey::AgAutoCompactStatus => "Автоматически сжато, чтобы остаться в пределах окна контекста.",
         I18nKey::AgImageQualityField => "Уровень качества",
         I18nKey::AgImageQualityLow => "Низкий",
         I18nKey::AgImageQualityMedium => "Середина",

@@ -32,10 +32,13 @@ mod voice;
 mod workbench_state;
 
 use agent::{
-    agent_environment_invalidate, agent_web_settings_get, agent_web_settings_save, AgentEngineState,
+    agent_compact_conversation, agent_environment_invalidate, agent_web_settings_get,
+    agent_web_settings_save, AgentEngineState,
 };
 use agent_hooks::{agent_hooks_status, install_agent_hooks, uninstall_agent_hooks};
-use agent_settings::{agent_provider_models, agent_settings_get, agent_settings_save};
+use agent_settings::{
+    agent_active_context_window, agent_provider_models, agent_settings_get, agent_settings_save,
+};
 use api_keys::{api_keys_apply, api_keys_status};
 use browser_host::BrowserHost;
 use clipboard::{clipboard_read_text, clipboard_write_text};
@@ -153,6 +156,7 @@ pub fn run() {
             agent_poll_events,
             agent_abort,
             agent_clear_conversation,
+            agent_compact_conversation,
             agent_provider_status,
             agent_read_image_file,
             agent_export_context_images,
@@ -160,6 +164,7 @@ pub fn run() {
             harness_user_home_dir,
             agent_settings_get,
             agent_settings_save,
+            agent_active_context_window,
             agent_provider_models,
             api_keys_status,
             api_keys_apply,

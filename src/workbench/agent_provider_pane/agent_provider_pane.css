@@ -122,6 +122,16 @@
   line-height: 1.35;
 }
 
+.agent-provider-pane__inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.agent-provider-pane__pct-input {
+  width: 4.5rem;
+}
+
 .agent-model-picker {
   display: flex;
   flex-direction: column;

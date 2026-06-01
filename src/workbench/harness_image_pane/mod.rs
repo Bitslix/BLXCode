@@ -191,6 +191,7 @@ async fn fetch_image_models(provider: ImageProviderKind, out: RwSignal<Vec<Provi
                     label: m.label,
                     description: None,
                     pricing: None,
+                    context_length: None,
                 })
                 .collect();
             out.set(entries);

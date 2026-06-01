@@ -48,6 +48,7 @@ fn voice_model_entry(id: &str, label: &str, description: &str) -> ProviderModelE
         label: label.into(),
         description: Some(description.into()),
         pricing: None,
+        context_length: None,
     }
 }
 

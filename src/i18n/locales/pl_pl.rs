@@ -676,6 +676,20 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgToolLoopLimitHint => {
             "Maksymalna liczba rund wywołań narzędzi na turę, zanim agent przerwie niekontrolowaną pętlę."
         }
+        I18nKey::AgAutoCompactField => "Auto-kompaktowanie",
+        I18nKey::AgAutoCompactHint => {
+            "Automatycznie podsumuj sesję, gdy zbliża się do limitu kontekstu."
+        }
+        I18nKey::AgAutoCompactThresholdField => "Auto-kompaktowanie przy (%)",
+        I18nKey::AgContextWindowAria => "Wykorzystanie okna kontekstu",
+        I18nKey::AgContextWindowLabel => "Okno kontekstu",
+        I18nKey::AgContextWindowUnknown => "Nieznany rozmiar okna kontekstu dla tego modelu",
+        I18nKey::AgCompactSession => "Kompaktuj sesję",
+        I18nKey::AgCompactSessionAria => "Kompaktuj rozmowę, aby zwolnić kontekst",
+        I18nKey::AgCompactRunning => "Kompaktowanie sesji…",
+        I18nKey::AgCompactDone => "Sesja skompaktowana",
+        I18nKey::AgCompactNothing => "Nie ma jeszcze nic do skompaktowania",
+        I18nKey::AgAutoCompactStatus => "Automatycznie skompaktowano, aby zmieścić się w oknie kontekstu.",
         I18nKey::AgImageQualityField => "Poziom jakości",
         I18nKey::AgImageQualityLow => "Niski",
         I18nKey::AgImageQualityMedium => "Średni",

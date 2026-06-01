@@ -718,6 +718,20 @@ keys; the preset only fills in defaults."
         I18nKey::AgToolLoopLimitHint => {
             "Maximum tool-call rounds per turn before the agent stops a runaway loop."
         }
+        I18nKey::AgAutoCompactField => "Auto-compact",
+        I18nKey::AgAutoCompactHint => {
+            "Automatically summarize the session when it nears the context limit."
+        }
+        I18nKey::AgAutoCompactThresholdField => "Auto-compact at (%)",
+        I18nKey::AgContextWindowAria => "Context window usage",
+        I18nKey::AgContextWindowLabel => "Context window",
+        I18nKey::AgContextWindowUnknown => "Context window size unknown for this model",
+        I18nKey::AgCompactSession => "Compact session",
+        I18nKey::AgCompactSessionAria => "Compact the conversation to free context",
+        I18nKey::AgCompactRunning => "Compacting session…",
+        I18nKey::AgCompactDone => "Session compacted",
+        I18nKey::AgCompactNothing => "Nothing to compact yet",
+        I18nKey::AgAutoCompactStatus => "Auto-compacted to stay within the context window.",
         I18nKey::AgImageQualityField => "Quality level",
         I18nKey::AgImageQualityLow => "Low",
         I18nKey::AgImageQualityMedium => "Medium",

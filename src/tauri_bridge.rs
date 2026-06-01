@@ -364,6 +364,19 @@ fn default_tool_loop_limit() -> u32 {
     DEFAULT_TOOL_LOOP_LIMIT
 }
 
+/// Auto-compaction defaults / range (mirrors `agent_settings`).
+pub const DEFAULT_AUTO_COMPACT_THRESHOLD_PCT: u8 = 85;
+pub const MIN_AUTO_COMPACT_THRESHOLD_PCT: u8 = 50;
+pub const MAX_AUTO_COMPACT_THRESHOLD_PCT: u8 = 95;
+
+fn default_auto_compact_enabled() -> bool {
+    true
+}
+
+fn default_auto_compact_threshold_pct() -> u8 {
+    DEFAULT_AUTO_COMPACT_THRESHOLD_PCT
+}
+
 #[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -377,6 +390,10 @@ pub struct ProviderModelEntry {
     /// the id-mapping table in `agent/pricing.rs`.
     #[serde(default)]
     pub pricing: Option<ModelPricing>,
+    /// Max context window in tokens from OpenRouter `/models`. `None` for
+    /// direct providers (resolved server-side via the fallback table).
+    #[serde(default)]
+    pub context_length: Option<u64>,
 }
 
 #[allow(dead_code)]
@@ -404,6 +421,10 @@ pub struct AgentProviderSettingsView {
     pub thinking_level: ThinkingLevel,
     #[serde(default = "default_tool_loop_limit")]
     pub tool_loop_limit: u32,
+    #[serde(default = "default_auto_compact_enabled")]
+    pub auto_compact_enabled: bool,
+    #[serde(default = "default_auto_compact_threshold_pct")]
+    pub auto_compact_threshold_pct: u8,
     pub model_cache_openrouter: Vec<ProviderModelEntry>,
     pub model_cache_anthropic: Vec<ProviderModelEntry>,
     pub model_cache_openai: Vec<ProviderModelEntry>,
@@ -497,11 +518,31 @@ pub async fn agent_settings_get() -> Result<AgentProviderSettingsView, String> {
     invoke_typed("agent_settings_get", serde_json::json!({})).await
 }
 
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ActiveContextWindow {
+    pub provider: AgentProviderKind,
+    pub model_id: String,
+    /// Max context window in tokens; `None` when the model is unknown.
+    #[serde(default)]
+    pub context_length: Option<u64>,
+}
+
+/// Resolve the active model's context-window size (tokens). Drives the chat
+/// header occupancy meter.
+pub async fn agent_active_context_window() -> Result<ActiveContextWindow, String> {
+    invoke_typed("agent_active_context_window", serde_json::json!({})).await
+}
+
+#[allow(clippy::too_many_arguments)]
 pub async fn agent_settings_save(
     provider: AgentProviderKind,
     model_id: String,
     thinking_level: ThinkingLevel,
     tool_loop_limit: u32,
+    auto_compact_enabled: bool,
+    auto_compact_threshold_pct: u8,
 ) -> Result<AgentProviderSettingsView, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -516,6 +557,8 @@ pub async fn agent_settings_save(
         model_id: String,
         thinking_level: ThinkingLevel,
         tool_loop_limit: u32,
+        auto_compact_enabled: bool,
+        auto_compact_threshold_pct: u8,
     }
 
     invoke_typed(
@@ -526,10 +569,38 @@ pub async fn agent_settings_save(
                 model_id,
                 thinking_level,
                 tool_loop_limit,
+                auto_compact_enabled,
+                auto_compact_threshold_pct,
             },
         },
     )
     .await
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CompactionResult {
+    pub summary: String,
+    #[serde(default)]
+    pub before_tokens: u64,
+    #[serde(default)]
+    pub after_tokens_estimate: u64,
+    #[serde(default)]
+    pub messages_before: usize,
+}
+
+/// Summarize the running conversation and replace it with a compact briefing.
+/// `current_tokens` is the meter's live occupancy (for an accurate before/after).
+pub async fn agent_compact_conversation(
+    current_tokens: Option<u64>,
+) -> Result<CompactionResult, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        current_tokens: Option<u64>,
+    }
+    invoke_typed("agent_compact_conversation", Args { current_tokens }).await
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

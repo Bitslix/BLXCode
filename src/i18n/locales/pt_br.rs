@@ -676,6 +676,20 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgToolLoopLimitHint => {
             "Máximo de rodadas de chamadas de ferramentas por turno antes de interromper um loop descontrolado."
         }
+        I18nKey::AgAutoCompactField => "Auto-compactar",
+        I18nKey::AgAutoCompactHint => {
+            "Resumir automaticamente a sessão quando ela se aproximar do limite de contexto."
+        }
+        I18nKey::AgAutoCompactThresholdField => "Auto-compactar em (%)",
+        I18nKey::AgContextWindowAria => "Uso da janela de contexto",
+        I18nKey::AgContextWindowLabel => "Janela de contexto",
+        I18nKey::AgContextWindowUnknown => "Tamanho da janela de contexto desconhecido para este modelo",
+        I18nKey::AgCompactSession => "Compactar sessão",
+        I18nKey::AgCompactSessionAria => "Compactar a conversa para liberar contexto",
+        I18nKey::AgCompactRunning => "Compactando sessão…",
+        I18nKey::AgCompactDone => "Sessão compactada",
+        I18nKey::AgCompactNothing => "Nada para compactar ainda",
+        I18nKey::AgAutoCompactStatus => "Compactada automaticamente para permanecer na janela de contexto.",
         I18nKey::AgImageQualityField => "Nível de qualidade",
         I18nKey::AgImageQualityLow => "Baixo",
         I18nKey::AgImageQualityMedium => "Médio",

@@ -104,6 +104,9 @@ mod tests {
             provider: AgentProviderKind::Openrouter,
             model_id: String::new(),
             thinking_level: ThinkingLevel::Medium,
+            tool_loop_limit: crate::agent_settings::DEFAULT_TOOL_LOOP_LIMIT,
+            auto_compact_enabled: true,
+            auto_compact_threshold_pct: crate::agent_settings::DEFAULT_AUTO_COMPACT_THRESHOLD_PCT,
             model_cache_openrouter: entries,
             model_cache_anthropic: Vec::new(),
             model_cache_openai: Vec::new(),
@@ -116,6 +119,7 @@ mod tests {
             label: id.into(),
             description: None,
             pricing: Some(ModelPricing { prompt, completion }),
+            context_length: None,
         }
     }
 

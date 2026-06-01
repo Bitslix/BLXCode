@@ -6,7 +6,9 @@ use crate::tauri_bridge::{
     agent_provider_models, agent_settings_get, agent_settings_save, agent_web_settings_get,
     agent_web_settings_save, is_tauri_shell, AgentProviderKind, AgentProviderSettingsView,
     AgentWebSettingsView, ProviderModelEntry, ProviderModelsResponse, ThinkingLevel,
-    WebProviderKind, DEFAULT_TOOL_LOOP_LIMIT, MAX_TOOL_LOOP_LIMIT, MIN_TOOL_LOOP_LIMIT,
+    WebProviderKind, DEFAULT_AUTO_COMPACT_THRESHOLD_PCT, DEFAULT_TOOL_LOOP_LIMIT,
+    MAX_AUTO_COMPACT_THRESHOLD_PCT, MAX_TOOL_LOOP_LIMIT, MIN_AUTO_COMPACT_THRESHOLD_PCT,
+    MIN_TOOL_LOOP_LIMIT,
 };
 use crate::workbench::agent_model_picker::AgentModelPicker;
 use gloo_timers::future::TimeoutFuture;
@@ -20,6 +22,8 @@ struct AgentSettingsBaseline {
     model_id: String,
     thinking: ThinkingLevel,
     tool_loop_limit: u32,
+    auto_compact_enabled: bool,
+    auto_compact_threshold_pct: u8,
     web_provider: WebProviderKind,
 }
 
@@ -425,6 +429,8 @@ pub fn AgentProviderPane() -> impl IntoView {
     let custom_model = RwSignal::new(String::new());
     let thinking_level = RwSignal::new(ThinkingLevel::Medium);
     let tool_loop_limit = RwSignal::new(DEFAULT_TOOL_LOOP_LIMIT);
+    let auto_compact_enabled = RwSignal::new(true);
+    let auto_compact_threshold = RwSignal::new(DEFAULT_AUTO_COMPACT_THRESHOLD_PCT);
     let model_entries: RwSignal<Vec<ProviderModelEntry>> = RwSignal::new(Vec::new());
     let models_source = RwSignal::new(String::new());
     let models_message: RwSignal<Option<String>> = RwSignal::new(None);
@@ -439,6 +445,8 @@ pub fn AgentProviderPane() -> impl IntoView {
         model_id: String::new(),
         thinking: ThinkingLevel::Medium,
         tool_loop_limit: DEFAULT_TOOL_LOOP_LIMIT,
+        auto_compact_enabled: true,
+        auto_compact_threshold_pct: DEFAULT_AUTO_COMPACT_THRESHOLD_PCT,
         web_provider: WebProviderKind::None,
     });
 
@@ -448,6 +456,8 @@ pub fn AgentProviderPane() -> impl IntoView {
             || custom_model.get() != b.model_id
             || thinking_level.get() != b.thinking
             || tool_loop_limit.get() != b.tool_loop_limit
+            || auto_compact_enabled.get() != b.auto_compact_enabled
+            || auto_compact_threshold.get() != b.auto_compact_threshold_pct
             || web_provider.get() != b.web_provider
     });
 
@@ -456,6 +466,8 @@ pub fn AgentProviderPane() -> impl IntoView {
         model_id: custom_model.get_untracked(),
         thinking: thinking_level.get_untracked(),
         tool_loop_limit: tool_loop_limit.get_untracked(),
+        auto_compact_enabled: auto_compact_enabled.get_untracked(),
+        auto_compact_threshold_pct: auto_compact_threshold.get_untracked(),
         web_provider: web_provider.get_untracked(),
     };
 
@@ -464,6 +476,8 @@ pub fn AgentProviderPane() -> impl IntoView {
         custom_model.set(view.model_id.clone());
         thinking_level.set(view.thinking_level);
         tool_loop_limit.set(view.tool_loop_limit);
+        auto_compact_enabled.set(view.auto_compact_enabled);
+        auto_compact_threshold.set(view.auto_compact_threshold_pct);
         model_entries.set(provider_cache(&view, view.provider));
         settings.set(Some(view));
         baseline.update(|b| {
@@ -471,6 +485,8 @@ pub fn AgentProviderPane() -> impl IntoView {
             b.model_id = custom_model.get_untracked();
             b.thinking = thinking_level.get_untracked();
             b.tool_loop_limit = tool_loop_limit.get_untracked();
+            b.auto_compact_enabled = auto_compact_enabled.get_untracked();
+            b.auto_compact_threshold_pct = auto_compact_threshold.get_untracked();
         });
     };
 
@@ -549,10 +565,14 @@ pub fn AgentProviderPane() -> impl IntoView {
         let loop_limit = tool_loop_limit
             .get_untracked()
             .clamp(MIN_TOOL_LOOP_LIMIT, MAX_TOOL_LOOP_LIMIT);
+        let ac_enabled = auto_compact_enabled.get_untracked();
+        let ac_threshold = auto_compact_threshold
+            .get_untracked()
+            .clamp(MIN_AUTO_COMPACT_THRESHOLD_PCT, MAX_AUTO_COMPACT_THRESHOLD_PCT);
         let web = web_provider.get_untracked();
         leptos::task::spawn_local(async move {
             let mut err: Option<String> = None;
-            match agent_settings_save(provider, model_id, level, loop_limit).await {
+            match agent_settings_save(provider, model_id, level, loop_limit, ac_enabled, ac_threshold).await {
                 Ok(view) => apply_settings(view),
                 Err(e) => err = Some(e),
             }
@@ -634,6 +654,49 @@ pub fn AgentProviderPane() -> impl IntoView {
                             />
                             <small class="harness-muted agent-provider-pane__field-hint">
                                 {move || i18n.tr(I18nKey::AgToolLoopLimitHint)()}
+                            </small>
+                        </label>
+                        <label class="agent-provider-pane__field">
+                            <span class="harness-field-label">
+                                <span class="harness-field-label__icon" aria-hidden="true">
+                                    <LxIcon icon=icondata::LuShrink width="0.82rem" height="0.82rem" />
+                                </span>
+                                <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgAutoCompactField)()}</span>
+                            </span>
+                            <span class="app-prefs-radio agent-provider-pane__inline-toggle">
+                                <input
+                                    type="checkbox"
+                                    prop:checked=move || auto_compact_enabled.get()
+                                    on:change=move |ev| {
+                                        if let Some(t) = ev.target() {
+                                            if let Ok(inp) = t.dyn_into::<web_sys::HtmlInputElement>() {
+                                                auto_compact_enabled.set(inp.checked());
+                                            }
+                                        }
+                                    }
+                                />
+                                <input
+                                    class="workbench-plain-input agent-provider-pane__pct-input"
+                                    type="number"
+                                    min=MIN_AUTO_COMPACT_THRESHOLD_PCT.to_string()
+                                    max=MAX_AUTO_COMPACT_THRESHOLD_PCT.to_string()
+                                    step="1"
+                                    inputmode="numeric"
+                                    prop:disabled=move || !auto_compact_enabled.get()
+                                    prop:value=move || auto_compact_threshold.get().to_string()
+                                    on:input=move |ev| {
+                                        if let Ok(parsed) = event_target_value(&ev).trim().parse::<u8>() {
+                                            auto_compact_threshold.set(parsed.clamp(
+                                                MIN_AUTO_COMPACT_THRESHOLD_PCT,
+                                                MAX_AUTO_COMPACT_THRESHOLD_PCT,
+                                            ));
+                                        }
+                                    }
+                                />
+                                <span class="harness-muted">"%"</span>
+                            </span>
+                            <small class="harness-muted agent-provider-pane__field-hint">
+                                {move || i18n.tr(I18nKey::AgAutoCompactHint)()}
                             </small>
                         </label>
                     </div>

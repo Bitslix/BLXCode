@@ -682,6 +682,20 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgToolLoopLimitHint => {
             "Numero massimo di cicli di chiamata agli strumenti per turno prima di interrompere un ciclo infinito."
         }
+        I18nKey::AgAutoCompactField => "Compattazione automatica",
+        I18nKey::AgAutoCompactHint => {
+            "Riassumi automaticamente la sessione quando si avvicina al limite di contesto."
+        }
+        I18nKey::AgAutoCompactThresholdField => "Compattazione automatica al (%)",
+        I18nKey::AgContextWindowAria => "Utilizzo della finestra di contesto",
+        I18nKey::AgContextWindowLabel => "Finestra di contesto",
+        I18nKey::AgContextWindowUnknown => "Dimensione della finestra di contesto sconosciuta per questo modello",
+        I18nKey::AgCompactSession => "Compatta sessione",
+        I18nKey::AgCompactSessionAria => "Compatta la conversazione per liberare contesto",
+        I18nKey::AgCompactRunning => "Compattazione sessione…",
+        I18nKey::AgCompactDone => "Sessione compattata",
+        I18nKey::AgCompactNothing => "Niente da compattare per ora",
+        I18nKey::AgAutoCompactStatus => "Compattata automaticamente per rimanere nella finestra di contesto.",
         I18nKey::AgImageQualityField => "Livello di qualità",
         I18nKey::AgImageQualityLow => "Basso",
         I18nKey::AgImageQualityMedium => "Medio",

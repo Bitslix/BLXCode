@@ -30,6 +30,27 @@ pub fn clamp_tool_loop_limit(value: u32) -> u32 {
     value.clamp(MIN_TOOL_LOOP_LIMIT, MAX_TOOL_LOOP_LIMIT)
 }
 
+/// Default auto-compaction trigger as a percent of the context window.
+pub const DEFAULT_AUTO_COMPACT_THRESHOLD_PCT: u8 = 85;
+pub const MIN_AUTO_COMPACT_THRESHOLD_PCT: u8 = 50;
+pub const MAX_AUTO_COMPACT_THRESHOLD_PCT: u8 = 95;
+
+fn default_auto_compact_enabled() -> bool {
+    true
+}
+
+fn default_auto_compact_threshold_pct() -> u8 {
+    DEFAULT_AUTO_COMPACT_THRESHOLD_PCT
+}
+
+/// Clamp an auto-compact threshold percent into the supported range.
+pub fn clamp_auto_compact_threshold_pct(value: u8) -> u8 {
+    value.clamp(
+        MIN_AUTO_COMPACT_THRESHOLD_PCT,
+        MAX_AUTO_COMPACT_THRESHOLD_PCT,
+    )
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum AgentProviderKind {
@@ -74,6 +95,11 @@ pub struct ProviderModelEntry {
     /// cost-lookup time via the static id-mapping table in `pricing.rs`).
     #[serde(default)]
     pub pricing: Option<ModelPricing>,
+    /// Max context window in tokens. Populated from OpenRouter's `/models`
+    /// `context_length`; `None` for direct providers (resolved via the
+    /// static fallback table in `agent/context_window.rs`).
+    #[serde(default)]
+    pub context_length: Option<u64>,
 }
 
 /// USD per-token pricing for one model. OpenRouter exposes both numbers
@@ -96,6 +122,12 @@ pub struct AgentProviderSettings {
     /// Max tool-call rounds per turn (see [`DEFAULT_TOOL_LOOP_LIMIT`]).
     #[serde(default = "default_tool_loop_limit")]
     pub tool_loop_limit: u32,
+    /// Auto-compact the session when it nears the context-window limit.
+    #[serde(default = "default_auto_compact_enabled")]
+    pub auto_compact_enabled: bool,
+    /// Context-window occupancy percent that triggers auto-compaction.
+    #[serde(default = "default_auto_compact_threshold_pct")]
+    pub auto_compact_threshold_pct: u8,
     #[serde(default)]
     pub model_cache_openrouter: Vec<ProviderModelEntry>,
     #[serde(default)]
@@ -111,6 +143,8 @@ impl Default for AgentProviderSettings {
             model_id: "openai/gpt-5".into(),
             thinking_level: ThinkingLevel::Medium,
             tool_loop_limit: DEFAULT_TOOL_LOOP_LIMIT,
+            auto_compact_enabled: default_auto_compact_enabled(),
+            auto_compact_threshold_pct: DEFAULT_AUTO_COMPACT_THRESHOLD_PCT,
             model_cache_openrouter: curated_models(AgentProviderKind::Openrouter),
             model_cache_anthropic: curated_models(AgentProviderKind::Anthropic),
             model_cache_openai: curated_models(AgentProviderKind::Openai),
@@ -154,6 +188,10 @@ pub struct AgentProviderSettingsPatch {
     pub thinking_level: ThinkingLevel,
     #[serde(default = "default_tool_loop_limit")]
     pub tool_loop_limit: u32,
+    #[serde(default = "default_auto_compact_enabled")]
+    pub auto_compact_enabled: bool,
+    #[serde(default = "default_auto_compact_threshold_pct")]
+    pub auto_compact_threshold_pct: u8,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -510,18 +548,21 @@ fn curated_models(provider: AgentProviderKind) -> Vec<ProviderModelEntry> {
                 label: "GPT-5".into(),
                 description: Some("Default via OpenRouter".into()),
                 pricing: None,
+                context_length: None,
             },
             ProviderModelEntry {
                 id: "anthropic/claude-sonnet-4.5".into(),
                 label: "Claude Sonnet 4.5".into(),
                 description: Some("Anthropic via OpenRouter".into()),
                 pricing: None,
+                context_length: None,
             },
             ProviderModelEntry {
                 id: "google/gemini-2.5-pro".into(),
                 label: "Gemini 2.5 Pro".into(),
                 description: Some("Google via OpenRouter".into()),
                 pricing: None,
+                context_length: None,
             },
         ],
         AgentProviderKind::Anthropic => vec![
@@ -530,12 +571,14 @@ fn curated_models(provider: AgentProviderKind) -> Vec<ProviderModelEntry> {
                 label: "Claude Sonnet 4.5".into(),
                 description: Some("Balanced model".into()),
                 pricing: None,
+                context_length: None,
             },
             ProviderModelEntry {
                 id: "claude-opus-4-1".into(),
                 label: "Claude Opus 4.1".into(),
                 description: Some("Highest capability".into()),
                 pricing: None,
+                context_length: None,
             },
         ],
         AgentProviderKind::Openai => vec![
@@ -544,12 +587,14 @@ fn curated_models(provider: AgentProviderKind) -> Vec<ProviderModelEntry> {
                 label: "GPT-5".into(),
                 description: Some("Reasoning flagship".into()),
                 pricing: None,
+                context_length: None,
             },
             ProviderModelEntry {
                 id: "gpt-5-mini".into(),
                 label: "GPT-5 Mini".into(),
                 description: Some("Faster/cost-lean variant".into()),
                 pricing: None,
+                context_length: None,
             },
         ],
     }
@@ -576,6 +621,46 @@ fn set_cache_for_provider(
         AgentProviderKind::Anthropic => settings.model_cache_anthropic = entries,
         AgentProviderKind::Openai => settings.model_cache_openai = entries,
     }
+}
+
+/// Resolve the active model's max context window in tokens. Prefers the
+/// cached provider entry's `context_length` (OpenRouter live data), falling
+/// back to the static table in `agent/context_window.rs`. `None` when the
+/// model is unknown — the UI then shows a raw token count without a percent.
+pub fn resolve_context_length(settings: &AgentProviderSettings) -> Option<u64> {
+    let provider = settings.provider;
+    let model_id = settings.model_id.trim();
+    if model_id.is_empty() {
+        return None;
+    }
+    let cached = cache_for_provider(settings, provider)
+        .into_iter()
+        .find(|e| e.id == model_id)
+        .and_then(|e| e.context_length)
+        .filter(|&n| n > 0);
+    cached.or_else(|| crate::agent::context_window::fallback_context_length(provider, model_id))
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActiveContextWindow {
+    pub provider: AgentProviderKind,
+    pub model_id: String,
+    /// Max context window in tokens, or `None` when unknown.
+    pub context_length: Option<u64>,
+}
+
+/// Report the active provider/model and its resolved context-window size.
+/// Polled by the chat header's occupancy meter.
+#[tauri::command]
+pub fn agent_active_context_window(app: AppHandle) -> Result<ActiveContextWindow, String> {
+    let settings = load_settings(&app)?;
+    let context_length = resolve_context_length(&settings);
+    Ok(ActiveContextWindow {
+        provider: settings.provider,
+        model_id: settings.model_id.clone(),
+        context_length,
+    })
 }
 
 fn settings_view(
@@ -620,6 +705,9 @@ struct OpenrouterModel {
     /// treated as free (e.g. `request` or `image` for text-only models).
     #[serde(default)]
     pricing: Option<OpenrouterModelPricing>,
+    /// Max context window in tokens. Present for virtually every model.
+    #[serde(default)]
+    context_length: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -693,6 +781,7 @@ async fn fetch_models_live(
                     id: entry.id,
                     description: entry.description,
                     pricing: parse_openrouter_pricing(entry.pricing),
+                    context_length: entry.context_length.filter(|&n| n > 0),
                 })
                 .collect::<Vec<_>>();
             items.sort_by(|a, b| a.label.cmp(&b.label));
@@ -720,6 +809,7 @@ async fn fetch_models_live(
                     id: entry.id,
                     description: None,
                     pricing: None,
+                    context_length: None,
                 })
                 .collect::<Vec<_>>();
             items.sort_by(|a, b| a.label.cmp(&b.label));
@@ -752,6 +842,7 @@ async fn fetch_models_live(
                     id: entry.id,
                     description: None,
                     pricing: None,
+                    context_length: None,
                 })
                 .collect::<Vec<_>>();
             items.sort_by(|a, b| a.label.cmp(&b.label));
@@ -775,6 +866,9 @@ pub fn agent_settings_save(
     settings.model_id = patch.model_id.trim().to_string();
     settings.thinking_level = patch.thinking_level;
     settings.tool_loop_limit = clamp_tool_loop_limit(patch.tool_loop_limit);
+    settings.auto_compact_enabled = patch.auto_compact_enabled;
+    settings.auto_compact_threshold_pct =
+        clamp_auto_compact_threshold_pct(patch.auto_compact_threshold_pct);
     save_settings(&app, &settings)?;
     settings_view(&app, settings)
 }

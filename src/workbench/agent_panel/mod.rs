@@ -2,6 +2,7 @@
 mod ask_user_card;
 mod client_tools;
 mod context_list;
+mod context_meter;
 mod image_context;
 mod reducer;
 mod task_list;
@@ -13,9 +14,11 @@ use crate::agent_wire::{AgentContextKind, AgentEvent, EventEnvelope, TaskSnapsho
 use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_abort, agent_clear_conversation, agent_drain_turn_opts, agent_settings_get,
-    agent_submit_turn, is_tauri_shell, tasks_list as fetch_tasks_list,
+    agent_abort, agent_active_context_window, agent_clear_conversation, agent_compact_conversation,
+    agent_drain_turn_opts, agent_settings_get, agent_submit_turn, is_tauri_shell,
+    tasks_list as fetch_tasks_list,
 };
+use crate::workbench::agent_panel::context_meter::{fmt_tokens, ContextMeter};
 use crate::workbench::agent_panel::client_tools::maybe_handle_client_tool;
 use crate::workbench::agent_panel::context_list::ContextSection;
 use crate::workbench::agent_panel::image_context::{
@@ -56,6 +59,14 @@ pub fn AgentPanelDock() -> impl IntoView {
     // workspace entry so the flag survives reloads).
     let image_mode = RwSignal::new(false);
     let chat_maximized = RwSignal::new(false);
+    // Context-window meter + compaction state.
+    let context_length = RwSignal::new(Option::<u64>::None);
+    let auto_compact_enabled = RwSignal::new(true);
+    let auto_compact_threshold = RwSignal::new(85u8);
+    let compacting = RwSignal::new(false);
+    // Re-armed once occupancy drops back below the threshold so auto-compact
+    // fires at most once per crossing (no compaction storm).
+    let auto_compact_armed = RwSignal::new(true);
     let chat_scroll_ref = NodeRef::<html::Div>::new();
     let compose_input_ref = NodeRef::<html::Input>::new();
     // Refocus the compose input whenever the agent finishes (busy → false).
@@ -102,6 +113,8 @@ pub fn AgentPanelDock() -> impl IntoView {
         leptos::task::spawn_local(async move {
             if let Ok(view) = agent_settings_get().await {
                 model_label.set(format!("{}/{}", view.provider.as_str(), view.model_id));
+                auto_compact_enabled.set(view.auto_compact_enabled);
+                auto_compact_threshold.set(view.auto_compact_threshold_pct);
             }
         });
         Effect::new(move |_| {
@@ -110,6 +123,23 @@ pub fn AgentPanelDock() -> impl IntoView {
             leptos::task::spawn_local(async move {
                 if let Ok(v) = crate::tauri_bridge::voice_settings_get().await {
                     handle.settings.set(Some(v));
+                }
+            });
+        });
+        // Resolve the active model's context-window size. Re-runs on
+        // workspace switch and whenever a turn finishes (busy → false), so a
+        // model change in Settings is picked up and fresh settings (auto-
+        // compact toggle/threshold) stay in sync.
+        Effect::new(move |_| {
+            let _ = wb.active_id().get();
+            let _ = busy.get();
+            leptos::task::spawn_local(async move {
+                if let Ok(info) = agent_active_context_window().await {
+                    context_length.set(info.context_length);
+                }
+                if let Ok(view) = agent_settings_get().await {
+                    auto_compact_enabled.set(view.auto_compact_enabled);
+                    auto_compact_threshold.set(view.auto_compact_threshold_pct);
                 }
             });
         });
@@ -222,6 +252,85 @@ pub fn AgentPanelDock() -> impl IntoView {
         });
     }
 
+    // Summarize the running session and start fresh from the compacted
+    // briefing. Shared by the header Compact button (`manual = true`) and the
+    // auto-compact watcher (`manual = false`).
+    let run_compaction = move |manual: bool| {
+        if compacting.get_untracked() || busy.get_untracked() {
+            return;
+        }
+        let Some(ws_id) = wb.active_id().get_untracked() else {
+            return;
+        };
+        let used = wb.chat_usage_for_workspace(ws_id).last_round_input_tokens;
+        compacting.set(true);
+        status_line.set(Some(i18n.tr(I18nKey::AgCompactRunning)().to_string()));
+        leptos::task::spawn_local(async move {
+            let current = (used > 0).then_some(used);
+            match agent_compact_conversation(current).await {
+                Ok(result) => {
+                    // Start fresh: the backend now holds only the compacted
+                    // summary, so reset the visible timeline to match.
+                    timeline.set(TimelineDoc::default());
+                    thinking_open.set(HashMap::new());
+                    tool_detail_open.set(HashMap::new());
+                    wb.set_workspace_agent_timeline(ws_id, TimelineDoc::default());
+                    wb.set_last_round_input_tokens(ws_id, result.after_tokens_estimate);
+                    // Re-arming is handled by the auto-compact watcher once
+                    // occupancy is observed below the threshold again — avoids
+                    // a compaction storm if a summary is still large.
+                    if manual {
+                        let done = i18n.tr(I18nKey::AgCompactDone)().to_string();
+                        status_line.set(Some(format!(
+                            "{done} · {} → {} tok",
+                            fmt_tokens(result.before_tokens),
+                            fmt_tokens(result.after_tokens_estimate)
+                        )));
+                    } else {
+                        status_line
+                            .set(Some(i18n.tr(I18nKey::AgAutoCompactStatus)().to_string()));
+                    }
+                }
+                Err(e) if e == "nothing-to-compact" => {
+                    status_line.set(if manual {
+                        Some(i18n.tr(I18nKey::AgCompactNothing)().to_string())
+                    } else {
+                        None
+                    });
+                }
+                Err(e) => status_line.set(Some(e)),
+            }
+            compacting.set(false);
+        });
+    };
+
+    // Auto-compact watcher: on the busy true→false edge (a turn just
+    // finished), compact once if occupancy crossed the threshold. Re-arms
+    // only after occupancy drops back below it, so it fires at most once per
+    // crossing and never mid-turn.
+    Effect::new(move |prev: Option<bool>| {
+        let now_busy = busy.get();
+        let finished = prev == Some(true) && !now_busy;
+        if finished && is_tauri_shell() && auto_compact_enabled.get_untracked() {
+            if let (Some(max), Some(ws_id)) =
+                (context_length.get_untracked(), wb.active_id().get_untracked())
+            {
+                if max > 0 && !compacting.get_untracked() {
+                    let used = wb.chat_usage_for_workspace(ws_id).last_round_input_tokens;
+                    let pct = (used as f64 / max as f64) * 100.0;
+                    let threshold = auto_compact_threshold.get_untracked() as f64;
+                    if pct < threshold {
+                        auto_compact_armed.set(true);
+                    } else if auto_compact_armed.get_untracked() {
+                        auto_compact_armed.set(false);
+                        run_compaction(false);
+                    }
+                }
+            }
+        }
+        now_busy
+    });
+
     view! {
         <section
             class=move || {
@@ -313,7 +422,18 @@ pub fn AgentPanelDock() -> impl IntoView {
                 <div class="agent-section__head agent-chat-head">
                     <h3>{move || i18n.tr(I18nKey::AgChatHeading)()}</h3>
                     <SessionCostChip wb=wb />
+                    <ContextMeter wb=wb context_length=context_length />
                     <div class="agent-chat-head__actions">
+                        <button
+                            type="button"
+                            class="agent-chat-head__icon-btn"
+                            prop:disabled=move || busy.get() || compacting.get() || !is_tauri_shell()
+                            title=move || i18n.tr(I18nKey::AgCompactSession)()
+                            aria-label=move || i18n.tr(I18nKey::AgCompactSessionAria)()
+                            on:click=move |_| run_compaction(true)
+                        >
+                            <LxIcon icon=icondata::LuShrink width="0.86rem" height="0.86rem" />
+                        </button>
                         <button
                             type="button"
                             class=move || {

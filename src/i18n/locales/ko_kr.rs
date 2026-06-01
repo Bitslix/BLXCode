@@ -658,6 +658,20 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgToolLoopLimitHint => {
             "에이전트가 무한 루프를 중단하기 전 턴당 최대 도구 호출 횟수입니다."
         }
+        I18nKey::AgAutoCompactField => "자동 압축",
+        I18nKey::AgAutoCompactHint => {
+            "세션이 컨텍스트 한도에 가까워지면 자동으로 요약합니다."
+        }
+        I18nKey::AgAutoCompactThresholdField => "자동 압축 기준 (%)",
+        I18nKey::AgContextWindowAria => "컨텍스트 창 사용량",
+        I18nKey::AgContextWindowLabel => "컨텍스트 창",
+        I18nKey::AgContextWindowUnknown => "이 모델의 컨텍스트 창 크기를 알 수 없습니다",
+        I18nKey::AgCompactSession => "세션 압축",
+        I18nKey::AgCompactSessionAria => "대화를 압축하여 컨텍스트를 확보합니다",
+        I18nKey::AgCompactRunning => "세션 압축 중…",
+        I18nKey::AgCompactDone => "세션이 압축되었습니다",
+        I18nKey::AgCompactNothing => "아직 압축할 내용이 없습니다",
+        I18nKey::AgAutoCompactStatus => "컨텍스트 창 내에 유지하기 위해 자동으로 압축되었습니다.",
         I18nKey::AgImageQualityField => "품질 수준",
         I18nKey::AgImageQualityLow => "낮은",
         I18nKey::AgImageQualityMedium => "중간",

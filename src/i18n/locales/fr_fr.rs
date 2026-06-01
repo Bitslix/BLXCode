@@ -684,6 +684,20 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgToolLoopLimitHint => {
             "Nombre maximal de tours d'appels d'outils par tour avant l'arrêt d'une boucle infinie."
         }
+        I18nKey::AgAutoCompactField => "Compactage auto",
+        I18nKey::AgAutoCompactHint => {
+            "Résumer automatiquement la session lorsqu'elle approche de la limite de contexte."
+        }
+        I18nKey::AgAutoCompactThresholdField => "Compactage auto à (%)",
+        I18nKey::AgContextWindowAria => "Utilisation de la fenêtre de contexte",
+        I18nKey::AgContextWindowLabel => "Fenêtre de contexte",
+        I18nKey::AgContextWindowUnknown => "Taille de la fenêtre de contexte inconnue pour ce modèle",
+        I18nKey::AgCompactSession => "Compacter la session",
+        I18nKey::AgCompactSessionAria => "Compacter la conversation pour libérer du contexte",
+        I18nKey::AgCompactRunning => "Compactage de la session…",
+        I18nKey::AgCompactDone => "Session compactée",
+        I18nKey::AgCompactNothing => "Rien à compacter pour l'instant",
+        I18nKey::AgAutoCompactStatus => "Compactée automatiquement pour rester dans la fenêtre de contexte.",
         I18nKey::AgImageQualityField => "Niveau de qualité",
         I18nKey::AgImageQualityLow => "Faible",
         I18nKey::AgImageQualityMedium => "Moyen",
