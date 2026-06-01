@@ -75,9 +75,12 @@ Transkripte brauchen daher einen **eigenen, kleinen Event-Kanal** (siehe P3).
    deshalb **throttled** (≥300 ms zwischen Updates). Per Default **on**
    (gewünschtes Verhalten: Live-Text out of the box); der User kann es per
    Toggle abschalten, um CPU/Akku zu schonen.
-4. **Modell-Download-UI**: nur „selektierbarer Pfad“ + Validierung als MVP;
-   Preset-Download nur, falls ein bestehender Download-Flow existiert (keiner
-   gefunden) → TODO, nicht im MVP.
+4. **Modell-Manager mit Download**: vollwertige Modell-Liste mit Download-
+   Progressbar (Bytes/Total, Speed in MB/s, ETA), Installed-/Delete-Status,
+   Filtern und statischen Bewertungen (Speed/Accuracy). Quelle sind die
+   offiziellen GGML/GGUF-Dateien des whisper.cpp-Repos (Hugging Face
+   `ggerganov/whisper.cpp`). Details siehe Abschnitt „Modell-Manager". Ein
+   freier „eigener Pfad"-Eintrag bleibt zusätzlich möglich (Power-User).
 
 ## Architektur
 
@@ -191,6 +194,76 @@ Extra-Keyfeld in der Voice-Pane.
 In der Voice-Pane verbleibt nur ein **read-only Hinweis** „Taste in Settings →
 Shortcuts ändern" (verlinkt), plus der Enable-Toggle.
 
+## Modell-Manager (lokale whisper-Modelle)
+
+Eigene Komponente `harness_voice_pane/model_manager/` (Subfolder + CSS, nur
+Tokens — `rule-reusable-components`). Liste auswählbarer/herunterladbarer
+whisper.cpp-Modelle mit Download-Fortschritt, Verwaltung und Bewertungen.
+
+### Katalog (statisch, im Backend)
+
+Ein fest gepflegter `WhisperModelCatalog` (keine Remote-Discovery im MVP →
+kein API-Call, kein Vertrauen in Drittquellen zur Laufzeit). Pro Eintrag:
+
+```rust
+struct WhisperModel {
+    id: String,             // "tiny", "tiny-q8", "tiny.en", "base", "base-q8", "small", ...
+    label: String,          // "Tiny", "Tiny Q8", "Base", ...
+    family: ModelFamily,    // Standard | Quantized | Turbo | Large   (Filter-Tabs)
+    multilingual: bool,     // true | false (EN only)
+    size_bytes: u64,        // für Anzeige + Progress-Total-Fallback
+    url: String,            // Hugging Face ggerganov/whisper.cpp Resolve-URL
+    sha256: String,         // Integritätsprüfung nach Download
+    speed_rating: u8,       // 1..=5  (statische Bewertung → Punkte-UI)
+    accuracy_rating: u8,    // 1..=5
+    best_for_key: I18nKey,  // "Best for: …" Hinweistext (lokalisiert)
+}
+
+enum ModelFamily { Standard, Quantized, Turbo, Large }
+```
+
+Installiert-Status wird **nicht** im Katalog gespeichert, sondern zur Laufzeit
+ermittelt: Datei existiert in `app_data_dir/voice/models/<id>.bin` (+ optional
+sha-Verify). So bleibt der Katalog rein deklarativ.
+
+### Backend-Commands + Download-Events
+
+- `whisper_models_list() -> Vec<WhisperModelView>` — Katalog + `installed: bool`
+  + `installed_path`. Treibt die Liste.
+- `whisper_model_download(id)` — streamt die Datei nach
+  `app_data_dir/voice/models/<id>.bin.part`, atomar umbenennen nach Erfolg +
+  sha256-Verify. Läuft in einem Background-Task (`spawn`), **nicht** blockierend.
+  Fortschritt über eigenen Event-Kanal (derselbe wie PTT-Events, P3):
+  `WhisperDownloadProgress { id, received, total, speed_bps }` (throttled
+  ~200 ms) und `WhisperDownloadDone { id }` / `WhisperDownloadError { id, msg }`.
+- `whisper_model_cancel(id)` — bricht laufenden Download ab, `.part` löschen.
+- `whisper_model_delete(id)` — entfernt installierte Datei.
+
+`speed_bps`/ETA werden im Backend aus einem gleitenden Fenster der empfangenen
+Bytes berechnet (kein Verlass auf Server-`Content-Length` allein).
+
+### UI (an den Screenshot angelehnt)
+
+- **Filter-Tabs**: All · Standard · Quantized · Turbo · Large (= `ModelFamily`),
+  plus Sortier-Dropdown (Default / Size / Accuracy / Speed).
+- **Karte pro Modell**: Name + Family-Badge + Multilingual/EN-Only-Badge,
+  Beschreibung, Größe, Speed-/Accuracy-Punkte (gefüllte/leere Dots aus
+  `speed_rating`/`accuracy_rating`), „Best for"-Zeile (muted), und rechts der
+  Aktionsbereich:
+  - nicht installiert → **Download**-Button
+  - läuft → **Progressbar** (received/total %), Speed (MB/s), ETA, Cancel
+  - installiert → „Installed"-Badge + **Delete**-Button; aktives Modell
+    zusätzlich markiert (das in `PttSettings.local_model_path` gewählte)
+- Auswahl eines installierten Modells setzt `PttSettings.local_model_path` →
+  ist das warm geladene Modell des `WhisperEngine`-State (Reload bei Wechsel).
+- Nur Theme-Tokens; Punkte/Badges/Progress über CSS-Vars, keine Literalfarben.
+
+### Verhältnis zu den Quality-Presets
+
+`WhisperQuality` (Fast/Balanced/Best) bleibt als **Inferenz-Parameter**
+(threads/beam/strategy), unabhängig vom Modell. Modellwahl (Genauigkeit/Größe)
+und Decode-Qualität sind getrennte Achsen; UI erklärt das knapp per Hint.
+
 ## Umsetzung in Phasen
 
 ### P0 — Fundament (Backend, kein UI)
@@ -198,10 +271,11 @@ Shortcuts ändern" (verlinkt), plus der Enable-Toggle.
 - `recorder.rs`: neue API `start_pcm`/`stop_pcm` → liefert `Vec<f32>` 16 kHz mono In-Memory (Ring-Buffer, optional Pre-Roll). WAV-Pfad bleibt für Cloud-Reuse.
 - `stt/mod.rs`: Trait `SttBackend { async fn transcribe_pcm(&self, pcm: &[f32]) -> Result<String> }`. `cloud.rs` = heutiges `stt.rs` (PCM→WAV-In-Memory→multipart).
 
-### P1 — Lokales whisper.cpp
+### P1 — Lokales whisper.cpp + Modell-Manager-Backend
 - Cargo-Feature `local-whisper` + `whisper-rs` (begründet, gekapselt).
 - `local_whisper.rs`: Modell einmal laden (`tauri::State<WhisperEngine>`), Inferenz in `spawn_blocking`. Quality-Presets → whisper-Parameter (threads/beam/strategy).
-- Fehlerpfade: Modellpfad fehlt / Laden fehlgeschlagen / Mic nicht öffenbar / Backend-Init / Transkription → klare Strings (i18n).
+- `voice/models/`: `WhisperModelCatalog` (statisch), `whisper_models_list/download/cancel/delete` Commands, streamender Download nach `app_data_dir/voice/models/` mit sha256-Verify + Progress/Speed-Events. In [lib.rs](../../src-tauri/src/lib.rs) registrieren.
+- Fehlerpfade: Modellpfad fehlt / Laden fehlgeschlagen / Mic nicht öffenbar / Backend-Init / Transkription / Download (Netz, sha-Mismatch, Disk) → klare Strings (i18n).
 
 ### P2 — Commands + Kollision + Routing
 - `ptt/collision.rs`: `VoiceRuntimeState`-Machine + Tests.
@@ -209,22 +283,24 @@ Shortcuts ändern" (verlinkt), plus der Enable-Toggle.
 - Frontend Ziel-Routing (`PttTarget` capture/restore) + Insert-Bridges.
 
 ### P3 — Partial-Transkript (default on, abschaltbar)
-- Eigener Event-Kanal (kleiner `VecDeque`+poll **oder** `app.emit`), getrennt vom Agent-Stream. Events: `PttRecordingStarted/PartialTranscript/FinalTranscript/RecordingStopped/Error/StateChanged`.
+- Eigener Event-Kanal (kleiner `VecDeque`+poll **oder** `app.emit`), getrennt vom Agent-Stream. Events: `PttRecordingStarted/PartialTranscript/FinalTranscript/RecordingStopped/Error/StateChanged` + Modell-Download: `WhisperDownloadProgress{received,total,speed_bps}/WhisperDownloadDone/WhisperDownloadError` (throttled ~200 ms).
 - **Re-Decode-Worker**: periodisches Komplett-Dekodieren des Ring-Buffers, Updates throttlen (≥300 ms). Laufzeit-Gate: Worker startet nur bei `partial_transcript == true` (Default an); bei `false` nur ein finales Decode beim Loslassen.
 - **Cloud-Mode**: kein Re-Decode (zu teuer/langsam pro Request) — Partials bleiben dort aus, unabhängig vom Toggle; UI-Hinweis bzw. Toggle nur im Local-Mode aktiv.
 
 ### P4 — Settings-UI + Shortcuts-Integration
 - **Shortcuts**: `ShortcutAction::PushToTalk` in [shortcut_config.rs](../../src/workbench/shortcut_config.rs) (`ALL`, `label_key`, Default-Combo, Preset-Seeding als Combo) + `action_icon`; `install_ptt_hotkey` liest Chord aus `ShortcutConfig` statt `PttHotkey` und behält Hold-Semantik. PTT **nicht** in `harness_chords` press-fire einhängen.
-- **Voice-Pane**: `harness_voice_pane/ptt_section/` (eigener Subfolder + CSS, nur Tokens). Alle Felder aus der Aufgabenstellung außer Key (Enable, Mode, Modellpfad, Quality, Cloud-Provider/Model, Insert-Target, Target-Mode, Auto-Submit, Partial, TTS-Kollision) + Test-Button + Inline-Error-States + read-only Hinweis „Taste in Settings → Shortcuts". Bestehende Card-/Segmented-/Select-/Switch-Muster wiederverwenden.
+- **Voice-Pane**: `harness_voice_pane/ptt_section/` (eigener Subfolder + CSS, nur Tokens). Alle Felder aus der Aufgabenstellung außer Key (Enable, Mode, Quality, Cloud-Provider/Model, Insert-Target, Target-Mode, Auto-Submit, Partial, TTS-Kollision) + Test-Button + Inline-Error-States + read-only Hinweis „Taste in Settings → Shortcuts". Bestehende Card-/Segmented-/Select-/Switch-Muster wiederverwenden.
+- **Modell-Manager**: `harness_voice_pane/model_manager/` (eigener Subfolder + CSS). Filter-Tabs, Sortierung, Karten mit Speed-/Accuracy-Dots, Download/Progressbar/Speed/ETA/Cancel, Installed/Delete, aktives Modell markiert. Konsumiert die Download-Progress-Events aus P3.
 
 ### P5 — i18n, Doku, Tests
 - Fehlende `VoicePtt*`-Keys in **allen** `locales/*.rs` (Exhaustiveness-Pflicht); Deutsch sauber, Rest via `scripts/render_i18n_locales_from_en.py`.
 - Doku: User-Doku Voice/PTT + Troubleshooting (Modell fehlt, Mic, langsame Transkription, Cloud nicht konfiguriert, Feedback-Loop).
-- Tests: Settings-Serde/Defaults, Ziel-Routing, Remember-Target, Kollisions-Machine, Modellpfad-Validierung, Insert-Auswahl, i18n-Key-Presence (falls vorhanden), Voice-Envelope-Non-Regression.
+- Tests: Settings-Serde/Defaults (inkl. `partial_transcript=true`), Ziel-Routing, Remember-Target, Kollisions-Machine, Modellpfad-Validierung, Katalog-Integrität (URLs/sha vorhanden, IDs eindeutig), Installed-Detection, Insert-Auswahl, i18n-Key-Presence (falls vorhanden), Voice-Envelope-Non-Regression.
 
 ## Akzeptanzkriterien (gegen Prompt gespiegelt)
 
-PTT-Settings-Section ✓ · lokal whisper.cpp aktivierbar ✓ · Modell einmal warm ✓ ·
+PTT-Settings-Section ✓ · lokal whisper.cpp aktivierbar ✓ · Modell-Manager mit
+Download-Progress/Speed/Ratings, Installed/Delete ✓ · Modell einmal warm ✓ ·
 Hotkey über Settings → Shortcuts frei definierbar (Rebind/Reset/Konflikt) ✓ ·
 Hotkey startet sofort ✓ · Loslassen finalisiert ✓ · Partials optional ✓ ·
 Insert in Composer/Terminal/Active-Input/Clipboard ✓ · Remember-Target trotz
@@ -239,3 +315,4 @@ bestehende Voice-Features intakt ✓ · Rust-Tests ✓ · Doku ✓.
 - **Window-level Hotkey** deckt nur fokussierte App ab — als bekannte Einschränkung dokumentieren.
 - **Hold vs. Press**: PTT darf nicht in den press-fire-Dispatcher von `harness_chords`; Tests/Review sicherstellen, dass eine als PTT belegte Taste nicht zusätzlich eine reguläre Aktion auslöst (`conflicts()` warnt, blockt aber nicht).
 - **`KeyChord`-Migration**: Umstieg von `ev.code()`/bare-Space auf `KeyChord` (`ev.key()`, Ctrl/Meta gefaltet) — Default-Combo bewusst kollisionsfrei wählen; `PttHotkey`-Key-Feld deprecaten ohne alte Configs zu brechen.
+- **Modell-Download**: große Dateien (74 MB–1,5 GB) — atomarer `.part`→Rename, sha256-Verify gegen korrupte/abgebrochene Downloads, Resume optional (TODO); Katalog-URLs/Hashes müssen gepflegt werden (brechen, wenn HF-Pfade sich ändern → Test prüft Form, nicht Erreichbarkeit).
