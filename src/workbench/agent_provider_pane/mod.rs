@@ -766,9 +766,6 @@ pub fn AgentProviderPane() -> impl IntoView {
                     <crate::workbench::harness_image_pane::AgentImageColumn />
                 </div>
 
-                <div class="agent-provider-pane__col agent-provider-pane__col--span-2">
-                    <crate::workbench::harness_voice_pane::AgentVoiceColumn />
-                </div>
             </div>
 
             <section class="harness-subpane">

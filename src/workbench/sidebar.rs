@@ -783,7 +783,7 @@ pub fn Sidebar() -> impl IntoView {
             </Show>
 
             <div class="workbench-sidebar__footer">
-                <SidebarPttOrb ui=ui wb=wb />
+                <SidebarFooter ui=ui wb=wb />
             </div>
             <Show when=move || context_menu.get().is_some()>
                 {move || {
@@ -975,7 +975,7 @@ pub fn Sidebar() -> impl IntoView {
 }
 
 #[component]
-fn SidebarPttOrb(ui: HarnessUiService, wb: WorkbenchService) -> impl IntoView {
+fn SidebarFooter(ui: HarnessUiService, wb: WorkbenchService) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let ptt = expect_context::<PttBus>();
 
@@ -990,26 +990,40 @@ fn SidebarPttOrb(ui: HarnessUiService, wb: WorkbenchService) -> impl IntoView {
     };
 
     view! {
-        <button
-            type="button"
-            class="sidebar-ptt-orb"
-            class:sidebar-ptt-orb--recording=move || ptt.recording.get()
-            class:sidebar-ptt-orb--hint=move || ptt.hint.get().is_some() && !ptt.recording.get()
-            aria-label=move || format!("{} · Settings · v{}", state_label(), APP_VERSION)
-            title=move || format!("{} · v{}", state_label(), APP_VERSION)
-            on:click=move |_| {
-                ui.settings_category().set(HarnessSettingsCategory::Voice);
-                wb.open_center_settings_tab(HarnessSettingsCategory::Voice);
-            }
-        >
-            <span class="sidebar-ptt-orb__aura" aria-hidden="true"></span>
-            <span class="sidebar-ptt-orb__ring" aria-hidden="true"></span>
-            <span class="sidebar-ptt-orb__core" aria-hidden="true">
-                <LxIcon icon=icondata::LuMic width="0.88rem" height="0.88rem" />
+        <div class="sidebar-footer-brand">
+            <button
+                type="button"
+                class="sidebar-ptt-orb"
+                class:sidebar-ptt-orb--recording=move || ptt.recording.get()
+                class:sidebar-ptt-orb--hint=move || ptt.hint.get().is_some() && !ptt.recording.get()
+                aria-label=move || format!("{} - Voice settings - v{}", state_label(), APP_VERSION)
+                aria-describedby="sidebar-ptt-tooltip"
+                on:click=move |_| {
+                    ui.settings_category().set(HarnessSettingsCategory::Voice);
+                    wb.open_center_settings_tab(HarnessSettingsCategory::Voice);
+                }
+            >
+                <span class="sidebar-ptt-orb__aura" aria-hidden="true"></span>
+                <span class="sidebar-ptt-orb__ring" aria-hidden="true"></span>
+                <span class="sidebar-ptt-orb__core" aria-hidden="true">
+                    <LxIcon icon=icondata::LuMic width="0.88rem" height="0.88rem" />
+                </span>
+                <span class="sidebar-ptt-orb__wave sidebar-ptt-orb__wave--one" aria-hidden="true"></span>
+                <span class="sidebar-ptt-orb__wave sidebar-ptt-orb__wave--two" aria-hidden="true"></span>
+            </button>
+            <span id="sidebar-ptt-tooltip" class="sidebar-ptt-tooltip" role="tooltip">
+                <span class="sidebar-ptt-tooltip__eyebrow">
+                    <span class="sidebar-ptt-tooltip__spark" aria-hidden="true"></span>
+                    {move || state_label()}
+                </span>
+                <span class="sidebar-ptt-tooltip__main">{move || i18n.tr(I18nKey::VoicePaneTitle)()}</span>
+                <span class="sidebar-ptt-tooltip__hint">"Open push-to-talk and model settings"</span>
             </span>
-            <span class="sidebar-ptt-orb__wave sidebar-ptt-orb__wave--one" aria-hidden="true"></span>
-            <span class="sidebar-ptt-orb__wave sidebar-ptt-orb__wave--two" aria-hidden="true"></span>
-        </button>
+            <div class="sidebar-footer-brand__copy" aria-label=format!("BLXCode v{APP_VERSION}")>
+                <span class="sidebar-footer-brand__name">"BLXCode"</span>
+                <span class="sidebar-footer-brand__version">{format!("v{APP_VERSION}")}</span>
+            </div>
+        </div>
     }
 }
 

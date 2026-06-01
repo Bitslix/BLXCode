@@ -289,9 +289,9 @@ fn prev_voice_provider(provider: VoiceProviderKind) -> VoiceProviderKind {
     list[(i + list.len() - 1) % list.len()]
 }
 
-/// Voice settings column (BLXCode Agent grid, bottom row spanning both columns).
+/// Voice settings content for the standalone Settings -> Voice pane.
 #[component]
-pub fn AgentVoiceColumn() -> impl IntoView {
+pub fn VoiceSettingsContent() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let settings = RwSignal::new(Option::<VoiceSettings>::None);
     let agent_settings = RwSignal::new(Option::<AgentProviderSettingsView>::None);
@@ -370,13 +370,6 @@ pub fn AgentVoiceColumn() -> impl IntoView {
 
     view! {
         <>
-            <h4 class="harness-pane-subhead agent-provider-pane__col-title">
-                <span class="harness-pane-subhead__icon" aria-hidden="true">
-                    <LxIcon icon=icondata::LuMic width="0.82rem" height="0.82rem" />
-                </span>
-                <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::AgColumnVoice)()}</span>
-            </h4>
-
             <Show
                 when=move || settings.get().is_some()
                 fallback=move || view! {
@@ -490,7 +483,7 @@ pub fn VoiceSettingsPane() -> impl IntoView {
                 </span>
                 <span class="harness-pane-title__text">{move || i18n.tr(I18nKey::VoicePaneTitle)()}</span>
             </h3>
-            <AgentVoiceColumn />
+            <VoiceSettingsContent />
         </article>
     }
 }
