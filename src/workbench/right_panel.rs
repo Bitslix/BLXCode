@@ -402,7 +402,10 @@ pub fn RightPanel() -> impl IntoView {
                                 </button>
 
                             </div>
-                            <RightPanelSettingsButton />
+                            // Settings now live in the app title bar; the
+                            // expanded header no longer carries its own gear.
+                            // The collapsed rail keeps its footer settings
+                            // button as a quick affordance.
                         </div>
                     </header>
                     <div id="blx-right-panel-body" class="workbench-right__body">
