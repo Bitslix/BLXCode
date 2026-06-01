@@ -11,9 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **File preview now uses the same CodeMirror 6 editor as edit mode, mounted read-only.** Reading and editing a file are now visually identical — same syntax highlighting, line-number gutter, code folding, and selection — because the preview is just the editor with writes disabled. It previously rendered through a separate highlight.js viewer with its own gutter, click/drag row selection, and heuristic fold chevrons, which no longer matched the CodeMirror editor's look. The right-click handoff menu (snippet → terminal / agent / clipboard) is unchanged and works in **both** modes, capturing the caret line or the full editor selection.
+
 ### Fixed
 
 ### Removed
+
+- **highlight.js dependency removed**: the file preview no longer ships or lazy-loads the vendored `highlight.js` bundle (~127 KiB), and the heuristic Rust fold model (`editor/folding.rs`) that backed the old preview is gone. A single CodeMirror 6 bundle now drives both preview and edit — one highlighting engine and one fold implementation for both modes.
 
 
 ## [0.3.3] - 2026-05-31
