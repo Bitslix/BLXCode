@@ -129,6 +129,12 @@ lokalisiert über i18n. Nicht-benutzerrelevantes (z. B. „cancelled") bleibt st
 | Insert fehlgeschlagen | `pty_write`/Clipboard/DOM Err | Toast `VoicePttInsertFailed` |
 | Download-Fehler | Netz/sha/Disk | **bereits** inline in der Karte ✅ + optional Toast |
 
+**Status 2026-06-01:** Mapping im PTT-Frontend umgesetzt:
+`ptt_start`-Fehler → `VoiceErrNoMic`, Rejects → Hint + Toast
+(`VoicePttMicBusy`/`VoicePttBlockedTts`), `ptt_finalize` → no-model/model-load/
+generisches STT-Mapping, Insert-Fehler → `VoicePttInsertFailed`. Download-Fehler
+bleiben wie geplant inline in der Modellkarte.
+
 ### C2 — Umsetzung
 - `ToastService` im `ptt_runtime` via `use_context` holen und an die
   finalize/route/start-Pfade durchreichen (Toasts laufen im Leptos-Owner,

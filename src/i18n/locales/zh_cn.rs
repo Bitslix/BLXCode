@@ -912,6 +912,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::VoicePttMicBusy => "麦克风已在使用中。",
         I18nKey::VoicePttLocalModelLabel => "本地模型",
         I18nKey::VoicePttNoModel => "未选择本地 Whisper 型号。",
+        I18nKey::VoicePttModelLoadFailed => "无法加载语音识别模型。",
+        I18nKey::VoicePttInsertFailed => "无法插入转录文本。",
         I18nKey::VoicePttTestBtn => "测试",
         I18nKey::VoicePttModelsTitle => "耳语型号",
         I18nKey::VoicePttModelsAll => "全部",

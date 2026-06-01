@@ -918,6 +918,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::VoicePttMicBusy => "マイクはすでに使用されています。",
         I18nKey::VoicePttLocalModelLabel => "ローカルモデル",
         I18nKey::VoicePttNoModel => "ローカルのウィスパー モデルが選択されていません。",
+        I18nKey::VoicePttModelLoadFailed => "音声認識モデルを読み込めませんでした。",
+        I18nKey::VoicePttInsertFailed => "文字起こしを挿入できませんでした。",
         I18nKey::VoicePttTestBtn => "テスト",
         I18nKey::VoicePttModelsTitle => "ウィスパーモデル",
         I18nKey::VoicePttModelsAll => "全て",

@@ -914,6 +914,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::VoicePttMicBusy => "마이크가 이미 사용 중입니다.",
         I18nKey::VoicePttLocalModelLabel => "지역모델",
         I18nKey::VoicePttNoModel => "로컬 Whisper 모델이 선택되지 않았습니다.",
+        I18nKey::VoicePttModelLoadFailed => "음성 인식 모델을 불러올 수 없습니다.",
+        I18nKey::VoicePttInsertFailed => "전사 내용을 삽입할 수 없습니다.",
         I18nKey::VoicePttTestBtn => "시험",
         I18nKey::VoicePttModelsTitle => "속삭이는 모델",
         I18nKey::VoicePttModelsAll => "모두",

@@ -938,6 +938,8 @@ pub enum I18nKey {
     VoicePttMicBusy,
     VoicePttLocalModelLabel,
     VoicePttNoModel,
+    VoicePttModelLoadFailed,
+    VoicePttInsertFailed,
     VoicePttTestBtn,
     VoicePttModelsTitle,
     VoicePttModelsAll,

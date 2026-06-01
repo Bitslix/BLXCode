@@ -948,6 +948,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::VoicePttMicBusy => "Il microfono è già in uso.",
         I18nKey::VoicePttLocalModelLabel => "Modello locale",
         I18nKey::VoicePttNoModel => "Nessun modello Whisper locale selezionato.",
+        I18nKey::VoicePttModelLoadFailed => "Impossibile caricare il modello di riconoscimento vocale.",
+        I18nKey::VoicePttInsertFailed => "Impossibile inserire la trascrizione.",
         I18nKey::VoicePttTestBtn => "Test",
         I18nKey::VoicePttModelsTitle => "Modelli sussurrati",
         I18nKey::VoicePttModelsAll => "Tutto",

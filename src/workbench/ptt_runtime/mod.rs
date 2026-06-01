@@ -35,6 +35,7 @@ use crate::tauri_bridge::{
 };
 use crate::workbench::app_prefs::AppPrefsService;
 use crate::workbench::state::WorkbenchService;
+use crate::workbench::toast::ToastService;
 
 /// Shared push-to-talk signals, provided at the workbench root.
 #[derive(Clone, Copy)]
@@ -131,6 +132,7 @@ pub fn install_ptt_runtime(
     if !is_tauri_shell() {
         return;
     }
+    let toast = expect_context::<ToastService>();
     let Some(window) = web_sys::window() else {
         return;
     };
@@ -191,6 +193,8 @@ pub fn install_ptt_runtime(
             // Resolve localized hint strings up front (i18n is not Send).
             let hint_busy = i18n.tr(I18nKey::VoicePttMicBusy)().to_string();
             let hint_tts = i18n.tr(I18nKey::VoicePttBlockedTts)().to_string();
+            let err_no_mic = i18n.tr(I18nKey::VoiceErrNoMic)().to_string();
+            let toast_for_start = toast;
             spawn_local(async move {
                 match ptt_start().await {
                     Ok(resp) if resp.started => {
@@ -208,11 +212,13 @@ pub fn install_ptt_runtime(
                         } else {
                             hint_busy
                         };
+                        toast_for_start.error(hint.clone());
                         bus.hint.set(Some(hint));
                     }
                     Err(_) => {
                         *active_for_start.borrow_mut() = false;
                         bus.recording.set(false);
+                        toast_for_start.error(err_no_mic);
                     }
                 }
             });
@@ -267,15 +273,31 @@ pub fn install_ptt_runtime(
             let hint = locale_hint(&settings, &i18n);
             let wb = wb;
             let bus = bus;
+            let i18n = i18n;
+            let toast = toast;
             spawn_local(async move {
-                let text = ptt_finalize(id, hint).await.unwrap_or_default();
                 bus.partial.set(String::new());
+                let text = match ptt_finalize(id, hint).await {
+                    Ok(text) => text,
+                    Err(err) => {
+                        toast.error(ptt_finalize_error_message(&err, &i18n));
+                        return;
+                    }
+                };
                 let trimmed = text.trim();
                 if trimmed.is_empty() {
                     return;
                 }
-                route_transcript(trimmed.to_string(), settings.ptt.auto_submit, resolved, &wb, bus)
-                    .await;
+                route_transcript(
+                    trimmed.to_string(),
+                    settings.ptt.auto_submit,
+                    resolved,
+                    &wb,
+                    bus,
+                    &i18n,
+                    toast,
+                )
+                .await;
             });
         })
     };
@@ -376,13 +398,17 @@ async fn route_transcript(
     target: Option<ResolvedTarget>,
     _wb: &WorkbenchService,
     bus: PttBus,
+    i18n: &I18nService,
+    toast: ToastService,
 ) {
     match target {
         Some(ResolvedTarget::Agent) | None => {
             bus.agent_transcript.set(Some((text, auto_submit)));
         }
         Some(ResolvedTarget::Clipboard) => {
-            let _ = clipboard_write_text(text).await;
+            if clipboard_write_text(text).await.is_err() {
+                toast.error(i18n.tr(I18nKey::VoicePttInsertFailed)());
+            }
         }
         Some(ResolvedTarget::Terminal(session)) => {
             let payload = if auto_submit {
@@ -390,17 +416,53 @@ async fn route_transcript(
             } else {
                 text
             };
-            let _ = pty_write(session, BASE64.encode(payload.as_bytes())).await;
+            if pty_write(session, BASE64.encode(payload.as_bytes()))
+                .await
+                .is_err()
+            {
+                toast.error(i18n.tr(I18nKey::VoicePttInsertFailed)());
+            }
         }
         Some(ResolvedTarget::ActiveInput(el)) => {
-            insert_into_input(&el, &text);
+            if !insert_into_input(&el, &text) {
+                toast.error(i18n.tr(I18nKey::VoicePttInsertFailed)());
+            }
         }
     }
 }
 
+fn ptt_finalize_error_message(err: &str, i18n: &I18nService) -> String {
+    let lower = err.to_ascii_lowercase();
+    if lower.contains("kein lokales whisper-modell")
+        || lower.contains("no local whisper model")
+        || lower.contains("no local model")
+    {
+        return i18n.tr(I18nKey::VoicePttNoModel)().to_string();
+    }
+    if lower.contains("whisper")
+        || lower.contains("model")
+        || lower.contains("load")
+        || lower.contains("ggml")
+    {
+        return i18n.tr(I18nKey::VoicePttModelLoadFailed)().to_string();
+    }
+    fill_first_placeholder(i18n.tr(I18nKey::VoiceErrStt)(), err)
+}
+
+fn fill_first_placeholder(template: &str, value: &str) -> String {
+    let Some(start) = template.find('{') else {
+        return format!("{template}: {value}");
+    };
+    let Some(end_offset) = template[start..].find('}') else {
+        return format!("{template}: {value}");
+    };
+    let end = start + end_offset + 1;
+    format!("{}{}{}", &template[..start], value, &template[end..])
+}
+
 /// Insert `text` into an `<input>`/`<textarea>` at the caret, or append to a
 /// contenteditable. Fires an `input` event so frameworks observe the change.
-fn insert_into_input(el: &HtmlElement, text: &str) {
+fn insert_into_input(el: &HtmlElement, text: &str) -> bool {
     use web_sys::{HtmlInputElement, HtmlTextAreaElement};
     if let Some(input) = el.dyn_ref::<HtmlInputElement>() {
         let cur = input.value();
@@ -415,6 +477,7 @@ fn insert_into_input(el: &HtmlElement, text: &str) {
     }
     // Best-effort input event.
     if let Ok(ev) = web_sys::Event::new("input") {
-        let _ = el.dispatch_event(&ev);
+        return el.dispatch_event(&ev).is_ok();
     }
+    false
 }

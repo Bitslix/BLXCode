@@ -988,6 +988,8 @@ keys; the preset only fills in defaults."
         I18nKey::VoicePttMicBusy => "Microphone is already in use.",
         I18nKey::VoicePttLocalModelLabel => "Local model",
         I18nKey::VoicePttNoModel => "No local Whisper model selected.",
+        I18nKey::VoicePttModelLoadFailed => "Could not load the speech-to-text model.",
+        I18nKey::VoicePttInsertFailed => "Could not insert the transcript.",
         I18nKey::VoicePttTestBtn => "Test",
         I18nKey::VoicePttModelsTitle => "Whisper models",
         I18nKey::VoicePttModelsAll => "All",

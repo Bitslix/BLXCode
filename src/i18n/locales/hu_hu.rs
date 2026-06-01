@@ -942,6 +942,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::VoicePttMicBusy => "A mikrofon már használatban van.",
         I18nKey::VoicePttLocalModelLabel => "Helyi modell",
         I18nKey::VoicePttNoModel => "Nincs kiválasztva helyi Whisper modell.",
+        I18nKey::VoicePttModelLoadFailed => "A beszédfelismerő modellt nem sikerült betölteni.",
+        I18nKey::VoicePttInsertFailed => "A leiratot nem sikerült beszúrni.",
         I18nKey::VoicePttTestBtn => "Teszt",
         I18nKey::VoicePttModelsTitle => "Suttogó modellek",
         I18nKey::VoicePttModelsAll => "Minden",
