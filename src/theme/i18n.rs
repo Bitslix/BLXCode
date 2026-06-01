@@ -23,6 +23,16 @@ pub fn theme_name_key(theme_id: &str) -> Option<I18nKey> {
         "night-owl" => I18nKey::ThemeNameNightOwl,
         "ayu-mirage" => I18nKey::ThemeNameAyuMirage,
         "catppuccin-frappe" => I18nKey::ThemeNameCatppuccinFrappe,
+        "tokyo-night-light" => I18nKey::ThemeNameTokyoNightLight,
+        "nord-light" => I18nKey::ThemeNameNordLight,
+        "github-light" => I18nKey::ThemeNameGithubLight,
+        "ayu-light" => I18nKey::ThemeNameAyuLight,
+        "one-light" => I18nKey::ThemeNameOneLight,
+        "winter-light" => I18nKey::ThemeNameWinterLight,
+        "paper-light" => I18nKey::ThemeNamePaperLight,
+        "alpine-light" => I18nKey::ThemeNameAlpineLight,
+        "frost-light" => I18nKey::ThemeNameFrostLight,
+        "lilac-light" => I18nKey::ThemeNameLilacLight,
         _ => return None,
     })
 }
@@ -50,6 +60,16 @@ pub fn theme_desc_key(theme_id: &str) -> Option<I18nKey> {
         "night-owl" => I18nKey::ThemeDescNightOwl,
         "ayu-mirage" => I18nKey::ThemeDescAyuMirage,
         "catppuccin-frappe" => I18nKey::ThemeDescCatppuccinFrappe,
+        "tokyo-night-light" => I18nKey::ThemeDescTokyoNightLight,
+        "nord-light" => I18nKey::ThemeDescNordLight,
+        "github-light" => I18nKey::ThemeDescGithubLight,
+        "ayu-light" => I18nKey::ThemeDescAyuLight,
+        "one-light" => I18nKey::ThemeDescOneLight,
+        "winter-light" => I18nKey::ThemeDescWinterLight,
+        "paper-light" => I18nKey::ThemeDescPaperLight,
+        "alpine-light" => I18nKey::ThemeDescAlpineLight,
+        "frost-light" => I18nKey::ThemeDescFrostLight,
+        "lilac-light" => I18nKey::ThemeDescLilacLight,
         _ => return None,
     })
 }

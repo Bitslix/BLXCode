@@ -223,6 +223,106 @@ pub const THEMES: &[AppTheme] = &[
             text: "#c6d0f5",
         },
     },
+    AppTheme {
+        id: "tokyo-night-light",
+        mode: ThemeMode::Light,
+        preview: ThemePreviewColors {
+            sidebar: "#d4d6dc",
+            background: "#f0f1f4",
+            accent: "#2e7de9",
+            text: "#3760bf",
+        },
+    },
+    AppTheme {
+        id: "nord-light",
+        mode: ThemeMode::Light,
+        preview: ThemePreviewColors {
+            sidebar: "#d8dee9",
+            background: "#eceff4",
+            accent: "#5e81ac",
+            text: "#2e3440",
+        },
+    },
+    AppTheme {
+        id: "github-light",
+        mode: ThemeMode::Light,
+        preview: ThemePreviewColors {
+            sidebar: "#eaeef2",
+            background: "#ffffff",
+            accent: "#0969da",
+            text: "#1f2328",
+        },
+    },
+    AppTheme {
+        id: "ayu-light",
+        mode: ThemeMode::Light,
+        preview: ThemePreviewColors {
+            sidebar: "#ebebeb",
+            background: "#fafafa",
+            accent: "#399ee6",
+            text: "#5c6166",
+        },
+    },
+    AppTheme {
+        id: "one-light",
+        mode: ThemeMode::Light,
+        preview: ThemePreviewColors {
+            sidebar: "#dedede",
+            background: "#fafafa",
+            accent: "#4078f2",
+            text: "#383a42",
+        },
+    },
+    AppTheme {
+        id: "winter-light",
+        mode: ThemeMode::Light,
+        preview: ThemePreviewColors {
+            sidebar: "#d8e3e9",
+            background: "#f4f8fa",
+            accent: "#0891b2",
+            text: "#1a3640",
+        },
+    },
+    AppTheme {
+        id: "paper-light",
+        mode: ThemeMode::Light,
+        preview: ThemePreviewColors {
+            sidebar: "#e0ddd5",
+            background: "#fbfaf7",
+            accent: "#1d4ed8",
+            text: "#1a1f2c",
+        },
+    },
+    AppTheme {
+        id: "alpine-light",
+        mode: ThemeMode::Light,
+        preview: ThemePreviewColors {
+            sidebar: "#cfdeda",
+            background: "#f1f7f4",
+            accent: "#0d9488",
+            text: "#143832",
+        },
+    },
+    AppTheme {
+        id: "frost-light",
+        mode: ThemeMode::Light,
+        preview: ThemePreviewColors {
+            sidebar: "#dde6ec",
+            background: "#f7fafc",
+            accent: "#0284c7",
+            text: "#1c3540",
+        },
+    },
+    AppTheme {
+        id: "lilac-light",
+        mode: ThemeMode::Light,
+        preview: ThemePreviewColors {
+            sidebar: "#ddd5e6",
+            background: "#f6f3fa",
+            accent: "#7c3aed",
+            text: "#2e1f5c",
+        },
+    },
 ];
 
 #[must_use]
