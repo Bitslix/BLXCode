@@ -87,6 +87,10 @@ pub fn AppTitleBar(#[prop(into)] workbench_active: Signal<bool>) -> impl IntoVie
         })
     });
 
+    // When the active center tab is the Terminals grid, append the focused
+    // terminal's live title (auto/OSC title, else its slot number/name).
+    let terminal_crumb = Memo::new(move |_| wb.active_terminal_breadcrumb_title());
+
     view! {
         <header class="app-titlebar" data-tauri-drag-region="">
             <div class="app-titlebar__cluster app-titlebar__cluster--left" data-tauri-drag-region="">
@@ -126,6 +130,7 @@ pub fn AppTitleBar(#[prop(into)] workbench_active: Signal<bool>) -> impl IntoVie
                 <Show when=move || workbench_active.get()>
                     {move || {
                         breadcrumb.get().map(|(ws_title, tab_title)| {
+                            let term = terminal_crumb.get();
                             view! {
                                 <nav class="app-titlebar__breadcrumb" aria-label="Breadcrumb">
                                     <span class="app-titlebar__crumb app-titlebar__crumb--workspace">{ws_title}</span>
@@ -134,6 +139,12 @@ pub fn AppTitleBar(#[prop(into)] workbench_active: Signal<bool>) -> impl IntoVie
                                             <LxIcon icon=icondata::LuChevronRight width="0.8rem" height="0.8rem" />
                                         </span>
                                         <span class="app-titlebar__crumb app-titlebar__crumb--context">{t}</span>
+                                    })}
+                                    {term.map(|t| view! {
+                                        <span class="app-titlebar__crumb-sep" aria-hidden="true">
+                                            <LxIcon icon=icondata::LuChevronRight width="0.8rem" height="0.8rem" />
+                                        </span>
+                                        <span class="app-titlebar__crumb app-titlebar__crumb--terminal">{t}</span>
                                     })}
                                 </nav>
                             }

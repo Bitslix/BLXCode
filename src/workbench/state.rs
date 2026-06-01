@@ -1141,6 +1141,11 @@ pub struct WorkbenchService {
     /// `storage_key` (UUID). Survives workspace switches. The value is the
     /// full `terminal_key`.
     focused_terminal_by_workspace: RwSignal<HashMap<String, String>>,
+    /// Live display title per terminal, keyed by the full `terminal_key`.
+    /// Published by each terminal cell as the header title changes (OSC title
+    /// when present, otherwise the resolved slot label). Read by the app
+    /// title bar breadcrumb. Session-only; not part of `WorkbenchSnapshot`.
+    terminal_titles: RwSignal<HashMap<String, String>>,
     memory_color_presets: RwSignal<Vec<MemoryColorPreset>>,
     /// Session-only image context; intentionally not part of WorkbenchSnapshot.
     agent_image_context: RwSignal<HashMap<u64, Vec<WorkspaceAgentImage>>>,
@@ -1267,6 +1272,7 @@ impl WorkbenchService {
             notifications: RwSignal::new(HashMap::new()),
             pending_clears: RwSignal::new(HashSet::new()),
             focused_terminal_by_workspace: RwSignal::new(HashMap::new()),
+            terminal_titles: RwSignal::new(HashMap::new()),
             memory_color_presets: RwSignal::new(memory_color_presets),
             agent_image_context: RwSignal::new(HashMap::new()),
             sidebar_repo_epoch: RwSignal::new(0),
@@ -1466,6 +1472,53 @@ impl WorkbenchService {
         self.focused_terminal_by_workspace.update(|m| {
             m.insert(storage_key, terminal_key);
         });
+    }
+
+    /// Publish the live header title for a terminal (OSC title when present,
+    /// otherwise the resolved slot label). Drives the title-bar breadcrumb.
+    pub fn set_terminal_title(&self, terminal_key: String, title: String) {
+        self.terminal_titles.update(|m| {
+            match m.get(&terminal_key) {
+                Some(existing) if existing == &title => {}
+                _ => {
+                    m.insert(terminal_key, title);
+                }
+            };
+        });
+    }
+
+    /// Drop a terminal's published title (on cell unmount).
+    pub fn clear_terminal_title(&self, terminal_key: &str) {
+        self.terminal_titles.update(|m| {
+            m.remove(terminal_key);
+        });
+    }
+
+    /// Resolve the focused terminal's display title for the active workspace,
+    /// but only while its active center tab is the Terminals grid. Returns
+    /// `None` otherwise. Reactive — call inside a tracking scope.
+    #[must_use]
+    pub fn active_terminal_breadcrumb_title(&self) -> Option<String> {
+        let active = self.active_id.get()?;
+        let (storage_key, is_terminals) = self.workspaces.with(|list| {
+            let ws = list.iter().find(|w| w.id == active)?;
+            let is_terminals = ws
+                .center_tabs
+                .iter()
+                .find(|t| t.id == ws.center_active_tab_id)
+                .map(|t| matches!(t.kind, CenterTabKind::Terminals))
+                .unwrap_or(false);
+            Some((ws.storage_key.clone(), is_terminals))
+        })?;
+        if !is_terminals {
+            return None;
+        }
+        let focused = self
+            .focused_terminal_by_workspace
+            .with(|m| m.get(&storage_key).cloned())?;
+        self.terminal_titles
+            .with(|m| m.get(&focused).cloned())
+            .filter(|t| !t.trim().is_empty())
     }
 
     /// True when a notification's terminal key still maps to an agent-attached

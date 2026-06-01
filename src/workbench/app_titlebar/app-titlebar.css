@@ -109,6 +109,13 @@
   color: var(--text-muted);
 }
 
+/* Live focused-terminal title — emphasized over the static tab crumb. */
+.app-titlebar__crumb--terminal {
+  color: var(--text);
+  font-weight: 500;
+  max-width: 22ch;
+}
+
 .app-titlebar__crumb-sep {
   display: inline-flex;
   color: var(--text-faint);

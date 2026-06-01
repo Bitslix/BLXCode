@@ -128,6 +128,24 @@ pub fn WorkspaceTerminalCell(
         let siblings = wb.slot_ids_for_workspace(workspace_id);
         terminal_naming::display_label(mode, slot_id, override_name.as_deref(), &pool, &siblings)
     });
+
+    // Publish the live header title so the app title-bar breadcrumb can show
+    // the focused terminal: the OSC/auto title when present, otherwise the
+    // resolved slot label (slot number or friendly name per the naming mode).
+    {
+        let terminal_key_title = terminal_key.clone();
+        Effect::new(move |_| {
+            let dynamic = dynamic_title.get();
+            let label = slot_label.get();
+            let title = if dynamic.trim().is_empty() {
+                label
+            } else {
+                dynamic
+            };
+            wb.set_terminal_title(terminal_key_title.clone(), title);
+        });
+    }
+
     // Inline rename state for the header name (double-click to edit).
     let renaming = RwSignal::new(false);
     let rename_draft = RwSignal::new(String::new());
@@ -465,6 +483,7 @@ pub fn WorkspaceTerminalCell(
             if !moving {
                 wb.unregister_pty_session(&terminal_key_cleanup);
             }
+            wb.clear_terminal_title(&terminal_key_cleanup);
             if let Some(t) = t {
                 terminal_dispose(t);
             }
