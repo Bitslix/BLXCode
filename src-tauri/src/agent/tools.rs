@@ -1714,7 +1714,9 @@ fn tool_memory_rebuild_architecture(root: Option<&WorkspaceRootGuard>) -> ToolOu
         Ok(s) => s,
         Err(out) => return out,
     };
-    match memory::memory_rebuild_architecture(ws.to_owned()) {
+    // Call the sync impl directly: tool dispatch already runs on the agent's
+    // background task, and the `#[tauri::command]` wrappers are now async.
+    match memory::architecture::rebuild_architecture_impl(&ws) {
         Ok(report) => {
             let body =
                 serde_json::to_string(&report).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
@@ -1735,7 +1737,7 @@ fn tool_memory_lint_architecture(root: Option<&WorkspaceRootGuard>) -> ToolOutco
         Ok(s) => s,
         Err(out) => return out,
     };
-    match memory::memory_lint_architecture(ws.to_owned()) {
+    match memory::architecture::lint_architecture_impl(&ws) {
         Ok(report) => {
             let body =
                 serde_json::to_string(&report).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
