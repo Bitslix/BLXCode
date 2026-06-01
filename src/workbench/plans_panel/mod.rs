@@ -2,6 +2,8 @@
 //! Rules tab: create, view, edit, rename, remove, and load plans from
 //! `<workspace>/.agents/plans/` into the BLXCode Agent.
 
+mod ai_generate_dialog;
+
 use crate::agent_wire::{AgentContextItem, AgentContextKind};
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
@@ -12,6 +14,7 @@ use crate::tauri_bridge::{
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::state::{ConfirmRequest, HarnessUiService};
 use crate::workbench::{RightPanelTab, WorkbenchService};
+use ai_generate_dialog::{AiGenMode, AiGenerateDialog};
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Date;
 use leptos::prelude::*;
@@ -293,6 +296,8 @@ pub fn PlansPanel() -> impl IntoView {
     let draft_body = RwSignal::new(String::new());
     let draft_error = RwSignal::<Option<String>>::new(None);
     let saving = RwSignal::new(false);
+    let ai_dialog_open = RwSignal::new(false);
+    let ai_dialog_mode = RwSignal::new(AiGenMode::Plan);
 
     Effect::new(move |_| {
         if active_tab.get() != RightPanelTab::Plans {
@@ -404,6 +409,30 @@ pub fn PlansPanel() -> impl IntoView {
                     <h2 class="blx-sr-pane__title">{i18n.tr(I18nKey::TabPlans)}</h2>
                 </div>
                 <div class="blx-sr-pane__actions">
+                    <button
+                        type="button"
+                        class="blx-sr-btn blx-sr-btn--icon"
+                        aria-label=move || i18n.tr(I18nKey::PlansAiPlanBtn)()
+                        title=move || i18n.tr(I18nKey::PlansAiPlanBtn)()
+                        on:click=move |_| {
+                            ai_dialog_mode.set(AiGenMode::Plan);
+                            ai_dialog_open.set(true);
+                        }
+                    >
+                        <LxIcon icon=icondata::LuSparkles width="13px" height="13px" />
+                    </button>
+                    <button
+                        type="button"
+                        class="blx-sr-btn blx-sr-btn--icon"
+                        aria-label=move || i18n.tr(I18nKey::PlansAiTasksBtn)()
+                        title=move || i18n.tr(I18nKey::PlansAiTasksBtn)()
+                        on:click=move |_| {
+                            ai_dialog_mode.set(AiGenMode::Tasks);
+                            ai_dialog_open.set(true);
+                        }
+                    >
+                        <LxIcon icon=icondata::LuListPlus width="13px" height="13px" />
+                    </button>
                     <button
                         type="button"
                         class="blx-sr-btn blx-sr-btn--primary blx-sr-btn--icon"
@@ -579,6 +608,16 @@ pub fn PlansPanel() -> impl IntoView {
                     }}
                 </Show>
             </div>
+            <AiGenerateDialog
+                open=ai_dialog_open
+                mode=ai_dialog_mode.into()
+                state=state
+                on_saved=Callback::new(move |_| {
+                    if let Some(ws) = state.workspace_cwd.get_untracked() {
+                        load_plans_list(state, ws);
+                    }
+                })
+            />
         </div>
     }
 }

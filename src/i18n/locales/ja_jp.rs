@@ -164,6 +164,20 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansGroupDescCompleted => "すべてのタスクが完了した状態で計画を立てます。",
         I18nKey::PlansGroupDescCancelled => "キャンセルされた計画。",
         I18nKey::PlansGroupDescEmpty => "まだタスクのない計画。",
+        I18nKey::PlansAiPlanBtn => "AI計画",
+        I18nKey::PlansAiTasksBtn => "AIタスク",
+        I18nKey::PlansAiDialogTitlePlan => "AIで計画を作成",
+        I18nKey::PlansAiDialogTitleTasks => "AIで計画とタスクを生成",
+        I18nKey::PlansAiPromptPh => "計画でカバーすべき内容を説明してください…",
+        I18nKey::PlansAiWithTasksToggle => "このプランのタスクも作成します",
+        I18nKey::PlansAiGenerate => "生成する",
+        I18nKey::PlansAiGenerating => "生成中…",
+        I18nKey::PlansAiRegenerate => "再生する",
+        I18nKey::PlansAiSave => "プランを保存する",
+        I18nKey::PlansAiPreviewHint => "生成された計画を確認し、保存または再生成します。",
+        I18nKey::PlansAiFailed => "計画の生成に失敗しました。",
+        I18nKey::PlansAiEmptyPrompt => "最初に計画を説明します。",
+        I18nKey::PlansAiSaved => "計画が保存されました。",
         I18nKey::SrSkillsTabCore => "コア",
         I18nKey::SrSkillsTabUser => "ユーザー",
         I18nKey::SrSourceCore => "コア",
@@ -823,9 +837,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermRenamePlaceholder => "Name…",
         I18nKey::WsSectionTerminalNaming => "Terminal naming",
         I18nKey::WsTerminalNamingToggleLabel => "Show agent names instead of slot numbers",
-        I18nKey::WsTerminalNamingHint => "Terminal titles show a friendly name (from the pool below) instead of #1, #2…. Slot numbers always stay the technical identity in the background.",
+        I18nKey::WsTerminalNamingHint => {
+            "Terminal titles show a friendly name (from the pool below) instead of #1, #2…. Slot numbers always stay the technical identity in the background."
+        }
         I18nKey::WsTerminalNamingPoolLabel => "Name pool",
-        I18nKey::WsTerminalNamingPoolHint => "Names are assigned to terminals in order. Double-click a terminal title to set a custom name for that slot.",
+        I18nKey::WsTerminalNamingPoolHint => {
+            "Names are assigned to terminals in order. Double-click a terminal title to set a custom name for that slot."
+        }
         I18nKey::WsTerminalNamingAdd => "Add name",
         I18nKey::WsTerminalNamingReset => "Reset to defaults",
         I18nKey::WsTerminalNamingRemoveAria => "Remove name",

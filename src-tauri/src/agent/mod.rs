@@ -9,6 +9,7 @@ mod environment;
 mod git_agent;
 pub(crate) mod oneshot;
 mod openrouter;
+pub mod plan_ai;
 pub(crate) mod pricing;
 mod project_docs;
 mod provider;

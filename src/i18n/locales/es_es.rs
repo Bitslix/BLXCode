@@ -166,6 +166,20 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansGroupDescCompleted => "Planes con cada tarea terminada.",
         I18nKey::PlansGroupDescCancelled => "Planes que fueron cancelados.",
         I18nKey::PlansGroupDescEmpty => "Planes sin tareas todavía.",
+        I18nKey::PlansAiPlanBtn => "Plan de IA",
+        I18nKey::PlansAiTasksBtn => "Tareas de IA",
+        I18nKey::PlansAiDialogTitlePlan => "Generar plan con IA",
+        I18nKey::PlansAiDialogTitleTasks => "Genere planes y tareas con IA",
+        I18nKey::PlansAiPromptPh => "Describa lo que el plan debería cubrir...",
+        I18nKey::PlansAiWithTasksToggle => "También crea tareas para este plan.",
+        I18nKey::PlansAiGenerate => "Generar",
+        I18nKey::PlansAiGenerating => "Generando…",
+        I18nKey::PlansAiRegenerate => "Regenerado",
+        I18nKey::PlansAiSave => "Guardar plan",
+        I18nKey::PlansAiPreviewHint => "Revise el plan generado y luego guárdelo o regénelo.",
+        I18nKey::PlansAiFailed => "La generación del plan falló.",
+        I18nKey::PlansAiEmptyPrompt => "Describe el plan primero.",
+        I18nKey::PlansAiSaved => "Plan guardado.",
         I18nKey::SrSkillsTabCore => "Centro",
         I18nKey::SrSkillsTabUser => "Usuario",
         I18nKey::SrSourceCore => "centro",
@@ -849,9 +863,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermRenamePlaceholder => "Name…",
         I18nKey::WsSectionTerminalNaming => "Terminal naming",
         I18nKey::WsTerminalNamingToggleLabel => "Show agent names instead of slot numbers",
-        I18nKey::WsTerminalNamingHint => "Terminal titles show a friendly name (from the pool below) instead of #1, #2…. Slot numbers always stay the technical identity in the background.",
+        I18nKey::WsTerminalNamingHint => {
+            "Terminal titles show a friendly name (from the pool below) instead of #1, #2…. Slot numbers always stay the technical identity in the background."
+        }
         I18nKey::WsTerminalNamingPoolLabel => "Name pool",
-        I18nKey::WsTerminalNamingPoolHint => "Names are assigned to terminals in order. Double-click a terminal title to set a custom name for that slot.",
+        I18nKey::WsTerminalNamingPoolHint => {
+            "Names are assigned to terminals in order. Double-click a terminal title to set a custom name for that slot."
+        }
         I18nKey::WsTerminalNamingAdd => "Add name",
         I18nKey::WsTerminalNamingReset => "Reset to defaults",
         I18nKey::WsTerminalNamingRemoveAria => "Remove name",

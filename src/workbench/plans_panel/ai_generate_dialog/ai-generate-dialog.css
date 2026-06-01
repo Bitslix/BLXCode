@@ -1,0 +1,167 @@
+.blx-ai-gen {
+  margin-top: 8vh;
+  width: min(94vw, 40rem);
+  box-sizing: border-box;
+  padding: 1rem 1.1rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  box-shadow:
+    0 24px 70px var(--scrim-bg),
+    0 0 0 1px var(--overlay-1);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.blx-ai-gen__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.blx-ai-gen__field {
+  display: flex;
+  flex-direction: column;
+}
+
+.blx-ai-gen__textwrap {
+  position: relative;
+  display: flex;
+}
+
+.blx-ai-gen__prompt {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 6.5rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset, var(--bg));
+  color: var(--text);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.blx-ai-gen__prompt:focus {
+  outline: none;
+  border-color: var(--accent, var(--border));
+}
+
+/* Shimmer overlay shown while generating; sits over the locked textarea. */
+.blx-ai-gen__shimmer {
+  position: absolute;
+  inset: 1px;
+  border-radius: 5px;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    var(--overlay-1) 0%,
+    var(--overlay-2, var(--overlay-1)) 40%,
+    var(--accent-soft, var(--overlay-2, var(--overlay-1))) 50%,
+    var(--overlay-2, var(--overlay-1)) 60%,
+    var(--overlay-1) 100%
+  );
+  background-size: 200% 100%;
+  animation: blx-ai-gen-shimmer 1.4s ease-in-out infinite;
+}
+
+.blx-ai-gen__textwrap--loading .blx-ai-gen__prompt {
+  color: var(--text-muted, var(--text));
+}
+
+@keyframes blx-ai-gen-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.blx-ai-gen__preview {
+  width: 100%;
+  box-sizing: border-box;
+  max-height: 42vh;
+  overflow: auto;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg-inset, var(--bg));
+}
+
+.blx-ai-gen__preview:focus {
+  outline: none;
+  border-color: var(--accent, var(--border));
+}
+
+.blx-ai-gen__preview-text {
+  margin: 0;
+  padding: 0.6rem 0.7rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.blx-ai-gen__toggle {
+  margin: 0;
+}
+
+.blx-ai-gen__toggle--locked {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.blx-ai-gen__hint {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--text-muted, var(--text));
+}
+
+.blx-ai-gen__error {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--danger, var(--text));
+}
+
+.blx-ai-gen__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.blx-ai-gen__spacer {
+  flex: 1 1 auto;
+}
+
+.blx-ai-gen__btn-icon,
+.blx-ai-gen__spin {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 0.35rem;
+}
+
+.blx-ai-gen__spin {
+  animation: blx-ai-gen-spin 0.8s linear infinite;
+}
+
+@keyframes blx-ai-gen-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blx-ai-gen__shimmer {
+    animation: none;
+    background-position: 50% 0;
+  }
+
+  .blx-ai-gen__spin {
+    animation: none;
+  }
+}

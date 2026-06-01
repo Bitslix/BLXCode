@@ -220,12 +220,12 @@ für die übrigen Sprachen laufen lassen.
 
 ## Tasks
 
-- [ ] `plan-ai-backend` - plan_ai.rs Modul mit plan_generate_ai (oneshot reuse, Skill-konformer System-Prompt, Post-Processing)
-- [ ] `plan-ai-register` - Command in lib.rs registrieren und Modul in agent/mod.rs einhängen
-- [ ] `plan-ai-backend-tests` - Unit-Tests für clean_markdown / extract_title / ensure_tasks_section
-- [ ] `plan-ai-bridge` - tauri_bridge::plan_generate_ai Wrapper + GeneratedPlan-Typ
-- [ ] `plan-ai-dialog` - ai_generate_dialog Komponente (mod.rs): Prompt, Toggle, Loading, scrollbare Preview, Save→plan_create(+plan_load)
-- [ ] `plan-ai-dialog-css` - ai-generate-dialog.css mit Shimmer-Loading, nur Theme-Tokens, reduced-motion
-- [ ] `plan-ai-buttons` - Zwei Header-Buttons (AI Plan / AI Tasks) im Plans-Panel + Dialog-Verdrahtung, on_saved reload
-- [ ] `plan-ai-i18n` - I18nKeys in keys.rs + en_us.rs, danach render-Skript für übrige Locales
-- [ ] `plan-ai-verify` - cargo check (wasm + tauri) und manueller Smoke-Test des Generier-/Speicher-Flows
+- [x] `plan-ai-backend` - plan_ai.rs Modul mit plan_generate_ai (oneshot reuse, Skill-konformer System-Prompt, Post-Processing)
+- [x] `plan-ai-register` - Command in lib.rs registrieren und Modul in agent/mod.rs einhängen
+- [x] `plan-ai-backend-tests` - Unit-Tests für clean_markdown / extract_title / ensure_tasks_section
+- [x] `plan-ai-bridge` - tauri_bridge::plan_generate_ai Wrapper + GeneratedPlan-Typ
+- [x] `plan-ai-dialog` - ai_generate_dialog Komponente (mod.rs): Prompt, Toggle, Loading, scrollbare Preview, Save→plan_create(+plan_load)
+- [x] `plan-ai-dialog-css` - ai-generate-dialog.css mit Shimmer-Loading, nur Theme-Tokens, reduced-motion
+- [x] `plan-ai-buttons` - Zwei Header-Buttons (AI Plan / AI Tasks) im Plans-Panel + Dialog-Verdrahtung, on_saved reload
+- [x] `plan-ai-i18n` - I18nKeys in keys.rs + en_us.rs, danach render-Skript für übrige Locales
+- [>] `plan-ai-verify` - cargo check (wasm + tauri) und manueller Smoke-Test des Generier-/Speicher-Flows

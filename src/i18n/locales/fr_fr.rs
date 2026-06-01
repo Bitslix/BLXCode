@@ -168,6 +168,20 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansGroupDescCompleted => "Plans avec chaque tâche terminée.",
         I18nKey::PlansGroupDescCancelled => "Des plans qui ont été annulés.",
         I18nKey::PlansGroupDescEmpty => "Plans sans aucune tâche pour le moment.",
+        I18nKey::PlansAiPlanBtn => "Plan IA",
+        I18nKey::PlansAiTasksBtn => "Tâches d'IA",
+        I18nKey::PlansAiDialogTitlePlan => "Générer un plan avec l'IA",
+        I18nKey::PlansAiDialogTitleTasks => "Générez un plan et des tâches avec l'IA",
+        I18nKey::PlansAiPromptPh => "Décrivez ce que le plan devrait couvrir…",
+        I18nKey::PlansAiWithTasksToggle => "Créez également des tâches pour ce plan",
+        I18nKey::PlansAiGenerate => "Générer",
+        I18nKey::PlansAiGenerating => "Générateur…",
+        I18nKey::PlansAiRegenerate => "Régénérer",
+        I18nKey::PlansAiSave => "Enregistrer le plan",
+        I18nKey::PlansAiPreviewHint => "Passez en revue le plan généré, puis enregistrez ou régénérez-le.",
+        I18nKey::PlansAiFailed => "La génération du plan a échoué.",
+        I18nKey::PlansAiEmptyPrompt => "Décrivez d’abord le plan.",
+        I18nKey::PlansAiSaved => "Plan enregistré.",
         I18nKey::SrSkillsTabCore => "Noyau",
         I18nKey::SrSkillsTabUser => "Utilisateur",
         I18nKey::SrSourceCore => "cœur",
@@ -855,9 +869,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermRenamePlaceholder => "Name…",
         I18nKey::WsSectionTerminalNaming => "Terminal naming",
         I18nKey::WsTerminalNamingToggleLabel => "Show agent names instead of slot numbers",
-        I18nKey::WsTerminalNamingHint => "Terminal titles show a friendly name (from the pool below) instead of #1, #2…. Slot numbers always stay the technical identity in the background.",
+        I18nKey::WsTerminalNamingHint => {
+            "Terminal titles show a friendly name (from the pool below) instead of #1, #2…. Slot numbers always stay the technical identity in the background."
+        }
         I18nKey::WsTerminalNamingPoolLabel => "Name pool",
-        I18nKey::WsTerminalNamingPoolHint => "Names are assigned to terminals in order. Double-click a terminal title to set a custom name for that slot.",
+        I18nKey::WsTerminalNamingPoolHint => {
+            "Names are assigned to terminals in order. Double-click a terminal title to set a custom name for that slot."
+        }
         I18nKey::WsTerminalNamingAdd => "Add name",
         I18nKey::WsTerminalNamingReset => "Reset to defaults",
         I18nKey::WsTerminalNamingRemoveAria => "Remove name",

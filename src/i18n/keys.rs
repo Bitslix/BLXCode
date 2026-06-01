@@ -173,6 +173,22 @@ pub enum I18nKey {
     PlansGroupDescCancelled,
     PlansGroupDescEmpty,
 
+    // AI plan/task generation
+    PlansAiPlanBtn,
+    PlansAiTasksBtn,
+    PlansAiDialogTitlePlan,
+    PlansAiDialogTitleTasks,
+    PlansAiPromptPh,
+    PlansAiWithTasksToggle,
+    PlansAiGenerate,
+    PlansAiGenerating,
+    PlansAiRegenerate,
+    PlansAiSave,
+    PlansAiPreviewHint,
+    PlansAiFailed,
+    PlansAiEmptyPrompt,
+    PlansAiSaved,
+
     // Skills & Rules panel
     SrSkillsTabCore,
     SrSkillsTabUser,

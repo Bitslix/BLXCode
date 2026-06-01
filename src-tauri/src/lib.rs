@@ -271,6 +271,7 @@ pub fn run() {
             plans::plan_rename,
             plans::plan_load,
             plans::plan_sync_from_tasks,
+            agent::plan_ai::plan_generate_ai,
             skills_rules::commands::rules_list,
             skills_rules::commands::rules_read,
             skills_rules::commands::rules_write,

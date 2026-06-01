@@ -2344,6 +2344,24 @@ pub async fn plan_load(ws: &str, path: &str) -> Result<PlanLoadReport, String> {
     .await
 }
 
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct GeneratedPlan {
+    pub title: String,
+    pub markdown: String,
+}
+
+/// Generates a Skill-conformant plan (and optionally tasks) from a prompt via
+/// the agent tab's configured provider. Returns the title + cleaned Markdown.
+pub async fn plan_generate_ai(prompt: String, with_tasks: bool) -> Result<GeneratedPlan, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        prompt: String,
+        with_tasks: bool,
+    }
+    invoke_typed("plan_generate_ai", Args { prompt, with_tasks }).await
+}
+
 #[allow(dead_code)]
 pub async fn plan_sync_from_tasks(ws: &str, path: &str) -> Result<PlanSyncReport, String> {
     #[derive(Serialize)]
