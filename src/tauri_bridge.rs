@@ -694,6 +694,40 @@ pub async fn exit_app_ipc() -> Result<(), String> {
     invoke_unit_js("exit_app", JsValue::UNDEFINED).await
 }
 
+// ---------------------------------------------------------------------------
+// Custom title bar — window controls (decorations:false). The privileged
+// min/max/close/fullscreen calls live in the Rust backend; the frontend only
+// holds the drag permission. All wrappers are guarded by `is_tauri_shell()`
+// via `invoke_js`, so they degrade to an `Err` in the browser preview.
+// ---------------------------------------------------------------------------
+
+pub async fn window_minimize() -> Result<(), String> {
+    invoke_unit_js("window_minimize", JsValue::UNDEFINED).await
+}
+
+/// Toggles maximize/restore; returns the resulting `is_maximized` flag.
+pub async fn window_toggle_maximize() -> Result<bool, String> {
+    invoke_typed("window_toggle_maximize", serde_json::json!({})).await
+}
+
+pub async fn window_is_maximized() -> Result<bool, String> {
+    invoke_typed("window_is_maximized", serde_json::json!({})).await
+}
+
+pub async fn window_close() -> Result<(), String> {
+    invoke_unit_js("window_close", JsValue::UNDEFINED).await
+}
+
+/// Toggles fullscreen; returns the resulting `is_fullscreen` flag.
+pub async fn window_toggle_fullscreen() -> Result<bool, String> {
+    invoke_typed("window_toggle_fullscreen", serde_json::json!({})).await
+}
+
+#[allow(dead_code)]
+pub async fn window_is_fullscreen() -> Result<bool, String> {
+    invoke_typed("window_is_fullscreen", serde_json::json!({})).await
+}
+
 pub async fn clipboard_read_text() -> Result<String, String> {
     invoke_typed("clipboard_read_text", ()).await
 }

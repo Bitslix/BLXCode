@@ -152,7 +152,7 @@ collapse toggle lives in `sidebar.rs`; the right collapse toggle lives in
 
 - [x] `titlebar-config` - tauri.conf.json `decorations:false` + capabilities window perms (start-dragging, internal-toggle-maximize)
 - [x] `titlebar-window-cmds` - Backend `window_controls.rs` (minimize/toggle_maximize/is_maximized/close/toggle_fullscreen/is_fullscreen) registered in lib.rs
-- [ ] `titlebar-bridge` - tauri_bridge.rs JS wrappers for the window commands
+- [x] `titlebar-bridge` - tauri_bridge.rs JS wrappers for the window commands
 - [ ] `titlebar-shell` - `app_titlebar/mod.rs` AppTitleBar layout + drag region, mount at App root, CSS scaffold + index.html link
 - [ ] `titlebar-brand` - `brand.rs`: BLXCode logo + name + version badge
 - [ ] `titlebar-window-controls` - `window_controls.rs` UI: minimize/maximize-restore/close with reactive maximized state
