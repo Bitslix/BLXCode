@@ -2,7 +2,7 @@
 //!
 //! Renders enable/mode/quality/target/behaviour controls plus the whisper
 //! model manager (local mode). The hotkey itself is configured in
-//! Settings → Shortcuts, so this section only links there. All strings come
+//! Settings -> Shortcuts, so this section only links there. All strings come
 //! from i18n; all colours from theme tokens (`ptt_section.css`).
 
 use leptos::prelude::*;
@@ -26,7 +26,6 @@ where
 {
     let i18n = expect_context::<I18nService>();
 
-    // Persist a mutation of the `ptt` sub-object, then refresh the runtime cache.
     let patch = move |mutate: &dyn Fn(&mut crate::tauri_bridge::PttSettings)| {
         if let Some(mut cur) = settings.get_untracked() {
             mutate(&mut cur.ptt);
@@ -35,37 +34,36 @@ where
         }
     };
 
-    // Reactive accessors into the current ptt settings.
     let ptt = move || settings.get().map(|s| s.ptt);
     let enabled = move || ptt().map(|p| p.enabled).unwrap_or(false);
     let mode = move || ptt().map(|p| p.mode).unwrap_or(PttMode::Local);
 
     view! {
         <section class="ptt-section">
-            <h5 class="ptt-section__head">
-                {move || i18n.tr(I18nKey::VoicePttSection)()}
-            </h5>
-
-            // Enable
-            <label class="ptt-row ptt-row--switch">
-                <span class="ptt-row__label">{move || i18n.tr(I18nKey::VoicePttEnabled)()}</span>
-                <input
-                    type="checkbox"
-                    class="ptt-switch"
-                    prop:checked=enabled
-                    on:change=move |ev| {
-                        let v = event_target_checked(&ev);
-                        patch(&move |p| p.enabled = v);
-                    }
-                />
-            </label>
-
-            // Hotkey hint → Settings → Shortcuts
-            <p class="ptt-hint">{move || i18n.tr(I18nKey::VoicePttHotkeyHint)()}</p>
+            <header class="ptt-section__top">
+                <div class="ptt-section__copy">
+                    <h5 class="ptt-section__head">
+                        {move || i18n.tr(I18nKey::VoicePttSection)()}
+                    </h5>
+                    <p class="ptt-hint">{move || i18n.tr(I18nKey::VoicePttHotkeyHint)()}</p>
+                </div>
+                <label class="ptt-enable">
+                    <span class="ptt-row__label">{move || i18n.tr(I18nKey::VoicePttEnabled)()}</span>
+                    <input
+                        type="checkbox"
+                        class="ptt-switch"
+                        prop:checked=enabled
+                        on:change=move |ev| {
+                            let v = event_target_checked(&ev);
+                            patch(&move |p| p.enabled = v);
+                        }
+                    />
+                </label>
+            </header>
 
             <div class="ptt-body">
-                    // Mode
-                    <div class="ptt-row">
+                <div class="ptt-engine">
+                    <div class="ptt-row ptt-row--mode">
                         <span class="ptt-row__label">{move || i18n.tr(I18nKey::VoicePttMode)()}</span>
                         <div class="ptt-seg" role="group">
                             <button
@@ -87,70 +85,73 @@ where
                         </div>
                     </div>
 
-                    // Local: quality + model manager
                     <Show when=move || mode() == PttMode::Local>
-                        <div class="ptt-row">
-                            <span class="ptt-row__label">{move || i18n.tr(I18nKey::VoicePttQuality)()}</span>
-                            <QualitySeg ptt_quality=Signal::derive(move || {
-                                ptt().map(|p| p.local_quality).unwrap_or(WhisperQuality::Balanced)
-                            }) on_pick=move |q| patch(&move |p| p.local_quality = q) />
-                        </div>
-                        <ModelManager
-                            selected=Signal::derive(move || {
-                                ptt().and_then(|p| p.local_model_path)
-                            })
-                            on_use=move |id: String| {
-                                patch(&move |p| p.local_model_path = Some(id.clone()));
-                            }
-                        />
-                    </Show>
-
-                    // Cloud: provider + model
-                    <Show when=move || mode() == PttMode::Cloud>
-                        <div class="ptt-row">
-                            <span class="ptt-row__label">{move || i18n.tr(I18nKey::VoicePttCloudProvider)()}</span>
-                            <select
-                                class="ptt-select"
-                                on:change=move |ev| {
-                                    let v = event_target_value(&ev);
-                                    let prov = if v == "openrouter" {
-                                        VoiceProviderKind::Openrouter
-                                    } else {
-                                        VoiceProviderKind::Openai
-                                    };
-                                    patch(&move |p| p.cloud_provider = prov);
-                                }
-                            >
-                                // AWS is intentionally absent: Polly is TTS-only.
-                                <option
-                                    value="openai"
-                                    selected=move || {
-                                        ptt().map(|p| p.cloud_provider == VoiceProviderKind::Openai).unwrap_or(true)
-                                    }
-                                >"OpenAI"</option>
-                                <option
-                                    value="openrouter"
-                                    selected=move || {
-                                        ptt().map(|p| p.cloud_provider == VoiceProviderKind::Openrouter).unwrap_or(false)
-                                    }
-                                >"OpenRouter"</option>
-                            </select>
-                        </div>
-                        <label class="ptt-row">
-                            <span class="ptt-row__label">{move || i18n.tr(I18nKey::VoicePttCloudModel)()}</span>
-                            <input
-                                type="text"
-                                class="ptt-input"
-                                prop:value=move || ptt().map(|p| p.cloud_model_id).unwrap_or_default()
-                                on:change=move |ev| {
-                                    let v = event_target_value(&ev);
-                                    patch(&move |p| p.cloud_model_id = v.clone());
+                        <div class="ptt-engine-panel">
+                            <div class="ptt-row">
+                                <span class="ptt-row__label">{move || i18n.tr(I18nKey::VoicePttQuality)()}</span>
+                                <QualitySeg
+                                    ptt_quality=Signal::derive(move || {
+                                        ptt().map(|p| p.local_quality).unwrap_or(WhisperQuality::Balanced)
+                                    })
+                                    on_pick=move |q| patch(&move |p| p.local_quality = q)
+                                />
+                            </div>
+                            <ModelManager
+                                selected=Signal::derive(move || ptt().and_then(|p| p.local_model_path))
+                                on_use=move |id: String| {
+                                    patch(&move |p| p.local_model_path = Some(id.clone()));
                                 }
                             />
-                        </label>
+                        </div>
                     </Show>
 
-                    // Insert target
+                    <Show when=move || mode() == PttMode::Cloud>
+                        <div class="ptt-engine-panel ptt-engine-panel--cloud">
+                            <div class="ptt-row">
+                                <span class="ptt-row__label">{move || i18n.tr(I18nKey::VoicePttCloudProvider)()}</span>
+                                <select
+                                    class="ptt-select"
+                                    on:change=move |ev| {
+                                        let v = event_target_value(&ev);
+                                        let prov = if v == "openrouter" {
+                                            VoiceProviderKind::Openrouter
+                                        } else {
+                                            VoiceProviderKind::Openai
+                                        };
+                                        patch(&move |p| p.cloud_provider = prov);
+                                    }
+                                >
+                                    <option
+                                        value="openai"
+                                        selected=move || ptt().map(|p| p.cloud_provider == VoiceProviderKind::Openai).unwrap_or(true)
+                                    >
+                                        "OpenAI"
+                                    </option>
+                                    <option
+                                        value="openrouter"
+                                        selected=move || ptt().map(|p| p.cloud_provider == VoiceProviderKind::Openrouter).unwrap_or(false)
+                                    >
+                                        "OpenRouter"
+                                    </option>
+                                </select>
+                            </div>
+                            <label class="ptt-row">
+                                <span class="ptt-row__label">{move || i18n.tr(I18nKey::VoicePttCloudModel)()}</span>
+                                <input
+                                    type="text"
+                                    class="ptt-input"
+                                    prop:value=move || ptt().map(|p| p.cloud_model_id).unwrap_or_default()
+                                    on:change=move |ev| {
+                                        let v = event_target_value(&ev);
+                                        patch(&move |p| p.cloud_model_id = v.clone());
+                                    }
+                                />
+                            </label>
+                        </div>
+                    </Show>
+                </div>
+
+                <div class="ptt-routing-grid">
                     <div class="ptt-row">
                         <span class="ptt-row__label">{move || i18n.tr(I18nKey::VoicePttInsertTarget)()}</span>
                         <select
@@ -173,7 +174,6 @@ where
                         </select>
                     </div>
 
-                    // Target mode
                     <div class="ptt-row">
                         <span class="ptt-row__label">{move || i18n.tr(I18nKey::VoicePttTargetMode)()}</span>
                         <div class="ptt-seg" role="group">
@@ -196,7 +196,6 @@ where
                         </div>
                     </div>
 
-                    // Auto-submit
                     <label class="ptt-row ptt-row--switch">
                         <span class="ptt-row__label">{move || i18n.tr(I18nKey::VoicePttAutoSubmit)()}</span>
                         <input
@@ -210,7 +209,6 @@ where
                         />
                     </label>
 
-                    // Partial transcript
                     <label class="ptt-row ptt-row--switch">
                         <span class="ptt-row__label">{move || i18n.tr(I18nKey::VoicePttPartialTranscript)()}</span>
                         <input
@@ -224,8 +222,7 @@ where
                         />
                     </label>
 
-                    // TTS collision
-                    <div class="ptt-row">
+                    <div class="ptt-row ptt-row--wide">
                         <span class="ptt-row__label">{move || i18n.tr(I18nKey::VoicePttTtsCollision)()}</span>
                         <div class="ptt-seg" role="group">
                             <CollisionBtn current=Signal::derive(move || ptt().map(|p| p.tts_collision)) want=TtsCollision::Stop key=I18nKey::VoicePttTtsStop on_pick=move || patch(&|p| p.tts_collision = TtsCollision::Stop) />
@@ -233,6 +230,7 @@ where
                             <CollisionBtn current=Signal::derive(move || ptt().map(|p| p.tts_collision)) want=TtsCollision::Block key=I18nKey::VoicePttTtsBlock on_pick=move || patch(&|p| p.tts_collision = TtsCollision::Block) />
                         </div>
                     </div>
+                </div>
             </div>
         </section>
     }

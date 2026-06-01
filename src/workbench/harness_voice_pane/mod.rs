@@ -438,6 +438,10 @@ pub fn AgentVoiceColumn() -> impl IntoView {
                                 </div>
                             </div>
 
+                            <ptt_section::PushToTalkSection
+                                settings=settings
+                                save=save
+                            />
                             <SpeechSection
                                 settings=settings
                                 voice_provider=voice_provider
@@ -459,10 +463,6 @@ pub fn AgentVoiceColumn() -> impl IntoView {
                                 voice_id=voice_id.clone()
                                 gender_filter=gender_filter
                                 tts_enabled=tts_enabled
-                                save=save
-                            />
-                            <ptt_section::PushToTalkSection
-                                settings=settings
                                 save=save
                             />
                         </div>

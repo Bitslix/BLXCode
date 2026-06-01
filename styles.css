@@ -1038,31 +1038,180 @@ body {
 
 .workbench-sidebar__footer {
   flex-shrink: 0;
-  padding: 0.35rem 0.5rem;
+  padding: 0.45rem 0.5rem;
   border-top: 1px solid var(--border);
-}
-
-.sidebar-app-brand {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.35rem 0.45rem;
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  user-select: none;
+  justify-content: center;
 }
 
-.sidebar-app-brand__name {
-  font-weight: 600;
+.sidebar-ptt-orb {
+  --sidebar-ptt-size: 2.05rem;
+  position: relative;
+  width: var(--sidebar-ptt-size);
+  height: var(--sidebar-ptt-size);
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
   color: var(--text);
-  letter-spacing: 0.02em;
+  background: transparent;
+  cursor: pointer;
+  isolation: isolate;
 }
 
-.sidebar-app-brand__version {
-  font-size: 0.72rem;
-  color: var(--text-faint);
-  font-variant-numeric: tabular-nums;
+.sidebar-ptt-orb::after {
+  content: "";
+  position: absolute;
+  inset: -0.38rem;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle at 50% 50%,
+      color-mix(in srgb, var(--accent) 24%, transparent) 0 18%,
+      transparent 48%);
+  opacity: 0.58;
+  filter: blur(0.2rem);
+  animation: sidebar-ptt-breathe 2.8s ease-in-out infinite;
+  z-index: -2;
+}
+
+.sidebar-ptt-orb__aura,
+.sidebar-ptt-orb__ring,
+.sidebar-ptt-orb__core,
+.sidebar-ptt-orb__wave {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.sidebar-ptt-orb__aura {
+  background:
+    conic-gradient(from 140deg,
+      color-mix(in srgb, var(--accent) 78%, transparent),
+      color-mix(in srgb, var(--accent-cool) 62%, transparent),
+      color-mix(in srgb, var(--success-text) 48%, transparent),
+      color-mix(in srgb, var(--accent) 78%, transparent));
+  opacity: 0.92;
+  animation: sidebar-ptt-spin 4.5s linear infinite;
+}
+
+.sidebar-ptt-orb__ring {
+  inset: 0.13rem;
+  background: var(--bg-panel);
+  box-shadow:
+    inset 0 0 0 1px var(--border-strong),
+    0 0 0 1px color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+.sidebar-ptt-orb__core {
+  inset: 0.39rem;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 36% 28%,
+      color-mix(in srgb, var(--text) 18%, transparent),
+      transparent 28%),
+    linear-gradient(145deg,
+      color-mix(in srgb, var(--accent) 32%, var(--bg-raised)),
+      color-mix(in srgb, var(--bg-panel) 80%, var(--accent-cool)));
+  color: var(--text);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent),
+    inset 0 -0.35rem 0.65rem color-mix(in srgb, var(--bg-app) 54%, transparent);
+}
+
+.sidebar-ptt-orb__wave {
+  inset: 0.28rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 52%, transparent);
+  opacity: 0;
+  transform: scale(0.8);
+}
+
+.sidebar-ptt-orb__wave--one {
+  animation: sidebar-ptt-wave 2.4s ease-out infinite;
+}
+
+.sidebar-ptt-orb__wave--two {
+  animation: sidebar-ptt-wave 2.4s ease-out infinite 1.2s;
+}
+
+.sidebar-ptt-orb:hover .sidebar-ptt-orb__ring,
+.sidebar-ptt-orb:focus-visible .sidebar-ptt-orb__ring {
+  box-shadow:
+    inset 0 0 0 1px var(--accent),
+    0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.sidebar-ptt-orb:focus-visible {
+  outline: 0;
+}
+
+.sidebar-ptt-orb--recording::after {
+  opacity: 0.92;
+  animation-duration: 1.05s;
+}
+
+.sidebar-ptt-orb--recording .sidebar-ptt-orb__aura {
+  animation-duration: 1.6s;
+}
+
+.sidebar-ptt-orb--recording .sidebar-ptt-orb__core {
+  color: var(--danger);
+  background:
+    radial-gradient(circle at 36% 28%,
+      color-mix(in srgb, var(--text) 22%, transparent),
+      transparent 28%),
+    linear-gradient(145deg,
+      color-mix(in srgb, var(--danger) 34%, var(--bg-raised)),
+      color-mix(in srgb, var(--accent) 24%, var(--bg-panel)));
+}
+
+.sidebar-ptt-orb--recording .sidebar-ptt-orb__wave {
+  border-color: color-mix(in srgb, var(--danger) 58%, transparent);
+  animation-duration: 1.15s;
+}
+
+.sidebar-ptt-orb--hint .sidebar-ptt-orb__aura {
+  opacity: 0.72;
+  filter: saturate(0.78);
+}
+
+@keyframes sidebar-ptt-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@keyframes sidebar-ptt-breathe {
+  0%, 100% {
+    transform: scale(0.82);
+    opacity: 0.42;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.76;
+  }
+}
+
+@keyframes sidebar-ptt-wave {
+  0% {
+    opacity: 0;
+    transform: scale(0.78);
+  }
+  16% {
+    opacity: 0.48;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.75);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-ptt-orb::after,
+  .sidebar-ptt-orb__aura,
+  .sidebar-ptt-orb__wave {
+    animation: none;
+  }
 }
 
 .workspace-context-menu {

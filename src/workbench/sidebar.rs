@@ -14,9 +14,10 @@ use crate::workbench::app_prefs::AppPrefsService;
 use crate::workbench::file_diff_section::FileDiffSection;
 use crate::workbench::git_graph::GitGraphSection;
 use crate::workbench::project_explorer::ProjectExplorerSection;
+use crate::workbench::ptt_runtime::PttBus;
 use crate::workbench::sidebar_resizer::SidebarResizer;
 use crate::workbench::sidebar_resizer::SidebarResizerClamp;
-use crate::workbench::state::{is_shell_workspace, HarnessUiService};
+use crate::workbench::state::{is_shell_workspace, HarnessSettingsCategory, HarnessUiService};
 use crate::workbench::terminal_slot_dnd::{
     is_terminal_drag, read_drag_payload, TerminalSlotDragService,
 };
@@ -29,7 +30,6 @@ use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
 use web_sys::{DragEvent, HtmlInputElement};
 
-const APP_NAME: &str = "BLXCode";
 const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn workspace_icon_label(title: &str, fallback_num: u64) -> String {
@@ -783,10 +783,7 @@ pub fn Sidebar() -> impl IntoView {
             </Show>
 
             <div class="workbench-sidebar__footer">
-                <div class="sidebar-app-brand" aria-label=APP_NAME>
-                    <span class="sidebar-app-brand__name">{APP_NAME}</span>
-                    <span class="sidebar-app-brand__version">{format!("v{APP_VERSION}")}</span>
-                </div>
+                <SidebarPttOrb ui=ui wb=wb />
             </div>
             <Show when=move || context_menu.get().is_some()>
                 {move || {
@@ -974,6 +971,45 @@ pub fn Sidebar() -> impl IntoView {
                 }}
             </Show>
         </aside>
+    }
+}
+
+#[component]
+fn SidebarPttOrb(ui: HarnessUiService, wb: WorkbenchService) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let ptt = expect_context::<PttBus>();
+
+    let state_label = move || {
+        if ptt.recording.get() {
+            i18n.tr(I18nKey::VoicePttRecording)().to_string()
+        } else if ptt.hint.get().is_some() {
+            ptt.hint.get().unwrap_or_default()
+        } else {
+            i18n.tr(I18nKey::VoicePttSection)().to_string()
+        }
+    };
+
+    view! {
+        <button
+            type="button"
+            class="sidebar-ptt-orb"
+            class:sidebar-ptt-orb--recording=move || ptt.recording.get()
+            class:sidebar-ptt-orb--hint=move || ptt.hint.get().is_some() && !ptt.recording.get()
+            aria-label=move || format!("{} · Settings · v{}", state_label(), APP_VERSION)
+            title=move || format!("{} · v{}", state_label(), APP_VERSION)
+            on:click=move |_| {
+                ui.settings_category().set(HarnessSettingsCategory::Voice);
+                wb.open_center_settings_tab(HarnessSettingsCategory::Voice);
+            }
+        >
+            <span class="sidebar-ptt-orb__aura" aria-hidden="true"></span>
+            <span class="sidebar-ptt-orb__ring" aria-hidden="true"></span>
+            <span class="sidebar-ptt-orb__core" aria-hidden="true">
+                <LxIcon icon=icondata::LuMic width="0.88rem" height="0.88rem" />
+            </span>
+            <span class="sidebar-ptt-orb__wave sidebar-ptt-orb__wave--one" aria-hidden="true"></span>
+            <span class="sidebar-ptt-orb__wave sidebar-ptt-orb__wave--two" aria-hidden="true"></span>
+        </button>
     }
 }
 
