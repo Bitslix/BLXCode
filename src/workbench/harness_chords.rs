@@ -141,7 +141,9 @@ fn handle_shortcut_keydown(
         }
         if let Some(action) = cfg.chord_match(ke) {
             ke.prevent_default();
-            dispatch_shortcut_action(action.to_harness_action(), ui, wb, embed);
+            if let Some(harness) = action.to_harness_action() {
+                dispatch_shortcut_action(harness, ui, wb, embed);
+            }
             return true;
         }
         return false;
@@ -157,7 +159,9 @@ fn handle_shortcut_keydown(
     // Direct combo bindings (classic style).
     if let Some(action) = cfg.combo_match(ke) {
         ke.prevent_default();
-        dispatch_shortcut_action(action.to_harness_action(), ui, wb, embed);
+        if let Some(harness) = action.to_harness_action() {
+            dispatch_shortcut_action(harness, ui, wb, embed);
+        }
         return true;
     }
 

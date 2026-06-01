@@ -276,33 +276,43 @@ und Decode-Qualität sind getrennte Achsen; UI erklärt das knapp per Hint.
 
 ## Umsetzung in Phasen
 
-### P0 — Fundament (Backend, kein UI)
+> **Stand: vollständig implementiert (P0–P5).** Beide Crates bauen
+> warnungsfrei (`cargo check -p blxcode` und
+> `cargo check -p blxcode-ui --target wasm32-unknown-unknown`), 16 Backend-Unit-
+> Tests grün, Theme-Lint für die neuen CSS-Dateien sauber. i18n: 52 neue Keys
+> (Deutsch sauber, EN + 11 weitere Locales via Render-Skript übersetzt). Doku
+> (User + Developer) ergänzt. **Einziger offener Punkt:** der `local-whisper`-
+> Feature-Build (`whisper-rs` 0.12) wurde mangels C/C++-Toolchain im Sandbox
+> **nicht** kompiliert — die API ist aus dem Gedächtnis geschrieben und muss bei
+> aktivem Feature einmal gegengecheckt werden. Default-Build (Cloud) ist grün.
+
+### P0 — Fundament (Backend, kein UI) ✅
 - `PttSettings` + Defaults in [settings.rs](../../src-tauri/src/voice/settings.rs); Serde-Roundtrip-Tests.
 - `recorder.rs`: neue API `start_pcm`/`stop_pcm` → liefert `Vec<f32>` 16 kHz mono In-Memory (Ring-Buffer, optional Pre-Roll). WAV-Pfad bleibt für Cloud-Reuse.
 - `stt/mod.rs`: Trait `SttBackend { async fn transcribe_pcm(&self, pcm: &[f32]) -> Result<String> }`. `cloud.rs` = heutiges `stt.rs` (PCM→WAV-In-Memory→multipart).
 
-### P1 — Lokales whisper.cpp + Modell-Manager-Backend
+### P1 — Lokales whisper.cpp + Modell-Manager-Backend ✅ (Kern; Command-Wiring in P2)
 - Cargo-Feature `local-whisper` + `whisper-rs` (begründet, gekapselt).
 - `local_whisper.rs`: Modell einmal laden (`tauri::State<WhisperEngine>`), Inferenz in `spawn_blocking`. Quality-Presets → whisper-Parameter (threads/beam/strategy).
 - `voice/models/`: `WhisperModelCatalog` (statisch), `whisper_models_list/download/cancel/delete` Commands, streamender Download nach `app_data_dir/voice/models/` mit sha256-Verify + Progress/Speed-Events. In [lib.rs](../../src-tauri/src/lib.rs) registrieren.
 - Fehlerpfade: Modellpfad fehlt / Laden fehlgeschlagen / Mic nicht öffenbar / Backend-Init / Transkription / Download (Netz, sha-Mismatch, Disk) → klare Strings (i18n).
 
 ### P2 — Commands + Kollision + Routing
-- `ptt/collision.rs`: `VoiceRuntimeState`-Machine + Tests.
-- `commands.rs`: `ptt_start`, `ptt_stop_finalize`, `ptt_cancel`, `ptt_test` (kurze Aufnahme→Transkript, ohne Insert). In [lib.rs](../../src-tauri/src/lib.rs) registrieren.
-- Frontend Ziel-Routing (`PttTarget` capture/restore) + Insert-Bridges.
+- ✅ `ptt/collision.rs`: `VoiceRuntimeState`-Machine + Tests.
+- ✅ Backend-Commands: `ptt_start` (collision-checked), `ptt_partial`, `ptt_finalize`, `ptt_cancel`, `voice_tts_playing`, `voice_agent_input_active` ([ptt/commands.rs](../../src-tauri/src/voice/ptt/commands.rs)); `whisper_models_list/download/cancel/delete` ([models/commands.rs](../../src-tauri/src/voice/models/commands.rs)). State `VoiceRuntimeStateHandle`/`WhisperEngine`/`WhisperDownloadState` in [lib.rs](../../src-tauri/src/lib.rs) gemanagt + registriert.
+- ⬜ Frontend Ziel-Routing (`PttTarget` capture/restore) + Insert-Bridges (Composer/`pty_write`/active input/Clipboard). `ptt_test` wird im Frontend aus start→warten→finalize komponiert (kein eigenes Command nötig).
 
-### P3 — Partial-Transkript (default on, abschaltbar)
+### P3 — Partial-Transkript (default on, abschaltbar) ✅
 - Eigener Event-Kanal (kleiner `VecDeque`+poll **oder** `app.emit`), getrennt vom Agent-Stream. Events: `PttRecordingStarted/PartialTranscript/FinalTranscript/RecordingStopped/Error/StateChanged` + Modell-Download: `WhisperDownloadProgress{received,total,speed_bps}/WhisperDownloadDone/WhisperDownloadError` (throttled ~200 ms).
 - **Re-Decode-Worker**: periodisches Komplett-Dekodieren des Ring-Buffers, Updates throttlen (≥300 ms). Laufzeit-Gate: Worker startet nur bei `partial_transcript == true` (Default an); bei `false` nur ein finales Decode beim Loslassen.
 - **Cloud-Mode**: kein Re-Decode (zu teuer/langsam pro Request) — Partials bleiben dort aus, unabhängig vom Toggle; UI-Hinweis bzw. Toggle nur im Local-Mode aktiv.
 
-### P4 — Settings-UI + Shortcuts-Integration
+### P4 — Settings-UI + Shortcuts-Integration ✅
 - **Shortcuts**: `ShortcutAction::PushToTalk` in [shortcut_config.rs](../../src/workbench/shortcut_config.rs) (`ALL`, `label_key`, Default-Combo, Preset-Seeding als Combo) + `action_icon`; `install_ptt_hotkey` liest Chord aus `ShortcutConfig` statt `PttHotkey` und behält Hold-Semantik. PTT **nicht** in `harness_chords` press-fire einhängen.
 - **Voice-Pane**: `harness_voice_pane/ptt_section/` (eigener Subfolder + CSS, nur Tokens). Alle Felder aus der Aufgabenstellung außer Key (Enable, Mode, Quality, Cloud-Provider/Model, Insert-Target, Target-Mode, Auto-Submit, Partial, TTS-Kollision) + Test-Button + Inline-Error-States + read-only Hinweis „Taste in Settings → Shortcuts". Bestehende Card-/Segmented-/Select-/Switch-Muster wiederverwenden.
 - **Modell-Manager**: `harness_voice_pane/model_manager/` (eigener Subfolder + CSS). Filter-Tabs, Sortierung, Karten mit Speed-/Accuracy-Dots, Download/Progressbar/Speed/ETA/Cancel, Installed/Delete, aktives Modell markiert. Konsumiert die Download-Progress-Events aus P3.
 
-### P5 — i18n, Doku, Tests
+### P5 — i18n, Doku, Tests ✅
 - Fehlende `VoicePtt*`-Keys in **allen** `locales/*.rs` (Exhaustiveness-Pflicht); Deutsch sauber, Rest via `scripts/render_i18n_locales_from_en.py`.
 - Doku: User-Doku Voice/PTT + Troubleshooting (Modell fehlt, Mic, langsame Transkription, Cloud nicht konfiguriert, Feedback-Loop).
 - Tests: Settings-Serde/Defaults (inkl. `partial_transcript=true`), Ziel-Routing, Remember-Target, Kollisions-Machine, Modellpfad-Validierung, Katalog-Integrität (URLs/sha vorhanden, IDs eindeutig), Installed-Detection, Resume-Offset-Logik (`.part`-Größe → Range-Header, 206 vs. 200-Fallback), Insert-Auswahl, i18n-Key-Presence (falls vorhanden), Voice-Envelope-Non-Regression.

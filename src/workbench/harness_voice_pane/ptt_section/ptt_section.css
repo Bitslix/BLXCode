@@ -1,0 +1,89 @@
+/* Push-to-talk settings section. Colour tokens only. */
+
+.ptt-section {
+    margin-top: 0.9rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.ptt-section__head {
+    margin: 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.ptt-hint {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.ptt-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.ptt-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.ptt-row__label {
+    font-size: 0.82rem;
+    color: var(--text);
+}
+
+.ptt-row--switch {
+    cursor: pointer;
+}
+
+.ptt-seg {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 0.45rem;
+    overflow: hidden;
+}
+
+.ptt-seg__btn {
+    appearance: none;
+    border: 0;
+    background: var(--bg-panel);
+    color: var(--text-muted);
+    padding: 0.28rem 0.6rem;
+    font-size: 0.78rem;
+    cursor: pointer;
+}
+
+.ptt-seg__btn + .ptt-seg__btn {
+    border-left: 1px solid var(--border);
+}
+
+.ptt-seg__btn--on {
+    background: var(--accent);
+    color: var(--bg-app);
+}
+
+.ptt-select,
+.ptt-input {
+    background: var(--bg-panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 0.4rem;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.8rem;
+    min-width: 12rem;
+}
+
+.ptt-switch {
+    accent-color: var(--accent);
+}

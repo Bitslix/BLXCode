@@ -781,7 +781,9 @@ fn ShortcutActionRow(icon: icondata::Icon, action: ShortcutAction) -> impl IntoV
                 type="button"
                 class="workbench-shortcut-row workbench-shortcut-row--action"
                 on:click=move |_| {
-                    dispatch_shortcut_action(action.to_harness_action(), ui, wb, embed)
+                    if let Some(harness) = action.to_harness_action() {
+                        dispatch_shortcut_action(harness, ui, wb, embed);
+                    }
                 }
             >
                 <span class="workbench-shortcut-row__lead">

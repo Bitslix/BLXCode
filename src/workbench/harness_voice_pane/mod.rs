@@ -1,6 +1,9 @@
 //! Voice settings tab: STT/TTS provider+model, voice with gender filter,
 //! recording quality, post-STT behaviour. STT language + PTT live under App.
 
+mod model_manager;
+mod ptt_section;
+
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
@@ -456,6 +459,10 @@ pub fn AgentVoiceColumn() -> impl IntoView {
                                 voice_id=voice_id.clone()
                                 gender_filter=gender_filter
                                 tts_enabled=tts_enabled
+                                save=save
+                            />
+                            <ptt_section::PushToTalkSection
+                                settings=settings
                                 save=save
                             />
                         </div>

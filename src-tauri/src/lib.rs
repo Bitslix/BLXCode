@@ -52,8 +52,11 @@ use updater::{
     updater_poll_progress, BlxUpdaterState,
 };
 use voice::{
-    voice_cancel_recording, voice_settings_get, voice_settings_save, voice_start_recording,
-    voice_stop_and_transcribe, voice_tts_preview, VoiceRecorderState,
+    ptt_cancel, ptt_finalize, ptt_partial, ptt_start, voice_cancel_recording, voice_settings_get,
+    voice_settings_save, voice_start_recording, voice_stop_and_transcribe, voice_tts_preview,
+    voice_agent_input_active, voice_tts_playing, whisper_model_cancel, whisper_model_delete,
+    whisper_model_download, whisper_models_list, VoiceRecorderState, VoiceRuntimeStateHandle,
+    WhisperDownloadState, WhisperEngine,
 };
 use workbench_state::{
     agent_latest_session_id, agent_session_exists, workbench_clear_terminal_notifications,
@@ -139,6 +142,9 @@ pub fn run() {
         .manage(PtyManager::default())
         .manage(ssh_exec::RemoteExecManager::default())
         .manage(VoiceRecorderState::new())
+        .manage(std::sync::Arc::new(VoiceRuntimeStateHandle::new()))
+        .manage(std::sync::Arc::new(WhisperEngine::new()))
+        .manage(std::sync::Arc::new(WhisperDownloadState::new()))
         .manage(WorkbenchSessionsFileLock::default())
         .invoke_handler(tauri::generate_handler![
             open_external_url,
@@ -293,6 +299,16 @@ pub fn run() {
             voice_settings_get,
             voice_settings_save,
             voice_tts_preview,
+            ptt_start,
+            ptt_partial,
+            ptt_finalize,
+            ptt_cancel,
+            voice_tts_playing,
+            voice_agent_input_active,
+            whisper_models_list,
+            whisper_model_download,
+            whisper_model_cancel,
+            whisper_model_delete,
             image_settings_get,
             image_settings_save,
             agent_web_settings_get,

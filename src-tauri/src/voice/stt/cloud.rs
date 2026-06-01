@@ -1,4 +1,7 @@
-//! Speech-to-text against OpenAI / OpenRouter audio transcription endpoints.
+//! Cloud speech-to-text against OpenAI / OpenRouter audio transcription
+//! endpoints. Carries the original file-based `transcribe_wav` (reused by the
+//! existing voice-orb flow) plus an in-memory `transcribe_pcm` for push-to-talk
+//! that never touches disk.
 //!
 //! Wire format:
 //! ```text
@@ -15,16 +18,17 @@ use reqwest::multipart::{Form, Part};
 use std::path::Path;
 use std::time::Duration;
 
-use super::settings::VoiceProviderKind;
+use crate::voice::settings::VoiceProviderKind;
 
 fn base_url(provider: VoiceProviderKind) -> &'static str {
     match provider {
         VoiceProviderKind::Openai => "https://api.openai.com/v1",
         VoiceProviderKind::Openrouter => "https://openrouter.ai/api/v1",
-        VoiceProviderKind::Aws => unreachable!("handled above"),
+        VoiceProviderKind::Aws => unreachable!("AWS is TTS-only; rejected before this point"),
     }
 }
 
+/// Transcribe a WAV file on disk (existing voice-orb path).
 pub async fn transcribe_wav(
     provider: VoiceProviderKind,
     model: &str,
@@ -35,7 +39,7 @@ pub async fn transcribe_wav(
     if provider == VoiceProviderKind::Aws {
         let _ = (model, api_key, wav_path, language);
         return Err(
-            "AWS Transcribe STT ist in den Einstellungen wählbar; die Laufzeit-Anbindung folgt."
+            "AWS Polly ist ein TTS-Dienst und kann nicht zur Transkription verwendet werden."
                 .into(),
         );
     }
@@ -46,7 +50,37 @@ pub async fn transcribe_wav(
         .file_name()
         .map(|s| s.to_string_lossy().to_string())
         .unwrap_or_else(|| "audio.wav".into());
+    post_transcription(provider, model, api_key, bytes, file_name, language).await
+}
 
+/// Transcribe an in-memory mono f32 PCM buffer at `sample_rate` Hz. The buffer
+/// is encoded to a WAV blob in memory (no temp file) and posted.
+pub async fn transcribe_pcm(
+    provider: VoiceProviderKind,
+    model: &str,
+    api_key: &str,
+    pcm: &[f32],
+    sample_rate: u32,
+    language: Option<&str>,
+) -> Result<String, String> {
+    if provider == VoiceProviderKind::Aws {
+        return Err(
+            "AWS Polly ist ein TTS-Dienst und kann nicht zur Transkription verwendet werden."
+                .into(),
+        );
+    }
+    let wav = super::pcm_to_wav_bytes(pcm, sample_rate)?;
+    post_transcription(provider, model, api_key, wav, "audio.wav".into(), language).await
+}
+
+async fn post_transcription(
+    provider: VoiceProviderKind,
+    model: &str,
+    api_key: &str,
+    bytes: Vec<u8>,
+    file_name: String,
+    language: Option<&str>,
+) -> Result<String, String> {
     let part = Part::bytes(bytes)
         .file_name(file_name)
         .mime_str("audio/wav")
@@ -79,8 +113,7 @@ pub async fn transcribe_wav(
         return Err(format!("stt {status}: {body}"));
     }
 
-    // response_format=text returns plain text. Some providers still wrap in JSON;
-    // try JSON first for robustness, fall back to raw text.
+    // response_format=text returns plain text; some providers still wrap in JSON.
     if let Ok(v) = serde_json::from_str::<serde_json::Value>(&body) {
         if let Some(s) = v.get("text").and_then(|t| t.as_str()) {
             return Ok(s.trim().to_string());

@@ -32,6 +32,7 @@ fn action_icon(action: ShortcutAction) -> icondata::Icon {
         ShortcutAction::Memory => icondata::LuLayers,
         ShortcutAction::Terminal => icondata::LuTerminal,
         ShortcutAction::CommandPalette => icondata::LuCommand,
+        ShortcutAction::PushToTalk => icondata::LuMic,
     }
 }
 

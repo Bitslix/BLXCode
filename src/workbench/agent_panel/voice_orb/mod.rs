@@ -364,6 +364,10 @@ fn build_locale_hint(settings: Option<&VoiceSettings>, i18n: &I18nService) -> Op
 /// Window-level keyboard listener for the configured PTT hotkey. Registers
 /// listeners on `window` and tears them down via `on_cleanup` when the
 /// caller's reactive scope is dropped.
+///
+/// Legacy: superseded by `workbench::ptt_runtime`, which reads the key from
+/// Settings → Shortcuts and routes to all targets. Retained for reference.
+#[allow(dead_code)]
 pub fn install_ptt_hotkey(
     handle: VoiceOrbHandle,
     i18n: I18nService,

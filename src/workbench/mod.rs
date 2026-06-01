@@ -32,6 +32,7 @@ mod plans_panel;
 pub(crate) mod pointer_agents;
 mod post_update_notes;
 mod project_explorer;
+mod ptt_runtime;
 mod remote_settings_pane;
 mod right_panel;
 mod shortcut_config;
@@ -177,6 +178,9 @@ pub fn WorkbenchShell() -> impl IntoView {
     provide_context(post_update_notes);
     provide_context(slot_dnd);
     provide_context(git_sync);
+
+    let ptt_bus = ptt_runtime::PttBus::default();
+    provide_context(ptt_bus);
 
     // Hydrate from persisted snapshot before auto-save kicks in.
     let hydrated = RwSignal::new(false);
@@ -451,6 +455,11 @@ pub fn WorkbenchShell() -> impl IntoView {
     });
 
     let i18n = expect_context::<I18nService>();
+
+    // Push-to-talk: cache settings + install the window-level hold handler.
+    ptt_runtime::refresh_ptt_settings_cache();
+    ptt_runtime::install_ptt_runtime(app_prefs, wb, i18n, ptt_bus);
+
     let sidebar_resizing = RwSignal::new(false);
     let sidebar_drag_anchor_x = RwSignal::new(0.0_f64);
     let sidebar_drag_anchor_w = RwSignal::new(0.0_f64);
@@ -512,6 +521,7 @@ pub fn WorkbenchShell() -> impl IntoView {
             fallback=|| view! { <BootLoadingScreen phase=BootPhase::RestoringWorkspace/> }
         >
             <main class="container app-shell workbench-root">
+                <ptt_runtime::PttIndicator/>
                 <div
                     class=move || {
                         let mut c = String::from("workbench-left-slot");

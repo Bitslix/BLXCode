@@ -124,3 +124,46 @@ Voice currently depends on:
 - `uuid` for recording turn IDs.
 - `reqwest` multipart support for STT uploads.
 
+
+## Push-to-Talk subsystem
+
+Push-to-talk (PTT) extends the voice subsystem with a local `whisper.cpp`
+backend, a model manager, target routing, and a collision state machine.
+
+### Backend (`src-tauri/src/voice/`)
+
+| Path | Responsibility |
+|---|---|
+| `settings.rs` | `PttSettings` under `voice.ptt` (mode, model path, quality, target, collision, …); `#[serde(default)]` everywhere so old envelopes load. |
+| `recorder.rs` | Adds an in-memory PCM path (`start_pcm`/`snapshot_pcm`/`stop_pcm`/`cancel_pcm`) — no WAV on disk for PTT. |
+| `stt/mod.rs` | `pcm_to_wav_bytes` helper + re-exports. |
+| `stt/cloud.rs` | Cloud transcription (`transcribe_wav` reused; `transcribe_pcm` for PTT). |
+| `stt/local_whisper.rs` | `WhisperEngine`: warm model held in Tauri state; inference via `spawn_blocking`. Gated behind the `local-whisper` cargo feature (stub otherwise). |
+| `ptt/collision.rs` | `VoiceRuntimeState` + `decide_ptt_start` (Stop/Pause/Block). |
+| `ptt/mod.rs` | `VoiceRuntimeStateHandle` (process-wide arbitration state). |
+| `ptt/commands.rs` | `ptt_start` / `ptt_partial` / `ptt_finalize` / `ptt_cancel`, plus `voice_tts_playing` / `voice_agent_input_active` frontend signals. |
+| `models/catalog.rs` | Static `WhisperModelCatalog` (HF GGML URLs, ratings, families). |
+| `models/mod.rs` | `WhisperDownloadState`, `list`, `delete`, resumable `download` (HTTP Range, sha256 verify, throttled progress callback). |
+| `models/commands.rs` | `whisper_models_list/download/cancel/delete`; download emits `whisper_download_progress/done/error` Tauri events. |
+
+`lib.rs` manages `VoiceRuntimeStateHandle`, `WhisperEngine`, and
+`WhisperDownloadState` as `Arc` state and registers all PTT/model commands.
+
+### Frontend
+
+| Path | Responsibility |
+|---|---|
+| `src/workbench/ptt_runtime/` | Window-level hold handler (`install_ptt_runtime`), `PttBus` context, and the `PttIndicator` overlay. Reads the bound key from `ShortcutConfig::ptt_chord()`, routes the transcript to the target, and polls `ptt_partial` for live text. |
+| `src/workbench/harness_voice_pane/ptt_section/` | The PTT settings section. |
+| `src/workbench/harness_voice_pane/model_manager/` | The model manager UI (filters, cards, download progress, resume/delete/use). |
+| `src/workbench/shortcut_config.rs` | `ShortcutAction::PushToTalk` (always a `Combo`, excluded from press-fire dispatch; `to_harness_action` returns `Option`). |
+
+The agent composer receives Agent-target transcripts via the `PttBus` context
+(no DOM `CustomEvent` plumbing). The hotkey is window-level; a true OS-global
+shortcut would require `tauri-plugin-global-shortcut` (not in scope).
+
+### Build feature
+
+`local-whisper` (in `src-tauri/Cargo.toml`) pulls `whisper-rs` and a native
+C/C++ toolchain. Default builds omit it and support cloud PTT only; the local
+engine compiles to a stub returning a clear "not available" error.

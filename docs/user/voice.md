@@ -131,3 +131,83 @@ During recording, BLXCode writes a temporary WAV file under the app cache direct
 ```
 
 After transcription finishes, BLXCode deletes the WAV file. Cancelled recordings are also removed. The audio is still sent to the selected remote STT provider for transcription, so use a provider and model whose data policy fits your workflow.
+
+## Push-to-Talk (PTT)
+
+Push-to-Talk lets you hold a key, speak, and drop the transcript into a target
+of your choice. It runs **local-first** with a warm `whisper.cpp` model, with an
+optional cloud mode that reuses the existing STT providers.
+
+### Enabling
+
+1. Open **Settings → Voice** and turn on **Push-to-Talk**.
+2. Choose **STT mode**:
+   - **Local (whisper.cpp)** — on-device, private, no network. Pick a model in
+     the model manager (see below) and a decode quality (Fast / Balanced / Best).
+   - **Cloud** — uses OpenAI or OpenRouter transcription. (AWS Polly is **not**
+     offered here — it is a text-to-speech service and cannot transcribe.)
+3. Set the **insert target** and **target mode**, and optionally **auto-submit**
+   and **live partial transcript**.
+
+### Setting the hotkey
+
+The PTT key is configured like every other shortcut, under
+**Settings → Shortcuts → Push-to-Talk** (rebind / reset / conflict warning).
+The default is **Ctrl+Shift+Space**. It is a *hold* key: recording starts on
+key-down and finalizes on key-up. The hotkey is active while the BLXCode window
+is focused.
+
+### Targets
+
+| Target | Behaviour |
+|---|---|
+| Agent composer | Inserts into the agent input; can auto-submit. |
+| Active terminal | Writes into the focused terminal; auto-submit appends Enter. |
+| Active text input | Inserts at the focused `<input>`/`<textarea>`. |
+| Clipboard | Copies the transcript only. |
+
+**Target mode** decides whether the destination follows the current focus, or is
+**remembered at PTT start** (so a focus change while you speak is ignored).
+
+### Live partial transcript
+
+`whisper.cpp` has no native streaming, so live text is produced by periodically
+re-decoding the audio captured so far. This is on by default and can be turned
+off to save CPU. Partial transcript is only available in **local** mode.
+
+### Collision with TTS
+
+To avoid the microphone capturing the assistant's own voice, PTT checks whether
+TTS is currently playing. The **While TTS is playing** setting chooses:
+**Stop TTS**, **Pause TTS**, or **Block** push-to-talk (default).
+
+### Local model manager
+
+In local mode the model manager lists downloadable `whisper.cpp` models
+(`ggerganov/whisper.cpp` on Hugging Face) with:
+
+- filter tabs (All / Standard / Quantized / Turbo / Large),
+- size, language (multilingual / EN-only), and Speed / Accuracy ratings,
+- **Download** with a live progress bar, speed (MB/s) and **resumable** transfers
+  (a paused/interrupted download shows **Resume**),
+- **Installed** state with **Use** (select as the active model) and **Delete**.
+
+Models are stored under `<app-data>/voice/models/<id>.bin`. Local mode requires a
+downloaded Whisper-compatible model file.
+
+> Local whisper is compiled behind the `local-whisper` build feature. Builds
+> without that feature support cloud PTT only and report a clear error if a
+> local model is used.
+
+## Troubleshooting
+
+| Symptom | Cause / fix |
+|---|---|
+| "No local Whisper model selected." | Pick/Download a model in the model manager, then **Use** it. |
+| "Could not load Whisper model." | The model file is missing or corrupt — delete and re-download. |
+| "Microphone is already in use." | Another capture (agent voice orb) is active; release it first. |
+| "Push-to-talk blocked while TTS is playing." | Change **While TTS is playing** to Stop or Pause, or wait for playback to finish. |
+| Slow transcription | Use a smaller model (Tiny/Base/Q8) or a faster decode quality; large models need strong hardware. |
+| "Cloud transcription provider is not configured." | Add the provider API key under Settings → API Keys. |
+| TTS audio gets transcribed | Keep the default **Block** collision setting (prevents the feedback loop). |
+| First word cut off | Speak a beat after pressing; the recorder includes a small lead-in but very fast starts can clip. |

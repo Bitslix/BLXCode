@@ -3085,6 +3085,117 @@ pub struct TtsSettings {
     pub enabled: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PttMode {
+    Local,
+    Cloud,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WhisperQuality {
+    Fast,
+    Balanced,
+    Best,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PttInsertTarget {
+    Agent,
+    Terminal,
+    ActiveInput,
+    Clipboard,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PttTargetMode {
+    CurrentFocus,
+    RememberStart,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TtsCollision {
+    Stop,
+    Pause,
+    Block,
+}
+
+/// Mirror of the backend `PttSettings` (see `src-tauri/src/voice/settings.rs`).
+/// Every field carries `#[serde(default)]` so older envelopes load cleanly.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PttSettings {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "ptt_mode_default")]
+    pub mode: PttMode,
+    #[serde(default)]
+    pub local_model_path: Option<String>,
+    #[serde(default = "ptt_quality_default")]
+    pub local_quality: WhisperQuality,
+    #[serde(default = "ptt_provider_default")]
+    pub cloud_provider: VoiceProviderKind,
+    #[serde(default = "ptt_cloud_model_default")]
+    pub cloud_model_id: String,
+    #[serde(default = "ptt_insert_default")]
+    pub insert_target: PttInsertTarget,
+    #[serde(default = "ptt_target_mode_default")]
+    pub target_mode: PttTargetMode,
+    #[serde(default)]
+    pub auto_submit: bool,
+    #[serde(default = "ptt_true")]
+    pub partial_transcript: bool,
+    #[serde(default = "ptt_collision_default")]
+    pub tts_collision: TtsCollision,
+}
+
+fn ptt_mode_default() -> PttMode {
+    PttMode::Local
+}
+fn ptt_quality_default() -> WhisperQuality {
+    WhisperQuality::Balanced
+}
+fn ptt_provider_default() -> VoiceProviderKind {
+    VoiceProviderKind::Openai
+}
+fn ptt_cloud_model_default() -> String {
+    "gpt-4o-mini-transcribe".into()
+}
+fn ptt_insert_default() -> PttInsertTarget {
+    PttInsertTarget::Agent
+}
+fn ptt_target_mode_default() -> PttTargetMode {
+    PttTargetMode::CurrentFocus
+}
+fn ptt_collision_default() -> TtsCollision {
+    TtsCollision::Block
+}
+fn ptt_true() -> bool {
+    true
+}
+
+impl Default for PttSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            mode: ptt_mode_default(),
+            local_model_path: None,
+            local_quality: ptt_quality_default(),
+            cloud_provider: ptt_provider_default(),
+            cloud_model_id: ptt_cloud_model_default(),
+            insert_target: ptt_insert_default(),
+            target_mode: ptt_target_mode_default(),
+            auto_submit: false,
+            partial_transcript: true,
+            tts_collision: ptt_collision_default(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VoiceSettings {
@@ -3093,6 +3204,8 @@ pub struct VoiceSettings {
     pub post_stt_flow: PostSttFlow,
     pub stt_language: SttLanguageMode,
     pub ptt_hotkey: PttHotkey,
+    #[serde(default)]
+    pub ptt: PttSettings,
 }
 
 impl Default for VoiceSettings {
@@ -3119,6 +3232,7 @@ impl Default for VoiceSettings {
                 alt: false,
                 meta: false,
             },
+            ptt: PttSettings::default(),
         }
     }
 }
@@ -3236,6 +3350,171 @@ pub async fn voice_settings_save(patch: VoiceSettings) -> Result<VoiceSettings, 
         patch: VoiceSettings,
     }
     invoke_typed("voice_settings_save", Args { patch }).await
+}
+
+// ---------------------------------------------------------------------------
+// Push-to-talk + whisper model manager bridge
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PttStartResponse {
+    pub turn_id: Option<String>,
+    pub started: bool,
+    /// "start" | "stopTts" | "pauseTts" | "rejectBusy" | "rejectTtsPlaying"
+    pub decision: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ModelFamily {
+    Standard,
+    Quantized,
+    Turbo,
+    Large,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhisperModelView {
+    pub id: String,
+    pub label: String,
+    pub family: ModelFamily,
+    pub multilingual: bool,
+    pub size_bytes: u64,
+    pub speed_rating: u8,
+    pub accuracy_rating: u8,
+    pub best_for: String,
+    pub installed: bool,
+    pub installed_path: Option<String>,
+    pub partial_bytes: Option<u64>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhisperDownloadProgress {
+    pub id: String,
+    pub received: u64,
+    pub total: u64,
+    pub speed_bps: f64,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhisperDownloadDone {
+    pub id: String,
+    /// Final installed path (informational; the UI reloads the list instead).
+    #[allow(dead_code)]
+    pub path: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhisperDownloadError {
+    pub id: String,
+    pub message: String,
+}
+
+pub async fn ptt_start() -> Result<PttStartResponse, String> {
+    invoke_typed("ptt_start", serde_json::json!({})).await
+}
+
+pub async fn ptt_partial(
+    turn_id: String,
+    locale_hint: Option<String>,
+) -> Result<String, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        turn_id: String,
+        locale_hint: Option<String>,
+    }
+    invoke_typed("ptt_partial", Args { turn_id, locale_hint }).await
+}
+
+pub async fn ptt_finalize(
+    turn_id: String,
+    locale_hint: Option<String>,
+) -> Result<String, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        turn_id: String,
+        locale_hint: Option<String>,
+    }
+    invoke_typed("ptt_finalize", Args { turn_id, locale_hint }).await
+}
+
+pub async fn ptt_cancel(turn_id: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        turn_id: String,
+    }
+    invoke_unit_js("ptt_cancel", args_value(Args { turn_id })?).await
+}
+
+pub async fn voice_tts_playing(playing: bool) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        playing: bool,
+    }
+    invoke_unit_js("voice_tts_playing", args_value(Args { playing })?).await
+}
+
+#[allow(dead_code)]
+pub async fn voice_agent_input_active(active: bool) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        active: bool,
+    }
+    invoke_unit_js("voice_agent_input_active", args_value(Args { active })?).await
+}
+
+pub async fn whisper_models_list() -> Result<Vec<WhisperModelView>, String> {
+    invoke_typed("whisper_models_list", serde_json::json!({})).await
+}
+
+pub async fn whisper_model_download(id: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        id: String,
+    }
+    invoke_unit_js("whisper_model_download", args_value(Args { id })?).await
+}
+
+pub async fn whisper_model_cancel(id: String) -> Result<bool, String> {
+    #[derive(Serialize)]
+    struct Args {
+        id: String,
+    }
+    invoke_typed("whisper_model_cancel", Args { id }).await
+}
+
+pub async fn whisper_model_delete(id: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        id: String,
+    }
+    invoke_unit_js("whisper_model_delete", args_value(Args { id })?).await
+}
+
+pub fn listen_whisper_download_progress(
+    callback: impl FnMut(WhisperDownloadProgress) + 'static,
+) -> Option<TauriEventListener> {
+    listen_tauri_event::<WhisperDownloadProgress>("whisper_download_progress", callback)
+}
+
+pub fn listen_whisper_download_done(
+    callback: impl FnMut(WhisperDownloadDone) + 'static,
+) -> Option<TauriEventListener> {
+    listen_tauri_event::<WhisperDownloadDone>("whisper_download_done", callback)
+}
+
+pub fn listen_whisper_download_error(
+    callback: impl FnMut(WhisperDownloadError) + 'static,
+) -> Option<TauriEventListener> {
+    listen_tauri_event::<WhisperDownloadError>("whisper_download_error", callback)
 }
 
 pub async fn voice_tts_preview(

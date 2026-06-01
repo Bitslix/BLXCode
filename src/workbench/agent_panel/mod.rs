@@ -28,9 +28,7 @@ use crate::workbench::agent_panel::image_context::{
 use crate::workbench::agent_panel::reducer::apply_envelope;
 use crate::workbench::agent_panel::task_list::TaskSection;
 use crate::workbench::agent_panel::timeline::{ChatLineIndexColumn, TurnNodeView};
-use crate::workbench::agent_panel::voice_orb::{
-    handle_voice_event, install_ptt_hotkey, VoiceOrb, VoiceOrbHandle,
-};
+use crate::workbench::agent_panel::voice_orb::{handle_voice_event, VoiceOrb, VoiceOrbHandle};
 use crate::workbench::agent_timeline::TimelineDoc;
 use crate::workbench::terminal_slot_dnd::TerminalSlotDragService;
 use crate::workbench::WorkbenchService;
@@ -228,9 +226,22 @@ pub fn AgentPanelDock() -> impl IntoView {
     // via on_cleanup inside install_ptt_hotkey.
     if is_tauri_shell() {
         install_agent_image_intake(wb, drop_state, status_line);
-        install_ptt_hotkey(voice_handle, i18n, move |text: String, auto_send: bool| {
-            if auto_send {
-                draft.set(text);
+    }
+
+    // Push-to-talk transcripts targeting the agent composer arrive via the
+    // shared `PttBus` (the window-level handler lives in `ptt_runtime`). The
+    // mic-button click/hold path on the `VoiceOrb` is unaffected.
+    if let Some(bus) = use_context::<crate::workbench::ptt_runtime::PttBus>() {
+        Effect::new(move |_| {
+            let Some((text, auto_submit)) = bus.agent_transcript.get() else {
+                return;
+            };
+            bus.agent_transcript.set(None);
+            if text.trim().is_empty() {
+                return;
+            }
+            draft.set(text);
+            if auto_submit {
                 submit_turn(
                     wb,
                     i18n,
@@ -243,11 +254,8 @@ pub fn AgentPanelDock() -> impl IntoView {
                     tool_detail_open,
                     voice_handle,
                 );
-            } else {
-                draft.set(text);
-                if let Some(id) = wb.active_id().get_untracked() {
-                    wb.set_workspace_agent_compose_draft(id, draft.get_untracked());
-                }
+            } else if let Some(id) = wb.active_id().get_untracked() {
+                wb.set_workspace_agent_compose_draft(id, draft.get_untracked());
             }
         });
     }

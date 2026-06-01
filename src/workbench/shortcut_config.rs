@@ -69,6 +69,14 @@ impl KeyChord {
             && self.key == normalize_key(&ev.key())
     }
 
+    /// True when only the main key matches (modifiers ignored). Used for
+    /// hold-to-talk key-up, where the user may release modifiers before the
+    /// main key.
+    #[must_use]
+    pub fn matches_key_only(&self, ev: &KeyboardEvent) -> bool {
+        self.key == normalize_key(&ev.key())
+    }
+
     /// Display segments, e.g. `["Ctrl", "Shift", "N"]`.
     #[must_use]
     pub fn parts(&self) -> Vec<String> {
@@ -127,11 +135,16 @@ pub enum ShortcutAction {
     Memory,
     Terminal,
     CommandPalette,
+    /// Hold-to-talk microphone key. Unlike the others this fires on key *hold*
+    /// (down→up), not a single press, so it is excluded from the press-fire
+    /// matchers and handled by the push-to-talk runtime. It lives here only so
+    /// the user can rebind it in Settings → Shortcuts like any other key.
+    PushToTalk,
 }
 
 impl ShortcutAction {
     /// Stable iteration order (mirrors the welcome-screen layout).
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::QuickOpen,
         Self::FindFile,
         Self::SidePanel,
@@ -140,7 +153,15 @@ impl ShortcutAction {
         Self::Memory,
         Self::Terminal,
         Self::CommandPalette,
+        Self::PushToTalk,
     ];
+
+    /// True for actions handled by hold (not a single press). These never
+    /// participate in the press-fire chord/combo dispatch.
+    #[must_use]
+    pub fn is_hold(self) -> bool {
+        matches!(self, Self::PushToTalk)
+    }
 
     #[must_use]
     pub fn label_key(self) -> I18nKey {
@@ -153,12 +174,15 @@ impl ShortcutAction {
             Self::Memory => I18nKey::WsKwMemory,
             Self::Terminal => I18nKey::WsKwTerminal,
             Self::CommandPalette => I18nKey::WsKwCmdPalette,
+            Self::PushToTalk => I18nKey::WsKwPushToTalk,
         }
     }
 
+    /// The harness action triggered on a single press, if any. Hold actions
+    /// (push-to-talk) return `None` so they are never dispatched on press.
     #[must_use]
-    pub fn to_harness_action(self) -> HarnessShortcutAction {
-        match self {
+    pub fn to_harness_action(self) -> Option<HarnessShortcutAction> {
+        Some(match self {
             Self::QuickOpen => HarnessShortcutAction::OpenQuickOpen,
             Self::FindFile => HarnessShortcutAction::OpenFindFile,
             Self::SidePanel => HarnessShortcutAction::ToggleRightPanel,
@@ -167,7 +191,8 @@ impl ShortcutAction {
             Self::Memory => HarnessShortcutAction::RightTab(RightPanelTab::Memory),
             Self::Terminal => HarnessShortcutAction::OpenNewTerminal,
             Self::CommandPalette => HarnessShortcutAction::ToggleCommandPalette,
-        }
+            Self::PushToTalk => return None,
+        })
     }
 
     /// Default tmux second key.
@@ -182,6 +207,8 @@ impl ShortcutAction {
             Self::Memory => "m",
             Self::Terminal => "n",
             Self::CommandPalette => "p",
+            // PTT is always a direct combo, never a tmux chord; unused.
+            Self::PushToTalk => "Space",
         }
     }
 
@@ -198,6 +225,8 @@ impl ShortcutAction {
             Self::Memory => KeyChord::new(true, true, false, "m"),
             Self::Terminal => KeyChord::new(true, true, false, "n"),
             Self::CommandPalette => KeyChord::new(true, true, false, "p"),
+            // Ctrl+Shift+Space: a hold key that avoids the bare-Space conflict.
+            Self::PushToTalk => KeyChord::new(true, true, false, "Space"),
         }
     }
 }
@@ -228,11 +257,17 @@ impl ShortcutConfig {
         let bindings = ShortcutAction::ALL
             .into_iter()
             .map(|action| {
-                let binding = match mode {
-                    ShortcutMode::Tmux => Binding::Chord {
-                        second: action.default_second().to_owned(),
-                    },
-                    ShortcutMode::Legacy => Binding::Combo(action.default_combo()),
+                // Hold actions (push-to-talk) are always a direct combo,
+                // independent of the tmux/legacy preset.
+                let binding = if action.is_hold() {
+                    Binding::Combo(action.default_combo())
+                } else {
+                    match mode {
+                        ShortcutMode::Tmux => Binding::Chord {
+                            second: action.default_second().to_owned(),
+                        },
+                        ShortcutMode::Legacy => Binding::Combo(action.default_combo()),
+                    }
                 };
                 (action, binding)
             })
@@ -262,6 +297,7 @@ impl ShortcutConfig {
         let key = normalize_key(&ev.key());
         self.bindings
             .iter()
+            .filter(|(action, _)| !action.is_hold())
             .find_map(|(action, binding)| match binding {
                 Binding::Chord { second } if *second == key => Some(*action),
                 _ => None,
@@ -273,10 +309,21 @@ impl ShortcutConfig {
     pub fn combo_match(&self, ev: &KeyboardEvent) -> Option<ShortcutAction> {
         self.bindings
             .iter()
+            .filter(|(action, _)| !action.is_hold())
             .find_map(|(action, binding)| match binding {
                 Binding::Combo(chord) if chord.matches(ev) => Some(*action),
                 _ => None,
             })
+    }
+
+    /// The key combo currently bound to push-to-talk, if it is a direct combo
+    /// (it always is). Used by the push-to-talk runtime for hold matching.
+    #[must_use]
+    pub fn ptt_chord(&self) -> Option<KeyChord> {
+        match self.binding(ShortcutAction::PushToTalk) {
+            Binding::Combo(chord) => Some(chord),
+            Binding::Chord { .. } => None,
+        }
     }
 
     /// Actions that collide with `action`'s current binding (same combo, or
