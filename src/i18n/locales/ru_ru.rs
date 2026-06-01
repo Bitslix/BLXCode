@@ -133,6 +133,18 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TabRules => "Правила",
         I18nKey::TabSkills => "Навыки",
         I18nKey::TabPlans => "Планы",
+        I18nKey::TbNavigate => "Навигация",
+        I18nKey::TbNavNewTerminal => "Новый терминал",
+        I18nKey::TbFullscreenEnter => "Войти в полноэкранный режим",
+        I18nKey::TbFullscreenExit => "Выйти из полноэкранного режима",
+        I18nKey::TbNotifications => "Уведомления",
+        I18nKey::TbNotificationsEmptyTitle => "Уведомлений пока нет",
+        I18nKey::TbNotificationsEmptyBody => {
+            "Агенты будут публиковать сообщения здесь, когда закончат или им потребуется дополнительная информация."
+        }
+        I18nKey::TbWinMinimize => "Свернуть",
+        I18nKey::TbWinMaximize => "Максимизировать",
+        I18nKey::TbWinRestore => "Восстановить",
         I18nKey::PlansEmptyTitle => "Планы живут здесь",
         I18nKey::PlansEmptyLead => "Откройте рабочую область, чтобы просматривать и создавать планы.",
         I18nKey::PlansNewPlan => "Новый план",
@@ -549,9 +561,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteBrowseDirs => "Browse remote directories",
         I18nKey::RemoteSelectDir => "Select remote directory",
         I18nKey::RemoteDirUp => "Up",
-        I18nKey::RemoteDirSaveFirst => {
-            "Save this remote connection before browsing directories."
-        }
+        I18nKey::RemoteDirSaveFirst => "Save this remote connection before browsing directories.",
         I18nKey::RemoteResumeModel => "Возобновление сеанса",
         I18nKey::RemoteResumeTmux => "Постоянный (tmux)",
         I18nKey::RemoteResumeKeepalive => "Только поддержка активности",

@@ -138,6 +138,18 @@ pub enum I18nKey {
     TabRules,
     TabSkills,
 
+    // App title bar (custom decorations:false chrome)
+    TbNavigate,
+    TbNavNewTerminal,
+    TbFullscreenEnter,
+    TbFullscreenExit,
+    TbNotifications,
+    TbNotificationsEmptyTitle,
+    TbNotificationsEmptyBody,
+    TbWinMinimize,
+    TbWinMaximize,
+    TbWinRestore,
+
     // Plans panel
     PlansEmptyTitle,
     PlansEmptyLead,

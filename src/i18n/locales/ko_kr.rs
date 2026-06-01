@@ -131,6 +131,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TabRules => "규칙",
         I18nKey::TabSkills => "기술",
         I18nKey::TabPlans => "계획",
+        I18nKey::TbNavigate => "탐색",
+        I18nKey::TbNavNewTerminal => "새로운 터미널",
+        I18nKey::TbFullscreenEnter => "전체 화면으로 전환",
+        I18nKey::TbFullscreenExit => "전체 화면 종료",
+        I18nKey::TbNotifications => "알림",
+        I18nKey::TbNotificationsEmptyTitle => "아직 알림이 없습니다",
+        I18nKey::TbNotificationsEmptyBody => "상담원은 작업을 완료하거나 입력이 필요할 때 여기에 게시합니다.",
+        I18nKey::TbWinMinimize => "최소화",
+        I18nKey::TbWinMaximize => "최대화",
+        I18nKey::TbWinRestore => "복원하다",
         I18nKey::PlansEmptyTitle => "계획이 여기에 있습니다",
         I18nKey::PlansEmptyLead => "계획을 보고 만들려면 작업 공간을 엽니다.",
         I18nKey::PlansNewPlan => "새로운 계획",
@@ -537,9 +547,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteBrowseDirs => "Browse remote directories",
         I18nKey::RemoteSelectDir => "Select remote directory",
         I18nKey::RemoteDirUp => "Up",
-        I18nKey::RemoteDirSaveFirst => {
-            "Save this remote connection before browsing directories."
-        }
+        I18nKey::RemoteDirSaveFirst => "Save this remote connection before browsing directories.",
         I18nKey::RemoteResumeModel => "세션 재개",
         I18nKey::RemoteResumeTmux => "지속적(tmux)",
         I18nKey::RemoteResumeKeepalive => "Keepalive만 해당",

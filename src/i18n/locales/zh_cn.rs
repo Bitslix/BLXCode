@@ -131,6 +131,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TabRules => "规则",
         I18nKey::TabSkills => "技能",
         I18nKey::TabPlans => "计划",
+        I18nKey::TbNavigate => "导航",
+        I18nKey::TbNavNewTerminal => "新航站楼",
+        I18nKey::TbFullscreenEnter => "进入全屏",
+        I18nKey::TbFullscreenExit => "退出全屏",
+        I18nKey::TbNotifications => "通知",
+        I18nKey::TbNotificationsEmptyTitle => "还没有通知",
+        I18nKey::TbNotificationsEmptyBody => "代理完成或需要输入时将在此处发布。",
+        I18nKey::TbWinMinimize => "最小化",
+        I18nKey::TbWinMaximize => "最大化",
+        I18nKey::TbWinRestore => "恢复",
         I18nKey::PlansEmptyTitle => "计划住在这里",
         I18nKey::PlansEmptyLead => "打开工作区以查看和创建计划。",
         I18nKey::PlansNewPlan => "新计划",
@@ -535,9 +545,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteBrowseDirs => "Browse remote directories",
         I18nKey::RemoteSelectDir => "Select remote directory",
         I18nKey::RemoteDirUp => "Up",
-        I18nKey::RemoteDirSaveFirst => {
-            "Save this remote connection before browsing directories."
-        }
+        I18nKey::RemoteDirSaveFirst => "Save this remote connection before browsing directories.",
         I18nKey::RemoteResumeModel => "会议恢复",
         I18nKey::RemoteResumeTmux => "持久 (tmux)",
         I18nKey::RemoteResumeKeepalive => "仅保持活动状态",

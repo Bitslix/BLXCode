@@ -135,6 +135,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TabRules => "Règles",
         I18nKey::TabSkills => "Compétences",
         I18nKey::TabPlans => "Forfaits",
+        I18nKey::TbNavigate => "Naviguer",
+        I18nKey::TbNavNewTerminal => "Nouvelle borne",
+        I18nKey::TbFullscreenEnter => "Entrez en plein écran",
+        I18nKey::TbFullscreenExit => "Quitter le plein écran",
+        I18nKey::TbNotifications => "Notifications",
+        I18nKey::TbNotificationsEmptyTitle => "Aucune notification pour l'instant",
+        I18nKey::TbNotificationsEmptyBody => "Les agents publieront ici lorsqu'ils auront terminé ou auront besoin de commentaires.",
+        I18nKey::TbWinMinimize => "Minimiser",
+        I18nKey::TbWinMaximize => "Maximiser",
+        I18nKey::TbWinRestore => "Restaurer",
         I18nKey::PlansEmptyTitle => "Les plans vivent ici",
         I18nKey::PlansEmptyLead => "Ouvrez un espace de travail pour voir et créer des plans.",
         I18nKey::PlansNewPlan => "Nouveau forfait",
@@ -557,9 +567,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteBrowseDirs => "Browse remote directories",
         I18nKey::RemoteSelectDir => "Select remote directory",
         I18nKey::RemoteDirUp => "Up",
-        I18nKey::RemoteDirSaveFirst => {
-            "Save this remote connection before browsing directories."
-        }
+        I18nKey::RemoteDirSaveFirst => "Save this remote connection before browsing directories.",
         I18nKey::RemoteResumeModel => "Reprise de la séance",
         I18nKey::RemoteResumeTmux => "Persistant (tmux)",
         I18nKey::RemoteResumeKeepalive => "Keepalive uniquement",

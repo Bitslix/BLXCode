@@ -133,6 +133,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TabRules => "Regras",
         I18nKey::TabSkills => "Habilidades",
         I18nKey::TabPlans => "Planos",
+        I18nKey::TbNavigate => "Navegar",
+        I18nKey::TbNavNewTerminal => "Novo terminal",
+        I18nKey::TbFullscreenEnter => "Entrar em tela cheia",
+        I18nKey::TbFullscreenExit => "Sair da tela cheia",
+        I18nKey::TbNotifications => "Notificações",
+        I18nKey::TbNotificationsEmptyTitle => "Nenhuma notificação ainda",
+        I18nKey::TbNotificationsEmptyBody => "Os agentes postarão aqui quando terminarem ou precisarem de informações.",
+        I18nKey::TbWinMinimize => "Minimizar",
+        I18nKey::TbWinMaximize => "Maximizar",
+        I18nKey::TbWinRestore => "Restaurar",
         I18nKey::PlansEmptyTitle => "Os planos moram aqui",
         I18nKey::PlansEmptyLead => "Abra um espaço de trabalho para ver e criar planos.",
         I18nKey::PlansNewPlan => "Novo plano",
@@ -549,9 +559,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteBrowseDirs => "Browse remote directories",
         I18nKey::RemoteSelectDir => "Select remote directory",
         I18nKey::RemoteDirUp => "Up",
-        I18nKey::RemoteDirSaveFirst => {
-            "Save this remote connection before browsing directories."
-        }
+        I18nKey::RemoteDirSaveFirst => "Save this remote connection before browsing directories.",
         I18nKey::RemoteResumeModel => "Resumo da sessão",
         I18nKey::RemoteResumeTmux => "Persistente (tmux)",
         I18nKey::RemoteResumeKeepalive => "Apenas manter ativo",

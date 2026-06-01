@@ -141,6 +141,19 @@ pub fn msg(key: I18nKey) -> &'static str {
 
         I18nKey::TabPlans => "Plans",
 
+        I18nKey::TbNavigate => "Navigate",
+        I18nKey::TbNavNewTerminal => "New terminal",
+        I18nKey::TbFullscreenEnter => "Enter fullscreen",
+        I18nKey::TbFullscreenExit => "Exit fullscreen",
+        I18nKey::TbNotifications => "Notifications",
+        I18nKey::TbNotificationsEmptyTitle => "No notifications yet",
+        I18nKey::TbNotificationsEmptyBody => {
+            "Agents will post here when they finish or need input."
+        }
+        I18nKey::TbWinMinimize => "Minimize",
+        I18nKey::TbWinMaximize => "Maximize",
+        I18nKey::TbWinRestore => "Restore",
+
         I18nKey::PlansEmptyTitle => "Plans live here",
 
         I18nKey::PlansEmptyLead => "Open a workspace to see and create plans.",

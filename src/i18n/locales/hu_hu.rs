@@ -133,6 +133,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TabRules => "Szabályok",
         I18nKey::TabSkills => "Készségek",
         I18nKey::TabPlans => "Tervek",
+        I18nKey::TbNavigate => "Navigáljon",
+        I18nKey::TbNavNewTerminal => "Új terminál",
+        I18nKey::TbFullscreenEnter => "Lépjen be a teljes képernyőre",
+        I18nKey::TbFullscreenExit => "Lépjen ki a teljes képernyőről",
+        I18nKey::TbNotifications => "Értesítések",
+        I18nKey::TbNotificationsEmptyTitle => "Még nincsenek értesítések",
+        I18nKey::TbNotificationsEmptyBody => "Az ügynökök itt tesznek közzé bejegyzést, ha végeznek, vagy ha bevitelre van szükségük.",
+        I18nKey::TbWinMinimize => "Minimalizálás",
+        I18nKey::TbWinMaximize => "Maximalizálás",
+        I18nKey::TbWinRestore => "Visszaállítás",
         I18nKey::PlansEmptyTitle => "A tervek itt élnek",
         I18nKey::PlansEmptyLead => "Nyisson meg egy munkaterületet a tervek megtekintéséhez és létrehozásához.",
         I18nKey::PlansNewPlan => "Új terv",
@@ -551,9 +561,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteBrowseDirs => "Browse remote directories",
         I18nKey::RemoteSelectDir => "Select remote directory",
         I18nKey::RemoteDirUp => "Up",
-        I18nKey::RemoteDirSaveFirst => {
-            "Save this remote connection before browsing directories."
-        }
+        I18nKey::RemoteDirSaveFirst => "Save this remote connection before browsing directories.",
         I18nKey::RemoteResumeModel => "Munkamenet folytatása",
         I18nKey::RemoteResumeTmux => "Állandó (tmux)",
         I18nKey::RemoteResumeKeepalive => "Csak életben maradni",

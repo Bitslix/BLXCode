@@ -164,7 +164,7 @@ collapse toggle lives in `sidebar.rs`; the right collapse toggle lives in
 - [ ] `titlebar-settings-gear` - Settings gear button opening the settings center tab
 - [ ] `titlebar-layout-css` - App-shell vertical flex, `--titlebar-h` offset, terminal fit re-check, tokens-only styling
 - [ ] `titlebar-boot-eula` - Ensure the bar (drag + window controls) is present during boot and the EULA gate
-- [ ] `titlebar-i18n` - Title bar tooltip/menu i18n keys across keys.rs + all 14 locale files (reuse existing keys where they fit)
+- [x] `titlebar-i18n` - Title bar tooltip/menu i18n keys across keys.rs + all 14 locale files (reuse existing keys where they fit)
 - [ ] `titlebar-platform` - Verify platform nuances (Windows hit-targets, macOS no-traffic-lights, Linux drag) on the dev target
 - [ ] `titlebar-notifications-feed` - Follow-up: wire real notifications (agent-done/needs-input, toasts) into the popover store
 - [ ] `titlebar-verify` - cargo check (wasm) + cargo check/test (backend) + the manual cross-platform checklist above

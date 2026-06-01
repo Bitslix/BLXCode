@@ -131,6 +131,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TabRules => "ルール",
         I18nKey::TabSkills => "スキル",
         I18nKey::TabPlans => "プラン",
+        I18nKey::TbNavigate => "ナビゲート",
+        I18nKey::TbNavNewTerminal => "新しいターミナル",
+        I18nKey::TbFullscreenEnter => "全画面表示に入る",
+        I18nKey::TbFullscreenExit => "全画面表示を終了する",
+        I18nKey::TbNotifications => "通知",
+        I18nKey::TbNotificationsEmptyTitle => "まだ通知はありません",
+        I18nKey::TbNotificationsEmptyBody => "エージェントは、作業が完了したとき、または入力が必要なときにここに投稿します。",
+        I18nKey::TbWinMinimize => "最小化する",
+        I18nKey::TbWinMaximize => "最大化する",
+        I18nKey::TbWinRestore => "復元する",
         I18nKey::PlansEmptyTitle => "計画はここにあります",
         I18nKey::PlansEmptyLead => "ワークスペースを開いて計画を表示および作成します。",
         I18nKey::PlansNewPlan => "新プラン",
@@ -539,9 +549,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteBrowseDirs => "Browse remote directories",
         I18nKey::RemoteSelectDir => "Select remote directory",
         I18nKey::RemoteDirUp => "Up",
-        I18nKey::RemoteDirSaveFirst => {
-            "Save this remote connection before browsing directories."
-        }
+        I18nKey::RemoteDirSaveFirst => "Save this remote connection before browsing directories.",
         I18nKey::RemoteResumeModel => "セッションの再開",
         I18nKey::RemoteResumeTmux => "永続的 (tmux)",
         I18nKey::RemoteResumeKeepalive => "キープアライブのみ",
