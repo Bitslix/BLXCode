@@ -654,6 +654,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingMedium => "중간",
         I18nKey::AgThinkingHigh => "높은",
         I18nKey::AgThinkingMax => "맥스",
+        I18nKey::AgToolLoopLimitField => "도구 루프 한도",
+        I18nKey::AgToolLoopLimitHint => {
+            "에이전트가 무한 루프를 중단하기 전 턴당 최대 도구 호출 횟수입니다."
+        }
         I18nKey::AgImageQualityField => "품질 수준",
         I18nKey::AgImageQualityLow => "낮은",
         I18nKey::AgImageQualityMedium => "중간",

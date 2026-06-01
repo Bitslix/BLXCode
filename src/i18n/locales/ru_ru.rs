@@ -672,6 +672,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingMedium => "Середина",
         I18nKey::AgThinkingHigh => "Высокий",
         I18nKey::AgThinkingMax => "Макс",
+        I18nKey::AgToolLoopLimitField => "Лимит цикла инструментов",
+        I18nKey::AgToolLoopLimitHint => {
+            "Максимум раундов вызова инструментов за ход, прежде чем агент остановит зацикливание."
+        }
         I18nKey::AgImageQualityField => "Уровень качества",
         I18nKey::AgImageQualityLow => "Низкий",
         I18nKey::AgImageQualityMedium => "Середина",

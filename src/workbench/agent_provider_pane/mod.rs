@@ -6,7 +6,7 @@ use crate::tauri_bridge::{
     agent_provider_models, agent_settings_get, agent_settings_save, agent_web_settings_get,
     agent_web_settings_save, is_tauri_shell, AgentProviderKind, AgentProviderSettingsView,
     AgentWebSettingsView, ProviderModelEntry, ProviderModelsResponse, ThinkingLevel,
-    WebProviderKind,
+    WebProviderKind, DEFAULT_TOOL_LOOP_LIMIT, MAX_TOOL_LOOP_LIMIT, MIN_TOOL_LOOP_LIMIT,
 };
 use crate::workbench::agent_model_picker::AgentModelPicker;
 use gloo_timers::future::TimeoutFuture;
@@ -19,6 +19,7 @@ struct AgentSettingsBaseline {
     provider: AgentProviderKind,
     model_id: String,
     thinking: ThinkingLevel,
+    tool_loop_limit: u32,
     web_provider: WebProviderKind,
 }
 
@@ -423,6 +424,7 @@ pub fn AgentProviderPane() -> impl IntoView {
     let selected_provider = RwSignal::new(AgentProviderKind::Openrouter);
     let custom_model = RwSignal::new(String::new());
     let thinking_level = RwSignal::new(ThinkingLevel::Medium);
+    let tool_loop_limit = RwSignal::new(DEFAULT_TOOL_LOOP_LIMIT);
     let model_entries: RwSignal<Vec<ProviderModelEntry>> = RwSignal::new(Vec::new());
     let models_source = RwSignal::new(String::new());
     let models_message: RwSignal<Option<String>> = RwSignal::new(None);
@@ -436,6 +438,7 @@ pub fn AgentProviderPane() -> impl IntoView {
         provider: AgentProviderKind::Openrouter,
         model_id: String::new(),
         thinking: ThinkingLevel::Medium,
+        tool_loop_limit: DEFAULT_TOOL_LOOP_LIMIT,
         web_provider: WebProviderKind::None,
     });
 
@@ -444,6 +447,7 @@ pub fn AgentProviderPane() -> impl IntoView {
         selected_provider.get() != b.provider
             || custom_model.get() != b.model_id
             || thinking_level.get() != b.thinking
+            || tool_loop_limit.get() != b.tool_loop_limit
             || web_provider.get() != b.web_provider
     });
 
@@ -451,6 +455,7 @@ pub fn AgentProviderPane() -> impl IntoView {
         provider: selected_provider.get_untracked(),
         model_id: custom_model.get_untracked(),
         thinking: thinking_level.get_untracked(),
+        tool_loop_limit: tool_loop_limit.get_untracked(),
         web_provider: web_provider.get_untracked(),
     };
 
@@ -458,12 +463,14 @@ pub fn AgentProviderPane() -> impl IntoView {
         selected_provider.set(view.provider);
         custom_model.set(view.model_id.clone());
         thinking_level.set(view.thinking_level);
+        tool_loop_limit.set(view.tool_loop_limit);
         model_entries.set(provider_cache(&view, view.provider));
         settings.set(Some(view));
         baseline.update(|b| {
             b.provider = selected_provider.get_untracked();
             b.model_id = custom_model.get_untracked();
             b.thinking = thinking_level.get_untracked();
+            b.tool_loop_limit = tool_loop_limit.get_untracked();
         });
     };
 
@@ -539,10 +546,13 @@ pub fn AgentProviderPane() -> impl IntoView {
         let provider = selected_provider.get_untracked();
         let model_id = custom_model.get_untracked();
         let level = thinking_level.get_untracked();
+        let loop_limit = tool_loop_limit
+            .get_untracked()
+            .clamp(MIN_TOOL_LOOP_LIMIT, MAX_TOOL_LOOP_LIMIT);
         let web = web_provider.get_untracked();
         leptos::task::spawn_local(async move {
             let mut err: Option<String> = None;
-            match agent_settings_save(provider, model_id, level).await {
+            match agent_settings_save(provider, model_id, level, loop_limit).await {
                 Ok(view) => apply_settings(view),
                 Err(e) => err = Some(e),
             }
@@ -600,6 +610,31 @@ pub fn AgentProviderPane() -> impl IntoView {
                                 <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgThinkingField)()}</span>
                             </span>
                             <ThinkingLevelPicker selected=thinking_level />
+                        </label>
+                        <label class="agent-provider-pane__field">
+                            <span class="harness-field-label">
+                                <span class="harness-field-label__icon" aria-hidden="true">
+                                    <LxIcon icon=icondata::LuRepeat width="0.82rem" height="0.82rem" />
+                                </span>
+                                <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgToolLoopLimitField)()}</span>
+                            </span>
+                            <input
+                                class="workbench-plain-input"
+                                type="number"
+                                min=MIN_TOOL_LOOP_LIMIT.to_string()
+                                max=MAX_TOOL_LOOP_LIMIT.to_string()
+                                step="1"
+                                inputmode="numeric"
+                                prop:value=move || tool_loop_limit.get().to_string()
+                                on:input=move |ev| {
+                                    if let Ok(parsed) = event_target_value(&ev).trim().parse::<u32>() {
+                                        tool_loop_limit.set(parsed.clamp(MIN_TOOL_LOOP_LIMIT, MAX_TOOL_LOOP_LIMIT));
+                                    }
+                                }
+                            />
+                            <small class="harness-muted agent-provider-pane__field-hint">
+                                {move || i18n.tr(I18nKey::AgToolLoopLimitHint)()}
+                            </small>
                         </label>
                     </div>
                     <div class="agent-provider-pane__key-row">

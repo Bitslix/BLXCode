@@ -10,6 +10,26 @@ const SETTINGS_FILE: &str = "agent_provider_settings.json";
 const SECRETS_DIR: &str = "secrets";
 const KEYRING_SERVICE: &str = "BLXCode";
 
+/// Hard upper bound on tool-call rounds per turn. Caps a runaway loop when
+/// the model keeps calling tools without finishing. User-configurable via
+/// Settings → Agent; the value is clamped to [`MIN_TOOL_LOOP_LIMIT`,
+/// `MAX_TOOL_LOOP_LIMIT`] on save and again at use time (settings on disk
+/// may have been hand-edited).
+pub const DEFAULT_TOOL_LOOP_LIMIT: u32 = 36;
+pub const MIN_TOOL_LOOP_LIMIT: u32 = 1;
+pub const MAX_TOOL_LOOP_LIMIT: u32 = 500;
+
+fn default_tool_loop_limit() -> u32 {
+    DEFAULT_TOOL_LOOP_LIMIT
+}
+
+/// Clamp a tool-loop limit into the supported range. Applied on save and at
+/// the call site so an out-of-range on-disk value can never produce a
+/// zero-round (or absurdly large) loop.
+pub fn clamp_tool_loop_limit(value: u32) -> u32 {
+    value.clamp(MIN_TOOL_LOOP_LIMIT, MAX_TOOL_LOOP_LIMIT)
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum AgentProviderKind {
@@ -73,6 +93,9 @@ pub struct AgentProviderSettings {
     pub provider: AgentProviderKind,
     pub model_id: String,
     pub thinking_level: ThinkingLevel,
+    /// Max tool-call rounds per turn (see [`DEFAULT_TOOL_LOOP_LIMIT`]).
+    #[serde(default = "default_tool_loop_limit")]
+    pub tool_loop_limit: u32,
     #[serde(default)]
     pub model_cache_openrouter: Vec<ProviderModelEntry>,
     #[serde(default)]
@@ -87,6 +110,7 @@ impl Default for AgentProviderSettings {
             provider: AgentProviderKind::Openrouter,
             model_id: "openai/gpt-5".into(),
             thinking_level: ThinkingLevel::Medium,
+            tool_loop_limit: DEFAULT_TOOL_LOOP_LIMIT,
             model_cache_openrouter: curated_models(AgentProviderKind::Openrouter),
             model_cache_anthropic: curated_models(AgentProviderKind::Anthropic),
             model_cache_openai: curated_models(AgentProviderKind::Openai),
@@ -128,6 +152,8 @@ pub struct AgentProviderSettingsPatch {
     pub provider: AgentProviderKind,
     pub model_id: String,
     pub thinking_level: ThinkingLevel,
+    #[serde(default = "default_tool_loop_limit")]
+    pub tool_loop_limit: u32,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -748,6 +774,7 @@ pub fn agent_settings_save(
     settings.provider = patch.provider;
     settings.model_id = patch.model_id.trim().to_string();
     settings.thinking_level = patch.thinking_level;
+    settings.tool_loop_limit = clamp_tool_loop_limit(patch.tool_loop_limit);
     save_settings(&app, &settings)?;
     settings_view(&app, settings)
 }

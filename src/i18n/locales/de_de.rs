@@ -674,6 +674,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingMedium => "Mittel",
         I18nKey::AgThinkingHigh => "Hoch",
         I18nKey::AgThinkingMax => "Max",
+        I18nKey::AgToolLoopLimitField => "Tool-Schleifen-Limit",
+        I18nKey::AgToolLoopLimitHint => {
+            "Maximale Tool-Aufruf-Runden pro Durchlauf, bevor der Agent eine Endlosschleife stoppt."
+        }
         I18nKey::AgImageQualityField => "Qualitätsstufe",
         I18nKey::AgImageQualityLow => "Niedrig",
         I18nKey::AgImageQualityMedium => "Mittel",

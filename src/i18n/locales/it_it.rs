@@ -678,6 +678,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingMedium => "Medio",
         I18nKey::AgThinkingHigh => "Alto",
         I18nKey::AgThinkingMax => "Massimo",
+        I18nKey::AgToolLoopLimitField => "Limite ciclo strumenti",
+        I18nKey::AgToolLoopLimitHint => {
+            "Numero massimo di cicli di chiamata agli strumenti per turno prima di interrompere un ciclo infinito."
+        }
         I18nKey::AgImageQualityField => "Livello di qualità",
         I18nKey::AgImageQualityLow => "Basso",
         I18nKey::AgImageQualityMedium => "Medio",

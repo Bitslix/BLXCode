@@ -353,6 +353,17 @@ pub enum ThinkingLevel {
     Max,
 }
 
+/// Mirrors `agent_settings::DEFAULT_TOOL_LOOP_LIMIT` on the backend. Used as
+/// the serde default so older settings payloads without the field decode.
+pub const DEFAULT_TOOL_LOOP_LIMIT: u32 = 36;
+/// Supported UI range for the tool-loop limit (matches backend clamp).
+pub const MIN_TOOL_LOOP_LIMIT: u32 = 1;
+pub const MAX_TOOL_LOOP_LIMIT: u32 = 500;
+
+fn default_tool_loop_limit() -> u32 {
+    DEFAULT_TOOL_LOOP_LIMIT
+}
+
 #[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -391,6 +402,8 @@ pub struct AgentProviderSettingsView {
     pub provider: AgentProviderKind,
     pub model_id: String,
     pub thinking_level: ThinkingLevel,
+    #[serde(default = "default_tool_loop_limit")]
+    pub tool_loop_limit: u32,
     pub model_cache_openrouter: Vec<ProviderModelEntry>,
     pub model_cache_anthropic: Vec<ProviderModelEntry>,
     pub model_cache_openai: Vec<ProviderModelEntry>,
@@ -488,6 +501,7 @@ pub async fn agent_settings_save(
     provider: AgentProviderKind,
     model_id: String,
     thinking_level: ThinkingLevel,
+    tool_loop_limit: u32,
 ) -> Result<AgentProviderSettingsView, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -501,6 +515,7 @@ pub async fn agent_settings_save(
         provider: AgentProviderKind,
         model_id: String,
         thinking_level: ThinkingLevel,
+        tool_loop_limit: u32,
     }
 
     invoke_typed(
@@ -510,6 +525,7 @@ pub async fn agent_settings_save(
                 provider,
                 model_id,
                 thinking_level,
+                tool_loop_limit,
             },
         },
     )

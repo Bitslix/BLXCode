@@ -117,6 +117,11 @@
   min-width: 0;
 }
 
+.agent-provider-pane__field-hint {
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
 .agent-model-picker {
   display: flex;
   flex-direction: column;

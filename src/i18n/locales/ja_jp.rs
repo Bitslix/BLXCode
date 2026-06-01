@@ -656,6 +656,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingMedium => "中くらい",
         I18nKey::AgThinkingHigh => "高い",
         I18nKey::AgThinkingMax => "マックス",
+        I18nKey::AgToolLoopLimitField => "ツールループ上限",
+        I18nKey::AgToolLoopLimitHint => {
+            "暴走ループを停止するまでの、1ターンあたりのツール呼び出し回数の上限。"
+        }
         I18nKey::AgImageQualityField => "品質レベル",
         I18nKey::AgImageQualityLow => "低い",
         I18nKey::AgImageQualityMedium => "中くらい",

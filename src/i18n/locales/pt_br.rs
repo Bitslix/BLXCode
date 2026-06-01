@@ -672,6 +672,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingMedium => "Médio",
         I18nKey::AgThinkingHigh => "Alto",
         I18nKey::AgThinkingMax => "Máx.",
+        I18nKey::AgToolLoopLimitField => "Limite de loop de ferramentas",
+        I18nKey::AgToolLoopLimitHint => {
+            "Máximo de rodadas de chamadas de ferramentas por turno antes de interromper um loop descontrolado."
+        }
         I18nKey::AgImageQualityField => "Nível de qualidade",
         I18nKey::AgImageQualityLow => "Baixo",
         I18nKey::AgImageQualityMedium => "Médio",

@@ -714,6 +714,10 @@ keys; the preset only fills in defaults."
         I18nKey::AgThinkingMedium => "Medium",
         I18nKey::AgThinkingHigh => "High",
         I18nKey::AgThinkingMax => "Max",
+        I18nKey::AgToolLoopLimitField => "Tool loop limit",
+        I18nKey::AgToolLoopLimitHint => {
+            "Maximum tool-call rounds per turn before the agent stops a runaway loop."
+        }
         I18nKey::AgImageQualityField => "Quality level",
         I18nKey::AgImageQualityLow => "Low",
         I18nKey::AgImageQualityMedium => "Medium",

@@ -25,7 +25,6 @@ use tokio::io::AsyncBufReadExt;
 
 const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
-const MAX_ROUNDS: u32 = 36;
 const DEFAULT_MAX_TOKENS: u64 = 8192;
 
 /// Anthropic restricts tool names to `^[a-zA-Z0-9_-]{1,64}$` — no dots.
@@ -159,7 +158,11 @@ pub async fn run_chat_turn(
         }
     };
 
-    for round in 0..MAX_ROUNDS {
+    // Configurable per-turn tool-call ceiling (Settings → Agent). Clamped
+    // again here in case the on-disk value was hand-edited out of range.
+    let max_rounds = crate::agent_settings::clamp_tool_loop_limit(settings.tool_loop_limit);
+
+    for round in 0..max_rounds {
         if state.cancelled() {
             emit_aborted(&state);
             return;
@@ -325,9 +328,9 @@ pub async fn run_chat_turn(
             break;
         }
 
-        if round + 1 == MAX_ROUNDS {
+        if round + 1 == max_rounds {
             state.push(AgentEvent::Error {
-                message: format!("Tool-Loop-Limit erreicht ({MAX_ROUNDS} Runden)."),
+                message: format!("Tool-Loop-Limit erreicht ({max_rounds} Runden)."),
             });
             break;
         }

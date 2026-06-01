@@ -672,6 +672,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingMedium => "Średni",
         I18nKey::AgThinkingHigh => "Wysoki",
         I18nKey::AgThinkingMax => "Maks",
+        I18nKey::AgToolLoopLimitField => "Limit pętli narzędzi",
+        I18nKey::AgToolLoopLimitHint => {
+            "Maksymalna liczba rund wywołań narzędzi na turę, zanim agent przerwie niekontrolowaną pętlę."
+        }
         I18nKey::AgImageQualityField => "Poziom jakości",
         I18nKey::AgImageQualityLow => "Niski",
         I18nKey::AgImageQualityMedium => "Średni",

@@ -675,6 +675,8 @@ pub enum I18nKey {
     AgThinkingMedium,
     AgThinkingHigh,
     AgThinkingMax,
+    AgToolLoopLimitField,
+    AgToolLoopLimitHint,
     AgImageQualityField,
     AgImageQualityLow,
     AgImageQualityMedium,

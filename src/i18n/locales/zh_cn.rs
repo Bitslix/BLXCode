@@ -652,6 +652,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingMedium => "中等的",
         I18nKey::AgThinkingHigh => "高的",
         I18nKey::AgThinkingMax => "最大限度",
+        I18nKey::AgToolLoopLimitField => "工具循环上限",
+        I18nKey::AgToolLoopLimitHint => {
+            "每轮中工具调用的最大次数，超过后代理将停止失控循环。"
+        }
         I18nKey::AgImageQualityField => "质量级别",
         I18nKey::AgImageQualityLow => "低的",
         I18nKey::AgImageQualityMedium => "中等的",

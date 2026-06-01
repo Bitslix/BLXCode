@@ -672,6 +672,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgThinkingMedium => "Közepes",
         I18nKey::AgThinkingHigh => "Magas",
         I18nKey::AgThinkingMax => "Max",
+        I18nKey::AgToolLoopLimitField => "Eszközhurok-korlát",
+        I18nKey::AgToolLoopLimitHint => {
+            "Eszközhívási körök maximális száma fordulónként, mielőtt az ügynök leállítja az elszabadult hurkot."
+        }
         I18nKey::AgImageQualityField => "Minőségi szint",
         I18nKey::AgImageQualityLow => "Alacsony",
         I18nKey::AgImageQualityMedium => "Közepes",
