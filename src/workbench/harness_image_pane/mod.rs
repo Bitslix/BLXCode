@@ -9,6 +9,7 @@ use crate::tauri_bridge::{
     ImageSettings, ProviderModelEntry,
 };
 use crate::workbench::agent_model_picker::AgentModelPicker;
+use crate::workbench::SettingsPaneHeader;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
@@ -655,15 +656,13 @@ pub fn AgentImageColumn() -> impl IntoView {
 
 #[component]
 pub fn ImagePane() -> impl IntoView {
-    let i18n = expect_context::<I18nService>();
     view! {
         <article class="harness-pane image-pane-standalone">
-            <h3 class="harness-pane-title">
-                <span class="harness-pane-title__icon" aria-hidden="true">
-                    <LxIcon icon=icondata::LuImage width="1.02rem" height="1.02rem" />
-                </span>
-                <span class="harness-pane-title__text">{move || i18n.tr(I18nKey::ImagePaneTitle)()}</span>
-            </h3>
+            <SettingsPaneHeader
+                icon=icondata::LuImage
+                title=I18nKey::ImagePaneTitle
+                description=I18nKey::ImagePaneDescription
+            />
             <div class="agent-provider-pane__col agent-provider-pane__col--standalone">
                 <AgentImageColumn />
             </div>

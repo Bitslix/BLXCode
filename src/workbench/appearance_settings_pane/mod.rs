@@ -7,6 +7,7 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::theme::{theme_desc_key, theme_name_key, ThemeMode, THEMES};
 use crate::workbench::theme_service::{theme_count, ThemeService};
+use crate::workbench::SettingsPaneHeader;
 
 use theme_preview_card::ThemePreviewCard;
 
@@ -58,6 +59,11 @@ pub fn AppearanceSettingsPane() -> impl IntoView {
 
     view! {
         <article class="appearance-pane harness-pane">
+            <SettingsPaneHeader
+                icon=icondata::LuSunMoon
+                title=I18nKey::AppearanceHeading
+                description=I18nKey::AppearanceDescription
+            />
             <header class="appearance-hero">
                 <div class="appearance-hero__copy">
                     <h3 class="appearance-hero__title">

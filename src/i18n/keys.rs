@@ -320,6 +320,7 @@ pub enum I18nKey {
     AppShortcutModeLegacy,
     AppShortcutModeHint,
     ShortcutsHeading,
+    ShortcutsDescription,
     ShortcutsPresetHeading,
     ShortcutsBindingsHeading,
     ShortcutsPrefixLabel,
@@ -538,6 +539,7 @@ pub enum I18nKey {
     HsCatRemote,
     // --- SSH remote connections (Remote settings category) ---
     RemoteHeading,
+    RemoteDescription,
     RemoteSubtitle,
     RemoteEmpty,
     RemoteAddConnection,
@@ -584,7 +586,9 @@ pub enum I18nKey {
     // --- Sidebar ---
     SidebarRemoteTitle,
     AppHeading,
+    AppDescription,
     AppearanceHeading,
+    AppearanceDescription,
     AppearanceHeroTitle,
     AppearanceHeroSubtitle,
     AppearanceSearchPlaceholder,
@@ -658,6 +662,7 @@ pub enum I18nKey {
     ThemeNameLilacLight,
     ThemeDescLilacLight,
     ApiKeysHeading,
+    ApiKeysDescription,
     ApiKeysLlmSubhead,
     ApiKeysSearchSubhead,
     ApiKeysImageVideoSubhead,
@@ -678,6 +683,7 @@ pub enum I18nKey {
     AppLanguage,
     AppHooksHeading,
     WsHeading,
+    WsDescription,
     WsSectionPaths,
     WsSectionBrowser,
     WsSectionCategoryColors,
@@ -697,6 +703,7 @@ pub enum I18nKey {
     WsConfirmCloseLabel,
     WsConfirmCloseHint,
     AgProviderHeading,
+    AgProviderDescription,
     AgSectionInference,
     AgSectionModel,
     AgColumnText,
@@ -875,6 +882,7 @@ pub enum I18nKey {
 
     // Voice subsystem
     VoicePaneTitle,
+    VoicePaneDescription,
     VoiceSttSection,
     VoiceTtsSection,
     VoiceBehaviorSection,

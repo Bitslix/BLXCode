@@ -1,13 +1,13 @@
 /* Push-to-talk settings section. Colour tokens only. */
 
 .ptt-section {
-    padding: 0.85rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 0.9rem;
     border: 1px solid var(--border);
     border-radius: 8px;
     background: color-mix(in srgb, var(--bg-panel) 92%, var(--bg-raised));
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
 }
 
 .ptt-section__top {
@@ -24,10 +24,11 @@
     gap: 0.24rem;
 }
 
-.ptt-section__head {
+.ptt-section__head,
+.ptt-options__title {
     margin: 0;
-    font-size: 0.8rem;
-    font-weight: 600;
+    font-size: 0.78rem;
+    font-weight: 650;
     color: var(--text);
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -52,74 +53,117 @@
     cursor: pointer;
 }
 
-.ptt-body {
+.ptt-mode-shell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.8rem;
+    padding: 0.1rem 0 0.15rem;
+}
+
+.ptt-mode-label {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    font: inherit;
+    font-size: 1rem;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.ptt-mode-label--active {
+    color: var(--text);
+}
+
+.ptt-mode-switch {
+    position: relative;
+    width: 3.65rem;
+    height: 1.75rem;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    cursor: pointer;
+}
+
+.ptt-mode-switch__track,
+.ptt-mode-switch__thumb {
+    position: absolute;
+    border-radius: 999px;
+    pointer-events: none;
+}
+
+.ptt-mode-switch__track {
+    inset: 0;
+    border: 1px solid var(--border-strong);
+    background:
+        linear-gradient(90deg,
+            color-mix(in srgb, var(--accent) 22%, var(--bg-panel)),
+            color-mix(in srgb, var(--accent-cool) 20%, var(--bg-panel)));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 6%, transparent);
+}
+
+.ptt-mode-switch__thumb {
+    top: 0.2rem;
+    left: 0.22rem;
+    width: 1.35rem;
+    height: 1.35rem;
+    background: var(--text);
+    box-shadow:
+        0 0.18rem 0.55rem var(--scrim-bg),
+        inset 0 0 0 1px color-mix(in srgb, var(--bg-app) 30%, transparent);
+    transition: transform 0.16s ease;
+}
+
+.ptt-mode-switch--cloud .ptt-mode-switch__thumb {
+    transform: translateX(1.84rem);
+}
+
+.ptt-options {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
-}
-
-.ptt-engine {
-    display: flex;
-    flex-direction: column;
-    gap: 0.65rem;
-    padding: 0.65rem;
+    min-height: 7rem;
+    padding: 0.8rem;
     border: 1px solid var(--border);
-    border-radius: 7px;
+    border-radius: 8px;
     background: var(--bg-app);
 }
 
-.ptt-engine-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 0.7rem;
-}
-
-.ptt-engine-panel--cloud {
+.ptt-options__grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem 0.9rem;
     align-items: end;
 }
 
-.ptt-routing-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.55rem;
+.ptt-field {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.36rem;
 }
 
-.ptt-row {
-    display: flex;
+.ptt-field--inline {
+    min-height: 2.35rem;
+    flex-direction: row;
     align-items: center;
     justify-content: space-between;
-    gap: 0.6rem;
-    flex-wrap: wrap;
 }
 
-.ptt-row--mode {
-    align-items: center;
-}
-
-.ptt-row--mode .ptt-row__label {
-    font-size: 0.74rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text-muted);
-}
-
-.ptt-row--wide {
+.ptt-field--wide {
     grid-column: 1 / -1;
 }
 
 .ptt-row__label {
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     color: var(--text);
-}
-
-.ptt-row--switch {
-    cursor: pointer;
 }
 
 .ptt-seg {
     display: inline-flex;
+    max-width: 100%;
     border: 1px solid var(--border);
     border-radius: 6px;
     overflow: hidden;
@@ -128,13 +172,15 @@
 
 .ptt-seg__btn {
     appearance: none;
+    min-height: 1.82rem;
+    padding: 0.32rem 0.68rem;
     border: 0;
     background: transparent;
     color: var(--text-muted);
-    padding: 0.32rem 0.68rem;
+    font: inherit;
     font-size: 0.78rem;
+    white-space: nowrap;
     cursor: pointer;
-    min-height: 1.8rem;
 }
 
 .ptt-seg__btn + .ptt-seg__btn {
@@ -148,13 +194,16 @@
 
 .ptt-select,
 .ptt-input {
-    background: var(--bg-panel);
-    color: var(--text);
+    width: 100%;
+    min-width: 0;
+    min-height: 1.95rem;
+    padding: 0.38rem 0.55rem;
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 0.38rem 0.55rem;
+    background: var(--bg-panel);
+    color: var(--text);
+    font: inherit;
     font-size: 0.8rem;
-    min-width: 12rem;
 }
 
 .ptt-switch {
@@ -162,12 +211,11 @@
 }
 
 @media (max-width: 900px) {
-    .ptt-engine-panel--cloud,
-    .ptt-routing-grid {
+    .ptt-options__grid {
         grid-template-columns: 1fr;
     }
 
-    .ptt-row--wide {
+    .ptt-field--wide {
         grid-column: auto;
     }
 }
@@ -177,13 +225,13 @@
         flex-direction: column;
     }
 
-    .ptt-enable,
-    .ptt-select,
-    .ptt-input {
+    .ptt-enable {
         width: 100%;
+        justify-content: space-between;
     }
 
-    .ptt-row {
-        align-items: stretch;
+    .ptt-mode-shell {
+        justify-content: flex-start;
+        gap: 0.55rem;
     }
 }

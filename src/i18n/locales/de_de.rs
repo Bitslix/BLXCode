@@ -318,6 +318,9 @@ pub fn msg(key: I18nKey) -> &'static str {
             "Tmux: Prefix Ctrl+b, dann zweite Taste (z. B. n für neues Terminal, p für Befehlspalette). \nKlassisch: Ctrl+O Schnell öffnen, Ctrl+Shift+N neues Terminal, Ctrl+Shift+P Palette."
         }
         I18nKey::ShortcutsHeading => "Tastenkürzel",
+        I18nKey::ShortcutsDescription => {
+            "Globale Tastenkürzel und Befehlsbelegungen für die Workbench konfigurieren."
+        }
         I18nKey::ShortcutsPresetHeading => "Voreinstellung",
         I18nKey::ShortcutsBindingsHeading => "Belegungen",
         I18nKey::ShortcutsPrefixLabel => "Prefix-Taste",
@@ -529,6 +532,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatImage => "Bild",
         I18nKey::HsCatRemote => "Fernbedienung",
         I18nKey::RemoteHeading => "SSH-Remote-Verbindungen",
+        I18nKey::RemoteDescription => {
+            "SSH-Profile für Remote-Workspaces anlegen, testen und wiederverwenden."
+        }
         I18nKey::RemoteSubtitle => {
             "Speichern Sie Verbindungsvoreinstellungen, um Arbeitsbereiche auf einem Remote-Computer über SSH zu öffnen."
         }
@@ -579,7 +585,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsRemoteDirHint => "Optional. Standardmäßig wird das Verzeichnis der Verbindung oder das Remote-Zuhause verwendet.",
         I18nKey::SidebarRemoteTitle => "Remote-Arbeitsbereich (SSH)",
         I18nKey::AppHeading => "App",
+        I18nKey::AppDescription => {
+            "Sprache, Benachrichtigungen, Updates und app-weites Verhalten einstellen."
+        }
         I18nKey::AppearanceHeading => "Erscheinungsbild",
+        I18nKey::AppearanceDescription => {
+            "Theme auswählen und sofort sehen, wie die Workbench wirkt."
+        }
         I18nKey::AppearanceHeroTitle => "Machen Sie es zu Ihrem.",
         I18nKey::AppearanceHeroSubtitle => "{n} Themen – Farben werden sofort auf die gesamte Arbeitsfläche angewendet.",
         I18nKey::AppearanceSearchPlaceholder => "Themen suchen…",
@@ -653,6 +665,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::ThemeNameLilacLight => "Fliederlicht",
         I18nKey::ThemeDescLilacLight => "Sanfte Lavendel-Oberflächen mit violettem Akzent",
         I18nKey::ApiKeysHeading => "API-Schlüssel",
+        I18nKey::ApiKeysDescription => {
+            "Provider-Zugangsdaten für Agent, Suche, Bild- und Medienintegrationen verwalten."
+        }
         I18nKey::ApiKeysLlmSubhead => "LLM-Anbieter",
         I18nKey::ApiKeysSearchSubhead => "Such-Anbieter",
         I18nKey::ApiKeysImageVideoSubhead => "Bild / Video & Sprache",
@@ -675,6 +690,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppLanguage => "UI-Sprache",
         I18nKey::AppHooksHeading => "Terminal-Hooks",
         I18nKey::WsHeading => "Arbeitsplatz",
+        I18nKey::WsDescription => {
+            "Projektpfade, Browser-Vorgaben, Terminal-Namen und Workspace-Sicherheit konfigurieren."
+        }
         I18nKey::WsSectionPaths => "Pfade & Sandbox",
         I18nKey::WsSectionBrowser => "Eingebetteter Browser",
         I18nKey::WsSectionCategoryColors => "Kategorie-Farben",
@@ -696,6 +714,9 @@ pub fn msg(key: I18nKey) -> &'static str {
             "Zeigt einen Bestätigungsdialog an, wenn Sie einen Arbeitsbereich über die Registerkarte „Terminals“, die Schaltfläche „Schließen“ in der Seitenleiste oder das Kontextmenü schließen."
         }
         I18nKey::AgProviderHeading => "BLXCode-Agent",
+        I18nKey::AgProviderDescription => {
+            "Agent-Provider, Modelle, Reasoning, Web-Tools und Sitzungsverhalten konfigurieren."
+        }
         I18nKey::AgSectionInference => "Inferenz",
         I18nKey::AgSectionModel => "Modell",
         I18nKey::AgColumnText => "Text",
@@ -879,6 +900,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::EulaAccepted => "Akzeptiert",
         I18nKey::EulaUnknown => "Unbekannt",
         I18nKey::VoicePaneTitle => "Stimme",
+        I18nKey::VoicePaneDescription => {
+            "Push-to-Talk-Transkription, lokale Whisper-Modelle und Ziel-Routing konfigurieren."
+        }
         I18nKey::VoiceSttSection => "Speech-to-Text",
         I18nKey::VoiceTtsSection => "Text-to-Speech",
         I18nKey::VoiceBehaviorSection => "Verhalten",

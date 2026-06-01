@@ -343,6 +343,9 @@ pub fn msg(key: I18nKey) -> &'static str {
 Classic: Ctrl+O quick open, Ctrl+Shift+N new terminal, Ctrl+Shift+P palette."
         }
         I18nKey::ShortcutsHeading => "Keyboard shortcuts",
+        I18nKey::ShortcutsDescription => {
+            "Tune global shortcuts and command bindings for the workbench."
+        }
         I18nKey::ShortcutsPresetHeading => "Preset",
         I18nKey::ShortcutsBindingsHeading => "Bindings",
         I18nKey::ShortcutsPrefixLabel => "Prefix key",
@@ -570,6 +573,9 @@ keys; the preset only fills in defaults."
         I18nKey::HsCatImage => "Image",
         I18nKey::HsCatRemote => "Remote",
         I18nKey::RemoteHeading => "SSH Remote Connections",
+        I18nKey::RemoteDescription => {
+            "Manage SSH presets for opening and resuming workspaces on remote machines."
+        }
         I18nKey::RemoteSubtitle => {
             "Save connection presets to open workspaces on a remote machine over SSH."
         }
@@ -620,7 +626,13 @@ keys; the preset only fills in defaults."
         I18nKey::WsRemoteDirHint => "Optional. Defaults to the connection's directory or the remote home.",
         I18nKey::SidebarRemoteTitle => "Remote workspace (SSH)",
         I18nKey::AppHeading => "App",
+        I18nKey::AppDescription => {
+            "Set language, notifications, update checks, and app-wide behavior."
+        }
         I18nKey::AppearanceHeading => "Appearance",
+        I18nKey::AppearanceDescription => {
+            "Choose the visual theme and preview how the workbench will look."
+        }
         I18nKey::AppearanceHeroTitle => "Make it yours.",
         I18nKey::AppearanceHeroSubtitle => "{n} themes — colors apply instantly across the workbench.",
         I18nKey::AppearanceSearchPlaceholder => "Search themes…",
@@ -696,6 +708,9 @@ keys; the preset only fills in defaults."
         I18nKey::ThemeNameLilacLight => "Lilac Light",
         I18nKey::ThemeDescLilacLight => "Soft lavender surfaces with violet accent",
         I18nKey::ApiKeysHeading => "API Keys",
+        I18nKey::ApiKeysDescription => {
+            "Store provider credentials used by agent, search, image, and media integrations."
+        }
         I18nKey::ApiKeysLlmSubhead => "LLM Providers",
         I18nKey::ApiKeysSearchSubhead => "Search Providers",
         I18nKey::ApiKeysImageVideoSubhead => "Image / video & voice",
@@ -718,6 +733,9 @@ keys; the preset only fills in defaults."
         I18nKey::AppLanguage => "UI language",
         I18nKey::AppHooksHeading => "Terminal hooks",
         I18nKey::WsHeading => "Workspace",
+        I18nKey::WsDescription => {
+            "Configure project paths, browser defaults, terminal naming, and workspace safety."
+        }
         I18nKey::WsSectionPaths => "Paths & sandbox",
         I18nKey::WsSectionBrowser => "Embedded browser",
         I18nKey::WsSectionCategoryColors => "Category colors",
@@ -737,6 +755,9 @@ keys; the preset only fills in defaults."
         I18nKey::WsConfirmCloseLabel => "Confirm before closing a workspace",
         I18nKey::WsConfirmCloseHint => "Show a confirmation dialog when closing a workspace from its Terminals tab, the sidebar close button, or the context menu.",
         I18nKey::AgProviderHeading => "BLXCode Agent",
+        I18nKey::AgProviderDescription => {
+            "Configure agent providers, models, reasoning, web tools, and session behavior."
+        }
         I18nKey::AgSectionInference => "Inference",
         I18nKey::AgSectionModel => "Model",
         I18nKey::AgColumnText => "Text",
@@ -919,6 +940,9 @@ keys; the preset only fills in defaults."
         I18nKey::EulaUnknown => "Unknown",
 
         I18nKey::VoicePaneTitle => "Voice",
+        I18nKey::VoicePaneDescription => {
+            "Configure push-to-talk transcription, local Whisper models, and voice routing."
+        }
         I18nKey::VoiceSttSection => "Speech-to-Text",
         I18nKey::VoiceTtsSection => "Text-to-Speech",
         I18nKey::VoiceBehaviorSection => "Behavior",

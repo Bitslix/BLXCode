@@ -318,6 +318,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppShortcutModeLegacy => "Clásico (Ctrl / Ctrl+Mayús)",
         I18nKey::AppShortcutModeHint => "Tmux: prefix Ctrl+b then a second key. Classic: Ctrl+O, Ctrl+Shift+N, Ctrl+Shift+P.",
         I18nKey::ShortcutsHeading => "Atajos de teclado",
+        I18nKey::ShortcutsDescription => "Tune global shortcuts and command bindings for the workbench.",
         I18nKey::ShortcutsPresetHeading => "Programar",
         I18nKey::ShortcutsBindingsHeading => "Fijaciones",
         I18nKey::ShortcutsPrefixLabel => "Clave de prefijo",
@@ -529,6 +530,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatImage => "Imagen",
         I18nKey::HsCatRemote => "Remoto",
         I18nKey::RemoteHeading => "Conexiones remotas SSH",
+        I18nKey::RemoteDescription => "Manage SSH presets for opening and resuming workspaces on remote machines.",
         I18nKey::RemoteSubtitle => {
             "Guarde los ajustes preestablecidos de conexión para abrir espacios de trabajo en una máquina remota a través de SSH."
         }
@@ -579,7 +581,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsRemoteDirHint => "Opcional. El valor predeterminado es el directorio de la conexión o el hogar remoto.",
         I18nKey::SidebarRemoteTitle => "Espacio de trabajo remoto (SSH)",
         I18nKey::AppHeading => "Aplicación",
+        I18nKey::AppDescription => "Set language, notifications, update checks, and app-wide behavior.",
         I18nKey::AppearanceHeading => "Apariencia",
+        I18nKey::AppearanceDescription => "Choose the visual theme and preview how the workbench will look.",
         I18nKey::AppearanceHeroTitle => "Hazlo tuyo.",
         I18nKey::AppearanceHeroSubtitle => "{n} temas: los colores se aplican instantáneamente en todo el banco de trabajo.",
         I18nKey::AppearanceSearchPlaceholder => "Buscar temas…",
@@ -653,6 +657,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::ThemeNameLilacLight => "Lila Luz",
         I18nKey::ThemeDescLilacLight => "Superficies lavanda suave con acento violeta",
         I18nKey::ApiKeysHeading => "Claves API",
+        I18nKey::ApiKeysDescription => "Store provider credentials used by agent, search, image, and media integrations.",
         I18nKey::ApiKeysLlmSubhead => "Proveedores LLM",
         I18nKey::ApiKeysSearchSubhead => "Proveedores de búsqueda",
         I18nKey::ApiKeysImageVideoSubhead => "Imagen/vídeo y voz",
@@ -675,6 +680,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppLanguage => "Idioma de la interfaz de usuario",
         I18nKey::AppHooksHeading => "Ganchos terminales",
         I18nKey::WsHeading => "Espacio de trabajo",
+        I18nKey::WsDescription => "Configure project paths, browser defaults, terminal naming, and workspace safety.",
         I18nKey::WsSectionPaths => "Rutas y sandbox",
         I18nKey::WsSectionBrowser => "Navegador integrado",
         I18nKey::WsSectionCategoryColors => "Colores de categoría",
@@ -696,6 +702,7 @@ pub fn msg(key: I18nKey) -> &'static str {
             "Muestra un cuadro de diálogo de confirmación al cerrar un espacio de trabajo desde su pestaña Terminales, el botón de cierre de la barra lateral o el menú contextual."
         }
         I18nKey::AgProviderHeading => "Agente de código BLX",
+        I18nKey::AgProviderDescription => "Configure agent providers, models, reasoning, web tools, and session behavior.",
         I18nKey::AgSectionInference => "Inferencia",
         I18nKey::AgSectionModel => "Modelo",
         I18nKey::AgColumnText => "Texto",
@@ -881,6 +888,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::EulaAccepted => "Aceptado",
         I18nKey::EulaUnknown => "Desconocido",
         I18nKey::VoicePaneTitle => "Voz",
+        I18nKey::VoicePaneDescription => "Configure push-to-talk transcription, local Whisper models, and voice routing.",
         I18nKey::VoiceSttSection => "Voz a texto",
         I18nKey::VoiceTtsSection => "Texto a voz",
         I18nKey::VoiceBehaviorSection => "Comportamiento",

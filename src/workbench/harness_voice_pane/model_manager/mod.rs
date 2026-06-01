@@ -24,6 +24,14 @@ enum Filter {
     Family(ModelFamily),
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum SortBy {
+    Default,
+    Size,
+    Accuracy,
+    Speed,
+}
+
 /// In-flight progress for one model.
 #[derive(Clone, Copy)]
 struct Prog {
@@ -40,6 +48,7 @@ where
     let i18n = expect_context::<I18nService>();
     let models = RwSignal::new(Vec::<WhisperModelView>::new());
     let filter = RwSignal::new(Filter::All);
+    let sort_by = RwSignal::new(SortBy::Default);
     let progress = RwSignal::new(HashMap::<String, Prog>::new());
     let errors = RwSignal::new(HashMap::<String, String>::new());
 
@@ -99,25 +108,60 @@ where
 
     let filtered = move || {
         let f = filter.get();
-        models
+        let mut out = models
             .get()
             .into_iter()
             .filter(|m| match f {
                 Filter::All => true,
                 Filter::Family(fam) => m.family == fam,
             })
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+        match sort_by.get() {
+            SortBy::Default => {}
+            SortBy::Size => out.sort_by_key(|m| m.size_bytes),
+            SortBy::Accuracy => out.sort_by(|a, b| {
+                b.accuracy_rating
+                    .cmp(&a.accuracy_rating)
+                    .then(a.size_bytes.cmp(&b.size_bytes))
+            }),
+            SortBy::Speed => out.sort_by(|a, b| {
+                b.speed_rating
+                    .cmp(&a.speed_rating)
+                    .then(a.size_bytes.cmp(&b.size_bytes))
+            }),
+        }
+        out
     };
 
     view! {
         <div class="mm">
-            <h6 class="mm__title">{move || i18n.tr(I18nKey::VoicePttModelsTitle)()}</h6>
-            <div class="mm__filters" role="group">
-                <FilterTab filter=filter want=Filter::All key=I18nKey::VoicePttModelsAll />
-                <FilterTab filter=filter want=Filter::Family(ModelFamily::Standard) key=I18nKey::VoicePttModelsStandard />
-                <FilterTab filter=filter want=Filter::Family(ModelFamily::Quantized) key=I18nKey::VoicePttModelsQuantized />
-                <FilterTab filter=filter want=Filter::Family(ModelFamily::Turbo) key=I18nKey::VoicePttModelsTurbo />
-                <FilterTab filter=filter want=Filter::Family(ModelFamily::Large) key=I18nKey::VoicePttModelsLarge />
+            <div class="mm__head">
+                <h6 class="mm__title">{move || i18n.tr(I18nKey::VoicePttModelsTitle)()}</h6>
+                <select
+                    class="mm__sort"
+                    on:change=move |ev| {
+                        sort_by.set(match event_target_value(&ev).as_str() {
+                            "size" => SortBy::Size,
+                            "accuracy" => SortBy::Accuracy,
+                            "speed" => SortBy::Speed,
+                            _ => SortBy::Default,
+                        });
+                    }
+                >
+                    <option value="default">"Default order"</option>
+                    <option value="size">"Size"</option>
+                    <option value="accuracy">"Accuracy"</option>
+                    <option value="speed">"Speed"</option>
+                </select>
+            </div>
+            <div class="mm__bar">
+                <div class="mm__filters" role="group">
+                    <FilterTab filter=filter want=Filter::All key=I18nKey::VoicePttModelsAll />
+                    <FilterTab filter=filter want=Filter::Family(ModelFamily::Standard) key=I18nKey::VoicePttModelsStandard />
+                    <FilterTab filter=filter want=Filter::Family(ModelFamily::Quantized) key=I18nKey::VoicePttModelsQuantized />
+                    <FilterTab filter=filter want=Filter::Family(ModelFamily::Turbo) key=I18nKey::VoicePttModelsTurbo />
+                    <FilterTab filter=filter want=Filter::Family(ModelFamily::Large) key=I18nKey::VoicePttModelsLarge />
+                </div>
             </div>
 
             <ul class="mm__list">

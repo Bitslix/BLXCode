@@ -11,6 +11,7 @@ use crate::tauri_bridge::{
     MIN_TOOL_LOOP_LIMIT,
 };
 use crate::workbench::agent_model_picker::AgentModelPicker;
+use crate::workbench::SettingsPaneHeader;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
@@ -602,12 +603,11 @@ pub fn AgentProviderPane() -> impl IntoView {
 
     view! {
         <article class="harness-pane agent-provider-pane">
-            <h3 class="harness-pane-title">
-                <span class="harness-pane-title__icon" aria-hidden="true">
-                    <LxIcon icon=icondata::LuCpu width="1.02rem" height="1.02rem" />
-                </span>
-                <span class="harness-pane-title__text">{move || i18n.tr(I18nKey::AgProviderHeading)()}</span>
-            </h3>
+            <SettingsPaneHeader
+                icon=icondata::LuCpu
+                title=I18nKey::AgProviderHeading
+                description=I18nKey::AgProviderDescription
+            />
 
             <div class="agent-provider-pane__grid">
                 <div class="agent-provider-pane__col">
@@ -808,8 +808,9 @@ pub fn AgentProviderPane() -> impl IntoView {
                             />
                             <span>{move || i18n.tr(I18nKey::AgWebProviderBrave)()}</span>
                         </label>
-                    </div>
                 </div>
+                <crate::workbench::agent_voice_settings::AgentVoiceSettings />
+            </div>
                 <p class="app-prefs-hint">{move || i18n.tr(I18nKey::ApiKeysManageHintWeb)()}</p>
             </section>
 

@@ -10,6 +10,7 @@ use crate::tauri_bridge::{
     is_tauri_shell, ssh_remote_delete, ssh_remote_save, ssh_remote_test, ssh_remotes_list,
     RemoteAuthKind, RemoteConnection, RemoteConnectionView, RemoteResume,
 };
+use crate::workbench::SettingsPaneHeader;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
@@ -132,13 +133,11 @@ pub fn RemoteSettingsPane() -> impl IntoView {
 
     view! {
         <article class="harness-pane remote-pane">
-            <h3 class="harness-pane-title">
-                <span class="harness-pane-title__icon" aria-hidden="true">
-                    <LxIcon icon=icondata::LuServer width="1.02rem" height="1.02rem" />
-                </span>
-                <span class="harness-pane-title__text">{move || i18n.tr(I18nKey::RemoteHeading)()}</span>
-            </h3>
-            <p class="harness-muted">{move || i18n.tr(I18nKey::RemoteSubtitle)()}</p>
+            <SettingsPaneHeader
+                icon=icondata::LuServer
+                title=I18nKey::RemoteHeading
+                description=I18nKey::RemoteDescription
+            />
 
             <Show when=move || !is_tauri_shell()>
                 <p class="harness-error">{move || i18n.tr(I18nKey::RemoteRequiresTauri)()}</p>

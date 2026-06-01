@@ -318,6 +318,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppShortcutModeLegacy => "Classico (Ctrl/Ctrl+Maiusc)",
         I18nKey::AppShortcutModeHint => "Tmux: prefix Ctrl+b then a second key. Classic: Ctrl+O, Ctrl+Shift+N, Ctrl+Shift+P.",
         I18nKey::ShortcutsHeading => "Scorciatoie da tastiera",
+        I18nKey::ShortcutsDescription => "Tune global shortcuts and command bindings for the workbench.",
         I18nKey::ShortcutsPresetHeading => "Preimpostato",
         I18nKey::ShortcutsBindingsHeading => "Legami",
         I18nKey::ShortcutsPrefixLabel => "Chiave del prefisso",
@@ -533,6 +534,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatImage => "Immagine",
         I18nKey::HsCatRemote => "Remoto",
         I18nKey::RemoteHeading => "Connessioni remote SSH",
+        I18nKey::RemoteDescription => "Manage SSH presets for opening and resuming workspaces on remote machines.",
         I18nKey::RemoteSubtitle => {
             "Salva le preimpostazioni di connessione per aprire spazi di lavoro su un computer remoto tramite SSH."
         }
@@ -583,7 +585,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsRemoteDirHint => "Opzionale. Il valore predefinito è la directory della connessione o la casa remota.",
         I18nKey::SidebarRemoteTitle => "Spazio di lavoro remoto (SSH)",
         I18nKey::AppHeading => "App",
+        I18nKey::AppDescription => "Set language, notifications, update checks, and app-wide behavior.",
         I18nKey::AppearanceHeading => "Aspetto",
+        I18nKey::AppearanceDescription => "Choose the visual theme and preview how the workbench will look.",
         I18nKey::AppearanceHeroTitle => "Rendilo tuo.",
         I18nKey::AppearanceHeroSubtitle => "{n} temi: i colori si applicano istantaneamente all'ambiente di lavoro.",
         I18nKey::AppearanceSearchPlaceholder => "Cerca temi...",
@@ -657,6 +661,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::ThemeNameLilacLight => "Lilla Chiaro",
         I18nKey::ThemeDescLilacLight => "Superfici lavanda morbida con accento viola",
         I18nKey::ApiKeysHeading => "Chiavi API",
+        I18nKey::ApiKeysDescription => "Store provider credentials used by agent, search, image, and media integrations.",
         I18nKey::ApiKeysLlmSubhead => "Provider LLM",
         I18nKey::ApiKeysSearchSubhead => "Provider di ricerca",
         I18nKey::ApiKeysImageVideoSubhead => "Immagine/video e voce",
@@ -679,6 +684,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppLanguage => "Lingua dell'interfaccia utente",
         I18nKey::AppHooksHeading => "Ganci terminali",
         I18nKey::WsHeading => "Spazio di lavoro",
+        I18nKey::WsDescription => "Configure project paths, browser defaults, terminal naming, and workspace safety.",
         I18nKey::WsSectionPaths => "Percorsi e sandbox",
         I18nKey::WsSectionBrowser => "Browser incorporato",
         I18nKey::WsSectionCategoryColors => "Colori categoria",
@@ -700,6 +706,7 @@ pub fn msg(key: I18nKey) -> &'static str {
             "Mostra una finestra di dialogo di conferma quando si chiude uno spazio di lavoro dalla scheda Terminali, dal pulsante di chiusura della barra laterale o dal menu contestuale."
         }
         I18nKey::AgProviderHeading => "Agente BLXCode",
+        I18nKey::AgProviderDescription => "Configure agent providers, models, reasoning, web tools, and session behavior.",
         I18nKey::AgSectionInference => "Inferenza",
         I18nKey::AgSectionModel => "Modello",
         I18nKey::AgColumnText => "Testo",
@@ -883,6 +890,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::EulaAccepted => "Accettato",
         I18nKey::EulaUnknown => "Sconosciuto",
         I18nKey::VoicePaneTitle => "Voce",
+        I18nKey::VoicePaneDescription => "Configure push-to-talk transcription, local Whisper models, and voice routing.",
         I18nKey::VoiceSttSection => "Discorso in testo",
         I18nKey::VoiceTtsSection => "Da testo a voce",
         I18nKey::VoiceBehaviorSection => "Comportamento",

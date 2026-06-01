@@ -14,6 +14,7 @@ use crate::service::I18nService;
 use crate::workbench::app_prefs::{AppPrefsService, ShortcutMode};
 use crate::workbench::shortcut_config::{Binding, KeyChord, ShortcutAction};
 use crate::workbench::state::HarnessUiService;
+use crate::workbench::SettingsPaneHeader;
 
 /// What a running key capture is targeting.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -92,14 +93,11 @@ pub fn ShortcutsSettingsPane() -> impl IntoView {
 
     view! {
         <article class="harness-pane shortcuts-pane">
-            <h3 class="harness-pane-title">
-                <span class="harness-pane-title__icon" aria-hidden="true">
-                    <LxIcon icon=icondata::LuKeyboard width="1.02rem" height="1.02rem" />
-                </span>
-                <span class="harness-pane-title__text">
-                    {move || i18n.tr(I18nKey::ShortcutsHeading)()}
-                </span>
-            </h3>
+            <SettingsPaneHeader
+                icon=icondata::LuKeyboard
+                title=I18nKey::ShortcutsHeading
+                description=I18nKey::ShortcutsDescription
+            />
 
             // Preset selector (moved here from the App pane).
             <section class="harness-subpane">

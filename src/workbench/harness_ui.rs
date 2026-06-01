@@ -1165,12 +1165,11 @@ fn AppSettingsPane() -> impl IntoView {
 
     view! {
         <article class="harness-pane app-settings-pane">
-            <h3 class="harness-pane-title">
-                <span class="harness-pane-title__icon" aria-hidden="true">
-                    <LxIcon icon=icondata::LuLayoutDashboard width="1.02rem" height="1.02rem" />
-                </span>
-                <span class="harness-pane-title__text">{move || i18n.tr(I18nKey::AppHeading)()}</span>
-            </h3>
+            <crate::workbench::SettingsPaneHeader
+                icon=icondata::LuLayoutDashboard
+                title=I18nKey::AppHeading
+                description=I18nKey::AppDescription
+            />
             <label class="harness-stack">
                 <span class="harness-field-label">
                     <span class="harness-field-label__icon" aria-hidden="true">

@@ -416,7 +416,18 @@ fn load_settings(app: &AppHandle) -> Result<AgentProviderSettings, String> {
     if envelope.is_empty() {
         return Ok(AgentProviderSettings::default());
     }
-    serde_json::from_value(serde_json::Value::Object(envelope.clone()))
+    let mut merged = match serde_json::to_value(AgentProviderSettings::default())
+        .map_err(|e| format!("serialize default agent settings: {e}"))?
+    {
+        serde_json::Value::Object(map) => map,
+        _ => return Err("default agent settings did not serialize to a JSON object".into()),
+    };
+    for (key, value) in envelope {
+        if !RESERVED_SIBLING_KEYS.contains(&key.as_str()) {
+            merged.insert(key, value);
+        }
+    }
+    serde_json::from_value(serde_json::Value::Object(merged))
         .map_err(|e| format!("parse agent settings: {e}"))
 }
 

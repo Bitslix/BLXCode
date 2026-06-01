@@ -318,6 +318,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppShortcutModeLegacy => "Klasszikus (Ctrl / Ctrl+Shift)",
         I18nKey::AppShortcutModeHint => "Tmux: prefix Ctrl+b then a second key. Classic: Ctrl+O, Ctrl+Shift+N, Ctrl+Shift+P.",
         I18nKey::ShortcutsHeading => "Billentyűparancsok",
+        I18nKey::ShortcutsDescription => "Tune global shortcuts and command bindings for the workbench.",
         I18nKey::ShortcutsPresetHeading => "Előre beállított",
         I18nKey::ShortcutsBindingsHeading => "Kötések",
         I18nKey::ShortcutsPrefixLabel => "Előtag kulcs",
@@ -529,6 +530,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatImage => "Kép",
         I18nKey::HsCatRemote => "Távoli",
         I18nKey::RemoteHeading => "SSH távoli kapcsolatok",
+        I18nKey::RemoteDescription => "Manage SSH presets for opening and resuming workspaces on remote machines.",
         I18nKey::RemoteSubtitle => {
             "Mentse a kapcsolati előbeállításokat a távoli gépen lévő munkaterületek megnyitásához SSH-n keresztül."
         }
@@ -577,7 +579,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsRemoteDirHint => "Választható. Alapértelmezés szerint a kapcsolat könyvtára vagy a távoli otthon.",
         I18nKey::SidebarRemoteTitle => "Távoli munkaterület (SSH)",
         I18nKey::AppHeading => "App",
+        I18nKey::AppDescription => "Set language, notifications, update checks, and app-wide behavior.",
         I18nKey::AppearanceHeading => "Megjelenés",
+        I18nKey::AppearanceDescription => "Choose the visual theme and preview how the workbench will look.",
         I18nKey::AppearanceHeroTitle => "Legyen a tiéd.",
         I18nKey::AppearanceHeroSubtitle => "{n} téma – a színek azonnal megjelennek a munkaasztalon.",
         I18nKey::AppearanceSearchPlaceholder => "Témák keresése…",
@@ -651,6 +655,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::ThemeNameLilacLight => "Orgona Világos",
         I18nKey::ThemeDescLilacLight => "Lágy levendula felületek ibolya akcentussal",
         I18nKey::ApiKeysHeading => "API-kulcsok",
+        I18nKey::ApiKeysDescription => "Store provider credentials used by agent, search, image, and media integrations.",
         I18nKey::ApiKeysLlmSubhead => "LLM-szolgáltatók",
         I18nKey::ApiKeysSearchSubhead => "Keresőszolgáltatók",
         I18nKey::ApiKeysImageVideoSubhead => "Kép / videó és hang",
@@ -673,6 +678,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppLanguage => "UI nyelv",
         I18nKey::AppHooksHeading => "Terminál horgok",
         I18nKey::WsHeading => "Munkaterület",
+        I18nKey::WsDescription => "Configure project paths, browser defaults, terminal naming, and workspace safety.",
         I18nKey::WsSectionPaths => "Útvonalak és sandbox",
         I18nKey::WsSectionBrowser => "Beágyazott böngésző",
         I18nKey::WsSectionCategoryColors => "Kategória színek",
@@ -694,6 +700,7 @@ pub fn msg(key: I18nKey) -> &'static str {
             "Megerősítő párbeszédpanel megjelenítése, amikor egy munkaterületet bezár a Terminálok lapról, az oldalsáv bezárás gombjáról vagy a helyi menüből."
         }
         I18nKey::AgProviderHeading => "BLXCode ügynök",
+        I18nKey::AgProviderDescription => "Configure agent providers, models, reasoning, web tools, and session behavior.",
         I18nKey::AgSectionInference => "Következtetés",
         I18nKey::AgSectionModel => "Modell",
         I18nKey::AgColumnText => "Szöveg",
@@ -877,6 +884,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::EulaAccepted => "Elfogadott",
         I18nKey::EulaUnknown => "Ismeretlen",
         I18nKey::VoicePaneTitle => "Hang",
+        I18nKey::VoicePaneDescription => "Configure push-to-talk transcription, local Whisper models, and voice routing.",
         I18nKey::VoiceSttSection => "Beszéd-szöveg",
         I18nKey::VoiceTtsSection => "Szövegfelolvasó",
         I18nKey::VoiceBehaviorSection => "Viselkedés",

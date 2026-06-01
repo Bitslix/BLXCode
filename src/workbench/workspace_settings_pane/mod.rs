@@ -9,6 +9,7 @@ use super::state::{BrowserEmbedSurface, WorkbenchService};
 use crate::config::HARNESS_BROWSER_DEFAULT_URL;
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
+use crate::workbench::SettingsPaneHeader;
 use category_colors::WorkspaceCategoryColorsSection;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
@@ -170,12 +171,11 @@ pub fn WorkspaceSettingsPane(wb: WorkbenchService, embed: BrowserEmbedSurface) -
 
     view! {
         <article class="harness-pane workspace-settings-pane">
-            <h3 class="harness-pane-title">
-                <span class="harness-pane-title__icon" aria-hidden="true">
-                    <LxIcon icon=icondata::LuFolderOpen width="1.02rem" height="1.02rem" />
-                </span>
-                <span class="harness-pane-title__text">{move || i18n.tr(I18nKey::WsHeading)()}</span>
-            </h3>
+            <SettingsPaneHeader
+                icon=icondata::LuFolderOpen
+                title=I18nKey::WsHeading
+                description=I18nKey::WsDescription
+            />
 
             <section class="harness-subpane">
                 <h4 class="harness-pane-subhead">
