@@ -215,7 +215,6 @@ pub fn build_file_snippet_block(
     format!("**`{location}`**\n```{lang_tag}\n{slice}\n```\n")
 }
 
-
 /// Allowlist-based sanitizer for SVG strings rendered inline via `inner_html`.
 /// Drops `<script>` blocks, `on*` attributes, and any `javascript:`/`data:`
 /// references in `href`/`xlink:href`/`src`. Preserves the rest verbatim so

@@ -4,9 +4,7 @@ use crate::workbench::agent_context_handoff::{
     perform_handoff, HandoffRequest, WorkspaceTerminalTarget,
 };
 use crate::workbench::state::normalize_hex_color;
-use crate::workbench::terminal_naming::{
-    self, TerminalNamingMode, NAME_POOL_KEY, NAMING_MODE_KEY,
-};
+use crate::workbench::terminal_naming::{self, TerminalNamingMode, NAME_POOL_KEY, NAMING_MODE_KEY};
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Date;

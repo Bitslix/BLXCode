@@ -138,10 +138,7 @@ fn flatten_conversation(convo: &[Value]) -> String {
         // OpenAI-style assistant tool calls live in a sibling `tool_calls`.
         if let Some(calls) = msg.get("tool_calls").and_then(|v| v.as_array()) {
             for call in calls {
-                if let Some(name) = call
-                    .pointer("/function/name")
-                    .and_then(|v| v.as_str())
-                {
+                if let Some(name) = call.pointer("/function/name").and_then(|v| v.as_str()) {
                     out.push_str(&format!("Assistant tool call: {name}\n"));
                 }
             }
@@ -275,9 +272,7 @@ async fn summarize(
         }
         AgentProviderKind::Openrouter | AgentProviderKind::Openai => {
             let url = match provider {
-                AgentProviderKind::Openrouter => {
-                    "https://openrouter.ai/api/v1/chat/completions"
-                }
+                AgentProviderKind::Openrouter => "https://openrouter.ai/api/v1/chat/completions",
                 _ => "https://api.openai.com/v1/chat/completions",
             };
             let body = json!({

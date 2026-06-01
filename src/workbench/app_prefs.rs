@@ -1,9 +1,7 @@
 //! App-wide UI preferences persisted in `localStorage`.
 
 use super::shortcut_config::{Binding, KeyChord, ShortcutAction, ShortcutConfig};
-use super::terminal_naming::{
-    self, TerminalNamingMode, NAME_POOL_KEY, NAMING_MODE_KEY,
-};
+use super::terminal_naming::{self, TerminalNamingMode, NAME_POOL_KEY, NAMING_MODE_KEY};
 use crate::config::{
     CONFIRM_CLOSE_WORKSPACE_KEY, SHORTCUT_BINDINGS_STORAGE_KEY, SHORTCUT_MODE_LEGACY,
     SHORTCUT_MODE_STORAGE_KEY, SHORTCUT_MODE_TMUX, SUCCESS_SOUND_STORAGE_KEY,

@@ -9,12 +9,12 @@ use crate::tauri_bridge::{
 use crate::workbench::agent_accent::agent_accent_class;
 use crate::workbench::agent_context_handoff::TerminalSlotHandoffButton;
 use crate::workbench::app_prefs::AppPrefsService;
-use crate::workbench::terminal_naming;
 use crate::workbench::terminal_glue::{
     terminal_create, terminal_dispose, terminal_fit, terminal_request_fit,
     terminal_set_stdin_enabled, terminal_show_fallback, terminal_size_from_js,
     terminal_wait_api_ready, terminal_write_b64, TerminalSize,
 };
+use crate::workbench::terminal_naming;
 use crate::workbench::terminal_slot_dnd::{
     set_drag_payload, TerminalDragMeta, TerminalSlotDragPayload, TerminalSlotDragService,
 };

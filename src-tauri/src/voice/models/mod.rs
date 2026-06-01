@@ -62,7 +62,10 @@ impl WhisperDownloadState {
     }
 
     pub fn is_active(&self, id: &str) -> bool {
-        self.active.lock().map(|g| g.contains_key(id)).unwrap_or(false)
+        self.active
+            .lock()
+            .map(|g| g.contains_key(id))
+            .unwrap_or(false)
     }
 }
 
@@ -190,7 +193,10 @@ where
     if *downloaded > 0 {
         req = req.header(reqwest::header::RANGE, format!("bytes={downloaded}-"));
     }
-    let res = req.send().await.map_err(|e| format!("download request: {e}"))?;
+    let res = req
+        .send()
+        .await
+        .map_err(|e| format!("download request: {e}"))?;
     let status = res.status();
 
     // Open the `.part`: append on a successful resume (206), truncate otherwise.
@@ -222,7 +228,11 @@ where
     let mut last_emit = Instant::now();
     on_progress(*downloaded, total, 0.0);
 
-    while let Some(chunk) = res.chunk().await.map_err(|e| format!("download chunk: {e}"))? {
+    while let Some(chunk) = res
+        .chunk()
+        .await
+        .map_err(|e| format!("download chunk: {e}"))?
+    {
         if cancel.load(Ordering::SeqCst) {
             let _ = file.flush().await;
             return Err("cancelled".into());

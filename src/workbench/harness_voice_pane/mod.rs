@@ -1,5 +1,5 @@
 //! Voice settings tab: STT/TTS provider+model, voice with gender filter,
-//! recording quality, post-STT behaviour. STT language + PTT live under App.
+//! recording quality, post-STT behaviour, and push-to-talk model management.
 
 mod model_manager;
 mod ptt_section;
@@ -474,6 +474,24 @@ pub fn AgentVoiceColumn() -> impl IntoView {
                 <p class="voice-pane__status">{move || status.get().unwrap_or_default()}</p>
             </Show>
         </>
+    }
+}
+
+/// Full Settings -> Voice pane.
+#[component]
+pub fn VoiceSettingsPane() -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+
+    view! {
+        <article class="harness-pane voice-settings-pane">
+            <h3 class="harness-pane-title">
+                <span class="harness-pane-title__icon" aria-hidden="true">
+                    <LxIcon icon=icondata::LuMic width="1.02rem" height="1.02rem" />
+                </span>
+                <span class="harness-pane-title__text">{move || i18n.tr(I18nKey::VoicePaneTitle)()}</span>
+            </h3>
+            <AgentVoiceColumn />
+        </article>
     }
 }
 

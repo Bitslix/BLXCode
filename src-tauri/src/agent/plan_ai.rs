@@ -13,7 +13,8 @@ use tauri::AppHandle;
 const MAX_TOKENS: u64 = 2048;
 
 /// Shared rules for both modes: emit plain Markdown only.
-const SYSTEM_PROMPT_BASE: &str = "You are a tool that writes durable implementation plans as Markdown. \
+const SYSTEM_PROMPT_BASE: &str =
+    "You are a tool that writes durable implementation plans as Markdown. \
 Reply with ONLY the plan Markdown: no preamble, no commentary, and do NOT wrap the whole \
 document in a code fence. \
 The document MUST start with a single top-level title line `# <Title>`, followed by short \

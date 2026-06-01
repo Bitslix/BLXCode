@@ -56,9 +56,7 @@ impl WhisperEngine {
 mod imp {
     use super::*;
     use std::sync::Arc;
-    use whisper_rs::{
-        FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters,
-    };
+    use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters};
 
     impl WhisperEngine {
         /// Load `path` into memory if it isn't the currently warm model.

@@ -27,9 +27,9 @@ pub use ptt::{
     VoiceRuntimeStateHandle,
 };
 pub use recorder::VoiceRecorderState;
-pub use stt::WhisperEngine;
 #[allow(unused_imports)]
 pub use settings::{
     PostSttFlow, PttHotkey, PttSettings, SttLanguageMode, SttSettings, TtsSettings,
     VoiceProviderKind, VoiceSettings,
 };
+pub use stt::WhisperEngine;

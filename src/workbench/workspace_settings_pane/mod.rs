@@ -10,10 +10,10 @@ use crate::config::HARNESS_BROWSER_DEFAULT_URL;
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use category_colors::WorkspaceCategoryColorsSection;
-use terminal_naming_section::TerminalNamingSection;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
+use terminal_naming_section::TerminalNamingSection;
 use wasm_bindgen::JsCast;
 
 #[derive(Clone, PartialEq, Eq)]

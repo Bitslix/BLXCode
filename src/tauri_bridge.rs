@@ -3419,30 +3419,38 @@ pub async fn ptt_start() -> Result<PttStartResponse, String> {
     invoke_typed("ptt_start", serde_json::json!({})).await
 }
 
-pub async fn ptt_partial(
-    turn_id: String,
-    locale_hint: Option<String>,
-) -> Result<String, String> {
+pub async fn ptt_partial(turn_id: String, locale_hint: Option<String>) -> Result<String, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Args {
         turn_id: String,
         locale_hint: Option<String>,
     }
-    invoke_typed("ptt_partial", Args { turn_id, locale_hint }).await
+    invoke_typed(
+        "ptt_partial",
+        Args {
+            turn_id,
+            locale_hint,
+        },
+    )
+    .await
 }
 
-pub async fn ptt_finalize(
-    turn_id: String,
-    locale_hint: Option<String>,
-) -> Result<String, String> {
+pub async fn ptt_finalize(turn_id: String, locale_hint: Option<String>) -> Result<String, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
     struct Args {
         turn_id: String,
         locale_hint: Option<String>,
     }
-    invoke_typed("ptt_finalize", Args { turn_id, locale_hint }).await
+    invoke_typed(
+        "ptt_finalize",
+        Args {
+            turn_id,
+            locale_hint,
+        },
+    )
+    .await
 }
 
 pub async fn ptt_cancel(turn_id: String) -> Result<(), String> {

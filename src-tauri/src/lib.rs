@@ -52,11 +52,11 @@ use updater::{
     updater_poll_progress, BlxUpdaterState,
 };
 use voice::{
-    ptt_cancel, ptt_finalize, ptt_partial, ptt_start, voice_cancel_recording, voice_settings_get,
-    voice_settings_save, voice_start_recording, voice_stop_and_transcribe, voice_tts_preview,
-    voice_agent_input_active, voice_tts_playing, whisper_model_cancel, whisper_model_delete,
-    whisper_model_download, whisper_models_list, VoiceRecorderState, VoiceRuntimeStateHandle,
-    WhisperDownloadState, WhisperEngine,
+    ptt_cancel, ptt_finalize, ptt_partial, ptt_start, voice_agent_input_active,
+    voice_cancel_recording, voice_settings_get, voice_settings_save, voice_start_recording,
+    voice_stop_and_transcribe, voice_tts_playing, voice_tts_preview, whisper_model_cancel,
+    whisper_model_delete, whisper_model_download, whisper_models_list, VoiceRecorderState,
+    VoiceRuntimeStateHandle, WhisperDownloadState, WhisperEngine,
 };
 use workbench_state::{
     agent_latest_session_id, agent_session_exists, workbench_clear_terminal_notifications,

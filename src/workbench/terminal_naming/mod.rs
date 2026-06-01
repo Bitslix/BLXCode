@@ -4,7 +4,7 @@
 //! (terminal_key, sessions.json, PTY routing); names are a pure
 //! display/addressing layer resolved entirely client-side.
 
-use crate::config::{TERMINAL_NAMING_MODE_KEY, TERMINAL_NAME_POOL_KEY};
+use crate::config::{TERMINAL_NAME_POOL_KEY, TERMINAL_NAMING_MODE_KEY};
 
 /// Storage token for the "names" mode.
 const MODE_NAMES: &str = "names";

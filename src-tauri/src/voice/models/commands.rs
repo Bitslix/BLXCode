@@ -98,7 +98,13 @@ pub fn whisper_model_download(
             Err(message) => {
                 // A cancellation keeps the `.part` for resume; surface it like
                 // any other terminal state so the UI can reset the button.
-                let _ = app.emit("whisper_download_error", ErrorEvent { id: id.clone(), message });
+                let _ = app.emit(
+                    "whisper_download_error",
+                    ErrorEvent {
+                        id: id.clone(),
+                        message,
+                    },
+                );
             }
         }
     });

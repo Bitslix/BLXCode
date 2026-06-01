@@ -913,6 +913,7 @@ pub fn SettingsDock(
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Workspace label=I18nKey::HsCatWorkspace />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::AgentProvider label=I18nKey::HsCatProvider />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Remote label=I18nKey::HsCatRemote />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Voice label=I18nKey::HsCatVoice />
             </nav>
 
             <div class="harness-settings-detail">
@@ -942,8 +943,8 @@ pub fn SettingsDock(
                         <crate::workbench::WorkspaceSettingsPane wb=wb embed=embed />
                     }.into_any(), // legacy category → Workspace
                     HarnessSettingsCategory::Voice => view! {
-                        <crate::workbench::AgentProviderPane />
-                    }.into_any(), // legacy category → BLXCode Agent
+                        <crate::workbench::harness_voice_pane::VoiceSettingsPane />
+                    }.into_any(),
                     HarnessSettingsCategory::Image => view! {
                         <crate::workbench::AgentProviderPane />
                     }.into_any(), // legacy category → BLXCode Agent

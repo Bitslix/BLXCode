@@ -27,8 +27,8 @@ pub fn pcm_to_wav_bytes(pcm: &[f32], sample_rate: u32) -> Result<Vec<u8>, String
     };
     let mut cursor = std::io::Cursor::new(Vec::<u8>::new());
     {
-        let mut writer = hound::WavWriter::new(&mut cursor, spec)
-            .map_err(|e| format!("wav writer: {e}"))?;
+        let mut writer =
+            hound::WavWriter::new(&mut cursor, spec).map_err(|e| format!("wav writer: {e}"))?;
         for &s in pcm {
             let clamped = s.clamp(-1.0, 1.0);
             let s16 = (clamped * i16::MAX as f32) as i16;
@@ -36,7 +36,9 @@ pub fn pcm_to_wav_bytes(pcm: &[f32], sample_rate: u32) -> Result<Vec<u8>, String
                 .write_sample(s16)
                 .map_err(|e| format!("wav write: {e}"))?;
         }
-        writer.finalize().map_err(|e| format!("wav finalize: {e}"))?;
+        writer
+            .finalize()
+            .map_err(|e| format!("wav finalize: {e}"))?;
     }
     Ok(cursor.into_inner())
 }

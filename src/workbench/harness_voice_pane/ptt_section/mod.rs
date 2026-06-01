@@ -63,8 +63,7 @@ where
             // Hotkey hint → Settings → Shortcuts
             <p class="ptt-hint">{move || i18n.tr(I18nKey::VoicePttHotkeyHint)()}</p>
 
-            <Show when=move || enabled()>
-                <div class="ptt-body">
+            <div class="ptt-body">
                     // Mode
                     <div class="ptt-row">
                         <span class="ptt-row__label">{move || i18n.tr(I18nKey::VoicePttMode)()}</span>
@@ -234,8 +233,7 @@ where
                             <CollisionBtn current=Signal::derive(move || ptt().map(|p| p.tts_collision)) want=TtsCollision::Block key=I18nKey::VoicePttTtsBlock on_pick=move || patch(&|p| p.tts_collision = TtsCollision::Block) />
                         </div>
                     </div>
-                </div>
-            </Show>
+            </div>
         </section>
     }
 }

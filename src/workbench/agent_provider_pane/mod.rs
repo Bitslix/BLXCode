@@ -566,13 +566,23 @@ pub fn AgentProviderPane() -> impl IntoView {
             .get_untracked()
             .clamp(MIN_TOOL_LOOP_LIMIT, MAX_TOOL_LOOP_LIMIT);
         let ac_enabled = auto_compact_enabled.get_untracked();
-        let ac_threshold = auto_compact_threshold
-            .get_untracked()
-            .clamp(MIN_AUTO_COMPACT_THRESHOLD_PCT, MAX_AUTO_COMPACT_THRESHOLD_PCT);
+        let ac_threshold = auto_compact_threshold.get_untracked().clamp(
+            MIN_AUTO_COMPACT_THRESHOLD_PCT,
+            MAX_AUTO_COMPACT_THRESHOLD_PCT,
+        );
         let web = web_provider.get_untracked();
         leptos::task::spawn_local(async move {
             let mut err: Option<String> = None;
-            match agent_settings_save(provider, model_id, level, loop_limit, ac_enabled, ac_threshold).await {
+            match agent_settings_save(
+                provider,
+                model_id,
+                level,
+                loop_limit,
+                ac_enabled,
+                ac_threshold,
+            )
+            .await
+            {
                 Ok(view) => apply_settings(view),
                 Err(e) => err = Some(e),
             }

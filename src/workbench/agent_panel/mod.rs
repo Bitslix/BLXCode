@@ -18,9 +18,9 @@ use crate::tauri_bridge::{
     agent_drain_turn_opts, agent_settings_get, agent_submit_turn, is_tauri_shell,
     tasks_list as fetch_tasks_list,
 };
-use crate::workbench::agent_panel::context_meter::{fmt_tokens, ContextMeter};
 use crate::workbench::agent_panel::client_tools::maybe_handle_client_tool;
 use crate::workbench::agent_panel::context_list::ContextSection;
+use crate::workbench::agent_panel::context_meter::{fmt_tokens, ContextMeter};
 use crate::workbench::agent_panel::image_context::{
     clear_drop_state, handle_dom_drag_event, handle_dom_drop, install_agent_image_intake,
     DropZoneState,
@@ -295,8 +295,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                             fmt_tokens(result.after_tokens_estimate)
                         )));
                     } else {
-                        status_line
-                            .set(Some(i18n.tr(I18nKey::AgAutoCompactStatus)().to_string()));
+                        status_line.set(Some(i18n.tr(I18nKey::AgAutoCompactStatus)().to_string()));
                     }
                 }
                 Err(e) if e == "nothing-to-compact" => {
@@ -320,9 +319,10 @@ pub fn AgentPanelDock() -> impl IntoView {
         let now_busy = busy.get();
         let finished = prev == Some(true) && !now_busy;
         if finished && is_tauri_shell() && auto_compact_enabled.get_untracked() {
-            if let (Some(max), Some(ws_id)) =
-                (context_length.get_untracked(), wb.active_id().get_untracked())
-            {
+            if let (Some(max), Some(ws_id)) = (
+                context_length.get_untracked(),
+                wb.active_id().get_untracked(),
+            ) {
                 if max > 0 && !compacting.get_untracked() {
                     let used = wb.chat_usage_for_workspace(ws_id).last_round_input_tokens;
                     let pct = (used as f64 / max as f64) * 100.0;

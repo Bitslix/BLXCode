@@ -170,9 +170,7 @@ pub fn voice_agent_input_active(
 ) -> Result<(), String> {
     match (active, runtime.current()) {
         (true, VoiceRuntimeState::Idle) => runtime.set(VoiceRuntimeState::AgentVoiceInputActive),
-        (false, VoiceRuntimeState::AgentVoiceInputActive) => {
-            runtime.set(VoiceRuntimeState::Idle)
-        }
+        (false, VoiceRuntimeState::AgentVoiceInputActive) => runtime.set(VoiceRuntimeState::Idle),
         _ => {}
     }
     Ok(())
@@ -205,7 +203,9 @@ async fn transcribe_local(
     // Resolve to an installed model if the stored value is a catalog id.
     let resolved = resolve_model_path(&path);
     let quality = settings.ptt.local_quality;
-    let lang = locale_hint.and_then(|h| reduce_to_iso639_1(&h)).filter(|s| !s.is_empty());
+    let lang = locale_hint
+        .and_then(|h| reduce_to_iso639_1(&h))
+        .filter(|s| !s.is_empty());
     let _ = app;
 
     tokio::task::spawn_blocking(move || {
@@ -224,7 +224,9 @@ async fn transcribe_cloud(
 ) -> Result<String, String> {
     let provider = settings.ptt.cloud_provider;
     let api_key = settings::provider_key(app, provider)?;
-    let lang = locale_hint.and_then(|h| reduce_to_iso639_1(&h)).filter(|s| !s.is_empty());
+    let lang = locale_hint
+        .and_then(|h| reduce_to_iso639_1(&h))
+        .filter(|s| !s.is_empty());
     cloud::transcribe_pcm(
         provider,
         &settings.ptt.cloud_model_id,
