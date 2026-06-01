@@ -14,6 +14,12 @@
       "updatedAt": "2026-05-22T08:02:09Z",
       "tags": [],
       "source": "user"
+    },
+    "rule-use-enabled-rust-skills.md": {
+      "enabled": true,
+      "updatedAt": "2026-05-22T08:02:09Z",
+      "tags": [],
+      "source": "user"
     }
   }
 }

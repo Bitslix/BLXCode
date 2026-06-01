@@ -64,6 +64,22 @@
       },
       "installedAt": "2026-05-20T11:32:10Z",
       "updatedAt": "2026-05-20T11:32:10Z"
+    },
+    "rust-patterns": {
+      "enabled": true,
+      "source": {
+        "kind": "local"
+      },
+      "installedAt": "2026-05-20T11:32:10Z",
+      "updatedAt": "2026-05-20T11:32:10Z"
+    },
+    "rust-testing": {
+      "enabled": true,
+      "source": {
+        "kind": "local"
+      },
+      "installedAt": "2026-05-20T11:32:10Z",
+      "updatedAt": "2026-05-20T11:32:10Z"
     }
   }
 }
