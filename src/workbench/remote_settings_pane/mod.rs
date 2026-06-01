@@ -19,7 +19,7 @@ use crate::tauri_bridge::{
     RemoteResume,
 };
 use crate::workbench::SettingsPaneHeader;
-use connection_card::RemoteConnectionCard;
+use connection_card::{RemoteAddCard, RemoteConnectionCard};
 use connection_editor::RemoteConnectionEditor;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
@@ -161,9 +161,29 @@ pub fn RemoteSettingsPane() -> impl IntoView {
         load();
     });
 
-    let open_new = move |_| {
+    let start_new = move || {
         status_msg.set(None);
         editing.set(Some(blank_view()));
+    };
+    let open_new = move |_| start_new();
+    let on_add = Callback::new(move |_: ()| start_new());
+
+    // Pad the last grid row with dashed "Add" placeholder tiles (instead of
+    // empty cells). Assumes the ~3-column layout from the CSS; on narrower
+    // widths the extra tiles simply wrap and stay valid "Add" affordances.
+    let add_placeholder_count = move || {
+        let n = rows.with(|v| v.len());
+        if n == 0 {
+            0
+        } else {
+            const GRID_COLS: usize = 3;
+            let rem = n % GRID_COLS;
+            if rem == 0 {
+                1
+            } else {
+                GRID_COLS - rem
+            }
+        }
     };
 
     let on_editor_close = Callback::new(move |outcome: EditorOutcome| {
@@ -226,30 +246,39 @@ pub fn RemoteSettingsPane() -> impl IntoView {
 
             // --- List view ---
             <Show when=show_list>
-                <Show when=move || load_error.with(|m| m.is_some())>
-                    <p class="harness-error">{move || load_error.get().unwrap_or_default()}</p>
-                </Show>
-                <Show when=move || status_msg.with(|m| m.is_some())>
-                    <p class="harness-status">{move || status_msg.get().unwrap_or_default()}</p>
-                </Show>
-                <Show when=move || rows.with(|v| v.is_empty()) && load_error.with(|m| m.is_none())>
-                    <p class="harness-muted">{move || i18n.tr(I18nKey::RemoteEmpty)()}</p>
-                </Show>
+                <section class="harness-subpane remote-pane__list-card">
+                    <Show when=move || load_error.with(|m| m.is_some())>
+                        <p class="harness-error">{move || load_error.get().unwrap_or_default()}</p>
+                    </Show>
+                    <Show when=move || status_msg.with(|m| m.is_some())>
+                        <p class="harness-status">{move || status_msg.get().unwrap_or_default()}</p>
+                    </Show>
+                    <Show when=move || rows.with(|v| v.is_empty()) && load_error.with(|m| m.is_none())>
+                        <p class="harness-muted">{move || i18n.tr(I18nKey::RemoteEmpty)()}</p>
+                    </Show>
 
-                <ul class="remote-conn-list">
-                    <For
-                        each=move || rows.get()
-                        key=|r| (r.uid, r.view.connection.id.clone())
-                        children=move |row: RowModel| {
-                            let view_for_edit = row.view.clone();
-                            let on_edit = Callback::new(move |_: ()| {
-                                status_msg.set(None);
-                                editing.set(Some(view_for_edit.clone()));
-                            });
-                            view! { <RemoteConnectionCard view=row.view on_edit=on_edit /> }
-                        }
-                    />
-                </ul>
+                    <Show when=move || rows.with(|v| !v.is_empty())>
+                        <ul class="remote-conn-list">
+                            <For
+                                each=move || rows.get()
+                                key=|r| (r.uid, r.view.connection.id.clone())
+                                children=move |row: RowModel| {
+                                    let view_for_edit = row.view.clone();
+                                    let on_edit = Callback::new(move |_: ()| {
+                                        status_msg.set(None);
+                                        editing.set(Some(view_for_edit.clone()));
+                                    });
+                                    view! { <RemoteConnectionCard view=row.view on_edit=on_edit /> }
+                                }
+                            />
+                            {move || {
+                                (0..add_placeholder_count())
+                                    .map(|_| view! { <RemoteAddCard on_add=on_add /> })
+                                    .collect_view()
+                            }}
+                        </ul>
+                    </Show>
+                </section>
             </Show>
         </article>
     }

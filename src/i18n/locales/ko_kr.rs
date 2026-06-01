@@ -563,6 +563,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteEditConnection => "연결 편집",
         I18nKey::RemoteBackToList => "연결 목록으로",
         I18nKey::RemoteCardEditHint => "클릭하여 편집",
+        I18nKey::RemoteRevealDetails => "연결 세부 정보 표시",
+        I18nKey::RemoteHideDetails => "연결 세부 정보 숨기기",
         I18nKey::WsConnectionType => "연결",
         I18nKey::WsConnectionLocal => "현지의",
         I18nKey::WsConnectionRemote => "원격(SSH)",

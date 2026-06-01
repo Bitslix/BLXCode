@@ -565,6 +565,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteEditConnection => "接続を編集",
         I18nKey::RemoteBackToList => "接続一覧に戻る",
         I18nKey::RemoteCardEditHint => "クリックして編集",
+        I18nKey::RemoteRevealDetails => "接続の詳細を表示",
+        I18nKey::RemoteHideDetails => "接続の詳細を非表示",
         I18nKey::WsConnectionType => "繋がり",
         I18nKey::WsConnectionLocal => "地元",
         I18nKey::WsConnectionRemote => "リモート(SSH)",

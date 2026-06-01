@@ -561,6 +561,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteEditConnection => "编辑连接",
         I18nKey::RemoteBackToList => "返回连接列表",
         I18nKey::RemoteCardEditHint => "点击编辑",
+        I18nKey::RemoteRevealDetails => "显示连接详情",
+        I18nKey::RemoteHideDetails => "隐藏连接详情",
         I18nKey::WsConnectionType => "联系",
         I18nKey::WsConnectionLocal => "当地的",
         I18nKey::WsConnectionRemote => "远程（SSH）",

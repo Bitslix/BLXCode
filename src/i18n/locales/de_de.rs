@@ -585,6 +585,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteEditConnection => "Verbindung bearbeiten",
         I18nKey::RemoteBackToList => "Zurück zu Verbindungen",
         I18nKey::RemoteCardEditHint => "Zum Bearbeiten klicken",
+        I18nKey::RemoteRevealDetails => "Verbindungsdetails anzeigen",
+        I18nKey::RemoteHideDetails => "Verbindungsdetails verbergen",
         I18nKey::WsConnectionType => "Verbindung",
         I18nKey::WsConnectionLocal => "Lokal",
         I18nKey::WsConnectionRemote => "Remote (SSH)",

@@ -626,6 +626,8 @@ keys; the preset only fills in defaults."
         I18nKey::RemoteEditConnection => "Edit connection",
         I18nKey::RemoteBackToList => "Back to connections",
         I18nKey::RemoteCardEditHint => "Click to edit",
+        I18nKey::RemoteRevealDetails => "Show connection details",
+        I18nKey::RemoteHideDetails => "Hide connection details",
         I18nKey::WsConnectionType => "Connection",
         I18nKey::WsConnectionLocal => "Local",
         I18nKey::WsConnectionRemote => "Remote (SSH)",

@@ -23,9 +23,10 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 12px;
+  align-items: stretch;
 }
 
 .remote-conn-row {
@@ -36,11 +37,13 @@
 
 /* --- List view: connection cards --- */
 .remote-conn-card-item {
-  display: block;
+  display: flex;
+  min-width: 0;
 }
 
 .remote-conn-card {
   width: 100%;
+  height: 100%;
   text-align: left;
   cursor: pointer;
   gap: 0.55rem;
@@ -52,6 +55,39 @@
   border-color: var(--border-strong);
   background: var(--overlay-2);
   outline: none;
+}
+
+/* Dashed "Add connection" placeholder tile filling empty grid cells. */
+.remote-conn-card--add {
+  width: 100%;
+  height: 100%;
+  min-height: 5.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.68rem 0.75rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.remote-conn-card--add:hover,
+.remote-conn-card--add:focus-visible {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--overlay-1);
+  outline: none;
+}
+
+.remote-conn-card__add-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
 .remote-conn-card__head {
@@ -82,10 +118,45 @@
   white-space: nowrap;
 }
 
+.remote-conn-card__head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+}
+
+.remote-conn-card__reveal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.remote-conn-card__reveal:hover,
+.remote-conn-card__reveal:focus-visible {
+  color: var(--text);
+  border-color: var(--border);
+  background: var(--overlay-2);
+  outline: none;
+}
+
 .remote-conn-card__chevron {
   display: inline-flex;
   color: var(--text-muted);
   flex: 0 0 auto;
+}
+
+/* Masked values read as muted dots; revealed values use the mono styles. */
+.remote-conn-card__masked {
+  color: var(--text-muted);
+  letter-spacing: 0.12em;
+  user-select: none;
 }
 
 .remote-conn-card__endpoint,

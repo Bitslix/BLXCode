@@ -582,6 +582,8 @@ pub enum I18nKey {
     RemoteEditConnection,
     RemoteBackToList,
     RemoteCardEditHint,
+    RemoteRevealDetails,
+    RemoteHideDetails,
     // --- Workspace creation: local vs. remote ---
     WsConnectionType,
     WsConnectionLocal,

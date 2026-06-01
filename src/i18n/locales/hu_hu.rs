@@ -579,6 +579,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteEditConnection => "Kapcsolat szerkesztése",
         I18nKey::RemoteBackToList => "Vissza a kapcsolatokhoz",
         I18nKey::RemoteCardEditHint => "Kattintson a szerkesztéshez",
+        I18nKey::RemoteRevealDetails => "Kapcsolat részleteinek megjelenítése",
+        I18nKey::RemoteHideDetails => "Kapcsolat részleteinek elrejtése",
         I18nKey::WsConnectionType => "Kapcsolat",
         I18nKey::WsConnectionLocal => "Helyi",
         I18nKey::WsConnectionRemote => "Távoli (SSH)",
