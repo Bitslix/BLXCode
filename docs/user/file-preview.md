@@ -178,7 +178,7 @@ The mapping from file extension to a CodeMirror grammar lives in `cm_lang_for_pa
 | `dockerfile`, `containerfile` | `dockerfile` |
 | `diff`, `patch` | `diff` |
 
-If a file uses an extension with no bundled grammar (e.g. `Makefile`), the preview renders it in the same editor as plain text — still with a gutter and line references. A separate `hljs_lang_for_ext` mapping survives in `util.rs` only to tag the language fence (```` ```rust ````) of snippets sent through the right-click handoff menu.
+If a file uses an extension with no bundled grammar (e.g. `Makefile`), the preview renders it in the same editor as plain text — still with a gutter and line references. A separate `hljs_lang_for_ext` mapping survives in `util.rs` only to tag the language fence (```` ```rust ````) of snippets emitted by the right-click handoff menu; the highlight.js runtime bundle itself was removed when the read-only preview switched to CodeMirror.
 
 ### Theme integration
 

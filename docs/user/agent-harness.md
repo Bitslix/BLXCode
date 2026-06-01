@@ -87,6 +87,8 @@ Before **shell** or **Git** tools run in a workspace session, the agent must cal
 
 Core skill **harness** documents terminal tools; **shell** documents `shell_exec` and allowlists.
 
+When terminals are in **named** mode (see [Workspaces → Named terminals](workspaces.md#named-terminals)), the harness terminal tools accept a `name` argument alongside the existing `slotId` and `agentSlug` targets. Matching is case-insensitive, so the agent can resolve a request like *"ask Devon to run the tests"* to the right slot. `harness.list_terminals` also returns the resolved display `name` and the current `namingMode` for every slot.
+
 ### Git and diff
 
 Read-only Git inspection is available via dedicated tools (`git_status`, `git_diff`, `git_log`, …) and workspace helpers (`workspace_git_status`, `workspace_diff`, `workspace_search`). Mutating Git (`git_add`, `git_commit`, `git_apply_patch`) is coordinator-only and requires explicit `git_write` permission in subagent runs (subagents do not get write by default).

@@ -64,6 +64,52 @@ The panel provides:
 
 On workspace activation, BLXCode restores the last active plan path (`activePlanPath` in the workbench snapshot).
 
+### Plan card quick actions
+
+A collapsed plan card exposes the three most common actions directly in its header alongside the expand/preview toggle:
+
+| Action | Icon | Purpose |
+|---|---|---|
+| **Load into BLXCode Agent** | LuBot | Sync the plan's `## Tasks` into the task store and attach the plan to agent context |
+| **Rename** | LuFilePenLine | Flip the card into rename mode (expands and lazy-loads the body if needed) |
+| **Remove** | LuTrash2 | Delete the plan after a themed danger confirmation |
+
+The quick-action row is **hidden once the card is expanded** — the body already exposes the same actions inline. Rename and Remove are **disabled on the `PLANS.md` index entry** to prevent editing the auto-generated table; the index file is also not shown as a plan card and is excluded from the status-tab counts.
+
+### Collapsible status groups
+
+The Plans panel's **All** view groups plans by their `status:` frontmatter into six status sections:
+
+| Group | Description |
+|---|---|
+| **Blocked** | Plans waiting on something external before they can move forward. |
+| **In progress** | Plans the agent is actively working on right now. |
+| **Pending** | Plans that are queued but not yet started. |
+| **Completed** | Plans that have been fully finished. |
+| **Cancelled** | Plans that were dropped before completion. |
+| **Empty** | Plans without a status, or without recognizable tasks. |
+
+Each group header is a **toggle button** that collapses and re-expands its cards (chevron at the end of the line rotates when collapsed). A one-line description under each group title explains what the state means.
+
+### AI-generated plans and tasks
+
+The Plans panel header has two AI generation buttons next to the **+ New plan** action:
+
+| Button | Icon | Behavior |
+|---|---|---|
+| **AI Plan** | LuSparkles | Generates a full Markdown plan from a short prompt; tasks generation is optional (toggle in the dialog). |
+| **AI Tasks** | LuListPlus | Same flow with the *Generate tasks* toggle forced on and disabled — so the resulting plan always ships with a `## Tasks` section. |
+
+Clicking either button opens a dialog where you type a short prompt (for example *"Add SSH key rotation support"*). While the agent generates, the prompt box shows a **shimmer loading animation** (a `prefers-reduced-motion` fallback replaces the shimmer with a static label). When the model finishes, the dialog renders a **scrollable Markdown preview** of the proposed plan with three actions:
+
+- **Save** — writes the plan to `.agents/plans/<slug>.md` through the existing `plan_create` tool and, when *Generate tasks* is enabled, runs `plan_load` so the `## Tasks` section is synced into the task store.
+- **Regenerate** — re-asks the model with the same prompt.
+- **Cancel** — closes the dialog and discards the draft.
+
+Under the hood, generation calls a new `plan_generate_ai { prompt, with_tasks }` backend command (`src-tauri/src/agent/plan_ai.rs`) that reuses the same non-streaming one-shot path (`oneshot::complete_text`) that already powers AI commit messages — no chat conversation is created, no events are streamed, and no second LLM stack is used. The system prompt is Skill-conformant so the output always follows the built-in plan format: `# Title` + prose sections + a `## Tasks` section using the exact `- [ ] \`task-id\` - Title` line syntax. Post-processing strips any wrapping code fence, extracts the title (falling back to the prompt), and guarantees the `## Tasks` heading exists so `plan_load` never runs on an empty section.
+
+The generated plan is saved through the same tools as a hand-written one — there is no separate write path to `.agents/plans` — so the `PLANS.md` index, frontmatter, and Kanban board update automatically. Empty prompts and missing-API-key cases surface the same friendly errors as AI commit messages.
+
 ## Kanban board view
 
 Switch the Plans toolbar to **Kanban** (alongside **Editor** and **Preview**).

@@ -91,6 +91,15 @@ Each workspace has a top-level terminal grid. Preset counts map to balanced grid
 
 Individual terminal slots can also keep split-pane state. BLXCode persists pane IDs, split axis, and terminal layout so the workbench can restore the surface after restart.
 
+### Named terminals
+
+By default, the terminal titlebar shows `#1`, `#2`, `…` — the slot's grid number. Switching to **named** mode (under **Settings → Workspace → Terminal naming**) replaces those numbers with friendly **agent names** (Devon, Tom, Mia, …) drawn from an editable name pool.
+
+- **Deterministic, collision-free** — each name is derived from the terminal's stable `slot_id`, so a slot keeps its name as siblings come and go.
+- **Custom name per slot** — double-click the terminal header title or use the header right-click menu (**Rename** / **Reset name**) to override the auto-assigned name. The override persists per slot (`slot_name_overrides`, keyed by `slot_id`) and survives restarts.
+- **Backend identity is unchanged** — `slot_id` stays the technical handle used by PTY routing, `terminal_key`, and `sessions.json`. Names are a pure display/addressing layer resolved in the frontend.
+- **The agent knows the names** — `harness.list_terminals` returns the resolved `name` plus `namingMode` for every slot, and `harness.send_terminal_keys` / `send_agent_context` / `read_terminal_output` accept a `name` argument (case-insensitive) alongside `slotId` and `agentSlug`. You can therefore ask the BLXCode Agent *"ask Devon to run the tests"* and it will route the request to the right slot.
+
 <p align="center">
   <img src="../images/screenshot-2026-05-18_18-10-48.png" alt="Workspace terminal grid after the agent opens two additional Claude terminal slots" />
 </p>

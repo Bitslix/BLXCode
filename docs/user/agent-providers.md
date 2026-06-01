@@ -44,6 +44,31 @@ See [Settings](settings.md) and [Voice](voice.md) / [Image Mode](image.md).
 
 Off, Low, Medium, High, Max — mapped per provider where supported.
 
+## Chat header (context, compact, send/stop)
+
+The chat above the compose box shows live conversation state in the header:
+
+- **Context-window meter** — `used / max · NN%` with a thin progress bar that turns **warning** past 70% occupancy and **danger** past 85%. Occupancy tracks the **newest main-agent round's prompt size** (true window occupancy), not the cumulative token count used for cost; subagent rounds are excluded. The maximum is resolved from the provider's own model metadata where possible — for example OpenRouter's `context_length` is cached per model — and falls back to a static table that covers the direct providers (Claude 200K, GPT-5 400K, Gemini 1M, GPT-4.1 1M, …). For unknown models, the header shows a plain token count without a percentage instead of inventing a denominator.
+- **Compact** — a button next to the meter that summarizes the running conversation into a dense briefing and starts the session fresh from it, freeing context-window budget while preserving goals, decisions, file paths, task state, and open questions. A single non-tool provider call does the summarization (so it cannot enter a tool loop); the backend replaces history with a compact `user`→`assistant` pair, the visible timeline resets to a fresh chat, and the meter drops to the post-compaction estimate.
+- **Auto-compact** — same path runs automatically once occupancy crosses a threshold (default **85%**, configurable 50–95% under **Settings → BLXCode Agent**). It fires only between turns and **at most once per crossing** — it re-arms only after occupancy falls back below the threshold — so it never interrupts a running turn or storms.
+
+The compose bar's submit button is a **single Send / Stop toggle**: it shows **Send** (sparkles icon) while idle and flips to **Stop** (square icon, abort styling) while a turn is running. Clicking submits or aborts depending on state; pressing **Enter** in the input still submits.
+
+## Tool-loop limit
+
+The hard ceiling on tool-call rounds inside a single turn — historically a fixed **36** that produced *"Tool-Loop-Limit erreicht (36 Runden)"* when a long investigation ran out of rounds — is now a user setting.
+
+- **Range**: 1–500 (clamped on save and again at the call site).
+- **Default**: 36.
+- **Where**: **Settings → BLXCode Agent → Tool-loop limit** (next to *Thinking level*).
+- Applies to both the OpenAI-compatible (OpenRouter / OpenAI) and Anthropic coordinator loops.
+
+A higher value lets the agent run deeper investigations; a lower value limits the blast radius of a runaway plan.
+
+## Timeline grouping
+
+When a finished **Thinking** block is immediately followed by a tool-bearing **MODEL ROUND**, the two collapse into one row in the timeline: the round label sits on the left and the *Thinking ▾* toggle floats to the right edge of the same line, with the reasoning text dropping below when expanded. The pair occupies a single sequential line number, so a model round always sorts correctly into the rest of the timeline instead of standing on its own row. Rounds without groupable tools, and still-streaming thinking, keep their standalone rows.
+
 ## Agent context
 
 The **Context** section lists attached items (memory categories, notes, plans, images). Each row shows status, remove, and re-attach controls.

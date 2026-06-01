@@ -1,6 +1,6 @@
 # Appearance & Themes
 
-BLXCode ships **20 app themes** (15 dark + 5 light). Colors apply across the workbench — sidebar, settings, terminals, memory graph, and agent panels — via a shared token system.
+BLXCode ships **30 app themes** (15 dark + 15 light). Colors apply across the workbench — sidebar, settings, terminals, memory graph, and agent panels — via a shared token system.
 
 ## Open the theme picker
 
@@ -11,7 +11,7 @@ The pane shows:
 
 - A **hero preview** of the active theme (top right)
 - A **search** field (filters by translated name and description)
-- **All / Dark / Light** filters with counts (`All (20)`, `Dark (15)`, `Light (5)`)
+- **All / Dark / Light** filters with counts (`All (30)`, `Dark (15)`, `Light (15)`)
 - A **grid of theme cards** with mini layout previews
 
 Click a card to apply the theme immediately. The active card shows an **ACTIVE** badge and accent border.
@@ -34,16 +34,28 @@ Click a card to apply the theme immediately. The active card shows an **ACTIVE**
 | Gruvbox Dark / Light | Dark / Light |
 | Solarized Dark / Light | Dark / Light |
 | Nord | Dark |
+| Nord Light | Light |
 | One Dark | Dark |
+| One Light (Atom) | Light |
 | Catppuccin Mocha / Latte / Frappé | Dark / Light / Dark |
 | Tokyo Night | Dark |
+| Tokyo Night Light | Light |
 | Rosé Pine | Dark |
 | Rosé Pine Dawn | Light |
 | Everforest Dark | Dark |
 | Kanagawa | Dark |
-| GitHub Dark | Dark |
+| Claude Code | Dark |
 | Night Owl | Dark |
 | Ayu Mirage | Dark |
+| Ayu Light | Light |
+| GitHub Light | Light |
+| Winter Light | Light |
+| Paper Light | Light |
+| Alpine Light | Light |
+| Frost Light | Light |
+| Lilac Light | Light |
+
+> **Claude Code** is a warm-charcoal dark theme modeled on the Claude Code CLI with a coral accent. It replaces the older `github-dark` slot, whose blue tones overlapped the default BLXCode dark theme.
 
 Theme names and descriptions follow your **Settings → App → Language** choice.
 

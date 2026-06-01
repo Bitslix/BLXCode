@@ -29,8 +29,8 @@ Legacy saved categories (`Image`, `Voice`, `Memory`) still open the correct pane
 **Settings → Appearance** lets you pick an app theme:
 
 - **BLXCode** (default) — the original dark workbench look
-- Eleven additional dark/light presets (Dracula, Gruvbox, Solarized, Nord, One Dark, Catppuccin, Tokyo Night, BLXCode Light)
-- Search and **All / Dark / Light** filters
+- Twenty-nine additional dark/light presets (Dracula, Gruvbox, Solarized, Nord, One Dark/Light, Catppuccin, Tokyo Night & Light, Claude Code, plus a family of cool light themes — Winter, Paper, Alpine, Frost, Lilac)
+- Search and **All / Dark / Light** filters (15 dark, 15 light)
 - Instant preview on each card; choice persists across restarts
 
 Themes affect sidebar, panels, terminals, graphs, and settings chrome. Embedded web pages, native webviews, and your Memory category color swatches are documented exceptions.
@@ -58,12 +58,13 @@ Agent, image, and voice panes show a short status line pointing here — they do
 
 | Area | Settings |
 |------|----------|
-| **Text** | Provider, thinking level, model (`AgentModelPicker`), refresh |
+| **Text** | Provider, thinking level, **tool-loop limit (1–500, default 36)**, model (`AgentModelPicker`), refresh |
+| **Auto-compact** | Toggle (default on) and threshold (50–95 %, default 85 %) — runs a non-tool summarization pass when the context window crosses the threshold, between turns, at most once per crossing |
 | **Image** | Provider, quality level, model, auto-save |
 | **Voice** | Provider (OpenAI / OpenRouter / AWS), STT + TTS models, recording quality, post-STT behavior, voice picks, speak replies |
 | **Web Tools** | Tavily / Brave / disabled backend |
 
-One **Save** / **Discard** at the bottom persists text provider + web tools together. Image and voice sections auto-save on change.
+One **Save** / **Discard** at the bottom persists text provider, tool-loop limit, auto-compact, and web tools together. Image and voice sections auto-save on change.
 
 <p align="center">
   <img src="../images/screenshot-2026-05-22_17-33-18.png" alt="Settings → BLXCode Agent pane with Text card (Provider OpenRouter, Thinking level Medium, Model openai/gpt-5 with pricing $1.25 in / $10.00 out per 1M tokens), Image card (Provider OpenRouter, Quality level Medium, Model google/gemini-2.5-flash-image with pricing $0.30 in / $2.50 out), Voice card (Provider OpenRouter, STT model gpt-4o-mini-transcribe, TTS model neural, recording quality Low / Standard / High, post-STT behavior, 6-voice picker grid, Speak agent replies toggle), and Web Tools row (Disabled / Tavily / Brave)" />
@@ -79,6 +80,7 @@ Details: [Agent Providers](agent-providers.md), [Image Mode](image.md), [Voice](
 - **Embedded browser** — default URL for the Browser tab.
 - **Category colors** — presets used for Memory category dots and sidebar accents (formerly under a separate Memory settings tab).
 - **Confirm before closing a workspace** — when enabled (default), BLXCode asks before closing a workspace from the sidebar ×, context menu, or Terminals tab close path.
+- **Terminal naming** — switch terminal title bars from the native `#1`, `#2` slot numbers to friendly **agent names** (Devon, Tom, Mia, …) drawn from an editable, app-wide name pool. Assignment is deterministic from each terminal's stable `slot_id` (the technical identity used for PTY routing, `sessions.json`, and terminal_key never changes), so a terminal keeps its name as siblings come and go. Add / remove / reset-to-defaults entries in the pool from the same section. Any single terminal can be given a **custom name** via **double-click on its header title** or the header **right-click menu (Rename / Reset name)**; the override persists per slot (`slot_name_overrides`, keyed by `slot_id`) and survives restarts.
 - **Architecture LLM prose** — reserved for a future optional LLM pass when rebuilding the architecture map; rebuilds today are deterministic and do not call a model.
 
 See [Workspaces](workspaces.md) for File Diff, Git sync, and the architecture map in Memory.
