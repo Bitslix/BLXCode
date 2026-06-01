@@ -59,6 +59,28 @@
     margin-bottom: 0.25rem;
 }
 
+/* Header line: "MODEL ROUND" label with the merged thinking toggle floated
+   to the right edge of the same row. */
+.model-round-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.model-round-header .agent-chat-decision-label {
+    margin-bottom: 0;
+}
+
+.model-round-thinking__toggle {
+    margin-left: auto;
+    font-size: 0.72rem;
+    flex: 0 0 auto;
+}
+
+.model-round-thinking__body {
+    margin-top: 0.35rem;
+}
+
 /* Tool list nested inside the model-round block. */
 .model-round-tools {
     list-style: none;

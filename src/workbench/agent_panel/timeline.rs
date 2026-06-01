@@ -985,8 +985,15 @@ pub fn TimelineRow(
     timeline: RwSignal<TimelineDoc>,
     wb: WorkbenchService,
     workspace_id: Option<u64>,
+    /// Display line number for this row. Decoupled from `idx` (which is only a
+    /// stable key for detail/expand state), so model rounds show the correct
+    /// sequential number instead of a hash of their line string.
+    #[prop(optional, into)]
+    line_no: String,
+    /// Optional thinking block merged into a model-round header line.
+    #[prop(optional_no_strip)]
+    thinking: Option<InlineThinking>,
 ) -> impl IntoView {
-    let line_no = format!("{:02}", idx + 1);
     match entry {
         DisplayTimelineItem::User { text } => view! {
             <li class="agent-chat-line agent-chat-line--user">
@@ -1079,11 +1086,64 @@ pub fn TimelineRow(
         DisplayTimelineItem::ModelRound { metrics, tools } => {
             let loc = i18n.locale().get_untracked();
             let label = lookup(loc, I18nKey::AgMetricsModelRound).to_string();
+            // Optional thinking block merged into this header line (floats right).
+            let has_think = thinking.is_some();
+            let think_key = thinking.as_ref().map(|t| t.key);
+            let think_done = thinking.as_ref().map(|t| t.done).unwrap_or(true);
+            let has_think_content = thinking.as_ref().is_some_and(|t| !t.text.trim().is_empty());
+            let think_body = StoredValue::new(thinking.map(|t| t.text).unwrap_or_default());
+            let think_open = Memo::new(move |_| {
+                think_key.is_some_and(|k| thinking_open.with(|m| m.get(&k).copied().unwrap_or(false)))
+            });
             view! {
                 <li class="agent-chat-line agent-chat-line--model-round">
                     <ChatLineIndexColumn line_no=line_no.clone() tts_text=None voice_handle=voice_handle />
                     <div class="agent-chat-body">
-                        <span class="agent-chat-decision-label">{label}</span>
+                        <div class="model-round-header">
+                            <span class="agent-chat-decision-label">{label}</span>
+                            <Show when=move || has_think>
+                                <button
+                                    type="button"
+                                    class="agent-thinking-title model-round-thinking__toggle"
+                                    class:agent-thinking-title--active=move || !think_done
+                                    aria-expanded=move || think_open.get().to_string()
+                                    prop:disabled=move || !has_think_content
+                                    on:click=move |_| {
+                                        if has_think_content {
+                                            if let Some(k) = think_key {
+                                                thinking_open.update(|m| {
+                                                    let cur = m.get(&k).copied().unwrap_or(false);
+                                                    m.insert(k, !cur);
+                                                });
+                                            }
+                                        }
+                                    }
+                                >
+                                    <Show when=move || !think_done>
+                                        <span class="agent-thinking__dots" aria-hidden="true">
+                                            <span></span><span></span><span></span>
+                                        </span>
+                                    </Show>
+                                    <strong class="agent-thinking-title__label">
+                                        {move || if think_done { "Thinking" } else { "Thinking…" }}
+                                    </strong>
+                                    <Show when=move || has_think_content>
+                                        <span class="agent-thinking-title__chevron" aria-hidden="true">
+                                            {move || if think_open.get() {
+                                                view! { <LxIcon icon=icondata::LuChevronUp width="0.85rem" height="0.85rem" /> }
+                                            } else {
+                                                view! { <LxIcon icon=icondata::LuChevronDown width="0.85rem" height="0.85rem" /> }
+                                            }}
+                                        </span>
+                                    </Show>
+                                </button>
+                            </Show>
+                        </div>
+                        {move || (think_open.get() && has_think_content).then(|| view! {
+                            <pre class="agent-thinking-card__body model-round-thinking__body">
+                                {think_body.get_value()}
+                            </pre>
+                        })}
                         <ul class="model-round-tools">
                             {tools.into_iter().enumerate().map(|(ti, tool)| {
                                 let status_class = match tool.status {
@@ -1368,9 +1428,11 @@ pub fn TurnNodeView(
                             on_redo=on_redo
                         />
                     }.into_any(),
-                    TurnRenderItem::ModelRound { metrics, tools } => view! {
+                    TurnRenderItem::ModelRound { thinking, metrics, tools } => view! {
                         <TimelineRow
                             idx=stable_index(&line_no)
+                            line_no=line_no
+                            thinking=thinking
                             entry=DisplayTimelineItem::ModelRound { metrics, tools }
                             i18n=i18n
                             thinking_open=thinking_open
@@ -1388,9 +1450,20 @@ pub fn TurnNodeView(
     }
 }
 
+/// A finished `Thinking` block hoisted into the header of the model round that
+/// immediately followed it, so the toggle floats right into the same line.
+#[derive(Clone)]
+pub struct InlineThinking {
+    /// Key into `thinking_open` for the expand/collapse state.
+    key: usize,
+    text: String,
+    done: bool,
+}
+
 enum TurnRenderItem {
     Part(TurnPart),
     ModelRound {
+        thinking: Option<InlineThinking>,
         metrics: TurnMetrics,
         tools: Vec<ToolActivity>,
     },
@@ -1400,22 +1473,62 @@ fn grouped_turn_render_items(parts: Vec<TurnPart>) -> Vec<TurnRenderItem> {
     let mut out = Vec::new();
     let mut iter = parts.into_iter().peekable();
     while let Some(part) = iter.next() {
+        // A Thinking block immediately followed by a tool-bearing ModelRound is
+        // merged: the thinking toggle floats into the model-round header line.
+        if matches!(part, TurnPart::Thinking { .. })
+            && matches!(iter.peek(), Some(TurnPart::ModelRound { .. }))
+        {
+            let TurnPart::Thinking {
+                id: th_id,
+                text: th_text,
+                done: th_done,
+            } = part
+            else {
+                unreachable!("guarded by matches! above");
+            };
+            let Some(TurnPart::ModelRound { id: mr_id, metrics }) = iter.next() else {
+                unreachable!("peeked a ModelRound above");
+            };
+            let tools = drain_round_tools(&mut iter);
+            if tools.is_empty() {
+                // No tools to anchor the round — keep both rows standalone.
+                out.push(TurnRenderItem::Part(TurnPart::Thinking {
+                    id: th_id,
+                    text: th_text,
+                    done: th_done,
+                }));
+                out.push(TurnRenderItem::Part(TurnPart::ModelRound {
+                    id: mr_id,
+                    metrics,
+                }));
+            } else {
+                push_model_round_group(
+                    &mut out,
+                    TurnRenderItem::ModelRound {
+                        thinking: Some(InlineThinking {
+                            key: stable_index(&th_id),
+                            text: th_text,
+                            done: th_done,
+                        }),
+                        metrics,
+                        tools: group_consecutive_tools(tools),
+                    },
+                );
+            }
+            continue;
+        }
         let TurnPart::ModelRound { id, metrics } = part else {
             out.push(TurnRenderItem::Part(part));
             continue;
         };
-        let mut tools = Vec::new();
-        while iter.peek().is_some_and(is_groupable_tool_part) {
-            if let Some(tool) = iter.next().and_then(tool_activity_from_part) {
-                tools.push(tool);
-            }
-        }
+        let tools = drain_round_tools(&mut iter);
         if tools.is_empty() {
             out.push(TurnRenderItem::Part(TurnPart::ModelRound { id, metrics }));
         } else {
             push_model_round_group(
                 &mut out,
                 TurnRenderItem::ModelRound {
+                    thinking: None,
                     metrics,
                     tools: group_consecutive_tools(tools),
                 },
@@ -1425,15 +1538,34 @@ fn grouped_turn_render_items(parts: Vec<TurnPart>) -> Vec<TurnRenderItem> {
     out
 }
 
+/// Consume the run of groupable (childless) tool parts that belong to a model
+/// round, converting each into a [`ToolActivity`].
+fn drain_round_tools(
+    iter: &mut std::iter::Peekable<std::vec::IntoIter<TurnPart>>,
+) -> Vec<ToolActivity> {
+    let mut tools = Vec::new();
+    while iter.peek().is_some_and(is_groupable_tool_part) {
+        if let Some(tool) = iter.next().and_then(tool_activity_from_part) {
+            tools.push(tool);
+        }
+    }
+    tools
+}
+
 fn push_model_round_group(out: &mut Vec<TurnRenderItem>, next: TurnRenderItem) {
-    let (metrics, mut tools) = match next {
-        TurnRenderItem::ModelRound { metrics, tools } => (metrics, tools),
+    let (thinking, metrics, mut tools) = match next {
+        TurnRenderItem::ModelRound {
+            thinking,
+            metrics,
+            tools,
+        } => (thinking, metrics, tools),
         other => {
             out.push(other);
             return;
         }
     };
     if let Some(TurnRenderItem::ModelRound {
+        thinking: prev_thinking,
         metrics: prev_metrics,
         tools: prev_tools,
     }) = out.last_mut()
@@ -1451,10 +1583,18 @@ fn push_model_round_group(out: &mut Vec<TurnRenderItem>, next: TurnRenderItem) {
                 prev_tools[0].status = ActivityStatus::Pending;
             }
             prev_metrics.merge(&metrics);
+            // Preserve whichever of the two merged rounds carried a thinking block.
+            if prev_thinking.is_none() {
+                *prev_thinking = thinking;
+            }
             return;
         }
     }
-    out.push(TurnRenderItem::ModelRound { metrics, tools });
+    out.push(TurnRenderItem::ModelRound {
+        thinking,
+        metrics,
+        tools,
+    });
 }
 
 fn is_groupable_tool_part(part: &TurnPart) -> bool {
