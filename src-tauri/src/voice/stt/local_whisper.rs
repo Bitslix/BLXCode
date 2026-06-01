@@ -28,8 +28,11 @@ struct EngineInner {
     /// Path of the currently loaded model, if any.
     #[cfg_attr(not(feature = "local-whisper"), allow(dead_code))]
     loaded_path: Option<String>,
+    /// Behind `Arc` so an inference can borrow the context handle and then run
+    /// `create_state()` + `full()` **outside** the engine lock — a long decode
+    /// must not serialize concurrent partial-polls / finalize.
     #[cfg(feature = "local-whisper")]
-    ctx: Option<whisper_rs::WhisperContext>,
+    ctx: Option<std::sync::Arc<whisper_rs::WhisperContext>>,
 }
 
 impl WhisperEngine {
@@ -52,6 +55,7 @@ impl WhisperEngine {
 #[cfg(feature = "local-whisper")]
 mod imp {
     use super::*;
+    use std::sync::Arc;
     use whisper_rs::{
         FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters,
     };
@@ -71,7 +75,7 @@ mod imp {
             }
             let ctx = WhisperContext::new_with_params(path, WhisperContextParameters::default())
                 .map_err(|e| format!("Whisper-Modell konnte nicht geladen werden: {e}"))?;
-            guard.ctx = Some(ctx);
+            guard.ctx = Some(Arc::new(ctx));
             guard.loaded_path = Some(path.to_owned());
             Ok(())
         }
@@ -84,14 +88,18 @@ mod imp {
             quality: WhisperQuality,
             language: Option<&str>,
         ) -> Result<String, String> {
-            let guard = self
-                .inner
-                .lock()
-                .map_err(|_| "whisper engine poisoned".to_string())?;
-            let ctx = guard
-                .ctx
-                .as_ref()
-                .ok_or_else(|| "Whisper-Modell ist nicht geladen.".to_string())?;
+            // Borrow the context handle under the lock, then release it: the
+            // decode below must not hold the engine lock (B1).
+            let ctx = {
+                let guard = self
+                    .inner
+                    .lock()
+                    .map_err(|_| "whisper engine poisoned".to_string())?;
+                guard
+                    .ctx
+                    .clone()
+                    .ok_or_else(|| "Whisper-Modell ist nicht geladen.".to_string())?
+            };
             let mut state = ctx
                 .create_state()
                 .map_err(|e| format!("whisper state: {e}"))?;

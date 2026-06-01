@@ -16,7 +16,7 @@ mod view;
 
 pub use view::PttIndicator;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
@@ -139,12 +139,16 @@ pub fn install_ptt_runtime(
     let turn_id: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
     let target: Rc<RefCell<Option<ResolvedTarget>>> = Rc::new(RefCell::new(None));
     let active = Rc::new(RefCell::new(false));
+    // Backpressure: at most one partial decode in flight at a time, even if a
+    // new hold starts a second poll loop before the previous one has exited.
+    let partial_in_flight = Rc::new(Cell::new(false));
 
     // --- key down: start recording -----------------------------------------
     let down = {
         let turn_id = turn_id.clone();
         let target = target.clone();
         let active = active.clone();
+        let partial_in_flight = partial_in_flight.clone();
         Closure::<dyn FnMut(KeyboardEvent)>::new(move |ev: KeyboardEvent| {
             if ev.repeat() || *active.borrow() {
                 return;
@@ -219,6 +223,7 @@ pub fn install_ptt_runtime(
                 start_partial_poll(
                     turn_id.clone(),
                     active.clone(),
+                    partial_in_flight.clone(),
                     bus,
                     locale_hint(&settings, &i18n),
                 );
@@ -333,6 +338,7 @@ fn resolve_target(ptt: &PttSettings, wb: &WorkbenchService) -> Option<ResolvedTa
 fn start_partial_poll(
     turn_id: Rc<RefCell<Option<String>>>,
     active: Rc<RefCell<bool>>,
+    in_flight: Rc<Cell<bool>>,
     bus: PttBus,
     hint: Option<String>,
 ) {
@@ -343,11 +349,19 @@ fn start_partial_poll(
             if !*active.borrow() {
                 break;
             }
+            // Skip this tick if a decode from a previous tick (or another poll
+            // loop) is still running — never stack overlapping decodes.
+            if in_flight.get() {
+                continue;
+            }
             let id = match turn_id.borrow().clone() {
                 Some(id) => id,
                 None => continue,
             };
-            if let Ok(text) = ptt_partial(id, hint.clone()).await {
+            in_flight.set(true);
+            let result = ptt_partial(id, hint.clone()).await;
+            in_flight.set(false);
+            if let Ok(text) = result {
                 if *active.borrow() && !text.trim().is_empty() {
                     bus.partial.set(text);
                 }
