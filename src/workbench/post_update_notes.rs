@@ -93,7 +93,7 @@ pub fn PostUpdateNotesDialog() -> impl IntoView {
 
     view! {
         <Show when=move || notes.open().get()>
-            <div class="harness-overlay harness-overlay--modal" role="presentation">
+            <div class="harness-overlay harness-overlay--modal harness-overlay--centered" role="presentation">
                 <button
                     type="button"
                     class="harness-scrim"

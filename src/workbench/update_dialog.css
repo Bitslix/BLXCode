@@ -191,9 +191,12 @@
 }
 
 .post-update-section-list {
+  flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   display: grid;
+  align-content: start;
   gap: 0.7rem;
   padding: 0.85rem 1rem 1rem;
   background: var(--bg-panel);

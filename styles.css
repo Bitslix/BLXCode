@@ -4152,6 +4152,12 @@ button.workbench-shortcut-row--action:focus-visible {
   pointer-events: auto;
 }
 
+/* Center the sheet in both axes (default overlays anchor to the top). */
+.harness-overlay--centered {
+  place-items: center;
+  padding: 1rem;
+}
+
 .harness-scrim {
   position: absolute;
   inset: 0;
