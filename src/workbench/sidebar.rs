@@ -1016,8 +1016,8 @@ fn SidebarFooter(ui: HarnessUiService, wb: WorkbenchService) -> impl IntoView {
                     <span class="sidebar-ptt-tooltip__spark" aria-hidden="true"></span>
                     {move || state_label()}
                 </span>
-                <span class="sidebar-ptt-tooltip__main">{move || i18n.tr(I18nKey::VoicePaneTitle)()}</span>
-                <span class="sidebar-ptt-tooltip__hint">"Open push-to-talk and model settings"</span>
+                <span class="sidebar-ptt-tooltip__main">"Push to start voice transcription"</span>
+                <span class="sidebar-ptt-tooltip__hint">"Open push-to-talk settings and local models"</span>
             </span>
             <div class="sidebar-footer-brand__copy" aria-label=format!("BLXCode v{APP_VERSION}")>
                 <span class="sidebar-footer-brand__name">"BLXCode"</span>

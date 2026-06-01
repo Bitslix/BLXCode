@@ -31,7 +31,7 @@ Add curated overview notes here. The generated block below is refreshed by `memo
 - Units: 5
 - Kinds: node, rust
 - Top-level modules: 49
-- Git revision: `fc111fd9cf9cbbf1d9b7d2a8b89787c3da47ad90`
+- Git revision: `0989b987948400d60c69d8de4796436db89efafb`
 <!-- architecture:static:end -->
 
 
