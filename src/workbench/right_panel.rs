@@ -163,20 +163,8 @@ pub fn RightPanel() -> impl IntoView {
                 role="toolbar"
                 aria-label=move || i18n.tr(I18nKey::RpRailAria)()
             >
-                <header class="workbench-gutter-bar">
-                    <button
-                        type="button"
-                        class="workbench-icon-btn workbench-right-panel-toggle"
-                        aria-expanded=move || (!collapsed.get()).to_string()
-                        aria-label=move || if collapsed.get() { i18n.tr(I18nKey::RpExpand)() } else { i18n.tr(I18nKey::RpCollapse)() }
-                        title=move || if collapsed.get() { i18n.tr(I18nKey::RpExpand)() } else { i18n.tr(I18nKey::RpCollapse)() }
-                        on:click=move |_| wb.toggle_right_panel()
-                    >
-                        <span class="workbench-right-panel-toggle__icon" aria-hidden="true">
-                            <LxIcon icon=icondata::LuPanelRight width="1rem" height="1rem" />
-                        </span>
-                    </button>
-                </header>
+                // The right-panel collapse/expand toggle now lives in the app
+                // title bar; the rail keeps only its vertical tab rail.
                 <div
                     class="workbench-right-rail__tabs"
                     role="tablist"
@@ -321,18 +309,6 @@ pub fn RightPanel() -> impl IntoView {
                 >
                     <header class="workbench-right__header">
                         <div class="workbench-right__toolbar">
-                            <button
-                                type="button"
-                                class="workbench-icon-btn workbench-right-panel-toggle"
-                                aria-expanded="true"
-                                aria-label=move || i18n.tr(I18nKey::RpCollapse)()
-                                title=move || i18n.tr(I18nKey::RpCollapse)()
-                                on:click=move |_| wb.toggle_right_panel()
-                            >
-                                <span class="workbench-right-panel-toggle__icon" aria-hidden="true">
-                                    <LxIcon icon=icondata::LuPanelRight width="1rem" height="1rem" />
-                                </span>
-                            </button>
                             <div class="workbench-right-tabstrip" role="tablist" aria-label=move || i18n.tr(I18nKey::RpTabsAria)()>
                                 <button
                                     type="button"

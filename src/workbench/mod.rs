@@ -5,6 +5,7 @@ mod agent_model_picker;
 mod agent_panel;
 mod agent_provider_pane;
 mod agent_timeline;
+mod app_titlebar;
 pub(crate) mod agent_voice_settings;
 mod api_keys_pane;
 mod app_prefs;
@@ -60,6 +61,7 @@ mod workspace_settings_pane;
 
 pub use agent_panel::AgentPanelDock;
 pub use agent_provider_pane::AgentProviderPane;
+pub use app_titlebar::AppTitleBar;
 pub use api_keys_pane::ApiKeysPane;
 pub use appearance_settings_pane::AppearanceSettingsPane;
 pub use browser_tab::{BrowserTabDock, EmbeddedBrowserGlue};
@@ -160,7 +162,8 @@ async fn migrate_legacy_sessions(migrations: Vec<LegacyStorageMigration>) {
 
 #[component]
 pub fn WorkbenchShell() -> impl IntoView {
-    let wb = WorkbenchService::new();
+    // Provided at the App root so the always-mounted `AppTitleBar` shares it.
+    let wb = expect_context::<WorkbenchService>();
     let harness = HarnessUiService::new();
     let embed_surface = BrowserEmbedSurface(RwSignal::new(None));
     let skills_rules = SkillsRulesService::new();
@@ -171,7 +174,6 @@ pub fn WorkbenchShell() -> impl IntoView {
     let slot_dnd = TerminalSlotDragService::new();
     let git_sync = git_sync_controls::GitSyncControls::new();
 
-    provide_context(wb);
     provide_context(harness);
     provide_context(embed_surface);
     provide_context(skills_rules);

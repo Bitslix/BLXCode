@@ -4,7 +4,9 @@ use crate::i18n::{localized_eula_html, I18nKey};
 use crate::open_http::dom_click_http_url_from_mouse_event;
 use crate::quit::request_app_quit;
 use crate::service::I18nService;
+use crate::workbench::AppTitleBar;
 use crate::workbench::ThemeService;
+use crate::workbench::WorkbenchService;
 use crate::workbench::WorkbenchShell;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -16,8 +18,14 @@ use wasm_bindgen::JsCast;
 pub fn App() -> impl IntoView {
     let i18n = I18nService::new();
     let theme = ThemeService::new();
+    // The workbench service is created (and provided) at the App root rather
+    // than inside `WorkbenchShell` so the always-mounted `AppTitleBar` can read
+    // its workspace-scoped state via context. Its hydration/auto-save effects
+    // still live in `WorkbenchShell`, which only mounts after the EULA gate.
+    let wb = WorkbenchService::new();
     provide_context(i18n);
     provide_context(theme);
+    provide_context(wb);
 
     Effect::new(move |_| {
         remove_static_boot_screen();
@@ -107,38 +115,48 @@ pub fn App() -> impl IntoView {
     let show_workbench = move || eula_ok.get();
     let show_eula = move || !eula_ok.get();
 
-    view! {
-        <Show
-            when=move || ui_ready.get()
-            fallback=move || view! { <BootLoadingScreen phase=app_boot_phase.get()/> }
-        >
-            <Show when=show_workbench fallback=move || view! {
-                <Show when=show_eula>
-                    <div class="eula-root">
-                        <div class="eula-scrim" aria-hidden="true"></div>
-                        <div
-                            class="eula-sheet"
-                            role="dialog"
-                            aria-modal="true"
-                            aria-labelledby="eula-heading"
-                        >
-                            <div class="eula-scroll eula-md" inner_html=eula_html></div>
+    // Workspace-scoped title-bar controls appear only once the UI is ready and
+    // the EULA is accepted; during boot/EULA only the brand + window controls
+    // (drag, minimize, maximize, close) render.
+    let workbench_active = Signal::derive(move || ui_ready.get() && eula_ok.get());
 
-                            <footer class="eula-actions">
-                                <button type="button" class="eula-btn eula-btn--ghost" on:click=decline>
-                                    {move || i18n.tr(I18nKey::Decline)()}
-                                </button>
-                                <button type="button" class="eula-btn eula-btn--primary" on:click=accept>
-                                    {move || i18n.tr(I18nKey::Accept)()}
-                                </button>
-                            </footer>
-                        </div>
-                    </div>
+    view! {
+        <div class="app-root">
+            <AppTitleBar workbench_active=workbench_active />
+            <div class="app-root__body">
+                <Show
+                    when=move || ui_ready.get()
+                    fallback=move || view! { <BootLoadingScreen phase=app_boot_phase.get()/> }
+                >
+                    <Show when=show_workbench fallback=move || view! {
+                        <Show when=show_eula>
+                            <div class="eula-root">
+                                <div class="eula-scrim" aria-hidden="true"></div>
+                                <div
+                                    class="eula-sheet"
+                                    role="dialog"
+                                    aria-modal="true"
+                                    aria-labelledby="eula-heading"
+                                >
+                                    <div class="eula-scroll eula-md" inner_html=eula_html></div>
+
+                                    <footer class="eula-actions">
+                                        <button type="button" class="eula-btn eula-btn--ghost" on:click=decline>
+                                            {move || i18n.tr(I18nKey::Decline)()}
+                                        </button>
+                                        <button type="button" class="eula-btn eula-btn--primary" on:click=accept>
+                                            {move || i18n.tr(I18nKey::Accept)()}
+                                        </button>
+                                    </footer>
+                                </div>
+                            </div>
+                        </Show>
+                    }>
+                        <WorkbenchShell/>
+                    </Show>
                 </Show>
-            }>
-                <WorkbenchShell/>
-            </Show>
-        </Show>
+            </div>
+        </div>
     }
 }
 

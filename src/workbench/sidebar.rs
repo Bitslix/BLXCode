@@ -173,27 +173,10 @@ pub fn Sidebar() -> impl IntoView {
             }
             aria-label=move || i18n.tr(I18nKey::SbAria)()
         >
-            <header class=move || {
-                if collapsed.get() {
-                    "workbench-gutter-bar".to_string()
-                } else {
-                    "workbench-sidebar__header".to_string()
-                }
-            }>
-                <Show
-                    when=move || !collapsed.get()
-                    fallback=move || view! {
-                        <button
-                            type="button"
-                            class="workbench-icon-btn"
-                            aria-expanded="false"
-                            aria-label=move || i18n.tr(I18nKey::SbExpand)()
-                            on:click=move |_| wb.toggle_sidebar()
-                        >
-                            "›"
-                        </button>
-                    }
-                >
+            // The sidebar collapse/expand toggle now lives in the app title
+            // bar; the header only carries the heading + add-workspace button.
+            <Show when=move || !collapsed.get()>
+                <header class="workbench-sidebar__header">
                     <div class="workbench-sidebar__title-row">
                         <span class="workbench-sidebar__title">{move || i18n.tr(I18nKey::SbHeading)()}</span>
                         <button
@@ -205,18 +188,8 @@ pub fn Sidebar() -> impl IntoView {
                             "+"
                         </button>
                     </div>
-                    <button
-                        type="button"
-                        class="workbench-icon-btn"
-                        aria-expanded="true"
-                        aria-controls="workbench-workspace-list"
-                        aria-label=move || i18n.tr(I18nKey::SbCollapse)()
-                        on:click=move |_| wb.toggle_sidebar()
-                    >
-                        "«"
-                    </button>
-                </Show>
-            </header>
+                </header>
+            </Show>
 
             <nav class="workbench-sidebar__nav">
                 <Show when=move || !collapsed.get() && slot_dnd.active.get().is_some()>

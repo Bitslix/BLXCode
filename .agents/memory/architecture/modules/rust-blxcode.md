@@ -19,8 +19,8 @@ Manual notes about this unit can live above or below the generated block.
 - Manifest: `src-tauri/Cargo.toml`
 - Root: `src-tauri`
 - Source root: `src-tauri/src`
-- Source files: 104
-- Root declarations: `agent`, `agent_hooks`, `agent_settings`, `agents_layout`, `api_keys`, `app_paths`, `browser_host`, `clipboard`, `commands`, `fs_entries`, `git_commit_ai`, `git_graph`, `git_info`, `git_remote`, `git_status`, `git_sync`, `image`, `media_keys`, `memory`, `plans`, `plans_index`, `pointers`, `proc`, `pty_host`, `skills_rules`, `ssh_exec`, `ssh_remotes`, `ssh_secrets`, `tasks`, `updater`, `voice`, `workbench_state`
+- Source files: 105
+- Root declarations: `agent`, `agent_hooks`, `agent_settings`, `agents_layout`, `api_keys`, `app_paths`, `browser_host`, `clipboard`, `commands`, `fs_entries`, `git_commit_ai`, `git_graph`, `git_info`, `git_remote`, `git_status`, `git_sync`, `image`, `media_keys`, `memory`, `plans`, `plans_index`, `pointers`, `proc`, `pty_host`, `skills_rules`, `ssh_exec`, `ssh_remotes`, `ssh_secrets`, `tasks`, `updater`, `voice`, `window_controls`, `workbench_state`
 
 ### Top-Level Modules
 
@@ -55,6 +55,7 @@ Manual notes about this unit can live above or below the generated block.
 - `tasks` (1 files); declarations: `tests`
 - `updater` (1 files); declarations: `tests`
 - `voice` (14 files) — submodules: `commands`, `models`, `ptt`, `recorder`, `settings`, `stt`, `tts`; declarations: `catalog`, `cloud`, `collision`, `commands`, `imp`, `local_whisper`, `models`, `ptt`, `recorder`, `settings`, `stt`, `tests`, `tts`; 6 deeper source files aggregated here
+- `window_controls` (1 files)
 - `workbench_state` (1 files)
 
 ### Source Paths
@@ -139,7 +140,7 @@ Manual notes about this unit can live above or below the generated block.
 - `src-tauri/src/pty_host.rs`
 - `src-tauri/src/skills_rules/commands.rs`
 - `src-tauri/src/skills_rules/install.rs`
-- ... 24 more source paths omitted
+- ... 25 more source paths omitted
 <!-- architecture:static:end -->
 
 

@@ -1,0 +1,348 @@
+/* Custom cross-platform application title bar (decorations:false).
+ * Tokens only — no literal colors (rule-theme-tokens). */
+
+:root {
+  --titlebar-h: 40px;
+}
+
+.app-titlebar {
+  flex: 0 0 var(--titlebar-h);
+  height: var(--titlebar-h);
+  display: flex;
+  align-items: stretch;
+  gap: 0.25rem;
+  padding-left: 0.5rem;
+  background: var(--bg-panel-header);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-mono);
+  user-select: none;
+  -webkit-user-select: none;
+  position: relative;
+  /* Above the EULA overlay (z-index 9000) so the window stays draggable and
+   * closable during the gate; the bar is window chrome and stays on top. */
+  z-index: 9500;
+}
+
+.app-titlebar__cluster {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.app-titlebar__cluster--left {
+  flex: 0 0 auto;
+}
+
+.app-titlebar__cluster--center {
+  flex: 1 1 auto;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.app-titlebar__cluster--right {
+  flex: 0 0 auto;
+  margin-left: auto;
+  gap: 0;
+}
+
+/* ---- Brand ---- */
+.app-titlebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.4rem;
+}
+
+.app-titlebar__brand-logo {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.app-titlebar__brand-name {
+  font-weight: 600;
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+  color: var(--text-bright);
+}
+
+.app-titlebar__brand-version {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  background: var(--overlay-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.05rem 0.35rem;
+  line-height: 1.2;
+}
+
+/* ---- Breadcrumb ---- */
+.app-titlebar__breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.app-titlebar__crumb {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 18ch;
+}
+
+.app-titlebar__crumb--workspace {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.app-titlebar__crumb--context {
+  color: var(--text-muted);
+}
+
+.app-titlebar__crumb-sep {
+  display: inline-flex;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+/* ---- Generic icon buttons ---- */
+.app-titlebar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0 0.25rem;
+}
+
+.app-titlebar__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  position: relative;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.app-titlebar__icon-btn:hover {
+  background: var(--overlay-2);
+  color: var(--text-bright);
+}
+
+.app-titlebar__icon-btn:active {
+  background: var(--overlay-3);
+}
+
+.app-titlebar__icon-btn--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.app-titlebar__bell-dot {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg-panel-header);
+}
+
+.app-titlebar__divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 0.35rem;
+  background: var(--border-strong);
+}
+
+/* ---- Window controls ---- */
+.app-titlebar__window-controls {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+}
+
+.app-titlebar__win-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.app-titlebar__win-btn:hover {
+  background: var(--overlay-2);
+  color: var(--text-bright);
+}
+
+.app-titlebar__win-btn--close:hover {
+  background: var(--danger);
+  color: var(--on-accent);
+}
+
+.app-titlebar__win-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* Minimize: a centered horizontal bar (avoids relying on an icon glyph). */
+.app-titlebar__win-glyph--min {
+  width: 11px;
+  height: 1px;
+  background: currentColor;
+}
+
+/* ---- Popovers (NAVIGATE + Notifications) ---- */
+.app-titlebar__menu-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.app-titlebar__popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 232px;
+  max-width: 320px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  box-shadow: 0 18px 45px var(--scrim-bg);
+  padding: 0.35rem;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.app-titlebar__popover-head {
+  margin: 0;
+  padding: 0.25rem 0.5rem 0.35rem;
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.app-titlebar__menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.app-titlebar__menu-item:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--text-bright);
+}
+
+.app-titlebar__menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.app-titlebar__menu-item-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app-titlebar__menu-sep {
+  height: 1px;
+  margin: 0.25rem 0.3rem;
+  background: var(--border);
+}
+
+/* ---- Notifications empty / list ---- */
+.app-titlebar__notif-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.3rem;
+  padding: 1.1rem 0.8rem 1.3rem;
+  color: var(--text-faint);
+}
+
+.app-titlebar__notif-empty-title {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.app-titlebar__notif-empty-body {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  max-width: 24ch;
+}
+
+.app-titlebar__notif-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.app-titlebar__notif-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 7px;
+}
+
+.app-titlebar__notif-item:hover {
+  background: var(--overlay-1);
+}
+
+.app-titlebar__notif-item-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.app-titlebar__notif-item-body {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}

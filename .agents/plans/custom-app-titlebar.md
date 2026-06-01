@@ -153,17 +153,17 @@ collapse toggle lives in `sidebar.rs`; the right collapse toggle lives in
 - [x] `titlebar-config` - tauri.conf.json `decorations:false` + capabilities window perms (start-dragging, internal-toggle-maximize)
 - [x] `titlebar-window-cmds` - Backend `window_controls.rs` (minimize/toggle_maximize/is_maximized/close/toggle_fullscreen/is_fullscreen) registered in lib.rs
 - [x] `titlebar-bridge` - tauri_bridge.rs JS wrappers for the window commands
-- [ ] `titlebar-shell` - `app_titlebar/mod.rs` AppTitleBar layout + drag region, mount at App root, CSS scaffold + index.html link
-- [ ] `titlebar-brand` - `brand.rs`: BLXCode logo + name + version badge
-- [ ] `titlebar-window-controls` - `window_controls.rs` UI: minimize/maximize-restore/close with reactive maximized state
-- [ ] `titlebar-sidebar-toggles` - Left/right sidebar toggles in the bar bound to toggle_sidebar/toggle_right_panel (context-gated)
-- [ ] `titlebar-remove-old-toggles` - Remove the old collapse button from sidebar.rs and the right-panel toggle from right_panel.rs; adjust layouts
-- [ ] `titlebar-breadcrumb` - Center breadcrumb (workspace name › active center tab) in a draggable region
-- [ ] `titlebar-navigate-menu` - `navigate_menu.rs` popover: Terminal, New terminal, Plans, Memory, Skills, Settings, Toggle fullscreen + shortcut hints, outside-click/Esc close
-- [ ] `titlebar-notifications-menu` - `notifications_menu.rs` popover with empty state + bell button, backed by a feed store stub
-- [ ] `titlebar-settings-gear` - Settings gear button opening the settings center tab
-- [ ] `titlebar-layout-css` - App-shell vertical flex, `--titlebar-h` offset, terminal fit re-check, tokens-only styling
-- [ ] `titlebar-boot-eula` - Ensure the bar (drag + window controls) is present during boot and the EULA gate
+- [x] `titlebar-shell` - `app_titlebar/mod.rs` AppTitleBar layout + drag region, mount at App root, CSS scaffold + index.html link
+- [x] `titlebar-brand` - `brand.rs`: BLXCode logo + name + version badge
+- [x] `titlebar-window-controls` - `window_controls.rs` UI: minimize/maximize-restore/close with reactive maximized state
+- [x] `titlebar-sidebar-toggles` - Left/right sidebar toggles in the bar bound to toggle_sidebar/toggle_right_panel (context-gated)
+- [x] `titlebar-remove-old-toggles` - Remove the old collapse button from sidebar.rs and the right-panel toggle from right_panel.rs; adjust layouts
+- [x] `titlebar-breadcrumb` - Center breadcrumb (workspace name › active center tab) in a draggable region
+- [x] `titlebar-navigate-menu` - `navigate_menu.rs` popover: Terminal, New terminal, Plans, Memory, Skills, Settings, Toggle fullscreen + shortcut hints, outside-click/Esc close
+- [x] `titlebar-notifications-menu` - `notifications_menu.rs` popover with empty state + bell button, backed by a feed store stub
+- [x] `titlebar-settings-gear` - Settings gear button opening the settings center tab
+- [x] `titlebar-layout-css` - App-shell vertical flex, `--titlebar-h` offset, terminal fit re-check, tokens-only styling
+- [x] `titlebar-boot-eula` - Ensure the bar (drag + window controls) is present during boot and the EULA gate
 - [x] `titlebar-i18n` - Title bar tooltip/menu i18n keys across keys.rs + all 14 locale files (reuse existing keys where they fit)
 - [ ] `titlebar-platform` - Verify platform nuances (Windows hit-targets, macOS no-traffic-lights, Linux drag) on the dev target
 - [ ] `titlebar-notifications-feed` - Follow-up: wire real notifications (agent-done/needs-input, toasts) into the popover store
