@@ -66,9 +66,15 @@ Transkripte brauchen daher einen **eigenen, kleinen Event-Kanal** (siehe P3).
    („PTT-Key in Settings → Shortcuts"). **Einschränkung**: bleibt window-level
    (nur bei fokussierter App); echter OS-globaler Hotkey bräuchte
    `tauri-plugin-global-shortcut` → späteres Add-on, klares TODO.
-3. **Streaming/Partials**: whisper.cpp streamt nicht nativ. Partials =
-   periodisches Re-Decode des bisherigen Ring-Buffers in einem Worker. Per
-   Default **aus** (Kosten/CPU); als optionales Toggle mit Throttle (≥300 ms).
+3. **Streaming/Partials**: whisper.cpp streamt nicht nativ — es transkribiert
+   immer einen kompletten Audio-Block, es gibt kein „gib mir den Zwischenstand".
+   Live-Text wird daher per **Re-Decode-Worker** erzeugt: in festen Intervallen
+   wird der bisher aufgenommene Ring-Buffer *komplett neu* durch whisper gejagt;
+   das jeweils letzte Ergebnis ist der Partial. Das ist mit zunehmender Dauer
+   CPU-intensiv (jeder Tick dekodiert das ganze, länger werdende Audio neu),
+   deshalb **throttled** (≥300 ms zwischen Updates). Per Default **on**
+   (gewünschtes Verhalten: Live-Text out of the box); der User kann es per
+   Toggle abschalten, um CPU/Akku zu schonen.
 4. **Modell-Download-UI**: nur „selektierbarer Pfad“ + Validierung als MVP;
    Preset-Download nur, falls ein bestehender Download-Flow existiert (keiner
    gefunden) → TODO, nicht im MVP.
@@ -136,7 +142,7 @@ struct PttSettings {
     insert_target: PttInsertTarget,    // Agent | Terminal | ActiveInput | Clipboard
     target_mode: PttTargetMode,        // CurrentFocus | RememberStart
     auto_submit: bool,             // default false
-    partial_transcript: bool,      // default false
+    partial_transcript: bool,      // default true (Live-Text an; abschaltbar)
     tts_collision: TtsCollision,   // Stop | Pause | Block (default Block)
 }
 ```
@@ -202,8 +208,10 @@ Shortcuts ändern" (verlinkt), plus der Enable-Toggle.
 - `commands.rs`: `ptt_start`, `ptt_stop_finalize`, `ptt_cancel`, `ptt_test` (kurze Aufnahme→Transkript, ohne Insert). In [lib.rs](../../src-tauri/src/lib.rs) registrieren.
 - Frontend Ziel-Routing (`PttTarget` capture/restore) + Insert-Bridges.
 
-### P3 — Partial-Transkript (optional)
-- Eigener Event-Kanal (kleiner `VecDeque`+poll **oder** `app.emit`), getrennt vom Agent-Stream. Events: `PttRecordingStarted/PartialTranscript/FinalTranscript/RecordingStopped/Error/StateChanged`. Partials throttlen (≥300 ms).
+### P3 — Partial-Transkript (default on, abschaltbar)
+- Eigener Event-Kanal (kleiner `VecDeque`+poll **oder** `app.emit`), getrennt vom Agent-Stream. Events: `PttRecordingStarted/PartialTranscript/FinalTranscript/RecordingStopped/Error/StateChanged`.
+- **Re-Decode-Worker**: periodisches Komplett-Dekodieren des Ring-Buffers, Updates throttlen (≥300 ms). Laufzeit-Gate: Worker startet nur bei `partial_transcript == true` (Default an); bei `false` nur ein finales Decode beim Loslassen.
+- **Cloud-Mode**: kein Re-Decode (zu teuer/langsam pro Request) — Partials bleiben dort aus, unabhängig vom Toggle; UI-Hinweis bzw. Toggle nur im Local-Mode aktiv.
 
 ### P4 — Settings-UI + Shortcuts-Integration
 - **Shortcuts**: `ShortcutAction::PushToTalk` in [shortcut_config.rs](../../src/workbench/shortcut_config.rs) (`ALL`, `label_key`, Default-Combo, Preset-Seeding als Combo) + `action_icon`; `install_ptt_hotkey` liest Chord aus `ShortcutConfig` statt `PttHotkey` und behält Hold-Semantik. PTT **nicht** in `harness_chords` press-fire einhängen.
