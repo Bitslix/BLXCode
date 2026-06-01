@@ -22,7 +22,8 @@
 }
 
 .voice-settings-pane__ptt-only {
-    max-width: 68rem;
+    width: 100%;
+    max-width: none;
 }
 
 .agent-provider-pane__voice-col {

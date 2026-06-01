@@ -54,30 +54,25 @@ pub fn AppearanceSettingsPane() -> impl IntoView {
     let dark_count = Memo::new(|_| THEMES.iter().filter(|t| t.mode == ThemeMode::Dark).count());
     let light_count = Memo::new(|_| THEMES.iter().filter(|t| t.mode == ThemeMode::Light).count());
     let total_count = theme_count();
-
-    let active_theme = theme_svc.active_theme();
+    let active_theme = move || {
+        let id = theme_svc.active_theme_id().get();
+        THEMES
+            .iter()
+            .find(|theme| theme.id == id)
+            .copied()
+            .unwrap_or(THEMES[0])
+    };
 
     view! {
         <article class="appearance-pane harness-pane">
-            <SettingsPaneHeader
-                icon=icondata::LuSunMoon
-                title=I18nKey::AppearanceHeading
-                description=I18nKey::AppearanceDescription
-            />
-            <header class="appearance-hero">
-                <div class="appearance-hero__copy">
-                    <h3 class="appearance-hero__title">
-                        {move || i18n.tr(I18nKey::AppearanceHeroTitle)()}
-                    </h3>
-                    <p class="appearance-hero__subtitle">
-                        {move || {
-                            i18n.tr(I18nKey::AppearanceHeroSubtitle)()
-                                .replace("{n}", &total_count.to_string())
-                        }}
-                    </p>
-                </div>
+            <div class="appearance-pane__top">
+                <SettingsPaneHeader
+                    icon=icondata::LuSunMoon
+                    title=I18nKey::AppearanceHeading
+                    description=I18nKey::AppearanceDescription
+                />
                 <div
-                    class="appearance-hero__preview"
+                    class="appearance-active-preview"
                     aria-label=move || i18n.tr(I18nKey::AppearanceActivePreviewLabel)()
                     style=move || {
                         let t = active_theme();
@@ -90,11 +85,11 @@ pub fn AppearanceSettingsPane() -> impl IntoView {
                         )
                     }
                 >
-                    <span class="appearance-hero__preview-badge">
+                    <span class="appearance-active-preview__badge">
                         {move || i18n.tr(I18nKey::AppearanceActiveBadge)()}
                     </span>
                 </div>
-            </header>
+            </div>
 
             <div class="appearance-toolbar">
                 <label class="appearance-search">

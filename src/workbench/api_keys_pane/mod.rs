@@ -186,7 +186,12 @@ pub fn ApiKeysPane() -> impl IntoView {
                 description=I18nKey::ApiKeysDescription
             />
 
-            <p class="harness-muted">{move || i18n.tr(I18nKey::AgApiKeyHint)()}</p>
+            <div class="harness-inline-notice" role="note">
+                <span class="harness-inline-notice__icon" aria-hidden="true">
+                    <LxIcon icon=icondata::LuInfo width="0.9rem" height="0.9rem" />
+                </span>
+                <span>{move || i18n.tr(I18nKey::AgApiKeyHint)()}</span>
+            </div>
 
             <section class="harness-subpane">
                 <h4 class="harness-pane-subhead">

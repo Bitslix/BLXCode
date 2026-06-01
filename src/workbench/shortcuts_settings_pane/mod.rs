@@ -140,11 +140,22 @@ pub fn ShortcutsSettingsPane() -> impl IntoView {
                 <p class="app-prefs-hint">{move || i18n.tr(I18nKey::ShortcutsHint)()}</p>
             </section>
 
-            // Prefix key.
+            // Per-action bindings.
             <section class="harness-subpane">
-                <div class="shortcuts-pane__row">
-                    <span class="shortcuts-pane__label">
-                        {move || i18n.tr(I18nKey::ShortcutsPrefixLabel)()}
+                <h4 class="harness-pane-subhead">
+                    <span class="harness-pane-subhead__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuKeyboard width="0.82rem" height="0.82rem" />
+                    </span>
+                    <span>{move || i18n.tr(I18nKey::ShortcutsBindingsHeading)()}</span>
+                </h4>
+                <div class="shortcuts-pane__row shortcuts-pane__row--prefix">
+                    <span class="shortcuts-pane__lead">
+                        <span class="shortcuts-pane__icon" aria-hidden="true">
+                            <LxIcon icon=icondata::LuCommand width="0.82rem" height="0.82rem" />
+                        </span>
+                        <span class="shortcuts-pane__label">
+                            {move || i18n.tr(I18nKey::ShortcutsPrefixLabel)()}
+                        </span>
                     </span>
                     <span class="shortcuts-pane__keys">
                         <kbd class="workbench-kbd">
@@ -160,16 +171,6 @@ pub fn ShortcutsSettingsPane() -> impl IntoView {
                         <span>{move || i18n.tr(I18nKey::ShortcutsRebind)()}</span>
                     </button>
                 </div>
-            </section>
-
-            // Per-action bindings.
-            <section class="harness-subpane">
-                <h4 class="harness-pane-subhead">
-                    <span class="harness-pane-subhead__icon" aria-hidden="true">
-                        <LxIcon icon=icondata::LuKeyboard width="0.82rem" height="0.82rem" />
-                    </span>
-                    <span>{move || i18n.tr(I18nKey::ShortcutsBindingsHeading)()}</span>
-                </h4>
                 <ul class="shortcuts-pane__list">
                     {ShortcutAction::ALL
                         .into_iter()

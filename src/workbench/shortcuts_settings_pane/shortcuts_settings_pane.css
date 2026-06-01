@@ -3,21 +3,26 @@
 
 .shortcuts-pane__list {
   list-style: none;
-  margin: 0;
+  margin: 0.7rem 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.52rem;
 }
 
 .shortcuts-pane__row {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 6px 8px;
+  padding: 0.55rem 0.65rem;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-raised);
+}
+
+.shortcuts-pane__row--prefix {
+  background: color-mix(in srgb, var(--accent-soft) 34%, var(--bg-raised));
+  border-color: color-mix(in srgb, var(--accent) 24%, var(--border));
 }
 
 .shortcuts-pane__lead {
@@ -90,13 +95,7 @@
 }
 
 .shortcuts-pane__btn--reset-all {
-  margin-top: 10px;
-}
-
-/* Prefix row reuses the bordered row look without the list wrapper. */
-.shortcuts-pane .shortcuts-pane__row:only-child,
-.harness-subpane > .shortcuts-pane__row {
-  width: 100%;
+  margin-top: 0.7rem;
 }
 
 /* Full-width key-capture catcher. Hidden until a capture is armed. */

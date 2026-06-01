@@ -7,14 +7,14 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    gap: 0.78rem;
 }
 
 .settings-field-card {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
-    padding: 0.55rem 0.65rem;
+    gap: 0.48rem;
+    padding: 0.68rem 0.75rem;
     border-radius: 6px;
     background: var(--overlay-1);
     border: 1px solid var(--border);

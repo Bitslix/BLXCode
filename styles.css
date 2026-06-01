@@ -4747,6 +4747,28 @@ button.workbench-shortcut-row--action:focus-visible {
   line-height: 1.45;
 }
 
+.harness-inline-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  width: fit-content;
+  max-width: min(54rem, 100%);
+  padding: 0.58rem 0.72rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent-soft) 36%, var(--bg-panel));
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.harness-inline-notice__icon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--accent);
+  margin-top: 0.04rem;
+}
+
 .harness-pane-title__icon {
   flex-shrink: 0;
   width: 30px;

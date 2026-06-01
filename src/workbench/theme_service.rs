@@ -1,7 +1,7 @@
 //! App theme selection persisted in `localStorage` and applied via `data-theme` on `<html>`.
 
 use crate::config::THEME_STORAGE_KEY;
-use crate::theme::{theme_by_id, DEFAULT_THEME_ID, THEMES};
+use crate::theme::{DEFAULT_THEME_ID, THEMES};
 use js_sys;
 use leptos::prelude::*;
 use wasm_bindgen::JsValue;
@@ -27,15 +27,6 @@ impl ThemeService {
     #[must_use]
     pub fn active_theme_id(&self) -> RwSignal<String> {
         self.active_theme_id
-    }
-
-    #[must_use]
-    pub fn active_theme(&self) -> impl Fn() -> &'static crate::theme::AppTheme + Copy {
-        let sig = self.active_theme_id;
-        move || {
-            theme_by_id(&sig.get())
-                .unwrap_or_else(|| theme_by_id(DEFAULT_THEME_ID).expect("default theme exists"))
-        }
     }
 
     pub fn set_theme(&self, theme_id: &str) {
