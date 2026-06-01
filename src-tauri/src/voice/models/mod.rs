@@ -14,13 +14,13 @@ pub use commands::{
 };
 
 use std::collections::HashMap;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use sha2::{Digest, Sha256};
+use tokio::io::AsyncWriteExt;
 
 /// Tracks in-flight downloads so they can be cancelled. Registered as Tauri
 /// state.
@@ -198,12 +198,13 @@ where
     if !resuming {
         *downloaded = 0;
     }
-    let mut file = std::fs::OpenOptions::new()
+    let mut file = tokio::fs::OpenOptions::new()
         .create(true)
         .write(true)
         .append(resuming)
         .truncate(!resuming)
         .open(part)
+        .await
         .map_err(|e| format!("open {}: {e}", part.display()))?;
 
     if !status.is_success() && status != reqwest::StatusCode::PARTIAL_CONTENT {
@@ -223,10 +224,11 @@ where
 
     while let Some(chunk) = res.chunk().await.map_err(|e| format!("download chunk: {e}"))? {
         if cancel.load(Ordering::SeqCst) {
-            let _ = file.flush();
+            let _ = file.flush().await;
             return Err("cancelled".into());
         }
         file.write_all(&chunk)
+            .await
             .map_err(|e| format!("write {}: {e}", part.display()))?;
         *downloaded += chunk.len() as u64;
         window_bytes += chunk.len() as u64;
@@ -241,13 +243,17 @@ where
             window_bytes = 0;
         }
     }
-    file.flush().map_err(|e| format!("flush: {e}"))?;
+    file.flush().await.map_err(|e| format!("flush: {e}"))?;
     drop(file);
     on_progress(*downloaded, total.max(*downloaded), 0.0);
 
-    // Verify integrity when a checksum is published.
+    // Verify integrity when a checksum is published. Hashing reads the whole
+    // file (models up to ~1.5 GB), so keep it off the async worker.
     if !model.sha256.is_empty() {
-        let actual = sha256_file(part)?;
+        let part_buf = part.to_path_buf();
+        let actual = tauri::async_runtime::spawn_blocking(move || sha256_file(&part_buf))
+            .await
+            .map_err(|e| format!("sha256 task join: {e}"))??;
         if !actual.eq_ignore_ascii_case(model.sha256) {
             let _ = std::fs::remove_file(part);
             return Err(format!(

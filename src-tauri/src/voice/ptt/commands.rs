@@ -49,38 +49,52 @@ fn sample_rate(settings: &VoiceSettings) -> u32 {
 }
 
 /// Begin a push-to-talk recording, subject to the collision policy.
+///
+/// Async + `spawn_blocking`: settings load (JSON file), cpal device
+/// enumeration, and the model warm-up are all blocking and must never run on
+/// the Tauri main thread — a frozen UI on key-down is exactly what PTT must
+/// avoid.
 #[tauri::command]
-pub fn ptt_start(
+pub async fn ptt_start(
     app: AppHandle,
     recorder: State<'_, Arc<VoiceRecorderState>>,
     runtime: State<'_, Arc<VoiceRuntimeStateHandle>>,
     whisper: State<'_, Arc<WhisperEngine>>,
 ) -> Result<PttStartResponse, String> {
-    let settings = settings::load(&app)?;
-    let decision = runtime.decide_ptt_start(settings.ptt.tts_collision);
-    match decision {
-        PttStartDecision::RejectBusy | PttStartDecision::RejectTtsPlaying => Ok(PttStartResponse {
-            turn_id: None,
-            started: false,
-            decision: decision_str(decision),
-        }),
-        _ => {
-            // Warm the model early in local mode so finalize is fast. Best
-            // effort: a load failure surfaces on finalize with a clear error.
-            if settings.ptt.mode == PttMode::Local {
-                if let Some(path) = settings.ptt.local_model_path.as_deref() {
-                    let _ = whisper.ensure_loaded(path);
-                }
+    let recorder = recorder.inner().clone();
+    let runtime = runtime.inner().clone();
+    let whisper = whisper.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let settings = settings::load(&app)?;
+        let decision = runtime.decide_ptt_start(settings.ptt.tts_collision);
+        match decision {
+            PttStartDecision::RejectBusy | PttStartDecision::RejectTtsPlaying => {
+                Ok(PttStartResponse {
+                    turn_id: None,
+                    started: false,
+                    decision: decision_str(decision),
+                })
             }
-            let turn_id = recorder::start_pcm(recorder.inner(), sample_rate(&settings))?;
-            runtime.set(VoiceRuntimeState::RecordingPtt);
-            Ok(PttStartResponse {
-                turn_id: Some(turn_id),
-                started: true,
-                decision: decision_str(decision),
-            })
+            _ => {
+                // Warm the model early in local mode so finalize is fast. Best
+                // effort: a load failure surfaces on finalize with a clear error.
+                if settings.ptt.mode == PttMode::Local {
+                    if let Some(path) = settings.ptt.local_model_path.as_deref() {
+                        let _ = whisper.ensure_loaded(path);
+                    }
+                }
+                let turn_id = recorder::start_pcm(&recorder, sample_rate(&settings))?;
+                runtime.set(VoiceRuntimeState::RecordingPtt);
+                Ok(PttStartResponse {
+                    turn_id: Some(turn_id),
+                    started: true,
+                    decision: decision_str(decision),
+                })
+            }
         }
-    }
+    })
+    .await
+    .map_err(|e| format!("ptt_start task join: {e}"))?
 }
 
 /// Live partial transcript: snapshot the audio so far and decode it. Local

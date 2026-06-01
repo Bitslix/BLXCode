@@ -47,8 +47,11 @@ struct ErrorEvent {
 }
 
 #[tauri::command]
-pub fn whisper_models_list() -> Result<Vec<WhisperModelView>, String> {
-    Ok(super::list(&models_dir()?))
+pub async fn whisper_models_list() -> Result<Vec<WhisperModelView>, String> {
+    // Directory scan + per-model `metadata` stats: keep off the main thread.
+    tauri::async_runtime::spawn_blocking(|| Ok(super::list(&models_dir()?)))
+        .await
+        .map_err(|e| format!("whisper_models_list task join: {e}"))?
 }
 
 /// Kick off a (resumable) download in the background. Progress is emitted as
@@ -112,6 +115,8 @@ pub fn whisper_model_cancel(
 }
 
 #[tauri::command]
-pub fn whisper_model_delete(id: String) -> Result<(), String> {
-    super::delete(&models_dir()?, &id)
+pub async fn whisper_model_delete(id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || super::delete(&models_dir()?, &id))
+        .await
+        .map_err(|e| format!("whisper_model_delete task join: {e}"))?
 }
