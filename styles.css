@@ -2465,7 +2465,7 @@ button.workbench-shortcut-row--action:focus-visible {
 .agent-hero {
   flex-shrink: 0;
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 1fr auto;
   grid-template-rows: auto auto;
   align-items: start;
   column-gap: 1.25rem;
@@ -2479,7 +2479,8 @@ button.workbench-shortcut-row--action:focus-visible {
 
 .agent-hero__orb {
   position: relative;
-  grid-column: 1;
+  isolation: isolate;
+  grid-column: 2;
   grid-row: 1;
   display: grid;
   place-items: center;
@@ -2508,7 +2509,7 @@ button.workbench-shortcut-row--action:focus-visible {
   inset: 0.72rem;
   border-radius: inherit;
   border: 1px solid var(--accent-soft);
-  z-index: 2;
+  z-index: 0;
   pointer-events: none;
 }
 
@@ -2567,7 +2568,66 @@ button.workbench-shortcut-row--action:focus-visible {
   display: block;
   width: 110%;
   height: 110%;
+  filter: none;
   pointer-events: none;
+  transition: filter 0.5s ease-out;
+}
+
+.drobo-orb__stage--thinking .drobo-orb__canvas {
+  animation: drobo-thinking-canvas 2.6s ease-in-out infinite;
+}
+
+@keyframes drobo-thinking-canvas {
+  0% {
+    filter:
+      saturate(1.38)
+      brightness(1.04)
+      drop-shadow(0 0 0.72rem color-mix(in srgb, var(--accent-cool) 64%, transparent))
+      drop-shadow(0 0 1.24rem color-mix(in srgb, var(--accent-cool) 34%, transparent));
+  }
+
+  24% {
+    filter:
+      saturate(1.58)
+      brightness(1.08)
+      drop-shadow(0 0 0.86rem color-mix(in srgb, var(--accent) 70%, transparent))
+      drop-shadow(0 0 1.42rem color-mix(in srgb, var(--accent) 38%, transparent));
+  }
+
+  50% {
+    filter:
+      saturate(1.7)
+      brightness(1.1)
+      drop-shadow(0 0 0.96rem color-mix(in srgb, var(--syntax-keyword, var(--accent)) 72%, transparent))
+      drop-shadow(0 0 1.55rem color-mix(in srgb, var(--syntax-keyword, var(--accent)) 42%, transparent));
+  }
+
+  74% {
+    filter:
+      saturate(1.56)
+      brightness(1.07)
+      drop-shadow(0 0 0.86rem color-mix(in srgb, var(--success, var(--accent-cool)) 66%, transparent))
+      drop-shadow(0 0 1.38rem color-mix(in srgb, var(--success, var(--accent-cool)) 34%, transparent));
+  }
+
+  100% {
+    filter:
+      saturate(1.38)
+      brightness(1.04)
+      drop-shadow(0 0 0.72rem color-mix(in srgb, var(--accent-cool) 64%, transparent))
+      drop-shadow(0 0 1.24rem color-mix(in srgb, var(--accent-cool) 34%, transparent));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drobo-orb__stage--thinking .drobo-orb__canvas {
+    animation: none;
+    filter:
+      saturate(1.36)
+      brightness(1.06)
+      drop-shadow(0 0 0.78rem color-mix(in srgb, var(--accent-cool) 58%, transparent))
+      drop-shadow(0 0 1.24rem color-mix(in srgb, var(--accent) 34%, transparent));
+  }
 }
 
 .drobo-orb__fallback {
@@ -2612,7 +2672,7 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .agent-hero__meta {
-  grid-column: 1;
+  grid-column: 2;
   grid-row: 2;
   display: flex;
   flex-direction: column;

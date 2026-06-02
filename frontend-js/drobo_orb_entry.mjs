@@ -52,6 +52,19 @@ function cssColor(name, fallback) {
   }
 }
 
+function mix(color, target, amount) {
+  return color.clone().lerp(target, amount);
+}
+
+function cycleColor(colors, phase) {
+  if (!colors?.length) return new THREE.Color("#ffffff");
+  const wrapped = ((phase % 1) + 1) % 1;
+  const scaled = wrapped * colors.length;
+  const index = Math.floor(scaled) % colors.length;
+  const next = (index + 1) % colors.length;
+  return colors[index].clone().lerp(colors[next], scaled - Math.floor(scaled));
+}
+
 function materialKind(material) {
   switch (material?.name) {
     case "mat8":
@@ -73,13 +86,34 @@ function materialKind(material) {
 
 function applyTheme(rec) {
   if (!rec?.materials) return;
+  const bgApp = cssColor("--bg-app", "#16161e");
+  const bgRaised = cssColor("--bg-raised", "#1a1b26");
+  const bgPanel = cssColor("--bg-panel", "#1f2030");
+  const bgPanelHeader = cssColor("--bg-panel-header", "#24263a");
+  const text = cssColor("--text", "#c8d3f5");
+  const textMuted = cssColor("--text-muted", "#a9b1d6");
+  const textBright = cssColor("--text-bright", "#f8f8f2");
+  const accent = cssColor("--accent", "#bd93f9");
+  const accentCool = cssColor("--accent-cool", "#7dcfff");
+  const keyword = cssColor("--syntax-keyword", "#ff79c6");
+  const success = cssColor("--success", "#50fa7b");
+  const warning = cssColor("--warning", "#ffb86c");
   const palette = {
-    body: cssColor("--text", "#e7e8ef").lerp(cssColor("--bg-panel", "#242633"), 0.18),
-    chassis: cssColor("--text-muted", "#9aa3b8").lerp(cssColor("--border-strong", "#4f5668"), 0.28),
-    joint: cssColor("--border-strong", "#4f5668"),
-    dark: cssColor("--bg-app", "#11131a").lerp(new THREE.Color("#000000"), 0.52),
-    screen: cssColor("--accent", "#bd93f9"),
-    screenAccent: cssColor("--accent-cool", "#7dcfff"),
+    body: mix(bgPanelHeader, accentCool, 0.22).lerp(text, 0.1),
+    chassis: mix(bgRaised, textMuted, 0.38).lerp(accentCool, 0.16),
+    joint: mix(bgPanel, accentCool, 0.34).lerp(textBright, 0.06),
+    dark: mix(bgApp, new THREE.Color("#000000"), 0.48),
+    screen: mix(accent, textBright, 0.14),
+    screenAccent: mix(accentCool, textBright, 0.24),
+    thinkScreen: mix(accentCool, bgPanelHeader, 0.34),
+    thinkAccent: mix(accent, bgPanelHeader, 0.32),
+    thinkColors: [
+      mix(accentCool, bgPanelHeader, 0.34),
+      mix(accent, bgPanelHeader, 0.32),
+      mix(keyword, bgPanelHeader, 0.3),
+      mix(success, bgPanelHeader, 0.28),
+      mix(warning, bgPanelHeader, 0.28),
+    ],
   };
 
   for (const material of rec.materials) {
@@ -99,15 +133,21 @@ function applyTheme(rec) {
     material.color.copy(color);
     material.emissive.copy(kind === "screen" || kind === "screen-accent" ? color : palette.dark);
     const baseEmissive =
-      kind === "screen" ? 0.32 : kind === "screen-accent" ? 0.46 : kind === "dark" ? 0.03 : 0.015;
+      kind === "screen" ? 0.42 : kind === "screen-accent" ? 0.52 : kind === "dark" ? 0.025 : 0.01;
+    material.userData.baseColor = color.clone();
+    material.userData.baseEmissiveColor = material.emissive.clone();
+    material.userData.thinkColor =
+      kind === "screen" ? palette.thinkScreen.clone() : kind === "screen-accent" ? palette.thinkAccent.clone() : null;
     material.userData.baseEmissive = baseEmissive;
     material.emissiveIntensity = baseEmissive;
     material.needsUpdate = true;
   }
 
-  rec.keyLight.color.copy(cssColor("--accent-cool", "#7dcfff"));
-  rec.fillLight.color.copy(cssColor("--accent", "#bd93f9"));
+  rec.keyLight.color.copy(mix(accentCool, textBright, 0.18));
+  rec.fillLight.color.copy(mix(accent, bgPanel, 0.12));
   rec.rimLight.color.copy(palette.body);
+  rec.thinkLight.color.copy(palette.thinkScreen);
+  rec.thinkColors = palette.thinkColors.map((color) => color.clone());
 }
 
 function fitModelToGroup(model, group) {
@@ -186,6 +226,9 @@ function create(container) {
   const rimLight = new THREE.DirectionalLight(0xffffff, 0.56);
   rimLight.position.set(0, 2.5, -3.2);
   scene.add(rimLight);
+  const thinkLight = new THREE.PointLight(0x7dcfff, 0, 4.8);
+  thinkLight.position.set(0.25, 0.28, 2.8);
+  scene.add(thinkLight);
 
   const rec = {
     id,
@@ -197,6 +240,7 @@ function create(container) {
     keyLight,
     fillLight,
     rimLight,
+    thinkLight,
     materials: [],
     resizeObserver: null,
     frame: 0,
@@ -205,6 +249,7 @@ function create(container) {
     target: { x: 0, y: 0 },
     rotation: { x: BASE_ROTATION.x, y: BASE_ROTATION.y, z: BASE_ROTATION.z },
     state: { active: false, transcribing: false, thinking: false, compact: false },
+    thinkLevel: 0,
     reducedMotion: Boolean(prefersReducedMotion?.matches),
   };
   instances.set(id, rec);
@@ -292,17 +337,55 @@ function animate(id) {
 
     const bob = rec.reducedMotion ? 0 : Math.sin(idle * (rec.state.active ? 3.2 : 1.7)) * (compact ? 0.012 : 0.026);
     rec.group.position.y = MODEL_Y_OFFSET + bob;
-    rec.group.scale.setScalar(1 + activeBoost * 0.045 + pulseBoost * (0.025 + Math.sin(idle * 8) * 0.012));
+    const thinkTarget = rec.state.thinking ? 1 : 0;
+    const thinkDamp = rec.state.thinking ? 0.12 : 0.075;
+    rec.thinkLevel += (thinkTarget - rec.thinkLevel) * thinkDamp;
+    rec.container.classList.toggle(
+      "drobo-orb__stage--thinking",
+      rec.state.thinking || rec.thinkLevel > 0.025,
+    );
+    const thinkWave =
+      (rec.reducedMotion ? 0.7 : 0.56 + 0.24 * Math.sin(idle * 5.4) + 0.14 * Math.sin(idle * 11.1)) *
+      rec.thinkLevel;
+    const thinkAmount = clamp(thinkWave, 0, 1);
+    rec.group.scale.setScalar(
+      1 +
+        activeBoost * 0.045 +
+        pulseBoost * (0.025 + Math.sin(idle * 8) * 0.012) +
+        thinkAmount * 0.05,
+    );
+    const thinkColor = cycleColor(rec.thinkColors, idle * 0.32);
+    const thinkColorAlt = cycleColor(rec.thinkColors, idle * 0.32 + 0.42);
+    rec.thinkLight.color.copy(thinkColor);
+    rec.thinkLight.intensity = rec.thinkLevel * (0.48 + thinkAmount * 1.05);
+    rec.keyLight.intensity = 1.65 + thinkAmount * 0.28;
+    rec.fillLight.intensity = 0.74 + thinkAmount * 0.22;
 
-    // While the agent is "thinking", pulse the inner screen/cube glow so the
-    // model reads as actively working. 0 → base glow when idle.
-    const thinkPulse =
-      rec.state.thinking && !rec.reducedMotion ? 0.5 + 0.5 * Math.sin(idle * 6.5) : 0;
+    // Thinking needs to read at orb size, so it shifts the screen hue and
+    // throws a small front light instead of relying on subtle emissive only.
     for (const material of rec.materials) {
       const kind = material.userData.droboKind;
+      const baseColor = material.userData.baseColor;
+      const baseEmissiveColor = material.userData.baseEmissiveColor;
+      if (baseColor && kind !== "screen" && kind !== "screen-accent") {
+        material.color.copy(baseColor);
+      }
       if (kind !== "screen" && kind !== "screen-accent") continue;
       const base = material.userData.baseEmissive ?? material.emissiveIntensity;
-      material.emissiveIntensity = base * (1 + thinkPulse * 1.8);
+      const materialThinkColor =
+        kind === "screen-accent"
+          ? thinkColorAlt
+          : rec.thinkLevel > 0.01
+            ? thinkColor
+            : material.userData.thinkColor;
+      if (baseColor && materialThinkColor) {
+        material.color.copy(baseColor).lerp(materialThinkColor, thinkAmount * 0.62);
+      }
+      if (baseEmissiveColor && materialThinkColor) {
+        const emissiveMix = rec.thinkLevel * (0.1 + thinkAmount * 0.2);
+        material.emissive.copy(baseEmissiveColor).lerp(materialThinkColor, emissiveMix);
+      }
+      material.emissiveIntensity = base * (1 + thinkAmount * 0.95);
     }
 
     rec.renderer.render(rec.scene, rec.camera);
@@ -319,6 +402,7 @@ function setState(id, state = {}) {
   rec.state.transcribing = Boolean(state.transcribing);
   rec.state.thinking = Boolean(state.thinking);
   rec.state.compact = Boolean(state.compact);
+  rec.container.classList.toggle("drobo-orb__stage--thinking", rec.state.thinking || rec.thinkLevel > 0.025);
   return true;
 }
 
