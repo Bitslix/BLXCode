@@ -877,6 +877,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzSlotNamePh => "插槽 {n}",
         I18nKey::WzAgentModelLabel => "模型",
         I18nKey::WzAgentModelDefault => "預設",
+        I18nKey::WzAgentEffortLabel => "Effort",
+        I18nKey::WzAgentEffortDefault => "Default effort",
         I18nKey::AgRoleBadgeAria => "目前角色",
         I18nKey::WzPresetSingle => "1個航廈",
         I18nKey::WzPreset2 => "2個終端",

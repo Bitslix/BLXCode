@@ -1320,6 +1320,8 @@ pub struct WorkspacePresetView {
     #[serde(default)]
     pub agent_models: [String; 5],
     #[serde(default)]
+    pub agent_efforts: [String; 5],
+    #[serde(default)]
     pub slot_names: Vec<String>,
     #[serde(default)]
     pub session_role: Option<String>,

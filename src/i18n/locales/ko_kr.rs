@@ -879,6 +879,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzSlotNamePh => "슬롯 {n}",
         I18nKey::WzAgentModelLabel => "모델",
         I18nKey::WzAgentModelDefault => "기본값",
+        I18nKey::WzAgentEffortLabel => "Effort",
+        I18nKey::WzAgentEffortDefault => "Default effort",
         I18nKey::AgRoleBadgeAria => "활성 역할",
         I18nKey::WzPresetSingle => "1 터미널",
         I18nKey::WzPreset2 => "2개의 터미널",

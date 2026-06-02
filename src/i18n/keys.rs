@@ -913,6 +913,8 @@ pub enum I18nKey {
     WzSlotNamePh,
     WzAgentModelLabel,
     WzAgentModelDefault,
+    WzAgentEffortLabel,
+    WzAgentEffortDefault,
     AgRoleBadgeAria,
     WzPresetSingle,
     WzPreset2,

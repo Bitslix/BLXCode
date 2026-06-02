@@ -933,6 +933,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzSlotNamePh => "Emplacement {n}",
         I18nKey::WzAgentModelLabel => "Modèle",
         I18nKey::WzAgentModelDefault => "Par défaut",
+        I18nKey::WzAgentEffortLabel => "Effort",
+        I18nKey::WzAgentEffortDefault => "Default effort",
         I18nKey::AgRoleBadgeAria => "Rôle actif",
         I18nKey::WzPresetSingle => "1 borne",
         I18nKey::WzPreset2 => "2 bornes",

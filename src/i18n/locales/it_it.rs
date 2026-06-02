@@ -925,6 +925,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzSlotNamePh => "Slot {n}",
         I18nKey::WzAgentModelLabel => "Modello",
         I18nKey::WzAgentModelDefault => "Predefinito",
+        I18nKey::WzAgentEffortLabel => "Effort",
+        I18nKey::WzAgentEffortDefault => "Default effort",
         I18nKey::AgRoleBadgeAria => "Ruolo attivo",
         I18nKey::WzPresetSingle => "1 terminale",
         I18nKey::WzPreset2 => "2 terminali",

@@ -61,6 +61,11 @@ pub struct WorkspaceEntry {
     /// Create-Workspace fleet step from the per-CLI built-in model catalog.
     #[serde(default)]
     pub slot_agent_models: Vec<String>,
+    /// Optional reasoning effort per terminal slot, parallel to
+    /// `slot_agent_labels` / `slot_agent_models`. Empty entries use the CLI's
+    /// own default effort.
+    #[serde(default)]
+    pub slot_agent_efforts: Vec<String>,
     /// Split-pane state per slot, parallel-indexed to `slot_ids`. Missing
     /// entries (older snapshots, freshly-created slots) fall back to a
     /// single un-split pane via [`SlotPaneState::default_for_slot`].
@@ -469,6 +474,7 @@ impl WorkspaceEntry {
             slot_ids: Vec::new(),
             slot_agent_labels: Vec::new(),
             slot_agent_models: Vec::new(),
+            slot_agent_efforts: Vec::new(),
             slot_pane_states: Vec::new(),
             configuring: false,
             agent_timeline: TimelineDoc::default(),
@@ -644,6 +650,10 @@ pub struct CreateWorkspaceDraft {
     /// Selected CLI model id per agent row, parallel to `agent_counts` /
     /// `WORKSPACE_FLEET_AGENT_SLUGS`. Empty = the agent's default model.
     pub agent_models: [String; 5],
+    /// Selected reasoning effort per agent row. Empty = the CLI's default
+    /// effort, or no launch override for CLIs that only support config-file
+    /// effort.
+    pub agent_efforts: [String; 5],
 }
 
 impl Default for CreateWorkspaceDraft {
@@ -661,6 +671,7 @@ impl Default for CreateWorkspaceDraft {
             session_role: None,
             slot_names: Vec::new(),
             agent_models: Default::default(),
+            agent_efforts: Default::default(),
         }
     }
 }
@@ -701,6 +712,28 @@ pub fn fleet_slot_models_for_labels(labels: &[String], agent_models: &[String; 5
                 .position(|s| *s == slug)
                 .and_then(|row| agent_models.get(row))
                 .map(|m| m.trim().to_string())
+                .unwrap_or_default()
+        })
+        .collect()
+}
+
+/// Build per-slot reasoning-effort ids parallel to `slot_agent_labels`. Each
+/// slot's label (agent slug) is matched to its row in
+/// `WORKSPACE_FLEET_AGENT_SLUGS`; unknown/empty labels yield an empty effort.
+#[must_use]
+pub fn fleet_slot_efforts_for_labels(
+    labels: &[String],
+    agent_efforts: &[String; 5],
+) -> Vec<String> {
+    labels
+        .iter()
+        .map(|label| {
+            let slug = label.trim();
+            WORKSPACE_FLEET_AGENT_SLUGS
+                .iter()
+                .position(|s| *s == slug)
+                .and_then(|row| agent_efforts.get(row))
+                .map(|e| e.trim().to_string())
                 .unwrap_or_default()
         })
         .collect()
@@ -1505,6 +1538,22 @@ impl WorkbenchService {
         })
     }
 
+    /// Selected CLI-agent reasoning effort for the terminal's slot, if any.
+    /// Empty/blank entries return `None` so the CLI's own default effort is
+    /// used.
+    pub fn agent_effort_for_terminal_key(&self, terminal_key: &str) -> Option<String> {
+        let storage_key = super::agent_accent::terminal_key_storage_key(terminal_key)?;
+        let slot_id = terminal_key.split(':').nth(1)?.parse::<u64>().ok()?;
+        self.workspaces.with_untracked(|list| {
+            let ws = list.iter().find(|w| w.storage_key == storage_key)?;
+            let idx = ws.slot_ids.iter().position(|&id| id == slot_id)?;
+            ws.slot_agent_efforts
+                .get(idx)
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+        })
+    }
+
     fn notification_ack_keys_for_terminal(&self, terminal_key: &str) -> Vec<String> {
         let mut keys = vec![terminal_key.to_string()];
         let Some(storage_key) = super::agent_accent::terminal_key_storage_key(terminal_key) else {
@@ -2127,6 +2176,7 @@ impl WorkbenchService {
             slot_ids: Vec::new(),
             slot_agent_labels: Vec::new(),
             slot_agent_models: Vec::new(),
+            slot_agent_efforts: Vec::new(),
             slot_pane_states: Vec::new(),
             configuring: false,
             agent_timeline: TimelineDoc::default(),
@@ -2261,6 +2311,7 @@ impl WorkbenchService {
                 slot_ids,
                 slot_agent_labels,
                 slot_agent_models: Vec::new(),
+                slot_agent_efforts: Vec::new(),
                 slot_pane_states,
                 configuring: false,
                 agent_timeline: TimelineDoc::default(),
@@ -2506,6 +2557,7 @@ impl WorkbenchService {
                 workspace.slot_ids.push(new_slot_id);
                 workspace.slot_agent_labels.push(slug.clone());
                 workspace.slot_agent_models.push(String::new());
+                workspace.slot_agent_efforts.push(String::new());
                 workspace
                     .slot_pane_states
                     .push(SlotPaneState::default_for_slot(new_slot_id));
@@ -2541,6 +2593,9 @@ impl WorkbenchService {
             workspace.slot_agent_labels.remove(index);
             if index < workspace.slot_agent_models.len() {
                 workspace.slot_agent_models.remove(index);
+            }
+            if index < workspace.slot_agent_efforts.len() {
+                workspace.slot_agent_efforts.remove(index);
             }
             workspace.slot_name_overrides.remove(&terminal_id);
             if index < workspace.slot_pane_states.len() {
@@ -2792,6 +2847,7 @@ impl WorkbenchService {
                 slot_ids: Vec::new(),
                 slot_agent_labels: Vec::new(),
                 slot_agent_models: Vec::new(),
+                slot_agent_efforts: Vec::new(),
                 slot_pane_states: Vec::new(),
                 configuring: false,
                 agent_timeline: TimelineDoc::default(),
@@ -3157,6 +3213,7 @@ impl WorkbenchService {
             slot_ids: Vec::new(),
             slot_agent_labels: Vec::new(),
             slot_agent_models: Vec::new(),
+            slot_agent_efforts: Vec::new(),
             slot_pane_states: Vec::new(),
             configuring: true,
             agent_timeline: TimelineDoc::default(),
@@ -3246,6 +3303,14 @@ impl WorkbenchService {
         self.update_workspace_draft(id, |d| d.agent_models[idx] = model);
     }
 
+    /// Set the CLI reasoning effort for an agent row (0..5) in the draft.
+    pub fn set_workspace_agent_effort(&self, id: u64, idx: usize, effort: String) {
+        if idx >= 5 {
+            return;
+        }
+        self.update_workspace_draft(id, |d| d.agent_efforts[idx] = effort);
+    }
+
     /// Apply a saved preset onto a workspace draft: terminal count + grid,
     /// per-agent counts, per-agent models, per-slot names, and session role.
     /// Clears the `agents_skipped` flag so the fleet step reflects the preset.
@@ -3255,6 +3320,7 @@ impl WorkbenchService {
         terminal_count: u8,
         agent_counts: [u8; 5],
         agent_models: [String; 5],
+        agent_efforts: [String; 5],
         slot_names: Vec<String>,
         session_role: Option<String>,
     ) {
@@ -3267,6 +3333,7 @@ impl WorkbenchService {
             d.grid_cols = c;
             d.agent_counts = agent_counts;
             d.agent_models = agent_models;
+            d.agent_efforts = agent_efforts;
             d.agents_skipped = false;
             d.slot_names = slot_names;
             d.session_role = session_role;
@@ -3388,7 +3455,10 @@ impl WorkbenchService {
             }
             fleet_counts_to_slot_labels(n, &draft.agent_counts)
         };
-        let slot_agent_models = fleet_slot_models_for_labels(&slot_agent_labels, &draft.agent_models);
+        let slot_agent_models =
+            fleet_slot_models_for_labels(&slot_agent_labels, &draft.agent_models);
+        let slot_agent_efforts =
+            fleet_slot_efforts_for_labels(&slot_agent_labels, &draft.agent_efforts);
 
         let title = {
             let t = draft.name_input.trim();
@@ -3434,6 +3504,7 @@ impl WorkbenchService {
             ws.slot_ids = slot_ids;
             ws.slot_agent_labels = slot_agent_labels;
             ws.slot_agent_models = slot_agent_models;
+            ws.slot_agent_efforts = slot_agent_efforts;
             ws.slot_pane_states = slot_pane_states;
             ws.next_terminal_id = n as u64 + 1;
             ws.remote_connection_id = remote_connection_id.clone();
@@ -3696,10 +3767,7 @@ impl WorkbenchService {
     /// `None`. Used to populate `UserTurn.session_role` at submit time and the
     /// agent name-badge role sub-line.
     #[must_use]
-    pub fn agent_session_role_for_workspace_untracked(
-        &self,
-        workspace_id: u64,
-    ) -> Option<String> {
+    pub fn agent_session_role_for_workspace_untracked(&self, workspace_id: u64) -> Option<String> {
         self.workspaces.with_untracked(|workspaces| {
             workspaces
                 .iter()
@@ -4328,9 +4396,13 @@ fn swap_workspace_slots(workspace: &mut WorkspaceEntry, slot_a: u64, slot_b: u64
     while workspace.slot_agent_models.len() < workspace.slot_ids.len() {
         workspace.slot_agent_models.push(String::new());
     }
+    while workspace.slot_agent_efforts.len() < workspace.slot_ids.len() {
+        workspace.slot_agent_efforts.push(String::new());
+    }
     workspace.slot_ids.swap(idx_a, idx_b);
     workspace.slot_agent_labels.swap(idx_a, idx_b);
     workspace.slot_agent_models.swap(idx_a, idx_b);
+    workspace.slot_agent_efforts.swap(idx_a, idx_b);
     workspace.slot_pane_states.swap(idx_a, idx_b);
     true
 }
@@ -4353,6 +4425,8 @@ fn transfer_workspace_slot(
         index: usize,
         storage_key: String,
         agent_label: String,
+        agent_model: String,
+        agent_effort: String,
         pane_state: SlotPaneState,
     }
     let src = {
@@ -4373,6 +4447,16 @@ fn transfer_workspace_slot(
             .get(index)
             .cloned()
             .unwrap_or_default();
+        let agent_model = source
+            .slot_agent_models
+            .get(index)
+            .cloned()
+            .unwrap_or_default();
+        let agent_effort = source
+            .slot_agent_efforts
+            .get(index)
+            .cloned()
+            .unwrap_or_default();
         let pane_state = source
             .slot_pane_states
             .get(index)
@@ -4382,6 +4466,8 @@ fn transfer_workspace_slot(
             index,
             storage_key: source.storage_key.clone(),
             agent_label,
+            agent_model,
+            agent_effort,
             pane_state,
         }
     };
@@ -4408,6 +4494,12 @@ fn transfer_workspace_slot(
         if src.index < source.slot_agent_labels.len() {
             source.slot_agent_labels.remove(src.index);
         }
+        if src.index < source.slot_agent_models.len() {
+            source.slot_agent_models.remove(src.index);
+        }
+        if src.index < source.slot_agent_efforts.len() {
+            source.slot_agent_efforts.remove(src.index);
+        }
         if src.index < source.slot_pane_states.len() {
             source.slot_pane_states.remove(src.index);
         }
@@ -4417,6 +4509,8 @@ fn transfer_workspace_slot(
     if let Some(target) = workspaces.iter_mut().find(|w| w.id == to_workspace_id) {
         target.slot_ids.push(new_slot_id);
         target.slot_agent_labels.push(src.agent_label.clone());
+        target.slot_agent_models.push(src.agent_model.clone());
+        target.slot_agent_efforts.push(src.agent_effort.clone());
         target.slot_pane_states.push(src.pane_state.clone());
         target.next_terminal_id = new_slot_id.saturating_add(1);
         let next_count = target.slot_ids.len() as u8;
@@ -4446,6 +4540,16 @@ fn reorder_workspace_slots(workspace: &mut WorkspaceEntry, from_index: usize, to
     }
     let id = workspace.slot_ids.remove(from_index);
     let label = workspace.slot_agent_labels.remove(from_index);
+    let model = if from_index < workspace.slot_agent_models.len() {
+        workspace.slot_agent_models.remove(from_index)
+    } else {
+        String::new()
+    };
+    let effort = if from_index < workspace.slot_agent_efforts.len() {
+        workspace.slot_agent_efforts.remove(from_index)
+    } else {
+        String::new()
+    };
     let pane = if from_index < workspace.slot_pane_states.len() {
         workspace.slot_pane_states.remove(from_index)
     } else {
@@ -4454,6 +4558,12 @@ fn reorder_workspace_slots(workspace: &mut WorkspaceEntry, from_index: usize, to
     let insert_at = to_index.min(workspace.slot_ids.len());
     workspace.slot_ids.insert(insert_at, id);
     workspace.slot_agent_labels.insert(insert_at, label);
+    workspace
+        .slot_agent_models
+        .insert(insert_at.min(workspace.slot_agent_models.len()), model);
+    workspace
+        .slot_agent_efforts
+        .insert(insert_at.min(workspace.slot_agent_efforts.len()), effort);
     workspace
         .slot_pane_states
         .insert(insert_at.min(workspace.slot_pane_states.len()), pane);
@@ -4478,6 +4588,7 @@ mod center_tab_tests {
             slot_ids: vec![1],
             slot_agent_labels: vec![String::new()],
             slot_agent_models: Vec::new(),
+            slot_agent_efforts: Vec::new(),
             slot_pane_states: vec![SlotPaneState::default_for_slot(1)],
             configuring: false,
             agent_timeline: TimelineDoc::default(),
@@ -4575,7 +4686,8 @@ mod terminal_slot_tests {
             next_terminal_id: n as u64 + 1,
             slot_ids,
             slot_agent_labels: (0..n as usize).map(|i| format!("label{i}")).collect(),
-            slot_agent_models: Vec::new(),
+            slot_agent_models: (0..n as usize).map(|i| format!("model{i}")).collect(),
+            slot_agent_efforts: (0..n as usize).map(|i| format!("effort{i}")).collect(),
             slot_pane_states,
             configuring: false,
             agent_timeline: TimelineDoc::default(),
@@ -4603,9 +4715,13 @@ mod terminal_slot_tests {
     #[test]
     fn reorder_permutes_parallel_vectors() {
         let mut ws = mk_slots(3);
+        ws.slot_agent_models = vec!["m0".into(), "m1".into(), "m2".into()];
+        ws.slot_agent_efforts = vec!["e0".into(), "e1".into(), "e2".into()];
         reorder_workspace_slots(&mut ws, 1, 2);
         assert_eq!(ws.slot_ids, vec![1, 3, 2]);
         assert_eq!(ws.slot_agent_labels, vec!["label0", "label2", "label1"]);
+        assert_eq!(ws.slot_agent_models, vec!["m0", "m2", "m1"]);
+        assert_eq!(ws.slot_agent_efforts, vec!["e0", "e2", "e1"]);
     }
 
     #[test]
@@ -4625,12 +4741,16 @@ mod terminal_slot_tests {
     #[test]
     fn swap_exchanges_slot_positions() {
         let mut ws = mk_slots(3);
+        ws.slot_agent_models = vec!["m0".into(), "m1".into(), "m2".into()];
+        ws.slot_agent_efforts = vec!["e0".into(), "e1".into(), "e2".into()];
         assert!(swap_workspace_slots(&mut ws, 1, 3));
         assert_eq!(ws.slot_ids, vec![3, 2, 1]);
         assert_eq!(
             ws.slot_agent_labels,
             vec!["label2".to_string(), "label1".into(), "label0".into()]
         );
+        assert_eq!(ws.slot_agent_models, vec!["m2", "m1", "m0"]);
+        assert_eq!(ws.slot_agent_efforts, vec!["e2", "e1", "e0"]);
         assert_eq!(ws.slot_pane_states[0], SlotPaneState::default_for_slot(3));
         assert_eq!(ws.slot_pane_states[2], SlotPaneState::default_for_slot(1));
     }
@@ -4678,9 +4798,16 @@ mod terminal_slot_tests {
         let target = list.iter().find(|w| w.id == 2).unwrap();
         assert_eq!(source.slot_ids, vec![1, 3]);
         assert_eq!(source.slot_agent_labels.len(), source.slot_ids.len());
+        assert_eq!(source.slot_agent_models.len(), source.slot_ids.len());
+        assert_eq!(source.slot_agent_efforts.len(), source.slot_ids.len());
         assert_eq!(source.slot_pane_states.len(), source.slot_ids.len());
         assert_eq!(target.slot_ids.len(), 2);
         assert_eq!(target.slot_ids[1], mv.new_slot_id);
+        assert_eq!(target.slot_agent_labels.len(), target.slot_ids.len());
+        assert_eq!(target.slot_agent_models.len(), target.slot_ids.len());
+        assert_eq!(target.slot_agent_efforts.len(), target.slot_ids.len());
+        assert_eq!(target.slot_agent_models[1], "model1");
+        assert_eq!(target.slot_agent_efforts[1], "effort1");
         assert!(target.next_terminal_id > mv.new_slot_id);
         // Pane state on the target preserves the source's pane layout.
         assert_eq!(target.slot_pane_states[1].pane_ids, mv.pane_ids);

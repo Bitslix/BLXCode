@@ -38,6 +38,10 @@ pub struct WorkspacePreset {
     /// Per-agent-row CLI model ids, parallel to `agent_counts`. Empty = default.
     #[serde(default)]
     pub agent_models: [String; FLEET_AGENT_ROWS],
+    /// Per-agent-row CLI reasoning efforts, parallel to `agent_counts`.
+    /// Empty = CLI default / no launch override.
+    #[serde(default)]
+    pub agent_efforts: [String; FLEET_AGENT_ROWS],
     /// Optional per-slot friendly names (index-aligned to slots).
     #[serde(default)]
     pub slot_names: Vec<String>,
@@ -185,6 +189,13 @@ mod tests {
                 String::new(),
                 String::new(),
             ],
+            agent_efforts: [
+                "high".into(),
+                "xhigh".into(),
+                String::new(),
+                String::new(),
+                String::new(),
+            ],
             slot_names: vec!["api".into(), "ui".into()],
             session_role: Some("coordinator".into()),
         }
@@ -204,6 +215,8 @@ mod tests {
         assert_eq!(listed[0].session_role.as_deref(), Some("coordinator"));
         assert_eq!(listed[0].agent_models[0], "opus");
         assert_eq!(listed[0].agent_models[1], "gpt-5");
+        assert_eq!(listed[0].agent_efforts[0], "high");
+        assert_eq!(listed[0].agent_efforts[1], "xhigh");
         let _ = fs::remove_dir_all(&dir);
     }
 

@@ -1,6 +1,6 @@
 # Timeline-Refactor: Grouped Toolcalls · Changed-Files-Card · Moderner Composer
 
-> Status: **in progress** — Phasen A, B, C umgesetzt & compile-verifiziert;
+> Status: **done** — Phasen A, B, C umgesetzt & compile-verifiziert;
 > Phase D: i18n + automatisierte Verifikation erledigt
 > (`cargo check -p blxcode-ui --target wasm32-unknown-unknown`,
 > `cargo test --workspace`, `scripts/lint_theme_tokens.sh`), manueller
@@ -252,7 +252,7 @@ den Referenzbildern, alles über **Theme-Tokens** + **i18n**:
   `AgComposerThinking*`, `AgModeSupervised`/`AgModeAutoAccept`/`AgModeFullAccess`
   (+ Beschreibungen). Nicht-englische Tabellen via
   `scripts/tools/render_i18n_locales_from_en.py` (missing-keys) nachziehen.
-- [>] `TL-D2` — **Verifikation**:
+- [x] `TL-D2` — **Verifikation**:
   `cargo check -p blxcode-ui --target wasm32-unknown-unknown`,
   `cargo test --workspace`, `scripts/lint_theme_tokens.sh`. Manuell in
   `cargo tauri dev`: Tool-Grouping (mehrere reads, gemischt), Changed-Files-Card

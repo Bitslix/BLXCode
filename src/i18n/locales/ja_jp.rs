@@ -883,6 +883,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzSlotNamePh => "スロット {n}",
         I18nKey::WzAgentModelLabel => "モデル",
         I18nKey::WzAgentModelDefault => "デフォルト",
+        I18nKey::WzAgentEffortLabel => "Effort",
+        I18nKey::WzAgentEffortDefault => "Default effort",
         I18nKey::AgRoleBadgeAria => "アクティブなロール",
         I18nKey::WzPresetSingle => "1端子",
         I18nKey::WzPreset2 => "2端子",

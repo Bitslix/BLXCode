@@ -46,4 +46,4 @@ Extend BLXCode Agent so each Agent Chat session has a mode toolbar above the inp
 - [x] `view-control-tools` - Add harness tools for right panel, center tabs, sidebar sections, memory/plans/settings/files/diffs
 - [x] `window-settings-tools` - Add controlled window and safe settings tools
 - [x] `prompt-skills-docs` - Update system prompt, core skills, i18n labels, and docs
-- [>] `tests-smoke` - Add automated tests and run manual Tauri smoke checks
+- [x] `tests-smoke` - Add automated tests and run manual Tauri smoke checks

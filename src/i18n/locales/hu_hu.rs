@@ -915,6 +915,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzSlotNamePh => "Hely {n}",
         I18nKey::WzAgentModelLabel => "Modell",
         I18nKey::WzAgentModelDefault => "Alapértelmezett",
+        I18nKey::WzAgentEffortLabel => "Effort",
+        I18nKey::WzAgentEffortDefault => "Default effort",
         I18nKey::AgRoleBadgeAria => "Aktív szerepkör",
         I18nKey::WzPresetSingle => "1 terminál",
         I18nKey::WzPreset2 => "2 terminál",

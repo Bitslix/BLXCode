@@ -258,28 +258,44 @@ embedded from `src-tauri/src/agent/harness_skills/specialized/*.md`.
   composer reads it via `agent_session_role_for_workspace_untracked` when
   building the turn.
 
-### CLI-agent model selection (fleet)
+### CLI-agent model and effort selection (fleet)
 
 Each terminal CLI agent (the fleet assigned in Create-Workspace step 2) can run
-on a chosen model:
+on chosen model and, where the CLI supports a safe launch-time override,
+reasoning effort:
 
-- `terminal_agent_profiles.rs` carries a per-slug built-in catalog
-  (`models: &[&str]`) plus a `model_flag` (default `--model`).
-  `terminal_agent_launch_command(slug, resume_id, model)` appends
-  ` --model '<id>'` when a model is selected (empty = the agent's own default).
+- `terminal_agent_profiles.rs` carries a per-slug model catalog
+  (`models: &[&str]`), `model_flag`, `effort_passing`, and selectable
+  `efforts`.
 - The fleet step renders a model `<select>` per assigned agent row (options from
-  `terminal_agent_models(slug)`); the choice is stored per agent row in
-  `CreateWorkspaceDraft.agent_models[5]` and expanded on commit into
-  `WorkspaceEntry.slot_agent_models` (parallel to `slot_agent_labels`) via
-  `fleet_slot_models_for_labels`.
-- At launch, `terminal_cell.rs` resolves the slot's model through
-  `WorkbenchService::agent_model_for_terminal_key` and passes it to the launch
-  command. The model is kept parallel across slot add/remove/swap.
+  `terminal_agent_models(slug)`). It renders an effort `<select>` only when
+  `terminal_agent_efforts(slug)` is non-empty.
+- Choices are stored per agent row in `CreateWorkspaceDraft.agent_models[5]` and
+  `CreateWorkspaceDraft.agent_efforts[5]`, then expanded on commit into
+  `WorkspaceEntry.slot_agent_models` and `WorkspaceEntry.slot_agent_efforts`
+  (parallel to `slot_agent_labels`) via `fleet_slot_models_for_labels` and
+  `fleet_slot_efforts_for_labels`.
+- At launch, `terminal_cell.rs` resolves slot values through
+  `WorkbenchService::agent_model_for_terminal_key` and
+  `agent_effort_for_terminal_key`, then passes both to
+  `terminal_agent_launch_command`. Empty values pass no override, so the
+  external CLI keeps its own defaults/config.
+- Model and effort vectors are kept parallel across slot add/remove/swap.
+
+Current launch mapping:
+
+| CLI | Model launch override | Effort launch override |
+|-----|------------------------|------------------------|
+| Claude Code | `claude --model <id-or-alias>`; aliases `opus`, `sonnet`, `haiku` track the latest family model | `CLAUDE_CODE_EFFORT_LEVEL=<level> claude ...` (`low`, `medium`, `high`, `xhigh`, `max`) |
+| Codex | `codex --model <id>` | `codex ... -c 'model_reasoning_effort="<level>"'` (`minimal`, `low`, `medium`, `high`, `xhigh`) |
+| Gemini CLI | `gemini --model <id>` | Config-file only (`~/.gemini/settings.json`); BLXCode does not write it at launch |
+| OpenCode | `opencode --model <provider/model>` | Config-file only (`reasoningEffort` in OpenCode config); BLXCode does not write it at launch |
+| Cursor Agent | `cursor-agent --model <id>` | No confirmed launch flag in the installed CLI help; BLXCode leaves effort to Cursor defaults/config |
 
 ### Workspace presets
 
 `workspace_presets.rs` stores reusable fleet configurations (terminal count,
-per-agent counts, per-slot names, session role) in
+per-agent counts, per-agent models/efforts, per-slot names, session role) in
 `{app_data_dir}/workspace_presets.json` (atomic tmp+rename). It is **global per
 installation**, not committed with a workspace. CRUD commands:
 `workspace_presets_list` / `_save` / `_delete`, mirrored in `tauri_bridge.rs`
