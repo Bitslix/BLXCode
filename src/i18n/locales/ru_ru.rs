@@ -435,6 +435,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgTasksCollapse => "Скрыть список задач",
         I18nKey::AgTasksGroupPlan => "План",
         I18nKey::AgTasksGroupFree => "Бесплатные задания",
+        I18nKey::AgNicknameLabel => "Имя агента",
+        I18nKey::AgNicknamePlaceholder => "BLXКоди",
+        I18nKey::AgNicknameHelp => {
+            "Дайте своему агенту личное имя. Оставьте пустым, чтобы использовать «BLXCody» по умолчанию. Агент узнает это имя как в текстовом, так и в голосовом чате."
+        }
+        I18nKey::AgNicknameErrTooLong => "Это имя слишком длинное (максимум 32 символа).",
+        I18nKey::AgNicknameErrInvalidChars => "Используйте только буквы, цифры, пробелы, дефисы и подчеркивания.",
+        I18nKey::AgNicknameErrBadWord => "Пожалуйста, выберите другое имя.",
+        I18nKey::AgNameBadgeAria => "Имя агента",
         I18nKey::BrToolbarAria => "Встроенный браузер",
         I18nKey::BrBack => "Назад",
         I18nKey::BrFwd => "Вперед",

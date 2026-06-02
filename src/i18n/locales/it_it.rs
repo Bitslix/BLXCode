@@ -437,6 +437,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgTasksCollapse => "Nascondi elenco attività",
         I18nKey::AgTasksGroupPlan => "Piano",
         I18nKey::AgTasksGroupFree => "Compiti gratuiti",
+        I18nKey::AgNicknameLabel => "Nome dell'agente",
+        I18nKey::AgNicknamePlaceholder => "BLXCodey",
+        I18nKey::AgNicknameHelp => {
+            "Dai al tuo agente un nome personale. Lascia vuoto per utilizzare il \"BLXCodey\" predefinito. L'agente apprende questo nome sia nella chat di testo che in quella vocale."
+        }
+        I18nKey::AgNicknameErrTooLong => "Il nome è troppo lungo (massimo 32 caratteri).",
+        I18nKey::AgNicknameErrInvalidChars => "Utilizza solo lettere, numeri, spazi, trattini o trattini bassi.",
+        I18nKey::AgNicknameErrBadWord => "Scegli un nome diverso.",
+        I18nKey::AgNameBadgeAria => "Nome dell'agente",
         I18nKey::BrToolbarAria => "Browser incorporato",
         I18nKey::BrBack => "Indietro",
         I18nKey::BrFwd => "Inoltrare",

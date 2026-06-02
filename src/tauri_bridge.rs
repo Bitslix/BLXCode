@@ -439,6 +439,8 @@ pub struct AgentProviderSettingsView {
     pub auto_compact_threshold_pct: u8,
     #[serde(default = "default_orb_mode")]
     pub orb_mode: AgentOrbMode,
+    #[serde(default)]
+    pub agent_nickname: String,
     pub model_cache_openrouter: Vec<ProviderModelEntry>,
     pub model_cache_anthropic: Vec<ProviderModelEntry>,
     pub model_cache_openai: Vec<ProviderModelEntry>,
@@ -558,6 +560,7 @@ pub async fn agent_settings_save(
     auto_compact_enabled: bool,
     auto_compact_threshold_pct: u8,
     orb_mode: AgentOrbMode,
+    agent_nickname: String,
 ) -> Result<AgentProviderSettingsView, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -575,6 +578,7 @@ pub async fn agent_settings_save(
         auto_compact_enabled: bool,
         auto_compact_threshold_pct: u8,
         orb_mode: AgentOrbMode,
+        agent_nickname: String,
     }
 
     invoke_typed(
@@ -588,10 +592,18 @@ pub async fn agent_settings_save(
                 auto_compact_enabled,
                 auto_compact_threshold_pct,
                 orb_mode,
+                agent_nickname,
             },
         },
     )
     .await
+}
+
+/// Validate a candidate agent nickname without saving. `Ok(())` = acceptable
+/// (blank means "use default"); `Err(code)` is a stable reason code
+/// (`tooLong` / `invalidChars` / `badWord`) for i18n mapping in the UI.
+pub async fn agent_validate_nickname(name: String) -> Result<(), String> {
+    invoke_typed("agent_validate_nickname", serde_json::json!({ "name": name })).await
 }
 
 #[allow(dead_code)]

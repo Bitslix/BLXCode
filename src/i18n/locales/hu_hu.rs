@@ -435,6 +435,15 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgTasksCollapse => "Feladatlista elrejtése",
         I18nKey::AgTasksGroupPlan => "Terv",
         I18nKey::AgTasksGroupFree => "Ingyenes feladatok",
+        I18nKey::AgNicknameLabel => "Ügynök neve",
+        I18nKey::AgNicknamePlaceholder => "BLXCodey",
+        I18nKey::AgNicknameHelp => {
+            "Adjon személyes nevet az ügynökének. Hagyja üresen az alapértelmezett \"BLXCodey\" használatához. Az ügynök megtanulja ezt a nevet szöveges és hangcsevegésben is."
+        }
+        I18nKey::AgNicknameErrTooLong => "Ez a név túl hosszú (maximum 32 karakter).",
+        I18nKey::AgNicknameErrInvalidChars => "Csak betűket, számokat, szóközöket, kötőjeleket vagy aláhúzásjeleket használjon.",
+        I18nKey::AgNicknameErrBadWord => "Kérjük, válasszon másik nevet.",
+        I18nKey::AgNameBadgeAria => "Ügynök neve",
         I18nKey::BrToolbarAria => "Beágyazott böngésző",
         I18nKey::BrBack => "Vissza",
         I18nKey::BrFwd => "Előre",

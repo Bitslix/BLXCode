@@ -475,6 +475,14 @@ keys; the preset only fills in defaults."
         I18nKey::AgTasksGroupPlan => "Plan",
         I18nKey::AgTasksGroupFree => "Free tasks",
 
+        I18nKey::AgNicknameLabel => "Agent name",
+        I18nKey::AgNicknamePlaceholder => "BLXCodey",
+        I18nKey::AgNicknameHelp => "Give your agent a personal name. Leave empty to use the default \"BLXCodey\". The agent learns this name in both text and voice chat.",
+        I18nKey::AgNicknameErrTooLong => "That name is too long (max 32 characters).",
+        I18nKey::AgNicknameErrInvalidChars => "Use only letters, numbers, spaces, hyphens, or underscores.",
+        I18nKey::AgNicknameErrBadWord => "Please choose a different name.",
+        I18nKey::AgNameBadgeAria => "Agent name",
+
         I18nKey::BrToolbarAria => "Embedded browser",
         I18nKey::BrBack => "Back",
         I18nKey::BrFwd => "Forward",

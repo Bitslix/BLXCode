@@ -442,6 +442,15 @@ pub enum I18nKey {
     AgTasksGroupPlan,
     AgTasksGroupFree,
 
+    // Agent nickname
+    AgNicknameLabel,
+    AgNicknamePlaceholder,
+    AgNicknameHelp,
+    AgNicknameErrTooLong,
+    AgNicknameErrInvalidChars,
+    AgNicknameErrBadWord,
+    AgNameBadgeAria,
+
     BrToolbarAria,
     BrBack,
     BrFwd,

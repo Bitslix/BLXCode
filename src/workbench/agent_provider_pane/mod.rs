@@ -3,7 +3,8 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_provider_models, agent_settings_get, agent_settings_save, agent_web_settings_get,
+    agent_provider_models, agent_settings_get, agent_settings_save, agent_validate_nickname,
+    agent_web_settings_get,
     agent_web_settings_save, is_tauri_shell, AgentOrbMode, AgentProviderKind,
     AgentProviderSettingsView, AgentWebSettingsView, ProviderModelEntry, ProviderModelsResponse,
     ThinkingLevel, WebProviderKind, DEFAULT_AUTO_COMPACT_THRESHOLD_PCT, DEFAULT_TOOL_LOOP_LIMIT,
@@ -26,7 +27,17 @@ struct AgentSettingsBaseline {
     auto_compact_enabled: bool,
     auto_compact_threshold_pct: u8,
     orb_mode: AgentOrbMode,
+    agent_nickname: String,
     web_provider: WebProviderKind,
+}
+
+/// Map a backend nickname reason code to its localized message key.
+fn nickname_err_key(code: &str) -> I18nKey {
+    match code {
+        "tooLong" => I18nKey::AgNicknameErrTooLong,
+        "invalidChars" => I18nKey::AgNicknameErrInvalidChars,
+        _ => I18nKey::AgNicknameErrBadWord,
+    }
 }
 
 fn provider_label(i18n: &I18nService, provider: AgentProviderKind) -> String {
@@ -443,6 +454,8 @@ pub fn AgentProviderPane() -> impl IntoView {
     let auto_compact_enabled = RwSignal::new(true);
     let auto_compact_threshold = RwSignal::new(DEFAULT_AUTO_COMPACT_THRESHOLD_PCT);
     let orb_mode = RwSignal::new(AgentOrbMode::ThreeD);
+    let nickname = RwSignal::new(String::new());
+    let nickname_error: RwSignal<Option<I18nKey>> = RwSignal::new(None);
     let model_entries: RwSignal<Vec<ProviderModelEntry>> = RwSignal::new(Vec::new());
     let models_source = RwSignal::new(String::new());
     let models_message: RwSignal<Option<String>> = RwSignal::new(None);
@@ -460,6 +473,7 @@ pub fn AgentProviderPane() -> impl IntoView {
         auto_compact_enabled: true,
         auto_compact_threshold_pct: DEFAULT_AUTO_COMPACT_THRESHOLD_PCT,
         orb_mode: AgentOrbMode::ThreeD,
+        agent_nickname: String::new(),
         web_provider: WebProviderKind::None,
     });
 
@@ -472,6 +486,7 @@ pub fn AgentProviderPane() -> impl IntoView {
             || auto_compact_enabled.get() != b.auto_compact_enabled
             || auto_compact_threshold.get() != b.auto_compact_threshold_pct
             || orb_mode.get() != b.orb_mode
+            || nickname.get() != b.agent_nickname
             || web_provider.get() != b.web_provider
     });
 
@@ -483,6 +498,7 @@ pub fn AgentProviderPane() -> impl IntoView {
         auto_compact_enabled: auto_compact_enabled.get_untracked(),
         auto_compact_threshold_pct: auto_compact_threshold.get_untracked(),
         orb_mode: orb_mode.get_untracked(),
+        agent_nickname: nickname.get_untracked(),
         web_provider: web_provider.get_untracked(),
     };
 
@@ -494,6 +510,8 @@ pub fn AgentProviderPane() -> impl IntoView {
         auto_compact_enabled.set(view.auto_compact_enabled);
         auto_compact_threshold.set(view.auto_compact_threshold_pct);
         orb_mode.set(view.orb_mode);
+        nickname.set(view.agent_nickname.clone());
+        nickname_error.set(None);
         model_entries.set(provider_cache(&view, view.provider));
         settings.set(Some(view));
         baseline.update(|b| {
@@ -504,6 +522,7 @@ pub fn AgentProviderPane() -> impl IntoView {
             b.auto_compact_enabled = auto_compact_enabled.get_untracked();
             b.auto_compact_threshold_pct = auto_compact_threshold.get_untracked();
             b.orb_mode = orb_mode.get_untracked();
+            b.agent_nickname = nickname.get_untracked();
         });
     };
 
@@ -573,6 +592,9 @@ pub fn AgentProviderPane() -> impl IntoView {
         if !dirty.get_untracked() || busy.get_untracked() {
             return;
         }
+        if nickname_error.get_untracked().is_some() {
+            return;
+        }
         busy.set(true);
         error_msg.set(None);
         status_msg.set(None);
@@ -588,6 +610,7 @@ pub fn AgentProviderPane() -> impl IntoView {
             MAX_AUTO_COMPACT_THRESHOLD_PCT,
         );
         let orb = orb_mode.get_untracked();
+        let nick = nickname.get_untracked();
         let web = web_provider.get_untracked();
         leptos::task::spawn_local(async move {
             let mut err: Option<String> = None;
@@ -599,6 +622,7 @@ pub fn AgentProviderPane() -> impl IntoView {
                 ac_enabled,
                 ac_threshold,
                 orb,
+                nick,
             )
             .await
             {
@@ -637,6 +661,48 @@ pub fn AgentProviderPane() -> impl IntoView {
                         <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::AgColumnText)()}</span>
                     </h4>
                     <div class="agent-provider-pane__picker-grid agent-provider-pane__picker-grid--stacked">
+                        <label class="agent-provider-pane__field">
+                            <span class="harness-field-label">
+                                <span class="harness-field-label__icon" aria-hidden="true">
+                                    <LxIcon icon=icondata::LuUser width="0.82rem" height="0.82rem" />
+                                </span>
+                                <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgNicknameLabel)()}</span>
+                            </span>
+                            <input
+                                class="workbench-plain-input"
+                                class:agent-provider-pane__input--error=move || nickname_error.get().is_some()
+                                type="text"
+                                maxlength="32"
+                                prop:value=move || nickname.get()
+                                placeholder=move || i18n.tr(I18nKey::AgNicknamePlaceholder)()
+                                on:input=move |ev| {
+                                    let val = event_target_value(&ev);
+                                    nickname.set(val.clone());
+                                    leptos::task::spawn_local(async move {
+                                        let res = agent_validate_nickname(val.clone()).await;
+                                        // Apply only if the field hasn't changed since.
+                                        if nickname.get_untracked() == val {
+                                            match res {
+                                                Ok(()) => nickname_error.set(None),
+                                                Err(code) => nickname_error.set(Some(nickname_err_key(&code))),
+                                            }
+                                        }
+                                    });
+                                }
+                            />
+                            <Show
+                                when=move || nickname_error.get().is_some()
+                                fallback=move || view! {
+                                    <small class="harness-muted agent-provider-pane__field-hint">
+                                        {move || i18n.tr(I18nKey::AgNicknameHelp)()}
+                                    </small>
+                                }
+                            >
+                                <small class="agent-provider-pane__field-error">
+                                    {move || nickname_error.get().map(|k| i18n.tr(k)()).unwrap_or_default()}
+                                </small>
+                            </Show>
+                        </label>
                         <label class="agent-provider-pane__field">
                             <span class="harness-field-label">
                                 <span class="harness-field-label__icon" aria-hidden="true">
