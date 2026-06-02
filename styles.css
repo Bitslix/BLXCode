@@ -9096,6 +9096,45 @@ body.blxcode-dragging-terminal * {
 .workbench-memory-graph__canvas--preview .workbench-memory-graph__stage {
   min-height: 8rem;
 }
+
+.workspace-center-panel--memory .workbench-memory-graph__canvas--preview {
+  flex-direction: row;
+  align-items: stretch;
+}
+
+.workspace-center-panel--memory
+  .workbench-memory-graph__canvas--preview
+  .workbench-memory-graph__stage {
+  min-height: 0;
+}
+
+.workspace-center-panel--memory
+  .workbench-memory-graph__canvas--preview
+  .workbench-memory-graph-preview {
+  flex: 0 0 clamp(20rem, 28vw, 34rem);
+  max-height: none;
+  min-height: 0;
+}
+
+@media (max-width: 980px) {
+  .workspace-center-panel--memory .workbench-memory-graph__canvas--preview {
+    flex-direction: column;
+  }
+
+  .workspace-center-panel--memory
+    .workbench-memory-graph__canvas--preview
+    .workbench-memory-graph__stage {
+    min-height: 8rem;
+  }
+
+  .workspace-center-panel--memory
+    .workbench-memory-graph__canvas--preview
+    .workbench-memory-graph-preview {
+    flex-basis: auto;
+    max-height: min(42vh, 20rem);
+  }
+}
+
 .workbench-memory-graph__3d {
   position: absolute;
   inset: 0;

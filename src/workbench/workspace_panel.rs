@@ -624,7 +624,7 @@ fn DynamicCenterPanels(workspace_id: u64, active_tab_id: Memo<u64>) -> impl Into
                             class="workspace-center-panel workspace-center-panel--memory"
                             class:workspace-center-panel--hidden=move || active_tab_id.get() != tab_id
                         >
-                            <MemoryPanel />
+                            <MemoryPanel centered=true />
                         </div>
                     }.into_any(),
                     CenterTabKind::FilePreview { rel_path } => view! {

@@ -38,6 +38,7 @@ const CATEGORY_MEMORY: &str = "memory";
 const CATEGORY_LEARNINGS: &str = "learnings";
 const CATEGORY_ARCHITECTURE: &str = "architecture";
 const ARCHITECTURE_INDEX_PATH: &str = "ARCHITECTURE.md";
+const MEMORY_TREE_WIDTH_CENTER_PX_MIN: f64 = MEMORY_TREE_WIDTH_PX_MIN * 2.0;
 /// Derive the category key for a given note API path.
 fn category_for_path(path: &str) -> String {
     if path.starts_with(LEARNINGS_API_PREFIX) {
@@ -100,20 +101,26 @@ pub(crate) struct MemoryState {
     pub(crate) graph_prefer_3d: RwSignal<bool>,
     /// Width (px) of the Files tree column; user-resizable, persisted.
     pub(crate) tree_width: RwSignal<f64>,
+    pub(crate) centered: bool,
 }
 
 /// Read the persisted Memory tree column width, clamped to the allowed range.
-fn initial_tree_width() -> f64 {
+fn initial_tree_width(centered: bool) -> f64 {
+    let min = if centered {
+        MEMORY_TREE_WIDTH_CENTER_PX_MIN
+    } else {
+        MEMORY_TREE_WIDTH_PX_MIN
+    };
     web_sys::window()
         .and_then(|w| w.local_storage().ok().flatten())
         .and_then(|s| s.get_item(MEMORY_TREE_WIDTH_PX_KEY).ok().flatten())
         .and_then(|raw| raw.parse::<f64>().ok())
         .unwrap_or(MEMORY_TREE_WIDTH_PX_DEFAULT)
-        .clamp(MEMORY_TREE_WIDTH_PX_MIN, MEMORY_TREE_WIDTH_PX_MAX)
+        .clamp(min, MEMORY_TREE_WIDTH_PX_MAX)
 }
 
 impl MemoryState {
-    fn new() -> Self {
+    fn new(centered: bool) -> Self {
         Self {
             workspace_cwd: RwSignal::new(None),
             notes: RwSignal::new(Vec::new()),
@@ -143,7 +150,8 @@ impl MemoryState {
             graph_selected_node: RwSignal::new(None),
             graph_focus_generation: RwSignal::new(0),
             graph_prefer_3d: RwSignal::new(false),
-            tree_width: RwSignal::new(initial_tree_width()),
+            tree_width: RwSignal::new(initial_tree_width(centered)),
+            centered,
         }
     }
 }
@@ -361,11 +369,11 @@ fn input_value(ev: web_sys::Event) -> Option<String> {
 }
 
 #[component]
-pub fn MemoryPanel() -> impl IntoView {
+pub fn MemoryPanel(#[prop(optional)] centered: bool) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
     let toast = expect_context::<ToastService>();
-    let state = MemoryState::new();
+    let state = MemoryState::new(centered);
 
     // Track active workspace cwd and reload memory state when it changes.
     let eff_state = state.clone();
@@ -432,7 +440,11 @@ pub fn MemoryPanel() -> impl IntoView {
     });
 
     view! {
-        <div class="workbench-memory" role="region">
+        <div
+            class="workbench-memory"
+            class:workbench-memory--centered=centered
+            role="region"
+        >
             <header class="workbench-memory__tabs" role="tablist">
                 <MemoryTabBtn label=I18nKey::MemTabFiles state=state.clone() target=MemoryView::Files icon=icondata::LuFiles />
                 <MemoryTabBtn label=I18nKey::MemTabGraph state=state.clone() target=MemoryView::Graph icon=icondata::LuNetwork />
@@ -936,6 +948,12 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
         let s = state.clone();
         move || memory_files_stats_text(s.notes.get(), s.empty_categories.get())
     };
+    let centered = state.centered;
+    let tree_width_min = if centered {
+        MEMORY_TREE_WIDTH_CENTER_PX_MIN
+    } else {
+        MEMORY_TREE_WIDTH_PX_MIN
+    };
 
     // ── Resizable tree column ────────────────────────────────────────────────
     let tree_width = state.tree_width;
@@ -962,7 +980,7 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
             };
             let dx = f64::from(me.client_x()) - drag_anchor_x.get_untracked();
             let next = (drag_anchor_w.get_untracked() + dx)
-                .clamp(MEMORY_TREE_WIDTH_PX_MIN, MEMORY_TREE_WIDTH_PX_MAX);
+                .clamp(tree_width_min, MEMORY_TREE_WIDTH_PX_MAX);
             tree_width.set(next);
         });
         let up_h = window_event_listener_untyped("mouseup", move |_| resizing.set(false));
@@ -1111,18 +1129,20 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                 >
                     <Show when=move || !files_collapsed.get()>
                         <div class="workbench-memory-files__summary">
-                            <button
-                                type="button"
-                                class="workbench-memory-files__center-btn"
-                                title="Open memory in centered tab"
-                                aria-label="Open memory in centered tab"
-                                on:click={
-                                    let wb = wb;
-                                    move |_| wb.open_center_memory_tab()
-                                }
-                            >
-                                <LxIcon icon=icondata::LuPanelTopOpen width="0.78rem" height="0.78rem" />
-                            </button>
+                            <Show when=move || !centered>
+                                <button
+                                    type="button"
+                                    class="workbench-memory-files__center-btn"
+                                    title="Open memory in centered tab"
+                                    aria-label="Open memory in centered tab"
+                                    on:click={
+                                        let wb = wb;
+                                        move |_| wb.open_center_memory_tab()
+                                    }
+                                >
+                                    <LxIcon icon=icondata::LuPanelTopOpen width="0.78rem" height="0.78rem" />
+                                </button>
+                            </Show>
                             <span>{memory_stats}</span>
                         </div>
                     </Show>
