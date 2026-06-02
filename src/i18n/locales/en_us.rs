@@ -672,10 +672,16 @@ keys; the preset only fills in defaults."
         I18nKey::AppearanceThemeSelectAria => "Select theme {name}",
         I18nKey::ThemeNameBlxcodeDark => "BLXCode",
         I18nKey::ThemeDescBlxcodeDark => {
-            "Deep dark workbench — the default BLXCode look"
+            "Tokyo Night base fused with Dracula purple, pink and cyan accents"
         }
         I18nKey::ThemeNameBlxcodeLight => "BLXCode Light",
-        I18nKey::ThemeDescBlxcodeLight => "Clean light surfaces with cool blue accents",
+        I18nKey::ThemeDescBlxcodeLight => "Lavender-tinted light with Dracula purple accents",
+        I18nKey::ThemeNameBlxcodeLegacyDark => "BLXCode Legacy",
+        I18nKey::ThemeDescBlxcodeLegacyDark => {
+            "The original deep-dark workbench with GitHub-blue accents"
+        }
+        I18nKey::ThemeNameBlxcodeLegacyLight => "BLXCode Legacy Light",
+        I18nKey::ThemeDescBlxcodeLegacyLight => "Clean light surfaces with cool blue accents",
         I18nKey::ThemeNameDracula => "Dracula",
         I18nKey::ThemeDescDracula => "Purple-pink accents on a rich dark base",
         I18nKey::ThemeNameGruvboxDark => "Gruvbox Dark",

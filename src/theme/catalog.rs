@@ -27,6 +27,26 @@ pub const THEMES: &[AppTheme] = &[
         id: "blxcode-dark",
         mode: ThemeMode::Dark,
         preview: ThemePreviewColors {
+            sidebar: "#1a1b26",
+            background: "#1f2030",
+            accent: "#bd93f9",
+            text: "#c8d3f5",
+        },
+    },
+    AppTheme {
+        id: "blxcode-light",
+        mode: ThemeMode::Light,
+        preview: ThemePreviewColors {
+            sidebar: "#dcdeea",
+            background: "#f4f4fb",
+            accent: "#8839ef",
+            text: "#3a3a5c",
+        },
+    },
+    AppTheme {
+        id: "blxcode-legacy-dark",
+        mode: ThemeMode::Dark,
+        preview: ThemePreviewColors {
             sidebar: "#101116",
             background: "#15171d",
             accent: "#58a6ff",
@@ -34,7 +54,7 @@ pub const THEMES: &[AppTheme] = &[
         },
     },
     AppTheme {
-        id: "blxcode-light",
+        id: "blxcode-legacy-light",
         mode: ThemeMode::Light,
         preview: ThemePreviewColors {
             sidebar: "#eef0f4",

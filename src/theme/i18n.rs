@@ -5,6 +5,8 @@ pub fn theme_name_key(theme_id: &str) -> Option<I18nKey> {
     Some(match theme_id {
         "blxcode-dark" => I18nKey::ThemeNameBlxcodeDark,
         "blxcode-light" => I18nKey::ThemeNameBlxcodeLight,
+        "blxcode-legacy-dark" => I18nKey::ThemeNameBlxcodeLegacyDark,
+        "blxcode-legacy-light" => I18nKey::ThemeNameBlxcodeLegacyLight,
         "dracula" => I18nKey::ThemeNameDracula,
         "gruvbox-dark" => I18nKey::ThemeNameGruvboxDark,
         "gruvbox-light" => I18nKey::ThemeNameGruvboxLight,
@@ -42,6 +44,8 @@ pub fn theme_desc_key(theme_id: &str) -> Option<I18nKey> {
     Some(match theme_id {
         "blxcode-dark" => I18nKey::ThemeDescBlxcodeDark,
         "blxcode-light" => I18nKey::ThemeDescBlxcodeLight,
+        "blxcode-legacy-dark" => I18nKey::ThemeDescBlxcodeLegacyDark,
+        "blxcode-legacy-light" => I18nKey::ThemeDescBlxcodeLegacyLight,
         "dracula" => I18nKey::ThemeDescDracula,
         "gruvbox-dark" => I18nKey::ThemeDescGruvboxDark,
         "gruvbox-light" => I18nKey::ThemeDescGruvboxLight,
