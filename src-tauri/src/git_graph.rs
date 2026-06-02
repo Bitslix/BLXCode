@@ -209,7 +209,7 @@ fn git_commit_details_remote(
     let pretty = details_pretty_format();
     let owned = vec![
         "show".to_string(),
-        "--no-renames".to_string(),
+        "--find-renames".to_string(),
         "--numstat".to_string(),
         "--name-status".to_string(),
         "--date=iso-strict".to_string(),
@@ -236,7 +236,7 @@ fn git_commit_details_impl(cwd: String, oid: String) -> Result<GitCommitDetails,
         .arg(&work_tree)
         .args([
             "show",
-            "--no-renames",
+            "--find-renames",
             "--numstat",
             "--name-status",
             "--date=iso-strict",
