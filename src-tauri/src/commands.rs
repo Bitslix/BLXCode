@@ -773,7 +773,7 @@ pub fn pty_peek_output(
 }
 
 #[tauri::command]
-pub fn pty_wait_output(
+pub async fn pty_wait_output(
     manager: State<'_, PtyManager>,
     session_id: u64,
     after_seq: Option<u64>,
@@ -782,14 +782,50 @@ pub fn pty_wait_output(
     max_bytes: Option<usize>,
     contains: Option<String>,
 ) -> Result<crate::pty_host::PtyOutputSnapshot, String> {
-    manager.wait_output(
-        session_id,
-        after_seq,
-        timeout_ms.unwrap_or(10_000),
-        idle_ms.unwrap_or(250),
-        max_bytes.unwrap_or(4096),
-        contains,
-    )
+    let after_seq = after_seq.unwrap_or(0);
+    let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(10_000).clamp(1, 120_000));
+    let idle = std::time::Duration::from_millis(idle_ms.unwrap_or(250).min(30_000));
+    let max_bytes = max_bytes.unwrap_or(4096).clamp(1, 65_536);
+    let contains = contains.filter(|s| !s.is_empty());
+    let started = tokio::time::Instant::now();
+    let poll = std::time::Duration::from_millis(50);
+
+    loop {
+        let mut snapshot = manager.output_snapshot(session_id, max_bytes)?;
+        let seq_ok = snapshot.seq > after_seq;
+        let contains_ok = contains
+            .as_ref()
+            .map(|needle| snapshot.text.contains(needle))
+            .unwrap_or(true);
+
+        if seq_ok && contains_ok {
+            if idle.is_zero() {
+                snapshot.timed_out = false;
+                return Ok(snapshot);
+            }
+
+            let matched_seq = snapshot.seq;
+            let elapsed = started.elapsed();
+            if elapsed >= timeout {
+                snapshot.timed_out = true;
+                return Ok(snapshot);
+            }
+            tokio::time::sleep(idle.min(timeout - elapsed)).await;
+            let mut settled = manager.output_snapshot(session_id, max_bytes)?;
+            if settled.seq == matched_seq {
+                settled.timed_out = false;
+                return Ok(settled);
+            }
+            continue;
+        }
+
+        let elapsed = started.elapsed();
+        if elapsed >= timeout {
+            snapshot.timed_out = true;
+            return Ok(snapshot);
+        }
+        tokio::time::sleep(poll.min(timeout - elapsed)).await;
+    }
 }
 
 #[tauri::command]

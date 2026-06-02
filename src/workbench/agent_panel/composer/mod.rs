@@ -1,6 +1,7 @@
 //! Modern agent chat composer: an auto-growing textarea plus a footer bar with
-//! a model picker popover, a mode/access popover (mapped onto the existing
-//! [`AgentChatMode`] values), a thinking-level popover and the send/stop orb.
+//! a model picker popover, a click-cycling mode/access pill (mapped onto the
+//! existing [`AgentChatMode`] values), a thinking-level popover and the
+//! send/stop orb.
 //! Replaces the old single-line input + separate mode toolbar. Styling lives in
 //! `composer.css`; only theme tokens are used.
 
@@ -41,28 +42,6 @@ fn thinking_key(level: ThinkingLevel) -> I18nKey {
     }
 }
 
-/// The three chat modes shown in the access popover, mapped onto the existing
-/// [`AgentChatMode`] values (label, description).
-fn mode_entries() -> [(AgentChatMode, I18nKey, I18nKey); 3] {
-    [
-        (
-            AgentChatMode::AskEdits,
-            I18nKey::AgModeSupervised,
-            I18nKey::AgModeSupervisedDesc,
-        ),
-        (
-            AgentChatMode::AllowAll,
-            I18nKey::AgModeFullAccess,
-            I18nKey::AgModeFullAccessDesc,
-        ),
-        (
-            AgentChatMode::Plan,
-            I18nKey::AgModePlan,
-            I18nKey::AgModePlanDesc,
-        ),
-    ]
-}
-
 fn mode_label_key(mode: AgentChatMode) -> I18nKey {
     match mode {
         AgentChatMode::AskEdits => I18nKey::AgModeSupervised,
@@ -76,6 +55,57 @@ fn mode_icon(mode: AgentChatMode) -> icondata::Icon {
         AgentChatMode::AskEdits => icondata::LuShieldCheck,
         AgentChatMode::AllowAll => icondata::LuLockOpen,
         AgentChatMode::Plan => icondata::LuClipboardList,
+    }
+}
+
+fn next_mode(mode: AgentChatMode) -> AgentChatMode {
+    match mode {
+        AgentChatMode::AskEdits => AgentChatMode::AllowAll,
+        AgentChatMode::AllowAll => AgentChatMode::Plan,
+        AgentChatMode::Plan => AgentChatMode::AskEdits,
+    }
+}
+
+fn format_context_length(tokens: u64) -> String {
+    if tokens >= 1_000_000 {
+        format!("{:.1}M ctx", tokens as f64 / 1_000_000.0)
+    } else if tokens >= 1_000 {
+        format!("{}K ctx", tokens / 1_000)
+    } else {
+        format!("{tokens} ctx")
+    }
+}
+
+fn format_price_per_million(value: f64) -> String {
+    let per_million = value * 1_000_000.0;
+    if per_million >= 100.0 {
+        format!("${per_million:.0}/M")
+    } else if per_million >= 10.0 {
+        format!("${per_million:.1}/M")
+    } else {
+        format!("${per_million:.2}/M")
+    }
+}
+
+fn model_detail_line(model: &ProviderModelEntry) -> String {
+    let mut parts = Vec::new();
+    if let Some(context) = model.context_length {
+        parts.push(format_context_length(context));
+    }
+    if let Some(pricing) = model.pricing {
+        parts.push(format!(
+            "in {} · out {}",
+            format_price_per_million(pricing.prompt),
+            format_price_per_million(pricing.completion)
+        ));
+    }
+    if parts.is_empty() {
+        model
+            .description
+            .clone()
+            .unwrap_or_else(|| model.id.clone())
+    } else {
+        parts.join(" · ")
     }
 }
 
@@ -100,7 +130,6 @@ pub fn Composer(
     let thinking = RwSignal::new(ThinkingLevel::Medium);
 
     let model_open = RwSignal::new(false);
-    let mode_open = RwSignal::new(false);
     let think_open = RwSignal::new(false);
 
     let models = RwSignal::new(Vec::<ProviderModelEntry>::new());
@@ -109,13 +138,11 @@ pub fn Composer(
 
     let close_popovers = move || {
         model_open.set(false);
-        mode_open.set(false);
         think_open.set(false);
     };
 
     let close_on_outside = window_event_listener_untyped("mousedown", move |ev| {
-        if !model_open.get_untracked() && !mode_open.get_untracked() && !think_open.get_untracked()
-        {
+        if !model_open.get_untracked() && !think_open.get_untracked() {
             return;
         }
         let inside_menu = ev
@@ -200,7 +227,6 @@ pub fn Composer(
 
     let submit = move || {
         model_open.set(false);
-        mode_open.set(false);
         think_open.set(false);
         on_submit.run(());
     };
@@ -255,7 +281,6 @@ pub fn Composer(
                         on:click=move |_| {
                             let next = !model_open.get_untracked();
                             model_open.set(next);
-                            mode_open.set(false);
                             think_open.set(false);
                             if next {
                                 load_models();
@@ -293,6 +318,7 @@ pub fn Composer(
                                         let id = m.id.clone();
                                         let is_active = id == active;
                                         let label = if m.label.is_empty() { m.id.clone() } else { m.label.clone() };
+                                        let detail = model_detail_line(&m);
                                         view! {
                                             <li>
                                                 <button
@@ -304,7 +330,10 @@ pub fn Composer(
                                                         model_open.set(false);
                                                     }
                                                 >
-                                                    <span class="agent-composer__model-name">{label}</span>
+                                                    <span class="agent-composer__model-copy">
+                                                        <span class="agent-composer__model-name">{label}</span>
+                                                        <span class="agent-composer__model-meta">{detail}</span>
+                                                    </span>
                                                     <Show when=move || is_active>
                                                         <LxIcon icon=icondata::LuCheck width="0.78rem" height="0.78rem" />
                                                     </Show>
@@ -318,15 +347,18 @@ pub fn Composer(
                     </Show>
                 </div>
 
-                // ---- Mode / access popover ----
+                // ---- Mode / access cycle ----
                 <div class="agent-composer__menu">
                     <button
                         type="button"
                         class="agent-composer__pill"
                         prop:disabled=move || busy.get()
                         on:click=move |_| {
-                            let next = !mode_open.get_untracked();
-                            mode_open.set(next);
+                            let next = next_mode(chat_mode.get_untracked());
+                            chat_mode.set(next);
+                            if let Some(ws_id) = wb.active_id().get_untracked() {
+                                wb.set_workspace_agent_chat_mode(ws_id, next);
+                            }
                             model_open.set(false);
                             think_open.set(false);
                         }
@@ -338,42 +370,7 @@ pub fn Composer(
                         <span class="agent-composer__pill-label">
                             {move || i18n.tr(mode_label_key(chat_mode.get()))()}
                         </span>
-                        <LxIcon icon=icondata::LuChevronDown width="0.78rem" height="0.78rem" />
                     </button>
-                    <Show when=move || mode_open.get()>
-                        <div class="agent-composer__popover">
-                            {mode_entries().into_iter().map(|(mode, label_key, desc_key)| {
-                                let is_active = Memo::new(move |_| chat_mode.get() == mode);
-                                view! {
-                                    <button
-                                        type="button"
-                                        class="agent-composer__option"
-                                        class:agent-composer__option--active=move || is_active.get()
-                                        on:click=move |_| {
-                                            chat_mode.set(mode);
-                                            if let Some(ws_id) = wb.active_id().get_untracked() {
-                                                wb.set_workspace_agent_chat_mode(ws_id, mode);
-                                            }
-                                            mode_open.set(false);
-                                        }
-                                    >
-                                        <span class="agent-composer__option-head">
-                                            <LxIcon icon=mode_icon(mode) width="0.82rem" height="0.82rem" />
-                                            <span class="agent-composer__option-title">
-                                                {move || i18n.tr(label_key)()}
-                                            </span>
-                                            <Show when=move || is_active.get()>
-                                                <LxIcon icon=icondata::LuCheck width="0.78rem" height="0.78rem" />
-                                            </Show>
-                                        </span>
-                                        <span class="agent-composer__option-desc">
-                                            {move || i18n.tr(desc_key)()}
-                                        </span>
-                                    </button>
-                                }
-                            }).collect_view()}
-                        </div>
-                    </Show>
                 </div>
 
                 // ---- Thinking level ----
@@ -386,7 +383,6 @@ pub fn Composer(
                             let next = !think_open.get_untracked();
                             think_open.set(next);
                             model_open.set(false);
-                            mode_open.set(false);
                         }
                     >
                         <LxIcon icon=icondata::LuBrain width="0.82rem" height="0.82rem" />

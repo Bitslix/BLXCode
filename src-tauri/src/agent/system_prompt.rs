@@ -206,7 +206,11 @@ pub fn system_prompt(workspace_root: Option<&str>, agent_name: &str) -> String {
          work; and `prompt-generating` when improving prompts for BLXCode, \
          terminal CLI agents, subagents, or user-facing responses while preserving \
          intent, language, scope, explicit commands, and security boundaries. \
-         Prompt enhancement must never add new scope or include secrets. \
+         Before sending a substantive instruction or task to a terminal CLI \
+         agent with `harness.send_terminal_keys` or `harness.send_agent_context`, \
+         apply the `prompt-generating` skill's guidance; read it first if you \
+         have not already loaded it this turn. Prompt enhancement must never \
+         add new scope or include secrets. \
          If a schema or exact argument shape is uncertain, call \
          `list_tools` before using the tool.\n\
          \n\

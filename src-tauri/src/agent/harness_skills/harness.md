@@ -97,9 +97,10 @@ Sends Ctrl+C to the targeted PTY session. Use when a shell command or CLI agent 
 
 ## Delegation pattern
 1. `harness.list_terminals` — find the target slot
-2. `harness.send_agent_context` or `harness.send_terminal_keys` — send the prompt
-3. `harness.wait_terminal_output` — wait for response text or idle output
-4. `harness.read_terminal_output` — quick tail peek when you do not need to wait
-5. `harness.terminal_interrupt` — stop long-running or stuck sessions when appropriate
+2. For substantive work delegated to a CLI agent, apply the `prompt-generating` skill first so the prompt is clear, scoped, and safe.
+3. `harness.send_agent_context` or `harness.send_terminal_keys` — send the prompt
+4. `harness.wait_terminal_output` — wait for response text or idle output
+5. `harness.read_terminal_output` — quick tail peek when you do not need to wait
+6. `harness.terminal_interrupt` — stop long-running or stuck sessions when appropriate
 
 When the composer toggle "Enhance prompt before send" is enabled, BLXCode rewrites the user's draft through an isolated one-shot provider call before sending it as the actual Agent Chat turn. That enhancement does not mutate chat history, tools, tasks, memory, or timelines by itself.

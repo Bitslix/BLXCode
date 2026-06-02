@@ -319,66 +319,19 @@ impl PtyManager {
         Ok(state.tail_text(cap))
     }
 
-    pub fn wait_output(
+    pub fn output_snapshot(
         &self,
         session_id: u64,
-        after_seq: Option<u64>,
-        timeout_ms: u64,
-        idle_ms: u64,
         max_bytes: usize,
-        contains: Option<String>,
     ) -> Result<PtyOutputSnapshot, String> {
-        let (output_state, output_ready) = {
-            let g = self.inner.lock().map_err(|_| "pty lock")?;
-            let s = g
-                .sessions
-                .get(&session_id)
-                .ok_or_else(|| "unknown session".to_string())?;
-            (Arc::clone(&s.output_state), Arc::clone(&s.output_ready))
-        };
-        let after_seq = after_seq.unwrap_or(0);
-        let timeout = Duration::from_millis(timeout_ms.clamp(1, 120_000));
-        let idle = Duration::from_millis(idle_ms.min(30_000));
-        let cap = max_bytes.max(1).min(TAIL_CAP_BYTES);
-        let needle = contains.filter(|s| !s.is_empty());
-        let deadline = Instant::now() + timeout;
-        let mut state = output_state.lock().map_err(|_| "output state lock")?;
-
-        loop {
-            let text = state.tail_text(cap);
-            let seq_ok = state.seq > after_seq;
-            let contains_ok = needle.as_ref().map(|n| text.contains(n)).unwrap_or(true);
-            let idle_ok = if idle.is_zero() {
-                true
-            } else {
-                state
-                    .last_output_at
-                    .map(|last| last.elapsed() >= idle)
-                    .unwrap_or(false)
-            };
-            if seq_ok && contains_ok && idle_ok {
-                return Ok(snapshot_from_state(session_id, &state, text, false));
-            }
-
-            let now = Instant::now();
-            if now >= deadline {
-                return Ok(snapshot_from_state(session_id, &state, text, true));
-            }
-
-            let mut wait_for = deadline.saturating_duration_since(now);
-            if seq_ok && contains_ok && !idle.is_zero() {
-                if let Some(last) = state.last_output_at {
-                    wait_for = wait_for.min(idle.saturating_sub(last.elapsed()));
-                }
-            }
-            if wait_for.is_zero() {
-                continue;
-            }
-            let (guard, _) = output_ready
-                .wait_timeout(state, wait_for)
-                .map_err(|_| "output state lock")?;
-            state = guard;
-        }
+        let g = self.inner.lock().map_err(|_| "pty lock")?;
+        let s = g
+            .sessions
+            .get(&session_id)
+            .ok_or_else(|| "unknown session".to_string())?;
+        let state = s.output_state.lock().map_err(|_| "output state lock")?;
+        let text = state.tail_text(max_bytes.max(1).min(TAIL_CAP_BYTES));
+        Ok(snapshot_from_state(session_id, &state, text, false))
     }
 
     pub fn kill(&self, session_id: u64) -> Result<(), String> {

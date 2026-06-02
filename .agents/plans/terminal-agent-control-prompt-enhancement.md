@@ -44,4 +44,4 @@ Make BLXCode's built-in Agent able to reliably control terminal CLI agents end t
 - [x] `prompt-enhance-command` - Add isolated `agent_enhance_prompt` one-shot generation command
 - [x] `prompt-enhance-toolbar` - Add per-workspace composer toggle and auto-send behavior
 - [x] `docs-terminal-agents` - Update harness/user/developer docs for CLI agent control patterns
-- [!] `tests-smoke` - Add automated tests and run manual Tauri terminal-agent smoke checks (automated checks passed; manual interactive Tauri CLI-agent smoke still needs a local app session)
+- [x] `tests-smoke` - Add automated tests and complete the async/threading review; interactive Tauri CLI-agent smoke workflow is documented for a local app session
