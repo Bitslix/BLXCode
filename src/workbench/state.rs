@@ -10,6 +10,9 @@ use crate::tauri_bridge::{
     workbench_rewrite_terminal_keys, workspace_ensure_agents,
 };
 use crate::workbench::agent_timeline::TimelineDoc;
+use crate::workbench::terminal_agent_profiles::{
+    is_supported_terminal_agent_slug, supported_terminal_agent_slugs,
+};
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -76,6 +79,10 @@ pub struct WorkspaceEntry {
     /// Execution/approval mode for the current Agent Chat session.
     #[serde(default)]
     pub agent_chat_mode: AgentChatMode,
+    /// When true, the composer runs a separate one-shot prompt enhancement
+    /// before submitting the user turn. Per workspace/session, default off.
+    #[serde(default)]
+    pub agent_enhance_prompt_before_send: bool,
     /// Default-off setting for future optional LLM prose synthesis into the
     /// architecture map. Current rebuilds remain deterministic and non-LLM.
     #[serde(default)]
@@ -456,6 +463,7 @@ impl WorkspaceEntry {
             agent_compose_draft: String::new(),
             agent_image_mode: false,
             agent_chat_mode: AgentChatMode::AskEdits,
+            agent_enhance_prompt_before_send: false,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
@@ -577,9 +585,15 @@ fn normalize_workspace_agent_labels(
     let mut out = Vec::with_capacity(terminal_count);
     for slug in agent_slugs {
         let normalized = slug.trim().to_ascii_lowercase();
-        match normalized.as_str() {
-            "" | "claude" | "codex" | "gemini" | "opencode" | "cursor" => out.push(normalized),
-            _ => return Err(format!("unsupported agent slug: {slug}")),
+        if normalized.is_empty() || is_supported_terminal_agent_slug(&normalized) {
+            out.push(normalized);
+        } else {
+            let supported = supported_terminal_agent_slugs()
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(format!(
+                "unsupported agent slug: {slug} (supported: {supported})"
+            ));
         }
     }
     while out.len() < terminal_count {
@@ -2059,6 +2073,7 @@ impl WorkbenchService {
             agent_compose_draft: String::new(),
             agent_image_mode: false,
             agent_chat_mode: AgentChatMode::AskEdits,
+            agent_enhance_prompt_before_send: false,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
@@ -2190,6 +2205,7 @@ impl WorkbenchService {
                 agent_compose_draft: String::new(),
                 agent_image_mode: false,
                 agent_chat_mode: AgentChatMode::AskEdits,
+                agent_enhance_prompt_before_send: false,
                 architecture_llm_prose: false,
                 agent_context_items: Vec::new(),
                 memory_category_settings: HashMap::new(),
@@ -2714,6 +2730,7 @@ impl WorkbenchService {
                 agent_compose_draft: String::new(),
                 agent_image_mode: false,
                 agent_chat_mode: AgentChatMode::AskEdits,
+                agent_enhance_prompt_before_send: false,
                 architecture_llm_prose: false,
                 agent_context_items: Vec::new(),
                 memory_category_settings: HashMap::new(),
@@ -3076,6 +3093,7 @@ impl WorkbenchService {
             agent_compose_draft: String::new(),
             agent_image_mode: false,
             agent_chat_mode: AgentChatMode::AskEdits,
+            agent_enhance_prompt_before_send: false,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
@@ -3561,6 +3579,25 @@ impl WorkbenchService {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
                 ws.agent_chat_mode = mode;
+            }
+        });
+    }
+
+    #[must_use]
+    pub fn agent_enhance_prompt_for_workspace_untracked(&self, workspace_id: u64) -> bool {
+        self.workspaces.with_untracked(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.agent_enhance_prompt_before_send)
+                .unwrap_or(false)
+        })
+    }
+
+    pub fn set_workspace_agent_enhance_prompt(&self, workspace_id: u64, enabled: bool) {
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                ws.agent_enhance_prompt_before_send = enabled;
             }
         });
     }
@@ -4290,6 +4327,7 @@ mod center_tab_tests {
             agent_compose_draft: String::new(),
             agent_image_mode: false,
             agent_chat_mode: AgentChatMode::AskEdits,
+            agent_enhance_prompt_before_send: false,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
@@ -4385,6 +4423,7 @@ mod terminal_slot_tests {
             agent_compose_draft: String::new(),
             agent_image_mode: false,
             agent_chat_mode: AgentChatMode::AskEdits,
+            agent_enhance_prompt_before_send: false,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),

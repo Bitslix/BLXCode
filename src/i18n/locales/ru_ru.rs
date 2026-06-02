@@ -1125,6 +1125,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgComposerPh => "Спросите что угодно, отметьте файлы/папки через @, используйте $use skills или / для команд",
         I18nKey::AgComposerModelSearch => "Поиск моделей…",
         I18nKey::AgComposerThinking => "Мышление",
+        I18nKey::AgComposerEnhancePrompt => "Enhance prompt",
         I18nKey::AgModeSupervised => "Под наблюдением",
         I18nKey::AgModeSupervisedDesc => "Спрашивать перед правками и командами",
         I18nKey::AgModeFullAccess => "Полный доступ",

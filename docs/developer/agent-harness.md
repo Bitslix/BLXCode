@@ -105,7 +105,7 @@ New tools should be wired once in dispatch + `tools::execute_server_tool`, not d
 
 - `ask_edits` — mutating edit tools, command execution, and app/window/settings state changes emit `ToolPermissionRequest` and wait for `agent_submit_tool_result`.
 - `allow_all` — no prompt; tool calls execute directly.
-- `plan` — non-mutating mode; write tools, write-capable commands, workspace switches, window/settings changes, and submitted terminal commands are blocked before execution.
+- `plan` — non-mutating mode; write tools, write-capable commands, workspace switches, window/settings changes, submitted terminal commands, context handoff, and terminal interrupts are blocked before execution.
 
 Server tools are gated in `tool_dispatch.rs` before `execute_server_tool`; client harness tools are gated before the `ToolCall` event is emitted, so the frontend cannot execute a client tool before approval.
 

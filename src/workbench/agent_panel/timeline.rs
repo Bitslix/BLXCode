@@ -925,6 +925,8 @@ pub(crate) fn tool_icon(tool: &str) -> icondata::Icon {
         "harness.send_terminal_keys" => icondata::LuSendHorizontal,
         "harness.send_agent_context" => icondata::LuShare2,
         "harness.read_terminal_output" => icondata::LuWrapText,
+        "harness.wait_terminal_output" => icondata::LuTimer,
+        "harness.terminal_interrupt" => icondata::LuOctagonX,
         _ => icondata::LuWrench,
     }
 }

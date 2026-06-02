@@ -7,7 +7,7 @@ use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -33,13 +33,61 @@ struct PtySession {
     writer: Arc<Mutex<Box<dyn Write + Send>>>,
     queue: Arc<Mutex<VecDeque<Vec<u8>>>>,
     output_ready: Arc<Condvar>,
-    /// Non-destructive rolling tail of recent output. Filled in parallel
-    /// with `queue` by the reader thread so the agent can `peek` without
-    /// stealing bytes from the live terminal view.
-    tail: Arc<Mutex<VecDeque<u8>>>,
+    /// Non-destructive output state. Filled in parallel with `queue` by the
+    /// reader thread so the agent can observe output without stealing bytes
+    /// from the live terminal view.
+    output_state: Arc<Mutex<PtyOutputState>>,
 }
 
 const TAIL_CAP_BYTES: usize = 64 * 1024;
+
+struct PtyOutputState {
+    tail: VecDeque<u8>,
+    seq: u64,
+    last_output_at: Option<Instant>,
+    last_output_epoch_ms: Option<u128>,
+}
+
+impl PtyOutputState {
+    fn new() -> Self {
+        Self {
+            tail: VecDeque::with_capacity(TAIL_CAP_BYTES),
+            seq: 0,
+            last_output_at: None,
+            last_output_epoch_ms: None,
+        }
+    }
+
+    fn push_chunk(&mut self, chunk: &[u8]) {
+        for &byte in chunk {
+            if self.tail.len() == TAIL_CAP_BYTES {
+                self.tail.pop_front();
+            }
+            self.tail.push_back(byte);
+        }
+        self.seq = self.seq.saturating_add(1);
+        self.last_output_at = Some(Instant::now());
+        self.last_output_epoch_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .ok()
+            .map(|duration| duration.as_millis());
+    }
+
+    fn tail_text(&self, max_bytes: usize) -> String {
+        tail_to_text(&self.tail, max_bytes)
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PtyOutputSnapshot {
+    pub session_id: u64,
+    pub seq: u64,
+    pub bytes: usize,
+    pub text: String,
+    pub timed_out: bool,
+    pub last_output_ms: Option<u128>,
+}
 
 impl Default for PtyManager {
     fn default() -> Self {
@@ -124,9 +172,8 @@ impl PtyManager {
         let q_reader = Arc::clone(&queue);
         let output_ready = Arc::new(Condvar::new());
         let output_ready_reader = Arc::clone(&output_ready);
-        let tail: Arc<Mutex<VecDeque<u8>>> =
-            Arc::new(Mutex::new(VecDeque::with_capacity(TAIL_CAP_BYTES)));
-        let tail_reader = Arc::clone(&tail);
+        let output_state: Arc<Mutex<PtyOutputState>> = Arc::new(Mutex::new(PtyOutputState::new()));
+        let output_state_reader = Arc::clone(&output_state);
 
         // Let the injector reply on the same master writer the foreground uses.
         if let Some(inj) = injector.as_mut() {
@@ -145,7 +192,7 @@ impl PtyManager {
                     writer: Arc::clone(&writer),
                     queue: Arc::clone(&queue),
                     output_ready: Arc::clone(&output_ready),
-                    tail: Arc::clone(&tail),
+                    output_state: Arc::clone(&output_state),
                 },
             );
             id
@@ -162,13 +209,8 @@ impl PtyManager {
                         if let Some(inj) = injector.as_mut() {
                             inj.observe(&chunk);
                         }
-                        if let Ok(mut t) = tail_reader.lock() {
-                            for &b in &chunk {
-                                if t.len() == TAIL_CAP_BYTES {
-                                    t.pop_front();
-                                }
-                                t.push_back(b);
-                            }
+                        if let Ok(mut state) = output_state_reader.lock() {
+                            state.push_chunk(&chunk);
                         }
                         if let Ok(mut q) = q_reader.lock() {
                             q.push_back(chunk);
@@ -273,16 +315,70 @@ impl PtyManager {
             .get(&session_id)
             .ok_or_else(|| "unknown session".to_string())?;
         let cap = max_bytes.max(1).min(TAIL_CAP_BYTES);
-        let t = s.tail.lock().map_err(|_| "tail lock")?;
-        let len = t.len();
-        let start = len.saturating_sub(cap);
-        let mut out: Vec<u8> = Vec::with_capacity(len - start);
-        for (i, b) in t.iter().enumerate() {
-            if i >= start {
-                out.push(*b);
+        let state = s.output_state.lock().map_err(|_| "output state lock")?;
+        Ok(state.tail_text(cap))
+    }
+
+    pub fn wait_output(
+        &self,
+        session_id: u64,
+        after_seq: Option<u64>,
+        timeout_ms: u64,
+        idle_ms: u64,
+        max_bytes: usize,
+        contains: Option<String>,
+    ) -> Result<PtyOutputSnapshot, String> {
+        let (output_state, output_ready) = {
+            let g = self.inner.lock().map_err(|_| "pty lock")?;
+            let s = g
+                .sessions
+                .get(&session_id)
+                .ok_or_else(|| "unknown session".to_string())?;
+            (Arc::clone(&s.output_state), Arc::clone(&s.output_ready))
+        };
+        let after_seq = after_seq.unwrap_or(0);
+        let timeout = Duration::from_millis(timeout_ms.clamp(1, 120_000));
+        let idle = Duration::from_millis(idle_ms.min(30_000));
+        let cap = max_bytes.max(1).min(TAIL_CAP_BYTES);
+        let needle = contains.filter(|s| !s.is_empty());
+        let deadline = Instant::now() + timeout;
+        let mut state = output_state.lock().map_err(|_| "output state lock")?;
+
+        loop {
+            let text = state.tail_text(cap);
+            let seq_ok = state.seq > after_seq;
+            let contains_ok = needle.as_ref().map(|n| text.contains(n)).unwrap_or(true);
+            let idle_ok = if idle.is_zero() {
+                true
+            } else {
+                state
+                    .last_output_at
+                    .map(|last| last.elapsed() >= idle)
+                    .unwrap_or(false)
+            };
+            if seq_ok && contains_ok && idle_ok {
+                return Ok(snapshot_from_state(session_id, &state, text, false));
             }
+
+            let now = Instant::now();
+            if now >= deadline {
+                return Ok(snapshot_from_state(session_id, &state, text, true));
+            }
+
+            let mut wait_for = deadline.saturating_duration_since(now);
+            if seq_ok && contains_ok && !idle.is_zero() {
+                if let Some(last) = state.last_output_at {
+                    wait_for = wait_for.min(idle.saturating_sub(last.elapsed()));
+                }
+            }
+            if wait_for.is_zero() {
+                continue;
+            }
+            let (guard, _) = output_ready
+                .wait_timeout(state, wait_for)
+                .map_err(|_| "output state lock")?;
+            state = guard;
         }
-        Ok(String::from_utf8_lossy(&out).into_owned())
     }
 
     pub fn kill(&self, session_id: u64) -> Result<(), String> {
@@ -689,6 +785,35 @@ fn drain_queue(q: &mut VecDeque<Vec<u8>>, cap: usize) -> Vec<u8> {
     out
 }
 
+fn tail_to_text(tail: &VecDeque<u8>, cap: usize) -> String {
+    let cap = cap.max(1).min(TAIL_CAP_BYTES);
+    let len = tail.len();
+    let start = len.saturating_sub(cap);
+    let mut out: Vec<u8> = Vec::with_capacity(len - start);
+    for (index, byte) in tail.iter().enumerate() {
+        if index >= start {
+            out.push(*byte);
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+fn snapshot_from_state(
+    session_id: u64,
+    state: &PtyOutputState,
+    text: String,
+    timed_out: bool,
+) -> PtyOutputSnapshot {
+    PtyOutputSnapshot {
+        session_id,
+        seq: state.seq,
+        bytes: text.len(),
+        text,
+        timed_out,
+        last_output_ms: state.last_output_epoch_ms,
+    }
+}
+
 fn home_dir_string() -> Option<String> {
     std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
@@ -772,6 +897,41 @@ mod tests {
             remote_dir: None,
             terminal_key: "abc123:1:1001".into(),
         }
+    }
+
+    #[test]
+    fn output_state_tracks_sequence_timestamp_and_tail() {
+        let mut state = PtyOutputState::new();
+        assert_eq!(state.seq, 0);
+        assert!(state.last_output_at.is_none());
+
+        state.push_chunk(b"hello ");
+        state.push_chunk(&[0xff, b'w', b'o', b'r', b'l', b'd']);
+
+        assert_eq!(state.seq, 2);
+        assert!(state.last_output_at.is_some());
+        assert!(state.last_output_epoch_ms.is_some());
+        assert_eq!(state.tail_text(5), "world");
+        assert!(state.tail_text(64).contains('\u{fffd}'));
+    }
+
+    #[test]
+    fn output_state_caps_tail() {
+        let mut state = PtyOutputState::new();
+        state.push_chunk(&vec![b'a'; TAIL_CAP_BYTES + 10]);
+        assert_eq!(state.tail.len(), TAIL_CAP_BYTES);
+    }
+
+    #[test]
+    fn snapshot_from_state_reports_lossy_bytes_and_timeout() {
+        let mut state = PtyOutputState::new();
+        state.push_chunk(b"hello");
+        let snapshot = snapshot_from_state(7, &state, state.tail_text(32), true);
+        assert_eq!(snapshot.session_id, 7);
+        assert_eq!(snapshot.seq, 1);
+        assert_eq!(snapshot.bytes, 5);
+        assert_eq!(snapshot.text, "hello");
+        assert!(snapshot.timed_out);
     }
 
     #[test]

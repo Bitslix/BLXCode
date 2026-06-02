@@ -1091,6 +1091,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgComposerPh => "隨便問，使用 @ 標記檔案/資料夾，使用 $use skills 或 / 輸入命令",
         I18nKey::AgComposerModelSearch => "搜尋模型…",
         I18nKey::AgComposerThinking => "思考",
+        I18nKey::AgComposerEnhancePrompt => "Enhance prompt",
         I18nKey::AgModeSupervised => "受監督",
         I18nKey::AgModeSupervisedDesc => "編輯和命令前先詢問",
         I18nKey::AgModeFullAccess => "完整存取",

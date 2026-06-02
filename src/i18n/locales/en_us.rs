@@ -1194,6 +1194,7 @@ keys; the preset only fills in defaults."
         I18nKey::AgComposerPh => "Ask anything, @tag files/folders, $use skills, or / for commands",
         I18nKey::AgComposerModelSearch => "Search models…",
         I18nKey::AgComposerThinking => "Thinking",
+        I18nKey::AgComposerEnhancePrompt => "Enhance prompt",
         I18nKey::AgModeSupervised => "Supervised",
         I18nKey::AgModeSupervisedDesc => "Ask before edits and commands",
         I18nKey::AgModeFullAccess => "Full access",

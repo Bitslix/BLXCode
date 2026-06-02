@@ -56,6 +56,10 @@ pub const CORE_SKILLS: &[(&str, &str)] = &[
         "subagents",
         include_str!("../agent/harness_skills/subagents.md"),
     ),
+    (
+        "prompt-generating",
+        include_str!("../agent/harness_skills/prompt-generating.md"),
+    ),
 ];
 
 const CORE_INSTALLED_AT: &str = "2026-01-01T00:00:00Z";
@@ -73,7 +77,7 @@ fn core_skill_category(name: &str) -> Option<String> {
         "file-access" | "environment" | "harness" | "shell" => "workspace",
         "memory" | "memory-architecture" => "memory",
         "plans" | "tasks" => "planning",
-        "rules-skills" => "workflow",
+        "rules-skills" | "prompt-generating" => "workflow",
         "git" => "git",
         "web" => "web",
         "subagents" => "agents",

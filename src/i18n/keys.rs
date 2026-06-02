@@ -1127,6 +1127,7 @@ pub enum I18nKey {
     AgComposerPh,
     AgComposerModelSearch,
     AgComposerThinking,
+    AgComposerEnhancePrompt,
     AgModeSupervised,
     AgModeSupervisedDesc,
     AgModeFullAccess,

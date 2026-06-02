@@ -1097,6 +1097,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgComposerPh => "何でも質問、@でファイル/フォルダーを指定、$use skills、または / でコマンド",
         I18nKey::AgComposerModelSearch => "モデルを検索…",
         I18nKey::AgComposerThinking => "思考",
+        I18nKey::AgComposerEnhancePrompt => "Enhance prompt",
         I18nKey::AgModeSupervised => "監督付き",
         I18nKey::AgModeSupervisedDesc => "編集やコマンドの前に確認する",
         I18nKey::AgModeFullAccess => "フルアクセス",

@@ -150,6 +150,8 @@ impl ToolGroup {
                 "harness.send_terminal_keys",
                 "harness.send_agent_context",
                 "harness.read_terminal_output",
+                "harness.wait_terminal_output",
+                "harness.terminal_interrupt",
                 "harness.ask_user",
             ],
             Self::CoordinatorMeta => &["list_tools"],

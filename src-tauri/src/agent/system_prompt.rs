@@ -190,7 +190,7 @@ pub fn system_prompt(workspace_root: Option<&str>, agent_name: &str) -> String {
          `skills_read {{ name }}` with one of the core skill names:\n\
          `file-access` · `memory` · `memory-architecture` · `plans` · `tasks` · \
          `rules-skills` · `harness` · `environment` · `shell` · `git` · `web` · \
-         `subagents`\n\
+         `subagents` · `prompt-generating`\n\
          \n\
          Use these core skills as the operational manual for the tools: \
          `file-access` for workspace file/folder tools; `memory` and \
@@ -202,8 +202,12 @@ pub fn system_prompt(workspace_root: Option<&str>, agent_name: &str) -> String {
          terminals, and user prompts; `environment` before shell/git when \
          runtime details matter; `shell` for command execution rules; `git` for \
          repository inspection and supported git mutations; `web` for internet \
-         lookup/fetch; and `subagents` only for explicit delegated multi-agent \
-         work. If a schema or exact argument shape is uncertain, call \
+         lookup/fetch; `subagents` only for explicit delegated multi-agent \
+         work; and `prompt-generating` when improving prompts for BLXCode, \
+         terminal CLI agents, subagents, or user-facing responses while preserving \
+         intent, language, scope, explicit commands, and security boundaries. \
+         Prompt enhancement must never add new scope or include secrets. \
+         If a schema or exact argument shape is uncertain, call \
          `list_tools` before using the tool.\n\
          \n\
          ## Tool index (names only)\n\
@@ -241,7 +245,7 @@ pub fn system_prompt(workspace_root: Option<&str>, agent_name: &str) -> String {
          `harness.open_diff`, `harness.window_get_state`, `harness.window_set_size`, \
          `harness.window_set_fullscreen`, `harness.list_terminals`, `harness.send_terminal_keys`, \
          `harness.send_agent_context`, `harness.read_terminal_output`, \
-         `harness.ask_user`\n\
+         `harness.wait_terminal_output`, `harness.terminal_interrupt`, `harness.ask_user`\n\
          \n\
          **Environment / shell / git (server):** `environment_detect`, `shell_exec`, \
          `workspace_search`, `workspace_git_status`, `workspace_diff`, \
@@ -378,6 +382,8 @@ mod tests {
         assert!(p.contains("tasks"));
         assert!(p.contains("rules-skills"));
         assert!(p.contains("harness"));
+        assert!(p.contains("prompt-generating"));
+        assert!(p.contains("Prompt enhancement must never add new scope or include secrets"));
     }
 
     #[test]

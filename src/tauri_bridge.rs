@@ -1559,6 +1559,55 @@ pub async fn pty_peek_output(session_id: u64, max_bytes: usize) -> Result<String
     .await
 }
 
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PtyOutputSnapshot {
+    pub session_id: u64,
+    pub seq: u64,
+    pub bytes: usize,
+    pub text: String,
+    pub timed_out: bool,
+    pub last_output_ms: Option<u128>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PtyWaitOutputArgs {
+    session_id: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    after_seq: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    timeout_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    idle_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_bytes: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    contains: Option<String>,
+}
+
+pub async fn pty_wait_output(
+    session_id: u64,
+    after_seq: Option<u64>,
+    timeout_ms: Option<u64>,
+    idle_ms: Option<u64>,
+    max_bytes: Option<usize>,
+    contains: Option<String>,
+) -> Result<PtyOutputSnapshot, String> {
+    invoke_typed(
+        "pty_wait_output",
+        PtyWaitOutputArgs {
+            session_id,
+            after_seq,
+            timeout_ms,
+            idle_ms,
+            max_bytes,
+            contains,
+        },
+    )
+    .await
+}
+
 #[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -2492,6 +2541,23 @@ pub async fn plan_generate_ai(prompt: String, with_tasks: bool) -> Result<Genera
         with_tasks: bool,
     }
     invoke_typed("plan_generate_ai", Args { prompt, with_tasks }).await
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnhancedPrompt {
+    pub prompt: String,
+}
+
+/// Enhances a draft prompt through an isolated one-shot provider request. This
+/// does not mutate the Agent chat session, timeline, tasks, tools, or memory.
+pub async fn agent_enhance_prompt(prompt: String) -> Result<EnhancedPrompt, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        prompt: String,
+    }
+    invoke_typed("agent_enhance_prompt", Args { prompt }).await
 }
 
 #[allow(dead_code)]

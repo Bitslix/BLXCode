@@ -1127,6 +1127,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgComposerPh => "Frag mich etwas, @Dateien/Ordner taggen, $Skills nutzen oder / für Befehle",
         I18nKey::AgComposerModelSearch => "Modelle suchen…",
         I18nKey::AgComposerThinking => "Denken",
+        I18nKey::AgComposerEnhancePrompt => "Prompt verbessern",
         I18nKey::AgModeSupervised => "Beaufsichtigt",
         I18nKey::AgModeSupervisedDesc => "Vor Änderungen und Befehlen fragen",
         I18nKey::AgModeFullAccess => "Voller Zugriff",

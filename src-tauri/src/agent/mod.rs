@@ -14,6 +14,7 @@ mod openrouter;
 pub mod plan_ai;
 pub(crate) mod pricing;
 mod project_docs;
+pub mod prompt_enhance;
 mod provider;
 mod session_orchestrator;
 mod shell_exec;

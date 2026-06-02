@@ -84,6 +84,7 @@ fn mode_icon(mode: AgentChatMode) -> icondata::Icon {
 pub fn Composer(
     draft: RwSignal<String>,
     chat_mode: RwSignal<AgentChatMode>,
+    enhance_prompt: RwSignal<bool>,
     busy: RwSignal<bool>,
     model_label: RwSignal<String>,
     input_ref: NodeRef<html::Textarea>,
@@ -422,6 +423,30 @@ pub fn Composer(
                         </div>
                     </Show>
                 </div>
+
+                <button
+                    type="button"
+                    class=move || if enhance_prompt.get() {
+                        "agent-composer__pill agent-composer__pill--active"
+                    } else {
+                        "agent-composer__pill"
+                    }
+                    prop:disabled=move || busy.get()
+                    aria-pressed=move || enhance_prompt.get().to_string()
+                    title=move || i18n.tr(I18nKey::AgComposerEnhancePrompt)()
+                    on:click=move |_| {
+                        let next = !enhance_prompt.get_untracked();
+                        enhance_prompt.set(next);
+                        if let Some(ws_id) = wb.active_id().get_untracked() {
+                            wb.set_workspace_agent_enhance_prompt(ws_id, next);
+                        }
+                    }
+                >
+                    <LxIcon icon=icondata::LuSparkles width="0.82rem" height="0.82rem" />
+                    <span class="agent-composer__pill-label">
+                        {move || i18n.tr(I18nKey::AgComposerEnhancePrompt)()}
+                    </span>
+                </button>
 
                 <span class="agent-composer__spacer"></span>
 

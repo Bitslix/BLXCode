@@ -149,6 +149,8 @@ fn legacy_tool_label(tool: &str) -> String {
         "harness.send_terminal_keys" => "Send keys to terminal",
         "harness.send_agent_context" => "Send agent context to terminal",
         "harness.read_terminal_output" => "Read terminal output",
+        "harness.wait_terminal_output" => "Wait for terminal output",
+        "harness.terminal_interrupt" => "Interrupt terminal",
         other => return other.to_string(),
     }
     .to_string()
@@ -829,6 +831,8 @@ fn summarize_args(tool: &str, args: Option<&Value>) -> String {
         "harness.open_terminal" => Some("agentSlug"),
         "harness.send_terminal_keys" => Some("text"),
         "harness.send_agent_context" => Some("instruction"),
+        "harness.wait_terminal_output" => Some("contains"),
+        "harness.terminal_interrupt" => Some("slotId"),
         "workspace_search" | "web_search" => Some("query"),
         "shell_exec" => Some("command"),
         "git_show" => Some("rev"),

@@ -68,6 +68,7 @@ fn tool_category(tool: &str) -> Option<ToolCategory> {
         | "task_list"
         | "list_tools"
         | "harness.read_terminal_output"
+        | "harness.wait_terminal_output"
         | "harness.list_terminals" => Some(Read),
 
         "list_workspace_files"
@@ -84,7 +85,8 @@ fn tool_category(tool: &str) -> Option<ToolCategory> {
         | "task_update"
         | "task_reorder"
         | "harness.send_terminal_keys"
-        | "harness.send_agent_context" => Some(Edit),
+        | "harness.send_agent_context"
+        | "harness.terminal_interrupt" => Some(Edit),
 
         "memory_delete" | "task_delete" => Some(Rm),
 

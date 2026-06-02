@@ -21,8 +21,8 @@ use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_abort, agent_active_context_window, agent_clear_conversation, agent_compact_conversation,
-    agent_drain_turn_opts, agent_settings_get, agent_submit_turn, git_is_repository,
-    git_status_changes, is_tauri_shell, tasks_list as fetch_tasks_list,
+    agent_drain_turn_opts, agent_enhance_prompt, agent_settings_get, agent_submit_turn,
+    git_is_repository, git_status_changes, is_tauri_shell, tasks_list as fetch_tasks_list,
 };
 use crate::workbench::agent_panel::client_tools::maybe_handle_client_tool;
 use crate::workbench::agent_panel::composer::Composer;
@@ -83,6 +83,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     // workspace entry so the flag survives reloads).
     let image_mode = RwSignal::new(false);
     let chat_mode = RwSignal::new(AgentChatMode::AskEdits);
+    let enhance_prompt = RwSignal::new(false);
     let chat_maximized = RwSignal::new(false);
     // Context-window meter + compaction state.
     let context_length = RwSignal::new(Option::<u64>::None);
@@ -126,6 +127,7 @@ pub fn AgentPanelDock() -> impl IntoView {
             draft.set(String::new());
             image_mode.set(false);
             chat_mode.set(AgentChatMode::AskEdits);
+            enhance_prompt.set(false);
             return;
         };
         timeline.set(wb.agent_timeline_for_workspace_untracked(id));
@@ -134,6 +136,7 @@ pub fn AgentPanelDock() -> impl IntoView {
         draft.set(wb.agent_compose_draft_for_workspace_untracked(id));
         image_mode.set(wb.agent_image_mode_for_workspace_untracked(id));
         chat_mode.set(wb.agent_chat_mode_for_workspace_untracked(id));
+        enhance_prompt.set(wb.agent_enhance_prompt_for_workspace_untracked(id));
     });
 
     if is_tauri_shell() {
@@ -273,6 +276,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                     i18n,
                     draft,
                     chat_mode,
+                    enhance_prompt,
                     busy,
                     status_line,
                     timeline,
@@ -280,6 +284,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                     thinking_open,
                     tool_detail_open,
                     voice_handle,
+                    true,
                 );
             } else if let Some(id) = wb.active_id().get_untracked() {
                 wb.set_workspace_agent_compose_draft(id, draft.get_untracked());
@@ -418,6 +423,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                                 i18n,
                                 draft,
                                 chat_mode,
+                                enhance_prompt,
                                 busy,
                                 status_line,
                                 timeline,
@@ -425,6 +431,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                                 thinking_open,
                                 tool_detail_open,
                                 voice_handle,
+                                true,
                             );
                         } else {
                             draft.set(text);
@@ -590,8 +597,8 @@ pub fn AgentPanelDock() -> impl IntoView {
                                 let on_redo = Callback::new(move |text: String| {
                                     draft.set(text);
                                     submit_turn(
-                                        wb, i18n, draft, chat_mode, busy, status_line,
-                                        timeline, task_snapshot, thinking_open, tool_detail_open, voice_handle,
+                                        wb, i18n, draft, chat_mode, enhance_prompt, busy, status_line,
+                                        timeline, task_snapshot, thinking_open, tool_detail_open, voice_handle, true,
                                     );
                                 });
                                 view! {
@@ -628,13 +635,14 @@ pub fn AgentPanelDock() -> impl IntoView {
             <Composer
                 draft=draft
                 chat_mode=chat_mode
+                enhance_prompt=enhance_prompt
                 busy=busy
                 model_label=model_label
                 input_ref=compose_input_ref
                 wb=wb
                 i18n=i18n
                 on_submit=Callback::new(move |()| {
-                    submit_turn(wb, i18n, draft, chat_mode, busy, status_line, timeline, task_snapshot, thinking_open, tool_detail_open, voice_handle);
+                    submit_turn(wb, i18n, draft, chat_mode, enhance_prompt, busy, status_line, timeline, task_snapshot, thinking_open, tool_detail_open, voice_handle, true);
                 })
                 on_cancel=Callback::new(move |()| {
                     leptos::task::spawn_local(async move {
@@ -746,6 +754,7 @@ fn submit_turn(
     i18n: I18nService,
     draft: RwSignal<String>,
     chat_mode: RwSignal<AgentChatMode>,
+    enhance_prompt: RwSignal<bool>,
     busy: RwSignal<bool>,
     status_line: RwSignal<Option<String>>,
     timeline: RwSignal<TimelineDoc>,
@@ -753,6 +762,7 @@ fn submit_turn(
     thinking_open: RwSignal<HashMap<usize, bool>>,
     tool_detail_open: RwSignal<HashMap<String, bool>>,
     voice_handle: VoiceOrbHandle,
+    allow_enhance: bool,
 ) {
     if busy.get_untracked() {
         return;
@@ -788,6 +798,53 @@ fn submit_turn(
                     status_line.set(None);
                 }
                 Err(msg) => status_line.set(Some(msg)),
+            }
+        });
+        return;
+    }
+
+    if allow_enhance && wb.agent_enhance_prompt_for_workspace_untracked(ws_id) {
+        busy.set(true);
+        status_line.set(Some("Enhancing prompt…".into()));
+        let original_prompt = prompt.clone();
+        leptos::task::spawn_local(async move {
+            match agent_enhance_prompt(original_prompt.clone()).await {
+                Ok(enhanced) => {
+                    let enhanced_prompt = enhanced.prompt.trim().to_string();
+                    if enhanced_prompt.is_empty() {
+                        busy.set(false);
+                        status_line
+                            .set(Some("Prompt enhancement returned an empty prompt.".into()));
+                        draft.set(original_prompt.clone());
+                        wb.set_workspace_agent_compose_draft(ws_id, original_prompt);
+                        return;
+                    }
+                    draft.set(enhanced_prompt.clone());
+                    wb.set_workspace_agent_compose_draft(ws_id, enhanced_prompt);
+                    busy.set(false);
+                    status_line.set(None);
+                    submit_turn(
+                        wb,
+                        i18n,
+                        draft,
+                        chat_mode,
+                        enhance_prompt,
+                        busy,
+                        status_line,
+                        timeline,
+                        task_snapshot,
+                        thinking_open,
+                        tool_detail_open,
+                        voice_handle,
+                        false,
+                    );
+                }
+                Err(msg) => {
+                    busy.set(false);
+                    status_line.set(Some(format!("Prompt enhancement failed: {msg}")));
+                    draft.set(original_prompt.clone());
+                    wb.set_workspace_agent_compose_draft(ws_id, original_prompt);
+                }
             }
         });
         return;

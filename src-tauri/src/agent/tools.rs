@@ -1233,6 +1233,39 @@ pub fn registry() -> Vec<ToolDef> {
             site: ToolSite::Client,
         },
         ToolDef {
+            name: "harness.wait_terminal_output",
+            description: "Wait for terminal output from a targeted slot without consuming the user's terminal view. Use after `harness.send_terminal_keys` or `harness.send_agent_context` to observe CLI-agent responses. Supports `afterSeq` for incremental waits, `contains` for marker text, `idleMs` to wait until output settles, and returns `{ sessionId, seq, bytes, text, timedOut }`.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "slotId":    { "type": "integer", "minimum": 1 },
+                    "agentSlug": { "type": "string", "enum": ["claude", "codex", "gemini", "opencode", "cursor"] },
+                    "name":      { "type": "string", "description": "Friendly terminal name from `harness.list_terminals`." },
+                    "afterSeq":  { "type": "integer", "minimum": 0, "description": "Only complete after the terminal output sequence advances beyond this value." },
+                    "timeoutMs": { "type": "integer", "minimum": 1, "maximum": 120000, "default": 10000 },
+                    "idleMs":    { "type": "integer", "minimum": 0, "maximum": 30000, "default": 250, "description": "After matching output arrives, wait until no more output has arrived for this many milliseconds." },
+                    "maxBytes":  { "type": "integer", "minimum": 1, "maximum": 65536, "default": 4096 },
+                    "contains":  { "type": "string", "description": "Optional text that must appear in the returned rolling tail before the wait completes." }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.terminal_interrupt",
+            description: "Send Ctrl+C to a targeted running PTY terminal session. Use when an interactive shell or CLI agent is stuck, running too long, or the user asks to interrupt it. Address by `slotId` (preferred), friendly `name`, or `agentSlug`.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "slotId":    { "type": "integer", "minimum": 1 },
+                    "agentSlug": { "type": "string", "enum": ["claude", "codex", "gemini", "opencode", "cursor"] },
+                    "name":      { "type": "string", "description": "Friendly terminal name from `harness.list_terminals`." }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
             name: "harness.open_terminal",
             description: "Open one or more new terminal slots in the active workspace. Call with no arguments (`{}`) for a single plain shell — the default. Set `count` to open multiple terminals in one call (default 1, max 16). Use `agentSlug` for a single CLI agent applied to all opened slots, or `agentSlugs` (array, length == count) to assign different agents per slot. Only set agent slugs when the user explicitly names one of: `claude`, `codex`, `gemini`, `opencode`, `cursor`.",
             parameters: json!({

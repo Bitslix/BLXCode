@@ -1127,6 +1127,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgComposerPh => "Kérdezz bármit, jelölj fájlokat/mappákat @-tel, használd a $use skills parancsot vagy a / parancsokat",
         I18nKey::AgComposerModelSearch => "Modellek keresése…",
         I18nKey::AgComposerThinking => "Gondolkodás",
+        I18nKey::AgComposerEnhancePrompt => "Enhance prompt",
         I18nKey::AgModeSupervised => "Felügyelt",
         I18nKey::AgModeSupervisedDesc => "Kérdezzen rá módosítások és parancsok előtt",
         I18nKey::AgModeFullAccess => "Teljes hozzáférés",

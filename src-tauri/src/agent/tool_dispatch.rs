@@ -160,6 +160,7 @@ fn classify_tool_call(name: &str, args: &Value) -> ToolPermissionClass {
                 ToolPermissionClass::NavigationView
             }
         }
+        "harness.terminal_interrupt" => ToolPermissionClass::Command,
         "git_apply_patch"
         | "git_add"
         | "git_commit"
@@ -227,6 +228,9 @@ fn permission_summary(name: &str, args: &Value, class: ToolPermissionClass) -> S
             .and_then(|v| v.as_str())
             .unwrap_or("<empty>");
         return format!("Send terminal input and submit:\n\n```text\n{text}\n```");
+    }
+    if name == "harness.terminal_interrupt" {
+        return format!("Send Ctrl+C to terminal with args `{args}`");
     }
     let action = match class {
         ToolPermissionClass::MutatingEdit => "Run mutating edit",
@@ -332,6 +336,22 @@ mod tests {
             ),
             ToolPermissionClass::Command
         );
+        assert_eq!(
+            classify_tool_call("harness.terminal_interrupt", &json!({ "slotId": 1 })),
+            ToolPermissionClass::Command
+        );
+        assert_eq!(
+            classify_tool_call("harness.wait_terminal_output", &json!({ "slotId": 1 })),
+            ToolPermissionClass::Read
+        );
+        assert_eq!(
+            classify_tool_call("harness.read_terminal_output", &json!({ "slotId": 1 })),
+            ToolPermissionClass::Read
+        );
+        assert_eq!(
+            classify_tool_call("harness.send_agent_context", &json!({ "slotId": 1 })),
+            ToolPermissionClass::SettingsWindow
+        );
     }
 
     #[test]
@@ -366,6 +386,21 @@ mod tests {
             "harness.view_show",
             &json!({ "target": "plans" })
         ));
+        assert!(blocks_in_plan(
+            ToolPermissionClass::Command,
+            "harness.terminal_interrupt",
+            &json!({ "slotId": 1 })
+        ));
+        assert!(blocks_in_plan(
+            ToolPermissionClass::SettingsWindow,
+            "harness.send_agent_context",
+            &json!({ "slotId": 1 })
+        ));
+        assert!(!blocks_in_plan(
+            ToolPermissionClass::Read,
+            "harness.wait_terminal_output",
+            &json!({ "slotId": 1 })
+        ));
     }
 
     #[test]
@@ -379,5 +414,21 @@ mod tests {
             ToolPermissionClass::NavigationView
         ));
         assert!(!requires_ask_edits_prompt(ToolPermissionClass::Read));
+    }
+
+    #[test]
+    fn permission_summaries_show_terminal_control_details() {
+        assert!(permission_summary(
+            "harness.send_terminal_keys",
+            &json!({ "text": "npm test", "submit": true }),
+            ToolPermissionClass::Command
+        )
+        .contains("npm test"));
+        assert!(permission_summary(
+            "harness.terminal_interrupt",
+            &json!({ "slotId": 2 }),
+            ToolPermissionClass::Command
+        )
+        .contains("Ctrl+C"));
     }
 }

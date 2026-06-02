@@ -1093,6 +1093,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgComposerPh => "무엇이든 물어보고, @로 파일/폴더를 지정하고, $use skills 또는 / 명령을 사용하세요",
         I18nKey::AgComposerModelSearch => "모델 검색…",
         I18nKey::AgComposerThinking => "사고",
+        I18nKey::AgComposerEnhancePrompt => "Enhance prompt",
         I18nKey::AgModeSupervised => "감독됨",
         I18nKey::AgModeSupervisedDesc => "편집 및 명령 전에 확인",
         I18nKey::AgModeFullAccess => "전체 액세스",

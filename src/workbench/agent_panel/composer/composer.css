@@ -80,6 +80,12 @@
   border-color: var(--accent);
 }
 
+.agent-composer__pill--active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  background: var(--accent-soft);
+}
+
 .agent-composer__pill:disabled {
   opacity: 0.6;
   cursor: default;

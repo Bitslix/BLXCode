@@ -46,6 +46,7 @@ mod sidebar_resizer;
 mod sidebar_view_section;
 pub mod skills_rules_panel;
 pub mod state;
+pub(crate) mod terminal_agent_profiles;
 mod terminal_cell;
 mod terminal_context_menu;
 mod terminal_glue;

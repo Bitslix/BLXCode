@@ -9,6 +9,7 @@ use crate::tauri_bridge::{
 use crate::workbench::agent_accent::agent_accent_class;
 use crate::workbench::agent_context_handoff::TerminalSlotHandoffButton;
 use crate::workbench::app_prefs::AppPrefsService;
+use crate::workbench::terminal_agent_profiles::terminal_agent_launch_command;
 use crate::workbench::terminal_glue::{
     terminal_create, terminal_dispose, terminal_fit, terminal_request_fit,
     terminal_set_stdin_enabled, terminal_show_fallback, terminal_size_from_js,
@@ -1399,33 +1400,9 @@ async fn lookup_resume_session(
     }
 }
 
-/// Single-quote for POSIX shells: `'` → `'"'"''`.
-fn shell_single_quoted_arg(raw: &str) -> Option<String> {
-    let t = raw.trim();
-    if t.is_empty() || t.len() > 8192 || t.chars().any(|c| c.is_control()) {
-        return None;
-    }
-    Some(format!("'{}'", t.replace('\'', "'\"'\"'")))
-}
-
 /// Format the shell command that auto-launches the agent CLI. With a
 /// resume id we use the CLI's resume syntax (Claude: `--resume <id>`,
 /// Codex: `resume <id>`); without one we just run the binary.
 fn build_launch_command(slug: &str, resume_id: Option<&str>) -> String {
-    if let Some(raw) = resume_id {
-        if let Some(a) = shell_single_quoted_arg(raw) {
-            return match slug {
-                "claude" => format!("claude --resume {a}\r"),
-                "codex" => format!("codex resume {a}\r"),
-                "gemini" => format!("gemini --resume {a}\r"),
-                "opencode" => format!("opencode --session {a}\r"),
-                "cursor" => format!("cursor-agent --resume {a}\r"),
-                other => format!("{other}\r"),
-            };
-        }
-    }
-    match slug {
-        "cursor" => "cursor-agent\r".to_string(),
-        other => format!("{other}\r"),
-    }
+    terminal_agent_launch_command(slug, resume_id)
 }

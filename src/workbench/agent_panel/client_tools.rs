@@ -1,7 +1,7 @@
 use crate::agent_wire::{AgentContextItem, AgentContextKind, AgentEvent};
 use crate::tauri_bridge::{
-    agent_submit_tool_result, memory_list, pty_peek_output, pty_write, window_set_fullscreen,
-    window_set_size, window_state,
+    agent_submit_tool_result, memory_list, pty_peek_output, pty_wait_output, pty_write,
+    window_set_fullscreen, window_set_size, window_state,
 };
 use crate::workbench::agent_context_handoff::{
     perform_handoff, HandoffRequest, WorkspaceTerminalTarget,
@@ -77,6 +77,8 @@ pub fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
         "harness.send_terminal_keys" => handle_send_keys(call_id, args.clone(), wb),
         "harness.send_agent_context" => handle_send_agent_context(call_id, args.clone(), wb),
         "harness.read_terminal_output" => handle_read_output(call_id, args.clone(), wb),
+        "harness.wait_terminal_output" => handle_wait_output(call_id, args.clone(), wb),
+        "harness.terminal_interrupt" => handle_terminal_interrupt(call_id, args.clone(), wb),
         "harness.ask_user" => handle_ask_user(call_id, args.clone()),
         "memory_category_list" => handle_memory_category_list(call_id, wb),
         "memory_category_update" => handle_memory_category_update(call_id, args.clone(), wb),
@@ -1152,6 +1154,111 @@ fn handle_read_output(call_id: String, args: Option<serde_json::Value>, wb: Work
                     true,
                     Some(text),
                     Some(serde_json::json!({ "bytes": len, "sessionId": sid })),
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn handle_wait_output(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    let Some(workspace_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    let after_seq = args
+        .as_ref()
+        .and_then(|v| v.get("afterSeq"))
+        .and_then(|v| v.as_u64());
+    let timeout_ms = args
+        .as_ref()
+        .and_then(|v| v.get("timeoutMs"))
+        .and_then(|v| v.as_u64())
+        .map(|ms| ms.clamp(1, 120_000));
+    let idle_ms = args
+        .as_ref()
+        .and_then(|v| v.get("idleMs"))
+        .and_then(|v| v.as_u64())
+        .map(|ms| ms.min(30_000));
+    let max_bytes = args
+        .as_ref()
+        .and_then(|v| v.get("maxBytes"))
+        .and_then(|v| v.as_u64())
+        .map(|bytes| bytes.clamp(1, 65_536) as usize);
+    let contains = args
+        .as_ref()
+        .and_then(|v| v.get("contains"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_owned())
+        .filter(|s| !s.is_empty());
+
+    leptos::task::spawn_local(async move {
+        let (sid, _pane) = match wait_for_target_session(wb, workspace_id, &args).await {
+            Ok(t) => t,
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+                return;
+            }
+        };
+        match pty_wait_output(sid, after_seq, timeout_ms, idle_ms, max_bytes, contains).await {
+            Ok(snapshot) => {
+                let summary = if snapshot.timed_out {
+                    format!(
+                        "timed out waiting for terminal output at seq {} ({} byte(s))",
+                        snapshot.seq, snapshot.bytes
+                    )
+                } else {
+                    format!(
+                        "observed terminal output at seq {} ({} byte(s))",
+                        snapshot.seq, snapshot.bytes
+                    )
+                };
+                let data = serde_json::json!({
+                    "sessionId": snapshot.session_id,
+                    "seq": snapshot.seq,
+                    "bytes": snapshot.bytes,
+                    "text": snapshot.text,
+                    "timedOut": snapshot.timed_out,
+                    "lastOutputMs": snapshot.last_output_ms,
+                });
+                let _ = agent_submit_tool_result(call_id, true, Some(summary), Some(data)).await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn handle_terminal_interrupt(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let Some(workspace_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    leptos::task::spawn_local(async move {
+        let (sid, _pane) = match wait_for_target_session(wb, workspace_id, &args).await {
+            Ok(t) => t,
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+                return;
+            }
+        };
+        use base64::Engine;
+        let ctrl_c = base64::engine::general_purpose::STANDARD.encode([0x03]);
+        match pty_write(sid, ctrl_c).await {
+            Ok(()) => {
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some(format!("sent Ctrl+C to terminal session {sid}")),
+                    Some(serde_json::json!({ "sessionId": sid })),
                 )
                 .await;
             }

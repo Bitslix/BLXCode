@@ -773,6 +773,26 @@ pub fn pty_peek_output(
 }
 
 #[tauri::command]
+pub fn pty_wait_output(
+    manager: State<'_, PtyManager>,
+    session_id: u64,
+    after_seq: Option<u64>,
+    timeout_ms: Option<u64>,
+    idle_ms: Option<u64>,
+    max_bytes: Option<usize>,
+    contains: Option<String>,
+) -> Result<crate::pty_host::PtyOutputSnapshot, String> {
+    manager.wait_output(
+        session_id,
+        after_seq,
+        timeout_ms.unwrap_or(10_000),
+        idle_ms.unwrap_or(250),
+        max_bytes.unwrap_or(4096),
+        contains,
+    )
+}
+
+#[tauri::command]
 pub fn git_branch(
     app: tauri::AppHandle,
     pty: State<'_, PtyManager>,

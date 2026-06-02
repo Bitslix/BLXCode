@@ -53,6 +53,17 @@ Agent Chat modes apply: `Ask Edits` asks before state-changing harness actions a
 
 ## Inspecting & driving other CLI agents
 
+Supported terminal-agent slugs are `claude`, `codex`, `gemini`, `opencode`, and `cursor`.
+The harness uses interactive PTY sessions by default:
+
+- `claude` launches `claude`; resume uses `claude --resume <id>`.
+- `codex` launches `codex`; resume uses `codex resume <id>`.
+- `gemini` launches `gemini`; resume uses `gemini --resume <id>`.
+- `opencode` launches `opencode`; resume uses `opencode --session <id>`.
+- `cursor` launches `cursor-agent`; resume uses `cursor-agent --resume <id>`.
+
+Headless/non-interactive flags from those CLIs can be useful for user-run scripts, but when BLXCode Agent needs to converse with another agent, keep the PTY open and use the harness tools below.
+
 ### `harness.list_terminals`
 Returns `[{ slotId, name, namingMode, agentSlug, running }]` for the active workspace. **Always call this first** when you intend to interact with another agent.
 - `slotId` is the stable unique identifier — always prefer it for addressing.
@@ -74,7 +85,21 @@ Hands off BLXCode-attached context to a terminal CLI agent. Prefer this over raw
 ### `harness.read_terminal_output { slotId? | name? | agentSlug?, maxBytes? }`
 Non-destructively reads the last bytes from a slot's rolling tail buffer (cap 64 KiB). Use after `send_terminal_keys` to observe the response. Output contains ANSI escapes — focus on the readable text.
 
+### `harness.wait_terminal_output { slotId? | name? | agentSlug?, afterSeq?, timeoutMs?, idleMs?, maxBytes?, contains? }`
+Waits for new terminal output without consuming the user's view. Returns `{ sessionId, seq, bytes, text, timedOut }`.
+- Pass `afterSeq` from the previous wait/read result to observe only newer output.
+- Use `contains` when waiting for a known marker or phrase.
+- Use `idleMs` (default 250 ms) to wait until output settles before reading the tail.
+- Use `timeoutMs` to bound the wait; if it expires, inspect `timedOut` and the returned tail.
+
+### `harness.terminal_interrupt { slotId? | name? | agentSlug? }`
+Sends Ctrl+C to the targeted PTY session. Use when a shell command or CLI agent is stuck or the user asks to interrupt it. `Ask Edits` asks before interrupting; `Plan` blocks it.
+
 ## Delegation pattern
 1. `harness.list_terminals` — find the target slot
 2. `harness.send_agent_context` or `harness.send_terminal_keys` — send the prompt
-3. Wait briefly, then `harness.read_terminal_output` — capture the reply (repeat for long-running tasks)
+3. `harness.wait_terminal_output` — wait for response text or idle output
+4. `harness.read_terminal_output` — quick tail peek when you do not need to wait
+5. `harness.terminal_interrupt` — stop long-running or stuck sessions when appropriate
+
+When the composer toggle "Enhance prompt before send" is enabled, BLXCode rewrites the user's draft through an isolated one-shot provider call before sending it as the actual Agent Chat turn. That enhancement does not mutate chat history, tools, tasks, memory, or timelines by itself.

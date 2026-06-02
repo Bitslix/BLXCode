@@ -35,13 +35,13 @@ Make BLXCode's built-in Agent able to reliably control terminal CLI agents end t
 
 ## Tasks
 
-- [ ] `terminal-profile-registry` - Centralize supported terminal agent launch and resume profiles
-- [ ] `pty-output-sequencing` - Add PTY output sequence and last-output timestamp tracking
-- [ ] `wait-terminal-output-tool` - Add `harness.wait_terminal_output` client/backend support
-- [ ] `terminal-interrupt-tool` - Add `harness.terminal_interrupt` and permission handling
-- [ ] `terminal-permission-tests` - Cover terminal-control permission classification across chat modes
-- [ ] `prompt-generating-skill` - Add the core `prompt-generating` skill and system prompt references
-- [ ] `prompt-enhance-command` - Add isolated `agent_enhance_prompt` one-shot generation command
-- [ ] `prompt-enhance-toolbar` - Add per-workspace composer toggle and auto-send behavior
-- [ ] `docs-terminal-agents` - Update harness/user/developer docs for CLI agent control patterns
-- [ ] `tests-smoke` - Add automated tests and run manual Tauri terminal-agent smoke checks
+- [x] `terminal-profile-registry` - Centralize supported terminal agent launch and resume profiles
+- [x] `pty-output-sequencing` - Add PTY output sequence and last-output timestamp tracking
+- [x] `wait-terminal-output-tool` - Add `harness.wait_terminal_output` client/backend support
+- [x] `terminal-interrupt-tool` - Add `harness.terminal_interrupt` and permission handling
+- [x] `terminal-permission-tests` - Cover terminal-control permission classification across chat modes
+- [x] `prompt-generating-skill` - Add the core `prompt-generating` skill and system prompt references
+- [x] `prompt-enhance-command` - Add isolated `agent_enhance_prompt` one-shot generation command
+- [x] `prompt-enhance-toolbar` - Add per-workspace composer toggle and auto-send behavior
+- [x] `docs-terminal-agents` - Update harness/user/developer docs for CLI agent control patterns
+- [!] `tests-smoke` - Add automated tests and run manual Tauri terminal-agent smoke checks (automated checks passed; manual interactive Tauri CLI-agent smoke still needs a local app session)

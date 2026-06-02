@@ -1139,6 +1139,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgComposerPh => "Demandez n'importe quoi, marquez des fichiers/dossiers avec @, utilisez $use skills ou / pour les commandes",
         I18nKey::AgComposerModelSearch => "Rechercher des modèles…",
         I18nKey::AgComposerThinking => "Réflexion",
+        I18nKey::AgComposerEnhancePrompt => "Enhance prompt",
         I18nKey::AgModeSupervised => "Supervisé",
         I18nKey::AgModeSupervisedDesc => "Demander avant les modifications et les commandes",
         I18nKey::AgModeFullAccess => "Accès complet",
