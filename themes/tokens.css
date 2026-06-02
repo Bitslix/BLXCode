@@ -34,6 +34,19 @@
 
   --font-mono: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, "SF Mono", Menlo, ui-monospace, monospace;
 
+  /* Corner roundings — user-tunable via the global --radius-scale multiplier
+     (Settings → Appearance). Pills and circles intentionally do NOT scale.
+     These live on :root so every theme inherits them; the active scale is set
+     as an inline style on <html> by ThemeService. */
+  --radius-scale: 1;
+  --radius-xs: calc(3px * var(--radius-scale));
+  --radius-sm: calc(4px * var(--radius-scale));
+  --radius-md: calc(6px * var(--radius-scale));
+  --radius-lg: calc(8px * var(--radius-scale));
+  --radius-xl: calc(12px * var(--radius-scale));
+  --radius-pill: 999px;
+  --radius-circle: 50%;
+
   --overlay-1: rgba(189, 200, 245, 0.04);
   --overlay-2: rgba(189, 200, 245, 0.07);
   --overlay-3: rgba(189, 200, 245, 0.1);

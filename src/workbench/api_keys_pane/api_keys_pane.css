@@ -15,7 +15,7 @@
     flex-direction: column;
     gap: 0.48rem;
     padding: 0.68rem 0.75rem;
-    border-radius: 6px;
+    border-radius: var(--radius-md);
     background: var(--overlay-1);
     border: 1px solid var(--border);
 }
@@ -50,7 +50,7 @@
     flex: 0 0 1.15rem;
     display: grid;
     place-items: center;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     background: var(--text-bright);
     overflow: hidden;
 }
@@ -80,7 +80,7 @@
 .api-keys-row__badge {
     font-size: 0.72rem;
     padding: 0.1rem 0.45rem;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     background: var(--overlay-2);
     text-transform: uppercase;
     letter-spacing: 0.04em;

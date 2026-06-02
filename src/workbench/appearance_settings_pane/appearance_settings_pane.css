@@ -21,7 +21,7 @@
   position: relative;
   flex: 0 0 clamp(11rem, 20vw, 16rem);
   min-height: 4.65rem;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
   border: 1px solid var(--border-strong);
   background:
@@ -44,7 +44,7 @@
   right: 0.45rem;
   z-index: 1;
   padding: 0.15rem 0.45rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -99,7 +99,7 @@
 .appearance-filter-btn {
   appearance: none;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   padding: 0.35rem 0.7rem;
   font: inherit;
   font-size: 0.82rem;
@@ -131,7 +131,7 @@
   gap: 0.85rem;
   width: 100%;
   padding: 0.9rem 1rem 1.05rem;
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   border: 1px solid var(--border);
   background: var(--bg-raised);
   text-align: left;
@@ -152,7 +152,7 @@
 .theme-card__preview {
   position: relative;
   height: 72px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
   border: 1px solid var(--border);
   background:
@@ -166,7 +166,7 @@
   right: 0.35rem;
   z-index: 1;
   padding: 0.1rem 0.35rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-size: 0.58rem;
   font-weight: 700;
   letter-spacing: 0.07em;
@@ -183,7 +183,7 @@
   justify-content: center;
   width: 1.2rem;
   height: 1.2rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--text-bright);
   background: color-mix(in srgb, var(--accent) 78%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);

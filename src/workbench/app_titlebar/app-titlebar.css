@@ -173,7 +173,7 @@
   right: 6px;
   width: 6px;
   height: 6px;
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   background: var(--accent);
   box-shadow: 0 0 0 2px var(--bg-panel-header);
 }

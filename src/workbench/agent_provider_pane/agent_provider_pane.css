@@ -148,7 +148,7 @@
 .agent-model-picker__detail {
   margin: 0;
   padding: 0.5rem 0.6rem;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--overlay-1);
   font-size: 0.74rem;

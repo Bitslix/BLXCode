@@ -34,7 +34,7 @@
   letter-spacing: 0.06em;
   text-transform: uppercase;
   padding: 0.1rem 0.45rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--border);
   color: var(--text-muted);
   background: var(--overlay-2);
