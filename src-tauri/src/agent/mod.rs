@@ -3,10 +3,12 @@ pub(crate) mod state;
 pub mod tools;
 
 mod anthropic;
+pub(crate) mod badwords;
 pub(crate) mod compaction;
 pub(crate) mod context_window;
 mod environment;
 mod git_agent;
+pub(crate) mod nickname;
 pub(crate) mod oneshot;
 mod openrouter;
 pub mod plan_ai;
