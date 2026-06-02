@@ -19,11 +19,10 @@ Anzuzeigende Werte:
 1. **Model / Provider** — oben als Header-Chip (z. B. `anthropic/claude-…`)
 2. **Session Start Time** — Startzeitpunkt der aktuellen Session
 3. **Session Context** — Fenster-Belegung (`9.6k / 400k · 2%`)
-4. **User Turns** — Anzahl User-Eingaben
-5. **Model Turns** — Anzahl Modell-Runden
-6. **Tool Calls (x, y, z)** — Gesamt + Aufschlüsselung (open/read/edit/rm)
-7. **Active Subagents** — Anzahl und Namen laufender Subagents
-8. **Costs** — aufgelaufene USD-Kosten der Session
+4. **Turns** — kombinierte Anzeige `User: x / Model: y`
+5. **Tool Calls** — nur Gesamtzahl
+6. **Active Subagents** — Anzahl und Namen laufender Subagents
+7. **Costs** — aufgelaufene USD-Kosten der Session
 
 Aktive Subagents werden dauerhaft als eigene Zeile angezeigt; Namen erscheinen
 als dezente Chips, sobald Subagents laufen.
@@ -53,7 +52,7 @@ bereits hält — **keine `src-tauri`-Änderung nötig**:
   `doc.turns[*].parts`, Subagent-Runden ausgenommen).
 - `busy: RwSignal<bool>` plus offene `TurnPart::Thinking { done: false }`
   für den State-Chip (`Thinking` vor `Running` vor `Standby`).
-- Vorbild für Stats-Lesen: `SessionCostChip` (`agent_panel/mod.rs:843`) nutzt
+- Vorbild für Stats-Lesen: bestehende Usage-Reader nutzen
   `chat_usage_for_workspace` + `Memo` + i18n exakt so.
 - Tool-Namen-Inventar: siehe `tool_icon()` (`timeline.rs:893`) und
   `file_arg_path()` (`agent_timeline.rs:787`).
@@ -133,9 +132,8 @@ Karte in der **linken** Grid-Zelle (Spalte 1), Drobo-Orb rechts daneben
 ├─────────────────────────────────────┤
 │  🕘  Started        14:32            │
 │  ◔  Context        9.6k / 400k · 2% │  (+ schmaler Meter-Balken)
-│  👤  User turns     3                │
-│  🤖  Model turns    7                │
-│  🔧  Tool calls     12  (4·6·1·1)    │  open·read·edit·rm
+│  👤  Turns          User: 3 / Model: 7│
+│  🔧  Tool calls     12               │
 │  👥  Subagents      2  Scout Review  │  active
 │  $   Costs          $0.019           │
 └─────────────────────────────────────┘
@@ -144,11 +142,11 @@ Karte in der **linken** Grid-Zelle (Spalte 1), Drobo-Orb rechts daneben
 - Jede Zeile = Icon + Label + Wert; keine Tooltip- oder Popover-Anker in der
   Stats-Anzeige.
 - Icons (lucide / `icondata::Lu*`): Started→`LuClock`, Context→`LuGauge`,
-  User turns→`LuUser`, Model turns→`LuBot`, Tool calls→`LuWrench`,
-  Costs→`LuCircleDollarSign`, Header→`LuCpu`/`LuBrain`. (Namen bei Umsetzung
-  gegen die vorhandene `icondata`-Version prüfen.)
-- Tool-Calls-Aufschlüsselung `(open·read·edit·rm)` als dezente Mini-Badges.
-- Context mit schmalem Belegungs-Balken (Reuse `context_meter`-Logik/Klassen).
+  Turns→`LuUser`, Tool calls→`LuWrench`, Costs→`LuCircleDollarSign`,
+  Header→`LuCpu`/`LuBrain`. (Namen bei Umsetzung gegen die vorhandene
+  `icondata`-Version prüfen.)
+- Tool-Calls als reine Gesamtzahl, ohne Einzel-Badges.
+- Context mit schmalem Belegungs-Balken (Reuse `context_meter`-Helferlogik).
 
 ## Tasks / Phasen
 
@@ -193,15 +191,17 @@ Neue Datei `src/workbench/agent_panel/session_stats.rs`:
 
 **STATS-05 — CSS**
 - `.agent-session-stats` in `styles.css`: ungerahmte Header-Anzeige ohne
-  Card-Optik, Icon-Label-Wert-Zeilen, Mini-Badges, Context-Meter, dauerhafte
-  Active-Subagents-Zeile mit optionalen Namens-Chips.
+  Card-Optik, Icon-Label-Wert-Zeilen, Context-Meter, kombinierte Turns-Zeile,
+  Toolcalls nur als Gesamtzahl, dauerhafte Active-Subagents-Zeile mit optionalen
+  Namens-Chips.
 - Compact-Mode (`.agent-hero--compact`) blendet die Stats-Anzeige aus und zeigt
   nur den kompakten Orb.
 
 **STATS-06 — i18n**
 - Neue `I18nKey`s: `AgStatsModel`, `AgStatsStarted`, `AgStatsContext`,
-  `AgStatsUserTurns`, `AgStatsModelTurns`, `AgStatsToolCalls`, `AgStatsOpen`,
-  `AgStatsRead`, `AgStatsEdit`, `AgStatsRm`, `AgStatsCosts`, `AgStatsSubagents`
+  `AgStatsTurns`, `AgStatsUserTurns`, `AgStatsModelTurns`, `AgStatsToolCalls`,
+  `AgStatsOpen`, `AgStatsRead`, `AgStatsEdit`, `AgStatsRm`, `AgStatsCosts`,
+  `AgStatsSubagents`
   + zugehörige `*Tip`-Hint-Keys.
 - Pflicht in **allen** `i18n/locales/*.rs`. EN setzen, Rest via
   `scripts/render_i18n_locales_from_en.py`.
