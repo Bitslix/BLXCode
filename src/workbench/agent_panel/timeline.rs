@@ -19,6 +19,7 @@ use crate::workbench::WorkbenchService;
 use leptos::html;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
+use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -1244,7 +1245,7 @@ pub fn TimelineRow(
                                                     }.into_any()
                                                 } else {
                                                     view! {
-                                                        <pre class="agent-tool-row__detail">{detail_text.clone()}</pre>
+                                                        <ToolDetailContent detail=detail_text.clone() />
                                                     }.into_any()
                                                 }
                                             }}
@@ -2140,11 +2141,242 @@ fn ToolActivityRow(
                         </span>
                     </button>
                     <Show when=move || has_detail && detail_open.get()>
-                        <pre class="agent-tool-row__detail">{detail_text.clone()}</pre>
+                        <ToolDetailContent detail=detail_text.clone() />
                     </Show>
                 </div>
                 <TurnMetricsBar metrics=metrics context=BarContext::Main />
             </div>
         </li>
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ToolDetailListItem {
+    title: String,
+    kicker: Option<String>,
+    summary: Option<String>,
+    meta: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ToolDetailFormat {
+    List {
+        items: Vec<ToolDetailListItem>,
+        truncated: bool,
+    },
+    Raw(String),
+}
+
+#[component]
+fn ToolDetailContent(detail: String) -> impl IntoView {
+    match format_tool_detail(&detail) {
+        ToolDetailFormat::List { items, truncated } => view! {
+            <div class="agent-tool-row__detail agent-tool-detail-list">
+                <ul>
+                    {items.into_iter().map(|item| {
+                        let title = item.title;
+                        let kicker_text = item.kicker.unwrap_or_default();
+                        let has_kicker = !kicker_text.is_empty();
+                        let summary_text = item.summary.unwrap_or_default();
+                        let has_summary = !summary_text.is_empty();
+                        let meta = item.meta;
+                        let meta_view = meta.into_iter().map(|meta| {
+                            view! { <span>{meta}</span> }
+                        }).collect_view();
+                        let has_meta = !meta_view.is_empty();
+                        view! {
+                            <li class="agent-tool-detail-list__item">
+                                <div class="agent-tool-detail-list__main">
+                                    <span class="agent-tool-detail-list__title">{title}</span>
+                                    <Show when=move || has_kicker>
+                                        <span class="agent-tool-detail-list__kicker">
+                                            {kicker_text.clone()}
+                                        </span>
+                                    </Show>
+                                </div>
+                                <Show when=move || has_summary>
+                                    <p>{summary_text.clone()}</p>
+                                </Show>
+                                <Show when=move || has_meta>
+                                    <div class="agent-tool-detail-list__meta">
+                                        {meta_view.clone()}
+                                    </div>
+                                </Show>
+                            </li>
+                        }
+                    }).collect_view()}
+                </ul>
+                <Show when=move || truncated>
+                    <span class="agent-tool-detail-list__truncated">"truncated"</span>
+                </Show>
+            </div>
+        }
+        .into_any(),
+        ToolDetailFormat::Raw(text) => view! {
+            <pre class="agent-tool-row__detail">{text}</pre>
+        }
+        .into_any(),
+    }
+}
+
+fn format_tool_detail(detail: &str) -> ToolDetailFormat {
+    parse_tool_detail_list(detail).unwrap_or_else(|| ToolDetailFormat::Raw(detail.to_string()))
+}
+
+fn parse_tool_detail_list(detail: &str) -> Option<ToolDetailFormat> {
+    let (body, had_marker) = strip_truncated_marker(detail.trim());
+    let parsed = serde_json::from_str::<Value>(body)
+        .ok()
+        .and_then(|value| value.as_array().cloned().map(|items| (items, had_marker)))
+        .or_else(|| {
+            let items = parse_complete_json_objects_from_array_prefix(body);
+            (!items.is_empty()).then_some((items, true))
+        })?;
+    let (values, truncated) = parsed;
+    let items: Vec<ToolDetailListItem> = values
+        .iter()
+        .filter_map(tool_list_item_from_value)
+        .collect();
+    (!items.is_empty()).then_some(ToolDetailFormat::List { items, truncated })
+}
+
+fn strip_truncated_marker(detail: &str) -> (&str, bool) {
+    for marker in ["… (truncated)", "…(truncated)"] {
+        if let Some(stripped) = detail.strip_suffix(marker) {
+            return (stripped.trim_end(), true);
+        }
+    }
+    (detail, false)
+}
+
+fn parse_complete_json_objects_from_array_prefix(detail: &str) -> Vec<Value> {
+    let s = detail.trim_start();
+    if !s.starts_with('[') {
+        return Vec::new();
+    }
+    let mut values = Vec::new();
+    let mut start = None;
+    let mut depth = 0i32;
+    let mut in_string = false;
+    let mut escape = false;
+    for (idx, ch) in s.char_indices().skip(1) {
+        if in_string {
+            if escape {
+                escape = false;
+            } else if ch == '\\' {
+                escape = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match ch {
+            '"' => in_string = true,
+            '{' => {
+                if depth == 0 {
+                    start = Some(idx);
+                }
+                depth += 1;
+            }
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    if let Some(start_idx) = start.take() {
+                        if let Ok(value) = serde_json::from_str::<Value>(&s[start_idx..=idx]) {
+                            values.push(value);
+                        }
+                    }
+                }
+            }
+            ']' if depth == 0 => break,
+            _ => {}
+        }
+    }
+    values
+}
+
+fn tool_list_item_from_value(value: &Value) -> Option<ToolDetailListItem> {
+    let obj = value.as_object()?;
+    let title = first_string(obj, &["title", "name", "path", "id"])?;
+    let kicker = first_string(obj, &["category", "kind", "role", "source"]);
+    let summary = first_string(obj, &["summary", "description", "content", "text"]);
+    let mut meta = Vec::new();
+    for key in [
+        "enabled",
+        "installed",
+        "missingSkill",
+        "updatedAt",
+        "modified",
+    ] {
+        if let Some(label) = object_meta_value(obj, key) {
+            meta.push(label);
+        }
+    }
+    Some(ToolDetailListItem {
+        title,
+        kicker,
+        summary,
+        meta,
+    })
+}
+
+fn first_string(obj: &serde_json::Map<String, Value>, keys: &[&str]) -> Option<String> {
+    keys.iter()
+        .find_map(|key| obj.get(*key).and_then(Value::as_str))
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+}
+
+fn object_meta_value(obj: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
+    let value = obj.get(key)?;
+    match value {
+        Value::Bool(v) => Some(format!("{key}: {v}")),
+        Value::Number(v) => Some(format!("{key}: {v}")),
+        Value::String(v) if !v.trim().is_empty() => Some(format!("{key}: {v}")),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn formats_json_object_arrays_as_tool_detail_lists() {
+        let detail = r#"[{"name":"rules_list","title":"Rules","summary":"Show active rules","category":"workflow","enabled":true}]"#;
+
+        let Some(ToolDetailFormat::List { items, truncated }) = parse_tool_detail_list(detail)
+        else {
+            panic!("expected formatted list");
+        };
+
+        assert!(!truncated);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].title, "Rules");
+        assert_eq!(items[0].kicker.as_deref(), Some("workflow"));
+        assert_eq!(items[0].summary.as_deref(), Some("Show active rules"));
+        assert!(items[0].meta.iter().any(|m| m == "enabled: true"));
+    }
+
+    #[test]
+    fn formats_complete_items_from_truncated_json_array_prefix() {
+        let detail =
+            r#"[{"name":"rules_list","summary":"Readable"},{"name":"skills_list","summary":"cut"#;
+
+        let Some(ToolDetailFormat::List { items, truncated }) = parse_tool_detail_list(detail)
+        else {
+            panic!("expected formatted list");
+        };
+
+        assert!(truncated);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].title, "rules_list");
+        assert_eq!(items[0].summary.as_deref(), Some("Readable"));
+    }
+
+    #[test]
+    fn leaves_non_json_tool_details_raw() {
+        assert!(parse_tool_detail_list("plain shell output").is_none());
     }
 }
