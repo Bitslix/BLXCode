@@ -1,6 +1,8 @@
 # Theme-Roundings + Font in Appearance
 
-> Status: **planned**
+> Status: **done** (MVP implementiert & verifiziert — `cargo check` beider Crates
+> grün; Theme-Token-Lint zeigt nur die 20 vorbestehenden Farb-Ausnahmen, keine
+> neuen Verstöße. Manueller Live-Test im Tauri-Fenster steht aus.)
 
 ## Summary
 
@@ -137,18 +139,26 @@ oder engl. Fallback). Compile-Time-Exhaustiveness beachten.
 
 ## Tasks
 
-- [ ] `radius-tokens` - `--radius-scale` + `--radius-{xs,sm,md,lg,xl,pill,circle}` in `tokens.css :root` einführen.
-- [ ] `radius-migrate-core` - Häufigste `border-radius`-Literale in `styles.css` auf Tokens mappen (4/6/8/3/12px, 999px→pill, 50%→circle).
-- [ ] `radius-migrate-components` - Restliche Komponenten-CSS-Radien (häufige Werte) auf Tokens nachziehen; `0`/`inherit`/Spezialfälle unangetastet.
-- [ ] `config-keys` - `RADIUS_SCALE_KEY`/`FONT_FAMILY_KEY` (+ optional `FONT_SIZE_KEY`) in `app.config.rs`.
-- [ ] `radius-enum` - `RadiusScale`-Enum (Stufen, Multiplikator, Storage-Mapping).
-- [ ] `font-catalog` - `FontChoice`-Liste (id, Anzeigename, vollständiger CSS-Fallback-Stack) als zentrale Quelle.
-- [ ] `theme-service-ext` - `ThemeService` um `radius_scale`/`font_choice`(/`font_size`) erweitern: Signale, Setter, `localStorage`, root-`setProperty`, Event-Dispatch, Initial-Apply.
-- [ ] `appearance-roundings-ui` - Roundings-Sektion (Segment-Control + Preview-Kacheln) in der Appearance-Pane.
-- [ ] `appearance-font-ui` - Font-Picker-Sektion (in-Schrift-Preview, optional Größe) in der Appearance-Pane.
-- [ ] `terminal-font-wire` - `terminal_bootstrap.mjs` auf `--font-mono` umstellen + Refit/Re-Measure nach Font-Wechsel.
-- [ ] `i18n` - Neue Keys in `keys.rs` + allen 13 Locales (en/de übersetzt).
-- [ ] `verification` - `cargo check` (UI + Tauri), Theme-Token-Lint, manueller Live-Test (Roundings/Font/Persistenz/Theme-Wechsel).
+- [x] `radius-tokens` - `--radius-scale` + `--radius-{xs,sm,md,lg,xl,pill,circle}` in `tokens.css :root` eingeführt.
+- [x] `radius-migrate-core` - Häufigste `border-radius`-Literale in `styles.css` auf Tokens gemappt (188 Deklarationen; 3/4/6/8/12px, 999px→pill, 50%→circle).
+- [x] `radius-migrate-components` - Komponenten-CSS-Radien nachgezogen (59 Deklarationen über 19 Dateien); `0`/`inherit`/seltene px/`rem` unangetastet.
+- [x] `config-keys` - `RADIUS_SCALE_STORAGE_KEY` + `FONT_FAMILY_STORAGE_KEY` in `app.config.rs`.
+- [x] `radius-enum` - `RadiusScale`-Enum (Stufen, Multiplikator, Storage-Mapping) in `theme/appearance.rs`.
+- [x] `font-catalog` - `FontChoice`-Liste (id, Label, vollständiger CSS-Fallback-Stack) + Helfer in `theme/appearance.rs`.
+- [x] `theme-service-ext` - `ThemeService` um `radius_scale`/`font_id` erweitert: Signale, Setter, `localStorage`, root-`setProperty`, Event-Dispatch, Initial-Apply.
+- [x] `appearance-roundings-ui` - Roundings-Segment-Control (4 Stufen + Swatch-Preview) in der Appearance-Pane.
+- [x] `appearance-font-ui` - Font-Picker (in-Schrift-Preview) in der Appearance-Pane.
+- [x] `terminal-font-wire` - `terminal_bootstrap.mjs` liest `fontFamily` aus `--font-mono` + Refit/Re-Measure + PTY-Resize nach Font-Wechsel.
+- [x] `i18n` - 10 neue Keys in `keys.rs` + allen 13 Locales (en/de hand-übersetzt, restliche Locales übersetzt).
+- [x] `verification` - `cargo check` (UI + Tauri) grün, Theme-Token-Lint ohne neue Verstöße. Manueller Live-Test offen.
+
+## Abweichungen vom Plan
+
+- **Schriftgröße** (`FONT_SIZE_KEY`) bewusst **nicht** umgesetzt — bleibt Follow-up.
+- Font-Auswahl als id-basierter Picker (`font_id`) statt `font_choice`-Signal;
+  funktional identisch.
+- `rem`-Radien (`0.4rem`, `0.5rem`, …) sowie seltene px-Werte (5/7/10px) bewusst
+  **nicht** migriert (Follow-up) — sie skalieren daher nicht mit der Stufe.
 
 ## Follow-ups (offen, optional)
 
