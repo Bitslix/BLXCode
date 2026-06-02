@@ -112,6 +112,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     let chat_mode = RwSignal::new(AgentChatMode::AskEdits);
     let enhance_prompt = RwSignal::new(false);
     let chat_maximized = RwSignal::new(false);
+    let head_tooltips_suppressed = RwSignal::new(false);
     // Context-window meter + compaction state.
     let context_length = RwSignal::new(Option::<u64>::None);
     let auto_compact_enabled = RwSignal::new(true);
@@ -502,7 +503,14 @@ pub fn AgentPanelDock() -> impl IntoView {
             >
                 <div class="agent-section__head agent-chat-head">
                     <h3>{move || i18n.tr(I18nKey::AgChatHeading)()}</h3>
-                    <div class="agent-chat-head__actions">
+                    <div
+                        class="agent-chat-head__actions"
+                        class:agent-chat-head__actions--tooltips-suppressed=move || {
+                            head_tooltips_suppressed.get()
+                        }
+                        on:pointerdown=move |_| head_tooltips_suppressed.set(true)
+                        on:mouseleave=move |_| head_tooltips_suppressed.set(false)
+                    >
                         <span class="blx-tip-anchor blx-tip-anchor--left agent-chat-head__tip">
                             <button
                                 type="button"

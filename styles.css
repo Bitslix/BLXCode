@@ -50,7 +50,7 @@
 /* ── Global thin scrollbars ──────────────────────────────────────────────── */
 * {
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--border-strong) 84%, var(--accent) 16%) transparent;
+  scrollbar-color: color-mix(in srgb, var(--border-strong) 94%, var(--accent) 6%) transparent!important;
 }
 
 *::-webkit-scrollbar {
@@ -63,12 +63,12 @@
 }
 
 *::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--border-strong) 84%, var(--accent) 16%);
+  background: color-mix(in srgb, var(--border-strong) 94%, var(--accent) 6%)!important;
   border-radius: 2px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--border-strong) 72%, var(--accent) 28%);
+  background: color-mix(in srgb, var(--border-strong) 88%, var(--accent) 12%)!important;
 }
 
 *::-webkit-scrollbar-corner {
@@ -736,7 +736,7 @@ body {
 
 .workbench-sidebar__resizer:hover,
 .workbench-sidebar__resizer--active {
-  background: var(--overlay-1);
+  background: color-mix(in srgb, var(--overlay-1) 68%, transparent);
   border-bottom-color: var(--border);
 }
 
@@ -751,8 +751,8 @@ body {
 
 .workbench-sidebar__resizer:hover .workbench-sidebar__resizer-grip,
 .workbench-sidebar__resizer--active .workbench-sidebar__resizer-grip {
-  background: var(--accent, var(--text));
-  opacity: 1;
+  background: color-mix(in srgb, var(--border-strong) 86%, var(--accent) 14%);
+  opacity: 0.86;
 }
 
 .workbench-sidebar--collapsed .workbench-sidebar__panels,
@@ -1250,6 +1250,8 @@ body {
   z-index: 10000;
   width: max-content;
   max-width: min(16rem, calc(100vw - 2rem));
+  white-space: normal;
+  overflow-wrap: anywhere;
   padding: 0.62rem 0.7rem 0.66rem;
   border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border-strong));
   border-radius: var(--radius-lg);
@@ -1286,11 +1288,16 @@ body {
 .blx-tooltip__main,
 .blx-tooltip__hint {
   display: block;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .blx-tooltip__eyebrow {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.35rem;
   min-width: 0;
   color: var(--text-muted);
@@ -3280,13 +3287,26 @@ button.workbench-shortcut-row--action:focus-visible {
   flex-shrink: 0;
 }
 
+.agent-chat-head__actions--tooltips-suppressed
+  .blx-tip-anchor
+  > .agent-chat-head__tooltip {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.agent-chat-head__actions--tooltips-suppressed
+  .blx-tip-anchor--left
+  > .agent-chat-head__tooltip {
+  transform: translate(0.32rem, -50%) scale(0.97);
+}
+
 .agent-chat-head__tip {
   align-items: center;
 }
 
 .agent-chat-head__tooltip {
-  min-width: 12rem;
-  max-width: min(17rem, calc(100vw - 2rem));
+  min-width: 0;
+  max-width: min(15.5rem, calc(100vw - 2rem));
 }
 
 .agent-chat-head__icon-btn,
