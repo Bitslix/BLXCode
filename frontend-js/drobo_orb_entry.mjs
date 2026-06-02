@@ -12,7 +12,7 @@ const BASE_ROTATION = {
   y: -Math.PI / 2 + 0.08,
   z: -0.02,
 };
-const MODEL_Y_OFFSET = 0.42;
+const MODEL_Y_OFFSET = 0.88;
 
 function clamp(value, min = -1, max = 1) {
   return Math.max(min, Math.min(max, value));
@@ -166,7 +166,7 @@ function create(container) {
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 100);
-  camera.position.set(0, 0.12, 5.15);
+  camera.position.set(0, 0.12, 5.65);
   camera.lookAt(0, 0, 0);
 
   const group = new THREE.Group();
@@ -278,7 +278,7 @@ function animate(id) {
     const cursorScale = rec.reducedMotion ? 0.11 : compact ? 0.22 : 0.34;
     const idle = (now - rec.createdAt) / 1000;
 
-    rec.target.x = BASE_ROTATION.x - rec.pointer.y * cursorScale + Math.sin(idle * 1.4) * idleScale;
+    rec.target.x = BASE_ROTATION.x + rec.pointer.y * cursorScale + Math.sin(idle * 1.4) * idleScale;
     rec.target.y = BASE_ROTATION.y + rec.pointer.x * cursorScale + Math.sin(idle * 0.8) * idleScale;
     rec.target.z = BASE_ROTATION.z + rec.pointer.x * 0.06 + Math.sin(idle * 1.1) * idleScale * 0.28;
 
@@ -317,7 +317,7 @@ function resize(id) {
   const height = Math.max(1, Math.floor(rect.height || rec.container.clientHeight || 1));
   rec.renderer.setSize(width, height, false);
   rec.camera.aspect = width / height;
-  rec.camera.position.z = width < 64 ? 5.9 : 5.15;
+  rec.camera.position.z = width < 64 ? 6.25 : 5.65;
   rec.camera.updateProjectionMatrix();
   return true;
 }
