@@ -3,6 +3,7 @@ name: code-simplifier
 description: Simplifies and refines code for clarity, consistency, and maintainability while preserving behavior. Focus on recently modified code unless instructed otherwise.
 model: sonnet
 tools: [Read, Write, Edit, Bash, Grep, Glob]
+categorie: refactoring
 ---
 
 ## Prompt Defense Baseline

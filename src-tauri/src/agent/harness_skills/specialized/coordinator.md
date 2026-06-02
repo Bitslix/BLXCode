@@ -6,6 +6,8 @@ provider: claude
 models: [opus, sonnet, gpt-5]
 color: violet
 terminalAgentSwarm: true
+enabled: true
+categorie: workflow
 ---
 
 ## Prompt Defense Baseline

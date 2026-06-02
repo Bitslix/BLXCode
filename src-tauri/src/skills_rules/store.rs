@@ -60,6 +60,18 @@ pub const CORE_SKILLS: &[(&str, &str)] = &[
         "prompt-generating",
         include_str!("../agent/harness_skills/prompt-generating.md"),
     ),
+    (
+        "grill-me",
+        include_str!("../agent/harness_skills/grill-me.md"),
+    ),
+    (
+        "openrouter-stt",
+        include_str!("../agent/harness_skills/openrouter-stt.md"),
+    ),
+    (
+        "openrouter-tts",
+        include_str!("../agent/harness_skills/openrouter-tts.md"),
+    ),
 ];
 
 const CORE_INSTALLED_AT: &str = "2026-01-01T00:00:00Z";
@@ -76,11 +88,12 @@ fn core_skill_category(name: &str) -> Option<String> {
     let category = match name {
         "file-access" | "environment" | "harness" | "shell" => "workspace",
         "memory" | "memory-architecture" => "memory",
-        "plans" | "tasks" => "planning",
+        "plans" | "tasks" | "grill-me" => "planning",
         "rules-skills" | "prompt-generating" => "workflow",
         "git" => "git",
         "web" => "web",
         "subagents" => "agents",
+        "openrouter-stt" | "openrouter-tts" => "voice",
         _ => return None,
     };
     Some(category.into())
@@ -354,7 +367,9 @@ fn extract_frontmatter_category(body: &str) -> Option<String> {
         let Some((key, value)) = trimmed.split_once(':') else {
             continue;
         };
-        if key.trim().eq_ignore_ascii_case("category") {
+        if key.trim().eq_ignore_ascii_case("category")
+            || key.trim().eq_ignore_ascii_case("categorie")
+        {
             return normalize_rule_category(value);
         }
     }
@@ -662,7 +677,7 @@ pub fn list_skills(ws: &str) -> Result<Vec<SkillEntry>, String> {
                 name: name.to_string(),
                 title,
                 summary,
-                category: core_skill_category(name),
+                category: extract_skill_category(content).or_else(|| core_skill_category(name)),
                 enabled,
                 source: core_source.clone(),
                 installed_at: CORE_INSTALLED_AT.to_string(),
@@ -1151,6 +1166,12 @@ mod tests {
     fn extract_category_from_skill_frontmatter() {
         let category = extract_skill_category("---\ncategory: frontend\n---\n# Skill");
         assert_eq!(category.as_deref(), Some("frontend"));
+    }
+
+    #[test]
+    fn extract_category_accepts_categorie_alias() {
+        let category = extract_skill_category("---\ncategorie: planning\n---\n# Skill");
+        assert_eq!(category.as_deref(), Some("planning"));
     }
 
     #[test]

@@ -1,3 +1,9 @@
+---
+name: file-access
+description: Explore, list, and read files inside the active workspace sandbox before making assumptions about paths or project structure.
+categorie: workspace
+---
+
 # File Access
 
 Explore and read files inside the active workspace sandbox.

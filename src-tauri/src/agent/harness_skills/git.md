@@ -1,3 +1,9 @@
+---
+name: git
+description: Inspect repository status, diffs, commits, branches, and supported git mutations through dedicated workspace git tools.
+categorie: git
+---
+
 # Git
 
 Prefer dedicated `git_*` and `workspace_git_*` tools over raw `git` in `shell_exec`.

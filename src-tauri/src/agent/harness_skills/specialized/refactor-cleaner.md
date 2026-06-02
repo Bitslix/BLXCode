@@ -6,6 +6,8 @@ provider: claude
 models: [sonnet, gpt-5]
 color: orange
 terminalAgentSwarm: false
+enabled: false
+categorie: refactoring
 ---
 
 ## Prompt Defense Baseline

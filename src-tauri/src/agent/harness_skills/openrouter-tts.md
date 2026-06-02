@@ -1,6 +1,7 @@
 ---
 name: openrouter-tts
 description: Generate speech audio from text using OpenRouter's text-to-speech API. Use when the user asks to synthesize speech, narrate text, create a voiceover, generate an audiobook clip, read text aloud, convert text to an audio file, or mentions TTS, text-to-speech, or voice synthesis.
+categorie: voice
 ---
 
 # OpenRouter Text-to-Speech

@@ -6,6 +6,8 @@ provider: claude
 models: [haiku, sonnet, gemini-2.5-flash]
 color: amber
 terminalAgentSwarm: false
+enabled: false
+categorie: documentation
 ---
 
 ## Prompt Defense Baseline

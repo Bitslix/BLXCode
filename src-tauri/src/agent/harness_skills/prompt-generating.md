@@ -1,3 +1,9 @@
+---
+name: prompt-generating
+description: Rewrite rough prompts into clear, scoped, safe instructions for BLXCode Agent, terminal CLI agents, subagents, or user-facing responses.
+categorie: workflow
+---
+
 # Prompt Generating
 
 Use this core skill when you need to turn a rough user draft into a clearer prompt for BLXCode Agent, a terminal CLI agent, a subagent, or a user-facing response.

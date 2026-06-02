@@ -6,6 +6,8 @@ models: [sonnet, gpt-5]
 tools: [Read, Grep, Glob, Bash]
 color: green
 terminalAgentSwarm: false
+enabled: false
+categorie: testing
 ---
 
 ## Prompt Defense Baseline

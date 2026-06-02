@@ -1,3 +1,9 @@
+---
+name: harness
+description: Control BLXCode workbench views, workspaces, terminals, settings, and terminal CLI agent interactions through harness tools.
+categorie: workspace
+---
+
 # Harness Actions
 
 Client-side tools that mutate the BLXCode workbench window. After each call you receive a `role:"tool"` reply describing the result.

@@ -1,3 +1,9 @@
+---
+name: memory
+description: Persist and retrieve workspace memory, learnings, architecture notes, categories, and context attachments.
+categorie: memory
+---
+
 # Workspace Memory
 
 Persist and retrieve notes and learnings scoped to the active workspace.

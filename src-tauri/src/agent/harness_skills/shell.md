@@ -1,3 +1,9 @@
+---
+name: shell
+description: Run non-interactive workspace shell commands safely according to Agent Chat mode and shell execution rules.
+categorie: workspace
+---
+
 # Shell
 
 ## `shell_exec { command, writes? }`

@@ -1,6 +1,7 @@
 ---
 name: openrouter-stt
 description: Transcribe speech to text using OpenRouter's speech-to-text API. Use when the user asks to transcribe audio, convert speech to text, extract a transcript from a recording or meeting, caption a video's audio, or mentions STT, speech-to-text, ASR, or transcription.
+categorie: voice
 ---
 
 # OpenRouter Speech-to-Text

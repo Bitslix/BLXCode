@@ -1,3 +1,9 @@
+---
+name: rules-skills
+description: Manage workspace rules and skills, including listing, reading, writing, enabling, disabling, removing, and installing skills.
+categorie: workflow
+---
+
 # Rules & Skills
 
 Two customisation layers stored under `<workspace>/.agents/`, each with an `index.json` manifest.

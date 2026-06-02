@@ -1,3 +1,9 @@
+---
+name: subagents
+description: Run bounded parallel scout, review, or security analyst subagents when explicitly requested and tool permissions allow it.
+categorie: agents
+---
+
 # Subagents
 
 ## `subagents.run { agents, mode?, maxConcurrency? }`

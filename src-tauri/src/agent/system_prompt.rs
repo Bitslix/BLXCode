@@ -248,7 +248,8 @@ fn base_system_prompt(root: &str, agent_name: &str) -> String {
          `skills_read {{ name }}` with one of the core skill names:\n\
          `file-access` · `memory` · `memory-architecture` · `plans` · `tasks` · \
          `rules-skills` · `harness` · `environment` · `shell` · `git` · `web` · \
-         `subagents` · `prompt-generating`\n\
+         `subagents` · `prompt-generating` · `grill-me` · `openrouter-stt` · \
+         `openrouter-tts`\n\
          \n\
          Use these core skills as the operational manual for the tools: \
          `file-access` for workspace file/folder tools; `memory` and \

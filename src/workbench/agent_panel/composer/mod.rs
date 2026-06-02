@@ -343,7 +343,7 @@ pub fn Composer(
                 <textarea
                     node_ref=input_ref
                     class="agent-composer__textarea"
-                    rows="1"
+                    rows="2"
                     placeholder=move || i18n.tr(I18nKey::AgComposerPh)()
                     prop:value=move || draft.get()
                     prop:disabled=move || busy.get()

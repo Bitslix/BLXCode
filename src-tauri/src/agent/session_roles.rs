@@ -5,8 +5,9 @@
 //! the BLXCode Agent by appending its operational text to the shared
 //! `system_prompt` (see [`crate::agent::system_prompt`]). The role's
 //! frontmatter (`name`, `description`, `tools`, `provider`, `models`, `color`,
-//! `terminalAgentSwarm`) drives the picker dropdown, the colored sub-line in
-//! the agent name badge, and role-specific agent orchestration guidance.
+//! `terminalAgentSwarm`, `enabled`) drives the picker dropdown, the colored
+//! sub-line in the agent name badge, and role-specific agent orchestration
+//! guidance.
 //!
 //! Roles are read-only built-ins, parallel to but separate from the user
 //! `.agents/skills` store.
@@ -70,6 +71,8 @@ pub struct RoleMeta {
     /// Whether this role is allowed and expected to coordinate terminal CLI
     /// agents as an intentional swarm/fleet.
     pub terminal_agent_swarm: bool,
+    /// Whether this built-in role should be offered in user-facing pickers.
+    pub enabled: bool,
 }
 
 /// Returns metadata for every embedded role, in registry order.
@@ -124,6 +127,7 @@ fn parse_meta(slug: &str, raw: &str) -> RoleMeta {
             .map(|v| parse_tools(&v))
             .unwrap_or_default(),
         terminal_agent_swarm: fm_bool(fm, "terminalAgentSwarm").unwrap_or(false),
+        enabled: fm_bool(fm, "enabled").unwrap_or(false),
     }
 }
 
@@ -270,8 +274,21 @@ mod tests {
         assert!(!coord.description.is_empty());
         assert_eq!(coord.color, "violet");
         assert!(coord.terminal_agent_swarm);
+        assert!(coord.enabled);
         assert!(coord.tools.contains(&"Read".to_string()));
         assert!(coord.tools.contains(&"Bash".to_string()));
+    }
+
+    #[test]
+    fn only_architect_and_coordinator_are_enabled() {
+        for r in list_roles() {
+            assert_eq!(
+                r.enabled,
+                matches!(r.slug.as_str(), "architect" | "coordinator"),
+                "unexpected enabled value for {}",
+                r.slug
+            );
+        }
     }
 
     #[test]

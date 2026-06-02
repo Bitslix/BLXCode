@@ -6,6 +6,8 @@ provider: claude
 models: [sonnet, opus, gpt-5]
 color: red
 terminalAgentSwarm: false
+enabled: false
+categorie: security
 ---
 
 ## Prompt Defense Baseline

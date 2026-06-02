@@ -1,3 +1,9 @@
+---
+name: tasks
+description: Track live task execution state, plan-linked task progress, blockers, ordering, and completion status.
+categorie: planning
+---
+
 # Task Tracking
 
 Live task execution state stored at `{app_data_dir}/tasks/<workspace_hash>/index.json` — a global, per-installation location, with one subdirectory per workspace (hash derived from the canonicalised workspace cwd). Survives workspace reload, workspace move, and OS exit.

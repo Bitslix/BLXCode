@@ -1,3 +1,9 @@
+---
+name: plans
+description: Create, read, load, sync, rename, and manage durable Markdown implementation plans under .agents/plans.
+categorie: planning
+---
+
 # Workspace Plans
 
 Durable Markdown files that capture a multi-step implementation strategy. Lives at `<workspace>/.agents/plans/`. Plans are the long-lived counterpart to the task list and are checked into git.
