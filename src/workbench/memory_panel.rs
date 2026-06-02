@@ -31,6 +31,7 @@ use web_sys::HtmlInputElement;
 
 const SAVE_DEBOUNCE_MS: u32 = 600;
 const LEARNINGS_API_PREFIX: &str = "learnings/";
+const MEMORY_INDEX_PATH: &str = "README.md";
 const LEARNINGS_INDEX_PATHS: &[&str] = &["learnings/README.md"];
 /// Built-in pseudo categories — top-level memory files and the learnings root.
 const CATEGORY_MEMORY: &str = "memory";
@@ -155,7 +156,7 @@ pub(crate) fn expand_files_group_for_path(state: MemoryState, scope: &MemoryScop
         MemoryScope::Workspace => cat,
     };
     state.groups_open.update(|open| {
-        open.insert(key);
+        set_exclusive_open_group(open, &key);
     });
 }
 
@@ -173,6 +174,8 @@ fn load_notes(state: MemoryState, ws: String) {
     spawn_local(async move {
         match tauri_bridge::memory_list(&ws).await {
             Ok(resp) => {
+                let should_load_default = state.active_path.get_untracked().is_none()
+                    && has_workspace_memory_index(&resp.notes);
                 state
                     .empty_categories
                     .set(resp.memory_subcategories.workspace);
@@ -181,6 +184,14 @@ fn load_notes(state: MemoryState, ws: String) {
                     .set(resp.memory_subcategories.global);
                 state.notes.set(resp.notes);
                 state.error.set(None);
+                if should_load_default {
+                    load_note(
+                        state.clone(),
+                        ws.clone(),
+                        MemoryScope::Workspace,
+                        MEMORY_INDEX_PATH.to_string(),
+                    );
+                }
             }
             Err(e) => state.error.set(Some(e)),
         }
@@ -206,14 +217,16 @@ fn load_pointer_status(state: MemoryState, ws: String) {
 }
 
 pub(crate) fn load_note(state: MemoryState, ws: String, scope: MemoryScope, path: String) {
+    state.active_path.set(Some(path.clone()));
+    state.active_scope.set(scope.clone());
+    state.editor_dirty.set(false);
+    state.show_preview.set(true);
     spawn_local(async move {
         match tauri_bridge::memory_read(&ws, &scope, &path).await {
             Ok(NoteContent { content, .. }) => {
                 state.editor_content.set(content);
                 state.editor_dirty.set(false);
                 state.show_preview.set(true);
-                state.active_path.set(Some(path.clone()));
-                state.active_scope.set(scope.clone());
                 state.error.set(None);
                 let ws2 = ws.clone();
                 let p2 = path.clone();
@@ -230,7 +243,8 @@ pub(crate) fn load_note(state: MemoryState, ws: String, scope: MemoryScope, path
 }
 
 fn clear_memory_selection(state: MemoryState) {
-    if state.active_path.get_untracked().is_none() {
+    state.graph_selected_node.set(None);
+    if load_default_memory_index(state) {
         return;
     }
     state.active_path.set(None);
@@ -238,7 +252,37 @@ fn clear_memory_selection(state: MemoryState) {
     state.editor_dirty.set(false);
     state.show_preview.set(false);
     state.backlinks.set(Vec::new());
-    state.graph_selected_node.set(None);
+}
+
+fn has_workspace_memory_index(notes: &[NoteMeta]) -> bool {
+    notes.iter().any(|note| {
+        note.scope == MemoryScope::Workspace
+            && note.enabled
+            && !note.is_template
+            && note.path.eq_ignore_ascii_case(MEMORY_INDEX_PATH)
+    })
+}
+
+fn load_default_memory_index(state: MemoryState) -> bool {
+    let has_index = state.notes.with(|notes| has_workspace_memory_index(notes));
+    if !has_index {
+        return false;
+    }
+    let Some(ws) = state.workspace_cwd.get_untracked() else {
+        return false;
+    };
+    load_note(
+        state,
+        ws,
+        MemoryScope::Workspace,
+        MEMORY_INDEX_PATH.to_string(),
+    );
+    true
+}
+
+fn set_exclusive_open_group(open: &mut HashSet<String>, key: &str) {
+    open.clear();
+    open.insert(key.to_string());
 }
 
 fn schedule_save(state: MemoryState, ws: String) {
@@ -1303,7 +1347,7 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                                 move || {
                                     s.active_path
                                         .get()
-                                        .is_some_and(|path| path.starts_with("architecture/"))
+                                        .is_some_and(|path| memory_note_is_read_only(&path))
                                 }
                             }
                             prop:value={
@@ -1461,7 +1505,7 @@ fn NewCategoryDialog(
                         MemoryScope::Workspace => created,
                     };
                     state2.groups_open.update(|s| {
-                        s.insert(key);
+                        set_exclusive_open_group(s, &key);
                     });
                     load_notes(state2.clone(), ws);
                     on_close.run(());
@@ -1581,7 +1625,7 @@ fn NewNoteDialog(
             match tauri_bridge::memory_create(&ws, &sc, &api_path, Some(&body)).await {
                 Ok(meta) => {
                     state2.groups_open.update(|s| {
-                        s.insert(group_key.clone());
+                        set_exclusive_open_group(s, &group_key);
                     });
                     load_notes(state2.clone(), ws.clone());
                     load_note(state2.clone(), ws, meta.scope, meta.path);
@@ -1676,7 +1720,9 @@ fn MemoryFileGroupHead(
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let index_active = index_path.clone();
-    let index_open = index_path;
+    let scope_active = group_scope.clone();
+    let index_for_click = index_path.clone();
+    let index_for_button = index_path;
     let context_label = header_title.clone();
     let plain_key = group_key
         .strip_prefix("global:")
@@ -1689,12 +1735,15 @@ fn MemoryFileGroupHead(
     let key_for_aria_state = group_key.clone();
     let key_for_aria_label = group_key.clone();
     let key_for_click = group_key.clone();
+    let key_for_index = group_key.clone();
     // Strip "global:" prefix so NewNoteDialog receives a plain category name.
     let cat_for_new = group_key
         .strip_prefix("global:")
         .unwrap_or(&group_key)
         .to_string();
     let can_add_note = cat_for_new != CATEGORY_ARCHITECTURE;
+    let scope_for_click = group_scope.clone();
+    let scope_for_button = group_scope.clone();
     let scope_for_new = group_scope.clone();
     view! {
         <li
@@ -1703,7 +1752,7 @@ fn MemoryFileGroupHead(
                 !memory_category_settings(wb, &key_for_settings).show_in_sidebar
             }
             class:workbench-memory-files__group-head--active=move || {
-                memory_group_index_active(&state, &index_active)
+                memory_group_index_active(&state, &scope_active, &index_active)
             }
             style=move || format!("--memory-category-color: {}", memory_category_settings(wb, &key_for_color).color)
             on:contextmenu=move |ev: web_sys::MouseEvent| {
@@ -1736,22 +1785,24 @@ fn MemoryFileGroupHead(
                 }
                 on:click=move |ev: web_sys::MouseEvent| {
                     ev.stop_propagation();
-                    groups_open.update(|s| {
-                        if s.contains(&key_for_click) {
-                            s.remove(&key_for_click);
-                        } else {
-                            s.insert(key_for_click.clone());
-                        }
-                    });
+                    memory_open_group_index(
+                        state,
+                        groups_open,
+                        key_for_click.clone(),
+                        scope_for_click.clone(),
+                        index_for_click.clone(),
+                    );
                 }
             >
                 <LxIcon icon=icondata::LuChevronRight width="0.75rem" height="0.75rem" />
             </button>
             <MemoryFileGroupIndexButton
                 state=state
-                scope=group_scope.clone()
+                scope=scope_for_button
                 label=header_title
-                index_path=index_open
+                index_path=index_for_button
+                group_key=key_for_index
+                groups_open=groups_open
             />
             <button
                 type="button"
@@ -1776,6 +1827,7 @@ fn MemoryFileGroupCollapsedHead(
     wb: WorkbenchService,
     group_key: String,
     group_scope: MemoryScope,
+    groups_open: RwSignal<HashSet<String>>,
     label: String,
     index_path: Option<String>,
     group_paths: Vec<String>,
@@ -1790,12 +1842,14 @@ fn MemoryFileGroupCollapsedHead(
     let label_for_ctx = label.clone();
     let badge = note_badge_text(&label);
     let active_index = index_path.clone();
+    let active_scope = group_scope.clone();
+    let key_for_open = group_key.clone();
 
     view! {
         <li
             class="workbench-memory-files__item workbench-memory-files__item--collapsed"
             class:workbench-memory-files__item--active=move || {
-                memory_group_index_active(&state, &active_index)
+                memory_group_index_active(&state, &active_scope, &active_index)
             }
             style=move || format!("--memory-category-color: {}", memory_category_settings(wb, &key_for_color).color)
         >
@@ -1818,7 +1872,13 @@ fn MemoryFileGroupCollapsedHead(
                     }));
                 }
                 on:click=move |_| {
-                    memory_open_group_index(state, group_scope.clone(), index_path.clone());
+                    memory_open_group_index(
+                        state,
+                        groups_open,
+                        key_for_open.clone(),
+                        group_scope.clone(),
+                        index_path.clone(),
+                    );
                 }
             >
                 {badge}
@@ -1833,6 +1893,8 @@ fn MemoryFileGroupIndexButton(
     scope: MemoryScope,
     label: String,
     index_path: Option<String>,
+    group_key: String,
+    groups_open: RwSignal<HashSet<String>>,
 ) -> impl IntoView {
     let title = label.clone();
     view! {
@@ -1840,7 +1902,15 @@ fn MemoryFileGroupIndexButton(
             type="button"
             class="workbench-memory-files__group-index"
             title=title
-            on:click=move |_| memory_open_group_index(state, scope.clone(), index_path.clone())
+            on:click=move |_| {
+                memory_open_group_index(
+                    state,
+                    groups_open,
+                    group_key.clone(),
+                    scope.clone(),
+                    index_path.clone(),
+                );
+            }
         >
             {label}
         </button>
@@ -1863,7 +1933,7 @@ fn MemoryFileGroupSection(
     let group_key = group.key.clone();
     let group_scope = group.scope.clone();
     let header_title = memory_group_header_label(&group, &i18n, wb);
-    let index_path = group.index.as_ref().map(|n| n.path.clone());
+    let index_path = memory_group_index_path(&group);
     let index = group.index;
     let group_notes = group.notes;
     let group_paths = memory_group_paths(&index, &group_notes);
@@ -1913,6 +1983,7 @@ fn MemoryFileGroupSection(
                 wb=wb
                 group_key=group_key.clone()
                 group_scope=group_scope.clone()
+                groups_open=groups_open
                 label=header_title.clone()
                 index_path=index_path.clone()
                 group_paths=group_paths.clone()
@@ -2590,6 +2661,28 @@ fn is_architecture_index_note(note: &NoteMeta) -> bool {
     note.path.eq_ignore_ascii_case(ARCHITECTURE_INDEX_PATH)
 }
 
+fn memory_note_is_read_only(path: &str) -> bool {
+    path.eq_ignore_ascii_case(MEMORY_INDEX_PATH)
+        || LEARNINGS_INDEX_PATHS
+            .iter()
+            .any(|index| path.eq_ignore_ascii_case(index))
+        || path.starts_with("architecture/")
+}
+
+fn memory_group_index_path(group: &MemoryNoteGroup) -> Option<String> {
+    group
+        .index
+        .as_ref()
+        .map(|note| note.path.clone())
+        .or_else(|| {
+            let plain_key = group.key.strip_prefix("global:").unwrap_or(&group.key);
+            match plain_key {
+                CATEGORY_LEARNINGS => Some(LEARNINGS_INDEX_PATHS[0].to_string()),
+                _ => None,
+            }
+        })
+}
+
 fn root_memory_notes_for_scope(notes: &[NoteMeta], scope: &MemoryScope) -> Vec<NoteMeta> {
     let mut out: Vec<NoteMeta> = notes
         .iter()
@@ -2606,20 +2699,32 @@ fn root_memory_notes_for_scope(notes: &[NoteMeta], scope: &MemoryScope) -> Vec<N
     out
 }
 
-fn memory_open_group_index(state: MemoryState, scope: MemoryScope, index_path: Option<String>) {
-    let Some(path) = index_path else {
-        return;
-    };
-    let Some(ws) = state.workspace_cwd.get_untracked() else {
-        return;
-    };
-    load_note(state, ws, scope, path);
+fn memory_open_group_index(
+    state: MemoryState,
+    groups_open: RwSignal<HashSet<String>>,
+    group_key: String,
+    scope: MemoryScope,
+    index_path: Option<String>,
+) {
+    groups_open.update(|open| set_exclusive_open_group(open, &group_key));
+    if let Some(path) = index_path {
+        if let Some(ws) = state.workspace_cwd.get_untracked() {
+            load_note(state, ws, scope, path);
+        }
+    } else {
+        clear_memory_selection(state);
+    }
 }
 
-fn memory_group_index_active(state: &MemoryState, index_path: &Option<String>) -> bool {
-    index_path
-        .as_deref()
-        .is_some_and(|p| state.active_path.get().as_deref() == Some(p))
+fn memory_group_index_active(
+    state: &MemoryState,
+    scope: &MemoryScope,
+    index_path: &Option<String>,
+) -> bool {
+    state.active_scope.get() == *scope
+        && index_path
+            .as_deref()
+            .is_some_and(|p| state.active_path.get().as_deref() == Some(p))
 }
 
 fn memory_group_header_label(
@@ -2647,6 +2752,35 @@ fn memory_group_header_label(
         CATEGORY_LEARNINGS => i18n.tr(I18nKey::MemFilesGroupLearnings)().to_string(),
         CATEGORY_MEMORY => i18n.tr(I18nKey::MemFilesGroupMemory)().to_string(),
         other => clean_memory_label(other),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{memory_note_is_read_only, set_exclusive_open_group};
+    use std::collections::HashSet;
+
+    #[test]
+    fn exclusive_open_group_replaces_existing_groups() {
+        let mut open = HashSet::from([
+            "learnings".to_string(),
+            "architecture".to_string(),
+            "global:learnings".to_string(),
+        ]);
+
+        set_exclusive_open_group(&mut open, "architecture");
+
+        assert_eq!(open.len(), 1);
+        assert!(open.contains("architecture"));
+    }
+
+    #[test]
+    fn main_memory_readmes_are_read_only() {
+        assert!(memory_note_is_read_only("README.md"));
+        assert!(memory_note_is_read_only("learnings/README.md"));
+        assert!(memory_note_is_read_only("learnings/readme.md"));
+        assert!(!memory_note_is_read_only("learnings/topic.md"));
+        assert!(!memory_note_is_read_only("decisions/README.md"));
     }
 }
 
