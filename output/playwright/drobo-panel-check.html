@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Drobo Panel Check</title>
+    <style>
+      :root {
+        --accent: #bd93f9;
+        --accent-cool: #7dcfff;
+        --accent-soft: rgba(189, 147, 249, 0.2);
+        --bg-app: #101018;
+        --bg-panel: #171723;
+        --border: rgba(255, 255, 255, 0.08);
+        --border-strong: rgba(255, 255, 255, 0.28);
+        --overlay-1: rgba(189, 147, 249, 0.13);
+        --overlay-3: rgba(255, 255, 255, 0.12);
+        --overlay-4: rgba(255, 255, 255, 0.2);
+        --on-accent: #101018;
+        --radius-circle: 999px;
+        --scrim-bg: rgba(0, 0, 0, 0.42);
+        --text: #e8e5ff;
+        --text-muted: #aaa6c8;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #0f1018;
+      }
+
+      .workbench-right {
+        width: 360px;
+        height: 620px;
+        display: flex;
+        justify-content: center;
+        padding-top: 40px;
+        background: var(--bg-panel);
+        border-left: 1px solid var(--border);
+      }
+
+      .agent-hero__orb {
+        position: relative;
+        display: grid;
+        place-items: center;
+        width: 8.75rem;
+        height: 8.75rem;
+        border-radius: var(--radius-circle);
+        padding: 0;
+        background: var(--accent-soft);
+        border: 1px solid var(--accent-soft);
+        box-shadow:
+          inset 0 1px 0 var(--overlay-3),
+          0 20px 45px var(--scrim-bg),
+          0 0 0 8px var(--overlay-1);
+      }
+
+      .agent-hero__orb::after {
+        content: "";
+        position: absolute;
+        inset: 0.72rem;
+        border-radius: inherit;
+        border: 1px solid var(--accent-soft);
+        z-index: 2;
+        pointer-events: none;
+      }
+
+      .drobo-orb {
+        position: relative;
+        z-index: 1;
+        display: block;
+        width: 100%;
+        height: 100%;
+        border-radius: inherit;
+        overflow: hidden;
+      }
+
+      .drobo-orb__stage {
+        position: absolute;
+        inset: -0.18rem;
+        display: grid;
+        place-items: center;
+        border-radius: inherit;
+      }
+
+      .drobo-orb__canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="workbench-right">
+      <button class="agent-hero__orb" type="button">
+        <span class="drobo-orb">
+          <span id="stage" class="drobo-orb__stage"></span>
+        </span>
+      </button>
+    </main>
+    <script type="module">
+      import "/public/drobo_orb.bundle.mjs";
+
+      window.addEventListener("blxcode-drobo-orb-api-ready", () => {
+        const id = window.__blxcodeDroboOrb.create(document.getElementById("stage"));
+        window.__droboTestId = id;
+      });
+    </script>
+  </body>
+</html>

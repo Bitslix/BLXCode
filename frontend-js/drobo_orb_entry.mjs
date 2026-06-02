@@ -12,7 +12,20 @@ const BASE_ROTATION = {
   y: -Math.PI / 2 + 0.08,
   z: -0.02,
 };
-const MODEL_Y_OFFSET = 0.22;
+const MODEL_Y_OFFSET = 0.42;
+
+function clamp(value, min = -1, max = 1) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function trackingRectFor(container) {
+  const root =
+    container.closest?.(".workbench-right") ||
+    container.closest?.(".workbench-right-slot") ||
+    container.closest?.(".workbench-agent-pane") ||
+    container;
+  return root.getBoundingClientRect();
+}
 
 function readCssVar(name, fallback = "") {
   try {
@@ -153,7 +166,7 @@ function create(container) {
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 100);
-  camera.position.set(0, 0.12, 4.95);
+  camera.position.set(0, 0.12, 5.15);
   camera.lookAt(0, 0, 0);
 
   const group = new THREE.Group();
@@ -195,20 +208,38 @@ function create(container) {
   instances.set(id, rec);
 
   const onPointerMove = (event) => {
-    const rect = container.getBoundingClientRect();
-    const w = rect.width || 1;
-    const h = rect.height || 1;
-    rec.pointer.x = Math.max(-1, Math.min(1, ((event.clientX - rect.left) / w) * 2 - 1));
-    rec.pointer.y = Math.max(-1, Math.min(1, ((event.clientY - rect.top) / h) * 2 - 1));
+    const trackRect = trackingRectFor(container);
+    if (
+      event.clientX < trackRect.left ||
+      event.clientX > trackRect.right ||
+      event.clientY < trackRect.top ||
+      event.clientY > trackRect.bottom
+    ) {
+      onPointerLeave();
+      return;
+    }
+
+    const orbRect = container.getBoundingClientRect();
+    const centerX = orbRect.left + orbRect.width / 2;
+    const centerY = orbRect.top + orbRect.height / 2;
+    const reachX = Math.max(orbRect.width * 1.45, trackRect.width * 0.42);
+    const reachY = Math.max(orbRect.height * 1.45, trackRect.height * 0.36);
+    rec.pointer.x = clamp((event.clientX - centerX) / reachX);
+    rec.pointer.y = clamp((event.clientY - centerY) / reachY);
   };
   const onPointerLeave = () => {
     rec.pointer.x = 0;
     rec.pointer.y = 0;
   };
+  const onPointerOut = (event) => {
+    if (!event.relatedTarget) onPointerLeave();
+  };
   rec.onPointerMove = onPointerMove;
   rec.onPointerLeave = onPointerLeave;
-  container.addEventListener("pointermove", onPointerMove);
-  container.addEventListener("pointerleave", onPointerLeave);
+  rec.onPointerOut = onPointerOut;
+  window.addEventListener("pointermove", onPointerMove);
+  window.addEventListener("blur", onPointerLeave);
+  window.addEventListener("pointerout", onPointerOut);
 
   rec.resizeObserver = new ResizeObserver(() => resize(id));
   rec.resizeObserver.observe(container);
@@ -286,7 +317,7 @@ function resize(id) {
   const height = Math.max(1, Math.floor(rect.height || rec.container.clientHeight || 1));
   rec.renderer.setSize(width, height, false);
   rec.camera.aspect = width / height;
-  rec.camera.position.z = width < 64 ? 5.7 : 4.95;
+  rec.camera.position.z = width < 64 ? 5.9 : 5.15;
   rec.camera.updateProjectionMatrix();
   return true;
 }
@@ -298,8 +329,9 @@ function dispose(id) {
   if (rec.failed) return;
   if (rec.frame) cancelAnimationFrame(rec.frame);
   rec.resizeObserver?.disconnect();
-  rec.container.removeEventListener("pointermove", rec.onPointerMove);
-  rec.container.removeEventListener("pointerleave", rec.onPointerLeave);
+  window.removeEventListener("pointermove", rec.onPointerMove);
+  window.removeEventListener("blur", rec.onPointerLeave);
+  window.removeEventListener("pointerout", rec.onPointerOut);
   rec.scene.traverse((obj) => {
     if (!obj.isMesh) return;
     obj.geometry?.dispose?.();
