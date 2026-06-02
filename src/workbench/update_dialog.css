@@ -9,7 +9,7 @@
   max-width: min(34rem, calc(100vw - 2rem));
   padding: 0.55rem 0.65rem;
   border: 1px solid var(--border-strong);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--bg-panel);
   color: var(--text);
   box-shadow: 0 18px 60px var(--scrim-bg);
@@ -53,7 +53,7 @@
   gap: 0.55rem;
   padding: 0.6rem 0.7rem;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--bg-raised);
   font-size: 0.86rem;
 }
@@ -65,7 +65,7 @@
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--bg-panel);
 }
 
@@ -91,7 +91,7 @@
   max-height: 12rem;
   overflow: auto;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   padding: 0.7rem;
   background: var(--bg-raised);
 }
@@ -127,7 +127,7 @@
 .blx-update-progress__track {
   height: 0.5rem;
   overflow: hidden;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--bg-raised);
 }
 
@@ -171,7 +171,7 @@
   width: 2.5rem;
   height: 2.5rem;
   border: 1px solid var(--accent-soft);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--bg-raised);
   color: var(--accent);
   box-shadow: 0 0 28px var(--accent-soft);
@@ -200,7 +200,7 @@
   min-height: 1.35rem;
   padding: 0.12rem 0.45rem;
   border: 1px solid var(--border-strong);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--bg-raised);
   color: var(--text);
   text-transform: none;
@@ -236,7 +236,7 @@
   --post-update-accent: var(--accent);
   border: 1px solid var(--border);
   border-left: 3px solid var(--post-update-accent);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--bg-raised);
   overflow: hidden;
 }
@@ -272,7 +272,7 @@
   height: 1.65rem;
   flex: 0 0 auto;
   border: 1px solid color-mix(in srgb, var(--post-update-accent) 35%, transparent);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--post-update-accent) 12%, transparent);
   color: var(--post-update-accent);
 }
@@ -304,7 +304,7 @@
   width: 0.38rem;
   height: 0.38rem;
   margin-top: 0.48rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--post-update-accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--post-update-accent) 14%, transparent);
 }

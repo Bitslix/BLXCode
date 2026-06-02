@@ -17,14 +17,6 @@ pub enum RadiusScale {
 }
 
 impl RadiusScale {
-    /// All variants in display order.
-    pub const ALL: [RadiusScale; 4] = [
-        RadiusScale::Sharp,
-        RadiusScale::Default,
-        RadiusScale::Rounded,
-        RadiusScale::Extra,
-    ];
-
     /// Stable storage / DOM token (matches `from_storage`).
     #[must_use]
     pub fn storage_value(self) -> &'static str {

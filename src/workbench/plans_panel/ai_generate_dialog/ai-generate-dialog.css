@@ -3,7 +3,7 @@
   width: min(94vw, 40rem);
   box-sizing: border-box;
   padding: 1rem 1.1rem 0.9rem;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--bg-raised);
   box-shadow:
