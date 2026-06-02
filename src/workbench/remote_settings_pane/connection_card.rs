@@ -39,10 +39,7 @@ pub fn RemoteAddCard(on_add: Callback<()>) -> impl IntoView {
 }
 
 #[component]
-pub fn RemoteConnectionCard(
-    view: RemoteConnectionView,
-    on_edit: Callback<()>,
-) -> impl IntoView {
+pub fn RemoteConnectionCard(view: RemoteConnectionView, on_edit: Callback<()>) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let conn = view.connection.clone();
 

@@ -2619,17 +2619,39 @@ pub struct GitRefDecoration {
 #[serde(rename_all = "camelCase")]
 pub struct GitCommitNode {
     pub oid: String,
+    pub short_oid: String,
     pub parents: Vec<String>,
     pub subject: String,
+    pub body: String,
     pub author: String,
+    pub author_email: String,
+    pub author_time: String,
     pub rel_time: String,
     pub decorations: Vec<GitRefDecoration>,
+    pub files_changed: Option<u32>,
+    pub insertions: Option<u32>,
+    pub deletions: Option<u32>,
+    pub remote_url: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitGraphEdge {
+    pub from_lane: usize,
+    pub to_lane: usize,
+    pub color_index: usize,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitGraphEntry {
-    pub gutter: String,
+    pub row_index: usize,
+    pub lane: usize,
+    pub lanes: usize,
+    pub active_lanes: Vec<usize>,
+    pub edges: Vec<GitGraphEdge>,
+    pub is_merge: bool,
+    pub is_head: bool,
     pub commit: GitCommitNode,
 }
 
@@ -2637,7 +2659,36 @@ pub struct GitGraphEntry {
 #[serde(rename_all = "camelCase")]
 pub struct GitGraphLayout {
     pub entries: Vec<GitGraphEntry>,
-    pub gutter_cols: usize,
+    pub lane_count: usize,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCommitFileChange {
+    pub path: String,
+    pub old_path: Option<String>,
+    pub status: String,
+    pub added: Option<u32>,
+    pub removed: Option<u32>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCommitDetails {
+    pub oid: String,
+    pub short_oid: String,
+    pub subject: String,
+    pub body: String,
+    pub author: String,
+    pub author_email: String,
+    pub author_time: String,
+    pub rel_time: String,
+    pub decorations: Vec<GitRefDecoration>,
+    pub files_changed: u32,
+    pub insertions: u32,
+    pub deletions: u32,
+    pub remote_url: Option<String>,
+    pub files: Vec<GitCommitFileChange>,
 }
 
 pub const GIT_MISSING_CODE: &str = "git_missing";
@@ -2660,6 +2711,30 @@ pub async fn git_commit_graph(
         Args {
             cwd,
             limit,
+            connection_id,
+        },
+    )
+    .await
+}
+
+pub async fn git_commit_details(
+    cwd: String,
+    oid: String,
+    connection_id: Option<String>,
+) -> Result<GitCommitDetails, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        cwd: String,
+        oid: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
+    }
+    invoke_typed(
+        "git_commit_details",
+        Args {
+            cwd,
+            oid,
             connection_id,
         },
     )

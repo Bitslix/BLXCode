@@ -2,9 +2,9 @@
 //! from the shared [`TitleBarFeed`] store so the agent-done / toast feed can
 //! populate it later (follow-up task `titlebar-notifications-feed`) without
 //! touching this component.
+use super::TitleBarFeed;
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use super::TitleBarFeed;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;

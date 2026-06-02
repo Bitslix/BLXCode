@@ -209,6 +209,7 @@ pub fn run() {
             git_branch,
             git_graph::git_is_repository,
             git_graph::git_commit_graph,
+            git_graph::git_commit_details,
             git_status::git_status_changes,
             git_status::git_file_diff,
             git_status::git_stage_file,
