@@ -3887,6 +3887,8 @@ button.workbench-shortcut-row--action:focus-visible {
   border-top: 0;
   border-radius: 0;
   background: var(--bg-app);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
 }
 
 .workbench-agent-scroll + .agent-composer {
@@ -3898,8 +3900,8 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .workbench-agent-transcript {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-family: inherit;
+  font-size: inherit;
   line-height: 1.62;
   margin: 0;
   padding: 0;
@@ -3909,7 +3911,7 @@ button.workbench-shortcut-row--action:focus-visible {
 
 .workbench-agent-markdown {
   color: var(--text);
-  font-size: 0.76rem;
+  font-size: inherit;
   line-height: 1.66;
   overflow-wrap: anywhere;
 }
@@ -4968,7 +4970,7 @@ button.workbench-shortcut-row--action:focus-visible {
 .agent-chat-line p {
   margin: 0;
   color: var(--text-muted);
-  font-size: 0.76rem;
+  font-size: inherit;
   line-height: 1.5;
 }
 
@@ -8571,8 +8573,8 @@ body.blxcode-dragging-terminal * {
 }
 
 .ws-config__preset-del:hover {
-  color: var(--danger, #f87171);
-  background: color-mix(in srgb, var(--danger, #f87171) 14%, transparent);
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
 }
 
 .ws-config__preset--new {
