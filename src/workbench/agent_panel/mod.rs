@@ -2,6 +2,7 @@
 mod ask_user_card;
 mod changed_files_card;
 mod client_tools;
+mod composer;
 mod context_list;
 mod context_meter;
 mod image_context;
@@ -24,6 +25,7 @@ use crate::tauri_bridge::{
     git_status_changes, is_tauri_shell, tasks_list as fetch_tasks_list,
 };
 use crate::workbench::agent_panel::client_tools::maybe_handle_client_tool;
+use crate::workbench::agent_panel::composer::Composer;
 use crate::workbench::agent_panel::context_list::ContextSection;
 use crate::workbench::agent_panel::context_meter::fmt_tokens;
 use crate::workbench::agent_panel::image_context::{
@@ -48,7 +50,6 @@ use send_wrapper::SendWrapper;
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use wasm_bindgen::JsCast;
 
 const THINKING_IDLE_MESSAGES: [&str; 10] = [
     "Dangling",
@@ -92,7 +93,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     // fires at most once per crossing (no compaction storm).
     let auto_compact_armed = RwSignal::new(true);
     let chat_scroll_ref = NodeRef::<html::Div>::new();
-    let compose_input_ref = NodeRef::<html::Input>::new();
+    let compose_input_ref = NodeRef::<html::Textarea>::new();
     // Refocus the compose input whenever the agent finishes (busy → false).
     Effect::new(move |_| {
         if !busy.get() {
@@ -624,117 +625,24 @@ pub fn AgentPanelDock() -> impl IntoView {
                 </div>
             </article>
 
-            <div class="agent-mode-toolbar" role="toolbar" aria-label="Agent chat mode">
-                <ModeButton mode=AgentChatMode::AskEdits current=chat_mode busy=busy wb=wb label="Ask Edits" title="Ask before edits and commands" />
-                <ModeButton mode=AgentChatMode::AllowAll current=chat_mode busy=busy wb=wb label="Allow all" title="Run all tool calls without prompts" />
-                <ModeButton mode=AgentChatMode::Plan current=chat_mode busy=busy wb=wb label="Plan" title="Read-only planning mode" />
-            </div>
-
-            <form
-                class="agent-compose"
-                on:submit=move |ev| {
-                    ev.prevent_default();
+            <Composer
+                draft=draft
+                chat_mode=chat_mode
+                busy=busy
+                model_label=model_label
+                input_ref=compose_input_ref
+                wb=wb
+                i18n=i18n
+                on_submit=Callback::new(move |()| {
                     submit_turn(wb, i18n, draft, chat_mode, busy, status_line, timeline, task_snapshot, thinking_open, tool_detail_open, voice_handle);
-                }
-            >
-                <input
-                    type="text"
-                    node_ref=compose_input_ref
-                    class="workbench-agent-input workbench-agent-input--single"
-                    placeholder=move || i18n.tr(I18nKey::AgPromptPh)()
-                    prop:value=move || draft.get()
-                    prop:disabled=move || busy.get()
-                    on:input=move |ev| {
-                        if let Some(t) = ev.target() {
-                            if let Ok(inp) = t.dyn_into::<web_sys::HtmlInputElement>() {
-                                let v = inp.value();
-                                draft.set(v.clone());
-                                if let Some(id) = wb.active_id().get_untracked() {
-                                    wb.set_workspace_agent_compose_draft(id, v);
-                                }
-                            }
-                        }
-                    }
-                    on:keydown=move |ev| {
-                        if ev.key() == "Enter" && !ev.shift_key() && !ev.ctrl_key() && !ev.meta_key() {
-                            ev.prevent_default();
-                            submit_turn(wb, i18n, draft, chat_mode, busy, status_line, timeline, task_snapshot, thinking_open, tool_detail_open, voice_handle);
-                        }
-                    }
-                />
-
-                <div class="workbench-agent-actions">
-                    <button
-                        type="button"
-                        class=move || {
-                            if busy.get() {
-                                "workbench-mini-btn agent-cancel-btn"
-                            } else {
-                                "workbench-mini-btn workbench-mini-btn--primary agent-send-btn"
-                            }
-                        }
-                        on:mousedown=|ev| ev.prevent_default()
-                        on:click=move |_| {
-                            if busy.get_untracked() {
-                                leptos::task::spawn_local(async move {
-                                    let _ = agent_abort().await;
-                                });
-                            } else {
-                                submit_turn(wb, i18n, draft, chat_mode, busy, status_line, timeline, task_snapshot, thinking_open, tool_detail_open, voice_handle);
-                            }
-                        }
-                    >
-                        {move || if busy.get() {
-                            view! { <LxIcon icon=icondata::LuSquare width="0.9rem" height="0.9rem" /> }.into_any()
-                        } else {
-                            view! { <LxIcon icon=icondata::LuSparkles width="0.9rem" height="0.9rem" /> }.into_any()
-                        }}
-                        <span>{move || if busy.get() {
-                            i18n.tr(I18nKey::AgCancel)()
-                        } else {
-                            i18n.tr(I18nKey::AgSend)()
-                        }}</span>
-                    </button>
-                </div>
-            </form>
+                })
+                on_cancel=Callback::new(move |()| {
+                    leptos::task::spawn_local(async move {
+                        let _ = agent_abort().await;
+                    });
+                })
+            />
         </section>
-    }
-}
-
-#[component]
-fn ModeButton(
-    mode: AgentChatMode,
-    current: RwSignal<AgentChatMode>,
-    busy: RwSignal<bool>,
-    wb: WorkbenchService,
-    label: &'static str,
-    title: &'static str,
-) -> impl IntoView {
-    view! {
-        <button
-            type="button"
-            class=move || {
-                let mut class = String::from("agent-mode-toolbar__btn");
-                if current.get() == mode {
-                    class.push_str(" agent-mode-toolbar__btn--active");
-                }
-                class
-            }
-            prop:disabled=move || busy.get()
-            aria-pressed=move || if current.get() == mode { "true" } else { "false" }
-            title=title
-            on:click=move |_| {
-                if busy.get_untracked() {
-                    return;
-                }
-                current.set(mode);
-                if let Some(ws_id) = wb.active_id().get_untracked() {
-                    wb.set_workspace_agent_chat_mode(ws_id, mode);
-                }
-            }
-        >
-            {label}
-        </button>
     }
 }
 

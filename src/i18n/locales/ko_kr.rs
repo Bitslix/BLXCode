@@ -1090,5 +1090,14 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgChangedFilesTitle => "변경된 파일",
         I18nKey::AgChangedFilesCollapseAll => "모두 접기",
         I18nKey::AgChangedFilesViewDiff => "diff 보기",
+        I18nKey::AgComposerPh => "Ask anything, @tag files/folders, $use skills, or / for commands",
+        I18nKey::AgComposerModelSearch => "Search models…",
+        I18nKey::AgComposerThinking => "Thinking",
+        I18nKey::AgModeSupervised => "Supervised",
+        I18nKey::AgModeSupervisedDesc => "Ask before edits and commands",
+        I18nKey::AgModeFullAccess => "Full access",
+        I18nKey::AgModeFullAccessDesc => "Run all tool calls without prompts",
+        I18nKey::AgModePlan => "Plan",
+        I18nKey::AgModePlanDesc => "Read-only planning mode",
     }
 }

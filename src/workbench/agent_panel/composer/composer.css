@@ -1,0 +1,227 @@
+/* Modern agent chat composer: auto-grow textarea + footer pills (model, mode,
+   thinking) and a round send/stop orb. Theme tokens only. */
+
+.agent-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  padding: 0.55rem 0.6rem 0.5rem;
+  transition: border-color 0.12s ease;
+}
+
+.agent-composer:focus-within {
+  border-color: var(--accent);
+}
+
+.agent-composer__field {
+  display: flex;
+}
+
+.agent-composer__textarea {
+  flex: 1 1 auto;
+  resize: none;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  line-height: 1.45;
+  min-height: 1.5rem;
+  max-height: 12rem;
+  overflow-y: auto;
+  padding: 0.1rem 0.2rem;
+}
+
+.agent-composer__textarea:focus {
+  outline: none;
+}
+
+.agent-composer__textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.agent-composer__footer {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.agent-composer__spacer {
+  flex: 1 1 auto;
+}
+
+.agent-composer__menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.agent-composer__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text);
+  border-radius: var(--radius-pill);
+  padding: 0.18rem 0.5rem;
+  font-size: 0.72rem;
+  cursor: pointer;
+  max-width: 14rem;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.agent-composer__pill:hover:not(:disabled) {
+  background: var(--overlay-2);
+  border-color: var(--accent);
+}
+
+.agent-composer__pill:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.agent-composer__pill-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Popovers ---- */
+.agent-composer__popover {
+  position: absolute;
+  bottom: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 40;
+  min-width: 13rem;
+  max-width: 18rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  box-shadow: 0 8px 24px var(--scrim-bg);
+  backdrop-filter: blur(8px);
+}
+
+.agent-composer__popover--model {
+  min-width: 16rem;
+}
+
+.agent-composer__search {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.45rem;
+  font: inherit;
+  font-size: 0.74rem;
+  margin-bottom: 0.25rem;
+}
+
+.agent-composer__search:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.agent-composer__model-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 16rem;
+  overflow-y: auto;
+}
+
+.agent-composer__model-item,
+.agent-composer__option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  appearance: none;
+  border: none;
+  background: none;
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0.3rem 0.4rem;
+  font: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.agent-composer__option {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.1rem;
+}
+
+.agent-composer__model-item {
+  gap: 0.4rem;
+  justify-content: space-between;
+}
+
+.agent-composer__model-item:hover,
+.agent-composer__option:hover {
+  background: var(--overlay-2);
+}
+
+.agent-composer__model-item--active,
+.agent-composer__option--active {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.agent-composer__model-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-composer__option-head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.agent-composer__option-title {
+  flex: 1 1 auto;
+  font-weight: 600;
+}
+
+.agent-composer__option-desc {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  padding-left: 1.15rem;
+}
+
+/* ---- Send / stop orb ---- */
+.agent-composer__send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.08s ease;
+}
+
+.agent-composer__send:hover {
+  background: var(--accent-hover);
+}
+
+.agent-composer__send:active {
+  transform: scale(0.94);
+}
+
+.agent-composer__send--stop {
+  background: var(--danger);
+}

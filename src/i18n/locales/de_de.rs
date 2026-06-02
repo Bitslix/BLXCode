@@ -1124,5 +1124,14 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgChangedFilesTitle => "Geänderte Dateien",
         I18nKey::AgChangedFilesCollapseAll => "Alle einklappen",
         I18nKey::AgChangedFilesViewDiff => "Diff anzeigen",
+        I18nKey::AgComposerPh => "Frag mich etwas, @Dateien/Ordner taggen, $Skills nutzen oder / für Befehle",
+        I18nKey::AgComposerModelSearch => "Modelle suchen…",
+        I18nKey::AgComposerThinking => "Denken",
+        I18nKey::AgModeSupervised => "Beaufsichtigt",
+        I18nKey::AgModeSupervisedDesc => "Vor Änderungen und Befehlen fragen",
+        I18nKey::AgModeFullAccess => "Voller Zugriff",
+        I18nKey::AgModeFullAccessDesc => "Alle Tool-Aufrufe ohne Rückfrage ausführen",
+        I18nKey::AgModePlan => "Plan",
+        I18nKey::AgModePlanDesc => "Nur-Lesen-Planungsmodus",
     }
 }

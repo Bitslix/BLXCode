@@ -1124,4 +1124,13 @@ pub enum I18nKey {
     AgChangedFilesTitle,
     AgChangedFilesCollapseAll,
     AgChangedFilesViewDiff,
+    AgComposerPh,
+    AgComposerModelSearch,
+    AgComposerThinking,
+    AgModeSupervised,
+    AgModeSupervisedDesc,
+    AgModeFullAccess,
+    AgModeFullAccessDesc,
+    AgModePlan,
+    AgModePlanDesc,
 }

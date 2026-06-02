@@ -1,6 +1,9 @@
 # Timeline-Refactor: Grouped Toolcalls · Changed-Files-Card · Moderner Composer
 
-> Status: **planned** (kein Code geändert; reine Planung).
+> Status: **in progress** — Phasen A, B, C umgesetzt & compile-verifiziert
+> (`cargo check -p blxcode-ui --target wasm32-unknown-unknown`); Phase D
+> (volle Verifikation + Nicht-EN-Übersetzungen) offen. Umsetzung direkt auf
+> `stage`, Commit pro Phase.
 > Frontend-Schwerpunkt (`blxcode-ui`); Backend nur lesend (vorhandene
 > Tauri-Commands), **keine** neuen `src-tauri`-Protokoll-Felder nötig.
 
@@ -141,32 +144,32 @@ den Referenzbildern, alles über **Theme-Tokens** + **i18n**:
 > Status-Farben und die `×N`-Count-Logik werden 1:1 weitergeführt; die Arbeit
 > ist **Extraktion + Vereinheitlichung + Grouping**, nicht visuelle Neuerfindung.
 
-- [ ] `TL-A1` — **Komponenten-Extraktion**: `ModelRound`-Rendering aus
+- [x] `TL-A1` — **Komponenten-Extraktion**: `ModelRound`-Rendering aus
   `timeline.rs` in neuen Ordner
   `src/workbench/agent_panel/tool_group/` (`mod.rs` + `tool-group.css`)
   auslagern: `ToolGroupCard(metrics, tools, tool_detail_open)` +
   `ToolRow(tool, context: ToolRowContext)`. `timeline.rs` ruft nur noch die
   Komponente auf. `context` unterscheidet Main vs. Subagent (Metrik-Bar-Kontext
   `BarContext::Subagent` bleibt erhalten).
-- [ ] `TL-A2` — **Pill-Look** wie Bild 1: schmale Zeilen, Icon links
+- [x] `TL-A2` — **Pill-Look** wie Bild 1: schmale Zeilen, Icon links
   (`leptos_icons`/`icondata` analog vorhandener Tool-Icons), Label, dezenter
   Arg-Text (Ellipsis), Status-Indikator rechts (pending puls / ok / fail),
   `×N`-Badge bei `merged_count > 1`. Klick expandiert `detail`
   (bestehendes `tool_detail_open`-Map-Muster beibehalten).
-- [ ] `TL-A3` — **Subagent-Tools angleichen**: `SubagentCard.tools` (gleicher
+- [x] `TL-A3` — **Subagent-Tools angleichen**: `SubagentCard.tools` (gleicher
   `ToolActivity`-Typ) über dieselbe `ToolRow` rendern statt bare-`<span>`; die
   Subagent-Karte behält ihr `<details>`/Summary, der Tool-Body nutzt jetzt die
   gruppierte Pill-Liste. `attach_subagent_tool_exec`
   ([timeline.rs:236](../../src/workbench/agent_panel/timeline.rs#L236)) bleibt
   Metrik-Quelle. Grouping (`merged_count`/`paths`) auch hier anwenden, falls
   Subagents mehrere gleiche Tools feuern.
-- [ ] `TL-A4` — **Grouping prüfen/verfeinern**: bestehende Merge-Logik
+- [x] `TL-A4` — **Grouping prüfen/verfeinern**: bestehende Merge-Logik
   ([timeline.rs:708](../../src/workbench/agent_panel/timeline.rs#L708),
   [:824](../../src/workbench/agent_panel/timeline.rs#L824)) abdecken: gleiche
   Tools zusammenfassen, `paths` akkumulieren, Reihenfolge stabil. Unit-Tests für
   Merge (mehrere `read`, gemischte Tools, fail dazwischen) — Main **und**
   Subagent-Pfad.
-- [ ] `TL-A5` — **CSS** in `tool-group.css`, nur Theme-Tokens
+- [x] `TL-A5` — **CSS** in `tool-group.css`, nur Theme-Tokens
   (`--surface-*`, `--text-muted`, `--accent*`, `--radius-sm`), keine
   `#literal`-Fallbacks; alte `.model-round-*`/`.agent-tool-row*`/
   `.agent-subagent-card__tools`-Regeln aus `styles.css` hierher migrieren bzw.
@@ -176,11 +179,11 @@ den Referenzbildern, alles über **Theme-Tokens** + **i18n**:
 
 ### Phase B — Changed-Files-Card am Turn-Ende (Bilder 7–8)
 
-- [ ] `TL-B1` — **Komponente** `src/workbench/agent_panel/changed_files_card/`
+- [x] `TL-B1` — **Komponente** `src/workbench/agent_panel/changed_files_card/`
   (`mod.rs` + `changed-files-card.css`): `ChangedFilesCard(changes:
   Vec<ChangedFile>)`. Header `CHANGED FILES (N) · +adds/−dels`, Buttons
   `Collapse all` + `View diff`.
-- [ ] `TL-B2` — **Verzeichnis-Baum (typische Tree-View)**: `Vec<ChangedFile>`
+- [x] `TL-B2` — **Verzeichnis-Baum (typische Tree-View)**: `Vec<ChangedFile>`
   nach `rel_path`-Segmenten in eine Baumstruktur gruppieren (Ordnerknoten
   auf-/zuklappbar, Datei-Blätter mit Per-Datei `+/−` aus
   `staged_stats`+`unstaged_stats`), Ordner-/Datei-Typ-Icon (Chevron + Folder,
@@ -191,48 +194,48 @@ den Referenzbildern, alles über **Theme-Tokens** + **i18n**:
   (linke Führungslinie `border-left`), damit der Baum identisch zu Subagent-/
   Model-Round-Verschachtelung wirkt. Single-Level-Ordner zusammenfalten
   (z. B. `src-tauri/src` als ein Knoten, wie im Bild).
-- [ ] `TL-B3` — **Trigger / Datenfluss**: neue
+- [x] `TL-B3` — **Trigger / Datenfluss**: neue
   `DisplayTimelineItem::ChangedFiles { changes }` **am Ende eines Model-Turns**
   emittieren, wenn (a) Turn mutierende Tools enthielt und (b)
   `git_is_repository`. Erhebung via `git_status_changes(cwd)` bei `Done`-Event
   (in `mod.rs`-Turn-Abschluss oder Reducer). Card als letztes Item des Turns
   rendern. Persistenz analog anderer Items (klein halten).
-- [ ] `TL-B4` — **Aktionen**: `View diff` öffnet die bestehende Git-Diff-Ansicht
+- [x] `TL-B4` — **Aktionen**: `View diff` öffnet die bestehende Git-Diff-Ansicht
   (Harness/View-Tool bzw. `wb`-Navigation wie in
   [file_diff_section](../../src/workbench/file_diff_section/mod.rs)); Datei-Klick
   öffnet die Datei/Diff. `Collapse all` klappt alle Ordnerknoten zu.
-- [ ] `TL-B5` — **CSS** `changed-files-card.css`, nur Tokens; grün/rot der
+- [x] `TL-B5` — **CSS** `changed-files-card.css`, nur Tokens; grün/rot der
   Stats über vorhandene Diff-Tokens (kein Hardcode; ggf.
   [docs/THEME_EXCEPTIONS.md](../../docs/THEME_EXCEPTIONS.md) prüfen, wie
   `file_diff_section` add/del löst — wiederverwenden).
 
 ### Phase C — Moderner Composer (Bilder 2–4)
 
-- [ ] `TL-C1` — **Komponenten-Ordner** `src/workbench/agent_panel/composer/`
+- [x] `TL-C1` — **Komponenten-Ordner** `src/workbench/agent_panel/composer/`
   (`mod.rs` + `composer.css`): ersetzt `.agent-mode-toolbar` + `.agent-compose`
   in [mod.rs:625-697](../../src/workbench/agent_panel/mod.rs#L625-L697). Props:
   `draft`, `chat_mode`, `busy`, Submit-Callback (kein Verlust bestehender
   `submit_turn`-Verdrahtung).
-- [ ] `TL-C2` — **Textarea** mit Auto-Grow (1→N Zeilen, Max-Height + Scroll),
+- [x] `TL-C2` — **Textarea** mit Auto-Grow (1→N Zeilen, Max-Height + Scroll),
   Enter=Senden / Shift+Enter=Newline, Placeholder i18n
   („Ask anything, @tag files/folders, …“). Draft-Persistenz wie bisher
   (`set_workspace_agent_compose_draft`).
-- [ ] `TL-C3` — **Footer-Leiste** (Bild 3): links Model-Pill (zeigt
+- [x] `TL-C3` — **Footer-Leiste** (Bild 3): links Model-Pill (zeigt
   `model_label`) → öffnet Model-Popover; Mode/Build-Pill; Access-Pill; rechts
   runder Send-Orb (Sparkles / Stop bei `busy`). Wiederverwendbares
   Popover-Primitiv (vorhandenes Popover-Muster im Workbench nutzen, sonst kleines
   generisches `Popover` im composer-Ordner).
-- [ ] `TL-C4` — **Model-Picker-Popover** (Bild 2): Suchfeld + Liste aus
+- [x] `TL-C4` — **Model-Picker-Popover** (Bild 2): Suchfeld + Liste aus
   `agent_provider_models(provider)`; Auswahl → `agent_settings_save` + lokales
   `model_label` aktualisieren. Loading-/Fehlerzustand. (Optional: `Ctrl+n`
   Shortcuts — Out of Scope MVP.)
-- [ ] `TL-C5` — **Access-/Mode-Popover** (Bild 4): Liste der Modes mit Titel +
+- [x] `TL-C5` — **Access-/Mode-Popover** (Bild 4): Liste der Modes mit Titel +
   Beschreibung + Häkchen für aktiv; schreibt `chat_mode` (bestehende
   `set_workspace_agent_chat_mode`-Verdrahtung), **disabled while busy**.
   Mapping nach Decisions §1.
-- [ ] `TL-C6` — **Thinking-Level-Control**: kleines Segment/Popover (Off/Low/
+- [x] `TL-C6` — **Thinking-Level-Control**: kleines Segment/Popover (Off/Low/
   Medium/High/Max) → `agent_settings_save` (analog Model). Im Footer dezent.
-- [ ] `TL-C7` — **CSS** `composer.css`, nur Tokens; runder Send-Orb,
+- [x] `TL-C7` — **CSS** `composer.css`, nur Tokens; runder Send-Orb,
   Pills mit `--radius-pill`/`--radius-sm`, glasige Popover wie übrige App.
   Alte `.agent-compose`/`.agent-mode-toolbar`/`.workbench-agent-input*`-Regeln
   migrieren bzw. entfernen.
