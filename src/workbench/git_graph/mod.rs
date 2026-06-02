@@ -419,14 +419,14 @@ fn GitGraphRow(
                 <GitGraphExpandedFiles
                     detail=expanded_detail
                     loading=expanded_loading
-                    fallback_commit=commit_for_expanded
+                    fallback_commit=commit_for_expanded.clone()
                 />
             </Show>
             <Show when=hovered>
                 <GitCommitHoverCard
                     detail=hover_detail
                     loading=hover_loading
-                    fallback_commit=commit_for_hover
+                    fallback_commit=commit_for_hover.clone()
                 />
             </Show>
         </li>
