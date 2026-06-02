@@ -1,6 +1,8 @@
 # Kompakte, dezente Tasks-Leiste (modernes AI-Chat-Design)
 
-> Status: **planned**
+> Status: **done** (umgesetzt & compile-verifiziert via
+> `cargo check -p blxcode-ui --target wasm32-unknown-unknown`; manueller
+> `cargo tauri dev`-Sichttest steht noch aus). Kein Backend-Eingriff nötig.
 
 ## Summary
 
