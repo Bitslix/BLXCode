@@ -225,7 +225,7 @@ pub struct ChatUsageStats {
     /// Epoch-ms timestamp of the **first turn** in the current session. Set
     /// when `turn_count` transitions 0 → 1; cleared by `clear_chat_usage`
     /// (alongside `agent_clear_conversation`). Drives the "Session start" row
-    /// in the agent stats card. Persisted so it survives reloads.
+    /// in the agent stats panel. Persisted so it survives reloads.
     #[serde(default)]
     pub session_started_at: Option<f64>,
     /// Highest `turn_generation` observed in a `TurnUsage` event for this
@@ -3427,6 +3427,19 @@ impl WorkbenchService {
             }
         });
         applied
+    }
+
+    /// Mark the current chat session as started without crediting a usage
+    /// event. Called immediately when the user submits a turn so the Agent
+    /// stats header updates before the first backend `TurnUsage` event lands.
+    pub fn ensure_chat_session_started(&self, workspace_id: u64) {
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                if ws.agent_chat_usage.session_started_at.is_none() {
+                    ws.agent_chat_usage.session_started_at = Some(js_sys::Date::now());
+                }
+            }
+        });
     }
 
     /// Overwrite the live context-window occupancy directly. Called after a

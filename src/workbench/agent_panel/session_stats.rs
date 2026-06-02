@@ -1,6 +1,6 @@
 //! Client-side aggregation of chat-session statistics from the timeline.
 //!
-//! Everything the session-stats card shows that is *not* already in
+//! Everything the session-stats panel shows that is *not* already in
 //! [`ChatUsageStats`](crate::workbench::state::ChatUsageStats) is derived here
 //! by walking the persisted [`TimelineDoc`]: user turns, model rounds, the
 //! total tool-call count + per-category buckets (open / read / edit / rm) and
@@ -11,14 +11,13 @@ use crate::service::I18nService;
 use crate::workbench::agent_panel::context_meter::{fmt_tokens, occupancy_pct};
 use crate::workbench::agent_panel::turn_metrics_bar::fmt_cost;
 use crate::workbench::agent_timeline::{SubagentStatus, TimelineDoc, TurnPart};
-use crate::workbench::info_tip::InfoTip;
 use crate::workbench::state::{HarnessSettingsCategory, HarnessUiService};
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsValue;
 
-/// A subagent that is still running (rendered in the card's subagent section).
+/// A subagent that is still running (rendered in the subagent stats row).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ActiveSubagent {
     pub display_name: String,
@@ -190,20 +189,6 @@ pub fn AgentSessionStats(
         let used = usage.get().last_round_input_tokens;
         format_context_value(used, context_length.get())
     });
-    let tool_breakdown_text = Signal::derive(move || {
-        let s = stats.get();
-        format!(
-            "{} {} · {} {} · {} {} · {} {}",
-            s.open,
-            i18n.tr(I18nKey::AgStatsOpen)(),
-            s.read,
-            i18n.tr(I18nKey::AgStatsRead)(),
-            s.edit,
-            i18n.tr(I18nKey::AgStatsEdit)(),
-            s.rm,
-            i18n.tr(I18nKey::AgStatsRm)()
-        )
-    });
     let cost_text = Signal::derive(move || fmt_cost(usage.get().total_cost_usd));
     let state_label = Signal::derive(move || {
         if busy.get() {
@@ -215,47 +200,39 @@ pub fn AgentSessionStats(
 
     view! {
         <section class="agent-session-stats" aria-label=move || i18n.tr(I18nKey::AgStatsAria)()>
-            <InfoTip
-                eyebrow=Signal::derive(move || i18n.tr(I18nKey::AgStatsModel)().to_string())
-                main=model_text
-                hint=Signal::derive(move || Some(i18n.tr(I18nKey::AgStatsModelTip)().to_string()))
+            <button
+                type="button"
+                class="agent-session-stats__model"
+                aria-label=move || i18n.tr(I18nKey::AgStatsModelTip)()
+                on:click=move |_| {
+                    ui.settings_category().set(HarnessSettingsCategory::AgentProvider);
+                    wb.open_center_settings_tab(HarnessSettingsCategory::AgentProvider);
+                }
             >
-                <button
-                    type="button"
-                    class="agent-session-stats__model"
-                    aria-label=move || i18n.tr(I18nKey::AgStatsModelTip)()
-                    on:click=move |_| {
-                        ui.settings_category().set(HarnessSettingsCategory::AgentProvider);
-                        wb.open_center_settings_tab(HarnessSettingsCategory::AgentProvider);
+                <span class="agent-session-stats__model-icon" aria-hidden="true">
+                    <LxIcon icon=icondata::LuCpu width="0.88rem" height="0.88rem" />
+                </span>
+                <span class="agent-session-stats__model-text">{move || model_text.get()}</span>
+                <span class=move || {
+                    if busy.get() {
+                        "agent-session-stats__state agent-session-stats__state--live"
+                    } else {
+                        "agent-session-stats__state"
                     }
-                >
-                    <span class="agent-session-stats__model-icon" aria-hidden="true">
-                        <LxIcon icon=icondata::LuCpu width="0.88rem" height="0.88rem" />
-                    </span>
-                    <span class="agent-session-stats__model-text">{move || model_text.get()}</span>
-                    <span class=move || {
-                        if busy.get() {
-                            "agent-session-stats__state agent-session-stats__state--live"
-                        } else {
-                            "agent-session-stats__state"
-                        }
-                    }>
-                        {move || state_label.get()}
-                    </span>
-                </button>
-            </InfoTip>
+                }>
+                    {move || state_label.get()}
+                </span>
+            </button>
 
             <div class="agent-session-stats__rows">
                 <StatsRow
                     icon=icondata::LuClock
                     label=Signal::derive(move || i18n.tr(I18nKey::AgStatsStarted)().to_string())
                     value=started_text
-                    hint=Signal::derive(move || i18n.tr(I18nKey::AgStatsStartedTip)().to_string())
                 />
                 <ContextStatsRow
                     label=Signal::derive(move || i18n.tr(I18nKey::AgStatsContext)().to_string())
                     value=context_text
-                    hint=Signal::derive(move || i18n.tr(I18nKey::AgStatsContextTip)().to_string())
                     used=Signal::derive(move || usage.get().last_round_input_tokens)
                     max=Signal::derive(move || context_length.get())
                 />
@@ -263,70 +240,43 @@ pub fn AgentSessionStats(
                     icon=icondata::LuUser
                     label=Signal::derive(move || i18n.tr(I18nKey::AgStatsUserTurns)().to_string())
                     value=Signal::derive(move || stats.get().user_turns.to_string())
-                    hint=Signal::derive(move || i18n.tr(I18nKey::AgStatsUserTurnsTip)().to_string())
                 />
                 <StatsRow
                     icon=icondata::LuBot
                     label=Signal::derive(move || i18n.tr(I18nKey::AgStatsModelTurns)().to_string())
                     value=Signal::derive(move || stats.get().model_turns.to_string())
-                    hint=Signal::derive(move || i18n.tr(I18nKey::AgStatsModelTurnsTip)().to_string())
                 />
                 <ToolStatsRow
                     label=Signal::derive(move || i18n.tr(I18nKey::AgStatsToolCalls)().to_string())
                     value=Signal::derive(move || stats.get().tool_total.to_string())
-                    hint=tool_breakdown_text
                     stats=stats
                     i18n=i18n
+                />
+                <SubagentsStatsRow
+                    label=Signal::derive(move || i18n.tr(I18nKey::AgStatsSubagents)().to_string())
+                    count=Signal::derive(move || stats.get().active_subagents.len())
+                    agents=stats
                 />
                 <StatsRow
                     icon=icondata::LuCircleDollarSign
                     label=Signal::derive(move || i18n.tr(I18nKey::AgStatsCosts)().to_string())
                     value=cost_text
-                    hint=Signal::derive(move || i18n.tr(I18nKey::AgStatsCostsTip)().to_string())
                 />
             </div>
-
-            <Show when=move || !stats.get().active_subagents.is_empty()>
-                <div class="agent-session-stats__subagents">
-                    <div class="agent-session-stats__subhead">
-                        <span class="agent-session-stats__subpulse" aria-hidden="true"></span>
-                        <span>{move || i18n.tr(I18nKey::AgStatsSubagents)()}</span>
-                    </div>
-                    <div class="agent-session-stats__sublist">
-                        {move || {
-                            stats.get().active_subagents.into_iter().map(|agent| {
-                                view! {
-                                    <span class="agent-session-stats__subagent">
-                                        <strong>{agent.display_name}</strong>
-                                        <span>{agent.role}</span>
-                                    </span>
-                                }
-                            }).collect_view()
-                        }}
-                    </div>
-                </div>
-            </Show>
         </section>
     }
 }
 
 #[component]
-fn StatsRow(
-    icon: icondata::Icon,
-    label: Signal<String>,
-    value: Signal<String>,
-    hint: Signal<String>,
-) -> impl IntoView {
+fn StatsRow(icon: icondata::Icon, label: Signal<String>, value: Signal<String>) -> impl IntoView {
     view! {
-        <InfoTip eyebrow=label main=value hint=Signal::derive(move || Some(hint.get()))>
-            <div class="agent-session-stats__row" tabindex="0">
-                <span class="agent-session-stats__icon" aria-hidden="true">
-                    <LxIcon icon=icon width="0.78rem" height="0.78rem" />
-                </span>
-                <span class="agent-session-stats__label">{move || label.get()}</span>
-                <span class="agent-session-stats__value">{move || value.get()}</span>
-            </div>
-        </InfoTip>
+        <div class="agent-session-stats__row">
+            <span class="agent-session-stats__icon" aria-hidden="true">
+                <LxIcon icon=icon width="0.78rem" height="0.78rem" />
+            </span>
+            <span class="agent-session-stats__label">{move || label.get()}</span>
+            <span class="agent-session-stats__value">{move || value.get()}</span>
+        </div>
     }
 }
 
@@ -334,7 +284,6 @@ fn StatsRow(
 fn ContextStatsRow(
     label: Signal<String>,
     value: Signal<String>,
-    hint: Signal<String>,
     used: Signal<u64>,
     max: Signal<Option<u64>>,
 ) -> impl IntoView {
@@ -360,20 +309,18 @@ fn ContextStatsRow(
     };
 
     view! {
-        <InfoTip eyebrow=label main=value hint=Signal::derive(move || Some(hint.get()))>
-            <div class="agent-session-stats__row agent-session-stats__row--context" tabindex="0">
-                <span class="agent-session-stats__icon" aria-hidden="true">
-                    <LxIcon icon=icondata::LuGauge width="0.78rem" height="0.78rem" />
+        <div class="agent-session-stats__row agent-session-stats__row--context">
+            <span class="agent-session-stats__icon" aria-hidden="true">
+                <LxIcon icon=icondata::LuGauge width="0.78rem" height="0.78rem" />
+            </span>
+            <span class="agent-session-stats__label">{move || label.get()}</span>
+            <span class="agent-session-stats__value agent-session-stats__value--context">
+                <span>{move || value.get()}</span>
+                <span class="agent-session-stats__meter" aria-hidden="true">
+                    <span class=level_class style=move || format!("width:{}%", fill_pct())></span>
                 </span>
-                <span class="agent-session-stats__label">{move || label.get()}</span>
-                <span class="agent-session-stats__value agent-session-stats__value--context">
-                    <span>{move || value.get()}</span>
-                    <span class="agent-session-stats__meter" aria-hidden="true">
-                        <span class=level_class style=move || format!("width:{}%", fill_pct())></span>
-                    </span>
-                </span>
-            </div>
-        </InfoTip>
+            </span>
+        </div>
     }
 }
 
@@ -381,33 +328,62 @@ fn ContextStatsRow(
 fn ToolStatsRow(
     label: Signal<String>,
     value: Signal<String>,
-    hint: Signal<String>,
     stats: Memo<SessionStats>,
     i18n: I18nService,
 ) -> impl IntoView {
     view! {
-        <InfoTip eyebrow=label main=value hint=Signal::derive(move || Some(hint.get()))>
-            <div class="agent-session-stats__row agent-session-stats__row--tools" tabindex="0">
-                <span class="agent-session-stats__icon" aria-hidden="true">
-                    <LxIcon icon=icondata::LuWrench width="0.78rem" height="0.78rem" />
+        <div class="agent-session-stats__row agent-session-stats__row--tools">
+            <span class="agent-session-stats__icon" aria-hidden="true">
+                <LxIcon icon=icondata::LuWrench width="0.78rem" height="0.78rem" />
+            </span>
+            <span class="agent-session-stats__label">{move || label.get()}</span>
+            <span class="agent-session-stats__value agent-session-stats__value--tools">
+                <strong>{move || value.get()}</strong>
+                <span class="agent-session-stats__badges" aria-hidden="true">
+                    {move || {
+                        let s = stats.get();
+                        view! {
+                            <span>{s.open} <em>{i18n.tr(I18nKey::AgStatsOpen)()}</em></span>
+                            <span>{s.read} <em>{i18n.tr(I18nKey::AgStatsRead)()}</em></span>
+                            <span>{s.edit} <em>{i18n.tr(I18nKey::AgStatsEdit)()}</em></span>
+                            <span>{s.rm} <em>{i18n.tr(I18nKey::AgStatsRm)()}</em></span>
+                        }
+                    }}
                 </span>
-                <span class="agent-session-stats__label">{move || label.get()}</span>
-                <span class="agent-session-stats__value agent-session-stats__value--tools">
-                    <strong>{move || value.get()}</strong>
-                    <span class="agent-session-stats__badges" aria-hidden="true">
+            </span>
+        </div>
+    }
+}
+
+#[component]
+fn SubagentsStatsRow(
+    label: Signal<String>,
+    count: Signal<usize>,
+    agents: Memo<SessionStats>,
+) -> impl IntoView {
+    view! {
+        <div class="agent-session-stats__row agent-session-stats__row--subagents">
+            <span class="agent-session-stats__icon" aria-hidden="true">
+                <LxIcon icon=icondata::LuUsers width="0.78rem" height="0.78rem" />
+            </span>
+            <span class="agent-session-stats__label">{move || label.get()}</span>
+            <span class="agent-session-stats__value agent-session-stats__value--subagents">
+                <strong>{move || count.get().to_string()}</strong>
+                <Show when=move || { count.get() > 0 }>
+                    <span class="agent-session-stats__subagent-chips" aria-hidden="true">
                         {move || {
-                            let s = stats.get();
-                            view! {
-                                <span>{s.open} <em>{i18n.tr(I18nKey::AgStatsOpen)()}</em></span>
-                                <span>{s.read} <em>{i18n.tr(I18nKey::AgStatsRead)()}</em></span>
-                                <span>{s.edit} <em>{i18n.tr(I18nKey::AgStatsEdit)()}</em></span>
-                                <span>{s.rm} <em>{i18n.tr(I18nKey::AgStatsRm)()}</em></span>
-                            }
+                            agents.get().active_subagents.into_iter().map(|agent| {
+                                view! {
+                                    <span class="agent-session-stats__subagent-chip">
+                                        {agent.display_name}
+                                    </span>
+                                }
+                            }).collect_view()
                         }}
                     </span>
-                </span>
-            </div>
-        </InfoTip>
+                </Show>
+            </span>
+        </div>
     }
 }
 

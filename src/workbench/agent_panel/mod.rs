@@ -752,6 +752,7 @@ fn submit_turn(
 
     timeline.update(|doc| doc.push_user_turn_with_pending(prompt.clone()));
     wb.set_workspace_agent_timeline(ws_id, timeline.get_untracked());
+    wb.ensure_chat_session_started(ws_id);
 
     status_line.set(None);
     busy.set(true);
