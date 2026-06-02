@@ -4,6 +4,7 @@ use crate::i18n::{lookup, I18nKey, Locale};
 use crate::service::I18nService;
 use crate::tauri_bridge::{is_tauri_shell, voice_settings_get};
 use crate::workbench::agent_panel::ask_user_card::AskUserCard;
+use crate::workbench::agent_panel::tool_group::ToolPill;
 use crate::workbench::agent_panel::turn_metrics_bar::{BarContext, TurnMetricsBar};
 use crate::workbench::agent_panel::voice_orb::{
     play_line_tts, tts_line_playback_available, VoiceOrbHandle,
@@ -888,11 +889,11 @@ pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
 }
 
 /// Returns the last path component of a workspace-relative path for display.
-fn path_tail(p: &str) -> String {
+pub(crate) fn path_tail(p: &str) -> String {
     p.rsplit(['/', '\\']).next().unwrap_or(p).to_owned()
 }
 
-fn tool_icon(tool: &str) -> icondata::Icon {
+pub(crate) fn tool_icon(tool: &str) -> icondata::Icon {
     match tool {
         "harness.create_workspace" => icondata::LuLayoutGrid,
         "list_workspace_files" => icondata::LuFolderTree,
@@ -1081,6 +1082,8 @@ pub fn TimelineRow(
                     detail_key=detail_key
                     tool_detail_open=tool_detail_open
                     voice_handle=voice_handle
+                    wb=wb
+                    workspace_id=workspace_id
                 />
             }
             .into_any()
@@ -1148,118 +1151,17 @@ pub fn TimelineRow(
                         })}
                         <ul class="model-round-tools">
                             {tools.into_iter().enumerate().map(|(ti, tool)| {
-                                let status_class = match tool.status {
-                                    ActivityStatus::Ok => "agent-tool-row--ok",
-                                    ActivityStatus::Fail => "agent-tool-row--fail",
-                                    ActivityStatus::Pending => "agent-tool-row--pending",
-                                };
-                                let status_icon = match tool.status {
-                                    ActivityStatus::Ok => icondata::LuCheck,
-                                    ActivityStatus::Fail => icondata::LuTriangleAlert,
-                                    ActivityStatus::Pending => icondata::LuLoader,
-                                };
-                                let tool_icon_val = tool_icon(&tool.tool);
-                                let label = tool.label.clone();
-                                // For grouped calls: show "×N" count instead of single-arg summary
-                                let merged_count = tool.merged_count;
-                                let summary = if merged_count > 1 {
-                                    String::new()
-                                } else {
-                                    tool.args_summary.clone()
-                                };
-                                let count_badge = if merged_count > 1 {
-                                    format!("×{merged_count}")
-                                } else {
-                                    String::new()
-                                };
-                                let tool_name = tool.tool.clone();
-                                let has_paths = !tool.paths.is_empty();
-                                let has_detail = has_paths
-                                    || tool.detail.as_ref().is_some_and(|s| !s.is_empty());
-                                let detail_text = tool.detail.clone().unwrap_or_default();
-                                let paths_sv = StoredValue::new(tool.paths.clone());
                                 let detail_key =
-                                    tool_detail_key(idx, &tool_name, tool.call_id.as_deref(), Some(ti));
-                                let detail_key_memo = detail_key.clone();
-                                let detail_open = Memo::new(move |_| {
-                                    tool_detail_open
-                                        .with(|m| m.get(&detail_key_memo).copied().unwrap_or(false))
-                                });
+                                    tool_detail_key(idx, &tool.tool, tool.call_id.as_deref(), Some(ti));
                                 view! {
                                     <li class="model-round-tool-item">
-                                        <div class=format!("agent-tool-row {status_class}") title=tool_name>
-                                            <button
-                                                type="button"
-                                                class="agent-tool-row__head"
-                                                aria-expanded=move || detail_open.get().to_string()
-                                                prop:disabled=move || !has_detail
-                                                on:click=move |_| {
-                                                    if has_detail {
-                                                        tool_detail_open.update(|m| {
-                                                            let cur =
-                                                                m.get(&detail_key).copied().unwrap_or(false);
-                                                            m.insert(detail_key.clone(), !cur);
-                                                        });
-                                                    }
-                                                }
-                                            >
-                                                <span class="agent-tool-row__icon" aria-hidden="true">
-                                                    <LxIcon icon=tool_icon_val width="0.82rem" height="0.82rem" />
-                                                </span>
-                                                <span class="agent-tool-row__label">{label}</span>
-                                                <Show when={let s = summary.clone(); move || !s.is_empty()}>
-                                                    <span class="agent-tool-row__arg">{summary.clone()}</span>
-                                                </Show>
-                                                <Show when={let b = count_badge.clone(); move || !b.is_empty()}>
-                                                    <span class="agent-tool-row__count">{count_badge.clone()}</span>
-                                                </Show>
-                                                <span class="agent-tool-row__status" aria-hidden="true">
-                                                    <LxIcon icon=status_icon width="0.78rem" height="0.78rem" />
-                                                </span>
-                                                <Show when=move || has_detail>
-                                                    <span
-                                                        class="agent-tool-row__chevron"
-                                                        class:agent-tool-row__chevron--open=move || detail_open.get()
-                                                        aria-hidden="true"
-                                                    >
-                                                        <LxIcon icon=icondata::LuChevronDown width="0.82rem" height="0.82rem" />
-                                                    </span>
-                                                </Show>
-                                            </button>
-                                            {move || {
-                                                if !has_detail || !detail_open.get() {
-                                                    return view! { <></> }.into_any();
-                                                }
-                                                if has_paths {
-                                                    view! {
-                                                        <ul class="tool-row-paths">
-                                                            {paths_sv.get_value().into_iter().map(|p| {
-                                                                let display = path_tail(&p);
-                                                                let p_open = p.clone();
-                                                                view! {
-                                                                    <li>
-                                                                        <button
-                                                                            type="button"
-                                                                            class="tool-row-path-btn"
-                                                                            title=p.clone()
-                                                                            on:click=move |_| {
-                                                                                if let Some(ws_id) = workspace_id {
-                                                                                    wb.open_center_file_tab(ws_id, p_open.clone());
-                                                                                }
-                                                                            }
-                                                                        >{display}</button>
-                                                                    </li>
-                                                                }
-                                                            }).collect_view()}
-                                                        </ul>
-                                                    }.into_any()
-                                                } else {
-                                                    view! {
-                                                        <ToolDetailContent detail=detail_text.clone() />
-                                                    }.into_any()
-                                                }
-                                            }}
-                                        </div>
+                                        <ToolPill
+                                            tool=tool
+                                            detail_key=detail_key
+                                            tool_detail_open=tool_detail_open
+                                            wb=wb
+                                            workspace_id=workspace_id
+                                        />
                                     </li>
                                 }
                             }).collect_view()}
@@ -1325,12 +1227,20 @@ pub fn TimelineRow(
                                         <p class="agent-subagent-card__summary-text">{summary}</p>
                                     })}
                                     <ul class="agent-subagent-card__tools">
-                                        {card.tools.into_iter().map(|tool| {
-                                            let label = tool.label.clone();
+                                        {card.tools.into_iter().enumerate().map(|(ti, tool)| {
                                             let metrics = tool.metrics;
+                                            let detail_key = tool_detail_key(
+                                                idx, &tool.tool, tool.call_id.as_deref(), Some(ti),
+                                            );
                                             view! {
                                                 <li>
-                                                    <span>{label}</span>
+                                                    <ToolPill
+                                                        tool=tool
+                                                        detail_key=detail_key
+                                                        tool_detail_open=tool_detail_open
+                                                        wb=wb
+                                                        workspace_id=workspace_id
+                                                    />
                                                     <TurnMetricsBar metrics=metrics context=BarContext::Subagent />
                                                 </li>
                                             }
@@ -1724,6 +1634,8 @@ fn TurnPartView(
                             detail_key=detail_key
                             tool_detail_open=tool_detail_open
                             voice_handle=voice_handle
+                            wb=wb
+                            workspace_id=workspace_id
                         />
                     </div>
                     <div class="timeline-tree__children">
@@ -2093,76 +2005,21 @@ fn ToolActivityRow(
     detail_key: String,
     tool_detail_open: RwSignal<HashMap<String, bool>>,
     voice_handle: VoiceOrbHandle,
+    wb: WorkbenchService,
+    workspace_id: Option<u64>,
 ) -> impl IntoView {
-    let status_class = match tool.status {
-        ActivityStatus::Pending => "agent-tool-row--pending",
-        ActivityStatus::Ok => "agent-tool-row--ok",
-        ActivityStatus::Fail => "agent-tool-row--fail",
-    };
-    let status_icon = match tool.status {
-        ActivityStatus::Pending => icondata::LuLoader,
-        ActivityStatus::Ok => icondata::LuCheck,
-        ActivityStatus::Fail => icondata::LuTriangleAlert,
-    };
-
-    let detail_key_memo = detail_key.clone();
-    let detail_open = Memo::new(move |_| {
-        tool_detail_open.with(|m| m.get(&detail_key_memo).copied().unwrap_or(false))
-    });
-    let has_detail = tool.detail.as_ref().is_some_and(|s| !s.is_empty());
-    let detail_text = tool.detail.clone().unwrap_or_default();
-    let label = tool.label.clone();
-    let summary = tool.args_summary.clone();
-    let tool_name_for_title = tool.tool.clone();
     let metrics = tool.metrics;
-
     view! {
         <li class="agent-chat-line agent-chat-line--tool">
             <ChatLineIndexColumn line_no=line_no tts_text=None voice_handle=voice_handle />
             <div class="agent-chat-body">
-                <div class=format!("agent-tool-row {status_class}") title=tool_name_for_title>
-                    <button
-                        type="button"
-                        class="agent-tool-row__head"
-                        aria-expanded=move || detail_open.get().to_string()
-                        prop:disabled=move || !has_detail
-                        on:click=move |_| {
-                            if has_detail {
-                                let key = detail_key.clone();
-                                tool_detail_open.update(|m| {
-                                    let cur = m.get(&key).copied().unwrap_or(false);
-                                    m.insert(key, !cur);
-                                });
-                            }
-                        }
-                    >
-                        <span class="agent-tool-row__icon" aria-hidden="true">
-                            <LxIcon icon=tool_icon(&tool.tool) width="0.82rem" height="0.82rem" />
-                        </span>
-                        <span class="agent-tool-row__label">{label}</span>
-                        <Show when={
-                            let s = summary.clone();
-                            move || !s.is_empty()
-                        }>
-                            <span class="agent-tool-row__arg">{summary.clone()}</span>
-                        </Show>
-                        <span class="agent-tool-row__status" aria-hidden="true">
-                            <LxIcon icon=status_icon width="0.78rem" height="0.78rem" />
-                        </span>
-                        <Show when=move || has_detail>
-                            <span
-                                class="agent-tool-row__chevron"
-                                class:agent-tool-row__chevron--open=move || detail_open.get()
-                                aria-hidden="true"
-                            >
-                                <LxIcon icon=icondata::LuChevronDown width="0.82rem" height="0.82rem" />
-                            </span>
-                        </Show>
-                    </button>
-                    <Show when=move || has_detail && detail_open.get()>
-                        <ToolDetailContent detail=detail_text.clone() />
-                    </Show>
-                </div>
+                <ToolPill
+                    tool=tool
+                    detail_key=detail_key
+                    tool_detail_open=tool_detail_open
+                    wb=wb
+                    workspace_id=workspace_id
+                />
                 <TurnMetricsBar metrics=metrics context=BarContext::Main />
             </div>
         </li>
@@ -2187,7 +2044,7 @@ enum ToolDetailFormat {
 }
 
 #[component]
-fn ToolDetailContent(detail: String) -> impl IntoView {
+pub(crate) fn ToolDetailContent(detail: String) -> impl IntoView {
     match format_tool_detail(&detail) {
         ToolDetailFormat::List { items, truncated } => view! {
             <div class="agent-tool-row__detail agent-tool-detail-list">

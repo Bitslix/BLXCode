@@ -8,6 +8,7 @@ mod reducer;
 mod session_stats;
 mod task_list;
 mod timeline;
+mod tool_group;
 pub(crate) mod turn_metrics_bar;
 mod voice_orb;
 
