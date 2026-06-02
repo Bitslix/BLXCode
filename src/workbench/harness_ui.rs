@@ -1403,6 +1403,7 @@ fn AppLoggingPanel() -> impl IntoView {
     };
 
     view! {
+        <section class="app-log-panel">
         <h4 class="harness-pane-subhead">
             <span class="harness-pane-subhead__icon" aria-hidden="true">
                 <LxIcon icon=icondata::LuFileText width="0.82rem" height="0.82rem" />
@@ -1430,7 +1431,7 @@ fn AppLoggingPanel() -> impl IntoView {
                 }
             />
         </label>
-        <p class="app-prefs-hint">
+        <p class="app-prefs-hint app-log-default-path">
             {move || {
                 let default_path = view_state
                     .get()
@@ -1495,6 +1496,7 @@ fn AppLoggingPanel() -> impl IntoView {
         <Show when=move || error.get().is_some()>
             <p class="harness-error-text">{move || error.get().unwrap_or_default()}</p>
         </Show>
+        </section>
     }
 }
 

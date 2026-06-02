@@ -1248,6 +1248,7 @@ body {
 .blx-tooltip {
   position: absolute;
   z-index: 10000;
+  display: block;
   width: max-content;
   max-width: min(16rem, calc(100vw - 2rem));
   white-space: normal;
@@ -2093,6 +2094,36 @@ button.workbench-shortcut-row--action:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: 0.55rem;
+  min-width: 0;
+}
+
+.app-log-panel {
+  min-width: 0;
+}
+
+.app-log-panel .harness-stack,
+.app-log-panel .workbench-plain-input {
+  min-width: 0;
+}
+
+.app-log-default-path {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.app-log-actions .workbench-mini-btn {
+  max-width: 100%;
+}
+
+.app-log-actions .harness-btn-inline {
+  min-width: 0;
+}
+
+.app-log-actions .harness-btn-inline span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .app-prefs-version {
@@ -2946,7 +2977,7 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .agent-thinking-stream--stats {
-  min-height: 4.65rem;
+  min-height: 5.2rem;
 }
 
 .agent-thinking-stream--stats .agent-thinking-stream__pulse {
@@ -2956,6 +2987,7 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .agent-thinking-stream--stats .agent-thinking-stream__body {
+  min-height: 3.8rem;
   max-height: none;
   overflow: hidden;
   white-space: normal;
@@ -2963,7 +2995,9 @@ button.workbench-shortcut-row--action:focus-visible {
 
 .agent-thinking-stream__stats {
   display: grid;
-  gap: 0.24rem;
+  grid-template-rows: repeat(4, minmax(0.82rem, auto));
+  gap: 0.18rem;
+  min-height: 3.45rem;
 }
 
 .agent-thinking-stream__stat {
@@ -2986,8 +3020,10 @@ button.workbench-shortcut-row--action:focus-visible {
   overflow: hidden;
   color: var(--text);
   font-weight: 680;
+  line-height: 1.25;
   text-align: right;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .agent-thinking-stream__idle {
@@ -3402,7 +3438,7 @@ button.workbench-shortcut-row--action:focus-visible {
 .agent-chat-head__actions--tooltips-suppressed
   .blx-tip-anchor--left
   > .agent-chat-head__tooltip {
-  transform: translate(0.32rem, -50%) scale(0.97);
+  transform: translate(0, -0.32rem) scale(0.97);
 }
 
 .agent-chat-head__tip {
@@ -3410,8 +3446,65 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .agent-chat-head__tooltip {
-  min-width: 0;
-  max-width: min(15.5rem, calc(100vw - 2rem));
+  top: calc(100% + 0.5rem);
+  right: 0;
+  left: auto;
+  bottom: auto;
+  flex-shrink: 1;
+  min-width: 11rem;
+  max-width: min(13.5rem, calc(100vw - 2rem));
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 400;
+  transform: translate(0, -0.32rem) scale(0.97);
+  transform-origin: right top;
+}
+
+.agent-chat-head__tooltip::after {
+  top: -0.38rem;
+  right: 0.38rem;
+  left: auto;
+  bottom: auto;
+  margin: 0;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border-strong));
+  border-top: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border-strong));
+}
+
+.agent-chat-head__tip:hover > .agent-chat-head__tooltip,
+.agent-chat-head__tip:focus-within > .agent-chat-head__tooltip {
+  transform: translate(0, 0) scale(1);
+}
+
+.agent-chat-head__tooltip .blx-tooltip__main,
+.agent-chat-head__tooltip .blx-tooltip__hint {
+  display: block;
+  flex-shrink: 1;
+}
+
+.agent-chat-head__tooltip .blx-tooltip__eyebrow {
+  display: flex;
+  flex-shrink: 1;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 650;
+  line-height: 1.25;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.agent-chat-head__tooltip .blx-tooltip__main {
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.agent-chat-head__tooltip .blx-tooltip__hint {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.35;
 }
 
 .agent-chat-head__icon-btn,
