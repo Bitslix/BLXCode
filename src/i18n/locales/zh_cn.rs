@@ -1085,5 +1085,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgToolWebFetch => "网页抓取",
         I18nKey::AgToolSubagentsRun => "运行子代理",
         I18nKey::AgToolSubmitResult => "提交结果",
+        I18nKey::AgChangedFilesTitle => "已更改的文件",
+        I18nKey::AgChangedFilesCollapseAll => "全部折叠",
+        I18nKey::AgChangedFilesViewDiff => "查看差异",
     }
 }

@@ -1188,5 +1188,8 @@ keys; the preset only fills in defaults."
         I18nKey::AgToolWebFetch => "Web fetch",
         I18nKey::AgToolSubagentsRun => "Run subagents",
         I18nKey::AgToolSubmitResult => "Submit result",
+        I18nKey::AgChangedFilesTitle => "Changed files",
+        I18nKey::AgChangedFilesCollapseAll => "Collapse all",
+        I18nKey::AgChangedFilesViewDiff => "View diff",
     }
 }

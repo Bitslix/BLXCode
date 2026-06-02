@@ -1121,5 +1121,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgToolWebFetch => "Web lekérés",
         I18nKey::AgToolSubagentsRun => "Futtassa a subgentseket",
         I18nKey::AgToolSubmitResult => "Eredmény elküldése",
+        I18nKey::AgChangedFilesTitle => "Módosított fájlok",
+        I18nKey::AgChangedFilesCollapseAll => "Összes összecsukása",
+        I18nKey::AgChangedFilesViewDiff => "Diff megtekintése",
     }
 }

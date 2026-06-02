@@ -393,6 +393,19 @@ pub enum SubagentStatus {
     Error,
 }
 
+/// One entry in a turn-end [`TurnPart::ChangedFiles`] summary. Mirrors the
+/// relevant fields of `tauri_bridge::ChangedFile`, collapsed to a single
+/// added/removed pair (staged + unstaged combined) for display.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangedFileEntry {
+    pub rel_path: String,
+    /// `"modified" | "added" | "deleted" | "renamed" | "untracked" | "conflicted"`.
+    pub status: String,
+    pub added: u32,
+    pub removed: u32,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(
     tag = "kind",
@@ -449,6 +462,13 @@ pub enum TurnPart {
         #[serde(default)]
         metrics: TurnMetrics,
     },
+    /// Turn-end summary of the workspace files that changed during the turn.
+    /// Emitted once after a turn that ran a mutating tool, in a Git repo.
+    ChangedFiles {
+        id: String,
+        #[serde(default)]
+        files: Vec<ChangedFileEntry>,
+    },
     GeneratedImage {
         id: String,
         prompt: String,
@@ -485,6 +505,7 @@ impl TurnPart {
             | TurnPart::Tool { id, .. }
             | TurnPart::Subagent { id, .. }
             | TurnPart::ModelRound { id, .. }
+            | TurnPart::ChangedFiles { id, .. }
             | TurnPart::GeneratedImage { id, .. }
             | TurnPart::AskUser { id, .. } => id,
         }
@@ -533,6 +554,23 @@ impl TimelineDoc {
                 done: false,
             });
         }
+    }
+
+    /// Replace (or remove) the turn-end changed-files summary on the most
+    /// recent turn. Removes any prior `ChangedFiles` part first so repeated
+    /// turn-end refreshes never stack. A turn with no remaining changes drops
+    /// the card entirely.
+    pub fn set_last_turn_changed_files(&mut self, files: Vec<ChangedFileEntry>) {
+        let Some(turn) = self.turns.last_mut() else {
+            return;
+        };
+        turn.parts
+            .retain(|part| !matches!(part, TurnPart::ChangedFiles { .. }));
+        if files.is_empty() {
+            return;
+        }
+        let id = format!("changed-{}", turn.id);
+        turn.parts.push(TurnPart::ChangedFiles { id, files });
     }
 
     pub fn sanitize_for_persistence(mut self) -> Self {

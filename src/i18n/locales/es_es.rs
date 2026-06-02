@@ -1123,5 +1123,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgToolWebFetch => "Búsqueda web",
         I18nKey::AgToolSubagentsRun => "Ejecutar subagentes",
         I18nKey::AgToolSubmitResult => "Enviar resultado",
+        I18nKey::AgChangedFilesTitle => "Archivos modificados",
+        I18nKey::AgChangedFilesCollapseAll => "Contraer todo",
+        I18nKey::AgChangedFilesViewDiff => "Ver diff",
     }
 }

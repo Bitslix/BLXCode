@@ -1121,4 +1121,7 @@ pub enum I18nKey {
     AgToolWebFetch,
     AgToolSubagentsRun,
     AgToolSubmitResult,
+    AgChangedFilesTitle,
+    AgChangedFilesCollapseAll,
+    AgChangedFilesViewDiff,
 }

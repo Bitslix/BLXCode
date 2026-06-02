@@ -1091,5 +1091,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgToolWebFetch => "ウェブフェッチ",
         I18nKey::AgToolSubagentsRun => "サブエージェントの実行",
         I18nKey::AgToolSubmitResult => "結果を送信する",
+        I18nKey::AgChangedFilesTitle => "変更されたファイル",
+        I18nKey::AgChangedFilesCollapseAll => "すべて折りたたむ",
+        I18nKey::AgChangedFilesViewDiff => "差分を表示",
     }
 }

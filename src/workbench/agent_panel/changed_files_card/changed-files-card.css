@@ -1,0 +1,132 @@
+/* Turn-end "Changed files" summary card. Decent/small look matching the
+   agent timeline; only theme tokens (no hardcoded colors). The tree indent +
+   guide line are inherited from the shared `.timeline-tree*` rules. */
+
+.changed-files-card {
+  margin: 0.35rem 0 0.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  overflow: hidden;
+  font-size: 0.72rem;
+}
+
+.changed-files-card__head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.55rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel-header);
+}
+
+.changed-files-card__title {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-size: 0.66rem;
+}
+
+.changed-files-card__spacer {
+  flex: 1 1 auto;
+}
+
+.changed-files-card__action {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0.12rem 0.45rem;
+  font-size: 0.68rem;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.changed-files-card__action:hover {
+  background: var(--overlay-2);
+  border-color: var(--accent);
+}
+
+.changed-files-card__stat {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 0.68rem;
+}
+
+.changed-files-card__stat--add {
+  color: var(--success);
+}
+
+.changed-files-card__stat--del {
+  color: var(--danger);
+}
+
+.changed-files-card__tree {
+  list-style: none;
+  margin: 0;
+  padding: 0.3rem 0.45rem 0.4rem;
+}
+
+.changed-files-card__children {
+  list-style: none;
+  margin-top: 0;
+}
+
+.changed-files-card__dir,
+.changed-files-card__file {
+  list-style: none;
+}
+
+.changed-files-card__dir-head,
+.changed-files-card__file-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+  appearance: none;
+  border: none;
+  background: none;
+  color: var(--text);
+  padding: 0.12rem 0.3rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.changed-files-card__dir-head:hover,
+.changed-files-card__file-btn:hover {
+  background: var(--overlay-2);
+}
+
+.changed-files-card__chevron,
+.changed-files-card__folder-icon,
+.changed-files-card__file-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+
+.changed-files-card__dir-name,
+.changed-files-card__file-name {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.changed-files-card__file--added .changed-files-card__file-icon {
+  color: var(--success);
+}
+
+.changed-files-card__file--deleted .changed-files-card__file-icon {
+  color: var(--danger);
+}
+
+.changed-files-card__file--renamed .changed-files-card__file-icon,
+.changed-files-card__file--conflicted .changed-files-card__file-icon {
+  color: var(--accent);
+}

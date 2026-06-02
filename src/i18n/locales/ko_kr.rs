@@ -1087,5 +1087,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgToolWebFetch => "웹 가져오기",
         I18nKey::AgToolSubagentsRun => "하위 에이전트 실행",
         I18nKey::AgToolSubmitResult => "결과 제출",
+        I18nKey::AgChangedFilesTitle => "변경된 파일",
+        I18nKey::AgChangedFilesCollapseAll => "모두 접기",
+        I18nKey::AgChangedFilesViewDiff => "diff 보기",
     }
 }

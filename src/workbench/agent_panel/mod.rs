@@ -1,5 +1,6 @@
 //! Agent Composer: Prompt → Tauri-Orchestrierung, Drain der Event-Liste in die Ansicht.
 mod ask_user_card;
+mod changed_files_card;
 mod client_tools;
 mod context_list;
 mod context_meter;
@@ -19,8 +20,8 @@ use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_abort, agent_active_context_window, agent_clear_conversation, agent_compact_conversation,
-    agent_drain_turn_opts, agent_settings_get, agent_submit_turn, is_tauri_shell,
-    tasks_list as fetch_tasks_list,
+    agent_drain_turn_opts, agent_settings_get, agent_submit_turn, git_is_repository,
+    git_status_changes, is_tauri_shell, tasks_list as fetch_tasks_list,
 };
 use crate::workbench::agent_panel::client_tools::maybe_handle_client_tool;
 use crate::workbench::agent_panel::context_list::ContextSection;
@@ -36,7 +37,7 @@ use crate::workbench::agent_panel::session_stats::{
 use crate::workbench::agent_panel::task_list::TaskSection;
 use crate::workbench::agent_panel::timeline::{ChatLineIndexColumn, TurnNodeView};
 use crate::workbench::agent_panel::voice_orb::{handle_voice_event, VoiceOrb, VoiceOrbHandle};
-use crate::workbench::agent_timeline::TimelineDoc;
+use crate::workbench::agent_timeline::{ChangedFileEntry, TimelineDoc};
 use crate::workbench::terminal_slot_dnd::TerminalSlotDragService;
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
@@ -934,6 +935,11 @@ fn submit_turn(
     let ws_capture = ws_id;
     let audio_ref = voice_handle.audio_ref;
     let turn_had_error = RwSignal::new(false);
+    // Whether this turn ran a file-mutating tool — gates the turn-end
+    // "Changed files" summary so it never shows for read-only turns.
+    let turn_touched_files = RwSignal::new(false);
+    // Workspace cwd for the turn-end `git_status_changes` lookup.
+    let changed_files_cwd = resolve_effective_workspace_root(&wb);
 
     leptos::task::spawn_local(async move {
         if let Err(msg) = agent_submit_turn(turn).await {
@@ -951,6 +957,11 @@ fn submit_turn(
                 let ev = &env.event;
                 if matches!(ev, AgentEvent::Error { .. }) {
                     turn_had_error.set(true);
+                }
+                if let AgentEvent::ToolCall { tool, .. } = ev {
+                    if is_file_mutating_tool(tool) {
+                        turn_touched_files.set(true);
+                    }
                 }
                 if matches!(ev, AgentEvent::VoiceReady { .. }) {
                     handle_voice_event(audio_ref, ev);
@@ -977,7 +988,69 @@ fn submit_turn(
             wb_after_drain.remove_workspace_agent_context_items(ws_capture, &transient_context_ids);
         }
         busy_sig.set(false);
+
+        // Turn-end "Changed files" summary: only after a turn that ran a
+        // file-mutating tool, in a Git repo. Snapshots the working tree once
+        // (no live polling) and attaches it to the just-finished turn.
+        if turn_touched_files.get_untracked() {
+            if let Some(cwd) = changed_files_cwd.clone() {
+                maybe_attach_changed_files(timeline_sig, wb_after_drain, ws_capture, cwd).await;
+            }
+        }
     });
+}
+
+/// Tools that can change files on disk in the workspace. Used to gate the
+/// turn-end changed-files summary.
+fn is_file_mutating_tool(tool: &str) -> bool {
+    matches!(
+        tool,
+        "workspace_file_write"
+            | "workspace_file_delete"
+            | "workspace_dir_create"
+            | "workspace_entry_rename"
+            | "git_apply_patch"
+            | "git_add"
+            | "git_commit"
+            | "shell_exec"
+    )
+}
+
+/// Fetch the working-tree changes via `git_status_changes` and attach a
+/// [`TurnPart::ChangedFiles`] summary to the most recent turn. No-op outside
+/// the Tauri shell, in a non-repo, or when nothing changed.
+async fn maybe_attach_changed_files(
+    timeline: RwSignal<TimelineDoc>,
+    wb: WorkbenchService,
+    workspace_id: u64,
+    cwd: String,
+) {
+    if !is_tauri_shell() {
+        return;
+    }
+    if !git_is_repository(cwd.clone(), None).await.unwrap_or(false) {
+        return;
+    }
+    let Ok(changes) = git_status_changes(cwd, None).await else {
+        return;
+    };
+    let entries: Vec<ChangedFileEntry> = changes
+        .into_iter()
+        .map(|c| {
+            let added = c.staged_stats.as_ref().map(|s| s.added).unwrap_or(0)
+                + c.unstaged_stats.as_ref().map(|s| s.added).unwrap_or(0);
+            let removed = c.staged_stats.as_ref().map(|s| s.removed).unwrap_or(0)
+                + c.unstaged_stats.as_ref().map(|s| s.removed).unwrap_or(0);
+            ChangedFileEntry {
+                rel_path: c.rel_path,
+                status: c.status,
+                added,
+                removed,
+            }
+        })
+        .collect();
+    timeline.update(|doc| doc.set_last_turn_changed_files(entries));
+    wb.set_workspace_agent_timeline(workspace_id, timeline.get_untracked());
 }
 
 fn transient_agent_context_ids(items: &[crate::agent_wire::AgentContextItem]) -> Vec<String> {

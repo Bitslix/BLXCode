@@ -4,6 +4,7 @@ use crate::i18n::{lookup, I18nKey, Locale};
 use crate::service::I18nService;
 use crate::tauri_bridge::{is_tauri_shell, voice_settings_get};
 use crate::workbench::agent_panel::ask_user_card::AskUserCard;
+use crate::workbench::agent_panel::changed_files_card::ChangedFilesCard;
 use crate::workbench::agent_panel::tool_group::ToolPill;
 use crate::workbench::agent_panel::turn_metrics_bar::{BarContext, TurnMetricsBar};
 use crate::workbench::agent_panel::voice_orb::{
@@ -1743,6 +1744,15 @@ fn TurnPartView(
             }
             .into_any()
         }
+        TurnPart::ChangedFiles { files, .. } => view! {
+            <li class="agent-chat-line agent-chat-line--changed-files timeline-tree" style=indent_style>
+                <ChatLineIndexColumn line_no=line_no tts_text=None voice_handle=voice_handle />
+                <div class="agent-chat-body">
+                    <ChangedFilesCard files=files wb=wb workspace_id=workspace_id />
+                </div>
+            </li>
+        }
+        .into_any(),
         TurnPart::GeneratedImage {
             prompt,
             mime,
