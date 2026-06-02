@@ -1,6 +1,6 @@
-//! User-tunable, theme-independent appearance knobs: corner roundings scale
-//! and font family. Both are applied as inline custom properties on `<html>`
-//! (`--radius-scale`, `--font-mono`) and persisted in `localStorage`.
+//! User-tunable, theme-independent appearance knobs: corner roundings scale,
+//! font family, and font size. These are applied as inline custom properties on
+//! `<html>` and persisted in `localStorage`.
 
 /// Global corner-roundings multiplier applied to every `--radius-*` token.
 /// Pills and circles are not affected (they use fixed tokens).
@@ -74,6 +74,21 @@ const MONO_TAIL: &str = "ui-monospace, monospace";
 
 /// The default font id (JetBrains Mono is bundled via `@font-face`).
 pub const DEFAULT_FONT_ID: &str = "jetbrains-mono";
+
+/// Default global interface / terminal font size in pixels.
+pub const DEFAULT_FONT_SIZE_PX: u8 = 15;
+
+/// Smallest supported global font size in pixels.
+pub const MIN_FONT_SIZE_PX: u8 = 12;
+
+/// Largest supported global font size in pixels.
+pub const MAX_FONT_SIZE_PX: u8 = 20;
+
+/// Clamp a user-provided font size to the supported range.
+#[must_use]
+pub fn clamp_font_size_px(size: u8) -> u8 {
+    size.clamp(MIN_FONT_SIZE_PX, MAX_FONT_SIZE_PX)
+}
 
 /// Curated font catalog. Only JetBrains Mono ships with the app; the others are
 /// used when present on the system and otherwise fall through the stack.

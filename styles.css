@@ -29,7 +29,7 @@
 
 :root {
   font-family: var(--font-mono);
-  font-size: 15px;
+  font-size: var(--app-font-size, 15px);
   line-height: 1.55;
   font-weight: 425;
   font-synthesis: none;

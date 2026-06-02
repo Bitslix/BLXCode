@@ -1,14 +1,18 @@
 //! App theme selection persisted in `localStorage` and applied via `data-theme` on `<html>`.
 //!
-//! Alongside the theme id this also owns two theme-independent appearance knobs
-//! — the corner-roundings scale (`--radius-scale`) and the font family
-//! (`--font-mono`) — both applied as inline custom properties on `<html>` and
-//! persisted in `localStorage`. Any change dispatches `blxcode-theme-changed`
-//! so JS bridges (xterm, graph) re-read the CSS variables.
+//! Alongside the theme id this also owns theme-independent appearance knobs —
+//! the corner-roundings scale (`--radius-scale`), font family (`--font-mono`),
+//! and font size (`--app-font-size`) — all applied as inline custom properties
+//! on `<html>` and persisted in `localStorage`. Any change dispatches
+//! `blxcode-theme-changed` so JS bridges (xterm, graph) re-read the CSS
+//! variables.
 
-use crate::config::{FONT_FAMILY_STORAGE_KEY, RADIUS_SCALE_STORAGE_KEY, THEME_STORAGE_KEY};
+use crate::config::{
+    FONT_FAMILY_STORAGE_KEY, FONT_SIZE_STORAGE_KEY, RADIUS_SCALE_STORAGE_KEY, THEME_STORAGE_KEY,
+};
 use crate::theme::{
-    font_stack_for, is_valid_font_id, RadiusScale, DEFAULT_FONT_ID, DEFAULT_THEME_ID, THEMES,
+    clamp_font_size_px, font_stack_for, is_valid_font_id, RadiusScale, DEFAULT_FONT_ID,
+    DEFAULT_FONT_SIZE_PX, DEFAULT_THEME_ID, THEMES,
 };
 use js_sys;
 use leptos::prelude::*;
@@ -22,6 +26,7 @@ pub struct ThemeService {
     active_theme_id: RwSignal<String>,
     radius_scale: RwSignal<RadiusScale>,
     font_id: RwSignal<String>,
+    font_size_px: RwSignal<u8>,
 }
 
 impl ThemeService {
@@ -36,10 +41,14 @@ impl ThemeService {
         let font_id = read_font_storage();
         apply_font_to_dom(&font_id);
 
+        let font_size_px = read_font_size_storage();
+        apply_font_size_to_dom(font_size_px);
+
         Self {
             active_theme_id: RwSignal::new(id),
             radius_scale: RwSignal::new(radius),
             font_id: RwSignal::new(font_id),
+            font_size_px: RwSignal::new(font_size_px),
         }
     }
 
@@ -88,6 +97,19 @@ impl ThemeService {
         write_string(FONT_FAMILY_STORAGE_KEY, &id);
         dispatch_theme_changed(&self.active_theme_id.get_untracked());
     }
+
+    #[must_use]
+    pub fn font_size_px(&self) -> RwSignal<u8> {
+        self.font_size_px
+    }
+
+    pub fn set_font_size_px(&self, size: u8) {
+        let size = clamp_font_size_px(size);
+        self.font_size_px.set(size);
+        apply_font_size_to_dom(size);
+        write_string(FONT_SIZE_STORAGE_KEY, &size.to_string());
+        dispatch_theme_changed(&self.active_theme_id.get_untracked());
+    }
 }
 
 impl Default for ThemeService {
@@ -106,6 +128,13 @@ fn read_font_storage() -> String {
     read_string(FONT_FAMILY_STORAGE_KEY)
         .filter(|id| is_valid_font_id(id))
         .unwrap_or_else(|| DEFAULT_FONT_ID.to_string())
+}
+
+fn read_font_size_storage() -> u8 {
+    read_string(FONT_SIZE_STORAGE_KEY)
+        .and_then(|value| value.parse::<u8>().ok())
+        .map(clamp_font_size_px)
+        .unwrap_or(DEFAULT_FONT_SIZE_PX)
 }
 
 fn read_string(key: &str) -> Option<String> {
@@ -148,6 +177,14 @@ fn apply_font_to_dom(font_id: &str) {
         let _ = root
             .style()
             .set_property("--font-mono", font_stack_for(font_id));
+    }
+}
+
+fn apply_font_size_to_dom(size: u8) {
+    if let Some(root) = root_element() {
+        let _ = root
+            .style()
+            .set_property("--app-font-size", &format!("{size}px"));
     }
 }
 

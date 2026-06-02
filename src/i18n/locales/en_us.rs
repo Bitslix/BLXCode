@@ -715,6 +715,8 @@ keys; the preset only fills in defaults."
         I18nKey::AppearanceActivePreviewLabel => "Active theme preview",
         I18nKey::AppearanceThemeGridAria => "Theme selection",
         I18nKey::AppearanceThemeSelectAria => "Select theme {name}",
+        I18nKey::AppearanceInterfaceTitle => "Interface",
+        I18nKey::AppearanceInterfaceDesc => "Shape and text scale for the workbench",
         I18nKey::AppearanceRoundingsTitle => "Roundings",
         I18nKey::AppearanceRoundingsDesc => "Corner radius for panels, cards and controls",
         I18nKey::AppearanceRoundingsAria => "Corner roundings",
@@ -725,6 +727,9 @@ keys; the preset only fills in defaults."
         I18nKey::AppearanceFontTitle => "Font",
         I18nKey::AppearanceFontDesc => "Typeface for the interface and terminals",
         I18nKey::AppearanceFontAria => "Interface font",
+        I18nKey::AppearanceFontSizeTitle => "Font size",
+        I18nKey::AppearanceFontSizeDesc => "Global text size for UI and terminal surfaces",
+        I18nKey::AppearanceFontSizeAria => "Global font size",
         I18nKey::ThemeNameBlxcodeDark => "BLXCode",
         I18nKey::ThemeDescBlxcodeDark => {
             "Tokyo Night base fused with Dracula purple, pink and cyan accents"
