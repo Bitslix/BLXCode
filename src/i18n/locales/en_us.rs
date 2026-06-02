@@ -674,6 +674,16 @@ keys; the preset only fills in defaults."
         I18nKey::AppearanceActivePreviewLabel => "Active theme preview",
         I18nKey::AppearanceThemeGridAria => "Theme selection",
         I18nKey::AppearanceThemeSelectAria => "Select theme {name}",
+        I18nKey::AppearanceRoundingsTitle => "Roundings",
+        I18nKey::AppearanceRoundingsDesc => "Corner radius for panels, cards and controls",
+        I18nKey::AppearanceRoundingsAria => "Corner roundings",
+        I18nKey::AppearanceRoundingSharp => "Sharp",
+        I18nKey::AppearanceRoundingDefault => "Default",
+        I18nKey::AppearanceRoundingRounded => "Rounded",
+        I18nKey::AppearanceRoundingExtra => "Extra",
+        I18nKey::AppearanceFontTitle => "Font",
+        I18nKey::AppearanceFontDesc => "Typeface for the interface and terminals",
+        I18nKey::AppearanceFontAria => "Interface font",
         I18nKey::ThemeNameBlxcodeDark => "BLXCode",
         I18nKey::ThemeDescBlxcodeDark => {
             "Tokyo Night base fused with Dracula purple, pink and cyan accents"
