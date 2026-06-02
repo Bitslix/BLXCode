@@ -11,6 +11,7 @@ use leptos::html;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
+use std::collections::HashSet;
 use wasm_bindgen::JsCast;
 
 use crate::agent_wire::AgentChatMode;
@@ -21,6 +22,8 @@ use crate::tauri_bridge::{
     AgentProviderSettingsView, ProviderModelEntry, ThinkingLevel,
 };
 use crate::workbench::WorkbenchService;
+
+const MODEL_FAVORITES_STORAGE_KEY: &str = "blxcode.agent.model_favorites.v1";
 
 fn thinking_levels() -> [ThinkingLevel; 5] {
     [
@@ -109,6 +112,99 @@ fn model_detail_line(model: &ProviderModelEntry) -> String {
     }
 }
 
+fn read_model_favorites() -> HashSet<String> {
+    web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten())
+        .and_then(|s| s.get_item(MODEL_FAVORITES_STORAGE_KEY).ok().flatten())
+        .map(|raw| {
+            raw.split('\n')
+                .map(str::trim)
+                .filter(|id| !id.is_empty())
+                .map(ToOwned::to_owned)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn write_model_favorites(favorites: &HashSet<String>) {
+    let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) else {
+        return;
+    };
+    let mut ids: Vec<&str> = favorites.iter().map(String::as_str).collect();
+    ids.sort_unstable();
+    let _ = storage.set_item(MODEL_FAVORITES_STORAGE_KEY, &ids.join("\n"));
+}
+
+fn model_row(
+    model: ProviderModelEntry,
+    active: String,
+    favorites: HashSet<String>,
+    model_favorites: RwSignal<HashSet<String>>,
+    persist: impl Fn(Option<String>, Option<ThinkingLevel>) + Copy + 'static,
+    model_open: RwSignal<bool>,
+) -> AnyView {
+    let id = model.id.clone();
+    let select_id = id.clone();
+    let favorite_id = id.clone();
+    let favorite_id_for_aria = id.clone();
+    let favorite_id_for_class = id.clone();
+    let favorite_id_for_click = id.clone();
+    let label = if model.label.is_empty() {
+        model.id.clone()
+    } else {
+        model.label.clone()
+    };
+    let detail = model_detail_line(&model);
+    let is_active = id == active;
+    let is_favorite = favorites.contains(&id);
+
+    view! {
+        <li>
+            <div
+                class="agent-composer__model-item"
+                class:agent-composer__model-item--active=move || is_active
+                class:agent-composer__model-item--favorite=move || model_favorites.with(|set| set.contains(&favorite_id_for_class))
+            >
+                <button
+                    type="button"
+                    class="agent-composer__model-main"
+                    on:click=move |_| {
+                        persist(Some(select_id.clone()), None);
+                        model_open.set(false);
+                    }
+                >
+                    <span class="agent-composer__model-copy">
+                        <span class="agent-composer__model-name">{label}</span>
+                        <span class="agent-composer__model-meta">{detail}</span>
+                    </span>
+                    <Show when=move || is_active>
+                        <LxIcon icon=icondata::LuCheck width="0.78rem" height="0.78rem" />
+                    </Show>
+                </button>
+                <button
+                    type="button"
+                    class="agent-composer__model-fav"
+                    class:agent-composer__model-fav--active=move || model_favorites.with(|set| set.contains(&favorite_id))
+                    aria-pressed=move || model_favorites.with(|set| set.contains(&favorite_id_for_aria)).to_string()
+                    aria-label=move || if is_favorite { "Remove favorite" } else { "Add favorite" }
+                    title=move || if is_favorite { "Remove favorite" } else { "Add favorite" }
+                    on:click=move |_| {
+                        model_favorites.update(|set| {
+                            if !set.remove(&favorite_id_for_click) {
+                                set.insert(favorite_id_for_click.clone());
+                            }
+                            write_model_favorites(set);
+                        });
+                    }
+                >
+                    <LxIcon icon=icondata::LuStar width="0.78rem" height="0.78rem" />
+                </button>
+            </div>
+        </li>
+    }
+    .into_any()
+}
+
 #[allow(clippy::too_many_arguments)]
 #[component]
 pub fn Composer(
@@ -135,6 +231,7 @@ pub fn Composer(
     let models = RwSignal::new(Vec::<ProviderModelEntry>::new());
     let models_loading = RwSignal::new(false);
     let model_filter = RwSignal::new(String::new());
+    let model_favorites = RwSignal::new(read_model_favorites());
 
     let close_popovers = move || {
         model_open.set(false);
@@ -310,37 +407,47 @@ pub fn Composer(
                                 {move || {
                                     let filter = model_filter.get().to_lowercase();
                                     let active = settings.get().map(|v| v.model_id).unwrap_or_default();
-                                    models.get().into_iter().filter(move |m| {
+                                    let favorites = model_favorites.get();
+                                    let matches_filter = |m: &ProviderModelEntry| {
                                         filter.is_empty()
                                             || m.id.to_lowercase().contains(&filter)
                                             || m.label.to_lowercase().contains(&filter)
-                                    }).map(move |m| {
-                                        let id = m.id.clone();
-                                        let is_active = id == active;
-                                        let label = if m.label.is_empty() { m.id.clone() } else { m.label.clone() };
-                                        let detail = model_detail_line(&m);
-                                        view! {
-                                            <li>
-                                                <button
-                                                    type="button"
-                                                    class="agent-composer__model-item"
-                                                    class:agent-composer__model-item--active=move || is_active
-                                                    on:click=move |_| {
-                                                        persist(Some(id.clone()), None);
-                                                        model_open.set(false);
-                                                    }
-                                                >
-                                                    <span class="agent-composer__model-copy">
-                                                        <span class="agent-composer__model-name">{label}</span>
-                                                        <span class="agent-composer__model-meta">{detail}</span>
-                                                    </span>
-                                                    <Show when=move || is_active>
-                                                        <LxIcon icon=icondata::LuCheck width="0.78rem" height="0.78rem" />
-                                                    </Show>
-                                                </button>
-                                            </li>
+                                    };
+                                    let mut active_row = None::<ProviderModelEntry>;
+                                    let mut rest = Vec::<ProviderModelEntry>::new();
+                                    for model in models.get().into_iter().filter(matches_filter) {
+                                        if model.id == active && active_row.is_none() {
+                                            active_row = Some(model);
+                                        } else {
+                                            rest.push(model);
                                         }
-                                    }).collect_view()
+                                    }
+                                    rest.sort_by_key(|m| (!favorites.contains(&m.id), m.label.to_lowercase(), m.id.clone()));
+                                    let mut rows = Vec::new();
+                                    if let Some(model) = active_row {
+                                        rows.push(model_row(
+                                            model,
+                                            active.clone(),
+                                            favorites.clone(),
+                                            model_favorites,
+                                            persist,
+                                            model_open,
+                                        ));
+                                        if !rest.is_empty() {
+                                            rows.push(view! { <li class="agent-composer__model-separator" aria-hidden="true"></li> }.into_any());
+                                        }
+                                    }
+                                    rows.extend(rest.into_iter().map(|model| {
+                                        model_row(
+                                            model,
+                                            active.clone(),
+                                            favorites.clone(),
+                                            model_favorites,
+                                            persist,
+                                            model_open,
+                                        )
+                                    }));
+                                    rows.into_iter().collect_view()
                                 }}
                             </ul>
                         </div>
@@ -351,7 +458,7 @@ pub fn Composer(
                 <div class="agent-composer__menu">
                     <button
                         type="button"
-                        class="agent-composer__pill"
+                        class="agent-composer__pill agent-composer__pill--mode"
                         prop:disabled=move || busy.get()
                         on:click=move |_| {
                             let next = next_mode(chat_mode.get_untracked());
@@ -423,9 +530,9 @@ pub fn Composer(
                 <button
                     type="button"
                     class=move || if enhance_prompt.get() {
-                        "agent-composer__pill agent-composer__pill--active"
+                        "agent-composer__enhance agent-composer__enhance--active"
                     } else {
-                        "agent-composer__pill"
+                        "agent-composer__enhance"
                     }
                     prop:disabled=move || busy.get()
                     aria-pressed=move || enhance_prompt.get().to_string()
@@ -438,10 +545,7 @@ pub fn Composer(
                         }
                     }
                 >
-                    <LxIcon icon=icondata::LuSparkles width="0.82rem" height="0.82rem" />
-                    <span class="agent-composer__pill-label">
-                        {move || i18n.tr(I18nKey::AgComposerEnhancePrompt)()}
-                    </span>
+                    <LxIcon icon=icondata::LuSparkles width="0.9rem" height="0.9rem" />
                 </button>
 
                 <span class="agent-composer__spacer"></span>

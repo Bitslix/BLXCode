@@ -1287,24 +1287,31 @@ pub fn TimelineRow(
             multi_select,
             allow_other,
             state,
-        } => view! {
-            <li class="agent-chat-line agent-chat-line--ask-user">
-                <ChatLineIndexColumn line_no=line_no.clone() tts_text=None voice_handle=voice_handle />
-                <div class="agent-chat-body">
-                    <AskUserCard
-                        call_id=call_id
-                        question=question
-                        header=header
-                        options=options
-                        multi_select=multi_select
-                        allow_other=allow_other
-                        state=state
-                        timeline=timeline
-                    />
-                </div>
-            </li>
+        } => {
+            let call_id_for_auto = call_id.clone();
+            let auto_collapse = Signal::derive(move || {
+                timeline.with(|doc| ask_user_has_later_timeline_part(doc, &call_id_for_auto))
+            });
+            view! {
+                <li class="agent-chat-line agent-chat-line--ask-user">
+                    <ChatLineIndexColumn line_no=line_no.clone() tts_text=None voice_handle=voice_handle />
+                    <div class="agent-chat-body">
+                        <AskUserCard
+                            call_id=call_id
+                            question=question
+                            header=header
+                            options=options
+                            multi_select=multi_select
+                            allow_other=allow_other
+                            state=state
+                            auto_collapse=auto_collapse
+                            timeline=timeline
+                        />
+                    </div>
+                </li>
+            }
+            .into_any()
         }
-        .into_any(),
     }
 }
 
@@ -1783,25 +1790,67 @@ fn TurnPartView(
             allow_other,
             state,
             ..
-        } => view! {
-            <li class="agent-chat-line agent-chat-line--agent timeline-tree" style=indent_style>
-                <ChatLineIndexColumn line_no=line_no tts_text=None voice_handle=voice_handle />
-                <div class="agent-chat-body">
-                    <AskUserCard
-                        call_id=call_id
-                        question=question
-                        header=header
-                        options=options
-                        multi_select=multi_select
-                        allow_other=allow_other
-                        state=state
-                        timeline=timeline
-                    />
-                </div>
-            </li>
+        } => {
+            let call_id_for_auto = call_id.clone();
+            let auto_collapse = Signal::derive(move || {
+                timeline.with(|doc| ask_user_has_later_timeline_part(doc, &call_id_for_auto))
+            });
+            view! {
+                <li class="agent-chat-line agent-chat-line--agent timeline-tree" style=indent_style>
+                    <ChatLineIndexColumn line_no=line_no tts_text=None voice_handle=voice_handle />
+                    <div class="agent-chat-body">
+                        <AskUserCard
+                            call_id=call_id
+                            question=question
+                            header=header
+                            options=options
+                            multi_select=multi_select
+                            allow_other=allow_other
+                            state=state
+                            auto_collapse=auto_collapse
+                            timeline=timeline
+                        />
+                    </div>
+                </li>
+            }
+            .into_any()
         }
-        .into_any(),
     }
+}
+
+fn ask_user_has_later_timeline_part(doc: &TimelineDoc, call_id: &str) -> bool {
+    let mut seen = false;
+    for turn in &doc.turns {
+        if ask_user_has_later_part(&turn.parts, call_id, &mut seen) {
+            return true;
+        }
+    }
+    false
+}
+
+fn ask_user_has_later_part(parts: &[TurnPart], call_id: &str, seen: &mut bool) -> bool {
+    for part in parts {
+        if *seen {
+            return true;
+        }
+        match part {
+            TurnPart::AskUser { call_id: cid, .. } if cid == call_id => {
+                *seen = true;
+            }
+            TurnPart::Tool { children, .. } => {
+                if ask_user_has_later_part(children, call_id, seen) {
+                    return true;
+                }
+            }
+            TurnPart::Subagent { parts, .. } => {
+                if ask_user_has_later_part(parts, call_id, seen) {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 fn activity_status_from_tool_state(state: &ToolState) -> ActivityStatus {

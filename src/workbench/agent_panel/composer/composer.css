@@ -80,6 +80,18 @@
   border-color: var(--accent);
 }
 
+.agent-composer__pill--mode {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.agent-composer__pill--mode:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--overlay-1);
+  color: var(--text);
+}
+
 .agent-composer__pill--active {
   color: var(--accent);
   border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
@@ -173,6 +185,53 @@
   gap: 0.4rem;
   justify-content: space-between;
   align-items: flex-start;
+  padding: 0;
+}
+
+.agent-composer__model-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  min-width: 0;
+  flex: 1 1 auto;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0.42rem 0.12rem 0.42rem 0.5rem;
+}
+
+.agent-composer__model-fav {
+  display: inline-grid;
+  place-items: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  margin: 0.28rem 0.34rem 0 0;
+  flex: 0 0 auto;
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0.72;
+  transition: color 0.12s ease, background 0.12s ease, opacity 0.12s ease;
+}
+
+.agent-composer__model-fav:hover,
+.agent-composer__model-fav:focus-visible {
+  background: var(--overlay-2);
+  color: var(--accent);
+  opacity: 1;
+  outline: none;
+}
+
+.agent-composer__model-fav--active {
+  color: var(--accent);
+  opacity: 0.92;
 }
 
 .agent-composer__model-item:hover,
@@ -183,6 +242,12 @@
 .agent-composer__model-item--active,
 .agent-composer__option--active {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.agent-composer__model-separator {
+  height: 1px;
+  margin: 0.32rem 0.16rem;
+  background: color-mix(in srgb, var(--border) 74%, transparent);
 }
 
 .agent-composer__model-copy {
@@ -223,6 +288,49 @@
   color: var(--text-muted);
   font-size: 0.68rem;
   padding-left: 1.15rem;
+}
+
+.agent-composer__enhance {
+  display: inline-grid;
+  place-items: center;
+  width: 1.72rem;
+  height: 1.72rem;
+  flex: 0 0 auto;
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-circle);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0.76;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease,
+    opacity 0.12s ease,
+    transform 0.08s ease;
+}
+
+.agent-composer__enhance:hover:not(:disabled),
+.agent-composer__enhance:focus-visible {
+  background: var(--overlay-2);
+  color: var(--text);
+  opacity: 1;
+  outline: none;
+}
+
+.agent-composer__enhance--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  opacity: 1;
+}
+
+.agent-composer__enhance:active {
+  transform: scale(0.94);
+}
+
+.agent-composer__enhance:disabled {
+  opacity: 0.42;
+  cursor: default;
 }
 
 /* ---- Send / stop orb ---- */
