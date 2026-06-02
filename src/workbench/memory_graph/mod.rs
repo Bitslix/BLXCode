@@ -22,6 +22,8 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
 
@@ -277,13 +279,18 @@ fn Graph3dView(
 ) -> impl IntoView {
     let node_ref = NodeRef::<html::Div>::new();
     let graph_id = RwSignal::new(None::<f64>);
+    let graph_id_live = Arc::new(Mutex::new(None::<f64>));
     let bootstrap_inflight = RwSignal::new(false);
-    let disposed = RwSignal::new(false);
+    let alive = Arc::new(AtomicBool::new(true));
     let last_zoom_tick = RwSignal::new(zoom_tick.get_untracked());
     let last_reset_tick = RwSignal::new(reset_tick.get_untracked());
 
+    let alive_for_bootstrap = alive.clone();
+    let graph_id_live_for_bootstrap = graph_id_live.clone();
     Effect::new({
         let state = state.clone();
+        let alive = alive_for_bootstrap.clone();
+        let graph_id_live = graph_id_live_for_bootstrap.clone();
         move |_| {
             let Some(graph) = configured_graph(wb, state.graph.get()) else {
                 return;
@@ -299,6 +306,8 @@ fn Graph3dView(
                 return;
             };
             bootstrap_inflight.set(true);
+            let alive = alive.clone();
+            let graph_id_live = graph_id_live.clone();
             spawn_local(async move {
                 let result = async {
                     ensure_graph3d_script().await?;
@@ -308,15 +317,20 @@ fn Graph3dView(
                     Ok::<f64, String>(id)
                 }
                 .await;
+                if !alive.load(Ordering::Relaxed) {
+                    if let Ok(id) = result {
+                        graph3d_dispose(id);
+                    }
+                    return;
+                }
                 bootstrap_inflight.set(false);
                 match result {
                     Ok(id) => {
-                        if disposed.get_untracked() {
-                            graph3d_dispose(id);
-                        } else {
-                            graph_id.set(Some(id));
-                            load_failed.set(false);
+                        if let Ok(mut live_id) = graph_id_live.lock() {
+                            *live_id = Some(id);
                         }
+                        graph_id.set(Some(id));
+                        load_failed.set(false);
                     }
                     Err(_) => load_failed.set(true),
                 }
@@ -395,7 +409,12 @@ fn Graph3dView(
 
     let click_handle = {
         let state = state.clone();
+        let alive = alive.clone();
+        let graph_id_live = graph_id_live.clone();
         window_event_listener_untyped("blxcode-graph3d-node-click", move |ev| {
+            if !alive.load(Ordering::Relaxed) {
+                return;
+            }
             let Some(custom) = ev.dyn_ref::<web_sys::CustomEvent>() else {
                 return;
             };
@@ -404,7 +423,8 @@ fn Graph3dView(
                 js_sys::Reflect::get(&detail, &wasm_bindgen::JsValue::from_str("graphId"))
                     .ok()
                     .and_then(|v| v.as_f64());
-            if event_graph_id != graph_id.get_untracked() {
+            let live_graph_id = graph_id_live.lock().ok().and_then(|live_id| *live_id);
+            if event_graph_id != live_graph_id {
                 return;
             }
             let Some(node_id) =
@@ -420,9 +440,13 @@ fn Graph3dView(
     };
 
     on_cleanup(move || {
-        disposed.set(true);
+        alive.store(false, Ordering::Relaxed);
         drop(click_handle);
-        if let Some(id) = graph_id.get_untracked() {
+        let live_graph_id = graph_id_live
+            .lock()
+            .ok()
+            .and_then(|mut live_id| live_id.take());
+        if let Some(id) = live_graph_id {
             graph3d_dispose(id);
         }
     });
