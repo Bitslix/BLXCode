@@ -1093,6 +1093,17 @@ pub struct EmbeddedBrowserTab {
 #[derive(Clone, Copy)]
 pub struct BrowserEmbedSurface(pub RwSignal<Option<String>>);
 
+/// Live title info a terminal cell publishes for the title-bar breadcrumb.
+/// `auto` is the OSC/auto title (empty when none yet); `label` is the resolved
+/// slot label (`#2` or friendly name per the naming mode); `slot` is the
+/// numeric slot id used to disambiguate terminals with identical auto titles.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TerminalBreadcrumb {
+    pub slot: u64,
+    pub auto: String,
+    pub label: String,
+}
+
 /// Application layout + workspace selection (sidebar, center, inspector).
 #[derive(Clone, Copy)]
 pub struct WorkbenchService {
@@ -1141,11 +1152,11 @@ pub struct WorkbenchService {
     /// `storage_key` (UUID). Survives workspace switches. The value is the
     /// full `terminal_key`.
     focused_terminal_by_workspace: RwSignal<HashMap<String, String>>,
-    /// Live display title per terminal, keyed by the full `terminal_key`.
-    /// Published by each terminal cell as the header title changes (OSC title
-    /// when present, otherwise the resolved slot label). Read by the app
-    /// title bar breadcrumb. Session-only; not part of `WorkbenchSnapshot`.
-    terminal_titles: RwSignal<HashMap<String, String>>,
+    /// Live title info per terminal, keyed by the full `terminal_key`.
+    /// Published by each terminal cell as the header title changes. Read by
+    /// the app title bar breadcrumb. Session-only; not part of
+    /// `WorkbenchSnapshot`.
+    terminal_titles: RwSignal<HashMap<String, TerminalBreadcrumb>>,
     memory_color_presets: RwSignal<Vec<MemoryColorPreset>>,
     /// Session-only image context; intentionally not part of WorkbenchSnapshot.
     agent_image_context: RwSignal<HashMap<u64, Vec<WorkspaceAgentImage>>>,
@@ -1474,14 +1485,16 @@ impl WorkbenchService {
         });
     }
 
-    /// Publish the live header title for a terminal (OSC title when present,
-    /// otherwise the resolved slot label). Drives the title-bar breadcrumb.
-    pub fn set_terminal_title(&self, terminal_key: String, title: String) {
+    /// Publish the live title info for a terminal. Drives the title-bar
+    /// breadcrumb. `auto` is the OSC/auto title (empty when none), `label` the
+    /// resolved slot label, `slot` the numeric slot id.
+    pub fn set_terminal_title(&self, terminal_key: String, slot: u64, auto: String, label: String) {
+        let next = TerminalBreadcrumb { slot, auto, label };
         self.terminal_titles.update(|m| {
             match m.get(&terminal_key) {
-                Some(existing) if existing == &title => {}
+                Some(existing) if *existing == next => {}
                 _ => {
-                    m.insert(terminal_key, title);
+                    m.insert(terminal_key, next);
                 }
             };
         });
@@ -1494,11 +1507,15 @@ impl WorkbenchService {
         });
     }
 
-    /// Resolve the focused terminal's display title for the active workspace,
+    /// Resolve the focused terminal's breadcrumb for the active workspace,
     /// but only while its active center tab is the Terminals grid. Returns
-    /// `None` otherwise. Reactive — call inside a tracking scope.
+    /// `(slot, text)` where `slot` is `Some(n)` only when an auto title is
+    /// shown (so identical auto titles can be told apart by their slot
+    /// number); when falling back to the slot label, `slot` is `None` since
+    /// the label already carries the number/name. Reactive — call inside a
+    /// tracking scope.
     #[must_use]
-    pub fn active_terminal_breadcrumb_title(&self) -> Option<String> {
+    pub fn active_terminal_breadcrumb_title(&self) -> Option<(Option<u64>, String)> {
         let active = self.active_id.get()?;
         let (storage_key, is_terminals) = self.workspaces.with(|list| {
             let ws = list.iter().find(|w| w.id == active)?;
@@ -1516,9 +1533,17 @@ impl WorkbenchService {
         let focused = self
             .focused_terminal_by_workspace
             .with(|m| m.get(&storage_key).cloned())?;
-        self.terminal_titles
-            .with(|m| m.get(&focused).cloned())
-            .filter(|t| !t.trim().is_empty())
+        let info = self.terminal_titles.with(|m| m.get(&focused).cloned())?;
+        let auto = info.auto.trim();
+        if !auto.is_empty() {
+            return Some((Some(info.slot), auto.to_string()));
+        }
+        let label = info.label.trim();
+        if label.is_empty() {
+            None
+        } else {
+            Some((None, label.to_string()))
+        }
     }
 
     /// True when a notification's terminal key still maps to an agent-attached

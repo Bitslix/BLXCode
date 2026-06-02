@@ -140,11 +140,16 @@ pub fn AppTitleBar(#[prop(into)] workbench_active: Signal<bool>) -> impl IntoVie
                                         </span>
                                         <span class="app-titlebar__crumb app-titlebar__crumb--context">{t}</span>
                                     })}
-                                    {term.map(|t| view! {
+                                    {term.map(|(slot, text)| view! {
                                         <span class="app-titlebar__crumb-sep" aria-hidden="true">
                                             <LxIcon icon=icondata::LuChevronRight width="0.8rem" height="0.8rem" />
                                         </span>
-                                        <span class="app-titlebar__crumb app-titlebar__crumb--terminal">{t}</span>
+                                        <span class="app-titlebar__crumb app-titlebar__crumb--terminal">
+                                            {slot.map(|n| view! {
+                                                <span class="app-titlebar__crumb-slot">{format!("({n})")}</span>
+                                            })}
+                                            <span class="app-titlebar__crumb-term-text">{text}</span>
+                                        </span>
                                     })}
                                 </nav>
                             }

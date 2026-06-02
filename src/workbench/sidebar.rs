@@ -305,6 +305,19 @@ pub fn Sidebar() -> impl IntoView {
                                         .unwrap_or(0)
                                 })
                             });
+                            let terminal_layout = Memo::new(move |_| {
+                                workspaces.with(|list| {
+                                    list.iter()
+                                        .find(|w| w.id == id)
+                                        .map(|w| {
+                                            let count = w.slot_ids.len().max(1);
+                                            let rows = w.grid_rows.max(1);
+                                            let cols = w.grid_cols.max(1);
+                                            (count, rows, cols)
+                                        })
+                                        .unwrap_or((1, 1, 1))
+                                })
+                            });
                             let icon_label = move || {
                                 workspace_icon_label(&title_signal.get(), id)
                             };
@@ -529,18 +542,24 @@ pub fn Sidebar() -> impl IntoView {
                                         </Show>
                                         <Show when=move || !collapsed.get() && (terminal_slot_count.get() >= 1)>
                                             {move || {
-                                                let count = terminal_slot_count.get();
+                                                let (count, rows, cols) = terminal_layout.get();
                                                 let aria = i18n
                                                     .tr(I18nKey::SbTerminalCountAria)()
                                                     .replace("{n}", &count.to_string());
                                                 let title = aria.clone();
+                                                let style = format!(
+                                                    "grid-template-columns:repeat({cols},1fr);grid-template-rows:repeat({rows},1fr);"
+                                                );
                                                 view! {
                                                     <span
-                                                        class="workbench-sidebar__terminal-count"
+                                                        class="workbench-sidebar__terminal-layout"
                                                         aria-label=aria
                                                         title=title
+                                                        style=style
                                                     >
-                                                        {count.to_string()}
+                                                        {(0..count).map(|_| view! {
+                                                            <span class="workbench-sidebar__terminal-layout-cell"></span>
+                                                        }).collect_view()}
                                                     </span>
                                                 }
                                             }}

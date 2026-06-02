@@ -129,20 +129,15 @@ pub fn WorkspaceTerminalCell(
         terminal_naming::display_label(mode, slot_id, override_name.as_deref(), &pool, &siblings)
     });
 
-    // Publish the live header title so the app title-bar breadcrumb can show
-    // the focused terminal: the OSC/auto title when present, otherwise the
-    // resolved slot label (slot number or friendly name per the naming mode).
+    // Publish the live title info so the app title-bar breadcrumb can show the
+    // focused terminal: its OSC/auto title (prefixed with the slot number to
+    // disambiguate identical titles), or the resolved slot label as fallback.
     {
         let terminal_key_title = terminal_key.clone();
         Effect::new(move |_| {
-            let dynamic = dynamic_title.get();
+            let auto = dynamic_title.get();
             let label = slot_label.get();
-            let title = if dynamic.trim().is_empty() {
-                label
-            } else {
-                dynamic
-            };
-            wb.set_terminal_title(terminal_key_title.clone(), title);
+            wb.set_terminal_title(terminal_key_title.clone(), slot_id, auto, label);
         });
     }
 

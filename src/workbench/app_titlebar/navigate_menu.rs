@@ -45,6 +45,15 @@ pub fn NavigateMenu() -> impl IntoView {
     });
 
     let has_workspace = move || wb.active_id().get().is_some();
+    let active_workspace_label = Memo::new(move |_| {
+        let active = wb.active_id().get()?;
+        wb.workspaces().with(|list| {
+            list.iter()
+                .find(|w| w.id == active)
+                .map(|w| w.title.trim().to_string())
+                .filter(|title| !title.is_empty())
+        })
+    });
 
     let go_tab = move |tab: RightPanelTab| {
         wb.set_right_tab(tab);
@@ -109,7 +118,14 @@ pub fn NavigateMenu() -> impl IntoView {
                         on:click=open_terminals
                     >
                         <LxIcon icon=icondata::LuTerminal width="0.95rem" height="0.95rem" />
-                        <span class="app-titlebar__menu-item-label">{move || i18n.tr(I18nKey::WsKwTerminal)()}</span>
+                        <span class="app-titlebar__menu-item-label">
+                            <span>{move || i18n.tr(I18nKey::WsKwTerminal)()}</span>
+                            <Show when=move || active_workspace_label.get().is_some()>
+                                <span class="app-titlebar__menu-item-workspace">
+                                    {move || active_workspace_label.get().map(|title| format!("({title})"))}
+                                </span>
+                            </Show>
+                        </span>
                     </button>
                     <button
                         type="button"
@@ -119,7 +135,14 @@ pub fn NavigateMenu() -> impl IntoView {
                         on:click=new_terminal
                     >
                         <LxIcon icon=icondata::LuPlus width="0.95rem" height="0.95rem" />
-                        <span class="app-titlebar__menu-item-label">{move || i18n.tr(I18nKey::TbNavNewTerminal)()}</span>
+                        <span class="app-titlebar__menu-item-label">
+                            <span>{move || i18n.tr(I18nKey::TbNavNewTerminal)()}</span>
+                            <Show when=move || active_workspace_label.get().is_some()>
+                                <span class="app-titlebar__menu-item-workspace">
+                                    {move || active_workspace_label.get().map(|title| format!("({title})"))}
+                                </span>
+                            </Show>
+                        </span>
                     </button>
                     <div class="app-titlebar__menu-sep" role="separator"></div>
                     <button

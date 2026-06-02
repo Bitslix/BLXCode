@@ -1,8 +1,6 @@
-//! Title-bar brand cluster: BLXCode logo + name + version badge.
+//! Title-bar brand cluster: BLXCode logo + name.
 //! Always BLXCode — never the BridgeMind reference shell it is modeled on.
 use leptos::prelude::*;
-
-const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[component]
 pub fn TitleBarBrand() -> impl IntoView {
@@ -10,7 +8,7 @@ pub fn TitleBarBrand() -> impl IntoView {
         <div
             class="app-titlebar__brand"
             data-tauri-drag-region=""
-            aria-label=format!("BLXCode v{APP_VERSION}")
+            aria-label="BLXCode"
         >
             <img
                 class="app-titlebar__brand-logo"
@@ -22,7 +20,6 @@ pub fn TitleBarBrand() -> impl IntoView {
                 draggable="false"
             />
             <span class="app-titlebar__brand-name">"BLXCode"</span>
-            <span class="app-titlebar__brand-version">{format!("v{APP_VERSION}")}</span>
         </div>
     }
 }

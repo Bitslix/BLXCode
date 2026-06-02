@@ -70,18 +70,6 @@
   color: var(--text-bright);
 }
 
-.app-titlebar__brand-version {
-  font-size: 0.62rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  color: var(--text-muted);
-  background: var(--overlay-2);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.05rem 0.35rem;
-  line-height: 1.2;
-}
-
 /* ---- Breadcrumb ---- */
 .app-titlebar__breadcrumb {
   display: flex;
@@ -111,9 +99,28 @@
 
 /* Live focused-terminal title — emphasized over the static tab crumb. */
 .app-titlebar__crumb--terminal {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
   color: var(--text);
   font-weight: 500;
-  max-width: 22ch;
+  max-width: 26ch;
+  min-width: 0;
+}
+
+/* Decent slot-number prefix so identical auto-titles stay distinguishable. */
+.app-titlebar__crumb-slot {
+  color: var(--text-faint);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.app-titlebar__crumb-term-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .app-titlebar__crumb-sep {
@@ -284,7 +291,20 @@
 
 .app-titlebar__menu-item-label {
   flex: 1 1 auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
   min-width: 0;
+}
+
+.app-titlebar__menu-item-workspace {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 15ch;
+  color: var(--text-faint);
+  font-size: 0.68rem;
 }
 
 .app-titlebar__menu-sep {
