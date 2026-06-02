@@ -23,6 +23,7 @@ use leptos::callback::{Callable, Callback};
 use leptos::html;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use wasm_bindgen::JsCast;
 use web_sys::{DragEvent, HtmlElement};
@@ -148,6 +149,8 @@ pub fn WorkspaceTerminalCell(
     // Lightweight header context menu (Rename / Reset name) — positioned at
     // the cursor. `None` when closed.
     let header_menu = RwSignal::new(None::<(i32, i32)>);
+    let header_menu_open = Arc::new(AtomicBool::new(false));
+    let header_menu_alive = Arc::new(AtomicBool::new(true));
     let has_name_override =
         Signal::derive(move || wb.slot_name_override(workspace_id, slot_id).is_some());
     Effect::new(move |_| {
@@ -416,15 +419,27 @@ pub fn WorkspaceTerminalCell(
 
     // Close the header context menu on any outside mousedown / Escape.
     let header_menu_close_handle =
-        leptos::leptos_dom::helpers::window_event_listener_untyped("mousedown", move |_| {
-            if header_menu.get_untracked().is_some() {
-                header_menu.set(None);
+        leptos::leptos_dom::helpers::window_event_listener_untyped("mousedown", {
+            let menu_open = header_menu_open.clone();
+            let alive = header_menu_alive.clone();
+            move |_| {
+                if alive.load(Ordering::Relaxed) && menu_open.swap(false, Ordering::Relaxed) {
+                    header_menu.set(None);
+                }
             }
         });
     let header_menu_escape_handle =
-        leptos::leptos_dom::helpers::window_event_listener_untyped("keydown", move |ev| {
-            if let Some(kev) = ev.dyn_ref::<web_sys::KeyboardEvent>() {
-                if kev.key() == "Escape" && header_menu.get_untracked().is_some() {
+        leptos::leptos_dom::helpers::window_event_listener_untyped("keydown", {
+            let menu_open = header_menu_open.clone();
+            let alive = header_menu_alive.clone();
+            move |ev| {
+                let Some(kev) = ev.dyn_ref::<web_sys::KeyboardEvent>() else {
+                    return;
+                };
+                if kev.key() == "Escape"
+                    && alive.load(Ordering::Relaxed)
+                    && menu_open.swap(false, Ordering::Relaxed)
+                {
                     header_menu.set(None);
                 }
             }
@@ -452,8 +467,10 @@ pub fn WorkspaceTerminalCell(
     on_cleanup({
         let state = state.clone();
         let terminal_key_cleanup = terminal_key.clone();
+        let header_menu_alive = header_menu_alive.clone();
         // Move handles into cleanup so they live until component unmount
         move || {
+            header_menu_alive.store(false, Ordering::Relaxed);
             drop(pty_input_handle);
             drop(pty_title_handle);
             drop(pty_resize_handle);
@@ -590,6 +607,7 @@ pub fn WorkspaceTerminalCell(
                 on:contextmenu=move |ev: web_sys::MouseEvent| {
                     ev.prevent_default();
                     ev.stop_propagation();
+                    header_menu_open.store(true, Ordering::Relaxed);
                     header_menu.set(Some((ev.client_x(), ev.client_y())));
                 }
                 on:mousedown={
