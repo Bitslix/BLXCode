@@ -3921,12 +3921,29 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .agent-tool-row {
-  display: inline-block;
-  max-width: min(100%, 24rem);
-  border-radius: 0.5rem;
-  border: 1px solid var(--overlay-2);
-  background: var(--overlay-1);
-  transition: background 120ms ease, border-color 120ms ease;
+  position: relative;
+  display: block;
+  width: min(100%, 26rem);
+  max-width: 100%;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+
+.agent-tool-row::before {
+  content: "";
+  position: absolute;
+  inset: 0.28rem auto 0.28rem 0;
+  width: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--overlay-3);
+  opacity: 0.72;
+  transition:
+    background 120ms ease,
+    opacity 120ms ease;
 }
 
 .agent-tool-row:hover {
@@ -3934,25 +3951,37 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .agent-tool-row--pending {
-  border-color: var(--text-muted);
+  background: color-mix(in srgb, var(--overlay-1) 74%, transparent);
+}
+
+.agent-tool-row--pending::before {
+  background: var(--text-muted);
 }
 
 .agent-tool-row--ok {
-  border-color: color-mix(in srgb, var(--accent) 46%, var(--border));
-  background: color-mix(in srgb, var(--accent-soft) 18%, var(--overlay-1));
+  background: color-mix(in srgb, var(--accent-soft) 12%, transparent);
+}
+
+.agent-tool-row--ok::before {
+  background: color-mix(in srgb, var(--accent) 70%, var(--overlay-3));
 }
 
 .agent-tool-row--fail {
-  border-color: var(--text-muted);
-  background: var(--danger-soft);
+  background: color-mix(in srgb, var(--danger-soft) 62%, transparent);
+}
+
+.agent-tool-row--fail::before {
+  background: var(--danger);
 }
 
 .agent-tool-row__head {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 0.42rem;
+  width: 100%;
   max-width: 100%;
-  padding: 0.26rem 0.46rem;
+  min-height: 1.65rem;
+  padding: 0.2rem 0.5rem 0.2rem 0.62rem;
   background: transparent;
   border: 0;
   color: inherit;
@@ -3971,15 +4000,15 @@ button.workbench-shortcut-row--action:focus-visible {
   justify-content: center;
   width: 1rem;
   height: 1rem;
-  border-radius: 0.28rem;
-  background: var(--overlay-1);
+  border-radius: var(--radius-xs);
+  background: transparent;
   color: var(--accent);
   flex: 0 0 auto;
 }
 
 .agent-tool-row--fail .agent-tool-row__icon {
   color: var(--danger);
-  background: var(--overlay-2);
+  background: transparent;
 }
 
 .agent-tool-row__label {
@@ -4023,7 +4052,7 @@ button.workbench-shortcut-row--action:focus-visible {
 
 .agent-tool-row__detail {
   margin: 0;
-  padding: 0 0.52rem 0.48rem 1.9rem;
+  padding: 0.08rem 0.58rem 0.52rem 2rem;
   font-family: var(--font-mono);
   font-size: 0.66rem;
   line-height: 1.5;
@@ -4035,7 +4064,7 @@ button.workbench-shortcut-row--action:focus-visible {
 .tool-row-paths {
   list-style: none;
   margin: 0;
-  padding: 0.1rem 0.52rem 0.48rem 1.9rem;
+  padding: 0.08rem 0.58rem 0.52rem 2rem;
   display: flex;
   flex-direction: column;
   gap: 0.18rem;
@@ -4075,26 +4104,23 @@ button.workbench-shortcut-row--action:focus-visible {
   font-weight: 600;
   color: var(--text);
   background: var(--overlay-2);
-  border: 1px solid var(--overlay-3);
+  border: 0;
   flex: 0 0 auto;
 }
 
 .agent-tool-row--merged.agent-tool-row--pending .agent-tool-row__count {
   color: var(--text-muted);
   background: var(--overlay-2);
-  border-color: var(--text-muted);
 }
 
 .agent-tool-row--merged.agent-tool-row--ok .agent-tool-row__count {
   color: var(--text);
   background: color-mix(in srgb, var(--accent-soft) 62%, var(--overlay-2));
-  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
 }
 
 .agent-tool-row--merged.agent-tool-row--fail .agent-tool-row__count {
   color: var(--danger);
   background: var(--overlay-2);
-  border-color: var(--text-muted);
 }
 
 .agent-chat-actions {

@@ -156,7 +156,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Agent tool activity styling**: successful tool rows now use subdued primary/accent theme colors instead of the previous bright success green, keeping model-round activity chrome quieter and better aligned with the active theme.
 
-- **Agent tool activity spacing**: tool-call boxes now keep breathing room from the chat pane edge and cap their maximum width, so model-round rows no longer stretch all the way to the right border.
+- **Agent tool activity rows**: tool calls now render as borderless, theme-radius tree-view rows with subtle status rails, hover fill, and nested guide lines inside model-round groups. The rows still keep breathing room from the chat pane edge and cap their maximum width, but no longer look like bordered input capsules.
 
 - **Themed confirmation dialog replaces native `window.confirm()`**: destructive remove actions (delete a plan, remove a skill, remove a rule) now open a themed in-app Leptos dialog with a danger-styled confirm button, Escape/scrim dismissal, and full i18n, instead of the browser-native "JavaScript — http://localhost:1420" prompt. The dialog is a single reusable `ConfirmDialog` component driven by a generic `ConfirmRequest` state on `HarnessUiService` (title, body, button labels, danger flag, `on_confirm` callback), so any future destructive action can reuse it. Removed the three per-card `confirm_window` helpers and added the `SrConfirmRemoveTitle` string across all 13 locales.
 
