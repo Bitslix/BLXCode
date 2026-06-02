@@ -148,7 +148,7 @@ pub fn run() {
                 .map_err(|e| format!("create app data dir {}: {e}", dir.display()))?;
             app_paths::init(dir);
             let log_state = app.state::<AppLogState>();
-            log_state.initialize()?;
+            log_state.initialize(&app.handle())?;
             Ok(())
         })
         .manage(AgentEngineState::new())

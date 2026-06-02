@@ -12,7 +12,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 const SETTINGS_FILE: &str = "app_logging_settings.json";
 const DEFAULT_LOG_FILE: &str = "blxcode.log";
@@ -63,7 +63,7 @@ impl Default for AppLogState {
 }
 
 impl AppLogState {
-    pub fn initialize(&self) -> Result<AppLogSettingsView, String> {
+    pub fn initialize(&self, app: &AppHandle) -> Result<AppLogSettingsView, String> {
         let settings = load_settings()?;
         let view = settings_view(&settings)?;
         self.open_path(PathBuf::from(&view.effective_log_path), true)?;
@@ -71,7 +71,15 @@ impl AppLogState {
             "info",
             "backend",
             "app_start",
-            json!({ "logPath": view.effective_log_path }),
+            json!({
+                "logPath": view.effective_log_path,
+                "appVersion": app.package_info().version.to_string(),
+                "appName": app.package_info().name,
+                "os": std::env::consts::OS,
+                "arch": std::env::consts::ARCH,
+                "family": std::env::consts::FAMILY,
+                "target": format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH),
+            }),
         )?;
         Ok(view)
     }
@@ -234,6 +242,18 @@ pub fn log_frontend_console(
     message: String,
 ) -> Result<(), String> {
     state.write_event(level, "frontend", "console", json!({ "message": message }))
+}
+
+pub fn write_app_event(
+    app: &AppHandle,
+    level: impl AsRef<str>,
+    source: impl AsRef<str>,
+    event: impl AsRef<str>,
+    metadata: Value,
+) {
+    if let Some(state) = app.try_state::<AppLogState>() {
+        let _ = state.write_event(level, source, event, metadata);
+    }
 }
 
 fn settings_path() -> Result<PathBuf, String> {
