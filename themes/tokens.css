@@ -1,10 +1,161 @@
 /*
- * blxcode — global theme tokens (20 app themes)
- * Default / blxcode-dark matches styles.css :root color tokens 1:1; extended tokens complete the set.
+ * blxcode — global theme tokens (32 app themes)
+ * Default / blxcode-dark is the flagship BLXCode look: a Tokyo Night night-blue
+ * base fused with Dracula's purple/pink/cyan accents. The previous default lives
+ * on as blxcode-legacy-dark / blxcode-legacy-light.
  */
 
 :root,
 [data-theme="blxcode-dark"] {
+  color-scheme: dark;
+
+  --bg-app: #16161e;
+  --bg-raised: #1a1b26;
+  --bg-panel: #1f2030;
+  --bg-panel-header: #24263a;
+
+  --border: rgba(189, 200, 245, 0.09);
+  --border-strong: rgba(189, 200, 245, 0.16);
+  --border-focus: #bd93f9;
+
+  --text: #c8d3f5;
+  --text-muted: #a9b1d6;
+  --text-faint: #565f89;
+  --text-bright: #f8f8f2;
+
+  --accent: #bd93f9;
+  --accent-hover: #cda9fb;
+  --accent-soft: rgba(189, 147, 249, 0.18);
+  --accent-cool: #7dcfff;
+  --accent-cool-soft: rgba(125, 207, 255, 0.12);
+
+  --syntax-type: #8be9fd;
+  --syntax-keyword: #ff79c6;
+
+  --font-mono: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, "SF Mono", Menlo, ui-monospace, monospace;
+
+  --overlay-1: rgba(189, 200, 245, 0.04);
+  --overlay-2: rgba(189, 200, 245, 0.07);
+  --overlay-3: rgba(189, 200, 245, 0.1);
+  --overlay-4: rgba(189, 200, 245, 0.14);
+  --overlay-5: rgba(189, 200, 245, 0.2);
+  --overlay-6: rgba(189, 200, 245, 0.28);
+
+  --danger: #ff5555;
+  --danger-soft: rgba(255, 85, 85, 0.2);
+  --warning: #ffb86c;
+  --success: #50fa7b;
+
+  --term-fg: #c8d3f5;
+  --term-bg: #16161e;
+  --term-surface: #1f2030;
+  --term-cursor: #bd93f9;
+
+  --on-accent: #16161e;
+  --scrim-bg: rgba(0, 0, 0, 0.56);
+
+  --agent-claude: #ffb86c;
+  --agent-codex: #50fa7b;
+  --agent-gemini: #7aa2f7;
+  --agent-copilot: #bd93f9;
+  --agent-cursor: #ff79c6;
+
+  --git-lane-0: #bd93f9;
+  --git-lane-1: #7dcfff;
+  --git-lane-2: #50fa7b;
+  --git-lane-3: #ffb86c;
+  --git-lane-4: #ff5555;
+  --git-lane-5: #7aa2f7;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 88%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 10%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: color-mix(in srgb, var(--success) 75%, var(--text));
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 32%, transparent);
+  --danger-text-soft: color-mix(in srgb, var(--danger) 70%, var(--text));
+  --hook-brand-bg: color-mix(in srgb, var(--text-bright) 92%, transparent);
+  --hook-brand-fg: var(--bg-app);
+}
+
+[data-theme="blxcode-light"] {
+  color-scheme: light;
+
+  --bg-app: #e6e7f0;
+  --bg-raised: #dcdeea;
+  --bg-panel: #f4f4fb;
+  --bg-panel-header: #e4e5f1;
+
+  --border: rgba(86, 95, 137, 0.12);
+  --border-strong: rgba(86, 95, 137, 0.2);
+  --border-focus: #8839ef;
+
+  --text: #3a3a5c;
+  --text-muted: #6c6f93;
+  --text-faint: #8d90b3;
+  --text-bright: #1f1d3a;
+
+  --accent: #8839ef;
+  --accent-hover: #7530d6;
+  --accent-soft: rgba(136, 57, 239, 0.12);
+  --accent-cool: #1a8fb8;
+  --accent-cool-soft: rgba(26, 143, 184, 0.1);
+
+  --syntax-type: #1a8fb8;
+  --syntax-keyword: #d3318e;
+
+  --overlay-1: rgba(86, 95, 137, 0.04);
+  --overlay-2: rgba(86, 95, 137, 0.06);
+  --overlay-3: rgba(86, 95, 137, 0.09);
+  --overlay-4: rgba(86, 95, 137, 0.12);
+  --overlay-5: rgba(86, 95, 137, 0.16);
+  --overlay-6: rgba(86, 95, 137, 0.24);
+
+  --danger: #d6336c;
+  --danger-soft: rgba(214, 51, 108, 0.12);
+  --warning: #b07d18;
+  --success: #2f9e5e;
+
+  --term-fg: #3a3a5c;
+  --term-bg: #f4f4fb;
+  --term-surface: #e6e7f0;
+  --term-cursor: #8839ef;
+
+  --on-accent: #ffffff;
+  --scrim-bg: rgba(31, 29, 58, 0.35);
+
+  --agent-claude: #b25d2e;
+  --agent-codex: #2f9e5e;
+  --agent-gemini: #2e7de9;
+  --agent-copilot: #8839ef;
+  --agent-cursor: #d3318e;
+
+  --git-lane-0: #8839ef;
+  --git-lane-1: #1a8fb8;
+  --git-lane-2: #2f9e5e;
+  --git-lane-3: #b07d18;
+  --git-lane-4: #d6336c;
+  --git-lane-5: #2e7de9;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 90%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 12%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: var(--success);
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
+  --danger-text-soft: var(--danger);
+  --hook-brand-bg: var(--bg-panel);
+  --hook-brand-fg: var(--text);
+}
+
+/* BLXCode Legacy — the original GitHub-blue workbench (previous default) */
+[data-theme="blxcode-legacy-dark"] {
   color-scheme: dark;
 
   --bg-app: #090a0d;
@@ -29,8 +180,6 @@
 
   --syntax-type: #63e6be;
   --syntax-keyword: #f2a3ff;
-
-  --font-mono: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, "SF Mono", Menlo, ui-monospace, monospace;
 
   --overlay-1: rgba(255, 255, 255, 0.04);
   --overlay-2: rgba(255, 255, 255, 0.07);
@@ -80,7 +229,7 @@
   --hook-brand-fg: #14161d;
 }
 
-[data-theme="blxcode-light"] {
+[data-theme="blxcode-legacy-light"] {
   color-scheme: light;
 
   --bg-app: #f6f8fc;
