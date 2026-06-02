@@ -12,7 +12,7 @@ const BASE_ROTATION = {
   y: -Math.PI / 2 + 0.08,
   z: -0.02,
 };
-const MODEL_Y_OFFSET = 0.88;
+const MODEL_Y_OFFSET = 0.34;
 
 function clamp(value, min = -1, max = 1) {
   return Math.max(min, Math.min(max, value));
@@ -116,7 +116,7 @@ function fitModelToGroup(model, group) {
   box.getCenter(center);
   const maxSide = Math.max(size.x, size.y, size.z) || 1;
   model.position.sub(center);
-  model.scale.setScalar(2.48 / maxSide);
+  model.scale.setScalar(2.28 / maxSide);
   group.add(model);
 }
 
@@ -166,7 +166,7 @@ function create(container) {
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 100);
-  camera.position.set(0, 0.12, 5.65);
+  camera.position.set(0, 0.12, 6.9);
   camera.lookAt(0, 0, 0);
 
   const group = new THREE.Group();
@@ -317,7 +317,7 @@ function resize(id) {
   const height = Math.max(1, Math.floor(rect.height || rec.container.clientHeight || 1));
   rec.renderer.setSize(width, height, false);
   rec.camera.aspect = width / height;
-  rec.camera.position.z = width < 64 ? 6.25 : 5.65;
+  rec.camera.position.z = width < 64 ? 7.1 : 6.9;
   rec.camera.updateProjectionMatrix();
   return true;
 }

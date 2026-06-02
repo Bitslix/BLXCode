@@ -2549,7 +2549,7 @@ button.workbench-shortcut-row--action:focus-visible {
   width: 100%;
   height: 100%;
   border-radius: inherit;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .drobo-orb__stage {
@@ -2562,8 +2562,8 @@ button.workbench-shortcut-row--action:focus-visible {
 
 .drobo-orb__canvas {
   display: block;
-  width: 100%;
-  height: 100%;
+  width: 110%;
+  height: 110%;
   pointer-events: none;
 }
 
@@ -2663,7 +2663,7 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .agent-hero--compact .drobo-orb__stage {
-  inset: -0.28rem;
+  inset: -0.18rem;
 }
 
 .agent-hero--compact .drobo-orb__state {
