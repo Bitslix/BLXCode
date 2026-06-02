@@ -268,19 +268,16 @@ pub fn AgentSessionStats(
                 />
                 <StatsRow
                     icon=icondata::LuUser
-                    label=Signal::derive(move || i18n.tr(I18nKey::AgStatsUserTurns)().to_string())
-                    value=Signal::derive(move || stats.get().user_turns.to_string())
+                    label=Signal::derive(move || i18n.tr(I18nKey::AgStatsTurns)().to_string())
+                    value=Signal::derive(move || {
+                        let s = stats.get();
+                        format!("User: {} / Model: {}", s.user_turns, s.model_turns)
+                    })
                 />
                 <StatsRow
-                    icon=icondata::LuBot
-                    label=Signal::derive(move || i18n.tr(I18nKey::AgStatsModelTurns)().to_string())
-                    value=Signal::derive(move || stats.get().model_turns.to_string())
-                />
-                <ToolStatsRow
+                    icon=icondata::LuWrench
                     label=Signal::derive(move || i18n.tr(I18nKey::AgStatsToolCalls)().to_string())
                     value=Signal::derive(move || stats.get().tool_total.to_string())
-                    stats=stats
-                    i18n=i18n
                 />
                 <SubagentsStatsRow
                     label=Signal::derive(move || i18n.tr(I18nKey::AgStatsSubagents)().to_string())
@@ -348,37 +345,6 @@ fn ContextStatsRow(
                 <span>{move || value.get()}</span>
                 <span class="agent-session-stats__meter" aria-hidden="true">
                     <span class=level_class style=move || format!("width:{}%", fill_pct())></span>
-                </span>
-            </span>
-        </div>
-    }
-}
-
-#[component]
-fn ToolStatsRow(
-    label: Signal<String>,
-    value: Signal<String>,
-    stats: Memo<SessionStats>,
-    i18n: I18nService,
-) -> impl IntoView {
-    view! {
-        <div class="agent-session-stats__row agent-session-stats__row--tools">
-            <span class="agent-session-stats__icon" aria-hidden="true">
-                <LxIcon icon=icondata::LuWrench width="0.78rem" height="0.78rem" />
-            </span>
-            <span class="agent-session-stats__label">{move || label.get()}</span>
-            <span class="agent-session-stats__value agent-session-stats__value--tools">
-                <strong>{move || value.get()}</strong>
-                <span class="agent-session-stats__badges" aria-hidden="true">
-                    {move || {
-                        let s = stats.get();
-                        view! {
-                            <span>{s.open} <em>{i18n.tr(I18nKey::AgStatsOpen)()}</em></span>
-                            <span>{s.read} <em>{i18n.tr(I18nKey::AgStatsRead)()}</em></span>
-                            <span>{s.edit} <em>{i18n.tr(I18nKey::AgStatsEdit)()}</em></span>
-                            <span>{s.rm} <em>{i18n.tr(I18nKey::AgStatsRm)()}</em></span>
-                        }
-                    }}
                 </span>
             </span>
         </div>

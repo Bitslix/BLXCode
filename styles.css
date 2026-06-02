@@ -2842,7 +2842,6 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .agent-session-stats__value--context,
-.agent-session-stats__value--tools,
 .agent-session-stats__value--subagents {
   display: inline-flex;
   align-items: center;
@@ -2874,37 +2873,6 @@ button.workbench-shortcut-row--action:focus-visible {
 
 .agent-session-stats__meter-fill--danger {
   background: var(--danger);
-}
-
-.agent-session-stats__badges {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.22rem;
-  min-width: 0;
-}
-
-.agent-session-stats__badges span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.12rem;
-  min-width: 0;
-  padding: 0.1rem 0.25rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg-app);
-  color: var(--text);
-  font-size: 0.64rem;
-  font-weight: 760;
-}
-
-.agent-session-stats__badges em {
-  max-width: 2.2rem;
-  overflow: hidden;
-  color: var(--text-muted);
-  font-style: normal;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .agent-session-stats__subagent-chips {
@@ -3049,29 +3017,6 @@ button.workbench-shortcut-row--action:focus-visible {
   align-items: center;
   gap: 0.42rem;
   flex-shrink: 0;
-}
-
-.agent-chat-head__cost {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.3rem;
-  margin-left: 0.6rem;
-  padding: 0.12rem 0.45rem;
-  border-radius: var(--radius-pill);
-  background: var(--overlay-2);
-  font-family: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
-  font-size: 0.7rem;
-  line-height: 1.2;
-  color: var(--text-muted, var(--text-muted));
-}
-
-.agent-chat-head__cost strong {
-  color: var(--accent, var(--accent-cool));
-  font-weight: 600;
-}
-
-.agent-chat-head__cost-sep {
-  opacity: 0.5;
 }
 
 .agent-chat-head__icon-btn,

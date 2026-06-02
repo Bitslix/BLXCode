@@ -400,6 +400,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgStatsStartedTip => "Local start time of the current session.",
         I18nKey::AgStatsContext => "Context",
         I18nKey::AgStatsContextTip => "Latest prompt size against the active context window.",
+        I18nKey::AgStatsTurns => "Turns",
         I18nKey::AgStatsUserTurns => "User turns",
         I18nKey::AgStatsUserTurnsTip => "User submissions currently visible in this session.",
         I18nKey::AgStatsModelTurns => "Model turns",

@@ -416,6 +416,7 @@ pub enum I18nKey {
     AgStatsStartedTip,
     AgStatsContext,
     AgStatsContextTip,
+    AgStatsTurns,
     AgStatsUserTurns,
     AgStatsUserTurnsTip,
     AgStatsModelTurns,

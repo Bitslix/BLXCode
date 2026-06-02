@@ -21,7 +21,7 @@ use crate::tauri_bridge::{
 };
 use crate::workbench::agent_panel::client_tools::maybe_handle_client_tool;
 use crate::workbench::agent_panel::context_list::ContextSection;
-use crate::workbench::agent_panel::context_meter::{fmt_tokens, ContextMeter};
+use crate::workbench::agent_panel::context_meter::fmt_tokens;
 use crate::workbench::agent_panel::image_context::{
     clear_drop_state, handle_dom_drag_event, handle_dom_drop, install_agent_image_intake,
     DropZoneState,
@@ -428,8 +428,6 @@ pub fn AgentPanelDock() -> impl IntoView {
             >
                 <div class="agent-section__head agent-chat-head">
                     <h3>{move || i18n.tr(I18nKey::AgChatHeading)()}</h3>
-                    <SessionCostChip wb=wb />
-                    <ContextMeter wb=wb context_length=context_length />
                     <div class="agent-chat-head__actions">
                         <button
                             type="button"
@@ -842,45 +840,4 @@ fn transient_agent_context_ids(items: &[crate::agent_wire::AgentContextItem]) ->
         })
         .map(|item| item.id.clone())
         .collect()
-}
-
-/// Compact session-cost chip rendered in the chat header. Replaces the
-/// retired `ChatUsageFooter`. Shows the resolved USD total + turn count;
-/// hidden until the first `TurnUsage` event lands.
-#[component]
-fn SessionCostChip(wb: WorkbenchService) -> impl IntoView {
-    use crate::workbench::agent_panel::turn_metrics_bar::fmt_cost;
-    let i18n = expect_context::<I18nService>();
-    let stats = Memo::new(move |_| {
-        let id = wb.active_id().get()?;
-        let s = wb.chat_usage_for_workspace(id);
-        if s.turn_count == 0 {
-            None
-        } else {
-            Some(s)
-        }
-    });
-
-    let aria = move || lookup(i18n.locale().get(), I18nKey::AgSessionCostAria).to_string();
-    view! {
-        <Show when=move || stats.with(|s| s.is_some())>
-            <div class="agent-chat-head__cost" aria-label=aria>
-                {move || {
-                    let s = stats.get().expect("Show gate");
-                    let cost = fmt_cost(s.total_cost_usd);
-                    let turns = s.turn_count;
-                    let loc = i18n.locale().get();
-                    let turn_label = lookup(
-                        loc,
-                        if turns == 1 { I18nKey::AgMetricsTurnsOne } else { I18nKey::AgMetricsTurnsMany },
-                    );
-                    view! {
-                        <strong>{cost}</strong>
-                        <span class="agent-chat-head__cost-sep">"·"</span>
-                        <span>{format!("{turns} {turn_label}")}</span>
-                    }
-                }}
-            </div>
-        </Show>
-    }
 }
