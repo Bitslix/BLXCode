@@ -14,8 +14,9 @@ use super::update_service::{UpdateService, UpdateUiStatus};
 use crate::i18n::{lookup, I18nKey, Locale, APP_LOCALES};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_hooks_status, install_agent_hooks, is_tauri_shell, list_workspace_files,
-    uninstall_agent_hooks, AgentHooksReport,
+    agent_hooks_status, app_log_clear, app_log_delete, app_log_settings_get, app_log_settings_save,
+    install_agent_hooks, is_tauri_shell, list_workspace_files, uninstall_agent_hooks,
+    AgentHooksReport, AppLogSettingsView,
 };
 use gloo_timers::future::TimeoutFuture;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
@@ -901,6 +902,15 @@ pub fn SettingsDock(
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
 
+    Effect::new(move |_| {
+        let category = format!("{:?}", ui.settings_category().get());
+        crate::app_log::info(
+            "settings",
+            "category_opened",
+            serde_json::json!({ "category": category }),
+        );
+    });
+
     view! {
         <div class="harness-settings-grid harness-settings-grid--docked">
             <nav class="harness-settings-cats" aria-label=move || i18n.tr(I18nKey::HsAriaCats)()>
@@ -1200,6 +1210,9 @@ fn AppSettingsPane() -> impl IntoView {
                 <AgentHooksPanel />
             </section>
             <section class="harness-subpane">
+                <AppLoggingPanel />
+            </section>
+            <section class="harness-subpane">
                 <h4 class="harness-pane-subhead">
                     <span class="harness-pane-subhead__icon" aria-hidden="true">
                         <LxIcon icon=icondata::LuRefreshCw width="0.82rem" height="0.82rem" />
@@ -1275,6 +1288,217 @@ fn AppSettingsPane() -> impl IntoView {
 }
 
 #[component]
+fn AppLoggingPanel() -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let view_state: RwSignal<Option<AppLogSettingsView>> = RwSignal::new(None);
+    let draft_path = RwSignal::new(String::new());
+    let busy = RwSignal::new(false);
+    let error: RwSignal<Option<String>> = RwSignal::new(None);
+    let status: RwSignal<Option<I18nKey>> = RwSignal::new(None);
+
+    let apply_view = move |view: AppLogSettingsView| {
+        draft_path.set(
+            view.log_path
+                .clone()
+                .unwrap_or_else(|| view.effective_log_path.clone()),
+        );
+        view_state.set(Some(view));
+    };
+
+    Effect::new(move |_| {
+        if !is_tauri_shell() {
+            error.set(Some(i18n.tr(I18nKey::AppLogUnavailable)().to_string()));
+            return;
+        }
+        leptos::task::spawn_local(async move {
+            match app_log_settings_get().await {
+                Ok(view) => {
+                    apply_view(view);
+                    error.set(None);
+                }
+                Err(e) => error.set(Some(e)),
+            }
+        });
+    });
+
+    let save = move |_| {
+        if busy.get_untracked() || !is_tauri_shell() {
+            return;
+        }
+        let raw = draft_path.get_untracked();
+        let default_path = view_state
+            .get_untracked()
+            .map(|v| v.default_log_path)
+            .unwrap_or_default();
+        let trimmed = raw.trim().to_string();
+        let next = if trimmed.is_empty() || trimmed == default_path {
+            None
+        } else {
+            Some(trimmed)
+        };
+        busy.set(true);
+        status.set(None);
+        error.set(None);
+        leptos::task::spawn_local(async move {
+            match app_log_settings_save(next).await {
+                Ok(view) => {
+                    apply_view(view);
+                    status.set(Some(I18nKey::AppLogSaved));
+                }
+                Err(e) => error.set(Some(e)),
+            }
+            busy.set(false);
+        });
+    };
+
+    let reset_default = move |_| {
+        if busy.get_untracked() || !is_tauri_shell() {
+            return;
+        }
+        busy.set(true);
+        status.set(None);
+        error.set(None);
+        leptos::task::spawn_local(async move {
+            match app_log_settings_save(None).await {
+                Ok(view) => {
+                    apply_view(view);
+                    status.set(Some(I18nKey::AppLogSaved));
+                }
+                Err(e) => error.set(Some(e)),
+            }
+            busy.set(false);
+        });
+    };
+
+    let clear_log = move |_| {
+        if busy.get_untracked() || !is_tauri_shell() {
+            return;
+        }
+        busy.set(true);
+        status.set(None);
+        error.set(None);
+        leptos::task::spawn_local(async move {
+            match app_log_clear().await {
+                Ok(()) => status.set(Some(I18nKey::AppLogCleared)),
+                Err(e) => error.set(Some(e)),
+            }
+            busy.set(false);
+        });
+    };
+
+    let delete_log = move |_| {
+        if busy.get_untracked() || !is_tauri_shell() {
+            return;
+        }
+        busy.set(true);
+        status.set(None);
+        error.set(None);
+        leptos::task::spawn_local(async move {
+            match app_log_delete().await {
+                Ok(()) => status.set(Some(I18nKey::AppLogDeleted)),
+                Err(e) => error.set(Some(e)),
+            }
+            busy.set(false);
+        });
+    };
+
+    view! {
+        <h4 class="harness-pane-subhead">
+            <span class="harness-pane-subhead__icon" aria-hidden="true">
+                <LxIcon icon=icondata::LuFileText width="0.82rem" height="0.82rem" />
+            </span>
+            <span>{move || i18n.tr(I18nKey::AppLogHeading)()}</span>
+        </h4>
+        <label class="harness-stack">
+            <span class="harness-field-label">
+                <span class="harness-field-label__icon" aria-hidden="true">
+                    <LxIcon icon=icondata::LuFileCog width="0.82rem" height="0.82rem" />
+                </span>
+                <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AppLogPathLabel)()}</span>
+            </span>
+            <input
+                class="workbench-plain-input"
+                type="text"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder=move || i18n.tr(I18nKey::AppLogPathPlaceholder)()
+                prop:value=move || draft_path.get()
+                on:input=move |ev| {
+                    if let Some(value) = input_str(&ev) {
+                        draft_path.set(value);
+                    }
+                }
+            />
+        </label>
+        <p class="app-prefs-hint">
+            {move || {
+                let default_path = view_state
+                    .get()
+                    .map(|v| v.default_log_path)
+                    .unwrap_or_default();
+                if default_path.is_empty() {
+                    i18n.tr(I18nKey::AppLogDefaultPathHint)().to_string()
+                } else {
+                    format!("{} {}", i18n.tr(I18nKey::AppLogDefaultPathHint)(), default_path)
+                }
+            }}
+        </p>
+        <div class="app-log-actions">
+            <button
+                type="button"
+                class="workbench-mini-btn workbench-mini-btn--primary"
+                on:click=save
+                prop:disabled=move || busy.get() || !is_tauri_shell()
+            >
+                <span class="harness-btn-inline">
+                    <LxIcon icon=icondata::LuSave width="0.82rem" height="0.82rem" />
+                    <span>{move || i18n.tr(I18nKey::AppLogSave)()}</span>
+                </span>
+            </button>
+            <button
+                type="button"
+                class="workbench-mini-btn"
+                on:click=reset_default
+                prop:disabled=move || busy.get() || !is_tauri_shell()
+            >
+                <span class="harness-btn-inline">
+                    <LxIcon icon=icondata::LuRotateCcw width="0.82rem" height="0.82rem" />
+                    <span>{move || i18n.tr(I18nKey::AppLogResetDefault)()}</span>
+                </span>
+            </button>
+            <button
+                type="button"
+                class="workbench-mini-btn"
+                on:click=clear_log
+                prop:disabled=move || busy.get() || !is_tauri_shell()
+            >
+                <span class="harness-btn-inline">
+                    <LxIcon icon=icondata::LuEraser width="0.82rem" height="0.82rem" />
+                    <span>{move || i18n.tr(I18nKey::AppLogClear)()}</span>
+                </span>
+            </button>
+            <button
+                type="button"
+                class="workbench-mini-btn"
+                on:click=delete_log
+                prop:disabled=move || busy.get() || !is_tauri_shell()
+            >
+                <span class="harness-btn-inline">
+                    <LxIcon icon=icondata::LuTrash2 width="0.82rem" height="0.82rem" />
+                    <span>{move || i18n.tr(I18nKey::AppLogDelete)()}</span>
+                </span>
+            </button>
+        </div>
+        <Show when=move || status.get().is_some()>
+            <p class="app-prefs-hint">{move || status.get().map(|k| i18n.tr(k)()).unwrap_or_default()}</p>
+        </Show>
+        <Show when=move || error.get().is_some()>
+            <p class="harness-error-text">{move || error.get().unwrap_or_default()}</p>
+        </Show>
+    }
+}
+
+#[component]
 fn ApiKeysSettingsPane() -> impl IntoView {
     view! { <crate::workbench::ApiKeysPane /> }
 }
@@ -1321,8 +1545,22 @@ fn AgentHooksPanel() -> impl IntoView {
         error.set(None);
         leptos::task::spawn_local(async move {
             match install_agent_hooks().await {
-                Ok(r) => report.set(Some(r)),
-                Err(e) => error.set(Some(e)),
+                Ok(r) => {
+                    crate::app_log::info(
+                        "settings",
+                        "agent_hooks_installed",
+                        serde_json::json!({ "entries": r.entries.len() }),
+                    );
+                    report.set(Some(r));
+                }
+                Err(e) => {
+                    crate::app_log::error(
+                        "settings",
+                        "agent_hooks_install_failed",
+                        serde_json::json!({ "error": e.clone() }),
+                    );
+                    error.set(Some(e));
+                }
             }
             busy.set(false);
         });
@@ -1336,8 +1574,22 @@ fn AgentHooksPanel() -> impl IntoView {
         error.set(None);
         leptos::task::spawn_local(async move {
             match uninstall_agent_hooks().await {
-                Ok(r) => report.set(Some(r)),
-                Err(e) => error.set(Some(e)),
+                Ok(r) => {
+                    crate::app_log::info(
+                        "settings",
+                        "agent_hooks_uninstalled",
+                        serde_json::json!({ "entries": r.entries.len() }),
+                    );
+                    report.set(Some(r));
+                }
+                Err(e) => {
+                    crate::app_log::error(
+                        "settings",
+                        "agent_hooks_uninstall_failed",
+                        serde_json::json!({ "error": e.clone() }),
+                    );
+                    error.set(Some(e));
+                }
             }
             busy.set(false);
         });

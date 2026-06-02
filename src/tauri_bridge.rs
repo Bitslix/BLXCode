@@ -86,6 +86,59 @@ pub async fn agent_clear_conversation() -> Result<(), String> {
     invoke_unit_js("agent_clear_conversation", JsValue::UNDEFINED).await
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppLogSettingsView {
+    pub log_path: Option<String>,
+    pub default_log_path: String,
+    pub effective_log_path: String,
+}
+
+pub async fn app_log_settings_get() -> Result<AppLogSettingsView, String> {
+    invoke_typed("app_log_settings_get", serde_json::json!({})).await
+}
+
+pub async fn app_log_settings_save(log_path: Option<String>) -> Result<AppLogSettingsView, String> {
+    #[derive(Serialize)]
+    struct Args {
+        log_path: Option<String>,
+    }
+    invoke_typed("app_log_settings_save", Args { log_path }).await
+}
+
+pub async fn app_log_event(
+    level: String,
+    source: String,
+    event: String,
+    metadata: serde_json::Value,
+) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        level: String,
+        source: String,
+        event: String,
+        metadata: serde_json::Value,
+    }
+    invoke_unit_js(
+        "app_log_event",
+        args_value(Args {
+            level,
+            source,
+            event,
+            metadata,
+        })?,
+    )
+    .await
+}
+
+pub async fn app_log_clear() -> Result<(), String> {
+    invoke_unit_js("app_log_clear", JsValue::UNDEFINED).await
+}
+
+pub async fn app_log_delete() -> Result<(), String> {
+    invoke_unit_js("app_log_delete", JsValue::UNDEFINED).await
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentImageFilePayload {

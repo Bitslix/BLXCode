@@ -254,6 +254,10 @@ pub fn WorkbenchShell() -> impl IntoView {
     provide_context(slot_dnd);
     provide_context(git_sync);
 
+    Effect::new(move |_| {
+        crate::app_log::info("workbench", "mounted", serde_json::json!({}));
+    });
+
     let ptt_bus = ptt_runtime::PttBus::default();
     provide_context(ptt_bus);
 
@@ -271,12 +275,22 @@ pub fn WorkbenchShell() -> impl IntoView {
             match workbench_load_state().await {
                 Err(err) => {
                     leptos::logging::error!("failed to load workbench state: {err}");
+                    crate::app_log::error(
+                        "workbench",
+                        "state_load_failed",
+                        serde_json::json!({ "error": err }),
+                    );
                     allow_save = false;
                 }
                 Ok(None) => {}
                 Ok(Some(json)) => match serde_json::from_str::<WorkbenchSnapshot>(&json) {
                     Err(err) => {
                         leptos::logging::error!("failed to parse workbench state: {err}");
+                        crate::app_log::error(
+                            "workbench",
+                            "state_parse_failed",
+                            serde_json::json!({ "error": err.to_string() }),
+                        );
                         allow_save = false;
                     }
                     Ok(mut snap) => {
@@ -303,6 +317,14 @@ pub fn WorkbenchShell() -> impl IntoView {
                     wb.persist_default_project_dir(home);
                 }
             }
+            crate::app_log::info(
+                "workbench",
+                "hydrated",
+                serde_json::json!({
+                    "persistenceEnabled": allow_save,
+                    "workspaces": wb.workspaces().with_untracked(|items| items.len()),
+                }),
+            );
             persistence_enabled.set(allow_save);
             hydrated.set(true);
         });

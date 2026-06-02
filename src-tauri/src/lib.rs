@@ -3,6 +3,7 @@ mod agent_hooks;
 mod agent_settings;
 mod agents_layout;
 mod api_keys;
+mod app_logging;
 mod app_paths;
 mod browser_host;
 mod clipboard;
@@ -43,6 +44,10 @@ use agent_settings::{
     agent_settings_get, agent_settings_save, agent_validate_nickname,
 };
 use api_keys::{api_keys_apply, api_keys_status};
+use app_logging::{
+    app_log_clear, app_log_delete, app_log_event, app_log_settings_get, app_log_settings_save,
+    AppLogState,
+};
 use browser_host::BrowserHost;
 use clipboard::{clipboard_read_text, clipboard_write_text};
 use commands::*;
@@ -83,8 +88,13 @@ fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
-fn frontend_console_log(level: String, message: String) {
+fn frontend_console_log(
+    state: tauri::State<'_, AppLogState>,
+    level: String,
+    message: String,
+) -> Result<(), String> {
     eprintln!("[frontend:{level}] {message}");
+    app_logging::log_frontend_console(state, level, message)
 }
 
 #[tauri::command]
@@ -128,6 +138,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(AppLogState::default())
         .setup(|app| {
             let dir = app
                 .path()
@@ -136,6 +147,8 @@ pub fn run() {
             std::fs::create_dir_all(&dir)
                 .map_err(|e| format!("create app data dir {}: {e}", dir.display()))?;
             app_paths::init(dir);
+            let log_state = app.state::<AppLogState>();
+            log_state.initialize()?;
             Ok(())
         })
         .manage(AgentEngineState::new())
@@ -153,6 +166,11 @@ pub fn run() {
             open_external_url,
             greet,
             frontend_console_log,
+            app_log_settings_get,
+            app_log_settings_save,
+            app_log_event,
+            app_log_clear,
+            app_log_delete,
             exit_app,
             window_controls::window_minimize,
             window_controls::window_toggle_maximize,

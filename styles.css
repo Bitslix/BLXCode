@@ -2089,6 +2089,12 @@ button.workbench-shortcut-row--action:focus-visible {
   margin: 0 0 0 1.55rem;
 }
 
+.app-log-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
 .app-prefs-version {
   margin: 0.35rem 0 0.1rem;
   display: flex;

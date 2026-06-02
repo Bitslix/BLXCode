@@ -196,14 +196,25 @@ pub fn install_ptt_runtime(
             let err_no_mic = i18n.tr(I18nKey::VoiceErrNoMic)().to_string();
             let toast_for_start = toast;
             spawn_local(async move {
+                crate::app_log::info("voice", "ptt_start_requested", serde_json::json!({}));
                 match ptt_start().await {
                     Ok(resp) if resp.started => {
+                        crate::app_log::info(
+                            "voice",
+                            "ptt_started",
+                            serde_json::json!({ "decision": resp.decision }),
+                        );
                         if resp.decision == "stopTts" || resp.decision == "pauseTts" {
                             let _ = voice_tts_playing(false).await;
                         }
                         *turn_for_start.borrow_mut() = resp.turn_id;
                     }
                     Ok(resp) => {
+                        crate::app_log::warn(
+                            "voice",
+                            "ptt_rejected",
+                            serde_json::json!({ "decision": resp.decision }),
+                        );
                         // Rejected (busy or TTS playing): reset and hint.
                         *active_for_start.borrow_mut() = false;
                         bus.recording.set(false);
@@ -215,7 +226,12 @@ pub fn install_ptt_runtime(
                         toast_for_start.error(hint.clone());
                         bus.hint.set(Some(hint));
                     }
-                    Err(_) => {
+                    Err(err) => {
+                        crate::app_log::error(
+                            "voice",
+                            "ptt_start_failed",
+                            serde_json::json!({ "error": err }),
+                        );
                         *active_for_start.borrow_mut() = false;
                         bus.recording.set(false);
                         toast_for_start.error(err_no_mic);
@@ -278,8 +294,20 @@ pub fn install_ptt_runtime(
             spawn_local(async move {
                 bus.partial.set(String::new());
                 let text = match ptt_finalize(id, hint).await {
-                    Ok(text) => text,
+                    Ok(text) => {
+                        crate::app_log::info(
+                            "voice",
+                            "ptt_finalized",
+                            serde_json::json!({ "chars": text.chars().count() }),
+                        );
+                        text
+                    }
                     Err(err) => {
+                        crate::app_log::error(
+                            "voice",
+                            "ptt_finalize_failed",
+                            serde_json::json!({ "error": err.clone() }),
+                        );
                         toast.error(ptt_finalize_error_message(&err, &i18n));
                         return;
                     }

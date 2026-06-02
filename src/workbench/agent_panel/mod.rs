@@ -341,10 +341,24 @@ pub fn AgentPanelDock() -> impl IntoView {
         let used = wb.chat_usage_for_workspace(ws_id).last_round_input_tokens;
         compacting.set(true);
         status_line.set(Some(i18n.tr(I18nKey::AgCompactRunning)().to_string()));
+        crate::app_log::info(
+            "agent",
+            "compaction_started",
+            serde_json::json!({ "manual": manual, "tokens": used }),
+        );
         leptos::task::spawn_local(async move {
             let current = (used > 0).then_some(used);
             match agent_compact_conversation(current).await {
                 Ok(result) => {
+                    crate::app_log::info(
+                        "agent",
+                        "compaction_finished",
+                        serde_json::json!({
+                            "manual": manual,
+                            "beforeTokens": result.before_tokens,
+                            "afterTokensEstimate": result.after_tokens_estimate,
+                        }),
+                    );
                     // Start fresh: the backend now holds only the compacted
                     // summary, so reset the visible timeline to match.
                     timeline.set(TimelineDoc::default());
@@ -367,13 +381,25 @@ pub fn AgentPanelDock() -> impl IntoView {
                     }
                 }
                 Err(e) if e == "nothing-to-compact" => {
+                    crate::app_log::info(
+                        "agent",
+                        "compaction_skipped",
+                        serde_json::json!({ "manual": manual, "reason": "nothing-to-compact" }),
+                    );
                     status_line.set(if manual {
                         Some(i18n.tr(I18nKey::AgCompactNothing)().to_string())
                     } else {
                         None
                     });
                 }
-                Err(e) => status_line.set(Some(e)),
+                Err(e) => {
+                    crate::app_log::error(
+                        "agent",
+                        "compaction_failed",
+                        serde_json::json!({ "manual": manual, "error": e.clone() }),
+                    );
+                    status_line.set(Some(e));
+                }
             }
             compacting.set(false);
         });
@@ -753,8 +779,15 @@ pub fn AgentPanelDock() -> impl IntoView {
                     submit_turn(wb, i18n, draft, chat_mode, enhance_prompt, busy, status_line, timeline, task_snapshot, thinking_open, tool_detail_open, voice_handle, true);
                 })
                 on_cancel=Callback::new(move |()| {
+                    crate::app_log::info("agent", "abort_requested", serde_json::json!({}));
                     leptos::task::spawn_local(async move {
-                        let _ = agent_abort().await;
+                        if let Err(error) = agent_abort().await {
+                            crate::app_log::error(
+                                "agent",
+                                "abort_failed",
+                                serde_json::json!({ "error": error }),
+                            );
+                        }
                     });
                 })
             />
@@ -1040,6 +1073,7 @@ fn submit_turn(
         status_line.set(Some(lookup(loc, I18nKey::AgErrNeedPrompt).into()));
         return;
     }
+    let prompt_chars = prompt.chars().count();
 
     let Some(ws_id) = wb.active_id().get_untracked() else {
         status_line.set(Some("Select a workspace tab first.".into()));
@@ -1119,6 +1153,9 @@ fn submit_turn(
     let context_items = wb.agent_context_for_workspace_untracked(ws_id);
     let transient_context_ids = transient_agent_context_ids(&context_items);
     let image_context_items = wb.pending_agent_images_for_workspace_untracked(ws_id);
+    let workspace_root_present = workspace_root.is_some();
+    let context_count = context_items.len();
+    let image_context_count = image_context_items.len();
 
     let starts_new_chat_session = timeline.with_untracked(|doc| doc.turns.is_empty());
     let session_turn_started_at = js_sys::Date::now();
@@ -1149,16 +1186,30 @@ fn submit_turn(
     // auto-send — honours the toggle without an extra arg.
     let image_generate = wb.agent_image_mode_for_workspace_untracked(ws_id);
     let session_role = wb.agent_session_role_for_workspace_untracked(ws_id);
+    let chat_mode_value = chat_mode.get_untracked();
     let turn = UserTurn {
         prompt,
         workspace_root,
-        chat_mode: chat_mode.get_untracked(),
+        chat_mode: chat_mode_value,
         session_role,
         voice_input,
         image_generate,
         context_items,
         image_context_items,
     };
+    crate::app_log::info(
+        "agent",
+        "turn_submitted",
+        serde_json::json!({
+            "chatMode": format!("{chat_mode_value:?}"),
+            "promptChars": prompt_chars,
+            "workspaceRootPresent": workspace_root_present,
+            "contextItems": context_count,
+            "imageContextItems": image_context_count,
+            "voiceInput": voice_input,
+            "imageGenerate": image_generate,
+        }),
+    );
 
     let busy_sig = busy;
     let status_sig = status_line;
@@ -1175,6 +1226,11 @@ fn submit_turn(
 
     leptos::task::spawn_local(async move {
         if let Err(msg) = agent_submit_turn(turn).await {
+            crate::app_log::error(
+                "agent",
+                "turn_submit_failed",
+                serde_json::json!({ "error": msg.clone() }),
+            );
             busy_sig.set(false);
             status_sig.set(Some(msg));
             return;
@@ -1215,10 +1271,23 @@ fn submit_turn(
         })
         .await
         {
+            crate::app_log::error(
+                "agent",
+                "turn_drain_failed",
+                serde_json::json!({ "error": msg.clone() }),
+            );
             status_sig.set(Some(msg));
         } else if !turn_had_error.get_untracked() && !transient_context_ids.is_empty() {
             wb_after_drain.remove_workspace_agent_context_items(ws_capture, &transient_context_ids);
         }
+        crate::app_log::info(
+            "agent",
+            "turn_finished",
+            serde_json::json!({
+                "hadError": turn_had_error.get_untracked(),
+                "touchedFiles": turn_touched_files.get_untracked(),
+            }),
+        );
         busy_sig.set(false);
 
         // Turn-end "Changed files" summary: only after a turn that ran a

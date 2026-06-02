@@ -733,7 +733,18 @@ pub fn WorkspaceTerminalCell(
                             i18n.tr(I18nKey::WsTermFullSize)()
                         }
                     }
-                    on:click=move |_| on_full_size.run(())
+                    on:click=move |_| {
+                        crate::app_log::info(
+                            "terminal",
+                            "size_toggle",
+                            serde_json::json!({
+                                "workspaceId": workspace_id,
+                                "slotId": slot_id,
+                                "fullSize": !is_full_size.get_untracked(),
+                            }),
+                        );
+                        on_full_size.run(());
+                    }
                 >
                     {move || {
                         if is_full_size.get() {
@@ -750,7 +761,18 @@ pub fn WorkspaceTerminalCell(
                     on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
                     title=move || i18n.tr(I18nKey::WsTermSplitVerticalAria)()
                     aria-label=move || i18n.tr(I18nKey::WsTermSplitVerticalAria)()
-                    on:click=move |_| on_split_vertical.run(())
+                    on:click=move |_| {
+                        crate::app_log::info(
+                            "terminal",
+                            "split_requested",
+                            serde_json::json!({
+                                "workspaceId": workspace_id,
+                                "slotId": slot_id,
+                                "direction": "vertical",
+                            }),
+                        );
+                        on_split_vertical.run(());
+                    }
                 >
                     <LxIcon icon=icondata::LuPanelRight width="0.82rem" height="0.82rem" />
                 </button>
@@ -761,7 +783,18 @@ pub fn WorkspaceTerminalCell(
                     on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
                     title=move || i18n.tr(I18nKey::WsTermSplitHorizontalAria)()
                     aria-label=move || i18n.tr(I18nKey::WsTermSplitHorizontalAria)()
-                    on:click=move |_| on_split_horizontal.run(())
+                    on:click=move |_| {
+                        crate::app_log::info(
+                            "terminal",
+                            "split_requested",
+                            serde_json::json!({
+                                "workspaceId": workspace_id,
+                                "slotId": slot_id,
+                                "direction": "horizontal",
+                            }),
+                        );
+                        on_split_horizontal.run(());
+                    }
                 >
                     <LxIcon icon=icondata::LuPanelBottom width="0.82rem" height="0.82rem" />
                 </button>
@@ -773,7 +806,17 @@ pub fn WorkspaceTerminalCell(
                         on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
                         title=move || i18n.tr(I18nKey::BtnClose)()
                         aria-label=move || i18n.tr(I18nKey::WsTermCloseAria)()
-                        on:click=move |_| on_close.run(())
+                        on:click=move |_| {
+                            crate::app_log::info(
+                                "terminal",
+                                "close_requested",
+                                serde_json::json!({
+                                    "workspaceId": workspace_id,
+                                    "slotId": slot_id,
+                                }),
+                            );
+                            on_close.run(());
+                        }
                     >
                         <LxIcon icon=icondata::LuX width="0.86rem" height="0.86rem" />
                     </button>
@@ -988,6 +1031,15 @@ async fn bootstrap_terminal_cell(
         };
         match spawn_result {
             Ok(sid) => {
+                crate::app_log::info(
+                    "terminal",
+                    "pty_spawned",
+                    serde_json::json!({
+                        "terminalKey": terminal_key.clone(),
+                        "remote": wb.remote_connection_for_terminal_key(&terminal_key).is_some(),
+                        "agent": !agent_slug.trim().is_empty(),
+                    }),
+                );
                 terminal_set_stdin_enabled(tid, true);
                 let pending = {
                     let mut st = state.lock().expect("cell");
@@ -1048,6 +1100,16 @@ async fn bootstrap_terminal_cell(
                 Some(sid)
             }
             Err(err) => {
+                crate::app_log::error(
+                    "terminal",
+                    "pty_spawn_failed",
+                    serde_json::json!({
+                        "terminalKey": terminal_key.clone(),
+                        "remote": wb.remote_connection_for_terminal_key(&terminal_key).is_some(),
+                        "agent": !agent_slug.trim().is_empty(),
+                        "error": err.clone(),
+                    }),
+                );
                 let msg = format!(
                     "{}\n{}\n{}",
                     i18n.tr(I18nKey::WsPtySpawnFailed)(),

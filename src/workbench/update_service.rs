@@ -125,10 +125,16 @@ impl UpdateService {
         ) {
             return;
         }
+        crate::app_log::info("updates", "install_started", serde_json::json!({}));
         let service = *self;
         spawn_local(async move {
             match updater_install_start().await {
                 Ok(progress) => {
+                    crate::app_log::info(
+                        "updates",
+                        "install_progress_started",
+                        serde_json::json!({ "phase": progress.phase.clone() }),
+                    );
                     service.apply_progress(progress);
                     service.poll_install_progress();
                 }
@@ -138,6 +144,7 @@ impl UpdateService {
     }
 
     pub fn relaunch(&self) {
+        crate::app_log::info("updates", "relaunch_requested", serde_json::json!({}));
         spawn_local(async move {
             let _ = app_relaunch().await;
         });
@@ -145,6 +152,11 @@ impl UpdateService {
 
     fn check(&self, manual: bool) {
         if !is_tauri_shell() {
+            crate::app_log::warn(
+                "updates",
+                "check_unavailable",
+                serde_json::json!({ "manual": manual }),
+            );
             self.status.set(UpdateUiStatus::DevUnavailable);
             self.message
                 .set(Some("Updater is only available in the desktop app.".into()));
@@ -159,6 +171,11 @@ impl UpdateService {
         self.release_notes_loading.set(false);
         self.release_notes_request
             .update(|request| *request = request.saturating_add(1));
+        crate::app_log::info(
+            "updates",
+            "check_started",
+            serde_json::json!({ "manual": manual }),
+        );
         spawn_local(async move {
             if let Ok(version) = app_version().await {
                 service.current_version.set(version);
@@ -172,6 +189,16 @@ impl UpdateService {
 
     fn apply_check(&self, response: UpdateCheckResponse, manual: bool) {
         let available_version = response.available_version.clone();
+        crate::app_log::info(
+            "updates",
+            "check_finished",
+            serde_json::json!({
+                "manual": manual,
+                "status": response.status.clone(),
+                "currentVersion": response.current_version.clone(),
+                "availableVersion": available_version,
+            }),
+        );
         self.current_version.set(response.current_version);
         self.available_version.set(response.available_version);
         self.notes.set(response.notes);
@@ -289,6 +316,11 @@ impl UpdateService {
     }
 
     fn set_error(&self, err: String) {
+        crate::app_log::error(
+            "updates",
+            "error",
+            serde_json::json!({ "error": err.clone() }),
+        );
         self.status.set(UpdateUiStatus::Error);
         self.message.set(Some(err));
         self.banner_visible.set(false);
