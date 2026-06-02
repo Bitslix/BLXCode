@@ -6090,6 +6090,43 @@ button.workbench-shortcut-row--action:focus-visible {
   box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
+select.workbench-plain-input,
+select.ws-config__field,
+select.ptt-select,
+select.mm__sort {
+  appearance: none;
+  -webkit-appearance: none;
+  color-scheme: dark;
+  background-color: var(--bg-panel);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--text-muted) 50%),
+    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%);
+  background-position:
+    calc(100% - 1rem) calc(50% - 0.06rem),
+    calc(100% - 0.72rem) calc(50% - 0.06rem);
+  background-repeat: no-repeat;
+  background-size: 0.28rem 0.28rem, 0.28rem 0.28rem;
+  border-color: var(--border);
+  border-radius: var(--radius-md);
+  padding-right: 2.25rem;
+}
+
+select.workbench-plain-input:hover,
+select.ws-config__field:hover,
+select.ptt-select:hover,
+select.mm__sort:hover {
+  border-color: var(--border-strong);
+}
+
+select.workbench-plain-input:disabled,
+select.ws-config__field:disabled,
+select.ptt-select:disabled,
+select.mm__sort:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
 @media (max-width: 720px) {
   .harness-settings-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -8330,10 +8367,10 @@ body.blxcode-dragging-terminal * {
 
 .ws-config__field {
   width: 100%;
-  background: var(--bg-elevated, var(--overlay-1));
+  background: var(--bg-panel);
   color: var(--text-bright, var(--text-bright));
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   padding: 0.65rem 0.85rem;
   font-size: 0.92rem;
   font-family: inherit;
@@ -8348,22 +8385,26 @@ body.blxcode-dragging-terminal * {
 
 .ws-config__field:focus {
   border-color: var(--border-strong);
-  background: var(--overlay-1);
+  background: var(--bg-panel);
   box-shadow: 0 0 0 3px var(--overlay-1);
 }
 
 /* Native <select> popup options: the OS/WebView renders these outside the
    control, so they must be themed explicitly (otherwise white-on-white in
-   dark themes). Uses theme tokens so every theme is honoured. Covers the
-   workspace wizard's Connection select and the Remote settings pane selects. */
+   dark themes). Uses theme tokens so every theme is honoured across the
+   workspace wizard, settings, and voice/model native selects. */
 .ws-config__field option,
-.workbench-plain-input option {
+.workbench-plain-input option,
+.ptt-select option,
+.mm__sort option {
   background-color: var(--bg-panel);
   color: var(--text);
 }
 
 .ws-config__field option:checked,
-.workbench-plain-input option:checked {
+.workbench-plain-input option:checked,
+.ptt-select option:checked,
+.mm__sort option:checked {
   background-color: var(--bg-panel-header);
   color: var(--text-bright);
 }
