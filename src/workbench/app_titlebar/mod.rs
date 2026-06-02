@@ -73,7 +73,7 @@ pub fn AppTitleBar(#[prop(into)] workbench_active: Signal<bool>) -> impl IntoVie
         let active = wb.active_id().get()?;
         wb.workspaces().with(|list| {
             let ws = list.iter().find(|w| w.id == active)?;
-            let title = ws.title.trim().to_string();
+            let title = titlebar_workspace_title(&ws.title);
             if title.is_empty() {
                 return None;
             }
@@ -201,5 +201,14 @@ pub fn AppTitleBar(#[prop(into)] workbench_active: Signal<bool>) -> impl IntoVie
                 <WindowControls />
             </div>
         </header>
+    }
+}
+
+fn titlebar_workspace_title(title: &str) -> String {
+    let title = title.trim();
+    if title.eq_ignore_ascii_case("blxcode") {
+        "BLXCode".into()
+    } else {
+        title.to_string()
     }
 }
