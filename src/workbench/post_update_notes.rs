@@ -115,23 +115,12 @@ pub fn PostUpdateNotesDialog() -> impl IntoView {
                     <Show
                         when=move || notes.notes().get().is_some()
                         fallback=move || view! {
-                            <div class="post-update-loading">
-                                <span class="post-update-loading__icon" aria-hidden="true">
-                                    <LxIcon icon=icondata::LuLoaderCircle width="1rem" height="1rem" />
-                                </span>
-                                <span>{move || {
-                                    if notes.loading().get() {
-                                        i18n.tr(I18nKey::PostUpdateLoading)()
-                                    } else {
-                                        i18n.tr(I18nKey::PostUpdateNoNotes)()
-                                    }
-                                }}</span>
-                            </div>
+                            <ReleaseNotesLoading loading=Signal::derive(move || notes.loading().get()) />
                         }
                     >
                         {move || {
                             notes.notes().get().map(|data| view! {
-                                <PostUpdateNotesContent data=data />
+                                <ReleaseNotesContent data=data />
                             })
                         }}
                     </Show>
@@ -154,7 +143,7 @@ pub fn PostUpdateNotesDialog() -> impl IntoView {
 }
 
 #[component]
-fn PostUpdateNotesContent(data: PostUpdateReleaseNotesResponse) -> impl IntoView {
+pub(crate) fn ReleaseNotesContent(data: PostUpdateReleaseNotesResponse) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let version = data.version.clone();
     let title = data.title.clone();
@@ -182,6 +171,26 @@ fn PostUpdateNotesContent(data: PostUpdateReleaseNotesResponse) -> impl IntoView
                 key=|section| section.title.clone()
                 children=move |section| view! { <PostUpdateSection section=section /> }
             />
+        </div>
+    }
+}
+
+#[component]
+pub(crate) fn ReleaseNotesLoading(loading: Signal<bool>) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+
+    view! {
+        <div class="post-update-loading">
+            <span class="post-update-loading__icon" aria-hidden="true">
+                <LxIcon icon=icondata::LuLoaderCircle width="1rem" height="1rem" />
+            </span>
+            <span>{move || {
+                if loading.get() {
+                    i18n.tr(I18nKey::PostUpdateLoading)()
+                } else {
+                    i18n.tr(I18nKey::PostUpdateNoNotes)()
+                }
+            }}</span>
         </div>
     }
 }

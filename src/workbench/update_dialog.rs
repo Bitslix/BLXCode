@@ -1,3 +1,4 @@
+use super::post_update_notes::{ReleaseNotesContent, ReleaseNotesLoading};
 use super::update_service::{UpdateService, UpdateUiStatus};
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
@@ -89,12 +90,7 @@ pub fn UpdateDialog() -> impl IntoView {
                         <strong>{move || updates.available_version().get().unwrap_or_default()}</strong>
                     </div>
 
-                    <Show when=move || updates.notes().get().is_some()>
-                        <section class="blx-update-notes">
-                            <h3>{move || i18n.tr(I18nKey::UpdateDialogNotes)()}</h3>
-                            <p>{move || updates.notes().get().unwrap_or_default()}</p>
-                        </section>
-                    </Show>
+                    <UpdateReleaseNotes updates=updates />
 
                     <UpdateProgressBlock updates=updates />
 
@@ -118,6 +114,46 @@ pub fn UpdateDialog() -> impl IntoView {
                     </footer>
                 </section>
             </div>
+        </Show>
+    }
+}
+
+#[component]
+fn UpdateReleaseNotes(updates: UpdateService) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+
+    view! {
+        <Show when=move || {
+            updates.release_notes().get().is_some()
+                || updates.release_notes_loading().get()
+                || updates.notes().get().is_some()
+        }>
+            <section class="blx-update-release-notes">
+                <Show
+                    when=move || updates.release_notes().get().is_some()
+                    fallback=move || view! {
+                        <Show
+                            when=move || updates.release_notes_loading().get()
+                            fallback=move || view! {
+                                <Show when=move || updates.notes().get().is_some()>
+                                    <section class="blx-update-notes">
+                                        <h3>{move || i18n.tr(I18nKey::UpdateDialogNotes)()}</h3>
+                                        <p>{move || updates.notes().get().unwrap_or_default()}</p>
+                                    </section>
+                                </Show>
+                            }
+                        >
+                            <ReleaseNotesLoading loading=Signal::derive(move || updates.release_notes_loading().get()) />
+                        </Show>
+                    }
+                >
+                    {move || {
+                        updates.release_notes().get().map(|data| view! {
+                            <ReleaseNotesContent data=data />
+                        })
+                    }}
+                </Show>
+            </section>
         </Show>
     }
 }

@@ -1,6 +1,7 @@
 use crate::tauri_bridge::{
-    app_relaunch, app_version, is_tauri_shell, updater_check, updater_install_start,
-    updater_poll_progress, UpdateCheckResponse, UpdateProgress,
+    app_relaunch, app_version, is_tauri_shell, post_update_release_notes, updater_check,
+    updater_install_start, updater_poll_progress, PostUpdateReleaseNotesResponse,
+    UpdateCheckResponse, UpdateProgress,
 };
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
@@ -12,6 +13,9 @@ pub struct UpdateService {
     current_version: RwSignal<String>,
     available_version: RwSignal<Option<String>>,
     notes: RwSignal<Option<String>>,
+    release_notes: RwSignal<Option<PostUpdateReleaseNotesResponse>>,
+    release_notes_loading: RwSignal<bool>,
+    release_notes_request: RwSignal<u64>,
     phase: RwSignal<String>,
     progress_pct: RwSignal<Option<f64>>,
     speed_label: RwSignal<Option<String>>,
@@ -41,6 +45,9 @@ impl UpdateService {
             current_version: RwSignal::new(String::new()),
             available_version: RwSignal::new(None),
             notes: RwSignal::new(None),
+            release_notes: RwSignal::new(None),
+            release_notes_loading: RwSignal::new(false),
+            release_notes_request: RwSignal::new(0),
             phase: RwSignal::new("idle".into()),
             progress_pct: RwSignal::new(None),
             speed_label: RwSignal::new(None),
@@ -64,6 +71,14 @@ impl UpdateService {
 
     pub fn notes(&self) -> RwSignal<Option<String>> {
         self.notes
+    }
+
+    pub fn release_notes(&self) -> RwSignal<Option<PostUpdateReleaseNotesResponse>> {
+        self.release_notes
+    }
+
+    pub fn release_notes_loading(&self) -> RwSignal<bool> {
+        self.release_notes_loading
     }
 
     pub fn progress_pct(&self) -> RwSignal<Option<f64>> {
@@ -133,11 +148,17 @@ impl UpdateService {
             self.status.set(UpdateUiStatus::DevUnavailable);
             self.message
                 .set(Some("Updater is only available in the desktop app.".into()));
+            self.release_notes.set(None);
+            self.release_notes_loading.set(false);
             return;
         }
         let service = *self;
         self.status.set(UpdateUiStatus::Checking);
         self.message.set(None);
+        self.release_notes.set(None);
+        self.release_notes_loading.set(false);
+        self.release_notes_request
+            .update(|request| *request = request.saturating_add(1));
         spawn_local(async move {
             if let Ok(version) = app_version().await {
                 service.current_version.set(version);
@@ -150,6 +171,7 @@ impl UpdateService {
     }
 
     fn apply_check(&self, response: UpdateCheckResponse, manual: bool) {
+        let available_version = response.available_version.clone();
         self.current_version.set(response.current_version);
         self.available_version.set(response.available_version);
         self.notes.set(response.notes);
@@ -162,10 +184,49 @@ impl UpdateService {
                 if manual {
                     self.dialog_open.set(true);
                 }
+                if let Some(version) =
+                    available_version.filter(|version| !version.trim().is_empty())
+                {
+                    self.load_release_notes(version);
+                } else {
+                    self.release_notes_loading.set(false);
+                }
             }
-            "devUnavailable" => self.status.set(UpdateUiStatus::DevUnavailable),
-            _ => self.status.set(UpdateUiStatus::UpToDate),
+            "devUnavailable" => {
+                self.release_notes_loading.set(false);
+                self.status.set(UpdateUiStatus::DevUnavailable);
+            }
+            _ => {
+                self.release_notes_loading.set(false);
+                self.status.set(UpdateUiStatus::UpToDate);
+            }
         }
+    }
+
+    fn load_release_notes(&self, version: String) {
+        let service = *self;
+        let request = self.release_notes_request.get_untracked().saturating_add(1);
+        self.release_notes_request.set(request);
+        self.release_notes.set(None);
+        self.release_notes_loading.set(true);
+        spawn_local(async move {
+            match post_update_release_notes(version).await {
+                Ok(notes) => {
+                    if service.release_notes_request.get_untracked() == request {
+                        service.release_notes.set(Some(notes));
+                    }
+                }
+                Err(err) => {
+                    leptos::logging::warn!("update release notes: {err}");
+                    if service.release_notes_request.get_untracked() == request {
+                        service.release_notes.set(None);
+                    }
+                }
+            }
+            if service.release_notes_request.get_untracked() == request {
+                service.release_notes_loading.set(false);
+            }
+        });
     }
 
     fn poll_install_progress(&self) {

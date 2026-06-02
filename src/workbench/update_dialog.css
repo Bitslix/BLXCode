@@ -30,11 +30,12 @@
 }
 
 .harness-sheet--update {
-  width: min(34rem, calc(100vw - 2rem));
-  max-height: min(42rem, calc(100vh - 2rem));
+  width: min(46rem, calc(100vw - 2rem));
+  max-height: min(46rem, calc(100vh - 2rem));
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
+  overflow: hidden;
 }
 
 .blx-update-dialog__head,
@@ -55,6 +56,35 @@
   border-radius: 4px;
   background: var(--bg-raised);
   font-size: 0.86rem;
+}
+
+.blx-update-release-notes {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-panel);
+}
+
+.blx-update-release-notes > .post-update-hero {
+  flex: 0 0 auto;
+}
+
+.blx-update-release-notes > .post-update-section-list {
+  min-height: 10rem;
+}
+
+.blx-update-release-notes > .post-update-loading {
+  min-height: 12rem;
+}
+
+.blx-update-release-notes > .blx-update-notes {
+  max-height: none;
+  border: 0;
+  border-radius: 0;
 }
 
 .blx-update-notes {
