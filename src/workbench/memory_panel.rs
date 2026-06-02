@@ -941,6 +941,7 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
     let groups_open = state.groups_open;
     let context_menu = RwSignal::new(None::<MemoryContextMenu>);
     let editing_category = RwSignal::new(None::<String>);
+    let folder_groups_closed = RwSignal::new(HashSet::<String>::new());
     // Some(scope) = dialog open for that scope; None = closed.
     let new_category_scope: RwSignal<Option<MemoryScope>> = RwSignal::new(None);
     let new_note_category: RwSignal<Option<(MemoryScope, String)>> = RwSignal::new(None);
@@ -1054,6 +1055,7 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                                                     renaming=renaming
                                                     rename_input=rename_input
                                                     context_menu=context_menu
+                                                    show_folder=true
                                                 />
                                             }
                                         >
@@ -1080,6 +1082,7 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                                         rename_input=rename_input
                                         context_menu=context_menu
                                         new_note_category=new_note_category
+                                        folder_groups_closed=folder_groups_closed
                                     />
                                 }
                             }
@@ -1968,6 +1971,7 @@ fn MemoryFileGroupSection(
     rename_input: RwSignal<String>,
     context_menu: RwSignal<Option<MemoryContextMenu>>,
     new_note_category: RwSignal<Option<(MemoryScope, String)>>,
+    folder_groups_closed: RwSignal<HashSet<String>>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let wb = expect_context::<WorkbenchService>();
@@ -1978,6 +1982,7 @@ fn MemoryFileGroupSection(
     let index = group.index;
     let group_notes = group.notes;
     let group_paths = memory_group_paths(&index, &group_notes);
+    let folder_rows = memory_folder_rows(group_key.clone(), group_notes.clone());
     let plain_key_for_show = group_key
         .strip_prefix("global:")
         .unwrap_or(&group_key)
@@ -2033,52 +2038,152 @@ fn MemoryFileGroupSection(
         </Show>
         <For
             each=move || {
-                if !show_sidebar() {
+                if !show_sidebar() || files_collapsed.get() || !groups_open.with(|s| s.contains(&key_for_open_check)) {
                     Vec::new()
-                } else if files_collapsed.get() {
-                    Vec::new()
-                } else if groups_open.with(|s| s.contains(&key_for_open_check)) {
-                    group_notes.clone()
                 } else {
-                    Vec::new()
+                    folder_rows.clone()
                 }
             }
-            key=|n| n.path.clone()
+            key=memory_folder_row_key
             children={
                 let state = state.clone();
-                move |n: NoteMeta| {
-                    let path = n.path.clone();
-                    let expanded_note = n.clone();
-                    let collapsed_note = n.clone();
-                    let s_active = state.clone();
-                    let path_for_active = path.clone();
-                    view! {
-                        <li
-                            class="workbench-memory-files__item"
-                            class:workbench-memory-files__item--collapsed=move || files_collapsed.get()
-                            class:workbench-memory-files__item--active=move || {
-                                s_active.active_path.get().as_deref() == Some(path_for_active.as_str())
-                            }
-                        >
-                            <Show
-                                when=move || files_collapsed.get()
-                                fallback=move || view! {
-                                    <MemoryFileExpandedRow
-                                        state=state
-                                        note=expanded_note.clone()
-                                        renaming=renaming
-                                        rename_input=rename_input
-                                        context_menu=context_menu
-                                    />
-                                }
-                            >
-                                <MemoryFileCollapsedRow state=state note=collapsed_note.clone() context_menu=context_menu />
-                            </Show>
-                        </li>
+                move |row: MemoryFolderRow| {
+                    match row {
+                        MemoryFolderRow::Note(note) => view! {
+                            <MemoryFileNoteListItem
+                                state=state
+                                note=note
+                                files_collapsed=files_collapsed
+                                renaming=renaming
+                                rename_input=rename_input
+                                context_menu=context_menu
+                                show_folder=true
+                            />
+                        }.into_any(),
+                        MemoryFolderRow::Folder(group) => view! {
+                            <MemoryFolderGroupSection
+                                state=state
+                                group=group
+                                files_collapsed=files_collapsed
+                                renaming=renaming
+                                rename_input=rename_input
+                                context_menu=context_menu
+                                folder_groups_closed=folder_groups_closed
+                            />
+                        }.into_any(),
                     }
                 }
             }
         />
+    }
+}
+
+#[component]
+fn MemoryFolderGroupSection(
+    state: MemoryState,
+    group: MemoryFolderGroup,
+    files_collapsed: RwSignal<bool>,
+    renaming: RwSignal<Option<String>>,
+    rename_input: RwSignal<String>,
+    context_menu: RwSignal<Option<MemoryContextMenu>>,
+    folder_groups_closed: RwSignal<HashSet<String>>,
+) -> impl IntoView {
+    let key_for_open = group.key.clone();
+    let key_for_toggle = group.key.clone();
+    let key_for_chevron = group.key.clone();
+    let key_for_notes = group.key.clone();
+    let title = group.title.clone();
+    let notes = group.notes.clone();
+
+    view! {
+        <li class="workbench-memory-files__folder-group">
+            <button
+                type="button"
+                class="workbench-memory-files__folder-group-head"
+                aria-expanded=move || (!folder_groups_closed.with(|closed| closed.contains(&key_for_open))).to_string()
+                on:click=move |_| {
+                    folder_groups_closed.update(|closed| {
+                        if !closed.insert(key_for_toggle.clone()) {
+                            closed.remove(&key_for_toggle);
+                        }
+                    });
+                }
+            >
+                <span
+                    class="workbench-memory-files__folder-group-chevron"
+                    class:workbench-memory-files__folder-group-chevron--open=move || {
+                        !folder_groups_closed.with(|closed| closed.contains(&key_for_chevron))
+                    }
+                >
+                    <LxIcon icon=icondata::LuChevronRight width="0.72rem" height="0.72rem" />
+                </span>
+                <span class="workbench-memory-files__folder-group-label">"Grouped by "</span>
+                <strong>{title}</strong>
+            </button>
+        </li>
+        <For
+            each=move || {
+                if folder_groups_closed.with(|closed| closed.contains(&key_for_notes)) {
+                    Vec::new()
+                } else {
+                    notes.clone()
+                }
+            }
+            key=|n| n.path.clone()
+            children=move |note| view! {
+                <MemoryFileNoteListItem
+                    state=state
+                    note=note
+                    files_collapsed=files_collapsed
+                    renaming=renaming
+                    rename_input=rename_input
+                    context_menu=context_menu
+                    show_folder=false
+                />
+            }
+        />
+    }
+}
+
+#[component]
+fn MemoryFileNoteListItem(
+    state: MemoryState,
+    note: NoteMeta,
+    files_collapsed: RwSignal<bool>,
+    renaming: RwSignal<Option<String>>,
+    rename_input: RwSignal<String>,
+    context_menu: RwSignal<Option<MemoryContextMenu>>,
+    show_folder: bool,
+) -> impl IntoView {
+    let path = note.path.clone();
+    let expanded_note = note.clone();
+    let collapsed_note = note;
+    let s_active = state.clone();
+    let path_for_active = path.clone();
+    view! {
+        <li
+            class="workbench-memory-files__item"
+            class:workbench-memory-files__item--collapsed=move || files_collapsed.get()
+            class:workbench-memory-files__item--active=move || {
+                s_active.active_path.get().as_deref() == Some(path_for_active.as_str())
+            }
+        >
+            <Show
+                when=move || files_collapsed.get()
+                fallback=move || view! {
+                    <MemoryFileExpandedRow
+                        state=state
+                        note=expanded_note.clone()
+                        renaming=renaming
+                        rename_input=rename_input
+                        context_menu=context_menu
+                        show_folder=show_folder
+                    />
+                }
+            >
+                <MemoryFileCollapsedRow state=state note=collapsed_note.clone() context_menu=context_menu />
+            </Show>
+        </li>
     }
 }
 
@@ -2148,10 +2253,13 @@ fn MemoryFileExpandedRow(
     renaming: RwSignal<Option<String>>,
     rename_input: RwSignal<String>,
     context_menu: RwSignal<Option<MemoryContextMenu>>,
+    show_folder: bool,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let label = clean_memory_label(&note.name);
-    let folder = memory_display_folder(&note.path);
+    let folder = show_folder
+        .then(|| memory_display_folder(&note.path))
+        .flatten();
     let note_scope = note.scope.clone();
     let note_path = note.path.clone();
     let path_for_select = note_path.clone();
@@ -2591,6 +2699,19 @@ struct MemoryNoteGroup {
     notes: Vec<NoteMeta>,
 }
 
+#[derive(Clone)]
+struct MemoryFolderGroup {
+    key: String,
+    title: String,
+    notes: Vec<NoteMeta>,
+}
+
+#[derive(Clone)]
+enum MemoryFolderRow {
+    Note(NoteMeta),
+    Folder(MemoryFolderGroup),
+}
+
 #[derive(Clone, PartialEq)]
 enum MemoryContextTarget {
     Category {
@@ -2665,6 +2786,36 @@ fn memory_note_groups_for_scope(
         });
     }
     groups
+}
+
+fn memory_folder_rows(group_key: String, notes: Vec<NoteMeta>) -> Vec<MemoryFolderRow> {
+    use std::collections::BTreeMap;
+    let mut rows = Vec::new();
+    let mut folders = BTreeMap::<String, Vec<NoteMeta>>::new();
+
+    for note in notes {
+        if let Some(folder) = memory_display_folder(&note.path) {
+            folders.entry(folder).or_default().push(note);
+        } else {
+            rows.push(MemoryFolderRow::Note(note));
+        }
+    }
+
+    rows.extend(folders.into_iter().map(|(folder, notes)| {
+        MemoryFolderRow::Folder(MemoryFolderGroup {
+            key: format!("{group_key}/{folder}"),
+            title: folder,
+            notes,
+        })
+    }));
+    rows
+}
+
+fn memory_folder_row_key(row: &MemoryFolderRow) -> String {
+    match row {
+        MemoryFolderRow::Note(note) => note.path.clone(),
+        MemoryFolderRow::Folder(group) => format!("folder:{}", group.key),
+    }
 }
 
 fn split_group_index(

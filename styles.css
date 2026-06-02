@@ -8555,6 +8555,57 @@ body.blxcode-dragging-terminal * {
   background: var(--overlay-2);
   color: var(--text);
 }
+
+.workbench-memory-files__folder-group {
+  list-style: none;
+  padding: 0.15rem 0.35rem 0.1rem 1.45rem;
+}
+
+.workbench-memory-files__folder-group-head {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.28rem;
+  padding: 0.22rem 0.35rem;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.72rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.workbench-memory-files__folder-group-head:hover {
+  color: var(--text);
+  background: var(--overlay-1);
+  border-color: var(--overlay-2);
+}
+
+.workbench-memory-files__folder-group-chevron {
+  display: inline-flex;
+  flex: 0 0 auto;
+  transition: transform 0.15s ease;
+}
+
+.workbench-memory-files__folder-group-chevron--open {
+  transform: rotate(90deg);
+}
+
+.workbench-memory-files__folder-group-label {
+  color: var(--text-muted);
+}
+
+.workbench-memory-files__folder-group-head strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-weight: 650;
+}
+
 .workbench-memory-files__item {
   display: flex;
   align-items: center;
