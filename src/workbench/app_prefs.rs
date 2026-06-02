@@ -69,7 +69,7 @@ impl AppPrefsService {
             )),
             memory_right_panel_enabled: RwSignal::new(read_bool_storage(
                 MEMORY_RIGHT_PANEL_ENABLED_KEY,
-                true,
+                false,
             )),
             terminal_naming_mode: RwSignal::new(TerminalNamingMode::from_storage(
                 read_string_storage(NAMING_MODE_KEY).as_deref(),
