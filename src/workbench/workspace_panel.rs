@@ -91,6 +91,13 @@ struct GridDragState {
     total_px: f64,
 }
 
+#[derive(Clone)]
+struct CenterSplitDragState {
+    start_x: f64,
+    start_fraction: f64,
+    total_px: f64,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct TerminalRenderSlot {
     id: u64,
@@ -170,6 +177,8 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
     let col_fr = RwSignal::new(vec![1.0; initial.grid_cols as usize]);
     let full_size_terminal = RwSignal::new(None::<u64>);
     let drag_state = RwSignal::new(None::<GridDragState>);
+    let memory_split_fraction = RwSignal::new(0.5_f64);
+    let memory_split_drag = RwSignal::new(None::<CenterSplitDragState>);
 
     Effect::new({
         move |_| {
@@ -222,10 +231,19 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
     });
 
     let move_handle = leptos::leptos_dom::helpers::window_event_listener_untyped("mousemove", {
+        let wb = wb;
         move |ev| {
             let Some(ev) = ev.dyn_ref::<MouseEvent>() else {
                 return;
             };
+            if let Some(drag) = memory_split_drag.try_get_untracked().flatten() {
+                ev.prevent_default();
+                let delta = (ev.client_x() as f64 - drag.start_x) / drag.total_px.max(1.0);
+                memory_split_fraction.set((drag.start_fraction + delta).clamp(0.25, 0.75));
+                force_workbench_terminal_layout();
+                wb.bump_terminal_layout();
+                return;
+            }
             let Some(drag) = drag_state.try_get_untracked().flatten() else {
                 return;
             };
@@ -255,8 +273,14 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
     });
 
     let up_handle = leptos::leptos_dom::helpers::window_event_listener_untyped("mouseup", {
+        let wb = wb;
         move |_| {
             drag_state.try_set(None);
+            if memory_split_drag.try_get_untracked().flatten().is_some() {
+                memory_split_drag.try_set(None);
+                force_workbench_terminal_layout();
+                wb.bump_terminal_layout();
+            }
         }
     });
 
@@ -307,6 +331,31 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
             .into_iter()
             .any(|tab| tab.id == active_tab_id && matches!(tab.kind, CenterTabKind::Memory))
     });
+    Effect::new({
+        let wb = wb;
+        move |_| {
+            if memory_split_active.get() {
+                let _ = memory_split_fraction.get();
+                force_workbench_terminal_layout();
+                wb.bump_terminal_layout();
+            }
+        }
+    });
+    let on_memory_split_down = move |ev: MouseEvent| {
+        ev.prevent_default();
+        ev.stop_propagation();
+        let total_px = ev
+            .current_target()
+            .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+            .and_then(|el| el.parent_element())
+            .map(|parent| parent.client_width() as f64)
+            .unwrap_or(1.0);
+        memory_split_drag.set(Some(CenterSplitDragState {
+            start_x: ev.client_x() as f64,
+            start_fraction: memory_split_fraction.get_untracked(),
+            total_px,
+        }));
+    };
 
     // The terminal grid stays mounted for the entire life of the workspace
     // as soon as the inline configurator is done; it is hidden via
@@ -350,6 +399,16 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                         class:workspace-center-panel--hidden=move || {
                             active_center_tab_id.get() != CENTER_TERMINALS_TAB_ID
                                 && !memory_split_active.get()
+                        }
+                        style=move || {
+                            if memory_split_active.get() {
+                                format!(
+                                    "flex:0 1 calc({:.3}% - 2px);",
+                                    memory_split_fraction.get() * 100.0
+                                )
+                            } else {
+                                String::new()
+                            }
                         }
                     >
                         <div
@@ -505,11 +564,29 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                         </div>
                     </div>
                 </Show>
+                <Show when=move || memory_split_active.get()>
+                    <button
+                        type="button"
+                        class="workspace-center-split-resizer"
+                        class:workspace-center-split-resizer--active=move || {
+                            memory_split_drag.get().is_some()
+                        }
+                        aria-label="Resize terminal and memory split"
+                        on:mousedown=on_memory_split_down
+                    >
+                        <span aria-hidden="true"></span>
+                    </button>
+                </Show>
                 <DynamicCenterPanels
                     workspace_id=workspace_id
                     active_tab_id=active_center_tab_id
                     memory_split_view=memory_split_view
+                    memory_split_active=memory_split_active
+                    memory_split_fraction=memory_split_fraction
                 />
+                <Show when=move || memory_split_drag.get().is_some()>
+                    <div class="workspace-center-split-shield" aria-hidden="true"></div>
+                </Show>
             </div>
         </div>
     }
@@ -619,6 +696,8 @@ fn DynamicCenterPanels(
     workspace_id: u64,
     active_tab_id: Memo<u64>,
     memory_split_view: RwSignal<bool>,
+    memory_split_active: Memo<bool>,
+    memory_split_fraction: RwSignal<f64>,
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let ui = expect_context::<HarnessUiService>();
@@ -648,6 +727,16 @@ fn DynamicCenterPanels(
                         <div
                             class="workspace-center-panel workspace-center-panel--memory"
                             class:workspace-center-panel--hidden=move || active_tab_id.get() != tab_id
+                            style=move || {
+                                if memory_split_active.get() {
+                                    format!(
+                                        "flex:0 1 calc({:.3}% - 2px);",
+                                        (1.0 - memory_split_fraction.get()) * 100.0
+                                    )
+                                } else {
+                                    String::new()
+                                }
+                            }
                         >
                             <MemoryPanel centered=true split_view=memory_split_view />
                         </div>

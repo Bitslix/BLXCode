@@ -5827,6 +5827,40 @@ button {
   gap: 4px;
 }
 
+.workspace-center-split-resizer {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 7px;
+  align-self: stretch;
+  margin: 0 -2px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: col-resize;
+}
+
+.workspace-center-split-resizer span {
+  position: absolute;
+  inset: 0 3px;
+  background: var(--border);
+  opacity: 0.45;
+  transition: background 120ms ease, opacity 120ms ease;
+}
+
+.workspace-center-split-resizer:hover span,
+.workspace-center-split-resizer--active span {
+  background: var(--accent);
+  opacity: 0.9;
+}
+
+.workspace-center-split-shield {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  cursor: col-resize;
+  background: transparent;
+}
+
 .workspace-center-panel {
   flex: 1 1 0;
   min-width: 0;
