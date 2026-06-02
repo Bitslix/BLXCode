@@ -172,6 +172,7 @@ impl CenterTab {
 pub enum CenterTabKind {
     Terminals,
     Settings,
+    Memory,
     FilePreview {
         rel_path: String,
     },
@@ -1915,6 +1916,39 @@ impl WorkbenchService {
                 id,
                 title: settings_tab_title(cat).into(),
                 kind: CenterTabKind::Settings,
+            });
+            workspace.center_active_tab_id = id;
+            repair_center_tab_state(workspace);
+        });
+        self.bump_terminal_layout();
+    }
+
+    pub fn open_center_memory_tab(&self) {
+        let workspace_id = self
+            .active_id
+            .get_untracked()
+            .unwrap_or_else(|| self.ensure_tab_host_workspace());
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            if let Some(tab) = workspace
+                .center_tabs
+                .iter()
+                .find(|tab| matches!(tab.kind, CenterTabKind::Memory))
+            {
+                workspace.center_active_tab_id = tab.id;
+                repair_center_tab_state(workspace);
+                return;
+            }
+            let id = workspace
+                .center_next_tab_id
+                .max(default_center_next_tab_id());
+            workspace.center_next_tab_id = id.saturating_add(1);
+            workspace.center_tabs.push(CenterTab {
+                id,
+                title: "Memory".into(),
+                kind: CenterTabKind::Memory,
             });
             workspace.center_active_tab_id = id;
             repair_center_tab_state(workspace);

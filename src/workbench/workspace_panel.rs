@@ -7,6 +7,7 @@ use crate::workbench::file_diff::FileDiffDock;
 use crate::workbench::file_preview::FilePreviewDock;
 use crate::workbench::harness_chords::dispatch_shortcut_action;
 use crate::workbench::harness_ui::SettingsDock;
+use crate::workbench::memory_panel::MemoryPanel;
 use crate::workbench::shortcut_config::ShortcutAction;
 use crate::workbench::state::{
     workspace_entry_has_folder, BrowserEmbedSurface, CenterTab, CenterTabKind, HarnessUiService,
@@ -618,6 +619,14 @@ fn DynamicCenterPanels(workspace_id: u64, active_tab_id: Memo<u64>) -> impl Into
                             <SettingsDock ui=ui wb=wb embed=embed />
                         </div>
                     }.into_any(),
+                    CenterTabKind::Memory => view! {
+                        <div
+                            class="workspace-center-panel workspace-center-panel--memory"
+                            class:workspace-center-panel--hidden=move || active_tab_id.get() != tab_id
+                        >
+                            <MemoryPanel />
+                        </div>
+                    }.into_any(),
                     CenterTabKind::FilePreview { rel_path } => view! {
                         <div
                             class="workspace-center-panel"
@@ -649,6 +658,7 @@ fn center_tab_icon(kind: &CenterTabKind) -> icondata::Icon {
     match kind {
         CenterTabKind::Terminals => icondata::LuTerminal,
         CenterTabKind::Settings => icondata::LuSettings2,
+        CenterTabKind::Memory => icondata::LuLayers,
         CenterTabKind::FilePreview { .. } => icondata::LuFileText,
         CenterTabKind::FileDiff { .. } => icondata::LuFileDiff,
     }

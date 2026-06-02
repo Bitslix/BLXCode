@@ -8310,7 +8310,9 @@ body.blxcode-dragging-terminal * {
 
 .workbench-memory-files__new {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
   padding: 0.45rem 0.5rem;
   border-bottom: 1px solid var(--overlay-1);
 }
@@ -8320,6 +8322,39 @@ body.blxcode-dragging-terminal * {
   align-items: center;
   padding: 0.45rem 0.35rem;
 }
+
+.workbench-memory-files__summary {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.workbench-memory-files__center-btn {
+  padding: 0;
+  width: 1.55rem;
+  height: 1.55rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.workbench-memory-files__center-btn:hover,
+.workbench-memory-files__center-btn:focus-visible {
+  color: var(--text);
+  background: var(--overlay-2);
+  border-color: var(--overlay-3);
+}
+
 .workbench-memory-files__new-input {
   flex: 1;
   min-width: 0;
@@ -8878,6 +8913,17 @@ body.blxcode-dragging-terminal * {
   flex-direction: column;
   min-height: 0;
 }
+
+.workspace-center-panel--memory {
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspace-center-panel--memory > .workbench-memory {
+  flex: 1;
+}
+
 .workbench-memory-editor__empty {
   flex: 1;
   display: flex;

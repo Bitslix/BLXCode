@@ -932,6 +932,10 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
     // Some(scope) = dialog open for that scope; None = closed.
     let new_category_scope: RwSignal<Option<MemoryScope>> = RwSignal::new(None);
     let new_note_category: RwSignal<Option<(MemoryScope, String)>> = RwSignal::new(None);
+    let memory_stats = {
+        let s = state.clone();
+        move || memory_files_stats_text(s.notes.get(), s.empty_categories.get())
+    };
 
     // ── Resizable tree column ────────────────────────────────────────────────
     let tree_width = state.tree_width;
@@ -1105,6 +1109,23 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                     class="workbench-memory-files__new"
                     class:workbench-memory-files__new--collapsed=move || files_collapsed.get()
                 >
+                    <Show when=move || !files_collapsed.get()>
+                        <div class="workbench-memory-files__summary">
+                            <button
+                                type="button"
+                                class="workbench-memory-files__center-btn"
+                                title="Open memory in centered tab"
+                                aria-label="Open memory in centered tab"
+                                on:click={
+                                    let wb = wb;
+                                    move |_| wb.open_center_memory_tab()
+                                }
+                            >
+                                <LxIcon icon=icondata::LuPanelTopOpen width="0.78rem" height="0.78rem" />
+                            </button>
+                            <span>{memory_stats}</span>
+                        </div>
+                    </Show>
                     <button
                         type="button"
                         class="workbench-memory-files__collapse-btn"
@@ -2681,6 +2702,29 @@ fn memory_group_index_path(group: &MemoryNoteGroup) -> Option<String> {
                 _ => None,
             }
         })
+}
+
+fn memory_files_stats_text(notes: Vec<NoteMeta>, empty_categories: Vec<String>) -> String {
+    let file_count = notes
+        .iter()
+        .filter(|note| note.scope == MemoryScope::Workspace && note.enabled && !note.is_template)
+        .count();
+    let mut categories = HashSet::new();
+    for note in notes
+        .iter()
+        .filter(|note| note.scope == MemoryScope::Workspace && note.enabled && !note.is_template)
+    {
+        let cat = category_for_path(&note.path);
+        if cat != CATEGORY_MEMORY {
+            categories.insert(cat);
+        }
+    }
+    for cat in empty_categories {
+        if cat != CATEGORY_MEMORY {
+            categories.insert(cat);
+        }
+    }
+    format!("{} files / {} cats", file_count, categories.len())
 }
 
 fn root_memory_notes_for_scope(notes: &[NoteMeta], scope: &MemoryScope) -> Vec<NoteMeta> {
