@@ -39,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Git commit graph polish after the VS Code-style refactor**: commit titles now start directly after the relevant graph node and shift right only while extra branch lanes are active, then return to the default indent after merges collapse. The commit hover card is positioned from the hovered/focused row instead of being pinned to the far right of the window, keeps a high z-index above the sidebar, and no longer competes with the browser's native `title` tooltip. Commit-detail loading is cached above the refreshed list and the hover card only shows `Loading...` before details exist, removing the periodic loading flicker during graph auto-refresh.
+
 - **Rules panel descriptions and sidebar typography now line up with the rest of the workbench.** Rule summaries skip YAML frontmatter and correctly use the paragraph below `## Ziel` instead of rendering the heading itself, while the File Diff and Git Commits sidebar sections now use the same compact font sizing as the Project Files tree.
 
 - **Push-to-Talk errors are now surfaced as localized toasts instead of disappearing silently.** PTT start failures show the existing microphone error, busy/TTS-collision rejects show the same message as the indicator hint, finalize failures map to no-model/model-load/generic transcription messages, and failed transcript insertion into the clipboard, active terminal, or active text input now reports `VoicePttInsertFailed`.
