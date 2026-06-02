@@ -41,11 +41,33 @@ function xtermThemeFromDom() {
   };
 }
 
+// Fallback mirrors the create() default so a terminal never ends up on the bare
+// `monospace` generic (Courier New on Windows mangles box-drawing glyphs).
+const FONT_FAMILY_FALLBACK =
+  '"JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, "SF Mono", Menlo, ui-monospace, monospace';
+
+function fontFamilyFromDom() {
+  return readCssVar("--font-mono", FONT_FAMILY_FALLBACK);
+}
+
 function applyThemeToAllTerminals() {
   const theme = xtermThemeFromDom();
+  const fontFamily = fontFamilyFromDom();
   for (const rec of instances.values()) {
     try {
       rec.term.options.theme = theme;
+      // A font change alters cell metrics, so re-measure and re-fit (which may
+      // change the grid size and therefore needs a PTY resize). Skip the heavy
+      // path when only colors changed.
+      if (fontFamily && rec.term.options.fontFamily !== fontFamily) {
+        rec.term.options.fontFamily = fontFamily;
+        rec.term.clearTextureAtlas?.();
+        const termId = [...instances.entries()].find(([, v]) => v === rec)?.[0];
+        const size = fitTerminal(rec);
+        if (termId != null && size.rows > 0 && size.cols > 0) {
+          dispatchPtyResize(termId, rec, size, true);
+        }
+      }
       scheduleRefresh(rec);
     } catch (_) {}
   }
@@ -222,12 +244,11 @@ window.__blxcodeTerminal = {
   create(container) {
     const id = nextId++;
     const term = new Terminal({
-      // Windows has neither JetBrains Mono nor SF Mono, and Chromium maps the
-      // bare `monospace` generic to Courier New (bad box-drawing/block metrics,
-      // which mangles TUI art). Fall back to fonts that actually ship on each
-      // OS — Cascadia Mono / Consolas on Windows — before the generic.
-      fontFamily:
-        '"JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, "SF Mono", Menlo, ui-monospace, monospace',
+      // Honors the user's font choice (--font-mono, set by ThemeService). The
+      // fallback stack covers OSes without JetBrains Mono / SF Mono, since the
+      // bare `monospace` generic maps to Courier New on Windows (bad box-drawing
+      // metrics that mangle TUI art).
+      fontFamily: fontFamilyFromDom(),
       fontSize: 12,
       allowTransparency: true,
       theme: xtermThemeFromDom(),
