@@ -202,11 +202,8 @@ pub fn AgentPanelDock() -> impl IntoView {
         });
     });
 
-    // Collapsed when empty; expanded when at least one task or context item.
-    Effect::new(move |_| {
-        let count = task_snapshot.get().tasks.len();
-        tasks_open.set(count > 0);
-    });
+    // The compact tasks bar stays collapsed by default; the user toggles the
+    // full list open via its chevron.
     Effect::new(move |_| {
         let active = wb.active_id().get();
         let count = match active {
@@ -430,7 +427,13 @@ pub fn AgentPanelDock() -> impl IntoView {
                 <AgentThinkingStream timeline=timeline />
             </header>
 
-            <TaskSection snapshot=task_snapshot busy=busy tasks_open=tasks_open />
+            <TaskSection
+                snapshot=task_snapshot
+                busy=busy
+                tasks_open=tasks_open
+                timeline=timeline
+                wb=wb
+            />
             <ContextSection context_open=context_open />
 
             <Show when=move || status_line.get().is_some()>
