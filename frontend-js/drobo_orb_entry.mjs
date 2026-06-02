@@ -12,7 +12,7 @@ const BASE_ROTATION = {
   y: -Math.PI / 2 + 0.08,
   z: -0.02,
 };
-const MODEL_Y_OFFSET = 0.34;
+const MODEL_Y_OFFSET = 0.12;
 
 function clamp(value, min = -1, max = 1) {
   return Math.max(min, Math.min(max, value));
@@ -116,7 +116,7 @@ function fitModelToGroup(model, group) {
   box.getCenter(center);
   const maxSide = Math.max(size.x, size.y, size.z) || 1;
   model.position.sub(center);
-  model.scale.setScalar(2.28 / maxSide);
+  model.scale.setScalar(2.68 / maxSide);
   group.add(model);
 }
 

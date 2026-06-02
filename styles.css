@@ -2469,8 +2469,8 @@ button.workbench-shortcut-row--action:focus-visible {
   align-items: center;
   justify-content: center;
   gap: 1.05rem;
-  min-height: 18.5rem;
-  padding: 3.05rem 1rem 2.65rem;
+  min-height: 22rem;
+  padding: 2.4rem 1rem 2.65rem;
   text-align: center;
   border-bottom: 1px solid var(--border);
   background: transparent;
@@ -2480,8 +2480,8 @@ button.workbench-shortcut-row--action:focus-visible {
   position: relative;
   display: grid;
   place-items: center;
-  width: 8.75rem;
-  height: 8.75rem;
+  width: 12.5rem;
+  height: 12.5rem;
   border-radius: var(--radius-circle);
   padding: 0;
   background: var(--accent-soft);
@@ -2613,7 +2613,7 @@ button.workbench-shortcut-row--action:focus-visible {
   flex-direction: column;
   align-items: center;
   gap: 0.22rem;
-  margin-top: 0.15rem;
+  margin-top: 0;
 }
 
 .agent-hero__eyebrow {

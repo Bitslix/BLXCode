@@ -373,6 +373,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                     "agent-hero".to_string()
                 }
             }>
+                <p class="agent-hero__eyebrow">{move || i18n.tr(I18nKey::AgBrandTitle)()}</p>
                 <VoiceOrb
                     handle=voice_handle
                     on_transcript=move |text: String, auto_send: bool| {
@@ -399,7 +400,6 @@ pub fn AgentPanelDock() -> impl IntoView {
                     }
                 />
                 <div class="agent-hero__meta">
-                    <p class="agent-hero__eyebrow">{move || i18n.tr(I18nKey::AgBrandTitle)()}</p>
                     <h2>{move || {
                         if busy.get() {
                             i18n.tr(I18nKey::AgStateRunning)().to_string()
