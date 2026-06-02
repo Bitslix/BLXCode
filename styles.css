@@ -2527,10 +2527,9 @@ button.workbench-shortcut-row--action:focus-visible {
   flex-shrink: 0;
   display: grid;
   grid-template-columns: 1fr auto;
-  grid-template-rows: auto auto;
+  grid-template-rows: auto;
   align-items: start;
-  column-gap: 1.25rem;
-  row-gap: 0.5rem;
+  column-gap: 2.75rem;
   min-height: 0;
   padding: 1.5rem 1.25rem 1.4rem;
   text-align: left;
@@ -2732,44 +2731,9 @@ button.workbench-shortcut-row--action:focus-visible {
   background: color-mix(in srgb, var(--accent-cool) 86%, var(--bg-app));
 }
 
-.agent-hero__meta {
-  grid-column: 2;
-  grid-row: 2;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  align-self: start;
-  gap: 0.22rem;
-  margin: 0;
-  text-align: center;
-}
-
-.agent-hero__eyebrow {
-  margin: 0;
-  color: var(--accent);
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.agent-hero h2 {
-  margin: 0.04rem 0 0;
-  color: var(--text-muted);
-  font-size: 0.82rem;
-  font-weight: 700;
-  letter-spacing: 0;
-}
-
-.agent-hero p {
-  margin: 0.18rem 0 0;
-  color: var(--text-muted);
-  font-size: 0.76rem;
-}
-
 .agent-session-stats {
   grid-column: 1;
-  grid-row: 1 / span 2;
+  grid-row: 1;
   align-self: stretch;
   min-width: 0;
   padding: 0.12rem 0 0;
@@ -3015,24 +2979,8 @@ button.workbench-shortcut-row--action:focus-visible {
   font-size: 0.72rem;
 }
 
-.agent-hero--compact .agent-hero__meta {
-  align-items: flex-start;
-  margin-top: 0;
-  min-width: 0;
-}
-
-.agent-hero--compact .agent-hero__eyebrow,
-.agent-hero--compact .agent-hero__meta > p {
-  display: none;
-}
-
 .agent-hero--compact .agent-session-stats {
   display: none;
-}
-
-.agent-hero--compact .agent-hero h2 {
-  font-size: 0.82rem;
-  margin: 0;
 }
 
 .workbench-agent-pane--chat-maximized {

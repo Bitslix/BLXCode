@@ -7,8 +7,8 @@
 ## Summary
 
 Der Agent-Header (`.agent-hero`) ist ein 2-Spalten-Grid. **Layout getauscht**
-(umgesetzt in `styles.css`): **rechts** der Drobo-Orb (Spalte 2, Zeile 1) mit dem
-**State** („Standby/Running", Zeile 2) darunter, **links** die `1fr`-Spalte
+(umgesetzt in `styles.css`): **rechts** der Drobo-Orb (Spalte 2) ohne separaten
+Text-State darunter, **links** die `1fr`-Spalte
 (Spalte 1) für die Statistik-Anzeige. Diese **linke** Box ist als moderne,
 clean gestaltete, live-aktualisierte Chat-Session-Statistik umgesetzt: **keine
 Card-Optik**, **keine Tooltips** in der Stats-Anzeige, Icons je Zeile und Werte,
@@ -59,16 +59,18 @@ bereits hält — **keine `src-tauri`-Änderung nötig**:
 
 ### Datenlücke: Session Start Time (ergänzt)
 
-Es existiert **kein** Session-Start-Zeitstempel — weder `ChatUsageStats` noch
-`TurnNode`/`UserPart` tragen einen. Lösung: neues Feld
+Es existierte **kein** Session-Start-Zeitstempel. Lösung: neues optionales
+`created_at` am ersten `UserPart` sowie
 `session_started_at: Option<f64>` (Epoch-ms via `js_sys::Date::now()`) in
-`ChatUsageStats` (`state.rs:198`), gesetzt direkt beim Submit via
-`ensure_chat_session_started` (damit die Anzeige sofort live ist) und weiterhin
-als Fallback in `record_chat_turn_usage` beim Übergang `turn_count 0 → 1`,
-zurückgesetzt in `agent_clear_conversation`.
+`ChatUsageStats` (`state.rs:198`). Beim ersten User-Turn eines neuen Chats wird
+ein einzelner Timestamp erzeugt, im Turn persistiert und via
+`ensure_chat_session_started` sofort in die Live-Anzeige gespiegelt. Beim Laden
+einer Session liest die Anzeige den gespeicherten Usage-Wert oder fällt auf den
+ersten User-Turn-Timestamp zurück; spätere Turns alter untimed Sessions werden
+nicht als Startzeit missverstanden. Reset in `agent_clear_conversation`.
 `#[serde(default)]` → abwärtskompatibel; **rein im Frontend-Crate** (`src/`),
 kein `src-tauri`. Anzeige als lokale Uhrzeit (z. B. `14:32`) bzw. „—" solange
-keine Session läuft.
+keine Session läuft oder alte Daten keinen echten Startzeitpunkt enthalten.
 
 ## Einheitlicher Tooltip (TIP)
 
@@ -122,7 +124,7 @@ Feinschliff der Zuordnung bei der Umsetzung.
 ## Layout (modern / clean)
 
 Karte in der **linken** Grid-Zelle (Spalte 1), Drobo-Orb rechts daneben
-(Spalte 2). Von oben nach unten:
+(Spalte 2) mit deutlichem Spaltenabstand. Von oben nach unten:
 
 ```
 ┌─────────────────────────────────────┐
@@ -169,9 +171,11 @@ Neue Datei `src/workbench/agent_panel/session_stats.rs`:
 
 **STATS-02 — Session Start Time (State)**
 - Feld `session_started_at: Option<f64>` in `ChatUsageStats` (`state.rs`),
-  `#[serde(default)]`. Setzen in `record_chat_turn_usage` bei `0 → 1`,
-  Reset in `agent_clear_conversation`. Getter `chat_usage_for_workspace`
-  liefert es mit. Format-Helfer (Epoch-ms → lokale `HH:MM`).
+  `#[serde(default)]`; optionales `created_at` in `UserPart`. Setzen beim ersten
+  User-Turn eines neuen Chats, Usage-Fallback aus dem ersten Turn in
+  `record_chat_turn_usage`, Reset in `agent_clear_conversation`. Getter
+  `chat_usage_for_workspace` liefert es mit. Format-Helfer (Epoch-ms → lokale
+  `HH:MM`).
 
 **STATS-03 — Komponente `AgentSessionStats`**
 - Props: `timeline`, `wb`, `context_length`, `model_label`, `busy`.
@@ -182,14 +186,16 @@ Neue Datei `src/workbench/agent_panel/session_stats.rs`:
 
 **STATS-04 — Einbau in den Header**
 - In `agent_panel/mod.rs` die **linke** Spalte (Grid-Spalte 1) mit
-  `<AgentSessionStats .. />` füllen. Orb/State stehen rechts (Spalte 2) — der
-  Grid-Swap ist in `styles.css` bereits umgesetzt.
+  `<AgentSessionStats .. />` füllen. Der Orb steht rechts (Spalte 2); der
+  separate Text-State darunter wurde entfernt, der eine Standby/Running-State
+  sitzt im Stats-Header.
 
 **STATS-05 — CSS**
 - `.agent-session-stats` in `styles.css`: ungerahmte Header-Anzeige ohne
   Card-Optik, Icon-Label-Wert-Zeilen, Mini-Badges, Context-Meter, dauerhafte
   Active-Subagents-Zeile mit optionalen Namens-Chips.
-- Compact-Mode (`.agent-hero--compact`) blendet die Karte aus (nur State bleibt).
+- Compact-Mode (`.agent-hero--compact`) blendet die Stats-Anzeige aus und zeigt
+  nur den kompakten Orb.
 
 **STATS-06 — i18n**
 - Neue `I18nKey`s: `AgStatsModel`, `AgStatsStarted`, `AgStatsContext`,
@@ -203,8 +209,8 @@ Neue Datei `src/workbench/agent_panel/session_stats.rs`:
 - `cargo check -p blxcode-ui --target wasm32-unknown-unknown`
 - `cargo test --workspace` (Aggregator-Tests)
 - Live-Test: Werte reaktiv (auch während „Thinking"), keine Stats-Tooltips,
-  Session-Start sofort beim Submit gesetzt + nach Clear zurück, Compact-Mode
-  blendet aus.
+  Session-Start = erster User-Turn und bleibt nach Workspace-Reload stabil,
+  nach Clear zurückgesetzt, Compact-Mode blendet aus.
 
 Verifiziert:
 - `cargo check -p blxcode-ui --target wasm32-unknown-unknown`
@@ -219,8 +225,8 @@ deshalb vorerst englische Fallbacks für die neuen Stats-Keys.
 
 Vom Nutzer bestätigt — gelten als verbindlich:
 
-- **Session Start = Zeitpunkt des ersten Turns** der Session (gesetzt beim
-  Übergang `turn_count 0 → 1`, Reset bei `agent_clear_conversation`).
+- **Session Start = Zeitpunkt des ersten User-Turns** der Session (im ersten
+  `UserPart.created_at` persistiert, Reset bei `agent_clear_conversation`).
 - **Anzeigeformat = lokale Uhrzeit `HH:MM`** (kein relatives „vor 12 min").
 - **Subagents = eigene Stats-Zeile** (immer sichtbar als Count; Namen als Chips
   nur wenn aktive Subagents vorhanden sind).

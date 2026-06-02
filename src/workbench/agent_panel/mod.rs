@@ -408,15 +408,6 @@ pub fn AgentPanelDock() -> impl IntoView {
                         }
                     }
                 />
-                <div class="agent-hero__meta">
-                    <h2>{move || {
-                        if busy.get() {
-                            i18n.tr(I18nKey::AgStateRunning)().to_string()
-                        } else {
-                            i18n.tr(I18nKey::AgStateStandby)().to_string()
-                        }
-                    }}</h2>
-                </div>
             </header>
 
             <TaskSection snapshot=task_snapshot busy=busy tasks_open=tasks_open />
@@ -750,9 +741,15 @@ fn submit_turn(
     let transient_context_ids = transient_agent_context_ids(&context_items);
     let image_context_items = wb.pending_agent_images_for_workspace_untracked(ws_id);
 
-    timeline.update(|doc| doc.push_user_turn_with_pending(prompt.clone()));
+    let starts_new_chat_session = timeline.with_untracked(|doc| doc.turns.is_empty());
+    let session_turn_started_at = js_sys::Date::now();
+    timeline.update(|doc| {
+        doc.push_user_turn_with_pending(prompt.clone(), Some(session_turn_started_at))
+    });
     wb.set_workspace_agent_timeline(ws_id, timeline.get_untracked());
-    wb.ensure_chat_session_started(ws_id);
+    if starts_new_chat_session {
+        wb.ensure_chat_session_started(ws_id, session_turn_started_at);
+    }
 
     status_line.set(None);
     busy.set(true);

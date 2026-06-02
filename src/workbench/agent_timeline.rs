@@ -348,11 +348,15 @@ pub struct TurnNode {
     pub parts: Vec<TurnPart>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserPart {
     pub id: String,
     pub text: String,
+    /// Epoch-ms timestamp of the user submit that started this turn. Older
+    /// persisted timelines did not carry this field, so it remains optional.
+    #[serde(default)]
+    pub created_at: Option<f64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -485,18 +489,26 @@ impl TimelineDoc {
     }
 
     pub fn push_user_turn(&mut self, text: String) {
+        self.push_user_turn_with_started_at(text, None);
+    }
+
+    pub fn push_user_turn_with_started_at(&mut self, text: String, started_at: Option<f64>) {
         let id = format!("turn-{}", self.turns.len());
         let user_id = format!("user-{}", self.turns.len());
         self.turns.push(TurnNode {
             id,
-            user: UserPart { id: user_id, text },
+            user: UserPart {
+                id: user_id,
+                text,
+                created_at: started_at,
+            },
             parts: Vec::new(),
         });
     }
 
-    pub fn push_user_turn_with_pending(&mut self, text: String) {
+    pub fn push_user_turn_with_pending(&mut self, text: String, started_at: Option<f64>) {
         let pending_id = format!("think-pending-{}", self.turns.len());
-        self.push_user_turn(text);
+        self.push_user_turn_with_started_at(text, started_at);
         if let Some(turn) = self.turns.last_mut() {
             turn.parts.push(TurnPart::Thinking {
                 id: pending_id,

@@ -105,6 +105,12 @@ pub fn compute_session_stats(doc: &TimelineDoc) -> SessionStats {
     stats
 }
 
+/// Persisted timestamp of the first user turn in the timeline, when available.
+#[must_use]
+pub fn session_started_from_timeline(doc: &TimelineDoc) -> Option<f64> {
+    doc.turns.first().and_then(|turn| turn.user.created_at)
+}
+
 /// Recursively account a list of parts. `in_subagent` suppresses counting
 /// subagent model rounds against the main-agent `model_turns`.
 fn walk_parts(parts: &[TurnPart], stats: &mut SessionStats, in_subagent: bool) {
@@ -179,9 +185,11 @@ pub fn AgentSessionStats(
         }
     });
     let started_text = Signal::derive(move || {
+        let timeline_started_at = timeline.with(session_started_from_timeline);
         usage
             .get()
             .session_started_at
+            .or(timeline_started_at)
             .map(format_session_time)
             .unwrap_or_else(|| i18n.tr(I18nKey::AgStatsEmpty)().to_string())
     });
@@ -411,11 +419,16 @@ mod tests {
     use crate::workbench::agent_timeline::{ToolState, TurnNode, UserPart};
 
     fn user_turn(parts: Vec<TurnPart>) -> TurnNode {
+        user_turn_started_at(parts, Some(42.0))
+    }
+
+    fn user_turn_started_at(parts: Vec<TurnPart>, created_at: Option<f64>) -> TurnNode {
         TurnNode {
             id: "t".into(),
             user: UserPart {
                 id: "u".into(),
                 text: "hi".into(),
+                created_at,
             },
             parts,
         }
@@ -464,6 +477,26 @@ mod tests {
         let s = compute_session_stats(&d);
         assert_eq!(s.user_turns, 2);
         assert_eq!(s.model_turns, 3);
+    }
+
+    #[test]
+    fn session_start_uses_first_user_turn_timestamp() {
+        let d = doc(vec![
+            user_turn_started_at(Vec::new(), Some(100.0)),
+            user_turn_started_at(Vec::new(), Some(200.0)),
+        ]);
+
+        assert_eq!(session_started_from_timeline(&d), Some(100.0));
+    }
+
+    #[test]
+    fn session_start_does_not_skip_untimed_first_turn() {
+        let d = doc(vec![
+            user_turn_started_at(Vec::new(), None),
+            user_turn_started_at(Vec::new(), Some(200.0)),
+        ]);
+
+        assert_eq!(session_started_from_timeline(&d), None);
     }
 
     #[test]

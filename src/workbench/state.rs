@@ -222,8 +222,8 @@ pub struct ChatUsageStats {
     /// excluded (they don't sit in the main conversation window).
     #[serde(default)]
     pub last_round_input_tokens: u64,
-    /// Epoch-ms timestamp of the **first turn** in the current session. Set
-    /// when `turn_count` transitions 0 → 1; cleared by `clear_chat_usage`
+    /// Epoch-ms timestamp of the **first user turn** in the current session.
+    /// Mirrored from the timeline on submit; cleared by `clear_chat_usage`
     /// (alongside `agent_clear_conversation`). Drives the "Session start" row
     /// in the agent stats panel. Persisted so it survives reloads.
     #[serde(default)]
@@ -3399,6 +3399,12 @@ impl WorkbenchService {
         let mut applied = false;
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                let timeline_started_at = ws
+                    .agent_timeline
+                    .turns
+                    .first()
+                    .and_then(|turn| turn.user.created_at);
+                let single_untimed_turn = ws.agent_timeline.turns.len() <= 1;
                 let u = &mut ws.agent_chat_usage;
                 if turn_generation < u.current_turn_generation {
                     return;
@@ -3407,7 +3413,13 @@ impl WorkbenchService {
                     u.current_turn_generation = turn_generation;
                 }
                 if u.turn_count == 0 && u.session_started_at.is_none() {
-                    u.session_started_at = Some(js_sys::Date::now());
+                    u.session_started_at = timeline_started_at.or_else(|| {
+                        if single_untimed_turn {
+                            Some(js_sys::Date::now())
+                        } else {
+                            None
+                        }
+                    });
                 }
                 u.turn_count = u.turn_count.saturating_add(1);
                 if let Some(p) = input_tokens {
@@ -3432,11 +3444,11 @@ impl WorkbenchService {
     /// Mark the current chat session as started without crediting a usage
     /// event. Called immediately when the user submits a turn so the Agent
     /// stats header updates before the first backend `TurnUsage` event lands.
-    pub fn ensure_chat_session_started(&self, workspace_id: u64) {
+    pub fn ensure_chat_session_started(&self, workspace_id: u64, started_at: f64) {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
                 if ws.agent_chat_usage.session_started_at.is_none() {
-                    ws.agent_chat_usage.session_started_at = Some(js_sys::Date::now());
+                    ws.agent_chat_usage.session_started_at = Some(started_at);
                 }
             }
         });
