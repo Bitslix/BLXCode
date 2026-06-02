@@ -372,6 +372,7 @@ fn GitGraphRow(
     let commit_for_expanded = commit.clone();
     let commit_for_hover = commit.clone();
     let commit_lane = entry.lane;
+    let text_lane = entry.lanes.saturating_sub(1);
     let hover_card_style = RwSignal::new(default_hover_card_style());
     let expanded_signal =
         Signal::derive(move || selected_oid.get().as_deref() == Some(oid_for_expanded.as_str()));
@@ -402,7 +403,7 @@ fn GitGraphRow(
     view! {
         <li
             class=row_class
-            style=format!("--commit-lane:{commit_lane};")
+            style=format!("--commit-lane:{commit_lane};--text-lane:{text_lane};")
             on:mouseenter=move |ev: web_sys::MouseEvent| {
                 hover_card_style.set(hover_card_style_for_target(ev.current_target()));
                 hovered_oid.set(Some(oid_for_mouse.clone()));
@@ -415,7 +416,6 @@ fn GitGraphRow(
                 <button
                     type="button"
                     class="git-graph__commit-btn"
-                    title=commit.subject.clone()
                     aria-expanded=move || expanded_signal.get().to_string()
                     on:click=move |_| {
                         if selected_oid.get_untracked().as_deref() == Some(oid_for_click.as_str()) {

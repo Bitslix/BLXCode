@@ -10838,7 +10838,7 @@ body.blxcode-dragging-terminal * {
   font: inherit;
   text-align: left;
   margin-left: calc(
-    var(--git-graph-gutter-pad) + var(--commit-lane, 0) * var(--git-graph-lane-step) + 0.58rem
+    var(--git-graph-gutter-pad) + var(--text-lane, 0) * var(--git-graph-lane-step) + 0.58rem
   );
   padding: 0 0.2rem 0 0.1rem;
   cursor: pointer;
@@ -10870,7 +10870,7 @@ body.blxcode-dragging-terminal * {
 
 .git-graph__expanded {
   margin-left: calc(
-    var(--git-graph-gutter-pad) + var(--commit-lane, 0) * var(--git-graph-lane-step) + 0.68rem
+    var(--git-graph-gutter-pad) + var(--text-lane, 0) * var(--git-graph-lane-step) + 0.68rem
   );
   padding: 0 0.65rem 0.25rem 0;
 }
