@@ -31,7 +31,7 @@ Each rule is an **expandable card** (same pattern as Skills):
 |-----------|----------|
 | Title, summary, category chip, **Enabled** / **Disabled** pill, enable toggle | Full rule body (Markdown), inline **edit** and save, remove |
 
-Use **Create rule** at the top of the tab to add a new `rule-*.md` file. The form validates name and body before writing to `.agents/rules/`. Rule summaries skip YAML frontmatter and use the paragraph below the first heading.
+Use **Create rule** at the top of the tab to add a new `rule-*.md` file. The form validates name and body before writing to `.agents/rules/`. Rule summaries skip YAML frontmatter and use the paragraph below the **`## Ziel`** heading (so the heading itself never leaks into the card's preview text).
 
 <p align="center">
   <img src="../images/rules-panel.png" alt="Rules panel with create-rule form and expandable rule cards" />

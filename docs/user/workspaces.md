@@ -196,6 +196,10 @@ Fetch, pull, and push share one busy state with File Diff so only one Git networ
 
 Explorer, File Diff, and Git section open/collapsed state restores per workspace after reload.
 
+### Sidebar typography
+
+The **File Diff** and **Git Commits** sidebar sections use the same compact font sizing as the **Project Files** tree, so the three inner panels read as a single consistent list when stacked. The tree rows, diff rows, and commit rows all share row height, label weight, and the same dim-secondary metadata text.
+
 ## Workspace settings
 
 **Settings** (center tab) → **Workspace**:

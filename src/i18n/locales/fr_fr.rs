@@ -330,7 +330,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppShortcutModeLegacy => "Classique (Ctrl / Ctrl+Maj)",
         I18nKey::AppShortcutModeHint => "Tmux: prefix Ctrl+b then a second key. Classic: Ctrl+O, Ctrl+Shift+N, Ctrl+Shift+P.",
         I18nKey::ShortcutsHeading => "Raccourcis clavier",
-        I18nKey::ShortcutsDescription => "Tune global shortcuts and command bindings for the workbench.",
+        I18nKey::ShortcutsDescription => "Ajustez les raccourcis globaux et les liaisons de commandes pour le plan de travail.",
         I18nKey::ShortcutsPresetHeading => "Préréglage",
         I18nKey::ShortcutsBindingsHeading => "Reliures",
         I18nKey::ShortcutsPrefixLabel => "Clé de préfixe",
@@ -375,7 +375,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgTimelineAria => "Chronologie de l'activité des agents",
         I18nKey::AgBrandTitle => "Agent BLXCode",
         I18nKey::AgStateRunning => "En cours d'exécution",
-        I18nKey::AgStateThinking => "Thinking",
+        I18nKey::AgStateThinking => "Pensée",
         I18nKey::AgStateStandby => "Attendre",
         I18nKey::AgTagline => "Assistante d'espace de travail",
         I18nKey::AgChatHeading => "Journal de discussion",
@@ -406,28 +406,32 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgMetricsBarAria => "Métriques du tour",
         I18nKey::AgMetricsModelRound => "tour du modèle",
         I18nKey::AgSessionCostAria => "Coût de session et nombre de tours",
-        I18nKey::AgStatsAria => "Agent session statistics",
-        I18nKey::AgStatsModel => "Model",
-        I18nKey::AgStatsModelUnknown => "No model selected",
-        I18nKey::AgStatsModelTip => "Active provider and model for new turns. Click to open Agent Provider settings.",
-        I18nKey::AgStatsStarted => "Started",
-        I18nKey::AgStatsStartedTip => "Local start time of the current session.",
-        I18nKey::AgStatsContext => "Context",
-        I18nKey::AgStatsContextTip => "Latest prompt size against the active context window.",
-        I18nKey::AgStatsTurns => "Turns",
-        I18nKey::AgStatsUserTurns => "User turns",
-        I18nKey::AgStatsUserTurnsTip => "User submissions currently visible in this session.",
-        I18nKey::AgStatsModelTurns => "Model turns",
-        I18nKey::AgStatsModelTurnsTip => "Main-agent model rounds, excluding subagent rounds.",
-        I18nKey::AgStatsToolCalls => "Tool calls",
-        I18nKey::AgStatsToolCallsTip => "Total tool calls with open, read, edit, and remove buckets.",
-        I18nKey::AgStatsOpen => "open",
-        I18nKey::AgStatsRead => "read",
-        I18nKey::AgStatsEdit => "edit",
+        I18nKey::AgStatsAria => "Statistiques de session d'agent",
+        I18nKey::AgStatsModel => "Modèle",
+        I18nKey::AgStatsModelUnknown => "Aucun modèle sélectionné",
+        I18nKey::AgStatsModelTip => {
+            "Fournisseur actif et modèle pour de nouveaux virages. Cliquez pour ouvrir les paramètres du fournisseur d'agent."
+        }
+        I18nKey::AgStatsStarted => "Commencé",
+        I18nKey::AgStatsStartedTip => "Heure locale de début de la session en cours.",
+        I18nKey::AgStatsContext => "Contexte",
+        I18nKey::AgStatsContextTip => "Dernière taille d’invite par rapport à la fenêtre contextuelle active.",
+        I18nKey::AgStatsTurns => "Virages",
+        I18nKey::AgStatsUserTurns => "L'utilisateur se tourne",
+        I18nKey::AgStatsUserTurnsTip => "Soumissions des utilisateurs actuellement visibles dans cette session.",
+        I18nKey::AgStatsModelTurns => "Le modèle tourne",
+        I18nKey::AgStatsModelTurnsTip => "Cycles de modèles d'agent principal, à l'exclusion des cycles de sous-agents.",
+        I18nKey::AgStatsToolCalls => "Appels d'outils",
+        I18nKey::AgStatsToolCallsTip => {
+            "Nombre total d'appels d'outils avec ouverture, lecture, modification et suppression de compartiments."
+        }
+        I18nKey::AgStatsOpen => "ouvrir",
+        I18nKey::AgStatsRead => "lire",
+        I18nKey::AgStatsEdit => "modifier",
         I18nKey::AgStatsRm => "rm",
-        I18nKey::AgStatsCosts => "Costs",
-        I18nKey::AgStatsCostsTip => "Resolved USD cost accumulated during this session.",
-        I18nKey::AgStatsSubagents => "Active subagents",
+        I18nKey::AgStatsCosts => "Frais",
+        I18nKey::AgStatsCostsTip => "Coût en USD résolu accumulé au cours de cette session.",
+        I18nKey::AgStatsSubagents => "Sous-agents actifs",
         I18nKey::AgStatsEmpty => "-",
         I18nKey::AgTasksTitle => "Tâches",
         I18nKey::AgTasksRuntime => "Durée d'exécution",
@@ -590,12 +594,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatVoice => "Voix",
         I18nKey::HsCatImage => "Image",
         I18nKey::HsCatRemote => "Télécommande",
-        I18nKey::MemorySettingsDescription => "Configure where Memory appears in the workbench.",
-        I18nKey::MemorySettingsSidePanelSection => "Right side panel",
-        I18nKey::MemorySettingsRightPanelToggle => "Show Memory tab in right side panel",
-        I18nKey::MemorySettingsRightPanelHint => "Turn this off when you use the centered Memory tab as your default workspace view.",
+        I18nKey::MemorySettingsDescription => "Configurez l'emplacement où la mémoire apparaît dans le plan de travail.",
+        I18nKey::MemorySettingsSidePanelSection => "Panneau latéral droit",
+        I18nKey::MemorySettingsRightPanelToggle => "Afficher l'onglet Mémoire dans le panneau latéral droit",
+        I18nKey::MemorySettingsRightPanelHint => {
+            "Désactivez cette option lorsque vous utilisez l'onglet Mémoire centré comme vue d'espace de travail par défaut."
+        }
         I18nKey::RemoteHeading => "Connexions à distance SSH",
-        I18nKey::RemoteDescription => "Manage SSH presets for opening and resuming workspaces on remote machines.",
+        I18nKey::RemoteDescription => {
+            "Gérez les préréglages SSH pour ouvrir et reprendre des espaces de travail sur des machines distantes."
+        }
         I18nKey::RemoteSubtitle => {
             "Enregistrez les préréglages de connexion pour ouvrir des espaces de travail sur une machine distante via SSH."
         }
@@ -613,10 +621,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteKeyPath => "Fichier de clé privée",
         I18nKey::RemotePassphrase => "Phrase secrète clé",
         I18nKey::RemoteDefaultDir => "Répertoire distant",
-        I18nKey::RemoteBrowseDirs => "Browse remote directories",
-        I18nKey::RemoteSelectDir => "Select remote directory",
-        I18nKey::RemoteDirUp => "Up",
-        I18nKey::RemoteDirSaveFirst => "Save this remote connection before browsing directories.",
+        I18nKey::RemoteBrowseDirs => "Parcourir les répertoires distants",
+        I18nKey::RemoteSelectDir => "Sélectionnez le répertoire distant",
+        I18nKey::RemoteDirUp => "En haut",
+        I18nKey::RemoteDirSaveFirst => "Enregistrez cette connexion à distance avant de parcourir les répertoires.",
         I18nKey::RemoteResumeModel => "Reprise de la séance",
         I18nKey::RemoteResumeTmux => "Persistant (tmux)",
         I18nKey::RemoteResumeKeepalive => "Keepalive uniquement",
@@ -656,9 +664,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsRemoteDirHint => "Facultatif. La valeur par défaut est le répertoire de la connexion ou le domicile distant.",
         I18nKey::SidebarRemoteTitle => "Espace de travail à distance (SSH)",
         I18nKey::AppHeading => "Application",
-        I18nKey::AppDescription => "Set language, notifications, update checks, and app-wide behavior.",
+        I18nKey::AppDescription => {
+            "Définissez la langue, les notifications, les vérifications de mise à jour et le comportement à l'échelle de l'application."
+        }
         I18nKey::AppearanceHeading => "Apparence",
-        I18nKey::AppearanceDescription => "Choose the visual theme and preview how the workbench will look.",
+        I18nKey::AppearanceDescription => "Choisissez le thème visuel et prévisualisez l’apparence de l’établi.",
         I18nKey::AppearanceHeroTitle => "Faites-le vôtre.",
         I18nKey::AppearanceHeroSubtitle => "{n} thèmes : les couleurs s'appliquent instantanément sur l'atelier.",
         I18nKey::AppearanceSearchPlaceholder => "Thèmes de recherche…",
@@ -677,7 +687,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppearanceRoundingSharp => "Net",
         I18nKey::AppearanceRoundingDefault => "Par défaut",
         I18nKey::AppearanceRoundingRounded => "Arrondi",
-        I18nKey::AppearanceRoundingExtra => "Extra",
+        I18nKey::AppearanceRoundingExtra => "Supplémentaire",
         I18nKey::AppearanceFontTitle => "Police",
         I18nKey::AppearanceFontDesc => "Police pour l'interface et les terminaux",
         I18nKey::AppearanceFontAria => "Police de l'interface",
@@ -685,9 +695,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::ThemeDescBlxcodeDark => "Base Tokyo Night fusionnée aux accents violets, roses et cyan de Dracula",
         I18nKey::ThemeNameBlxcodeLight => "Lumière de code BLX",
         I18nKey::ThemeDescBlxcodeLight => "Clair teinté lavande avec des accents violets de Dracula",
-        I18nKey::ThemeNameBlxcodeLegacyDark => "BLXCode Legacy",
+        I18nKey::ThemeNameBlxcodeLegacyDark => "Héritage de BLXCode",
         I18nKey::ThemeDescBlxcodeLegacyDark => "L'établi sombre d'origine avec des accents bleus GitHub",
-        I18nKey::ThemeNameBlxcodeLegacyLight => "BLXCode Legacy Light",
+        I18nKey::ThemeNameBlxcodeLegacyLight => "Lumière héritée BLXCode",
         I18nKey::ThemeDescBlxcodeLegacyLight => "Surfaces claires et nettes avec des accents bleus froids",
         I18nKey::ThemeNameDracula => "Dracula",
         I18nKey::ThemeDescDracula => "Accents rose-violet sur une base riche et sombre",
@@ -718,7 +728,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::ThemeNameKanagawa => "Kanagawa",
         I18nKey::ThemeDescKanagawa => "Lavis d'encre japonaise foncé avec reflets bleu vague",
         I18nKey::ThemeNameClaudeCode => "Claude Code",
-        I18nKey::ThemeDescClaudeCode => "Warm charcoal dark with Claude's coral accent",
+        I18nKey::ThemeDescClaudeCode => "Charbon foncé chaud avec l'accent corail de Claude",
         I18nKey::ThemeNameNightOwl => "Oiseau de nuit",
         I18nKey::ThemeDescNightOwl => "Éditeur Deep Navy optimisé pour le codage en basse lumière",
         I18nKey::ThemeNameAyuMirage => "Ayu Mirage",
@@ -746,7 +756,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::ThemeNameLilacLight => "Lilas Clair",
         I18nKey::ThemeDescLilacLight => "Surfaces lavande douce avec accent violet",
         I18nKey::ApiKeysHeading => "Clés API",
-        I18nKey::ApiKeysDescription => "Store provider credentials used by agent, search, image, and media integrations.",
+        I18nKey::ApiKeysDescription => {
+            "Stockez les informations d’identification du fournisseur utilisées par les intégrations d’agents, de recherche, d’images et de médias."
+        }
         I18nKey::ApiKeysLlmSubhead => "Fournisseurs LLM",
         I18nKey::ApiKeysSearchSubhead => "Fournisseurs de recherche",
         I18nKey::ApiKeysImageVideoSubhead => "Image / vidéo et voix",
@@ -769,7 +781,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppLanguage => "Langue de l'interface utilisateur",
         I18nKey::AppHooksHeading => "Crochets de borne",
         I18nKey::WsHeading => "Espace de travail",
-        I18nKey::WsDescription => "Configure project paths, browser defaults, terminal naming, and workspace safety.",
+        I18nKey::WsDescription => {
+            "Configurez les chemins du projet, les paramètres par défaut du navigateur, la dénomination du terminal et la sécurité de l'espace de travail."
+        }
         I18nKey::WsSectionPaths => "Chemins et sandbox",
         I18nKey::WsSectionBrowser => "Navigateur intégré",
         I18nKey::WsSectionCategoryColors => "Couleurs de catégorie",
@@ -791,7 +805,9 @@ pub fn msg(key: I18nKey) -> &'static str {
             "Afficher une boîte de dialogue de confirmation lors de la fermeture d'un espace de travail à partir de son onglet Terminaux, du bouton de fermeture de la barre latérale ou du menu contextuel."
         }
         I18nKey::AgProviderHeading => "Agent",
-        I18nKey::AgProviderDescription => "Configure agent providers, models, reasoning, web tools, and session behavior.",
+        I18nKey::AgProviderDescription => {
+            "Configurez les fournisseurs d'agents, les modèles, le raisonnement, les outils Web et le comportement de session."
+        }
         I18nKey::AgSectionInference => "Inférence",
         I18nKey::AgSectionModel => "Modèle",
         I18nKey::AgColumnText => "Texte",
@@ -954,22 +970,22 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermMenuCopy => "Copier",
         I18nKey::WsTermMenuPaste => "Coller",
         I18nKey::WsTermMenuSelectAll => "Tout sélectionner",
-        I18nKey::WsTermMenuRename => "Rename terminal",
-        I18nKey::WsTermMenuResetName => "Reset name",
-        I18nKey::WsTermRenameHint => "double-click to rename",
-        I18nKey::WsTermRenamePlaceholder => "Name…",
-        I18nKey::WsSectionTerminalNaming => "Terminal naming",
-        I18nKey::WsTerminalNamingToggleLabel => "Show agent names instead of slot numbers",
+        I18nKey::WsTermMenuRename => "Renommer le terminal",
+        I18nKey::WsTermMenuResetName => "Réinitialiser le nom",
+        I18nKey::WsTermRenameHint => "double-cliquez pour renommer",
+        I18nKey::WsTermRenamePlaceholder => "Nom…",
+        I18nKey::WsSectionTerminalNaming => "Dénomination du terminal",
+        I18nKey::WsTerminalNamingToggleLabel => "Afficher les noms des agents au lieu des numéros d'emplacement",
         I18nKey::WsTerminalNamingHint => {
-            "Terminal titles show a friendly name (from the pool below) instead of #1, #2…. Slot numbers always stay the technical identity in the background."
+            "Les titres des terminaux affichent un nom convivial (du pool ci-dessous) au lieu de #1, #2…. Les numéros d'emplacement restent toujours l'identité technique en arrière-plan."
         }
-        I18nKey::WsTerminalNamingPoolLabel => "Name pool",
+        I18nKey::WsTerminalNamingPoolLabel => "Nom du pool",
         I18nKey::WsTerminalNamingPoolHint => {
-            "Names are assigned to terminals in order. Double-click a terminal title to set a custom name for that slot."
+            "Les noms sont attribués aux terminaux dans l'ordre. Double-cliquez sur le titre d'un terminal pour définir un nom personnalisé pour cet emplacement."
         }
-        I18nKey::WsTerminalNamingAdd => "Add name",
-        I18nKey::WsTerminalNamingReset => "Reset to defaults",
-        I18nKey::WsTerminalNamingRemoveAria => "Remove name",
+        I18nKey::WsTerminalNamingAdd => "Ajouter un nom",
+        I18nKey::WsTerminalNamingReset => "Réinitialiser aux valeurs par défaut",
+        I18nKey::WsTerminalNamingRemoveAria => "Supprimer le nom",
         I18nKey::WsTermMenuAria => "Menu contextuel du terminal",
         I18nKey::WsTermToastCopied => "Sélection copiée dans le presse-papiers",
         I18nKey::WsTermToastPasteFailed => "Impossible de coller depuis le presse-papiers : {error}",
@@ -977,7 +993,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::EulaAccepted => "Accepté",
         I18nKey::EulaUnknown => "Inconnu",
         I18nKey::VoicePaneTitle => "Voix",
-        I18nKey::VoicePaneDescription => "Configure push-to-talk transcription, local Whisper models, and voice routing.",
+        I18nKey::VoicePaneDescription => "Configurez la transcription push-to-talk, les modèles Whisper locaux et le routage vocal.",
         I18nKey::VoiceSttSection => "Parole en texte",
         I18nKey::VoiceTtsSection => "Synthèse vocale",
         I18nKey::VoiceBehaviorSection => "Comportement",
@@ -1014,7 +1030,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::VoicePttRecorderHint => "Appuyez sur une touche…",
         I18nKey::VoicePttConflictWarn => "Conflit avec un autre raccourci d'application.",
         I18nKey::VoicePttMode => "Mode STT",
-        I18nKey::VoicePttModeLocal => "Local (whisper.cpp)",
+        I18nKey::VoicePttModeLocal => "Local (chuchotement.cpp)",
         I18nKey::VoicePttModeCloud => "Nuage",
         I18nKey::VoicePttQuality => "Qualité de décodage",
         I18nKey::VoicePttQualityFast => "Rapide",
@@ -1136,10 +1152,12 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgChangedFilesTitle => "Fichiers modifiés",
         I18nKey::AgChangedFilesCollapseAll => "Tout réduire",
         I18nKey::AgChangedFilesViewDiff => "Voir le diff",
-        I18nKey::AgComposerPh => "Demandez n'importe quoi, marquez des fichiers/dossiers avec @, utilisez $use skills ou / pour les commandes",
+        I18nKey::AgComposerPh => {
+            "Demandez n'importe quoi, marquez des fichiers/dossiers avec @, utilisez $use skills ou / pour les commandes"
+        }
         I18nKey::AgComposerModelSearch => "Rechercher des modèles…",
         I18nKey::AgComposerThinking => "Réflexion",
-        I18nKey::AgComposerEnhancePrompt => "Enhance prompt",
+        I18nKey::AgComposerEnhancePrompt => "Améliorer l'invite",
         I18nKey::AgModeSupervised => "Supervisé",
         I18nKey::AgModeSupervisedDesc => "Demander avant les modifications et les commandes",
         I18nKey::AgModeFullAccess => "Accès complet",

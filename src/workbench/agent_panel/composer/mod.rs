@@ -527,26 +527,37 @@ pub fn Composer(
                     </Show>
                 </div>
 
-                <button
-                    type="button"
-                    class=move || if enhance_prompt.get() {
-                        "agent-composer__enhance agent-composer__enhance--active"
-                    } else {
-                        "agent-composer__enhance"
-                    }
-                    prop:disabled=move || busy.get()
-                    aria-pressed=move || enhance_prompt.get().to_string()
-                    title=move || i18n.tr(I18nKey::AgComposerEnhancePrompt)()
-                    on:click=move |_| {
-                        let next = !enhance_prompt.get_untracked();
-                        enhance_prompt.set(next);
-                        if let Some(ws_id) = wb.active_id().get_untracked() {
-                            wb.set_workspace_agent_enhance_prompt(ws_id, next);
+                <span class="blx-tip-anchor blx-tip-anchor--top agent-composer__enhance-tip">
+                    <button
+                        type="button"
+                        class=move || if enhance_prompt.get() {
+                            "agent-composer__enhance agent-composer__enhance--active"
+                        } else {
+                            "agent-composer__enhance"
                         }
-                    }
-                >
-                    <LxIcon icon=icondata::LuSparkles width="0.9rem" height="0.9rem" />
-                </button>
+                        prop:disabled=move || busy.get()
+                        aria-pressed=move || enhance_prompt.get().to_string()
+                        aria-describedby="agent-composer-enhance-tooltip"
+                        aria-label=move || i18n.tr(I18nKey::AgComposerEnhancePrompt)()
+                        on:click=move |_| {
+                            let next = !enhance_prompt.get_untracked();
+                            enhance_prompt.set(next);
+                            if let Some(ws_id) = wb.active_id().get_untracked() {
+                                wb.set_workspace_agent_enhance_prompt(ws_id, next);
+                            }
+                        }
+                    >
+                        <LxIcon icon=icondata::LuSparkles width="0.9rem" height="0.9rem" />
+                    </button>
+                    <span id="agent-composer-enhance-tooltip" class="blx-tooltip agent-composer__tooltip" role="tooltip">
+                        <span class="blx-tooltip__eyebrow">
+                            <span class="blx-tooltip__spark" aria-hidden="true"></span>
+                            "Prompt"
+                        </span>
+                        <span class="blx-tooltip__main">{move || i18n.tr(I18nKey::AgComposerEnhancePrompt)()}</span>
+                        <span class="blx-tooltip__hint">"Rewrite before sending"</span>
+                    </span>
+                </span>
 
                 <span class="agent-composer__spacer"></span>
 

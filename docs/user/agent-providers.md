@@ -87,6 +87,46 @@ A higher value lets the agent run deeper investigations; a lower value limits th
 
 When a finished **Thinking** block is immediately followed by a tool-bearing **MODEL ROUND**, the two collapse into one row in the timeline: the round label sits on the left and the *Thinking ▾* toggle floats to the right edge of the same line, with the reasoning text dropping below when expanded. The pair occupies a single sequential line number, so a model round always sorts correctly into the rest of the timeline instead of standing on its own row. Rounds without groupable tools, and still-streaming thinking, keep their standalone rows.
 
+Consecutive tool activity in a single round now renders as slim **grouped status rows** for the main agent and subagent cards — per-tool icons, argument summaries, status indicators, expandable details, metrics, and path aggregation all collapse into a single line with an `×N` count for repeats.
+
+## Thinking stream preview
+
+While the current turn is actively thinking, a compact inline preview appears under the Drobo orb and follows the newest open *Thinking* block from the timeline. It autoscrolls as reasoning text streams in, uses the active theme radius/color tokens, and is automatically hidden in compact chat mode so the maximized chat header stays clean.
+
+## Changed files card
+
+When a model turn mutates workspace files, the turn ends with a **Changed files** summary card built from the existing `git_status_changes` command. It shows totals for additions / deletions, a collapsible directory tree with per-file stats, and clicking a row opens the file's diff in the existing center-tab diff view. The card is rendered from the same git data the sidebar already uses — no new backend protocol fields are involved.
+
+## Agent tool list output
+
+JSON-array tool results such as `rules_list` and `skills_list` render as readable compact lists in the chat timeline instead of raw one-line JSON blobs. The agent itself still receives the original JSON; the renderer is a UI-only presentation layer that extracts `title` / `name`, `summary`, category/kind, and small metadata chips. A tolerant fallback still shows complete list items from truncated array prefixes so the same tool call stays readable when its payload is large.
+
+## Modern composer
+
+The compose area below the chat is a modern auto-growing textarea with a footer that holds:
+
+- a **Model picker** (the same picker the Stats panel chip links to),
+- a **Mode popover** (Plan / Build / Full access — mapped onto the existing `AgentChatMode` values),
+- a **Thinking-level selector** (Off / Low / Medium / High / Max — provider-dependent),
+- busy-safe controls, and
+- a single **Send / Stop toggle** orb (the same one as in the chat header).
+
+## Enhance prompt before send
+
+A per-workspace **Enhance prompt before send** toggle in the composer rewrites the draft through an isolated one-shot provider call before submitting it as the actual user turn. The rewrite uses a small dedicated model call (the same path that backs AI commit messages) and never mutates chat history, tools, memory, plans, or timeline state — the enhanced text is what the model actually sees, but everything else is preserved verbatim.
+
+## Terminal CLI-agent control
+
+The BLXCode Agent can drive interactive terminal agents (Claude Code, Codex, Gemini, OpenCode, Cursor) end to end through the harness. The launch/resume profiles for each supported agent are centralized so the UI launch commands, docs, and agent guidance stay in sync. The agent has a new family of terminal-control tools that let it:
+
+- list / target a specific terminal slot by `slotId`, terminal `name`, or `agentSlug`,
+- send raw keys or an attached BLXCode context block,
+- read recent terminal output,
+- wait for new or settled output with a sequence id (so it can correlate partial reads),
+- interrupt a stuck session with Ctrl+C.
+
+A new embedded core skill, **`prompt-generating`**, teaches the model how to scope a prompt for BLXCode chat, terminal CLI agents, subagents, and user-facing replies, and the system prompt requires the model to consult that skill before any substantive CLI-agent handoff.
+
 ## Agent context
 
 The **Context** section lists attached items (memory categories, notes, plans, images). Each row shows status, remove, and re-attach controls.

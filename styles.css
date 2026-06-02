@@ -3190,6 +3190,15 @@ button.workbench-shortcut-row--action:focus-visible {
   flex-shrink: 0;
 }
 
+.agent-chat-head__tip {
+  align-items: center;
+}
+
+.agent-chat-head__tooltip {
+  min-width: 12rem;
+  max-width: min(17rem, calc(100vw - 2rem));
+}
+
 .agent-chat-head__icon-btn,
 .agent-chat-head__reset {
   display: inline-grid;

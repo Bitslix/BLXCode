@@ -54,8 +54,8 @@ Authoritative list from `src-tauri/src/lib.rs` (grouped for navigation):
 ### PTY
 
 - `pty_spawn`, `pty_write`, `pty_resize`, `pty_kill`, `pty_drain`, `pty_drain_wait`, `pty_peek_output`, `pty_wait_output`
-- `harness.list_terminals` — returns `slotId`, `name`, and `namingMode` (e.g. `Slot` / `Titled` / `Custom`) per terminal; the sidebar's named-terminal previews and the custom-titlebar "Open in terminal" picker read this.
-- `harness.send_terminal_keys` / `harness.send_agent_context` / `harness.read_terminal_output` / `harness.wait_terminal_output` / `harness.terminal_interrupt` — accept a `name` argument alongside `slotId` and `agentSlug` so harnesses can target a specific named terminal.
+- `harness.list_terminals` — returns `slotId`, `name`, `namingMode` (e.g. `Slot` / `Titled` / `Custom`), and `agentSlug` (one of `claude` / `codex` / `gemini` / `opencode` / `cursor` or empty) per terminal. The sidebar's named-terminal previews and the custom-titlebar "Open in terminal" picker read this.
+- `harness.send_terminal_keys` / `harness.send_agent_context` / `harness.read_terminal_output` / `harness.wait_terminal_output` / `harness.terminal_interrupt` — accept a `name` argument alongside `slotId` and `agentSlug` so harnesses can target a specific named terminal. Together with `harness.list_terminals` these are the family of **terminal CLI-agent control** tools the BLXCode Agent uses to drive interactive `claude` / `codex` / `gemini` / `opencode` / `cursor` sessions. See [Agent Harness — Terminal CLI-agent control](agent-harness.md#terminal-cli-agent-control).
 - PTY output tracking keeps a monotonic `seq` and last-output timestamp. `pty_wait_output` waits for `afterSeq`, optional `contains`, output idle, and timeout without consuming the terminal view.
 
 ### Git and explorer

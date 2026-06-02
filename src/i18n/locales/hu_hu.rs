@@ -328,7 +328,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppShortcutModeLegacy => "Klasszikus (Ctrl / Ctrl+Shift)",
         I18nKey::AppShortcutModeHint => "Tmux: prefix Ctrl+b then a second key. Classic: Ctrl+O, Ctrl+Shift+N, Ctrl+Shift+P.",
         I18nKey::ShortcutsHeading => "Billentyűparancsok",
-        I18nKey::ShortcutsDescription => "Tune global shortcuts and command bindings for the workbench.",
+        I18nKey::ShortcutsDescription => "Hangolja be a globális parancsikonokat és parancs-összerendeléseket a munkaasztalhoz.",
         I18nKey::ShortcutsPresetHeading => "Előre beállított",
         I18nKey::ShortcutsBindingsHeading => "Kötések",
         I18nKey::ShortcutsPrefixLabel => "Előtag kulcs",
@@ -373,7 +373,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgTimelineAria => "Ügynök tevékenység idővonala",
         I18nKey::AgBrandTitle => "BLXCode ügynök",
         I18nKey::AgStateRunning => "Futás",
-        I18nKey::AgStateThinking => "Thinking",
+        I18nKey::AgStateThinking => "Gondolkodás",
         I18nKey::AgStateStandby => "Készenlétben lévő",
         I18nKey::AgTagline => "Munkaterületi asszisztens",
         I18nKey::AgChatHeading => "Csevegési napló",
@@ -404,28 +404,30 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgMetricsBarAria => "Forduló metrikák",
         I18nKey::AgMetricsModelRound => "modell forduló",
         I18nKey::AgSessionCostAria => "Munkamenet költsége és fordulók száma",
-        I18nKey::AgStatsAria => "Agent session statistics",
-        I18nKey::AgStatsModel => "Model",
-        I18nKey::AgStatsModelUnknown => "No model selected",
-        I18nKey::AgStatsModelTip => "Active provider and model for new turns. Click to open Agent Provider settings.",
-        I18nKey::AgStatsStarted => "Started",
-        I18nKey::AgStatsStartedTip => "Local start time of the current session.",
-        I18nKey::AgStatsContext => "Context",
-        I18nKey::AgStatsContextTip => "Latest prompt size against the active context window.",
-        I18nKey::AgStatsTurns => "Turns",
-        I18nKey::AgStatsUserTurns => "User turns",
-        I18nKey::AgStatsUserTurnsTip => "User submissions currently visible in this session.",
-        I18nKey::AgStatsModelTurns => "Model turns",
-        I18nKey::AgStatsModelTurnsTip => "Main-agent model rounds, excluding subagent rounds.",
-        I18nKey::AgStatsToolCalls => "Tool calls",
-        I18nKey::AgStatsToolCallsTip => "Total tool calls with open, read, edit, and remove buckets.",
-        I18nKey::AgStatsOpen => "open",
-        I18nKey::AgStatsRead => "read",
-        I18nKey::AgStatsEdit => "edit",
+        I18nKey::AgStatsAria => "Ügynöki munkamenet statisztikái",
+        I18nKey::AgStatsModel => "Modell",
+        I18nKey::AgStatsModelUnknown => "Nincs kiválasztott modell",
+        I18nKey::AgStatsModelTip => {
+            "Aktív szolgáltató és modell az új kanyarokhoz. Kattintson az Agent Provider beállításainak megnyitásához."
+        }
+        I18nKey::AgStatsStarted => "Elindult",
+        I18nKey::AgStatsStartedTip => "Az aktuális munkamenet helyi kezdési ideje.",
+        I18nKey::AgStatsContext => "Kontextus",
+        I18nKey::AgStatsContextTip => "Legutóbbi prompt mérete az aktív környezeti ablakhoz képest.",
+        I18nKey::AgStatsTurns => "Fordul",
+        I18nKey::AgStatsUserTurns => "Felhasználó fordul",
+        I18nKey::AgStatsUserTurnsTip => "A felhasználói beküldések jelenleg láthatók ebben a munkamenetben.",
+        I18nKey::AgStatsModelTurns => "Modell fordul",
+        I18nKey::AgStatsModelTurnsTip => "Főügynök-modell körök, az alárendelt körök kivételével.",
+        I18nKey::AgStatsToolCalls => "Szerszámhívások",
+        I18nKey::AgStatsToolCallsTip => "Összes eszközhívás megnyitással, olvasással, szerkesztéssel és eltávolítással.",
+        I18nKey::AgStatsOpen => "nyitott",
+        I18nKey::AgStatsRead => "olvas",
+        I18nKey::AgStatsEdit => "szerkeszteni",
         I18nKey::AgStatsRm => "rm",
-        I18nKey::AgStatsCosts => "Costs",
-        I18nKey::AgStatsCostsTip => "Resolved USD cost accumulated during this session.",
-        I18nKey::AgStatsSubagents => "Active subagents",
+        I18nKey::AgStatsCosts => "Költségek",
+        I18nKey::AgStatsCostsTip => "A munkamenet során felhalmozott megoldott USD költség.",
+        I18nKey::AgStatsSubagents => "Aktív segédanyagok",
         I18nKey::AgStatsEmpty => "-",
         I18nKey::AgTasksTitle => "Feladatok",
         I18nKey::AgTasksRuntime => "RunTime",
@@ -580,12 +582,14 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatVoice => "Hang",
         I18nKey::HsCatImage => "Kép",
         I18nKey::HsCatRemote => "Távoli",
-        I18nKey::MemorySettingsDescription => "Configure where Memory appears in the workbench.",
-        I18nKey::MemorySettingsSidePanelSection => "Right side panel",
-        I18nKey::MemorySettingsRightPanelToggle => "Show Memory tab in right side panel",
-        I18nKey::MemorySettingsRightPanelHint => "Turn this off when you use the centered Memory tab as your default workspace view.",
+        I18nKey::MemorySettingsDescription => "Állítsa be, hol jelenjen meg a Memória a munkaasztalon.",
+        I18nKey::MemorySettingsSidePanelSection => "Jobb oldali panel",
+        I18nKey::MemorySettingsRightPanelToggle => "A Memória fül megjelenítése a jobb oldali panelen",
+        I18nKey::MemorySettingsRightPanelHint => "Kapcsolja ki ezt, ha a középen lévő Memória lapot használja alapértelmezett munkaterület-nézetként.",
         I18nKey::RemoteHeading => "SSH távoli kapcsolatok",
-        I18nKey::RemoteDescription => "Manage SSH presets for opening and resuming workspaces on remote machines.",
+        I18nKey::RemoteDescription => {
+            "A távoli gépeken lévő munkaterületek megnyitásához és folytatásához szükséges SSH-előbeállítások kezelése."
+        }
         I18nKey::RemoteSubtitle => {
             "Mentse a kapcsolati előbeállításokat a távoli gépen lévő munkaterületek megnyitásához SSH-n keresztül."
         }
@@ -603,10 +607,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::RemoteKeyPath => "Privát kulcs fájl",
         I18nKey::RemotePassphrase => "Kulcs jelszó",
         I18nKey::RemoteDefaultDir => "Távoli címtár",
-        I18nKey::RemoteBrowseDirs => "Browse remote directories",
-        I18nKey::RemoteSelectDir => "Select remote directory",
-        I18nKey::RemoteDirUp => "Up",
-        I18nKey::RemoteDirSaveFirst => "Save this remote connection before browsing directories.",
+        I18nKey::RemoteBrowseDirs => "Távoli könyvtárak böngészése",
+        I18nKey::RemoteSelectDir => "Válassza ki a távoli könyvtárat",
+        I18nKey::RemoteDirUp => "Fel",
+        I18nKey::RemoteDirSaveFirst => "Mentse el ezt a távoli kapcsolatot a könyvtárak böngészése előtt.",
         I18nKey::RemoteResumeModel => "Munkamenet folytatása",
         I18nKey::RemoteResumeTmux => "Állandó (tmux)",
         I18nKey::RemoteResumeKeepalive => "Csak életben maradni",
@@ -644,9 +648,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsRemoteDirHint => "Választható. Alapértelmezés szerint a kapcsolat könyvtára vagy a távoli otthon.",
         I18nKey::SidebarRemoteTitle => "Távoli munkaterület (SSH)",
         I18nKey::AppHeading => "App",
-        I18nKey::AppDescription => "Set language, notifications, update checks, and app-wide behavior.",
+        I18nKey::AppDescription => {
+            "Állítsa be a nyelvet, az értesítéseket, a frissítések ellenőrzését és az alkalmazásszintű viselkedést."
+        }
         I18nKey::AppearanceHeading => "Megjelenés",
-        I18nKey::AppearanceDescription => "Choose the visual theme and preview how the workbench will look.",
+        I18nKey::AppearanceDescription => "Válassza ki a vizuális témát, és tekintse meg, hogyan fog kinézni a munkapad.",
         I18nKey::AppearanceHeroTitle => "Legyen a tiéd.",
         I18nKey::AppearanceHeroSubtitle => "{n} téma – a színek azonnal megjelennek a munkaasztalon.",
         I18nKey::AppearanceSearchPlaceholder => "Témák keresése…",
@@ -665,7 +671,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppearanceRoundingSharp => "Éles",
         I18nKey::AppearanceRoundingDefault => "Alapértelmezett",
         I18nKey::AppearanceRoundingRounded => "Lekerekített",
-        I18nKey::AppearanceRoundingExtra => "Extra",
+        I18nKey::AppearanceRoundingExtra => "Külön",
         I18nKey::AppearanceFontTitle => "Betűtípus",
         I18nKey::AppearanceFontDesc => "Betűtípus a felülethez és a terminálokhoz",
         I18nKey::AppearanceFontAria => "Felület betűtípusa",
@@ -673,7 +679,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::ThemeDescBlxcodeDark => "Tokyo Night alap Dracula lila, rózsaszín és cián árnyalatokkal",
         I18nKey::ThemeNameBlxcodeLight => "BLXCode Light",
         I18nKey::ThemeDescBlxcodeLight => "Levendulás világos felület Dracula lila árnyalatokkal",
-        I18nKey::ThemeNameBlxcodeLegacyDark => "BLXCode Legacy",
+        I18nKey::ThemeNameBlxcodeLegacyDark => "BLXCode örökség",
         I18nKey::ThemeDescBlxcodeLegacyDark => "Az eredeti mélysötét munkapad GitHub-kék árnyalatokkal",
         I18nKey::ThemeNameBlxcodeLegacyLight => "BLXCode Legacy Light",
         I18nKey::ThemeDescBlxcodeLegacyLight => "Tiszta világos felületek hideg kék árnyalatokkal",
@@ -706,7 +712,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::ThemeNameKanagawa => "Kanagawa",
         I18nKey::ThemeDescKanagawa => "Japán tintamosás sötét, hullámkék kiemelésekkel",
         I18nKey::ThemeNameClaudeCode => "Claude Code",
-        I18nKey::ThemeDescClaudeCode => "Warm charcoal dark with Claude's coral accent",
+        I18nKey::ThemeDescClaudeCode => "Meleg szénsötét Claude korallos akcentusával",
         I18nKey::ThemeNameNightOwl => "Éjszakai bagoly",
         I18nKey::ThemeDescNightOwl => "Mély sötétkék szerkesztő, sötétre hangolva gyenge fényű kódoláshoz",
         I18nKey::ThemeNameAyuMirage => "Ayu Mirage",
@@ -734,7 +740,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::ThemeNameLilacLight => "Orgona Világos",
         I18nKey::ThemeDescLilacLight => "Lágy levendula felületek ibolya akcentussal",
         I18nKey::ApiKeysHeading => "API-kulcsok",
-        I18nKey::ApiKeysDescription => "Store provider credentials used by agent, search, image, and media integrations.",
+        I18nKey::ApiKeysDescription => {
+            "Tárolja az ügynök-, keresés-, kép- és médiaintegrációk által használt szolgáltatói hitelesítő adatokat."
+        }
         I18nKey::ApiKeysLlmSubhead => "LLM-szolgáltatók",
         I18nKey::ApiKeysSearchSubhead => "Keresőszolgáltatók",
         I18nKey::ApiKeysImageVideoSubhead => "Kép / videó és hang",
@@ -757,7 +765,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AppLanguage => "UI nyelv",
         I18nKey::AppHooksHeading => "Terminál horgok",
         I18nKey::WsHeading => "Munkaterület",
-        I18nKey::WsDescription => "Configure project paths, browser defaults, terminal naming, and workspace safety.",
+        I18nKey::WsDescription => {
+            "Konfigurálja a projekt elérési útjait, a böngésző alapértelmezett beállításait, a terminálok elnevezését és a munkaterület biztonságát."
+        }
         I18nKey::WsSectionPaths => "Útvonalak és sandbox",
         I18nKey::WsSectionBrowser => "Beágyazott böngésző",
         I18nKey::WsSectionCategoryColors => "Kategória színek",
@@ -779,7 +789,9 @@ pub fn msg(key: I18nKey) -> &'static str {
             "Megerősítő párbeszédpanel megjelenítése, amikor egy munkaterületet bezár a Terminálok lapról, az oldalsáv bezárás gombjáról vagy a helyi menüből."
         }
         I18nKey::AgProviderHeading => "Ügynök",
-        I18nKey::AgProviderDescription => "Configure agent providers, models, reasoning, web tools, and session behavior.",
+        I18nKey::AgProviderDescription => {
+            "Konfigurálja az ügynökszolgáltatókat, modelleket, érvelést, webes eszközöket és munkamenet-viselkedést."
+        }
         I18nKey::AgSectionInference => "Következtetés",
         I18nKey::AgSectionModel => "Modell",
         I18nKey::AgColumnText => "Szöveg",
@@ -940,22 +952,22 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsTermMenuCopy => "Másolás",
         I18nKey::WsTermMenuPaste => "Beillesztés",
         I18nKey::WsTermMenuSelectAll => "Összes kijelölése",
-        I18nKey::WsTermMenuRename => "Rename terminal",
-        I18nKey::WsTermMenuResetName => "Reset name",
-        I18nKey::WsTermRenameHint => "double-click to rename",
-        I18nKey::WsTermRenamePlaceholder => "Name…",
-        I18nKey::WsSectionTerminalNaming => "Terminal naming",
-        I18nKey::WsTerminalNamingToggleLabel => "Show agent names instead of slot numbers",
+        I18nKey::WsTermMenuRename => "Terminál átnevezése",
+        I18nKey::WsTermMenuResetName => "Név visszaállítása",
+        I18nKey::WsTermRenameHint => "kattintson duplán az átnevezéshez",
+        I18nKey::WsTermRenamePlaceholder => "Név…",
+        I18nKey::WsSectionTerminalNaming => "Terminál elnevezése",
+        I18nKey::WsTerminalNamingToggleLabel => "Ügynöknevek megjelenítése a helyszámok helyett",
         I18nKey::WsTerminalNamingHint => {
-            "Terminal titles show a friendly name (from the pool below) instead of #1, #2…. Slot numbers always stay the technical identity in the background."
+            "A terminálcímek egy barátságos nevet mutatnak (az alábbi készletből) az #1, #2… helyett. A résszámok mindig a technikai azonosság maradnak a háttérben."
         }
-        I18nKey::WsTerminalNamingPoolLabel => "Name pool",
+        I18nKey::WsTerminalNamingPoolLabel => "Névkészlet",
         I18nKey::WsTerminalNamingPoolHint => {
-            "Names are assigned to terminals in order. Double-click a terminal title to set a custom name for that slot."
+            "A nevek sorrendben vannak hozzárendelve a terminálokhoz. Kattintson duplán a terminál címére, hogy egyéni nevet adjon az adott slothoz."
         }
-        I18nKey::WsTerminalNamingAdd => "Add name",
-        I18nKey::WsTerminalNamingReset => "Reset to defaults",
-        I18nKey::WsTerminalNamingRemoveAria => "Remove name",
+        I18nKey::WsTerminalNamingAdd => "Név hozzáadása",
+        I18nKey::WsTerminalNamingReset => "Állítsa vissza az alapértelmezett értékeket",
+        I18nKey::WsTerminalNamingRemoveAria => "Név eltávolítása",
         I18nKey::WsTermMenuAria => "Terminál helyi menü",
         I18nKey::WsTermToastCopied => "Kijelölés a vágólapra másolva",
         I18nKey::WsTermToastPasteFailed => "Nem sikerült beilleszteni a vágólapról: {error}",
@@ -963,7 +975,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::EulaAccepted => "Elfogadott",
         I18nKey::EulaUnknown => "Ismeretlen",
         I18nKey::VoicePaneTitle => "Hang",
-        I18nKey::VoicePaneDescription => "Configure push-to-talk transcription, local Whisper models, and voice routing.",
+        I18nKey::VoicePaneDescription => "Konfigurálja a push-to-talk átírást, a helyi Whisper modelleket és a hangútválasztást.",
         I18nKey::VoiceSttSection => "Beszéd-szöveg",
         I18nKey::VoiceTtsSection => "Szövegfelolvasó",
         I18nKey::VoiceBehaviorSection => "Viselkedés",
@@ -1124,15 +1136,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgChangedFilesTitle => "Módosított fájlok",
         I18nKey::AgChangedFilesCollapseAll => "Összes összecsukása",
         I18nKey::AgChangedFilesViewDiff => "Diff megtekintése",
-        I18nKey::AgComposerPh => "Kérdezz bármit, jelölj fájlokat/mappákat @-tel, használd a $use skills parancsot vagy a / parancsokat",
+        I18nKey::AgComposerPh => {
+            "Kérdezz bármit, jelölj fájlokat/mappákat @-tel, használd a $use skills parancsot vagy a / parancsokat"
+        }
         I18nKey::AgComposerModelSearch => "Modellek keresése…",
         I18nKey::AgComposerThinking => "Gondolkodás",
-        I18nKey::AgComposerEnhancePrompt => "Enhance prompt",
+        I18nKey::AgComposerEnhancePrompt => "Prompt javítása",
         I18nKey::AgModeSupervised => "Felügyelt",
         I18nKey::AgModeSupervisedDesc => "Kérdezzen rá módosítások és parancsok előtt",
         I18nKey::AgModeFullAccess => "Teljes hozzáférés",
         I18nKey::AgModeFullAccessDesc => "Minden eszközhívás futtatása rákérdezés nélkül",
-        I18nKey::AgModePlan => "Plan",
+        I18nKey::AgModePlan => "Terv",
         I18nKey::AgModePlanDesc => "Csak olvasható tervezési mód",
     }
 }

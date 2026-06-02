@@ -13,7 +13,7 @@
 }
 
 .agent-composer:focus-within {
-  border-color: var(--accent);
+  border-color: var(--border);
 }
 
 .agent-composer__field {
@@ -331,6 +331,14 @@
 .agent-composer__enhance:disabled {
   opacity: 0.42;
   cursor: default;
+}
+
+.agent-composer__enhance-tip {
+  align-items: center;
+}
+
+.agent-composer__tooltip {
+  min-width: 12.5rem;
 }
 
 /* ---- Send / stop orb ---- */

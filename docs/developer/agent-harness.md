@@ -81,6 +81,7 @@ pub const CORE_SKILLS: &[(&str, &str)] = &[
 - Retains scope, security, mandatory turn checklist, behaviour rules
 - Replaces per-tool prose with a **compact name index** grouped by area
 - Directs the model to `skills_read` with core skill names for full guidance
+- **Requires `skills_read prompt-generating` before any substantive CLI-agent handoff** — the new `prompt-generating` core skill teaches the model how to scope prompts for BLXCode chat, terminal CLI agents (Claude Code, Codex, Gemini, OpenCode, Cursor), subagents, and user-facing replies
 
 Adding a new server tool typically requires:
 
@@ -158,6 +159,45 @@ Commands (`web_commands.rs`):
 Frontend wrappers in `tauri_bridge.rs`; UI in `harness_ui.rs` `AgentProviderPane`.
 
 `web_tools.rs` implements Tavily search; Brave may be stubbed or partial — check source before documenting provider-specific behaviour in release notes.
+
+## Terminal CLI-agent control
+
+The coordinator and subagent loops can drive **interactive terminal CLI agents** end to end through the same harness PTY pipeline. The supported slugs are `claude`, `codex`, `gemini`, `opencode`, and `cursor` (empty string for a plain shell). The launch / resume profiles for each are centralized in `agent/terminal_agents.rs` so UI launch commands, docs, and the model prompt stay in sync.
+
+Tools (in `agent/tools.rs`, gated by `ToolGroup::harness`):
+
+| Tool | Purpose |
+|------|---------|
+| `harness.list_terminals` | Enumerate terminal slots in the active workspace. Each entry carries `slotId`, `agentSlug`, `running`, and (post v0.5.0) `name` + `namingMode` (see [Named terminals](#named-terminals) in [Workspaces](../user/workspaces.md)). |
+| `harness.send_terminal_keys` | Send keystrokes to a targeted slot. Address by `slotId` (preferred) or `agentSlug`. Set `submit: true` to append a newline so the command executes. |
+| `harness.send_agent_context` | Render the current BLXCode context as a Markdown block, export any selected images to `<workspace>/.blxcode/agent-context/images/`, and write the block into the terminal's PTY. `includeKinds` defaults to `["memory", "plans", "tasks", "images"]`. |
+| `harness.read_terminal_output` | Non-destructive read of the slot's rolling tail buffer (capped at **64 KiB**). Use after `send_terminal_keys` to see how a CLI agent responded. |
+| `harness.wait_terminal_output` | Incremental wait with `afterSeq`, optional `contains` marker, and `idleMs`; returns `{ sessionId, seq, bytes, text, timedOut }`. `wait_terminal_output` runs as an **async polling command** that takes short PTY snapshots and sleeps with Tokio, so it never blocks the Tauri command thread. |
+| `harness.terminal_interrupt` | Send Ctrl+C to a targeted slot. |
+
+The system prompt requires the model to call `skills_read prompt-generating` before any substantive CLI-agent handoff. `prompt-generating` is a new core skill that teaches the model how to scope prompts for BLXCode chat, terminal CLI agents, subagents, and user-facing replies.
+
+`harness.ask_user` is also part of the same harness tool family and is the way the model requests a structured decision before driving a long-lived CLI agent run.
+
+## Agent timeline refactor
+
+The chat timeline lives in `src/workbench/agent_panel/`. The v0.5.0 refactor split it into three focused component folders, each with its own token-only CSS:
+
+- `agent_panel/tool_group/` — consecutive tool activity in a single round now renders as slim **grouped status rows** (per-tool icons, argument summaries, status indicators, expandable details, metrics, path aggregation, `×N` counts). Same component for the main agent and for subagent cards.
+- `agent_panel/changed_files_card/` — when a model round mutates workspace files, the turn ends with a **Changed files** summary card built from the existing `git_status_changes` command (totals + collapsible directory tree with per-file stats). Clicking a row opens the file's diff in the existing center-tab diff view. **No new backend protocol fields** — the card is a pure renderer over the same `git_status_changes` payload the sidebar already uses.
+- `agent_panel/composer/` — the modern auto-growing composer replaces the old mode toolbar + single-line input. Footer model picker, Plan / Build / access mode popover, thinking-level selector, busy-safe controls, and a single **Send / Stop toggle** orb. The compose bar's `chat_mode` (`AgentChatMode::ask_edits | allow_all | plan`) is unchanged — the popover is a UI presentation of the existing values.
+
+The model-round line number is **decoupled from the stable expand-state key** (`stable_index` was being passed where the display index was expected, leaking `hash + 1` into the UI). The display line number is now threaded through explicitly, and rounds sort correctly into the sequential numbering.
+
+A finished **Thinking** block that is immediately followed by a tool-bearing **MODEL ROUND** is collapsed onto the same line: the round label on the left, the *Thinking ▾* toggle on the right of the same line, with the reasoning text dropping below when expanded. The pair occupies a single line number. Rounds without groupable tools, and still-streaming thinking, keep their standalone rows.
+
+## Agent tool list output (UI-only)
+
+JSON-array tool results such as `rules_list` and `skills_list` are rendered as readable compact lists in the chat timeline instead of raw one-line JSON blobs. The agent itself still receives the original JSON; the renderer lives in `agent_panel/tool_group/list_view.rs` and extracts common fields (`title` / `name`, `summary`, category / kind, small metadata chips). A tolerant fallback can still show complete list items from truncated array prefixes so a large payload stays usable.
+
+## Enhance prompt before send
+
+A per-workspace **Enhance prompt before send** toggle in the composer rewrites the draft through an isolated one-shot provider call (the same `oneshot::complete_text` path that backs AI commit messages and AI plans) before submitting it as the actual user turn. The enhanced text is what the model sees, but chat history, tools, memory, plans, and timeline state are never mutated.
 
 ## Tool-loop limit and auto-compact
 

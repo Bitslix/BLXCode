@@ -281,7 +281,7 @@ pub fn AgentSessionStats(
                     label=Signal::derive(move || i18n.tr(I18nKey::AgStatsTurns)().to_string())
                     value=Signal::derive(move || {
                         let s = stats.get();
-                        format!("User: {} / Model: {}", s.user_turns, s.model_turns)
+                        format!("U: {} / M: {}", s.user_turns, s.model_turns)
                     })
                 />
                 <StatsRow

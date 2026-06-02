@@ -469,105 +469,170 @@ pub fn AgentPanelDock() -> impl IntoView {
                 <div class="agent-section__head agent-chat-head">
                     <h3>{move || i18n.tr(I18nKey::AgChatHeading)()}</h3>
                     <div class="agent-chat-head__actions">
-                        <button
-                            type="button"
-                            class="agent-chat-head__icon-btn"
-                            prop:disabled=move || busy.get() || compacting.get() || !is_tauri_shell()
-                            title=move || i18n.tr(I18nKey::AgCompactSession)()
-                            aria-label=move || i18n.tr(I18nKey::AgCompactSessionAria)()
-                            on:click=move |_| run_compaction(true)
-                        >
-                            <LxIcon icon=icondata::LuShrink width="0.86rem" height="0.86rem" />
-                        </button>
-                        <button
-                            type="button"
-                            class=move || {
-                                let mut c = String::from("agent-chat-head__image-mode");
-                                if image_mode.get() {
-                                    c.push_str(" agent-chat-head__image-mode--active");
-                                }
-                                c
-                            }
-                            prop:disabled=move || busy.get() || !is_tauri_shell()
-                            title=move || i18n.tr(I18nKey::ImageModeToggleAria)()
-                            aria-label=move || i18n.tr(I18nKey::ImageModeToggleAria)()
-                            aria-pressed=move || if image_mode.get() { "true" } else { "false" }
-                            on:click=move |_| {
-                                let next = !image_mode.get_untracked();
-                                image_mode.set(next);
-                                if let Some(ws_id) = wb.active_id().get_untracked() {
-                                    wb.set_workspace_agent_image_mode(ws_id, next);
-                                }
-                            }
-                        >
-                            <LxIcon icon=icondata::LuImagePlus width="0.86rem" height="0.86rem" />
-                        </button>
-                        <button
-                            type="button"
-                            class="agent-chat-head__icon-btn"
-                            aria-pressed=move || if chat_maximized.get() { "true" } else { "false" }
-                            title=move || {
-                                if chat_maximized.get() {
-                                    i18n.tr(I18nKey::AgChatRestore)().to_string()
-                                } else {
-                                    i18n.tr(I18nKey::AgChatMaximize)().to_string()
-                                }
-                            }
-                            aria-label=move || {
-                                if chat_maximized.get() {
-                                    i18n.tr(I18nKey::AgChatRestore)().to_string()
-                                } else {
-                                    i18n.tr(I18nKey::AgChatMaximize)().to_string()
-                                }
-                            }
-                            on:click=move |_| chat_maximized.update(|v| *v = !*v)
-                        >
-                            {move || {
-                                if chat_maximized.get() {
-                                    view! { <LxIcon icon=icondata::LuMinimize2 width="0.86rem" height="0.86rem" /> }.into_any()
-                                } else {
-                                    view! { <LxIcon icon=icondata::LuMaximize2 width="0.86rem" height="0.86rem" /> }.into_any()
-                                }
-                            }}
-                        </button>
-                        <button
-                            type="button"
-                            class="agent-chat-head__reset"
-                            prop:disabled=move || busy.get() || !is_tauri_shell()
-                            title=move || i18n.tr(I18nKey::AgResetChat)()
-                            aria-label=move || i18n.tr(I18nKey::AgResetChatAria)()
-                            on:click=move |_| {
-                                let wb = wb;
-                                let status_line = status_line;
-                                let timeline = timeline;
-                                let draft = draft;
-                                let thinking_open = thinking_open;
-                                let tool_detail_open = tool_detail_open;
-                                leptos::task::spawn_local(async move {
-                                    let Some(ws_id) = wb.active_id().get_untracked() else {
-                                        status_line.set(Some("Select a workspace tab first.".into()));
-                                        return;
-                                    };
-                                    match agent_clear_conversation().await {
-                                        Ok(()) => {
-                                            timeline.set(TimelineDoc::default());
-                                            thinking_open.set(HashMap::new());
-                                            tool_detail_open.set(HashMap::new());
-                                            draft.set(String::new());
-                                            wb.set_workspace_agent_timeline(ws_id, TimelineDoc::default());
-                                            wb.set_workspace_agent_compose_draft(ws_id, String::new());
-                                            wb.clear_chat_usage(ws_id);
-                                            wb.reset_workspace_agent_chat_mode(ws_id);
-                                            chat_mode.set(AgentChatMode::AskEdits);
-                                            status_line.set(None);
-                                        }
-                                        Err(msg) => status_line.set(Some(msg)),
+                        <span class="blx-tip-anchor blx-tip-anchor--bottom agent-chat-head__tip">
+                            <button
+                                type="button"
+                                class="agent-chat-head__icon-btn"
+                                prop:disabled=move || busy.get() || compacting.get() || !is_tauri_shell()
+                                aria-describedby="agent-chat-compact-tooltip"
+                                aria-label=move || i18n.tr(I18nKey::AgCompactSessionAria)()
+                                on:click=move |_| run_compaction(true)
+                            >
+                                <LxIcon icon=icondata::LuShrink width="0.86rem" height="0.86rem" />
+                            </button>
+                            <span id="agent-chat-compact-tooltip" class="blx-tooltip agent-chat-head__tooltip" role="tooltip">
+                                <span class="blx-tooltip__eyebrow">
+                                    <span class="blx-tooltip__spark" aria-hidden="true"></span>
+                                    "Chat log"
+                                </span>
+                                <span class="blx-tooltip__main">{move || i18n.tr(I18nKey::AgCompactSession)()}</span>
+                                <span class="blx-tooltip__hint">{move || i18n.tr(I18nKey::AgCompactSessionAria)()}</span>
+                            </span>
+                        </span>
+                        <span class="blx-tip-anchor blx-tip-anchor--bottom agent-chat-head__tip">
+                            <button
+                                type="button"
+                                class=move || {
+                                    let mut c = String::from("agent-chat-head__image-mode");
+                                    if image_mode.get() {
+                                        c.push_str(" agent-chat-head__image-mode--active");
                                     }
-                                });
-                            }
-                        >
-                            <LxIcon icon=icondata::LuEraser width="0.86rem" height="0.86rem" />
-                        </button>
+                                    c
+                                }
+                                prop:disabled=move || busy.get() || !is_tauri_shell()
+                                aria-describedby="agent-chat-image-mode-tooltip"
+                                aria-label=move || i18n.tr(I18nKey::ImageModeToggleAria)()
+                                aria-pressed=move || if image_mode.get() { "true" } else { "false" }
+                                on:click=move |_| {
+                                    let next = !image_mode.get_untracked();
+                                    image_mode.set(next);
+                                    if let Some(ws_id) = wb.active_id().get_untracked() {
+                                        wb.set_workspace_agent_image_mode(ws_id, next);
+                                    }
+                                }
+                            >
+                                <LxIcon icon=icondata::LuImagePlus width="0.86rem" height="0.86rem" />
+                            </button>
+                            <span id="agent-chat-image-mode-tooltip" class="blx-tooltip agent-chat-head__tooltip" role="tooltip">
+                                <span class="blx-tooltip__eyebrow">
+                                    <span class="blx-tooltip__spark" aria-hidden="true"></span>
+                                    "Image"
+                                </span>
+                                <span class="blx-tooltip__main">{move || i18n.tr(I18nKey::ImageModeToggleAria)()}</span>
+                                <span class="blx-tooltip__hint">"Attach images or generate visual output"</span>
+                            </span>
+                        </span>
+                        <span class="blx-tip-anchor blx-tip-anchor--bottom agent-chat-head__tip">
+                            <button
+                                type="button"
+                                class="agent-chat-head__icon-btn"
+                                aria-describedby="agent-chat-jump-bottom-tooltip"
+                                aria-label="Jump to bottom"
+                                on:click=move |_| {
+                                    if let Some(log) = chat_scroll_ref.get_untracked() {
+                                        smooth_scroll_chat_to_bottom(log);
+                                    }
+                                }
+                            >
+                                <LxIcon icon=icondata::LuArrowDownToLine width="0.86rem" height="0.86rem" />
+                            </button>
+                            <span id="agent-chat-jump-bottom-tooltip" class="blx-tooltip agent-chat-head__tooltip" role="tooltip">
+                                <span class="blx-tooltip__eyebrow">
+                                    <span class="blx-tooltip__spark" aria-hidden="true"></span>
+                                    "Timeline"
+                                </span>
+                                <span class="blx-tooltip__main">"Jump to bottom"</span>
+                                <span class="blx-tooltip__hint">"Slide to the latest output"</span>
+                            </span>
+                        </span>
+                        <span class="blx-tip-anchor blx-tip-anchor--bottom agent-chat-head__tip">
+                            <button
+                                type="button"
+                                class="agent-chat-head__icon-btn"
+                                aria-pressed=move || if chat_maximized.get() { "true" } else { "false" }
+                                aria-describedby="agent-chat-maximize-tooltip"
+                                aria-label=move || {
+                                    if chat_maximized.get() {
+                                        i18n.tr(I18nKey::AgChatRestore)().to_string()
+                                    } else {
+                                        i18n.tr(I18nKey::AgChatMaximize)().to_string()
+                                    }
+                                }
+                                on:click=move |_| chat_maximized.update(|v| *v = !*v)
+                            >
+                                {move || {
+                                    if chat_maximized.get() {
+                                        view! { <LxIcon icon=icondata::LuMinimize2 width="0.86rem" height="0.86rem" /> }.into_any()
+                                    } else {
+                                        view! { <LxIcon icon=icondata::LuMaximize2 width="0.86rem" height="0.86rem" /> }.into_any()
+                                    }
+                                }}
+                            </button>
+                            <span id="agent-chat-maximize-tooltip" class="blx-tooltip agent-chat-head__tooltip" role="tooltip">
+                                <span class="blx-tooltip__eyebrow">
+                                    <span class="blx-tooltip__spark" aria-hidden="true"></span>
+                                    "Layout"
+                                </span>
+                                <span class="blx-tooltip__main">
+                                    {move || {
+                                        if chat_maximized.get() {
+                                            i18n.tr(I18nKey::AgChatRestore)().to_string()
+                                        } else {
+                                            i18n.tr(I18nKey::AgChatMaximize)().to_string()
+                                        }
+                                    }}
+                                </span>
+                                <span class="blx-tooltip__hint">"Resize the Agent workspace"</span>
+                            </span>
+                        </span>
+                        <span class="blx-tip-anchor blx-tip-anchor--bottom agent-chat-head__tip">
+                            <button
+                                type="button"
+                                class="agent-chat-head__reset"
+                                prop:disabled=move || busy.get() || !is_tauri_shell()
+                                aria-describedby="agent-chat-reset-tooltip"
+                                aria-label=move || i18n.tr(I18nKey::AgResetChatAria)()
+                                on:click=move |_| {
+                                    let wb = wb;
+                                    let status_line = status_line;
+                                    let timeline = timeline;
+                                    let draft = draft;
+                                    let thinking_open = thinking_open;
+                                    let tool_detail_open = tool_detail_open;
+                                    leptos::task::spawn_local(async move {
+                                        let Some(ws_id) = wb.active_id().get_untracked() else {
+                                            status_line.set(Some("Select a workspace tab first.".into()));
+                                            return;
+                                        };
+                                        match agent_clear_conversation().await {
+                                            Ok(()) => {
+                                                timeline.set(TimelineDoc::default());
+                                                thinking_open.set(HashMap::new());
+                                                tool_detail_open.set(HashMap::new());
+                                                draft.set(String::new());
+                                                wb.set_workspace_agent_timeline(ws_id, TimelineDoc::default());
+                                                wb.set_workspace_agent_compose_draft(ws_id, String::new());
+                                                wb.clear_chat_usage(ws_id);
+                                                wb.reset_workspace_agent_chat_mode(ws_id);
+                                                chat_mode.set(AgentChatMode::AskEdits);
+                                                status_line.set(None);
+                                            }
+                                            Err(msg) => status_line.set(Some(msg)),
+                                        }
+                                    });
+                                }
+                            >
+                                <LxIcon icon=icondata::LuEraser width="0.86rem" height="0.86rem" />
+                            </button>
+                            <span id="agent-chat-reset-tooltip" class="blx-tooltip agent-chat-head__tooltip" role="tooltip">
+                                <span class="blx-tooltip__eyebrow">
+                                    <span class="blx-tooltip__spark" aria-hidden="true"></span>
+                                    "History"
+                                </span>
+                                <span class="blx-tooltip__main">{move || i18n.tr(I18nKey::AgResetChat)()}</span>
+                                <span class="blx-tooltip__hint">{move || i18n.tr(I18nKey::AgResetChatAria)()}</span>
+                            </span>
+                        </span>
                     </div>
                 </div>
                 <Show when=move || image_mode.get()>
@@ -710,6 +775,22 @@ fn AgentThinkingStream(timeline: RwSignal<TimelineDoc>) -> impl IntoView {
             </aside>
         </Show>
     }
+}
+
+fn smooth_scroll_chat_to_bottom(log: web_sys::HtmlDivElement) {
+    let start = log.scroll_top();
+    let target = (log.scroll_height() - log.client_height()).max(0);
+    leptos::task::spawn_local(async move {
+        const STEPS: i32 = 14;
+        for step in 1..=STEPS {
+            let t = step as f64 / STEPS as f64;
+            let eased = 1.0 - (1.0 - t).powi(3);
+            let next = start as f64 + (target - start) as f64 * eased;
+            log.set_scroll_top(next.round() as i32);
+            TimeoutFuture::new(16).await;
+        }
+        log.set_scroll_top(log.scroll_height());
+    });
 }
 
 fn random_thinking_idle_delay_ms() -> u32 {
