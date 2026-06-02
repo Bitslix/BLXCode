@@ -120,7 +120,14 @@ pub async fn refresh_tts_ready(handle: VoiceOrbHandle) {
 }
 
 #[component]
-pub fn VoiceOrb<F>(handle: VoiceOrbHandle, on_transcript: F) -> impl IntoView
+pub fn VoiceOrb<F>(
+    handle: VoiceOrbHandle,
+    /// True while the agent is generating a response; drives the Drobo orb's
+    /// "thinking" glow animation.
+    #[prop(into)]
+    thinking: Signal<bool>,
+    on_transcript: F,
+) -> impl IntoView
 where
     F: Fn(String, bool) + 'static + Copy,
 {
@@ -300,7 +307,7 @@ where
                             </span>
                         }
                     >
-                        <DroboOrbView orb_state=handle.state />
+                        <DroboOrbView orb_state=handle.state thinking=thinking />
                     </Show>
                     <Show when=move || matches!(handle.state.get(), VoiceOrbState::Transcribing)>
                         <span class="drobo-orb__state drobo-orb__state--transcribing">
@@ -320,7 +327,7 @@ where
 }
 
 #[component]
-fn DroboOrbView(orb_state: RwSignal<VoiceOrbState>) -> impl IntoView {
+fn DroboOrbView(orb_state: RwSignal<VoiceOrbState>, thinking: Signal<bool>) -> impl IntoView {
     let node_ref = NodeRef::<html::Span>::new();
     let load_failed = RwSignal::new(false);
     let bootstrap_started = RwSignal::new(false);
@@ -354,6 +361,7 @@ fn DroboOrbView(orb_state: RwSignal<VoiceOrbState>) -> impl IntoView {
                         id,
                         state.is_recording(),
                         matches!(state, VoiceOrbState::Transcribing),
+                        thinking.get_untracked(),
                         false,
                     )?;
                     drobo_orb_resize(id);
@@ -382,6 +390,7 @@ fn DroboOrbView(orb_state: RwSignal<VoiceOrbState>) -> impl IntoView {
 
     Effect::new(move |_| {
         let state = orb_state.get();
+        let is_thinking = thinking.get();
         let Some(id) = orb_id.get() else {
             return;
         };
@@ -389,6 +398,7 @@ fn DroboOrbView(orb_state: RwSignal<VoiceOrbState>) -> impl IntoView {
             id,
             state.is_recording(),
             matches!(state, VoiceOrbState::Transcribing),
+            is_thinking,
             false,
         );
     });

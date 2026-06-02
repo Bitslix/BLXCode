@@ -535,7 +535,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatShortcuts => "Tastenkürzel",
         I18nKey::HsCatApiKeys => "API-Schlüssel",
         I18nKey::HsCatWorkspace => "Arbeitsplatz",
-        I18nKey::HsCatProvider => "BLXCode-Agent",
+        I18nKey::HsCatProvider => "Agent",
         I18nKey::HsCatVoice => "Stimme",
         I18nKey::HsCatImage => "Bild",
         I18nKey::HsCatRemote => "Fernbedienung",
@@ -739,7 +739,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsConfirmCloseHint => {
             "Zeigt einen Bestätigungsdialog an, wenn Sie einen Arbeitsbereich über die Registerkarte „Terminals“, die Schaltfläche „Schließen“ in der Seitenleiste oder das Kontextmenü schließen."
         }
-        I18nKey::AgProviderHeading => "BLXCode-Agent",
+        I18nKey::AgProviderHeading => "Agent",
         I18nKey::AgProviderDescription => "Agent-Provider, Modelle, Reasoning, Web-Tools und Sitzungsverhalten konfigurieren.",
         I18nKey::AgSectionInference => "Inferenz",
         I18nKey::AgSectionModel => "Modell",

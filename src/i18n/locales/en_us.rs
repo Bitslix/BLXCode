@@ -581,7 +581,7 @@ keys; the preset only fills in defaults."
         I18nKey::HsCatShortcuts => "Shortcuts",
         I18nKey::HsCatApiKeys => "API Keys",
         I18nKey::HsCatWorkspace => "Workspace",
-        I18nKey::HsCatProvider => "BLXCode Agent",
+        I18nKey::HsCatProvider => "Agent",
         I18nKey::HsCatVoice => "Voice",
         I18nKey::HsCatImage => "Image",
         I18nKey::HsCatRemote => "Remote",
@@ -799,7 +799,7 @@ keys; the preset only fills in defaults."
         I18nKey::WsSectionConfirm => "Confirmations",
         I18nKey::WsConfirmCloseLabel => "Confirm before closing a workspace",
         I18nKey::WsConfirmCloseHint => "Show a confirmation dialog when closing a workspace from its Terminals tab, the sidebar close button, or the context menu.",
-        I18nKey::AgProviderHeading => "BLXCode Agent",
+        I18nKey::AgProviderHeading => "Agent",
         I18nKey::AgProviderDescription => {
             "Configure agent providers, models, reasoning, web tools, and session behavior."
         }

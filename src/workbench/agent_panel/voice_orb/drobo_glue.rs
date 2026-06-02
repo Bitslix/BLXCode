@@ -63,6 +63,7 @@ pub fn drobo_orb_set_state(
     orb_id: f64,
     active: bool,
     transcribing: bool,
+    thinking: bool,
     compact: bool,
 ) -> Result<(), String> {
     let root = drobo_orb_root()?;
@@ -80,6 +81,12 @@ pub fn drobo_orb_set_state(
         &JsValue::from_bool(transcribing),
     )
     .map_err(|_| "failed to set transcribing state")?;
+    Reflect::set(
+        &state,
+        &JsValue::from_str("thinking"),
+        &JsValue::from_bool(thinking),
+    )
+    .map_err(|_| "failed to set thinking state")?;
     Reflect::set(
         &state,
         &JsValue::from_str("compact"),

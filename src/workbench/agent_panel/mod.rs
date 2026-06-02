@@ -373,9 +373,9 @@ pub fn AgentPanelDock() -> impl IntoView {
                     "agent-hero".to_string()
                 }
             }>
-                <p class="agent-hero__eyebrow">{move || i18n.tr(I18nKey::AgBrandTitle)()}</p>
                 <VoiceOrb
                     handle=voice_handle
+                    thinking=busy
                     on_transcript=move |text: String, auto_send: bool| {
                         if auto_send {
                             draft.set(text);

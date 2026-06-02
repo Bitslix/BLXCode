@@ -541,7 +541,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatShortcuts => "Raccourcis",
         I18nKey::HsCatApiKeys => "Clés API",
         I18nKey::HsCatWorkspace => "Espace de travail",
-        I18nKey::HsCatProvider => "Fournisseur d'agents",
+        I18nKey::HsCatProvider => "Agent",
         I18nKey::HsCatVoice => "Voix",
         I18nKey::HsCatImage => "Image",
         I18nKey::HsCatRemote => "Télécommande",
@@ -745,7 +745,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsConfirmCloseHint => {
             "Afficher une boîte de dialogue de confirmation lors de la fermeture d'un espace de travail à partir de son onglet Terminaux, du bouton de fermeture de la barre latérale ou du menu contextuel."
         }
-        I18nKey::AgProviderHeading => "Agent BLXCode",
+        I18nKey::AgProviderHeading => "Agent",
         I18nKey::AgProviderDescription => "Configure agent providers, models, reasoning, web tools, and session behavior.",
         I18nKey::AgSectionInference => "Inférence",
         I18nKey::AgSectionModel => "Modèle",

@@ -535,7 +535,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatShortcuts => "Atalhos",
         I18nKey::HsCatApiKeys => "Chaves de API",
         I18nKey::HsCatWorkspace => "Espaço de trabalho",
-        I18nKey::HsCatProvider => "Provedor de agente",
+        I18nKey::HsCatProvider => "Agente",
         I18nKey::HsCatVoice => "Voz",
         I18nKey::HsCatImage => "Imagem",
         I18nKey::HsCatRemote => "Remoto",
@@ -737,7 +737,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsConfirmCloseHint => {
             "Mostre uma caixa de diálogo de confirmação ao fechar um espaço de trabalho na guia Terminais, no botão Fechar da barra lateral ou no menu de contexto."
         }
-        I18nKey::AgProviderHeading => "Agente BLXCode",
+        I18nKey::AgProviderHeading => "Agente",
         I18nKey::AgProviderDescription => "Configure agent providers, models, reasoning, web tools, and session behavior.",
         I18nKey::AgSectionInference => "Inferência",
         I18nKey::AgSectionModel => "Modelo",

@@ -906,15 +906,15 @@ pub fn SettingsDock(
     view! {
         <div class="harness-settings-grid harness-settings-grid--docked">
             <nav class="harness-settings-cats" aria-label=move || i18n.tr(I18nKey::HsAriaCats)()>
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::AgentProvider label=I18nKey::HsCatProvider />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::ApiKeys label=I18nKey::HsCatApiKeys />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::App label=I18nKey::HsCatApp />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Appearance label=I18nKey::HsCatAppearance />
-                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Shortcuts label=I18nKey::HsCatShortcuts />
-                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::ApiKeys label=I18nKey::HsCatApiKeys />
-                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Workspace label=I18nKey::HsCatWorkspace />
-                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::AgentProvider label=I18nKey::HsCatProvider />
-                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Remote label=I18nKey::HsCatRemote />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Memory label=I18nKey::TabMemory />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Remote label=I18nKey::HsCatRemote />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Shortcuts label=I18nKey::HsCatShortcuts />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Voice label=I18nKey::HsCatVoice />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Workspace label=I18nKey::HsCatWorkspace />
             </nav>
 
             <div class="harness-settings-detail">
@@ -948,7 +948,7 @@ pub fn SettingsDock(
                     }.into_any(),
                     HarnessSettingsCategory::Image => view! {
                         <crate::workbench::AgentProviderPane />
-                    }.into_any(), // legacy category → BLXCode Agent
+                    }.into_any(), // legacy category → Agent
                 }}
             </div>
         </div>

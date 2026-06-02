@@ -535,7 +535,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatShortcuts => "Parancsikonok",
         I18nKey::HsCatApiKeys => "API-kulcsok",
         I18nKey::HsCatWorkspace => "Munkaterület",
-        I18nKey::HsCatProvider => "Ügynökszolgáltató",
+        I18nKey::HsCatProvider => "Ügynök",
         I18nKey::HsCatVoice => "Hang",
         I18nKey::HsCatImage => "Kép",
         I18nKey::HsCatRemote => "Távoli",
@@ -737,7 +737,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsConfirmCloseHint => {
             "Megerősítő párbeszédpanel megjelenítése, amikor egy munkaterületet bezár a Terminálok lapról, az oldalsáv bezárás gombjáról vagy a helyi menüből."
         }
-        I18nKey::AgProviderHeading => "BLXCode ügynök",
+        I18nKey::AgProviderHeading => "Ügynök",
         I18nKey::AgProviderDescription => "Configure agent providers, models, reasoning, web tools, and session behavior.",
         I18nKey::AgSectionInference => "Következtetés",
         I18nKey::AgSectionModel => "Modell",

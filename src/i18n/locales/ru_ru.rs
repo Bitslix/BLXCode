@@ -537,7 +537,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatShortcuts => "Ярлыки",
         I18nKey::HsCatApiKeys => "API-ключи",
         I18nKey::HsCatWorkspace => "Рабочая область",
-        I18nKey::HsCatProvider => "Поставщик агентов",
+        I18nKey::HsCatProvider => "Агент",
         I18nKey::HsCatVoice => "Голос",
         I18nKey::HsCatImage => "Изображение",
         I18nKey::HsCatRemote => "Удаленный",
@@ -739,7 +739,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsConfirmCloseHint => {
             "Показывать диалоговое окно подтверждения при закрытии рабочей области на вкладке «Терминалы», кнопке закрытия боковой панели или контекстном меню."
         }
-        I18nKey::AgProviderHeading => "Агент BLXCode",
+        I18nKey::AgProviderHeading => "Агент",
         I18nKey::AgProviderDescription => "Configure agent providers, models, reasoning, web tools, and session behavior.",
         I18nKey::AgSectionInference => "Вывод",
         I18nKey::AgSectionModel => "Модель",

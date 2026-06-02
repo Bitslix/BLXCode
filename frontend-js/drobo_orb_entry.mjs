@@ -12,7 +12,7 @@ const BASE_ROTATION = {
   y: -Math.PI / 2 + 0.08,
   z: -0.02,
 };
-const MODEL_Y_OFFSET = 0.12;
+const MODEL_Y_OFFSET = 0.28;
 
 function clamp(value, min = -1, max = 1) {
   return Math.max(min, Math.min(max, value));
@@ -98,8 +98,10 @@ function applyTheme(rec) {
                 : palette.body;
     material.color.copy(color);
     material.emissive.copy(kind === "screen" || kind === "screen-accent" ? color : palette.dark);
-    material.emissiveIntensity =
+    const baseEmissive =
       kind === "screen" ? 0.32 : kind === "screen-accent" ? 0.46 : kind === "dark" ? 0.03 : 0.015;
+    material.userData.baseEmissive = baseEmissive;
+    material.emissiveIntensity = baseEmissive;
     material.needsUpdate = true;
   }
 
@@ -202,7 +204,7 @@ function create(container) {
     pointer: { x: 0, y: 0 },
     target: { x: 0, y: 0 },
     rotation: { x: BASE_ROTATION.x, y: BASE_ROTATION.y, z: BASE_ROTATION.z },
-    state: { active: false, transcribing: false, compact: false },
+    state: { active: false, transcribing: false, thinking: false, compact: false },
     reducedMotion: Boolean(prefersReducedMotion?.matches),
   };
   instances.set(id, rec);
@@ -292,6 +294,17 @@ function animate(id) {
     rec.group.position.y = MODEL_Y_OFFSET + bob;
     rec.group.scale.setScalar(1 + activeBoost * 0.045 + pulseBoost * (0.025 + Math.sin(idle * 8) * 0.012));
 
+    // While the agent is "thinking", pulse the inner screen/cube glow so the
+    // model reads as actively working. 0 → base glow when idle.
+    const thinkPulse =
+      rec.state.thinking && !rec.reducedMotion ? 0.5 + 0.5 * Math.sin(idle * 6.5) : 0;
+    for (const material of rec.materials) {
+      const kind = material.userData.droboKind;
+      if (kind !== "screen" && kind !== "screen-accent") continue;
+      const base = material.userData.baseEmissive ?? material.emissiveIntensity;
+      material.emissiveIntensity = base * (1 + thinkPulse * 1.8);
+    }
+
     rec.renderer.render(rec.scene, rec.camera);
     rec.frame = requestAnimationFrame(tick);
   };
@@ -304,6 +317,7 @@ function setState(id, state = {}) {
   if (rec.failed) return true;
   rec.state.active = Boolean(state.active);
   rec.state.transcribing = Boolean(state.transcribing);
+  rec.state.thinking = Boolean(state.thinking);
   rec.state.compact = Boolean(state.compact);
   return true;
 }

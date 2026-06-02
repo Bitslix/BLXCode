@@ -535,7 +535,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatShortcuts => "Skróty",
         I18nKey::HsCatApiKeys => "Klucze API",
         I18nKey::HsCatWorkspace => "Obszar roboczy",
-        I18nKey::HsCatProvider => "Dostawca agenta",
+        I18nKey::HsCatProvider => "Agent",
         I18nKey::HsCatVoice => "Głos",
         I18nKey::HsCatImage => "Obraz",
         I18nKey::HsCatRemote => "Zdalny",
@@ -737,7 +737,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsConfirmCloseHint => {
             "Wyświetl okno dialogowe potwierdzenia podczas zamykania obszaru roboczego z karty Terminale, przycisku zamykania na pasku bocznym lub menu kontekstowego."
         }
-        I18nKey::AgProviderHeading => "Agent BLXCode",
+        I18nKey::AgProviderHeading => "Agent",
         I18nKey::AgProviderDescription => "Configure agent providers, models, reasoning, web tools, and session behavior.",
         I18nKey::AgSectionInference => "Wnioskowanie",
         I18nKey::AgSectionModel => "Model",
