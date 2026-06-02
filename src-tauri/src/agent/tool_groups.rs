@@ -10,6 +10,7 @@ use std::collections::HashSet;
 pub enum ToolGroup {
     EnvironmentRead,
     WorkspaceRead,
+    WorkspaceWrite,
     DiffRead,
     GitRead,
     GitWrite,
@@ -35,6 +36,7 @@ impl ToolGroup {
         match s {
             "environment_read" => Some(Self::EnvironmentRead),
             "workspace_read" => Some(Self::WorkspaceRead),
+            "workspace_write" => Some(Self::WorkspaceWrite),
             "diff_read" => Some(Self::DiffRead),
             "git_read" => Some(Self::GitRead),
             "git_write" => Some(Self::GitWrite),
@@ -60,6 +62,12 @@ impl ToolGroup {
                 "list_workspace_files",
                 "read_workspace_file",
                 "workspace_search",
+            ],
+            Self::WorkspaceWrite => &[
+                "workspace_file_write",
+                "workspace_file_delete",
+                "workspace_dir_create",
+                "workspace_entry_rename",
             ],
             Self::DiffRead => &[
                 "workspace_git_status",
@@ -124,6 +132,19 @@ impl ToolGroup {
             ],
             Self::CoordinatorHarness => &[
                 "harness.create_workspace",
+                "harness.workspace_list",
+                "harness.workspace_switch",
+                "harness.workspace_prev",
+                "harness.workspace_next",
+                "harness.view_show",
+                "harness.open_settings",
+                "harness.open_memory",
+                "harness.open_plan",
+                "harness.open_file",
+                "harness.open_diff",
+                "harness.window_get_state",
+                "harness.window_set_size",
+                "harness.window_set_fullscreen",
                 "harness.open_terminal",
                 "harness.list_terminals",
                 "harness.send_terminal_keys",
@@ -143,6 +164,7 @@ pub fn coordinator_groups(web_enabled: bool) -> Vec<ToolGroup> {
     let mut g = vec![
         ToolGroup::EnvironmentRead,
         ToolGroup::WorkspaceRead,
+        ToolGroup::WorkspaceWrite,
         ToolGroup::DiffRead,
         ToolGroup::GitRead,
         ToolGroup::GitWrite,

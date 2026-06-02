@@ -128,6 +128,87 @@ impl RelativePath {
     }
 }
 
+const WORKSPACE_WRITE_MAX_BYTES: usize = 1024 * 1024;
+const WORKSPACE_PROTECTED_COMPONENTS: &[&str] = &[
+    ".git",
+    ".agents",
+    ".blxcode",
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    "out",
+    ".next",
+    ".cache",
+    "vendor",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "coverage",
+];
+
+fn path_has_protected_component(rel: &Path) -> bool {
+    rel.components().any(|component| {
+        component
+            .as_os_str()
+            .to_str()
+            .map(|s| WORKSPACE_PROTECTED_COMPONENTS.contains(&s))
+            .unwrap_or(false)
+    })
+}
+
+fn resolve_workspace_new_path(
+    root: Option<&WorkspaceRootGuard>,
+    raw: &str,
+) -> Result<(PathBuf, PathBuf), ToolOutcome> {
+    let guard = root.ok_or(ToolOutcome {
+        ok: false,
+        content: "no workspace configured".into(),
+    })?;
+    let rel = RelativePath::normalize(raw).ok_or(ToolOutcome {
+        ok: false,
+        content: "invalid path".into(),
+    })?;
+    if path_has_protected_component(&rel) {
+        return Err(ToolOutcome {
+            ok: false,
+            content: "path is in a protected folder".into(),
+        });
+    }
+    let full = guard.path.join(&rel);
+    if full.is_absolute() && !guard.contains(&full) {
+        return Err(ToolOutcome {
+            ok: false,
+            content: "path escapes workspace root".into(),
+        });
+    }
+    Ok((rel, full))
+}
+
+fn ensure_parent_under_workspace(root: &WorkspaceRootGuard, full: &Path) -> Result<(), ToolOutcome> {
+    let Some(parent) = full.parent() else {
+        return Err(ToolOutcome {
+            ok: false,
+            content: "target has no parent".into(),
+        });
+    };
+    fs::create_dir_all(parent).map_err(|e| ToolOutcome {
+        ok: false,
+        content: format!("create parent: {e}"),
+    })?;
+    let parent = fs::canonicalize(parent).map_err(|e| ToolOutcome {
+        ok: false,
+        content: format!("canonicalize parent: {e}"),
+    })?;
+    if !root.contains(&parent) {
+        return Err(ToolOutcome {
+            ok: false,
+            content: "path escapes workspace root".into(),
+        });
+    }
+    Ok(())
+}
+
 // ---------------------------------------------------------------------
 // Tool registry
 
@@ -199,6 +280,61 @@ pub fn registry() -> Vec<ToolDef> {
                     "path": { "type": "string", "description": "Relative path within the workspace." }
                 },
                 "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "workspace_file_write",
+            description: "Create or overwrite a UTF-8 text file under the workspace root. Path is relative to the workspace; absolute paths, `..`, and protected folders are rejected.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" },
+                    "content": { "type": "string" },
+                    "create": { "type": "boolean", "default": true }
+                },
+                "required": ["path", "content"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "workspace_file_delete",
+            description: "Delete a file or directory under the workspace root. Directories are removed recursively. Path is relative to the workspace; protected folders are rejected.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "workspace_dir_create",
+            description: "Create a directory under the workspace root, including missing parents. Path is relative to the workspace; protected folders are rejected.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "workspace_entry_rename",
+            description: "Rename or move a file or directory under the workspace root. Paths are relative to the workspace; protected folders are rejected.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "oldPath": { "type": "string" },
+                    "newPath": { "type": "string" }
+                },
+                "required": ["oldPath", "newPath"],
                 "additionalProperties": false
             }),
             site: ToolSite::Server,
@@ -870,6 +1006,170 @@ pub fn registry() -> Vec<ToolDef> {
             site: ToolSite::Client,
         },
         ToolDef {
+            name: "harness.workspace_list",
+            description: "List open workspaces in the BLXCode workbench and identify the active workspace.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.workspace_switch",
+            description: "Switch the visible workbench to another already-open workspace by id, title, or cwd.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "integer", "minimum": 1 },
+                    "title": { "type": "string" },
+                    "cwd": { "type": "string" }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.workspace_prev",
+            description: "Switch to the previous open workspace in sidebar order. Wraps at the beginning.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.workspace_next",
+            description: "Switch to the next open workspace in sidebar order. Wraps at the end.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.view_show",
+            description: "Show or focus a BLXCode workbench view/panel/tab.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "target": {
+                        "type": "string",
+                        "enum": ["agent", "browser", "plans", "memory", "rules", "skills", "settings", "terminals", "project_files", "git_diff", "git_graph"]
+                    }
+                },
+                "required": ["target"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.open_settings",
+            description: "Open the Settings center tab and focus a settings category.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "enum": ["app", "appearance", "shortcuts", "api_keys", "workspace", "agent_provider", "remote", "memory", "voice", "image"]
+                    }
+                },
+                "required": ["category"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.open_memory",
+            description: "Open the Memory view. Optionally focus one memory API path.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.open_plan",
+            description: "Open the Plans right-panel view. Optionally attach/read a plan path in follow-up plan tools.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.open_file",
+            description: "Open or focus a workspace-relative file preview center tab.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.open_diff",
+            description: "Open or focus a workspace-relative file diff center tab.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" },
+                    "staged": { "type": "boolean", "default": false }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.window_get_state",
+            description: "Return BLXCode main-window size and fullscreen/maximized state.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.window_set_size",
+            description: "Set BLXCode main-window inner size in logical pixels.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "width": { "type": "integer", "minimum": 480, "maximum": 7680 },
+                    "height": { "type": "integer", "minimum": 360, "maximum": 4320 }
+                },
+                "required": ["width", "height"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.window_set_fullscreen",
+            description: "Set BLXCode main-window fullscreen state.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "enabled": { "type": "boolean" }
+                },
+                "required": ["enabled"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
             name: "harness.list_terminals",
             description: "List terminal slots in the active workspace. Each entry has `slotId`, `agentSlug` (one of claude/codex/gemini/opencode/cursor or empty for plain shell), and `running` (whether a PTY session is currently attached). Use this before targeting a slot.",
             parameters: json!({
@@ -1077,6 +1377,10 @@ pub fn execute_server_tool(
         "list_tools" => tool_list_tools(),
         "read_workspace_file" => tool_read_workspace_file(args, root),
         "list_workspace_files" => tool_list_workspace_files(args, root),
+        "workspace_file_write" => tool_workspace_file_write(args, root),
+        "workspace_file_delete" => tool_workspace_file_delete(args, root),
+        "workspace_dir_create" => tool_workspace_dir_create(args, root),
+        "workspace_entry_rename" => tool_workspace_entry_rename(args, root),
         "memory_list" => tool_memory_list(root),
         "memory_read" => tool_memory_read(args, root),
         "memory_search" => tool_memory_search(args, root),
@@ -1411,6 +1715,198 @@ fn tool_list_workspace_files(args: &Value, root: Option<&WorkspaceRootGuard>) ->
         Err(e) => ToolOutcome {
             ok: false,
             content: e.to_string(),
+        },
+    }
+}
+
+fn tool_workspace_file_write(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(guard) = root else {
+        return ToolOutcome {
+            ok: false,
+            content: "no workspace configured".into(),
+        };
+    };
+    let path = match need_str(args, "path") {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    let content = match need_str(args, "content") {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    if content.len() > WORKSPACE_WRITE_MAX_BYTES {
+        return ToolOutcome {
+            ok: false,
+            content: "content exceeds 1 MiB".into(),
+        };
+    }
+    let create = args.get("create").and_then(|v| v.as_bool()).unwrap_or(true);
+    let (rel, full) = match resolve_workspace_new_path(root, path) {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    if !create && !full.exists() {
+        return ToolOutcome {
+            ok: false,
+            content: format!("file does not exist: {}", rel.display()),
+        };
+    }
+    if let Err(out) = ensure_parent_under_workspace(guard, &full) {
+        return out;
+    }
+    if full.exists() && full.is_dir() {
+        return ToolOutcome {
+            ok: false,
+            content: "target is a directory".into(),
+        };
+    }
+    let tmp = full.with_extension("blx-agent-tmp");
+    if let Err(e) = fs::write(&tmp, content) {
+        return ToolOutcome {
+            ok: false,
+            content: format!("write temp file: {e}"),
+        };
+    }
+    if let Err(e) = fs::rename(&tmp, &full) {
+        let _ = fs::remove_file(&tmp);
+        return ToolOutcome {
+            ok: false,
+            content: format!("rename temp file: {e}"),
+        };
+    }
+    ToolOutcome {
+        ok: true,
+        content: format!("wrote {}", rel.display()),
+    }
+}
+
+fn tool_workspace_file_delete(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(guard) = root else {
+        return ToolOutcome {
+            ok: false,
+            content: "no workspace configured".into(),
+        };
+    };
+    let path = match need_str(args, "path") {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    let (rel, full) = match resolve_workspace_new_path(root, path) {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    let Ok(canon) = fs::canonicalize(&full) else {
+        return ToolOutcome {
+            ok: false,
+            content: format!("path not found: {}", rel.display()),
+        };
+    };
+    if !guard.contains(&canon) {
+        return ToolOutcome {
+            ok: false,
+            content: "path escapes workspace root".into(),
+        };
+    }
+    let result = if canon.is_dir() {
+        fs::remove_dir_all(&canon)
+    } else {
+        fs::remove_file(&canon)
+    };
+    match result {
+        Ok(()) => ToolOutcome {
+            ok: true,
+            content: format!("deleted {}", rel.display()),
+        },
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: format!("delete {}: {e}", rel.display()),
+        },
+    }
+}
+
+fn tool_workspace_dir_create(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(guard) = root else {
+        return ToolOutcome {
+            ok: false,
+            content: "no workspace configured".into(),
+        };
+    };
+    let path = match need_str(args, "path") {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    let (rel, full) = match resolve_workspace_new_path(root, path) {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    if let Err(e) = fs::create_dir_all(&full) {
+        return ToolOutcome {
+            ok: false,
+            content: format!("create dir {}: {e}", rel.display()),
+        };
+    }
+    match fs::canonicalize(&full) {
+        Ok(canon) if guard.contains(&canon) => ToolOutcome {
+            ok: true,
+            content: format!("created directory {}", rel.display()),
+        },
+        Ok(_) => ToolOutcome {
+            ok: false,
+            content: "path escapes workspace root".into(),
+        },
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: format!("canonicalize created dir: {e}"),
+        },
+    }
+}
+
+fn tool_workspace_entry_rename(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(guard) = root else {
+        return ToolOutcome {
+            ok: false,
+            content: "no workspace configured".into(),
+        };
+    };
+    let old_path = match need_str(args, "oldPath") {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    let new_path = match need_str(args, "newPath") {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    let (old_rel, old_full) = match resolve_workspace_new_path(root, old_path) {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    let (new_rel, new_full) = match resolve_workspace_new_path(root, new_path) {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    let Ok(old_canon) = fs::canonicalize(&old_full) else {
+        return ToolOutcome {
+            ok: false,
+            content: format!("path not found: {}", old_rel.display()),
+        };
+    };
+    if !guard.contains(&old_canon) {
+        return ToolOutcome {
+            ok: false,
+            content: "old path escapes workspace root".into(),
+        };
+    }
+    if let Err(out) = ensure_parent_under_workspace(guard, &new_full) {
+        return out;
+    }
+    match fs::rename(&old_canon, &new_full) {
+        Ok(()) => ToolOutcome {
+            ok: true,
+            content: format!("renamed {} -> {}", old_rel.display(), new_rel.display()),
+        },
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: format!("rename: {e}"),
         },
     }
 }

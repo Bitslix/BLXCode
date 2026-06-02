@@ -10,7 +10,8 @@
 //! (returning `Ok`) when that window is unavailable, so a missing window can
 //! never panic the IPC boundary.
 
-use tauri::{Emitter, Manager};
+use serde::Serialize;
+use tauri::{Emitter, LogicalSize, Manager, Size};
 
 /// Event emitted after a state change so the bar's maximize/restore icon can
 /// react without polling. Payload is the current `is_maximized` flag.
@@ -86,4 +87,51 @@ pub fn window_is_fullscreen(app: tauri::AppHandle) -> Result<bool, String> {
         return Ok(false);
     };
     win.is_fullscreen().map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowState {
+    pub width: u32,
+    pub height: u32,
+    pub maximized: bool,
+    pub fullscreen: bool,
+}
+
+#[tauri::command]
+pub fn window_state(app: tauri::AppHandle) -> Result<WindowState, String> {
+    let Some(win) = main_window(&app) else {
+        return Ok(WindowState {
+            width: 0,
+            height: 0,
+            maximized: false,
+            fullscreen: false,
+        });
+    };
+    let size = win.inner_size().map_err(|e| e.to_string())?;
+    Ok(WindowState {
+        width: size.width,
+        height: size.height,
+        maximized: win.is_maximized().map_err(|e| e.to_string())?,
+        fullscreen: win.is_fullscreen().map_err(|e| e.to_string())?,
+    })
+}
+
+#[tauri::command]
+pub fn window_set_size(app: tauri::AppHandle, width: u32, height: u32) -> Result<(), String> {
+    let Some(win) = main_window(&app) else {
+        return Ok(());
+    };
+    let width = width.clamp(480, 7680);
+    let height = height.clamp(360, 4320);
+    win.set_size(Size::Logical(LogicalSize::new(width as f64, height as f64)))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn window_set_fullscreen(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    let Some(win) = main_window(&app) else {
+        return Ok(());
+    };
+    win.set_fullscreen(enabled).map_err(|e| e.to_string())
 }

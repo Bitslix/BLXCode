@@ -1,4 +1,4 @@
-use crate::agent_wire::{AgentContextItem, AgentImageContextItem};
+use crate::agent_wire::{AgentChatMode, AgentContextItem, AgentImageContextItem};
 use crate::config::{
     DEFAULT_PROJECT_DIR_KEY, HARNESS_BROWSER_DEFAULT_URL, HARNESS_BROWSER_URL_KEY,
     HARNESS_WORKSPACE_ROOT_KEY, MEMORY_COLOR_PRESETS_STORAGE_KEY, SIDEBAR_WIDTH_PX_DEFAULT,
@@ -73,6 +73,9 @@ pub struct WorkspaceEntry {
     /// Image-generation toggle for the agent chat (per workspace).
     #[serde(default)]
     pub agent_image_mode: bool,
+    /// Execution/approval mode for the current Agent Chat session.
+    #[serde(default)]
+    pub agent_chat_mode: AgentChatMode,
     /// Default-off setting for future optional LLM prose synthesis into the
     /// architecture map. Current rebuilds remain deterministic and non-LLM.
     #[serde(default)]
@@ -452,6 +455,7 @@ impl WorkspaceEntry {
             agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            agent_chat_mode: AgentChatMode::AskEdits,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
@@ -2054,6 +2058,7 @@ impl WorkbenchService {
             agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            agent_chat_mode: AgentChatMode::AskEdits,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
@@ -2184,6 +2189,7 @@ impl WorkbenchService {
                 agent_timeline: TimelineDoc::default(),
                 agent_compose_draft: String::new(),
                 agent_image_mode: false,
+                agent_chat_mode: AgentChatMode::AskEdits,
                 architecture_llm_prose: false,
                 agent_context_items: Vec::new(),
                 memory_category_settings: HashMap::new(),
@@ -2707,6 +2713,7 @@ impl WorkbenchService {
                 agent_timeline: TimelineDoc::default(),
                 agent_compose_draft: String::new(),
                 agent_image_mode: false,
+                agent_chat_mode: AgentChatMode::AskEdits,
                 architecture_llm_prose: false,
                 agent_context_items: Vec::new(),
                 memory_category_settings: HashMap::new(),
@@ -3068,6 +3075,7 @@ impl WorkbenchService {
             agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            agent_chat_mode: AgentChatMode::AskEdits,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
@@ -3485,6 +3493,10 @@ impl WorkbenchService {
         });
     }
 
+    pub fn reset_workspace_agent_chat_mode(&self, workspace_id: u64) {
+        self.set_workspace_agent_chat_mode(workspace_id, AgentChatMode::AskEdits);
+    }
+
     #[must_use]
     pub fn agent_timeline_for_workspace_untracked(&self, workspace_id: u64) -> TimelineDoc {
         self.workspaces.with_untracked(|workspaces| {
@@ -3530,6 +3542,25 @@ impl WorkbenchService {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
                 ws.agent_image_mode = image_mode;
+            }
+        });
+    }
+
+    #[must_use]
+    pub fn agent_chat_mode_for_workspace_untracked(&self, workspace_id: u64) -> AgentChatMode {
+        self.workspaces.with_untracked(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.agent_chat_mode)
+                .unwrap_or_default()
+        })
+    }
+
+    pub fn set_workspace_agent_chat_mode(&self, workspace_id: u64, mode: AgentChatMode) {
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                ws.agent_chat_mode = mode;
             }
         });
     }
@@ -4258,6 +4289,7 @@ mod center_tab_tests {
             agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            agent_chat_mode: AgentChatMode::AskEdits,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
@@ -4352,6 +4384,7 @@ mod terminal_slot_tests {
             agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            agent_chat_mode: AgentChatMode::AskEdits,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),

@@ -6,3 +6,6 @@ Run a **non-interactive** command in the workspace directory.
 
 - Use **harness** terminal tools for interactive CLIs (`harness.open_terminal`, `harness.send_terminal_keys`, `harness.send_agent_context`).
 - Read-only mode uses an allowlist unless `shell_write` group is granted (coordinator only in v1).
+- In `Ask Edits`, the exact command is shown to the user before execution.
+- In `Allow all`, commands run without asking.
+- In `Plan`, read-only commands may run, but `writes:true` commands are blocked.

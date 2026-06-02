@@ -4946,6 +4946,49 @@ button.workbench-shortcut-row--action:focus-visible {
   justify-content: flex-end;
 }
 
+.agent-mode-toolbar {
+  flex-shrink: 0;
+  display: inline-grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.18rem;
+  width: min(100%, 24rem);
+  padding: 0.16rem;
+  border: 1px solid var(--overlay-4);
+  border-radius: var(--radius-sm);
+  background: var(--overlay-1);
+}
+
+.agent-mode-toolbar__btn {
+  min-width: 0;
+  min-height: 1.75rem;
+  padding: 0 0.48rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 760;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.agent-mode-toolbar__btn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--overlay-2);
+}
+
+.agent-mode-toolbar__btn--active {
+  color: var(--text);
+  border-color: var(--accent-soft);
+  background: var(--accent-soft);
+}
+
+.agent-mode-toolbar__btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
 .agent-cancel-btn:disabled,
 .agent-send-btn:disabled {
   opacity: 0.45;

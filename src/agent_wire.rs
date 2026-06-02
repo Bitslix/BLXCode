@@ -8,6 +8,8 @@ pub struct UserTurn {
     pub prompt: String,
     pub workspace_root: Option<String>,
     #[serde(default)]
+    pub chat_mode: AgentChatMode,
+    #[serde(default)]
     pub voice_input: bool,
     #[serde(default)]
     pub image_generate: bool,
@@ -15,6 +17,15 @@ pub struct UserTurn {
     pub context_items: Vec<AgentContextItem>,
     #[serde(default)]
     pub image_context_items: Vec<AgentImageContextItem>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentChatMode {
+    #[default]
+    AskEdits,
+    AllowAll,
+    Plan,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -127,6 +138,16 @@ pub enum AgentEvent {
         #[serde(default)]
         args: Option<Value>,
     },
+    #[serde(rename = "tool_permission_request")]
+    ToolPermissionRequest {
+        tool: String,
+        call_id: String,
+        mode: AgentChatMode,
+        kind: ToolPermissionKind,
+        summary: String,
+        #[serde(default)]
+        args: Option<Value>,
+    },
     #[serde(rename = "tool_result")]
     ToolResult {
         tool: String,
@@ -213,6 +234,14 @@ pub enum AgentEvent {
         #[serde(default)]
         cost_usd: Option<f64>,
     },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolPermissionKind {
+    MutatingEdit,
+    Command,
+    SettingsWindow,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -757,6 +757,36 @@ pub async fn window_is_fullscreen() -> Result<bool, String> {
     invoke_typed("window_is_fullscreen", serde_json::json!({})).await
 }
 
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowStatePayload {
+    pub width: u32,
+    pub height: u32,
+    pub maximized: bool,
+    pub fullscreen: bool,
+}
+
+pub async fn window_state() -> Result<WindowStatePayload, String> {
+    invoke_typed("window_state", serde_json::json!({})).await
+}
+
+pub async fn window_set_size(width: u32, height: u32) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        width: u32,
+        height: u32,
+    }
+    invoke_unit_js("window_set_size", args_value(Args { width, height })?).await
+}
+
+pub async fn window_set_fullscreen(enabled: bool) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        enabled: bool,
+    }
+    invoke_unit_js("window_set_fullscreen", args_value(Args { enabled })?).await
+}
+
 pub async fn clipboard_read_text() -> Result<String, String> {
     invoke_typed("clipboard_read_text", ()).await
 }

@@ -99,6 +99,22 @@ Core skill **git** has full parameter notes.
 
 Poll-based: `agent_submit_turn` → `agent_poll_events` until `Done`. Client tools (harness terminals, context attach) round-trip via `agent_submit_tool_result`.
 
+## Agent Chat modes
+
+The toolbar above the Agent input selects a mode for the current Agent Chat session:
+
+| Mode | Behavior |
+|------|----------|
+| **Ask Edits** | Default. BLXCode asks before file/folder writes/deletes/renames, app/window/settings changes, and shell/terminal command execution. |
+| **Allow all** | Runs tool calls directly, including Bash/PowerShell/CMD commands. |
+| **Plan** | Read/search/analyze only. Mutating edits, window/settings changes, workspace switches, terminal submits, and write-capable commands are blocked. |
+
+The mode is stored per workspace chat session and resets to **Ask Edits** when the chat is cleared.
+
+## Workbench control tools
+
+The Agent can list and switch open workspaces, move to previous/next workspace, open right-panel views (Agent, Browser, Plans, Memory, Rules, Skills), open Settings categories, show sidebar sections, open file/diff tabs, and control the BLXCode main-window size/fullscreen state. These actions follow the active Agent Chat mode.
+
 ## See also
 
 - [Subagents](subagents.md) — roles, timeline, tool groups, limits

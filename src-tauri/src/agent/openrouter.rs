@@ -12,7 +12,7 @@
 //! between rounds; pending oneshots are dropped on cancel.
 
 use crate::agent::pricing;
-use crate::agent::protocol::{AgentEvent, AgentImageContextItem};
+use crate::agent::protocol::{AgentChatMode, AgentEvent, AgentImageContextItem};
 use crate::agent::state::AgentEngineState;
 use crate::agent::system_prompt::system_prompt;
 use crate::agent::tool_dispatch::{dispatch_tool, DispatchContext};
@@ -173,6 +173,7 @@ pub async fn run_chat_turn(
     endpoint: Endpoint,
     api_key: String,
     settings: AgentProviderSettings,
+    chat_mode: AgentChatMode,
     prompt: String,
     image_context_items: Vec<AgentImageContextItem>,
     workspace_root: Option<String>,
@@ -229,6 +230,7 @@ pub async fn run_chat_turn(
     let dispatch_ctx = DispatchContext {
         settings: settings.clone(),
         api_key: api_key.clone(),
+        chat_mode,
     };
 
     let client = match reqwest::Client::builder()

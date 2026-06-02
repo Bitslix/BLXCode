@@ -11,7 +11,9 @@ mod timeline;
 pub(crate) mod turn_metrics_bar;
 mod voice_orb;
 
-use crate::agent_wire::{AgentContextKind, AgentEvent, EventEnvelope, TaskSnapshot, UserTurn};
+use crate::agent_wire::{
+    AgentChatMode, AgentContextKind, AgentEvent, EventEnvelope, TaskSnapshot, UserTurn,
+};
 use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
@@ -77,6 +79,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     // Synced on workspace switch and on toggle (writer also persists to the
     // workspace entry so the flag survives reloads).
     let image_mode = RwSignal::new(false);
+    let chat_mode = RwSignal::new(AgentChatMode::AskEdits);
     let chat_maximized = RwSignal::new(false);
     // Context-window meter + compaction state.
     let context_length = RwSignal::new(Option::<u64>::None);
@@ -119,6 +122,7 @@ pub fn AgentPanelDock() -> impl IntoView {
             tool_detail_open.set(HashMap::new());
             draft.set(String::new());
             image_mode.set(false);
+            chat_mode.set(AgentChatMode::AskEdits);
             return;
         };
         timeline.set(wb.agent_timeline_for_workspace_untracked(id));
@@ -126,6 +130,7 @@ pub fn AgentPanelDock() -> impl IntoView {
         tool_detail_open.set(HashMap::new());
         draft.set(wb.agent_compose_draft_for_workspace_untracked(id));
         image_mode.set(wb.agent_image_mode_for_workspace_untracked(id));
+        chat_mode.set(wb.agent_chat_mode_for_workspace_untracked(id));
     });
 
     if is_tauri_shell() {
@@ -264,6 +269,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                     wb,
                     i18n,
                     draft,
+                    chat_mode,
                     busy,
                     status_line,
                     timeline,
@@ -408,6 +414,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                                 wb,
                                 i18n,
                                 draft,
+                                chat_mode,
                                 busy,
                                 status_line,
                                 timeline,
@@ -540,6 +547,8 @@ pub fn AgentPanelDock() -> impl IntoView {
                                             wb.set_workspace_agent_timeline(ws_id, TimelineDoc::default());
                                             wb.set_workspace_agent_compose_draft(ws_id, String::new());
                                             wb.clear_chat_usage(ws_id);
+                                            wb.reset_workspace_agent_chat_mode(ws_id);
+                                            chat_mode.set(AgentChatMode::AskEdits);
                                             status_line.set(None);
                                         }
                                         Err(msg) => status_line.set(Some(msg)),
@@ -578,7 +587,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                                 let on_redo = Callback::new(move |text: String| {
                                     draft.set(text);
                                     submit_turn(
-                                        wb, i18n, draft, busy, status_line,
+                                        wb, i18n, draft, chat_mode, busy, status_line,
                                         timeline, task_snapshot, thinking_open, tool_detail_open, voice_handle,
                                     );
                                 });
@@ -613,11 +622,17 @@ pub fn AgentPanelDock() -> impl IntoView {
                 </div>
             </article>
 
+            <div class="agent-mode-toolbar" role="toolbar" aria-label="Agent chat mode">
+                <ModeButton mode=AgentChatMode::AskEdits current=chat_mode busy=busy wb=wb label="Ask Edits" title="Ask before edits and commands" />
+                <ModeButton mode=AgentChatMode::AllowAll current=chat_mode busy=busy wb=wb label="Allow all" title="Run all tool calls without prompts" />
+                <ModeButton mode=AgentChatMode::Plan current=chat_mode busy=busy wb=wb label="Plan" title="Read-only planning mode" />
+            </div>
+
             <form
                 class="agent-compose"
                 on:submit=move |ev| {
                     ev.prevent_default();
-                    submit_turn(wb, i18n, draft, busy, status_line, timeline, task_snapshot, thinking_open, tool_detail_open, voice_handle);
+                    submit_turn(wb, i18n, draft, chat_mode, busy, status_line, timeline, task_snapshot, thinking_open, tool_detail_open, voice_handle);
                 }
             >
                 <input
@@ -641,7 +656,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                     on:keydown=move |ev| {
                         if ev.key() == "Enter" && !ev.shift_key() && !ev.ctrl_key() && !ev.meta_key() {
                             ev.prevent_default();
-                            submit_turn(wb, i18n, draft, busy, status_line, timeline, task_snapshot, thinking_open, tool_detail_open, voice_handle);
+                            submit_turn(wb, i18n, draft, chat_mode, busy, status_line, timeline, task_snapshot, thinking_open, tool_detail_open, voice_handle);
                         }
                     }
                 />
@@ -663,7 +678,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                                     let _ = agent_abort().await;
                                 });
                             } else {
-                                submit_turn(wb, i18n, draft, busy, status_line, timeline, task_snapshot, thinking_open, tool_detail_open, voice_handle);
+                                submit_turn(wb, i18n, draft, chat_mode, busy, status_line, timeline, task_snapshot, thinking_open, tool_detail_open, voice_handle);
                             }
                         }
                     >
@@ -681,6 +696,43 @@ pub fn AgentPanelDock() -> impl IntoView {
                 </div>
             </form>
         </section>
+    }
+}
+
+#[component]
+fn ModeButton(
+    mode: AgentChatMode,
+    current: RwSignal<AgentChatMode>,
+    busy: RwSignal<bool>,
+    wb: WorkbenchService,
+    label: &'static str,
+    title: &'static str,
+) -> impl IntoView {
+    view! {
+        <button
+            type="button"
+            class=move || {
+                let mut class = String::from("agent-mode-toolbar__btn");
+                if current.get() == mode {
+                    class.push_str(" agent-mode-toolbar__btn--active");
+                }
+                class
+            }
+            prop:disabled=move || busy.get()
+            aria-pressed=move || if current.get() == mode { "true" } else { "false" }
+            title=title
+            on:click=move |_| {
+                if busy.get_untracked() {
+                    return;
+                }
+                current.set(mode);
+                if let Some(ws_id) = wb.active_id().get_untracked() {
+                    wb.set_workspace_agent_chat_mode(ws_id, mode);
+                }
+            }
+        >
+            {label}
+        </button>
     }
 }
 
@@ -783,6 +835,7 @@ fn submit_turn(
     wb: WorkbenchService,
     i18n: I18nService,
     draft: RwSignal<String>,
+    chat_mode: RwSignal<AgentChatMode>,
     busy: RwSignal<bool>,
     status_line: RwSignal<Option<String>>,
     timeline: RwSignal<TimelineDoc>,
@@ -820,6 +873,8 @@ fn submit_turn(
                     tool_detail_open.set(HashMap::new());
                     wb.set_workspace_agent_timeline(ws_id, TimelineDoc::default());
                     wb.clear_chat_usage(ws_id);
+                    wb.reset_workspace_agent_chat_mode(ws_id);
+                    chat_mode.set(AgentChatMode::AskEdits);
                     status_line.set(None);
                 }
                 Err(msg) => status_line.set(Some(msg)),
@@ -864,6 +919,7 @@ fn submit_turn(
     let turn = UserTurn {
         prompt,
         workspace_root,
+        chat_mode: chat_mode.get_untracked(),
         voice_input,
         image_generate,
         context_items,

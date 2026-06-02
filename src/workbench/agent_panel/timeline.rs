@@ -332,6 +332,7 @@ pub fn apply_agent_event(
             timeline.update(|rows| rows.push(TimelineItem::Tool(entry)));
             persist_agent_timeline(persist, timeline);
         }
+        AgentEvent::ToolPermissionRequest { .. } => {}
         AgentEvent::ToolResult {
             tool,
             call_id,

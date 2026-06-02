@@ -18,6 +18,8 @@ pub struct UserTurn {
     pub prompt: String,
     /// Sandbox root for read-only tools; must be canonical if set (caller responsibility).
     pub workspace_root: Option<String>,
+    #[serde(default)]
+    pub chat_mode: AgentChatMode,
     /// When true, the orchestrator runs the configured TTS engine on the
     /// final assistant text and emits an `AgentEvent::VoiceReady`.
     #[serde(default)]
@@ -31,6 +33,15 @@ pub struct UserTurn {
     pub context_items: Vec<AgentContextItem>,
     #[serde(default)]
     pub image_context_items: Vec<AgentImageContextItem>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentChatMode {
+    #[default]
+    AskEdits,
+    AllowAll,
+    Plan,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -101,6 +112,16 @@ pub enum AgentEvent {
         /// Optional for legacy / mock events.
         #[serde(skip_serializing_if = "Option::is_none")]
         call_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        args: Option<serde_json::Value>,
+    },
+    #[serde(rename = "tool_permission_request")]
+    ToolPermissionRequest {
+        tool: String,
+        call_id: String,
+        mode: AgentChatMode,
+        kind: ToolPermissionKind,
+        summary: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         args: Option<serde_json::Value>,
     },
@@ -225,6 +246,14 @@ pub enum AgentEvent {
         #[serde(skip_serializing_if = "Option::is_none")]
         cost_usd: Option<f64>,
     },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolPermissionKind {
+    MutatingEdit,
+    Command,
+    SettingsWindow,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

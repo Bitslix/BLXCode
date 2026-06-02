@@ -1,11 +1,14 @@
 use crate::agent_wire::{AgentContextItem, AgentContextKind, AgentEvent};
-use crate::tauri_bridge::{agent_submit_tool_result, memory_list, pty_peek_output, pty_write};
+use crate::tauri_bridge::{
+    agent_submit_tool_result, memory_list, pty_peek_output, pty_write, window_set_fullscreen,
+    window_set_size, window_state,
+};
 use crate::workbench::agent_context_handoff::{
     perform_handoff, HandoffRequest, WorkspaceTerminalTarget,
 };
 use crate::workbench::state::normalize_hex_color;
 use crate::workbench::terminal_naming::{self, TerminalNamingMode, NAME_POOL_KEY, NAMING_MODE_KEY};
-use crate::workbench::WorkbenchService;
+use crate::workbench::{HarnessSettingsCategory, RightPanelTab, WorkbenchService};
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Date;
 use leptos::prelude::*;
@@ -56,6 +59,19 @@ pub fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
     let call_id = call_id.clone();
     match tool.as_str() {
         "harness.create_workspace" => handle_create_workspace(call_id, args.clone(), wb),
+        "harness.workspace_list" => handle_workspace_list(call_id, wb),
+        "harness.workspace_switch" => handle_workspace_switch(call_id, args.clone(), wb),
+        "harness.workspace_prev" => handle_workspace_step(call_id, wb, -1),
+        "harness.workspace_next" => handle_workspace_step(call_id, wb, 1),
+        "harness.view_show" => handle_view_show(call_id, args.clone(), wb),
+        "harness.open_settings" => handle_open_settings(call_id, args.clone(), wb),
+        "harness.open_memory" => handle_open_memory(call_id, args.clone(), wb),
+        "harness.open_plan" => handle_open_plan(call_id, args.clone(), wb),
+        "harness.open_file" => handle_open_file(call_id, args.clone(), wb),
+        "harness.open_diff" => handle_open_diff(call_id, args.clone(), wb),
+        "harness.window_get_state" => handle_window_get_state(call_id),
+        "harness.window_set_size" => handle_window_set_size(call_id, args.clone()),
+        "harness.window_set_fullscreen" => handle_window_set_fullscreen(call_id, args.clone()),
         "harness.open_terminal" => handle_open_terminal(call_id, args.clone(), wb),
         "harness.list_terminals" => handle_list_terminals(call_id, wb),
         "harness.send_terminal_keys" => handle_send_keys(call_id, args.clone(), wb),
@@ -74,6 +90,355 @@ pub fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
 }
 
 const LEARNINGS_PREFIX: &str = "learnings/";
+
+fn handle_workspace_list(call_id: String, wb: WorkbenchService) {
+    let active = wb.active_id().get_untracked();
+    let items = wb.workspaces().with_untracked(|workspaces| {
+        workspaces
+            .iter()
+            .map(|ws| {
+                serde_json::json!({
+                    "id": ws.id,
+                    "title": ws.title,
+                    "cwd": ws.cwd,
+                    "active": Some(ws.id) == active,
+                    "terminalCount": ws.terminal_count,
+                })
+            })
+            .collect::<Vec<_>>()
+    });
+    submit_async(
+        call_id,
+        true,
+        format!("{} open workspace(s)", items.len()),
+        Some(serde_json::Value::Array(items)),
+    );
+}
+
+fn handle_workspace_switch(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let id_arg = args
+        .as_ref()
+        .and_then(|v| v.get("id"))
+        .and_then(|v| v.as_u64());
+    let title_arg = args
+        .as_ref()
+        .and_then(|v| v.get("title"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| !s.is_empty());
+    let cwd_arg = args
+        .as_ref()
+        .and_then(|v| v.get("cwd"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| !s.is_empty());
+    let target = wb.workspaces().with_untracked(|workspaces| {
+        workspaces.iter().find_map(|ws| {
+            if id_arg == Some(ws.id)
+                || title_arg
+                    .as_ref()
+                    .map(|title| ws.title.to_lowercase() == *title)
+                    .unwrap_or(false)
+                || cwd_arg
+                    .as_ref()
+                    .map(|cwd| ws.cwd.to_lowercase() == *cwd)
+                    .unwrap_or(false)
+            {
+                Some((ws.id, ws.title.clone(), ws.cwd.clone()))
+            } else {
+                None
+            }
+        })
+    });
+    let Some((id, title, cwd)) = target else {
+        submit_async(call_id, false, "workspace not found".into(), None);
+        return;
+    };
+    wb.select_workspace(id);
+    submit_async(
+        call_id,
+        true,
+        format!("switched to workspace {id}"),
+        Some(serde_json::json!({ "id": id, "title": title, "cwd": cwd })),
+    );
+}
+
+fn handle_workspace_step(call_id: String, wb: WorkbenchService, delta: isize) {
+    let active = wb.active_id().get_untracked();
+    let target = wb.workspaces().with_untracked(|workspaces| {
+        if workspaces.is_empty() {
+            return None;
+        }
+        let current = active
+            .and_then(|id| workspaces.iter().position(|ws| ws.id == id))
+            .unwrap_or(0);
+        let len = workspaces.len() as isize;
+        let next = (current as isize + delta).rem_euclid(len) as usize;
+        let ws = &workspaces[next];
+        Some((ws.id, ws.title.clone(), ws.cwd.clone()))
+    });
+    let Some((id, title, cwd)) = target else {
+        submit_async(call_id, false, "no open workspaces".into(), None);
+        return;
+    };
+    wb.select_workspace(id);
+    submit_async(
+        call_id,
+        true,
+        format!("switched to workspace {id}"),
+        Some(serde_json::json!({ "id": id, "title": title, "cwd": cwd })),
+    );
+}
+
+fn ensure_right_panel_visible(wb: WorkbenchService) {
+    if wb.right_collapsed().get_untracked() {
+        wb.toggle_right_panel();
+    }
+}
+
+fn ensure_sidebar_visible(wb: WorkbenchService) {
+    if wb.sidebar_collapsed().get_untracked() {
+        wb.toggle_sidebar();
+    }
+}
+
+fn handle_view_show(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    let Some(target) = args
+        .as_ref()
+        .and_then(|v| v.get("target"))
+        .and_then(|v| v.as_str())
+    else {
+        submit_async(call_id, false, "missing target".into(), None);
+        return;
+    };
+    match target {
+        "agent" => {
+            wb.set_right_tab(RightPanelTab::Agent);
+            ensure_right_panel_visible(wb);
+        }
+        "browser" => {
+            wb.set_right_tab(RightPanelTab::Browser);
+            ensure_right_panel_visible(wb);
+        }
+        "plans" => {
+            wb.set_right_tab(RightPanelTab::Plans);
+            ensure_right_panel_visible(wb);
+        }
+        "memory" => {
+            wb.set_right_tab(RightPanelTab::Memory);
+            ensure_right_panel_visible(wb);
+        }
+        "rules" => {
+            wb.set_right_tab(RightPanelTab::Rules);
+            ensure_right_panel_visible(wb);
+        }
+        "skills" => {
+            wb.set_right_tab(RightPanelTab::Skills);
+            ensure_right_panel_visible(wb);
+        }
+        "settings" => wb.open_center_settings_tab(HarnessSettingsCategory::App),
+        "terminals" => {
+            if let Some(ws_id) = wb.active_id().get_untracked() {
+                wb.open_center_terminals_tab(ws_id);
+            }
+        }
+        "project_files" => {
+            ensure_sidebar_visible(wb);
+            wb.set_active_sidebar_explorer_open(true);
+        }
+        "git_diff" => {
+            ensure_sidebar_visible(wb);
+            wb.set_active_sidebar_diff_open(true);
+        }
+        "git_graph" => {
+            ensure_sidebar_visible(wb);
+            wb.set_active_sidebar_graph_open(true);
+        }
+        other => {
+            submit_async(call_id, false, format!("unknown view target: {other}"), None);
+            return;
+        }
+    }
+    submit_async(call_id, true, format!("showed {target}"), None);
+}
+
+fn parse_settings_category(raw: &str) -> Option<HarnessSettingsCategory> {
+    Some(match raw {
+        "app" => HarnessSettingsCategory::App,
+        "appearance" => HarnessSettingsCategory::Appearance,
+        "shortcuts" => HarnessSettingsCategory::Shortcuts,
+        "api_keys" => HarnessSettingsCategory::ApiKeys,
+        "workspace" => HarnessSettingsCategory::Workspace,
+        "agent_provider" => HarnessSettingsCategory::AgentProvider,
+        "remote" => HarnessSettingsCategory::Remote,
+        "memory" => HarnessSettingsCategory::Memory,
+        "voice" => HarnessSettingsCategory::Voice,
+        "image" => HarnessSettingsCategory::Image,
+        _ => return None,
+    })
+}
+
+fn handle_open_settings(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    let raw = args
+        .as_ref()
+        .and_then(|v| v.get("category"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("app");
+    let Some(category) = parse_settings_category(raw) else {
+        submit_async(call_id, false, format!("unknown settings category: {raw}"), None);
+        return;
+    };
+    wb.open_center_settings_tab(category);
+    submit_async(call_id, true, format!("opened settings {raw}"), None);
+}
+
+fn handle_open_memory(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    if let Some(path) = args
+        .as_ref()
+        .and_then(|v| v.get("path"))
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.trim().is_empty())
+    {
+        wb.request_open_memory_note(path.to_owned());
+    } else {
+        wb.set_right_tab(RightPanelTab::Memory);
+        ensure_right_panel_visible(wb);
+    }
+    submit_async(call_id, true, "opened memory".into(), None);
+}
+
+fn handle_open_plan(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    let path = args
+        .as_ref()
+        .and_then(|v| v.get("path"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    wb.set_right_tab(RightPanelTab::Plans);
+    ensure_right_panel_visible(wb);
+    let data = (!path.trim().is_empty()).then(|| serde_json::json!({ "path": path }));
+    submit_async(call_id, true, "opened plans".into(), data);
+}
+
+fn handle_open_file(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    let Some(path) = args
+        .as_ref()
+        .and_then(|v| v.get("path"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().trim_start_matches(['/', '\\']).to_owned())
+        .filter(|s| !s.is_empty())
+    else {
+        submit_async(call_id, false, "missing path".into(), None);
+        return;
+    };
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    wb.open_center_file_tab(ws_id, path.clone());
+    submit_async(call_id, true, format!("opened file {path}"), None);
+}
+
+fn handle_open_diff(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    let Some(path) = args
+        .as_ref()
+        .and_then(|v| v.get("path"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().trim_start_matches(['/', '\\']).to_owned())
+        .filter(|s| !s.is_empty())
+    else {
+        submit_async(call_id, false, "missing path".into(), None);
+        return;
+    };
+    let staged = args
+        .as_ref()
+        .and_then(|v| v.get("staged"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    wb.open_center_diff_tab(ws_id, path.clone(), staged);
+    submit_async(call_id, true, format!("opened diff {path}"), None);
+}
+
+fn handle_window_get_state(call_id: String) {
+    leptos::task::spawn_local(async move {
+        match window_state().await {
+            Ok(state) => {
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some("window state".into()),
+                    Some(serde_json::to_value(state).unwrap_or_default()),
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn handle_window_set_size(call_id: String, args: Option<serde_json::Value>) {
+    let width = args
+        .as_ref()
+        .and_then(|v| v.get("width"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(1280)
+        .clamp(480, 7680) as u32;
+    let height = args
+        .as_ref()
+        .and_then(|v| v.get("height"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(900)
+        .clamp(360, 4320) as u32;
+    leptos::task::spawn_local(async move {
+        match window_set_size(width, height).await {
+            Ok(()) => {
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some(format!("set window size to {width}x{height}")),
+                    None,
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn handle_window_set_fullscreen(call_id: String, args: Option<serde_json::Value>) {
+    let enabled = args
+        .as_ref()
+        .and_then(|v| v.get("enabled"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    leptos::task::spawn_local(async move {
+        match window_set_fullscreen(enabled).await {
+            Ok(()) => {
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some(format!("fullscreen={enabled}")),
+                    None,
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
 
 fn handle_memory_category_list(call_id: String, wb: WorkbenchService) {
     let Some(ws_id) = wb.active_id().get_untracked() else {

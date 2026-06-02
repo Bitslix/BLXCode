@@ -26,6 +26,18 @@ pub fn system_prompt(workspace_root: Option<&str>, agent_name: &str) -> String {
          \n\
          Workspace: {root}\n\
          \n\
+         # Agent Chat modes\n\
+         Each user turn includes one UI-selected Agent Chat mode. The harness \
+         enforces the mode at tool-dispatch time:\n\
+         - **Ask Edits** (default): mutating edits, app/window/settings changes, \
+           and shell/terminal command execution require user approval before the \
+           tool runs.\n\
+         - **Allow all**: execute all tool calls without asking, including \
+           Bash/PowerShell/CMD commands.\n\
+         - **Plan**: non-mutating planning mode. You may read/search/analyse and \
+           draft plans, but mutating edits, settings/window changes, workspace \
+           switches, terminal submits, and write-capable commands are blocked.\n\
+         \n\
          # Turn checklist (mandatory order, every turn)\n\
          You MUST execute these steps at the start of every user turn, in this \
          exact order. Skipping a step is a protocol violation.\n\
@@ -136,7 +148,9 @@ pub fn system_prompt(workspace_root: Option<&str>, agent_name: &str) -> String {
          `environment` · `shell` · `git` · `web` · `subagents`\n\
          \n\
          ## Tool index (names only)\n\
-         **File access (server):** `list_tools`, `list_workspace_files`, `read_workspace_file`\n\
+         **File access (server):** `list_tools`, `list_workspace_files`, `read_workspace_file`, \
+         `workspace_file_write`, `workspace_file_delete`, `workspace_dir_create`, \
+         `workspace_entry_rename`\n\
          \n\
          **Memory (server):** `memory_list`, `memory_read`, `memory_search`, \
          `memory_create`, `memory_write`, `memory_delete`, `memory_rename`, \
@@ -162,7 +176,11 @@ pub fn system_prompt(workspace_root: Option<&str>, agent_name: &str) -> String {
          `skills_set_enabled`, `skills_remove`, `skills_install`\n\
          \n\
          **Harness (client):** `harness.create_workspace`, `harness.open_terminal`, \
-         `harness.list_terminals`, `harness.send_terminal_keys`, \
+         `harness.workspace_list`, `harness.workspace_switch`, `harness.workspace_prev`, \
+         `harness.workspace_next`, `harness.view_show`, `harness.open_settings`, \
+         `harness.open_memory`, `harness.open_plan`, `harness.open_file`, \
+         `harness.open_diff`, `harness.window_get_state`, `harness.window_set_size`, \
+         `harness.window_set_fullscreen`, `harness.list_terminals`, `harness.send_terminal_keys`, \
          `harness.send_agent_context`, `harness.read_terminal_output`, \
          `harness.ask_user`\n\
          \n\

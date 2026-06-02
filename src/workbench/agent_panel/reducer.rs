@@ -111,6 +111,31 @@ fn apply_event_to_doc(
                 },
             );
         }
+        AgentEvent::ToolPermissionRequest {
+            tool,
+            call_id,
+            summary,
+            ..
+        } => {
+            append_part(
+                doc,
+                env.parent_call_id.as_deref(),
+                None,
+                TurnPart::AskUser {
+                    id: call_id.clone(),
+                    call_id: call_id.clone(),
+                    question: summary.clone(),
+                    header: Some(format!("Approve {tool}")),
+                    options: vec![crate::workbench::agent_timeline::AskUserOption {
+                        label: "Approve".to_owned(),
+                        description: Some("Run this tool call now.".to_owned()),
+                    }],
+                    multi_select: false,
+                    allow_other: false,
+                    state: AskUserState::Open,
+                },
+            );
+        }
         AgentEvent::ToolResult {
             tool,
             call_id,

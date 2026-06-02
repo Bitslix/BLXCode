@@ -20,6 +20,37 @@ Opens one or more terminal slots in the **active** workspace.
 
 Example — open 3 Codex terminals: `{ "count": 3, "agentSlug": "codex" }`
 
+### `harness.workspace_list`
+Lists open workspaces and marks the active one.
+
+### `harness.workspace_switch { id? | title? | cwd? }`
+Switches to an already-open workspace. Use `harness.workspace_list` first when ambiguous.
+
+### `harness.workspace_prev` / `harness.workspace_next`
+Switch to the previous or next open workspace in sidebar order; wraps around.
+
+## Views, tabs, and window controls
+
+### `harness.view_show { target }`
+Shows a workbench area: `agent`, `browser`, `plans`, `memory`, `rules`, `skills`, `settings`, `terminals`, `project_files`, `git_diff`, or `git_graph`.
+
+### `harness.open_settings { category }`
+Opens Settings to one category: `app`, `appearance`, `shortcuts`, `api_keys`, `workspace`, `agent_provider`, `remote`, `memory`, `voice`, `image`.
+
+### `harness.open_memory { path? }`
+Opens Memory, optionally focusing one memory API path.
+
+### `harness.open_plan { path? }`
+Opens Plans. Use `plan_read` / `plan_load` for plan content and tasks.
+
+### `harness.open_file { path }` / `harness.open_diff { path, staged? }`
+Open a workspace-relative file preview or diff center tab.
+
+### `harness.window_get_state`, `harness.window_set_size`, `harness.window_set_fullscreen`
+Read or change the BLXCode main window.
+
+Agent Chat modes apply: `Ask Edits` asks before state-changing harness actions and submitted terminal commands; `Allow all` runs directly; `Plan` blocks workspace switches, window changes, and submitted terminal commands.
+
 ## Inspecting & driving other CLI agents
 
 ### `harness.list_terminals`

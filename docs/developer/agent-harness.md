@@ -99,6 +99,16 @@ Adding a new server tool typically requires:
 
 New tools should be wired once in dispatch + `tools::execute_server_tool`, not duplicated per provider.
 
+### Agent Chat modes and permission gate
+
+`UserTurn.chat_mode` carries the per-session mode selected in the Agent panel:
+
+- `ask_edits` — mutating edit tools, command execution, and app/window/settings state changes emit `ToolPermissionRequest` and wait for `agent_submit_tool_result`.
+- `allow_all` — no prompt; tool calls execute directly.
+- `plan` — non-mutating mode; write tools, write-capable commands, workspace switches, window/settings changes, and submitted terminal commands are blocked before execution.
+
+Server tools are gated in `tool_dispatch.rs` before `execute_server_tool`; client harness tools are gated before the `ToolCall` event is emitted, so the frontend cannot execute a client tool before approval.
+
 ## Tool groups
 
 `ToolGroup` in `tool_groups.rs` maps group IDs (e.g. `git_read`, `shell_write`) to tool name sets.
