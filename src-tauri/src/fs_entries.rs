@@ -626,7 +626,7 @@ fn remote_create_dir(
 
 /// Lists files and directories under `path`, constrained to `workspace_root`.
 #[tauri::command]
-pub fn list_path_entries(
+pub async fn list_path_entries(
     app: AppHandle,
     pty: State<'_, PtyManager>,
     exec: State<'_, RemoteExecManager>,
@@ -637,7 +637,7 @@ pub fn list_path_entries(
     if let Some(cid) = connection_id.as_deref() {
         return remote_list_path_entries(&app, &pty, &exec, cid, &workspace_root, &path);
     }
-    local_list_path_entries(&workspace_root, &path)
+    crate::proc::run_blocking(move || local_list_path_entries(&workspace_root, &path)).await
 }
 
 fn local_list_path_entries(workspace_root: &str, path: &str) -> Result<Vec<FsEntryBrief>, String> {

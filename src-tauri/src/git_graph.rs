@@ -99,21 +99,22 @@ pub struct GitCommitDetails {
 }
 
 #[tauri::command]
-pub fn git_is_repository(
+pub async fn git_is_repository(
     app: AppHandle,
     pty: State<'_, PtyManager>,
     exec: State<'_, RemoteExecManager>,
     cwd: String,
     connection_id: Option<String>,
-) -> bool {
+) -> Result<bool, String> {
     let trimmed = cwd.trim();
     if trimmed.is_empty() {
-        return false;
+        return Ok(false);
     }
     if let Some(cid) = connection_id {
-        return remote_is_repository(&app, &pty, &exec, &cid, trimmed);
+        return Ok(remote_is_repository(&app, &pty, &exec, &cid, trimmed));
     }
-    crate::git_info::is_git_repository(Path::new(trimmed))
+    let cwd = trimmed.to_string();
+    crate::proc::run_blocking(move || Ok(crate::git_info::is_git_repository(Path::new(&cwd)))).await
 }
 
 #[tauri::command]

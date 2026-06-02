@@ -250,7 +250,7 @@ fn ProjectExplorerBody(
     let i18n = expect_context::<I18nService>();
 
     Effect::new(move |_| {
-        let _gen = load_gen.get();
+        let gen = load_gen.get();
         let Some((_, cwd, configuring, conn)) = active_workspace.get() else {
             return;
         };
@@ -267,11 +267,18 @@ fn ProjectExplorerBody(
         spawn_local(async move {
             match list_path_entries(root.clone(), root.clone(), conn).await {
                 Ok(entries) => {
+                    if load_gen.get_untracked() != gen {
+                        return;
+                    }
                     children_cache.update(|c| {
                         c.insert(root_key, entries);
                     });
                 }
-                Err(e) => error_msg.set(Some(e)),
+                Err(e) => {
+                    if load_gen.get_untracked() == gen {
+                        error_msg.set(Some(e));
+                    }
+                }
             }
         });
     });
