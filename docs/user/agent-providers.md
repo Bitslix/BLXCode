@@ -48,11 +48,29 @@ Off, Low, Medium, High, Max — mapped per provider where supported.
 
 The chat above the compose box shows live conversation state in the header:
 
-- **Context-window meter** — `used / max · NN%` with a thin progress bar that turns **warning** past 70% occupancy and **danger** past 85%. Occupancy tracks the **newest main-agent round's prompt size** (true window occupancy), not the cumulative token count used for cost; subagent rounds are excluded. The maximum is resolved from the provider's own model metadata where possible — for example OpenRouter's `context_length` is cached per model — and falls back to a static table that covers the direct providers (Claude 200K, GPT-5 400K, Gemini 1M, GPT-4.1 1M, …). For unknown models, the header shows a plain token count without a percentage instead of inventing a denominator.
+- **Context-window meter** — `used / max · NN%` with a thin progress bar that turns **warning** past 70% occupancy and **danger** past 85%. Occupancy tracks the **newest main-agent round's prompt size** (true window occupancy), not the cumulative token count used for cost; subagent rounds are excluded. The maximum is resolved from the provider's own model metadata where possible — for example OpenRouter's `context_length` is cached per model — and falls back to a static table (`agent/context_window.rs`) that covers the direct providers (Claude 200K, GPT-5 400K, Gemini 1M, GPT-4.1 1M, …). For unknown models, the header shows a plain token count without a percentage instead of inventing a denominator.
 - **Compact** — a button next to the meter that summarizes the running conversation into a dense briefing and starts the session fresh from it, freeing context-window budget while preserving goals, decisions, file paths, task state, and open questions. A single non-tool provider call does the summarization (so it cannot enter a tool loop); the backend replaces history with a compact `user`→`assistant` pair, the visible timeline resets to a fresh chat, and the meter drops to the post-compaction estimate.
 - **Auto-compact** — same path runs automatically once occupancy crosses a threshold (default **85%**, configurable 50–95% under **Settings → BLXCode Agent**). It fires only between turns and **at most once per crossing** — it re-arms only after occupancy falls back below the threshold — so it never interrupts a running turn or storms.
 
 The compose bar's submit button is a **single Send / Stop toggle**: it shows **Send** (sparkles icon) while idle and flips to **Stop** (square icon, abort styling) while a turn is running. Clicking submits or aborts depending on state; pressing **Enter** in the input still submits.
+
+## Agent session stats
+
+The Agent hero (the right column of the chat header) is a compact, **unframed** live stats panel. It derives all values client-side from the existing timeline, usage aggregate, context-window signal, model label, and busy state — no card chrome, no stats tooltips:
+
+- **Provider / model** label with a single state chip that follows open *Thinking* blocks before falling back to **Running** / **Standby**. The chip is a real button that opens **Settings → Agent Provider** directly.
+- **Local session start time** (the first user turn's `createdAt` after workspace reload, not the load time). Chat clear resets the session.
+- **Context-window occupancy** with a mini progress meter.
+- **Turn counts** (combined `User: x / Model: y`).
+- **Total tool calls** with merged open / read / edit / rm buckets.
+- **Active subagents** — count and names.
+- **Accumulated session cost.**
+
+The Chat log titlebar no longer repeats cost / turn / context stats. The numbers come from a dedicated `session_stats` aggregator that walks nested tool and subagent timeline parts (with unit tests for model-round exclusion, merged tool counts, bucket classification, active-subagent detection, first-user-turn start recovery, and active-thinking detection). `ChatUsageStats` now persists a backwards-compatible `session_started_at` timestamp, and `UserPart` stores an optional `createdAt`.
+
+## Per-message text-to-speech (Play button)
+
+The chat timeline may show a small **Play** button on assistant messages to read the reply out loud. It only appears when **TTS is enabled** *and* the selected TTS provider actually has an API key set in **Settings → Voice** (OpenAI / OpenRouter via the agent key status, AWS via the `aws_polly` key). When TTS is disabled or the key is missing, the button is hidden — see [Voice](voice.md).
 
 ## Tool-loop limit
 

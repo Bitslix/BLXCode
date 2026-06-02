@@ -6,19 +6,19 @@ BLXCode opens settings in a **center workbench tab** (not a modal). The command 
 
 | Category | What it configures |
 |----------|-------------------|
-| **App** | UI language, STT language + push-to-talk, notifications, terminal hooks, app updates |
-| **Appearance** | App themes — 20 presets, search, Dark/Light filters; see [Appearance & Themes](appearance-themes.md) |
-| **Shortcuts** | Keyboard shortcut preset, prefix key, and per-action rebinding; see [Keyboard Shortcuts](keyboard-shortcuts.md) |
+| **App** | UI language, STT language + push-to-talk, notifications, terminal hooks, app updates (with the structured release-notes dialog) |
+| **Appearance** | App themes — 32 presets, search, Dark/Light filters, plus theme-independent **Roundings** and **Font** controls; see [Appearance & Themes](appearance-themes.md) |
+| **Shortcuts** | Keyboard shortcut preset, prefix key, and per-action rebinding (incl. **Push-to-Talk**); see [Keyboard Shortcuts](keyboard-shortcuts.md) |
 | **API Keys** | All provider secrets in one pane — see below |
-| **Workspace** | Default project directory, agent sandbox root, embedded browser URL, **category colors** for Memory |
-| **BLXCode Agent** | Text, image, and voice inference — see below |
+| **Workspace** | Default project directory, agent sandbox root, embedded browser URL, **category colors** for Memory, **terminal naming** mode and name pool, confirm-before-closing |
+| **BLXCode Agent** | Text, image, and voice inference; **Auto-compact** threshold; **tool-loop limit**; **Agent orb** (3D / 2D) — see below |
 | **Remote** | SSH connection presets for remote workspaces (host/port/user, password / key / agent auth, encrypted secrets, session-resume model); see [Remote (SSH)](remote-ssh.md) |
 
 Legacy saved categories (`Image`, `Voice`, `Memory`) still open the correct pane.
 
 ## App
 
-**Settings → App** collects shell-wide preferences that aren't tied to a single workspace: UI language, voice/STT defaults, push-to-talk, notification toasts and sounds, terminal hooks, and the GitHub Releases auto-updater. Keyboard shortcuts moved to their own **Shortcuts** category (see [Keyboard Shortcuts](keyboard-shortcuts.md)).
+**Settings → App** collects shell-wide preferences that aren't tied to a single workspace: UI language, voice/STT defaults, push-to-talk, notification toasts and sounds, terminal hooks, and the GitHub Releases auto-updater. Keyboard shortcuts moved to their own **Shortcuts** category (see [Keyboard Shortcuts](keyboard-shortcuts.md)). The update dialog now reuses the structured release-notes view from `post_update_release_notes(version)` (hero summary, sections, loading state, fallback to the updater manifest body) instead of showing the manifest body as plain text — the update-specific controls (current → available version, install/download progress, retry, restart, **Later**) stay in place.
 
 <p align="center">
   <img src="../images/settings-app.png" alt="Settings → App pane with UI Language (English), Input language (Follow app language / Auto-detect / Manual), Keyboard shortcuts (Tmux style / Classic), push-to-talk toggle, Notifications (Show success toasts, Play success sound), Terminal hooks for claude/codex/gemini/cursor/opencode with Install hooks button, and App updates (Check for updates on startup, Current version 0.2.3)" />
@@ -26,12 +26,15 @@ Legacy saved categories (`Image`, `Voice`, `Memory`) still open the correct pane
 
 ## Appearance
 
-**Settings → Appearance** lets you pick an app theme:
+**Settings → Appearance** lets you pick an app theme and adjust two theme-independent knobs:
 
-- **BLXCode** (default) — the original dark workbench look
-- Twenty-nine additional dark/light presets (Dracula, Gruvbox, Solarized, Nord, One Dark/Light, Catppuccin, Tokyo Night & Light, Claude Code, plus a family of cool light themes — Winter, Paper, Alpine, Frost, Lilac)
-- Search and **All / Dark / Light** filters (15 dark, 15 light)
-- Instant preview on each card; choice persists across restarts
+- **Roundings** — a global corner-radius scale (Sharp / Default / Rounded / Extra) that re-rounds the whole workbench instantly.
+- **Font** — a curated monospace picker (JetBrains Mono bundled, plus Cascadia Code, Fira Code, SF Mono, Menlo, Consolas, and System Monospace as system-dependent options). The xterm terminals read their `fontFamily` from the same token and re-fit when the font changes.
+- **BLXCode** (default) — the redesigned Tokyo Night × Dracula dark workbench look.
+- **BLXCode Legacy / BLXCode Legacy Light** — the previous GitHub-blue default, kept under explicit ids.
+- Thirty additional dark/light presets (Dracula, Gruvbox, Solarized, Nord, One Dark/Light, Catppuccin, Tokyo Night & Light, Rosé Pine / Dawn, Everforest, Kanagawa, **Claude Code** warm-charcoal, Night Owl, Ayu Mirage / Light, GitHub Light, plus a family of cool light themes — Winter, Paper, Alpine, Frost, Lilac).
+- Search and **All / Dark / Light** filters (16 dark, 16 light).
+- Instant preview on each card; choice persists across restarts.
 
 Themes affect sidebar, panels, terminals, graphs, and settings chrome. Embedded web pages, native webviews, and your Memory category color swatches are documented exceptions.
 
@@ -61,10 +64,11 @@ Agent, image, and voice panes show a short status line pointing here — they do
 | **Text** | Provider, thinking level, **tool-loop limit (1–500, default 36)**, model (`AgentModelPicker`), refresh |
 | **Auto-compact** | Toggle (default on) and threshold (50–95 %, default 85 %) — runs a non-tool summarization pass when the context window crosses the threshold, between turns, at most once per crossing |
 | **Image** | Provider, quality level, model, auto-save |
-| **Voice** | Provider (OpenAI / OpenRouter / AWS), STT + TTS models, recording quality, post-STT behavior, voice picks, speak replies |
+| **Voice** | Provider (OpenAI / OpenRouter / AWS), STT + TTS models, recording quality, post-STT behavior, voice picks, speak replies, **Push-to-Talk** mode, target, target mode, live partial transcript, TTS-collision policy |
+| **Agent orb** | **3D Drobo** (default) or **2D logo** — pick which mode the voice orb renders in |
 | **Web Tools** | Tavily / Brave / disabled backend |
 
-One **Save** / **Discard** at the bottom persists text provider, tool-loop limit, auto-compact, and web tools together. Image and voice sections auto-save on change.
+One **Save** / **Discard** at the bottom persists text provider, tool-loop limit, auto-compact, and web tools together. Image and voice sections auto-save on change. The **Agent orb** switch updates the open Agent tab without restarting.
 
 <p align="center">
   <img src="../images/settings-blxcode-agent.png" alt="Settings → BLXCode Agent pane with Text card (Provider OpenRouter, Thinking level Medium, Model openai/gpt-5 with pricing $1.25 in / $10.00 out per 1M tokens), Image card (Provider OpenRouter, Quality level Medium, Model google/gemini-2.5-flash-image with pricing $0.30 in / $2.50 out), Voice card (Provider OpenRouter, STT model gpt-4o-mini-transcribe, TTS model neural, recording quality Low / Standard / High, post-STT behavior, 6-voice picker grid, Speak agent replies toggle), and Web Tools row (Disabled / Tavily / Brave)" />

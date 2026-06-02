@@ -34,15 +34,36 @@ when absent, the original local path runs unchanged.
   `remote_connection_for_terminal_key()` resolve it.
 - `tauri_bridge.rs` wrappers gained `connection_id: Option<String>` (skipped when `None`).
 - `remote_settings_pane/` — the **Settings → Remote** pane (`RemoteSettingsPane`), registered as the
-  `HarnessSettingsCategory::Remote` category in `harness_ui.rs`.
+  `HarnessSettingsCategory::Remote` category in `harness_ui.rs`. The pane is a **master/detail view**:
+  the left rail lists connection cards (name, `user@host:port`, auth badge, session-resume badge, and
+  a masked `Stored` / `Not set` indicator for any associated keychain secret), the right pane is the
+  connection editor (Back to connections, New/Edit title, the full preset form, Save / Test / Delete /
+  Back buttons). The selected card is reflected in a `selected_connection_id` signal; choosing *New*
+  or *Edit* swaps the detail pane for the editor.
 - `create_workspace_wizard.rs` — Local/Remote selector + "+ Add connection" (opens Settings → Remote via
-  `ui.settings_category().set(Remote)` + `wb.open_center_settings_tab(Remote)`).
+  `ui.settings_category().set(Remote)` + `wb.open_center_settings_tab(Remote)`, and the wizard's
+  remote-mode combobox is the same card list the Remote pane shows).
 - `terminal_cell.rs` — routes spawning to `pty_spawn_remote` and resume discovery to the remote path.
 - `file_diff_section` / `git_graph` — when remote, poll (~4 s `gloo_timers::Interval`) and bump
   `sidebar_repo_epoch`; both load effects treat an epoch change as a forced reload (also fixes
   post-sync staleness locally). The `notify` watcher is skipped for remote (`git_status_watch_start`
   returns a sentinel token).
 - `sidebar.rs` — SSH badge + `--remote` row modifier on remote workspaces.
+
+## Connection editor model
+
+`RemoteConnection` is the on-disk preset (`id`, `label`, `host`, `port`, `username`,
+`RemoteAuthKind { Key | Password | None }`, `key_path`, `RemoteResume { Off | NewestSession |
+TmuxSession(name) }`, `default_dir`). Secrets are **never** in this struct — passwords and
+passphrases live in the OS keychain keyed `ssh:<connection_id>:{password,passphrase}`. The
+settings UI's *Stored* / *Not set* indicator on each card is a summary of the keychain's
+presence for the connection, computed on the backend; the indicator never reveals the secret.
+
+`resolve_spec(connection_id, secret)` in `ssh_remotes.rs` is the single point that combines a
+preset with the resolved keychain secret (or environment fallback) and returns a
+`RemoteSpawnSpec` that `pty_host` consumes. The auth dispatcher in `pty_host` (`Injector`) is
+the only path that injects passwords / passphrases — through the PTY, never on the `ssh`
+command line or in env.
 
 ## Data flow
 

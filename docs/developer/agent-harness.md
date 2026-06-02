@@ -149,6 +149,30 @@ Frontend wrappers in `tauri_bridge.rs`; UI in `harness_ui.rs` `AgentProviderPane
 
 `web_tools.rs` implements Tavily search; Brave may be stubbed or partial — check source before documenting provider-specific behaviour in release notes.
 
+## Tool-loop limit and auto-compact
+
+`AgentProviderSettings` gained a configurable `tool_loop_limit` and an `auto_compact` boolean.
+
+- `tool_loop_limit` — caps the number of consecutive tool calls within a single assistant turn (default 24). When the cap is hit, the orchestrator stops the loop, returns the partial tool result set to the model, and asks the model to summarize. The chat panel surfaces a "Tool loop cap reached" notice for the affected turn. The cap is checked in `tool_dispatch::handle_tool_call` and applied across coordinator and subagent loops.
+- `auto_compact` — when true, the orchestrator transparently compacts the conversation before submitting the next turn if estimated input tokens would exceed 80% of the active provider's context window. Compaction uses a one-shot, non-streaming completion that summarizes the older turns (preserving file paths, decisions, and current plan status) and prepends the summary as a system message; the original messages are still kept on disk for audit and can be expanded from the session timeline. The 80% threshold and the compaction prompt are tunable in `src-tauri/src/agent/session_orchestrator.rs`.
+- `context_window` — the active provider's configured context window, returned by the new Tauri command. The chat panel's context meter reads this value to show real-time usage; auto-compact uses the same number as its ceiling. The setting is per-provider in `agent_provider_settings.json` under `models.<model_id>.context_window` (with a sensible default per provider family).
+
+The settings UI exposes both as Advanced controls on the *BLXCode Agent* pane (see [Settings](../user/settings.md) and [Agent Providers](../user/agent-providers.md)). The chat panel's send button toggles to a stop button while the model is streaming; abort cleanly tears down the tool loop and re-enables the send button with the original prompt restored.
+
+## Session stats
+
+The chat panel shows a per-session stats strip at the top of the conversation:
+
+- **Provider/Model chip** — the active provider and model from `AgentProviderSettings`.
+- **Session start** — wall-clock time of the first user turn; persisted as `ChatUsageStats.session_started_at` (back-compat with older `ChatUsageStats` envelopes that omit the field).
+- **Context meter** — current estimated input tokens vs the active `context_window`; coloured by usage band.
+- **Turn counts** — user turns, assistant turns, and tool turns; tool turns include subagent-spawned turns.
+- **Tool calls** — total number of `ToolCall` events since session start, broken down by tool name on hover.
+- **Subagents** — number of subagent runs and their statuses; clicking filters the timeline to the selected subagent's children.
+- **Cost** — running cost computed from the model's per-token price (USD) and the cumulative prompt / completion tokens; opens the model-picker detail when clicked.
+
+The stats are produced by a dedicated `session_stats` aggregator in `session_orchestrator.rs` that subscribes to `AgentEvent`s and writes into the persisted `ChatUsageStats` envelope on every event boundary. The `UserPart` envelope gained an optional `createdAt` so a session re-opened mid-conversation can reconstruct its stats from the persisted transcript even if the in-memory aggregator was dropped.
+
 ## Frontend i18n
 
 Tool and web labels use `I18nKey` variants (`AgWeb*`, `AgTool*`) in all `src/i18n/locales/*.rs`. Subagent-specific keys (`AgSubagent*`, `AgRole*`) are documented in [Subagents](subagents.md).

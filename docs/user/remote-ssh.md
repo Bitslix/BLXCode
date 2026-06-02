@@ -13,14 +13,28 @@ client. You manage reusable **connection presets** once, then pick one when crea
 
 ## Manage connections — Settings → Remote
 
-Open **Settings → Remote** to create and edit connection presets. Each preset is reusable across
-workspaces.
+Open **Settings → Remote** to create and edit connection presets. The pane is a **master/detail
+view**: saved presets render as a grid of compact **connection cards** inside a framed section card,
+and clicking a card (or the **Add connection** button) opens a dedicated **editor view**.
 
-<p align="center">
-  <img src="../images/settings-remote-ssh.png" alt="Settings → Remote: SSH Remote Connections pane with a connection form — Name, Host, Port (22), Username, Authentication (Password), Session resume (Keepalive only) with the hint 'Stays connected while idle, but reconnecting starts a fresh shell. No remote dependency.', a Password field (Not set), Remote directory, and Save / Test connection / Delete buttons plus an Add connection button" />
-</p>
+### Connection cards
 
-Fields:
+Each card shows:
+
+- The preset **Name**.
+- `user@host:port`.
+- The **Authentication** method (Password / Key file / SSH agent).
+- The **Session resume** mode (Persistent tmux / Keepalive only).
+- A masked **Stored / Not set** secret badge — **no secret values ever leave the backend**.
+- The default **Remote directory**.
+
+The card's footer is a localized **Edit** hint; click the card (or any of its controls) to open the
+editor.
+
+### Connection editor
+
+The editor opens with a **Back to connections** header, a **New connection** / **Edit connection**
+title, and the full form:
 
 | Field | Notes |
 |-------|-------|
@@ -34,15 +48,17 @@ Fields:
 | **Session resume** | **Persistent (tmux)** or **Keepalive only** — see [below](#session-resume). |
 | **Remote directory** | Optional start directory; defaults to the remote home. |
 
-- **Save** persists the preset; **Test connection** validates host + auth end-to-end and reports
-  success or a specific failure (auth failed, host unreachable, host-key changed, …).
-- **Delete** removes the preset and its stored secrets.
-- **+ Add connection** adds another preset row.
+- **Save** persists the preset and returns to the refreshed list.
+- **Test connection** validates host + auth end-to-end and reports success or a specific failure
+  (auth failed, host unreachable, host-key changed, …).
+- **Delete** removes the preset and its stored secrets, then returns to the list.
+- **Back to connections** discards unsaved edits and returns to the list.
 
 **Where secrets live:** passwords and key passphrases are stored in your OS keychain (Windows
 Credential Manager / macOS Keychain / Linux secret service, with an encrypted file fallback on Linux).
 They are resolved inside the app's Rust backend at connect time and are **never** written to the preset
-file, shown in the UI again, or passed on the `ssh` command line.
+file, shown in the UI again, or passed on the `ssh` command line. The masked **Stored / Not set** badge
+on each card is the only hint the UI shows.
 
 ## Create a remote workspace
 

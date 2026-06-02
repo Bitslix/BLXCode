@@ -114,19 +114,27 @@ pub fn session_started_from_timeline(doc: &TimelineDoc) -> Option<f64> {
 /// Whether the visible timeline currently contains an open Thinking block.
 #[must_use]
 pub fn timeline_has_active_thinking(doc: &TimelineDoc) -> bool {
-    doc.turns
-        .iter()
-        .any(|turn| parts_have_active_thinking(&turn.parts))
+    latest_active_thinking_text(doc).is_some()
 }
 
-fn parts_have_active_thinking(parts: &[TurnPart]) -> bool {
-    parts.iter().any(|part| match part {
-        TurnPart::Thinking { done, .. } => !done,
+/// Newest open Thinking stream in the visible timeline, if any.
+#[must_use]
+pub fn latest_active_thinking_text(doc: &TimelineDoc) -> Option<String> {
+    doc.turns
+        .iter()
+        .rev()
+        .find_map(|turn| latest_active_thinking_in_parts(&turn.parts))
+        .map(str::to_owned)
+}
+
+fn latest_active_thinking_in_parts(parts: &[TurnPart]) -> Option<&str> {
+    parts.iter().rev().find_map(|part| match part {
+        TurnPart::Thinking { text, done, .. } => (!done).then_some(text.as_str()),
         TurnPart::Tool { children, .. }
         | TurnPart::Subagent {
             parts: children, ..
-        } => parts_have_active_thinking(children),
-        _ => false,
+        } => latest_active_thinking_in_parts(children),
+        _ => None,
     })
 }
 
@@ -524,6 +532,26 @@ mod tests {
         let d = doc(vec![user_turn(vec![sub])]);
 
         assert!(timeline_has_active_thinking(&d));
+    }
+
+    #[test]
+    fn active_thinking_text_uses_newest_open_stream() {
+        let d = doc(vec![
+            user_turn(vec![thinking(false)]),
+            user_turn(vec![
+                thinking(true),
+                TurnPart::Thinking {
+                    id: "think-2".into(),
+                    text: "new live stream".into(),
+                    done: false,
+                },
+            ]),
+        ]);
+
+        assert_eq!(
+            latest_active_thinking_text(&d),
+            Some("new live stream".into())
+        );
     }
 
     #[test]

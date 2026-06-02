@@ -169,7 +169,11 @@ flowchart LR
 
 `src-tauri/src/plans.rs` parses and writes the canonical `## Tasks` / `## Todos` section. `PLANS.md` is protected. Path traversal is rejected relative to the plans root.
 
-`src-tauri/src/plans_index.rs` keeps the `PLANS.md` index table in sync on `plan_create` / `plan_write` / `plan_delete` / `plan_rename` (generated membership, preserved Status/Description cells).
+`src-tauri/src/plans_index.rs` keeps the `PLANS.md` index table in sync on `plan_create` / `plan_write` / `plan_delete` / `plan_rename` (generated membership, preserved Status/Description cells). The `PLANS.md` index file is treated as **read-only** in the Plans panel — the index is hidden from the cards list and excluded from the status-tab counts (`displayed_plans` derivation filters `is_index`) so the *Empty* group reflects only real plans.
+
+### AI-generated plans and tasks
+
+`src-tauri/src/agent/plan_ai.rs` adds a `plan_generate_ai { prompt, with_tasks }` Tauri command that reuses the existing one-shot, non-streaming path (`oneshot::complete_text`) that already backs AI commit messages. The system prompt is Skill-conformant so the output always matches the built-in plan format (`# Title` + prose sections + a `## Tasks` section using the exact `- [ ] \`task-id\` - Title` line syntax). Post-processing strips any wrapping code fence, extracts the title (falling back to the prompt), and guarantees a `## Tasks` heading exists so `plan_load` never runs empty. Saving persists through the existing tools only — `plan_create` writes the file and, when tasks are requested, `plan_load` syncs the `## Tasks` section into the task manager — so no new write path to `.agents/plans` is introduced. Empty prompt and missing-API-key cases surface the same friendly errors as AI commit.
 
 ## Skills And Rules
 
@@ -177,18 +181,18 @@ flowchart LR
 
 ## Sidebar Explorer And Git Graph
 
-- `src-tauri/src/fs_entries.rs` — `list_path_entries` (sandboxed directory listing), `read_workspace_text_file` (UTF-8 text preview, 512 KiB cap), and the file-preview trio:
+- `src-tauri/src/fs_entries.rs` — `list_path_entries` (sandboxed directory listing, **async** with `proc::run_blocking`), `read_workspace_text_file` (UTF-8 text preview, 512 KiB cap), and the file-preview trio:
   - `stat_workspace_file` → `FileMeta { name, relPath, byteLen, modifiedMs, kind, mime, policyKind? }` with `FileKind` (`Image` / `Video` / `Markdown` / `Mermaid` / `Code` / `Text` / `Binary`). `Code` covers source languages (Rust/TS/JS/Py/Go/HTML/CSS/JSON/YAML/shell/SQL/…); `Text` is reserved for plain text (txt/log/ini/conf/env/csv/…) that should still get gutter+selection but no syntax highlighting.
   - **Repository policy classification**: `classify_policy(stem)` runs **after** `classify_kind(ext)` and inspects the lowercased filename stem. When it matches a well-known stem (`license`/`licence`/`copying`/`copyright`/`unlicense`, `contributing`/`contribution(s)`, `contributors`/`contributer(s)`, `code_of_conduct` / `code-of-conduct` / `codeofconduct`, `security` / `security-policy` / `security_policy`, `authors` / `maintainers` / `owners` / `codeowners`, `changelog` / `changes` / `history` / `release_notes`, `readme`) it returns `Some(PolicyKind)` and `stat_workspace_file` **forces `kind = FileKind::Markdown`** (regardless of extension) and falls back to `text/markdown` for the MIME guess. Effect: a bare `LICENSE` (no extension) renders identically to `LICENSE.md`. The optional `policy_kind: Option<PolicyKind>` field on `FileMeta` is `#[serde(skip_serializing_if = "Option::is_none")]` so older snapshots and non-policy files stay unchanged on the wire.
   - `read_workspace_image_file` → base64 + MIME, **16 MiB** cap (`MAX_IMAGE_PREVIEW_BYTES`).
   - `read_workspace_video_file` → base64 + MIME, **64 MiB** cap (`MAX_VIDEO_PREVIEW_BYTES`).
   All four commands reuse the same `canonical_root` / `resolve_under_root` sandbox so traversal-out-of-root, missing files, and non-files behave identically.
-- `src-tauri/src/git_graph.rs` — `git_is_repository`, `git_commit_graph` (lane layout, unit-tested).
+- `src-tauri/src/git_graph.rs` — `git_is_repository` (now `Result<bool, String>`), `git_commit_graph` (lane layout, unit-tested). **VS Code-style commit graph visuals** are layered on top: the sidebar renders structured lanes instead of terminal-style ASCII output, with one compact commit summary per row, colored lane lines/nodes, a yellow selected node, click-to-expand commit file lists, and a hover/focus detail card with author, date, refs, short SHA, stats, and **Open on GitHub** when the origin URL can be mapped safely. Backend graph/detail commands expose structured commit, lane, edge, and file-change payloads. Commit details load lazily per SHA and are cached on the frontend. Local `git log` / `git show` subprocesses continue to run through the blocking thread pool (`proc::run_blocking`) so sidebar refreshes and detail expansion do not stall the Tauri main event loop.
 - `src-tauri/src/git_status.rs` — porcelain status, unified diff, stage/unstage, `git_status_watch_*` (`notify` → `git_status_dirty` event).
 - `src-tauri/src/git_sync.rs` — `git_sync_status`, `git_fetch`, `git_pull`, `git_push` (`GIT_TERMINAL_PROMPT=0`).
 - `src-tauri/src/git_commit_ai.rs` — `git_generate_commit_message` via `agent::oneshot`.
 - `src/workbench/confirm_dialog/` — themed `ConfirmDialog` + `HarnessUiService::ConfirmRequest` (replaces `window.confirm` for destructive actions).
-- `src-tauri/src/updater.rs` — `post_update_release_notes` loads `docs/releases/v{version}.md` from the matching Git tag (GitHub Release body fallback).
+- `src-tauri/src/updater.rs` — `post_update_release_notes` loads `docs/releases/v{version}.md` from the matching Git tag (GitHub Release body fallback). The **update dialog** in **Settings → App** reuses the same structured release-notes renderer (hero summary, sections, loading state, manifest-body fallback) — see [User: Settings](../user/settings.md#app) — so the update flow and the post-update **What's new** dialog share the same UI.
 
 Frontend:
 

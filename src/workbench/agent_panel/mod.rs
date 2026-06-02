@@ -27,7 +27,9 @@ use crate::workbench::agent_panel::image_context::{
     DropZoneState,
 };
 use crate::workbench::agent_panel::reducer::apply_envelope;
-use crate::workbench::agent_panel::session_stats::AgentSessionStats;
+use crate::workbench::agent_panel::session_stats::{
+    latest_active_thinking_text, AgentSessionStats,
+};
 use crate::workbench::agent_panel::task_list::TaskSection;
 use crate::workbench::agent_panel::timeline::{ChatLineIndexColumn, TurnNodeView};
 use crate::workbench::agent_panel::voice_orb::{handle_voice_event, VoiceOrb, VoiceOrbHandle};
@@ -408,6 +410,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                         }
                     }
                 />
+                <AgentThinkingStream timeline=timeline />
             </header>
 
             <TaskSection snapshot=task_snapshot busy=busy tasks_open=tasks_open />
@@ -658,6 +661,44 @@ pub fn AgentPanelDock() -> impl IntoView {
                 </div>
             </form>
         </section>
+    }
+}
+
+#[component]
+fn AgentThinkingStream(timeline: RwSignal<TimelineDoc>) -> impl IntoView {
+    let stream_ref = NodeRef::<html::Div>::new();
+    let thinking_text = Memo::new(move |_| timeline.with(latest_active_thinking_text));
+
+    Effect::new(move |_| {
+        let _ = thinking_text.get();
+        if let Some(node) = stream_ref.get() {
+            node.set_scroll_top(node.scroll_height());
+        }
+    });
+
+    view! {
+        <Show when=move || thinking_text.with(Option::is_some)>
+            <aside class="agent-thinking-stream" aria-live="polite">
+                <div class="agent-thinking-stream__head">
+                    <span class="agent-thinking-stream__pulse" aria-hidden="true"></span>
+                    <span>"Thinking"</span>
+                </div>
+                <div class="agent-thinking-stream__body" node_ref=stream_ref>
+                    {move || {
+                        thinking_text
+                            .get()
+                            .map(|text| {
+                                if text.trim().is_empty() {
+                                    "Thinking...".to_string()
+                                } else {
+                                    text
+                                }
+                            })
+                            .unwrap_or_default()
+                    }}
+                </div>
+            </aside>
+        </Show>
     }
 }
 

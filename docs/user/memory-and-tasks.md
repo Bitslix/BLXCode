@@ -34,7 +34,7 @@ Paths are sandboxed per root. BLXCode rejects absolute paths, `..` escapes, and 
 
 ## Memory Panel
 
-Open the Memory panel from the right workbench rail (legacy: `Ctrl+Shift+M`; tmux: `Ctrl+b` then `m` — see [Keyboard Shortcuts](keyboard-shortcuts.md)). It has three tabs:
+Open the Memory panel from the right workbench rail (legacy: `Ctrl+Shift+M`; tmux: `Ctrl+b` then `m` — see [Keyboard Shortcuts](keyboard-shortcuts.md)). The **titlebar → NAVIGATE → Memory** action now opens or focuses the Memory **center tab** instead of switching the right sidebar to Memory, matching the centered workflow. It has three tabs:
 
 | Tab | Purpose |
 |-----|---------|
@@ -45,6 +45,26 @@ Open the Memory panel from the right workbench rail (legacy: `Ctrl+Shift+M`; tmu
 <p align="center">
   <img src="../images/memory-files.png" alt="Memory Files tab with category toolbar and grouped notes" />
 </p>
+
+### Memory as a center tab
+
+When you open Memory from the titlebar **NAVIGATE** menu (or via the in-panel **Open memory in centered tab** button), Memory opens as a **center workbench tab** with a wider minimum column width (the files/categories column starts at double the normal minimum and cannot be resized below that wider center-tab minimum), and the redundant "Open memory in centered tab" button is hidden. Graph node details dock to the right of the graph canvas on wide center-tab layouts while retaining the bottom layout on narrow viewports. A new centered-only **Split View** toggle sits before the architecture refresh button, letting you intentionally keep the terminal grid visible beside Memory while the normal tab-exclusive behavior remains the default.
+
+### Collapsed summary
+
+When the right rail Memory panel is fully collapsed, the collapsed-header summary shows an **Open memory in centered tab** button (`LuPanelTopOpen`) and a live `X files / Y cats` count derived from the enabled, non-template workspace notes. Templates and the built-in `memory` pseudo-category are excluded from the category total. Both the button and the count are hidden when the panel is fully expanded.
+
+### Default workspace index
+
+When a workspace opens, the Memory panel auto-loads its `.agents/memory/README.md` index as the active note (if it exists) — the file tree no longer boots into a blank preview. The `load_note` helper seeds the active scope, path, editor-dirty, and preview state synchronously so the UI never flashes a stale selection.
+
+### Exclusive group open
+
+Category groups are **mutually exclusive**: opening a category auto-closes the previously open one. A single `set_exclusive_open_group` helper is reused by *New category*, *New note*, *Category click*, and the *Group-index click* path.
+
+### Read-only note kinds
+
+A `memory_note_is_read_only` helper lets the editor correctly identify read-only note kinds (architecture map notes, etc.) so the **Edit** button is hidden for them.
 
 ### Toolbar and dialogs
 

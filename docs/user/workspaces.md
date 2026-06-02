@@ -2,6 +2,19 @@
 
 A BLXCode workspace is a project folder plus the UI state needed to work inside it: terminal grid, split panes, assigned agent labels, agent timeline, embedded browser tabs, recent workspace data, and right-panel layout.
 
+## Custom Titlebar
+
+BLXCode uses a **token-themed, cross-platform custom titlebar** instead of the OS default window chrome. The bar reads the active theme and includes:
+
+- A persistent **brand cluster** on the left.
+- **Sidebar** and **right-panel** toggle buttons.
+- **Centered workspace breadcrumbs** with a live focused-terminal crumb that includes the slot marker plus the terminal title.
+- A compact **NAVIGATE** quick menu on the right with quick access to **Terminals**, **New terminal**, **Plans**, **Memory**, **Skills**, **Settings**, and fullscreen.
+- A future-ready **Notifications** popover.
+- Native window controls (minimize / maximize / close) on the trailing edge, themed where the platform allows.
+
+The old version badge was removed from the titlebar; the sidebar footer still shows the app version. Terminal-count badges in the sidebar are replaced by tiny **workspace-colored grid previews** that mirror each workspace's terminal layout. The **NAVIGATE** terminal actions show the active workspace name in small parentheses for context.
+
 ## Workspace Creation
 
 The workspace configurator lets you:
