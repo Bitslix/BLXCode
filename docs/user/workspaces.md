@@ -26,6 +26,8 @@ The workspace configurator lets you:
 - Assign terminal slots to a fleet of coding tools.
 - Skip agent assignment when you only want plain terminals.
 - **Recent directories** — when you have opened workspaces before, previously used folders appear below the working-directory field; click a row to fill the path in one step.
+- **Session role** — pick a BLXCode Agent harness *session mode* (e.g. Coordinator, Architect, Security Reviewer) from the dropdown. The picker shows each role's title with a dimmed sub-line summarising its description and tools. The selected role is loaded and handed to the BLXCode Agent as a trailing system-prompt block, so the agent adopts that working style for the session. The role ranks **below** the Security rules and the active Agent Chat mode and can never expand scope. It is saved with the workspace, so it is restored when you reload the workspace, and it appears as a **colored sub-line in the agent name badge** (the color comes from the role definition).
+- **Presets** — save a fleet configuration (terminal count, assigned agents, per-slot names, and the session role) and relaunch it in one click. Presets are stored globally per installation in the application-data folder (not committed with any workspace). Use **+ New** to save the current configuration as a preset, the **✕** on a preset chip to delete it.
 
 The supported fleet labels are:
 
@@ -34,6 +36,8 @@ The supported fleet labels are:
 - `gemini`
 - `opencode`
 - `cursor`
+
+The available session roles come from the built-in specialized harness skills (`src-tauri/src/agent/harness_skills/specialized/*.md`): `architect`, `coordinator`, `doc-updater`, `harness-optimizer`, `pr-test-analyzer`, `refactor-cleaner`, and `security-reviewer`. Leaving the dropdown on **Default agent** runs the agent without a role.
 
 <p align="center">
   <img src="../images/create-workspace-step-1.png" alt="Create workspace step 1: name, working directory, and terminal grid preset" />

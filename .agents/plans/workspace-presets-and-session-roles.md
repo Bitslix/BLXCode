@@ -179,15 +179,15 @@ Two connected features for the **Create Workspace** flow and the Agent panel:
 
 ## Tasks
 
-- [ ] `roles-registry` - Embed `specialized/*.md` as a role registry with frontmatter parsing
-- [ ] `roles-colors` - Add missing `color:` frontmatter to specialized role files
-- [ ] `roles-commands` - `agent_session_roles_list` command + bridge + mirror type
-- [ ] `prompt-injection` - Extend `system_prompt` + `UserTurn.session_role`, wire both providers
-- [ ] `presets-store` - `workspace_presets.rs` app-data store + CRUD commands + bridge
-- [ ] `draft-state` - Add `session_role`/preset helpers to `CreateWorkspaceDraft` + `WorkbenchService`
-- [ ] `entry-persist` - `WorkspaceEntry.agent_session_role` + submit-time propagation
-- [ ] `wizard-ui` - Redesign step 0 layout + session-role dropdown + presets row
-- [ ] `badge-subline` - Colored role sub-line in the agent name badge + CSS
-- [ ] `i18n` - New keys across all 15 locales
-- [ ] `docs` - Update user/developer docs
-- [ ] `tests` - Backend unit tests + wasm/check + manual smoke
+- [x] `roles-registry` - Embed `specialized/*.md` as a role registry with frontmatter parsing
+- [x] `roles-colors` - Add missing `color:` frontmatter to specialized role files
+- [x] `roles-commands` - `agent_session_roles_list` command + bridge + mirror type
+- [x] `prompt-injection` - Extend `system_prompt` + `UserTurn.session_role`, wire both providers
+- [x] `presets-store` - `workspace_presets.rs` app-data store + CRUD commands + bridge
+- [x] `draft-state` - Add `session_role`/preset helpers to `CreateWorkspaceDraft` + `WorkbenchService`
+- [x] `entry-persist` - `WorkspaceEntry.agent_session_role` + submit-time propagation
+- [x] `wizard-ui` - Session-role dropdown + presets row + per-slot names in the configurator
+- [x] `badge-subline` - Colored role sub-line in the agent name badge + CSS
+- [x] `i18n` - New keys across all 15 locales
+- [x] `docs` - Update user/developer docs
+- [x] `tests` - Backend unit tests (12 new) + wasm/check green

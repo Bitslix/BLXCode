@@ -924,6 +924,14 @@ pub fn agent_validate_nickname(name: String) -> Result<(), String> {
         .map_err(|e| e.reason_code().to_string())
 }
 
+/// Lists the built-in BLXCode harness session roles (specialized skills) for
+/// the Create-Workspace session-mode picker. Each entry carries the slug,
+/// title, description, declared tools, accent color, and suggested model.
+#[tauri::command]
+pub fn agent_session_roles_list() -> Vec<crate::agent::session_roles::RoleMeta> {
+    crate::agent::session_roles::list_roles()
+}
+
 #[tauri::command]
 pub async fn agent_provider_models(
     app: AppHandle,

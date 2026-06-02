@@ -7,6 +7,8 @@ mod state;
 use crate::agent_wire::AgentEvent;
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
+use crate::tauri_bridge::{agent_session_roles_list, SessionRoleView};
+use crate::workbench::state::WorkbenchService;
 use crate::tauri_bridge::{
     agent_settings_get, api_keys_status, is_tauri_shell, voice_cancel_recording,
     voice_settings_get, voice_start_recording, voice_stop_and_transcribe, voice_tts_preview,
@@ -42,6 +44,24 @@ fn resolve_agent_name(raw: &str) -> String {
         DEFAULT_AGENT_NICKNAME.to_string()
     } else {
         trimmed.to_string()
+    }
+}
+
+/// Maps a role frontmatter `color` to a CSS color string. Recognised theme
+/// keywords resolve to fixed hues; anything else (e.g. a `#rrggbb` hex or named
+/// CSS color) is passed through. Empty falls back to a neutral accent.
+fn role_color_css(color: &str) -> String {
+    let c = color.trim();
+    match c.to_ascii_lowercase().as_str() {
+        "violet" | "purple" => "#a78bfa".to_string(),
+        "teal" => "#2dd4bf".to_string(),
+        "blue" => "#60a5fa".to_string(),
+        "amber" | "yellow" => "#fbbf24".to_string(),
+        "green" => "#4ade80".to_string(),
+        "orange" => "#fb923c".to_string(),
+        "red" => "#f87171".to_string(),
+        "" => "var(--text-muted, #9ca3af)".to_string(),
+        _ => c.to_string(),
     }
 }
 
@@ -150,6 +170,33 @@ where
     let mousedown_at = RwSignal::new(0.0_f64);
     let orb_mode = RwSignal::new(AgentOrbMode::ThreeD);
     let agent_name = RwSignal::new(DEFAULT_AGENT_NICKNAME.to_string());
+
+    // Active harness session role for the badge sub-line. The slug comes from
+    // the active workspace; title + color come from the role registry.
+    let wb = expect_context::<WorkbenchService>();
+    let session_roles: RwSignal<Vec<SessionRoleView>> = RwSignal::new(Vec::new());
+    let workspaces = wb.workspaces();
+    let active_id = wb.active_id();
+    let active_role_slug = Memo::new(move |_| {
+        let id = active_id.get()?;
+        workspaces.with(|list| {
+            list.iter()
+                .find(|w| w.id == id)
+                .and_then(|w| w.agent_session_role.clone())
+        })
+    });
+    let active_role_meta = Memo::new(move |_| {
+        let slug = active_role_slug.get()?;
+        session_roles
+            .with(|roles| roles.iter().find(|r| r.slug == slug).cloned())
+    });
+    if is_tauri_shell() {
+        leptos::task::spawn_local(async move {
+            if let Ok(list) = agent_session_roles_list().await {
+                session_roles.set(list);
+            }
+        });
+    }
 
     let refresh_agent_settings = move || {
         if !is_tauri_shell() {
@@ -318,10 +365,30 @@ where
                 <span
                     class="agent-name-badge"
                     class:agent-name-badge--live=move || thinking.get()
+                    class:agent-name-badge--has-role=move || active_role_meta.get().is_some()
                     role="status"
                     aria-label=move || format!("{}: {}", i18n.tr(I18nKey::AgNameBadgeAria)(), agent_name.get())
                 >
-                    {move || agent_name.get()}
+                    <span class="agent-name-badge__name">{move || agent_name.get()}</span>
+                    <Show when=move || active_role_meta.get().is_some()>
+                        {move || {
+                            let meta = active_role_meta.get();
+                            let title = meta.as_ref().map(|m| m.title.clone()).unwrap_or_default();
+                            let color = meta
+                                .as_ref()
+                                .map(|m| role_color_css(&m.color))
+                                .unwrap_or_default();
+                            view! {
+                                <span
+                                    class="agent-name-badge__role"
+                                    style:color=color
+                                    aria-label=move || format!("{}: {}", i18n.tr(I18nKey::AgRoleBadgeAria)(), title.clone())
+                                >
+                                    {title.clone()}
+                                </span>
+                            }
+                        }}
+                    </Show>
                 </span>
                 <span class="drobo-orb" aria-hidden="true">
                     <Show

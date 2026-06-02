@@ -964,10 +964,12 @@ fn submit_turn(
     // read it here so every entry point — Enter key, submit button, voice
     // auto-send — honours the toggle without an extra arg.
     let image_generate = wb.agent_image_mode_for_workspace_untracked(ws_id);
+    let session_role = wb.agent_session_role_for_workspace_untracked(ws_id);
     let turn = UserTurn {
         prompt,
         workspace_root,
         chat_mode: chat_mode.get_untracked(),
+        session_role,
         voice_input,
         image_generate,
         context_items,

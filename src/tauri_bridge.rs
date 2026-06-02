@@ -1282,6 +1282,67 @@ pub async fn ssh_remotes_list() -> Result<Vec<RemoteConnectionView>, String> {
     invoke_typed("ssh_remotes_list", serde_json::json!({})).await
 }
 
+/// One built-in harness session role (specialized skill), mirrors the backend
+/// `agent::session_roles::RoleMeta`. Drives the Create-Workspace session-mode
+/// picker and the colored role sub-line in the agent name badge.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionRoleView {
+    pub slug: String,
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub tools: Vec<String>,
+    #[serde(default)]
+    pub color: String,
+    #[serde(default)]
+    pub model: String,
+}
+
+pub async fn agent_session_roles_list() -> Result<Vec<SessionRoleView>, String> {
+    invoke_typed("agent_session_roles_list", serde_json::json!({})).await
+}
+
+/// One saved workspace fleet preset, mirrors the backend
+/// `workspace_presets::WorkspacePreset`. Stored globally in the app-data dir.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspacePresetView {
+    #[serde(default)]
+    pub id: String,
+    pub name: String,
+    pub terminal_count: u8,
+    #[serde(default)]
+    pub agent_counts: [u8; 5],
+    #[serde(default)]
+    pub slot_names: Vec<String>,
+    #[serde(default)]
+    pub session_role: Option<String>,
+}
+
+pub async fn workspace_presets_list() -> Result<Vec<WorkspacePresetView>, String> {
+    invoke_typed("workspace_presets_list", serde_json::json!({})).await
+}
+
+pub async fn workspace_presets_save(
+    preset: WorkspacePresetView,
+) -> Result<Vec<WorkspacePresetView>, String> {
+    #[derive(Serialize)]
+    struct Args {
+        preset: WorkspacePresetView,
+    }
+    invoke_typed("workspace_presets_save", Args { preset }).await
+}
+
+pub async fn workspace_presets_delete(id: String) -> Result<Vec<WorkspacePresetView>, String> {
+    #[derive(Serialize)]
+    struct Args {
+        id: String,
+    }
+    invoke_typed("workspace_presets_delete", Args { id }).await
+}
+
 pub async fn ssh_remote_save(
     connection: RemoteConnection,
     password: Option<String>,

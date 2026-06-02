@@ -177,6 +177,7 @@ pub async fn run_chat_turn(
     prompt: String,
     image_context_items: Vec<AgentImageContextItem>,
     workspace_root: Option<String>,
+    session_role: Option<String>,
 ) {
     state.start_turn();
     state.clear_cancel();
@@ -211,6 +212,7 @@ pub async fn run_chat_turn(
     let sys = system_prompt(
         workspace_string.as_deref(),
         &crate::agent::nickname::resolve_agent_name(&settings.agent_nickname),
+        session_role.as_deref(),
     );
     let mut messages: Vec<Value> = Vec::with_capacity(8);
     messages.push(json!({ "role": "system", "content": sys }));

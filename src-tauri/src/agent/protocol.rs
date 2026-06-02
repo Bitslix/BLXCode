@@ -20,6 +20,11 @@ pub struct UserTurn {
     pub workspace_root: Option<String>,
     #[serde(default)]
     pub chat_mode: AgentChatMode,
+    /// Slug of the active BLXCode harness session role (specialized skill) for
+    /// this workspace, e.g. `"coordinator"`. Resolved to embedded role text and
+    /// appended to the system prompt for the turn. `None` = default agent.
+    #[serde(default)]
+    pub session_role: Option<String>,
     /// When true, the orchestrator runs the configured TTS engine on the
     /// final assistant text and emits an `AgentEvent::VoiceReady`.
     #[serde(default)]

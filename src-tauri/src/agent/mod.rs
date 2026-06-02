@@ -16,6 +16,7 @@ pub(crate) mod pricing;
 mod project_docs;
 pub mod prompt_enhance;
 mod provider;
+pub(crate) mod session_roles;
 mod session_orchestrator;
 mod shell_exec;
 mod subagent_prompts;

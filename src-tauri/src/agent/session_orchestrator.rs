@@ -70,6 +70,7 @@ pub fn dispatch_user_turn(
         project_docs_block,
     );
     let workspace_root = turn.workspace_root.clone();
+    let session_role = turn.session_role.clone();
     crate::agent::environment::note_workspace_change(workspace_root.as_deref());
     crate::agent::web_settings::refresh_runtime_from_app(app);
     let image_context_items = turn.image_context_items;
@@ -84,6 +85,7 @@ pub fn dispatch_user_turn(
                     prompt,
                     image_context_items,
                     workspace_root,
+                    session_role,
                 )
                 .await;
                 if voice_input {
@@ -104,6 +106,7 @@ pub fn dispatch_user_turn(
                     prompt,
                     image_context_items,
                     workspace_root,
+                    session_role,
                 )
                 .await;
                 if voice_input {

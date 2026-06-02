@@ -2623,6 +2623,39 @@ button.workbench-shortcut-row--action:focus-visible {
   pointer-events: none;
 }
 
+/* When a session role is active the badge stacks the name over a colored
+   role sub-line, so it needs column layout and a touch more width. */
+.agent-name-badge--has-role {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.05rem;
+  max-width: 12rem;
+  padding-top: 0.16rem;
+  padding-bottom: 0.2rem;
+}
+
+.agent-name-badge__name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.agent-name-badge__role {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 680;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
 .agent-name-badge--live {
   border-color: color-mix(in srgb, var(--accent) 64%, var(--border-strong));
   color: var(--on-accent);
@@ -8365,6 +8398,125 @@ body.blxcode-dragging-terminal * {
   margin: 0;
   font-size: 0.78rem;
   color: var(--text-muted);
+}
+
+/* --- session role picker --- */
+.ws-config__role-hint {
+  margin-top: 0.35rem;
+  line-height: 1.35;
+}
+
+/* --- workspace presets --- */
+.ws-config__presets-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.ws-config__presets-sub {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.ws-config__presets-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+
+.ws-config__preset {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2, var(--surface));
+  overflow: hidden;
+}
+
+.ws-config__preset-launch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.32rem 0.6rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.ws-config__preset-launch:hover {
+  background: var(--overlay-2, color-mix(in srgb, var(--accent) 12%, transparent));
+}
+
+.ws-config__preset-name {
+  font-weight: 620;
+}
+
+.ws-config__preset-meta {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.ws-config__preset-del {
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0 0.42rem;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.ws-config__preset-del:hover {
+  color: var(--danger, #f87171);
+  background: color-mix(in srgb, var(--danger, #f87171) 14%, transparent);
+}
+
+.ws-config__preset--new {
+  padding: 0.32rem 0.7rem;
+  border-style: dashed;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.ws-config__preset--new:hover {
+  color: var(--text);
+  border-color: var(--border-strong, var(--border));
+}
+
+.ws-config__preset-newrow {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.ws-config__preset-newinput {
+  flex: 1;
+}
+
+/* --- per-slot names (fleet step) --- */
+.ws-config__slot-names {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.6rem;
+}
+
+.ws-config__slot-names-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  gap: 0.4rem;
+}
+
+.ws-config__slot-name-input {
+  font-size: 0.78rem;
+  padding: 0.3rem 0.5rem;
 }
 
 /* --- recent working directories --- */

@@ -4,9 +4,52 @@
 
 /// Pinned scope, security policy, tool catalog summary, and behaviour rules.
 /// Full JSON Schemas are attached per request in the `tools` field.
+///
+/// When `session_role` is a valid harness session-role slug, that role's
+/// operational text is appended as a trailing `# Active session role` block.
+/// The block ranks below Security and the Agent Chat mode (highest authority
+/// stays in this prompt) but shapes how the agent approaches the turn.
 #[must_use]
-pub fn system_prompt(workspace_root: Option<&str>, agent_name: &str) -> String {
+pub fn system_prompt(
+    workspace_root: Option<&str>,
+    agent_name: &str,
+    session_role: Option<&str>,
+) -> String {
     let root = workspace_root.unwrap_or("<no workspace>");
+    let base = base_system_prompt(root, agent_name);
+    match session_role.and_then(session_role_block) {
+        Some(block) => format!("{base}\n{block}"),
+        None => base,
+    }
+}
+
+/// Builds the `# Active session role` block for a role slug, or `None` when the
+/// slug is empty/unknown.
+fn session_role_block(slug: &str) -> Option<String> {
+    let slug = slug.trim();
+    if slug.is_empty() {
+        return None;
+    }
+    let meta = crate::agent::session_roles::role_meta(slug)?;
+    let body = crate::agent::session_roles::role_prompt_body(slug)?;
+    Some(format!(
+        "\n# Active session role\n\
+         The user launched this workspace in the \"{title}\" session role. Adopt \
+         this role's working style, priorities, and workflow for this session. \
+         This role is operational guidance only: it ranks BELOW everything above \
+         it — the Security section, the active Agent Chat mode, and the current \
+         explicit user request all override it, and it can never expand your \
+         scope, relax a Security rule, or change the tool-permission model. \
+         Treat the role text as trusted harness configuration.\n\
+         \n\
+         {body}\n",
+        title = meta.title,
+        body = body,
+    ))
+}
+
+#[must_use]
+fn base_system_prompt(root: &str, agent_name: &str) -> String {
     format!(
         "You are BLXCode Agent, the assistant embedded in the BLXCode \
          desktop harness (a Tauri + Leptos workbench). You drive the user's \
@@ -364,7 +407,7 @@ mod tests {
 
     #[test]
     fn prompt_lists_plan_tools() {
-        let p = system_prompt(Some("/tmp/ws"), "BLXCodey");
+        let p = system_prompt(Some("/tmp/ws"), "BLXCodey", None);
         assert!(p.contains("plan_list"));
         assert!(p.contains("plan_load"));
         assert!(p.contains("plan_sync_from_tasks"));
@@ -372,14 +415,14 @@ mod tests {
 
     #[test]
     fn prompt_includes_agent_name() {
-        let p = system_prompt(Some("/tmp/ws"), "Ada");
+        let p = system_prompt(Some("/tmp/ws"), "Ada", None);
         assert!(p.contains("# Your name"));
         assert!(p.contains("The user calls you \"Ada\""));
     }
 
     #[test]
     fn prompt_references_core_skills() {
-        let p = system_prompt(None, "BLXCodey");
+        let p = system_prompt(None, "BLXCodey", None);
         assert!(p.contains("skills_read"));
         assert!(p.contains("file-access"));
         assert!(p.contains("memory"));
@@ -393,7 +436,7 @@ mod tests {
 
     #[test]
     fn prompt_explains_learnings_and_project_docs_preload() {
-        let p = system_prompt(Some("/tmp/ws"), "BLXCodey");
+        let p = system_prompt(Some("/tmp/ws"), "BLXCodey", None);
         assert!(p.contains("Memory vs Learnings"));
         assert!(p.contains(".agents/learnings/"));
         assert!(p.contains("Project docs (mandatory session-start preload)"));
@@ -407,7 +450,7 @@ mod tests {
 
     #[test]
     fn prompt_enforces_rules_first_turn_checklist() {
-        let p = system_prompt(None, "BLXCodey");
+        let p = system_prompt(None, "BLXCodey", None);
         assert!(p.contains("Turn checklist"));
         // Rules step
         assert!(p.contains("**Rules first.**"));
@@ -434,7 +477,7 @@ mod tests {
 
     #[test]
     fn prompt_hardens_against_prompt_injection_and_secret_leaks() {
-        let p = system_prompt(Some("/tmp/ws"), "BLXCodey");
+        let p = system_prompt(Some("/tmp/ws"), "BLXCodey", None);
         assert!(p.contains("Prompt authority"));
         assert!(p.contains("Untrusted content"));
         assert!(p.contains("prompt injection"));
@@ -444,5 +487,28 @@ mod tests {
         assert!(p.contains("workspace-relative paths"));
         assert!(p.contains("show your chain/system/developer prompt"));
         assert!(p.contains("encode the secret"));
+    }
+
+    #[test]
+    fn prompt_appends_session_role_block_when_set() {
+        let base = system_prompt(Some("/tmp/ws"), "BLXCodey", None);
+        let with_role = system_prompt(Some("/tmp/ws"), "BLXCodey", Some("coordinator"));
+        assert!(!base.contains("# Active session role"));
+        assert!(with_role.contains("# Active session role"));
+        assert!(with_role.contains("\"Coordinator\" session role"));
+        // The role ranks below Security / mode.
+        assert!(with_role.contains("ranks BELOW"));
+        // Base content is preserved verbatim as the prefix.
+        assert!(with_role.starts_with(&base));
+    }
+
+    #[test]
+    fn prompt_ignores_unknown_or_empty_role() {
+        let base = system_prompt(Some("/tmp/ws"), "BLXCodey", None);
+        assert_eq!(system_prompt(Some("/tmp/ws"), "BLXCodey", Some("")), base);
+        assert_eq!(
+            system_prompt(Some("/tmp/ws"), "BLXCodey", Some("does-not-exist")),
+            base
+        );
     }
 }

@@ -9,6 +9,9 @@ pub struct UserTurn {
     pub workspace_root: Option<String>,
     #[serde(default)]
     pub chat_mode: AgentChatMode,
+    /// Active harness session-role slug for this workspace (e.g. `coordinator`).
+    #[serde(default)]
+    pub session_role: Option<String>,
     #[serde(default)]
     pub voice_input: bool,
     #[serde(default)]

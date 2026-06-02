@@ -31,6 +31,7 @@ mod updater;
 mod voice;
 mod window_controls;
 mod workbench_state;
+mod workspace_presets;
 
 use agent::{
     agent_compact_conversation, agent_environment_invalidate, agent_web_settings_get,
@@ -38,8 +39,8 @@ use agent::{
 };
 use agent_hooks::{agent_hooks_status, install_agent_hooks, uninstall_agent_hooks};
 use agent_settings::{
-    agent_active_context_window, agent_provider_models, agent_settings_get, agent_settings_save,
-    agent_validate_nickname,
+    agent_active_context_window, agent_provider_models, agent_session_roles_list,
+    agent_settings_get, agent_settings_save, agent_validate_nickname,
 };
 use api_keys::{api_keys_apply, api_keys_status};
 use browser_host::BrowserHost;
@@ -182,6 +183,10 @@ pub fn run() {
             agent_settings_get,
             agent_settings_save,
             agent_validate_nickname,
+            agent_session_roles_list,
+            workspace_presets::workspace_presets_list,
+            workspace_presets::workspace_presets_save,
+            workspace_presets::workspace_presets_delete,
             agent_active_context_window,
             agent_provider_models,
             api_keys_status,

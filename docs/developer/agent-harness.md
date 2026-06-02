@@ -229,6 +229,39 @@ Tool and web labels use `I18nKey` variants (`AgWeb*`, `AgTool*`) in all `src/i18
 
 Skills panel: `SrSkillsTabCore`, `SrSkillsTabUser`, `SrSourceCore` — see [Internationalization](i18n.md).
 
+## Session roles (harness session modes)
+
+A **session role** lets the user launch a workspace in a specialized mode
+(Coordinator, Architect, Security Reviewer, …). Roles are read-only built-ins,
+embedded from `src-tauri/src/agent/harness_skills/specialized/*.md`.
+
+- `agent/session_roles.rs` — embeds each role via `include_str!`
+  (`SPECIALIZED_ROLES`), parses the YAML frontmatter (`name`, `description`,
+  `tools`, `model`, `color`), and exposes `list_roles()`, `role_meta(slug)`, and
+  `role_prompt_body(slug)`. `role_prompt_body` strips the frontmatter and the
+  duplicated `## Prompt Defense Baseline` section (Security already covers it).
+- Each specialized `.md` must carry a `color:` frontmatter key; it drives the
+  colored role sub-line in the agent name badge.
+- The chosen slug travels per turn on `UserTurn.session_role` (mirrored in
+  `src/agent_wire.rs`) and is appended to the shared prompt by
+  `system_prompt(workspace_root, agent_name, session_role)` as a trailing
+  `# Active session role` block. The block **ranks below** Security, the Agent
+  Chat mode, and the explicit user request — it shapes working style only.
+- Persistence: the slug lives on `WorkspaceEntry.agent_session_role`
+  (`#[serde(default)]`), so it is restored with the workbench snapshot. The
+  composer reads it via `agent_session_role_for_workspace_untracked` when
+  building the turn.
+
+### Workspace presets
+
+`workspace_presets.rs` stores reusable fleet configurations (terminal count,
+per-agent counts, per-slot names, session role) in
+`{app_data_dir}/workspace_presets.json` (atomic tmp+rename). It is **global per
+installation**, not committed with a workspace. CRUD commands:
+`workspace_presets_list` / `_save` / `_delete`, mirrored in `tauri_bridge.rs`
+as `WorkspacePresetView`. The Create-Workspace UI applies a preset onto the
+draft via `WorkbenchService::apply_preset_to_draft` and launches it directly.
+
 ## IPC commands (harness-specific)
 
 Registered in `lib.rs`:
@@ -239,6 +272,10 @@ agent_web_settings_save
 agent_web_api_key_set
 agent_web_api_key_delete
 agent_environment_invalidate
+agent_session_roles_list
+workspace_presets_list
+workspace_presets_save
+workspace_presets_delete
 ```
 
 Existing agent runtime commands unchanged; see [Tauri IPC](tauri-ipc.md).

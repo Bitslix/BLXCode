@@ -134,6 +134,12 @@ pub struct WorkspaceEntry {
     /// index maintenance.
     #[serde(default)]
     pub slot_name_overrides: HashMap<u64, String>,
+    /// Active BLXCode harness session-role slug (specialized skill) for this
+    /// workspace, e.g. `"coordinator"`. `None` = default agent. Persisted with
+    /// the workspace snapshot so the role is restored on reload and handed to
+    /// the agent each turn via `UserTurn.session_role`.
+    #[serde(default)]
+    pub agent_session_role: Option<String>,
 }
 
 fn default_sidebar_section_open() -> bool {
@@ -477,6 +483,7 @@ impl WorkspaceEntry {
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
             slot_name_overrides: HashMap::new(),
+            agent_session_role: None,
         }
     }
 
@@ -622,6 +629,12 @@ pub struct CreateWorkspaceDraft {
     /// (default) keeps it local. For remote, `cwd_display` becomes the optional
     /// remote start directory rather than a validated local path.
     pub remote_connection_id: Option<String>,
+    /// Selected BLXCode harness session-role slug (specialized skill), or `None`
+    /// for the default agent. Carried into the created `WorkspaceEntry`.
+    pub session_role: Option<String>,
+    /// Optional per-slot friendly names (index = slot 0..terminal_count). Empty
+    /// entries keep the deterministic terminal name. Captured by presets.
+    pub slot_names: Vec<String>,
 }
 
 impl Default for CreateWorkspaceDraft {
@@ -636,6 +649,8 @@ impl Default for CreateWorkspaceDraft {
             agent_counts: [0; 5],
             agents_skipped: false,
             remote_connection_id: None,
+            session_role: None,
+            slot_names: Vec::new(),
         }
     }
 }
@@ -2087,6 +2102,7 @@ impl WorkbenchService {
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
             slot_name_overrides: std::collections::HashMap::new(),
+            agent_session_role: None,
         };
         self.workspaces.update(|v| v.push(entry));
         self.active_id.set(Some(id));
@@ -2219,6 +2235,7 @@ impl WorkbenchService {
                 center_next_tab_id: default_center_next_tab_id(),
                 remote_connection_id: None,
                 slot_name_overrides: std::collections::HashMap::new(),
+                agent_session_role: None,
             });
         });
         Ok(id)
@@ -2744,6 +2761,7 @@ impl WorkbenchService {
                 center_next_tab_id: default_center_next_tab_id(),
                 remote_connection_id: None,
                 slot_name_overrides: std::collections::HashMap::new(),
+                agent_session_role: None,
             });
         });
         match self.transfer_terminal_slot(workspace_id, new_id, slot_id) {
@@ -3107,6 +3125,7 @@ impl WorkbenchService {
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
             slot_name_overrides: std::collections::HashMap::new(),
+            agent_session_role: None,
         };
         self.active_id.set(Some(id));
         self.workspaces.update(|v| v.push(entry));
@@ -3149,6 +3168,47 @@ impl WorkbenchService {
     /// Select (or clear) the SSH remote connection for a workspace draft.
     pub fn set_workspace_remote_connection(&self, id: u64, connection_id: Option<String>) {
         self.update_workspace_draft(id, |d| d.remote_connection_id = connection_id);
+    }
+
+    /// Set (or clear) the harness session-role slug for a workspace draft.
+    pub fn set_workspace_session_role(&self, id: u64, slug: Option<String>) {
+        let slug = slug.filter(|s| !s.trim().is_empty());
+        self.update_workspace_draft(id, |d| d.session_role = slug);
+    }
+
+    /// Set a per-slot friendly name in the draft (grows the vec as needed).
+    pub fn set_workspace_slot_name(&self, id: u64, slot_index: usize, name: String) {
+        self.update_workspace_draft(id, |d| {
+            if d.slot_names.len() <= slot_index {
+                d.slot_names.resize(slot_index + 1, String::new());
+            }
+            d.slot_names[slot_index] = name;
+        });
+    }
+
+    /// Apply a saved preset onto a workspace draft: terminal count + grid,
+    /// per-agent counts, per-slot names, and session role. Clears the
+    /// `agents_skipped` flag so the fleet step reflects the preset.
+    pub fn apply_preset_to_draft(
+        &self,
+        id: u64,
+        terminal_count: u8,
+        agent_counts: [u8; 5],
+        slot_names: Vec<String>,
+        session_role: Option<String>,
+    ) {
+        let count = terminal_count.clamp(1, 16);
+        let (r, c) = WorkspaceEntry::grid_dims_for_count(count);
+        let session_role = session_role.filter(|s| !s.trim().is_empty());
+        self.update_workspace_draft(id, |d| {
+            d.terminal_count = count;
+            d.grid_rows = r;
+            d.grid_cols = c;
+            d.agent_counts = agent_counts;
+            d.agents_skipped = false;
+            d.slot_names = slot_names;
+            d.session_role = session_role;
+        });
     }
 
     pub fn workspace_back_to_layout(&self, id: u64) {
@@ -3313,6 +3373,18 @@ impl WorkbenchService {
             ws.slot_pane_states = slot_pane_states;
             ws.next_terminal_id = n as u64 + 1;
             ws.remote_connection_id = remote_connection_id.clone();
+            ws.agent_session_role = draft.session_role.clone();
+            // Seed per-slot name overrides from the draft (index → slot_id).
+            ws.slot_name_overrides.clear();
+            for (i, name) in draft.slot_names.iter().enumerate() {
+                let trimmed = name.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                if let Some(slot_id) = ws.slot_ids.get(i).copied() {
+                    ws.slot_name_overrides.insert(slot_id, trimmed.to_string());
+                }
+            }
             ws.configuring = false;
         });
 
@@ -3553,6 +3625,22 @@ impl WorkbenchService {
                 .find(|w| w.id == workspace_id)
                 .map(|w| w.agent_image_mode)
                 .unwrap_or(false)
+        })
+    }
+
+    /// Active harness session-role slug for a workspace (committed entry), or
+    /// `None`. Used to populate `UserTurn.session_role` at submit time and the
+    /// agent name-badge role sub-line.
+    #[must_use]
+    pub fn agent_session_role_for_workspace_untracked(
+        &self,
+        workspace_id: u64,
+    ) -> Option<String> {
+        self.workspaces.with_untracked(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .and_then(|w| w.agent_session_role.clone())
         })
     }
 
@@ -4341,6 +4429,7 @@ mod center_tab_tests {
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
             slot_name_overrides: std::collections::HashMap::new(),
+            agent_session_role: None,
         }
     }
 
@@ -4437,6 +4526,7 @@ mod terminal_slot_tests {
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
             slot_name_overrides: std::collections::HashMap::new(),
+            agent_session_role: None,
         }
     }
 
