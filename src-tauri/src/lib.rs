@@ -39,6 +39,7 @@ use agent::{
 use agent_hooks::{agent_hooks_status, install_agent_hooks, uninstall_agent_hooks};
 use agent_settings::{
     agent_active_context_window, agent_provider_models, agent_settings_get, agent_settings_save,
+    agent_validate_nickname,
 };
 use api_keys::{api_keys_apply, api_keys_status};
 use browser_host::BrowserHost;
@@ -177,6 +178,7 @@ pub fn run() {
             harness_user_home_dir,
             agent_settings_get,
             agent_settings_save,
+            agent_validate_nickname,
             agent_active_context_window,
             agent_provider_models,
             api_keys_status,

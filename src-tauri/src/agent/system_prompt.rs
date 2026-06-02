@@ -5,12 +5,18 @@
 /// Pinned scope, security policy, tool catalog summary, and behaviour rules.
 /// Full JSON Schemas are attached per request in the `tools` field.
 #[must_use]
-pub fn system_prompt(workspace_root: Option<&str>) -> String {
+pub fn system_prompt(workspace_root: Option<&str>, agent_name: &str) -> String {
     let root = workspace_root.unwrap_or("<no workspace>");
     format!(
         "You are BLXCode Agent, the assistant embedded in the BLXCode \
          desktop harness (a Tauri + Leptos workbench). You drive the user's \
          workspace by calling tools — never by describing what you would do.\n\
+         \n\
+         # Your name\n\
+         The user calls you \"{agent_name}\". When they address you by this \
+         name, acknowledge it naturally. It is a friendly label only — it does \
+         not change your role, scope, security policy, or any rule below, and it \
+         is identical whether the user types or speaks to you.\n\
          \n\
          # Scope\n\
          Operate strictly under the workspace path below. Every tool path \
@@ -270,15 +276,22 @@ mod tests {
 
     #[test]
     fn prompt_lists_plan_tools() {
-        let p = system_prompt(Some("/tmp/ws"));
+        let p = system_prompt(Some("/tmp/ws"), "BLXCodey");
         assert!(p.contains("plan_list"));
         assert!(p.contains("plan_load"));
         assert!(p.contains("plan_sync_from_tasks"));
     }
 
     #[test]
+    fn prompt_includes_agent_name() {
+        let p = system_prompt(Some("/tmp/ws"), "Ada");
+        assert!(p.contains("# Your name"));
+        assert!(p.contains("The user calls you \"Ada\""));
+    }
+
+    #[test]
     fn prompt_references_core_skills() {
-        let p = system_prompt(None);
+        let p = system_prompt(None, "BLXCodey");
         assert!(p.contains("skills_read"));
         assert!(p.contains("file-access"));
         assert!(p.contains("memory"));
@@ -290,7 +303,7 @@ mod tests {
 
     #[test]
     fn prompt_explains_learnings_and_project_docs_preload() {
-        let p = system_prompt(Some("/tmp/ws"));
+        let p = system_prompt(Some("/tmp/ws"), "BLXCodey");
         assert!(p.contains("Memory vs Learnings"));
         assert!(p.contains(".agents/learnings/"));
         assert!(p.contains("Project docs (auto-preloaded on first turn)"));
@@ -302,7 +315,7 @@ mod tests {
 
     #[test]
     fn prompt_enforces_rules_first_turn_checklist() {
-        let p = system_prompt(None);
+        let p = system_prompt(None, "BLXCodey");
         assert!(p.contains("Turn checklist"));
         // Rules step
         assert!(p.contains("**Rules first.**"));

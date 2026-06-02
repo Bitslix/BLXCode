@@ -143,6 +143,9 @@ pub struct AgentProviderSettings {
     /// Visual style for the Agent panel voice orb.
     #[serde(default = "default_orb_mode")]
     pub orb_mode: AgentOrbMode,
+    /// User-chosen agent name. Empty = use [`DEFAULT_AGENT_NICKNAME`].
+    #[serde(default)]
+    pub agent_nickname: String,
     #[serde(default)]
     pub model_cache_openrouter: Vec<ProviderModelEntry>,
     #[serde(default)]
@@ -161,6 +164,7 @@ impl Default for AgentProviderSettings {
             auto_compact_enabled: default_auto_compact_enabled(),
             auto_compact_threshold_pct: DEFAULT_AUTO_COMPACT_THRESHOLD_PCT,
             orb_mode: default_orb_mode(),
+            agent_nickname: String::new(),
             model_cache_openrouter: curated_models(AgentProviderKind::Openrouter),
             model_cache_anthropic: curated_models(AgentProviderKind::Anthropic),
             model_cache_openai: curated_models(AgentProviderKind::Openai),
@@ -210,6 +214,8 @@ pub struct AgentProviderSettingsPatch {
     pub auto_compact_threshold_pct: u8,
     #[serde(default = "default_orb_mode")]
     pub orb_mode: AgentOrbMode,
+    #[serde(default)]
+    pub agent_nickname: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -899,8 +905,23 @@ pub fn agent_settings_save(
     settings.auto_compact_threshold_pct =
         clamp_auto_compact_threshold_pct(patch.auto_compact_threshold_pct);
     settings.orb_mode = patch.orb_mode;
+    settings.agent_nickname =
+        crate::agent::nickname::validate_nickname(&patch.agent_nickname).map_err(|e| {
+            // Surface the stable reason code; the UI maps it to a localized message.
+            format!("nickname:{}", e.reason_code())
+        })?;
     save_settings(&app, &settings)?;
     settings_view(&app, settings)
+}
+
+/// Validate a candidate agent nickname without persisting it. Returns `Ok(())`
+/// when acceptable (including blank = "use default"), or `Err(reason_code)`
+/// (`tooLong` / `invalidChars` / `badWord`) for live UI feedback.
+#[tauri::command]
+pub fn agent_validate_nickname(name: String) -> Result<(), String> {
+    crate::agent::nickname::validate_nickname(&name)
+        .map(|_| ())
+        .map_err(|e| e.reason_code().to_string())
 }
 
 #[tauri::command]

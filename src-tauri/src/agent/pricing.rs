@@ -108,6 +108,7 @@ mod tests {
             auto_compact_enabled: true,
             auto_compact_threshold_pct: crate::agent_settings::DEFAULT_AUTO_COMPACT_THRESHOLD_PCT,
             orb_mode: AgentOrbMode::ThreeD,
+            agent_nickname: String::new(),
             model_cache_openrouter: entries,
             model_cache_anthropic: Vec::new(),
             model_cache_openai: Vec::new(),

@@ -112,7 +112,10 @@ pub async fn run_chat_turn(
         .map(|s| s.clone())
         .filter(|s| !s.trim().is_empty());
 
-    let system = system_prompt(workspace_string.as_deref());
+    let system = system_prompt(
+        workspace_string.as_deref(),
+        &crate::agent::nickname::resolve_agent_name(&settings.agent_nickname),
+    );
 
     // Anthropic stores `system` separately from `messages`. Persisted
     // history is `user` / `assistant` messages only.

@@ -207,7 +207,10 @@ pub async fn run_chat_turn(
         .map(|s| s.clone())
         .filter(|s| !s.trim().is_empty());
 
-    let sys = system_prompt(workspace_string.as_deref());
+    let sys = system_prompt(
+        workspace_string.as_deref(),
+        &crate::agent::nickname::resolve_agent_name(&settings.agent_nickname),
+    );
     let mut messages: Vec<Value> = Vec::with_capacity(8);
     messages.push(json!({ "role": "system", "content": sys }));
     // Carry prior turns so the model has multi-turn memory.
