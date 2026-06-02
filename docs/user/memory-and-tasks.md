@@ -172,7 +172,7 @@ Supported statuses: `pending`, `in_progress`, `blocked`, `completed`, `cancelled
 
 ## Agent Memory Tools
 
-The BLXCode agent can list, read, search, create, rename, delete, and graph workspace notes. Category tools include `memory_list_categories`, `memory_create_category`, `memory_category_list`, and `memory_category_update` (any existing category key).
+The BLXCode agent can list, read, search, create, rename, delete, and graph workspace notes. Category tools include `memory_category_list` and `memory_category_update` (any existing category key). To create a new category through the agent, create the first note under that category path, e.g. `research/notes.md`.
 
 Context tools: `memory_context_list`, `memory_context_attach`, `memory_context_detach`.
 

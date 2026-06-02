@@ -82,7 +82,7 @@ Authoritative list from `src-tauri/src/lib.rs` (grouped for navigation):
 
 - `workspace_ensure_agents` — `.agents/memory`, `.agents/learnings`, `.agents/plans`, migration, wikilink upgrade
 - `memory_root`, `memory_list`, `memory_read`, `memory_write`, `memory_create`
-- `memory_list_categories`, `memory_create_category`
+- `memory_create_category`
 - `memory_delete`, `memory_rename`, `memory_graph`, `memory_backlinks`, `memory_search`
 - `memory_export`, `memory_import`
 - `memory_install_pointers`, `memory_uninstall_pointers`, `memory_pointer_status`

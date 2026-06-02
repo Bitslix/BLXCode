@@ -19,12 +19,12 @@ Manual notes about this unit can live above or below the generated block.
 - Manifest: `src-tauri/Cargo.toml`
 - Root: `src-tauri`
 - Source root: `src-tauri/src`
-- Source files: 105
+- Source files: 107
 - Root declarations: `agent`, `agent_hooks`, `agent_settings`, `agents_layout`, `api_keys`, `app_paths`, `browser_host`, `clipboard`, `commands`, `fs_entries`, `git_commit_ai`, `git_graph`, `git_info`, `git_remote`, `git_status`, `git_sync`, `image`, `media_keys`, `memory`, `plans`, `plans_index`, `pointers`, `proc`, `pty_host`, `skills_rules`, `ssh_exec`, `ssh_remotes`, `ssh_secrets`, `tasks`, `updater`, `voice`, `window_controls`, `workbench_state`
 
 ### Top-Level Modules
 
-- `agent` (28 files) — submodules: `anthropic`, `compaction`, `context_window`, `environment`, `git_agent`, `oneshot`, `openrouter`, `plan_ai`, `pricing`, `project_docs`, `protocol`, `provider`, `session_orchestrator`, `shell_exec`, `state`, `subagent_prompts`, `subagent_runner`, `subagents`, `system_prompt`, `tool_dispatch`, `tool_groups`, `tools`, `tools_extra`, `web_commands`, `web_settings`, `web_tools`, `workspace_agent`; declarations: `anthropic`, `environment`, `git_agent`, `openrouter`, `plan_ai`, `project_docs`, `provider`, `session_orchestrator`, `shell_exec`, `subagent_prompts`, `subagent_runner`, `subagents`, `system_prompt`, `tests`, `tool_dispatch`, `tool_groups`, `tools`, `tools_extra`, `web_commands`, `web_tools`, `workspace_agent`
+- `agent` (30 files) — submodules: `anthropic`, `badwords`, `compaction`, `context_window`, `environment`, `git_agent`, `nickname`, `oneshot`, `openrouter`, `plan_ai`, `pricing`, `project_docs`, `protocol`, `provider`, `session_orchestrator`, `shell_exec`, `state`, `subagent_prompts`, `subagent_runner`, `subagents`, `system_prompt`, `tool_dispatch`, `tool_groups`, `tools`, `tools_extra`, `web_commands`, `web_settings`, `web_tools`, `workspace_agent`; declarations: `anthropic`, `environment`, `git_agent`, `openrouter`, `plan_ai`, `project_docs`, `provider`, `session_orchestrator`, `shell_exec`, `subagent_prompts`, `subagent_runner`, `subagents`, `system_prompt`, `tests`, `tool_dispatch`, `tool_groups`, `tools`, `tools_extra`, `web_commands`, `web_tools`, `workspace_agent`
 - `agent_hooks` (1 files)
 - `agent_settings` (1 files)
 - `agents_layout` (1 files); declarations: `tests`
@@ -61,11 +61,13 @@ Manual notes about this unit can live above or below the generated block.
 ### Source Paths
 
 - `src-tauri/src/agent/anthropic.rs`
+- `src-tauri/src/agent/badwords.rs`
 - `src-tauri/src/agent/compaction.rs`
 - `src-tauri/src/agent/context_window.rs`
 - `src-tauri/src/agent/environment.rs`
 - `src-tauri/src/agent/git_agent.rs`
 - `src-tauri/src/agent/mod.rs`
+- `src-tauri/src/agent/nickname.rs`
 - `src-tauri/src/agent/oneshot.rs`
 - `src-tauri/src/agent/openrouter.rs`
 - `src-tauri/src/agent/plan_ai.rs`
@@ -138,9 +140,7 @@ Manual notes about this unit can live above or below the generated block.
 - `src-tauri/src/pointers/mod.rs`
 - `src-tauri/src/proc.rs`
 - `src-tauri/src/pty_host.rs`
-- `src-tauri/src/skills_rules/commands.rs`
-- `src-tauri/src/skills_rules/install.rs`
-- ... 25 more source paths omitted
+- ... 27 more source paths omitted
 <!-- architecture:static:end -->
 
 
