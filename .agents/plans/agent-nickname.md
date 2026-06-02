@@ -1,6 +1,9 @@
 # Persönlicher Agent-Name ("Nickname") mit Badword-Filter
 
-> Status: **planned**
+> Status: **done** (umgesetzt & verifiziert: `cargo test --workspace` 350 grün
+> inkl. Nickname-/Prompt-Tests, `cargo check -p blxcode-ui
+> --target wasm32-unknown-unknown` grün, Theme-Lint ohne neue Findings.
+> Manueller `cargo tauri dev`-Sichttest der Orb-Badge steht noch aus.)
 
 ## Summary
 
