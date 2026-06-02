@@ -1003,13 +1003,13 @@ fn SidebarFooter(ui: HarnessUiService, wb: WorkbenchService) -> impl IntoView {
                 <span class="sidebar-ptt-orb__wave sidebar-ptt-orb__wave--one" aria-hidden="true"></span>
                 <span class="sidebar-ptt-orb__wave sidebar-ptt-orb__wave--two" aria-hidden="true"></span>
             </button>
-            <span id="sidebar-ptt-tooltip" class="sidebar-ptt-tooltip" role="tooltip">
-                <span class="sidebar-ptt-tooltip__eyebrow">
-                    <span class="sidebar-ptt-tooltip__spark" aria-hidden="true"></span>
+            <span id="sidebar-ptt-tooltip" class="sidebar-ptt-tooltip blx-tooltip" role="tooltip">
+                <span class="blx-tooltip__eyebrow">
+                    <span class="blx-tooltip__spark" aria-hidden="true"></span>
                     {move || state_label()}
                 </span>
-                <span class="sidebar-ptt-tooltip__main">"Push to start voice transcription"</span>
-                <span class="sidebar-ptt-tooltip__hint">"Open push-to-talk settings and local models"</span>
+                <span class="blx-tooltip__main">"Push to start voice transcription"</span>
+                <span class="blx-tooltip__hint">"Open push-to-talk settings and local models"</span>
             </span>
             <div class="sidebar-footer-brand__copy" aria-label=format!("BLXCode v{APP_VERSION}")>
                 <span class="sidebar-footer-brand__name">"BLXCode"</span>

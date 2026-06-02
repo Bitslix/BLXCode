@@ -1,7 +1,8 @@
-# Agent-Session-Stats in der rechten Hero-Grid-Box
+# Agent-Session-Stats in der linken Hero-Grid-Box
 
-> Status: **planned** (recherchiert & verifiziert; Umsetzung noch nicht
-> begonnen. Datenquellen im Code bestätigt — kein Backend nötig.)
+> Status: **done** (umgesetzt & verifiziert. Datenquellen im Code bestätigt —
+> kein Backend nötig; nur ein bestehender Backend-Test-Initializer wurde für
+> `orb_mode` nachgezogen.)
 
 ## Summary
 
@@ -191,7 +192,7 @@ Neue Datei `src/workbench/agent_panel/session_stats.rs`:
 - Props: `timeline`, `wb`, `context_length`, `model_label`, `busy`.
 - `Memo` auf `timeline` → `SessionStats`; Costs/Context/Start aus
   `chat_usage_for_workspace`; Provider/Model aus `model_label`.
-- Rendert die Karte (s. Layout) mit `InfoTip` je Zeile in die **rechte**
+- Rendert die Karte (s. Layout) mit `InfoTip` je Zeile in die **linke**
   Grid-Zelle.
 
 **STATS-04 — Einbau in den Header**
@@ -219,6 +220,15 @@ Neue Datei `src/workbench/agent_panel/session_stats.rs`:
 - Live-Test: Werte reaktiv (auch während „Thinking"), Tooltips erscheinen
   einheitlich, Session-Start nach erstem Turn gesetzt + nach Clear zurück,
   Compact-Mode blendet aus.
+
+Verifiziert:
+- `cargo check -p blxcode-ui --target wasm32-unknown-unknown`
+- `cargo test -p blxcode-ui session_stats --target x86_64-unknown-linux-gnu`
+- `cargo test --workspace`
+
+Hinweis: `scripts/tools/render_i18n_locales_from_en.py` konnte nicht laufen,
+weil `deep_translator` in der Umgebung fehlt. Nicht-englische Locales enthalten
+deshalb vorerst englische Fallbacks für die neuen Stats-Keys.
 
 ## Designentscheidungen (festgelegt)
 

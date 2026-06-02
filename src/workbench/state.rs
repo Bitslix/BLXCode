@@ -222,6 +222,12 @@ pub struct ChatUsageStats {
     /// excluded (they don't sit in the main conversation window).
     #[serde(default)]
     pub last_round_input_tokens: u64,
+    /// Epoch-ms timestamp of the **first turn** in the current session. Set
+    /// when `turn_count` transitions 0 → 1; cleared by `clear_chat_usage`
+    /// (alongside `agent_clear_conversation`). Drives the "Session start" row
+    /// in the agent stats card. Persisted so it survives reloads.
+    #[serde(default)]
+    pub session_started_at: Option<f64>,
     /// Highest `turn_generation` observed in a `TurnUsage` event for this
     /// workspace. Events stamped with a lower generation are dropped — they
     /// belong to a turn that was cancelled by `agent_clear_conversation`.
@@ -3399,6 +3405,9 @@ impl WorkbenchService {
                 }
                 if turn_generation > u.current_turn_generation {
                     u.current_turn_generation = turn_generation;
+                }
+                if u.turn_count == 0 && u.session_started_at.is_none() {
+                    u.session_started_at = Some(js_sys::Date::now());
                 }
                 u.turn_count = u.turn_count.saturating_add(1);
                 if let Some(p) = input_tokens {

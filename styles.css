@@ -1234,12 +1234,23 @@ body {
   outline: 0;
 }
 
-.sidebar-ptt-tooltip {
+/* ───────────────────────────────────────────────────────────────────────
+   App-global tooltip (.blx-tooltip). Single, theme-token-only popover style
+   shared by every tooltip. Wrap a trigger in `.blx-tip-anchor` (see the
+   `InfoTip` Leptos component) to reveal it on hover / focus-within. The
+   sidebar voice-orb tooltip reuses these visual rules and supplies its own
+   position + trigger.
+   ─────────────────────────────────────────────────────────────────────── */
+.blx-tip-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.blx-tooltip {
   position: absolute;
-  left: -0.18rem;
-  bottom: calc(100% + 0.7rem);
   z-index: 10000;
-  width: min(15.5rem, calc(100vw - 2rem));
+  width: max-content;
+  max-width: min(16rem, calc(100vw - 2rem));
   padding: 0.62rem 0.7rem 0.66rem;
   border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border-strong));
   border-radius: var(--radius-lg);
@@ -1261,11 +1272,9 @@ body {
     transform 0.14s ease;
 }
 
-.sidebar-ptt-tooltip::after {
+.blx-tooltip::after {
   content: "";
   position: absolute;
-  left: 1.08rem;
-  bottom: -0.38rem;
   width: 0.7rem;
   height: 0.7rem;
   border-right: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border-strong));
@@ -1274,19 +1283,13 @@ body {
   transform: rotate(45deg);
 }
 
-.sidebar-ptt-orb:hover + .sidebar-ptt-tooltip,
-.sidebar-ptt-orb:focus-visible + .sidebar-ptt-tooltip {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-}
-
-.sidebar-ptt-tooltip__eyebrow,
-.sidebar-ptt-tooltip__main,
-.sidebar-ptt-tooltip__hint {
+.blx-tooltip__eyebrow,
+.blx-tooltip__main,
+.blx-tooltip__hint {
   display: block;
 }
 
-.sidebar-ptt-tooltip__eyebrow {
+.blx-tooltip__eyebrow {
   display: flex;
   align-items: center;
   gap: 0.35rem;
@@ -1298,7 +1301,8 @@ body {
   letter-spacing: 0.04em;
 }
 
-.sidebar-ptt-tooltip__spark {
+.blx-tooltip__spark {
+  flex-shrink: 0;
   width: 0.42rem;
   height: 0.42rem;
   border-radius: var(--radius-pill);
@@ -1306,18 +1310,76 @@ body {
   box-shadow: 0 0 0 0.22rem color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
-.sidebar-ptt-tooltip__main {
+.blx-tooltip__main {
   margin-top: 0.3rem;
   font-size: 0.86rem;
   font-weight: 650;
   line-height: 1.2;
 }
 
-.sidebar-ptt-tooltip__hint {
+.blx-tooltip__hint {
   margin-top: 0.18rem;
   color: var(--text-muted);
   font-size: 0.72rem;
   line-height: 1.35;
+}
+
+/* Placement: centred above (default) / below the anchor. */
+.blx-tip-anchor--top > .blx-tooltip {
+  left: 50%;
+  bottom: calc(100% + 0.5rem);
+  transform: translate(-50%, 0.32rem) scale(0.97);
+  transform-origin: center bottom;
+}
+
+.blx-tip-anchor--top > .blx-tooltip::after {
+  left: 50%;
+  bottom: -0.38rem;
+  margin-left: -0.35rem;
+}
+
+.blx-tip-anchor--bottom > .blx-tooltip {
+  left: 50%;
+  top: calc(100% + 0.5rem);
+  transform: translate(-50%, -0.32rem) scale(0.97);
+  transform-origin: center top;
+}
+
+.blx-tip-anchor--bottom > .blx-tooltip::after {
+  left: 50%;
+  top: -0.38rem;
+  margin-left: -0.35rem;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border-strong));
+  border-top: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border-strong));
+}
+
+.blx-tip-anchor:hover > .blx-tooltip,
+.blx-tip-anchor:focus-within > .blx-tooltip {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0) scale(1);
+}
+
+/* Sidebar voice-orb tooltip — reuses `.blx-tooltip` visuals, supplies its own
+   left-anchored position + sibling-hover trigger. */
+.sidebar-ptt-tooltip {
+  left: -0.18rem;
+  bottom: calc(100% + 0.7rem);
+  width: min(15.5rem, calc(100vw - 2rem));
+  max-width: none;
+}
+
+.sidebar-ptt-tooltip::after {
+  left: 1.08rem;
+  bottom: -0.38rem;
+}
+
+.sidebar-ptt-orb:hover + .sidebar-ptt-tooltip,
+.sidebar-ptt-orb:focus-visible + .sidebar-ptt-tooltip {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
 }
 
 .sidebar-ptt-orb--recording::after {
@@ -2706,6 +2768,271 @@ button.workbench-shortcut-row--action:focus-visible {
   font-size: 0.76rem;
 }
 
+.agent-session-stats {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: stretch;
+  min-width: 0;
+  padding: 0.68rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--bg-raised) 86%, var(--accent) 5%), var(--bg-panel)),
+    var(--bg-panel);
+  box-shadow:
+    inset 0 1px 0 var(--overlay-2),
+    0 14px 28px color-mix(in srgb, var(--scrim-bg) 72%, transparent);
+  overflow: visible;
+}
+
+.agent-session-stats > .blx-tip-anchor {
+  display: block;
+}
+
+.agent-session-stats__model {
+  width: 100%;
+  border: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.46rem;
+  min-height: 2rem;
+  padding: 0.34rem 0.42rem 0.46rem;
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.agent-session-stats__model:hover,
+.agent-session-stats__model:focus-visible {
+  background: var(--overlay-1);
+  outline: 0;
+}
+
+.agent-session-stats__model-icon,
+.agent-session-stats__icon {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.agent-session-stats__model-text {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.77rem;
+  font-weight: 760;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-session-stats__state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.05rem;
+  min-height: 1.25rem;
+  padding: 0 0.44rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  background: var(--bg-app);
+  font-size: 0.66rem;
+  font-weight: 760;
+  white-space: nowrap;
+}
+
+.agent-session-stats__state--live {
+  color: var(--on-accent);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--border-strong));
+  background: color-mix(in srgb, var(--accent) 84%, var(--bg-app));
+}
+
+.agent-session-stats__rows {
+  display: grid;
+  gap: 0.14rem;
+  padding-top: 0.48rem;
+}
+
+.agent-session-stats__rows > .blx-tip-anchor {
+  display: block;
+}
+
+.agent-session-stats__row {
+  display: grid;
+  grid-template-columns: 1rem minmax(5.4rem, 0.9fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 0.42rem;
+  min-height: 1.92rem;
+  padding: 0.25rem 0.42rem;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  outline: 0;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
+}
+
+.agent-session-stats__row:hover,
+.agent-session-stats__row:focus-visible {
+  color: var(--text);
+  background: var(--overlay-1);
+}
+
+.agent-session-stats__label {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.71rem;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-session-stats__value {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 760;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-session-stats__value--context,
+.agent-session-stats__value--tools {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.42rem;
+}
+
+.agent-session-stats__meter {
+  position: relative;
+  flex: 0 0 2.65rem;
+  width: 2.65rem;
+  height: 0.28rem;
+  border-radius: var(--radius-pill);
+  background: var(--border);
+  overflow: hidden;
+}
+
+.agent-session-stats__meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
+
+.agent-session-stats__meter-fill--warn {
+  background: var(--warning);
+}
+
+.agent-session-stats__meter-fill--danger {
+  background: var(--danger);
+}
+
+.agent-session-stats__badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  min-width: 0;
+}
+
+.agent-session-stats__badges span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.12rem;
+  min-width: 0;
+  padding: 0.1rem 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-app);
+  color: var(--text);
+  font-size: 0.64rem;
+  font-weight: 760;
+}
+
+.agent-session-stats__badges em {
+  max-width: 2.2rem;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-style: normal;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-session-stats__subagents {
+  margin-top: 0.48rem;
+  padding: 0.5rem 0.42rem 0.05rem;
+  border-top: 1px solid var(--border);
+}
+
+.agent-session-stats__subhead {
+  display: flex;
+  align-items: center;
+  gap: 0.34rem;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 760;
+}
+
+.agent-session-stats__subpulse {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: var(--radius-circle);
+  background: var(--accent);
+  box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--accent) 16%, transparent);
+  animation: agent-stats-subagent-pulse 1.4s ease-out infinite;
+}
+
+.agent-session-stats__sublist {
+  display: grid;
+  gap: 0.24rem;
+  margin-top: 0.36rem;
+}
+
+.agent-session-stats__subagent {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+  color: var(--text);
+  font-size: 0.7rem;
+}
+
+.agent-session-stats__subagent strong,
+.agent-session-stats__subagent span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-session-stats__subagent span {
+  color: var(--text-muted);
+}
+
+@keyframes agent-stats-subagent-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 34%, transparent);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0.46rem color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+}
+
 .agent-hero--compact {
   display: flex;
   flex-direction: row;
@@ -2763,6 +3090,10 @@ button.workbench-shortcut-row--action:focus-visible {
 
 .agent-hero--compact .agent-hero__eyebrow,
 .agent-hero--compact .agent-hero__meta > p {
+  display: none;
+}
+
+.agent-hero--compact .agent-session-stats {
   display: none;
 }
 

@@ -5,6 +5,7 @@ mod context_list;
 mod context_meter;
 mod image_context;
 mod reducer;
+mod session_stats;
 mod task_list;
 mod timeline;
 pub(crate) mod turn_metrics_bar;
@@ -26,6 +27,7 @@ use crate::workbench::agent_panel::image_context::{
     DropZoneState,
 };
 use crate::workbench::agent_panel::reducer::apply_envelope;
+use crate::workbench::agent_panel::session_stats::AgentSessionStats;
 use crate::workbench::agent_panel::task_list::TaskSection;
 use crate::workbench::agent_panel::timeline::{ChatLineIndexColumn, TurnNodeView};
 use crate::workbench::agent_panel::voice_orb::{handle_voice_event, VoiceOrb, VoiceOrbHandle};
@@ -373,6 +375,13 @@ pub fn AgentPanelDock() -> impl IntoView {
                     "agent-hero".to_string()
                 }
             }>
+                <AgentSessionStats
+                    timeline=timeline
+                    wb=wb
+                    context_length=context_length
+                    model_label=model_label
+                    busy=busy
+                />
                 <VoiceOrb
                     handle=voice_handle
                     thinking=busy

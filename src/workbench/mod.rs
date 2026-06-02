@@ -26,6 +26,7 @@ mod harness_chords;
 mod harness_image_pane;
 mod harness_ui;
 mod harness_voice_pane;
+pub(crate) mod info_tip;
 mod memory_graph;
 mod memory_panel;
 mod memory_settings_pane;

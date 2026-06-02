@@ -96,7 +96,7 @@ pub fn map_direct_to_openrouter(
 mod tests {
     use super::*;
     use crate::agent_settings::{
-        AgentProviderKind, ModelPricing, ProviderModelEntry, ThinkingLevel,
+        AgentOrbMode, AgentProviderKind, ModelPricing, ProviderModelEntry, ThinkingLevel,
     };
 
     fn settings_with_openrouter(entries: Vec<ProviderModelEntry>) -> AgentProviderSettings {
@@ -107,6 +107,7 @@ mod tests {
             tool_loop_limit: crate::agent_settings::DEFAULT_TOOL_LOOP_LIMIT,
             auto_compact_enabled: true,
             auto_compact_threshold_pct: crate::agent_settings::DEFAULT_AUTO_COMPACT_THRESHOLD_PCT,
+            orb_mode: AgentOrbMode::ThreeD,
             model_cache_openrouter: entries,
             model_cache_anthropic: Vec::new(),
             model_cache_openai: Vec::new(),
