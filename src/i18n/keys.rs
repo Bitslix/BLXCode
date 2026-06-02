@@ -549,6 +549,10 @@ pub enum I18nKey {
     HsCatVoice,
     HsCatImage,
     HsCatRemote,
+    MemorySettingsDescription,
+    MemorySettingsSidePanelSection,
+    MemorySettingsRightPanelToggle,
+    MemorySettingsRightPanelHint,
     // --- SSH remote connections (Remote settings category) ---
     RemoteHeading,
     RemoteDescription,

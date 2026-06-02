@@ -585,6 +585,10 @@ keys; the preset only fills in defaults."
         I18nKey::HsCatVoice => "Voice",
         I18nKey::HsCatImage => "Image",
         I18nKey::HsCatRemote => "Remote",
+        I18nKey::MemorySettingsDescription => "Configure where Memory appears in the workbench.",
+        I18nKey::MemorySettingsSidePanelSection => "Right side panel",
+        I18nKey::MemorySettingsRightPanelToggle => "Show Memory tab in right side panel",
+        I18nKey::MemorySettingsRightPanelHint => "Turn this off when you use the centered Memory tab as your default workspace view.",
         I18nKey::RemoteHeading => "SSH Remote Connections",
         I18nKey::RemoteDescription => {
             "Manage SSH presets for opening and resuming workspaces on remote machines."

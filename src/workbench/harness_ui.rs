@@ -889,7 +889,7 @@ fn harness_settings_cat_icon(cat: HarnessSettingsCategory) -> icondata::Icon {
         HarnessSettingsCategory::Workspace => icondata::LuFolderOpen,
         HarnessSettingsCategory::AgentProvider => icondata::LuCpu,
         HarnessSettingsCategory::Remote => icondata::LuServer,
-        HarnessSettingsCategory::Memory => icondata::LuPalette,
+        HarnessSettingsCategory::Memory => icondata::LuLayers,
         HarnessSettingsCategory::Voice => icondata::LuMic,
         HarnessSettingsCategory::Image => icondata::LuImage,
     }
@@ -913,6 +913,7 @@ pub fn SettingsDock(
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Workspace label=I18nKey::HsCatWorkspace />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::AgentProvider label=I18nKey::HsCatProvider />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Remote label=I18nKey::HsCatRemote />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Memory label=I18nKey::TabMemory />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Voice label=I18nKey::HsCatVoice />
             </nav>
 
@@ -940,8 +941,8 @@ pub fn SettingsDock(
                         <crate::workbench::RemoteSettingsPane />
                     }.into_any(),
                     HarnessSettingsCategory::Memory => view! {
-                        <crate::workbench::WorkspaceSettingsPane wb=wb embed=embed />
-                    }.into_any(), // legacy category → Workspace
+                        <crate::workbench::MemorySettingsPane />
+                    }.into_any(),
                     HarnessSettingsCategory::Voice => view! {
                         <crate::workbench::harness_voice_pane::VoiceSettingsPane />
                     }.into_any(),

@@ -9500,6 +9500,23 @@ body.blxcode-dragging-terminal * {
   line-height: 1.35;
 }
 
+.memory-settings-toggle {
+  align-items: center;
+}
+
+.memory-settings-toggle__input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.memory-settings-toggle__input:focus-visible + .blx-switch {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
 /* --- Search view --------------------------------------------------- */
 .workbench-memory-search {
   flex: 1;

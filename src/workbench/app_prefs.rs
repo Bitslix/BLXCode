@@ -3,8 +3,8 @@
 use super::shortcut_config::{Binding, KeyChord, ShortcutAction, ShortcutConfig};
 use super::terminal_naming::{self, TerminalNamingMode, NAME_POOL_KEY, NAMING_MODE_KEY};
 use crate::config::{
-    CONFIRM_CLOSE_WORKSPACE_KEY, SHORTCUT_BINDINGS_STORAGE_KEY, SHORTCUT_MODE_LEGACY,
-    SHORTCUT_MODE_STORAGE_KEY, SHORTCUT_MODE_TMUX, SUCCESS_SOUND_STORAGE_KEY,
+    CONFIRM_CLOSE_WORKSPACE_KEY, MEMORY_RIGHT_PANEL_ENABLED_KEY, SHORTCUT_BINDINGS_STORAGE_KEY,
+    SHORTCUT_MODE_LEGACY, SHORTCUT_MODE_STORAGE_KEY, SHORTCUT_MODE_TMUX, SUCCESS_SOUND_STORAGE_KEY,
     SUCCESS_TOAST_STORAGE_KEY, UPDATE_AUTO_CHECK_KEY,
 };
 use leptos::prelude::*;
@@ -41,6 +41,7 @@ pub struct AppPrefsService {
     shortcut_config: RwSignal<ShortcutConfig>,
     update_auto_check: RwSignal<bool>,
     confirm_close_workspace: RwSignal<bool>,
+    memory_right_panel_enabled: RwSignal<bool>,
     terminal_naming_mode: RwSignal<TerminalNamingMode>,
     terminal_name_pool: RwSignal<Vec<String>>,
 }
@@ -64,6 +65,10 @@ impl AppPrefsService {
             update_auto_check: RwSignal::new(read_bool_storage(UPDATE_AUTO_CHECK_KEY, true)),
             confirm_close_workspace: RwSignal::new(read_bool_storage(
                 CONFIRM_CLOSE_WORKSPACE_KEY,
+                true,
+            )),
+            memory_right_panel_enabled: RwSignal::new(read_bool_storage(
+                MEMORY_RIGHT_PANEL_ENABLED_KEY,
                 true,
             )),
             terminal_naming_mode: RwSignal::new(TerminalNamingMode::from_storage(
@@ -93,6 +98,10 @@ impl AppPrefsService {
 
     pub fn confirm_close_workspace_enabled(&self) -> RwSignal<bool> {
         self.confirm_close_workspace
+    }
+
+    pub fn memory_right_panel_enabled(&self) -> RwSignal<bool> {
+        self.memory_right_panel_enabled
     }
 
     pub fn set_success_toast(&self, enabled: bool) {
@@ -160,6 +169,11 @@ impl AppPrefsService {
     pub fn set_confirm_close_workspace(&self, enabled: bool) {
         self.confirm_close_workspace.set(enabled);
         write_bool_storage(CONFIRM_CLOSE_WORKSPACE_KEY, enabled);
+    }
+
+    pub fn set_memory_right_panel_enabled(&self, enabled: bool) {
+        self.memory_right_panel_enabled.set(enabled);
+        write_bool_storage(MEMORY_RIGHT_PANEL_ENABLED_KEY, enabled);
     }
 
     #[must_use]

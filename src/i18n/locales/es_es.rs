@@ -539,6 +539,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatVoice => "Voz",
         I18nKey::HsCatImage => "Imagen",
         I18nKey::HsCatRemote => "Remoto",
+        I18nKey::MemorySettingsDescription => "Configure where Memory appears in the workbench.",
+        I18nKey::MemorySettingsSidePanelSection => "Right side panel",
+        I18nKey::MemorySettingsRightPanelToggle => "Show Memory tab in right side panel",
+        I18nKey::MemorySettingsRightPanelHint => "Turn this off when you use the centered Memory tab as your default workspace view.",
         I18nKey::RemoteHeading => "Conexiones remotas SSH",
         I18nKey::RemoteDescription => "Manage SSH presets for opening and resuming workspaces on remote machines.",
         I18nKey::RemoteSubtitle => {

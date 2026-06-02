@@ -539,6 +539,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatVoice => "Stimme",
         I18nKey::HsCatImage => "Bild",
         I18nKey::HsCatRemote => "Fernbedienung",
+        I18nKey::MemorySettingsDescription => "Lege fest, wo Memory in der Workbench angezeigt wird.",
+        I18nKey::MemorySettingsSidePanelSection => "Rechtes Seitenpanel",
+        I18nKey::MemorySettingsRightPanelToggle => "Memory-Tab im rechten Seitenpanel anzeigen",
+        I18nKey::MemorySettingsRightPanelHint => "Schalte das aus, wenn du standardmäßig den zentrierten Memory-Tab nutzt.",
         I18nKey::RemoteHeading => "SSH-Remote-Verbindungen",
         I18nKey::RemoteDescription => "SSH-Profile für Remote-Workspaces anlegen, testen und wiederverwenden.",
         I18nKey::RemoteSubtitle => {
