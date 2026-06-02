@@ -4,9 +4,9 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_provider_models, agent_settings_get, agent_settings_save, agent_web_settings_get,
-    agent_web_settings_save, is_tauri_shell, AgentProviderKind, AgentProviderSettingsView,
-    AgentWebSettingsView, ProviderModelEntry, ProviderModelsResponse, ThinkingLevel,
-    WebProviderKind, DEFAULT_AUTO_COMPACT_THRESHOLD_PCT, DEFAULT_TOOL_LOOP_LIMIT,
+    agent_web_settings_save, is_tauri_shell, AgentOrbMode, AgentProviderKind,
+    AgentProviderSettingsView, AgentWebSettingsView, ProviderModelEntry, ProviderModelsResponse,
+    ThinkingLevel, WebProviderKind, DEFAULT_AUTO_COMPACT_THRESHOLD_PCT, DEFAULT_TOOL_LOOP_LIMIT,
     MAX_AUTO_COMPACT_THRESHOLD_PCT, MAX_TOOL_LOOP_LIMIT, MIN_AUTO_COMPACT_THRESHOLD_PCT,
     MIN_TOOL_LOOP_LIMIT,
 };
@@ -25,6 +25,7 @@ struct AgentSettingsBaseline {
     tool_loop_limit: u32,
     auto_compact_enabled: bool,
     auto_compact_threshold_pct: u8,
+    orb_mode: AgentOrbMode,
     web_provider: WebProviderKind,
 }
 
@@ -163,6 +164,15 @@ fn prev_thinking(level: ThinkingLevel) -> ThinkingLevel {
     let levels = thinking_levels();
     let idx = levels.iter().position(|l| *l == level).unwrap_or(2);
     levels[(idx + levels.len() - 1) % levels.len()]
+}
+
+fn dispatch_agent_settings_changed() {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    if let Ok(ev) = web_sys::CustomEvent::new("blxcode-agent-settings-changed") {
+        let _ = window.dispatch_event(&ev);
+    }
 }
 
 #[component]
@@ -432,6 +442,7 @@ pub fn AgentProviderPane() -> impl IntoView {
     let tool_loop_limit = RwSignal::new(DEFAULT_TOOL_LOOP_LIMIT);
     let auto_compact_enabled = RwSignal::new(true);
     let auto_compact_threshold = RwSignal::new(DEFAULT_AUTO_COMPACT_THRESHOLD_PCT);
+    let orb_mode = RwSignal::new(AgentOrbMode::ThreeD);
     let model_entries: RwSignal<Vec<ProviderModelEntry>> = RwSignal::new(Vec::new());
     let models_source = RwSignal::new(String::new());
     let models_message: RwSignal<Option<String>> = RwSignal::new(None);
@@ -448,6 +459,7 @@ pub fn AgentProviderPane() -> impl IntoView {
         tool_loop_limit: DEFAULT_TOOL_LOOP_LIMIT,
         auto_compact_enabled: true,
         auto_compact_threshold_pct: DEFAULT_AUTO_COMPACT_THRESHOLD_PCT,
+        orb_mode: AgentOrbMode::ThreeD,
         web_provider: WebProviderKind::None,
     });
 
@@ -459,6 +471,7 @@ pub fn AgentProviderPane() -> impl IntoView {
             || tool_loop_limit.get() != b.tool_loop_limit
             || auto_compact_enabled.get() != b.auto_compact_enabled
             || auto_compact_threshold.get() != b.auto_compact_threshold_pct
+            || orb_mode.get() != b.orb_mode
             || web_provider.get() != b.web_provider
     });
 
@@ -469,6 +482,7 @@ pub fn AgentProviderPane() -> impl IntoView {
         tool_loop_limit: tool_loop_limit.get_untracked(),
         auto_compact_enabled: auto_compact_enabled.get_untracked(),
         auto_compact_threshold_pct: auto_compact_threshold.get_untracked(),
+        orb_mode: orb_mode.get_untracked(),
         web_provider: web_provider.get_untracked(),
     };
 
@@ -479,6 +493,7 @@ pub fn AgentProviderPane() -> impl IntoView {
         tool_loop_limit.set(view.tool_loop_limit);
         auto_compact_enabled.set(view.auto_compact_enabled);
         auto_compact_threshold.set(view.auto_compact_threshold_pct);
+        orb_mode.set(view.orb_mode);
         model_entries.set(provider_cache(&view, view.provider));
         settings.set(Some(view));
         baseline.update(|b| {
@@ -488,6 +503,7 @@ pub fn AgentProviderPane() -> impl IntoView {
             b.tool_loop_limit = tool_loop_limit.get_untracked();
             b.auto_compact_enabled = auto_compact_enabled.get_untracked();
             b.auto_compact_threshold_pct = auto_compact_threshold.get_untracked();
+            b.orb_mode = orb_mode.get_untracked();
         });
     };
 
@@ -571,6 +587,7 @@ pub fn AgentProviderPane() -> impl IntoView {
             MIN_AUTO_COMPACT_THRESHOLD_PCT,
             MAX_AUTO_COMPACT_THRESHOLD_PCT,
         );
+        let orb = orb_mode.get_untracked();
         let web = web_provider.get_untracked();
         leptos::task::spawn_local(async move {
             let mut err: Option<String> = None;
@@ -581,6 +598,7 @@ pub fn AgentProviderPane() -> impl IntoView {
                 loop_limit,
                 ac_enabled,
                 ac_threshold,
+                orb,
             )
             .await
             {
@@ -595,6 +613,7 @@ pub fn AgentProviderPane() -> impl IntoView {
                 error_msg.set(Some(e));
             } else {
                 baseline.set(snapshot_baseline());
+                dispatch_agent_settings_changed();
                 status_msg.set(Some(i18n.tr(I18nKey::AgSaveProviderDone)().to_string()));
             }
             busy.set(false);
@@ -707,6 +726,47 @@ pub fn AgentProviderPane() -> impl IntoView {
                             </span>
                             <small class="harness-muted agent-provider-pane__field-hint">
                                 {move || i18n.tr(I18nKey::AgAutoCompactHint)()}
+                            </small>
+                        </label>
+                        <label class="agent-provider-pane__field agent-provider-pane__orb-toggle">
+                            <span class="harness-field-label">
+                                <span class="harness-field-label__icon" aria-hidden="true">
+                                    <LxIcon icon=icondata::LuBot width="0.82rem" height="0.82rem" />
+                                </span>
+                                <span class="harness-field-label__text">"Agent orb"</span>
+                            </span>
+                            <span class="app-prefs-toggle agent-provider-pane__switch-row">
+                                <input
+                                    class="agent-provider-pane__switch-input"
+                                    type="checkbox"
+                                    prop:checked=move || orb_mode.get() == AgentOrbMode::ThreeD
+                                    on:change=move |ev| {
+                                        if let Some(t) = ev.target() {
+                                            if let Ok(inp) = t.dyn_into::<web_sys::HtmlInputElement>() {
+                                                orb_mode.set(if inp.checked() {
+                                                    AgentOrbMode::ThreeD
+                                                } else {
+                                                    AgentOrbMode::TwoD
+                                                });
+                                            }
+                                        }
+                                    }
+                                />
+                                <span
+                                    class="blx-switch"
+                                    class:blx-switch--on=move || orb_mode.get() == AgentOrbMode::ThreeD
+                                    aria-hidden="true"
+                                >
+                                    <span class="blx-switch__thumb" />
+                                </span>
+                                <span>{move || if orb_mode.get() == AgentOrbMode::ThreeD {
+                                    "3D Drobo"
+                                } else {
+                                    "2D logo"
+                                }}</span>
+                            </span>
+                            <small class="harness-muted agent-provider-pane__field-hint">
+                                "Choose the visual orb style shown in the Agent tab. 3D is the default."
                             </small>
                         </label>
                     </div>

@@ -19,17 +19,18 @@ Manual notes about this unit can live above or below the generated block.
 - Manifest: `package.json`
 - Root: `.`
 - Source root: ``
-- Source files: 3
+- Source files: 4
 
 ### Top-Level Modules
 
 - `content` (1 files) — submodules: `hooks`; 1 deeper source files aggregated here
-- `public` (1 files) — submodules: `terminal_bootstrap.mjs`
+- `public` (2 files) — submodules: `drobo_orb.bundle.mjs`, `terminal_bootstrap.mjs`
 - `scripts` (1 files) — submodules: `tauri-before-build.cjs`
 
 ### Source Paths
 
 - `content/hooks/opencode_blxcode.ts`
+- `public/drobo_orb.bundle.mjs`
 - `public/terminal_bootstrap.mjs`
 - `scripts/tauri-before-build.cjs`
 <!-- architecture:static:end -->

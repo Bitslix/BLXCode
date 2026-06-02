@@ -108,6 +108,23 @@
   gap: 0.5rem;
 }
 
+.agent-provider-pane__switch-row {
+  margin-top: 0;
+}
+
+.agent-provider-pane__switch-input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.agent-provider-pane__switch-input:focus-visible + .blx-switch {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
 .agent-provider-pane__pct-input {
   width: 4.5rem;
 }

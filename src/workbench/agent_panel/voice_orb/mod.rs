@@ -10,8 +10,8 @@ use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_settings_get, api_keys_status, is_tauri_shell, voice_cancel_recording,
     voice_settings_get, voice_start_recording, voice_stop_and_transcribe, voice_tts_preview,
-    AgentProviderKind, AgentProviderSettingsView, ApiKeysStatus, PostSttFlow, SttLanguageMode,
-    VoiceProviderKind, VoiceSettings,
+    AgentOrbMode, AgentProviderKind, AgentProviderSettingsView, ApiKeysStatus, PostSttFlow,
+    SttLanguageMode, VoiceProviderKind, VoiceSettings,
 };
 use crate::workbench::agent_panel::voice_orb::drobo_glue::{
     drobo_orb_create, drobo_orb_dispose, drobo_orb_resize, drobo_orb_set_state,
@@ -20,6 +20,7 @@ use crate::workbench::agent_panel::voice_orb::drobo_glue::{
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use js_sys::Uint8Array;
 use leptos::html;
+use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -126,14 +127,34 @@ where
     let i18n = expect_context::<I18nService>();
     let active_turn_id = RwSignal::new(Option::<String>::None);
     let mousedown_at = RwSignal::new(0.0_f64);
+    let orb_mode = RwSignal::new(AgentOrbMode::ThreeD);
+
+    let refresh_orb_mode = move || {
+        if !is_tauri_shell() {
+            return;
+        }
+        leptos::task::spawn_local(async move {
+            if let Ok(view) = agent_settings_get().await {
+                orb_mode.set(view.orb_mode);
+            }
+        });
+    };
 
     if is_tauri_shell() {
         leptos::task::spawn_local(async move {
             if let Ok(v) = voice_settings_get().await {
                 handle.settings.set(Some(v));
             }
+            if let Ok(view) = agent_settings_get().await {
+                orb_mode.set(view.orb_mode);
+            }
             refresh_tts_ready(handle).await;
         });
+        let settings_change_handle =
+            window_event_listener_untyped("blxcode-agent-settings-changed", move |_| {
+                refresh_orb_mode();
+            });
+        on_cleanup(move || drop(settings_change_handle));
     }
 
     let start_recording = move || {
@@ -271,7 +292,16 @@ where
                 on:keydown=on_keydown
             >
                 <span class="drobo-orb" aria-hidden="true">
-                    <DroboOrbView orb_state=handle.state />
+                    <Show
+                        when=move || orb_mode.get() == AgentOrbMode::ThreeD
+                        fallback=move || view! {
+                            <span class="drobo-orb__stage drobo-orb__stage--2d">
+                                <span class="agent-hero__logo drobo-orb__fallback">"B"</span>
+                            </span>
+                        }
+                    >
+                        <DroboOrbView orb_state=handle.state />
+                    </Show>
                     <Show when=move || matches!(handle.state.get(), VoiceOrbState::Transcribing)>
                         <span class="drobo-orb__state drobo-orb__state--transcribing">
                             <LxIcon icon=icondata::LuLoader width="1.05rem" height="1.05rem" />

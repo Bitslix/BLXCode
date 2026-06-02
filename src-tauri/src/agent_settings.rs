@@ -43,6 +43,10 @@ fn default_auto_compact_threshold_pct() -> u8 {
     DEFAULT_AUTO_COMPACT_THRESHOLD_PCT
 }
 
+fn default_orb_mode() -> AgentOrbMode {
+    AgentOrbMode::ThreeD
+}
+
 /// Clamp an auto-compact threshold percent into the supported range.
 pub fn clamp_auto_compact_threshold_pct(value: u8) -> u8 {
     value.clamp(
@@ -81,6 +85,14 @@ pub enum ThinkingLevel {
     Medium,
     High,
     Max,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentOrbMode {
+    #[serde(rename = "3d")]
+    ThreeD,
+    #[serde(rename = "2d")]
+    TwoD,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -128,6 +140,9 @@ pub struct AgentProviderSettings {
     /// Context-window occupancy percent that triggers auto-compaction.
     #[serde(default = "default_auto_compact_threshold_pct")]
     pub auto_compact_threshold_pct: u8,
+    /// Visual style for the Agent panel voice orb.
+    #[serde(default = "default_orb_mode")]
+    pub orb_mode: AgentOrbMode,
     #[serde(default)]
     pub model_cache_openrouter: Vec<ProviderModelEntry>,
     #[serde(default)]
@@ -145,6 +160,7 @@ impl Default for AgentProviderSettings {
             tool_loop_limit: DEFAULT_TOOL_LOOP_LIMIT,
             auto_compact_enabled: default_auto_compact_enabled(),
             auto_compact_threshold_pct: DEFAULT_AUTO_COMPACT_THRESHOLD_PCT,
+            orb_mode: default_orb_mode(),
             model_cache_openrouter: curated_models(AgentProviderKind::Openrouter),
             model_cache_anthropic: curated_models(AgentProviderKind::Anthropic),
             model_cache_openai: curated_models(AgentProviderKind::Openai),
@@ -192,6 +208,8 @@ pub struct AgentProviderSettingsPatch {
     pub auto_compact_enabled: bool,
     #[serde(default = "default_auto_compact_threshold_pct")]
     pub auto_compact_threshold_pct: u8,
+    #[serde(default = "default_orb_mode")]
+    pub orb_mode: AgentOrbMode,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -880,6 +898,7 @@ pub fn agent_settings_save(
     settings.auto_compact_enabled = patch.auto_compact_enabled;
     settings.auto_compact_threshold_pct =
         clamp_auto_compact_threshold_pct(patch.auto_compact_threshold_pct);
+    settings.orb_mode = patch.orb_mode;
     save_settings(&app, &settings)?;
     settings_view(&app, settings)
 }

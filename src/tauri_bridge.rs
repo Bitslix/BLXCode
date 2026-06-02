@@ -353,6 +353,14 @@ pub enum ThinkingLevel {
     Max,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum AgentOrbMode {
+    #[serde(rename = "3d")]
+    ThreeD,
+    #[serde(rename = "2d")]
+    TwoD,
+}
+
 /// Mirrors `agent_settings::DEFAULT_TOOL_LOOP_LIMIT` on the backend. Used as
 /// the serde default so older settings payloads without the field decode.
 pub const DEFAULT_TOOL_LOOP_LIMIT: u32 = 36;
@@ -375,6 +383,10 @@ fn default_auto_compact_enabled() -> bool {
 
 fn default_auto_compact_threshold_pct() -> u8 {
     DEFAULT_AUTO_COMPACT_THRESHOLD_PCT
+}
+
+fn default_orb_mode() -> AgentOrbMode {
+    AgentOrbMode::ThreeD
 }
 
 #[allow(dead_code)]
@@ -425,6 +437,8 @@ pub struct AgentProviderSettingsView {
     pub auto_compact_enabled: bool,
     #[serde(default = "default_auto_compact_threshold_pct")]
     pub auto_compact_threshold_pct: u8,
+    #[serde(default = "default_orb_mode")]
+    pub orb_mode: AgentOrbMode,
     pub model_cache_openrouter: Vec<ProviderModelEntry>,
     pub model_cache_anthropic: Vec<ProviderModelEntry>,
     pub model_cache_openai: Vec<ProviderModelEntry>,
@@ -543,6 +557,7 @@ pub async fn agent_settings_save(
     tool_loop_limit: u32,
     auto_compact_enabled: bool,
     auto_compact_threshold_pct: u8,
+    orb_mode: AgentOrbMode,
 ) -> Result<AgentProviderSettingsView, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -559,6 +574,7 @@ pub async fn agent_settings_save(
         tool_loop_limit: u32,
         auto_compact_enabled: bool,
         auto_compact_threshold_pct: u8,
+        orb_mode: AgentOrbMode,
     }
 
     invoke_typed(
@@ -571,6 +587,7 @@ pub async fn agent_settings_save(
                 tool_loop_limit,
                 auto_compact_enabled,
                 auto_compact_threshold_pct,
+                orb_mode,
             },
         },
     )
