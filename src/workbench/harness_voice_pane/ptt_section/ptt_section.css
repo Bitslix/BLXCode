@@ -10,6 +10,17 @@
     background: color-mix(in srgb, var(--bg-panel) 92%, var(--bg-raised));
 }
 
+.ptt-section__language {
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: color-mix(in srgb, var(--bg-raised) 72%, transparent);
+}
+
+.ptt-section__language .app-voice-stt-lang {
+    margin-top: 0;
+}
+
 .ptt-section__top {
     display: flex;
     align-items: flex-start;

@@ -1,5 +1,5 @@
 //! Reads repo-level agent instruction files (CLAUDE.md, AGENTS.md,
-//! GEMINI.md) from the workspace root and bundles them into a single
+//! GEMINI.md, .cursorrules) from the workspace root and bundles them into a single
 //! `<project-docs>` block that the session orchestrator prepends to the
 //! user's first prompt of every session.
 //!
@@ -15,7 +15,7 @@ use std::path::Path;
 /// Files we look for in the workspace root, in priority order. We render
 /// them all (in this order) when present; agents rarely have more than
 /// one of these and concatenating is cheaper than picking favourites.
-const CANDIDATE_FILES: &[&str] = &["CLAUDE.md", "AGENTS.md", "GEMINI.md"];
+const CANDIDATE_FILES: &[&str] = &["CLAUDE.md", "AGENTS.md", "GEMINI.md", ".cursorrules"];
 
 /// Shared preload cap across repo docs and the generated architecture map.
 const PRELOAD_BUDGET_BYTES: usize = 12 * 1024;
@@ -179,12 +179,15 @@ mod tests {
         fs::write(ws.join("AGENTS.md"), "agents body").unwrap();
         fs::write(ws.join("CLAUDE.md"), "claude body").unwrap();
         fs::write(ws.join("GEMINI.md"), "gemini body").unwrap();
+        fs::write(ws.join(".cursorrules"), "cursor body").unwrap();
         let block = render_first_turn_block(Some(ws.to_str().unwrap())).unwrap();
         let claude_pos = block.find("CLAUDE.md").unwrap();
         let agents_pos = block.find("AGENTS.md").unwrap();
         let gemini_pos = block.find("GEMINI.md").unwrap();
+        let cursor_pos = block.find(".cursorrules").unwrap();
         assert!(claude_pos < agents_pos);
         assert!(agents_pos < gemini_pos);
+        assert!(gemini_pos < cursor_pos);
         let _ = fs::remove_dir_all(ws);
     }
 

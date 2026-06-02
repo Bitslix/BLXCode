@@ -9,6 +9,7 @@ use crate::tauri_bridge::{
     WhisperQuality,
 };
 use crate::workbench::ptt_runtime::refresh_ptt_settings_cache;
+use crate::workbench::voice_app_controls::VoiceSttLanguageControls;
 
 use super::model_manager::ModelManager;
 
@@ -33,6 +34,10 @@ where
 
     view! {
         <section class="ptt-section">
+            <div class="ptt-section__language">
+                <VoiceSttLanguageControls settings=settings save=save />
+            </div>
+
             <header class="ptt-section__top">
                 <div class="ptt-section__copy">
                     <h5 class="ptt-section__head">{move || i18n.tr(I18nKey::VoicePttSection)()}</h5>

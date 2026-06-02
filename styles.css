@@ -2151,9 +2151,6 @@ button.workbench-shortcut-row--action:focus-visible {
   }
 }
 
-.app-voice-stt-lang {
-  margin-top: 0.65rem;
-}
 .app-prefs-radio input {
   accent-color: var(--accent-control);
 }
