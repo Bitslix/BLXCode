@@ -7001,7 +7001,7 @@ button {
   max-height: 100%;
   object-fit: contain;
   display: block;
-  filter: drop-shadow(0 4px 24px rgba(0, 0, 0, 0.35));
+  filter: drop-shadow(0 4px 24px var(--scrim-bg));
 }
 
 .file-preview__image-svg {
@@ -7013,7 +7013,7 @@ button {
   max-width: 100%;
   max-height: 100%;
   overflow: hidden;
-  filter: drop-shadow(0 4px 24px rgba(0, 0, 0, 0.35));
+  filter: drop-shadow(0 4px 24px var(--scrim-bg));
 }
 
 .file-preview__image-svg svg {
@@ -7026,9 +7026,9 @@ button {
 .file-preview__video {
   max-width: 100%;
   max-height: 100%;
-  background: #000;
+  background: var(--term-bg);
   border-radius: var(--radius-md);
-  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 6px 28px var(--scrim-bg);
 }
 
 .file-preview__markdown {
@@ -7059,9 +7059,9 @@ button {
 .file-preview__stage--policy-readme { --policy-accent: var(--accent); }
 .file-preview__stage--policy-support { --policy-accent: var(--info, var(--accent)); }
 .file-preview__stage--policy-agents { --policy-accent: var(--accent); }
-.file-preview__stage--policy-claude { --policy-accent: color-mix(in srgb, #d97706 55%, var(--accent)); }
+.file-preview__stage--policy-claude { --policy-accent: color-mix(in srgb, var(--agent-claude) 55%, var(--accent)); }
 .file-preview__stage--policy-codex { --policy-accent: var(--accent); }
-.file-preview__stage--policy-gemini { --policy-accent: color-mix(in srgb, #2563eb 45%, var(--accent)); }
+.file-preview__stage--policy-gemini { --policy-accent: color-mix(in srgb, var(--agent-gemini) 45%, var(--accent)); }
 
 .file-preview__policy-hero {
   display: flex;
@@ -7151,7 +7151,7 @@ button {
 }
 
 .file-preview__markdown a {
-  color: var(--accent, #66aaff);
+  color: var(--accent);
   text-decoration: underline;
 }
 
@@ -7179,7 +7179,7 @@ button {
 }
 
 .file-preview__markdown blockquote {
-  border-left: 3px solid var(--accent, #66aaff);
+  border-left: 3px solid var(--accent);
   padding: 0.2em 0.8em;
   color: var(--text-muted);
   background: var(--overlay-1, transparent);
@@ -7224,8 +7224,8 @@ button {
 }
 
 .file-preview__notice--error {
-  color: var(--danger, #f87171);
-  border-color: var(--danger, #f87171);
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 .ws-term-grid__resize {
@@ -9673,7 +9673,7 @@ body.blxcode-dragging-terminal * {
   width: 2.25rem;
   height: 2.25rem;
   padding: 0.35rem;
-  background: rgba(255, 255, 255, 0.94);
+  background: var(--hook-brand-bg);
   border: 1px solid var(--overlay-2);
   border-radius: var(--radius-lg);
 }
@@ -9722,15 +9722,15 @@ body.blxcode-dragging-terminal * {
 }
 
 .pointers-dialog__status--installed {
-  color: var(--success, #4ade80);
-  background: color-mix(in srgb, var(--success, #4ade80) 10%, transparent);
-  border-color: color-mix(in srgb, var(--success, #4ade80) 18%, transparent);
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  border-color: color-mix(in srgb, var(--success) 18%, transparent);
 }
 
 .pointers-dialog__status--missing {
-  color: #fbbf24;
-  background: rgba(251, 191, 36, 0.1);
-  border-color: rgba(251, 191, 36, 0.18);
+  color: var(--warning);
+  background: color-mix(in srgb, var(--warning) 10%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 18%, transparent);
 }
 
 .pointers-dialog__status--pending {
@@ -11782,8 +11782,8 @@ body.blxcode-dragging-terminal * {
 }
 
 .git-graph__node--selected {
-  background: #d7b428;
-  box-shadow: 0 0 0 2px color-mix(in srgb, #d7b428 45%, transparent);
+  background: var(--git-lane-1);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--git-lane-1) 45%, transparent);
 }
 
 .git-graph__commit-btn {
@@ -11941,7 +11941,7 @@ body.blxcode-dragging-terminal * {
   border-radius: var(--radius-sm);
   background: var(--bg-panel);
   color: var(--text);
-  box-shadow: 0 16px 40px color-mix(in srgb, #000 38%, transparent);
+  box-shadow: 0 16px 40px color-mix(in srgb, var(--scrim-bg) 68%, transparent);
 }
 
 .git-graph__hover-head,

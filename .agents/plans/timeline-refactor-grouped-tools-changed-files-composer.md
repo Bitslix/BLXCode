@@ -1,9 +1,11 @@
 # Timeline-Refactor: Grouped Toolcalls · Changed-Files-Card · Moderner Composer
 
-> Status: **in progress** — Phasen A, B, C umgesetzt & compile-verifiziert
-> (`cargo check -p blxcode-ui --target wasm32-unknown-unknown`); Phase D
-> (volle Verifikation + Nicht-EN-Übersetzungen) offen. Umsetzung direkt auf
-> `stage`, Commit pro Phase.
+> Status: **in progress** — Phasen A, B, C umgesetzt & compile-verifiziert;
+> Phase D: i18n + automatisierte Verifikation erledigt
+> (`cargo check -p blxcode-ui --target wasm32-unknown-unknown`,
+> `cargo test --workspace`, `scripts/lint_theme_tokens.sh`), manueller
+> `cargo tauri dev`-UI-Durchlauf offen. Changelog-Eintrag unter `[Unreleased]`
+> ergänzt. Umsetzung direkt auf `stage`, Commit pro Phase.
 > Frontend-Schwerpunkt (`blxcode-ui`); Backend nur lesend (vorhandene
 > Tauri-Commands), **keine** neuen `src-tauri`-Protokoll-Felder nötig.
 
@@ -242,15 +244,15 @@ den Referenzbildern, alles über **Theme-Tokens** + **i18n**:
 
 ### Phase D — i18n & Verifikation
 
-- [ ] `TL-D1` — **i18n**: alle neuen Strings als `I18nKey` (Compile-Time-
+- [x] `TL-D1` — **i18n**: alle neuen Strings als `I18nKey` (Compile-Time-
   Exhaustiveness → **neue Keys in jeder** `src/i18n/locales/*.rs`). Kandidaten:
   `AgChangedFilesTitle`, `AgChangedFilesCollapseAll`, `AgChangedFilesViewDiff`,
   `AgComposerPh` (falls vom bestehenden `AgPromptPh` abweichend),
   `AgComposerModelSearchPh`, `AgComposerSelectModel`,
   `AgComposerThinking*`, `AgModeSupervised`/`AgModeAutoAccept`/`AgModeFullAccess`
   (+ Beschreibungen). Nicht-englische Tabellen via
-  `scripts/render_i18n_locales_from_en.py` (missing-keys) nachziehen.
-- [ ] `TL-D2` — **Verifikation**:
+  `scripts/tools/render_i18n_locales_from_en.py` (missing-keys) nachziehen.
+- [>] `TL-D2` — **Verifikation**:
   `cargo check -p blxcode-ui --target wasm32-unknown-unknown`,
   `cargo test --workspace`, `scripts/lint_theme_tokens.sh`. Manuell in
   `cargo tauri dev`: Tool-Grouping (mehrere reads, gemischt), Changed-Files-Card
