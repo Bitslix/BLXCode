@@ -37,13 +37,16 @@ use crate::workbench::agent_panel::session_stats::{
     latest_active_thinking_text, AgentSessionStats,
 };
 use crate::workbench::agent_panel::task_list::TaskSection;
-use crate::workbench::agent_panel::timeline::{ChatLineIndexColumn, TurnNodeView};
+use crate::workbench::agent_panel::timeline::{
+    AgentTimelineName, ChatLineIndexColumn, TurnNodeView,
+};
 use crate::workbench::agent_panel::voice_orb::{handle_voice_event, VoiceOrb, VoiceOrbHandle};
 use crate::workbench::agent_timeline::{ChangedFileEntry, TimelineDoc};
 use crate::workbench::terminal_slot_dnd::TerminalSlotDragService;
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
 use leptos::html;
+use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use send_wrapper::SendWrapper;
@@ -64,6 +67,28 @@ const THINKING_IDLE_MESSAGES: [&str; 10] = [
     "Refining",
 ];
 
+const DEFAULT_AGENT_TIMELINE_NAME: &str = "BLXCodey";
+
+fn resolve_agent_timeline_name(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        DEFAULT_AGENT_TIMELINE_NAME.to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+fn refresh_agent_timeline_name(signal: RwSignal<String>) {
+    if !is_tauri_shell() {
+        return;
+    }
+    leptos::task::spawn_local(async move {
+        if let Ok(view) = agent_settings_get().await {
+            signal.set(resolve_agent_timeline_name(&view.agent_nickname));
+        }
+    });
+}
+
 #[component]
 pub fn AgentPanelDock() -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
@@ -78,6 +103,8 @@ pub fn AgentPanelDock() -> impl IntoView {
     let context_open = RwSignal::new(false);
     let drop_state = RwSignal::new(DropZoneState::Inactive);
     let model_label = RwSignal::new(String::new());
+    let agent_timeline_name = RwSignal::new(DEFAULT_AGENT_TIMELINE_NAME.to_string());
+    provide_context(AgentTimelineName(agent_timeline_name));
     // Per-session view of the persisted `WorkspaceEntry.agent_image_mode`.
     // Synced on workspace switch and on toggle (writer also persists to the
     // workspace entry so the flag survives reloads).
@@ -143,6 +170,7 @@ pub fn AgentPanelDock() -> impl IntoView {
         leptos::task::spawn_local(async move {
             if let Ok(view) = agent_settings_get().await {
                 model_label.set(format!("{}/{}", view.provider.as_str(), view.model_id));
+                agent_timeline_name.set(resolve_agent_timeline_name(&view.agent_nickname));
                 auto_compact_enabled.set(view.auto_compact_enabled);
                 auto_compact_threshold.set(view.auto_compact_threshold_pct);
             }
@@ -168,11 +196,17 @@ pub fn AgentPanelDock() -> impl IntoView {
                     context_length.set(info.context_length);
                 }
                 if let Ok(view) = agent_settings_get().await {
+                    agent_timeline_name.set(resolve_agent_timeline_name(&view.agent_nickname));
                     auto_compact_enabled.set(view.auto_compact_enabled);
                     auto_compact_threshold.set(view.auto_compact_threshold_pct);
                 }
             });
         });
+        let settings_change_handle =
+            window_event_listener_untyped("blxcode-agent-settings-changed", move |_| {
+                refresh_agent_timeline_name(agent_timeline_name);
+            });
+        on_cleanup(move || drop(settings_change_handle));
     }
 
     Effect::new(move |_| {

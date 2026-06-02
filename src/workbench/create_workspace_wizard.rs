@@ -337,7 +337,10 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
 
                 <Show when=step0.clone()>
                     <div class="ws-config__group">
-                        <label class="ws-config__label">{move || i18n.tr(I18nKey::WsConnectionType)()}</label>
+                        <label class="ws-config__label">
+                            <LxIcon icon=icondata::LuCable width="0.8rem" height="0.8rem" />
+                            <span>{move || i18n.tr(I18nKey::WsConnectionType)()}</span>
+                        </label>
                         <select
                             class="ws-config__field"
                             prop:value=move || draft_memo.get().remote_connection_id.unwrap_or_default()
@@ -381,7 +384,10 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                     </div>
 
                     <div class="ws-config__group">
-                        <label class="ws-config__label">{move || i18n.tr(I18nKey::WzNameLabel)()}</label>
+                        <label class="ws-config__label">
+                            <LxIcon icon=icondata::LuTag width="0.8rem" height="0.8rem" />
+                            <span>{move || i18n.tr(I18nKey::WzNameLabel)()}</span>
+                        </label>
                         <input
                             class="ws-config__field"
                             type="text"
@@ -395,13 +401,16 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                     </div>
 
                     <div class="ws-config__group">
-                        <label class="ws-config__label">{move || {
-                            if is_remote() {
-                                i18n.tr(I18nKey::WsRemoteDir)()
-                            } else {
-                                i18n.tr(I18nKey::WzCwdLabel)()
-                            }
-                        }}</label>
+                        <label class="ws-config__label">
+                            <LxIcon icon=icondata::LuFolderOpen width="0.8rem" height="0.8rem" />
+                            <span>{move || {
+                                if is_remote() {
+                                    i18n.tr(I18nKey::WsRemoteDir)()
+                                } else {
+                                    i18n.tr(I18nKey::WzCwdLabel)()
+                                }
+                            }}</span>
+                        </label>
                         <div id=wrap_id.clone() class="ws-config__cwd">
                             <span class="ws-config__cwd-icon" aria-hidden="true">
                                 <LxIcon icon=icondata::LuFolder width="1rem" height="1rem" />
@@ -629,7 +638,10 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                     </div>
 
                     <div class="ws-config__group">
-                        <label class="ws-config__label">{move || i18n.tr(I18nKey::WzTemplatesHeading)()}</label>
+                        <label class="ws-config__label">
+                            <LxIcon icon=icondata::LuLayoutGrid width="0.8rem" height="0.8rem" />
+                            <span>{move || i18n.tr(I18nKey::WzTemplatesHeading)()}</span>
+                        </label>
                         <div class="ws-config__layout-row">
                             {PRESETS
                                 .iter()
@@ -679,7 +691,10 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                     </div>
 
                     <div class="ws-config__group">
-                        <label class="ws-config__label">{move || i18n.tr(I18nKey::WzSessionRoleLabel)()}</label>
+                        <label class="ws-config__label">
+                            <LxIcon icon=icondata::LuBot width="0.8rem" height="0.8rem" />
+                            <span>{move || i18n.tr(I18nKey::WzSessionRoleLabel)()}</span>
+                        </label>
                         <select
                             class="ws-config__field"
                             prop:value=move || draft_memo.get().session_role.unwrap_or_default()
@@ -739,7 +754,10 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
 
                     <div class="ws-config__group">
                         <div class="ws-config__presets-head">
-                            <label class="ws-config__label">{move || i18n.tr(I18nKey::WzPresetsHeading)()}</label>
+                            <label class="ws-config__label">
+                                <LxIcon icon=icondata::LuRocket width="0.8rem" height="0.8rem" />
+                                <span>{move || i18n.tr(I18nKey::WzPresetsHeading)()}</span>
+                            </label>
                             <span class="ws-config__presets-sub">{move || i18n.tr(I18nKey::WzPresetsSubline)()}</span>
                         </div>
                         <div class="ws-config__presets-row">

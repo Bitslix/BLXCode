@@ -72,6 +72,24 @@ pub enum DisplayTimelineItem {
     },
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct AgentTimelineName(pub RwSignal<String>);
+
+#[component]
+fn AgentNameLabel() -> impl IntoView {
+    let name = use_context::<AgentTimelineName>();
+    view! {
+        <strong>
+            {move || {
+                name
+                    .map(|ctx| ctx.0.get())
+                    .filter(|value| !value.trim().is_empty())
+                    .unwrap_or_else(|| "BLXCodey".to_string())
+            }}
+        </strong>
+    }
+}
+
 #[inline]
 fn persist_agent_timeline(
     persist: Option<(WorkbenchService, u64)>,
@@ -1020,7 +1038,7 @@ pub fn TimelineRow(
             <li class="agent-chat-line agent-chat-line--agent">
                 <ChatLineIndexColumn line_no=line_no.clone() tts_text=Some(tts_text) voice_handle=voice_handle />
                 <div class="agent-chat-body">
-                    <strong>{move || i18n.tr(I18nKey::AgAssistant)()}</strong>
+                    <AgentNameLabel />
                     <div class="workbench-agent-markdown" inner_html=render_markdown_to_html(&text)></div>
                     <div class="agent-chat-actions">
                         <button
@@ -1586,6 +1604,7 @@ fn TurnPartView(
                 <li class="agent-chat-line agent-chat-line--agent timeline-tree" style=indent_style>
                     <ChatLineIndexColumn line_no=line_no tts_text=tts_text voice_handle=voice_handle />
                     <div class="agent-chat-body">
+                        <AgentNameLabel />
                         <div class="workbench-agent-markdown" data-part-id=id inner_html=move || html.get()></div>
                         <TurnMetricsBar metrics=metrics context=BarContext::Main />
                     </div>
