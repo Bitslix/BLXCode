@@ -469,7 +469,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                 <div class="agent-section__head agent-chat-head">
                     <h3>{move || i18n.tr(I18nKey::AgChatHeading)()}</h3>
                     <div class="agent-chat-head__actions">
-                        <span class="blx-tip-anchor blx-tip-anchor--bottom agent-chat-head__tip">
+                        <span class="blx-tip-anchor blx-tip-anchor--left agent-chat-head__tip">
                             <button
                                 type="button"
                                 class="agent-chat-head__icon-btn"
@@ -489,7 +489,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                                 <span class="blx-tooltip__hint">{move || i18n.tr(I18nKey::AgCompactSessionAria)()}</span>
                             </span>
                         </span>
-                        <span class="blx-tip-anchor blx-tip-anchor--bottom agent-chat-head__tip">
+                        <span class="blx-tip-anchor blx-tip-anchor--left agent-chat-head__tip">
                             <button
                                 type="button"
                                 class=move || {
@@ -522,7 +522,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                                 <span class="blx-tooltip__hint">"Attach images or generate visual output"</span>
                             </span>
                         </span>
-                        <span class="blx-tip-anchor blx-tip-anchor--bottom agent-chat-head__tip">
+                        <span class="blx-tip-anchor blx-tip-anchor--left agent-chat-head__tip">
                             <button
                                 type="button"
                                 class="agent-chat-head__icon-btn"
@@ -545,7 +545,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                                 <span class="blx-tooltip__hint">"Slide to the latest output"</span>
                             </span>
                         </span>
-                        <span class="blx-tip-anchor blx-tip-anchor--bottom agent-chat-head__tip">
+                        <span class="blx-tip-anchor blx-tip-anchor--left agent-chat-head__tip">
                             <button
                                 type="button"
                                 class="agent-chat-head__icon-btn"
@@ -585,7 +585,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                                 <span class="blx-tooltip__hint">"Resize the Agent workspace"</span>
                             </span>
                         </span>
-                        <span class="blx-tip-anchor blx-tip-anchor--bottom agent-chat-head__tip">
+                        <span class="blx-tip-anchor blx-tip-anchor--left agent-chat-head__tip">
                             <button
                                 type="button"
                                 class="agent-chat-head__reset"

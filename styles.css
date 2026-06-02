@@ -1353,11 +1353,32 @@ body {
   border-top: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border-strong));
 }
 
+.blx-tip-anchor--left > .blx-tooltip {
+  right: calc(100% + 0.55rem);
+  top: 50%;
+  transform: translate(0.32rem, -50%) scale(0.97);
+  transform-origin: right center;
+}
+
+.blx-tip-anchor--left > .blx-tooltip::after {
+  right: -0.38rem;
+  top: 50%;
+  margin-top: -0.35rem;
+  border: 0;
+  border-right: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border-strong));
+  border-top: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border-strong));
+}
+
 .blx-tip-anchor:hover > .blx-tooltip,
 .blx-tip-anchor:focus-within > .blx-tooltip {
   opacity: 1;
   pointer-events: auto;
   transform: translate(-50%, 0) scale(1);
+}
+
+.blx-tip-anchor--left:hover > .blx-tooltip,
+.blx-tip-anchor--left:focus-within > .blx-tooltip {
+  transform: translate(0, -50%) scale(1);
 }
 
 /* Sidebar voice-orb tooltip — reuses `.blx-tooltip` visuals, supplies its own
