@@ -476,6 +476,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                 />
                 <VoiceOrb
                     handle=voice_handle
+                    compact=Signal::derive(move || chat_maximized.get())
                     thinking=busy
                     on_transcript=move |text: String, auto_send: bool| {
                         if auto_send {

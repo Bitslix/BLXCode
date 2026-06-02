@@ -3263,7 +3263,61 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .agent-hero--compact .agent-session-stats {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.agent-hero--compact .agent-session-stats__model {
   display: none;
+}
+
+.agent-hero--compact .agent-session-stats__rows {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  gap: 0.42rem;
+  padding: 0;
+}
+
+.agent-hero--compact .agent-session-stats__row {
+  display: none;
+}
+
+.agent-hero--compact .agent-session-stats__row--context,
+.agent-hero--compact .agent-session-stats__row--costs {
+  display: grid;
+  grid-template-columns: auto minmax(0, auto) minmax(0, 1fr);
+  min-height: 1.72rem;
+  gap: 0.34rem;
+  padding: 0.2rem 0.48rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-panel) 52%, transparent);
+}
+
+.agent-hero--compact .agent-session-stats__icon svg {
+  width: 0.72rem;
+  height: 0.72rem;
+}
+
+.agent-hero--compact .agent-session-stats__label {
+  font-size: 0.66rem;
+}
+
+.agent-hero--compact .agent-session-stats__value {
+  font-size: 0.68rem;
+}
+
+.agent-hero--compact .agent-session-stats__value--context {
+  gap: 0.32rem;
+}
+
+.agent-hero--compact .agent-session-stats__meter {
+  flex-basis: 2.05rem;
+  width: 2.05rem;
 }
 
 .agent-hero--compact .agent-thinking-stream {

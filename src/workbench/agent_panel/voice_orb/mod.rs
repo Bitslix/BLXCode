@@ -156,6 +156,10 @@ pub async fn refresh_tts_ready(handle: VoiceOrbHandle) {
 #[component]
 pub fn VoiceOrb<F>(
     handle: VoiceOrbHandle,
+    /// True in the maximized chat header; keeps the header light and forces
+    /// the low-cost 2D orb.
+    #[prop(into)]
+    compact: Signal<bool>,
     /// True while the agent is generating a response; drives the Drobo orb's
     /// "thinking" glow animation.
     #[prop(into)]
@@ -391,7 +395,7 @@ where
                 </span>
                 <span class="drobo-orb" aria-hidden="true">
                     <Show
-                        when=move || orb_mode.get() == AgentOrbMode::ThreeD
+                        when=move || !compact.get() && orb_mode.get() == AgentOrbMode::ThreeD
                         fallback=move || view! {
                             <span class="drobo-orb__stage drobo-orb__stage--2d">
                                 <span class="agent-hero__logo drobo-orb__fallback">"B"</span>

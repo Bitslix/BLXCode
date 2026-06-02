@@ -298,6 +298,7 @@ pub fn AgentSessionStats(
                     icon=icondata::LuCircleDollarSign
                     label=Signal::derive(move || i18n.tr(I18nKey::AgStatsCosts)().to_string())
                     value=cost_text
+                    extra_class="agent-session-stats__row--costs"
                 />
             </div>
         </section>
@@ -305,9 +306,20 @@ pub fn AgentSessionStats(
 }
 
 #[component]
-fn StatsRow(icon: icondata::Icon, label: Signal<String>, value: Signal<String>) -> impl IntoView {
+fn StatsRow(
+    icon: icondata::Icon,
+    label: Signal<String>,
+    value: Signal<String>,
+    #[prop(optional)] extra_class: &'static str,
+) -> impl IntoView {
     view! {
-        <div class="agent-session-stats__row">
+        <div class=move || {
+            if extra_class.is_empty() {
+                "agent-session-stats__row".to_string()
+            } else {
+                format!("agent-session-stats__row {extra_class}")
+            }
+        }>
             <span class="agent-session-stats__icon" aria-hidden="true">
                 <LxIcon icon=icon width="0.78rem" height="0.78rem" />
             </span>
