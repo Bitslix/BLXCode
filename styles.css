@@ -10768,6 +10768,7 @@ body.blxcode-dragging-terminal * {
 }
 
 .git-graph__line {
+  position: relative;
   display: flex;
   align-items: center;
   min-height: 22px;
@@ -10775,9 +10776,9 @@ body.blxcode-dragging-terminal * {
 }
 
 .git-graph__gutter {
-  position: relative;
-  flex: 0 0 calc(var(--git-graph-gutter-pad) * 2 + var(--git-graph-lanes, 1) * var(--git-graph-lane-step));
-  align-self: stretch;
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: calc(var(--git-graph-gutter-pad) * 2 + var(--git-graph-lanes, 1) * var(--git-graph-lane-step));
   min-width: 32px;
   user-select: none;
 }
@@ -10836,7 +10837,10 @@ body.blxcode-dragging-terminal * {
   color: inherit;
   font: inherit;
   text-align: left;
-  padding: 0 0.2rem 0 0;
+  margin-left: calc(
+    var(--git-graph-gutter-pad) + var(--commit-lane, 0) * var(--git-graph-lane-step) + 0.58rem
+  );
+  padding: 0 0.2rem 0 0.1rem;
   cursor: pointer;
 }
 
@@ -10865,7 +10869,9 @@ body.blxcode-dragging-terminal * {
 }
 
 .git-graph__expanded {
-  margin-left: calc(var(--git-graph-gutter-pad) * 2 + var(--git-graph-lanes, 1) * var(--git-graph-lane-step));
+  margin-left: calc(
+    var(--git-graph-gutter-pad) + var(--commit-lane, 0) * var(--git-graph-lane-step) + 0.68rem
+  );
   padding: 0 0.65rem 0.25rem 0;
 }
 
@@ -10962,15 +10968,14 @@ body.blxcode-dragging-terminal * {
 }
 
 .git-graph__hover-card {
-  position: absolute;
-  z-index: 20;
-  left: min(
-    calc(var(--git-graph-gutter-pad) * 2 + var(--git-graph-lanes, 1) * var(--git-graph-lane-step) + 24px),
-    58%
-  );
-  top: 20px;
+  position: fixed;
+  z-index: 10000;
+  left: 0.75rem;
+  top: 0.75rem;
   width: min(420px, calc(100vw - 32px));
-  max-width: 92%;
+  max-width: min(92vw, 420px);
+  max-height: min(70vh, 520px);
+  overflow: auto;
   padding: 0.65rem;
   border: 1px solid var(--border);
   border-radius: 4px;

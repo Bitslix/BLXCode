@@ -20,6 +20,7 @@ use send_wrapper::SendWrapper;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use wasm_bindgen::JsCast;
 
 #[component]
 pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl IntoView {
@@ -252,6 +253,10 @@ fn GitGraphBody(
     error_kind: RwSignal<Option<GraphErrorKind>>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let selected_oid = RwSignal::new(None::<String>);
+    let hovered_oid = RwSignal::new(None::<String>);
+    let details = RwSignal::new(HashMap::<String, GitCommitDetails>::new());
+    let loading = RwSignal::new(Vec::<String>::new());
 
     view! {
         <div class="git-graph">
@@ -267,7 +272,15 @@ fn GitGraphBody(
                         }
                         .into_any();
                     }
-                    view! { <GitGraphList layout=g /> }.into_any()
+                    view! {
+                        <GitGraphList
+                            layout=g
+                            selected_oid=selected_oid
+                            hovered_oid=hovered_oid
+                            details=details
+                            loading=loading
+                        />
+                    }.into_any()
                 }
             >
                 <p class="sidebar-view-section__empty">
@@ -282,12 +295,14 @@ fn GitGraphBody(
 }
 
 #[component]
-fn GitGraphList(layout: GitGraphLayout) -> impl IntoView {
+fn GitGraphList(
+    layout: GitGraphLayout,
+    selected_oid: RwSignal<Option<String>>,
+    hovered_oid: RwSignal<Option<String>>,
+    details: RwSignal<HashMap<String, GitCommitDetails>>,
+    loading: RwSignal<Vec<String>>,
+) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
-    let selected_oid = RwSignal::new(None::<String>);
-    let hovered_oid = RwSignal::new(None::<String>);
-    let details = RwSignal::new(HashMap::<String, GitCommitDetails>::new());
-    let loading = RwSignal::new(Vec::<String>::new());
     let load_details = Callback::new(move |oid: String| {
         if details.with_untracked(|m| m.contains_key(&oid))
             || loading.with_untracked(|v| v.iter().any(|x| x == &oid))
@@ -356,6 +371,8 @@ fn GitGraphRow(
     let oid_for_detail_hover = oid.clone();
     let commit_for_expanded = commit.clone();
     let commit_for_hover = commit.clone();
+    let commit_lane = entry.lane;
+    let hover_card_style = RwSignal::new(default_hover_card_style());
     let expanded_signal =
         Signal::derive(move || selected_oid.get().as_deref() == Some(oid_for_expanded.as_str()));
     let expanded_detail = Signal::derive(move || {
@@ -385,7 +402,9 @@ fn GitGraphRow(
     view! {
         <li
             class=row_class
-            on:mouseenter=move |_| {
+            style=format!("--commit-lane:{commit_lane};")
+            on:mouseenter=move |ev: web_sys::MouseEvent| {
+                hover_card_style.set(hover_card_style_for_target(ev.current_target()));
                 hovered_oid.set(Some(oid_for_mouse.clone()));
                 load_details.run(oid_for_mouse.clone());
             }
@@ -406,7 +425,8 @@ fn GitGraphRow(
                             load_details.run(oid_for_click.clone());
                         }
                     }
-                    on:focus=move |_| {
+                    on:focus=move |ev: web_sys::FocusEvent| {
+                        hover_card_style.set(hover_card_style_for_target(ev.current_target()));
                         hovered_oid.set(Some(oid_for_focus.clone()));
                         load_details.run(oid_for_focus.clone());
                     }
@@ -427,6 +447,7 @@ fn GitGraphRow(
                     detail=hover_detail
                     loading=hover_loading
                     fallback_commit=commit_for_hover.clone()
+                    card_style=Signal::derive(move || hover_card_style.get())
                 />
             </Show>
         </li>
@@ -542,6 +563,7 @@ fn GitCommitHoverCard(
     detail: Signal<Option<GitCommitDetails>>,
     loading: Signal<bool>,
     fallback_commit: GitCommitNode,
+    card_style: Signal<String>,
 ) -> impl IntoView {
     let fallback_decorations = fallback_commit.decorations.clone();
     let github_url = Signal::derive(move || {
@@ -549,8 +571,9 @@ fn GitCommitHoverCard(
             .get()
             .and_then(|d| github_commit_url(d.remote_url.as_deref(), &d.oid))
     });
+    let show_loading = Signal::derive(move || loading.get() && detail.get().is_none());
     view! {
-        <aside class="git-graph__hover-card" role="tooltip">
+        <aside class="git-graph__hover-card" role="tooltip" style=move || card_style.get()>
             {move || {
                 let d = detail.get();
                 let subject = d.as_ref().map(|d| d.subject.clone()).unwrap_or_else(|| fallback_commit.subject.clone());
@@ -591,7 +614,7 @@ fn GitCommitHoverCard(
                         </div>
                         <footer class="git-graph__hover-foot">
                             <span class="git-graph__sha">{short}</span>
-                            <Show when=move || loading.get()>
+                            <Show when=move || show_loading.get()>
                                 <span class="git-graph__hover-loading">"Loading..."</span>
                             </Show>
                             <Show when=move || github_url.get().is_some()>
@@ -667,4 +690,43 @@ fn github_commit_url(remote: Option<&str>, oid: &str) -> Option<String> {
         return None;
     }
     Some(format!("https://github.com/{path}/commit/{oid}"))
+}
+
+fn default_hover_card_style() -> String {
+    "left: 0.75rem; top: 0.75rem;".into()
+}
+
+fn hover_card_style_for_target(target: Option<web_sys::EventTarget>) -> String {
+    let Some(target) = target else {
+        return default_hover_card_style();
+    };
+    let Ok(element) = target.dyn_into::<web_sys::Element>() else {
+        return default_hover_card_style();
+    };
+    let rect = element.get_bounding_client_rect();
+    let (viewport_w, viewport_h) = viewport_size();
+    let card_w = 420.0_f64.min((viewport_w - 32.0).max(260.0));
+    let card_h = 220.0;
+    let left = (rect.right() + 8.0).min((viewport_w - card_w - 12.0).max(12.0));
+    let top = (rect.top() - 8.0)
+        .min((viewport_h - card_h - 12.0).max(12.0))
+        .max(12.0);
+    format!("left:{left:.0}px;top:{top:.0}px;")
+}
+
+fn viewport_size() -> (f64, f64) {
+    let Some(window) = web_sys::window() else {
+        return (1280.0, 720.0);
+    };
+    let width = window
+        .inner_width()
+        .ok()
+        .and_then(|v| v.as_f64())
+        .unwrap_or(1280.0);
+    let height = window
+        .inner_height()
+        .ok()
+        .and_then(|v| v.as_f64())
+        .unwrap_or(720.0);
+    (width, height)
 }
