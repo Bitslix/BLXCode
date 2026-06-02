@@ -58,9 +58,10 @@ pub fn TaskSection(
 
     // Session runtime: tick once per second and diff against the session start.
     let now_ms = RwSignal::new(js_sys::Date::now());
-    if let Ok(handle) =
-        set_interval_with_handle(move || now_ms.set(js_sys::Date::now()), Duration::from_secs(1))
-    {
+    if let Ok(handle) = set_interval_with_handle(
+        move || now_ms.set(js_sys::Date::now()),
+        Duration::from_secs(1),
+    ) {
         on_cleanup(move || handle.clear());
     }
     let usage = Memo::new(move |_| {
@@ -95,7 +96,8 @@ pub fn TaskSection(
     };
 
     view! {
-        <section class="agent-section agent-section--tasks" aria-labelledby="agent-tasks-title">
+        <Show when=move || { counts.get().0 > 0 }>
+            <section class="agent-section agent-section--tasks" aria-labelledby="agent-tasks-title">
             <div class="agent-tasks-bar">
                 <button
                     type="button"
@@ -167,19 +169,6 @@ pub fn TaskSection(
                 <div id="agent-task-list" class="agent-task-list">
                     {move || {
                         let snapshot = snapshot.get();
-                        if snapshot.tasks.is_empty() {
-                            return view! {
-                                <ol class="agent-task-list__group">
-                                    <li class="agent-task agent-task--empty">
-                                        <div>
-                                            <strong>{move || i18n.tr(I18nKey::AgTasksEmpty)()}</strong>
-                                            <small>{move || i18n.tr(I18nKey::AgTasksEmptyHint)()}</small>
-                                        </div>
-                                    </li>
-                                </ol>
-                            }
-                            .into_any();
-                        }
                         let mut by_plan: BTreeMap<String, Vec<AgentTask>> = BTreeMap::new();
                         let mut free_tasks: Vec<AgentTask> = Vec::new();
                         for task in snapshot.tasks {
@@ -246,7 +235,8 @@ pub fn TaskSection(
                     }}
                 </div>
             </Show>
-        </section>
+            </section>
+        </Show>
     }
 }
 
@@ -266,7 +256,10 @@ fn TaskGroupTitle(icon: Icon, label: String) -> impl IntoView {
 fn TaskRow(task: AgentTask, active: bool) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let meta = task_meta(&task);
-    let status_cls = format!("agent-task__status agent-task__status--{}", status_class(&task.status));
+    let status_cls = format!(
+        "agent-task__status agent-task__status--{}",
+        status_class(&task.status)
+    );
     let status_text = i18n.tr(status_key(&task.status))().to_string();
     view! {
         <li class="agent-task" class:agent-task--active=active>

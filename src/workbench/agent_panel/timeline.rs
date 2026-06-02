@@ -1215,6 +1215,15 @@ pub fn TimelineRow(
                                                 <span class="agent-tool-row__status" aria-hidden="true">
                                                     <LxIcon icon=status_icon width="0.78rem" height="0.78rem" />
                                                 </span>
+                                                <Show when=move || has_detail>
+                                                    <span
+                                                        class="agent-tool-row__chevron"
+                                                        class:agent-tool-row__chevron--open=move || detail_open.get()
+                                                        aria-hidden="true"
+                                                    >
+                                                        <LxIcon icon=icondata::LuChevronDown width="0.82rem" height="0.82rem" />
+                                                    </span>
+                                                </Show>
                                             </button>
                                             {move || {
                                                 if !has_detail || !detail_open.get() {
@@ -2139,6 +2148,15 @@ fn ToolActivityRow(
                         <span class="agent-tool-row__status" aria-hidden="true">
                             <LxIcon icon=status_icon width="0.78rem" height="0.78rem" />
                         </span>
+                        <Show when=move || has_detail>
+                            <span
+                                class="agent-tool-row__chevron"
+                                class:agent-tool-row__chevron--open=move || detail_open.get()
+                                aria-hidden="true"
+                            >
+                                <LxIcon icon=icondata::LuChevronDown width="0.82rem" height="0.82rem" />
+                            </span>
+                        </Show>
                     </button>
                     <Show when=move || has_detail && detail_open.get()>
                         <ToolDetailContent detail=detail_text.clone() />

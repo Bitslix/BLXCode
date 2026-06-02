@@ -4191,7 +4191,8 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .agent-tool-row__head {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 0.42rem;
   width: 100%;
@@ -4231,14 +4232,15 @@ button.workbench-shortcut-row--action:focus-visible {
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--text-muted);
-  flex: 0 0 auto;
+  min-width: 0;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .agent-tool-row__arg {
   font-family: var(--font-mono);
   font-size: 0.66rem;
   color: var(--text-faint, var(--text-muted));
-  flex: 0 1 auto;
   min-width: 0;
   max-width: min(22rem, 52vw);
   overflow: hidden;
@@ -4254,7 +4256,31 @@ button.workbench-shortcut-row--action:focus-visible {
   height: 1rem;
   border-radius: var(--radius-pill);
   color: color-mix(in srgb, var(--accent) 78%, var(--text-muted));
-  flex: 0 0 auto;
+  justify-self: end;
+}
+
+.agent-tool-row__chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  color: var(--text-faint);
+  opacity: 0.74;
+  transition:
+    color 120ms ease,
+    opacity 120ms ease,
+    transform 140ms ease;
+}
+
+.agent-tool-row:hover .agent-tool-row__chevron,
+.agent-tool-row__head:focus-visible .agent-tool-row__chevron {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.agent-tool-row__chevron--open {
+  transform: rotate(180deg);
 }
 
 .agent-tool-row--pending .agent-tool-row__status {
