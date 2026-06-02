@@ -407,7 +407,6 @@ pub fn AgentPanelDock() -> impl IntoView {
                             i18n.tr(I18nKey::AgStateStandby)().to_string()
                         }
                     }}</h2>
-                    <p>{move || i18n.tr(I18nKey::AgTagline)()}</p>
                 </div>
             </header>
 

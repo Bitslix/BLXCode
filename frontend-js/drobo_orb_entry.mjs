@@ -7,6 +7,12 @@ let nextId = 1;
 
 const loader = new GLTFLoader();
 const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+const BASE_ROTATION = {
+  x: -0.05,
+  y: -Math.PI / 2 + 0.08,
+  z: -0.02,
+};
+const MODEL_Y_OFFSET = 0.22;
 
 function readCssVar(name, fallback = "") {
   try {
@@ -97,7 +103,7 @@ function fitModelToGroup(model, group) {
   box.getCenter(center);
   const maxSide = Math.max(size.x, size.y, size.z) || 1;
   model.position.sub(center);
-  model.scale.setScalar(2.28 / maxSide);
+  model.scale.setScalar(2.48 / maxSide);
   group.add(model);
 }
 
@@ -147,11 +153,11 @@ function create(container) {
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 100);
-  camera.position.set(0, 0.08, 5.2);
+  camera.position.set(0, 0.12, 4.95);
   camera.lookAt(0, 0, 0);
 
   const group = new THREE.Group();
-  group.rotation.set(-0.08, 0.28, -0.035);
+  group.rotation.set(BASE_ROTATION.x, BASE_ROTATION.y, BASE_ROTATION.z);
   scene.add(group);
 
   const ambient = new THREE.HemisphereLight(0xffffff, 0x0d1018, 1.65);
@@ -182,7 +188,7 @@ function create(container) {
     createdAt: performance.now(),
     pointer: { x: 0, y: 0 },
     target: { x: 0, y: 0 },
-    rotation: { x: -0.08, y: 0.28, z: -0.035 },
+    rotation: { x: BASE_ROTATION.x, y: BASE_ROTATION.y, z: BASE_ROTATION.z },
     state: { active: false, transcribing: false, compact: false },
     reducedMotion: Boolean(prefersReducedMotion?.matches),
   };
@@ -241,9 +247,9 @@ function animate(id) {
     const cursorScale = rec.reducedMotion ? 0.11 : compact ? 0.22 : 0.34;
     const idle = (now - rec.createdAt) / 1000;
 
-    rec.target.x = -0.08 - rec.pointer.y * cursorScale + Math.sin(idle * 1.4) * idleScale;
-    rec.target.y = 0.28 + rec.pointer.x * cursorScale + Math.sin(idle * 0.8) * idleScale;
-    rec.target.z = -0.035 + rec.pointer.x * 0.06 + Math.sin(idle * 1.1) * idleScale * 0.28;
+    rec.target.x = BASE_ROTATION.x - rec.pointer.y * cursorScale + Math.sin(idle * 1.4) * idleScale;
+    rec.target.y = BASE_ROTATION.y + rec.pointer.x * cursorScale + Math.sin(idle * 0.8) * idleScale;
+    rec.target.z = BASE_ROTATION.z + rec.pointer.x * 0.06 + Math.sin(idle * 1.1) * idleScale * 0.28;
 
     const damp = rec.reducedMotion ? 0.1 : 0.075;
     rec.rotation.x += (rec.target.x - rec.rotation.x) * damp;
@@ -252,7 +258,7 @@ function animate(id) {
     rec.group.rotation.set(rec.rotation.x, rec.rotation.y, rec.rotation.z);
 
     const bob = rec.reducedMotion ? 0 : Math.sin(idle * (rec.state.active ? 3.2 : 1.7)) * (compact ? 0.012 : 0.026);
-    rec.group.position.y = bob;
+    rec.group.position.y = MODEL_Y_OFFSET + bob;
     rec.group.scale.setScalar(1 + activeBoost * 0.045 + pulseBoost * (0.025 + Math.sin(idle * 8) * 0.012));
 
     rec.renderer.render(rec.scene, rec.camera);
@@ -280,7 +286,7 @@ function resize(id) {
   const height = Math.max(1, Math.floor(rect.height || rec.container.clientHeight || 1));
   rec.renderer.setSize(width, height, false);
   rec.camera.aspect = width / height;
-  rec.camera.position.z = width < 64 ? 5.8 : 5.2;
+  rec.camera.position.z = width < 64 ? 5.7 : 4.95;
   rec.camera.updateProjectionMatrix();
   return true;
 }
