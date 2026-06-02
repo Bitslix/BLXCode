@@ -111,6 +111,25 @@ pub fn session_started_from_timeline(doc: &TimelineDoc) -> Option<f64> {
     doc.turns.first().and_then(|turn| turn.user.created_at)
 }
 
+/// Whether the visible timeline currently contains an open Thinking block.
+#[must_use]
+pub fn timeline_has_active_thinking(doc: &TimelineDoc) -> bool {
+    doc.turns
+        .iter()
+        .any(|turn| parts_have_active_thinking(&turn.parts))
+}
+
+fn parts_have_active_thinking(parts: &[TurnPart]) -> bool {
+    parts.iter().any(|part| match part {
+        TurnPart::Thinking { done, .. } => !done,
+        TurnPart::Tool { children, .. }
+        | TurnPart::Subagent {
+            parts: children, ..
+        } => parts_have_active_thinking(children),
+        _ => false,
+    })
+}
+
 /// Recursively account a list of parts. `in_subagent` suppresses counting
 /// subagent model rounds against the main-agent `model_turns`.
 fn walk_parts(parts: &[TurnPart], stats: &mut SessionStats, in_subagent: bool) {
@@ -198,8 +217,11 @@ pub fn AgentSessionStats(
         format_context_value(used, context_length.get())
     });
     let cost_text = Signal::derive(move || fmt_cost(usage.get().total_cost_usd));
+    let active_thinking = Memo::new(move |_| timeline.with(timeline_has_active_thinking));
     let state_label = Signal::derive(move || {
-        if busy.get() {
+        if active_thinking.get() {
+            i18n.tr(I18nKey::AgStateThinking)().to_string()
+        } else if busy.get() {
             i18n.tr(I18nKey::AgStateRunning)().to_string()
         } else {
             i18n.tr(I18nKey::AgStateStandby)().to_string()
@@ -222,7 +244,7 @@ pub fn AgentSessionStats(
                 </span>
                 <span class="agent-session-stats__model-text">{move || model_text.get()}</span>
                 <span class=move || {
-                    if busy.get() {
+                    if active_thinking.get() || busy.get() {
                         "agent-session-stats__state agent-session-stats__state--live"
                     } else {
                         "agent-session-stats__state"
@@ -461,6 +483,14 @@ mod tests {
         }
     }
 
+    fn thinking(done: bool) -> TurnPart {
+        TurnPart::Thinking {
+            id: "think".into(),
+            text: "work it out".into(),
+            done,
+        }
+    }
+
     fn doc(turns: Vec<TurnNode>) -> TimelineDoc {
         TimelineDoc {
             turns,
@@ -497,6 +527,37 @@ mod tests {
         ]);
 
         assert_eq!(session_started_from_timeline(&d), None);
+    }
+
+    #[test]
+    fn active_thinking_detects_open_top_level_thinking() {
+        let d = doc(vec![user_turn(vec![thinking(false)])]);
+
+        assert!(timeline_has_active_thinking(&d));
+    }
+
+    #[test]
+    fn active_thinking_ignores_done_thinking() {
+        let d = doc(vec![user_turn(vec![thinking(true)])]);
+
+        assert!(!timeline_has_active_thinking(&d));
+    }
+
+    #[test]
+    fn active_thinking_detects_nested_thinking() {
+        let sub = TurnPart::Subagent {
+            id: "s1".into(),
+            role: "explorer".into(),
+            display_name: "Scout".into(),
+            status: SubagentStatus::Running,
+            parts: vec![thinking(false)],
+            metrics: TurnMetrics::default(),
+            summary: None,
+            steps: Vec::new(),
+        };
+        let d = doc(vec![user_turn(vec![sub])]);
+
+        assert!(timeline_has_active_thinking(&d));
     }
 
     #[test]

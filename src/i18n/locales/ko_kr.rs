@@ -363,6 +363,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgTimelineAria => "상담원 활동 타임라인",
         I18nKey::AgBrandTitle => "BLX코드 에이전트",
         I18nKey::AgStateRunning => "달리기",
+        I18nKey::AgStateThinking => "Thinking",
         I18nKey::AgStateStandby => "대기",
         I18nKey::AgTagline => "작업 공간 도우미",
         I18nKey::AgChatHeading => "채팅 로그",

@@ -376,6 +376,7 @@ pub enum I18nKey {
     AgTimelineAria,
     AgBrandTitle,
     AgStateRunning,
+    AgStateThinking,
     AgStateStandby,
     AgTagline,
     AgChatHeading,

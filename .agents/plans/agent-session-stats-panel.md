@@ -51,7 +51,8 @@ bereits hält — **keine `src-tauri`-Änderung nötig**:
   `agent_timeline.rs:344`).
 - **Model Turns** = Anzahl `TurnPart::ModelRound` im Hauptagenten (Walk über
   `doc.turns[*].parts`, Subagent-Runden ausgenommen).
-- `busy: RwSignal<bool>` für Standby/Running.
+- `busy: RwSignal<bool>` plus offene `TurnPart::Thinking { done: false }`
+  für den State-Chip (`Thinking` vor `Running` vor `Standby`).
 - Vorbild für Stats-Lesen: `SessionCostChip` (`agent_panel/mod.rs:843`) nutzt
   `chat_usage_for_workspace` + `Memo` + i18n exakt so.
 - Tool-Namen-Inventar: siehe `tool_icon()` (`timeline.rs:893`) und
@@ -187,8 +188,8 @@ Neue Datei `src/workbench/agent_panel/session_stats.rs`:
 **STATS-04 — Einbau in den Header**
 - In `agent_panel/mod.rs` die **linke** Spalte (Grid-Spalte 1) mit
   `<AgentSessionStats .. />` füllen. Der Orb steht rechts (Spalte 2); der
-  separate Text-State darunter wurde entfernt, der eine Standby/Running-State
-  sitzt im Stats-Header.
+  separate Text-State darunter wurde entfernt, der eine
+  Thinking/Running/Standby-State sitzt im Stats-Header.
 
 **STATS-05 — CSS**
 - `.agent-session-stats` in `styles.css`: ungerahmte Header-Anzeige ohne
@@ -209,6 +210,7 @@ Neue Datei `src/workbench/agent_panel/session_stats.rs`:
 - `cargo check -p blxcode-ui --target wasm32-unknown-unknown`
 - `cargo test --workspace` (Aggregator-Tests)
 - Live-Test: Werte reaktiv (auch während „Thinking"), keine Stats-Tooltips,
+  State-Chip folgt offenen Thinking-Blöcken,
   Session-Start = erster User-Turn und bleibt nach Workspace-Reload stabil,
   nach Clear zurückgesetzt, Compact-Mode blendet aus.
 

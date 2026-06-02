@@ -371,6 +371,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgTimelineAria => "Harmonogram działań agenta",
         I18nKey::AgBrandTitle => "Agent BLXCode",
         I18nKey::AgStateRunning => "Działanie",
+        I18nKey::AgStateThinking => "Thinking",
         I18nKey::AgStateStandby => "Gotowość",
         I18nKey::AgTagline => "Asystent przestrzeni roboczej",
         I18nKey::AgChatHeading => "Dziennik czatu",

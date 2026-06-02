@@ -373,6 +373,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgTimelineAria => "Ügynök tevékenység idővonala",
         I18nKey::AgBrandTitle => "BLXCode ügynök",
         I18nKey::AgStateRunning => "Futás",
+        I18nKey::AgStateThinking => "Thinking",
         I18nKey::AgStateStandby => "Készenlétben lévő",
         I18nKey::AgTagline => "Munkaterületi asszisztens",
         I18nKey::AgChatHeading => "Csevegési napló",

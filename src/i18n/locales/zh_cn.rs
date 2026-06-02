@@ -363,6 +363,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgTimelineAria => "代理活动时间表",
         I18nKey::AgBrandTitle => "BLX代码代理",
         I18nKey::AgStateRunning => "跑步",
+        I18nKey::AgStateThinking => "Thinking",
         I18nKey::AgStateStandby => "支持",
         I18nKey::AgTagline => "工作空间助手",
         I18nKey::AgChatHeading => "聊天记录",

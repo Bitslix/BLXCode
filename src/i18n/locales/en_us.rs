@@ -409,6 +409,7 @@ keys; the preset only fills in defaults."
         I18nKey::AgTimelineAria => "Agent activity timeline",
         I18nKey::AgBrandTitle => "BLXCode Agent",
         I18nKey::AgStateRunning => "Running",
+        I18nKey::AgStateThinking => "Thinking",
         I18nKey::AgStateStandby => "Standby",
         I18nKey::AgTagline => "Workspace assistant",
         I18nKey::AgChatHeading => "Chat log",
