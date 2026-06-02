@@ -432,6 +432,16 @@ pub enum I18nKey {
     AgStatsSubagents,
     AgStatsEmpty,
 
+    // Compact tasks bar
+    AgTasksTitle,
+    AgTasksRuntime,
+    AgTasksEmpty,
+    AgTasksEmptyHint,
+    AgTasksExpand,
+    AgTasksCollapse,
+    AgTasksGroupPlan,
+    AgTasksGroupFree,
+
     BrToolbarAria,
     BrBack,
     BrFwd,

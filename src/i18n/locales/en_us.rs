@@ -466,6 +466,15 @@ keys; the preset only fills in defaults."
         I18nKey::AgStatsSubagents => "Active subagents",
         I18nKey::AgStatsEmpty => "-",
 
+        I18nKey::AgTasksTitle => "Tasks",
+        I18nKey::AgTasksRuntime => "RunTime",
+        I18nKey::AgTasksEmpty => "No tasks yet",
+        I18nKey::AgTasksEmptyHint => "Complex work will appear here once the agent starts planning and updating tasks.",
+        I18nKey::AgTasksExpand => "Show task list",
+        I18nKey::AgTasksCollapse => "Hide task list",
+        I18nKey::AgTasksGroupPlan => "Plan",
+        I18nKey::AgTasksGroupFree => "Free tasks",
+
         I18nKey::BrToolbarAria => "Embedded browser",
         I18nKey::BrBack => "Back",
         I18nKey::BrFwd => "Forward",

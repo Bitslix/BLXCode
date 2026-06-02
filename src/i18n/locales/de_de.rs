@@ -427,6 +427,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgStatsCostsTip => "Resolved USD cost accumulated during this session.",
         I18nKey::AgStatsSubagents => "Active subagents",
         I18nKey::AgStatsEmpty => "-",
+        I18nKey::AgTasksTitle => "Aufgaben",
+        I18nKey::AgTasksRuntime => "Laufzeit",
+        I18nKey::AgTasksEmpty => "Noch keine Aufgaben",
+        I18nKey::AgTasksEmptyHint => {
+            "Komplexe Arbeiten werden hier angezeigt, sobald der Agent mit der Planung und Aktualisierung von Aufgaben beginnt."
+        }
+        I18nKey::AgTasksExpand => "Aufgabenliste anzeigen",
+        I18nKey::AgTasksCollapse => "Aufgabenliste ausblenden",
+        I18nKey::AgTasksGroupPlan => "Plan",
+        I18nKey::AgTasksGroupFree => "Freie Aufgaben",
         I18nKey::BrToolbarAria => "Eingebetteter Browser",
         I18nKey::BrBack => "Zurück",
         I18nKey::BrFwd => "Weiter",

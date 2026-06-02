@@ -427,6 +427,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgStatsCostsTip => "Resolved USD cost accumulated during this session.",
         I18nKey::AgStatsSubagents => "Active subagents",
         I18nKey::AgStatsEmpty => "-",
+        I18nKey::AgTasksTitle => "Tareas",
+        I18nKey::AgTasksRuntime => "Tiempo de ejecución",
+        I18nKey::AgTasksEmpty => "Aún no hay tareas",
+        I18nKey::AgTasksEmptyHint => {
+            "El trabajo complejo aparecerá aquí una vez que el agente comience a planificar y actualizar las tareas."
+        }
+        I18nKey::AgTasksExpand => "Mostrar lista de tareas",
+        I18nKey::AgTasksCollapse => "Ocultar lista de tareas",
+        I18nKey::AgTasksGroupPlan => "Plan",
+        I18nKey::AgTasksGroupFree => "Tareas gratis",
         I18nKey::BrToolbarAria => "Navegador integrado",
         I18nKey::BrBack => "Atrás",
         I18nKey::BrFwd => "Adelante",
