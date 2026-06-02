@@ -369,11 +369,15 @@ fn input_value(ev: web_sys::Event) -> Option<String> {
 }
 
 #[component]
-pub fn MemoryPanel(#[prop(optional)] centered: bool) -> impl IntoView {
+pub fn MemoryPanel(
+    #[prop(optional)] centered: bool,
+    #[prop(optional)] split_view: Option<RwSignal<bool>>,
+) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
     let toast = expect_context::<ToastService>();
     let state = MemoryState::new(centered);
+    let split_view = split_view.filter(|_| centered);
 
     // Track active workspace cwd and reload memory state when it changes.
     let eff_state = state.clone();
@@ -449,27 +453,58 @@ pub fn MemoryPanel(#[prop(optional)] centered: bool) -> impl IntoView {
                 <MemoryTabBtn label=I18nKey::MemTabFiles state=state.clone() target=MemoryView::Files icon=icondata::LuFiles />
                 <MemoryTabBtn label=I18nKey::MemTabGraph state=state.clone() target=MemoryView::Graph icon=icondata::LuNetwork />
                 <MemoryTabBtn label=I18nKey::MemTabSearch state=state.clone() target=MemoryView::Search icon=icondata::LuSearch />
-                <button
-                    type="button"
-                    class="workbench-memory__action"
-                    title="Rebuild architecture map"
-                    aria-label="Rebuild architecture map"
-                    disabled=move || state.architecture_rebuild_busy.get()
-                    on:click={
-                        let state = state.clone();
-                        let toast = toast;
-                        move |_| rebuild_architecture_map(state.clone(), toast)
-                    }
-                >
-                    <Show
-                        when=move || state.architecture_rebuild_busy.get()
-                        fallback=move || view! {
-                            <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
+                <div class="workbench-memory__actions">
+                    {split_view.map(|split_view| {
+                        view! {
+                            <button
+                                type="button"
+                                class="workbench-memory__action"
+                                class:workbench-memory__action--active=move || split_view.get()
+                                title=move || {
+                                    if split_view.get() {
+                                        "Hide terminal split view"
+                                    } else {
+                                        "Show terminal split view"
+                                    }
+                                }
+                                aria-label=move || {
+                                    if split_view.get() {
+                                        "Hide terminal split view"
+                                    } else {
+                                        "Show terminal split view"
+                                    }
+                                }
+                                aria-pressed=move || split_view.get().to_string()
+                                on:click=move |_| {
+                                    split_view.update(|enabled| *enabled = !*enabled);
+                                }
+                            >
+                                <LxIcon icon=icondata::LuColumns2 width="0.78rem" height="0.78rem" />
+                            </button>
+                        }
+                    })}
+                    <button
+                        type="button"
+                        class="workbench-memory__action"
+                        title="Rebuild architecture map"
+                        aria-label="Rebuild architecture map"
+                        disabled=move || state.architecture_rebuild_busy.get()
+                        on:click={
+                            let state = state.clone();
+                            let toast = toast;
+                            move |_| rebuild_architecture_map(state.clone(), toast)
                         }
                     >
-                        <LxIcon icon=icondata::LuLoaderCircle width="0.78rem" height="0.78rem" />
-                    </Show>
-                </button>
+                        <Show
+                            when=move || state.architecture_rebuild_busy.get()
+                            fallback=move || view! {
+                                <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
+                            }
+                        >
+                            <LxIcon icon=icondata::LuLoaderCircle width="0.78rem" height="0.78rem" />
+                        </Show>
+                    </button>
+                </div>
             </header>
 
             <Show when={
@@ -2117,7 +2152,6 @@ fn MemoryFolderGroupSection(
                 >
                     <LxIcon icon=icondata::LuChevronRight width="0.72rem" height="0.72rem" />
                 </span>
-                <span class="workbench-memory-files__folder-group-label">"Grouped by "</span>
                 <strong>{title}</strong>
             </button>
         </li>
@@ -2139,6 +2173,7 @@ fn MemoryFolderGroupSection(
                     rename_input=rename_input
                     context_menu=context_menu
                     show_folder=false
+                    nested=true
                 />
             }
         />
@@ -2154,6 +2189,7 @@ fn MemoryFileNoteListItem(
     rename_input: RwSignal<String>,
     context_menu: RwSignal<Option<MemoryContextMenu>>,
     show_folder: bool,
+    #[prop(optional)] nested: bool,
 ) -> impl IntoView {
     let path = note.path.clone();
     let expanded_note = note.clone();
@@ -2163,6 +2199,7 @@ fn MemoryFileNoteListItem(
     view! {
         <li
             class="workbench-memory-files__item"
+            class:workbench-memory-files__item--nested=nested
             class:workbench-memory-files__item--collapsed=move || files_collapsed.get()
             class:workbench-memory-files__item--active=move || {
                 s_active.active_path.get().as_deref() == Some(path_for_active.as_str())

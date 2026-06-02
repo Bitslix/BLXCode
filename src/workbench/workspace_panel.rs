@@ -297,6 +297,16 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
 
     let active_center_tab_id =
         Memo::new(move |_| wb.active_center_tab_id_for_workspace(workspace_id));
+    let memory_split_view = RwSignal::new(false);
+    let memory_split_active = Memo::new(move |_| {
+        if !memory_split_view.get() {
+            return false;
+        }
+        let active_tab_id = active_center_tab_id.get();
+        wb.center_tabs_for_workspace(workspace_id)
+            .into_iter()
+            .any(|tab| tab.id == active_tab_id && matches!(tab.kind, CenterTabKind::Memory))
+    });
 
     // The terminal grid stays mounted for the entire life of the workspace
     // as soon as the inline configurator is done; it is hidden via
@@ -325,7 +335,10 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
             // Settings (or close the Terminals tab) even while the
             // configurator is up.
             <CenterTabStrip workspace_id=workspace_id active_tab_id=active_center_tab_id />
-            <div class="workspace-center-tab-body">
+            <div
+                class="workspace-center-tab-body"
+                class:workspace-center-tab-body--split=move || memory_split_active.get()
+            >
                 <Show when=move || is_configuring.get() && active_center_tab_id.get() == CENTER_TERMINALS_TAB_ID>
                     <div class="workspace-center-panel">
                         <WorkspaceConfigurator workspace_id=workspace_id />
@@ -334,7 +347,10 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                 <Show when=move || grid_mounted.get()>
                     <div
                         class="workspace-center-panel"
-                        class:workspace-center-panel--hidden=move || active_center_tab_id.get() != CENTER_TERMINALS_TAB_ID
+                        class:workspace-center-panel--hidden=move || {
+                            active_center_tab_id.get() != CENTER_TERMINALS_TAB_ID
+                                && !memory_split_active.get()
+                        }
                     >
                         <div
                             class=move || {
@@ -404,7 +420,8 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                                             slot_drag_enabled=slot_drag_enabled
                                             is_workspace_active=Signal::derive(move || {
                                                 wb.active_id().get() == Some(workspace_id)
-                                                    && active_center_tab_id.get() == CENTER_TERMINALS_TAB_ID
+                                                    && (active_center_tab_id.get() == CENTER_TERMINALS_TAB_ID
+                                                        || memory_split_active.get())
                                             })
                                             hidden=Signal::derive(move || {
                                                 full_size_terminal.get().is_some_and(|active| active != terminal_id)
@@ -488,7 +505,11 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                         </div>
                     </div>
                 </Show>
-                <DynamicCenterPanels workspace_id=workspace_id active_tab_id=active_center_tab_id />
+                <DynamicCenterPanels
+                    workspace_id=workspace_id
+                    active_tab_id=active_center_tab_id
+                    memory_split_view=memory_split_view
+                />
             </div>
         </div>
     }
@@ -594,7 +615,11 @@ fn CenterTabButton(workspace_id: u64, tab: CenterTab, active_tab_id: Memo<u64>) 
 }
 
 #[component]
-fn DynamicCenterPanels(workspace_id: u64, active_tab_id: Memo<u64>) -> impl IntoView {
+fn DynamicCenterPanels(
+    workspace_id: u64,
+    active_tab_id: Memo<u64>,
+    memory_split_view: RwSignal<bool>,
+) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let ui = expect_context::<HarnessUiService>();
     let embed = expect_context::<BrowserEmbedSurface>();
@@ -624,7 +649,7 @@ fn DynamicCenterPanels(workspace_id: u64, active_tab_id: Memo<u64>) -> impl Into
                             class="workspace-center-panel workspace-center-panel--memory"
                             class:workspace-center-panel--hidden=move || active_tab_id.get() != tab_id
                         >
-                            <MemoryPanel centered=true />
+                            <MemoryPanel centered=true split_view=memory_split_view />
                         </div>
                     }.into_any(),
                     CenterTabKind::FilePreview { rel_path } => view! {
