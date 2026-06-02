@@ -145,7 +145,9 @@ fn apply_radius_to_dom(scale: RadiusScale) {
 
 fn apply_font_to_dom(font_id: &str) {
     if let Some(root) = root_element() {
-        let _ = root.style().set_property("--font-mono", font_stack_for(font_id));
+        let _ = root
+            .style()
+            .set_property("--font-mono", font_stack_for(font_id));
     }
 }
 

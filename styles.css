@@ -2505,6 +2505,8 @@ button.workbench-shortcut-row--action:focus-visible {
   inset: 0.72rem;
   border-radius: inherit;
   border: 1px solid var(--accent-soft);
+  z-index: 2;
+  pointer-events: none;
 }
 
 .agent-hero__orb:hover,
@@ -2538,6 +2540,72 @@ button.workbench-shortcut-row--action:focus-visible {
   font-weight: 900;
   line-height: 1;
   box-shadow: 0 8px 22px var(--scrim-bg);
+}
+
+.drobo-orb {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.drobo-orb__stage {
+  position: absolute;
+  inset: -0.18rem;
+  display: grid;
+  place-items: center;
+  border-radius: inherit;
+}
+
+.drobo-orb__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.drobo-orb__fallback {
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity 0.16s ease,
+    transform 0.16s ease;
+}
+
+.drobo-orb__stage--loaded .drobo-orb__fallback {
+  opacity: 0;
+  transform: scale(0.86);
+}
+
+.drobo-orb__stage--failed .drobo-orb__fallback,
+.drobo-orb__stage--rust-failed .drobo-orb__fallback {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.drobo-orb__state {
+  position: absolute;
+  right: 0.72rem;
+  bottom: 0.72rem;
+  z-index: 3;
+  display: inline-grid;
+  place-items: center;
+  width: 1.72rem;
+  height: 1.72rem;
+  border-radius: var(--radius-circle);
+  color: var(--on-accent);
+  background: color-mix(in srgb, var(--accent) 88%, var(--bg-app));
+  border: 1px solid color-mix(in srgb, var(--accent-cool) 46%, var(--border));
+  box-shadow:
+    0 0 0 0.18rem var(--accent-soft),
+    0 8px 18px var(--scrim-bg);
+}
+
+.drobo-orb__state--transcribing {
+  background: color-mix(in srgb, var(--accent-cool) 86%, var(--bg-app));
 }
 
 .agent-hero__meta {
@@ -2592,6 +2660,25 @@ button.workbench-shortcut-row--action:focus-visible {
 
 .agent-hero--compact .agent-hero__orb::after {
   inset: 0.38rem;
+}
+
+.agent-hero--compact .drobo-orb__stage {
+  inset: -0.1rem;
+}
+
+.agent-hero--compact .drobo-orb__state {
+  right: -0.05rem;
+  bottom: -0.05rem;
+  width: 0.98rem;
+  height: 0.98rem;
+  box-shadow:
+    0 0 0 0.1rem var(--accent-soft),
+    0 4px 10px var(--scrim-bg);
+}
+
+.agent-hero--compact .drobo-orb__state svg {
+  width: 0.68rem;
+  height: 0.68rem;
 }
 
 .agent-hero--compact .agent-hero__logo {

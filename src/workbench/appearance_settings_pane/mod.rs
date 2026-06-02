@@ -23,8 +23,16 @@ enum ModeFilter {
 fn radius_options() -> [(RadiusScale, I18nKey, &'static str); 4] {
     [
         (RadiusScale::Sharp, I18nKey::AppearanceRoundingSharp, "0"),
-        (RadiusScale::Default, I18nKey::AppearanceRoundingDefault, "5px"),
-        (RadiusScale::Rounded, I18nKey::AppearanceRoundingRounded, "9px"),
+        (
+            RadiusScale::Default,
+            I18nKey::AppearanceRoundingDefault,
+            "5px",
+        ),
+        (
+            RadiusScale::Rounded,
+            I18nKey::AppearanceRoundingRounded,
+            "9px",
+        ),
         (RadiusScale::Extra, I18nKey::AppearanceRoundingExtra, "15px"),
     ]
 }

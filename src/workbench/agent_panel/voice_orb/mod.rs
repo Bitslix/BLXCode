@@ -1,6 +1,7 @@
 //! Voice orb — hybrid (click toggle / hold PTT) microphone button with
 //! audio-playback support for TTS replies streamed via `AgentEvent::VoiceReady`.
 
+mod drobo_glue;
 mod state;
 
 use crate::agent_wire::AgentEvent;
@@ -12,14 +13,20 @@ use crate::tauri_bridge::{
     AgentProviderKind, AgentProviderSettingsView, ApiKeysStatus, PostSttFlow, SttLanguageMode,
     VoiceProviderKind, VoiceSettings,
 };
+use crate::workbench::agent_panel::voice_orb::drobo_glue::{
+    drobo_orb_create, drobo_orb_dispose, drobo_orb_resize, drobo_orb_set_state,
+    ensure_drobo_orb_script,
+};
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use js_sys::Uint8Array;
 use leptos::html;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
-use web_sys::{Blob, BlobPropertyBag, HtmlAudioElement, KeyboardEvent, MouseEvent};
+use web_sys::{Blob, BlobPropertyBag, HtmlAudioElement, HtmlElement, KeyboardEvent, MouseEvent};
 
 pub use state::{focus_in_editable, hotkey_matches, VoiceOrbState};
 
@@ -263,22 +270,118 @@ where
                 on:mouseleave=on_mouseleave
                 on:keydown=on_keydown
             >
-                <Show
-                    when=move || matches!(handle.state.get(), VoiceOrbState::Transcribing)
-                    fallback=move || view! {
-                        <Show
-                            when=move || handle.state.get().is_recording()
-                            fallback=move || view! { <span class="agent-hero__logo">"B"</span> }.into_any()
-                        >
-                            <LxIcon icon=icondata::LuMic width="1.5rem" height="1.5rem" />
-                        </Show>
-                    }.into_any()
-                >
-                    <LxIcon icon=icondata::LuLoader width="1.4rem" height="1.4rem" />
-                </Show>
+                <span class="drobo-orb" aria-hidden="true">
+                    <DroboOrbView orb_state=handle.state />
+                    <Show when=move || matches!(handle.state.get(), VoiceOrbState::Transcribing)>
+                        <span class="drobo-orb__state drobo-orb__state--transcribing">
+                            <LxIcon icon=icondata::LuLoader width="1.05rem" height="1.05rem" />
+                        </span>
+                    </Show>
+                    <Show when=move || handle.state.get().is_recording()>
+                        <span class="drobo-orb__state drobo-orb__state--recording">
+                            <LxIcon icon=icondata::LuMic width="1.05rem" height="1.05rem" />
+                        </span>
+                    </Show>
+                </span>
             </button>
             <audio node_ref=handle.audio_ref class="voice-orb__audio" preload="none" />
         </>
+    }
+}
+
+#[component]
+fn DroboOrbView(orb_state: RwSignal<VoiceOrbState>) -> impl IntoView {
+    let node_ref = NodeRef::<html::Span>::new();
+    let load_failed = RwSignal::new(false);
+    let bootstrap_started = RwSignal::new(false);
+    let orb_id = RwSignal::new(Option::<f64>::None);
+    let alive = Arc::new(AtomicBool::new(true));
+    let orb_id_live = Arc::new(Mutex::new(Option::<f64>::None));
+
+    Effect::new({
+        let alive = alive.clone();
+        let orb_id_live = orb_id_live.clone();
+        move |_| {
+            if bootstrap_started.get_untracked() || load_failed.get_untracked() {
+                return;
+            }
+            let Some(el) = node_ref.get() else {
+                return;
+            };
+            let Ok(container) = el.dyn_into::<HtmlElement>() else {
+                load_failed.set(true);
+                return;
+            };
+            bootstrap_started.set(true);
+            let alive = alive.clone();
+            let orb_id_live = orb_id_live.clone();
+            leptos::task::spawn_local(async move {
+                let result = async {
+                    ensure_drobo_orb_script().await?;
+                    let id = drobo_orb_create(&container)?;
+                    let state = orb_state.get_untracked();
+                    drobo_orb_set_state(
+                        id,
+                        state.is_recording(),
+                        matches!(state, VoiceOrbState::Transcribing),
+                        false,
+                    )?;
+                    drobo_orb_resize(id);
+                    Ok::<f64, String>(id)
+                }
+                .await;
+                if !alive.load(Ordering::Relaxed) {
+                    if let Ok(id) = result {
+                        drobo_orb_dispose(id);
+                    }
+                    return;
+                }
+                match result {
+                    Ok(id) => {
+                        if let Ok(mut live_id) = orb_id_live.lock() {
+                            *live_id = Some(id);
+                        }
+                        orb_id.set(Some(id));
+                        load_failed.set(false);
+                    }
+                    Err(_) => load_failed.set(true),
+                }
+            });
+        }
+    });
+
+    Effect::new(move |_| {
+        let state = orb_state.get();
+        let Some(id) = orb_id.get() else {
+            return;
+        };
+        let _ = drobo_orb_set_state(
+            id,
+            state.is_recording(),
+            matches!(state, VoiceOrbState::Transcribing),
+            false,
+        );
+    });
+
+    on_cleanup(move || {
+        alive.store(false, Ordering::Relaxed);
+        let live_orb_id = orb_id_live
+            .lock()
+            .ok()
+            .and_then(|mut live_id| live_id.take());
+        if let Some(id) = live_orb_id {
+            drobo_orb_dispose(id);
+        }
+    });
+
+    view! {
+        <span
+            node_ref=node_ref
+            class="drobo-orb__stage"
+            class:drobo-orb__stage--rust-failed=move || load_failed.get()
+        >
+            <span class="agent-hero__logo drobo-orb__fallback">"B"</span>
+        </span>
     }
 }
 
