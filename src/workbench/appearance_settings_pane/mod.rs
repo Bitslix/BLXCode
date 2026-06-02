@@ -5,7 +5,7 @@ use leptos_icons::Icon as LxIcon;
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::theme::{theme_desc_key, theme_name_key, ThemeMode, THEMES};
+use crate::theme::{theme_desc_key, theme_name_key, RadiusScale, ThemeMode, FONTS, THEMES};
 use crate::workbench::theme_service::{theme_count, ThemeService};
 use crate::workbench::SettingsPaneHeader;
 
@@ -16,6 +16,17 @@ enum ModeFilter {
     All,
     Dark,
     Light,
+}
+
+/// Roundings options paired with their label key and a fixed swatch radius
+/// (visual only — independent of the global scale so the chip always reads).
+fn radius_options() -> [(RadiusScale, I18nKey, &'static str); 4] {
+    [
+        (RadiusScale::Sharp, I18nKey::AppearanceRoundingSharp, "0"),
+        (RadiusScale::Default, I18nKey::AppearanceRoundingDefault, "5px"),
+        (RadiusScale::Rounded, I18nKey::AppearanceRoundingRounded, "9px"),
+        (RadiusScale::Extra, I18nKey::AppearanceRoundingExtra, "15px"),
+    ]
 }
 
 #[component]
@@ -62,6 +73,8 @@ pub fn AppearanceSettingsPane() -> impl IntoView {
             .copied()
             .unwrap_or(THEMES[0])
     };
+    let radius_scale = theme_svc.radius_scale();
+    let font_id = theme_svc.font_id();
 
     view! {
         <article class="appearance-pane harness-pane">
@@ -157,6 +170,91 @@ pub fn AppearanceSettingsPane() -> impl IntoView {
                         }}
                     </button>
                 </div>
+            </div>
+
+            <div class="appearance-controls">
+                <section class="appearance-control">
+                    <div class="appearance-control__head">
+                        <h3 class="appearance-control__title">
+                            {move || i18n.tr(I18nKey::AppearanceRoundingsTitle)()}
+                        </h3>
+                        <p class="appearance-control__desc">
+                            {move || i18n.tr(I18nKey::AppearanceRoundingsDesc)()}
+                        </p>
+                    </div>
+                    <div
+                        class="appearance-seg"
+                        role="group"
+                        aria-label=move || i18n.tr(I18nKey::AppearanceRoundingsAria)()
+                    >
+                        {radius_options()
+                            .into_iter()
+                            .map(|(scale, key, swatch)| {
+                                view! {
+                                    <button
+                                        type="button"
+                                        class="appearance-seg-btn"
+                                        class:appearance-seg-btn--active=move || {
+                                            radius_scale.get() == scale
+                                        }
+                                        aria-pressed=move || {
+                                            (radius_scale.get() == scale).to_string()
+                                        }
+                                        on:click=move |_| theme_svc.set_radius_scale(scale)
+                                    >
+                                        <span
+                                            class="appearance-seg-btn__swatch"
+                                            style=format!("border-radius:{swatch}")
+                                            aria-hidden="true"
+                                        ></span>
+                                        <span class="appearance-seg-btn__label">
+                                            {move || i18n.tr(key)()}
+                                        </span>
+                                    </button>
+                                }
+                            })
+                            .collect_view()}
+                    </div>
+                </section>
+
+                <section class="appearance-control">
+                    <div class="appearance-control__head">
+                        <h3 class="appearance-control__title">
+                            {move || i18n.tr(I18nKey::AppearanceFontTitle)()}
+                        </h3>
+                        <p class="appearance-control__desc">
+                            {move || i18n.tr(I18nKey::AppearanceFontDesc)()}
+                        </p>
+                    </div>
+                    <div
+                        class="appearance-font-grid"
+                        role="group"
+                        aria-label=move || i18n.tr(I18nKey::AppearanceFontAria)()
+                    >
+                        {FONTS
+                            .iter()
+                            .map(|font| {
+                                view! {
+                                    <button
+                                        type="button"
+                                        class="appearance-font-btn"
+                                        class:appearance-font-btn--active=move || {
+                                            font_id.get() == font.id
+                                        }
+                                        aria-pressed=move || (font_id.get() == font.id).to_string()
+                                        style=format!("font-family:{}", font.stack)
+                                        on:click=move |_| theme_svc.set_font(font.id)
+                                    >
+                                        <span class="appearance-font-btn__name">{font.label}</span>
+                                        <span class="appearance-font-btn__sample">
+                                            "AaBbCc 0123 () => {}"
+                                        </span>
+                                    </button>
+                                }
+                            })
+                            .collect_view()}
+                    </div>
+                </section>
             </div>
 
             <div
