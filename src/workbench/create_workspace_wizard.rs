@@ -10,7 +10,9 @@ use crate::tauri_bridge::{
 use crate::workbench::path_nav::path_nav_wasm_string;
 use crate::workbench::state::{
     CreateWorkspaceDraft, HarnessSettingsCategory, HarnessUiService, WorkbenchService,
+    WORKSPACE_FLEET_AGENT_SLUGS,
 };
+use crate::workbench::terminal_agent_profiles::terminal_agent_models;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -116,6 +118,7 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
             name,
             terminal_count: d.terminal_count,
             agent_counts: d.agent_counts,
+            agent_models: d.agent_models.clone(),
             slot_names: d.slot_names.clone(),
             session_role: d.session_role.clone(),
         };
@@ -704,16 +707,22 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                                     let Some(r) = roles.iter().find(|r| r.slug == cur) else {
                                         return String::new();
                                     };
-                                    if r.tools.is_empty() {
-                                        r.description.clone()
-                                    } else {
-                                        format!(
-                                            "{}  ·  {}: {}",
-                                            r.description,
+                                    let mut parts: Vec<String> = vec![r.description.clone()];
+                                    if !r.tools.is_empty() {
+                                        parts.push(format!(
+                                            "{}: {}",
                                             i18n.tr(I18nKey::WzSessionRoleTools)(),
                                             r.tools.join(", ")
-                                        )
+                                        ));
                                     }
+                                    if !r.models.is_empty() {
+                                        parts.push(format!(
+                                            "{}: {}",
+                                            i18n.tr(I18nKey::WzAgentModelLabel)(),
+                                            r.models.join(", ")
+                                        ));
+                                    }
+                                    parts.join("  ·  ")
                                 }}
                             </p>
                         </Show>
@@ -736,6 +745,7 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                                     let pid = p.id.clone();
                                     let count = p.terminal_count;
                                     let counts = p.agent_counts;
+                                    let amodels = p.agent_models.clone();
                                     let names = p.slot_names.clone();
                                     let role = p.session_role.clone();
                                     view! {
@@ -749,6 +759,7 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                                                         workspace_id,
                                                         count,
                                                         counts,
+                                                        amodels.clone(),
                                                         names.clone(),
                                                         role.clone(),
                                                     );
@@ -1016,6 +1027,29 @@ fn agent_rows(
                                 wb.set_workspace_agent_count(workspace_id, idx, c.saturating_add(1));
                             }
                         >"+"</button>
+                        <Show when=move || (draft.get().agent_counts[idx] > 0)>
+                            <select
+                                class="ws-config__field ws-config__agent-model"
+                                title=move || i18n.tr(I18nKey::WzAgentModelLabel)()
+                                aria-label=move || i18n.tr(I18nKey::WzAgentModelLabel)()
+                                prop:value=move || draft.get().agent_models[idx].clone()
+                                on:change=move |ev| {
+                                    wb.set_workspace_agent_model(workspace_id, idx, select_value(&ev));
+                                }
+                            >
+                                <option value="">{move || i18n.tr(I18nKey::WzAgentModelDefault)()}</option>
+                                {
+                                    let slug = WORKSPACE_FLEET_AGENT_SLUGS[idx];
+                                    terminal_agent_models(slug)
+                                        .iter()
+                                        .map(|m| {
+                                            let m = m.to_string();
+                                            view! { <option value=m.clone()>{m.clone()}</option> }
+                                        })
+                                        .collect_view()
+                                }
+                            </select>
+                        </Show>
                     </div>
                 </li>
             }

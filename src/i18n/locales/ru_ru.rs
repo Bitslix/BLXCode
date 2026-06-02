@@ -913,6 +913,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzPresetEmpty => "Пресетов пока нет",
         I18nKey::WzSlotNamesLabel => "Имена терминалов (необязательно)",
         I18nKey::WzSlotNamePh => "Слот {n}",
+        I18nKey::WzAgentModelLabel => "Модель",
+        I18nKey::WzAgentModelDefault => "По умолчанию",
         I18nKey::AgRoleBadgeAria => "Активная роль",
         I18nKey::WzPresetSingle => "1 терминал",
         I18nKey::WzPreset2 => "2 терминала",

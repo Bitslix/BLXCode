@@ -875,6 +875,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzPresetEmpty => "暂无预设",
         I18nKey::WzSlotNamesLabel => "终端名称（可选）",
         I18nKey::WzSlotNamePh => "插槽 {n}",
+        I18nKey::WzAgentModelLabel => "模型",
+        I18nKey::WzAgentModelDefault => "默认",
         I18nKey::AgRoleBadgeAria => "当前角色",
         I18nKey::WzPresetSingle => "1个航站楼",
         I18nKey::WzPreset2 => "2个终端",

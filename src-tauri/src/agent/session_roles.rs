@@ -59,8 +59,13 @@ pub struct RoleMeta {
     pub tools: Vec<String>,
     /// Accent color from frontmatter (theme keyword or hex). Empty if absent.
     pub color: String,
-    /// Suggested model from frontmatter (advisory only). Empty if absent.
-    pub model: String,
+    /// Preferred terminal CLI-agent slug for this role (advisory; e.g.
+    /// `claude`). Empty if absent. Never changes the BLXCode Agent's own
+    /// provider/model — that always comes from Settings.
+    pub provider: String,
+    /// Advisory list of model identifiers the role is designed for, across the
+    /// built-in CLI agents. Shown in the role picker; does not pin a model.
+    pub models: Vec<String>,
 }
 
 /// Returns metadata for every embedded role, in registry order.
@@ -108,7 +113,8 @@ fn parse_meta(slug: &str, raw: &str) -> RoleMeta {
         description: fm_value(fm, "description").unwrap_or_default(),
         tools: fm_value(fm, "tools").map(|v| parse_tools(&v)).unwrap_or_default(),
         color: fm_value(fm, "color").unwrap_or_default(),
-        model: fm_value(fm, "model").unwrap_or_default(),
+        provider: fm_value(fm, "provider").unwrap_or_default(),
+        models: fm_value(fm, "models").map(|v| parse_tools(&v)).unwrap_or_default(),
     }
 }
 
@@ -241,6 +247,15 @@ mod tests {
         assert_eq!(coord.color, "violet");
         assert!(coord.tools.contains(&"Read".to_string()));
         assert!(coord.tools.contains(&"Bash".to_string()));
+    }
+
+    #[test]
+    fn parses_provider_and_models_list() {
+        // Every role declares a provider (CLI slug) and a non-empty models list.
+        for r in list_roles() {
+            assert!(!r.provider.is_empty(), "role {} missing provider", r.slug);
+            assert!(!r.models.is_empty(), "role {} missing models", r.slug);
+        }
     }
 
     #[test]

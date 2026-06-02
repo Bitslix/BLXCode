@@ -19,12 +19,12 @@ Manual notes about this unit can live above or below the generated block.
 - Manifest: `src-tauri/Cargo.toml`
 - Root: `src-tauri`
 - Source root: `src-tauri/src`
-- Source files: 108
-- Root declarations: `agent`, `agent_hooks`, `agent_settings`, `agents_layout`, `api_keys`, `app_paths`, `browser_host`, `clipboard`, `commands`, `fs_entries`, `git_commit_ai`, `git_graph`, `git_info`, `git_remote`, `git_status`, `git_sync`, `image`, `media_keys`, `memory`, `plans`, `plans_index`, `pointers`, `proc`, `pty_host`, `skills_rules`, `ssh_exec`, `ssh_remotes`, `ssh_secrets`, `tasks`, `updater`, `voice`, `window_controls`, `workbench_state`
+- Source files: 110
+- Root declarations: `agent`, `agent_hooks`, `agent_settings`, `agents_layout`, `api_keys`, `app_paths`, `browser_host`, `clipboard`, `commands`, `fs_entries`, `git_commit_ai`, `git_graph`, `git_info`, `git_remote`, `git_status`, `git_sync`, `image`, `media_keys`, `memory`, `plans`, `plans_index`, `pointers`, `proc`, `pty_host`, `skills_rules`, `ssh_exec`, `ssh_remotes`, `ssh_secrets`, `tasks`, `updater`, `voice`, `window_controls`, `workbench_state`, `workspace_presets`
 
 ### Top-Level Modules
 
-- `agent` (31 files) — submodules: `anthropic`, `badwords`, `compaction`, `context_window`, `environment`, `git_agent`, `nickname`, `oneshot`, `openrouter`, `plan_ai`, `pricing`, `project_docs`, `prompt_enhance`, `protocol`, `provider`, `session_orchestrator`, `shell_exec`, `state`, `subagent_prompts`, `subagent_runner`, `subagents`, `system_prompt`, `tool_dispatch`, `tool_groups`, `tools`, `tools_extra`, `web_commands`, `web_settings`, `web_tools`, `workspace_agent`; declarations: `anthropic`, `environment`, `git_agent`, `openrouter`, `plan_ai`, `project_docs`, `prompt_enhance`, `provider`, `session_orchestrator`, `shell_exec`, `subagent_prompts`, `subagent_runner`, `subagents`, `system_prompt`, `tests`, `tool_dispatch`, `tool_groups`, `tools`, `tools_extra`, `web_commands`, `web_tools`, `workspace_agent`
+- `agent` (32 files) — submodules: `anthropic`, `badwords`, `compaction`, `context_window`, `environment`, `git_agent`, `nickname`, `oneshot`, `openrouter`, `plan_ai`, `pricing`, `project_docs`, `prompt_enhance`, `protocol`, `provider`, `session_orchestrator`, `session_roles`, `shell_exec`, `state`, `subagent_prompts`, `subagent_runner`, `subagents`, `system_prompt`, `tool_dispatch`, `tool_groups`, `tools`, `tools_extra`, `web_commands`, `web_settings`, `web_tools`, `workspace_agent`; declarations: `anthropic`, `environment`, `git_agent`, `openrouter`, `plan_ai`, `project_docs`, `prompt_enhance`, `provider`, `session_orchestrator`, `shell_exec`, `subagent_prompts`, `subagent_runner`, `subagents`, `system_prompt`, `tests`, `tool_dispatch`, `tool_groups`, `tools`, `tools_extra`, `web_commands`, `web_tools`, `workspace_agent`
 - `agent_hooks` (1 files)
 - `agent_settings` (1 files)
 - `agents_layout` (1 files); declarations: `tests`
@@ -57,6 +57,7 @@ Manual notes about this unit can live above or below the generated block.
 - `voice` (14 files) — submodules: `commands`, `models`, `ptt`, `recorder`, `settings`, `stt`, `tts`; declarations: `catalog`, `cloud`, `collision`, `commands`, `imp`, `local_whisper`, `models`, `ptt`, `recorder`, `settings`, `stt`, `tests`, `tts`; 6 deeper source files aggregated here
 - `window_controls` (1 files)
 - `workbench_state` (1 files)
+- `workspace_presets` (1 files); declarations: `tests`
 
 ### Source Paths
 
@@ -77,6 +78,7 @@ Manual notes about this unit can live above or below the generated block.
 - `src-tauri/src/agent/protocol.rs`
 - `src-tauri/src/agent/provider.rs`
 - `src-tauri/src/agent/session_orchestrator.rs`
+- `src-tauri/src/agent/session_roles.rs`
 - `src-tauri/src/agent/shell_exec.rs`
 - `src-tauri/src/agent/state.rs`
 - `src-tauri/src/agent/subagent_prompts.rs`
@@ -139,8 +141,7 @@ Manual notes about this unit can live above or below the generated block.
 - `src-tauri/src/plans.rs`
 - `src-tauri/src/plans_index.rs`
 - `src-tauri/src/pointers/mod.rs`
-- `src-tauri/src/proc.rs`
-- ... 28 more source paths omitted
+- ... 30 more source paths omitted
 <!-- architecture:static:end -->
 
 

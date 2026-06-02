@@ -56,6 +56,11 @@ pub struct WorkspaceEntry {
     pub slot_ids: Vec<u64>,
     /// One label/slug per terminal slot (e.g. `"claude"` or empty after skip).
     pub slot_agent_labels: Vec<String>,
+    /// Optional CLI model id per terminal slot, parallel to `slot_agent_labels`.
+    /// Empty entries use the agent's own default model. Chosen in the
+    /// Create-Workspace fleet step from the per-CLI built-in model catalog.
+    #[serde(default)]
+    pub slot_agent_models: Vec<String>,
     /// Split-pane state per slot, parallel-indexed to `slot_ids`. Missing
     /// entries (older snapshots, freshly-created slots) fall back to a
     /// single un-split pane via [`SlotPaneState::default_for_slot`].
@@ -463,6 +468,7 @@ impl WorkspaceEntry {
             next_terminal_id: 1,
             slot_ids: Vec::new(),
             slot_agent_labels: Vec::new(),
+            slot_agent_models: Vec::new(),
             slot_pane_states: Vec::new(),
             configuring: false,
             agent_timeline: TimelineDoc::default(),
@@ -635,6 +641,9 @@ pub struct CreateWorkspaceDraft {
     /// Optional per-slot friendly names (index = slot 0..terminal_count). Empty
     /// entries keep the deterministic terminal name. Captured by presets.
     pub slot_names: Vec<String>,
+    /// Selected CLI model id per agent row, parallel to `agent_counts` /
+    /// `WORKSPACE_FLEET_AGENT_SLUGS`. Empty = the agent's default model.
+    pub agent_models: [String; 5],
 }
 
 impl Default for CreateWorkspaceDraft {
@@ -651,6 +660,7 @@ impl Default for CreateWorkspaceDraft {
             remote_connection_id: None,
             session_role: None,
             slot_names: Vec::new(),
+            agent_models: Default::default(),
         }
     }
 }
@@ -675,6 +685,25 @@ pub fn fleet_counts_to_slot_labels(n: usize, counts: &[u8; 5]) -> Vec<String> {
     }
     out.truncate(n);
     out
+}
+
+/// Build per-slot model ids parallel to `slot_agent_labels`. Each slot's label
+/// (agent slug) is matched to its row in `WORKSPACE_FLEET_AGENT_SLUGS` to pull
+/// the chosen `agent_models` entry; unknown/empty labels yield an empty model.
+#[must_use]
+pub fn fleet_slot_models_for_labels(labels: &[String], agent_models: &[String; 5]) -> Vec<String> {
+    labels
+        .iter()
+        .map(|label| {
+            let slug = label.trim();
+            WORKSPACE_FLEET_AGENT_SLUGS
+                .iter()
+                .position(|s| *s == slug)
+                .and_then(|row| agent_models.get(row))
+                .map(|m| m.trim().to_string())
+                .unwrap_or_default()
+        })
+        .collect()
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -1461,6 +1490,21 @@ impl WorkbenchService {
         })
     }
 
+    /// Selected CLI-agent model id for the terminal's slot, if any. Empty/blank
+    /// entries return `None` so the agent's own default model is used.
+    pub fn agent_model_for_terminal_key(&self, terminal_key: &str) -> Option<String> {
+        let storage_key = super::agent_accent::terminal_key_storage_key(terminal_key)?;
+        let slot_id = terminal_key.split(':').nth(1)?.parse::<u64>().ok()?;
+        self.workspaces.with_untracked(|list| {
+            let ws = list.iter().find(|w| w.storage_key == storage_key)?;
+            let idx = ws.slot_ids.iter().position(|&id| id == slot_id)?;
+            ws.slot_agent_models
+                .get(idx)
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+        })
+    }
+
     fn notification_ack_keys_for_terminal(&self, terminal_key: &str) -> Vec<String> {
         let mut keys = vec![terminal_key.to_string()];
         let Some(storage_key) = super::agent_accent::terminal_key_storage_key(terminal_key) else {
@@ -2082,6 +2126,7 @@ impl WorkbenchService {
             next_terminal_id: 1,
             slot_ids: Vec::new(),
             slot_agent_labels: Vec::new(),
+            slot_agent_models: Vec::new(),
             slot_pane_states: Vec::new(),
             configuring: false,
             agent_timeline: TimelineDoc::default(),
@@ -2215,6 +2260,7 @@ impl WorkbenchService {
                 next_terminal_id: terminal_count as u64 + 1,
                 slot_ids,
                 slot_agent_labels,
+                slot_agent_models: Vec::new(),
                 slot_pane_states,
                 configuring: false,
                 agent_timeline: TimelineDoc::default(),
@@ -2459,6 +2505,7 @@ impl WorkbenchService {
                 }
                 workspace.slot_ids.push(new_slot_id);
                 workspace.slot_agent_labels.push(slug.clone());
+                workspace.slot_agent_models.push(String::new());
                 workspace
                     .slot_pane_states
                     .push(SlotPaneState::default_for_slot(new_slot_id));
@@ -2492,6 +2539,9 @@ impl WorkbenchService {
             };
             workspace.slot_ids.remove(index);
             workspace.slot_agent_labels.remove(index);
+            if index < workspace.slot_agent_models.len() {
+                workspace.slot_agent_models.remove(index);
+            }
             workspace.slot_name_overrides.remove(&terminal_id);
             if index < workspace.slot_pane_states.len() {
                 workspace.slot_pane_states.remove(index);
@@ -2741,6 +2791,7 @@ impl WorkbenchService {
                 next_terminal_id: 1,
                 slot_ids: Vec::new(),
                 slot_agent_labels: Vec::new(),
+                slot_agent_models: Vec::new(),
                 slot_pane_states: Vec::new(),
                 configuring: false,
                 agent_timeline: TimelineDoc::default(),
@@ -3105,6 +3156,7 @@ impl WorkbenchService {
             next_terminal_id: 1,
             slot_ids: Vec::new(),
             slot_agent_labels: Vec::new(),
+            slot_agent_models: Vec::new(),
             slot_pane_states: Vec::new(),
             configuring: true,
             agent_timeline: TimelineDoc::default(),
@@ -3186,14 +3238,23 @@ impl WorkbenchService {
         });
     }
 
+    /// Set the CLI model id for an agent row (0..5) in the draft.
+    pub fn set_workspace_agent_model(&self, id: u64, idx: usize, model: String) {
+        if idx >= 5 {
+            return;
+        }
+        self.update_workspace_draft(id, |d| d.agent_models[idx] = model);
+    }
+
     /// Apply a saved preset onto a workspace draft: terminal count + grid,
-    /// per-agent counts, per-slot names, and session role. Clears the
-    /// `agents_skipped` flag so the fleet step reflects the preset.
+    /// per-agent counts, per-agent models, per-slot names, and session role.
+    /// Clears the `agents_skipped` flag so the fleet step reflects the preset.
     pub fn apply_preset_to_draft(
         &self,
         id: u64,
         terminal_count: u8,
         agent_counts: [u8; 5],
+        agent_models: [String; 5],
         slot_names: Vec<String>,
         session_role: Option<String>,
     ) {
@@ -3205,6 +3266,7 @@ impl WorkbenchService {
             d.grid_rows = r;
             d.grid_cols = c;
             d.agent_counts = agent_counts;
+            d.agent_models = agent_models;
             d.agents_skipped = false;
             d.slot_names = slot_names;
             d.session_role = session_role;
@@ -3326,6 +3388,7 @@ impl WorkbenchService {
             }
             fleet_counts_to_slot_labels(n, &draft.agent_counts)
         };
+        let slot_agent_models = fleet_slot_models_for_labels(&slot_agent_labels, &draft.agent_models);
 
         let title = {
             let t = draft.name_input.trim();
@@ -3370,6 +3433,7 @@ impl WorkbenchService {
             ws.grid_cols = gc;
             ws.slot_ids = slot_ids;
             ws.slot_agent_labels = slot_agent_labels;
+            ws.slot_agent_models = slot_agent_models;
             ws.slot_pane_states = slot_pane_states;
             ws.next_terminal_id = n as u64 + 1;
             ws.remote_connection_id = remote_connection_id.clone();
@@ -4261,8 +4325,12 @@ fn swap_workspace_slots(workspace: &mut WorkspaceEntry, slot_a: u64, slot_b: u64
     while workspace.slot_agent_labels.len() < workspace.slot_ids.len() {
         workspace.slot_agent_labels.push(String::new());
     }
+    while workspace.slot_agent_models.len() < workspace.slot_ids.len() {
+        workspace.slot_agent_models.push(String::new());
+    }
     workspace.slot_ids.swap(idx_a, idx_b);
     workspace.slot_agent_labels.swap(idx_a, idx_b);
+    workspace.slot_agent_models.swap(idx_a, idx_b);
     workspace.slot_pane_states.swap(idx_a, idx_b);
     true
 }
@@ -4409,6 +4477,7 @@ mod center_tab_tests {
             next_terminal_id: 2,
             slot_ids: vec![1],
             slot_agent_labels: vec![String::new()],
+            slot_agent_models: Vec::new(),
             slot_pane_states: vec![SlotPaneState::default_for_slot(1)],
             configuring: false,
             agent_timeline: TimelineDoc::default(),
@@ -4506,6 +4575,7 @@ mod terminal_slot_tests {
             next_terminal_id: n as u64 + 1,
             slot_ids,
             slot_agent_labels: (0..n as usize).map(|i| format!("label{i}")).collect(),
+            slot_agent_models: Vec::new(),
             slot_pane_states,
             configuring: false,
             agent_timeline: TimelineDoc::default(),

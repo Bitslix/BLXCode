@@ -905,6 +905,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzPresetEmpty => "Ainda não há predefinições",
         I18nKey::WzSlotNamesLabel => "Nomes de terminal (opcional)",
         I18nKey::WzSlotNamePh => "Slot {n}",
+        I18nKey::WzAgentModelLabel => "Modelo",
+        I18nKey::WzAgentModelDefault => "Padrão",
         I18nKey::AgRoleBadgeAria => "Função ativa",
         I18nKey::WzPresetSingle => "1 terminal",
         I18nKey::WzPreset2 => "2 terminais",

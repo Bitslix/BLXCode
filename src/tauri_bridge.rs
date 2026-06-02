@@ -1297,7 +1297,9 @@ pub struct SessionRoleView {
     #[serde(default)]
     pub color: String,
     #[serde(default)]
-    pub model: String,
+    pub provider: String,
+    #[serde(default)]
+    pub models: Vec<String>,
 }
 
 pub async fn agent_session_roles_list() -> Result<Vec<SessionRoleView>, String> {
@@ -1315,6 +1317,8 @@ pub struct WorkspacePresetView {
     pub terminal_count: u8,
     #[serde(default)]
     pub agent_counts: [u8; 5],
+    #[serde(default)]
+    pub agent_models: [String; 5],
     #[serde(default)]
     pub slot_names: Vec<String>,
     #[serde(default)]

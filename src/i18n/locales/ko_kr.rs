@@ -877,6 +877,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzPresetEmpty => "아직 프리셋이 없습니다",
         I18nKey::WzSlotNamesLabel => "터미널 이름(선택 사항)",
         I18nKey::WzSlotNamePh => "슬롯 {n}",
+        I18nKey::WzAgentModelLabel => "모델",
+        I18nKey::WzAgentModelDefault => "기본값",
         I18nKey::AgRoleBadgeAria => "활성 역할",
         I18nKey::WzPresetSingle => "1 터미널",
         I18nKey::WzPreset2 => "2개의 터미널",

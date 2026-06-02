@@ -8519,6 +8519,15 @@ body.blxcode-dragging-terminal * {
   padding: 0.3rem 0.5rem;
 }
 
+/* Per-agent CLI model select in the fleet step. */
+.ws-config__agent-model {
+  width: auto;
+  min-width: 7rem;
+  max-width: 12rem;
+  font-size: 0.74rem;
+  padding: 0.26rem 0.4rem;
+}
+
 /* --- recent working directories --- */
 .ws-config__recent {
   display: flex;

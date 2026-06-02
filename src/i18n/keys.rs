@@ -911,6 +911,8 @@ pub enum I18nKey {
     WzPresetEmpty,
     WzSlotNamesLabel,
     WzSlotNamePh,
+    WzAgentModelLabel,
+    WzAgentModelDefault,
     AgRoleBadgeAria,
     WzPresetSingle,
     WzPreset2,

@@ -35,6 +35,9 @@ pub struct WorkspacePreset {
     /// Per-agent-row counts, parallel to `WORKSPACE_FLEET_AGENT_SLUGS`.
     #[serde(default)]
     pub agent_counts: [u8; FLEET_AGENT_ROWS],
+    /// Per-agent-row CLI model ids, parallel to `agent_counts`. Empty = default.
+    #[serde(default)]
+    pub agent_models: [String; FLEET_AGENT_ROWS],
     /// Optional per-slot friendly names (index-aligned to slots).
     #[serde(default)]
     pub slot_names: Vec<String>,
@@ -175,6 +178,13 @@ mod tests {
             name: name.to_string(),
             terminal_count: 4,
             agent_counts: [2, 1, 1, 0, 0],
+            agent_models: [
+                "opus".into(),
+                "gpt-5".into(),
+                String::new(),
+                String::new(),
+                String::new(),
+            ],
             slot_names: vec!["api".into(), "ui".into()],
             session_role: Some("coordinator".into()),
         }
@@ -192,6 +202,8 @@ mod tests {
         assert_eq!(listed[0].name, "My Fleet");
         assert_eq!(listed[0].terminal_count, 4);
         assert_eq!(listed[0].session_role.as_deref(), Some("coordinator"));
+        assert_eq!(listed[0].agent_models[0], "opus");
+        assert_eq!(listed[0].agent_models[1], "gpt-5");
         let _ = fs::remove_dir_all(&dir);
     }
 

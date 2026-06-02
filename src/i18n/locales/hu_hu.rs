@@ -913,6 +913,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzPresetEmpty => "Még nincsenek előbeállítások",
         I18nKey::WzSlotNamesLabel => "Terminálnevek (opcionális)",
         I18nKey::WzSlotNamePh => "Hely {n}",
+        I18nKey::WzAgentModelLabel => "Modell",
+        I18nKey::WzAgentModelDefault => "Alapértelmezett",
         I18nKey::AgRoleBadgeAria => "Aktív szerepkör",
         I18nKey::WzPresetSingle => "1 terminál",
         I18nKey::WzPreset2 => "2 terminál",

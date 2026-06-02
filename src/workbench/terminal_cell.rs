@@ -38,6 +38,9 @@ struct AgentLaunchPending {
     /// `Some` for remote (SSH) workspaces — resume discovery runs on the
     /// remote host instead of the local sessions.json/transcript files.
     remote_connection_id: Option<String>,
+    /// Selected CLI model id for this slot (passed as `--model`); `None` uses
+    /// the agent's own default.
+    model: Option<String>,
 }
 
 #[derive(Clone, Default)]
@@ -1034,6 +1037,7 @@ async fn bootstrap_terminal_cell(
                         terminal_key: terminal_key.clone(),
                         sid,
                         remote_connection_id: wb.remote_connection_for_terminal_key(&terminal_key),
+                        model: wb.agent_model_for_terminal_key(&terminal_key),
                     });
                     schedule_agent_launch_retries(state.clone());
                 }
@@ -1161,7 +1165,7 @@ async fn spawn_agent_launch_when_ready(state: Arc<Mutex<CellState>>) {
     if state.lock().expect("cell").launch_sent || state.lock().expect("cell").disposed {
         return;
     }
-    let cmd = build_launch_command(&pending.slug, resume_id.as_deref());
+    let cmd = build_launch_command(&pending.slug, resume_id.as_deref(), pending.model.as_deref());
     use base64::Engine;
     let b64 = base64::engine::general_purpose::STANDARD.encode(cmd.as_bytes());
     if pty_write(pending.sid, b64).await.is_ok() {
@@ -1403,6 +1407,6 @@ async fn lookup_resume_session(
 /// Format the shell command that auto-launches the agent CLI. With a
 /// resume id we use the CLI's resume syntax (Claude: `--resume <id>`,
 /// Codex: `resume <id>`); without one we just run the binary.
-fn build_launch_command(slug: &str, resume_id: Option<&str>) -> String {
-    terminal_agent_launch_command(slug, resume_id)
+fn build_launch_command(slug: &str, resume_id: Option<&str>, model: Option<&str>) -> String {
+    terminal_agent_launch_command(slug, resume_id, model)
 }

@@ -191,3 +191,12 @@ Two connected features for the **Create Workspace** flow and the Agent panel:
 - [x] `i18n` - New keys across all 15 locales
 - [x] `docs` - Update user/developer docs
 - [x] `tests` - Backend unit tests (12 new) + wasm/check green
+
+## Addendum — provider/model rework (follow-up)
+
+The role `model: <single>` frontmatter was a hard single-provider binding. Reworked per user decision (both metadata + CLI fleet; provider scope = CLI-agent slugs):
+
+- Role frontmatter `model:` → `provider:` (CLI slug) + `models:` (list). Both are **advisory metadata** shown in the role picker; they never change the BLXCode Agent's model. The BLXCode Agent (the role-wearer, e.g. coordinator) always uses the **Settings** provider/model.
+- `terminal_agent_profiles.rs` gained a per-CLI-slug built-in model catalog + `model_flag`; `terminal_agent_launch_command(slug, resume_id, model)` appends `--model '<id>'`.
+- Create-Workspace step 2 shows a per-agent model `<select>` (options from the catalog). Stored in `CreateWorkspaceDraft.agent_models[5]`, expanded on commit to `WorkspaceEntry.slot_agent_models` and passed to the terminal launch via `agent_model_for_terminal_key`. Captured by presets (`agent_models`).
+- All 271 backend tests pass; wasm compiles clean.

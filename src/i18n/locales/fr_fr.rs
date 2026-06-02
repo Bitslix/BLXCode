@@ -931,6 +931,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzPresetEmpty => "Aucun préréglage pour l'instant",
         I18nKey::WzSlotNamesLabel => "Noms des terminaux (facultatif)",
         I18nKey::WzSlotNamePh => "Emplacement {n}",
+        I18nKey::WzAgentModelLabel => "Modèle",
+        I18nKey::WzAgentModelDefault => "Par défaut",
         I18nKey::AgRoleBadgeAria => "Rôle actif",
         I18nKey::WzPresetSingle => "1 borne",
         I18nKey::WzPreset2 => "2 bornes",

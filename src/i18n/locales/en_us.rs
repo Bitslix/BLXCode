@@ -968,6 +968,8 @@ keys; the preset only fills in defaults."
         I18nKey::WzPresetEmpty => "No presets yet",
         I18nKey::WzSlotNamesLabel => "Terminal names (optional)",
         I18nKey::WzSlotNamePh => "Slot {n}",
+        I18nKey::WzAgentModelLabel => "Model",
+        I18nKey::WzAgentModelDefault => "Default",
         I18nKey::AgRoleBadgeAria => "Active role",
         I18nKey::WzPresetSingle => "1 terminal",
         I18nKey::WzPreset2 => "2 terminals",

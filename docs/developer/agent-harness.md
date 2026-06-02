@@ -237,11 +237,17 @@ embedded from `src-tauri/src/agent/harness_skills/specialized/*.md`.
 
 - `agent/session_roles.rs` — embeds each role via `include_str!`
   (`SPECIALIZED_ROLES`), parses the YAML frontmatter (`name`, `description`,
-  `tools`, `model`, `color`), and exposes `list_roles()`, `role_meta(slug)`, and
-  `role_prompt_body(slug)`. `role_prompt_body` strips the frontmatter and the
-  duplicated `## Prompt Defense Baseline` section (Security already covers it).
+  `tools`, `color`, `provider`, `models`), and exposes `list_roles()`,
+  `role_meta(slug)`, and `role_prompt_body(slug)`. `role_prompt_body` strips the
+  frontmatter and the duplicated `## Prompt Defense Baseline` section (Security
+  already covers it).
 - Each specialized `.md` must carry a `color:` frontmatter key; it drives the
   colored role sub-line in the agent name badge.
+- `provider` (a terminal CLI-agent slug, e.g. `claude`) and `models` (a list)
+  are **advisory metadata** shown in the role picker. They **never** change the
+  BLXCode Agent's runtime model — the BLXCode Agent always uses the
+  provider/model from **Settings** (`AgentProviderSettings`). The role is a
+  behavioural overlay only.
 - The chosen slug travels per turn on `UserTurn.session_role` (mirrored in
   `src/agent_wire.rs`) and is appended to the shared prompt by
   `system_prompt(workspace_root, agent_name, session_role)` as a trailing
@@ -251,6 +257,24 @@ embedded from `src-tauri/src/agent/harness_skills/specialized/*.md`.
   (`#[serde(default)]`), so it is restored with the workbench snapshot. The
   composer reads it via `agent_session_role_for_workspace_untracked` when
   building the turn.
+
+### CLI-agent model selection (fleet)
+
+Each terminal CLI agent (the fleet assigned in Create-Workspace step 2) can run
+on a chosen model:
+
+- `terminal_agent_profiles.rs` carries a per-slug built-in catalog
+  (`models: &[&str]`) plus a `model_flag` (default `--model`).
+  `terminal_agent_launch_command(slug, resume_id, model)` appends
+  ` --model '<id>'` when a model is selected (empty = the agent's own default).
+- The fleet step renders a model `<select>` per assigned agent row (options from
+  `terminal_agent_models(slug)`); the choice is stored per agent row in
+  `CreateWorkspaceDraft.agent_models[5]` and expanded on commit into
+  `WorkspaceEntry.slot_agent_models` (parallel to `slot_agent_labels`) via
+  `fleet_slot_models_for_labels`.
+- At launch, `terminal_cell.rs` resolves the slot's model through
+  `WorkbenchService::agent_model_for_terminal_key` and passes it to the launch
+  command. The model is kept parallel across slot add/remove/swap.
 
 ### Workspace presets
 
