@@ -102,6 +102,20 @@
   line-height: 1.35;
 }
 
+.agent-provider-pane__field-error {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--danger);
+}
+
+.workbench-plain-input.agent-provider-pane__input--error {
+  border-color: color-mix(in srgb, var(--danger) 58%, var(--border));
+}
+
+.workbench-plain-input.agent-provider-pane__input--error:focus {
+  border-color: var(--danger);
+}
+
 .agent-provider-pane__inline-toggle {
   display: inline-flex;
   align-items: center;

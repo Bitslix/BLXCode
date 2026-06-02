@@ -31,6 +31,20 @@ use web_sys::{Blob, BlobPropertyBag, HtmlAudioElement, HtmlElement, KeyboardEven
 
 pub use state::{focus_in_editable, hotkey_matches, VoiceOrbState};
 
+/// Default agent name shown when the user has not set a nickname. Mirrors the
+/// backend `agent::nickname::DEFAULT_AGENT_NICKNAME`.
+const DEFAULT_AGENT_NICKNAME: &str = "BLXCodey";
+
+/// Resolve the effective agent name: trimmed nickname, or the default if blank.
+fn resolve_agent_name(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        DEFAULT_AGENT_NICKNAME.to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
 /// Public handle the agent panel uses to read the orb's state and drive
 /// playback when `AgentEvent::VoiceReady` arrives.
 #[derive(Clone, Copy)]
@@ -135,14 +149,16 @@ where
     let active_turn_id = RwSignal::new(Option::<String>::None);
     let mousedown_at = RwSignal::new(0.0_f64);
     let orb_mode = RwSignal::new(AgentOrbMode::ThreeD);
+    let agent_name = RwSignal::new(DEFAULT_AGENT_NICKNAME.to_string());
 
-    let refresh_orb_mode = move || {
+    let refresh_agent_settings = move || {
         if !is_tauri_shell() {
             return;
         }
         leptos::task::spawn_local(async move {
             if let Ok(view) = agent_settings_get().await {
                 orb_mode.set(view.orb_mode);
+                agent_name.set(resolve_agent_name(&view.agent_nickname));
             }
         });
     };
@@ -154,12 +170,13 @@ where
             }
             if let Ok(view) = agent_settings_get().await {
                 orb_mode.set(view.orb_mode);
+                agent_name.set(resolve_agent_name(&view.agent_nickname));
             }
             refresh_tts_ready(handle).await;
         });
         let settings_change_handle =
             window_event_listener_untyped("blxcode-agent-settings-changed", move |_| {
-                refresh_orb_mode();
+                refresh_agent_settings();
             });
         on_cleanup(move || drop(settings_change_handle));
     }
@@ -298,6 +315,14 @@ where
                 on:mouseleave=on_mouseleave
                 on:keydown=on_keydown
             >
+                <span
+                    class="agent-name-badge"
+                    class:agent-name-badge--live=move || thinking.get()
+                    role="status"
+                    aria-label=move || format!("{}: {}", i18n.tr(I18nKey::AgNameBadgeAria)(), agent_name.get())
+                >
+                    {move || agent_name.get()}
+                </span>
                 <span class="drobo-orb" aria-hidden="true">
                     <Show
                         when=move || orb_mode.get() == AgentOrbMode::ThreeD
