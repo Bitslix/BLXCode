@@ -4,8 +4,9 @@
 //! A role is chosen per workspace in the Create-Workspace flow and handed to
 //! the BLXCode Agent by appending its operational text to the shared
 //! `system_prompt` (see [`crate::agent::system_prompt`]). The role's
-//! frontmatter (`name`, `description`, `tools`, `model`, `color`) drives the
-//! picker dropdown and the colored sub-line in the agent name badge.
+//! frontmatter (`name`, `description`, `tools`, `provider`, `models`, `color`,
+//! `terminalAgentSwarm`) drives the picker dropdown, the colored sub-line in
+//! the agent name badge, and role-specific agent orchestration guidance.
 //!
 //! Roles are read-only built-ins, parallel to but separate from the user
 //! `.agents/skills` store.
@@ -66,6 +67,9 @@ pub struct RoleMeta {
     /// Advisory list of model identifiers the role is designed for, across the
     /// built-in CLI agents. Shown in the role picker; does not pin a model.
     pub models: Vec<String>,
+    /// Whether this role is allowed and expected to coordinate terminal CLI
+    /// agents as an intentional swarm/fleet.
+    pub terminal_agent_swarm: bool,
 }
 
 /// Returns metadata for every embedded role, in registry order.
@@ -119,6 +123,7 @@ fn parse_meta(slug: &str, raw: &str) -> RoleMeta {
         models: fm_value(fm, "models")
             .map(|v| parse_tools(&v))
             .unwrap_or_default(),
+        terminal_agent_swarm: fm_bool(fm, "terminalAgentSwarm").unwrap_or(false),
     }
 }
 
@@ -204,6 +209,15 @@ fn fm_value(fm: &str, key: &str) -> Option<String> {
     None
 }
 
+/// Reads a frontmatter boolean (`true`/`false`, case-insensitive).
+fn fm_bool(fm: &str, key: &str) -> Option<bool> {
+    fm_value(fm, key).and_then(|v| match v.to_ascii_lowercase().as_str() {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    })
+}
+
 /// Parses a frontmatter tools list: `["Read", "Grep"]` or `[Read, Grep]`.
 fn parse_tools(raw: &str) -> Vec<String> {
     raw.trim()
@@ -255,8 +269,21 @@ mod tests {
         assert_eq!(coord.title, "Coordinator");
         assert!(!coord.description.is_empty());
         assert_eq!(coord.color, "violet");
+        assert!(coord.terminal_agent_swarm);
         assert!(coord.tools.contains(&"Read".to_string()));
         assert!(coord.tools.contains(&"Bash".to_string()));
+    }
+
+    #[test]
+    fn only_coordinator_enables_terminal_agent_swarm() {
+        for r in list_roles() {
+            assert_eq!(
+                r.terminal_agent_swarm,
+                r.slug == "coordinator",
+                "unexpected terminalAgentSwarm value for {}",
+                r.slug
+            );
+        }
     }
 
     #[test]

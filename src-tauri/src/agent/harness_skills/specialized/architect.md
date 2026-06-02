@@ -5,6 +5,7 @@ tools: ["Read", "Grep", "Glob"]
 provider: claude
 models: [opus, sonnet, gpt-5, gemini-2.5-pro]
 color: blue
+terminalAgentSwarm: false
 ---
 
 ## Prompt Defense Baseline

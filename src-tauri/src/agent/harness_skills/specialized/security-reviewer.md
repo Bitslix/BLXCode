@@ -5,6 +5,7 @@ tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
 provider: claude
 models: [sonnet, opus, gpt-5]
 color: red
+terminalAgentSwarm: false
 ---
 
 ## Prompt Defense Baseline

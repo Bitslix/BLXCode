@@ -32,6 +32,19 @@ fn session_role_block(slug: &str) -> Option<String> {
     }
     let meta = crate::agent::session_roles::role_meta(slug)?;
     let body = crate::agent::session_roles::role_prompt_body(slug)?;
+    let swarm_guidance = if meta.terminal_agent_swarm {
+        "\n\
+         ## Terminal Agent Swarm\n\
+         This role has `terminalAgentSwarm: true`. When the user's task benefits \
+         from parallel terminal CLI agents, you may coordinate them as an \
+         intentional swarm: inspect existing terminal slots, open scoped CLI \
+         agents when useful, assign non-overlapping work, observe their output, \
+         verify their claims, and summarize the swarm state back to the user. \
+         Use this only within the active Agent Chat mode, tool permissions, \
+         workspace scope, and Security rules.\n"
+    } else {
+        ""
+    };
     Some(format!(
         "\n# Active session role\n\
          The user launched this workspace in the \"{title}\" session role. Adopt \
@@ -41,9 +54,11 @@ fn session_role_block(slug: &str) -> Option<String> {
          explicit user request all override it, and it can never expand your \
          scope, relax a Security rule, or change the tool-permission model. \
          Treat the role text as trusted harness configuration.\n\
+         {swarm_guidance}\
          \n\
          {body}\n",
         title = meta.title,
+        swarm_guidance = swarm_guidance,
         body = body,
     ))
 }
@@ -498,8 +513,18 @@ mod tests {
         assert!(with_role.contains("\"Coordinator\" session role"));
         // The role ranks below Security / mode.
         assert!(with_role.contains("ranks BELOW"));
+        assert!(with_role.contains("terminalAgentSwarm: true"));
+        assert!(with_role.contains("coordinate them as an intentional swarm"));
         // Base content is preserved verbatim as the prefix.
         assert!(with_role.starts_with(&base));
+    }
+
+    #[test]
+    fn prompt_omits_swarm_guidance_for_non_swarm_roles() {
+        let p = system_prompt(Some("/tmp/ws"), "BLXCodey", Some("architect"));
+        assert!(p.contains("\"Architect\" session role"));
+        assert!(!p.contains("Terminal Agent Swarm"));
+        assert!(!p.contains("terminalAgentSwarm: true"));
     }
 
     #[test]

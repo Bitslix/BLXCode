@@ -5,6 +5,7 @@ tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
 provider: claude
 models: [haiku, sonnet, gemini-2.5-flash]
 color: amber
+terminalAgentSwarm: false
 ---
 
 ## Prompt Defense Baseline

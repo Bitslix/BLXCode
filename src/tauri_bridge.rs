@@ -1300,6 +1300,8 @@ pub struct SessionRoleView {
     pub provider: String,
     #[serde(default)]
     pub models: Vec<String>,
+    #[serde(default)]
+    pub terminal_agent_swarm: bool,
 }
 
 pub async fn agent_session_roles_list() -> Result<Vec<SessionRoleView>, String> {
