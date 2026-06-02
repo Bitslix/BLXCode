@@ -2637,6 +2637,11 @@ button.workbench-shortcut-row--action:focus-visible {
   text-align: left;
   border-bottom: 1px solid var(--border);
   background: transparent;
+  transition:
+    padding 0.22s ease,
+    column-gap 0.22s ease,
+    row-gap 0.22s ease,
+    background 0.22s ease;
 }
 
 .agent-hero__orb {
@@ -2661,6 +2666,8 @@ button.workbench-shortcut-row--action:focus-visible {
   transition:
     border-color 0.14s ease,
     box-shadow 0.14s ease,
+    width 0.22s ease,
+    height 0.22s ease,
     transform 0.14s ease,
     background 0.14s ease;
 }
@@ -2933,6 +2940,12 @@ button.workbench-shortcut-row--action:focus-visible {
       color-mix(in srgb, var(--bg-app) 70%, transparent)
     );
   box-shadow: none;
+  transition:
+    min-height 0.22s ease,
+    max-height 0.22s ease,
+    padding 0.22s ease,
+    opacity 0.18s ease,
+    transform 0.22s ease;
 }
 
 .agent-thinking-stream__head {
@@ -3148,6 +3161,10 @@ button.workbench-shortcut-row--action:focus-visible {
   min-width: 0;
   padding: 0.12rem 0 0;
   overflow: hidden;
+  transition:
+    padding 0.22s ease,
+    opacity 0.18s ease,
+    transform 0.22s ease;
 }
 
 .agent-session-stats__model {
@@ -3309,17 +3326,21 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .agent-hero--compact {
-  display: flex;
-  flex-direction: row;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto;
   align-items: center;
   justify-content: flex-start;
-  gap: 0.65rem;
+  column-gap: 0.65rem;
+  row-gap: 0;
   min-height: 0;
   padding: 0.55rem 0.75rem;
   text-align: left;
 }
 
 .agent-hero--compact .agent-hero__orb {
+  grid-column: 1;
+  grid-row: 1;
   width: 2.35rem;
   height: 2.35rem;
   flex-shrink: 0;
@@ -3363,11 +3384,14 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .agent-hero--compact .agent-session-stats {
+  grid-column: 2;
+  grid-row: 1;
   display: block;
   flex: 1 1 auto;
   min-width: 0;
   padding: 0;
   overflow: hidden;
+  transform: translateX(0);
 }
 
 .agent-hero--compact .agent-session-stats__model {
@@ -3421,7 +3445,15 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .agent-hero--compact .agent-thinking-stream {
-  display: none;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-height: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-0.24rem);
 }
 
 .workbench-agent-pane--chat-maximized {
