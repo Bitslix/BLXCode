@@ -115,11 +115,7 @@ fn handle_workspace_list(call_id: String, wb: WorkbenchService) {
     );
 }
 
-fn handle_workspace_switch(
-    call_id: String,
-    args: Option<serde_json::Value>,
-    wb: WorkbenchService,
-) {
+fn handle_workspace_switch(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
     let id_arg = args
         .as_ref()
         .and_then(|v| v.get("id"))
@@ -259,7 +255,12 @@ fn handle_view_show(call_id: String, args: Option<serde_json::Value>, wb: Workbe
             wb.set_active_sidebar_graph_open(true);
         }
         other => {
-            submit_async(call_id, false, format!("unknown view target: {other}"), None);
+            submit_async(
+                call_id,
+                false,
+                format!("unknown view target: {other}"),
+                None,
+            );
             return;
         }
     }
@@ -289,7 +290,12 @@ fn handle_open_settings(call_id: String, args: Option<serde_json::Value>, wb: Wo
         .and_then(|v| v.as_str())
         .unwrap_or("app");
     let Some(category) = parse_settings_category(raw) else {
-        submit_async(call_id, false, format!("unknown settings category: {raw}"), None);
+        submit_async(
+            call_id,
+            false,
+            format!("unknown settings category: {raw}"),
+            None,
+        );
         return;
     };
     wb.open_center_settings_tab(category);

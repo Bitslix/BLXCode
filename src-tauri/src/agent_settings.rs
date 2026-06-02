@@ -905,8 +905,8 @@ pub fn agent_settings_save(
     settings.auto_compact_threshold_pct =
         clamp_auto_compact_threshold_pct(patch.auto_compact_threshold_pct);
     settings.orb_mode = patch.orb_mode;
-    settings.agent_nickname =
-        crate::agent::nickname::validate_nickname(&patch.agent_nickname).map_err(|e| {
+    settings.agent_nickname = crate::agent::nickname::validate_nickname(&patch.agent_nickname)
+        .map_err(|e| {
             // Surface the stable reason code; the UI maps it to a localized message.
             format!("nickname:{}", e.reason_code())
         })?;

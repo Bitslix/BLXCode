@@ -150,32 +150,65 @@ fn classify_tool_call(name: &str, args: &Value) -> ToolPermissionClass {
     match name {
         "shell_exec" => ToolPermissionClass::Command,
         "harness.send_terminal_keys" => {
-            if args.get("submit").and_then(|v| v.as_bool()).unwrap_or(false) {
+            if args
+                .get("submit")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
                 ToolPermissionClass::Command
             } else {
                 ToolPermissionClass::NavigationView
             }
         }
-        "git_apply_patch" | "git_add" | "git_commit" | "memory_create" | "memory_write"
-        | "memory_delete" | "memory_rename" | "memory_rebuild_architecture" | "task_create"
-        | "task_update" | "task_delete" | "task_reorder" | "plan_create" | "plan_write"
-        | "plan_delete" | "plan_rename" | "plan_load" | "plan_sync_from_tasks"
-        | "rules_write" | "rules_set_enabled" | "rules_remove" | "skills_write"
-        | "skills_set_enabled" | "skills_remove" | "skills_install" | "workspace_file_write"
-        | "workspace_file_delete" | "workspace_dir_create" | "workspace_entry_rename" => {
-            ToolPermissionClass::MutatingEdit
-        }
-        "memory_category_update" | "memory_context_attach" | "memory_context_detach"
-        | "plan_context_attach" | "plan_context_detach" | "image_context_detach"
-        | "harness.create_workspace" | "harness.open_terminal" | "harness.send_agent_context"
-        | "harness.window_set_size" | "harness.window_set_fullscreen" => {
-            ToolPermissionClass::SettingsWindow
-        }
-        "harness.workspace_switch" | "harness.workspace_prev" | "harness.workspace_next"
-        | "harness.view_show" | "harness.open_settings" | "harness.open_memory"
-        | "harness.open_plan" | "harness.open_file" | "harness.open_diff" => {
-            ToolPermissionClass::NavigationView
-        }
+        "git_apply_patch"
+        | "git_add"
+        | "git_commit"
+        | "memory_create"
+        | "memory_write"
+        | "memory_delete"
+        | "memory_rename"
+        | "memory_rebuild_architecture"
+        | "task_create"
+        | "task_update"
+        | "task_delete"
+        | "task_reorder"
+        | "plan_create"
+        | "plan_write"
+        | "plan_delete"
+        | "plan_rename"
+        | "plan_load"
+        | "plan_sync_from_tasks"
+        | "rules_write"
+        | "rules_set_enabled"
+        | "rules_remove"
+        | "skills_write"
+        | "skills_set_enabled"
+        | "skills_remove"
+        | "skills_install"
+        | "workspace_file_write"
+        | "workspace_file_delete"
+        | "workspace_dir_create"
+        | "workspace_entry_rename" => ToolPermissionClass::MutatingEdit,
+        "memory_category_update"
+        | "memory_context_attach"
+        | "memory_context_detach"
+        | "plan_context_attach"
+        | "plan_context_detach"
+        | "image_context_detach"
+        | "harness.create_workspace"
+        | "harness.open_terminal"
+        | "harness.send_agent_context"
+        | "harness.window_set_size"
+        | "harness.window_set_fullscreen" => ToolPermissionClass::SettingsWindow,
+        "harness.workspace_switch"
+        | "harness.workspace_prev"
+        | "harness.workspace_next"
+        | "harness.view_show"
+        | "harness.open_settings"
+        | "harness.open_memory"
+        | "harness.open_plan"
+        | "harness.open_file"
+        | "harness.open_diff" => ToolPermissionClass::NavigationView,
         _ => ToolPermissionClass::Read,
     }
 }
@@ -339,8 +372,12 @@ mod tests {
     fn ask_edits_prompts_only_risky_classes() {
         assert!(requires_ask_edits_prompt(ToolPermissionClass::MutatingEdit));
         assert!(requires_ask_edits_prompt(ToolPermissionClass::Command));
-        assert!(requires_ask_edits_prompt(ToolPermissionClass::SettingsWindow));
-        assert!(!requires_ask_edits_prompt(ToolPermissionClass::NavigationView));
+        assert!(requires_ask_edits_prompt(
+            ToolPermissionClass::SettingsWindow
+        ));
+        assert!(!requires_ask_edits_prompt(
+            ToolPermissionClass::NavigationView
+        ));
         assert!(!requires_ask_edits_prompt(ToolPermissionClass::Read));
     }
 }

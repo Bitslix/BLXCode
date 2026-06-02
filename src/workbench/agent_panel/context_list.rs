@@ -10,65 +10,72 @@ use web_sys::KeyboardEvent;
 pub fn ContextSection(context_open: RwSignal<bool>) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let preview = RwSignal::new(None::<WorkspaceAgentImage>);
+    let attached_count =
+        Memo::new(move |_| active_context_items(wb).len() + wb.active_agent_images().len());
 
     view! {
-        <section class="agent-section agent-section--context" aria-labelledby="agent-context-title">
-            <button
-                type="button"
-                class="agent-section__head agent-section__head--toggle"
-                aria-expanded=move || context_open.get().to_string()
-                aria-controls="agent-context-list"
-                on:click=move |_| context_open.update(|open| *open = !*open)
-            >
-                <h3 id="agent-context-title">"Context"</h3>
-                <span>
-                    {move || {
-                        let count = active_context_items(wb).len();
-                        let count = count + wb.active_agent_images().len();
-                        if count == 0 {
-                            "Empty".to_string()
-                        } else {
-                            format!("{count} attached")
-                        }
-                    }}
-                    <span class="agent-section__chev" aria-hidden="true">
-                        {move || if context_open.get() { "⌃" } else { "⌄" }}
-                    </span>
-                </span>
-            </button>
-            <Show when=move || context_open.get()>
-                <ol id="agent-context-list" class="agent-task-list agent-context-list">
-                    {move || {
-                        let items = active_context_items(wb);
-                        let images = wb.active_agent_images();
-                        if items.is_empty() && images.is_empty() {
-                            return view! {
-                                <li class="agent-task agent-task--empty">
-                                    <div>
-                                        <strong>"No context attached"</strong>
-                                        <small>"Send Memory categories or notes here, or drop/paste images into the Agent panel."</small>
-                                    </div>
-                                </li>
+        <Show when=move || { attached_count.get() > 0 }>
+            <section class="agent-section agent-section--context" aria-labelledby="agent-context-title">
+                <div class="agent-tasks-bar agent-context-bar">
+                    <button
+                        type="button"
+                        class="agent-tasks-bar__summary"
+                        id="agent-context-title"
+                        aria-expanded=move || context_open.get().to_string()
+                        aria-controls="agent-context-list"
+                        aria-label=move || {
+                            if context_open.get() {
+                                "Collapse context".to_string()
+                            } else {
+                                "Expand context".to_string()
                             }
-                            .into_any();
                         }
-                        view! {
-                            <>
-                                {items
-                                    .into_iter()
-                                    .map(|item| view! { <ContextRow item=item wb=wb /> })
-                                    .collect_view()}
-                                {images
-                                    .into_iter()
-                                    .map(|image| view! { <ImageContextRow image=image wb=wb preview=preview /> })
-                                    .collect_view()}
-                            </>
-                        }
-                        .into_any()
-                    }}
-                </ol>
-            </Show>
-        </section>
+                        on:click=move |_| context_open.update(|open| *open = !*open)
+                    >
+                        <span class="agent-tasks-bar__count">{move || attached_count.get().to_string()}</span>
+                        <span class="agent-tasks-bar__desc">"Context"</span>
+                        <span class="agent-tasks-bar__chev" aria-hidden="true">
+                            {move || if context_open.get() { "⌃" } else { "⌄" }}
+                        </span>
+                    </button>
+
+                    <div class="agent-tasks-bar__progress agent-context-bar__meta">
+                        <span class="agent-tasks-bar__progress-label">"Attached context"</span>
+                        <span class="agent-tasks-bar__runtime">
+                            {move || {
+                                let count = attached_count.get();
+                                if count == 1 {
+                                    "1 item".to_string()
+                                } else {
+                                    format!("{count} items")
+                                }
+                            }}
+                        </span>
+                    </div>
+                </div>
+
+                <Show when=move || context_open.get()>
+                    <ol id="agent-context-list" class="agent-task-list agent-context-list">
+                        {move || {
+                            let items = active_context_items(wb);
+                            let images = wb.active_agent_images();
+                            view! {
+                                <>
+                                    {items
+                                        .into_iter()
+                                        .map(|item| view! { <ContextRow item=item wb=wb /> })
+                                        .collect_view()}
+                                    {images
+                                        .into_iter()
+                                        .map(|image| view! { <ImageContextRow image=image wb=wb preview=preview /> })
+                                        .collect_view()}
+                                </>
+                            }
+                        }}
+                    </ol>
+                </Show>
+            </section>
+        </Show>
         <ImagePreviewDialog preview=preview wb=wb />
     }
 }

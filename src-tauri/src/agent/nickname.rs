@@ -159,7 +159,10 @@ mod tests {
 
     #[test]
     fn rejects_invalid_chars() {
-        assert_eq!(validate_nickname("bad!name"), Err(NicknameError::InvalidChars));
+        assert_eq!(
+            validate_nickname("bad!name"),
+            Err(NicknameError::InvalidChars)
+        );
         assert_eq!(validate_nickname("na/me"), Err(NicknameError::InvalidChars));
     }
 

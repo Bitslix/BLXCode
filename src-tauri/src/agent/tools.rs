@@ -185,7 +185,10 @@ fn resolve_workspace_new_path(
     Ok((rel, full))
 }
 
-fn ensure_parent_under_workspace(root: &WorkspaceRootGuard, full: &Path) -> Result<(), ToolOutcome> {
+fn ensure_parent_under_workspace(
+    root: &WorkspaceRootGuard,
+    full: &Path,
+) -> Result<(), ToolOutcome> {
     let Some(parent) = full.parent() else {
         return Err(ToolOutcome {
             ok: false,

@@ -97,7 +97,11 @@ fn collect_dir_paths(nodes: &[Node], out: &mut Vec<String>) {
 }
 
 fn file_icon(rel_path: &str) -> icondata::Icon {
-    let ext = rel_path.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
+    let ext = rel_path
+        .rsplit('.')
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase();
     match ext.as_str() {
         "rs" => icondata::LuFileCode,
         "ts" | "tsx" | "js" | "jsx" => icondata::LuFileCode,

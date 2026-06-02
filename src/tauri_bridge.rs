@@ -603,7 +603,11 @@ pub async fn agent_settings_save(
 /// (blank means "use default"); `Err(code)` is a stable reason code
 /// (`tooLong` / `invalidChars` / `badWord`) for i18n mapping in the UI.
 pub async fn agent_validate_nickname(name: String) -> Result<(), String> {
-    invoke_typed("agent_validate_nickname", serde_json::json!({ "name": name })).await
+    invoke_typed(
+        "agent_validate_nickname",
+        serde_json::json!({ "name": name }),
+    )
+    .await
 }
 
 #[allow(dead_code)]

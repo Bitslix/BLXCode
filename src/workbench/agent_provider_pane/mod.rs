@@ -4,12 +4,11 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_provider_models, agent_settings_get, agent_settings_save, agent_validate_nickname,
-    agent_web_settings_get,
-    agent_web_settings_save, is_tauri_shell, AgentOrbMode, AgentProviderKind,
-    AgentProviderSettingsView, AgentWebSettingsView, ProviderModelEntry, ProviderModelsResponse,
-    ThinkingLevel, WebProviderKind, DEFAULT_AUTO_COMPACT_THRESHOLD_PCT, DEFAULT_TOOL_LOOP_LIMIT,
-    MAX_AUTO_COMPACT_THRESHOLD_PCT, MAX_TOOL_LOOP_LIMIT, MIN_AUTO_COMPACT_THRESHOLD_PCT,
-    MIN_TOOL_LOOP_LIMIT,
+    agent_web_settings_get, agent_web_settings_save, is_tauri_shell, AgentOrbMode,
+    AgentProviderKind, AgentProviderSettingsView, AgentWebSettingsView, ProviderModelEntry,
+    ProviderModelsResponse, ThinkingLevel, WebProviderKind, DEFAULT_AUTO_COMPACT_THRESHOLD_PCT,
+    DEFAULT_TOOL_LOOP_LIMIT, MAX_AUTO_COMPACT_THRESHOLD_PCT, MAX_TOOL_LOOP_LIMIT,
+    MIN_AUTO_COMPACT_THRESHOLD_PCT, MIN_TOOL_LOOP_LIMIT,
 };
 use crate::workbench::agent_model_picker::AgentModelPicker;
 use crate::workbench::SettingsPaneHeader;

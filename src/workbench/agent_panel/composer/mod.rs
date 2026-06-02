@@ -7,6 +7,7 @@
 use leptos::either::Either;
 use leptos::ev;
 use leptos::html;
+use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
@@ -105,6 +106,39 @@ pub fn Composer(
     let models_loading = RwSignal::new(false);
     let model_filter = RwSignal::new(String::new());
 
+    let close_popovers = move || {
+        model_open.set(false);
+        mode_open.set(false);
+        think_open.set(false);
+    };
+
+    let close_on_outside = window_event_listener_untyped("mousedown", move |ev| {
+        if !model_open.get_untracked() && !mode_open.get_untracked() && !think_open.get_untracked()
+        {
+            return;
+        }
+        let inside_menu = ev
+            .target()
+            .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+            .and_then(|el| el.closest(".agent-composer__menu").ok().flatten())
+            .is_some();
+        if !inside_menu {
+            close_popovers();
+        }
+    });
+    let close_on_escape = window_event_listener_untyped("keydown", move |ev| {
+        let Some(ev) = ev.dyn_ref::<web_sys::KeyboardEvent>() else {
+            return;
+        };
+        if ev.key() == "Escape" {
+            close_popovers();
+        }
+    });
+    on_cleanup(move || {
+        close_on_outside.remove();
+        close_on_escape.remove();
+    });
+
     if is_tauri_shell() {
         leptos::task::spawn_local(async move {
             if let Ok(view) = agent_settings_get().await {
@@ -135,7 +169,11 @@ pub fn Composer(
             )
             .await
             {
-                model_label.set(format!("{}/{}", updated.provider.as_str(), updated.model_id));
+                model_label.set(format!(
+                    "{}/{}",
+                    updated.provider.as_str(),
+                    updated.model_id
+                ));
                 thinking.set(updated.thinking_level);
                 settings.set(Some(updated));
             }
