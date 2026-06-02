@@ -300,7 +300,7 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
     // re-browsing. Deduplicated by normalized path, newest first.
     let recent_dirs = Memo::new(move |_| {
         let mut seen = std::collections::HashSet::new();
-        let mut out: Vec<(String, String)> = Vec::new();
+        let mut out: Vec<(String, String, u8)> = Vec::new();
         for it in wb.recent_workspaces().get() {
             if !crate::workbench::state::workspace_entry_has_folder(&it.workspace) {
                 continue;
@@ -310,7 +310,7 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
             if key.is_empty() || !seen.insert(key) {
                 continue;
             }
-            out.push((it.workspace.title.clone(), cwd));
+            out.push((it.workspace.title.clone(), cwd, it.workspace.terminal_count));
         }
         out
     });
@@ -567,15 +567,22 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                         </div>
                         <Show when=move || !recent_dirs.get().is_empty()>
                             <div class="ws-config__recent">
-                                <span class="ws-config__recent-label">
-                                    {move || i18n.tr(I18nKey::QkRecentHeading)()}
-                                </span>
-                                <ul class="harness-cmd-list ws-config__recent-list" role="list">
+                                <div class="ws-config__recent-head">
+                                    <span class="ws-config__recent-label">
+                                        <LxIcon icon=icondata::LuClock width="0.82rem" height="0.82rem" />
+                                        <span>{move || i18n.tr(I18nKey::QkRecentHeading)()}</span>
+                                        <span class="ws-config__recent-count">
+                                            {move || recent_dirs.get().len()}
+                                        </span>
+                                    </span>
+                                    <span class="ws-config__recent-note">"Last opened workspaces"</span>
+                                </div>
+                                <ul class="ws-config__recent-list" role="list">
                                     {move || {
                                         recent_dirs
                                             .get()
                                             .into_iter()
-                                            .map(|(title, cwd)| {
+                                            .map(|(title, cwd, terminal_count)| {
                                                 let cwd_set = cwd.clone();
                                                 let base = cwd
                                                     .trim_end_matches(['/', '\\'])
@@ -589,22 +596,23 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                                                     title
                                                 };
                                                 view! {
-                                                    <li class="harness-cmd-li">
+                                                    <li class="ws-config__recent-item">
                                                         <button
                                                             type="button"
-                                                            class="harness-cmd-btn"
+                                                            class="ws-config__recent-card"
                                                             title=cwd.clone()
                                                             on:click=move |_| {
                                                                 wb.set_workspace_cwd(workspace_id, cwd_set.clone());
                                                             }
                                                         >
-                                                            <span class="harness-cmd-btn__icon" aria-hidden="true">
+                                                            <span class="ws-config__recent-icon" aria-hidden="true">
                                                                 <LxIcon icon=icondata::LuFolderClock width="0.9rem" height="0.9rem" />
                                                             </span>
-                                                            <span class="harness-cmd-btn__text">
-                                                                <span class="harness-cmd-title">{label}</span>
-                                                                <span class="harness-cmd-sub">{cwd.clone()}</span>
+                                                            <span class="ws-config__recent-text">
+                                                                <span class="ws-config__recent-title">{label}</span>
+                                                                <span class="ws-config__recent-path">{cwd.clone()}</span>
                                                             </span>
+                                                            <span class="ws-config__recent-terminals">{terminal_count}</span>
                                                         </button>
                                                     </li>
                                                 }
@@ -738,7 +746,21 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                                 let items = presets.get();
                                 if items.is_empty() {
                                     return view! {
-                                        <span class="ws-config__hint">{i18n.tr(I18nKey::WzPresetEmpty)()}</span>
+                                        <div class="ws-config__preset-empty">
+                                            <span class="ws-config__preset-empty-icon" aria-hidden="true">
+                                                <LxIcon icon=icondata::LuFolderPlus width="1rem" height="1rem" />
+                                            </span>
+                                            <span class="ws-config__preset-empty-title">
+                                                {i18n.tr(I18nKey::WzPresetEmpty)()}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                class="ws-config__preset-empty-btn"
+                                                on:click=move |_| preset_new_open.set(true)
+                                            >
+                                                {move || i18n.tr(I18nKey::WzPresetNew)()}
+                                            </button>
+                                        </div>
                                     }.into_any();
                                 }
                                 items.into_iter().map(|p| {
@@ -787,7 +809,7 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                                     }
                                 }).collect_view().into_any()
                             }}
-                            <Show when=move || !preset_new_open.get()>
+                            <Show when=move || !preset_new_open.get() && !presets.get().is_empty()>
                                 <button
                                     type="button"
                                     class="ws-config__preset ws-config__preset--new"
