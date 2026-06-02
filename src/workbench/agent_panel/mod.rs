@@ -36,11 +36,28 @@ use crate::workbench::agent_panel::voice_orb::{handle_voice_event, VoiceOrb, Voi
 use crate::workbench::agent_timeline::TimelineDoc;
 use crate::workbench::terminal_slot_dnd::TerminalSlotDragService;
 use crate::workbench::WorkbenchService;
+use gloo_timers::future::TimeoutFuture;
 use leptos::html;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
+use send_wrapper::SendWrapper;
+use std::cell::Cell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use wasm_bindgen::JsCast;
+
+const THINKING_IDLE_MESSAGES: [&str; 10] = [
+    "Dangling",
+    "Baking",
+    "Tracing",
+    "Stitching",
+    "Weighing",
+    "Sketching",
+    "Linking",
+    "Sorting",
+    "Composing",
+    "Refining",
+];
 
 #[component]
 pub fn AgentPanelDock() -> impl IntoView {
@@ -668,6 +685,21 @@ pub fn AgentPanelDock() -> impl IntoView {
 fn AgentThinkingStream(timeline: RwSignal<TimelineDoc>) -> impl IntoView {
     let stream_ref = NodeRef::<html::Div>::new();
     let thinking_text = Memo::new(move |_| timeline.with(latest_active_thinking_text));
+    let idle_idx = RwSignal::new(0usize);
+    let idle_alive: SendWrapper<Rc<Cell<bool>>> = SendWrapper::new(Rc::new(Cell::new(true)));
+    let idle_alive_loop = idle_alive.clone();
+    leptos::task::spawn_local(async move {
+        while idle_alive_loop.get() {
+            TimeoutFuture::new(random_thinking_idle_delay_ms()).await;
+            if !idle_alive_loop.get() {
+                break;
+            }
+            idle_idx.set(random_thinking_idle_index(idle_idx.get_untracked()));
+        }
+    });
+    on_cleanup(move || {
+        idle_alive.set(false);
+    });
 
     Effect::new(move |_| {
         let _ = thinking_text.get();
@@ -685,21 +717,39 @@ fn AgentThinkingStream(timeline: RwSignal<TimelineDoc>) -> impl IntoView {
                 </div>
                 <div class="agent-thinking-stream__body" node_ref=stream_ref>
                     {move || {
-                        thinking_text
-                            .get()
-                            .map(|text| {
-                                if text.trim().is_empty() {
-                                    "Thinking...".to_string()
-                                } else {
-                                    text
-                                }
-                            })
-                            .unwrap_or_default()
+                        let text = thinking_text.get().unwrap_or_default();
+                        if text.trim().is_empty() {
+                            let phrase = THINKING_IDLE_MESSAGES[idle_idx.get()].to_string();
+                            view! {
+                                <span class="agent-thinking-stream__idle">
+                                    <span class="agent-thinking-stream__idle-icon" aria-hidden="true">
+                                        <LxIcon icon=icondata::LuSparkles width="0.72rem" height="0.72rem" />
+                                    </span>
+                                    <span>{phrase}</span>
+                                </span>
+                            }
+                            .into_any()
+                        } else {
+                            view! { <>{text}</> }.into_any()
+                        }
                     }}
                 </div>
             </aside>
         </Show>
     }
+}
+
+fn random_thinking_idle_delay_ms() -> u32 {
+    5_000 + (js_sys::Math::random() * 5_000.0).floor() as u32
+}
+
+fn random_thinking_idle_index(current: usize) -> usize {
+    let len = THINKING_IDLE_MESSAGES.len();
+    let mut next = (js_sys::Math::random() * len as f64).floor() as usize;
+    if next == current {
+        next = (next + 1) % len;
+    }
+    next
 }
 
 fn is_reset_command(prompt: &str) -> bool {
