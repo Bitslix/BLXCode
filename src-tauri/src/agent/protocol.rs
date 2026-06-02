@@ -240,6 +240,14 @@ pub enum AgentEvent {
         /// Completion / output tokens reported for this round.
         #[serde(skip_serializing_if = "Option::is_none")]
         output_tokens: Option<u64>,
+        /// Prompt/input tokens served from provider prompt-cache, when the
+        /// provider reports that breakdown (OpenAI/OpenRouter/Anthropic).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cached_input_tokens: Option<u64>,
+        /// Prompt/input tokens written into provider prompt-cache, when
+        /// reported separately by the provider (Anthropic).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_write_input_tokens: Option<u64>,
         /// Wall-clock ms from round start to first streamed delta.
         /// `None` for tool-only rounds or `ToolExec` events.
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -284,6 +292,10 @@ pub struct TurnMetrics {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_tokens: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub cached_input_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_write_input_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ttft_ms: Option<u64>,
     pub elapsed_ms: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -298,6 +310,8 @@ impl TurnMetrics {
     pub fn is_empty(&self) -> bool {
         self.input_tokens.is_none()
             && self.output_tokens.is_none()
+            && self.cached_input_tokens.is_none()
+            && self.cache_write_input_tokens.is_none()
             && self.ttft_ms.is_none()
             && self.elapsed_ms == 0
             && self.cost_usd.is_none()
@@ -311,6 +325,14 @@ impl TurnMetrics {
         }
         if let Some(v) = other.output_tokens {
             self.output_tokens = Some(self.output_tokens.unwrap_or(0).saturating_add(v));
+        }
+        if let Some(v) = other.cached_input_tokens {
+            self.cached_input_tokens =
+                Some(self.cached_input_tokens.unwrap_or(0).saturating_add(v));
+        }
+        if let Some(v) = other.cache_write_input_tokens {
+            self.cache_write_input_tokens =
+                Some(self.cache_write_input_tokens.unwrap_or(0).saturating_add(v));
         }
         if let Some(v) = other.ttft_ms {
             // For aggregated metrics we keep the first TTFT sample —

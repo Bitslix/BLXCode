@@ -232,6 +232,10 @@ pub enum AgentEvent {
         #[serde(default)]
         output_tokens: Option<u64>,
         #[serde(default)]
+        cached_input_tokens: Option<u64>,
+        #[serde(default)]
+        cache_write_input_tokens: Option<u64>,
+        #[serde(default)]
         ttft_ms: Option<u64>,
         elapsed_ms: u64,
         #[serde(default)]
@@ -263,6 +267,10 @@ pub struct TurnMetrics {
     #[serde(default)]
     pub output_tokens: Option<u64>,
     #[serde(default)]
+    pub cached_input_tokens: Option<u64>,
+    #[serde(default)]
+    pub cache_write_input_tokens: Option<u64>,
+    #[serde(default)]
     pub ttft_ms: Option<u64>,
     #[serde(default)]
     pub elapsed_ms: u64,
@@ -275,6 +283,8 @@ impl TurnMetrics {
     pub fn is_empty(&self) -> bool {
         self.input_tokens.is_none()
             && self.output_tokens.is_none()
+            && self.cached_input_tokens.is_none()
+            && self.cache_write_input_tokens.is_none()
             && self.ttft_ms.is_none()
             && self.elapsed_ms == 0
             && self.cost_usd.is_none()
@@ -286,6 +296,14 @@ impl TurnMetrics {
         }
         if let Some(v) = other.output_tokens {
             self.output_tokens = Some(self.output_tokens.unwrap_or(0).saturating_add(v));
+        }
+        if let Some(v) = other.cached_input_tokens {
+            self.cached_input_tokens =
+                Some(self.cached_input_tokens.unwrap_or(0).saturating_add(v));
+        }
+        if let Some(v) = other.cache_write_input_tokens {
+            self.cache_write_input_tokens =
+                Some(self.cache_write_input_tokens.unwrap_or(0).saturating_add(v));
         }
         if let Some(v) = other.ttft_ms {
             self.ttft_ms.get_or_insert(v);

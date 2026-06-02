@@ -94,9 +94,17 @@ struct OpenAiUsage {
     prompt_tokens: Option<u64>,
     #[serde(default)]
     completion_tokens: Option<u64>,
+    #[serde(default)]
+    prompt_tokens_details: Option<OpenAiPromptTokenDetails>,
     /// OpenRouter-native USD cost (when `usage: { include: true }` is set).
     #[serde(default)]
     cost: Option<f64>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct OpenAiPromptTokenDetails {
+    #[serde(default)]
+    cached_tokens: Option<u64>,
 }
 
 #[derive(Default)]
@@ -105,6 +113,7 @@ struct OpenAiRoundResult {
     tool_calls: Vec<OpenAiAggregatedCall>,
     prompt_tokens: Option<u64>,
     completion_tokens: Option<u64>,
+    cached_input_tokens: Option<u64>,
     /// Wall-clock ms from request send to first content / reasoning delta.
     ttft_ms: Option<u64>,
     /// OpenRouter-native cost for this round when the provider returned one.
@@ -260,6 +269,8 @@ pub async fn run_one_subagent(
                     turn_generation: state.turn_generation(),
                     input_tokens: round.prompt_tokens,
                     output_tokens: round.completion_tokens,
+                    cached_input_tokens: round.cached_input_tokens,
+                    cache_write_input_tokens: None,
                     ttft_ms: round.ttft_ms,
                     elapsed_ms: round_elapsed_ms,
                     cost_usd: round_cost,
@@ -358,6 +369,8 @@ pub async fn run_one_subagent(
                                 turn_generation: state.turn_generation(),
                                 input_tokens: None,
                                 output_tokens: None,
+                                cached_input_tokens: None,
+                                cache_write_input_tokens: None,
                                 ttft_ms: None,
                                 elapsed_ms: tool_elapsed_ms,
                                 cost_usd: None,
@@ -430,6 +443,8 @@ pub async fn run_one_subagent(
                     turn_generation: state.turn_generation(),
                     input_tokens: round.input_tokens,
                     output_tokens: round.output_tokens,
+                    cached_input_tokens: round.cached_input_tokens,
+                    cache_write_input_tokens: round.cache_write_input_tokens,
                     ttft_ms: round.ttft_ms,
                     elapsed_ms: round_elapsed_ms,
                     cost_usd: round_cost,
@@ -499,6 +514,8 @@ pub async fn run_one_subagent(
                                 turn_generation: state.turn_generation(),
                                 input_tokens: None,
                                 output_tokens: None,
+                                cached_input_tokens: None,
+                                cache_write_input_tokens: None,
                                 ttft_ms: None,
                                 elapsed_ms: tool_elapsed_ms,
                                 cost_usd: None,
@@ -788,6 +805,10 @@ struct AnthroStreamUsage {
     input_tokens: Option<u64>,
     #[serde(default)]
     output_tokens: Option<u64>,
+    #[serde(default)]
+    cache_read_input_tokens: Option<u64>,
+    #[serde(default)]
+    cache_creation_input_tokens: Option<u64>,
 }
 
 #[derive(Default)]
@@ -816,6 +837,8 @@ struct AnthropicRoundResult {
     stop_reason: Option<String>,
     input_tokens: Option<u64>,
     output_tokens: Option<u64>,
+    cached_input_tokens: Option<u64>,
+    cache_write_input_tokens: Option<u64>,
     /// Wall-clock ms from request send to first content / thinking delta.
     ttft_ms: Option<u64>,
 }
@@ -895,6 +918,12 @@ async fn stream_anthropic_subagent_round(
                 if let Some(usage) = message.and_then(|m| m.usage) {
                     if let Some(p) = usage.input_tokens {
                         acc.input_tokens = Some(p);
+                    }
+                    if let Some(cached) = usage.cache_read_input_tokens {
+                        acc.cached_input_tokens = Some(cached);
+                    }
+                    if let Some(written) = usage.cache_creation_input_tokens {
+                        acc.cache_write_input_tokens = Some(written);
                     }
                 }
             }
@@ -980,8 +1009,16 @@ async fn stream_anthropic_subagent_round(
                 if let Some(reason) = delta.stop_reason {
                     acc.stop_reason = Some(reason);
                 }
-                if let Some(u) = usage.and_then(|u| u.output_tokens) {
-                    acc.output_tokens = Some(u);
+                if let Some(usage) = usage {
+                    if let Some(u) = usage.output_tokens {
+                        acc.output_tokens = Some(u);
+                    }
+                    if let Some(cached) = usage.cache_read_input_tokens {
+                        acc.cached_input_tokens = Some(cached);
+                    }
+                    if let Some(written) = usage.cache_creation_input_tokens {
+                        acc.cache_write_input_tokens = Some(written);
+                    }
                 }
             }
             AnthroStreamEvent::Other => {}
@@ -1117,6 +1154,9 @@ async fn stream_openai_subagent_round(
             }
             if let Some(c) = u.completion_tokens {
                 acc.completion_tokens = Some(c);
+            }
+            if let Some(cached) = u.prompt_tokens_details.and_then(|d| d.cached_tokens) {
+                acc.cached_input_tokens = Some(cached);
             }
             if let Some(cost) = u.cost {
                 acc.cost_usd = Some(cost);

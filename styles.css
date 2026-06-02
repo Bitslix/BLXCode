@@ -2939,6 +2939,51 @@ button.workbench-shortcut-row--action:focus-visible {
   display: none;
 }
 
+.agent-thinking-stream--stats {
+  min-height: 4.65rem;
+}
+
+.agent-thinking-stream--stats .agent-thinking-stream__pulse {
+  animation: none;
+  background: color-mix(in srgb, var(--border-strong) 72%, var(--accent) 28%);
+  box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--accent-soft) 28%, transparent);
+}
+
+.agent-thinking-stream--stats .agent-thinking-stream__body {
+  max-height: none;
+  overflow: hidden;
+  white-space: normal;
+}
+
+.agent-thinking-stream__stats {
+  display: grid;
+  gap: 0.24rem;
+}
+
+.agent-thinking-stream__stat {
+  display: grid;
+  grid-template-columns: minmax(3.25rem, 0.78fr) minmax(0, 1.22fr);
+  align-items: baseline;
+  gap: 0.42rem;
+  min-width: 0;
+}
+
+.agent-thinking-stream__stat span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-faint);
+  text-overflow: ellipsis;
+}
+
+.agent-thinking-stream__stat strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 680;
+  text-align: right;
+  text-overflow: ellipsis;
+}
+
 .agent-thinking-stream__idle {
   display: inline-flex;
   align-items: center;

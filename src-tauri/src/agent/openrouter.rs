@@ -92,11 +92,19 @@ struct StreamUsage {
     prompt_tokens: Option<u64>,
     #[serde(default)]
     completion_tokens: Option<u64>,
+    #[serde(default)]
+    prompt_tokens_details: Option<PromptTokenDetails>,
     /// OpenRouter-native USD cost. Only present when the request set
     /// `usage: { include: true }`. Falls back to local token×price math
     /// when missing.
     #[serde(default)]
     cost: Option<f64>,
+}
+
+#[derive(Deserialize, Default)]
+struct PromptTokenDetails {
+    #[serde(default)]
+    cached_tokens: Option<u64>,
 }
 
 #[derive(Deserialize, Default)]
@@ -157,6 +165,8 @@ struct RoundResult {
     prompt_tokens: Option<u64>,
     /// Cumulative completion_tokens reported by the provider for this round.
     completion_tokens: Option<u64>,
+    /// Prompt tokens served from provider prompt-cache when reported.
+    cached_input_tokens: Option<u64>,
     /// OpenRouter-native cost for this round when the provider returned one.
     cost_usd: Option<f64>,
 }
@@ -331,6 +341,8 @@ pub async fn run_chat_turn(
             turn_generation: state.turn_generation(),
             input_tokens: round_res.prompt_tokens,
             output_tokens: round_res.completion_tokens,
+            cached_input_tokens: round_res.cached_input_tokens,
+            cache_write_input_tokens: None,
             ttft_ms: round_res.ttft_ms,
             elapsed_ms: round_elapsed_ms,
             cost_usd: round_cost,
@@ -409,6 +421,8 @@ pub async fn run_chat_turn(
                 turn_generation: state.turn_generation(),
                 input_tokens: None,
                 output_tokens: None,
+                cached_input_tokens: None,
+                cache_write_input_tokens: None,
                 ttft_ms: None,
                 elapsed_ms: tool_elapsed_ms,
                 cost_usd: None,
@@ -550,6 +564,9 @@ async fn run_one_round(
             }
             if let Some(c) = u.completion_tokens {
                 acc.completion_tokens = Some(c);
+            }
+            if let Some(cached) = u.prompt_tokens_details.and_then(|d| d.cached_tokens) {
+                acc.cached_input_tokens = Some(cached);
             }
             if let Some(cost) = u.cost {
                 acc.cost_usd = Some(cost);

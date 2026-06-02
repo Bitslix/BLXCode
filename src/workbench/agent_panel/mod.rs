@@ -15,7 +15,7 @@ pub(crate) mod turn_metrics_bar;
 mod voice_orb;
 
 use crate::agent_wire::{
-    AgentChatMode, AgentContextKind, AgentEvent, EventEnvelope, TaskSnapshot, UserTurn,
+    AgentChatMode, AgentContextKind, AgentEvent, EventEnvelope, TaskSnapshot, TurnMetrics, UserTurn,
 };
 use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
@@ -40,8 +40,9 @@ use crate::workbench::agent_panel::task_list::TaskSection;
 use crate::workbench::agent_panel::timeline::{
     AgentTimelineName, ChatLineIndexColumn, TurnNodeView,
 };
+use crate::workbench::agent_panel::turn_metrics_bar::fmt_cost;
 use crate::workbench::agent_panel::voice_orb::{handle_voice_event, VoiceOrb, VoiceOrbHandle};
-use crate::workbench::agent_timeline::{ChangedFileEntry, TimelineDoc};
+use crate::workbench::agent_timeline::{ChangedFileEntry, TimelineDoc, TurnPart};
 use crate::workbench::terminal_slot_dnd::TerminalSlotDragService;
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
@@ -476,7 +477,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                         }
                     }
                 />
-                <AgentThinkingStream timeline=timeline />
+                <AgentThinkingStream timeline=timeline busy=busy />
             </header>
 
             <TaskSection
@@ -762,9 +763,11 @@ pub fn AgentPanelDock() -> impl IntoView {
 }
 
 #[component]
-fn AgentThinkingStream(timeline: RwSignal<TimelineDoc>) -> impl IntoView {
+fn AgentThinkingStream(timeline: RwSignal<TimelineDoc>, busy: RwSignal<bool>) -> impl IntoView {
     let stream_ref = NodeRef::<html::Div>::new();
     let thinking_text = Memo::new(move |_| timeline.with(latest_active_thinking_text));
+    let fallback_metrics = Memo::new(move |_| timeline.with(latest_provider_metrics));
+    let latest_turn_started = Memo::new(move |_| timeline.with(latest_turn_started_at));
     let idle_idx = RwSignal::new(0usize);
     let idle_alive: SendWrapper<Rc<Cell<bool>>> = SendWrapper::new(Rc::new(Cell::new(true)));
     let idle_alive_loop = idle_alive.clone();
@@ -789,33 +792,172 @@ fn AgentThinkingStream(timeline: RwSignal<TimelineDoc>) -> impl IntoView {
     });
 
     view! {
-        <Show when=move || thinking_text.with(Option::is_some)>
-            <aside class="agent-thinking-stream" aria-live="polite">
+        <Show when=move || {
+            thinking_text.with(Option::is_some) || fallback_metrics.get().is_some() || busy.get()
+        }>
+            <aside
+                class=move || {
+                    if thinking_text.with(Option::is_some) {
+                        "agent-thinking-stream"
+                    } else {
+                        "agent-thinking-stream agent-thinking-stream--stats"
+                    }
+                }
+                aria-live="polite"
+            >
                 <div class="agent-thinking-stream__head">
                     <span class="agent-thinking-stream__pulse" aria-hidden="true"></span>
-                    <span>"Thinking"</span>
+                    <span>{move || {
+                        if thinking_text.with(Option::is_some) {
+                            "Thinking"
+                        } else {
+                            "Turn stats"
+                        }
+                    }}</span>
                 </div>
                 <div class="agent-thinking-stream__body" node_ref=stream_ref>
                     {move || {
-                        let text = thinking_text.get().unwrap_or_default();
-                        if text.trim().is_empty() {
-                            let phrase = THINKING_IDLE_MESSAGES[idle_idx.get()].to_string();
-                            view! {
-                                <span class="agent-thinking-stream__idle">
-                                    <span class="agent-thinking-stream__idle-icon" aria-hidden="true">
-                                        <LxIcon icon=icondata::LuSparkles width="0.72rem" height="0.72rem" />
+                        if let Some(text) = thinking_text.get() {
+                            if text.trim().is_empty() {
+                                let phrase = THINKING_IDLE_MESSAGES[idle_idx.get()].to_string();
+                                view! {
+                                    <span class="agent-thinking-stream__idle">
+                                        <span class="agent-thinking-stream__idle-icon" aria-hidden="true">
+                                            <LxIcon icon=icondata::LuSparkles width="0.72rem" height="0.72rem" />
+                                        </span>
+                                        <span>{phrase}</span>
                                     </span>
-                                    <span>{phrase}</span>
-                                </span>
+                                }
+                                .into_any()
+                            } else {
+                                view! { <>{text}</> }.into_any()
+                            }
+                        } else {
+                            let _tick = idle_idx.get();
+                            let metrics = fallback_metrics.get();
+                            let elapsed = fallback_elapsed_ms(
+                                metrics,
+                                latest_turn_started.get(),
+                                busy.get(),
+                            );
+                            view! {
+                                <div class="agent-thinking-stream__stats">
+                                    <ThinkingStat label="Tokens" value=metrics_tokens_text(metrics) />
+                                    <ThinkingStat label="Cache" value=metrics_cache_text(metrics) />
+                                    <ThinkingStat
+                                        label="Elapsed"
+                                        value=elapsed
+                                            .map(fmt_elapsed)
+                                            .unwrap_or_else(|| "waiting".to_string())
+                                    />
+                                    <ThinkingStat
+                                        label="Cost"
+                                        value=metrics
+                                            .and_then(|m| m.cost_usd)
+                                            .map(fmt_cost)
+                                            .unwrap_or_else(|| "-".to_string())
+                                    />
+                                </div>
                             }
                             .into_any()
-                        } else {
-                            view! { <>{text}</> }.into_any()
                         }
                     }}
                 </div>
             </aside>
         </Show>
+    }
+}
+
+#[component]
+fn ThinkingStat(label: &'static str, value: String) -> impl IntoView {
+    view! {
+        <div class="agent-thinking-stream__stat">
+            <span>{label}</span>
+            <strong>{value}</strong>
+        </div>
+    }
+}
+
+fn latest_provider_metrics(doc: &TimelineDoc) -> Option<TurnMetrics> {
+    doc.turns
+        .iter()
+        .rev()
+        .find_map(|turn| latest_provider_metrics_in_parts(&turn.parts))
+}
+
+fn latest_provider_metrics_in_parts(parts: &[TurnPart]) -> Option<TurnMetrics> {
+    parts.iter().rev().find_map(|part| match part {
+        TurnPart::Text { metrics, .. } | TurnPart::ModelRound { metrics, .. }
+            if !metrics.is_empty() =>
+        {
+            Some(*metrics)
+        }
+        TurnPart::Subagent { metrics, parts, .. } => latest_provider_metrics_in_parts(parts)
+            .or_else(|| (!metrics.is_empty()).then_some(*metrics)),
+        TurnPart::Tool { children, .. } => latest_provider_metrics_in_parts(children),
+        _ => None,
+    })
+}
+
+fn latest_turn_started_at(doc: &TimelineDoc) -> Option<f64> {
+    doc.turns.last().and_then(|turn| turn.user.created_at)
+}
+
+fn fallback_elapsed_ms(
+    metrics: Option<TurnMetrics>,
+    latest_started_at: Option<f64>,
+    busy: bool,
+) -> Option<u64> {
+    metrics
+        .map(|m| m.elapsed_ms)
+        .filter(|ms| *ms > 0)
+        .or_else(|| {
+            if busy {
+                latest_started_at.map(|started| (js_sys::Date::now() - started).max(0.0) as u64)
+            } else {
+                None
+            }
+        })
+}
+
+fn metrics_tokens_text(metrics: Option<TurnMetrics>) -> String {
+    let Some(metrics) = metrics else {
+        return "-".to_string();
+    };
+    let input = metrics
+        .input_tokens
+        .map(fmt_tokens)
+        .unwrap_or_else(|| "-".to_string());
+    let output = metrics
+        .output_tokens
+        .map(fmt_tokens)
+        .unwrap_or_else(|| "-".to_string());
+    format!("{input} / {output}")
+}
+
+fn metrics_cache_text(metrics: Option<TurnMetrics>) -> String {
+    let Some(metrics) = metrics else {
+        return "not reported".to_string();
+    };
+    match (
+        metrics.cached_input_tokens,
+        metrics.cache_write_input_tokens,
+    ) {
+        (Some(hit), Some(write)) if hit > 0 || write > 0 => {
+            format!("hit {} / write {}", fmt_tokens(hit), fmt_tokens(write))
+        }
+        (Some(hit), _) if hit > 0 => format!("hit {}", fmt_tokens(hit)),
+        (_, Some(write)) if write > 0 => format!("write {}", fmt_tokens(write)),
+        (Some(_), Some(_)) | (Some(_), None) | (None, Some(_)) => "0".to_string(),
+        (None, None) => "not reported".to_string(),
+    }
+}
+
+fn fmt_elapsed(ms: u64) -> String {
+    if ms >= 1_000 {
+        format!("{:.1}s", (ms as f64) / 1_000.0)
+    } else {
+        format!("{ms}ms")
     }
 }
 

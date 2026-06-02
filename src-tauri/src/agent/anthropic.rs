@@ -72,6 +72,10 @@ struct RoundResult {
     input_tokens: Option<u64>,
     /// `usage.output_tokens` reported in `message_delta`.
     output_tokens: Option<u64>,
+    /// `usage.cache_read_input_tokens` reported by Anthropic.
+    cached_input_tokens: Option<u64>,
+    /// `usage.cache_creation_input_tokens` reported by Anthropic.
+    cache_write_input_tokens: Option<u64>,
 }
 
 pub async fn run_chat_turn(
@@ -224,6 +228,8 @@ pub async fn run_chat_turn(
             turn_generation: state.turn_generation(),
             input_tokens: round_res.input_tokens,
             output_tokens: round_res.output_tokens,
+            cached_input_tokens: round_res.cached_input_tokens,
+            cache_write_input_tokens: round_res.cache_write_input_tokens,
             ttft_ms: round_res.ttft_ms,
             elapsed_ms: round_elapsed_ms,
             cost_usd: round_cost,
@@ -313,6 +319,8 @@ pub async fn run_chat_turn(
                 turn_generation: state.turn_generation(),
                 input_tokens: None,
                 output_tokens: None,
+                cached_input_tokens: None,
+                cache_write_input_tokens: None,
                 ttft_ms: None,
                 elapsed_ms: tool_elapsed_ms,
                 cost_usd: None,
@@ -422,6 +430,10 @@ struct StreamUsage {
     input_tokens: Option<u64>,
     #[serde(default)]
     output_tokens: Option<u64>,
+    #[serde(default)]
+    cache_read_input_tokens: Option<u64>,
+    #[serde(default)]
+    cache_creation_input_tokens: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -576,6 +588,12 @@ async fn run_one_round(
                     if let Some(c) = u.output_tokens {
                         acc.output_tokens = Some(c);
                     }
+                    if let Some(cached) = u.cache_read_input_tokens {
+                        acc.cached_input_tokens = Some(cached);
+                    }
+                    if let Some(written) = u.cache_creation_input_tokens {
+                        acc.cache_write_input_tokens = Some(written);
+                    }
                 }
             }
             StreamEvent::ContentBlockStart {
@@ -669,6 +687,12 @@ async fn run_one_round(
                         if acc.input_tokens.is_none() {
                             acc.input_tokens = Some(p);
                         }
+                    }
+                    if let Some(cached) = u.cache_read_input_tokens {
+                        acc.cached_input_tokens = Some(cached);
+                    }
+                    if let Some(written) = u.cache_creation_input_tokens {
+                        acc.cache_write_input_tokens = Some(written);
                     }
                 }
             }

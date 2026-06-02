@@ -494,6 +494,8 @@ pub fn apply_agent_event(
             turn_generation,
             input_tokens,
             output_tokens,
+            cached_input_tokens,
+            cache_write_input_tokens,
             ttft_ms,
             elapsed_ms,
             cost_usd,
@@ -525,6 +527,8 @@ pub fn apply_agent_event(
             let metrics = TurnMetrics {
                 input_tokens: *input_tokens,
                 output_tokens: *output_tokens,
+                cached_input_tokens: *cached_input_tokens,
+                cache_write_input_tokens: *cache_write_input_tokens,
                 ttft_ms: *ttft_ms,
                 elapsed_ms: *elapsed_ms,
                 cost_usd: *cost_usd,
