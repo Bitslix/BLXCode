@@ -6,6 +6,7 @@
 //! total tool-call count + per-category buckets (open / read / edit / rm) and
 //! the list of currently-running subagents.
 
+use crate::agent_wire::TurnMetrics;
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::workbench::agent_panel::context_meter::{fmt_tokens, occupancy_pct};
@@ -227,6 +228,12 @@ pub fn AgentSessionStats(
         format_context_value(used, context_length.get())
     });
     let cost_text = Signal::derive(move || fmt_cost(usage.get().total_cost_usd));
+    let turn_stats_text = Signal::derive(move || {
+        let metrics = timeline.with(latest_provider_metrics);
+        let elapsed =
+            fallback_elapsed_ms(metrics, timeline.with(latest_turn_started_at), busy.get());
+        format_turn_stats(metrics, elapsed)
+    });
     let active_thinking = Memo::new(move |_| timeline.with(timeline_has_active_thinking));
     let state_label = Signal::derive(move || {
         if active_thinking.get() {
@@ -275,6 +282,12 @@ pub fn AgentSessionStats(
                     value=context_text
                     used=Signal::derive(move || usage.get().last_round_input_tokens)
                     max=Signal::derive(move || context_length.get())
+                />
+                <StatsRow
+                    icon=icondata::LuActivity
+                    label=Signal::derive(move || "Turn".to_string())
+                    value=turn_stats_text
+                    extra_class="agent-session-stats__row--turn"
                 />
                 <StatsRow
                     icon=icondata::LuUser
@@ -420,6 +433,102 @@ fn format_context_value(used: u64, max: Option<u64>) -> String {
 fn format_session_time(epoch_ms: f64) -> String {
     let date = js_sys::Date::new(&JsValue::from_f64(epoch_ms));
     format!("{:02}:{:02}", date.get_hours(), date.get_minutes())
+}
+
+fn latest_provider_metrics(doc: &TimelineDoc) -> Option<TurnMetrics> {
+    doc.turns
+        .iter()
+        .rev()
+        .find_map(|turn| latest_provider_metrics_in_parts(&turn.parts))
+}
+
+fn latest_provider_metrics_in_parts(parts: &[TurnPart]) -> Option<TurnMetrics> {
+    parts.iter().rev().find_map(|part| match part {
+        TurnPart::Text { metrics, .. } | TurnPart::ModelRound { metrics, .. }
+            if !metrics.is_empty() =>
+        {
+            Some(*metrics)
+        }
+        TurnPart::Subagent { metrics, parts, .. } => latest_provider_metrics_in_parts(parts)
+            .or_else(|| (!metrics.is_empty()).then_some(*metrics)),
+        TurnPart::Tool { children, .. } => latest_provider_metrics_in_parts(children),
+        _ => None,
+    })
+}
+
+fn latest_turn_started_at(doc: &TimelineDoc) -> Option<f64> {
+    doc.turns.last().and_then(|turn| turn.user.created_at)
+}
+
+fn fallback_elapsed_ms(
+    metrics: Option<TurnMetrics>,
+    latest_started_at: Option<f64>,
+    busy: bool,
+) -> Option<u64> {
+    metrics
+        .map(|m| m.elapsed_ms)
+        .filter(|ms| *ms > 0)
+        .or_else(|| {
+            if busy {
+                latest_started_at.map(|started| (js_sys::Date::now() - started).max(0.0) as u64)
+            } else {
+                None
+            }
+        })
+}
+
+fn format_turn_stats(metrics: Option<TurnMetrics>, elapsed: Option<u64>) -> String {
+    let tokens = metrics_tokens_text(metrics);
+    let cache = metrics_cache_text(metrics);
+    let elapsed = elapsed
+        .map(fmt_elapsed)
+        .unwrap_or_else(|| "waiting".to_string());
+    let cost = metrics
+        .and_then(|m| m.cost_usd)
+        .map(fmt_cost)
+        .unwrap_or_else(|| "-".to_string());
+    format!("{tokens} · cache {cache} · {elapsed} · {cost}")
+}
+
+fn metrics_tokens_text(metrics: Option<TurnMetrics>) -> String {
+    let Some(metrics) = metrics else {
+        return "-".to_string();
+    };
+    let input = metrics
+        .input_tokens
+        .map(fmt_tokens)
+        .unwrap_or_else(|| "-".to_string());
+    let output = metrics
+        .output_tokens
+        .map(fmt_tokens)
+        .unwrap_or_else(|| "-".to_string());
+    format!("{input} / {output}")
+}
+
+fn metrics_cache_text(metrics: Option<TurnMetrics>) -> String {
+    let Some(metrics) = metrics else {
+        return "not reported".to_string();
+    };
+    match (
+        metrics.cached_input_tokens,
+        metrics.cache_write_input_tokens,
+    ) {
+        (Some(hit), Some(write)) if hit > 0 || write > 0 => {
+            format!("hit {} / write {}", fmt_tokens(hit), fmt_tokens(write))
+        }
+        (Some(hit), _) if hit > 0 => format!("hit {}", fmt_tokens(hit)),
+        (_, Some(write)) if write > 0 => format!("write {}", fmt_tokens(write)),
+        (Some(_), Some(_)) | (Some(_), None) | (None, Some(_)) => "0".to_string(),
+        (None, None) => "not reported".to_string(),
+    }
+}
+
+fn fmt_elapsed(ms: u64) -> String {
+    if ms >= 1_000 {
+        format!("{:.1}s", (ms as f64) / 1_000.0)
+    } else {
+        format!("{ms}ms")
+    }
 }
 
 #[cfg(test)]

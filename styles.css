@@ -2976,54 +2976,21 @@ button.workbench-shortcut-row--action:focus-visible {
   display: none;
 }
 
-.agent-thinking-stream--stats {
-  min-height: 5.2rem;
+.agent-thinking-stream--idle {
+  min-height: 4.65rem;
 }
 
-.agent-thinking-stream--stats .agent-thinking-stream__pulse {
+.agent-thinking-stream--idle .agent-thinking-stream__pulse {
   animation: none;
   background: color-mix(in srgb, var(--border-strong) 72%, var(--accent) 28%);
   box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--accent-soft) 28%, transparent);
 }
 
-.agent-thinking-stream--stats .agent-thinking-stream__body {
-  min-height: 3.8rem;
+.agent-thinking-stream--idle .agent-thinking-stream__body {
+  min-height: 3.2rem;
   max-height: none;
   overflow: hidden;
   white-space: normal;
-}
-
-.agent-thinking-stream__stats {
-  display: grid;
-  grid-template-rows: repeat(4, minmax(0.82rem, auto));
-  gap: 0.18rem;
-  min-height: 3.45rem;
-}
-
-.agent-thinking-stream__stat {
-  display: grid;
-  grid-template-columns: minmax(3.25rem, 0.78fr) minmax(0, 1.22fr);
-  align-items: baseline;
-  gap: 0.42rem;
-  min-width: 0;
-}
-
-.agent-thinking-stream__stat span {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text-faint);
-  text-overflow: ellipsis;
-}
-
-.agent-thinking-stream__stat strong {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--text);
-  font-weight: 680;
-  line-height: 1.25;
-  text-align: right;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .agent-thinking-stream__idle {
@@ -3041,6 +3008,83 @@ button.workbench-shortcut-row--action:focus-visible {
   flex-shrink: 0;
   color: color-mix(in srgb, var(--accent) 62%, var(--text-faint));
   animation: agent-thinking-idle-icon 1.65s ease-in-out infinite;
+}
+
+.agent-thinking-stream__idle-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2.85rem;
+  overflow: hidden;
+}
+
+.agent-thinking-stream__idle-card::before {
+  content: "";
+  position: absolute;
+  inset: 0.1rem 0 0.1rem 2.1rem;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--accent-cool) 18%, transparent),
+    transparent
+  );
+  opacity: 0.64;
+  transform: translateX(-100%);
+  animation: agent-thinking-idle-scan 2.4s ease-in-out infinite;
+}
+
+.agent-thinking-stream__idle-orbit {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 1.58rem;
+  height: 1.58rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: var(--radius-circle);
+  background: color-mix(in srgb, var(--accent-soft) 42%, transparent);
+}
+
+.agent-thinking-stream__idle-orbit::before {
+  content: "";
+  position: absolute;
+  width: 0.36rem;
+  height: 0.36rem;
+  border-radius: inherit;
+  background: var(--accent);
+  box-shadow: 0 0 0 0.22rem color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.agent-thinking-stream__idle-orbit span {
+  position: absolute;
+  inset: -0.18rem;
+  border-radius: inherit;
+  border-top: 1px solid color-mix(in srgb, var(--accent-cool) 68%, transparent);
+  animation: agent-thinking-idle-orbit 2.1s linear infinite;
+}
+
+.agent-thinking-stream__idle-orbit span:nth-child(2) {
+  inset: 0.14rem;
+  border-top-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  animation-duration: 1.45s;
+  animation-direction: reverse;
+}
+
+.agent-thinking-stream__idle-orbit span:nth-child(3) {
+  inset: 0.46rem;
+  border-top-color: color-mix(in srgb, var(--text-faint) 48%, transparent);
+  animation-duration: 2.8s;
+}
+
+.agent-thinking-stream__idle-copy {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 0.67rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @keyframes agent-thinking-stream-pulse {
@@ -3069,9 +3113,29 @@ button.workbench-shortcut-row--action:focus-visible {
   }
 }
 
+@keyframes agent-thinking-idle-orbit {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@keyframes agent-thinking-idle-scan {
+  0%,
+  24% {
+    transform: translateX(-105%);
+  }
+
+  58%,
+  100% {
+    transform: translateX(105%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .agent-thinking-stream__pulse,
-  .agent-thinking-stream__idle-icon {
+  .agent-thinking-stream__idle-icon,
+  .agent-thinking-stream__idle-orbit span,
+  .agent-thinking-stream__idle-card::before {
     animation: none;
     opacity: 0.82;
   }
