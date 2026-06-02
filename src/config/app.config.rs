@@ -55,6 +55,9 @@ pub const UPDATE_AUTO_CHECK_KEY: &str = "blxcode_update_auto_check_v1";
 /// `localStorage` key for showing the close-workspace confirmation dialog (`1` / `0`).
 pub const CONFIRM_CLOSE_WORKSPACE_KEY: &str = "blxcode_confirm_close_workspace_v1";
 
+/// `localStorage` key for the user's `.agents` bootstrap choice (`auto` / `skip`).
+pub const AGENTS_BOOTSTRAP_CHOICE_KEY: &str = "blxcode_agents_bootstrap_choice_v1";
+
 /// `localStorage` key for showing Memory as a right-side panel tab (`1` / `0`).
 pub const MEMORY_RIGHT_PANEL_ENABLED_KEY: &str = "blxcode_memory_right_panel_enabled_v1";
 

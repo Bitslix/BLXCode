@@ -29,8 +29,8 @@ use crate::skills_rules::types::{RuleEntry, SkillEntry, SkillSourceInput};
 /// Idempotently create `.agents/{rules,skills}/` plus their `index.json`
 /// manifests. Safe to call on every workspace open.
 #[tauri::command]
-pub fn skills_rules_bootstrap(ws: String) -> Result<(), String> {
-    store::ensure_skills_rules_roots(&ws).map(|_| ())
+pub async fn skills_rules_bootstrap(ws: String) -> Result<(), String> {
+    crate::proc::run_blocking(move || store::ensure_skills_rules_roots(&ws).map(|_| ())).await
 }
 
 // ---------------------------------------------------------------------------

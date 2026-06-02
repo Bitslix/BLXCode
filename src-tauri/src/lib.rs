@@ -262,6 +262,7 @@ pub fn run() {
             workbench_rewrite_terminal_keys,
             agent_session_exists,
             agent_latest_session_id,
+            agents_layout::workspace_agents_layout_status,
             memory::workspace_ensure_agents,
             memory::memory_root,
             memory::memory_status,

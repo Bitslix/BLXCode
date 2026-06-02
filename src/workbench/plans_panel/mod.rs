@@ -827,6 +827,7 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
                                     on_confirm: Callback::new(move |_| {
                                         remove_plan(state, path.clone());
                                     }),
+                                    on_cancel: None,
                                 });
                             }
                         >
@@ -1001,6 +1002,7 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
                                                 on_confirm: Callback::new(move |_| {
                                                     remove_plan(state, path.clone());
                                                 }),
+                                                on_cancel: None,
                                             });
                                         }
                                     >

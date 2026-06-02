@@ -221,6 +221,7 @@ impl EditorSession {
                         cancel_label: i18n.tr(I18nKey::FilePreviewEditorCancel)().to_string(),
                         danger: true,
                         on_confirm,
+                        on_cancel: None,
                     });
                 }
                 Err(e) => {
@@ -248,6 +249,7 @@ impl EditorSession {
             cancel_label: i18n.tr(I18nKey::FilePreviewEditorKeep)().to_string(),
             danger: true,
             on_confirm: on_discard,
+            on_cancel: None,
         });
     }
 }

@@ -10642,6 +10642,29 @@ body.blxcode-dragging-terminal * {
   background: var(--overlay-2);
   border-color: var(--text-muted);
 }
+.blx-toast--info {
+  color: var(--text-muted);
+  background: var(--overlay-2);
+  border-color: var(--accent);
+}
+.blx-toast--loading {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  color: var(--text-muted);
+  background: var(--overlay-2);
+  border-color: var(--accent);
+}
+.blx-toast--loading::before {
+  content: "";
+  flex: 0 0 auto;
+  width: 0.72rem;
+  height: 0.72rem;
+  border-radius: 999px;
+  border: 2px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  border-top-color: var(--accent);
+  animation: blx-toast-spin 0.72s linear infinite;
+}
 @keyframes blx-toast-in {
   from {
     opacity: 0;
@@ -10650,6 +10673,11 @@ body.blxcode-dragging-terminal * {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+@keyframes blx-toast-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 .app-prefs-toggle {

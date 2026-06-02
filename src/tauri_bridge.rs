@@ -1914,6 +1914,29 @@ pub async fn workspace_ensure_agents(ws: &str) -> Result<(), String> {
     invoke_typed("workspace_ensure_agents", WsArg { workspace_cwd: ws }).await
 }
 
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentsLayoutStatus {
+    pub missing_dirs: Vec<String>,
+    pub missing_files: Vec<String>,
+}
+
+impl AgentsLayoutStatus {
+    #[must_use]
+    pub fn is_complete(&self) -> bool {
+        self.missing_dirs.is_empty() && self.missing_files.is_empty()
+    }
+}
+
+pub async fn workspace_agents_layout_status(ws: &str) -> Result<AgentsLayoutStatus, String> {
+    invoke_typed(
+        "workspace_agents_layout_status",
+        WsArg { workspace_cwd: ws },
+    )
+    .await
+}
+
 // ── Scope ──────────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]

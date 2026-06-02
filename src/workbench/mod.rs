@@ -86,14 +86,15 @@ pub use workspace_panel::WorkspacePanel;
 pub use workspace_settings_pane::WorkspaceSettingsPane;
 
 use crate::boot_loading::{BootLoadingScreen, BootPhase};
-use crate::config::{SIDEBAR_WIDTH_PX_KEY, SIDEBAR_WIDTH_PX_MIN};
+use crate::config::{AGENTS_BOOTSTRAP_CHOICE_KEY, SIDEBAR_WIDTH_PX_KEY, SIDEBAR_WIDTH_PX_MIN};
 use crate::i18n::I18nKey;
 use crate::open_http::{dom_click_nav_href, DomNavHref};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     browser_embedding_kind, harness_ensure_default_sandbox, harness_user_home_dir, is_tauri_shell,
-    workbench_extract_sessions_prefix, workbench_load_state, workbench_merge_sessions_workspace,
-    workbench_prune_notifications, workbench_prune_sessions, workbench_save_state,
+    skills_rules_bootstrap, workbench_extract_sessions_prefix, workbench_load_state,
+    workbench_merge_sessions_workspace, workbench_prune_notifications, workbench_prune_sessions,
+    workbench_save_state, workspace_agents_layout_status, workspace_ensure_agents,
 };
 use app_prefs::AppPrefsService;
 use close_terminals_tab_dialog::CloseTerminalsTabDialog;
@@ -105,11 +106,12 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use post_update_notes::{PostUpdateNotesDialog, PostUpdateNotesService};
 use send_wrapper::SendWrapper;
+use std::collections::HashSet;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use terminal_slot_dnd::TerminalSlotDragService;
 use terminal_slot_drag_overlay::TerminalSlotDragOverlay;
-use toast::{ToastHost, ToastService};
+use toast::{ToastHost, ToastKind, ToastService};
 use update_dialog::{UpdateBanner, UpdateDialog};
 use update_service::UpdateService;
 use wasm_bindgen::closure::Closure;
@@ -161,6 +163,71 @@ async fn migrate_legacy_sessions(migrations: Vec<LegacyStorageMigration>) {
             leptos::logging::warn!("workbench_merge_sessions_workspace: {err}");
         }
     }
+}
+
+const AGENTS_BOOTSTRAP_AUTO: &str = "auto";
+const AGENTS_BOOTSTRAP_SKIP: &str = "skip";
+
+fn read_agents_bootstrap_choice() -> Option<String> {
+    web_sys::window()?
+        .local_storage()
+        .ok()
+        .flatten()?
+        .get_item(AGENTS_BOOTSTRAP_CHOICE_KEY)
+        .ok()
+        .flatten()
+}
+
+fn write_agents_bootstrap_choice(value: &str) {
+    let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) else {
+        return;
+    };
+    let _ = storage.set_item(AGENTS_BOOTSTRAP_CHOICE_KEY, value);
+}
+
+async fn run_agents_layout_bootstrap(cwd: String, toast: ToastService) {
+    let progress = toast.loading("Creating BLXCode workspace files…");
+    let result = async {
+        workspace_ensure_agents(&cwd).await?;
+        skills_rules_bootstrap(cwd.clone()).await?;
+        workspace_agents_layout_status(&cwd).await
+    }
+    .await;
+
+    match result {
+        Ok(status) if status.is_complete() => {
+            toast.resolve(
+                progress,
+                ToastKind::Success,
+                "BLXCode workspace files are ready.",
+            );
+        }
+        Ok(status) => {
+            let count = status.missing_dirs.len() + status.missing_files.len();
+            toast.resolve(
+                progress,
+                ToastKind::Error,
+                format!("Workspace bootstrap incomplete: {count} item(s) still missing."),
+            );
+        }
+        Err(err) => {
+            toast.resolve(
+                progress,
+                ToastKind::Error,
+                format!("Workspace bootstrap failed: {err}"),
+            );
+        }
+    }
+}
+
+fn missing_agents_layout_body(missing_dirs: &[String], missing_files: &[String]) -> String {
+    let mut missing = Vec::with_capacity(missing_dirs.len() + missing_files.len());
+    missing.extend(missing_dirs.iter().cloned());
+    missing.extend(missing_files.iter().cloned());
+    let shown = missing.join(", ");
+    format!(
+        "This workspace is missing BLXCode agent files needed for memory, learnings, plans, and rules: {shown}. Create them now? Your choice will be remembered for the next app launch."
+    )
 }
 
 #[component]
@@ -238,6 +305,98 @@ pub fn WorkbenchShell() -> impl IntoView {
             }
             persistence_enabled.set(allow_save);
             hydrated.set(true);
+        });
+    });
+
+    let agents_layout_checked = RwSignal::new(HashSet::<String>::new());
+    Effect::new(move |_| {
+        if !hydrated.get() || !is_tauri_shell() {
+            return;
+        }
+        let active_id = wb.active_id().get();
+        let Some((cwd, is_remote)) = active_id.and_then(|id| {
+            wb.workspaces().with(|workspaces| {
+                workspaces
+                    .iter()
+                    .find(|workspace| workspace.id == id)
+                    .map(|w| {
+                        (
+                            w.cwd.trim().trim_end_matches(['/', '\\']).to_string(),
+                            w.remote_connection_id.is_some(),
+                        )
+                    })
+            })
+        }) else {
+            return;
+        };
+        if cwd.is_empty() || is_remote {
+            return;
+        }
+        if agents_layout_checked.with_untracked(|seen| seen.contains(&cwd)) {
+            return;
+        }
+        agents_layout_checked.update(|seen| {
+            seen.insert(cwd.clone());
+        });
+
+        let ui = harness;
+        let toast = toast;
+        spawn_local(async move {
+            let progress = toast.loading("Checking BLXCode workspace files…");
+            let status = match workspace_agents_layout_status(&cwd).await {
+                Ok(status) => status,
+                Err(err) => {
+                    toast.resolve(
+                        progress,
+                        ToastKind::Error,
+                        format!("Workspace file check failed: {err}"),
+                    );
+                    return;
+                }
+            };
+            if status.is_complete() {
+                toast.dismiss(progress);
+                return;
+            }
+
+            match read_agents_bootstrap_choice().as_deref() {
+                Some(AGENTS_BOOTSTRAP_AUTO) => {
+                    toast.dismiss(progress);
+                    run_agents_layout_bootstrap(cwd, toast).await;
+                }
+                Some(AGENTS_BOOTSTRAP_SKIP) => {
+                    toast.resolve(
+                        progress,
+                        ToastKind::Info,
+                        "BLXCode workspace files are missing; bootstrap skipped by saved choice.",
+                    );
+                }
+                _ => {
+                    toast.dismiss(progress);
+                    let body =
+                        missing_agents_layout_body(&status.missing_dirs, &status.missing_files);
+                    let cwd_for_create = cwd.clone();
+                    ui.request_confirm(state::ConfirmRequest {
+                        title: "Create BLXCode workspace files?".into(),
+                        body,
+                        confirm_label: "Create automatically".into(),
+                        cancel_label: "Not now".into(),
+                        danger: false,
+                        on_confirm: Callback::new(move |_| {
+                            write_agents_bootstrap_choice(AGENTS_BOOTSTRAP_AUTO);
+                            let cwd = cwd_for_create.clone();
+                            spawn_local(async move {
+                                run_agents_layout_bootstrap(cwd, toast).await;
+                            });
+                        }),
+                        on_cancel: Some(Callback::new(move |_| {
+                            write_agents_bootstrap_choice(AGENTS_BOOTSTRAP_SKIP);
+                            toast
+                                .info("BLXCode workspace bootstrap skipped. The choice was saved.");
+                        })),
+                    });
+                }
+            }
         });
     });
 

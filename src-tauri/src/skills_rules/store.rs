@@ -115,6 +115,7 @@ pub fn ensure_skills_rules_roots(ws: &str) -> Result<SkillsRulesRoots, String> {
     fs::create_dir_all(&agents).map_err(|e| format!("create {AGENTS_REL}: {e}"))?;
     fs::create_dir_all(&rules).map_err(|e| format!("create {RULES_REL}: {e}"))?;
     fs::create_dir_all(&skills).map_err(|e| format!("create {SKILLS_REL}: {e}"))?;
+    crate::agents_layout::seed_rules_readme_if_missing(&rules)?;
     bootstrap_rules_index(&rules)?;
     bootstrap_skills_index(&skills)?;
     Ok(SkillsRulesRoots { rules, skills })

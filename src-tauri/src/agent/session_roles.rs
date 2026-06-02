@@ -111,10 +111,14 @@ fn parse_meta(slug: &str, raw: &str) -> RoleMeta {
         slug: slug.to_owned(),
         title,
         description: fm_value(fm, "description").unwrap_or_default(),
-        tools: fm_value(fm, "tools").map(|v| parse_tools(&v)).unwrap_or_default(),
+        tools: fm_value(fm, "tools")
+            .map(|v| parse_tools(&v))
+            .unwrap_or_default(),
         color: fm_value(fm, "color").unwrap_or_default(),
         provider: fm_value(fm, "provider").unwrap_or_default(),
-        models: fm_value(fm, "models").map(|v| parse_tools(&v)).unwrap_or_default(),
+        models: fm_value(fm, "models")
+            .map(|v| parse_tools(&v))
+            .unwrap_or_default(),
     }
 }
 
@@ -206,7 +210,13 @@ fn parse_tools(raw: &str) -> Vec<String> {
         .trim_start_matches('[')
         .trim_end_matches(']')
         .split(',')
-        .map(|t| t.trim().trim_matches('"').trim_matches('\'').trim().to_owned())
+        .map(|t| {
+            t.trim()
+                .trim_matches('"')
+                .trim_matches('\'')
+                .trim()
+                .to_owned()
+        })
         .filter(|t| !t.is_empty())
         .collect()
 }

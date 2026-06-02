@@ -5,9 +5,9 @@ use crate::config::{
     SIDEBAR_WIDTH_PX_KEY,
 };
 use crate::tauri_bridge::{
-    agent_environment_invalidate, is_tauri_shell, skills_rules_bootstrap, workbench_drop_sessions,
+    agent_environment_invalidate, is_tauri_shell, workbench_drop_sessions,
     workbench_extract_sessions_prefix, workbench_merge_sessions_workspace,
-    workbench_rewrite_terminal_keys, workspace_ensure_agents,
+    workbench_rewrite_terminal_keys,
 };
 use crate::workbench::agent_timeline::TimelineDoc;
 use crate::workbench::terminal_agent_profiles::{
@@ -578,20 +578,6 @@ pub(crate) fn workspace_entry_has_folder(ws: &WorkspaceEntry) -> bool {
     !normalize_cwd_key(&ws.cwd).is_empty()
 }
 
-fn spawn_ensure_agents_layout(cwd: String) {
-    let trimmed = cwd.trim();
-    if trimmed.is_empty() || !is_tauri_shell() {
-        return;
-    }
-    let cwd = trimmed.to_owned();
-    spawn_local(async move {
-        let _ = workspace_ensure_agents(&cwd).await;
-        // First-touch bootstrap of `.agents/{rules,skills}/index.json` — runs
-        // after `workspace_ensure_agents` so the `.agents/` parent exists.
-        let _ = skills_rules_bootstrap(cwd).await;
-    });
-}
-
 fn normalize_workspace_agent_labels(
     terminal_count: usize,
     agent_slugs: &[String],
@@ -839,6 +825,7 @@ pub struct ConfirmRequest {
     /// Style the confirm button as destructive (red).
     pub danger: bool,
     pub on_confirm: Callback<()>,
+    pub on_cancel: Option<Callback<()>>,
 }
 
 #[derive(Clone, Copy)]
@@ -1826,9 +1813,6 @@ impl WorkbenchService {
 
     pub fn select_workspace(&self, id: u64) {
         self.active_id.set(Some(id));
-        if let Some(cwd) = self.workspace_cwd_for(id) {
-            spawn_ensure_agents_layout(cwd);
-        }
         Self::invalidate_agent_environment_cache();
     }
 
@@ -1839,16 +1823,6 @@ impl WorkbenchService {
         leptos::task::spawn_local(async {
             let _ = agent_environment_invalidate().await;
         });
-    }
-
-    fn workspace_cwd_for(&self, id: u64) -> Option<String> {
-        self.workspaces.with_untracked(|workspaces| {
-            workspaces
-                .iter()
-                .find(|w| w.id == id)
-                .filter(|w| workspace_entry_has_folder(w))
-                .map(|w| w.cwd.clone())
-        })
     }
 
     #[must_use]
@@ -3442,7 +3416,6 @@ impl WorkbenchService {
         if cwd.is_empty() && remote_connection_id.is_none() {
             return;
         }
-        let cwd_for_agents = cwd.clone();
         let n = draft.terminal_count as usize;
         let (gr, gc) = (draft.grid_rows, draft.grid_cols);
 
@@ -3531,7 +3504,6 @@ impl WorkbenchService {
         });
         self.bump_terminal_layout();
         self.bump_sidebar_repo_epoch();
-        spawn_ensure_agents_layout(cwd_for_agents);
         // Grid cells mount on the next frame; delayed ticks retry agent
         // launch once xterm has real dimensions (plain shells don't need this).
         let wb = *self;
@@ -4233,11 +4205,6 @@ impl WorkbenchService {
 
         if has_workspaces {
             self.bump_terminal_layout();
-            if let Some(id) = active_id {
-                if let Some(cwd) = self.workspace_cwd_for(id) {
-                    spawn_ensure_agents_layout(cwd);
-                }
-            }
             let wb = *self;
             spawn_local(async move {
                 for delay_ms in [0_u32, 16, 50, 150, 300, 600, 1000] {

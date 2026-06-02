@@ -8,7 +8,6 @@ use crate::agent_wire::AgentEvent;
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{agent_session_roles_list, SessionRoleView};
-use crate::workbench::state::WorkbenchService;
 use crate::tauri_bridge::{
     agent_settings_get, api_keys_status, is_tauri_shell, voice_cancel_recording,
     voice_settings_get, voice_start_recording, voice_stop_and_transcribe, voice_tts_preview,
@@ -19,6 +18,7 @@ use crate::workbench::agent_panel::voice_orb::drobo_glue::{
     drobo_orb_create, drobo_orb_dispose, drobo_orb_resize, drobo_orb_set_state,
     ensure_drobo_orb_script,
 };
+use crate::workbench::state::WorkbenchService;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use js_sys::Uint8Array;
 use leptos::html;
@@ -187,8 +187,7 @@ where
     });
     let active_role_meta = Memo::new(move |_| {
         let slug = active_role_slug.get()?;
-        session_roles
-            .with(|roles| roles.iter().find(|r| r.slug == slug).cloned())
+        session_roles.with(|roles| roles.iter().find(|r| r.slug == slug).cloned())
     });
     if is_tauri_shell() {
         leptos::task::spawn_local(async move {

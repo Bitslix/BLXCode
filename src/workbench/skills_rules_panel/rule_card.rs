@@ -197,6 +197,7 @@ pub fn RuleCard(entry: RuleEntry) -> impl IntoView {
                                                 on_confirm: Callback::new(move |_| {
                                                     svc.remove_rule(wb, n.clone());
                                                 }),
+                                                on_cancel: None,
                                             });
                                         }
                                     >

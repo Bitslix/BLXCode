@@ -150,6 +150,7 @@ pub fn SkillCard(entry: SkillEntry) -> impl IntoView {
                                             on_confirm: Callback::new(move |_| {
                                                 svc.remove_skill(wb, n.clone());
                                             }),
+                                            on_cancel: None,
                                         });
                                     }
                                 >
