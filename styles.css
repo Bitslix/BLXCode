@@ -5832,7 +5832,7 @@ button {
   flex-direction: column;
 }
 
-.workspace-center-panel--hidden {
+.workspace-center-panel.workspace-center-panel--hidden {
   display: none;
 }
 

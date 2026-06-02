@@ -80,6 +80,10 @@ pub fn NavigateMenu() -> impl IntoView {
         wb.open_center_settings_tab(HarnessSettingsCategory::App);
         open.set(false);
     };
+    let open_memory = move |_| {
+        wb.open_center_memory_tab();
+        open.set(false);
+    };
     let toggle_fullscreen = move |_| {
         open.set(false);
         if !is_tauri_shell() {
@@ -158,7 +162,7 @@ pub fn NavigateMenu() -> impl IntoView {
                         type="button"
                         class="app-titlebar__menu-item"
                         role="menuitem"
-                        on:click=move |_| go_tab(RightPanelTab::Memory)
+                        on:click=open_memory
                     >
                         <LxIcon icon=icondata::LuLayers width="0.95rem" height="0.95rem" />
                         <span class="app-titlebar__menu-item-label">{move || i18n.tr(I18nKey::TabMemory)()}</span>
