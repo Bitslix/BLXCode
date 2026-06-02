@@ -1,42 +1,12 @@
-//! Voice STT language + push-to-talk controls styled for Settings → App.
+//! Shared Voice settings controls reused by categorized Settings panes.
 
 use crate::i18n::I18nKey;
 use crate::i18n::{Locale, APP_LOCALES};
 use crate::service::I18nService;
-use crate::tauri_bridge::{PttHotkey, SttLanguageMode, VoiceSettings};
+use crate::tauri_bridge::{SttLanguageMode, VoiceSettings};
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
-
-fn format_hotkey(spec: &PttHotkey) -> String {
-    let mut parts: Vec<&'static str> = Vec::new();
-    if spec.ctrl {
-        parts.push("Ctrl");
-    }
-    if spec.shift {
-        parts.push("Shift");
-    }
-    if spec.alt {
-        parts.push("Alt");
-    }
-    if spec.meta {
-        parts.push("Meta");
-    }
-    let mut out = parts.join("+");
-    if !out.is_empty() {
-        out.push('+');
-    }
-    let key = spec.code.strip_prefix("Key").unwrap_or(&spec.code);
-    out.push_str(key);
-    out
-}
-
-fn checkbox_checked(ev: &web_sys::Event) -> Option<bool> {
-    ev.target()?
-        .dyn_into::<web_sys::HtmlInputElement>()
-        .ok()
-        .map(|i| i.checked())
-}
 
 fn focus_by_id(id: &str) {
     let Some(doc) = web_sys::window().and_then(|w| w.document()) else {
@@ -215,7 +185,7 @@ where
     }
 }
 
-/// STT input language (nested under App → Language).
+/// STT input language (Settings → Voice).
 #[component]
 pub fn VoiceSttLanguageControls<F>(
     settings: RwSignal<Option<VoiceSettings>>,
@@ -311,110 +281,6 @@ where
                             />
                         </Show>
                     </label>
-                }
-                .into_any()
-            }}
-        </Show>
-    }
-}
-
-/// Push-to-talk hotkey (nested under App → Keyboard shortcuts).
-#[component]
-pub fn VoicePttControls<F>(
-    settings: RwSignal<Option<VoiceSettings>>,
-    recording: RwSignal<bool>,
-    save: F,
-) -> impl IntoView
-where
-    F: Fn(VoiceSettings) + Send + Sync + 'static + Copy,
-{
-    let i18n = expect_context::<I18nService>();
-
-    view! {
-        <Show
-            when=move || settings.get().is_some()
-            fallback=|| ()
-        >
-            {move || {
-                let Some(current) = settings.get() else {
-                    return ().into_any();
-                };
-                let ptt = current.ptt_hotkey.clone();
-                let begin_capture = move || recording.set(true);
-                let capture_keydown = move |ev: web_sys::KeyboardEvent| {
-                    if !recording.get_untracked() {
-                        return;
-                    }
-                    ev.prevent_default();
-                    if ev.key() == "Escape" {
-                        recording.set(false);
-                        return;
-                    }
-                    if matches!(
-                        ev.code().as_str(),
-                        "ControlLeft"
-                            | "ControlRight"
-                            | "ShiftLeft"
-                            | "ShiftRight"
-                            | "AltLeft"
-                            | "AltRight"
-                            | "MetaLeft"
-                            | "MetaRight"
-                    ) {
-                        return;
-                    }
-                    let Some(mut next) = settings.get_untracked() else {
-                        return;
-                    };
-                    next.ptt_hotkey = PttHotkey {
-                        enabled: next.ptt_hotkey.enabled,
-                        code: ev.code(),
-                        ctrl: ev.ctrl_key(),
-                        shift: ev.shift_key(),
-                        alt: ev.alt_key(),
-                        meta: ev.meta_key(),
-                    };
-                    save(next);
-                    recording.set(false);
-                };
-                let display = format_hotkey(&ptt);
-                let enabled = ptt.enabled;
-
-                view! {
-                    <div class="app-voice-ptt">
-                        <label class="app-prefs-toggle">
-                            <input
-                                type="checkbox"
-                                prop:checked=enabled
-                                on:change=move |ev| {
-                                    if let Some(checked) = checkbox_checked(&ev) {
-                                        let Some(mut next) = settings.get_untracked() else { return };
-                                        next.ptt_hotkey.enabled = checked;
-                                        save(next);
-                                    }
-                                }
-                            />
-                            <span>{move || i18n.tr(I18nKey::VoicePttEnabled)()}</span>
-                        </label>
-                        <label class="harness-stack">
-                            <span class="harness-field-label">
-                                <span class="harness-field-label__text">{move || i18n.tr(I18nKey::VoicePttHotkey)()}</span>
-                            </span>
-                            <button
-                                type="button"
-                                class="workbench-plain-input app-prefs-hotkey-capture"
-                                class:app-prefs-hotkey-capture--recording=move || recording.get()
-                                on:click=move |_| begin_capture()
-                                on:keydown=capture_keydown
-                            >
-                                {move || if recording.get() {
-                                    i18n.tr(I18nKey::VoicePttRecorderHint)().to_string()
-                                } else {
-                                    display.clone()
-                                }}
-                            </button>
-                        </label>
-                    </div>
                 }
                 .into_any()
             }}

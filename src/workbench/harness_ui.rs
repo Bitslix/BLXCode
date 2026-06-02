@@ -11,13 +11,11 @@ use super::state::{
     RecentWorkspaceItem, RightPanelTab, WorkbenchService,
 };
 use super::update_service::{UpdateService, UpdateUiStatus};
-use super::voice_app_controls::{VoicePttControls, VoiceSttLanguageControls};
 use crate::i18n::{lookup, I18nKey, Locale, APP_LOCALES};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_hooks_status, install_agent_hooks, is_tauri_shell, list_workspace_files,
-    uninstall_agent_hooks, voice_settings_get, voice_settings_save, AgentHooksReport,
-    VoiceSettings,
+    uninstall_agent_hooks, AgentHooksReport,
 };
 use gloo_timers::future::TimeoutFuture;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
@@ -1141,28 +1139,6 @@ fn AppSettingsPane() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let prefs = expect_context::<AppPrefsService>();
     let updates = expect_context::<UpdateService>();
-    let voice_settings = RwSignal::new(Option::<VoiceSettings>::None);
-    let ptt_recording = RwSignal::new(false);
-
-    if is_tauri_shell() {
-        leptos::task::spawn_local(async move {
-            if let Ok(v) = voice_settings_get().await {
-                voice_settings.set(Some(v));
-            }
-        });
-    }
-
-    let save_voice = move |patch: VoiceSettings| {
-        if !is_tauri_shell() {
-            voice_settings.set(Some(patch));
-            return;
-        }
-        leptos::task::spawn_local(async move {
-            if let Ok(v) = voice_settings_save(patch).await {
-                voice_settings.set(Some(v));
-            }
-        });
-    };
 
     view! {
         <article class="harness-pane app-settings-pane">
@@ -1179,21 +1155,7 @@ fn AppSettingsPane() -> impl IntoView {
                     <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AppLanguage)()}</span>
                 </span>
                 <LocalePicker />
-                <VoiceSttLanguageControls settings=voice_settings save=save_voice />
             </label>
-            <section class="harness-subpane">
-                <h4 class="harness-pane-subhead">
-                    <span class="harness-pane-subhead__icon" aria-hidden="true">
-                        <LxIcon icon=icondata::LuKeyboard width="0.82rem" height="0.82rem" />
-                    </span>
-                    <span>{move || i18n.tr(I18nKey::AppShortcutHeading)()}</span>
-                </h4>
-                <VoicePttControls
-                    settings=voice_settings
-                    recording=ptt_recording
-                    save=save_voice
-                />
-            </section>
             <section class="harness-subpane">
                 <h4 class="harness-pane-subhead">
                     <span class="harness-pane-subhead__icon" aria-hidden="true">

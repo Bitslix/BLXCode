@@ -23,3 +23,4 @@ scripts/codemirror-bundle/node_modules/
 scripts/codemirror-bundle/bun.lock
 scripts/codemirror-bundle/package-lock.json
 src-remotion/
+target-codex-check/

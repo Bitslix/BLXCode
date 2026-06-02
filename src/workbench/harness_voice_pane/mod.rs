@@ -8,7 +8,7 @@ use leptos::prelude::*;
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{is_tauri_shell, voice_settings_get, voice_settings_save, VoiceSettings};
-use crate::workbench::SettingsPaneHeader;
+use crate::workbench::{voice_app_controls::VoiceSttLanguageControls, SettingsPaneHeader};
 
 /// Full Settings -> Voice pane.
 #[component]
@@ -63,6 +63,9 @@ fn PttVoiceSettingsContent() -> impl IntoView {
                     <p class="voice-pane__loading">{move || i18n.tr(I18nKey::BlxLoading)()}</p>
                 }
             >
+                <section class="harness-subpane voice-settings-pane__stt-language">
+                    <VoiceSttLanguageControls settings=settings save=save />
+                </section>
                 <ptt_section::PushToTalkSection settings=settings save=save />
             </Show>
             <Show when=move || status.get().is_some()>
