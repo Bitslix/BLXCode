@@ -707,6 +707,7 @@ pub fn WorkbenchShell() -> impl IntoView {
                             aria-label=move || i18n.tr(I18nKey::SbWidthSplitterAria)()
                             on:mousedown=on_sidebar_splitter_down
                         >
+                            <span class="workbench-splitter__grip" aria-hidden="true"></span>
                         </div>
                     </Show>
                 </div>

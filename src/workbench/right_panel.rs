@@ -307,6 +307,7 @@ pub fn RightPanel() -> impl IntoView {
                 aria-label=move || i18n.tr(I18nKey::RpSplitterAria)()
                 on:mousedown=on_splitter_down
             >
+                <span class="workbench-splitter__grip" aria-hidden="true"></span>
             </div>
             <Show when=move || resizing.get()>
                 <div class="workbench-resize-shield" aria-hidden="true"></div>

@@ -2273,16 +2273,69 @@ button.workbench-shortcut-row--action:focus-visible {
 .workbench-splitter {
   position: relative;
   z-index: 20;
-  width: 3px;
+  width: 11px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: col-resize;
-  background: var(--border);
+  background: transparent;
   touch-action: none;
 }
 
-.workbench-splitter:hover,
-.workbench-right-slot--resizing .workbench-splitter {
+.workbench-splitter::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  transform: translateX(-50%);
+  background: var(--border);
+  opacity: 0.72;
+  transition: opacity 0.16s ease, background-color 0.16s ease;
+}
+
+.workbench-splitter__grip {
+  position: relative;
+  z-index: 1;
+  width: 0.22rem;
+  height: 2.4rem;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--text-muted) 54%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--bg-app) 80%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--accent) 0%, transparent);
+  opacity: 0.52;
+  transform: scaleY(0.68);
+  transition:
+    height 0.2s ease,
+    width 0.16s ease,
+    opacity 0.16s ease,
+    transform 0.2s ease,
+    background-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.workbench-splitter:hover::before,
+.workbench-left-slot--resizing .workbench-splitter::before,
+.workbench-right-slot--resizing .workbench-splitter::before {
+  background: color-mix(in srgb, var(--accent) 58%, var(--border));
+  opacity: 0.34;
+}
+
+.workbench-splitter:hover .workbench-splitter__grip,
+.workbench-left-slot--resizing .workbench-splitter__grip,
+.workbench-right-slot--resizing .workbench-splitter__grip {
+  width: 0.3rem;
+  height: 5.8rem;
   background: var(--accent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--bg-app) 75%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent),
+    0 0 18px color-mix(in srgb, var(--accent) 28%, transparent);
+  opacity: 1;
+  transform: scaleY(1);
 }
 
 .workbench-splitter--hidden {
