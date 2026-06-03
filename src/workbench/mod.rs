@@ -104,7 +104,8 @@ use crate::tauri_bridge::{
     browser_embedding_kind, harness_ensure_default_sandbox, harness_user_home_dir, is_tauri_shell,
     skills_rules_bootstrap, workbench_extract_sessions_prefix, workbench_load_state,
     workbench_merge_sessions_workspace, workbench_prune_notifications, workbench_prune_sessions,
-    workbench_save_state, workspace_agents_layout_status, workspace_ensure_agents,
+    workbench_save_state, workbench_upsert_agent_notification, workspace_agents_layout_status,
+    workspace_ensure_agents, AgentNotificationInput,
 };
 use app_prefs::AppPrefsService;
 use close_terminals_tab_dialog::CloseTerminalsTabDialog;
@@ -479,6 +480,50 @@ pub fn WorkbenchShell() -> impl IntoView {
                 }
                 first = false;
                 TimeoutFuture::new(10 * 60 * 1000).await;
+            }
+        });
+    });
+
+    let update_notification_version = RwSignal::new(None::<String>);
+    Effect::new(move |_| {
+        if updates.check_source().get() != UpdateCheckSource::Background
+            || updates.status().get() != UpdateUiStatus::Available
+        {
+            return;
+        }
+        let Some(version) = updates
+            .available_version()
+            .get()
+            .filter(|version| !version.trim().is_empty())
+        else {
+            return;
+        };
+        if update_notification_version.get_untracked().as_deref() == Some(version.as_str()) {
+            return;
+        }
+        update_notification_version.set(Some(version.clone()));
+        let title = format!("{} {version}", i18n.tr(I18nKey::UpdateBannerTitle)());
+        let body = i18n.tr(I18nKey::UpdateBannerAction)().to_string();
+        let input = AgentNotificationInput {
+            id: None,
+            title: title.clone(),
+            body: Some(body.clone()),
+            kind: "update".into(),
+            severity: Some("info".into()),
+            source: Some("updates".into()),
+            target: Some(serde_json::json!({
+                "view": "update",
+                "version": version,
+            })),
+            dedupe_key: Some("app-update-available".into()),
+            read: Some(false),
+            sent: Some(true),
+        };
+        spawn_local(async move {
+            if let Ok(item) = workbench_upsert_agent_notification(input).await {
+                wb.upsert_agent_notification(item);
+                notification_sound::send_native_notification_best_effort(&title, &body);
+                notification_sound::play_notification_beep();
             }
         });
     });
