@@ -155,7 +155,7 @@ body {
   align-items: center;
   gap: 0.5rem;
   padding: 0 0.6rem;
-  border-top: 1px solid color-mix(in srgb, var(--accent-cool) 54%, var(--border-strong));
+  border-top: 1px solid var(--border);
   background: color-mix(in srgb, var(--bg-panel-header) 84%, var(--bg-app));
   color: var(--text-muted);
   font-family: var(--font-mono);
@@ -214,6 +214,37 @@ body {
 
 .app-statusline__item--quiet {
   color: color-mix(in srgb, var(--text-muted) 82%, var(--text-faint));
+}
+
+.app-statusline__item--update {
+  max-width: min(36vw, 34rem);
+}
+
+.app-statusline__item--update-busy {
+  color: var(--accent-cool);
+}
+
+.app-statusline__item--update-busy svg {
+  animation: app-statusline-spin 0.9s linear infinite;
+}
+
+.app-statusline__item--update-available {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.app-statusline__item--update-ok {
+  color: var(--success);
+}
+
+.app-statusline__item--update-warn {
+  color: var(--danger);
+}
+
+@keyframes app-statusline-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .container {

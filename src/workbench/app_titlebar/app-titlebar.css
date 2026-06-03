@@ -346,6 +346,96 @@
   background: var(--border);
 }
 
+/* ---- Help / About ---- */
+.app-titlebar__popover--help {
+  min-width: 190px;
+}
+
+.app-titlebar__about-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.app-titlebar__about-scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: var(--scrim-bg);
+  cursor: default;
+}
+
+.app-titlebar__about-dialog {
+  position: relative;
+  width: min(320px, calc(100vw - 2rem));
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg-panel);
+  box-shadow: 0 22px 55px var(--scrim-bg);
+  color: var(--text);
+  overflow: hidden;
+}
+
+.app-titlebar__about-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.8rem 0.9rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel-header);
+}
+
+.app-titlebar__about-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  margin: 0;
+  color: var(--text-bright);
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.app-titlebar__about-logo {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.app-titlebar__about-logo img {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: block;
+}
+
+.app-titlebar__about-meta {
+  margin: 0;
+  padding: 0.85rem 0.9rem 0.95rem;
+}
+
+.app-titlebar__about-meta div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.app-titlebar__about-meta dt {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.app-titlebar__about-meta dd {
+  margin: 0;
+  color: var(--text-bright);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---- Notifications empty / list ---- */
 .app-titlebar__notif-empty {
   display: flex;

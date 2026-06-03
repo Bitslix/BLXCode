@@ -22,6 +22,7 @@ pub struct UpdateService {
     message: RwSignal<Option<String>>,
     dialog_open: RwSignal<bool>,
     banner_visible: RwSignal<bool>,
+    manual_check_active: RwSignal<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -54,6 +55,7 @@ impl UpdateService {
             message: RwSignal::new(None),
             dialog_open: RwSignal::new(false),
             banner_visible: RwSignal::new(false),
+            manual_check_active: RwSignal::new(false),
         }
     }
 
@@ -99,6 +101,10 @@ impl UpdateService {
 
     pub fn banner_visible(&self) -> RwSignal<bool> {
         self.banner_visible
+    }
+
+    pub fn manual_check_active(&self) -> RwSignal<bool> {
+        self.manual_check_active
     }
 
     pub fn open_dialog(&self) {
@@ -151,6 +157,7 @@ impl UpdateService {
     }
 
     fn check(&self, manual: bool) {
+        self.manual_check_active.set(manual);
         if !is_tauri_shell() {
             crate::app_log::warn(
                 "updates",
