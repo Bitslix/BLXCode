@@ -868,6 +868,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HookCheckReady => "Ganchos prontos",
         I18nKey::HookCheckMissing => "Ganchos não instalados",
         I18nKey::HookCheckFailed => "Falha na verificação do gancho",
+        I18nKey::CoreStatusRulesTip => "Regras ativas",
+        I18nKey::CoreStatusSkillsTip => "Habilidades ativas",
         I18nKey::HookInstallTitle => "Instalar ganchos CLI do agente",
         I18nKey::HookInstallBody => {
             "blxcode pode conectar ganchos para suas CLIs de agente (Claude, Codex, Gemini, Cursor, OpenCode) para que as guias do terminal sigam o prompt ativo, as sessões sejam retomadas após a reinicialização e as notificações de conclusão de turno funcionem. Instale-os agora?"

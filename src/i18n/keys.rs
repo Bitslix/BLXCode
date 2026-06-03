@@ -872,6 +872,8 @@ pub enum I18nKey {
     HookCheckReady,
     HookCheckMissing,
     HookCheckFailed,
+    CoreStatusRulesTip,
+    CoreStatusSkillsTip,
     HookInstallTitle,
     HookInstallBody,
     HookInstallCta,

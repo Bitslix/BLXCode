@@ -876,6 +876,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HookCheckReady => "Крючки готовы",
         I18nKey::HookCheckMissing => "Крючки не установлены",
         I18nKey::HookCheckFailed => "Проверка крючка не удалась",
+        I18nKey::CoreStatusRulesTip => "Активные правила",
+        I18nKey::CoreStatusSkillsTip => "Активные навыки",
         I18nKey::HookInstallTitle => "Установите перехватчики CLI агента",
         I18nKey::HookInstallBody => {
             "blxcode может подключать перехватчики для интерфейсов командной строки вашего агента (Claude, Codex, Gemini, Cursor, OpenCode), чтобы вкладки терминала следовали за активным приглашением, сеансы возобновлялись после перезапуска, а уведомления о завершении хода работали. Установить их сейчас?"

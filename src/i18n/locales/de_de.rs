@@ -870,6 +870,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HookCheckReady => "Hooks bereit",
         I18nKey::HookCheckMissing => "Hooks nicht installiert",
         I18nKey::HookCheckFailed => "Hook-Prüfung fehlgeschlagen",
+        I18nKey::CoreStatusRulesTip => "Aktive Regeln",
+        I18nKey::CoreStatusSkillsTip => "Aktive Skills",
         I18nKey::HookInstallTitle => "Agent-CLI-Hooks installieren",
         I18nKey::HookInstallBody => {
             "blxcode kann Hooks für Ihre Agent-CLIs (Claude, Codex, Gemini, Cursor, OpenCode) einrichten, sodass Terminal-Tabs der aktiven Eingabeaufforderung folgen, Sitzungen nach dem Neustart fortgesetzt werden und Benachrichtigungen über den Abschluss der Runde funktionieren. Jetzt installieren?"

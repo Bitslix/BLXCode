@@ -10,6 +10,7 @@ use crate::workbench::UpdateService;
 use crate::workbench::UpdateUiStatus;
 use crate::workbench::WorkbenchService;
 use crate::workbench::WorkbenchShell;
+use crate::workbench::{CoreStatusBarItem, CoreStatusService};
 use crate::workbench::{HookInstallDialogService, HookStatusBarItem, HookStatusService};
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
@@ -34,12 +35,16 @@ pub fn App() -> impl IntoView {
     let hook_status = HookStatusService::new();
     let hook_install = HookInstallDialogService::new();
     let updates = UpdateService::new();
+    // Provided at the App root so the sibling `AppStatusLine` can show the
+    // enabled-rules/skills counts for the active workspace in its centre slot.
+    let core_status = CoreStatusService::new();
     provide_context(i18n);
     provide_context(theme);
     provide_context(wb);
     provide_context(hook_status);
     provide_context(hook_install);
     provide_context(updates);
+    provide_context(core_status);
 
     Effect::new(move |_| {
         remove_static_boot_screen();
@@ -228,7 +233,9 @@ fn AppStatusLine() -> impl IntoView {
                     </span>
                 </Show>
             </div>
-            <div class="app-statusline__slot app-statusline__slot--center"></div>
+            <div class="app-statusline__slot app-statusline__slot--center">
+                <CoreStatusBarItem />
+            </div>
             <div class="app-statusline__slot app-statusline__slot--right">
                 <HookStatusBarItem />
             </div>

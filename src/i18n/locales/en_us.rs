@@ -932,6 +932,8 @@ keys; the preset only fills in defaults."
         I18nKey::HookCheckReady => "Hooks ready",
         I18nKey::HookCheckMissing => "Hooks not installed",
         I18nKey::HookCheckFailed => "Hook check failed",
+        I18nKey::CoreStatusRulesTip => "Active rules",
+        I18nKey::CoreStatusSkillsTip => "Active skills",
         I18nKey::HookInstallTitle => "Install agent CLI hooks",
         I18nKey::HookInstallBody => {
             "blxcode can wire up hooks for your agent CLIs (Claude, Codex, Gemini, Cursor, OpenCode) so terminal tabs follow the active prompt, sessions resume after restart, and turn-completion notifications work. Install them now?"

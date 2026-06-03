@@ -868,6 +868,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HookCheckReady => "Haczyki gotowe",
         I18nKey::HookCheckMissing => "Haki nie są zainstalowane",
         I18nKey::HookCheckFailed => "Sprawdzanie haka nie powiodło się",
+        I18nKey::CoreStatusRulesTip => "Aktywne reguły",
+        I18nKey::CoreStatusSkillsTip => "Aktywne umiejętności",
         I18nKey::HookInstallTitle => "Zainstaluj zaczepy interfejsu CLI agenta",
         I18nKey::HookInstallBody => {
             "blxcode może podłączyć linki do CLI agenta (Claude, Codex, Gemini, Cursor, OpenCode), dzięki czemu zakładki terminala podążają za aktywnym monitem, sesje są wznawiane po ponownym uruchomieniu i działają powiadomienia o zakończeniu tury. Zainstalować je teraz?"

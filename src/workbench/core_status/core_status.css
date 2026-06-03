@@ -1,0 +1,18 @@
+/* Core-config status-bar item — enabled rules & skills counts in the centre
+   slot of `.app-statusline`. Reuses `.app-statusline__item` layout and just
+   groups the two icon+count segments with a thin divider. */
+
+.core-status-item {
+  gap: 0.5rem;
+}
+
+.core-status-item__seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.24rem;
+}
+
+.core-status-item__seg + .core-status-item__seg {
+  padding-left: 0.5rem;
+  border-left: 1px solid var(--border);
+}
