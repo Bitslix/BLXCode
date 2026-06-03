@@ -878,6 +878,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HookCheckFailed => "A horogellenőrzés nem sikerült",
         I18nKey::CoreStatusRulesTip => "Aktív szabályok",
         I18nKey::CoreStatusSkillsTip => "Aktív készségek",
+        I18nKey::CoreStatusPlansTip => "Tervek",
+        I18nKey::CoreStatusMemoryTip => "Memóriahasználat",
+        I18nKey::CoreStatusMemoryCategoriesTip => "Memóriakategóriák",
+        I18nKey::CoreStatusMemoryFilesTip => "Memóriafájlok",
+        I18nKey::CoreStatusMemorySizeTip => "Memória mérete",
         I18nKey::HookInstallTitle => "Telepítse az ügynök CLI-horgokat",
         I18nKey::HookInstallBody => {
             "A blxcode bekötheti az ügynök CLI-jeit (Claude, Codex, Gemini, Cursor, OpenCode), így a terminállapok követik az aktív promptot, a munkamenetek újraindítás után folytatódnak, és a forduló befejezéséről szóló értesítések működnek. Telepítse őket most?"

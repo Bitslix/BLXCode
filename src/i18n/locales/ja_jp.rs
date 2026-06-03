@@ -848,6 +848,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HookCheckFailed => "フックチェックに失敗しました",
         I18nKey::CoreStatusRulesTip => "有効なルール",
         I18nKey::CoreStatusSkillsTip => "有効なスキル",
+        I18nKey::CoreStatusPlansTip => "プラン",
+        I18nKey::CoreStatusMemoryTip => "メモリ使用量",
+        I18nKey::CoreStatusMemoryCategoriesTip => "メモリカテゴリ",
+        I18nKey::CoreStatusMemoryFilesTip => "メモリファイル",
+        I18nKey::CoreStatusMemorySizeTip => "メモリサイズ",
         I18nKey::HookInstallTitle => "エージェントの CLI フックをインストールする",
         I18nKey::HookInstallBody => {
             "blxcode はエージェント CLI (Claude、Codex、Gemini、Cursor、OpenCode) のフックを接続できるため、ターミナル タブはアクティブなプロンプトに従い、再起動後にセッションが再開され、ターン完了通知が機能します。今すぐインストールしますか?"

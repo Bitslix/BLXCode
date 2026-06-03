@@ -844,6 +844,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HookCheckFailed => "후크 확인 실패",
         I18nKey::CoreStatusRulesTip => "활성 규칙",
         I18nKey::CoreStatusSkillsTip => "활성 스킬",
+        I18nKey::CoreStatusPlansTip => "계획",
+        I18nKey::CoreStatusMemoryTip => "메모리 사용량",
+        I18nKey::CoreStatusMemoryCategoriesTip => "메모리 카테고리",
+        I18nKey::CoreStatusMemoryFilesTip => "메모리 파일",
+        I18nKey::CoreStatusMemorySizeTip => "메모리 크기",
         I18nKey::HookInstallTitle => "에이전트 CLI 후크 설치",
         I18nKey::HookInstallBody => {
             "blxcode는 에이전트 CLI(Claude, Codex, Gemini, Cursor, OpenCode)에 대한 후크를 연결하여 터미널 탭이 활성 프롬프트를 따르고, 세션이 다시 시작된 후 재개되고, 턴 완료 알림이 작동하도록 할 수 있습니다. 지금 설치하시겠습니까?"
