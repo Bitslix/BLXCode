@@ -847,6 +847,7 @@ pub enum HarnessSettingsCategory {
     Mcp,
     Voice,
     Image,
+    CodeEditor,
 }
 
 /// Live state of the "Close Terminals tab" confirmation overlay. The 10s

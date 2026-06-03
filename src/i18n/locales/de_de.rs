@@ -1237,5 +1237,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgModeFullAccessDesc => "Alle Tool-Aufrufe ohne Rückfrage ausführen",
         I18nKey::AgModePlan => "Planen",
         I18nKey::AgModePlanDesc => "Nur-Lesen-Planungsmodus",
+        I18nKey::HsCatCodeEditor => "Code-Editor",
+        I18nKey::CodeEditorHeading => "Code-Editor",
+        I18nKey::CodeEditorDescription => "Den integrierten Datei-Editor und die Vorschau konfigurieren.",
+        I18nKey::CodeEditorVimTitle => "Vim-Tastensteuerung",
+        I18nKey::CodeEditorVimDesc => "Modale Bearbeitung im Vim-Stil im Datei-Editor und in der Vorschau aktivieren.",
+        I18nKey::CodeEditorVimStatusTip => "Vim-Modus ist im Editor aktiv",
     }
 }

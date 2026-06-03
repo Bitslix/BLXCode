@@ -1237,5 +1237,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgModeFullAccessDesc => "Uruchamiaj wszystkie wywołania narzędzi bez pytań",
         I18nKey::AgModePlan => "Plan",
         I18nKey::AgModePlanDesc => "Tryb planowania tylko do odczytu",
+        I18nKey::HsCatCodeEditor => "Code Editor",
+        I18nKey::CodeEditorHeading => "Code Editor",
+        I18nKey::CodeEditorDescription => "Configure the in-app file editor and preview.",
+        I18nKey::CodeEditorVimTitle => "Vim key bindings",
+        I18nKey::CodeEditorVimDesc => "Enable Vim-style modal editing in the file editor and preview.",
+        I18nKey::CodeEditorVimStatusTip => "Vim mode is active in the editor",
     }
 }

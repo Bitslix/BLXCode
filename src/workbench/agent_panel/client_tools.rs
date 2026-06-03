@@ -292,6 +292,7 @@ fn parse_settings_category(raw: &str) -> Option<HarnessSettingsCategory> {
         "memory" => HarnessSettingsCategory::Memory,
         "voice" => HarnessSettingsCategory::Voice,
         "image" => HarnessSettingsCategory::Image,
+        "code_editor" => HarnessSettingsCategory::CodeEditor,
         _ => return None,
     })
 }

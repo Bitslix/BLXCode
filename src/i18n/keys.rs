@@ -625,6 +625,13 @@ pub enum I18nKey {
     HsCatImage,
     HsCatRemote,
     HsCatMcp,
+    HsCatCodeEditor,
+    // --- Code editor settings category ---
+    CodeEditorHeading,
+    CodeEditorDescription,
+    CodeEditorVimTitle,
+    CodeEditorVimDesc,
+    CodeEditorVimStatusTip,
     // --- MCP server registry (MCP settings category) ---
     McpDescription,
     McpHeading,

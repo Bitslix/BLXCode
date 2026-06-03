@@ -1193,5 +1193,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgModeFullAccessDesc => "모든 도구 호출을 확인 없이 실행",
         I18nKey::AgModePlan => "계획",
         I18nKey::AgModePlanDesc => "읽기 전용 계획 모드",
+        I18nKey::HsCatCodeEditor => "Code Editor",
+        I18nKey::CodeEditorHeading => "Code Editor",
+        I18nKey::CodeEditorDescription => "Configure the in-app file editor and preview.",
+        I18nKey::CodeEditorVimTitle => "Vim key bindings",
+        I18nKey::CodeEditorVimDesc => "Enable Vim-style modal editing in the file editor and preview.",
+        I18nKey::CodeEditorVimStatusTip => "Vim mode is active in the editor",
     }
 }

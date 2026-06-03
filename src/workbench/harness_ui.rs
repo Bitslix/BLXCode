@@ -896,6 +896,7 @@ fn harness_settings_cat_icon(cat: HarnessSettingsCategory) -> icondata::Icon {
         HarnessSettingsCategory::Mcp => icondata::LuPlug,
         HarnessSettingsCategory::Voice => icondata::LuMic,
         HarnessSettingsCategory::Image => icondata::LuImage,
+        HarnessSettingsCategory::CodeEditor => icondata::LuCode,
     }
 }
 
@@ -923,6 +924,7 @@ pub fn SettingsDock(
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::ApiKeys label=I18nKey::HsCatApiKeys />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::App label=I18nKey::HsCatApp />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Appearance label=I18nKey::HsCatAppearance />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::CodeEditor label=I18nKey::HsCatCodeEditor />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Memory label=I18nKey::TabMemory />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Mcp label=I18nKey::HsCatMcp />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Remote label=I18nKey::HsCatRemote />
@@ -962,6 +964,9 @@ pub fn SettingsDock(
                     }.into_any(),
                     HarnessSettingsCategory::Voice => view! {
                         <crate::workbench::harness_voice_pane::VoiceSettingsPane />
+                    }.into_any(),
+                    HarnessSettingsCategory::CodeEditor => view! {
+                        <crate::workbench::CodeEditorSettingsPane />
                     }.into_any(),
                     HarnessSettingsCategory::Image => view! {
                         <crate::workbench::AgentProviderPane />
