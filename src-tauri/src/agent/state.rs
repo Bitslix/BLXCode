@@ -235,7 +235,9 @@ pub struct ProviderEnv {
 }
 
 impl ProviderEnv {
-    #[allow(dead_code)] // env-based provider path not yet wired in
+    // Env-based key path (BLX_ANTHROPIC_API_KEY); the live path reads keys from
+    // agent settings instead (see CLAUDE.md). Kept as the documented env stub.
+    #[allow(dead_code)]
     pub fn from_environment() -> Self {
         Self {
             anthropic_api_key: std::env::var("BLX_ANTHROPIC_API_KEY")

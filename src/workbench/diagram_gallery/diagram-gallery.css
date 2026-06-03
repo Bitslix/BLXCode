@@ -97,6 +97,14 @@
   border-color: var(--border-strong);
 }
 
+.diagram-gallery__delete {
+  color: var(--danger, #e5484d);
+}
+
+.diagram-gallery__delete:hover {
+  border-color: var(--danger, #e5484d);
+}
+
 /* Large active stage */
 .diagram-gallery__active {
   flex: 1 1 auto;

@@ -3059,7 +3059,6 @@ pub async fn mermaid_list_diagrams(ws: &str, slug: &str) -> Result<Vec<DiagramRe
     .await
 }
 
-#[allow(dead_code)] // public bridge API; UI wiring pending
 pub async fn mermaid_delete_diagram(ws: &str, slug: &str, id: &str) -> Result<(), String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]

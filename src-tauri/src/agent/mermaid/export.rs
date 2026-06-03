@@ -26,7 +26,9 @@ impl Orientation {
 
     /// Derive orientation from rendered SVG pixel dimensions. Square-ish
     /// diagrams default to portrait.
-    #[allow(dead_code)] // helper kept for export sizing; call site pending
+    // Superseded by the explicit `landscape` flag in `mermaid_export_markdown`;
+    // kept (with its test) as the SVG-derived auto-orientation reference.
+    #[allow(dead_code)]
     pub fn from_dimensions(width: f64, height: f64) -> Self {
         if width > height {
             Orientation::Landscape

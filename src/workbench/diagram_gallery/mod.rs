@@ -11,7 +11,8 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    mermaid_export_markdown, mermaid_export_pdf, mermaid_list_diagrams, DiagramRecord,
+    mermaid_delete_diagram, mermaid_export_markdown, mermaid_export_pdf, mermaid_list_diagrams,
+    DiagramRecord,
 };
 use crate::workbench::diagram_render::{rendered_svg_outer_html, DiagramRender};
 use crate::workbench::toast::ToastService;
@@ -19,15 +20,11 @@ use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
-/// What a gallery tab shows: diagrams persisted under a plan, or an ad-hoc set
-/// passed inline (e.g. from a timeline tool result).
+/// What a gallery tab shows: diagrams persisted under a plan slug.
 #[derive(Debug, Clone, PartialEq)]
 pub enum GalleryScope {
     /// Load diagrams from the store for this plan slug.
     Plan { slug: String },
-    /// Render the supplied diagrams directly (not necessarily persisted).
-    #[allow(dead_code)] // alternate scope; construction site pending
-    Inline { diagrams: Vec<DiagramRecord> },
 }
 
 const STAGE_DOM_ID: &str = "diagram-gallery-active";
@@ -40,26 +37,28 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
 
     let diagrams = RwSignal::new(Vec::<DiagramRecord>::new());
     let active = RwSignal::new(0usize);
-    let loading = RwSignal::new(matches!(scope, GalleryScope::Plan { .. }));
+    let loading = RwSignal::new(true);
+
+    // The plan slug and workspace cwd are captured up front so both the initial
+    // load and the per-diagram delete action can reach the store.
+    let GalleryScope::Plan { slug } = scope;
+    let cwd = wb.workspaces().with_untracked(|list| {
+        list.iter().find(|w| w.id == workspace_id).map(|w| w.cwd.clone())
+    });
 
     // Populate the diagram set.
-    match scope.clone() {
-        GalleryScope::Inline { diagrams: list } => diagrams.set(list),
-        GalleryScope::Plan { slug } => {
-            let cwd = wb.workspaces().with_untracked(|list| {
-                list.iter().find(|w| w.id == workspace_id).map(|w| w.cwd.clone())
-            });
-            if let Some(cwd) = cwd {
-                spawn_local(async move {
-                    match mermaid_list_diagrams(&cwd, &slug).await {
-                        Ok(list) => diagrams.set(list),
-                        Err(e) => web_sys::console::warn_1(&format!("load diagrams: {e}").into()),
-                    }
-                    loading.set(false);
-                });
-            } else {
+    {
+        let slug = slug.clone();
+        if let Some(cwd) = cwd.clone() {
+            spawn_local(async move {
+                match mermaid_list_diagrams(&cwd, &slug).await {
+                    Ok(list) => diagrams.set(list),
+                    Err(e) => web_sys::console::warn_1(&format!("load diagrams: {e}").into()),
+                }
                 loading.set(false);
-            }
+            });
+        } else {
+            loading.set(false);
         }
     }
 
@@ -102,6 +101,37 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
                 Ok(Some(path)) => toast.success(format!("Saved {path}")),
                 Ok(None) => {}
                 Err(e) => toast.error(format!("Export failed: {e}")),
+            }
+        });
+    };
+
+    // Delete the active diagram from the store, then drop it from the local
+    // list and clamp the active index. No-op when the cwd is unavailable.
+    // `StoredValue` keeps these `Copy` so the handler stays `Fn` (the `<Show>`
+    // children closure that hosts the button must be callable repeatedly).
+    let toast_del = toast.clone();
+    let del_slug = StoredValue::new(slug.clone());
+    let del_cwd = StoredValue::new(cwd.clone());
+    let on_delete = move |_| {
+        let Some(cwd) = del_cwd.get_value() else { return };
+        let slug = del_slug.get_value();
+        let idx = active.get_untracked();
+        let Some(id) = diagrams.with_untracked(|d| d.get(idx).map(|r| r.id.clone())) else {
+            return;
+        };
+        let toast = toast_del.clone();
+        spawn_local(async move {
+            match mermaid_delete_diagram(&cwd, &slug, &id).await {
+                Ok(()) => {
+                    diagrams.update(|d| {
+                        if idx < d.len() {
+                            d.remove(idx);
+                        }
+                    });
+                    let len = diagrams.with_untracked(|d| d.len());
+                    active.set(if len == 0 { 0 } else { idx.min(len - 1) });
+                }
+                Err(e) => toast.error(format!("Delete failed: {e}")),
             }
         });
     };
@@ -153,6 +183,12 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
                     </button>
                     <button class="diagram-gallery__export" on:click=on_export_pdf>
                         {move || i18n.tr(I18nKey::DiagramExportPdf)}
+                    </button>
+                    <button
+                        class="diagram-gallery__export diagram-gallery__delete"
+                        on:click=on_delete
+                    >
+                        {move || i18n.tr(I18nKey::MemDelete)}
                     </button>
                 </div>
                 <div class="diagram-gallery__active">
