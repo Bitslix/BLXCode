@@ -3184,6 +3184,12 @@ impl WorkbenchService {
         self.workspace_config_steps
     }
 
+    #[must_use]
+    pub fn workspace_is_configuring(&self, id: u64) -> bool {
+        self.workspaces
+            .with_untracked(|w| w.iter().any(|ws| ws.id == id && ws.configuring))
+    }
+
     pub fn set_workspace_config_step(&self, id: u64, step: u8) {
         self.workspace_config_steps.update(|m| {
             m.insert(id, step);

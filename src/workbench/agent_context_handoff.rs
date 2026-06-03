@@ -177,7 +177,11 @@ pub fn render_agent_context_block(input: &RenderInputs) -> String {
     if !file_ref_items.is_empty() {
         out.push_str("\n## Attached files (paths only; read if needed)\n");
         for item in file_ref_items {
-            let path = item.paths.first().cloned().unwrap_or_else(|| item.source.clone());
+            let path = item
+                .paths
+                .first()
+                .cloned()
+                .unwrap_or_else(|| item.source.clone());
             out.push_str(&format!("- {} — `{path}`\n", item.label));
         }
     }

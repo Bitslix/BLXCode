@@ -545,20 +545,14 @@ fn attach_context_drag(
                     Ok(details) => {
                         let paths: Vec<String> =
                             details.files.iter().map(|f| f.path.clone()).collect();
-                        let item = git_commit_context_item(
-                            &oid,
-                            &short,
-                            &subject,
-                            &details.body,
-                            &paths,
-                        );
+                        let item =
+                            git_commit_context_item(&oid, &short, &subject, &details.body, &paths);
                         wb.upsert_workspace_agent_context(active_ws_id, item);
                     }
                     Err(err) => {
                         // Fall back to a metadata-only commit item so the drop
                         // still attaches something useful.
-                        let item =
-                            git_commit_context_item(&oid, &short, &subject, "", &[]);
+                        let item = git_commit_context_item(&oid, &short, &subject, "", &[]);
                         wb.upsert_workspace_agent_context(active_ws_id, item);
                         status_line.set(Some(format!("Commit details unavailable: {err}")));
                     }

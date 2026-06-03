@@ -631,10 +631,12 @@ fn CenterTabButton(workspace_id: u64, tab: CenterTab, active_tab_id: Memo<u64>) 
     // the confirmation dialog when the user has it enabled, otherwise close
     // straight away.
     let close_terminals = move || {
-        if prefs.confirm_close_workspace_enabled().get_untracked() {
-            ui.request_close_terminals_tab(workspace_id);
-        } else {
+        if wb.workspace_is_configuring(workspace_id)
+            || !prefs.confirm_close_workspace_enabled().get_untracked()
+        {
             wb.close_workspace(workspace_id);
+        } else {
+            ui.request_close_terminals_tab(workspace_id);
         }
     };
     // Terminals tabs route their close action through the confirmation

@@ -66,10 +66,12 @@ pub fn Sidebar() -> impl IntoView {
     // through the same confirmation dialog as the Terminals tab when the
     // user has it enabled; otherwise it closes immediately.
     let close_workspace_gated = move |id: u64| {
-        if prefs.confirm_close_workspace_enabled().get_untracked() {
-            ui.request_close_terminals_tab(id);
-        } else {
+        if wb.workspace_is_configuring(id)
+            || !prefs.confirm_close_workspace_enabled().get_untracked()
+        {
             wb.close_workspace(id);
+        } else {
+            ui.request_close_terminals_tab(id);
         }
     };
 
