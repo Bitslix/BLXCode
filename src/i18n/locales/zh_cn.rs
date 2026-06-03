@@ -451,7 +451,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgTasksGroupFree => "自由任务",
         I18nKey::AgNicknameLabel => "代理名称",
         I18nKey::AgNicknamePlaceholder => "BLX小程",
-        I18nKey::AgNicknameHelp => "给您的代理人一个个人名字。留空以使用默认的“BLXCodey”。代理在文本和语音聊天中都会获悉该名称。",
+        I18nKey::AgNicknameHelp => "给您的代理人一个个人名字。留空以使用默认的“BLXCody”。代理在文本和语音聊天中都会获悉该名称。",
         I18nKey::AgNicknameErrTooLong => "该名称太长（最多 32 个字符）。",
         I18nKey::AgNicknameErrInvalidChars => "仅使用字母、数字、空格、连字符或下划线。",
         I18nKey::AgNicknameErrBadWord => "请选择不同的名称。",

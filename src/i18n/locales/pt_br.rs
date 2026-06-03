@@ -464,7 +464,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgNicknameLabel => "Nome do agente",
         I18nKey::AgNicknamePlaceholder => "Código BLX",
         I18nKey::AgNicknameHelp => {
-            "Dê ao seu agente um nome pessoal. Deixe em branco para usar o padrão \"BLXCodey\". O agente aprende esse nome no chat de texto e de voz."
+            "Dê ao seu agente um nome pessoal. Deixe em branco para usar o padrão \"BLXCody\". O agente aprende esse nome no chat de texto e de voz."
         }
         I18nKey::AgNicknameErrTooLong => "Esse nome é muito longo (máximo de 32 caracteres).",
         I18nKey::AgNicknameErrInvalidChars => "Use apenas letras, números, espaços, hífens ou sublinhados.",

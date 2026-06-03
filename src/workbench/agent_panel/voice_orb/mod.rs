@@ -35,7 +35,7 @@ pub use state::{focus_in_editable, hotkey_matches, VoiceOrbState};
 
 /// Default agent name shown when the user has not set a nickname. Mirrors the
 /// backend `agent::nickname::DEFAULT_AGENT_NICKNAME`.
-const DEFAULT_AGENT_NICKNAME: &str = "BLXCodey";
+const DEFAULT_AGENT_NICKNAME: &str = "BLXCody";
 
 /// Resolve the effective agent name: trimmed nickname, or the default if blank.
 fn resolve_agent_name(raw: &str) -> String {

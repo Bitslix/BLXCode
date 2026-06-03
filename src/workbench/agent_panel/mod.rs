@@ -68,7 +68,7 @@ const THINKING_IDLE_MESSAGES: [&str; 10] = [
     "Refining",
 ];
 
-const DEFAULT_AGENT_TIMELINE_NAME: &str = "BLXCodey";
+const DEFAULT_AGENT_TIMELINE_NAME: &str = "BLXCody";
 
 fn resolve_agent_timeline_name(raw: &str) -> String {
     let trimmed = raw.trim();

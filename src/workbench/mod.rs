@@ -2,6 +2,7 @@
 mod agent_accent;
 mod agent_context_handoff;
 mod agent_model_picker;
+mod agent_onboarding_dialog;
 mod agent_panel;
 mod agent_provider_pane;
 mod agent_timeline;
@@ -71,6 +72,7 @@ mod workspace_panel;
 mod workspace_settings_pane;
 
 pub use agent_panel::AgentPanelDock;
+pub use agent_onboarding_dialog::AgentOnboardingDialog;
 pub use agent_provider_pane::AgentProviderPane;
 pub use api_keys_pane::ApiKeysPane;
 pub use app_titlebar::AppTitleBar;
@@ -107,11 +109,12 @@ use crate::i18n::I18nKey;
 use crate::open_http::{dom_click_nav_href, DomNavHref};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    browser_embedding_kind, harness_ensure_default_sandbox, harness_user_home_dir, is_tauri_shell,
-    skills_rules_bootstrap, workbench_extract_sessions_prefix, workbench_load_state,
-    workbench_merge_sessions_workspace, workbench_prune_notifications, workbench_prune_sessions,
-    workbench_save_state, workbench_upsert_agent_notification, workspace_agents_layout_status,
-    workspace_ensure_agents, AgentNotificationInput,
+    agent_settings_get, browser_embedding_kind, harness_ensure_default_sandbox,
+    harness_user_home_dir, is_tauri_shell, skills_rules_bootstrap,
+    workbench_extract_sessions_prefix, workbench_load_state, workbench_merge_sessions_workspace,
+    workbench_prune_notifications, workbench_prune_sessions, workbench_save_state,
+    workbench_upsert_agent_notification, workspace_agents_layout_status, workspace_ensure_agents,
+    AgentNotificationInput, AgentProviderSettingsView,
 };
 use app_prefs::AppPrefsService;
 use close_terminals_tab_dialog::CloseTerminalsTabDialog;
@@ -260,6 +263,10 @@ pub fn WorkbenchShell() -> impl IntoView {
     let toast = ToastService::new(app_prefs);
     let updates = expect_context::<UpdateService>();
     let post_update_notes = PostUpdateNotesService::new();
+    let agent_onboarding_open = RwSignal::new(false);
+    let agent_onboarding_settings: RwSignal<Option<AgentProviderSettingsView>> =
+        RwSignal::new(None);
+    let agent_onboarding_checked = RwSignal::new(false);
     // Provided at the App root (app.rs); read here to sequence the startup
     // hook check + install prompt after the post-update screen.
     let hook_status = expect_context::<HookStatusService>();
@@ -546,6 +553,31 @@ pub fn WorkbenchShell() -> impl IntoView {
         }
     });
 
+    Effect::new(move |_| {
+        if !hydrated.get()
+            || !is_tauri_shell()
+            || post_update_notes.open().get()
+            || agent_onboarding_checked.get_untracked()
+        {
+            return;
+        }
+        agent_onboarding_checked.set(true);
+        spawn_local(async move {
+            match agent_settings_get().await {
+                Ok(view) => {
+                    let should_open = !view.onboarding_seen;
+                    agent_onboarding_settings.set(Some(view));
+                    if should_open {
+                        agent_onboarding_open.set(true);
+                    }
+                }
+                Err(err) => {
+                    leptos::logging::warn!("agent_settings_get onboarding: {err}");
+                }
+            }
+        });
+    });
+
     // Open the install prompt once the check resolved to "no hooks", but only
     // after the post-update ("What's new") screen is dismissed, so the two
     // modal overlays never stack. No persistence: it reappears each launch
@@ -553,6 +585,7 @@ pub fn WorkbenchShell() -> impl IntoView {
     Effect::new(move |_| {
         if hook_status.needs_install()
             && !post_update_notes.open().get()
+            && !agent_onboarding_open.get()
             && !hook_install.open().get_untracked()
         {
             hook_install.show();
@@ -886,6 +919,13 @@ pub fn WorkbenchShell() -> impl IntoView {
             <UpdateBanner />
             <UpdateDialog />
             <PostUpdateNotesDialog />
+            <AgentOnboardingDialog
+                open=agent_onboarding_open
+                settings=agent_onboarding_settings
+                on_complete=Callback::new(move |view| {
+                    agent_onboarding_settings.set(Some(view));
+                })
+            />
             <HookInstallDialog />
             <CloseTerminalsTabDialog />
             <ConfirmDialog />

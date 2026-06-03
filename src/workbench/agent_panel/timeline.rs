@@ -84,7 +84,7 @@ fn AgentNameLabel() -> impl IntoView {
                 name
                     .map(|ctx| ctx.0.get())
                     .filter(|value| !value.trim().is_empty())
-                    .unwrap_or_else(|| "BLXCodey".to_string())
+                    .unwrap_or_else(|| "BLXCody".to_string())
             }}
         </strong>
     }

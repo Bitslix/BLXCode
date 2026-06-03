@@ -457,7 +457,7 @@ mod tests {
 
     #[test]
     fn prompt_lists_plan_tools() {
-        let p = system_prompt(Some("/tmp/ws"), "BLXCodey", None);
+        let p = system_prompt(Some("/tmp/ws"), "BLXCody", None);
         assert!(p.contains("plan_list"));
         assert!(p.contains("plan_load"));
         assert!(p.contains("plan_sync_from_tasks"));
@@ -472,7 +472,7 @@ mod tests {
 
     #[test]
     fn prompt_references_core_skills() {
-        let p = system_prompt(None, "BLXCodey", None);
+        let p = system_prompt(None, "BLXCody", None);
         assert!(p.contains("skills_read"));
         assert!(p.contains("file-access"));
         assert!(p.contains("memory"));
@@ -487,7 +487,7 @@ mod tests {
 
     #[test]
     fn prompt_explains_learnings_and_project_docs_preload() {
-        let p = system_prompt(Some("/tmp/ws"), "BLXCodey", None);
+        let p = system_prompt(Some("/tmp/ws"), "BLXCody", None);
         assert!(p.contains("Memory vs Learnings"));
         assert!(p.contains(".agents/learnings/"));
         assert!(p.contains("Project docs (mandatory session-start preload)"));
@@ -501,7 +501,7 @@ mod tests {
 
     #[test]
     fn prompt_enforces_rules_first_turn_checklist() {
-        let p = system_prompt(None, "BLXCodey", None);
+        let p = system_prompt(None, "BLXCody", None);
         assert!(p.contains("Turn checklist"));
         // Rules step
         assert!(p.contains("**Rules first.**"));
@@ -528,7 +528,7 @@ mod tests {
 
     #[test]
     fn prompt_hardens_against_prompt_injection_and_secret_leaks() {
-        let p = system_prompt(Some("/tmp/ws"), "BLXCodey", None);
+        let p = system_prompt(Some("/tmp/ws"), "BLXCody", None);
         assert!(p.contains("Prompt authority"));
         assert!(p.contains("Untrusted content"));
         assert!(p.contains("prompt injection"));
@@ -542,8 +542,8 @@ mod tests {
 
     #[test]
     fn prompt_appends_session_role_block_when_set() {
-        let base = system_prompt(Some("/tmp/ws"), "BLXCodey", None);
-        let with_role = system_prompt(Some("/tmp/ws"), "BLXCodey", Some("coordinator"));
+        let base = system_prompt(Some("/tmp/ws"), "BLXCody", None);
+        let with_role = system_prompt(Some("/tmp/ws"), "BLXCody", Some("coordinator"));
         assert!(!base.contains("# Active session role"));
         assert!(with_role.contains("# Active session role"));
         assert!(with_role.contains("\"Coordinator\" session role"));
@@ -557,7 +557,7 @@ mod tests {
 
     #[test]
     fn prompt_omits_swarm_guidance_for_non_swarm_roles() {
-        let p = system_prompt(Some("/tmp/ws"), "BLXCodey", Some("architect"));
+        let p = system_prompt(Some("/tmp/ws"), "BLXCody", Some("architect"));
         assert!(p.contains("\"Architect\" session role"));
         assert!(!p.contains("Terminal Agent Swarm"));
         assert!(!p.contains("terminalAgentSwarm: true"));
@@ -565,10 +565,10 @@ mod tests {
 
     #[test]
     fn prompt_ignores_unknown_or_empty_role() {
-        let base = system_prompt(Some("/tmp/ws"), "BLXCodey", None);
-        assert_eq!(system_prompt(Some("/tmp/ws"), "BLXCodey", Some("")), base);
+        let base = system_prompt(Some("/tmp/ws"), "BLXCody", None);
+        assert_eq!(system_prompt(Some("/tmp/ws"), "BLXCody", Some("")), base);
         assert_eq!(
-            system_prompt(Some("/tmp/ws"), "BLXCodey", Some("does-not-exist")),
+            system_prompt(Some("/tmp/ws"), "BLXCody", Some("does-not-exist")),
             base
         );
     }

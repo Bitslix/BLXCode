@@ -453,7 +453,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgTasksGroupFree => "무료 작업",
         I18nKey::AgNicknameLabel => "대리인 이름",
         I18nKey::AgNicknamePlaceholder => "BLX코디",
-        I18nKey::AgNicknameHelp => "에이전트에게 개인 이름을 지정하세요. 기본 \"BLXCodey\"를 사용하려면 비워 두세요. 상담원은 문자 채팅과 음성 채팅을 통해 이 이름을 알게 됩니다.",
+        I18nKey::AgNicknameHelp => "에이전트에게 개인 이름을 지정하세요. 기본 \"BLXCody\"를 사용하려면 비워 두세요. 상담원은 문자 채팅과 음성 채팅을 통해 이 이름을 알게 됩니다.",
         I18nKey::AgNicknameErrTooLong => "이름이 너무 깁니다(최대 32자).",
         I18nKey::AgNicknameErrInvalidChars => "문자, 숫자, 공백, 하이픈, 밑줄만 사용하세요.",
         I18nKey::AgNicknameErrBadWord => "다른 이름을 선택하세요.",

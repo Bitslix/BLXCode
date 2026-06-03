@@ -291,6 +291,7 @@ pub fn Composer(
                 view.auto_compact_threshold_pct,
                 view.orb_mode,
                 view.agent_nickname.clone(),
+                view.default_session_role.clone(),
             )
             .await
             {

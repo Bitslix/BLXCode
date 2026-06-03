@@ -470,9 +470,9 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgTasksGroupPlan => "Plan",
         I18nKey::AgTasksGroupFree => "Tâches gratuites",
         I18nKey::AgNicknameLabel => "Nom de l'agent",
-        I18nKey::AgNicknamePlaceholder => "BLXCodey",
+        I18nKey::AgNicknamePlaceholder => "BLXCody",
         I18nKey::AgNicknameHelp => {
-            "Donnez à votre agent un nom personnel. Laissez vide pour utiliser le \"BLXCodey\" par défaut. L'agent apprend ce nom dans le chat textuel et vocal."
+            "Donnez à votre agent un nom personnel. Laissez vide pour utiliser le \"BLXCody\" par défaut. L'agent apprend ce nom dans le chat textuel et vocal."
         }
         I18nKey::AgNicknameErrTooLong => "Ce nom est trop long (32 caractères maximum).",
         I18nKey::AgNicknameErrInvalidChars => {

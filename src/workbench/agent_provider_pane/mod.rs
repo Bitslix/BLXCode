@@ -611,6 +611,9 @@ pub fn AgentProviderPane() -> impl IntoView {
         let orb = orb_mode.get_untracked();
         let nick = nickname.get_untracked();
         let web = web_provider.get_untracked();
+        let default_session_role = settings
+            .get_untracked()
+            .and_then(|view| view.default_session_role.clone());
         leptos::task::spawn_local(async move {
             let mut err: Option<String> = None;
             match agent_settings_save(
@@ -622,6 +625,7 @@ pub fn AgentProviderPane() -> impl IntoView {
                 ac_threshold,
                 orb,
                 nick,
+                default_session_role,
             )
             .await
             {

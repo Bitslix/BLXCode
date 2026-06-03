@@ -31,7 +31,7 @@ Add a one-time startup dialog for choosing the BLXCode Agent name and default se
 - [x] `plan` - Save implementation plan and index it.
 - [x] `backend-settings` - Persist onboarding and default-role settings through backend IPC.
 - [x] `shared-role-picker` - Extract reusable session role picker and keep Create Workspace behavior.
-- [>] `onboarding-dialog` - Add one-time startup dialog for agent name and default role.
-- [ ] `settings-role` - Add default-role picker to Agent and Workspace settings.
+- [x] `onboarding-dialog` - Add one-time startup dialog for agent name and default role.
+- [>] `settings-role` - Add default-role picker to Agent and Workspace settings.
 - [ ] `workspace-default` - Seed new Create Workspace drafts from the saved default role.
 - [ ] `final-checks` - Run final checks and finish plan/index status.

@@ -6190,6 +6190,69 @@ button.workbench-shortcut-row--action:focus-visible {
   border-top: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
 }
 
+.harness-sheet--agent-onboarding {
+  width: min(31rem, calc(100vw - 2rem));
+  padding: 1rem;
+}
+
+.agent-onboarding__head {
+  display: flex;
+  gap: 0.8rem;
+  align-items: flex-start;
+  margin-bottom: 0.9rem;
+}
+
+.agent-onboarding__icon {
+  display: inline-grid;
+  width: 2.1rem;
+  height: 2.1rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
+.agent-onboarding__title-wrap {
+  min-width: 0;
+}
+
+.agent-onboarding__lead {
+  margin: 0.22rem 0 0;
+  line-height: 1.4;
+}
+
+.agent-onboarding__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.agent-onboarding__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.38rem;
+}
+
+.workbench-plain-input.agent-onboarding__input--error {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 20%, transparent);
+}
+
+.agent-onboarding__error {
+  color: var(--danger);
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
+.agent-onboarding__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
 .harness-sheet--settings {
   margin-top: 3vh;
   width: min(96vw, 46rem);

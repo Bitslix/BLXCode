@@ -623,6 +623,10 @@ pub struct AgentProviderSettingsView {
     pub orb_mode: AgentOrbMode,
     #[serde(default)]
     pub agent_nickname: String,
+    #[serde(default)]
+    pub onboarding_seen: bool,
+    #[serde(default)]
+    pub default_session_role: Option<String>,
     pub model_cache_openrouter: Vec<ProviderModelEntry>,
     pub model_cache_anthropic: Vec<ProviderModelEntry>,
     pub model_cache_openai: Vec<ProviderModelEntry>,
@@ -743,6 +747,7 @@ pub async fn agent_settings_save(
     auto_compact_threshold_pct: u8,
     orb_mode: AgentOrbMode,
     agent_nickname: String,
+    default_session_role: Option<String>,
 ) -> Result<AgentProviderSettingsView, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -761,6 +766,7 @@ pub async fn agent_settings_save(
         auto_compact_threshold_pct: u8,
         orb_mode: AgentOrbMode,
         agent_nickname: String,
+        default_session_role: Option<String>,
     }
 
     invoke_typed(
@@ -775,7 +781,29 @@ pub async fn agent_settings_save(
                 auto_compact_threshold_pct,
                 orb_mode,
                 agent_nickname,
+                default_session_role,
             },
+        },
+    )
+    .await
+}
+
+pub async fn agent_onboarding_complete(
+    agent_nickname: String,
+    default_session_role: Option<String>,
+) -> Result<AgentProviderSettingsView, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        agent_nickname: String,
+        default_session_role: Option<String>,
+    }
+
+    invoke_typed(
+        "agent_onboarding_complete",
+        Args {
+            agent_nickname,
+            default_session_role,
         },
     )
     .await
