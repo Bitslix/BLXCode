@@ -1318,6 +1318,9 @@ pub struct WorkbenchService {
     /// PlansPanel and WorkspaceKanban both subscribe to this to stay in sync
     /// without directly coupling their local component state.
     plans_epoch: RwSignal<u32>,
+    /// Session-only request for Kanban to reveal a specific plan after it has
+    /// loaded the current board.
+    kanban_plan_focus: RwSignal<Option<KanbanPlanFocusRequest>>,
     /// Old `terminal_key`s whose PTY is currently being adopted by a new
     /// cell mount (Cross-workspace transfer or extract-to-new-workspace).
     /// While present, the unmounting source cell's cleanup must NOT call
@@ -1380,6 +1383,12 @@ impl TerminalSlotMove {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct WorkspaceNotificationCounts {
     pub total_unread: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KanbanPlanFocusRequest {
+    pub workspace_id: u64,
+    pub plan_path: String,
 }
 
 impl WorkbenchService {
@@ -1445,6 +1454,7 @@ impl WorkbenchService {
             agent_image_context: RwSignal::new(HashMap::new()),
             sidebar_repo_epoch: RwSignal::new(0),
             plans_epoch: RwSignal::new(0),
+            kanban_plan_focus: RwSignal::new(None),
             terminal_move_guards: RwSignal::new(HashMap::new()),
             terminal_adopt_pending: RwSignal::new(HashMap::new()),
         }
@@ -1464,6 +1474,22 @@ impl WorkbenchService {
 
     pub fn bump_plans_epoch(&self) {
         self.plans_epoch.update(|n| *n = n.wrapping_add(1));
+    }
+
+    pub fn kanban_plan_focus_request(&self) -> RwSignal<Option<KanbanPlanFocusRequest>> {
+        self.kanban_plan_focus
+    }
+
+    pub fn open_center_kanban_plan(&self, workspace_id: u64, plan_path: String) {
+        let plan_path = plan_path.trim().to_string();
+        if plan_path.is_empty() {
+            return;
+        }
+        self.kanban_plan_focus.set(Some(KanbanPlanFocusRequest {
+            workspace_id,
+            plan_path,
+        }));
+        self.open_center_kanban_tab(workspace_id);
     }
 
     pub fn notifications(&self) -> RwSignal<HashMap<String, u32>> {

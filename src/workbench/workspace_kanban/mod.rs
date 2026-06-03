@@ -14,6 +14,7 @@ use crate::workbench::kanban_dnd::{
 };
 use crate::workbench::toast::{ToastKind, ToastService};
 use crate::workbench::WorkbenchService;
+use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
@@ -45,6 +46,7 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
     let error = RwSignal::<Option<String>>::new(None);
     let query = RwSignal::new(String::new());
     let expanded_plans = RwSignal::new(Vec::<String>::new());
+    let highlighted_plan = RwSignal::<Option<String>>::new(None);
     let open_sections = RwSignal::new(Vec::<KanbanPlanState>::new());
     let open_sections_workspace = RwSignal::<Option<String>>::new(None);
     let new_task_plan = RwSignal::new(String::new());
@@ -69,6 +71,11 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
         spawn_local(async move {
             match kanban_board_load(&ws).await {
                 Ok(next) => {
+                    let focus_request = wb
+                        .kanban_plan_focus_request()
+                        .get_untracked()
+                        .filter(|request| request.workspace_id == workspace_id);
+                    let focus_requested = focus_request.is_some();
                     if open_sections_workspace
                         .with_untracked(|current| current.as_deref() != Some(&ws))
                     {
@@ -81,7 +88,41 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
                             new_task_plan.set(first.meta.path.clone());
                         }
                     }
+                    let focused_plan = focus_request.and_then(|request| {
+                        next.plans
+                            .iter()
+                            .find(|plan| plan.meta.path == request.plan_path)
+                            .map(|plan| (plan.meta.path.clone(), plan.state.clone()))
+                    });
+                    if let Some((path, state)) = focused_plan.clone() {
+                        query.set(String::new());
+                        expanded_plans.update(|items| {
+                            if !items.contains(&path) {
+                                items.push(path.clone());
+                            }
+                        });
+                        open_sections.update(|items| {
+                            if !items.contains(&state) {
+                                items.push(state.clone());
+                            }
+                        });
+                    }
                     board.set(Some(next));
+                    if focus_requested {
+                        wb.kanban_plan_focus_request().set(None);
+                    }
+                    if let Some((path, _)) = focused_plan {
+                        highlighted_plan.set(Some(path.clone()));
+                        scroll_kanban_plan_into_view(workspace_id, path.clone());
+                        spawn_local(async move {
+                            TimeoutFuture::new(1600).await;
+                            highlighted_plan.update(|current| {
+                                if current.as_deref() == Some(path.as_str()) {
+                                    *current = None;
+                                }
+                            });
+                        });
+                    }
                     error.set(None);
                 }
                 Err(err) => error.set(Some(err)),
@@ -395,6 +436,7 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
                                     on_open_sections_change=save_open_sections
                                     on_plan_drop=move_plan
                                     on_task_drop=move_task
+                                    highlighted_plan=highlighted_plan
                                 />
                             }
                         }
@@ -419,6 +461,7 @@ fn KanbanStateSection(
     on_open_sections_change: Callback<Vec<KanbanPlanState>>,
     on_plan_drop: Callback<KanbanPlanDrop>,
     on_task_drop: Callback<KanbanTaskDrop>,
+    highlighted_plan: RwSignal<Option<String>>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let open_state = state.clone();
@@ -486,6 +529,7 @@ fn KanbanStateSection(
                                         on_reload=on_reload
                                         on_expanded_change=on_expanded_change
                                         on_task_drop=on_task_drop
+                                        highlighted_plan=highlighted_plan
                                     />
                                 }
                             }
@@ -663,6 +707,7 @@ fn KanbanPlanCard(
     on_reload: Callback<()>,
     on_expanded_change: Callback<Vec<String>>,
     on_task_drop: Callback<KanbanTaskDrop>,
+    highlighted_plan: RwSignal<Option<String>>,
 ) -> impl IntoView {
     let kanban_dnd = expect_context::<KanbanDragService>();
     let path = plan.meta.path.clone();
@@ -685,6 +730,8 @@ fn KanbanPlanCard(
     });
     let plan_path_for_lanes = StoredValue::new(plan.meta.path.clone());
     let plan_tasks_for_lanes = StoredValue::new(plan.tasks.clone());
+    let dom_id = kanban_plan_dom_id(workspace_id, &plan.meta.path);
+    let highlight_path = plan.meta.path.clone();
     let toggle = {
         let path = plan.meta.path.clone();
         move |_| {
@@ -706,7 +753,11 @@ fn KanbanPlanCard(
             class="workspace-kanban-plan"
             class:workspace-kanban-plan--drag-source=move || is_drag_source.get()
             class:workspace-kanban-plan--drag-potential=move || is_drag_potential.get()
+            class:workspace-kanban-plan--highlight=move || {
+                highlighted_plan.with(|current| current.as_deref() == Some(highlight_path.as_str()))
+            }
             data-state=plan_state_key(&plan.state)
+            id=dom_id
             prop:draggable=true
             on:dragstart={
                 let title = plan.meta.title.clone();
@@ -1429,6 +1480,28 @@ fn task_status_icon(status: &TaskStatus) -> icondata::Icon {
         TaskStatus::Completed => icondata::LuCircleCheck,
         TaskStatus::Cancelled => icondata::LuCircleMinus,
     }
+}
+
+fn kanban_plan_dom_id(workspace_id: u64, plan_path: &str) -> String {
+    let mut id = format!("workspace-kanban-plan-{workspace_id}-");
+    for byte in plan_path.as_bytes() {
+        id.push_str(&format!("{byte:02x}"));
+    }
+    id
+}
+
+fn scroll_kanban_plan_into_view(workspace_id: u64, plan_path: String) {
+    spawn_local(async move {
+        TimeoutFuture::new(0).await;
+        let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+            return;
+        };
+        if let Some(node) =
+            document.get_element_by_id(&kanban_plan_dom_id(workspace_id, &plan_path))
+        {
+            node.scroll_into_view();
+        }
+    });
 }
 
 fn input_value(ev: &web_sys::Event) -> String {

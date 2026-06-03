@@ -506,6 +506,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::DiagramExportMd => "Export .md",
         I18nKey::DiagramExportPdf => "Export .pdf",
         I18nKey::PlansOpenDiagrams => "Diagrams",
+        I18nKey::PlansShowInKanban => "Show in Kanban",
         I18nKey::FilePreviewRefresh => "새로 고침",
         I18nKey::FilePreviewLoading => "파일 로드 중…",
         I18nKey::FilePreviewCopyPath => "경로 복사",

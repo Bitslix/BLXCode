@@ -8,8 +8,8 @@ use crate::agent_wire::{AgentContextItem, AgentContextKind};
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    self, plan_create, plan_delete, plan_list, plan_load, plan_read, plan_rename, plan_write,
-    PlanContent, PlanMeta, PlanTaskSummaryWire,
+    self, mermaid_list_diagrams, plan_create, plan_delete, plan_list, plan_load, plan_read,
+    plan_rename, plan_write, PlanContent, PlanMeta, PlanTaskSummaryWire,
 };
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::state::{ConfirmRequest, HarnessUiService};
@@ -739,6 +739,31 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
     let draft = RwSignal::new(String::new());
     let body_loading = RwSignal::new(false);
     let saving = RwSignal::new(false);
+    let has_diagrams = RwSignal::new(false);
+
+    Effect::new({
+        let slug = plan.slug.clone();
+        move |_| {
+            let _ = wb.plans_epoch().get();
+            let Some(ws) = state.workspace_cwd.get() else {
+                has_diagrams.set(false);
+                return;
+            };
+            if is_index || slug.trim().is_empty() {
+                has_diagrams.set(false);
+                return;
+            }
+            let slug = slug.clone();
+            spawn_local(async move {
+                has_diagrams.set(
+                    mermaid_list_diagrams(&ws, &slug)
+                        .await
+                        .map(|items| !items.is_empty())
+                        .unwrap_or(false),
+                );
+            });
+        }
+    });
 
     let on_toggle_card = move |_| {
         let next = !expanded.get();
@@ -790,6 +815,20 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
                         <button
                             type="button"
                             class="blx-sr-btn blx-sr-btn--icon blx-sr-btn--primary blx-plans-card__quick-btn"
+                            aria-label=move || i18n.tr(I18nKey::PlansShowInKanban)()
+                            title=move || i18n.tr(I18nKey::PlansShowInKanban)()
+                            on:click=move |ev: web_sys::MouseEvent| {
+                                ev.stop_propagation();
+                                if let Some(ws_id) = wb.active_id().get_untracked() {
+                                    wb.open_center_kanban_plan(ws_id, card_path.get_value());
+                                }
+                            }
+                        >
+                            <LxIcon icon=icondata::LuKanban width="13px" height="13px" />
+                        </button>
+                        <button
+                            type="button"
+                            class="blx-sr-btn blx-sr-btn--icon blx-sr-btn--primary blx-plans-card__quick-btn"
                             aria-label=move || i18n.tr(I18nKey::PlansLoadIntoAgent)()
                             title=move || i18n.tr(I18nKey::PlansLoadIntoAgent)()
                             on:click=move |ev: web_sys::MouseEvent| {
@@ -812,32 +851,8 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
                         >
                             <LxIcon icon=icondata::LuFilePenLine width="13px" height="13px" />
                         </button>
-                        <button
-                            type="button"
-                            class="blx-sr-btn blx-sr-btn--icon blx-sr-btn--danger blx-plans-card__quick-btn"
-                            disabled=is_index
-                            aria-label=move || i18n.tr(I18nKey::SrRemove)()
-                            title=move || i18n.tr(I18nKey::SrRemove)()
-                            on:click=move |ev: web_sys::MouseEvent| {
-                                ev.stop_propagation();
-                                let path = on_delete.get_value();
-                                ui.request_confirm(ConfirmRequest {
-                                    title: i18n.tr(I18nKey::SrConfirmRemoveTitle)().to_string(),
-                                    body: i18n.tr(I18nKey::SrConfirmRemove)().to_string(),
-                                    confirm_label: i18n.tr(I18nKey::SrRemove)().to_string(),
-                                    cancel_label: i18n.tr(I18nKey::SrCancel)().to_string(),
-                                    danger: true,
-                                    on_confirm: Callback::new(move |_| {
-                                        remove_plan(state, wb, path.clone());
-                                    }),
-                                    on_cancel: None,
-                                });
-                            }
-                        >
-                            <LxIcon icon=icondata::LuTrash2 width="13px" height="13px" />
-                        </button>
                     })}
-                    <Show when=move || !is_index>
+                    <Show when=move || !is_index && has_diagrams.get()>
                         <button
                             type="button"
                             class="blx-sr-btn blx-sr-btn--icon"

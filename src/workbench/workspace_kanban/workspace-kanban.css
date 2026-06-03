@@ -474,6 +474,14 @@
   cursor: grabbing;
 }
 
+.workspace-kanban-plan--highlight {
+  border-color: color-mix(in srgb, var(--accent) 72%, var(--border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent) 42%, transparent),
+    0 0 18px color-mix(in srgb, var(--accent) 18%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent);
+}
+
 .workspace-kanban-plan[data-state="blocked"] {
   --kanban-state: var(--warning);
 }

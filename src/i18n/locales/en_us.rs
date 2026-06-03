@@ -563,6 +563,7 @@ keys; the preset only fills in defaults."
         I18nKey::DiagramExportMd => "Export .md",
         I18nKey::DiagramExportPdf => "Export .pdf",
         I18nKey::PlansOpenDiagrams => "Diagrams",
+        I18nKey::PlansShowInKanban => "Show in Kanban",
         I18nKey::FilePreviewRefresh => "Refresh",
         I18nKey::FilePreviewLoading => "Loading file…",
         I18nKey::FilePreviewCopyPath => "Copy path",

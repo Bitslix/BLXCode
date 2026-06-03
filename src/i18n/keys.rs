@@ -531,6 +531,7 @@ pub enum I18nKey {
     DiagramExportMd,
     DiagramExportPdf,
     PlansOpenDiagrams,
+    PlansShowInKanban,
     FilePreviewRefresh,
     FilePreviewLoading,
     FilePreviewCopyPath,

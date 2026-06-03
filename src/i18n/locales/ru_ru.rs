@@ -522,6 +522,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::DiagramExportMd => "Export .md",
         I18nKey::DiagramExportPdf => "Export .pdf",
         I18nKey::PlansOpenDiagrams => "Diagrams",
+        I18nKey::PlansShowInKanban => "Show in Kanban",
         I18nKey::FilePreviewRefresh => "Обновить",
         I18nKey::FilePreviewLoading => "Загрузка файла…",
         I18nKey::FilePreviewCopyPath => "Копировать путь",
