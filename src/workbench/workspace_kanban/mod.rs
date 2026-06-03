@@ -23,6 +23,8 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
     let error = RwSignal::<Option<String>>::new(None);
     let query = RwSignal::new(String::new());
     let expanded_plans = RwSignal::new(Vec::<String>::new());
+    let open_section = RwSignal::new(KanbanPlanState::InProgress);
+    let open_section_initialized = RwSignal::new(false);
     let dragged_task = RwSignal::<Option<(String, String)>>::new(None);
     let new_task_plan = RwSignal::new(String::new());
     let new_task_title = RwSignal::new(String::new());
@@ -48,6 +50,10 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
                 Ok(next) => {
                     if expanded_plans.with_untracked(|items| items.is_empty()) {
                         expanded_plans.set(next.layout.expanded_plans.clone());
+                    }
+                    if !open_section_initialized.get_untracked() {
+                        open_section.set(default_open_plan_section(&next.plans));
+                        open_section_initialized.set(true);
                     }
                     if new_task_plan.with_untracked(|s| s.trim().is_empty()) {
                         if let Some(first) = next.plans.first() {
@@ -222,19 +228,13 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
                 }
             >
                 <section class="workspace-kanban__quickadd">
+                    <KanbanPlanPicker
+                        plans=Signal::derive(move || board.get().map(|b| b.plans).unwrap_or_default())
+                        selected_path=new_task_plan
+                        on_select=Callback::new(move |path| new_task_plan.set(path))
+                    />
                     <select
-                        prop:value=move || new_task_plan.get()
-                        on:change=move |ev| new_task_plan.set(event_target_value(&ev))
-                    >
-                        <For
-                            each=move || board.get().map(|b| b.plans).unwrap_or_default()
-                            key=|plan| plan.meta.path.clone()
-                            children=move |plan| view! {
-                                <option value=plan.meta.path.clone()>{plan.meta.title}</option>
-                            }
-                        />
-                    </select>
-                    <select
+                        class="workspace-kanban__status-select"
                         prop:value=move || task_status_key(&new_task_status.get()).to_string()
                         on:change=move |ev| {
                             new_task_status.set(parse_task_status(&event_target_value(&ev)));
@@ -301,6 +301,7 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
                                     workspace_cwd=workspace_cwd
                                     on_reload=Callback::new(move |()| load_board())
                                     on_expanded_change=save_expanded_plans
+                                    open_section=open_section
                                 />
                             }
                         }
@@ -321,16 +322,25 @@ fn KanbanStateSection(
     workspace_cwd: Signal<Option<String>>,
     on_reload: Callback<()>,
     on_expanded_change: Callback<Vec<String>>,
+    open_section: RwSignal<KanbanPlanState>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
-    let open = RwSignal::new(true);
+    let open_state = state.clone();
+    let click_state = state.clone();
+    let aria_state = state.clone();
+    let show_state = state.clone();
     let label_state = state.clone();
     view! {
-        <section class="workspace-kanban-section" data-state=plan_state_key(&state)>
+        <section
+            class="workspace-kanban-section"
+            class:workspace-kanban-section--open=move || open_section.get() == open_state
+            data-state=plan_state_key(&state)
+        >
             <button
                 type="button"
                 class="workspace-kanban-section__head"
-                on:click=move |_| open.update(|value| *value = !*value)
+                aria-expanded=move || (open_section.get() == aria_state).to_string()
+                on:click=move |_| open_section.set(click_state.clone())
             >
                 <LxIcon icon=plan_state_icon(&state) width="1rem" height="1rem" />
                 <span>{move || i18n.tr(plan_state_label_key(&label_state))()}</span>
@@ -341,7 +351,7 @@ fn KanbanStateSection(
                     height="0.9rem"
                 />
             </button>
-            <Show when=move || open.get()>
+            <Show when=move || open_section.get() == show_state>
                 <div class="workspace-kanban-section__body">
                     <Show
                         when=move || !plans.get().is_empty()
@@ -367,6 +377,89 @@ fn KanbanStateSection(
                 </div>
             </Show>
         </section>
+    }
+}
+
+#[component]
+fn KanbanPlanPicker(
+    plans: Signal<Vec<KanbanPlanNode>>,
+    selected_path: RwSignal<String>,
+    on_select: Callback<String>,
+) -> impl IntoView {
+    let open = RwSignal::new(false);
+    let selected = Signal::derive(move || {
+        let selected_path = selected_path.get();
+        plans
+            .get()
+            .into_iter()
+            .find(|plan| plan.meta.path == selected_path)
+    });
+
+    view! {
+        <div class="workspace-kanban-plan-picker">
+            <button
+                type="button"
+                class="workspace-kanban-plan-picker__button"
+                aria-expanded=move || open.get().to_string()
+                on:click=move |_| open.update(|value| *value = !*value)
+                on:keydown=move |ev| {
+                    if ev.key() == "Escape" {
+                        open.set(false);
+                    }
+                }
+            >
+                <LxIcon icon=icondata::LuClipboardList width="0.9rem" height="0.9rem" />
+                <span class="workspace-kanban-plan-picker__text">
+                    <span class="workspace-kanban-plan-picker__title">
+                        {move || {
+                            selected
+                                .get()
+                                .map(|plan| plan.meta.title)
+                                .unwrap_or_else(|| "Select plan".to_string())
+                        }}
+                    </span>
+                    <span class="workspace-kanban-plan-picker__description">
+                        {move || {
+                            selected
+                                .get()
+                                .map(|plan| plan_picker_description(&plan))
+                                .unwrap_or_else(|| "Choose where the new task should land".to_string())
+                        }}
+                    </span>
+                </span>
+                <LxIcon icon=icondata::LuChevronDown width="0.86rem" height="0.86rem" />
+            </button>
+            <Show when=move || open.get()>
+                <div class="workspace-kanban-plan-picker__menu" role="listbox">
+                    <For
+                        each=move || plans.get()
+                        key=|plan| plan.meta.path.clone()
+                        children=move |plan| {
+                            let path = plan.meta.path.clone();
+                            let title = plan.meta.title.clone();
+                            let description = plan_picker_description(&plan);
+                            let active_path = path.clone();
+                            view! {
+                                <button
+                                    type="button"
+                                    class="workspace-kanban-plan-picker__option"
+                                    class:workspace-kanban-plan-picker__option--active=move || {
+                                        selected_path.get() == active_path
+                                    }
+                                    on:click=move |_| {
+                                        on_select.run(path.clone());
+                                        open.set(false);
+                                    }
+                                >
+                                    <span class="workspace-kanban-plan-picker__option-title">{title}</span>
+                                    <span class="workspace-kanban-plan-picker__option-description">{description}</span>
+                                </button>
+                            }
+                        }
+                    />
+                </div>
+            </Show>
+        </div>
     }
 }
 
@@ -644,6 +737,29 @@ fn plan_states() -> Vec<KanbanPlanState> {
         KanbanPlanState::Cancelled,
         KanbanPlanState::Empty,
     ]
+}
+
+fn default_open_plan_section(plans: &[KanbanPlanNode]) -> KanbanPlanState {
+    [
+        KanbanPlanState::InProgress,
+        KanbanPlanState::Blocked,
+        KanbanPlanState::Pending,
+        KanbanPlanState::Completed,
+        KanbanPlanState::Cancelled,
+        KanbanPlanState::Empty,
+    ]
+    .into_iter()
+    .find(|state| plans.iter().any(|plan| &plan.state == state))
+    .unwrap_or(KanbanPlanState::InProgress)
+}
+
+fn plan_picker_description(plan: &KanbanPlanNode) -> String {
+    let summary = &plan.meta.task_summary;
+    let active = summary.pending + summary.in_progress + summary.blocked;
+    format!(
+        "{} active / {} total - {}",
+        active, summary.total, plan.meta.path
+    )
 }
 
 fn task_statuses() -> Vec<TaskStatus> {
