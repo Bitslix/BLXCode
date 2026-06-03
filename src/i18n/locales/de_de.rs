@@ -1243,5 +1243,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CodeEditorVimTitle => "Vim-Tastensteuerung",
         I18nKey::CodeEditorVimDesc => "Modale Bearbeitung im Vim-Stil im Datei-Editor und in der Vorschau aktivieren.",
         I18nKey::CodeEditorVimStatusTip => "Vim-Modus ist im Editor aktiv",
+        I18nKey::EdKwSave => "Datei speichern",
+        I18nKey::EdKwFind => "Suchen",
+        I18nKey::EdKwReplace => "Suchen & ersetzen",
+        I18nKey::EdKwGoToLine => "Gehe zu Zeile",
+        I18nKey::EdKwToggleComment => "Kommentar umschalten",
+        I18nKey::EdKwFold => "Einklappen",
+        I18nKey::EdKwUnfold => "Ausklappen",
+        I18nKey::EdKwMoveLineUp => "Zeile nach oben",
+        I18nKey::EdKwMoveLineDown => "Zeile nach unten",
+        I18nKey::EdKwDuplicateLine => "Zeile duplizieren",
+        I18nKey::EdKwFormat => "Formatieren / einrücken",
     }
 }

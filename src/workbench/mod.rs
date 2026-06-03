@@ -50,6 +50,7 @@ mod remote_settings_pane;
 mod right_panel;
 mod session_role_picker;
 mod settings_pane_header;
+mod editor_shortcut_config;
 mod shortcut_config;
 mod shortcuts_settings_pane;
 mod sidebar;

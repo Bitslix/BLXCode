@@ -1,11 +1,12 @@
 //! App-wide UI preferences persisted in `localStorage`.
 
+use super::editor_shortcut_config::{EditorShortcutAction, EditorShortcutConfig};
 use super::shortcut_config::{Binding, KeyChord, ShortcutAction, ShortcutConfig};
 use super::terminal_naming::{self, TerminalNamingMode, NAME_POOL_KEY, NAMING_MODE_KEY};
 use crate::config::{
-    CONFIRM_CLOSE_WORKSPACE_KEY, MEMORY_RIGHT_PANEL_ENABLED_KEY, SHORTCUT_BINDINGS_STORAGE_KEY,
-    SHORTCUT_MODE_LEGACY, SHORTCUT_MODE_STORAGE_KEY, SHORTCUT_MODE_TMUX, SUCCESS_SOUND_STORAGE_KEY,
-    SUCCESS_TOAST_STORAGE_KEY, UPDATE_AUTO_CHECK_KEY,
+    CONFIRM_CLOSE_WORKSPACE_KEY, EDITOR_SHORTCUT_BINDINGS_KEY, MEMORY_RIGHT_PANEL_ENABLED_KEY,
+    SHORTCUT_BINDINGS_STORAGE_KEY, SHORTCUT_MODE_LEGACY, SHORTCUT_MODE_STORAGE_KEY,
+    SHORTCUT_MODE_TMUX, SUCCESS_SOUND_STORAGE_KEY, SUCCESS_TOAST_STORAGE_KEY, UPDATE_AUTO_CHECK_KEY,
 };
 use leptos::prelude::*;
 
@@ -39,6 +40,7 @@ pub struct AppPrefsService {
     success_sound: RwSignal<bool>,
     shortcut_mode: RwSignal<ShortcutMode>,
     shortcut_config: RwSignal<ShortcutConfig>,
+    editor_shortcut_config: RwSignal<EditorShortcutConfig>,
     update_auto_check: RwSignal<bool>,
     confirm_close_workspace: RwSignal<bool>,
     memory_right_panel_enabled: RwSignal<bool>,
@@ -57,11 +59,16 @@ impl AppPrefsService {
             .as_deref()
             .and_then(ShortcutConfig::from_json)
             .unwrap_or_else(|| ShortcutConfig::preset(shortcut_mode));
+        let editor_shortcut_config = read_string_storage(EDITOR_SHORTCUT_BINDINGS_KEY)
+            .as_deref()
+            .and_then(EditorShortcutConfig::from_json)
+            .unwrap_or_else(EditorShortcutConfig::preset);
         Self {
             success_toast: RwSignal::new(read_bool_storage(SUCCESS_TOAST_STORAGE_KEY, true)),
             success_sound: RwSignal::new(read_bool_storage(SUCCESS_SOUND_STORAGE_KEY, true)),
             shortcut_mode: RwSignal::new(shortcut_mode),
             shortcut_config: RwSignal::new(shortcut_config),
+            editor_shortcut_config: RwSignal::new(editor_shortcut_config),
             update_auto_check: RwSignal::new(read_bool_storage(UPDATE_AUTO_CHECK_KEY, true)),
             confirm_close_workspace: RwSignal::new(read_bool_storage(
                 CONFIRM_CLOSE_WORKSPACE_KEY,
@@ -159,6 +166,40 @@ impl AppPrefsService {
     pub fn set_shortcut_prefix(&self, prefix: KeyChord) {
         self.shortcut_config.update(|cfg| cfg.prefix = prefix);
         self.persist_config();
+    }
+
+    #[must_use]
+    pub fn editor_shortcut_config(&self) -> RwSignal<EditorShortcutConfig> {
+        self.editor_shortcut_config
+    }
+
+    fn persist_editor_config(&self) {
+        write_string_storage(
+            EDITOR_SHORTCUT_BINDINGS_KEY,
+            &self.editor_shortcut_config.get_untracked().to_json(),
+        );
+    }
+
+    /// Rebind a single editor action (always a direct combo).
+    pub fn set_editor_shortcut_binding(&self, action: EditorShortcutAction, chord: KeyChord) {
+        self.editor_shortcut_config.update(|cfg| {
+            cfg.bindings.insert(action, chord);
+        });
+        self.persist_editor_config();
+    }
+
+    /// Reset a single editor action to its default combo.
+    pub fn reset_editor_shortcut_binding(&self, action: EditorShortcutAction) {
+        self.editor_shortcut_config.update(|cfg| {
+            cfg.bindings.insert(action, action.default_combo());
+        });
+        self.persist_editor_config();
+    }
+
+    /// Reset every editor action to its default combo.
+    pub fn reset_all_editor_shortcut_bindings(&self) {
+        self.editor_shortcut_config.set(EditorShortcutConfig::preset());
+        self.persist_editor_config();
     }
 
     pub fn set_update_auto_check(&self, enabled: bool) {

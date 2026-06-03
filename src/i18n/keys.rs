@@ -632,6 +632,18 @@ pub enum I18nKey {
     CodeEditorVimTitle,
     CodeEditorVimDesc,
     CodeEditorVimStatusTip,
+    // --- File editor / preview shortcut actions (Settings → Shortcuts) ---
+    EdKwSave,
+    EdKwFind,
+    EdKwReplace,
+    EdKwGoToLine,
+    EdKwToggleComment,
+    EdKwFold,
+    EdKwUnfold,
+    EdKwMoveLineUp,
+    EdKwMoveLineDown,
+    EdKwDuplicateLine,
+    EdKwFormat,
     // --- MCP server registry (MCP settings category) ---
     McpDescription,
     McpHeading,

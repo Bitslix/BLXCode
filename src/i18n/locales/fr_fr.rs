@@ -1271,5 +1271,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CodeEditorVimTitle => "Vim key bindings",
         I18nKey::CodeEditorVimDesc => "Enable Vim-style modal editing in the file editor and preview.",
         I18nKey::CodeEditorVimStatusTip => "Vim mode is active in the editor",
+        I18nKey::EdKwSave => "Save file",
+        I18nKey::EdKwFind => "Find",
+        I18nKey::EdKwReplace => "Find & replace",
+        I18nKey::EdKwGoToLine => "Go to line",
+        I18nKey::EdKwToggleComment => "Toggle comment",
+        I18nKey::EdKwFold => "Fold",
+        I18nKey::EdKwUnfold => "Unfold",
+        I18nKey::EdKwMoveLineUp => "Move line up",
+        I18nKey::EdKwMoveLineDown => "Move line down",
+        I18nKey::EdKwDuplicateLine => "Duplicate line",
+        I18nKey::EdKwFormat => "Format / indent",
     }
 }
