@@ -934,6 +934,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CoreStatusMemoryCategoriesTip => "Catégories de mémoire",
         I18nKey::CoreStatusMemoryFilesTip => "Fichiers mémoire",
         I18nKey::CoreStatusMemorySizeTip => "Taille mémoire",
+        I18nKey::CoreStatusGitBranchTip => "Branche Git",
         I18nKey::HookInstallTitle => "Installer les hooks CLI de l'agent",
         I18nKey::HookInstallBody => {
             "blxcode peut connecter des hooks pour les CLI de votre agent (Claude, Codex, Gemini, Cursor, OpenCode) afin que les onglets du terminal suivent l'invite active, que les sessions reprennent après le redémarrage et que les notifications de fin de tour fonctionnent. Les installer maintenant ?"

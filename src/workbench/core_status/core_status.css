@@ -20,6 +20,18 @@
   gap: 0.24rem;
 }
 
+.core-status-item__seg--branch {
+  max-width: min(22vw, 14rem);
+  color: var(--text);
+}
+
+.core-status-item__seg--branch span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .core-status-item__seg + .core-status-item__seg,
 .core-status-item__divider {
   padding-left: 0.5rem;

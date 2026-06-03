@@ -876,6 +876,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CoreStatusMemoryCategoriesTip => "内存类别",
         I18nKey::CoreStatusMemoryFilesTip => "内存文件",
         I18nKey::CoreStatusMemorySizeTip => "内存大小",
+        I18nKey::CoreStatusGitBranchTip => "Git 分支",
         I18nKey::HookInstallTitle => "安装代理 CLI 挂钩",
         I18nKey::HookInstallBody => {
             "blxcode 可以为您的代理 CLI（Claude、Codex、Gemini、Cursor、OpenCode）连接挂钩，以便终端选项卡遵循活动提示，会话在重新启动后恢复，并且回合完成通知有效。现在安装它们吗？"

@@ -8,7 +8,9 @@
 //! nudges it via [`CoreStatusService::refresh`] so the badge stays in sync.
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::tauri_bridge::{is_tauri_shell, memory_list, plan_list, rules_list, skills_list};
+use crate::tauri_bridge::{
+    git_branch, is_tauri_shell, memory_list, plan_list, rules_list, skills_list,
+};
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -23,7 +25,9 @@ pub struct CoreStatusService {
     memory_categories: RwSignal<usize>,
     memory_files: RwSignal<usize>,
     memory_size: RwSignal<u64>,
+    branch: RwSignal<Option<String>>,
     loaded: RwSignal<bool>,
+    refresh_generation: RwSignal<u64>,
 }
 
 impl Default for CoreStatusService {
@@ -42,7 +46,9 @@ impl CoreStatusService {
             memory_categories: RwSignal::new(0),
             memory_files: RwSignal::new(0),
             memory_size: RwSignal::new(0),
+            branch: RwSignal::new(None),
             loaded: RwSignal::new(false),
+            refresh_generation: RwSignal::new(0),
         }
     }
 
@@ -77,6 +83,11 @@ impl CoreStatusService {
     }
 
     #[must_use]
+    pub fn branch(&self) -> RwSignal<Option<String>> {
+        self.branch
+    }
+
+    #[must_use]
     pub fn loaded(&self) -> RwSignal<bool> {
         self.loaded
     }
@@ -84,39 +95,67 @@ impl CoreStatusService {
     /// Re-counts statusline project stats for the active workspace. No-op
     /// outside the Tauri shell or when no workspace is selected.
     pub fn refresh(self, wb: WorkbenchService) {
+        let refresh_generation = self.refresh_generation;
+        let generation = refresh_generation.get_untracked().wrapping_add(1);
+        refresh_generation.set(generation);
         if !is_tauri_shell() {
             return;
         }
         let Some(cwd) = wb.default_workspace_cwd() else {
+            self.branch.set(None);
             self.loaded.set(false);
             return;
         };
+        let connection_id = wb.active_remote_connection_id();
         let rules = self.rules;
         let skills = self.skills;
         let plans = self.plans;
         let memory_categories = self.memory_categories;
         let memory_files = self.memory_files;
         let memory_size = self.memory_size;
+        let branch = self.branch;
         let loaded = self.loaded;
+        branch.set(None);
         spawn_local(async move {
             let rules_cwd = cwd.clone();
             let skills_cwd = cwd.clone();
             let plans_cwd = cwd.clone();
-            let memory_cwd = cwd;
+            let memory_cwd = cwd.clone();
             let mut any = false;
+            if let Ok(name) = git_branch(cwd, connection_id).await {
+                if refresh_generation.get_untracked() != generation {
+                    return;
+                }
+                if name.is_some() {
+                    any = true;
+                }
+                branch.set(name);
+            }
             if let Ok(list) = rules_list(rules_cwd).await {
+                if refresh_generation.get_untracked() != generation {
+                    return;
+                }
                 rules.set(list.iter().filter(|r| r.enabled).count());
                 any = true;
             }
             if let Ok(list) = skills_list(skills_cwd).await {
+                if refresh_generation.get_untracked() != generation {
+                    return;
+                }
                 skills.set(list.iter().filter(|s| s.enabled).count());
                 any = true;
             }
             if let Ok(list) = plan_list(&plans_cwd).await {
+                if refresh_generation.get_untracked() != generation {
+                    return;
+                }
                 plans.set(list.iter().filter(|p| !p.is_index).count());
                 any = true;
             }
             if let Ok(resp) = memory_list(&memory_cwd).await {
+                if refresh_generation.get_untracked() != generation {
+                    return;
+                }
                 let workspace_notes = resp
                     .notes
                     .iter()
@@ -166,6 +205,7 @@ pub fn CoreStatusBarItem() -> impl IntoView {
     let memory_categories = status.memory_categories();
     let memory_files = status.memory_files();
     let memory_size = status.memory_size();
+    let branch = status.branch();
 
     // Re-count whenever the active workspace changes.
     Effect::new(move |_| {
@@ -177,6 +217,13 @@ pub fn CoreStatusBarItem() -> impl IntoView {
     view! {
         <Show when=move || loaded.get()>
             <div class="app-statusline__item core-status-item app-statusline__item--quiet">
+                <Show when=move || branch.with(|b| b.is_some())>
+                    <span class="core-status-item__seg core-status-item__seg--branch" title=move || i18n.tr(I18nKey::CoreStatusGitBranchTip)()>
+                        <LxIcon icon=icondata::LuGitBranch width="0.78rem" height="0.78rem" />
+                        <span>{move || branch.get().unwrap_or_default()}</span>
+                    </span>
+                    <span class="core-status-item__divider" aria-hidden="true"></span>
+                </Show>
                 <span class="core-status-item__seg" title=move || i18n.tr(I18nKey::CoreStatusRulesTip)()>
                     <LxIcon icon=icondata::LuShield width="0.78rem" height="0.78rem" />
                     <span>{move || rules.get().to_string()}</span>

@@ -968,6 +968,7 @@ keys; the preset only fills in defaults."
         I18nKey::CoreStatusMemoryCategoriesTip => "Memory categories",
         I18nKey::CoreStatusMemoryFilesTip => "Memory files",
         I18nKey::CoreStatusMemorySizeTip => "Memory size",
+        I18nKey::CoreStatusGitBranchTip => "Git branch",
         I18nKey::HookInstallTitle => "Install agent CLI hooks",
         I18nKey::HookInstallBody => {
             "blxcode can wire up hooks for your agent CLIs (Claude, Codex, Gemini, Cursor, OpenCode) so terminal tabs follow the active prompt, sessions resume after restart, and turn-completion notifications work. Install them now?"

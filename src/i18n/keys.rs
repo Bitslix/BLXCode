@@ -909,6 +909,7 @@ pub enum I18nKey {
     CoreStatusMemoryCategoriesTip,
     CoreStatusMemoryFilesTip,
     CoreStatusMemorySizeTip,
+    CoreStatusGitBranchTip,
     HookInstallTitle,
     HookInstallBody,
     HookInstallCta,

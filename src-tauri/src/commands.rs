@@ -832,13 +832,13 @@ pub async fn pty_wait_output(
 }
 
 #[tauri::command]
-pub fn git_branch(
+pub async fn git_branch(
     app: tauri::AppHandle,
     pty: State<'_, PtyManager>,
     exec: State<'_, crate::ssh_exec::RemoteExecManager>,
     cwd: String,
     connection_id: Option<String>,
-) -> Option<String> {
+) -> Result<Option<String>, String> {
     if let Some(cid) = connection_id.as_deref() {
         let branch = crate::git_remote::run_git_remote(
             &app,
@@ -847,10 +847,12 @@ pub fn git_branch(
             cid,
             cwd.trim(),
             &["rev-parse", "--abbrev-ref", "HEAD"],
-        )
-        .ok()?;
+        )?;
         let branch = branch.trim();
-        return (!branch.is_empty() && branch != "HEAD").then(|| branch.to_string());
+        return Ok((!branch.is_empty() && branch != "HEAD").then(|| branch.to_string()));
     }
-    crate::git_info::current_branch(std::path::Path::new(&cwd))
+    crate::proc::run_blocking(move || {
+        Ok(crate::git_info::current_branch(std::path::Path::new(&cwd)))
+    })
+    .await
 }

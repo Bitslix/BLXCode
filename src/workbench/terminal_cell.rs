@@ -1,9 +1,9 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_latest_session_id, agent_remote_latest_session_id, agent_session_exists, git_branch,
-    is_tauri_shell, pty_drain_wait, pty_kill, pty_resize, pty_spawn_remote, pty_spawn_with_env,
-    pty_write, workbench_drop_sessions, workbench_load_sessions, workbench_notifications_path,
+    agent_latest_session_id, agent_remote_latest_session_id, agent_session_exists, is_tauri_shell,
+    pty_drain_wait, pty_kill, pty_resize, pty_spawn_remote, pty_spawn_with_env, pty_write,
+    workbench_drop_sessions, workbench_load_sessions, workbench_notifications_path,
     workbench_sessions_path, workbench_usage_path,
 };
 use crate::workbench::agent_accent::agent_accent_class;
@@ -120,7 +120,6 @@ pub fn WorkspaceTerminalCell(
         wb.terminal_unread_count(&terminal_key_unread) > 0
     });
     let state: Arc<Mutex<CellState>> = Arc::new(Mutex::new(CellState::default()));
-    let branch = RwSignal::new(None::<String>);
     let initial_title = title.clone();
     let dynamic_title = RwSignal::new(initial_title);
 
@@ -190,16 +189,6 @@ pub fn WorkspaceTerminalCell(
         rename_draft.set(seed);
         renaming.set(true);
     };
-
-    if is_tauri_shell() {
-        let cwd_for_branch = cwd.clone();
-        let conn_for_branch = wb.remote_connection_for_terminal_key(&terminal_key);
-        leptos::task::spawn_local(async move {
-            if let Ok(Some(name)) = git_branch(cwd_for_branch, conn_for_branch).await {
-                branch.set(Some(name));
-            }
-        });
-    }
 
     let agent_slug_memo = agent_slug.clone();
     let agent_slug_class = agent_slug.clone();
@@ -700,12 +689,6 @@ pub fn WorkspaceTerminalCell(
                     </span>
                 </Show>
                 <span class="ws-term-cell__title">{move || dynamic_title.get()}</span>
-                <Show when=move || branch.with(|b| b.is_some())>
-                    <span class="ws-term-cell__branch">
-                        <LxIcon icon=icondata::LuGitBranch width="0.72rem" height="0.72rem" />
-                        <span>{move || branch.get().unwrap_or_default()}</span>
-                    </span>
-                </Show>
                 <Show when=move || !agent_label.get().is_empty()>
                     <span class="ws-term-cell__badge">{move || agent_label.get()}</span>
                 </Show>

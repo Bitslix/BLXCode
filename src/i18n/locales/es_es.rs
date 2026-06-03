@@ -924,6 +924,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::CoreStatusMemoryCategoriesTip => "Categorías de memoria",
         I18nKey::CoreStatusMemoryFilesTip => "Archivos de memoria",
         I18nKey::CoreStatusMemorySizeTip => "Tamaño de memoria",
+        I18nKey::CoreStatusGitBranchTip => "Rama Git",
         I18nKey::HookInstallTitle => "Instalar ganchos CLI del agente",
         I18nKey::HookInstallBody => {
             "blxcode puede conectar enlaces para las CLI de su agente (Claude, Codex, Gemini, Cursor, OpenCode) para que las pestañas del terminal sigan el mensaje activo, las sesiones se reanuden después del reinicio y las notificaciones de finalización de turnos funcionen. ¿Instalarlos ahora?"

@@ -8618,23 +8618,6 @@ body.blxcode-dragging-terminal * {
   color: var(--text);
 }
 
-.ws-term-cell__branch {
-  flex-shrink: 1;
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-  max-width: 5.8rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-muted);
-}
-
-.ws-term-cell__branch svg {
-  flex-shrink: 0;
-}
-
 .ws-term-cell__badge {
   flex-shrink: 0;
   padding: 0.05rem 0.35rem;
