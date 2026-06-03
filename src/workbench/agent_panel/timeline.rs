@@ -2370,4 +2370,27 @@ mod tests {
     fn leaves_non_json_tool_details_raw() {
         assert!(parse_tool_detail_list("plain shell output").is_none());
     }
+
+    #[test]
+    fn ask_user_parser_preserves_chat_mode_selection_metadata() {
+        let args = serde_json::json!({
+            "question": "Approve file edit?",
+            "options": [
+                { "label": "Approve once" },
+                {
+                    "label": "Auto-accept",
+                    "description": "Switch to Full Access.",
+                    "setChatModeOnSelect": "allow_all"
+                }
+            ],
+            "allowOther": false
+        });
+
+        let parsed = parse_ask_user_args(&args).expect("valid ask_user args");
+        assert_eq!(parsed.options.len(), 2);
+        assert_eq!(
+            parsed.options[1].set_chat_mode_on_select,
+            Some(AgentChatMode::AllowAll)
+        );
+    }
 }

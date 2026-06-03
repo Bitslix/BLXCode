@@ -130,6 +130,8 @@ The v1 provider expansion is text-only. Image and Voice settings intentionally k
 
 Server tools are gated in `tool_dispatch.rs` before `execute_server_tool`; client harness tools are gated before the `ToolCall` event is emitted, so the frontend cannot execute a client tool before approval.
 
+For file-mutating permission prompts, the frontend renders an extra **Auto-accept** option. Selecting it sends `chatModeChangedTo: "allow_all"` through `agent_submit_tool_result`; `AgentEngineState` stores a per-turn override that `tool_dispatch.rs` prefers over the original `UserTurn.chat_mode`. `start_turn()` resets the override.
+
 ## Tool groups
 
 `ToolGroup` in `tool_groups.rs` maps group IDs (e.g. `git_read`, `shell_write`) to tool name sets.
@@ -252,7 +254,7 @@ Skills panel: `SrSkillsTabCore`, `SrSkillsTabUser`, `SrSourceCore` — see [Inte
 ## Session roles (harness session modes)
 
 A **session role** lets the user launch a workspace in a specialized mode
-(Coordinator, Architect, Branch Steward, Security Reviewer, …). Roles are read-only built-ins,
+(Coordinator, Architect, Branch Steward, Codewright, Security Reviewer, …). Roles are read-only built-ins,
 embedded from `src-tauri/src/agent/harness_skills/specialized/*.md`.
 
 - `agent/session_roles.rs` — embeds each role via `include_str!`
@@ -273,6 +275,10 @@ embedded from `src-tauri/src/agent/harness_skills/specialized/*.md`.
   `system_prompt(workspace_root, agent_name, session_role)` as a trailing
   `# Active session role` block. The block **ranks below** Security, the Agent
   Chat mode, and the explicit user request — it shapes working style only.
+- Roles can explicitly permit `subagents.run` by declaring `Subagents` in
+  frontmatter `tools`; the system prompt then adds a role-authorized subagent
+  note. Codewright uses this path for bounded codebase scouting/review/security
+  support while the main turn remains responsible for edits and final answers.
 - Persistence: the slug lives on `WorkspaceEntry.agent_session_role`
   (`#[serde(default)]`), so it is restored with the workbench snapshot. The
   composer reads it via `agent_session_role_for_workspace_untracked` when

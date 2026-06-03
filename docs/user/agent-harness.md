@@ -111,6 +111,8 @@ The toolbar above the Agent input selects a mode for the current Agent Chat sess
 
 The mode is stored per workspace chat session and resets to **Ask Edits** when the chat is cleared.
 
+When Ask Edits prompts for file or folder writes/deletes/renames, the permission card offers **Approve once** or **Auto-accept**. Auto-accept approves the current tool call and switches that workspace to **Allow all** immediately, so later file edits in the same turn do not repeatedly prompt.
+
 The composer also has an **Enhance prompt** toggle. When enabled, BLXCode sends the draft through a separate one-shot provider request, replaces it with the improved prompt, and then submits that improved text as the actual user turn. If enhancement fails, the original draft is restored and nothing is sent.
 
 ## Workbench control tools

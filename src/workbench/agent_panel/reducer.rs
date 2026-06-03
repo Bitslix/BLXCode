@@ -815,6 +815,67 @@ mod tests {
     }
 
     #[test]
+    fn permission_request_adds_auto_accept_for_file_mutations_only() {
+        let mut doc = TimelineDoc::default();
+        doc.push_user_turn("edit".to_owned());
+        apply_event_to_doc(
+            &mut doc,
+            &env(
+                1,
+                None,
+                AgentEvent::ToolPermissionRequest {
+                    tool: "workspace_file_write".into(),
+                    call_id: "cid-write".into(),
+                    mode: AgentChatMode::AskEdits,
+                    kind: ToolPermissionKind::MutatingEdit,
+                    summary: "write file".into(),
+                    args: Some(json!({"path": "src/lib.rs"})),
+                },
+            ),
+            Locale::EnUs,
+            None,
+        );
+
+        let TurnPart::AskUser { options, .. } = &doc.turns[0].parts[0] else {
+            panic!("expected AskUser permission part");
+        };
+        assert_eq!(options.len(), 2);
+        assert_eq!(options[0].label, "Approve once");
+        assert_eq!(options[1].label, "Auto-accept");
+        assert_eq!(
+            options[1].set_chat_mode_on_select,
+            Some(AgentChatMode::AllowAll)
+        );
+
+        let mut doc = TimelineDoc::default();
+        doc.push_user_turn("command".to_owned());
+        apply_event_to_doc(
+            &mut doc,
+            &env(
+                2,
+                None,
+                AgentEvent::ToolPermissionRequest {
+                    tool: "shell_exec".into(),
+                    call_id: "cid-shell".into(),
+                    mode: AgentChatMode::AskEdits,
+                    kind: ToolPermissionKind::Command,
+                    summary: "run command".into(),
+                    args: Some(json!({"command": "cargo test"})),
+                },
+            ),
+            Locale::EnUs,
+            None,
+        );
+
+        let TurnPart::AskUser { options, .. } = &doc.turns[0].parts[0] else {
+            panic!("expected AskUser command permission part");
+        };
+        assert_eq!(options.len(), 1);
+        assert_eq!(options[0].label, "Approve");
+        assert_eq!(options[0].set_chat_mode_on_select, None);
+    }
+
+    #[test]
     fn reducer_new_text_part_after_tool() {
         let mut doc = TimelineDoc::default();
         doc.push_user_turn("hi".to_owned());

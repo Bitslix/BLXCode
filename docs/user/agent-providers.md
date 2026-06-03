@@ -183,7 +183,7 @@ Call `list_tools` for the full JSON catalog (name, server/client site, schema).
 | Harness (client) | `harness.send_terminal_keys`, `harness.send_agent_context`, … |
 | Environment / shell / git (server) | `environment_detect`, `shell_exec`, `git_*`, `workspace_diff`, … |
 | Web (server, if configured) | `web_search`, `web_fetch` |
-| Subagents (server) | `subagents.run` — only on explicit user request — [Subagents guide](subagents.md) |
+| Subagents (server) | `subagents.run` — on explicit user request or when the active session role allows it — [Subagents guide](subagents.md) |
 
 `harness.send_agent_context` prefers explicit single-terminal targets; default `includeKinds` is `["memory","plans","tasks","images"]`.
 
