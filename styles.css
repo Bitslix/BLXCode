@@ -3023,81 +3023,97 @@ button.workbench-shortcut-row--action:focus-visible {
   animation: agent-thinking-idle-icon 1.65s ease-in-out infinite;
 }
 
-.agent-thinking-stream__idle-card {
+.agent-thinking-stream__speed-card {
   position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 0.6rem;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 0.38rem;
   min-height: 2.85rem;
   overflow: hidden;
 }
 
-.agent-thinking-stream__idle-card::before {
+.agent-thinking-stream__speed-card::before {
   content: "";
   position: absolute;
-  inset: 0.1rem 0 0.1rem 2.1rem;
+  inset: 0.15rem 0 1.08rem;
   background: linear-gradient(
-    90deg,
+    180deg,
+    color-mix(in srgb, var(--text-faint) 10%, transparent),
     transparent,
-    color-mix(in srgb, var(--accent-cool) 18%, transparent),
     transparent
   );
-  opacity: 0.64;
-  transform: translateX(-100%);
-  animation: agent-thinking-idle-scan 2.4s ease-in-out infinite;
+  opacity: 0.85;
+  pointer-events: none;
 }
 
-.agent-thinking-stream__idle-orbit {
+.agent-thinking-stream__speed-chart {
   position: relative;
-  display: inline-grid;
-  place-items: center;
-  width: 1.58rem;
-  height: 1.58rem;
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
-  border-radius: var(--radius-circle);
-  background: color-mix(in srgb, var(--accent-soft) 42%, transparent);
+  z-index: 1;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0.28rem, 1fr);
+  align-items: end;
+  gap: 0.16rem;
+  min-height: 2.08rem;
+  padding: 0.16rem 0.05rem 0.1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, transparent);
 }
 
-.agent-thinking-stream__idle-orbit::before {
-  content: "";
-  position: absolute;
-  width: 0.36rem;
-  height: 0.36rem;
-  border-radius: inherit;
-  background: var(--accent);
-  box-shadow: 0 0 0 0.22rem color-mix(in srgb, var(--accent) 16%, transparent);
+.agent-thinking-stream__speed-bar {
+  display: block;
+  min-height: 0.32rem;
+  height: var(--speed-height, 12%);
+  border-radius: var(--radius-sm) var(--radius-sm) 0.12rem 0.12rem;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--accent-cool) 82%, var(--text)),
+      color-mix(in srgb, var(--accent) 78%, var(--bg-panel))
+    );
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
+  transform-origin: bottom;
+  animation: agent-thinking-speed-rise 0.5s ease both;
+  transition:
+    filter 0.14s ease,
+    opacity 0.14s ease,
+    height 0.24s ease;
 }
 
-.agent-thinking-stream__idle-orbit span {
-  position: absolute;
-  inset: -0.18rem;
-  border-radius: inherit;
-  border-top: 1px solid color-mix(in srgb, var(--accent-cool) 68%, transparent);
-  animation: agent-thinking-idle-orbit 2.1s linear infinite;
+.agent-thinking-stream__speed-bar:hover {
+  filter: brightness(1.18) saturate(1.12);
 }
 
-.agent-thinking-stream__idle-orbit span:nth-child(2) {
-  inset: 0.14rem;
-  border-top-color: color-mix(in srgb, var(--accent) 60%, transparent);
-  animation-duration: 1.45s;
-  animation-direction: reverse;
+.agent-thinking-stream__speed-empty {
+  align-self: end;
+  justify-self: center;
+  color: var(--text-faint);
+  font-size: 0.64rem;
 }
 
-.agent-thinking-stream__idle-orbit span:nth-child(3) {
-  inset: 0.46rem;
-  border-top-color: color-mix(in srgb, var(--text-faint) 48%, transparent);
-  animation-duration: 2.8s;
-}
-
-.agent-thinking-stream__idle-copy {
+.agent-thinking-stream__speed-meta {
   position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.42rem;
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
+.agent-thinking-stream__speed-meta span {
   min-width: 0;
   overflow: hidden;
-  color: var(--text-muted);
-  font-size: 0.67rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.agent-thinking-stream__speed-meta strong {
+  color: var(--text);
+  font-weight: 760;
+  font-variant-numeric: tabular-nums;
 }
 
 @keyframes agent-thinking-stream-pulse {
@@ -3126,29 +3142,22 @@ button.workbench-shortcut-row--action:focus-visible {
   }
 }
 
-@keyframes agent-thinking-idle-orbit {
+@keyframes agent-thinking-speed-rise {
+  from {
+    opacity: 0.24;
+    transform: scaleY(0.34);
+  }
+
   to {
-    transform: rotate(1turn);
-  }
-}
-
-@keyframes agent-thinking-idle-scan {
-  0%,
-  24% {
-    transform: translateX(-105%);
-  }
-
-  58%,
-  100% {
-    transform: translateX(105%);
+    opacity: 1;
+    transform: scaleY(1);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .agent-thinking-stream__pulse,
   .agent-thinking-stream__idle-icon,
-  .agent-thinking-stream__idle-orbit span,
-  .agent-thinking-stream__idle-card::before {
+  .agent-thinking-stream__speed-bar {
     animation: none;
     opacity: 0.82;
   }
@@ -3239,12 +3248,16 @@ button.workbench-shortcut-row--action:focus-visible {
 
 .agent-session-stats__row {
   display: grid;
-  grid-template-columns: 1rem minmax(5.4rem, 0.9fr) minmax(0, 1fr);
+  grid-template-columns: 1rem minmax(3.8rem, 0.62fr) minmax(0, 1.38fr);
   align-items: center;
   gap: 0.42rem;
   min-height: 1.92rem;
   padding: 0.25rem 0;
   color: var(--text-muted);
+}
+
+.agent-session-stats__row--turn {
+  grid-template-columns: 1rem minmax(2.6rem, 0.42fr) minmax(0, 1.58fr);
 }
 
 .agent-session-stats__label {

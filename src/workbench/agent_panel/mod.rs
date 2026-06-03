@@ -15,7 +15,7 @@ pub(crate) mod turn_metrics_bar;
 mod voice_orb;
 
 use crate::agent_wire::{
-    AgentChatMode, AgentContextKind, AgentEvent, EventEnvelope, TaskSnapshot, UserTurn,
+    AgentChatMode, AgentContextKind, AgentEvent, EventEnvelope, TaskSnapshot, TurnMetrics, UserTurn,
 };
 use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
@@ -41,7 +41,7 @@ use crate::workbench::agent_panel::timeline::{
     AgentTimelineName, ChatLineIndexColumn, TurnNodeView,
 };
 use crate::workbench::agent_panel::voice_orb::{handle_voice_event, VoiceOrb, VoiceOrbHandle};
-use crate::workbench::agent_timeline::{ChangedFileEntry, TimelineDoc};
+use crate::workbench::agent_timeline::{ChangedFileEntry, TimelineDoc, TurnPart};
 use crate::workbench::terminal_slot_dnd::TerminalSlotDragService;
 use crate::workbench::WorkbenchService;
 use gloo_timers::future::TimeoutFuture;
@@ -799,6 +799,7 @@ pub fn AgentPanelDock() -> impl IntoView {
 fn AgentThinkingStream(timeline: RwSignal<TimelineDoc>) -> impl IntoView {
     let stream_ref = NodeRef::<html::Div>::new();
     let thinking_text = Memo::new(move |_| timeline.with(latest_active_thinking_text));
+    let speed_samples = Memo::new(move |_| timeline.with(turn_speed_samples));
     let idle_idx = RwSignal::new(0usize);
     let idle_alive: SendWrapper<Rc<Cell<bool>>> = SendWrapper::new(Rc::new(Cell::new(true)));
     let idle_alive_loop = idle_alive.clone();
@@ -855,15 +856,16 @@ fn AgentThinkingStream(timeline: RwSignal<TimelineDoc>) -> impl IntoView {
                             view! { <>{text}</> }.into_any()
                         }
                     } else {
-                        let phrase = THINKING_IDLE_MESSAGES[idle_idx.get()].to_string();
+                        let samples = speed_samples.get();
                         view! {
-                            <div class="agent-thinking-stream__idle-card">
-                                <span class="agent-thinking-stream__idle-orbit" aria-hidden="true">
-                                    <span></span>
-                                    <span></span>
-                                    <span></span>
-                                </span>
-                                <span class="agent-thinking-stream__idle-copy">{phrase}</span>
+                            <div class="agent-thinking-stream__speed-card">
+                                <div class="agent-thinking-stream__speed-chart" aria-label="Model speed by turn">
+                                    {render_speed_bars(samples.clone())}
+                                </div>
+                                <div class="agent-thinking-stream__speed-meta">
+                                    <span>"tok/s"</span>
+                                    <strong>{speed_summary(&samples)}</strong>
+                                </div>
                             </div>
                         }
                         .into_any()
@@ -871,6 +873,92 @@ fn AgentThinkingStream(timeline: RwSignal<TimelineDoc>) -> impl IntoView {
                 }}
             </div>
         </aside>
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct TurnSpeedSample {
+    tok_per_sec: f64,
+}
+
+fn turn_speed_samples(doc: &TimelineDoc) -> Vec<TurnSpeedSample> {
+    let mut samples = doc
+        .turns
+        .iter()
+        .filter_map(|turn| {
+            let mut metrics = TurnMetrics::default();
+            merge_provider_metrics(&turn.parts, &mut metrics);
+            speed_from_metrics(metrics)
+        })
+        .collect::<Vec<_>>();
+    let keep_from = samples.len().saturating_sub(12);
+    samples.drain(0..keep_from);
+    samples
+}
+
+fn merge_provider_metrics(parts: &[TurnPart], out: &mut TurnMetrics) {
+    for part in parts {
+        match part {
+            TurnPart::Text { metrics, .. } | TurnPart::ModelRound { metrics, .. } => {
+                out.merge(metrics);
+            }
+            TurnPart::Subagent { metrics, parts, .. } => {
+                if metrics.is_empty() {
+                    merge_provider_metrics(parts, out);
+                } else {
+                    out.merge(metrics);
+                }
+            }
+            TurnPart::Tool { children, .. } => merge_provider_metrics(children, out),
+            _ => {}
+        }
+    }
+}
+
+fn speed_from_metrics(metrics: TurnMetrics) -> Option<TurnSpeedSample> {
+    let output = metrics.output_tokens?;
+    if output == 0 || metrics.elapsed_ms == 0 {
+        return None;
+    }
+    Some(TurnSpeedSample {
+        tok_per_sec: output as f64 / (metrics.elapsed_ms as f64 / 1_000.0),
+    })
+}
+
+fn render_speed_bars(samples: Vec<TurnSpeedSample>) -> impl IntoView {
+    if samples.is_empty() {
+        return view! {
+            <span class="agent-thinking-stream__speed-empty">"No speed data"</span>
+        }
+        .into_any();
+    }
+    let max = samples
+        .iter()
+        .map(|sample| sample.tok_per_sec)
+        .fold(0.0_f64, f64::max)
+        .max(1.0);
+    samples
+        .into_iter()
+        .map(|sample| {
+            let height = ((sample.tok_per_sec / max) * 100.0).clamp(12.0, 100.0);
+            let label = format!("{:.1} tok/s", sample.tok_per_sec);
+            view! {
+                <span
+                    class="agent-thinking-stream__speed-bar"
+                    title=label.clone()
+                    aria-label=label
+                    style=format!("--speed-height: {height:.1}%")
+                ></span>
+            }
+        })
+        .collect_view()
+        .into_any()
+}
+
+fn speed_summary(samples: &[TurnSpeedSample]) -> String {
+    match samples.last() {
+        Some(sample) => format!("{:.1}", sample.tok_per_sec),
+        None => "-".to_string(),
     }
 }
 

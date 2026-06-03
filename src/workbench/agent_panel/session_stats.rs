@@ -487,7 +487,7 @@ fn format_turn_stats(metrics: Option<TurnMetrics>, elapsed: Option<u64>) -> Stri
         .and_then(|m| m.cost_usd)
         .map(fmt_cost)
         .unwrap_or_else(|| "-".to_string());
-    format!("{tokens} · cache {cache} · {elapsed} · {cost}")
+    format!("{tokens} · C:{cache} · {elapsed} · {cost}")
 }
 
 fn metrics_tokens_text(metrics: Option<TurnMetrics>) -> String {
