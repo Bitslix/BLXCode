@@ -744,6 +744,14 @@ pub fn plan_delete_inner(workspace_cwd: &str, path: &str) -> Result<(), String> 
         return err(format!("not found: {path}"));
     }
     fs::remove_file(&plan.abs).map_err(|e| format!("delete {path}: {e}"))?;
+    if !plan.folder_path.is_empty() {
+        let folder = root.join(&plan.folder_path);
+        ensure_under_root(&root, &folder)?;
+        if folder.is_dir() {
+            fs::remove_dir_all(&folder)
+                .map_err(|e| format!("delete plan folder {}: {e}", plan.folder_path))?;
+        }
+    }
     if let Some(mut parent) = plan.abs.parent() {
         while parent != root {
             if fs::read_dir(parent)
@@ -1273,6 +1281,42 @@ mod tests {
             .unwrap()
             .iter()
             .all(|m| m.path != "my-plan/plan.md"));
+
+        let _ = fs::remove_dir_all(&ws);
+    }
+
+    #[test]
+    fn delete_plan_removes_persisted_mermaid_diagrams() {
+        let ws = temp_ws("delete_mermaids");
+        let cwd = ws.to_string_lossy().into_owned();
+
+        let meta = plan_create_inner(&cwd, "diagram-plan.md", Some("# Diagram Plan\n")).unwrap();
+        crate::agent::mermaid::store::create_diagram(
+            &cwd,
+            &meta.slug,
+            "Auth Flow",
+            "flowchart TD\n A-->B",
+            "flowchart",
+            None,
+            None,
+        )
+        .unwrap();
+
+        let plan_folder = ws.join(PLANS_REL).join(&meta.folder_path);
+        assert!(plan_folder.join("plan.md").is_file());
+        assert!(plan_folder.join("diagrams").join("diagrams.json").is_file());
+
+        plan_delete_inner(&cwd, "diagram-plan.md").unwrap();
+
+        assert!(
+            !plan_folder.exists(),
+            "plan folder and diagram sidecars should be deleted"
+        );
+        assert!(
+            crate::agent::mermaid::store::list_diagrams(&cwd, &meta.slug)
+                .unwrap()
+                .is_empty()
+        );
 
         let _ = fs::remove_dir_all(&ws);
     }

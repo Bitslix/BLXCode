@@ -89,6 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Plan deletion now removes plan-linked Mermaid diagrams**: deleting a plan now removes the entire canonical plan folder, including persisted Mermaid manifests and `.mmd` files under `diagrams/`, instead of leaving diagram sidecars behind after `plan.md` was removed. Covered by a new `plans::tests::delete_plan_removes_persisted_mermaid_diagrams` regression test.
 - **Plan card toolbar alignment**: the Plans panel card quick-action toolbar now sits lower in the collapsed card header, lining up with the task-summary row and removing the awkward vertical gap between the card content and status line.
 - **Workspace tests compile after the Agent orb-mode setting addition.** The OpenRouter pricing test helper now initializes the newer `AgentProviderSettings::orb_mode` field, so `cargo test --workspace` no longer fails on a stale struct literal when unrelated frontend work runs the full suite.
 - **Inactive Memory center tabs no longer remain visible beside Terminals.** The centered Memory panel's `display: flex` rule could override the shared hidden-panel class because both selectors had equal specificity and the Memory rule appeared later in the stylesheet. The hidden center-panel selector is now more specific, so switching back to **Terminals** hides the Memory center panel while keeping terminal surfaces mounted.
