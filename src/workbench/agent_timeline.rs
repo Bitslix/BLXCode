@@ -1,7 +1,7 @@
 //! Reine Datenstrukturen für die Agent-Chat-Timeline (serde-fähig, ohne Leptos).
 //! Wird von [`crate::workbench::state::WorkspaceEntry`] und [`agent_panel::timeline`] genutzt.
 
-use crate::agent_wire::TurnMetrics;
+use crate::agent_wire::{AgentChatMode, TurnMetrics};
 use crate::i18n::{lookup, I18nKey, Locale};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -240,6 +240,8 @@ pub struct AskUserOption {
     pub label: String,
     #[serde(default)]
     pub description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none", rename = "setChatModeOnSelect")]
+    pub set_chat_mode_on_select: Option<AgentChatMode>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

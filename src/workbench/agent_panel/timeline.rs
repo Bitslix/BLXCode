@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use crate::agent_wire::{AgentEvent, TaskSnapshot, TurnMetrics, TurnUsageKind};
+use crate::agent_wire::{AgentChatMode, AgentEvent, TaskSnapshot, TurnMetrics, TurnUsageKind};
 use crate::i18n::{lookup, I18nKey, Locale};
 use crate::service::I18nService;
 use crate::tauri_bridge::{is_tauri_shell, voice_settings_get};
@@ -178,7 +178,15 @@ pub(super) fn parse_ask_user_args(value: &serde_json::Value) -> Option<ParsedAsk
             .and_then(|v| v.as_str())
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty());
-        options.push(AskUserOption { label, description });
+        let set_chat_mode_on_select = o
+            .get("setChatModeOnSelect")
+            .and_then(|v| v.as_str())
+            .and_then(parse_ask_user_chat_mode);
+        options.push(AskUserOption {
+            label,
+            description,
+            set_chat_mode_on_select,
+        });
     }
     let multi_select = obj
         .get("multiSelect")
@@ -195,6 +203,13 @@ pub(super) fn parse_ask_user_args(value: &serde_json::Value) -> Option<ParsedAsk
         multi_select,
         allow_other,
     })
+}
+
+fn parse_ask_user_chat_mode(value: &str) -> Option<AgentChatMode> {
+    match value {
+        "allow_all" => Some(AgentChatMode::AllowAll),
+        _ => None,
+    }
 }
 
 fn find_subagent_card_mut<'a>(
@@ -1016,6 +1031,7 @@ pub fn TimelineRow(
     timeline: RwSignal<TimelineDoc>,
     wb: WorkbenchService,
     workspace_id: Option<u64>,
+    chat_mode: RwSignal<AgentChatMode>,
     /// Display line number for this row. Decoupled from `idx` (which is only a
     /// stable key for detail/expand state), so model rounds show the correct
     /// sequential number instead of a hash of their line string.
@@ -1331,6 +1347,9 @@ pub fn TimelineRow(
                             state=state
                             auto_collapse=auto_collapse
                             timeline=timeline
+                            wb=wb
+                            workspace_id=workspace_id
+                            chat_mode=chat_mode
                         />
                     </div>
                 </li>
@@ -1352,6 +1371,7 @@ pub fn TurnNodeView(
     timeline: RwSignal<TimelineDoc>,
     wb: WorkbenchService,
     workspace_id: Option<u64>,
+    chat_mode: RwSignal<AgentChatMode>,
     on_redo: Callback<String>,
 ) -> impl IntoView {
     let user_line = format!("{:02}", idx.saturating_mul(10) + 1);
@@ -1381,6 +1401,7 @@ pub fn TurnNodeView(
                             timeline=timeline
                             wb=wb
                             workspace_id=workspace_id
+                            chat_mode=chat_mode
                             on_redo=on_redo
                         />
                     }.into_any(),
@@ -1398,6 +1419,7 @@ pub fn TurnNodeView(
                             timeline=timeline
                             wb=wb
                             workspace_id=workspace_id
+                            chat_mode=chat_mode
                         />
                     }.into_any(),
                 }
@@ -1599,6 +1621,7 @@ fn TurnPartView(
     timeline: RwSignal<TimelineDoc>,
     wb: WorkbenchService,
     workspace_id: Option<u64>,
+    chat_mode: RwSignal<AgentChatMode>,
     on_redo: Callback<String>,
 ) -> impl IntoView {
     let indent_style = format!("--timeline-depth: {depth}");
@@ -1688,6 +1711,7 @@ fn TurnPartView(
                                     timeline=timeline
                                     wb=wb
                                     workspace_id=workspace_id
+                                    chat_mode=chat_mode
                                     on_redo=on_redo
                                 />
                             }
@@ -1755,6 +1779,7 @@ fn TurnPartView(
                                             timeline=timeline
                                             wb=wb
                                             workspace_id=workspace_id
+                                            chat_mode=chat_mode
                                             on_redo=on_redo
                                         />
                                     }
@@ -1835,6 +1860,9 @@ fn TurnPartView(
                             state=state
                             auto_collapse=auto_collapse
                             timeline=timeline
+                            wb=wb
+                            workspace_id=workspace_id
+                            chat_mode=chat_mode
                         />
                     </div>
                 </li>

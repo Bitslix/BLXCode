@@ -3,10 +3,12 @@
 //! `agent_submit_tool_result` and updates the matching `TurnPart::AskUser`
 //! row state so the bubble stays in the chat with disabled controls.
 
+use crate::agent_wire::AgentChatMode;
 use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
 use crate::tauri_bridge::agent_submit_tool_result;
 use crate::workbench::agent_timeline::{AskUserOption, AskUserState, TimelineDoc, TurnPart};
+use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use serde_json::json;
@@ -25,6 +27,9 @@ pub fn AskUserCard(
     state: AskUserState,
     auto_collapse: Signal<bool>,
     timeline: RwSignal<TimelineDoc>,
+    wb: WorkbenchService,
+    workspace_id: Option<u64>,
+    chat_mode: RwSignal<AgentChatMode>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let loc = i18n.locale().get_untracked();
@@ -45,13 +50,24 @@ pub fn AskUserCard(
 
     let pick_single = {
         let call_id = call_id.clone();
-        move |label: String| {
+        move |option: AskUserOption| {
+            let label = option.label.clone();
             let cid = call_id.clone();
-            let payload = json!({
+            let next_mode = option.set_chat_mode_on_select;
+            if let Some(mode) = next_mode {
+                chat_mode.set(mode);
+                if let Some(workspace_id) = workspace_id {
+                    wb.set_workspace_agent_chat_mode(workspace_id, mode);
+                }
+            }
+            let mut payload = json!({
                 "selected": [label.clone()],
                 "other": "",
                 "cancelled": false,
             });
+            if matches!(next_mode, Some(AgentChatMode::AllowAll)) {
+                payload["chatModeChangedTo"] = json!("allow_all");
+            }
             mark_answered(timeline, &cid, vec![label.clone()], None);
             submit_async(cid, true, "user answered".into(), Some(payload));
         }
@@ -194,7 +210,7 @@ pub fn AskUserCard(
                 <ul class="ask-user-card__options">
                     {options.iter().enumerate().map(|(i, opt)| {
                         let label = opt.label.clone();
-                        let label_for_pick = label.clone();
+                        let option_for_pick = opt.clone();
                         let label_for_toggle = label.clone();
                         let description = opt.description.clone();
                         let desc_for_show = description.clone();
@@ -216,7 +232,7 @@ pub fn AskUserCard(
                                         if multi_select {
                                             toggle_multi(label_for_toggle.clone());
                                         } else {
-                                            pick_single(label_for_pick.clone());
+                                            pick_single(option_for_pick.clone());
                                         }
                                     }
                                 >

@@ -1,4 +1,7 @@
-use crate::agent_wire::{AgentEvent, EventEnvelope, TaskSnapshot, TurnMetrics, TurnUsageKind};
+use crate::agent_wire::{
+    AgentChatMode, AgentEvent, EventEnvelope, TaskSnapshot, ToolPermissionKind, TurnMetrics,
+    TurnUsageKind,
+};
 use crate::i18n::Locale;
 use crate::workbench::agent_panel::timeline::parse_ask_user_args;
 use crate::workbench::agent_timeline::{
@@ -114,6 +117,7 @@ fn apply_event_to_doc(
         AgentEvent::ToolPermissionRequest {
             tool,
             call_id,
+            kind,
             summary,
             ..
         } => {
@@ -126,10 +130,7 @@ fn apply_event_to_doc(
                     call_id: call_id.clone(),
                     question: summary.clone(),
                     header: Some(format!("Approve {tool}")),
-                    options: vec![crate::workbench::agent_timeline::AskUserOption {
-                        label: "Approve".to_owned(),
-                        description: Some("Run this tool call now.".to_owned()),
-                    }],
+                    options: permission_options(tool, kind),
                     multi_select: false,
                     allow_other: false,
                     state: AskUserState::Open,
@@ -403,6 +404,42 @@ fn apply_event_to_doc(
             remove_empty_pending_top_level_thinking(doc);
         }
     }
+}
+
+fn permission_options(
+    tool: &str,
+    kind: &ToolPermissionKind,
+) -> Vec<crate::workbench::agent_timeline::AskUserOption> {
+    if matches!(kind, ToolPermissionKind::MutatingEdit) && is_file_mutation_tool(tool) {
+        return vec![
+            crate::workbench::agent_timeline::AskUserOption {
+                label: "Approve once".to_owned(),
+                description: Some("Run this tool call and keep supervised mode.".to_owned()),
+                set_chat_mode_on_select: None,
+            },
+            crate::workbench::agent_timeline::AskUserOption {
+                label: "Auto-accept".to_owned(),
+                description: Some("Run this and switch this workspace to Full Access.".to_owned()),
+                set_chat_mode_on_select: Some(AgentChatMode::AllowAll),
+            },
+        ];
+    }
+    vec![crate::workbench::agent_timeline::AskUserOption {
+        label: "Approve".to_owned(),
+        description: Some("Run this tool call now.".to_owned()),
+        set_chat_mode_on_select: None,
+    }]
+}
+
+fn is_file_mutation_tool(tool: &str) -> bool {
+    matches!(
+        tool,
+        "workspace_file_write"
+            | "workspace_file_delete"
+            | "workspace_entry_rename"
+            | "workspace_dir_create"
+            | "git_apply_patch"
+    )
 }
 
 fn ensure_turn(doc: &mut TimelineDoc) {

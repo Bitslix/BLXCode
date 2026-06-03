@@ -836,6 +836,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                                                     timeline=timeline
                                                     wb=wb
                                                     workspace_id=wb.active_id().get_untracked()
+                                                    chat_mode=chat_mode
                                                     on_redo=on_redo
                                                 />
                                             }

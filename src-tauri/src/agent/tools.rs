@@ -1466,6 +1466,11 @@ pub fn registry() -> Vec<ToolDef> {
                                 "description": {
                                     "type": "string",
                                     "description": "Optional explanation of the option's implication or trade-off."
+                                },
+                                "setChatModeOnSelect": {
+                                    "type": "string",
+                                    "enum": ["allow_all"],
+                                    "description": "Optional. When the user selects this option, switch the current workspace Agent Chat mode to Full Access."
                                 }
                             },
                             "required": ["label"],
