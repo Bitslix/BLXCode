@@ -76,7 +76,6 @@
 
 .workspace-kanban__search input,
 .workspace-kanban__quickadd input,
-.workspace-kanban__quickadd select,
 .workspace-kanban-task__input {
   min-width: 0;
   height: var(--kanban-control-height, 2rem);
@@ -99,7 +98,6 @@
 }
 
 .workspace-kanban__quickadd input,
-.workspace-kanban__quickadd select,
 .workspace-kanban-task__input {
   padding: 0 0.5rem;
 }
@@ -111,35 +109,25 @@
 }
 
 .workspace-kanban__quickadd input:focus,
-.workspace-kanban__quickadd select:focus,
 .workspace-kanban__search:focus-within,
 .workspace-kanban-task__input:focus,
-.workspace-kanban-plan-picker:focus-within .workspace-kanban-plan-picker__button {
+.workspace-kanban-plan-picker:focus-within .workspace-kanban-plan-picker__button,
+.workspace-kanban-status-picker:focus-within .workspace-kanban-status-picker__button {
   border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
   background: color-mix(in srgb, var(--bg-panel) 78%, var(--accent-soft));
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
-.workspace-kanban__status-select {
-  width: 100%;
-  min-height: var(--kanban-control-height);
-  padding: 0 2rem 0 0.72rem;
-  background: color-mix(in srgb, var(--bg-panel) 88%, var(--overlay-1));
-}
-
-.workspace-kanban__status-select option {
-  color: var(--text);
-  background: var(--bg-panel);
-}
-
-.workspace-kanban-plan-picker {
+.workspace-kanban-plan-picker,
+.workspace-kanban-status-picker {
   position: relative;
   width: 100%;
   min-width: 0;
   z-index: 8;
 }
 
-.workspace-kanban-plan-picker__button {
+.workspace-kanban-plan-picker__button,
+.workspace-kanban-status-picker__button {
   width: 100%;
   height: var(--kanban-control-height);
   display: flex;
@@ -156,9 +144,38 @@
   transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
 }
 
-.workspace-kanban-plan-picker__button:hover {
+.workspace-kanban-plan-picker__button:hover,
+.workspace-kanban-status-picker__button:hover {
   border-color: var(--border-strong);
   background: color-mix(in srgb, var(--bg-panel) 78%, var(--overlay-2));
+}
+
+.workspace-kanban-status-picker__button {
+  --kanban-status: var(--text-muted);
+}
+
+.workspace-kanban-status-picker__button[data-status="pending"] {
+  --kanban-status: var(--accent);
+}
+
+.workspace-kanban-status-picker__button[data-status="in_progress"] {
+  --kanban-status: var(--accent-cool);
+}
+
+.workspace-kanban-status-picker__button[data-status="blocked"] {
+  --kanban-status: var(--warning);
+}
+
+.workspace-kanban-status-picker__button[data-status="completed"] {
+  --kanban-status: var(--success);
+}
+
+.workspace-kanban-status-picker__button[data-status="cancelled"] {
+  --kanban-status: var(--danger);
+}
+
+.workspace-kanban-status-picker__button svg:first-child {
+  color: color-mix(in srgb, var(--kanban-status) 72%, var(--text-muted));
 }
 
 .workspace-kanban-plan-picker__text {
@@ -190,7 +207,8 @@
   font-size: 0.68rem;
 }
 
-.workspace-kanban-plan-picker__menu {
+.workspace-kanban-plan-picker__menu,
+.workspace-kanban-status-picker__menu {
   position: absolute;
   top: calc(100% + 0.35rem);
   left: 0;
@@ -198,17 +216,18 @@
   max-height: min(23rem, 58vh);
   overflow: auto;
   padding: 0.35rem;
-  border: 1px solid color-mix(in srgb, var(--accent-cool) 30%, var(--border));
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--bg-raised) 96%, black);
-  box-shadow: 0 1rem 2.4rem color-mix(in srgb, black 34%, transparent);
+  background: var(--bg-raised);
+  box-shadow: 0 1rem 2.4rem color-mix(in srgb, var(--bg-app) 72%, transparent);
+  z-index: 20;
 }
 
-.workspace-kanban-plan-picker__option {
+.workspace-kanban-plan-picker__option,
+.workspace-kanban-status-picker__option {
   width: 100%;
   display: flex;
-  flex-direction: column;
-  gap: 0.18rem;
+  gap: 0.45rem;
   padding: 0.48rem 0.55rem;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
@@ -219,10 +238,46 @@
   cursor: pointer;
 }
 
+.workspace-kanban-plan-picker__option {
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.workspace-kanban-status-picker__option {
+  --kanban-status: var(--text-muted);
+  align-items: center;
+}
+
+.workspace-kanban-status-picker__option[data-status="pending"] {
+  --kanban-status: var(--accent);
+}
+
+.workspace-kanban-status-picker__option[data-status="in_progress"] {
+  --kanban-status: var(--accent-cool);
+}
+
+.workspace-kanban-status-picker__option[data-status="blocked"] {
+  --kanban-status: var(--warning);
+}
+
+.workspace-kanban-status-picker__option[data-status="completed"] {
+  --kanban-status: var(--success);
+}
+
+.workspace-kanban-status-picker__option[data-status="cancelled"] {
+  --kanban-status: var(--danger);
+}
+
+.workspace-kanban-status-picker__option svg {
+  color: color-mix(in srgb, var(--kanban-status) 72%, var(--text-muted));
+}
+
 .workspace-kanban-plan-picker__option:hover,
-.workspace-kanban-plan-picker__option--active {
-  border-color: color-mix(in srgb, var(--accent-cool) 36%, transparent);
-  background: color-mix(in srgb, var(--accent-cool) 13%, var(--overlay-1));
+.workspace-kanban-plan-picker__option--active,
+.workspace-kanban-status-picker__option:hover,
+.workspace-kanban-status-picker__option--active {
+  border-color: var(--border-strong);
+  background: var(--overlay-2);
 }
 
 .workspace-kanban-plan-picker__option-title {
@@ -293,23 +348,23 @@
 }
 
 .workspace-kanban-section[data-state="blocked"] {
-  --kanban-state: var(--text-muted);
+  --kanban-state: var(--warning);
 }
 
 .workspace-kanban-section[data-state="in-progress"] {
-  --kanban-state: var(--text-muted);
+  --kanban-state: var(--accent-cool);
 }
 
 .workspace-kanban-section[data-state="pending"] {
-  --kanban-state: var(--text-muted);
+  --kanban-state: var(--accent);
 }
 
 .workspace-kanban-section[data-state="completed"] {
-  --kanban-state: var(--text-muted);
+  --kanban-state: var(--success);
 }
 
 .workspace-kanban-section[data-state="cancelled"] {
-  --kanban-state: var(--text-muted);
+  --kanban-state: var(--danger);
 }
 
 .workspace-kanban-section[data-state="empty"] {
@@ -350,7 +405,11 @@
   align-self: stretch;
   margin: 0.35rem 0.15rem 0.35rem -0.2rem;
   border-radius: var(--radius-pill);
-  background: var(--border-strong);
+  background: var(--kanban-state);
+}
+
+.workspace-kanban-section__head > svg:first-child {
+  color: color-mix(in srgb, var(--kanban-state) 76%, var(--text-muted));
 }
 
 .workspace-kanban-section__head > svg:last-child {
@@ -369,8 +428,8 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-pill);
-  background: var(--overlay-2);
-  color: var(--text-muted);
+  background: color-mix(in srgb, var(--kanban-state) 13%, var(--overlay-2));
+  color: color-mix(in srgb, var(--kanban-state) 70%, var(--text-muted));
   font-size: 0.72rem;
   font-weight: 800;
 }
@@ -391,29 +450,33 @@
 }
 
 .workspace-kanban-plan[data-state="blocked"] {
-  --kanban-state: var(--text-muted);
+  --kanban-state: var(--warning);
 }
 
 .workspace-kanban-plan[data-state="in-progress"] {
-  --kanban-state: var(--text-muted);
+  --kanban-state: var(--accent-cool);
 }
 
 .workspace-kanban-plan[data-state="pending"] {
-  --kanban-state: var(--text-muted);
+  --kanban-state: var(--accent);
 }
 
 .workspace-kanban-plan[data-state="completed"] {
-  --kanban-state: var(--text-muted);
+  --kanban-state: var(--success);
 }
 
 .workspace-kanban-plan[data-state="cancelled"] {
-  --kanban-state: var(--text-muted);
+  --kanban-state: var(--danger);
 }
 
 .workspace-kanban-plan__head {
   min-height: 2.8rem;
   padding: 0.5rem 0.65rem;
   background: transparent;
+}
+
+.workspace-kanban-plan__head > svg:first-child {
+  color: color-mix(in srgb, var(--kanban-state) 62%, var(--text-muted));
 }
 
 .workspace-kanban-plan__main {
@@ -471,30 +534,30 @@
 }
 
 .workspace-kanban-lane[data-status="pending"] {
-  --kanban-lane: var(--text-muted);
+  --kanban-lane: var(--accent);
 }
 
 .workspace-kanban-lane[data-status="in_progress"] {
-  --kanban-lane: var(--text-muted);
+  --kanban-lane: var(--accent-cool);
 }
 
 .workspace-kanban-lane[data-status="blocked"] {
-  --kanban-lane: var(--text-muted);
+  --kanban-lane: var(--warning);
 }
 
 .workspace-kanban-lane[data-status="completed"] {
-  --kanban-lane: var(--text-muted);
+  --kanban-lane: var(--success);
 }
 
 .workspace-kanban-lane[data-status="cancelled"] {
-  --kanban-lane: var(--text-muted);
+  --kanban-lane: var(--danger);
 }
 
 .workspace-kanban-lane__head {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  color: var(--text-muted);
+  color: color-mix(in srgb, var(--kanban-lane) 66%, var(--text-muted));
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;

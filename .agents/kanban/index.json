@@ -12,7 +12,8 @@
   "collapsedPlanSections": [],
   "expandedPlans": [
     "ai-plan-task-generation.md",
-    "leptos-to-typescript-migration.md"
+    "leptos-to-typescript-migration.md",
+    "theme-roundings-and-font.md"
   ],
   "taskLaneOrder": [
     "pending",
@@ -30,5 +31,5 @@
     "showCancelled": true,
     "activeOnly": false
   },
-  "updatedAt": 1780501825
+  "updatedAt": 1780503531
 }

@@ -238,24 +238,10 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
                     </div>
                     <div class="workspace-kanban-field workspace-kanban-field--status">
                         <span class="workspace-kanban-field__label">{move || i18n.tr(I18nKey::KanbanStatusLabel)()}</span>
-                        <select
-                            class="workspace-kanban__status-select"
-                            prop:value=move || task_status_key(&new_task_status.get()).to_string()
-                            on:change=move |ev| {
-                                new_task_status.set(parse_task_status(&event_target_value(&ev)));
-                            }
-                        >
-                            <For
-                                each=task_statuses
-                                key=task_status_key
-                                children=move |status| {
-                                    let label_status = status.clone();
-                                    view! {
-                                        <option value=task_status_key(&status)>{move || i18n.tr(task_status_label_key(&label_status))()}</option>
-                                    }
-                                }
-                            />
-                        </select>
+                        <KanbanTaskStatusPicker
+                            selected_status=new_task_status
+                            on_select=Callback::new(move |status| new_task_status.set(status))
+                        />
                     </div>
                     <div class="workspace-kanban-field workspace-kanban-field--task">
                         <span class="workspace-kanban-field__label">{move || i18n.tr(I18nKey::KanbanTaskTitleLabel)()}</span>
@@ -386,6 +372,73 @@ fn KanbanStateSection(
                 </div>
             </Show>
         </section>
+    }
+}
+
+#[component]
+fn KanbanTaskStatusPicker(
+    selected_status: RwSignal<TaskStatus>,
+    on_select: Callback<TaskStatus>,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let open = RwSignal::new(false);
+
+    view! {
+        <div class="workspace-kanban-status-picker">
+            <button
+                type="button"
+                class="workspace-kanban-status-picker__button"
+                data-status=move || task_status_key(&selected_status.get()).to_string()
+                aria-label=move || i18n.tr(I18nKey::KanbanStatusLabel)()
+                aria-expanded=move || open.get().to_string()
+                on:click=move |_| open.update(|value| *value = !*value)
+                on:keydown=move |ev| {
+                    if ev.key() == "Escape" {
+                        open.set(false);
+                    }
+                }
+            >
+                <LxIcon icon=move || task_status_icon(&selected_status.get()) width="0.9rem" height="0.9rem" />
+                <span class="workspace-kanban-status-picker__label">
+                    {move || i18n.tr(task_status_label_key(&selected_status.get()))()}
+                </span>
+                <LxIcon icon=icondata::LuChevronDown width="0.86rem" height="0.86rem" />
+            </button>
+            <Show when=move || open.get()>
+                <div class="workspace-kanban-status-picker__menu" role="listbox">
+                    <For
+                        each=task_statuses
+                        key=task_status_key
+                        children=move |status| {
+                            let option_status = status.clone();
+                            let aria_status = status.clone();
+                            let label_status = status.clone();
+                            let icon_status = status.clone();
+                            let active_status = status.clone();
+                            view! {
+                                <button
+                                    type="button"
+                                    class="workspace-kanban-status-picker__option"
+                                    class:workspace-kanban-status-picker__option--active=move || {
+                                        selected_status.get() == active_status
+                                    }
+                                    data-status=task_status_key(&status)
+                                    role="option"
+                                    aria-selected=move || (selected_status.get() == aria_status).to_string()
+                                    on:click=move |_| {
+                                        on_select.run(option_status.clone());
+                                        open.set(false);
+                                    }
+                                >
+                                    <LxIcon icon=task_status_icon(&icon_status) width="0.9rem" height="0.9rem" />
+                                    <span>{move || i18n.tr(task_status_label_key(&label_status))()}</span>
+                                </button>
+                            }
+                        }
+                    />
+                </div>
+            </Show>
+        </div>
     }
 }
 
@@ -843,16 +896,6 @@ fn task_status_icon(status: &TaskStatus) -> icondata::Icon {
         TaskStatus::Blocked => icondata::LuCircleAlert,
         TaskStatus::Completed => icondata::LuCircleCheck,
         TaskStatus::Cancelled => icondata::LuCircleMinus,
-    }
-}
-
-fn parse_task_status(raw: &str) -> TaskStatus {
-    match raw {
-        "in_progress" => TaskStatus::InProgress,
-        "blocked" => TaskStatus::Blocked,
-        "completed" => TaskStatus::Completed,
-        "cancelled" => TaskStatus::Cancelled,
-        _ => TaskStatus::Pending,
     }
 }
 
