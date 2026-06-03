@@ -91,7 +91,7 @@ pub use state::{
     WorkspaceAgentImage,
 };
 pub use theme_service::ThemeService;
-pub use update_service::{UpdateService, UpdateUiStatus};
+pub use update_service::{UpdateCheckSource, UpdateService, UpdateUiStatus};
 pub use workspace_panel::WorkspacePanel;
 pub use workspace_settings_pane::WorkspaceSettingsPane;
 

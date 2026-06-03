@@ -6,6 +6,7 @@ use crate::quit::request_app_quit;
 use crate::service::I18nService;
 use crate::workbench::AppTitleBar;
 use crate::workbench::ThemeService;
+use crate::workbench::UpdateCheckSource;
 use crate::workbench::UpdateService;
 use crate::workbench::UpdateUiStatus;
 use crate::workbench::WorkbenchService;
@@ -192,6 +193,14 @@ fn AppStatusLine() -> impl IntoView {
     Effect::new(move |_| {
         let status = updates.status().get();
         let manual = updates.manual_check_active().get();
+        let background = updates.check_source().get() == UpdateCheckSource::Background;
+        if background {
+            match status {
+                UpdateUiStatus::Checking => update_visible.set(true),
+                _ => update_visible.set(false),
+            }
+            return;
+        }
         if !manual {
             update_visible.set(false);
             return;
