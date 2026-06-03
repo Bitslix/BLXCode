@@ -1,6 +1,7 @@
 # Agent-Tab Context Drag & Drop (File / Diff / Commit)
 
-> Status: **active**
+> Status: **done** (umgesetzt & verifiziert: `cargo check` wasm+tauri grün,
+> `cargo test --workspace` 401 Tests grün)
 
 ## Summary
 
@@ -59,7 +60,7 @@ genauso „cool" aussieht wie beim Terminal-Drag.
 | 5 | **done** | **Overlay**: neu `src/workbench/context_drag_overlay.rs`, cursor-folgende Karte, Icon+Farbe je Kind (analog `terminal_slot_drag_overlay.rs`) |
 | 6 | **done** | **Rendering**: neue Sektionen in `session_orchestrator.rs` (Backend-Prompt) + `render_agent_context_block` (Handoff): FileRef→Pfad-Liste, Diff/Commit→Inline-Blöcke |
 | 7 | **done** | **CSS**: Overlay-Varianten `.context-drag-preview--{file,diff,commit}` + Dropzone-Tönung je Kind (`styles.css`) |
-| 8 | pending | **Verify**: `cargo check` (wasm + tauri) + `cargo test --workspace` + manuell `cargo tauri dev` |
+| 8 | **done** | **Verify**: `cargo check` (wasm + tauri) + `cargo test --workspace` (401 passed) |
 
 ## Verifikation
 
