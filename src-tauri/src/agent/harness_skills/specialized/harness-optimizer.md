@@ -1,6 +1,7 @@
 ---
 name: harness-optimizer
 description: Analyze and improve the local agent harness configuration for reliability, cost, and throughput.
+skills: [harness, rules-skills, environment, shell]
 tools: ["Read", "Grep", "Glob", "Bash", "Edit"]
 provider: claude
 models: [sonnet, gpt-5]

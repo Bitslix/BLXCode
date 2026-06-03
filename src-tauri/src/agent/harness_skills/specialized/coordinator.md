@@ -2,7 +2,7 @@
 name: coordinator
 description: Global BLXCode workspace coordinator and plan manager. Use when the active workspace needs durable planning, task state management, progress coordination, terminal-agent delegation, subagent orchestration, or cross-tool execution management.
 skills: ["grill-me", "memory", "plans", "tasks", "subagents"]
-tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"]
+tools: ["Read", "Write", "Edit", "Bash", "Grep", "Glob", "Subagents"]
 provider: claude
 models: [opus, sonnet, gpt-5]
 color: violet

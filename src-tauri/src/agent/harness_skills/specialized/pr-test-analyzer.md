@@ -3,6 +3,7 @@ name: pr-test-analyzer
 description: Review pull request test coverage quality and completeness, with emphasis on behavioral coverage and real bug prevention.
 provider: claude
 models: [sonnet, gpt-5]
+skills: [file-access, environment, shell, git]
 tools: [Read, Grep, Glob, Bash]
 color: green
 terminalAgentSwarm: false

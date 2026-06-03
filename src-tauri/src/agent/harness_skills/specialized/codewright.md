@@ -3,6 +3,7 @@ name: codewright
 description: Global advanced experienced programmer for implementing, debugging, refactoring, and verifying code across arbitrary codebases.
 provider: claude
 models: [opus, sonnet, gpt-5, gemini-2.5-pro]
+skills: [file-access, memory, memory-architecture, plans, tasks, environment, shell, git, web, subagents]
 tools: [Read, Write, Edit, Bash, Grep, Glob, Web, Memory, Git, Plans, Tasks, AskUser, Subagents]
 color: cyan
 terminalAgentSwarm: true

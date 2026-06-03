@@ -4,10 +4,10 @@
 //! A role is chosen per workspace in the Create-Workspace flow and handed to
 //! the BLXCode Agent by appending its operational text to the shared
 //! `system_prompt` (see [`crate::agent::system_prompt`]). The role's
-//! frontmatter (`name`, `description`, `tools`, `provider`, `models`, `color`,
-//! `terminalAgentSwarm`, `enabled`) drives the picker dropdown, the colored
-//! sub-line in the agent name badge, and role-specific agent orchestration
-//! guidance.
+//! frontmatter (`name`, `description`, `skills`, `tools`, `provider`, `models`,
+//! `color`, `terminalAgentSwarm`, `enabled`) drives the picker dropdown, the
+//! colored sub-line in the agent name badge, and role-specific agent
+//! orchestration guidance.
 //!
 //! Roles are read-only built-ins, parallel to but separate from the user
 //! `.agents/skills` store.
@@ -67,6 +67,8 @@ pub struct RoleMeta {
     pub description: String,
     /// Tool names declared in the role frontmatter.
     pub tools: Vec<String>,
+    /// Skill names the active role should preload with `skills_read`.
+    pub skills: Vec<String>,
     /// Accent color from frontmatter (theme keyword or hex). Empty if absent.
     pub color: String,
     /// Preferred terminal CLI-agent slug for this role (advisory; e.g.
@@ -127,6 +129,9 @@ fn parse_meta(slug: &str, raw: &str) -> RoleMeta {
         title,
         description: fm_value(fm, "description").unwrap_or_default(),
         tools: fm_value(fm, "tools")
+            .map(|v| parse_tools(&v))
+            .unwrap_or_default(),
+        skills: fm_value(fm, "skills")
             .map(|v| parse_tools(&v))
             .unwrap_or_default(),
         color: fm_value(fm, "color").unwrap_or_default(),
@@ -287,6 +292,8 @@ mod tests {
         assert!(coord.enabled);
         assert!(coord.tools.contains(&"Read".to_string()));
         assert!(coord.tools.contains(&"Bash".to_string()));
+        assert!(coord.skills.contains(&"plans".to_string()));
+        assert!(coord.skills.contains(&"subagents".to_string()));
     }
 
     #[test]
@@ -317,12 +324,37 @@ mod tests {
     }
 
     #[test]
+    fn expected_roles_authorize_subagents() {
+        for r in list_roles() {
+            assert_eq!(
+                r.tools
+                    .iter()
+                    .any(|tool| tool.eq_ignore_ascii_case("subagents")),
+                matches!(r.slug.as_str(), "architect" | "codewright" | "coordinator"),
+                "unexpected Subagents tool value for {}",
+                r.slug
+            );
+        }
+    }
+
+    #[test]
     fn parses_provider_and_models_list() {
         // Every role declares a provider (CLI slug) and a non-empty models list.
         for r in list_roles() {
             assert!(!r.provider.is_empty(), "role {} missing provider", r.slug);
             assert!(!r.models.is_empty(), "role {} missing models", r.slug);
         }
+    }
+
+    #[test]
+    fn every_role_has_role_skills() {
+        for r in list_roles() {
+            assert!(!r.skills.is_empty(), "role {} missing skills", r.slug);
+        }
+        let branch = role_meta("branch-steward").expect("branch steward role");
+        assert!(branch.skills.contains(&"git".to_string()));
+        let codewright = role_meta("codewright").expect("codewright role");
+        assert!(codewright.skills.contains(&"subagents".to_string()));
     }
 
     #[test]

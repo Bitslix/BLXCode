@@ -156,6 +156,9 @@ pub fn SessionRolePicker(
                                         role.tools.join(", ")
                                     ));
                                 }
+                                if !role.skills.is_empty() {
+                                    meta.push(format!("Skills: {}", role.skills.join(", ")));
+                                }
                                 if !role.models.is_empty() {
                                     meta.push(format!(
                                         "{}: {}",

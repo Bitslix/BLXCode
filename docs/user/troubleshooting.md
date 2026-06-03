@@ -73,7 +73,7 @@ If the error persists in the same workspace, send a short prompt such as “dete
 
 ## Subagents Not Appearing
 
-Subagents run when you **explicitly** ask (for example “use subagents to review …”) or when the active session role explicitly allows them. Codewright may use bounded subagents for codebase work; other roles stay conservative unless requested. You need a configured provider key and a model that supports tool calling.
+Subagents run when you **explicitly** ask (for example “use subagents to review …”) or when the active session role explicitly allows them. Architect, Codewright, and Coordinator may use bounded subagents; other roles stay conservative unless requested. You need a configured provider key and a model that supports tool calling.
 
 Full behaviour, roles, and limits: [Subagents](subagents.md).
 

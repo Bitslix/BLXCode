@@ -1662,6 +1662,8 @@ pub struct SessionRoleView {
     #[serde(default)]
     pub tools: Vec<String>,
     #[serde(default)]
+    pub skills: Vec<String>,
+    #[serde(default)]
     pub color: String,
     #[serde(default)]
     pub provider: String,

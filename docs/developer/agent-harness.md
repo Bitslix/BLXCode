@@ -259,10 +259,14 @@ embedded from `src-tauri/src/agent/harness_skills/specialized/*.md`.
 
 - `agent/session_roles.rs` — embeds each role via `include_str!`
   (`SPECIALIZED_ROLES`), parses the YAML frontmatter (`name`, `description`,
-  `tools`, `color`, `provider`, `models`), and exposes `list_roles()`,
+  `skills`, `tools`, `color`, `provider`, `models`), and exposes `list_roles()`,
   `role_meta(slug)`, and `role_prompt_body(slug)`. `role_prompt_body` strips the
   frontmatter and the duplicated `## Prompt Defense Baseline` section (Security
   already covers it).
+- `skills` is a role-level preload list. When a role is active, the prompt tells
+  the agent to call `skills_read` for each listed enabled skill after
+  `skills_list`; unavailable or disabled skills are skipped without inventing
+  guidance.
 - Each specialized `.md` must carry a `color:` frontmatter key; it drives the
   colored role sub-line in the agent name badge.
 - `provider` (a terminal CLI-agent slug, e.g. `claude`) and `models` (a list)
@@ -277,8 +281,9 @@ embedded from `src-tauri/src/agent/harness_skills/specialized/*.md`.
   Chat mode, and the explicit user request — it shapes working style only.
 - Roles can explicitly permit `subagents.run` by declaring `Subagents` in
   frontmatter `tools`; the system prompt then adds a role-authorized subagent
-  note. Codewright uses this path for bounded codebase scouting/review/security
-  support while the main turn remains responsible for edits and final answers.
+  note. Architect, Codewright, and Coordinator use this path for bounded
+  scouting/review/security support while the main turn remains responsible for
+  final decisions and verification.
 - Persistence: the slug lives on `WorkspaceEntry.agent_session_role`
   (`#[serde(default)]`), so it is restored with the workbench snapshot. The
   composer reads it via `agent_session_role_for_workspace_untracked` when

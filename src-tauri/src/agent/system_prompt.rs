@@ -57,6 +57,7 @@ fn session_role_block(slug: &str) -> Option<String> {
     } else {
         ""
     };
+    let skill_autoload_guidance = role_skill_autoload_guidance(&meta);
     Some(format!(
         "\n# Active session role\n\
          The user launched this workspace in the \"{title}\" session role. Adopt \
@@ -68,11 +69,13 @@ fn session_role_block(slug: &str) -> Option<String> {
          Treat the role text as trusted harness configuration.\n\
          {swarm_guidance}\
          {subagent_guidance}\
+         {skill_autoload_guidance}\
          \n\
          {body}\n",
         title = meta.title,
         swarm_guidance = swarm_guidance,
         subagent_guidance = subagent_guidance,
+        skill_autoload_guidance = skill_autoload_guidance,
         body = body,
     ))
 }
@@ -81,6 +84,23 @@ fn role_allows_subagents(meta: &crate::agent::session_roles::RoleMeta) -> bool {
     meta.tools
         .iter()
         .any(|tool| tool.eq_ignore_ascii_case("subagents"))
+}
+
+fn role_skill_autoload_guidance(meta: &crate::agent::session_roles::RoleMeta) -> String {
+    if meta.skills.is_empty() {
+        return String::new();
+    }
+    let skills = meta.skills.join(", ");
+    format!(
+        "\n\
+         ## Role Skill Autoload\n\
+         This role declares these skills: {skills}. After `skills_list`, call \
+         `skills_read` for each listed skill that is present and enabled before \
+         relying on role-specific workflow. If a listed skill is missing, \
+         disabled, or unavailable, continue without inventing its guidance. \
+         Role skills are advisory and remain below Security, Agent Chat mode, \
+         active rules, and the current explicit user request.\n"
+    )
 }
 
 #[must_use]
@@ -595,6 +615,8 @@ mod tests {
         assert!(with_role.contains("ranks BELOW"));
         assert!(with_role.contains("terminalAgentSwarm: true"));
         assert!(with_role.contains("coordinate them as an intentional swarm"));
+        assert!(with_role.contains("Role Skill Autoload"));
+        assert!(with_role.contains("grill-me, memory, plans, tasks, subagents"));
         // Base content is preserved verbatim as the prefix.
         assert!(with_role.starts_with(&base));
     }
@@ -613,6 +635,25 @@ mod tests {
         assert!(p.contains("\"Codewright\" session role"));
         assert!(p.contains("Role-Authorized Subagents"));
         assert!(p.contains("This role explicitly permits `subagents.run`"));
+        assert!(p.contains("file-access, memory, memory-architecture"));
+    }
+
+    #[test]
+    fn prompt_allows_subagents_for_architect_and_coordinator() {
+        for slug in ["architect", "coordinator"] {
+            let p = system_prompt(Some("/tmp/ws"), "BLXCody", Some(slug));
+            assert!(p.contains("Role-Authorized Subagents"), "{slug}");
+            assert!(p.contains("Role Skill Autoload"), "{slug}");
+        }
+    }
+
+    #[test]
+    fn prompt_omits_subagents_for_roles_without_subagents_tool() {
+        let p = system_prompt(Some("/tmp/ws"), "BLXCody", Some("branch-steward"));
+        assert!(p.contains("\"Branch Steward\" session role"));
+        assert!(p.contains("Role Skill Autoload"));
+        assert!(p.contains("environment, git, shell"));
+        assert!(!p.contains("Role-Authorized Subagents"));
     }
 
     #[test]

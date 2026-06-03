@@ -3,6 +3,7 @@ name: branch-steward
 description: Git specialist for clean history, commit messages, modern PR/issue descriptions, branch state analysis, and user-guided conflict resolution.
 provider: claude
 models: [sonnet, gpt-5]
+skills: [environment, git, shell]
 tools: [Read, Write, Edit, Bash, Grep, Glob]
 color: amber
 terminalAgentSwarm: false

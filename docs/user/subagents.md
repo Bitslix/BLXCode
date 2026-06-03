@@ -33,7 +33,7 @@ Subagents do **not** appear in long-term chat history as separate threads — on
 
 ## When subagents run
 
-The coordinator must **not** spawn subagents unless you ask or the active session role explicitly allows subagent orchestration. Codewright is allowed to use bounded scout/review/security subagents for codebase work while keeping final decisions in the main turn. Phrases that typically trigger a run:
+The coordinator must **not** spawn subagents unless you ask or the active session role explicitly allows subagent orchestration. Architect, Codewright, and Coordinator are allowed to use bounded scout/review/security subagents while keeping final decisions in the main turn. Phrases that typically trigger a run:
 
 | Intent | Example prompts |
 |--------|------------------|
