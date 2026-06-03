@@ -107,7 +107,7 @@ pub fn McpSettingsPane() -> impl IntoView {
                 <span class="mcp-reset-banner__text">
                     {move || i18n.tr(I18nKey::McpResetHint)()}
                 </span>
-                <button class="blx-btn blx-btn--ghost mcp-reset-banner__btn" on:click=reset_session>
+                <button class="workbench-mini-btn workbench-mini-btn--ghost mcp-reset-banner__btn" on:click=reset_session>
                     {move || i18n.tr(I18nKey::McpResetButton)()}
                 </button>
             </div>
@@ -120,7 +120,7 @@ pub fn McpSettingsPane() -> impl IntoView {
                         </span>
                     </h4>
                     <button
-                        class="blx-btn blx-btn--primary"
+                        class="workbench-mini-btn workbench-mini-btn--primary"
                         on:click=move |_| editing.set(Some(blank_server()))
                     >
                         <LxIcon icon=icondata::LuPlus width="0.85rem" height="0.85rem" />
@@ -238,7 +238,7 @@ fn McpServerRow(
                 })}
             </div>
             <div class="mcp-server-row__actions">
-                <button class="blx-btn blx-btn--ghost" on:click=on_toggle title=move || i18n.tr(I18nKey::McpEnabled)()>
+                <button class="mcp-toggle-btn" on:click=on_toggle title=move || i18n.tr(I18nKey::McpEnabled)()>
                     <span
                         class="blx-switch"
                         class:blx-switch--on=move || enabled
@@ -247,16 +247,16 @@ fn McpServerRow(
                         <span class="blx-switch__thumb" />
                     </span>
                 </button>
-                <button class="blx-btn blx-btn--ghost" on:click=on_test>
+                <button class="workbench-mini-btn workbench-mini-btn--ghost" on:click=on_test>
                     {move || i18n.tr(I18nKey::McpTest)()}
                 </button>
                 <button
-                    class="blx-btn blx-btn--ghost"
+                    class="workbench-mini-btn workbench-mini-btn--ghost"
                     on:click=move |_| on_edit.run(server_for_edit.clone())
                 >
                     {move || i18n.tr(I18nKey::McpEdit)()}
                 </button>
-                <button class="blx-btn blx-btn--ghost mcp-danger" on:click=on_remove>
+                <button class="workbench-mini-btn workbench-mini-btn--ghost mcp-danger" on:click=on_remove>
                     {move || i18n.tr(I18nKey::McpRemove)()}
                 </button>
             </div>

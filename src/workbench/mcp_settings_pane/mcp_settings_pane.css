@@ -43,9 +43,19 @@
 }
 
 .mcp-status-error {
-  color: var(--accent);
+  color: var(--danger);
   font-size: 0.8rem;
   margin-top: 0.5rem;
+}
+
+/* The enable/disable toggle is a bare clickable switch, not a bordered button. */
+.mcp-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }
 
 .mcp-reload-hint {
@@ -119,7 +129,14 @@
 }
 
 .mcp-danger {
-  color: var(--accent);
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 38%, var(--border));
+}
+
+.mcp-danger:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-surface);
 }
 
 /* --- Editor dialog --- */

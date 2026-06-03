@@ -97,7 +97,7 @@ pub fn McpServerEditor(
                 <label class="mcp-field">
                     <span class="mcp-field__label">{move || i18n.tr(I18nKey::McpName)()}</span>
                     <input
-                        class="blx-input"
+                        class="workbench-plain-input"
                         prop:value=move || name.get()
                         on:input=move |ev| name.set(input_value(&ev))
                     />
@@ -106,7 +106,7 @@ pub fn McpServerEditor(
                 <label class="mcp-field">
                     <span class="mcp-field__label">{move || i18n.tr(I18nKey::McpDescriptionField)()}</span>
                     <input
-                        class="blx-input"
+                        class="workbench-plain-input"
                         prop:value=move || description.get()
                         on:input=move |ev| description.set(input_value(&ev))
                     />
@@ -116,17 +116,17 @@ pub fn McpServerEditor(
                     <span class="mcp-field__label">{move || i18n.tr(I18nKey::McpTransport)()}</span>
                     <div class="mcp-transport-switch">
                         <button
-                            class="blx-btn"
-                            class:blx-btn--primary=move || !is_http.get()
-                            class:blx-btn--ghost=move || is_http.get()
+                            class="workbench-mini-btn"
+                            class:workbench-mini-btn--primary=move || !is_http.get()
+                            class:workbench-mini-btn--ghost=move || is_http.get()
                             on:click=move |_| is_http.set(false)
                         >
                             {move || i18n.tr(I18nKey::McpTransportStdio)()}
                         </button>
                         <button
-                            class="blx-btn"
-                            class:blx-btn--primary=move || is_http.get()
-                            class:blx-btn--ghost=move || !is_http.get()
+                            class="workbench-mini-btn"
+                            class:workbench-mini-btn--primary=move || is_http.get()
+                            class:workbench-mini-btn--ghost=move || !is_http.get()
                             on:click=move |_| is_http.set(true)
                         >
                             {move || i18n.tr(I18nKey::McpTransportHttp)()}
@@ -140,7 +140,7 @@ pub fn McpServerEditor(
                         <label class="mcp-field">
                             <span class="mcp-field__label">{move || i18n.tr(I18nKey::McpUrl)()}</span>
                             <input
-                                class="blx-input"
+                                class="workbench-plain-input"
                                 prop:value=move || url.get()
                                 on:input=move |ev| url.set(input_value(&ev))
                             />
@@ -148,7 +148,7 @@ pub fn McpServerEditor(
                         <label class="mcp-field">
                             <span class="mcp-field__label">{move || i18n.tr(I18nKey::McpHeaders)()}</span>
                             <textarea
-                                class="blx-input mcp-textarea"
+                                class="workbench-plain-input mcp-textarea"
                                 prop:value=move || headers.get()
                                 on:input=move |ev| headers.set(textarea_value(&ev))
                             />
@@ -158,7 +158,7 @@ pub fn McpServerEditor(
                     <label class="mcp-field">
                         <span class="mcp-field__label">{move || i18n.tr(I18nKey::McpCommand)()}</span>
                         <input
-                            class="blx-input"
+                            class="workbench-plain-input"
                             prop:value=move || command.get()
                             on:input=move |ev| command.set(input_value(&ev))
                         />
@@ -166,7 +166,7 @@ pub fn McpServerEditor(
                     <label class="mcp-field">
                         <span class="mcp-field__label">{move || i18n.tr(I18nKey::McpArgs)()}</span>
                         <textarea
-                            class="blx-input mcp-textarea"
+                            class="workbench-plain-input mcp-textarea"
                             prop:value=move || args.get()
                             on:input=move |ev| args.set(textarea_value(&ev))
                         />
@@ -174,7 +174,7 @@ pub fn McpServerEditor(
                     <label class="mcp-field">
                         <span class="mcp-field__label">{move || i18n.tr(I18nKey::McpEnv)()}</span>
                         <textarea
-                            class="blx-input mcp-textarea"
+                            class="workbench-plain-input mcp-textarea"
                             prop:value=move || env.get()
                             on:input=move |ev| env.set(textarea_value(&ev))
                         />
@@ -196,10 +196,10 @@ pub fn McpServerEditor(
                 </label>
 
                 <div class="mcp-editor__actions">
-                    <button class="blx-btn blx-btn--ghost" on:click=move |_| on_cancel.run(())>
+                    <button class="workbench-mini-btn workbench-mini-btn--ghost" on:click=move |_| on_cancel.run(())>
                         {move || i18n.tr(I18nKey::McpCancel)()}
                     </button>
-                    <button class="blx-btn blx-btn--primary" on:click=save>
+                    <button class="workbench-mini-btn workbench-mini-btn--primary" on:click=save>
                         {move || i18n.tr(I18nKey::BtnSave)()}
                     </button>
                 </div>
