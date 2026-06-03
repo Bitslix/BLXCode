@@ -12,8 +12,8 @@ use crate::workbench::state::{
     CreateWorkspaceDraft, HarnessSettingsCategory, HarnessUiService, WorkbenchService,
     WORKSPACE_FLEET_AGENT_SLUGS,
 };
-use crate::workbench::SessionRolePicker;
 use crate::workbench::terminal_agent_profiles::{terminal_agent_efforts, terminal_agent_models};
+use crate::workbench::SessionRolePicker;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos::task::spawn_local;

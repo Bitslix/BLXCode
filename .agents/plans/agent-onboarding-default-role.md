@@ -34,4 +34,4 @@ Add a one-time startup dialog for choosing the BLXCode Agent name and default se
 - [x] `onboarding-dialog` - Add one-time startup dialog for agent name and default role.
 - [x] `settings-role` - Add default-role picker to Agent and Workspace settings.
 - [x] `workspace-default` - Seed new Create Workspace drafts from the saved default role.
-- [>] `final-checks` - Run final checks and finish plan/index status.
+- [x] `final-checks` - Run final checks and finish plan/index status.

@@ -6,8 +6,7 @@ use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
 
-const DEFAULT_ROLE_DESC: &str =
-    "Default BLXCode Agent without a specialized harness session role.";
+const DEFAULT_ROLE_DESC: &str = "Default BLXCode Agent without a specialized harness session role.";
 
 #[component]
 pub fn SessionRolePicker(
