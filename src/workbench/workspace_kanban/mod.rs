@@ -3,9 +3,14 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     clipboard_read_text_compat, clipboard_write_text_compat, kanban_board_load,
-    kanban_export_layout, kanban_import_layout, kanban_layout_save, kanban_task_create,
-    kanban_task_delete, kanban_task_update, KanbanBoard, KanbanPlanNode, KanbanPlanState,
-    KanbanTaskCreateInput, KanbanTaskUpdatePatch,
+    kanban_export_layout, kanban_import_layout, kanban_layout_save, kanban_plan_move,
+    kanban_task_create, kanban_task_delete, kanban_task_move, kanban_task_update, KanbanBoard,
+    KanbanPlanMoveInput, KanbanPlanNode, KanbanPlanState, KanbanTaskCreateInput,
+    KanbanTaskMoveInput, KanbanTaskUpdatePatch,
+};
+use crate::workbench::kanban_dnd::{
+    is_kanban_drag, read_drag_payload, start_kanban_drag, KanbanDragKind, KanbanDragMeta,
+    KanbanDragPayload, KanbanDragService, KanbanDropTarget,
 };
 use crate::workbench::toast::{ToastKind, ToastService};
 use crate::workbench::WorkbenchService;
@@ -13,11 +18,27 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
 
+#[derive(Clone, Debug)]
+struct KanbanPlanDrop {
+    plan_path: String,
+    target_state: KanbanPlanState,
+    before_plan_path: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+struct KanbanTaskDrop {
+    plan_path: String,
+    task_id: String,
+    target_status: TaskStatus,
+    before_task_id: Option<String>,
+}
+
 #[component]
 pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
     let toast = expect_context::<ToastService>();
+    let kanban_dnd = expect_context::<KanbanDragService>();
     let board = RwSignal::<Option<KanbanBoard>>::new(None);
     let loading = RwSignal::new(false);
     let error = RwSignal::<Option<String>>::new(None);
@@ -25,7 +46,6 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
     let expanded_plans = RwSignal::new(Vec::<String>::new());
     let open_sections = RwSignal::new(Vec::<KanbanPlanState>::new());
     let open_sections_workspace = RwSignal::<Option<String>>::new(None);
-    let dragged_task = RwSignal::<Option<(String, String)>>::new(None);
     let new_task_plan = RwSignal::new(String::new());
     let new_task_title = RwSignal::new(String::new());
     let new_task_status = RwSignal::new(TaskStatus::Pending);
@@ -48,7 +68,9 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
         spawn_local(async move {
             match kanban_board_load(&ws).await {
                 Ok(next) => {
-                    if open_sections_workspace.with_untracked(|current| current.as_deref() != Some(&ws)) {
+                    if open_sections_workspace
+                        .with_untracked(|current| current.as_deref() != Some(&ws))
+                    {
                         expanded_plans.set(Vec::new());
                         open_sections.set(read_open_plan_sections(&ws));
                         open_sections_workspace.set(Some(ws.clone()));
@@ -188,8 +210,67 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
         }
     });
 
+    let move_plan = Callback::new(move |drop: KanbanPlanDrop| {
+        let Some(ws) = workspace_cwd.get_untracked() else {
+            kanban_dnd.clear();
+            return;
+        };
+        let Some(current_board) = board.get_untracked() else {
+            kanban_dnd.clear();
+            return;
+        };
+        let ordered_plan_paths = reordered_plan_paths(
+            &current_board,
+            &drop.plan_path,
+            drop.before_plan_path.as_deref(),
+        );
+        let input = KanbanPlanMoveInput {
+            plan_path: drop.plan_path,
+            target_state: drop.target_state,
+            ordered_plan_paths,
+        };
+        spawn_local(async move {
+            match kanban_plan_move(&ws, input).await {
+                Ok(next) => {
+                    board.set(Some(next));
+                    wb.bump_plans_epoch();
+                }
+                Err(err) => toast.error(format!("Plan move failed: {err}")),
+            }
+            kanban_dnd.clear();
+        });
+    });
+
+    let move_task = Callback::new(move |drop: KanbanTaskDrop| {
+        let Some(ws) = workspace_cwd.get_untracked() else {
+            kanban_dnd.clear();
+            return;
+        };
+        let input = KanbanTaskMoveInput {
+            plan_path: drop.plan_path,
+            task_id: drop.task_id,
+            target_status: drop.target_status,
+            before_task_id: drop.before_task_id,
+        };
+        spawn_local(async move {
+            match kanban_task_move(&ws, input).await {
+                Ok(_) => {
+                    wb.bump_plans_epoch();
+                    load_board();
+                }
+                Err(err) => toast.error(format!("Task move failed: {err}")),
+            }
+            kanban_dnd.clear();
+        });
+    });
+
     view! {
-        <div class="workspace-kanban" role="region" aria-label=move || i18n.tr(I18nKey::KanbanTitle)()>
+        <div
+            class="workspace-kanban"
+            class:workspace-kanban--drag-active=move || kanban_dnd.active_payload.get().is_some()
+            role="region"
+            aria-label=move || i18n.tr(I18nKey::KanbanTitle)()
+        >
             <header class="workspace-kanban__toolbar">
                 <div class="workspace-kanban__title">
                     <LxIcon icon=icondata::LuKanban width="1rem" height="1rem" />
@@ -304,13 +385,15 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
                                             .filter(|plan| plan.state == state_for_count)
                                             .count()
                                     })
+                                    workspace_id=workspace_id
                                     expanded_plans=expanded_plans
-                                    dragged_task=dragged_task
                                     workspace_cwd=workspace_cwd
                                     on_reload=Callback::new(move |()| load_board())
                                     on_expanded_change=save_expanded_plans
                                     open_sections=open_sections
                                     on_open_sections_change=save_open_sections
+                                    on_plan_drop=move_plan
+                                    on_task_drop=move_task
                                 />
                             }
                         }
@@ -326,13 +409,15 @@ fn KanbanStateSection(
     state: KanbanPlanState,
     plans: Signal<Vec<KanbanPlanNode>>,
     count: Signal<usize>,
+    workspace_id: u64,
     expanded_plans: RwSignal<Vec<String>>,
-    dragged_task: RwSignal<Option<(String, String)>>,
     workspace_cwd: Signal<Option<String>>,
     on_reload: Callback<()>,
     on_expanded_change: Callback<Vec<String>>,
     open_sections: RwSignal<Vec<KanbanPlanState>>,
     on_open_sections_change: Callback<Vec<KanbanPlanState>>,
+    on_plan_drop: Callback<KanbanPlanDrop>,
+    on_task_drop: Callback<KanbanTaskDrop>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let open_state = state.clone();
@@ -340,6 +425,7 @@ fn KanbanStateSection(
     let aria_state = state.clone();
     let show_state = state.clone();
     let label_state = state.clone();
+    let state_value = StoredValue::new(state.clone());
     view! {
         <section
             class="workspace-kanban-section"
@@ -383,18 +469,32 @@ fn KanbanStateSection(
                         <For
                             each=move || plans.get()
                             key=|plan| plan.meta.path.clone()
-                            children=move |plan| view! {
-                                <KanbanPlanCard
-                                    plan=plan
-                                    expanded_plans=expanded_plans
-                                    dragged_task=dragged_task
-                                    workspace_cwd=workspace_cwd
-                                    on_reload=on_reload
-                                    on_expanded_change=on_expanded_change
-                                />
+                            children=move |plan| {
+                                    let before_path = plan.meta.path.clone();
+                                    view! {
+                                        <KanbanPlanDropZone
+                                            state=state_value.get_value()
+                                            before_plan_path=Some(before_path)
+                                            on_plan_drop=on_plan_drop
+                                        />
+                                    <KanbanPlanCard
+                                        workspace_id=workspace_id
+                                        plan=plan
+                                        expanded_plans=expanded_plans
+                                        workspace_cwd=workspace_cwd
+                                        on_reload=on_reload
+                                        on_expanded_change=on_expanded_change
+                                        on_task_drop=on_task_drop
+                                    />
+                                }
                             }
                         />
                     </Show>
+                    <KanbanPlanDropZone
+                        state=state_value.get_value()
+                        before_plan_path=None
+                        on_plan_drop=on_plan_drop
+                    />
                 </div>
             </Show>
         </section>
@@ -555,15 +655,33 @@ fn KanbanPlanPicker(
 
 #[component]
 fn KanbanPlanCard(
+    workspace_id: u64,
     plan: KanbanPlanNode,
     expanded_plans: RwSignal<Vec<String>>,
-    dragged_task: RwSignal<Option<(String, String)>>,
     workspace_cwd: Signal<Option<String>>,
     on_reload: Callback<()>,
     on_expanded_change: Callback<Vec<String>>,
+    on_task_drop: Callback<KanbanTaskDrop>,
 ) -> impl IntoView {
+    let kanban_dnd = expect_context::<KanbanDragService>();
     let path = plan.meta.path.clone();
     let is_open = Signal::derive(move || expanded_plans.with(|items| items.contains(&path)));
+    let drag_path = plan.meta.path.clone();
+    let is_drag_source = Signal::derive({
+        let path = plan.meta.path.clone();
+        move || {
+            kanban_dnd.active_payload.get().is_some_and(|payload| {
+                payload.kind == KanbanDragKind::Plan && payload.plan_path == path
+            })
+        }
+    });
+    let is_drag_potential = Signal::derive(move || {
+        kanban_dnd
+            .active_payload
+            .get()
+            .is_some_and(|payload| payload.kind == KanbanDragKind::Plan)
+            && !is_drag_source.get()
+    });
     let plan_path_for_lanes = StoredValue::new(plan.meta.path.clone());
     let plan_tasks_for_lanes = StoredValue::new(plan.tasks.clone());
     let toggle = {
@@ -583,8 +701,46 @@ fn KanbanPlanCard(
     };
 
     view! {
-        <article class="workspace-kanban-plan" data-state=plan_state_key(&plan.state)>
+        <article
+            class="workspace-kanban-plan"
+            class:workspace-kanban-plan--drag-source=move || is_drag_source.get()
+            class:workspace-kanban-plan--drag-potential=move || is_drag_potential.get()
+            data-state=plan_state_key(&plan.state)
+        >
             <button type="button" class="workspace-kanban-plan__head" on:click=toggle>
+                <span
+                    class="workspace-kanban-plan__drag"
+                    prop:draggable=true
+                    title="Drag plan"
+                    on:dragstart={
+                        let title = plan.meta.title.clone();
+                        let subtitle = plan.meta.path.clone();
+                        let payload_path = drag_path.clone();
+                        move |ev: web_sys::DragEvent| {
+                            ev.stop_propagation();
+                            start_kanban_drag(
+                                &ev,
+                                kanban_dnd,
+                                KanbanDragPayload {
+                                    workspace_id,
+                                    kind: KanbanDragKind::Plan,
+                                    plan_path: payload_path.clone(),
+                                    task_id: None,
+                                },
+                                KanbanDragMeta {
+                                    kind: KanbanDragKind::Plan,
+                                    title: title.clone(),
+                                    subtitle: subtitle.clone(),
+                                    badge: "Plan".into(),
+                                },
+                            );
+                        }
+                    }
+                    on:drag=move |ev: web_sys::DragEvent| kanban_dnd.set_overlay_pos_from_event(&ev)
+                    on:dragend=move |_| kanban_dnd.clear()
+                >
+                    <LxIcon icon=icondata::LuGripVertical width="0.86rem" height="0.86rem" />
+                </span>
                 <LxIcon icon=icondata::LuFolderKanban width="1rem" height="1rem" />
                 <span class="workspace-kanban-plan__main">
                     <span class="workspace-kanban-plan__title">{plan.meta.title.clone()}</span>
@@ -617,9 +773,10 @@ fn KanbanPlanCard(
                                     status=status
                                     plan_path=plan_path
                                     tasks=lane_tasks
-                                    dragged_task=dragged_task
+                                    workspace_id=workspace_id
                                     workspace_cwd=workspace_cwd
                                     on_reload=on_reload
+                                    on_task_drop=on_task_drop
                                 />
                             }
                         }
@@ -635,49 +792,20 @@ fn KanbanTaskLane(
     status: TaskStatus,
     plan_path: String,
     tasks: Vec<crate::tauri_bridge::KanbanTaskCard>,
-    dragged_task: RwSignal<Option<(String, String)>>,
+    workspace_id: u64,
     workspace_cwd: Signal<Option<String>>,
     on_reload: Callback<()>,
+    on_task_drop: Callback<KanbanTaskDrop>,
 ) -> impl IntoView {
-    let wb = expect_context::<WorkbenchService>();
-    let toast = expect_context::<ToastService>();
     let i18n = expect_context::<I18nService>();
-    let status_for_drop = status.clone();
     let label_status = status.clone();
-    let plan_for_drop = plan_path.clone();
-    let on_drop = move |ev: web_sys::DragEvent| {
-        ev.prevent_default();
-        let Some((drag_plan, task_id)) = dragged_task.get_untracked() else {
-            return;
-        };
-        if drag_plan != plan_for_drop {
-            return;
-        }
-        let Some(ws) = workspace_cwd.get_untracked() else {
-            return;
-        };
-        let patch = KanbanTaskUpdatePatch {
-            title: None,
-            status: Some(status_for_drop.clone()),
-        };
-        spawn_local(async move {
-            match kanban_task_update(&ws, &drag_plan, &task_id, patch).await {
-                Ok(_) => {
-                    wb.bump_plans_epoch();
-                    on_reload.run(());
-                }
-                Err(err) => toast.error(format!("Task update failed: {err}")),
-            }
-        });
-        dragged_task.set(None);
-    };
+    let plan_value = StoredValue::new(plan_path.clone());
+    let status_value = StoredValue::new(status.clone());
 
     view! {
         <section
             class="workspace-kanban-lane"
             data-status=task_status_key(&status)
-            on:dragover=move |ev| ev.prevent_default()
-            on:drop=on_drop
         >
             <header class="workspace-kanban-lane__head">
                 <LxIcon icon=task_status_icon(&status) width="0.9rem" height="0.9rem" />
@@ -688,14 +816,29 @@ fn KanbanTaskLane(
                 <For
                     each=move || tasks.clone()
                     key=|task| task.id.clone()
-                    children=move |task| view! {
-                        <KanbanTaskCardView
-                            task=task
-                            dragged_task=dragged_task
-                            workspace_cwd=workspace_cwd
-                            on_reload=on_reload
-                        />
+                    children=move |task| {
+                        let before_task_id = task.id.clone();
+                        view! {
+                            <KanbanTaskDropZone
+                                plan_path=plan_value.get_value()
+                                status=status_value.get_value()
+                                before_task_id=Some(before_task_id)
+                                on_task_drop=on_task_drop
+                            />
+                            <KanbanTaskCardView
+                                workspace_id=workspace_id
+                                task=task
+                                workspace_cwd=workspace_cwd
+                                on_reload=on_reload
+                            />
+                        }
                     }
+                />
+                <KanbanTaskDropZone
+                    plan_path=plan_value.get_value()
+                    status=status_value.get_value()
+                    before_task_id=None
+                    on_task_drop=on_task_drop
                 />
             </div>
         </section>
@@ -704,16 +847,33 @@ fn KanbanTaskLane(
 
 #[component]
 fn KanbanTaskCardView(
+    workspace_id: u64,
     task: crate::tauri_bridge::KanbanTaskCard,
-    dragged_task: RwSignal<Option<(String, String)>>,
     workspace_cwd: Signal<Option<String>>,
     on_reload: Callback<()>,
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let toast = expect_context::<ToastService>();
+    let kanban_dnd = expect_context::<KanbanDragService>();
     let editing = RwSignal::new(false);
     let draft = RwSignal::new(task.title.clone());
+    let task_title = StoredValue::new(task.title.clone());
     let task_for_drag = task.clone();
+    let is_drag_source = Signal::derive({
+        let task = task.clone();
+        move || {
+            kanban_dnd.active_payload.get().is_some_and(|payload| {
+                payload.kind == KanbanDragKind::Task
+                    && payload.plan_path == task.plan_path
+                    && payload.task_id.as_deref() == Some(task.id.as_str())
+            })
+        }
+    });
+    let is_drag_potential = Signal::derive(move || {
+        kanban_dnd.active_payload.get().is_some_and(|payload| {
+            payload.kind == KanbanDragKind::Task && payload.plan_path == task_for_drag.plan_path
+        }) && !is_drag_source.get()
+    });
     let delete_task = {
         let task = task.clone();
         move |_| {
@@ -771,11 +931,8 @@ fn KanbanTaskCardView(
     view! {
         <article
             class="workspace-kanban-task"
-            draggable="true"
-            on:dragstart=move |_| {
-                dragged_task.set(Some((task_for_drag.plan_path.clone(), task_for_drag.id.clone())));
-            }
-            on:dragend=move |_| dragged_task.set(None)
+            class:workspace-kanban-task--drag-source=move || is_drag_source.get()
+            class:workspace-kanban-task--drag-potential=move || is_drag_potential.get()
         >
             <Show
                 when=move || editing.get()
@@ -785,7 +942,7 @@ fn KanbanTaskCardView(
                         class="workspace-kanban-task__title"
                         on:dblclick=move |_| editing.set(true)
                     >
-                        {task.title.clone()}
+                        {task_title.get_value()}
                     </button>
                 }
             >
@@ -803,6 +960,37 @@ fn KanbanTaskCardView(
                 />
             </Show>
             <footer class="workspace-kanban-task__foot">
+                <span
+                    class="workspace-kanban-task__drag"
+                    prop:draggable=true
+                    title="Drag task"
+                    on:dragstart={
+                        let task = task.clone();
+                        move |ev: web_sys::DragEvent| {
+                            ev.stop_propagation();
+                            start_kanban_drag(
+                                &ev,
+                                kanban_dnd,
+                                KanbanDragPayload {
+                                    workspace_id,
+                                    kind: KanbanDragKind::Task,
+                                    plan_path: task.plan_path.clone(),
+                                    task_id: Some(task.id.clone()),
+                                },
+                                KanbanDragMeta {
+                                    kind: KanbanDragKind::Task,
+                                    title: task.title.clone(),
+                                    subtitle: task.plan_path.clone(),
+                                    badge: task.id.clone(),
+                                },
+                            );
+                        }
+                    }
+                    on:drag=move |ev: web_sys::DragEvent| kanban_dnd.set_overlay_pos_from_event(&ev)
+                    on:dragend=move |_| kanban_dnd.clear()
+                >
+                    <LxIcon icon=icondata::LuGripVertical width="0.78rem" height="0.78rem" />
+                </span>
                 <span>{task.id.clone()}</span>
                 {task.runtime_task_id.as_ref().map(|runtime_id| view! {
                     <span title=runtime_id.clone()>{runtime_id.clone()}</span>
@@ -816,6 +1004,270 @@ fn KanbanTaskCardView(
             </footer>
         </article>
     }
+}
+
+#[component]
+fn KanbanPlanDropZone(
+    state: KanbanPlanState,
+    before_plan_path: Option<String>,
+    on_plan_drop: Callback<KanbanPlanDrop>,
+) -> impl IntoView {
+    let kanban_dnd = expect_context::<KanbanDragService>();
+    let state_value = StoredValue::new(state);
+    let before_value = StoredValue::new(before_plan_path);
+    let active = Signal::derive(move || {
+        let before_plan_path = before_value.get_value();
+        kanban_dnd.active_payload.get().is_some_and(|payload| {
+            payload.kind == KanbanDragKind::Plan
+                && before_plan_path.as_deref() != Some(payload.plan_path.as_str())
+        })
+    });
+    let over = Signal::derive(move || {
+        kanban_dnd.ghost.get().as_ref()
+            == Some(&KanbanDropTarget::Plan {
+                state: state_value.get_value(),
+                before_plan_path: before_value.get_value(),
+            })
+    });
+
+    view! {
+        <div
+            class="workspace-kanban-drop-zone workspace-kanban-drop-zone--plan"
+            class:workspace-kanban-drop-zone--active=move || active.get()
+            class:workspace-kanban-drop-zone--over=move || over.get()
+            on:dragenter=move |ev: web_sys::DragEvent| {
+                let before_plan_path = before_value.get_value();
+                if accepts_plan_drop(kanban_dnd, &ev, before_plan_path.as_deref()) {
+                    ev.prevent_default();
+                    kanban_dnd.ghost.set(Some(KanbanDropTarget::Plan {
+                        state: state_value.get_value(),
+                        before_plan_path,
+                    }));
+                }
+            }
+            on:dragover=move |ev: web_sys::DragEvent| {
+                let before_plan_path = before_value.get_value();
+                if accepts_plan_drop(kanban_dnd, &ev, before_plan_path.as_deref()) {
+                    ev.prevent_default();
+                    if let Some(dt) = ev.data_transfer() {
+                        let _ = dt.set_drop_effect("move");
+                    }
+                    kanban_dnd.set_overlay_pos_from_event(&ev);
+                    kanban_dnd.ghost.set(Some(KanbanDropTarget::Plan {
+                        state: state_value.get_value(),
+                        before_plan_path,
+                    }));
+                }
+            }
+            on:dragleave=move |ev: web_sys::DragEvent| {
+                ev.prevent_default();
+                if kanban_dnd.ghost.get_untracked().as_ref()
+                    == Some(&KanbanDropTarget::Plan {
+                        state: state_value.get_value(),
+                        before_plan_path: before_value.get_value(),
+                    })
+                {
+                    kanban_dnd.ghost.set(None);
+                }
+            }
+            on:drop=move |ev: web_sys::DragEvent| {
+                ev.prevent_default();
+                ev.stop_propagation();
+                let payload = ev
+                    .data_transfer()
+                    .and_then(|dt| read_drag_payload(&dt))
+                    .or_else(|| kanban_dnd.active_payload.get_untracked());
+                if let Some(payload) = payload.filter(|p| p.kind == KanbanDragKind::Plan) {
+                    let before_plan_path = before_value.get_value();
+                    if before_plan_path.as_deref() != Some(payload.plan_path.as_str()) {
+                        on_plan_drop.run(KanbanPlanDrop {
+                            plan_path: payload.plan_path,
+                            target_state: state_value.get_value(),
+                            before_plan_path,
+                        });
+                        return;
+                    }
+                }
+                kanban_dnd.clear();
+            }
+        >
+            <span class="workspace-kanban-drop-zone__line"></span>
+            <span class="workspace-kanban-drop-zone__label">"Drop plan"</span>
+        </div>
+    }
+}
+
+#[component]
+fn KanbanTaskDropZone(
+    plan_path: String,
+    status: TaskStatus,
+    before_task_id: Option<String>,
+    on_task_drop: Callback<KanbanTaskDrop>,
+) -> impl IntoView {
+    let kanban_dnd = expect_context::<KanbanDragService>();
+    let plan_value = StoredValue::new(plan_path);
+    let status_value = StoredValue::new(status);
+    let before_value = StoredValue::new(before_task_id);
+    let active = Signal::derive(move || {
+        let plan_path = plan_value.get_value();
+        let before_task_id = before_value.get_value();
+        kanban_dnd.active_payload.get().is_some_and(|payload| {
+            payload.kind == KanbanDragKind::Task
+                && payload.plan_path == plan_path
+                && before_task_id.as_deref() != payload.task_id.as_deref()
+        })
+    });
+    let over = Signal::derive(move || {
+        kanban_dnd.ghost.get().as_ref()
+            == Some(&KanbanDropTarget::Task {
+                plan_path: plan_value.get_value(),
+                status: status_value.get_value(),
+                before_task_id: before_value.get_value(),
+            })
+    });
+
+    view! {
+        <div
+            class="workspace-kanban-drop-zone workspace-kanban-drop-zone--task"
+            class:workspace-kanban-drop-zone--active=move || active.get()
+            class:workspace-kanban-drop-zone--over=move || over.get()
+            on:dragenter=move |ev: web_sys::DragEvent| {
+                let plan_path = plan_value.get_value();
+                let before_task_id = before_value.get_value();
+                if accepts_task_drop(kanban_dnd, &ev, &plan_path, before_task_id.as_deref()) {
+                    ev.prevent_default();
+                    kanban_dnd.ghost.set(Some(KanbanDropTarget::Task {
+                        plan_path,
+                        status: status_value.get_value(),
+                        before_task_id,
+                    }));
+                }
+            }
+            on:dragover=move |ev: web_sys::DragEvent| {
+                let plan_path = plan_value.get_value();
+                let before_task_id = before_value.get_value();
+                if accepts_task_drop(kanban_dnd, &ev, &plan_path, before_task_id.as_deref()) {
+                    ev.prevent_default();
+                    if let Some(dt) = ev.data_transfer() {
+                        let _ = dt.set_drop_effect("move");
+                    }
+                    kanban_dnd.set_overlay_pos_from_event(&ev);
+                    kanban_dnd.ghost.set(Some(KanbanDropTarget::Task {
+                        plan_path,
+                        status: status_value.get_value(),
+                        before_task_id,
+                    }));
+                }
+            }
+            on:dragleave=move |ev: web_sys::DragEvent| {
+                ev.prevent_default();
+                if kanban_dnd.ghost.get_untracked().as_ref()
+                    == Some(&KanbanDropTarget::Task {
+                        plan_path: plan_value.get_value(),
+                        status: status_value.get_value(),
+                        before_task_id: before_value.get_value(),
+                    })
+                {
+                    kanban_dnd.ghost.set(None);
+                }
+            }
+            on:drop=move |ev: web_sys::DragEvent| {
+                ev.prevent_default();
+                ev.stop_propagation();
+                let payload = ev
+                    .data_transfer()
+                    .and_then(|dt| read_drag_payload(&dt))
+                    .or_else(|| kanban_dnd.active_payload.get_untracked());
+                let plan_path = plan_value.get_value();
+                let before_task_id = before_value.get_value();
+                if let Some(payload) = payload.filter(|p| {
+                    p.kind == KanbanDragKind::Task
+                        && p.plan_path == plan_path
+                        && before_task_id.as_deref() != p.task_id.as_deref()
+                }) {
+                    if let Some(task_id) = payload.task_id {
+                        on_task_drop.run(KanbanTaskDrop {
+                            plan_path: payload.plan_path,
+                            task_id,
+                            target_status: status_value.get_value(),
+                            before_task_id,
+                        });
+                        return;
+                    }
+                }
+                kanban_dnd.clear();
+            }
+        >
+            <span class="workspace-kanban-drop-zone__line"></span>
+            <span class="workspace-kanban-drop-zone__label">"Drop task"</span>
+        </div>
+    }
+}
+
+fn accepts_plan_drop(
+    kanban_dnd: KanbanDragService,
+    ev: &web_sys::DragEvent,
+    before_plan_path: Option<&str>,
+) -> bool {
+    let is_drag =
+        kanban_dnd.session_active() || ev.data_transfer().as_ref().is_some_and(is_kanban_drag);
+    if !is_drag {
+        return false;
+    }
+    let payload = kanban_dnd
+        .active_payload
+        .get_untracked()
+        .or_else(|| ev.data_transfer().and_then(|dt| read_drag_payload(&dt)));
+    match payload {
+        Some(payload) => {
+            payload.kind == KanbanDragKind::Plan
+                && before_plan_path != Some(payload.plan_path.as_str())
+        }
+        None => true,
+    }
+}
+
+fn accepts_task_drop(
+    kanban_dnd: KanbanDragService,
+    ev: &web_sys::DragEvent,
+    plan_path: &str,
+    before_task_id: Option<&str>,
+) -> bool {
+    let is_drag =
+        kanban_dnd.session_active() || ev.data_transfer().as_ref().is_some_and(is_kanban_drag);
+    if !is_drag {
+        return false;
+    }
+    let payload = kanban_dnd
+        .active_payload
+        .get_untracked()
+        .or_else(|| ev.data_transfer().and_then(|dt| read_drag_payload(&dt)));
+    match payload {
+        Some(payload) => {
+            payload.kind == KanbanDragKind::Task
+                && payload.plan_path == plan_path
+                && before_task_id != payload.task_id.as_deref()
+        }
+        None => true,
+    }
+}
+
+fn reordered_plan_paths(
+    board: &KanbanBoard,
+    dragged_path: &str,
+    before_plan_path: Option<&str>,
+) -> Vec<String> {
+    let mut paths = board
+        .plans
+        .iter()
+        .map(|plan| plan.meta.path.clone())
+        .filter(|path| path != dragged_path)
+        .collect::<Vec<_>>();
+    let insert_idx = before_plan_path
+        .and_then(|before| paths.iter().position(|path| path == before))
+        .unwrap_or(paths.len());
+    paths.insert(insert_idx, dragged_path.to_owned());
+    paths
 }
 
 fn plan_states() -> Vec<KanbanPlanState> {
@@ -835,9 +1287,7 @@ fn open_plan_sections_storage_key(workspace_cwd: &str) -> String {
 
 fn read_open_plan_sections(workspace_cwd: &str) -> Vec<KanbanPlanState> {
     let key = open_plan_sections_storage_key(workspace_cwd);
-    let Some(storage) = web_sys::window()
-        .and_then(|w| w.local_storage().ok().flatten())
-    else {
+    let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) else {
         return vec![KanbanPlanState::InProgress];
     };
     match storage.get_item(&key).ok().flatten() {
@@ -850,9 +1300,7 @@ fn read_open_plan_sections(workspace_cwd: &str) -> Vec<KanbanPlanState> {
 }
 
 fn write_open_plan_sections(workspace_cwd: &str, sections: &[KanbanPlanState]) {
-    let Some(storage) = web_sys::window()
-        .and_then(|w| w.local_storage().ok().flatten())
-    else {
+    let Some(storage) = web_sys::window().and_then(|w| w.local_storage().ok().flatten()) else {
         return;
     };
     let raw = sections

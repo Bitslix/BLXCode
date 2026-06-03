@@ -11,8 +11,8 @@
   ],
   "collapsedPlanSections": [],
   "expandedPlans": [
-    "leptos-to-typescript-migration.md",
-    "theme-roundings-and-font.md"
+    "agent-plan-status-lifecycle.md",
+    "ai-plan-task-generation.md"
   ],
   "taskLaneOrder": [
     "pending",
@@ -30,5 +30,5 @@
     "showCancelled": true,
     "activeOnly": false
   },
-  "updatedAt": 1780504427
+  "updatedAt": 1780505484
 }

@@ -32,6 +32,8 @@ mod harness_ui;
 mod harness_voice_pane;
 mod hook_install_dialog;
 mod hook_status;
+mod kanban_dnd;
+mod kanban_drag_overlay;
 mod mcp_settings_pane;
 mod memory_graph;
 mod memory_panel;
@@ -124,6 +126,8 @@ use context_drag_overlay::ContextDragOverlay;
 use gloo_timers::future::TimeoutFuture;
 use harness_ui::HarnessHost;
 use js_sys;
+use kanban_dnd::KanbanDragService;
+use kanban_drag_overlay::KanbanDragOverlay;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use post_update_notes::{PostUpdateNotesDialog, PostUpdateNotesService};
@@ -273,6 +277,7 @@ pub fn WorkbenchShell() -> impl IntoView {
     let hook_install = expect_context::<HookInstallDialogService>();
     let slot_dnd = TerminalSlotDragService::new();
     let context_dnd = ContextDragService::new();
+    let kanban_dnd = KanbanDragService::new();
     let git_sync = git_sync_controls::GitSyncControls::new();
 
     provide_context(harness);
@@ -283,6 +288,7 @@ pub fn WorkbenchShell() -> impl IntoView {
     provide_context(post_update_notes);
     provide_context(slot_dnd);
     provide_context(context_dnd);
+    provide_context(kanban_dnd);
     provide_context(git_sync);
 
     Effect::new(move |_| {
@@ -935,6 +941,7 @@ pub fn WorkbenchShell() -> impl IntoView {
             <ToastHost />
             <TerminalSlotDragOverlay />
             <ContextDragOverlay />
+            <KanbanDragOverlay />
         </Show>
     }
 }

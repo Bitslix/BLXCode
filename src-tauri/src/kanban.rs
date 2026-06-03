@@ -103,6 +103,25 @@ pub struct KanbanTaskUpdatePatch {
     pub status: Option<TaskStatus>,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanPlanMoveInput {
+    pub plan_path: String,
+    pub target_state: KanbanPlanState,
+    #[serde(default)]
+    pub ordered_plan_paths: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanTaskMoveInput {
+    pub plan_path: String,
+    pub task_id: String,
+    pub target_status: TaskStatus,
+    #[serde(default)]
+    pub before_task_id: Option<String>,
+}
+
 fn now_secs() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -330,6 +349,141 @@ fn write_plan_tasks(
     Ok(())
 }
 
+fn sync_runtime_task(
+    workspace_cwd: &str,
+    plan_path: &str,
+    task_id: &str,
+    title: Option<String>,
+    status: Option<TaskStatus>,
+) {
+    let Some(runtime_id) = runtime_task_map(workspace_cwd)
+        .get(&(plan_path.to_owned(), task_id.to_owned()))
+        .cloned()
+    else {
+        return;
+    };
+    let _ = tasks::tasks_update_inner(
+        workspace_cwd,
+        &runtime_id,
+        TaskUpdatePatch {
+            title,
+            description: None,
+            status,
+            parent_id: None,
+            notes: None,
+        },
+    );
+}
+
+fn first_task_index(tasks: &[PlanTask]) -> Result<usize, String> {
+    if tasks.is_empty() {
+        Err("empty plans cannot be moved to a non-empty kanban state".into())
+    } else {
+        Ok(0)
+    }
+}
+
+fn apply_minimal_plan_state(
+    tasks: &mut [PlanTask],
+    target: &KanbanPlanState,
+) -> Result<Vec<(String, TaskStatus)>, String> {
+    let mut changed = Vec::new();
+    let mut set_status = |tasks: &mut [PlanTask], idx: usize, status: TaskStatus| {
+        if tasks[idx].status != status {
+            tasks[idx].status = status.clone();
+            changed.push((tasks[idx].id.clone(), status));
+        }
+    };
+
+    match target {
+        KanbanPlanState::Blocked => {
+            if !tasks
+                .iter()
+                .any(|task| matches!(task.status, TaskStatus::Blocked))
+            {
+                let idx = first_task_index(tasks)?;
+                set_status(tasks, idx, TaskStatus::Blocked);
+            }
+        }
+        KanbanPlanState::InProgress => {
+            for idx in 0..tasks.len() {
+                if matches!(tasks[idx].status, TaskStatus::Blocked) {
+                    set_status(tasks, idx, TaskStatus::Pending);
+                }
+            }
+            if !tasks
+                .iter()
+                .any(|task| matches!(task.status, TaskStatus::InProgress))
+            {
+                let idx = tasks
+                    .iter()
+                    .position(|task| matches!(task.status, TaskStatus::Pending))
+                    .unwrap_or(first_task_index(tasks)?);
+                set_status(tasks, idx, TaskStatus::InProgress);
+            }
+        }
+        KanbanPlanState::Pending => {
+            for idx in 0..tasks.len() {
+                if matches!(
+                    tasks[idx].status,
+                    TaskStatus::Blocked | TaskStatus::InProgress
+                ) {
+                    set_status(tasks, idx, TaskStatus::Pending);
+                }
+            }
+            if !tasks
+                .iter()
+                .any(|task| matches!(task.status, TaskStatus::Pending))
+            {
+                let idx = first_task_index(tasks)?;
+                set_status(tasks, idx, TaskStatus::Pending);
+            }
+        }
+        KanbanPlanState::Completed => {
+            for idx in 0..tasks.len() {
+                if matches!(
+                    tasks[idx].status,
+                    TaskStatus::Blocked | TaskStatus::InProgress | TaskStatus::Pending
+                ) {
+                    set_status(tasks, idx, TaskStatus::Completed);
+                }
+            }
+            if !tasks
+                .iter()
+                .any(|task| matches!(task.status, TaskStatus::Completed))
+            {
+                let idx = first_task_index(tasks)?;
+                set_status(tasks, idx, TaskStatus::Completed);
+            }
+        }
+        KanbanPlanState::Cancelled => {
+            for idx in 0..tasks.len() {
+                set_status(tasks, idx, TaskStatus::Cancelled);
+            }
+        }
+        KanbanPlanState::Empty => {
+            if !tasks.is_empty() {
+                return Err("non-empty plans cannot be moved to the empty kanban state".into());
+            }
+        }
+    }
+    Ok(changed)
+}
+
+fn save_plan_order(
+    workspace_cwd: &str,
+    ordered_plan_paths: Vec<String>,
+) -> Result<KanbanLayout, String> {
+    let root = kanban_root(workspace_cwd)?;
+    let mut layout = load_layout(&root, workspace_cwd)?;
+    let mut next = BTreeMap::new();
+    for (idx, path) in ordered_plan_paths.into_iter().enumerate() {
+        next.entry(path).or_insert(idx as u32);
+    }
+    layout.plan_order = next;
+    write_layout(&root, layout, workspace_cwd)
+}
+
 fn next_plan_task_id(tasks: &[PlanTask], title: &str) -> String {
     let slug = title
         .chars()
@@ -412,22 +566,7 @@ pub fn kanban_task_update_inner(
     }
     let updated = task.clone();
     write_plan_tasks(workspace_cwd, plan_path, &body, &tasks)?;
-    if let Some(runtime_id) = runtime_task_map(workspace_cwd)
-        .get(&(plan_path.to_owned(), task_id.to_owned()))
-        .cloned()
-    {
-        let _ = tasks::tasks_update_inner(
-            workspace_cwd,
-            &runtime_id,
-            TaskUpdatePatch {
-                title: patch.title,
-                description: None,
-                status: patch.status,
-                parent_id: None,
-                notes: None,
-            },
-        );
-    }
+    sync_runtime_task(workspace_cwd, plan_path, task_id, patch.title, patch.status);
     Ok(KanbanTaskCard {
         plan_path: plan_path.to_owned(),
         id: updated.id,
@@ -451,6 +590,65 @@ pub fn kanban_task_delete_inner(
         return Err(format!("task not found: {task_id}"));
     }
     write_plan_tasks(workspace_cwd, plan_path, &body, &tasks)
+}
+
+pub fn kanban_plan_move_inner(
+    workspace_cwd: &str,
+    input: KanbanPlanMoveInput,
+) -> Result<KanbanBoard, String> {
+    let (body, mut tasks) = read_plan_tasks(workspace_cwd, &input.plan_path)?;
+    let changed = apply_minimal_plan_state(&mut tasks, &input.target_state)?;
+    write_plan_tasks(workspace_cwd, &input.plan_path, &body, &tasks)?;
+    for (task_id, status) in changed {
+        sync_runtime_task(
+            workspace_cwd,
+            &input.plan_path,
+            &task_id,
+            None,
+            Some(status),
+        );
+    }
+    save_plan_order(workspace_cwd, input.ordered_plan_paths)?;
+    kanban_board_load_inner(workspace_cwd)
+}
+
+pub fn kanban_task_move_inner(
+    workspace_cwd: &str,
+    input: KanbanTaskMoveInput,
+) -> Result<KanbanTaskCard, String> {
+    let (body, mut tasks) = read_plan_tasks(workspace_cwd, &input.plan_path)?;
+    let Some(source_idx) = tasks.iter().position(|task| task.id == input.task_id) else {
+        return Err(format!("task not found: {}", input.task_id));
+    };
+    let mut task = tasks.remove(source_idx);
+    task.status = input.target_status.clone();
+    let insert_idx = match input.before_task_id.as_deref() {
+        Some(before_id) if before_id == input.task_id => source_idx.min(tasks.len()),
+        Some(before_id) => tasks
+            .iter()
+            .position(|task| task.id == before_id)
+            .ok_or_else(|| format!("target task not found: {before_id}"))?,
+        None => tasks.len(),
+    };
+    tasks.insert(insert_idx, task.clone());
+    write_plan_tasks(workspace_cwd, &input.plan_path, &body, &tasks)?;
+    sync_runtime_task(
+        workspace_cwd,
+        &input.plan_path,
+        &input.task_id,
+        None,
+        Some(input.target_status),
+    );
+    let runtime_task_id = runtime_task_map(workspace_cwd)
+        .get(&(input.plan_path.clone(), input.task_id.clone()))
+        .cloned();
+    Ok(KanbanTaskCard {
+        plan_path: input.plan_path,
+        id: task.id,
+        title: task.title,
+        status: task.status,
+        runtime_task_id,
+    })
 }
 
 #[tauri::command]
@@ -494,6 +692,22 @@ pub async fn kanban_task_delete(
     task_id: String,
 ) -> Result<(), String> {
     proc::run_blocking(move || kanban_task_delete_inner(&workspace_cwd, &plan_path, &task_id)).await
+}
+
+#[tauri::command]
+pub async fn kanban_plan_move(
+    workspace_cwd: String,
+    input: KanbanPlanMoveInput,
+) -> Result<KanbanBoard, String> {
+    proc::run_blocking(move || kanban_plan_move_inner(&workspace_cwd, input)).await
+}
+
+#[tauri::command]
+pub async fn kanban_task_move(
+    workspace_cwd: String,
+    input: KanbanTaskMoveInput,
+) -> Result<KanbanTaskCard, String> {
+    proc::run_blocking(move || kanban_task_move_inner(&workspace_cwd, input)).await
 }
 
 #[tauri::command]
@@ -577,5 +791,108 @@ mod tests {
         kanban_task_delete_inner(&cwd, "demo.md", &card.id).unwrap();
         let body = plans::plan_read_inner(&cwd, "demo.md").unwrap().content;
         assert!(!body.contains("wire-board"));
+    }
+
+    #[test]
+    fn plan_move_minimally_changes_statuses_and_persists_order() {
+        let ws = temp_ws("plan_move");
+        let cwd = ws.to_string_lossy().to_string();
+        plans::plan_create_inner(
+            &cwd,
+            "demo.md",
+            Some("# Demo\n\n## Tasks\n\n- [!] `a` - Blocked\n- [x] `b` - Done\n"),
+        )
+        .unwrap();
+        plans::plan_create_inner(&cwd, "other.md", Some("# Other\n\n## Tasks\n\n")).unwrap();
+
+        let board = kanban_plan_move_inner(
+            &cwd,
+            KanbanPlanMoveInput {
+                plan_path: "demo.md".into(),
+                target_state: KanbanPlanState::InProgress,
+                ordered_plan_paths: vec!["other.md".into(), "demo.md".into()],
+            },
+        )
+        .unwrap();
+
+        let body = plans::plan_read_inner(&cwd, "demo.md").unwrap().content;
+        assert!(body.contains("- [>] `a` - Blocked"));
+        assert!(body.contains("- [x] `b` - Done"));
+        assert_eq!(
+            board
+                .layout
+                .plan_order
+                .get("other.md")
+                .copied()
+                .unwrap_or_default(),
+            0
+        );
+        assert_eq!(
+            board
+                .layout
+                .plan_order
+                .get("demo.md")
+                .copied()
+                .unwrap_or_default(),
+            1
+        );
+    }
+
+    #[test]
+    fn plan_move_rejects_non_empty_plan_to_empty_state() {
+        let ws = temp_ws("plan_move_empty");
+        let cwd = ws.to_string_lossy().to_string();
+        plans::plan_create_inner(
+            &cwd,
+            "demo.md",
+            Some("# Demo\n\n## Tasks\n\n- [ ] `a` - One\n"),
+        )
+        .unwrap();
+
+        let err = kanban_plan_move_inner(
+            &cwd,
+            KanbanPlanMoveInput {
+                plan_path: "demo.md".into(),
+                target_state: KanbanPlanState::Empty,
+                ordered_plan_paths: vec!["demo.md".into()],
+            },
+        )
+        .unwrap_err();
+
+        assert!(err.contains("non-empty plans cannot be moved"));
+    }
+
+    #[test]
+    fn task_move_changes_status_and_markdown_order() {
+        let ws = temp_ws("task_move");
+        let cwd = ws.to_string_lossy().to_string();
+        plans::plan_create_inner(
+            &cwd,
+            "demo.md",
+            Some(
+                "# Demo\n\n## Summary\n\nKeep me.\n\n## Tasks\n\n- [ ] `a` - One\n- [ ] `b` - Two\n- [x] `c` - Three\n\n## Notes\n\nStill here.\n",
+            ),
+        )
+        .unwrap();
+
+        kanban_task_move_inner(
+            &cwd,
+            KanbanTaskMoveInput {
+                plan_path: "demo.md".into(),
+                task_id: "c".into(),
+                target_status: TaskStatus::Pending,
+                before_task_id: Some("b".into()),
+            },
+        )
+        .unwrap();
+
+        let body = plans::plan_read_inner(&cwd, "demo.md").unwrap().content;
+        let a = body.find("`a`").unwrap();
+        let c = body.find("`c`").unwrap();
+        let b = body.find("`b`").unwrap();
+        assert!(a < c && c < b);
+        assert!(body.contains("- [ ] `c` - Three"));
+        assert!(body.contains("## Summary\n\nKeep me."));
+        assert!(body.contains("## Notes\n\nStill here."));
     }
 }

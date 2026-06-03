@@ -3096,6 +3096,24 @@ pub struct KanbanTaskUpdatePatch {
     pub status: Option<TaskStatus>,
 }
 
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanPlanMoveInput {
+    pub plan_path: String,
+    pub target_state: KanbanPlanState,
+    pub ordered_plan_paths: Vec<String>,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanTaskMoveInput {
+    pub plan_path: String,
+    pub task_id: String,
+    pub target_status: TaskStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub before_task_id: Option<String>,
+}
+
 pub async fn kanban_board_load(ws: &str) -> Result<KanbanBoard, String> {
     invoke_typed("kanban_board_load", WsArg { workspace_cwd: ws }).await
 }
@@ -3178,6 +3196,43 @@ pub async fn kanban_task_delete(ws: &str, plan_path: &str, task_id: &str) -> Res
             plan_path,
             task_id,
         })?,
+    )
+    .await
+}
+
+pub async fn kanban_plan_move(ws: &str, input: KanbanPlanMoveInput) -> Result<KanbanBoard, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        input: KanbanPlanMoveInput,
+    }
+    invoke_typed(
+        "kanban_plan_move",
+        A {
+            workspace_cwd: ws,
+            input,
+        },
+    )
+    .await
+}
+
+pub async fn kanban_task_move(
+    ws: &str,
+    input: KanbanTaskMoveInput,
+) -> Result<KanbanTaskCard, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        input: KanbanTaskMoveInput,
+    }
+    invoke_typed(
+        "kanban_task_move",
+        A {
+            workspace_cwd: ws,
+            input,
+        },
     )
     .await
 }

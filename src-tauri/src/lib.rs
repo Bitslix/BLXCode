@@ -342,6 +342,8 @@ pub fn run() {
             kanban::kanban_task_create,
             kanban::kanban_task_update,
             kanban::kanban_task_delete,
+            kanban::kanban_plan_move,
+            kanban::kanban_task_move,
             kanban::kanban_export_layout,
             kanban::kanban_import_layout,
             agent::plan_ai::plan_generate_ai,
