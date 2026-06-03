@@ -10,9 +10,7 @@
     "empty"
   ],
   "collapsedPlanSections": [],
-  "expandedPlans": [
-    "kanban-board-view/plan.md"
-  ],
+  "expandedPlans": [],
   "taskLaneOrder": [
     "pending",
     "in_progress",
@@ -43,5 +41,5 @@
     "showCancelled": true,
     "activeOnly": false
   },
-  "updatedAt": 1780527474
+  "updatedAt": 1780527551
 }
