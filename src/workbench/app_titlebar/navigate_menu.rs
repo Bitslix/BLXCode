@@ -69,6 +69,12 @@ pub fn NavigateMenu() -> impl IntoView {
         }
         open.set(false);
     };
+    let open_kanban = move |_| {
+        if let Some(id) = wb.active_id().get_untracked() {
+            wb.open_center_kanban_tab(id);
+        }
+        open.set(false);
+    };
     let new_terminal = move |_| {
         if let Some(id) = wb.active_id().get_untracked() {
             let _ = wb.append_terminal_slot(id, None);
@@ -149,6 +155,23 @@ pub fn NavigateMenu() -> impl IntoView {
                         </span>
                     </button>
                     <div class="app-titlebar__menu-sep" role="separator"></div>
+                    <button
+                        type="button"
+                        class="app-titlebar__menu-item"
+                        role="menuitem"
+                        disabled=move || !has_workspace()
+                        on:click=open_kanban
+                    >
+                        <LxIcon icon=icondata::LuKanban width="0.95rem" height="0.95rem" />
+                        <span class="app-titlebar__menu-item-label">
+                            <span>{move || i18n.tr(I18nKey::KanbanTitle)()}</span>
+                            <Show when=move || active_workspace_label.get().is_some()>
+                                <span class="app-titlebar__menu-item-workspace">
+                                    {move || active_workspace_label.get().map(|title| format!("({title})"))}
+                                </span>
+                            </Show>
+                        </span>
+                    </button>
                     <button
                         type="button"
                         class="app-titlebar__menu-item"

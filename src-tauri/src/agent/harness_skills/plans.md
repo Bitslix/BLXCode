@@ -38,6 +38,28 @@ Syncs the plan's `## Tasks` (or `## Todos`) section into the task manager. Also 
 ### `plan_sync_from_tasks { path }`
 Writes the current plan-linked task state back into the plan Markdown. Use after reordering or batch-status-changing plan tasks via `task_*` tools.
 
+## Workspace Multi-Kanban
+
+Kanban is a workspace center-tab view over the same durable plans. It stores only layout metadata under `.agents/kanban/`; plan and task content stays in `.agents/plans/*.md`.
+
+### `kanban_board_load`
+Loads the board: non-index plans, derived plan states, parsed plan tasks, runtime task links, and layout metadata.
+
+### `kanban_layout_save { layout }`
+Saves layout metadata only. Never use it to store plan bodies or task text.
+
+### `kanban_task_create { planPath, title, status? }`
+Appends a canonical task line to the plan's `## Tasks` section.
+
+### `kanban_task_update { planPath, taskId, title?, status? }`
+Updates one task line in plan Markdown. Status values are `pending`, `in_progress`, `blocked`, `completed`, `cancelled`.
+
+### `kanban_task_delete { planPath, taskId }`
+Removes one task line from the plan's task section.
+
+### `kanban_export_layout` / `kanban_import_layout { json }`
+Round-trip Kanban layout metadata. Exports/imports do not include plan Markdown contents.
+
 ## Agent context (client-side)
 
 ### `plan_context_list`

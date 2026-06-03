@@ -1,5 +1,7 @@
 //! Typisierte Aufrufe von Tauri `invoke` (vgl. `quit.rs`).
-use crate::agent_wire::{AgentEvent, BrowserBoundsPayload, EventEnvelope, TaskSnapshot, UserTurn};
+use crate::agent_wire::{
+    AgentEvent, BrowserBoundsPayload, EventEnvelope, TaskSnapshot, TaskStatus, UserTurn,
+};
 use crate::skills_rules_wire::{RuleEntry, SkillEntry, SkillSourceInput};
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Reflect;
@@ -2970,6 +2972,200 @@ pub async fn plan_sync_from_tasks(ws: &str, path: &str) -> Result<PlanSyncReport
         A {
             workspace_cwd: ws,
             path,
+        },
+    )
+    .await
+}
+
+// ---------------------------------------------------------------------
+// Workspace Multi-Kanban (layout metadata + plan task mutations)
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KanbanPlanState {
+    Blocked,
+    InProgress,
+    Pending,
+    Completed,
+    Cancelled,
+    Empty,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanFilters {
+    #[serde(default)]
+    pub query: String,
+    #[serde(default)]
+    pub show_completed: bool,
+    #[serde(default)]
+    pub show_cancelled: bool,
+    #[serde(default)]
+    pub active_only: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanLayout {
+    pub version: u32,
+    #[serde(default)]
+    pub workspace_root: Option<String>,
+    pub plan_section_order: Vec<KanbanPlanState>,
+    pub collapsed_plan_sections: Vec<KanbanPlanState>,
+    pub expanded_plans: Vec<String>,
+    pub task_lane_order: Vec<TaskStatus>,
+    pub collapsed_task_lanes: Vec<TaskStatus>,
+    pub plan_order: std::collections::BTreeMap<String, u32>,
+    pub task_order: std::collections::BTreeMap<String, u32>,
+    pub filters: KanbanFilters,
+    pub updated_at: i64,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanBoard {
+    pub layout: KanbanLayout,
+    pub plans: Vec<KanbanPlanNode>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanPlanNode {
+    pub meta: PlanMeta,
+    pub state: KanbanPlanState,
+    pub tasks: Vec<KanbanTaskCard>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanTaskCard {
+    pub plan_path: String,
+    pub id: String,
+    pub title: String,
+    pub status: TaskStatus,
+    pub runtime_task_id: Option<String>,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanTaskCreateInput {
+    pub plan_path: String,
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<TaskStatus>,
+}
+
+#[derive(Clone, Debug, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanTaskUpdatePatch {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<TaskStatus>,
+}
+
+pub async fn kanban_board_load(ws: &str) -> Result<KanbanBoard, String> {
+    invoke_typed("kanban_board_load", WsArg { workspace_cwd: ws }).await
+}
+
+pub async fn kanban_layout_save(ws: &str, layout: KanbanLayout) -> Result<KanbanLayout, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        layout: KanbanLayout,
+    }
+    invoke_typed(
+        "kanban_layout_save",
+        A {
+            workspace_cwd: ws,
+            layout,
+        },
+    )
+    .await
+}
+
+pub async fn kanban_task_create(
+    ws: &str,
+    input: KanbanTaskCreateInput,
+) -> Result<KanbanTaskCard, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        input: KanbanTaskCreateInput,
+    }
+    invoke_typed(
+        "kanban_task_create",
+        A {
+            workspace_cwd: ws,
+            input,
+        },
+    )
+    .await
+}
+
+pub async fn kanban_task_update(
+    ws: &str,
+    plan_path: &str,
+    task_id: &str,
+    patch: KanbanTaskUpdatePatch,
+) -> Result<KanbanTaskCard, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        plan_path: &'a str,
+        task_id: &'a str,
+        patch: KanbanTaskUpdatePatch,
+    }
+    invoke_typed(
+        "kanban_task_update",
+        A {
+            workspace_cwd: ws,
+            plan_path,
+            task_id,
+            patch,
+        },
+    )
+    .await
+}
+
+pub async fn kanban_task_delete(ws: &str, plan_path: &str, task_id: &str) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        plan_path: &'a str,
+        task_id: &'a str,
+    }
+    invoke_unit_js(
+        "kanban_task_delete",
+        args_value(A {
+            workspace_cwd: ws,
+            plan_path,
+            task_id,
+        })?,
+    )
+    .await
+}
+
+pub async fn kanban_export_layout(ws: &str) -> Result<String, String> {
+    invoke_typed("kanban_export_layout", WsArg { workspace_cwd: ws }).await
+}
+
+pub async fn kanban_import_layout(ws: &str, json: &str) -> Result<KanbanLayout, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        json: &'a str,
+    }
+    invoke_typed(
+        "kanban_import_layout",
+        A {
+            workspace_cwd: ws,
+            json,
         },
     )
     .await

@@ -291,6 +291,9 @@ fn base_system_prompt(root: &str, agent_name: &str) -> String {
          \n\
          **Plans (server):** `plan_list`, `plan_read`, `plan_create`, `plan_write`, \
          `plan_delete`, `plan_rename`, `plan_load`, `plan_sync_from_tasks`\n\
+         **Kanban (server):** `kanban_board_load`, `kanban_layout_save`, \
+         `kanban_task_create`, `kanban_task_update`, `kanban_task_delete`, \
+         `kanban_export_layout`, `kanban_import_layout`\n\
          \n\
          **Plans context (client):** `plan_context_list`, `plan_context_attach`, `plan_context_detach`\n\
          \n\

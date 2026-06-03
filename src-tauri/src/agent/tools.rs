@@ -4,6 +4,7 @@
 //! The orchestrator renders the registry for the provider, then dispatches
 //! incoming tool calls back through here.
 
+use crate::kanban;
 use crate::memory;
 use crate::plans;
 use crate::skills_rules::{self, types::SkillSourceInput};
@@ -659,6 +660,97 @@ pub fn registry() -> Vec<ToolDef> {
                     "path": { "type": "string" }
                 },
                 "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "kanban_board_load",
+            description: "Load the active workspace Multi-Kanban board. Returns non-index plans, derived plan states, parsed plan tasks, runtime task links, and layout metadata. Plan/task content comes from `.agents/plans`; Kanban metadata is layout only.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "kanban_layout_save",
+            description: "Save workspace Kanban layout metadata only. Does not modify plan Markdown.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "layout": { "type": "object" }
+                },
+                "required": ["layout"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "kanban_task_create",
+            description: "Create a plan task from the Kanban board by appending a canonical task line to a plan's `## Tasks` section.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "planPath": { "type": "string" },
+                    "title": { "type": "string" },
+                    "status": { "type": "string", "enum": ["pending", "in_progress", "blocked", "completed", "cancelled"] }
+                },
+                "required": ["planPath", "title"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "kanban_task_update",
+            description: "Update one plan task from Kanban. Status/title changes rewrite the plan Markdown task line and best-effort sync mirrored runtime tasks.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "planPath": { "type": "string" },
+                    "taskId": { "type": "string" },
+                    "title": { "type": "string" },
+                    "status": { "type": "string", "enum": ["pending", "in_progress", "blocked", "completed", "cancelled"] }
+                },
+                "required": ["planPath", "taskId"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "kanban_task_delete",
+            description: "Delete one plan task line from a plan's `## Tasks` section.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "planPath": { "type": "string" },
+                    "taskId": { "type": "string" }
+                },
+                "required": ["planPath", "taskId"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "kanban_export_layout",
+            description: "Export Kanban layout metadata JSON. Does not include plan Markdown contents.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "kanban_import_layout",
+            description: "Import Kanban layout metadata JSON. Validates schema and does not write plan Markdown contents.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "json": { "type": "string" }
+                },
+                "required": ["json"],
                 "additionalProperties": false
             }),
             site: ToolSite::Server,
@@ -1557,6 +1649,13 @@ pub fn execute_server_tool(
         "plan_rename" => tool_plan_rename(args, root),
         "plan_load" => tool_plan_load(args, root),
         "plan_sync_from_tasks" => tool_plan_sync_from_tasks(args, root),
+        "kanban_board_load" => tool_kanban_board_load(root),
+        "kanban_layout_save" => tool_kanban_layout_save(args, root),
+        "kanban_task_create" => tool_kanban_task_create(args, root),
+        "kanban_task_update" => tool_kanban_task_update(args, root),
+        "kanban_task_delete" => tool_kanban_task_delete(args, root),
+        "kanban_export_layout" => tool_kanban_export_layout(root),
+        "kanban_import_layout" => tool_kanban_import_layout(args, root),
         "rules_list" => tool_rules_list(root),
         "rules_read" => tool_rules_read(args, root),
         "rules_write" => tool_rules_write(args, root),
@@ -2843,6 +2942,176 @@ fn tool_plan_sync_from_tasks(args: &Value, root: Option<&WorkspaceRootGuard>) ->
     match plans::plan_sync_from_tasks_inner(&ws, path) {
         Ok(report) => json_outcome(&report),
         Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_kanban_board_load(root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match kanban::kanban_board_load_inner(&ws) {
+        Ok(board) => json_outcome(&board),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_kanban_layout_save(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(layout_value) = args.get("layout") else {
+        return err_outcome("missing required field: layout".to_string());
+    };
+    let layout = match serde_json::from_value::<kanban::KanbanLayout>(layout_value.clone()) {
+        Ok(layout) => layout,
+        Err(e) => return err_outcome(format!("invalid layout: {e}")),
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match kanban::kanban_layout_save_inner(&ws, layout) {
+        Ok(layout) => json_outcome(&layout),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_kanban_task_create(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let plan_path = match need_str(args, "planPath") {
+        Ok(s) => s.to_owned(),
+        Err(o) => return o,
+    };
+    let title = match need_str(args, "title") {
+        Ok(s) => s.to_owned(),
+        Err(o) => return o,
+    };
+    let status = args
+        .get("status")
+        .and_then(|v| v.as_str())
+        .map(parse_task_status_arg)
+        .transpose();
+    let status = match status {
+        Ok(status) => status,
+        Err(out) => return out,
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match kanban::kanban_task_create_inner(
+        &ws,
+        kanban::KanbanTaskCreateInput {
+            plan_path,
+            title,
+            status,
+        },
+    ) {
+        Ok(card) => json_outcome(&card),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_kanban_task_update(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let plan_path = match need_str(args, "planPath") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let task_id = match need_str(args, "taskId") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let title = args
+        .get("title")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_owned());
+    let status = args
+        .get("status")
+        .and_then(|v| v.as_str())
+        .map(parse_task_status_arg)
+        .transpose();
+    let status = match status {
+        Ok(status) => status,
+        Err(out) => return out,
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match kanban::kanban_task_update_inner(
+        &ws,
+        plan_path,
+        task_id,
+        kanban::KanbanTaskUpdatePatch { title, status },
+    ) {
+        Ok(card) => json_outcome(&card),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_kanban_task_delete(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let plan_path = match need_str(args, "planPath") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let task_id = match need_str(args, "taskId") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match kanban::kanban_task_delete_inner(&ws, plan_path, task_id) {
+        Ok(()) => ToolOutcome {
+            ok: true,
+            content: format!("deleted kanban task {task_id} from {plan_path}"),
+        },
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_kanban_export_layout(root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match kanban::kanban_board_load_inner(&ws).and_then(|board| {
+        serde_json::to_string_pretty(&board.layout)
+            .map_err(|e| format!("serialize kanban layout: {e}"))
+    }) {
+        Ok(json) => ToolOutcome {
+            ok: true,
+            content: json,
+        },
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_kanban_import_layout(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let raw = match need_str(args, "json") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let layout = match serde_json::from_str::<kanban::KanbanLayout>(raw) {
+        Ok(layout) => layout,
+        Err(e) => return err_outcome(format!("invalid kanban layout JSON: {e}")),
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match kanban::kanban_layout_save_inner(&ws, layout) {
+        Ok(layout) => json_outcome(&layout),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn parse_task_status_arg(raw: &str) -> Result<TaskStatus, ToolOutcome> {
+    match raw {
+        "pending" => Ok(TaskStatus::Pending),
+        "in_progress" => Ok(TaskStatus::InProgress),
+        "blocked" => Ok(TaskStatus::Blocked),
+        "completed" => Ok(TaskStatus::Completed),
+        "cancelled" => Ok(TaskStatus::Cancelled),
+        other => Err(err_outcome(format!("unknown task status: {other}"))),
     }
 }
 

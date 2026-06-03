@@ -310,6 +310,7 @@ pub fn PlansPanel() -> impl IntoView {
         if active_tab.get() != RightPanelTab::Plans {
             return;
         }
+        let _ = wb.plans_epoch().get();
         let cwd = current_workspace_cwd(wb);
         let prev = state.workspace_cwd.get_untracked();
         let _ = active_id.get();
@@ -357,6 +358,7 @@ pub fn PlansPanel() -> impl IntoView {
             match plan_create(&ws, &path, Some(&content)).await {
                 Ok(_) => {
                     reset_composer();
+                    wb.bump_plans_epoch();
                     load_plans_list(state, ws);
                 }
                 Err(e) => {
@@ -825,7 +827,7 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
                                     cancel_label: i18n.tr(I18nKey::SrCancel)().to_string(),
                                     danger: true,
                                     on_confirm: Callback::new(move |_| {
-                                        remove_plan(state, path.clone());
+                                        remove_plan(state, wb, path.clone());
                                     }),
                                     on_cancel: None,
                                 });
@@ -903,7 +905,7 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
                                 class="blx-plans-card__rename"
                                 on:submit=move |ev: web_sys::SubmitEvent| {
                                     ev.prevent_default();
-                                    submit_rename(state, card_path.get_value(), rename_input.get_untracked(), renaming);
+                                    submit_rename(state, wb, card_path.get_value(), rename_input.get_untracked(), renaming);
                                 }
                             >
                                 <input
@@ -948,6 +950,7 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
                                             ev.stop_propagation();
                                             write_plan_body(
                                                 state,
+                                                wb,
                                                 on_save.get_value(),
                                                 draft.get_untracked(),
                                                 body,
@@ -1000,7 +1003,7 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
                                                 cancel_label: i18n.tr(I18nKey::SrCancel)().to_string(),
                                                 danger: true,
                                                 on_confirm: Callback::new(move |_| {
-                                                    remove_plan(state, path.clone());
+                                                    remove_plan(state, wb, path.clone());
                                                 }),
                                                 on_cancel: None,
                                             });
@@ -1102,6 +1105,7 @@ fn open_rename_from_header(
 
 fn write_plan_body(
     state: PlansState,
+    wb: WorkbenchService,
     path: String,
     content: String,
     body: RwSignal<Option<String>>,
@@ -1118,6 +1122,7 @@ fn write_plan_body(
                 body.set(Some(content));
                 editing.set(false);
                 state.error.set(None);
+                wb.bump_plans_epoch();
                 load_plans_list(state, ws);
             }
             Err(e) => state.error.set(Some(e)),
@@ -1126,7 +1131,13 @@ fn write_plan_body(
     });
 }
 
-fn submit_rename(state: PlansState, old_path: String, raw: String, renaming: RwSignal<bool>) {
+fn submit_rename(
+    state: PlansState,
+    wb: WorkbenchService,
+    old_path: String,
+    raw: String,
+    renaming: RwSignal<bool>,
+) {
     let new_path = normalize_plan_path(&raw);
     if new_path.trim().is_empty() || new_path == old_path {
         renaming.set(false);
@@ -1140,6 +1151,7 @@ fn submit_rename(state: PlansState, old_path: String, raw: String, renaming: RwS
             Ok(_) => {
                 renaming.set(false);
                 state.error.set(None);
+                wb.bump_plans_epoch();
                 load_plans_list(state, ws);
             }
             Err(e) => state.error.set(Some(e)),
@@ -1147,7 +1159,7 @@ fn submit_rename(state: PlansState, old_path: String, raw: String, renaming: RwS
     });
 }
 
-fn remove_plan(state: PlansState, path: String) {
+fn remove_plan(state: PlansState, wb: WorkbenchService, path: String) {
     let Some(ws) = state.workspace_cwd.get_untracked() else {
         return;
     };
@@ -1155,6 +1167,7 @@ fn remove_plan(state: PlansState, path: String) {
         match plan_delete(&ws, &path).await {
             Ok(()) => {
                 state.error.set(None);
+                wb.bump_plans_epoch();
                 load_plans_list(state, ws);
             }
             Err(e) => state.error.set(Some(e)),

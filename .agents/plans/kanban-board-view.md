@@ -1,94 +1,202 @@
-# Kanban Board View fuer Plan-Tasks
+# Workspace Multi-Kanban Board
 
 ## Summary
 
-Ergaenze im bestehenden Plans-Panel eine schnell umschaltbare Kanban-Ansicht fuer alle Plan-Tasks eines Workspaces. Die Datenquelle bleiben die Markdown-Plaene unter `.agents/plans/*.md`; `PLANS.md` ist weiter der geschuetzte Index und wird fuer Kanban-Tasks ignoriert.
+Build a workspace-scoped Multi-Kanban as a pinned center tab for every real workspace.
 
-Die Kanban-Spalten sind fest an die vorhandenen Task-Statuswerte gebunden: pending, in progress, blocked, completed und cancelled. User koennen Spalten per Drag and Drop umsortieren und leere Spalten ausblenden oder wieder einblenden. Task-Karten koennen per Drag and Drop zwischen Spalten verschoben werden; das aktualisiert den Task-Status und schreibt den passenden Marker zurueck in die jeweilige Plan-Markdown-Datei.
+- Add a pinned `Kanban` center tab with ID `0`.
+- Keep the existing `Terminals` tab ID `1` as the active/default loaded view.
+- Plan states stay derived exactly like the current Plans tab from task summaries: blocked > in progress > pending > completed > cancelled > empty.
+- Task states remain the existing canonical statuses: pending, in progress, blocked, completed, cancelled.
+- Plan Markdown under `.agents/plans/*.md` remains the source of truth for plan/task content.
+- Kanban persistence stores only layout and metadata.
+- Export/import covers Kanban layout and metadata, not plan Markdown contents.
 
 ## Decisions
 
-- Es gibt keine frei definierbaren neuen Statuswerte.
-- "Boards anlegen/entfernen/bewegen" wird als Spaltenverwaltung interpretiert, nicht als mehrere unabhaengige Boards.
-- Kanban zeigt alle Tasks aus Nicht-Index-Plaenen im aktiven Workspace.
-- Freie Tasks ohne `planPath` bleiben ausserhalb dieser Kanban-View.
+- Plan state is not an independently editable field for v1. It is derived from the plan's task summary to stay 1:1 compatible with the existing Plans tab.
+- Kanban export/import is layout plus metadata only. It must not write or overwrite plan Markdown contents.
+- The Kanban tab is pinned, non-closeable, and always present as tab `0` for real workspaces.
+- The Terminal tab remains the active tab after workspace creation, workspace restore, and migration from old snapshots.
+- Plan Markdown stays the durable source of truth; Kanban layout metadata never stores full plan bodies.
+- Remote workspaces use the same API contract only where existing workspace file access supports the required `.agents` paths. If not supported in v1, the UI shows a localized limited/unsupported state.
 
 ## Implementation Notes
 
-### Backend
+### Phase 1: Data Model, Persistence, And Migration
 
-- Neues fokussiertes Kanban/Plan-Task-Modul anlegen, statt `plans.rs` weiter wachsen zu lassen.
-- Workspace-Konfiguration unter `.blxcode/kanban/index.json` speichern:
-  - `version`
-  - `columnOrder: TaskStatus[]`
-  - `hiddenColumns: TaskStatus[]`
-  - `cardOrder: { cardKey: string, rank: u32 }[]`
-- Neue Tauri-Kommandos ergaenzen:
-  - `kanban_settings_get(workspaceCwd)`
-  - `kanban_settings_save(workspaceCwd, settings)`
-  - `plan_task_list_all(workspaceCwd)`
-  - `plan_task_create(workspaceCwd, planPath, status, title)`
-  - `plan_task_update(workspaceCwd, planPath, planTaskId, patch)`
-  - `plan_task_delete(workspaceCwd, planPath, planTaskId)`
-- Plan-Task-Mutationen muessen die vorhandenen Parser/Rewriter aus `plans.rs` nutzen, damit Markdown-Syntax und Statusmarker konsistent bleiben.
-- Wenn ein Kanban-Task bereits im `.blxcode/tasks`-Store gespiegelt ist, soll der Store best-effort mit aktualisiert werden.
+- Extend center-tab state:
+  - Add `CenterTabKind::Kanban`.
+  - Add `CENTER_KANBAN_TAB_ID = 0`.
+  - Change `default_center_tabs()` to `[Kanban, Terminals]`.
+  - Keep `default_center_active_tab_id()` as `CENTER_TERMINALS_TAB_ID`.
+  - Add repair/backfill logic so old snapshots automatically insert missing Kanban tab at index `0` and preserve the active terminal tab.
+  - Make Kanban pinned and non-closeable; Terminals keeps the existing close-workspace behavior.
 
-### Frontend
+- Add workspace Kanban storage:
+  - New backend module, e.g. `src-tauri/src/kanban.rs`.
+  - Store at `<workspace>/.agents/kanban/index.json`.
+  - Bootstrap `.agents/kanban/README.md` and `index.json` through `agents_layout.rs`.
+  - Schema fields: `version`, `workspaceRoot`, `planSectionOrder`, `collapsedPlanSections`, `expandedPlans`, `taskLaneOrder`, `collapsedTaskLanes`, `planOrder`, `taskOrder`, `filters`, `updatedAt`.
+  - Validate workspace path, prevent traversal, write JSON atomically, and offload I/O with `proc::run_blocking`.
 
-- `PlansPanel` um einen View-Mode `Editor | Preview | Kanban` erweitern.
-- Kanban als eigenen Komponentenordner unter `src/workbench/plans_panel/kanban/` umsetzen, inklusive eigener CSS-Datei.
-- Typed IPC-Wrappers und Wire-Typen in `tauri_bridge.rs` ergaenzen.
-- Kanban-Toggle in die bestehende Plans-Toolbar setzen.
-- Board-Layout:
-  - horizontale Status-Spalten mit Scroll bei schmalem Right-Panel
-  - moderne, dichte Workspace-UI im bestehenden dunklen Theme
-  - Statusfarben: blau aktiv, gelb blocked, gruen completed, rot/gedaempft cancelled
-  - Karten zeigen Task-Titel, Plan-Badge/Pfad und Status-Akzent
-- Spaltenverwaltung:
-  - Spalten-Drag-and-Drop persistiert `columnOrder`
-  - Ausblenden ist nur fuer leere Spalten erlaubt
-  - Wiedereinblenden erfolgt ueber ein kleines Columns-Menue
-- Task-Management:
-  - Quick-add pro Spalte erstellt eine Task im Zielplan
-  - Zielplan-Auswahl im Kanban-Header
-  - Default-Zielplan: aktuell gewaehlter Nicht-Index-Plan, sonst `activePlanPath`, sonst erster Nicht-Index-Plan
-  - Karten-Drop in andere Spalte aktualisiert den Status im Plan-Markdown
-  - Karten-Drop innerhalb derselben Spalte aktualisiert nur die Kanban-Reihenfolge
+### Phase 2: Backend Kanban APIs
 
-## Public Interfaces
+- Add typed Tauri commands and register them in `src-tauri/src/lib.rs`:
+  - `kanban_board_load(workspace_cwd)` returns plan metadata, parsed plan tasks, task-store mirror info, and persisted layout.
+  - `kanban_layout_save(workspace_cwd, layout_patch)` updates only Kanban metadata.
+  - `kanban_task_create(workspace_cwd, plan_path, status, title)` appends to the plan's `## Tasks`.
+  - `kanban_task_update(workspace_cwd, plan_path, task_id, patch)` updates title/status and rewrites the plan task section.
+  - `kanban_task_delete(workspace_cwd, plan_path, task_id)` removes the task line.
+  - `kanban_import_layout(workspace_cwd, json)` validates and writes layout metadata.
+  - `kanban_export_layout(workspace_cwd)` returns the export JSON.
 
-- Neue IPC-Typen:
-  - `KanbanSettings`
-  - `KanbanColumnStatus`
-  - `PlanTaskCard`
-  - `PlanTaskCreateInput`
-  - `PlanTaskUpdatePatch`
-- Bestehende `TaskStatus`-Werte bleiben unveraendert.
-- Bestehende `plan_load`, `plan_sync_from_tasks` und `tasks_update` bleiben kompatibel.
-- I18n-Keys fuer Kanban-Toggle, Columns-Menue, Empty-State, Zielplan-Auswahl, Add/Delete und Drag-Fehler in allen Locale-Tabellen ergaenzen.
+- Reuse existing plan parser/writer semantics:
+  - Same task markers: `[ ]`, `[>]`, `[!]`, `[x]`, `[-]`.
+  - Exclude protected `PLANS.md`.
+  - Keep `PlanMeta`, `PlanTaskSummary`, and current derived plan grouping behavior.
+  - Best-effort sync mirrored plan-linked runtime tasks after Kanban task status/title changes.
+
+### Phase 3: Frontend Center-Tab UI
+
+- Add `src/workbench/workspace_kanban/` with component-local CSS.
+- Render it from `DynamicCenterPanels` for `CenterTabKind::Kanban`.
+- UI shape:
+  - Modern tree-kanban, not classic horizontal columns.
+  - Top-level collapsible plan-state sections: Blocked, In progress, Pending, Completed, Cancelled, Empty.
+  - Plan rows/cards inside each section with icon, title, path, task counts, modified time, and quick actions.
+  - Expanded plan row shows nested task-state lanes with task cards.
+  - Icons via `icondata`/lucide: board, folder/tree, circle states, chevrons, plus, save, import/export, refresh, trash.
+  - Token-only styling using `--accent`, `--warning`, `--success`, `--danger`, `--overlay-*`, `--radius-*`.
+
+- Include all existing Plans-tab capabilities:
+  - Create plan.
+  - Rename plan.
+  - Delete plan except `PLANS.md`.
+  - Edit/preview plan body via existing Plans panel flow or a focused Kanban detail drawer.
+  - Load plan into BLXCode Agent.
+  - AI Plan / AI Tasks entry points may remain in Plans panel, but Kanban must expose navigation/actions so feature parity is reachable.
+  - Refresh, search, filter, empty states, loading states, and errors.
+
+### Phase 4: Kanban Interactions
+
+- Implement core Kanban functions:
+  - Expand/collapse plan-state sections.
+  - Expand/collapse plans.
+  - Reorder plans within their derived state section, persisted as metadata only.
+  - Reorder task cards within a task lane, persisted as metadata.
+  - Drag task cards between task-status lanes; write status back to Markdown.
+  - Quick-add task into a selected plan/status.
+  - Inline rename task title.
+  - Delete task with confirmation.
+  - Search by plan title/path/task title.
+  - Filter by status, active-only, blocked-only, completed visibility.
+  - Refresh from disk.
+  - Import/export layout JSON.
+
+- Do not allow direct manual plan-state mutation because plan-state is derived from task summaries.
+- If moving a task changes the plan's derived state, the plan moves to the correct top-level section after save.
+
+### Phase 5: Agent, Skills, Rules, And Notifications
+
+- Extend Agent tool catalog:
+  - Add Kanban read/write tools to `agent/tools.rs`.
+  - Add tools to `ToolGroup::PlansRead` / `PlansWrite`.
+  - Add permission classes for mutating Kanban tools.
+  - Update `system_prompt.rs` tool index with Kanban tools.
+  - Update `harness_skills/plans.md` or add a focused `kanban.md` core skill.
+
+- Agent-facing tool set:
+  - `kanban_board_load`
+  - `kanban_layout_save`
+  - `kanban_task_create`
+  - `kanban_task_update`
+  - `kanban_task_delete`
+  - `kanban_export_layout`
+  - `kanban_import_layout`
+
+- Add or update `.agents/rules` guidance so agents:
+  - Treat plan Markdown as source of truth.
+  - Keep Kanban, plan tasks, and runtime tasks synchronized.
+  - Use notifications for completed plans/tasks, blockers, and import/export failures.
+
+- Notification integration:
+  - Add target `{ "view": "kanban" }`.
+  - Bell click opens the active workspace Kanban center tab.
+  - Kanban mutations can create/update notifications for blocked tasks, completed tasks, and completed plans.
+  - Add icon handling for Kanban-related notification targets.
+
+### Phase 6: Titlebar, i18n, Docs, And Theme
+
+- Add Navigate menu shortcut:
+  - New menu item: "Workspace Kanban".
+  - Enabled only with active real workspace.
+  - Calls `open_center_kanban_tab(active_workspace_id)`.
+  - Uses a board/layout icon.
+
+- Add i18n keys to `I18nKey` and all locale tables:
+  - `TabKanban`
+  - `TbNavKanban`
+  - Kanban toolbar, import/export, filters, empty states, errors, confirmations, drag labels, task actions, plan section labels.
+  - Use existing plan/task status keys where possible.
+
+- Update docs:
+  - `docs/user/workspaces.md`: Kanban as pinned tab `0`, terminal still active by default.
+  - `docs/user/plans.md`: Multi-Kanban behavior and layout export/import.
+  - `docs/developer/architecture.md`: backend module, storage, data flow.
+  - Fix the existing doc mismatch by stating plan-state is derived from task summaries, not independently edited.
 
 ## Tests
 
 - Backend:
-  - Kanban-Settings werden initial mit Default-Spalten erzeugt und persistiert.
-  - `plan_task_list_all` liest Tasks aus mehreren Nicht-Index-Plaenen und ignoriert `PLANS.md`.
-  - Status-Update schreibt korrekte Marker: `[ ]`, `[>]`, `[!]`, `[x]`, `[-]`.
-  - Task-Erstellung erzeugt stabile eindeutige `planTaskId`s und haengt an `## Tasks` an.
-  - Task-Loeschung entfernt nur die passende Task-Zeile und erhaelt andere Markdown-Abschnitte.
-  - Pfad-Sandboxing verhindert absolute Pfade, `..` und Nicht-Markdown-Ziele.
+  - `cargo test -p blxcode kanban`
+  - `cargo test -p blxcode plans`
+  - Verify invalid paths, invalid import JSON, protected `PLANS.md`, empty plans, and multiple plans with duplicate task IDs in different files.
+  - Verify Kanban metadata survives reload and does not overwrite plan Markdown.
+
 - Frontend:
   - `cargo check -p blxcode-ui --target wasm32-unknown-unknown`
   - `cargo check -p blxcode`
-  - Manuelle UI-Pruefung in Tauri/Trunk: Toggle Editor/Kanban, Karten-DnD, Spalten-DnD, Spalten aus-/einblenden, Quick-add.
+  - Theme token lint: `scripts/lint_theme_tokens.sh`.
+
+- Manual:
+  - New workspace opens with Kanban tab `0` visible and Terminals tab active.
+  - Existing workspace snapshot is migrated without changing active tab unexpectedly.
+  - Navigate menu switches to Kanban.
+  - Drag task status writes correct Markdown marker.
+  - Import/export round-trips layout only.
+  - Bell notification target opens Kanban.
+  - Locale switch shows no English-only missing UI strings except intentionally untranslated generated content.
 
 ## Tasks
 
-- [ ] `backend-kanban-store` - Workspace Kanban settings store unter `.blxcode/kanban/index.json` implementieren.
-- [ ] `backend-plan-task-api` - Plan-Task IPC fuer Listen, Erstellen, Aktualisieren und Loeschen ergaenzen.
-- [ ] `backend-sync-tests` - Parser/Rewriter-, Sandbox- und Markdown-Writeback-Tests fuer Kanban-Mutationen abdecken.
-- [ ] `frontend-kanban-module` - Kanban-Komponentenordner, typed IPC-Wrappers und View-Mode im Plans-Panel ergaenzen.
-- [ ] `frontend-dnd-columns` - Spaltenreihenfolge, Ausblenden und Wiedereinblenden mit Drag and Drop und persistierter Config bauen.
-- [ ] `frontend-dnd-cards` - Karten zwischen Status-Spalten und innerhalb von Spalten verschiebbar machen.
-- [ ] `frontend-task-actions` - Quick-add, Zielplan-Auswahl und Delete/Edit-Aktionen fuer Kanban-Karten anbinden.
-- [ ] `i18n-docs` - I18n-Keys und User/Developer-Dokumentation zur Kanban-View ergaenzen.
-- [ ] `verification` - Cargo-Checks und manuelle UI-Pruefung durchfuehren.
+- [x] `kanban-tab-model` - Add `CenterTabKind::Kanban`, tab ID `0`, default tab insertion, snapshot repair, and pinned close behavior.
+- [x] `kanban-workspace-bootstrap` - Add `.agents/kanban/` bootstrap and status checks.
+- [x] `kanban-storage-schema` - Implement validated, atomic layout metadata load/save/export/import.
+- [x] `kanban-bridge-types` - Add frontend wire types and typed `tauri_bridge.rs` wrappers.
+- [x] `kanban-board-load` - Aggregate non-index plans, derived plan buckets, parsed tasks, and layout metadata.
+- [x] `kanban-task-create` - Append canonical task lines to a plan.
+- [x] `kanban-task-update` - Update task title/status and sync mirrored runtime task best-effort.
+- [x] `kanban-task-delete` - Remove a task line without disturbing other Markdown sections.
+- [x] `kanban-import-export` - Validate schema version and round-trip layout metadata.
+- [x] `kanban-component-shell` - Add workspace Kanban component folder and render it as center tab.
+- [x] `kanban-tree-sections` - Build collapsible plan-state sections with icons/counts.
+- [x] `kanban-plan-rows` - Render plan rows with task summary, actions, expansion, and derived state accents.
+- [x] `kanban-task-lanes` - Render nested task-state lanes and cards.
+- [x] `kanban-toolbar` - Add search, filters, refresh, import, export, and quick-create actions.
+- [x] `kanban-plans-panel-sync` - Keep Workspace Kanban and the right-side Plans panel synchronized after create, write, rename, delete, update, remove, and drag/move actions.
+- [>] `kanban-expand-collapse` - Persist expanded plans and collapsed sections/lanes.
+- [>] `kanban-task-dnd` - Drag tasks across lanes and within lanes.
+- [ ] `kanban-plan-order` - Persist manual plan ordering within derived state groups.
+- [>] `kanban-inline-actions` - Quick-add, rename, delete, load into Agent, open/edit/preview.
+- [>] `kanban-error-states` - Handle stale files, missing plans, write conflicts, invalid imports, and no-workspace state.
+- [x] `kanban-agent-tools` - Add Kanban tools, schemas, dispatch, tool groups, and permission classes.
+- [x] `kanban-agent-skill` - Update embedded skill/rule guidance for Kanban use.
+- [x] `kanban-system-prompt` - Add Kanban tools to the prompt index and tests.
+- [>] `kanban-notifications` - Add `{view:"kanban"}` target handling and Kanban notification semantics.
+- [x] `kanban-titlebar-shortcut` - Add Navigate menu item for active workspace Kanban.
+- [x] `kanban-i18n` - Add exhaustive locale keys and run frontend check.
+- [x] `kanban-theme-css` - Use only semantic tokens and component-scoped CSS.
+- [x] `kanban-docs` - Update user/developer docs and fix plan-state wording.
+- [x] `kanban-tests` - Add backend parser/storage/API tests and frontend compile checks.
+- [ ] `kanban-manual-qa` - Verify app restart/reload, new workspace defaults, old snapshot migration, DnD, import/export, notifications, and titlebar navigation.

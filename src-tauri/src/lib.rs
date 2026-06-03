@@ -16,6 +16,7 @@ mod git_remote;
 mod git_status;
 mod git_sync;
 mod image;
+mod kanban;
 mod mcp;
 mod media_keys;
 mod memory;
@@ -335,6 +336,13 @@ pub fn run() {
             plans::plan_rename,
             plans::plan_load,
             plans::plan_sync_from_tasks,
+            kanban::kanban_board_load,
+            kanban::kanban_layout_save,
+            kanban::kanban_task_create,
+            kanban::kanban_task_update,
+            kanban::kanban_task_delete,
+            kanban::kanban_export_layout,
+            kanban::kanban_import_layout,
             agent::plan_ai::plan_generate_ai,
             agent::prompt_enhance::agent_enhance_prompt,
             skills_rules::commands::rules_list,

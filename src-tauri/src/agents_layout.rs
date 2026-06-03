@@ -8,6 +8,7 @@ pub const AGENTS_REL: &str = ".agents";
 pub const MEMORY_REL: &str = ".agents/memory";
 pub const LEARNINGS_REL: &str = ".agents/learnings";
 pub const PLANS_REL: &str = ".agents/plans";
+pub const KANBAN_REL: &str = ".agents/kanban";
 pub const LEARNINGS_API_PREFIX: &str = "learnings/";
 pub const PLANS_INDEX: &str = "PLANS.md";
 const TEMPLATES_DIRNAME: &str = "_templates";
@@ -70,6 +71,14 @@ Use this folder for implementation plans that should survive app restarts and
 can be checked into the repository.
 "#;
 
+const KANBAN_README_SEED: &str = r#"# Kanban
+
+Workspace Multi-Kanban layout metadata for BLXCode.
+
+Plan and task content stays in `.agents/plans/`. This folder stores only board
+layout state such as expanded sections, ordering, and filters.
+"#;
+
 const RULES_README_SEED: &str = r#"# Rules
 
 Project rules for BLXCode agents.
@@ -81,6 +90,7 @@ that agents should read before editing code.
 #[derive(Debug, Clone)]
 pub struct WorkspaceRoots {
     pub plans: PathBuf,
+    pub kanban: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -114,6 +124,7 @@ pub fn agents_layout_status(ws: &str) -> Result<AgentsLayoutStatus, String> {
         MEMORY_REL,
         LEARNINGS_REL,
         PLANS_REL,
+        KANBAN_REL,
         crate::skills_rules::store::RULES_REL,
     ];
     let required_files = required_dirs.map(|dir| format!("{dir}/{README}"));
@@ -150,6 +161,7 @@ pub fn ensure_agents_layout(ws: &str) -> Result<WorkspaceRoots, String> {
     let memory = ws_path.join(MEMORY_REL);
     let learnings = ws_path.join(LEARNINGS_REL);
     let plans = ws_path.join(PLANS_REL);
+    let kanban = ws_path.join(KANBAN_REL);
     let templates = memory.join(TEMPLATES_DIRNAME);
 
     fs::create_dir_all(&agents).map_err(|e| format!("create {AGENTS_REL}: {e}"))?;
@@ -157,16 +169,18 @@ pub fn ensure_agents_layout(ws: &str) -> Result<WorkspaceRoots, String> {
     fs::create_dir_all(&templates).map_err(|e| format!("create templates: {e}"))?;
     fs::create_dir_all(&learnings).map_err(|e| format!("create {LEARNINGS_REL}: {e}"))?;
     fs::create_dir_all(&plans).map_err(|e| format!("create {PLANS_REL}: {e}"))?;
+    fs::create_dir_all(&kanban).map_err(|e| format!("create {KANBAN_REL}: {e}"))?;
 
     seed_file_if_missing(&memory.join(README), MEMORY_README_SEED)?;
     seed_file_if_missing(&learnings.join(README), LEARNINGS_README_SEED)?;
     seed_file_if_missing(&plans.join(README), PLANS_README_SEED)?;
+    seed_file_if_missing(&kanban.join(README), KANBAN_README_SEED)?;
     seed_learnings_index_if_empty(&learnings)?;
     fix_learnings_index_typo(&learnings)?;
     upgrade_learnings_graph_links(&learnings)?;
     seed_plans_index_if_missing(&plans)?;
 
-    Ok(WorkspaceRoots { plans })
+    Ok(WorkspaceRoots { plans, kanban })
 }
 
 pub fn seed_rules_readme_if_missing(rules: &Path) -> Result<(), String> {

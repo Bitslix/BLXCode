@@ -245,6 +245,11 @@ fn open_notification_target(
                 wb.toggle_right_panel();
             }
         }
+        "kanban" => {
+            if let Some(ws_id) = wb.active_id().get_untracked() {
+                wb.open_center_kanban_tab(ws_id);
+            }
+        }
         "memory" => {
             wb.set_right_tab(RightPanelTab::Memory);
             if wb.right_collapsed().get_untracked() {

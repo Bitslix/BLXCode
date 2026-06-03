@@ -26,7 +26,7 @@ use crate::workbench::terminal_slot_dnd::{
     TerminalSlotDragService,
 };
 use crate::workbench::toast::ToastService;
-use crate::workbench::WorkbenchService;
+use crate::workbench::{WorkbenchService, WorkspaceKanban};
 use gloo_timers::future::TimeoutFuture;
 use leptos::callback::Callback;
 use leptos::html;
@@ -644,6 +644,7 @@ fn CenterTabButton(workspace_id: u64, tab: CenterTab, active_tab_id: Memo<u64>) 
     // button is always visible — closing it is what triggers the "close
     // workspace" flow.
     let is_terminals = matches!(tab.kind, CenterTabKind::Terminals);
+    let is_kanban = matches!(tab.kind, CenterTabKind::Kanban);
 
     view! {
         <button
@@ -659,24 +660,14 @@ fn CenterTabButton(workspace_id: u64, tab: CenterTab, active_tab_id: Memo<u64>) 
                 <LxIcon icon=icon width="14px" height="14px" />
             </span>
             <span class="workspace-center-tab__label">{title.clone()}</span>
-            <span
-                role="button"
-                tabindex="0"
-                class="workspace-center-tab__close"
-                aria-label=move || i18n.tr(I18nKey::CenterTabCloseAria)()
-                title=move || i18n.tr(I18nKey::CenterTabCloseAria)()
-                on:click=move |ev: MouseEvent| {
-                    ev.prevent_default();
-                    ev.stop_propagation();
-                    if is_terminals {
-                        close_terminals();
-                    } else {
-                        wb.close_center_tab(workspace_id, id);
-                    }
-                }
-                on:keydown=move |ev: web_sys::KeyboardEvent| {
-                    let key = ev.key();
-                    if key == "Enter" || key == " " {
+            <Show when=move || !is_kanban>
+                <span
+                    role="button"
+                    tabindex="0"
+                    class="workspace-center-tab__close"
+                    aria-label=move || i18n.tr(I18nKey::CenterTabCloseAria)()
+                    title=move || i18n.tr(I18nKey::CenterTabCloseAria)()
+                    on:click=move |ev: MouseEvent| {
                         ev.prevent_default();
                         ev.stop_propagation();
                         if is_terminals {
@@ -685,10 +676,22 @@ fn CenterTabButton(workspace_id: u64, tab: CenterTab, active_tab_id: Memo<u64>) 
                             wb.close_center_tab(workspace_id, id);
                         }
                     }
-                }
-            >
-                <LxIcon icon=icondata::LuX width="12px" height="12px" />
-            </span>
+                    on:keydown=move |ev: web_sys::KeyboardEvent| {
+                        let key = ev.key();
+                        if key == "Enter" || key == " " {
+                            ev.prevent_default();
+                            ev.stop_propagation();
+                            if is_terminals {
+                                close_terminals();
+                            } else {
+                                wb.close_center_tab(workspace_id, id);
+                            }
+                        }
+                    }
+                >
+                    <LxIcon icon=icondata::LuX width="12px" height="12px" />
+                </span>
+            </Show>
         </button>
     }
 }
@@ -717,6 +720,14 @@ fn DynamicCenterPanels(
             children=move |tab| {
                 let tab_id = tab.id;
                 match tab.kind {
+                    CenterTabKind::Kanban => view! {
+                        <div
+                            class="workspace-center-panel"
+                            class:workspace-center-panel--hidden=move || active_tab_id.get() != tab_id
+                        >
+                            <WorkspaceKanban workspace_id=workspace_id />
+                        </div>
+                    }.into_any(),
                     CenterTabKind::Settings => view! {
                         <div
                             class="workspace-center-panel workspace-center-panel--scroll"
@@ -772,6 +783,7 @@ fn DynamicCenterPanels(
 
 fn center_tab_icon(kind: &CenterTabKind) -> icondata::Icon {
     match kind {
+        CenterTabKind::Kanban => icondata::LuKanban,
         CenterTabKind::Terminals => icondata::LuTerminal,
         CenterTabKind::Settings => icondata::LuSettings2,
         CenterTabKind::Memory => icondata::LuLayers,

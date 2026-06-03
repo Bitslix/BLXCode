@@ -188,6 +188,20 @@ pub enum I18nKey {
     PlansGroupDescCancelled,
     PlansGroupDescEmpty,
 
+    // Workspace Kanban
+    KanbanTitle,
+    KanbanSearchPh,
+    KanbanExport,
+    KanbanImport,
+    KanbanNewTask,
+    KanbanNoPlansInState,
+    KanbanPickPlanAndTitle,
+    KanbanAddingTask,
+    KanbanTaskAdded,
+    KanbanLayoutCopied,
+    KanbanLayoutImported,
+    KanbanLayoutSaveFailed,
+
     // AI plan/task generation
     PlansAiPlanBtn,
     PlansAiTasksBtn,

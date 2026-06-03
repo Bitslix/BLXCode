@@ -160,6 +160,7 @@ fn default_sidebar_graph_open() -> bool {
     false
 }
 
+pub const CENTER_KANBAN_TAB_ID: u64 = 0;
 pub const CENTER_TERMINALS_TAB_ID: u64 = 1;
 
 fn default_center_active_tab_id() -> u64 {
@@ -171,7 +172,7 @@ fn default_center_next_tab_id() -> u64 {
 }
 
 fn default_center_tabs() -> Vec<CenterTab> {
-    vec![CenterTab::terminals()]
+    vec![CenterTab::kanban(), CenterTab::terminals()]
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -183,6 +184,15 @@ pub struct CenterTab {
 }
 
 impl CenterTab {
+    #[must_use]
+    pub fn kanban() -> Self {
+        Self {
+            id: CENTER_KANBAN_TAB_ID,
+            title: "Kanban".into(),
+            kind: CenterTabKind::Kanban,
+        }
+    }
+
     #[must_use]
     pub fn terminals() -> Self {
         Self {
@@ -196,6 +206,7 @@ impl CenterTab {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum CenterTabKind {
+    Kanban,
     Terminals,
     Settings,
     Memory,
@@ -529,13 +540,48 @@ impl WorkspaceEntry {
     }
 }
 
+fn should_have_workspace_pinned_tabs(workspace: &WorkspaceEntry) -> bool {
+    workspace_entry_has_folder(workspace) || workspace.configuring
+}
+
+fn ensure_workspace_pinned_tabs(workspace: &mut WorkspaceEntry) {
+    if !should_have_workspace_pinned_tabs(workspace) {
+        return;
+    }
+    if !workspace
+        .center_tabs
+        .iter()
+        .any(|tab| matches!(tab.kind, CenterTabKind::Kanban))
+    {
+        workspace.center_tabs.insert(0, CenterTab::kanban());
+    }
+    if !workspace
+        .center_tabs
+        .iter()
+        .any(|tab| matches!(tab.kind, CenterTabKind::Terminals))
+    {
+        let insert_at = workspace
+            .center_tabs
+            .iter()
+            .position(|tab| matches!(tab.kind, CenterTabKind::Kanban))
+            .map(|idx| idx.saturating_add(1))
+            .unwrap_or(0)
+            .min(workspace.center_tabs.len());
+        workspace.center_tabs.insert(insert_at, CenterTab::terminals());
+    }
+    workspace.center_tabs.sort_by_key(|tab| match tab.kind {
+        CenterTabKind::Kanban => (0_u8, tab.id),
+        CenterTabKind::Terminals => (1_u8, tab.id),
+        _ => (2_u8, tab.id),
+    });
+}
+
 /// Repair `center_active_tab_id` / `center_next_tab_id` so they stay
-/// consistent with `center_tabs`. Does **not** re-insert a Terminals tab —
-/// callers (`open_center_terminals_tab`, wizard commit, …) decide when a
-/// Terminals tab should exist. When `center_tabs` is empty, `active_tab_id`
-/// is left at `0` to signal "no tab"; the close-flow upgrades this to a
-/// full `close_workspace` via the empty-tabs fallback.
+/// consistent with `center_tabs`. Real/configuring workspaces always get the
+/// pinned Kanban and Terminals tabs; ephemeral shell workspaces keep only the
+/// tabs the caller explicitly opens.
 fn repair_center_tab_state(workspace: &mut WorkspaceEntry) {
+    ensure_workspace_pinned_tabs(workspace);
     if workspace.center_tabs.is_empty() {
         workspace.center_active_tab_id = 0;
     } else if !workspace
@@ -1255,6 +1301,10 @@ pub struct WorkbenchService {
     /// Bumped when the active workspace repo root changes (e.g. inline configure
     /// commit). Agent timeline/draft updates must not re-subscribe sidebar git checks.
     sidebar_repo_epoch: RwSignal<u32>,
+    /// Bumped when `.agents/plans/` content changes through any workspace UI.
+    /// PlansPanel and WorkspaceKanban both subscribe to this to stay in sync
+    /// without directly coupling their local component state.
+    plans_epoch: RwSignal<u32>,
     /// Old `terminal_key`s whose PTY is currently being adopted by a new
     /// cell mount (Cross-workspace transfer or extract-to-new-workspace).
     /// While present, the unmounting source cell's cleanup must NOT call
@@ -1380,6 +1430,7 @@ impl WorkbenchService {
             memory_color_presets: RwSignal::new(memory_color_presets),
             agent_image_context: RwSignal::new(HashMap::new()),
             sidebar_repo_epoch: RwSignal::new(0),
+            plans_epoch: RwSignal::new(0),
             terminal_move_guards: RwSignal::new(HashMap::new()),
             terminal_adopt_pending: RwSignal::new(HashMap::new()),
         }
@@ -1391,6 +1442,14 @@ impl WorkbenchService {
 
     pub fn bump_sidebar_repo_epoch(&self) {
         self.sidebar_repo_epoch.update(|n| *n = n.wrapping_add(1));
+    }
+
+    pub fn plans_epoch(&self) -> RwSignal<u32> {
+        self.plans_epoch
+    }
+
+    pub fn bump_plans_epoch(&self) {
+        self.plans_epoch.update(|n| *n = n.wrapping_add(1));
     }
 
     pub fn notifications(&self) -> RwSignal<HashMap<String, u32>> {
@@ -1984,7 +2043,10 @@ impl WorkbenchService {
             else {
                 return;
             };
-            if matches!(workspace.center_tabs[index].kind, CenterTabKind::Terminals) {
+            if matches!(
+                workspace.center_tabs[index].kind,
+                CenterTabKind::Kanban | CenterTabKind::Terminals
+            ) {
                 return;
             }
             workspace.center_tabs.remove(index);
@@ -2036,6 +2098,18 @@ impl WorkbenchService {
                 workspace.center_tabs.insert(0, CenterTab::terminals());
             }
             workspace.center_active_tab_id = CENTER_TERMINALS_TAB_ID;
+            repair_center_tab_state(workspace);
+        });
+        self.bump_terminal_layout();
+    }
+
+    pub fn open_center_kanban_tab(&self, workspace_id: u64) {
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            ensure_workspace_pinned_tabs(workspace);
+            workspace.center_active_tab_id = CENTER_KANBAN_TAB_ID;
             repair_center_tab_state(workspace);
         });
         self.bump_terminal_layout();
