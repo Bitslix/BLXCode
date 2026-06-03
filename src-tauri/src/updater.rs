@@ -460,6 +460,7 @@ pub fn app_relaunch(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub async fn post_update_release_notes(
     version: String,
+    channel: UpdateChannel,
 ) -> Result<PostUpdateReleaseNotesResponse, String> {
     let version = normalize_release_version(&version);
     let tag = format!("v{version}");
@@ -473,6 +474,18 @@ pub async fn post_update_release_notes(
     );
     if let Ok(markdown) = fetch_text(&client, &user_notes_url).await {
         return Ok(parse_release_notes(&version, &markdown, "userNotes"));
+    }
+
+    if channel == UpdateChannel::Beta {
+        if let Some(base_version) = prerelease_base_version(&version) {
+            let base_tag = format!("v{base_version}");
+            let base_notes_url = format!(
+                "https://raw.githubusercontent.com/{RELEASE_NOTES_REPO}/{base_tag}/docs/releases/{base_tag}.md"
+            );
+            if let Ok(markdown) = fetch_text(&client, &base_notes_url).await {
+                return Ok(parse_release_notes(&version, &markdown, "userNotesBase"));
+            }
+        }
     }
 
     let release_url =
@@ -551,6 +564,10 @@ async fn fetch_github_release(
 
 fn normalize_release_version(version: &str) -> String {
     version.trim().trim_start_matches('v').to_string()
+}
+
+fn prerelease_base_version(version: &str) -> Option<&str> {
+    version.split_once("-pre.").map(|(base, _)| base)
 }
 
 fn parse_release_notes(
@@ -793,6 +810,12 @@ summary: "Daily coding feels calmer."
     }
 
     #[test]
+    fn extracts_prerelease_base_version() {
+        assert_eq!(prerelease_base_version("0.6.0-pre.ed4dc"), Some("0.6.0"));
+        assert_eq!(prerelease_base_version("0.6.0"), None);
+    }
+
+    #[test]
     fn update_settings_default_to_stable_channel() {
         let settings: UpdateSettings = serde_json::from_str("{}").unwrap();
         assert_eq!(settings.channel, UpdateChannel::Stable);
@@ -800,21 +823,21 @@ summary: "Daily coding feels calmer."
 
     #[test]
     fn parses_prerelease_versions() {
-        let version = parse_release_semver("v0.6.0-pre.2").unwrap();
+        let version = parse_release_semver("v0.6.0-pre.ed4dc").unwrap();
         assert_eq!(version.major, 0);
         assert_eq!(version.minor, 6);
         assert_eq!(version.patch, 0);
-        assert_eq!(version.pre.as_str(), "pre.2");
+        assert_eq!(version.pre.as_str(), "pre.ed4dc");
     }
 
     #[test]
     fn beta_channel_picks_highest_prerelease_or_newer_final() {
-        let current = parse_release_semver("0.6.0-pre.2").unwrap();
+        let current = parse_release_semver("0.6.0-pre.11111").unwrap();
         let tag = select_beta_release_tag(
             &current,
             vec![
                 GithubReleaseListItem {
-                    tag_name: "v0.6.0-pre.1".into(),
+                    tag_name: "v0.6.0-pre.22222".into(),
                     draft: false,
                 },
                 GithubReleaseListItem {
@@ -822,16 +845,16 @@ summary: "Daily coding feels calmer."
                     draft: false,
                 },
                 GithubReleaseListItem {
-                    tag_name: "v0.7.0-pre.1".into(),
+                    tag_name: "v0.7.0-pre.ed4dc".into(),
                     draft: false,
                 },
                 GithubReleaseListItem {
-                    tag_name: "v0.8.0-pre.1".into(),
+                    tag_name: "v0.8.0-pre.abcde".into(),
                     draft: true,
                 },
             ],
         );
 
-        assert_eq!(tag.as_deref(), Some("v0.7.0-pre.1"));
+        assert_eq!(tag.as_deref(), Some("v0.7.0-pre.ed4dc"));
     }
 }

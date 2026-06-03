@@ -6,7 +6,7 @@ function Get-ReleaseBumpedVersion {
         [string]$Part = ""
     )
 
-    $versionMatch = [regex]::Match($Current, '^(\d+)\.(\d+)\.(\d+)(?:-pre\.(\d+))?$')
+    $versionMatch = [regex]::Match($Current, '^(\d+)\.(\d+)\.(\d+)(?:-pre\.([0-9A-Za-z-]+))?$')
     if (-not $versionMatch.Success) {
         Stop-Release "invalid semver: '$Current'"
     }
@@ -14,13 +14,21 @@ function Get-ReleaseBumpedVersion {
     $major = [int]$versionMatch.Groups[1].Value
     $minor = [int]$versionMatch.Groups[2].Value
     $patch = [int]$versionMatch.Groups[3].Value
-    $pre = if ($versionMatch.Groups[4].Success) { [int]$versionMatch.Groups[4].Value } else { $null }
+    $pre = if ($versionMatch.Groups[4].Success) { $versionMatch.Groups[4].Value } else { $null }
+    $preId = ""
+    if ($script:RELEASE_PRE_RELEASE -eq 1) {
+        $preHash = (& git rev-parse HEAD 2>$null).Trim().ToLowerInvariant()
+        $preId = if ($preHash.Length -ge 5) { $preHash.Substring(0, 5) } else { $preHash }
+        if ($LASTEXITCODE -ne 0 -or $preId -notmatch '^[0-9a-f]{5}$') {
+            Stop-Release "could not resolve 5-character git hash for --pre-release"
+        }
+    }
 
     if ($script:RELEASE_PRE_RELEASE -eq 1 -and -not $Part) {
         if ($null -ne $pre) {
-            return "$major.$minor.$patch-pre.$($pre + 1)"
+            return "$major.$minor.$patch-pre.$preId"
         }
-        return "$major.$minor.$($patch + 1)-pre.1"
+        return "$major.$minor.$($patch + 1)-pre.$preId"
     }
 
     if (-not $Part) {
@@ -48,9 +56,46 @@ function Get-ReleaseBumpedVersion {
     }
 
     if ($script:RELEASE_PRE_RELEASE -eq 1) {
-        return "$major.$minor.$patch-pre.1"
+        return "$major.$minor.$patch-pre.$preId"
     }
     return "$major.$minor.$patch"
+}
+
+function Ensure-ReleasePrereleaseNotes {
+    param([Parameter(Mandatory = $true)][string]$Version)
+
+    $mo = [regex]::Match($Version, '^(\d+\.\d+\.\d+)-pre\.([0-9a-f]{5})$')
+    if (-not $mo.Success) {
+        Stop-Release "invalid prerelease version: '$Version'"
+    }
+
+    $base = $mo.Groups[1].Value
+    $build = $mo.Groups[2].Value
+    $path = Join-Path $script:RELEASE_ROOT "docs\releases\v$Version.md"
+    if (Test-Path $path) {
+        return
+    }
+
+    $dir = Split-Path -Parent $path
+    if (-not (Test-Path $dir)) {
+        New-Item -ItemType Directory -Path $dir | Out-Null
+    }
+
+    $content = @"
+---
+title: "BLXCode $Version beta"
+summary: "Beta snapshot for the $base release line."
+---
+
+## Beta
+
+- **Preview build**: This prerelease contains the current development snapshot for ``$build``.
+
+## Good to know
+
+- Install this build from the Beta update channel. Stable users continue to receive final releases only.
+"@
+    [System.IO.File]::WriteAllText($path, $content + [Environment]::NewLine, [System.Text.UTF8Encoding]::new($false))
 }
 
 function Invoke-ReleaseBumpVersion {
@@ -109,6 +154,10 @@ function Invoke-ReleaseBumpVersion {
 
     Write-ReleaseInfo "Bumped $current -> $new ($Part)"
     $script:RELEASE_VERSION = $new
+
+    if ($script:RELEASE_PRE_RELEASE -eq 1) {
+        Ensure-ReleasePrereleaseNotes $new
+    }
 
     if ($script:RELEASE_NO_CHANGELOG -ne 1) {
         Invoke-ReleaseChangelogFinalize $new

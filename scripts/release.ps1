@@ -41,7 +41,7 @@ Optionally bump version, rewrite CHANGELOG, tag, push, and upload to GitHub.
 
 Options:
   --bump patch|minor|major   Bump version in Cargo.toml + tauri.conf.json + CHANGELOG
-  --pre-release              Build the next prerelease version (X.Y.Z-pre.N)
+  --pre-release              Build the next prerelease version (X.Y.Z-pre.<hash5>)
   --no-changelog             Skip CHANGELOG rewrite on bump
   --build                    Run cargo tauri build (default when not --upload-only / --no-build)
   --no-build                 Skip build
@@ -172,9 +172,9 @@ if ($script:RELEASE_DO_COMMIT -eq 1) {
         Write-ReleaseInfo "Would: git commit version + CHANGELOG"
     } else {
         & git add CHANGELOG.md Cargo.toml src-tauri/Cargo.toml src-tauri/tauri.conf.json package.json package-lock.json
-        $releaseStatus = (& git status --porcelain scripts/release.sh scripts/release/ .gitignore docs/user/building.md scripts/release.ps1 scripts/release.cmd 2>$null)
+        $releaseStatus = (& git status --porcelain scripts/release.sh scripts/release/ .gitignore docs/user/building.md docs/releases scripts/release.ps1 scripts/release.cmd 2>$null)
         if ($releaseStatus) {
-            & git add scripts/release.sh scripts/release/ .gitignore docs/user/building.md scripts/release.ps1 scripts/release.cmd
+            & git add scripts/release.sh scripts/release/ .gitignore docs/user/building.md docs/releases scripts/release.ps1 scripts/release.cmd
         }
         & git commit -m "chore: release v$script:RELEASE_VERSION"
         if ($LASTEXITCODE -ne 0) { Stop-Release "git commit failed" }

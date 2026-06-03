@@ -23,11 +23,11 @@ Legacy saved categories (`Image`, `Voice`, `Memory`) still open the correct pane
 App updates support two channels:
 
 - **Stable** uses final GitHub Releases.
-- **Beta** includes GitHub prereleases such as `0.6.0-pre.1`, and also accepts newer final stable releases when they supersede the current beta.
+- **Beta** includes GitHub prereleases such as `0.6.0-pre.ed4dc`, and also accepts newer final stable releases when they supersede the current beta.
 
 When **Check for updates on startup** is enabled, BLXCode checks immediately after launch and then every 10 minutes while the app is open. Background checks are quiet when nothing changed, show a discreet statusline item only during the check, and add a titlebar/native notification when a new update is available. Clicking that notification opens the update dialog.
 
-The update dialog reuses the structured release-notes view from `post_update_release_notes(version)` (hero summary, sections, loading state, fallback to the updater manifest body) instead of showing the manifest body as plain text — the update-specific controls (current → available version, install/download progress, retry, restart, **Later**) stay in place.
+The update dialog reuses the structured release-notes view from `post_update_release_notes(version, channel)` (hero summary, sections, loading state, fallback to the updater manifest body) instead of showing the manifest body as plain text — the update-specific controls (current → available version, install/download progress, retry, restart, **Later**) stay in place. Beta builds prefer `docs/releases/v{version}.md` for the exact prerelease tag and fall back to the stable base notes when needed.
 
 <p align="center">
   <img src="../images/settings-app.png" alt="Settings → App pane with UI Language (English), Input language (Follow app language / Auto-detect / Manual), Keyboard shortcuts (Tmux style / Classic), push-to-talk toggle, Notifications (Show success toasts, Play success sound), Terminal hooks for claude/codex/gemini/cursor/opencode with Install hooks button, and App updates (Check for updates on startup, Current version 0.2.3)" />

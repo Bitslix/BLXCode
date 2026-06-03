@@ -45,8 +45,8 @@ Options:
   --bump patch|minor|major[+N]
                              Bump version in Cargo.toml + tauri.conf.json + CHANGELOG.
                              Optional +N (default +1), e.g. patch+3, minor+2, major+1.
-  --pre-release              Build the next prerelease version (X.Y.Z-pre.N). Without --bump,
-                             stable versions advance to next patch pre.1 and prereleases increment N.
+  --pre-release              Build the next prerelease version (X.Y.Z-pre.<hash5>). Without --bump,
+                             stable versions advance to next patch and prereleases keep their base.
   --no-changelog             Skip CHANGELOG rewrite on bump
   --build                    Run cargo tauri build (default when not --upload-only / --no-build)
   --no-build                 Skip build
@@ -179,8 +179,8 @@ if [[ "$RELEASE_DO_COMMIT" == "1" ]]; then
     release_info "Would: git commit version + CHANGELOG"
   else
     git add CHANGELOG.md Cargo.toml src-tauri/Cargo.toml src-tauri/tauri.conf.json package.json package-lock.json
-    if [[ -n "$(git status --porcelain scripts/release.sh scripts/release/ .gitignore docs/user/building.md 2>/dev/null)" ]]; then
-      git add scripts/release.sh scripts/release/ .gitignore docs/user/building.md
+    if [[ -n "$(git status --porcelain scripts/release.sh scripts/release/ .gitignore docs/user/building.md docs/releases 2>/dev/null)" ]]; then
+      git add scripts/release.sh scripts/release/ .gitignore docs/user/building.md docs/releases
     fi
     git commit -m "chore: release v${RELEASE_VERSION}"
     release_info "Committed release files"

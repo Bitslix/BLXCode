@@ -271,12 +271,14 @@ pub struct PostUpdateReleaseNotesItem {
 
 pub async fn post_update_release_notes(
     version: String,
+    channel: UpdateChannel,
 ) -> Result<PostUpdateReleaseNotesResponse, String> {
     #[derive(Serialize)]
     struct Args {
         version: String,
+        channel: UpdateChannel,
     }
-    invoke_typed("post_update_release_notes", Args { version }).await
+    invoke_typed("post_update_release_notes", Args { version, channel }).await
 }
 
 /// Submits the result of a client-side tool back into the running turn.

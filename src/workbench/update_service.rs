@@ -320,12 +320,13 @@ impl UpdateService {
 
     fn load_release_notes(&self, version: String) {
         let service = *self;
+        let channel = self.channel.get_untracked();
         let request = self.release_notes_request.get_untracked().saturating_add(1);
         self.release_notes_request.set(request);
         self.release_notes.set(None);
         self.release_notes_loading.set(true);
         spawn_local(async move {
-            match post_update_release_notes(version).await {
+            match post_update_release_notes(version, channel).await {
                 Ok(notes) => {
                     if service.release_notes_request.get_untracked() == request {
                         service.release_notes.set(Some(notes));
