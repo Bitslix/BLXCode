@@ -11,7 +11,6 @@
   ],
   "collapsedPlanSections": [],
   "expandedPlans": [
-    "ai-plan-task-generation.md",
     "leptos-to-typescript-migration.md",
     "theme-roundings-and-font.md"
   ],
@@ -31,5 +30,5 @@
     "showCancelled": true,
     "activeOnly": false
   },
-  "updatedAt": 1780503531
+  "updatedAt": 1780504427
 }

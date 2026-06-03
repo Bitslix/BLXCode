@@ -47,11 +47,19 @@
 
 .workspace-kanban-field__label {
   min-height: 0.85rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
   color: var(--text-muted);
-  font-size: var(--kanban-font-label);
+  font-size: var(--kanban-font-small);
   font-weight: 600;
   line-height: 1;
   text-transform: uppercase;
+}
+
+.workspace-kanban-field__label svg {
+  flex: 0 0 auto;
+  color: var(--text-faint);
 }
 
 .workspace-kanban__title {

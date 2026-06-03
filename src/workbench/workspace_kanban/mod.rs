@@ -23,8 +23,8 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
     let error = RwSignal::<Option<String>>::new(None);
     let query = RwSignal::new(String::new());
     let expanded_plans = RwSignal::new(Vec::<String>::new());
-    let open_section = RwSignal::new(KanbanPlanState::InProgress);
-    let open_section_initialized = RwSignal::new(false);
+    let open_sections = RwSignal::new(Vec::<KanbanPlanState>::new());
+    let open_sections_workspace = RwSignal::<Option<String>>::new(None);
     let dragged_task = RwSignal::<Option<(String, String)>>::new(None);
     let new_task_plan = RwSignal::new(String::new());
     let new_task_title = RwSignal::new(String::new());
@@ -48,12 +48,10 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
         spawn_local(async move {
             match kanban_board_load(&ws).await {
                 Ok(next) => {
-                    if expanded_plans.with_untracked(|items| items.is_empty()) {
-                        expanded_plans.set(next.layout.expanded_plans.clone());
-                    }
-                    if !open_section_initialized.get_untracked() {
-                        open_section.set(default_open_plan_section(&next.plans));
-                        open_section_initialized.set(true);
+                    if open_sections_workspace.with_untracked(|current| current.as_deref() != Some(&ws)) {
+                        expanded_plans.set(Vec::new());
+                        open_sections.set(read_open_plan_sections(&ws));
+                        open_sections_workspace.set(Some(ws.clone()));
                     }
                     if new_task_plan.with_untracked(|s| s.trim().is_empty()) {
                         if let Some(first) = next.plans.first() {
@@ -184,6 +182,12 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
         });
     });
 
+    let save_open_sections = Callback::new(move |sections: Vec<KanbanPlanState>| {
+        if let Some(ws) = workspace_cwd.get_untracked() {
+            write_open_plan_sections(&ws, &sections);
+        }
+    });
+
     view! {
         <div class="workspace-kanban" role="region" aria-label=move || i18n.tr(I18nKey::KanbanTitle)()>
             <header class="workspace-kanban__toolbar">
@@ -229,7 +233,10 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
             >
                 <section class="workspace-kanban__quickadd">
                     <div class="workspace-kanban-field workspace-kanban-field--plan">
-                        <span class="workspace-kanban-field__label">{move || i18n.tr(I18nKey::KanbanPlanLabel)()}</span>
+                        <span class="workspace-kanban-field__label">
+                            <LxIcon icon=icondata::LuClipboardList width="0.72rem" height="0.72rem" />
+                            <span>{move || i18n.tr(I18nKey::KanbanPlanLabel)()}</span>
+                        </span>
                         <KanbanPlanPicker
                             plans=Signal::derive(move || board.get().map(|b| b.plans).unwrap_or_default())
                             selected_path=new_task_plan
@@ -237,14 +244,20 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
                         />
                     </div>
                     <div class="workspace-kanban-field workspace-kanban-field--status">
-                        <span class="workspace-kanban-field__label">{move || i18n.tr(I18nKey::KanbanStatusLabel)()}</span>
+                        <span class="workspace-kanban-field__label">
+                            <LxIcon icon=icondata::LuCircle width="0.72rem" height="0.72rem" />
+                            <span>{move || i18n.tr(I18nKey::KanbanStatusLabel)()}</span>
+                        </span>
                         <KanbanTaskStatusPicker
                             selected_status=new_task_status
                             on_select=Callback::new(move |status| new_task_status.set(status))
                         />
                     </div>
                     <div class="workspace-kanban-field workspace-kanban-field--task">
-                        <span class="workspace-kanban-field__label">{move || i18n.tr(I18nKey::KanbanTaskTitleLabel)()}</span>
+                        <span class="workspace-kanban-field__label">
+                            <LxIcon icon=icondata::LuTextCursor width="0.72rem" height="0.72rem" />
+                            <span>{move || i18n.tr(I18nKey::KanbanTaskTitleLabel)()}</span>
+                        </span>
                         <input
                             type="text"
                             placeholder=move || i18n.tr(I18nKey::KanbanNewTask)()
@@ -296,7 +309,8 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
                                     workspace_cwd=workspace_cwd
                                     on_reload=Callback::new(move |()| load_board())
                                     on_expanded_change=save_expanded_plans
-                                    open_section=open_section
+                                    open_sections=open_sections
+                                    on_open_sections_change=save_open_sections
                                 />
                             }
                         }
@@ -317,7 +331,8 @@ fn KanbanStateSection(
     workspace_cwd: Signal<Option<String>>,
     on_reload: Callback<()>,
     on_expanded_change: Callback<Vec<String>>,
-    open_section: RwSignal<KanbanPlanState>,
+    open_sections: RwSignal<Vec<KanbanPlanState>>,
+    on_open_sections_change: Callback<Vec<KanbanPlanState>>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let open_state = state.clone();
@@ -328,14 +343,25 @@ fn KanbanStateSection(
     view! {
         <section
             class="workspace-kanban-section"
-            class:workspace-kanban-section--open=move || open_section.get() == open_state
+            class:workspace-kanban-section--open=move || open_sections.with(|items| items.contains(&open_state))
             data-state=plan_state_key(&state)
         >
             <button
                 type="button"
                 class="workspace-kanban-section__head"
-                aria-expanded=move || (open_section.get() == aria_state).to_string()
-                on:click=move |_| open_section.set(click_state.clone())
+                aria-expanded=move || open_sections.with(|items| items.contains(&aria_state)).to_string()
+                on:click=move |_| {
+                    let mut next = Vec::new();
+                    open_sections.update(|items| {
+                        if let Some(pos) = items.iter().position(|item| item == &click_state) {
+                            items.remove(pos);
+                        } else {
+                            items.push(click_state.clone());
+                        }
+                        next = items.clone();
+                    });
+                    on_open_sections_change.run(next);
+                }
             >
                 <LxIcon icon=plan_state_icon(&state) width="1rem" height="1rem" />
                 <span>{move || i18n.tr(plan_state_label_key(&label_state))()}</span>
@@ -346,7 +372,7 @@ fn KanbanStateSection(
                     height="0.9rem"
                 />
             </button>
-            <Show when=move || open_section.get() == show_state>
+            <Show when=move || open_sections.with(|items| items.contains(&show_state))>
                 <div class="workspace-kanban-section__body">
                     <Show
                         when=move || !plans.get().is_empty()
@@ -803,18 +829,50 @@ fn plan_states() -> Vec<KanbanPlanState> {
     ]
 }
 
-fn default_open_plan_section(plans: &[KanbanPlanNode]) -> KanbanPlanState {
-    [
-        KanbanPlanState::InProgress,
-        KanbanPlanState::Blocked,
-        KanbanPlanState::Pending,
-        KanbanPlanState::Completed,
-        KanbanPlanState::Cancelled,
-        KanbanPlanState::Empty,
-    ]
-    .into_iter()
-    .find(|state| plans.iter().any(|plan| &plan.state == state))
-    .unwrap_or(KanbanPlanState::InProgress)
+fn open_plan_sections_storage_key(workspace_cwd: &str) -> String {
+    format!("blxcode.workspace-kanban.open-sections.v1:{workspace_cwd}")
+}
+
+fn read_open_plan_sections(workspace_cwd: &str) -> Vec<KanbanPlanState> {
+    let key = open_plan_sections_storage_key(workspace_cwd);
+    let Some(storage) = web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten())
+    else {
+        return vec![KanbanPlanState::InProgress];
+    };
+    match storage.get_item(&key).ok().flatten() {
+        Some(raw) => raw
+            .split(',')
+            .filter_map(plan_state_from_key)
+            .collect::<Vec<_>>(),
+        None => vec![KanbanPlanState::InProgress],
+    }
+}
+
+fn write_open_plan_sections(workspace_cwd: &str, sections: &[KanbanPlanState]) {
+    let Some(storage) = web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten())
+    else {
+        return;
+    };
+    let raw = sections
+        .iter()
+        .map(plan_state_key)
+        .collect::<Vec<_>>()
+        .join(",");
+    let _ = storage.set_item(&open_plan_sections_storage_key(workspace_cwd), &raw);
+}
+
+fn plan_state_from_key(raw: &str) -> Option<KanbanPlanState> {
+    match raw {
+        "blocked" => Some(KanbanPlanState::Blocked),
+        "in-progress" => Some(KanbanPlanState::InProgress),
+        "pending" => Some(KanbanPlanState::Pending),
+        "completed" => Some(KanbanPlanState::Completed),
+        "cancelled" => Some(KanbanPlanState::Cancelled),
+        "empty" => Some(KanbanPlanState::Empty),
+        _ => None,
+    }
 }
 
 fn plan_picker_description(plan: &KanbanPlanNode) -> String {
