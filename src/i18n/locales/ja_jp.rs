@@ -1214,5 +1214,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::EdKwMoveLineDown => "Move line down",
         I18nKey::EdKwDuplicateLine => "Duplicate line",
         I18nKey::EdKwFormat => "Format / indent",
+        I18nKey::ShortcutsEditorHeading => "File editor / preview",
+        I18nKey::ShortcutsEditorVimDisabledHint => "Disabled while Vim mode is active. Turn off Vim in Settings → Code Editor to use these shortcuts.",
     }
 }

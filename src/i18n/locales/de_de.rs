@@ -1254,5 +1254,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::EdKwMoveLineDown => "Zeile nach unten",
         I18nKey::EdKwDuplicateLine => "Zeile duplizieren",
         I18nKey::EdKwFormat => "Formatieren / einrücken",
+        I18nKey::ShortcutsEditorHeading => "Datei-Editor / Vorschau",
+        I18nKey::ShortcutsEditorVimDisabledHint => "Deaktiviert, solange der Vim-Modus aktiv ist. Schalte Vim unter Einstellungen → Code-Editor aus, um diese Shortcuts zu nutzen.",
     }
 }

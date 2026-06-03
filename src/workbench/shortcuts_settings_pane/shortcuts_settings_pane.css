@@ -134,3 +134,21 @@
 .shortcuts-pane__capture--active:focus-visible {
   outline: none;
 }
+
+/* File editor / preview shortcuts — disabled while Vim mode owns the keymap. */
+.shortcuts-pane__editor--disabled .shortcuts-pane__list,
+.shortcuts-pane__editor--disabled .shortcuts-pane__btn--reset-all {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.shortcuts-pane__row--disabled {
+  opacity: 0.6;
+}
+
+.shortcuts-pane__vim-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+}

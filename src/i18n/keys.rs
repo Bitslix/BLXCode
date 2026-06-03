@@ -644,6 +644,8 @@ pub enum I18nKey {
     EdKwMoveLineDown,
     EdKwDuplicateLine,
     EdKwFormat,
+    ShortcutsEditorHeading,
+    ShortcutsEditorVimDisabledHint,
     // --- MCP server registry (MCP settings category) ---
     McpDescription,
     McpHeading,
