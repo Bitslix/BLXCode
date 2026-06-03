@@ -20,8 +20,8 @@ const README: &str = "README.md";
 const PLANS_SEED: &str = r#"# Plans
 
 This directory holds durable Markdown plans for AI coding agents working on
-this repository. Each plan lives in its own Markdown file under
-`.agents/plans/`. Plans are the structured Markdown counterpart to the
+this repository. Each plan lives in its own folder as
+`.agents/plans/<slug>/plan.md`. Plans are the structured Markdown counterpart to the
 short-lived task list — they are checked into git and survive across
 sessions.
 
@@ -30,7 +30,7 @@ relative Markdown link, one line per plan.
 
 ## Index
 
-_(Add plans here as `[Short title](plan-filename.md)` — one line per plan.)_
+_(Add plans here as `[Short title](plan-slug/plan.md)` — one line per plan.)_
 "#;
 
 const LEARNINGS_SEED: &str = r#"# Learnings
@@ -67,8 +67,8 @@ const PLANS_README_SEED: &str = r#"# Plans
 
 Durable Markdown plans for BLXCode agents.
 
-Use this folder for implementation plans that should survive app restarts and
-can be checked into the repository.
+Use one folder per implementation plan: `<slug>/plan.md`. Additional files in
+the same folder can hold plan-specific attachments or notes.
 "#;
 
 const KANBAN_README_SEED: &str = r#"# Kanban

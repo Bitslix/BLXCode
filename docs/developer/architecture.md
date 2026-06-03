@@ -151,7 +151,7 @@ flowchart LR
   PlansMod --> TasksJson
 ```
 
-Tasks live in `src-tauri/src/tasks.rs` and store JSON under `<workspace>/.blxcode/tasks/index.json`. `plan_load` replaces tasks matching a plan path; `tasks_update` can write status markers back into plan Markdown.
+Tasks live in `src-tauri/src/tasks.rs` and store JSON under `{app_data_dir}/tasks/<workspace_hash>/index.json`. `plan_load` replaces tasks matching a canonical plan path such as `feature/plan.md`; `tasks_update` can write status markers back into plan Markdown.
 
 ```mermaid
 flowchart LR
@@ -167,9 +167,9 @@ flowchart LR
 
 ## Plans
 
-`src-tauri/src/plans.rs` parses and writes the canonical `## Tasks` / `## Todos` section. `PLANS.md` is protected. Path traversal is rejected relative to the plans root.
+`src-tauri/src/plans.rs` parses and writes the canonical `## Tasks` / `## Todos` section. Normal plans live at `.agents/plans/<slug>/plan.md`; `PLANS.md` is protected. Path traversal is rejected relative to the plans root, and legacy `slug.md` inputs are normalized.
 
-`src-tauri/src/plans_index.rs` keeps the `PLANS.md` index table in sync on `plan_create` / `plan_write` / `plan_delete` / `plan_rename` (generated membership, preserved Status/Description cells). The `PLANS.md` index file is treated as **read-only** in the Plans panel — the index is hidden from the cards list and excluded from the status-tab counts (`displayed_plans` derivation filters `is_index`) so the *Empty* group reflects only real plans.
+`src-tauri/src/plans_index.rs` keeps the `PLANS.md` index table in sync on `plan_create` / `plan_write` / `plan_delete` / `plan_rename` (generated membership from canonical `plan.md` files, preserved Status/Description cells). The `PLANS.md` index file is treated as **read-only** in the Plans panel — the index is hidden from the cards list and excluded from the status-tab counts (`displayed_plans` derivation filters `is_index`) so the *Empty* group reflects only real plans.
 
 ### AI-generated plans and tasks
 

@@ -162,7 +162,7 @@ pub fn msg(key: I18nKey) -> &'static str {
 
         I18nKey::PlansNewPlan => "New plan",
 
-        I18nKey::PlansNewPlanPh => "plan-filename.md",
+        I18nKey::PlansNewPlanPh => "plan-slug/plan.md",
 
         I18nKey::PlansRename => "Rename",
 

@@ -48,4 +48,4 @@ Notes support Obsidian-style `[[wikilinks]]` and `#tags` — both are indexed by
 - Call `task_list` early on complex work and keep state current via `task_update`.
 - Reuse and update existing tasks instead of duplicating when the user expands ongoing work.
 - Do not create throwaway tasks for trivial single-step answers.
-- Plan-linked tasks (non-null `planPath` + `planTaskId`) and free tasks are shown separately in the UI.
+- Plan-linked tasks use canonical `planPath` values such as `feature-slug/plan.md` plus `planTaskId`; free tasks have no `planPath`.

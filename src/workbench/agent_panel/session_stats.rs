@@ -62,6 +62,7 @@ fn tool_category(tool: &str) -> Option<ToolCategory> {
         | "memory_backlinks"
         | "memory_graph"
         | "memory_context_list"
+        | "plan_context_list"
         | "memory_category_list"
         | "rules_read"
         | "skills_read"
@@ -75,13 +76,15 @@ fn tool_category(tool: &str) -> Option<ToolCategory> {
         "list_workspace_files"
         | "harness.open_terminal"
         | "harness.create_workspace"
-        | "memory_context_attach" => Some(Open),
+        | "memory_context_attach"
+        | "plan_context_attach" => Some(Open),
 
         "memory_create"
         | "memory_write"
         | "memory_rename"
         | "memory_category_update"
         | "memory_context_detach"
+        | "plan_context_detach"
         | "task_create"
         | "task_update"
         | "task_reorder"

@@ -64,6 +64,8 @@ Plan tool sequence:
 4. `plan_load { path }` before execution
 5. `task_list` to confirm loaded tasks
 
+Prefer canonical plan paths like `feature-slug/plan.md`. Legacy `feature-slug.md` inputs are accepted but normalized by the tools.
+
 Plan files must use BLXCode task syntax:
 
 ```markdown

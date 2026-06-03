@@ -76,7 +76,7 @@ Workspace-local data is stored inside the workspace folder:
 ```text
 .agents/memory/          # notes; subfolders = categories
 .agents/learnings/      # repo learnings
-.agents/plans/           # Markdown plans + PLANS.md index
+.agents/plans/           # plan folders (<slug>/plan.md) + PLANS.md index
 .agents/rules/           # binding rule-*.md files
 .agents/skills/          # skill folders with SKILL.md
 .blxcode/tasks/          # task store (JSON)

@@ -7,14 +7,18 @@ BLXCode keeps durable Markdown plans inside the workspace so you can track multi
 ```text
 <workspace>/.agents/plans/
   PLANS.md              # protected index (never deleted)
-  my-feature.md         # individual plan files
+  my-feature/
+    plan.md             # canonical plan Markdown
+    ...                 # optional plan-specific sidecar files
 ```
 
 Opening or switching to a workspace runs `workspace_ensure_agents`, which creates `.agents/plans/` and seeds `PLANS.md` when missing.
 
-`PLANS.md` is the plan index. BLXCode will not delete it through the UI. Other `.md` files in this folder are normal plans you can create, rename, or remove.
+`PLANS.md` is the plan index. BLXCode will not delete it through the UI. Normal plans live as `<slug>/plan.md`; extra files in the same folder are reserved for future plan attachments or notes.
 
-The index table inside `PLANS.md` is **maintained automatically** when you create, rename, delete, or save a plan — you do not need to edit the table by hand. BLXCode derives which plans exist from the `.md` files on disk and preserves your **Status** and **Description** cells per plan path across syncs. New plans get a default `planned` status and their Markdown heading as the description.
+The index table inside `PLANS.md` is **maintained automatically** when you create, rename, delete, or save a plan — you do not need to edit the table by hand. BLXCode derives which plans exist from canonical `plan.md` files and preserves your **Status** and **Description** cells per plan path across syncs. New plans get a default `planned` status and their Markdown heading as the description.
+
+Legacy root files such as `.agents/plans/my-feature.md` are migrated automatically to `.agents/plans/my-feature/plan.md`. The migration runs in the background and shows compact progress in the app statusbar.
 
 ## Task syntax in plan Markdown
 
@@ -43,7 +47,7 @@ One task per line, using this form:
 | `[x]` | completed |
 | `[-]` | cancelled |
 
-The backtick-wrapped `task-id` is stable. BLXCode uses it when syncing with `.blxcode/tasks/`.
+The backtick-wrapped `task-id` is stable. BLXCode uses it when syncing with the per-installation task store.
 
 ## Plans panel
 
@@ -102,7 +106,7 @@ The Plans panel header has two AI generation buttons next to the **+ New plan** 
 
 Clicking either button opens a dialog where you type a short prompt (for example *"Add SSH key rotation support"*). While the agent generates, the prompt box shows a **shimmer loading animation** (a `prefers-reduced-motion` fallback replaces the shimmer with a static label). When the model finishes, the dialog renders a **scrollable Markdown preview** of the proposed plan with three actions:
 
-- **Save** — writes the plan to `.agents/plans/<slug>.md` through the existing `plan_create` tool and, when *Generate tasks* is enabled, runs `plan_load` so the `## Tasks` section is synced into the task store.
+- **Save** — writes the plan to `.agents/plans/<slug>/plan.md` through the existing `plan_create` tool and, when *Generate tasks* is enabled, runs `plan_load` so the `## Tasks` section is synced into the task store.
 - **Regenerate** — re-asks the model with the same prompt.
 - **Cancel** — closes the dialog and discards the draft.
 
@@ -114,19 +118,19 @@ The generated plan is saved through the same tools as a hand-written one — the
 
 Switch the Plans toolbar to **Kanban** (alongside **Editor** and **Preview**).
 
-- Aggregates tasks from all plan files in the workspace (`PLANS.md` index is excluded).
+- Aggregates tasks from all canonical plan files in the workspace (`PLANS.md` index is excluded).
 - **Free tasks** without `planPath` stay in the Agent task list only — not on the board.
 - Columns match task statuses: pending, in progress, blocked, completed, cancelled.
 - **Drag cards** between columns to change status; BLXCode writes the matching `[ ]` / `[>]` / `[!]` / `[x]` / `[-]` marker back into the plan Markdown.
-- **Drag columns** to reorder; hide or show empty columns. Layout persists in `.blxcode/kanban/index.json`.
+- **Drag columns** to reorder; hide or show empty columns. Layout persists in `.agents/kanban/index.json`.
 
-Quick-add and delete actions on cards keep the board and plan files in sync. When a card’s task is mirrored in `.blxcode/tasks/`, status updates best-effort sync there too.
+Quick-add and delete actions on cards keep the board and plan files in sync. When a card’s task is mirrored in the task store, status updates best-effort sync there too.
 
 ## Plan-linked tasks
 
-Tasks in `.blxcode/tasks/index.json` can reference a plan:
+Tasks in `{app_data_dir}/tasks/<workspace_hash>/index.json` can reference a plan:
 
-- `planPath` — relative path under `.agents/plans/` (for example `my-feature.md`).
+- `planPath` — canonical relative path under `.agents/plans/` (for example `my-feature/plan.md`).
 - `planTaskId` — the `` `id` `` from the plan Markdown line.
 
 **Load into Agent** (`plan_load`) replaces only tasks whose `planPath` matches the loaded plan. **Free tasks** (no `planPath`) are left untouched.
@@ -161,9 +165,9 @@ When sending workspace context to an external CLI agent, `harness.send_agent_con
 
 ```mermaid
 flowchart LR
-  PlanMd[".agents/plans/*.md"]
+  PlanMd[".agents/plans/<slug>/plan.md"]
   PlanLoad[plan_load]
-  TaskJson[".blxcode/tasks/index.json"]
+  TaskJson["{app_data_dir}/tasks/<workspace_hash>/index.json"]
   Agent[BLXCode Agent]
   PlanMd -->|parse ## Tasks| PlanLoad
   PlanLoad --> TaskJson

@@ -7,10 +7,10 @@ description: Create, update, and maintain BLXCode workspace plans under `.agents
 
 ## Core Rules
 
-- Store durable plans in `.agents/plans/` as Markdown files.
+- Store durable plans as `.agents/plans/<slug>/plan.md`.
 - Keep `.agents/plans/PLANS.md` as the protected index. Do not delete or rename it.
-- Use one focused plan file per feature, refactor, investigation, or multi-step implementation.
-- Prefer lowercase hyphenated filenames ending in `.md`, for example `kanban-board-view.md`.
+- Use one focused plan folder per feature, refactor, investigation, or multi-step implementation.
+- Prefer lowercase hyphenated folder slugs with a canonical `plan.md`, for example `kanban-board-view/plan.md`.
 - Keep plans agent-actionable: concrete enough to implement, but not bloated with unrelated analysis.
 - Update the plan as work changes. A stale plan is worse than no plan.
 
@@ -73,8 +73,8 @@ Task IDs must be stable, unique within the plan, lowercase where practical, and 
 
 ## Creating A New Plan
 
-1. Check `.agents/plans/PLANS.md` and existing plan filenames to avoid duplicates.
-2. Create a focused `.md` file under `.agents/plans/`.
+1. Check `.agents/plans/PLANS.md` and existing plan slugs to avoid duplicates.
+2. Create a focused `plan.md` file under `.agents/plans/<slug>/`.
 3. Add a clear H1 title and the standard sections above.
 4. Add concrete `## Tasks` entries using stable task IDs.
 5. Add a row to `.agents/plans/PLANS.md` with status, link, and concise description.
@@ -82,7 +82,7 @@ Task IDs must be stable, unique within the plan, lowercase where practical, and 
 Index row format:
 
 ```markdown
-| planned | [new-plan.md](new-plan.md) | One-sentence description of the intended work |
+| planned | [new-plan/plan.md](new-plan/plan.md) | One-sentence description of the intended work |
 ```
 
 Use `planned`, `active`, `blocked`, `done`, or `cancelled` in the index status column. Match the style already used in `PLANS.md`.

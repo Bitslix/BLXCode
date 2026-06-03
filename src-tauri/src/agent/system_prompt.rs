@@ -127,7 +127,7 @@ fn base_system_prompt(root: &str, agent_name: &str) -> String {
             ask the user what to continue. Tasks and plans are durable on \
             disk — tasks in the per-installation app-data dir \
             (`{{app_data_dir}}/tasks/<workspace_hash>/index.json`, resolved \
-            via the `task_*` tools) and plans in `<workspace>/.agents/plans/*.md`. \
+            via the `task_*` tools) and plans in `<workspace>/.agents/plans/<slug>/plan.md`. \
             They survive workspace reload/close/exit, so a \"continue\" \
             after a restart is authoritative.\n\
          4. **Memory / learnings / project context as needed.** Apply the \

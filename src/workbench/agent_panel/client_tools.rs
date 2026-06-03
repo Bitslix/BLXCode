@@ -1,6 +1,6 @@
 use crate::agent_wire::{AgentContextItem, AgentContextKind, AgentEvent};
 use crate::tauri_bridge::{
-    agent_submit_tool_result, memory_list, pty_peek_output, pty_wait_output, pty_write,
+    agent_submit_tool_result, memory_list, plan_read, pty_peek_output, pty_wait_output, pty_write,
     window_set_fullscreen, window_set_size, window_state, workbench_list_agent_notifications,
     workbench_mark_agent_notifications_read, workbench_remove_agent_notification,
     workbench_update_agent_notification, workbench_upsert_agent_notification,
@@ -96,6 +96,9 @@ pub fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
         "memory_context_list" => handle_memory_context_list(call_id, wb),
         "memory_context_attach" => handle_memory_context_attach(call_id, args.clone(), wb),
         "memory_context_detach" => handle_memory_context_detach(call_id, args.clone(), wb),
+        "plan_context_list" => handle_plan_context_list(call_id, wb),
+        "plan_context_attach" => handle_plan_context_attach(call_id, args.clone(), wb),
+        "plan_context_detach" => handle_plan_context_detach(call_id, args.clone(), wb),
         "image_context_list" => handle_image_context_list(call_id, wb),
         "image_context_detach" => handle_image_context_detach(call_id, args.clone(), wb),
         _ => {}
@@ -584,6 +587,109 @@ fn handle_memory_context_detach(
     };
     wb.remove_workspace_agent_context(ws_id, id);
     submit_async(call_id, true, format!("detached context {id}"), None);
+}
+
+fn handle_plan_context_list(call_id: String, wb: WorkbenchService) {
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    let items: Vec<AgentContextItem> = wb
+        .agent_context_for_workspace_untracked(ws_id)
+        .into_iter()
+        .filter(|item| {
+            matches!(
+                item.kind,
+                AgentContextKind::PlanIndex
+                    | AgentContextKind::PlanFile
+                    | AgentContextKind::PlanTaskGroup
+            )
+        })
+        .collect();
+    let body = serde_json::to_value(&items).unwrap_or(serde_json::Value::Array(vec![]));
+    submit_async(
+        call_id,
+        true,
+        format!("{} plan context item(s)", items.len()),
+        Some(body),
+    );
+}
+
+fn handle_plan_context_detach(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    let Some(id) = args
+        .as_ref()
+        .and_then(|v| v.get("id"))
+        .and_then(|v| v.as_str())
+    else {
+        submit_async(call_id, false, "missing id".into(), None);
+        return;
+    };
+    wb.remove_workspace_agent_context(ws_id, id);
+    submit_async(call_id, true, format!("detached plan context {id}"), None);
+}
+
+fn handle_plan_context_attach(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    let Some(cwd) = wb.default_workspace_cwd() else {
+        submit_async(call_id, false, "workspace has no folder".into(), None);
+        return;
+    };
+    let Some(path) = args
+        .as_ref()
+        .and_then(|v| v.get("path"))
+        .and_then(|v| v.as_str())
+        .map(str::to_owned)
+    else {
+        submit_async(call_id, false, "missing path".into(), None);
+        return;
+    };
+    let label_override = args
+        .as_ref()
+        .and_then(|v| v.get("label"))
+        .and_then(|v| v.as_str())
+        .map(str::to_owned);
+    leptos::task::spawn_local(async move {
+        match plan_read(&cwd, &path).await {
+            Ok(plan) => {
+                let label = label_override.unwrap_or_else(|| {
+                    plan.content
+                        .lines()
+                        .find_map(|line| line.trim_start().strip_prefix("# "))
+                        .map(str::trim)
+                        .filter(|title| !title.is_empty())
+                        .unwrap_or(plan.path.as_str())
+                        .to_owned()
+                });
+                let item = AgentContextItem {
+                    id: format!("plan-file:{}", plan.path),
+                    kind: AgentContextKind::PlanFile,
+                    label,
+                    source: "plan file".into(),
+                    paths: vec![plan.path.clone()],
+                    added_at: Date::now() as i64,
+                    content: None,
+                };
+                wb.upsert_workspace_agent_context(ws_id, item);
+                submit_async(call_id, true, format!("attached plan {}", plan.path), None);
+            }
+            Err(err) => submit_async(call_id, false, err, None),
+        }
+    });
 }
 
 fn handle_image_context_list(call_id: String, wb: WorkbenchService) {

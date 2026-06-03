@@ -562,7 +562,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "plan_list",
-            description: "List Markdown plans in `<workspace>/.agents/plans/`. Each entry has `path`, `name`, `title`, `size`, `modified`, `isIndex`, and `taskSummary` ({ total, pending, inProgress, blocked, completed, cancelled }). Call before guessing about plans.",
+            description: "List Markdown plans in `<workspace>/.agents/plans/`. Normal plans are returned as canonical `<slug>/plan.md` paths. Each entry has `path`, `name`, `slug`, `folderPath`, `title`, `size`, `modified`, `isIndex`, and `taskSummary` ({ total, pending, inProgress, blocked, completed, cancelled }). Call before guessing about plans.",
             parameters: json!({
                 "type": "object",
                 "properties": {},
@@ -572,11 +572,11 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "plan_read",
-            description: "Read the Markdown body of one plan in `.agents/plans/` (path ends in `.md`). Returns `{ path, content, modified, isIndex }`. Output is truncated at 6000 chars.",
+            description: "Read the Markdown body of one plan in `.agents/plans/`. Accepts `slug`, legacy `slug.md`, or canonical `slug/plan.md`; returns canonical `{ path, content, modified, isIndex }`. Output is truncated at 6000 chars.",
             parameters: json!({
                 "type": "object",
                 "properties": {
-                    "path": { "type": "string", "description": "Plan path relative to `.agents/plans/`." }
+                    "path": { "type": "string", "description": "Plan path relative to `.agents/plans/`, preferably `slug/plan.md`." }
                 },
                 "required": ["path"],
                 "additionalProperties": false
@@ -585,7 +585,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "plan_create",
-            description: "Create a new plan under `.agents/plans/`. Path must end in `.md` and not exist. If `content` is omitted, the plan is seeded with `# <name>` and an empty `## Tasks` section. Content capped at 64 KiB.",
+            description: "Create a new plan under `.agents/plans/<slug>/plan.md`. Accepts `slug`, legacy `slug.md`, or canonical `slug/plan.md`; output path is canonical. If `content` is omitted, the plan is seeded with `# <slug>` and an empty `## Tasks` section. Content capped at 64 KiB.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -599,7 +599,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "plan_write",
-            description: "Overwrite an existing plan Markdown file. Content capped at 64 KiB. Use `plan_sync_from_tasks` if you just want to update the task section.",
+            description: "Overwrite an existing plan Markdown file. Accepts `slug`, legacy `slug.md`, or canonical `slug/plan.md`; output path is canonical. Content capped at 64 KiB. Use `plan_sync_from_tasks` if you just want to update the task section.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -613,7 +613,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "plan_delete",
-            description: "Delete a plan Markdown file (cannot delete `PLANS.md`).",
+            description: "Delete a plan Markdown file or plan folder (cannot delete `PLANS.md`). Accepts `slug`, legacy `slug.md`, or canonical `slug/plan.md`.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -626,7 +626,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "plan_rename",
-            description: "Rename or move a plan within `.agents/plans/`. Cannot rename `PLANS.md`. Task records pointing at the old path are rewritten to the new path.",
+            description: "Rename a plan folder within `.agents/plans/`. Accepts `slug`, legacy `slug.md`, or canonical `slug/plan.md`; returns canonical `new-slug/plan.md`. Cannot rename `PLANS.md`. Task records pointing at the old path are rewritten to the new path.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -640,7 +640,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "plan_load",
-            description: "Parse a plan's `## Tasks` (or `## Todos`) section and load it into the workspace task manager. Replaces only tasks where `planPath == path`; free tasks stay untouched. Sets the snapshot's `activePlanPath` to this plan. Call after writing a plan or whenever you want to act from a plan.",
+            description: "Parse a plan's `## Tasks` (or `## Todos`) section and load it into the workspace task manager. Accepts `slug`, legacy `slug.md`, or canonical `slug/plan.md`; task `planPath` and `activePlanPath` become canonical. Free tasks stay untouched. Call after writing a plan or whenever you want to act from a plan.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -653,7 +653,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "plan_sync_from_tasks",
-            description: "Write the current state of plan-linked tasks back into the plan Markdown's `## Tasks` section. Use after re-ordering or batch-status-changing plan tasks via `task_*` tools.",
+            description: "Write the current state of plan-linked tasks back into the plan Markdown's `## Tasks` section. Accepts `slug`, legacy `slug.md`, or canonical `slug/plan.md`. Use after re-ordering or batch-status-changing plan tasks via `task_*` tools.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -767,11 +767,11 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "plan_context_attach",
-            description: "Attach a plan file to BLXCode Agent context (kind `plan_file`). Use `plan_load` first if you also want the plan's tasks in the task manager.",
+            description: "Attach a plan file to BLXCode Agent context (kind `plan_file`). Accepts `slug`, legacy `slug.md`, or canonical `slug/plan.md`; stores the canonical path. Use `plan_load` first if you also want the plan's tasks in the task manager.",
             parameters: json!({
                 "type": "object",
                 "properties": {
-                    "path":  { "type": "string", "description": "Plan path relative to `.agents/plans/`." },
+                    "path":  { "type": "string", "description": "Plan path relative to `.agents/plans/`, preferably `slug/plan.md`." },
                     "label": { "type": "string" }
                 },
                 "required": ["path"],

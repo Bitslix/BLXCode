@@ -36,7 +36,7 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 - [Remote (SSH)](user/remote-ssh.md) — Settings → Remote connection presets (password / key / agent, encrypted secrets), creating remote workspaces, remote terminals + file/git + session resume (tmux vs keepalive).
 - [File Preview](user/file-preview.md) — center-tab previews for images (incl. SVG), video, rendered Markdown, syntax-highlighted source code, and Mermaid diagrams. Repository policy docs (`LICENSE`, `CONTRIBUTING`, `SECURITY`, `CHANGELOG`, …) render as Markdown with a kind-specific hero banner — with or without a `.md` extension.
 - [Memory And Tasks](user/memory-and-tasks.md) — Memory panel (Files, Graph, Search), architecture map, dynamic categories, tasks, agent memory tools.
-- [Plans](user/plans.md) — `.agents/plans/`, auto-maintained `PLANS.md` index, Kanban board, task syntax, Plans panel, agent tools.
+- [Plans](user/plans.md) — `.agents/plans/<slug>/plan.md`, auto-maintained `PLANS.md` index, Kanban board, task syntax, Plans panel, agent tools.
 - [Rules And Skills](user/rules-and-skills.md) — expandable rule/skill cards, core vs user skills, install dialog.
 - [Agent Harness](user/agent-harness.md) — core skills, slim prompt, environment/shell/git/web, web API keys.
 - [Subagents](user/subagents.md) — parallel runs, roles, timeline, tool groups, limits.

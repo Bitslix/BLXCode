@@ -1289,19 +1289,30 @@ fn normalize_plan_content(title: &str, body: &str) -> String {
 
 fn normalize_plan_path(raw: &str) -> String {
     let trimmed = raw.trim();
-    if trimmed.to_ascii_lowercase().ends_with(".md") {
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    if trimmed.to_ascii_lowercase().ends_with("/plan.md") {
         trimmed.to_owned()
+    } else if trimmed.to_ascii_lowercase().ends_with(".md") {
+        let slug = &trimmed[..trimmed.len().saturating_sub(3)];
+        format!("{slug}/plan.md")
     } else {
-        format!("{trimmed}.md")
+        format!("{trimmed}/plan.md")
     }
 }
 
 fn next_plan_name(title: &str, existing: &[PlanMeta]) -> String {
     let base = slugify_title(title);
-    let mut name = format!("{base}.md");
+    let mut slug = base.clone();
+    let mut name = format!("{slug}/plan.md");
     let mut i = 2;
-    while existing.iter().any(|plan| plan.path == name) {
-        name = format!("{base}-{i}.md");
+    while existing
+        .iter()
+        .any(|plan| plan.path == name || plan.slug == slug || plan.name == slug)
+    {
+        slug = format!("{base}-{i}");
+        name = format!("{slug}/plan.md");
         i += 1;
     }
     name

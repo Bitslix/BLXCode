@@ -168,7 +168,7 @@ Each task includes ID, title, description, status, position, timestamps, optiona
 
 Supported statuses: `pending`, `in_progress`, `blocked`, `completed`, `cancelled`.
 
-**Plan-linked tasks** sync with Markdown under `.agents/plans/`. Tasks without a `planPath` are **free tasks**. See [Plans](plans.md) for syntax and the Plans panel.
+**Plan-linked tasks** sync with Markdown under `.agents/plans/<slug>/plan.md`. Tasks without a `planPath` are **free tasks**. See [Plans](plans.md) for syntax and the Plans panel.
 
 ## Agent Memory Tools
 

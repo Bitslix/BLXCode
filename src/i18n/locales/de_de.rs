@@ -148,7 +148,7 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::PlansEmptyTitle => "Hier leben Pläne",
         I18nKey::PlansEmptyLead => "Öffnen Sie einen Arbeitsbereich, um Pläne anzuzeigen und zu erstellen.",
         I18nKey::PlansNewPlan => "Neuer Plan",
-        I18nKey::PlansNewPlanPh => "plan-dateiname.md",
+        I18nKey::PlansNewPlanPh => "plan-slug/plan.md",
         I18nKey::PlansRename => "Umbenennen",
         I18nKey::PlansDelete => "Löschen",
         I18nKey::PlansSelectPlan => "Wählen Sie einen Plan aus, um ihn anzuzeigen.",

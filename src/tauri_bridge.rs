@@ -2832,6 +2832,10 @@ pub struct PlanTaskSummaryWire {
 pub struct PlanMeta {
     pub path: String,
     pub name: String,
+    #[serde(default)]
+    pub slug: String,
+    #[serde(default)]
+    pub folder_path: String,
     pub title: String,
     pub size: u64,
     pub modified: i64,
