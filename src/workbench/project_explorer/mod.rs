@@ -602,6 +602,9 @@ fn ExplorerNode(
     let pad = format!("padding-left: {}rem", 0.65 + f64::from(depth) * 0.85);
 
     if !is_dir {
+        let ctx_dnd = expect_context::<crate::workbench::context_drag::ContextDragService>();
+        let name_for_drag = name.clone();
+        let rel_for_drag = rel_path.clone();
         return view! {
             <li class="project-explorer__node" role="none">
                 <div
@@ -612,6 +615,31 @@ fn ExplorerNode(
                     }
                     style=pad.clone()
                     role="treeitem"
+                    prop:draggable="true"
+                    on:dragstart={
+                        let name = name_for_drag.clone();
+                        let rel = rel_for_drag.clone();
+                        move |ev: web_sys::DragEvent| {
+                            let Some(ws_id) = wb.active_id().get_untracked() else { return; };
+                            let payload = crate::workbench::context_drag::ContextDragPayload {
+                                workspace_id: ws_id,
+                                kind: crate::workbench::context_drag::ContextDragKind::File,
+                                rel_path: Some(rel.clone()),
+                                staged: None,
+                                oid: None,
+                                short_oid: None,
+                                subject: None,
+                            };
+                            let meta = crate::workbench::context_drag::ContextDragMeta {
+                                kind: crate::workbench::context_drag::ContextDragKind::File,
+                                title: name.clone(),
+                                subtitle: rel.clone(),
+                            };
+                            crate::workbench::context_drag::start_context_drag(&ev, ctx_dnd, payload, meta);
+                        }
+                    }
+                    on:drag=move |ev: web_sys::DragEvent| ctx_dnd.set_overlay_pos_from_event(&ev)
+                    on:dragend=move |_| ctx_dnd.clear()
                     on:click={
                         let rel_path = rel_path.clone();
                         move |ev: web_sys::MouseEvent| {

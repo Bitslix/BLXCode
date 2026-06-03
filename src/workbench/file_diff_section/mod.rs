@@ -684,8 +684,50 @@ fn FileDiffRow(
     let status_title_fn = i18n.tr(status_label_key);
     let status_title = StoredValue::new(status_title_fn());
 
+    let ctx_dnd = expect_context::<crate::workbench::context_drag::ContextDragService>();
+    let drag_rel = rel.clone();
+    let drag_status = status_kind.clone();
+    let drag_staged = open_staged;
+    let drag_title = rel
+        .rsplit('/')
+        .next()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(rel.as_str())
+        .to_string();
+
     view! {
-        <li class=row_class>
+        <li
+            class=row_class
+            prop:draggable="true"
+            on:dragstart={
+                let rel = drag_rel.clone();
+                let status = drag_status.clone();
+                let title = drag_title.clone();
+                move |ev: web_sys::DragEvent| {
+                    let Some(ws_id) = wb.active_id().get_untracked() else { return; };
+                    let payload = crate::workbench::context_drag::ContextDragPayload {
+                        workspace_id: ws_id,
+                        kind: crate::workbench::context_drag::ContextDragKind::Diff,
+                        rel_path: Some(rel.clone()),
+                        staged: Some(drag_staged),
+                        oid: None,
+                        short_oid: None,
+                        subject: None,
+                    };
+                    let meta = crate::workbench::context_drag::ContextDragMeta {
+                        kind: crate::workbench::context_drag::ContextDragKind::Diff,
+                        title: title.clone(),
+                        subtitle: format!(
+                            "{} diff · {status}",
+                            if drag_staged { "staged" } else { "working" }
+                        ),
+                    };
+                    crate::workbench::context_drag::start_context_drag(&ev, ctx_dnd, payload, meta);
+                }
+            }
+            on:drag=move |ev: web_sys::DragEvent| ctx_dnd.set_overlay_pos_from_event(&ev)
+            on:dragend=move |_| ctx_dnd.clear()
+        >
             <button
                 type="button"
                 class="file-diff-section__row-btn"

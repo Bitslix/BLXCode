@@ -8,9 +8,11 @@
 //! platform without relying on `DataTransfer::set_drag_image` (which WebKitGTK
 //! aborts if the image isn't ready synchronously).
 
+use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
+use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
-use web_sys::DataTransfer;
+use web_sys::{DataTransfer, DragEvent};
 
 /// Custom MIME used for all context drags out of the sidebar into the Agent
 /// drop zone. Distinct from the terminal-slot MIME so the two DnD flows never
@@ -157,6 +159,28 @@ pub fn read_drag_payload(dt: &DataTransfer) -> Option<ContextDragPayload> {
         .ok()
         .filter(|json| !json.is_empty())
         .and_then(|json| serde_json::from_str(&json).ok())
+}
+
+/// Wire a `dragstart` from a sidebar row: stamp the payload onto the
+/// `DataTransfer`, open a drag session, and (deferred by a `setTimeout(0)`)
+/// publish the preview meta. Deferral lets the native drag begin before our DOM
+/// mutates, mirroring the terminal-slot drag start.
+pub fn start_context_drag(
+    ev: &DragEvent,
+    svc: ContextDragService,
+    payload: ContextDragPayload,
+    meta: ContextDragMeta,
+) {
+    let Some(dt) = ev.data_transfer() else {
+        return;
+    };
+    set_drag_payload(&dt, &payload);
+    let gen = svc.begin_session();
+    svc.set_overlay_pos_from_event(ev);
+    spawn_local(async move {
+        TimeoutFuture::new(0).await;
+        svc.try_set_active(gen, meta);
+    });
 }
 
 pub fn is_context_drag(dt: &DataTransfer) -> bool {
