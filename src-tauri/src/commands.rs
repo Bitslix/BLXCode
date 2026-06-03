@@ -1,3 +1,4 @@
+use crate::agent::protocol::AgentChatMode;
 use crate::agent::{dispatch_user_turn, AgentEngineState, EventEnvelope, UserTurn};
 use crate::agent_settings::provider_status_json;
 use crate::browser_host::BrowserHost;
@@ -437,6 +438,15 @@ pub fn agent_submit_tool_result(
     payload: ToolResultPayload,
     agent: State<'_, Arc<AgentEngineState>>,
 ) -> Result<(), String> {
+    if payload
+        .data
+        .as_ref()
+        .and_then(|data| data.get("chatModeChangedTo"))
+        .and_then(|value| value.as_str())
+        == Some("allow_all")
+    {
+        agent.set_chat_mode_override(AgentChatMode::AllowAll);
+    }
     agent.deliver_client_tool_result(&payload.call_id, payload.ok, payload.message, payload.data)
 }
 

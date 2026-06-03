@@ -30,7 +30,7 @@ pub async fn dispatch_tool(
             content: args.to_string(),
         };
     }
-    let chat_mode = ctx.map(|c| c.chat_mode).unwrap_or_default();
+    let chat_mode = effective_chat_mode(state, ctx);
     if let Some(outcome) = enforce_chat_mode(state, call_id, name, args, chat_mode).await {
         return outcome;
     }
@@ -55,6 +55,16 @@ pub async fn dispatch_tool(
     };
     state.pop_parent();
     outcome
+}
+
+fn effective_chat_mode(
+    state: &Arc<AgentEngineState>,
+    ctx: Option<&DispatchContext>,
+) -> AgentChatMode {
+    state
+        .chat_mode_override()
+        .or_else(|| ctx.map(|c| c.chat_mode))
+        .unwrap_or_default()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -448,6 +458,24 @@ mod tests {
             ToolPermissionClass::NavigationView
         ));
         assert!(!requires_ask_edits_prompt(ToolPermissionClass::Read));
+    }
+
+    #[test]
+    fn effective_chat_mode_prefers_runtime_override() {
+        let state = AgentEngineState::new();
+        let ctx = DispatchContext {
+            settings: AgentProviderSettings::default(),
+            api_key: String::new(),
+            chat_mode: AgentChatMode::AskEdits,
+        };
+
+        assert_eq!(effective_chat_mode(&state, Some(&ctx)), AgentChatMode::AskEdits);
+
+        state.set_chat_mode_override(AgentChatMode::AllowAll);
+        assert_eq!(
+            effective_chat_mode(&state, Some(&ctx)),
+            AgentChatMode::AllowAll
+        );
     }
 
     #[test]
