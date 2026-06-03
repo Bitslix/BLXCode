@@ -4,12 +4,15 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_updater::{Update, UpdaterExt};
+use url::Url;
 
 const RELEASE_NOTES_REPO: &str = "Bitslix/BLXCode";
 const RELEASE_NOTES_USER_AGENT: &str = "BLXCode post-update release notes";
+const UPDATE_USER_AGENT: &str = "BLXCode updater channel resolver";
 const UPDATE_SETTINGS_FILE: &str = "app_update_settings.json";
 
 #[derive(Default)]
@@ -107,6 +110,12 @@ struct GithubReleasePayload {
     body: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct GithubReleaseListItem {
+    tag_name: String,
+    draft: bool,
+}
+
 impl Default for UpdateProgress {
     fn default() -> Self {
         Self {
@@ -187,6 +196,36 @@ pub async fn updater_check(
     });
     #[cfg(target_os = "macos")]
     let builder = builder.target("darwin-universal");
+
+    let builder = match channel {
+        UpdateChannel::Stable => builder,
+        UpdateChannel::Beta => {
+            let Some(endpoint) = beta_update_endpoint(&current_version).await? else {
+                let mut inner = state.inner.lock().map_err(lock_err)?;
+                inner.pending_update = None;
+                inner.progress = UpdateProgress {
+                    phase: "upToDate".into(),
+                    busy: false,
+                    updated_at_ms: now_ms(),
+                    ..UpdateProgress::default()
+                };
+                return Ok(UpdateCheckResponse {
+                    status: "upToDate".into(),
+                    channel,
+                    current_version,
+                    available_version: None,
+                    notes: None,
+                    date: None,
+                    target: None,
+                    download_url: None,
+                    message: None,
+                });
+            };
+            builder
+                .endpoints(vec![endpoint])
+                .map_err(|err| updater_error(&state, err))?
+        }
+    };
 
     let update = builder
         .build()
@@ -290,6 +329,51 @@ fn settings_view(settings: &UpdateSettings) -> Result<UpdateSettingsView, String
     Ok(UpdateSettingsView {
         channel: settings.channel,
     })
+}
+
+async fn beta_update_endpoint(current_version: &str) -> Result<Option<Url>, String> {
+    let current = parse_release_semver(current_version)
+        .map_err(|err| format!("parse current app version {current_version:?}: {err}"))?;
+    let client = reqwest::Client::builder()
+        .user_agent(UPDATE_USER_AGENT)
+        .build()
+        .map_err(|err| format!("GitHub release client: {err}"))?;
+    let url = format!("https://api.github.com/repos/{RELEASE_NOTES_REPO}/releases?per_page=100");
+    let response = client
+        .get(&url)
+        .header("Accept", "application/vnd.github+json")
+        .send()
+        .await
+        .map_err(|err| format!("fetch GitHub releases: {err}"))?;
+    if !response.status().is_success() {
+        return Err(format!("GitHub releases returned {}", response.status()));
+    }
+    let releases = response
+        .json::<Vec<GithubReleaseListItem>>()
+        .await
+        .map_err(|err| format!("parse GitHub releases: {err}"))?;
+
+    let mut candidates = releases
+        .into_iter()
+        .filter(|release| !release.draft)
+        .filter_map(|release| {
+            let version = parse_release_semver(&release.tag_name).ok()?;
+            (version > current).then_some((version, release.tag_name))
+        })
+        .collect::<Vec<_>>();
+    candidates.sort_by(|(a, _), (b, _)| b.cmp(a));
+
+    let Some((_, tag)) = candidates.into_iter().next() else {
+        return Ok(None);
+    };
+    let endpoint = format!("https://github.com/{RELEASE_NOTES_REPO}/releases/download/{tag}/latest.json");
+    Url::parse(&endpoint).map(Some).map_err(|err| {
+        format!("build beta updater endpoint for {tag}: {err}")
+    })
+}
+
+fn parse_release_semver(version: &str) -> Result<Version, semver::Error> {
+    Version::parse(version.trim().trim_start_matches('v'))
 }
 
 #[tauri::command]
