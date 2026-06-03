@@ -12,7 +12,7 @@ use crate::workbench::UpdateService;
 use crate::workbench::UpdateUiStatus;
 use crate::workbench::WorkbenchService;
 use crate::workbench::WorkbenchShell;
-use crate::workbench::{CoreStatusBarItem, CoreStatusService};
+use crate::workbench::{CoreStatusBarItem, CoreStatusService, VimStatusIndicator};
 use crate::workbench::{HookInstallDialogService, HookStatusBarItem, HookStatusService};
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
@@ -247,6 +247,7 @@ fn AppStatusLine() -> impl IntoView {
                         <span>{move || update_statusline_label(updates, i18n)}</span>
                     </span>
                 </Show>
+                <VimStatusIndicator />
             </div>
             <div class="app-statusline__slot app-statusline__slot--center">
                 <CoreStatusBarItem />

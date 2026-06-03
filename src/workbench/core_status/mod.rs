@@ -363,6 +363,34 @@ pub fn CoreStatusBarItem() -> impl IntoView {
     }
 }
 
+/// Status-bar (left slot) indicator that surfaces the active Vim mode. Only
+/// shown when Vim is enabled **and** the user is actively in a file
+/// editor/preview tab (reusing `active_editor_status`). Lucide is the only
+/// compiled icon set, so a keyboard glyph + "VIM" label stands in for a vim
+/// logo.
+#[component]
+pub fn VimStatusIndicator() -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let wb = expect_context::<WorkbenchService>();
+    let status = expect_context::<CoreStatusService>();
+    let editor_settings = expect_context::<crate::workbench::EditorSettingsService>();
+    let vim_enabled = editor_settings.vim_enabled();
+    let in_editor = Memo::new(move |_| status.active_editor_status(wb).is_some());
+    let visible = move || vim_enabled.get() && in_editor.get();
+
+    view! {
+        <Show when=visible>
+            <span
+                class="app-statusline__item app-statusline__item--quiet vim-status-item"
+                title=move || i18n.tr(I18nKey::CodeEditorVimStatusTip)()
+            >
+                <LxIcon icon=icondata::LuKeyboard width="0.76rem" height="0.76rem" />
+                <span>"VIM"</span>
+            </span>
+        </Show>
+    }
+}
+
 fn active_workspace_refresh_key(wb: WorkbenchService) -> Option<(u64, String, Option<String>)> {
     let active = wb.active_id().get()?;
     wb.workspaces().with(|workspaces| {

@@ -83,7 +83,7 @@ pub use app_titlebar::AppTitleBar;
 pub use appearance_settings_pane::AppearanceSettingsPane;
 pub use code_editor_settings_pane::CodeEditorSettingsPane;
 pub use browser_tab::{BrowserTabDock, EmbeddedBrowserGlue};
-pub use core_status::{CoreStatusBarItem, CoreStatusService};
+pub use core_status::{CoreStatusBarItem, CoreStatusService, VimStatusIndicator};
 pub use hook_install_dialog::{HookInstallDialog, HookInstallDialogService};
 pub use hook_status::{HookStatusBarItem, HookStatusService};
 pub use mcp_settings_pane::McpSettingsPane;
