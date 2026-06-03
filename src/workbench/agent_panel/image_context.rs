@@ -1,7 +1,15 @@
 use crate::agent_wire::AgentImageContextItem;
-use crate::tauri_bridge::{agent_read_image_file, pty_peek_output, AgentImageFilePayload};
+use crate::tauri_bridge::{
+    agent_read_image_file, git_commit_details, git_file_diff, pty_peek_output,
+    AgentImageFilePayload,
+};
 use crate::workbench::agent_context_handoff::{
+    file_ref_context_item, git_commit_context_item, git_diff_context_item,
     list_workspace_terminal_targets, terminal_session_context_item_with_content,
+};
+use crate::workbench::context_drag::{
+    read_drag_payload as read_context_payload, ContextDragKind, ContextDragPayload,
+    ContextDragService,
 };
 use crate::workbench::terminal_slot_dnd::{
     is_terminal_drag, read_drag_payload, TerminalSlotDragPayload, TerminalSlotDragService,
@@ -25,6 +33,9 @@ pub enum DropZoneState {
     Inactive,
     AcceptImage,
     AcceptTerminal,
+    AcceptFile,
+    AcceptDiff,
+    AcceptCommit,
     Reject,
 }
 
@@ -40,6 +51,9 @@ impl DropZoneState {
             Self::Inactive => "",
             Self::AcceptImage => "Drop images to attach",
             Self::AcceptTerminal => "Drop terminal to attach session context",
+            Self::AcceptFile => "Drop file to attach as context",
+            Self::AcceptDiff => "Drop diff to attach as context",
+            Self::AcceptCommit => "Drop commit to attach as context",
             Self::Reject => "Only image files or terminal sessions can be attached",
         }
     }
@@ -59,6 +73,7 @@ pub fn handle_dom_drag_event(
     ev: DragEvent,
     drop_state: RwSignal<DropZoneState>,
     slot_dnd: TerminalSlotDragService,
+    context_dnd: ContextDragService,
 ) {
     if has_terminal_drag(&ev, slot_dnd) {
         ev.prevent_default();
@@ -68,6 +83,19 @@ pub fn handle_dom_drag_event(
         }
         slot_dnd.set_overlay_pos_from_event(&ev);
         drop_state.set(DropZoneState::AcceptTerminal);
+    } else if has_context_drag(&ev, context_dnd) {
+        ev.prevent_default();
+        ev.stop_propagation();
+        if let Some(dt) = ev.data_transfer() {
+            let _ = dt.set_drop_effect("copy");
+        }
+        context_dnd.set_overlay_pos_from_event(&ev);
+        let state = match context_dnd.active.get_untracked().map(|m| m.kind) {
+            Some(ContextDragKind::Diff) => DropZoneState::AcceptDiff,
+            Some(ContextDragKind::Commit) => DropZoneState::AcceptCommit,
+            _ => DropZoneState::AcceptFile,
+        };
+        drop_state.set(state);
     } else if has_image_drag(&ev) {
         ev.prevent_default();
         if let Some(dt) = ev.data_transfer() {
@@ -89,6 +117,7 @@ pub fn handle_dom_drop(
     drop_state: RwSignal<DropZoneState>,
     status_line: RwSignal<Option<String>>,
     slot_dnd: TerminalSlotDragService,
+    context_dnd: ContextDragService,
 ) {
     ev.prevent_default();
     drop_state.set(DropZoneState::Inactive);
@@ -100,6 +129,14 @@ pub fn handle_dom_drop(
     {
         ev.stop_propagation();
         attach_terminal_context(payload, wb, status_line, slot_dnd);
+        return;
+    }
+
+    if let Some(payload) =
+        read_context_payload(&dt).or_else(|| context_dnd.active_payload.get_untracked())
+    {
+        ev.stop_propagation();
+        attach_context_drag(payload, wb, status_line, context_dnd);
         return;
     }
 
@@ -417,6 +454,108 @@ fn attach_terminal_context(
     });
 }
 
+fn attach_context_drag(
+    payload: ContextDragPayload,
+    wb: WorkbenchService,
+    status_line: RwSignal<Option<String>>,
+    context_dnd: ContextDragService,
+) {
+    let Some(active_ws_id) = wb.active_id().get_untracked() else {
+        context_dnd.clear();
+        status_line.set(Some("Select a workspace tab first.".into()));
+        return;
+    };
+    if payload.workspace_id != active_ws_id {
+        context_dnd.clear();
+        status_line.set(Some(
+            "Context can only be attached to its own workspace.".into(),
+        ));
+        return;
+    }
+
+    match payload.kind {
+        ContextDragKind::File => {
+            let Some(rel) = payload.rel_path.filter(|p| !p.trim().is_empty()) else {
+                context_dnd.clear();
+                status_line.set(Some("Dragged file has no path.".into()));
+                return;
+            };
+            wb.upsert_workspace_agent_context(active_ws_id, file_ref_context_item(&rel));
+            status_line.set(None);
+            context_dnd.clear();
+        }
+        ContextDragKind::Diff => {
+            let Some(rel) = payload.rel_path.filter(|p| !p.trim().is_empty()) else {
+                context_dnd.clear();
+                status_line.set(Some("Dragged diff has no path.".into()));
+                return;
+            };
+            let staged = payload.staged.unwrap_or(false);
+            let Some(cwd) = wb.default_workspace_cwd() else {
+                context_dnd.clear();
+                status_line.set(Some("Workspace has no path.".into()));
+                return;
+            };
+            let conn = wb.active_remote_connection_id();
+            status_line.set(None);
+            leptos::task::spawn_local(async move {
+                match git_file_diff(cwd, rel.clone(), staged, conn).await {
+                    Ok(diff) => {
+                        let item = git_diff_context_item(&rel, staged, &diff);
+                        wb.upsert_workspace_agent_context(active_ws_id, item);
+                    }
+                    Err(err) => status_line.set(Some(format!("Could not read diff: {err}"))),
+                }
+                context_dnd.clear();
+            });
+        }
+        ContextDragKind::Commit => {
+            let Some(oid) = payload.oid.filter(|o| !o.trim().is_empty()) else {
+                context_dnd.clear();
+                status_line.set(Some("Dragged commit has no id.".into()));
+                return;
+            };
+            let short = payload
+                .short_oid
+                .filter(|s| !s.trim().is_empty())
+                .unwrap_or_else(|| oid.chars().take(7).collect());
+            let subject = payload.subject.unwrap_or_default();
+            let Some(cwd) = wb.default_workspace_cwd() else {
+                context_dnd.clear();
+                status_line.set(Some("Workspace has no path.".into()));
+                return;
+            };
+            let conn = wb.active_remote_connection_id();
+            status_line.set(None);
+            leptos::task::spawn_local(async move {
+                match git_commit_details(cwd, oid.clone(), conn).await {
+                    Ok(details) => {
+                        let paths: Vec<String> =
+                            details.files.iter().map(|f| f.path.clone()).collect();
+                        let item = git_commit_context_item(
+                            &oid,
+                            &short,
+                            &subject,
+                            &details.body,
+                            &paths,
+                        );
+                        wb.upsert_workspace_agent_context(active_ws_id, item);
+                    }
+                    Err(err) => {
+                        // Fall back to a metadata-only commit item so the drop
+                        // still attaches something useful.
+                        let item =
+                            git_commit_context_item(&oid, &short, &subject, "", &[]);
+                        wb.upsert_workspace_agent_context(active_ws_id, item);
+                        status_line.set(Some(format!("Commit details unavailable: {err}")));
+                    }
+                }
+                context_dnd.clear();
+            });
+        }
+    }
+}
+
 fn terminal_payload_from_active(
     slot_dnd: TerminalSlotDragService,
 ) -> Option<TerminalSlotDragPayload> {
@@ -467,6 +606,14 @@ fn has_terminal_drag(ev: &DragEvent, slot_dnd: TerminalSlotDragService) -> bool 
         .unwrap_or(false)
         || slot_dnd.active.get_untracked().is_some()
         || slot_dnd.session_active()
+}
+
+fn has_context_drag(ev: &DragEvent, context_dnd: ContextDragService) -> bool {
+    ev.data_transfer()
+        .as_ref()
+        .map(crate::workbench::context_drag::is_context_drag)
+        .unwrap_or(false)
+        || context_dnd.session_active()
 }
 
 fn has_file_drag(ev: &DragEvent) -> bool {

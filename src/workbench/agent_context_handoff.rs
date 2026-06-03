@@ -1199,6 +1199,93 @@ pub fn file_snippet_context_item(
     }
 }
 
+/// Build a whole-file reference `AgentContextItem` dragged from the project
+/// explorer. Carries only the workspace-relative path; the agent reads the
+/// file via its tools when needed (no inline content).
+#[must_use]
+pub fn file_ref_context_item(rel_path: &str) -> AgentContextItem {
+    let label = rel_path
+        .rsplit('/')
+        .next()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(rel_path)
+        .to_owned();
+    AgentContextItem {
+        id: format!("file-ref:{rel_path}"),
+        kind: AgentContextKind::FileRef,
+        label,
+        source: rel_path.to_owned(),
+        paths: vec![rel_path.to_owned()],
+        added_at: context_now_ms(),
+        content: None,
+    }
+}
+
+/// Build a `GitDiff` context item for a single file's diff dragged from the
+/// diff sidebar. `diff_text` is the raw unified diff; it is wrapped in a fenced
+/// ```diff block as inline `content`.
+#[must_use]
+pub fn git_diff_context_item(rel_path: &str, staged: bool, diff_text: &str) -> AgentContextItem {
+    let scope = if staged { "staged" } else { "working" };
+    let file = rel_path
+        .rsplit('/')
+        .next()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(rel_path);
+    let body = diff_text.trim_end();
+    let content = format!("**`{rel_path}`** ({scope} diff)\n```diff\n{body}\n```\n");
+    AgentContextItem {
+        id: format!("git-diff:{scope}:{rel_path}"),
+        kind: AgentContextKind::GitDiff,
+        label: format!("Diff · {file}"),
+        source: format!("{scope} diff · {rel_path}"),
+        paths: vec![rel_path.to_owned()],
+        added_at: context_now_ms(),
+        content: Some(content),
+    }
+}
+
+/// Build a `GitCommit` context item dragged from the commit graph. `subject`
+/// and `body` come from the commit; `changed_paths` lists files touched by the
+/// commit (used for both `paths` and the rendered summary).
+#[must_use]
+pub fn git_commit_context_item(
+    oid: &str,
+    short_oid: &str,
+    subject: &str,
+    body: &str,
+    changed_paths: &[String],
+) -> AgentContextItem {
+    let mut content = format!("**commit `{short_oid}`** — {subject}\n");
+    let body_trimmed = body.trim();
+    if !body_trimmed.is_empty() {
+        content.push('\n');
+        content.push_str(body_trimmed);
+        content.push('\n');
+    }
+    if !changed_paths.is_empty() {
+        content.push_str(&format!("\nChanged files ({}):\n", changed_paths.len()));
+        for p in changed_paths {
+            content.push_str(&format!("- `{p}`\n"));
+        }
+    }
+    let subject_trimmed = subject.trim();
+    let label = if subject_trimmed.is_empty() {
+        format!("Commit · {short_oid}")
+    } else {
+        format!("Commit · {short_oid} · {subject_trimmed}")
+    };
+    AgentContextItem {
+        id: format!("git-commit:{oid}"),
+        kind: AgentContextKind::GitCommit,
+        label,
+        source: format!("commit {short_oid}"),
+        paths: changed_paths.to_vec(),
+        added_at: context_now_ms(),
+        content: Some(content),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1415,6 +1502,44 @@ mod tests {
     fn file_snippet_item_id_includes_workspace_when_provided() {
         let item = file_snippet_context_item("src/foo.rs", 1, 1, None, "S", "x", Some("Demo"));
         assert_eq!(item.id, "file-snippet:Demo:src/foo.rs:1-1");
+    }
+
+    #[test]
+    fn file_ref_item_is_path_only() {
+        let item = file_ref_context_item("src/workbench/mod.rs");
+        assert_eq!(item.kind, AgentContextKind::FileRef);
+        assert_eq!(item.id, "file-ref:src/workbench/mod.rs");
+        assert_eq!(item.label, "mod.rs");
+        assert_eq!(item.paths, vec!["src/workbench/mod.rs".to_string()]);
+        assert!(item.content.is_none());
+    }
+
+    #[test]
+    fn git_diff_item_wraps_diff_in_fence() {
+        let item = git_diff_context_item("src/foo.rs", true, "@@ -1 +1 @@\n-a\n+b");
+        assert_eq!(item.kind, AgentContextKind::GitDiff);
+        assert_eq!(item.id, "git-diff:staged:src/foo.rs");
+        assert_eq!(item.label, "Diff · foo.rs");
+        assert!(item.source.contains("staged diff"));
+        let content = item.content.as_deref().unwrap();
+        assert!(content.contains("```diff"));
+        assert!(content.contains("+b"));
+    }
+
+    #[test]
+    fn git_commit_item_lists_changed_files() {
+        let paths = vec!["a.rs".to_string(), "b.rs".to_string()];
+        let item = git_commit_context_item("deadbeef", "deadbee", "Fix bug", "Longer body", &paths);
+        assert_eq!(item.kind, AgentContextKind::GitCommit);
+        assert_eq!(item.id, "git-commit:deadbeef");
+        assert!(item.label.contains("deadbee"));
+        assert!(item.label.contains("Fix bug"));
+        assert_eq!(item.paths, paths);
+        let content = item.content.as_deref().unwrap();
+        assert!(content.contains("commit `deadbee`"));
+        assert!(content.contains("Longer body"));
+        assert!(content.contains("Changed files (2)"));
+        assert!(content.contains("`a.rs`"));
     }
 
     #[test]

@@ -73,6 +73,9 @@ pub struct ContextDragService {
     /// Bumped on begin/clear so deferred UI updates cannot resurrect stale drags.
     session_gen: StoredValue<u64>,
     pub active: RwSignal<Option<ContextDragMeta>>,
+    /// Full payload of the in-flight drag, used as a robust fallback for the
+    /// drop handler when `DataTransfer::getData` is unavailable.
+    pub active_payload: RwSignal<Option<ContextDragPayload>>,
     /// Cursor position (viewport-relative px) for the floating preview.
     pub overlay_pos: RwSignal<Option<(f64, f64)>>,
 }
@@ -90,6 +93,7 @@ impl ContextDragService {
             session: StoredValue::new(false),
             session_gen: StoredValue::new(0),
             active: RwSignal::new(None),
+            active_payload: RwSignal::new(None),
             overlay_pos: RwSignal::new(None),
         }
     }
@@ -135,6 +139,7 @@ impl ContextDragService {
         self.session_gen
             .set_value(self.session_gen.get_value().wrapping_add(1));
         self.active.set(None);
+        self.active_payload.set(None);
         self.overlay_pos.set(None);
     }
 }
@@ -176,6 +181,7 @@ pub fn start_context_drag(
     };
     set_drag_payload(&dt, &payload);
     let gen = svc.begin_session();
+    svc.active_payload.set(Some(payload));
     svc.set_overlay_pos_from_event(ev);
     spawn_local(async move {
         TimeoutFuture::new(0).await;
