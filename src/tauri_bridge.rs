@@ -86,6 +86,99 @@ pub async fn agent_clear_conversation() -> Result<(), String> {
     invoke_unit_js("agent_clear_conversation", JsValue::UNDEFINED).await
 }
 
+// ---------------------------------------------------------------------------
+// MCP server registry (mirrors `src-tauri/src/mcp`)
+// ---------------------------------------------------------------------------
+
+/// Transport for an MCP server. Mirror of the backend `McpTransport`; the
+/// `kind` tag must match the backend's `#[serde(tag = "kind")]`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum McpTransport {
+    Stdio {
+        command: String,
+        #[serde(default)]
+        args: Vec<String>,
+        #[serde(default)]
+        env: std::collections::BTreeMap<String, String>,
+    },
+    Http {
+        url: String,
+        #[serde(default)]
+        headers: std::collections::BTreeMap<String, String>,
+    },
+}
+
+impl McpTransport {
+    pub fn label(&self) -> &'static str {
+        match self {
+            McpTransport::Stdio { .. } => "stdio",
+            McpTransport::Http { .. } => "http",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct McpServer {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub description: String,
+    pub transport: McpTransport,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct McpTestResult {
+    pub ok: bool,
+    pub tool_count: usize,
+    pub error: Option<String>,
+}
+
+pub async fn mcp_list() -> Result<Vec<McpServer>, String> {
+    invoke_typed("mcp_list", serde_json::json!({})).await
+}
+
+pub async fn mcp_upsert(server: McpServer) -> Result<McpServer, String> {
+    #[derive(Serialize)]
+    struct Args {
+        server: McpServer,
+    }
+    invoke_typed("mcp_upsert", Args { server }).await
+}
+
+pub async fn mcp_remove(id: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        id: String,
+    }
+    invoke_unit_js("mcp_remove", args_value(Args { id })?).await
+}
+
+pub async fn mcp_test(id: String) -> Result<McpTestResult, String> {
+    #[derive(Serialize)]
+    struct Args {
+        id: String,
+    }
+    invoke_typed("mcp_test", Args { id }).await
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct McpExportEntry {
+    pub slug: String,
+    pub path: Option<String>,
+    pub error: Option<String>,
+}
+
+pub async fn mcp_export_cli_configs(workspace_root: String) -> Result<Vec<McpExportEntry>, String> {
+    #[derive(Serialize)]
+    struct Args {
+        workspace_root: String,
+    }
+    invoke_typed("mcp_export_cli_configs", Args { workspace_root }).await
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppLogSettingsView {

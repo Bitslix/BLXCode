@@ -796,6 +796,7 @@ pub enum HarnessSettingsCategory {
     AgentProvider,
     Remote,
     Memory,
+    Mcp,
     Voice,
     Image,
 }

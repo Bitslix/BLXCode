@@ -77,6 +77,8 @@ pub fn dispatch_user_turn(
     match settings.provider {
         AgentProviderKind::Anthropic => {
             async_runtime::spawn(async move {
+                // Connect/refresh MCP clients for this session before the turn.
+                crate::mcp::runtime::ensure_built().await;
                 run_anthropic_turn(
                     Arc::clone(&state),
                     api_key,
@@ -97,6 +99,8 @@ pub fn dispatch_user_turn(
             let endpoint = Endpoint::from_provider(settings.provider)
                 .expect("openrouter/openai endpoint mapping");
             async_runtime::spawn(async move {
+                // Connect/refresh MCP clients for this session before the turn.
+                crate::mcp::runtime::ensure_built().await;
                 run_chat_turn(
                     Arc::clone(&state),
                     endpoint,

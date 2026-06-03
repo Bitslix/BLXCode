@@ -1240,6 +1240,13 @@ async fn spawn_agent_launch_when_ready(state: Arc<Mutex<CellState>>) {
     if state.lock().expect("cell").launch_sent || state.lock().expect("cell").disposed {
         return;
     }
+    // Write project-scoped MCP configs into the workspace so the launching CLI
+    // sees the same servers as the in-app agent. Local workspaces only (remote
+    // SSH cwds are not on this filesystem). Best-effort: failures never block
+    // the launch.
+    if pending.remote_connection_id.is_none() && !pending.cwd.trim().is_empty() {
+        let _ = crate::tauri_bridge::mcp_export_cli_configs(pending.cwd.clone()).await;
+    }
     let cmd = build_launch_command(
         &pending.slug,
         resume_id.as_deref(),

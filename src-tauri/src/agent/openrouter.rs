@@ -237,7 +237,11 @@ pub async fn run_chat_turn(
         "content": openai_user_content(&prompt, &image_context_items),
     }));
 
-    let tools = crate::agent::tools::render_for_openai();
+    let mut tools = crate::agent::tools::render_for_openai();
+    // Append live MCP-server tools so the in-app agent can call them.
+    if let Some(arr) = tools.as_array_mut() {
+        arr.extend(crate::mcp::runtime::openai_tool_specs().await);
+    }
     let reasoning = reasoning_for(settings.thinking_level, endpoint);
     let dispatch_ctx = DispatchContext {
         settings: settings.clone(),

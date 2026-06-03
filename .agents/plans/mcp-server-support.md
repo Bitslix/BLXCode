@@ -1,7 +1,10 @@
 # MCP-Server-Support (Registry + In-App-Agent + Terminal-CLI-Injektion)
 
-> Status: **planned** (noch nicht umgesetzt; Recherche zu CLI-Formaten
-> abgeschlossen, siehe Abschnitt „Terminal-CLI-Injektion").
+> Status: **done** (umgesetzt & verifiziert: `cargo test --workspace` grün —
+> 301 + 122 Tests inkl. 14 neuer MCP-Tests; `cargo check -p blxcode-ui
+> --target wasm32-unknown-unknown` grün; Backend warnungsfrei. Manueller
+> `cargo tauri dev`-Sichttest des MCP-Tabs + echter Server steht noch aus.
+> Recherche zu CLI-Formaten abgeschlossen, siehe „Terminal-CLI-Injektion").
 
 ## Summary
 
@@ -209,19 +212,19 @@ verwalteten Keys geführt.
 
 ## Tasks
 
-- [ ] `mcp-registry-model` - Backend `mcp/registry.rs`: Modell + atomar load/save + `mcp_servers_path()`
-- [ ] `mcp-crud-commands` - Tauri-Commands `mcp_list/upsert/remove` + Registrierung in `lib.rs`
-- [ ] `mcp-client-core` - In-App-MCP-Client (`mcp/client.rs`): initialize + tools/list + tools/call (stdio + http)
-- [ ] `mcp-test-command` - `mcp_test` Verbindungstest + Tool-Count
-- [ ] `mcp-inapp-tool-injection` - MCP-Tools in `tools_json` (anthropic+openrouter) einspeisen, Namespacing `mcp.<srv>.<tool>`
-- [ ] `mcp-inapp-dispatch` - `tool_dispatch.rs` routet `mcp.*`-Calls an den Client und liefert ToolResult
-- [ ] `mcp-client-lifecycle` - Client-Aufbau im `session_orchestrator` beim Turn-Start, Neuaufbau bei `agent_clear_conversation`
-- [ ] `mcp-cli-export-renderers` - `mcp/cli_export.rs`: Renderer für claude/codex/gemini/opencode/cursor (JSON/TOML)
-- [ ] `mcp-cli-export-merge` - Merge-sicheres Schreiben + `.blxcode/mcp-managed.json`-Manifest
-- [ ] `mcp-cli-launch-hook` - Terminal-Launch-Pipeline schreibt Projekt-Configs vor CLI-Start (gated per Setting)
-- [ ] `mcp-settings-category` - `HarnessSettingsCategory::Mcp` + SettingsDock-Button + Icon + match-Arm
-- [ ] `mcp-settings-pane` - `mcp_settings_pane/`: Liste + Add/Edit/Remove-Dialog + Test-Button (Draft/Save wie api_keys_pane)
-- [ ] `mcp-reset-banner` - Pflicht-Hinweis-Banner „Session-Reset nötig" + Reset-Button (disabled während busy)
-- [ ] `mcp-ipc-bridge` - `tauri_bridge.rs` Wrapper + `agent_wire.rs` Shared-Typen
-- [ ] `mcp-i18n` - Neue I18nKeys in `keys.rs` + `en_us.rs`, übrige Locales via Script
-- [ ] `mcp-tests` - Unit/Integration/Snapshot-Tests (registry, cli_export, dispatch, mock-server)
+- [x] `mcp-registry-model` - Backend `mcp/registry.rs`: Modell + atomar load/save + `mcp_servers_path()`
+- [x] `mcp-crud-commands` - Tauri-Commands `mcp_list/upsert/remove` + Registrierung in `lib.rs`
+- [x] `mcp-client-core` - In-App-MCP-Client (`mcp/client.rs`): initialize + tools/list + tools/call (stdio + http)
+- [x] `mcp-test-command` - `mcp_test` Verbindungstest + Tool-Count
+- [x] `mcp-inapp-tool-injection` - MCP-Tools in `tools_json` (anthropic+openrouter) einspeisen, Namespacing `mcp.<srv>.<tool>`
+- [x] `mcp-inapp-dispatch` - `tool_dispatch.rs` routet `mcp.*`-Calls an den Client und liefert ToolResult
+- [x] `mcp-client-lifecycle` - Client-Aufbau im `session_orchestrator` beim Turn-Start, Neuaufbau bei `agent_clear_conversation`
+- [x] `mcp-cli-export-renderers` - `mcp/cli_export.rs`: Renderer für claude/codex/gemini/opencode/cursor (JSON/TOML)
+- [x] `mcp-cli-export-merge` - Merge-sicheres Schreiben + `.blxcode/mcp-managed.json`-Manifest
+- [x] `mcp-cli-launch-hook` - Terminal-Launch-Pipeline schreibt Projekt-Configs vor CLI-Start (gated per Setting)
+- [x] `mcp-settings-category` - `HarnessSettingsCategory::Mcp` + SettingsDock-Button + Icon + match-Arm
+- [x] `mcp-settings-pane` - `mcp_settings_pane/`: Liste + Add/Edit/Remove-Dialog + Test-Button (Draft/Save wie api_keys_pane)
+- [x] `mcp-reset-banner` - Pflicht-Hinweis-Banner „Session-Reset nötig" + Reset-Button (disabled während busy)
+- [x] `mcp-ipc-bridge` - `tauri_bridge.rs` Wrapper + `agent_wire.rs` Shared-Typen
+- [x] `mcp-i18n` - Neue I18nKeys in `keys.rs` + `en_us.rs`, übrige Locales via Script
+- [x] `mcp-tests` - Unit/Integration/Snapshot-Tests (registry, cli_export, dispatch, mock-server)

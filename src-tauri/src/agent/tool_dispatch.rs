@@ -254,6 +254,18 @@ async fn dispatch_regular_tool(
     args: &Value,
     root: Option<&WorkspaceRootGuard>,
 ) -> tools::ToolOutcome {
+    // MCP-server tools are not in the static registry; route them to the live
+    // client runtime before the normal lookup.
+    if crate::mcp::runtime::is_mcp_tool(name) {
+        return match crate::mcp::runtime::call(name, args).await {
+            Ok(content) => tools::ToolOutcome { ok: true, content },
+            Err(e) => tools::ToolOutcome {
+                ok: false,
+                content: e,
+            },
+        };
+    }
+
     let Some(def) = tools::find(name) else {
         return tools::ToolOutcome {
             ok: false,

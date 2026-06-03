@@ -16,6 +16,7 @@ mod git_remote;
 mod git_status;
 mod git_sync;
 mod image;
+mod mcp;
 mod media_keys;
 mod memory;
 mod plans;
@@ -198,6 +199,11 @@ pub fn run() {
             agent_poll_events,
             agent_abort,
             agent_clear_conversation,
+            mcp::mcp_list,
+            mcp::mcp_upsert,
+            mcp::mcp_remove,
+            mcp::mcp_test,
+            mcp::mcp_export_cli_configs,
             agent_compact_conversation,
             agent_provider_status,
             agent_read_image_file,

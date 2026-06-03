@@ -37,6 +37,9 @@ pub fn agent_clear_conversation(agent: State<'_, Arc<AgentEngineState>>) -> Resu
         return Err("Agent ist noch beschäftigt. Bitte zuerst abbrechen oder warten.".into());
     }
     agent.clear_conversation();
+    // Drop live MCP clients so the next turn reconnects from the (possibly
+    // edited) registry. This is the contract surfaced in the MCP settings UI.
+    crate::mcp::runtime::reset_blocking();
     Ok(())
 }
 

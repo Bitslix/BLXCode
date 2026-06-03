@@ -145,6 +145,10 @@ pub async fn run_chat_turn(
             }
         }
     }
+    // Append live MCP-server tools (names already sanitised by the runtime).
+    if let Some(arr) = tools_json.as_array_mut() {
+        arr.extend(crate::mcp::runtime::anthropic_tool_specs().await);
+    }
     let thinking_cfg = thinking_budget(settings.thinking_level)
         .map(|budget| json!({ "type": "enabled", "budget_tokens": budget }));
 
