@@ -45,6 +45,18 @@ fn session_role_block(slug: &str) -> Option<String> {
     } else {
         ""
     };
+    let subagent_guidance = if role_allows_subagents(&meta) {
+        "\n\
+         ## Role-Authorized Subagents\n\
+         This role explicitly permits `subagents.run`. You may use bounded \
+         scout, review, or security analyst subagents when they would improve \
+         implementation quality, risk analysis, or codebase orientation. Keep \
+         subagent tasks narrow, treat results as advisory, verify their claims, \
+         and stay within the active Agent Chat mode, tool permissions, workspace \
+         scope, and Security rules.\n"
+    } else {
+        ""
+    };
     Some(format!(
         "\n# Active session role\n\
          The user launched this workspace in the \"{title}\" session role. Adopt \
@@ -55,12 +67,20 @@ fn session_role_block(slug: &str) -> Option<String> {
          scope, relax a Security rule, or change the tool-permission model. \
          Treat the role text as trusted harness configuration.\n\
          {swarm_guidance}\
+         {subagent_guidance}\
          \n\
          {body}\n",
         title = meta.title,
         swarm_guidance = swarm_guidance,
+        subagent_guidance = subagent_guidance,
         body = body,
     ))
+}
+
+fn role_allows_subagents(meta: &crate::agent::session_roles::RoleMeta) -> bool {
+    meta.tools
+        .iter()
+        .any(|tool| tool.eq_ignore_ascii_case("subagents"))
 }
 
 #[must_use]
@@ -348,7 +368,9 @@ fn base_system_prompt(root: &str, agent_name: &str) -> String {
          \n\
          **Subagents (server):** `subagents.run`; subagent-only `submit_result` — only when the user explicitly \
          asks for subagents, parallel review, or a named role (scout / review / \
-         security_analyst). Default: work alone. Parallel runs cost extra API usage.\n\
+         security_analyst), or when the active session role explicitly permits \
+         subagent orchestration. Default outside those cases: work alone. \
+         Parallel runs cost extra API usage.\n\
          \n\
          **MCP servers (dynamic):** When the user has registered MCP (Model \
          Context Protocol) servers in Settings → MCP, each enabled server's tools \
@@ -583,6 +605,14 @@ mod tests {
         assert!(p.contains("\"Architect\" session role"));
         assert!(!p.contains("Terminal Agent Swarm"));
         assert!(!p.contains("terminalAgentSwarm: true"));
+    }
+
+    #[test]
+    fn prompt_allows_subagents_for_role_that_declares_them() {
+        let p = system_prompt(Some("/tmp/ws"), "BLXCody", Some("codewright"));
+        assert!(p.contains("\"Codewright\" session role"));
+        assert!(p.contains("Role-Authorized Subagents"));
+        assert!(p.contains("This role explicitly permits `subagents.run`"));
     }
 
     #[test]

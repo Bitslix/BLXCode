@@ -1,6 +1,6 @@
 ---
 name: subagents
-description: Run bounded parallel scout, review, or security analyst subagents when explicitly requested and tool permissions allow it.
+description: Run bounded parallel scout, review, or security analyst subagents when explicitly requested or role-authorized and tool permissions allow it.
 categorie: agents
 ---
 
@@ -8,7 +8,7 @@ categorie: agents
 
 ## `subagents.run { agents, mode?, maxConcurrency? }`
 
-Run parallel subagents **only when the user explicitly asks** (e.g. "use subagents", "parallel review").
+Run parallel subagents only when the user explicitly asks (e.g. "use subagents", "parallel review") or the active session role explicitly permits subagent orchestration.
 
 Roles: `scout`, `review`, `security_analyst`. Each agent must finish via `submit_result` (subagent-only tool).
 
