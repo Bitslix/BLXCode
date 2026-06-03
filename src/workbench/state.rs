@@ -3320,6 +3320,7 @@ impl WorkbenchService {
         } else {
             project_root
         };
+        draft.session_role = self.default_session_role.get_untracked();
 
         let color = self.workspace_color_for_new_index(self.workspaces.get_untracked().len());
         let entry = WorkspaceEntry {
@@ -4302,6 +4303,7 @@ impl WorkbenchService {
                     if !project_root.is_empty() {
                         d.cwd_display.clone_from(&project_root);
                     }
+                    d.session_role = self.default_session_role.get_untracked();
                     m.insert(ws.id, d);
                 }
             }
