@@ -371,6 +371,11 @@ fn GitGraphRow(
     let oid_for_detail_hover = oid.clone();
     let commit_for_expanded = commit.clone();
     let commit_for_hover = commit.clone();
+    let wb = expect_context::<WorkbenchService>();
+    let ctx_dnd = expect_context::<crate::workbench::context_drag::ContextDragService>();
+    let drag_oid = commit.oid.clone();
+    let drag_short = commit.short_oid.clone();
+    let drag_subject = commit.subject.clone();
     let commit_lane = entry.lane;
     let text_lane = entry.lanes.saturating_sub(1);
     let hover_card_style = RwSignal::new(default_hover_card_style());
@@ -404,6 +409,32 @@ fn GitGraphRow(
         <li
             class=row_class
             style=format!("--commit-lane:{commit_lane};--text-lane:{text_lane};")
+            prop:draggable="true"
+            on:dragstart={
+                let oid = drag_oid.clone();
+                let short = drag_short.clone();
+                let subject = drag_subject.clone();
+                move |ev: web_sys::DragEvent| {
+                    let Some(ws_id) = wb.active_id().get_untracked() else { return; };
+                    let payload = crate::workbench::context_drag::ContextDragPayload {
+                        workspace_id: ws_id,
+                        kind: crate::workbench::context_drag::ContextDragKind::Commit,
+                        rel_path: None,
+                        staged: None,
+                        oid: Some(oid.clone()),
+                        short_oid: Some(short.clone()),
+                        subject: Some(subject.clone()),
+                    };
+                    let meta = crate::workbench::context_drag::ContextDragMeta {
+                        kind: crate::workbench::context_drag::ContextDragKind::Commit,
+                        title: short.clone(),
+                        subtitle: subject.clone(),
+                    };
+                    crate::workbench::context_drag::start_context_drag(&ev, ctx_dnd, payload, meta);
+                }
+            }
+            on:drag=move |ev: web_sys::DragEvent| ctx_dnd.set_overlay_pos_from_event(&ev)
+            on:dragend=move |_| ctx_dnd.clear()
             on:mouseenter=move |ev: web_sys::MouseEvent| {
                 hover_card_style.set(hover_card_style_for_target(ev.current_target()));
                 hovered_oid.set(Some(oid_for_mouse.clone()));

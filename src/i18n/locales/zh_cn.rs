@@ -840,6 +840,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HookCheckReady => "挂钩准备好",
         I18nKey::HookCheckMissing => "挂钩未安装",
         I18nKey::HookCheckFailed => "钩子检查失败",
+        I18nKey::CoreStatusRulesTip => "已启用规则",
+        I18nKey::CoreStatusSkillsTip => "已启用技能",
+        I18nKey::CoreStatusPlansTip => "计划",
+        I18nKey::CoreStatusMemoryTip => "内存使用情况",
+        I18nKey::CoreStatusMemoryCategoriesTip => "内存类别",
+        I18nKey::CoreStatusMemoryFilesTip => "内存文件",
+        I18nKey::CoreStatusMemorySizeTip => "内存大小",
         I18nKey::HookInstallTitle => "安装代理 CLI 挂钩",
         I18nKey::HookInstallBody => {
             "blxcode 可以为您的代理 CLI（Claude、Codex、Gemini、Cursor、OpenCode）连接挂钩，以便终端选项卡遵循活动提示，会话在重新启动后恢复，并且回合完成通知有效。现在安装它们吗？"

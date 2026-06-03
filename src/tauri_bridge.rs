@@ -172,10 +172,43 @@ pub async fn app_version() -> Result<String, String> {
     invoke_typed("app_version", serde_json::json!({})).await
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum UpdateChannel {
+    Stable,
+    Beta,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateSettingsView {
+    pub channel: UpdateChannel,
+}
+
+pub async fn updater_settings_get() -> Result<UpdateSettingsView, String> {
+    invoke_typed("updater_settings_get", serde_json::json!({})).await
+}
+
+pub async fn updater_settings_save(channel: UpdateChannel) -> Result<UpdateSettingsView, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        patch: UpdateSettingsView,
+    }
+    invoke_typed(
+        "updater_settings_save",
+        Args {
+            patch: UpdateSettingsView { channel },
+        },
+    )
+    .await
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateCheckResponse {
     pub status: String,
+    pub channel: UpdateChannel,
     pub current_version: String,
     pub available_version: Option<String>,
     pub notes: Option<String>,
@@ -238,12 +271,14 @@ pub struct PostUpdateReleaseNotesItem {
 
 pub async fn post_update_release_notes(
     version: String,
+    channel: UpdateChannel,
 ) -> Result<PostUpdateReleaseNotesResponse, String> {
     #[derive(Serialize)]
     struct Args {
         version: String,
+        channel: UpdateChannel,
     }
-    invoke_typed("post_update_release_notes", Args { version }).await
+    invoke_typed("post_update_release_notes", Args { version, channel }).await
 }
 
 /// Submits the result of a client-side tool back into the running turn.

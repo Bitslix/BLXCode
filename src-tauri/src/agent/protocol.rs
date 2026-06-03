@@ -67,6 +67,17 @@ pub enum AgentContextKind {
     /// right-click context menu. The `content` field carries the fenced
     /// markdown block; `paths` holds the workspace-relative file path.
     FileSnippet,
+    /// Whole-file reference dragged from the project explorer. Carries only the
+    /// workspace-relative path in `paths` (no inline `content`); the agent
+    /// reads the file via its tools if needed.
+    FileRef,
+    /// Git diff of a single file dragged from the diff sidebar. The `content`
+    /// field carries the unified diff text; `paths` holds the file path.
+    GitDiff,
+    /// Git commit dragged from the commit graph. The `content` field carries a
+    /// rendered summary (subject/body + changed files); `paths` holds the
+    /// changed file paths.
+    GitCommit,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

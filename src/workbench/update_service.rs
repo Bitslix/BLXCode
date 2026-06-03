@@ -1,7 +1,7 @@
 use crate::tauri_bridge::{
     app_relaunch, app_version, is_tauri_shell, post_update_release_notes, updater_check,
-    updater_install_start, updater_poll_progress, PostUpdateReleaseNotesResponse,
-    UpdateCheckResponse, UpdateProgress,
+    updater_install_start, updater_poll_progress, updater_settings_get, updater_settings_save,
+    PostUpdateReleaseNotesResponse, UpdateChannel, UpdateCheckResponse, UpdateProgress,
 };
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
@@ -10,6 +10,8 @@ use leptos::task::spawn_local;
 #[derive(Clone, Copy)]
 pub struct UpdateService {
     status: RwSignal<UpdateUiStatus>,
+    check_source: RwSignal<UpdateCheckSource>,
+    channel: RwSignal<UpdateChannel>,
     current_version: RwSignal<String>,
     available_version: RwSignal<Option<String>>,
     notes: RwSignal<Option<String>>,
@@ -22,6 +24,7 @@ pub struct UpdateService {
     message: RwSignal<Option<String>>,
     dialog_open: RwSignal<bool>,
     banner_visible: RwSignal<bool>,
+    manual_check_active: RwSignal<bool>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,11 +40,30 @@ pub enum UpdateUiStatus {
     DevUnavailable,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpdateCheckSource {
+    Startup,
+    Manual,
+    Background,
+}
+
+impl UpdateCheckSource {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Startup => "startup",
+            Self::Manual => "manual",
+            Self::Background => "background",
+        }
+    }
+}
+
 impl UpdateService {
     #[must_use]
     pub fn new() -> Self {
         Self {
             status: RwSignal::new(UpdateUiStatus::Idle),
+            check_source: RwSignal::new(UpdateCheckSource::Startup),
+            channel: RwSignal::new(UpdateChannel::Stable),
             current_version: RwSignal::new(String::new()),
             available_version: RwSignal::new(None),
             notes: RwSignal::new(None),
@@ -54,11 +76,20 @@ impl UpdateService {
             message: RwSignal::new(None),
             dialog_open: RwSignal::new(false),
             banner_visible: RwSignal::new(false),
+            manual_check_active: RwSignal::new(false),
         }
     }
 
     pub fn status(&self) -> RwSignal<UpdateUiStatus> {
         self.status
+    }
+
+    pub fn check_source(&self) -> RwSignal<UpdateCheckSource> {
+        self.check_source
+    }
+
+    pub fn channel(&self) -> RwSignal<UpdateChannel> {
+        self.channel
     }
 
     pub fn current_version(&self) -> RwSignal<String> {
@@ -101,6 +132,10 @@ impl UpdateService {
         self.banner_visible
     }
 
+    pub fn manual_check_active(&self) -> RwSignal<bool> {
+        self.manual_check_active
+    }
+
     pub fn open_dialog(&self) {
         self.dialog_open.set(true);
         self.banner_visible.set(false);
@@ -110,12 +145,58 @@ impl UpdateService {
         self.dialog_open.set(false);
     }
 
+    pub fn load_settings(&self) {
+        if !is_tauri_shell() {
+            return;
+        }
+        let service = *self;
+        spawn_local(async move {
+            match updater_settings_get().await {
+                Ok(view) => service.channel.set(view.channel),
+                Err(err) => service.set_error(err),
+            }
+        });
+    }
+
+    pub fn set_channel(&self, channel: UpdateChannel) {
+        if self.channel.get_untracked() == channel {
+            return;
+        }
+        if !is_tauri_shell() {
+            self.channel.set(channel);
+            return;
+        }
+        let service = *self;
+        spawn_local(async move {
+            match updater_settings_save(channel).await {
+                Ok(view) => {
+                    service.channel.set(view.channel);
+                    service.available_version.set(None);
+                    service.release_notes.set(None);
+                    service.notes.set(None);
+                    service.check_manual();
+                }
+                Err(err) => service.set_error(err),
+            }
+        });
+    }
+
     pub fn check_silent(&self) {
-        self.check(false);
+        self.check(UpdateCheckSource::Startup);
     }
 
     pub fn check_manual(&self) {
-        self.check(true);
+        self.check(UpdateCheckSource::Manual);
+    }
+
+    pub fn check_background(&self) {
+        if matches!(
+            self.status.get_untracked(),
+            UpdateUiStatus::Checking | UpdateUiStatus::Downloading | UpdateUiStatus::Installing
+        ) {
+            return;
+        }
+        self.check(UpdateCheckSource::Background);
     }
 
     pub fn start_install(&self) {
@@ -150,12 +231,15 @@ impl UpdateService {
         });
     }
 
-    fn check(&self, manual: bool) {
+    fn check(&self, source: UpdateCheckSource) {
+        let manual = source == UpdateCheckSource::Manual;
+        self.manual_check_active.set(manual);
+        self.check_source.set(source);
         if !is_tauri_shell() {
             crate::app_log::warn(
                 "updates",
                 "check_unavailable",
-                serde_json::json!({ "manual": manual }),
+                serde_json::json!({ "source": source.as_str(), "manual": manual }),
             );
             self.status.set(UpdateUiStatus::DevUnavailable);
             self.message
@@ -174,32 +258,36 @@ impl UpdateService {
         crate::app_log::info(
             "updates",
             "check_started",
-            serde_json::json!({ "manual": manual }),
+            serde_json::json!({ "source": source.as_str(), "manual": manual }),
         );
         spawn_local(async move {
             if let Ok(version) = app_version().await {
                 service.current_version.set(version);
             }
             match updater_check().await {
-                Ok(response) => service.apply_check(response, manual),
+                Ok(response) => service.apply_check(response, source),
                 Err(err) => service.set_error(err),
             }
         });
     }
 
-    fn apply_check(&self, response: UpdateCheckResponse, manual: bool) {
+    fn apply_check(&self, response: UpdateCheckResponse, source: UpdateCheckSource) {
+        let manual = source == UpdateCheckSource::Manual;
         let available_version = response.available_version.clone();
         crate::app_log::info(
             "updates",
             "check_finished",
             serde_json::json!({
+                "source": source.as_str(),
                 "manual": manual,
                 "status": response.status.clone(),
+                "channel": format!("{:?}", response.channel),
                 "currentVersion": response.current_version.clone(),
                 "availableVersion": available_version,
             }),
         );
         self.current_version.set(response.current_version);
+        self.channel.set(response.channel);
         self.available_version.set(response.available_version);
         self.notes.set(response.notes);
         self.message.set(response.message);
@@ -232,12 +320,13 @@ impl UpdateService {
 
     fn load_release_notes(&self, version: String) {
         let service = *self;
+        let channel = self.channel.get_untracked();
         let request = self.release_notes_request.get_untracked().saturating_add(1);
         self.release_notes_request.set(request);
         self.release_notes.set(None);
         self.release_notes_loading.set(true);
         spawn_local(async move {
-            match post_update_release_notes(version).await {
+            match post_update_release_notes(version, channel).await {
                 Ok(notes) => {
                     if service.release_notes_request.get_untracked() == request {
                         service.release_notes.set(Some(notes));

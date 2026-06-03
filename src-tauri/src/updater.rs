@@ -1,12 +1,19 @@
+use std::fs;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use semver::Version;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_updater::{Update, UpdaterExt};
+use url::Url;
 
 const RELEASE_NOTES_REPO: &str = "Bitslix/BLXCode";
 const RELEASE_NOTES_USER_AGENT: &str = "BLXCode post-update release notes";
+const UPDATE_USER_AGENT: &str = "BLXCode updater channel resolver";
+const UPDATE_SETTINGS_FILE: &str = "app_update_settings.json";
 
 #[derive(Default)]
 pub struct BlxUpdaterState {
@@ -19,10 +26,32 @@ struct BlxUpdaterInner {
     progress: UpdateProgress,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum UpdateChannel {
+    #[default]
+    Stable,
+    Beta,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateSettings {
+    #[serde(default)]
+    pub channel: UpdateChannel,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateSettingsView {
+    pub channel: UpdateChannel,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateCheckResponse {
     pub status: String,
+    pub channel: UpdateChannel,
     pub current_version: String,
     pub available_version: Option<String>,
     pub notes: Option<String>,
@@ -72,6 +101,12 @@ struct GithubReleasePayload {
     body: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct GithubReleaseListItem {
+    tag_name: String,
+    draft: bool,
+}
+
 impl Default for UpdateProgress {
     fn default() -> Self {
         Self {
@@ -91,10 +126,36 @@ pub fn app_version(app: AppHandle) -> String {
 }
 
 #[tauri::command]
+pub fn updater_settings_get(app: AppHandle) -> Result<UpdateSettingsView, String> {
+    settings_view(&load_update_settings(&app)?)
+}
+
+#[tauri::command]
+pub fn updater_settings_save(
+    app: AppHandle,
+    state: tauri::State<'_, BlxUpdaterState>,
+    patch: UpdateSettingsView,
+) -> Result<UpdateSettingsView, String> {
+    let previous = load_update_settings(&app)?;
+    let next = UpdateSettings {
+        channel: patch.channel,
+    };
+    save_update_settings(&app, &next)?;
+    if previous.channel != next.channel {
+        let mut inner = state.inner.lock().map_err(lock_err)?;
+        inner.pending_update = None;
+        inner.progress = UpdateProgress::default();
+    }
+    settings_view(&next)
+}
+
+#[tauri::command]
 pub async fn updater_check(
     app: AppHandle,
     state: tauri::State<'_, BlxUpdaterState>,
 ) -> Result<UpdateCheckResponse, String> {
+    let settings = load_update_settings(&app)?;
+    let channel = settings.channel;
     if cfg!(debug_assertions) {
         let current_version = app.package_info().version.to_string();
         let mut inner = state.inner.lock().map_err(lock_err)?;
@@ -107,6 +168,7 @@ pub async fn updater_check(
         };
         return Ok(UpdateCheckResponse {
             status: "devUnavailable".into(),
+            channel,
             current_version,
             available_version: None,
             notes: None,
@@ -126,6 +188,36 @@ pub async fn updater_check(
     #[cfg(target_os = "macos")]
     let builder = builder.target("darwin-universal");
 
+    let builder = match channel {
+        UpdateChannel::Stable => builder,
+        UpdateChannel::Beta => {
+            let Some(endpoint) = beta_update_endpoint(&current_version).await? else {
+                let mut inner = state.inner.lock().map_err(lock_err)?;
+                inner.pending_update = None;
+                inner.progress = UpdateProgress {
+                    phase: "upToDate".into(),
+                    busy: false,
+                    updated_at_ms: now_ms(),
+                    ..UpdateProgress::default()
+                };
+                return Ok(UpdateCheckResponse {
+                    status: "upToDate".into(),
+                    channel,
+                    current_version,
+                    available_version: None,
+                    notes: None,
+                    date: None,
+                    target: None,
+                    download_url: None,
+                    message: None,
+                });
+            };
+            builder
+                .endpoints(vec![endpoint])
+                .map_err(|err| updater_error(&state, err))?
+        }
+    };
+
     let update = builder
         .build()
         .map_err(|err| updater_error(&state, err))?
@@ -137,6 +229,7 @@ pub async fn updater_check(
         Some(update) => {
             let response = UpdateCheckResponse {
                 status: "available".into(),
+                channel,
                 current_version,
                 available_version: Some(update.version.clone()),
                 notes: update.body.clone(),
@@ -166,6 +259,7 @@ pub async fn updater_check(
             };
             Ok(UpdateCheckResponse {
                 status: "upToDate".into(),
+                channel,
                 current_version,
                 available_version: None,
                 notes: None,
@@ -176,6 +270,108 @@ pub async fn updater_check(
             })
         }
     }
+}
+
+fn update_settings_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let base = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("app config dir unavailable: {e}"))?;
+    Ok(base.join(UPDATE_SETTINGS_FILE))
+}
+
+fn load_update_settings(app: &AppHandle) -> Result<UpdateSettings, String> {
+    let path = update_settings_path(app)?;
+    match fs::read_to_string(&path) {
+        Ok(raw) if raw.trim().is_empty() => Ok(UpdateSettings::default()),
+        Ok(raw) => serde_json::from_str::<UpdateSettings>(&raw)
+            .map_err(|e| format!("parse update settings {}: {e}", path.display())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(UpdateSettings::default()),
+        Err(e) => Err(format!("read update settings {}: {e}", path.display())),
+    }
+}
+
+fn save_update_settings(app: &AppHandle, settings: &UpdateSettings) -> Result<(), String> {
+    let path = update_settings_path(app)?;
+    atomic_write_json(&path, settings)
+}
+
+fn atomic_write_json<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("invalid update settings path {}", path.display()))?;
+    fs::create_dir_all(parent)
+        .map_err(|e| format!("create update settings dir {}: {e}", parent.display()))?;
+    let tmp = path.with_extension("json.tmp");
+    let body = serde_json::to_string_pretty(value)
+        .map_err(|e| format!("encode update settings {}: {e}", path.display()))?;
+    {
+        let mut file =
+            fs::File::create(&tmp).map_err(|e| format!("create {}: {e}", tmp.display()))?;
+        file.write_all(body.as_bytes())
+            .map_err(|e| format!("write {}: {e}", tmp.display()))?;
+        file.sync_all().ok();
+    }
+    fs::rename(&tmp, path)
+        .map_err(|e| format!("rename {} -> {}: {e}", tmp.display(), path.display()))
+}
+
+fn settings_view(settings: &UpdateSettings) -> Result<UpdateSettingsView, String> {
+    Ok(UpdateSettingsView {
+        channel: settings.channel,
+    })
+}
+
+async fn beta_update_endpoint(current_version: &str) -> Result<Option<Url>, String> {
+    let current = parse_release_semver(current_version)
+        .map_err(|err| format!("parse current app version {current_version:?}: {err}"))?;
+    let client = reqwest::Client::builder()
+        .user_agent(UPDATE_USER_AGENT)
+        .build()
+        .map_err(|err| format!("GitHub release client: {err}"))?;
+    let url = format!("https://api.github.com/repos/{RELEASE_NOTES_REPO}/releases?per_page=100");
+    let response = client
+        .get(&url)
+        .header("Accept", "application/vnd.github+json")
+        .send()
+        .await
+        .map_err(|err| format!("fetch GitHub releases: {err}"))?;
+    if !response.status().is_success() {
+        return Err(format!("GitHub releases returned {}", response.status()));
+    }
+    let releases = response
+        .json::<Vec<GithubReleaseListItem>>()
+        .await
+        .map_err(|err| format!("parse GitHub releases: {err}"))?;
+
+    let Some(tag) = select_beta_release_tag(&current, releases) else {
+        return Ok(None);
+    };
+    let endpoint =
+        format!("https://github.com/{RELEASE_NOTES_REPO}/releases/download/{tag}/latest.json");
+    Url::parse(&endpoint)
+        .map(Some)
+        .map_err(|err| format!("build beta updater endpoint for {tag}: {err}"))
+}
+
+fn parse_release_semver(version: &str) -> Result<Version, semver::Error> {
+    Version::parse(version.trim().trim_start_matches('v'))
+}
+
+fn select_beta_release_tag(
+    current: &Version,
+    releases: Vec<GithubReleaseListItem>,
+) -> Option<String> {
+    let mut candidates = releases
+        .into_iter()
+        .filter(|release| !release.draft)
+        .filter_map(|release| {
+            let version = parse_release_semver(&release.tag_name).ok()?;
+            (version > *current).then_some((version, release.tag_name))
+        })
+        .collect::<Vec<_>>();
+    candidates.sort_by(|(a, _), (b, _)| b.cmp(a));
+    candidates.into_iter().next().map(|(_, tag)| tag)
 }
 
 #[tauri::command]
@@ -264,6 +460,7 @@ pub fn app_relaunch(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub async fn post_update_release_notes(
     version: String,
+    channel: UpdateChannel,
 ) -> Result<PostUpdateReleaseNotesResponse, String> {
     let version = normalize_release_version(&version);
     let tag = format!("v{version}");
@@ -277,6 +474,18 @@ pub async fn post_update_release_notes(
     );
     if let Ok(markdown) = fetch_text(&client, &user_notes_url).await {
         return Ok(parse_release_notes(&version, &markdown, "userNotes"));
+    }
+
+    if channel == UpdateChannel::Beta {
+        if let Some(base_version) = prerelease_base_version(&version) {
+            let base_tag = format!("v{base_version}");
+            let base_notes_url = format!(
+                "https://raw.githubusercontent.com/{RELEASE_NOTES_REPO}/{base_tag}/docs/releases/{base_tag}.md"
+            );
+            if let Ok(markdown) = fetch_text(&client, &base_notes_url).await {
+                return Ok(parse_release_notes(&version, &markdown, "userNotesBase"));
+            }
+        }
     }
 
     let release_url =
@@ -355,6 +564,10 @@ async fn fetch_github_release(
 
 fn normalize_release_version(version: &str) -> String {
     version.trim().trim_start_matches('v').to_string()
+}
+
+fn prerelease_base_version(version: &str) -> Option<&str> {
+    version.split_once("-pre.").map(|(base, _)| base)
 }
 
 fn parse_release_notes(
@@ -594,5 +807,54 @@ summary: "Daily coding feels calmer."
     fn normalizes_release_version() {
         assert_eq!(normalize_release_version("v0.2.9"), "0.2.9");
         assert_eq!(normalize_release_version(" 0.2.9 "), "0.2.9");
+    }
+
+    #[test]
+    fn extracts_prerelease_base_version() {
+        assert_eq!(prerelease_base_version("0.6.0-pre.ed4dc"), Some("0.6.0"));
+        assert_eq!(prerelease_base_version("0.6.0"), None);
+    }
+
+    #[test]
+    fn update_settings_default_to_stable_channel() {
+        let settings: UpdateSettings = serde_json::from_str("{}").unwrap();
+        assert_eq!(settings.channel, UpdateChannel::Stable);
+    }
+
+    #[test]
+    fn parses_prerelease_versions() {
+        let version = parse_release_semver("v0.6.0-pre.ed4dc").unwrap();
+        assert_eq!(version.major, 0);
+        assert_eq!(version.minor, 6);
+        assert_eq!(version.patch, 0);
+        assert_eq!(version.pre.as_str(), "pre.ed4dc");
+    }
+
+    #[test]
+    fn beta_channel_picks_highest_prerelease_or_newer_final() {
+        let current = parse_release_semver("0.6.0-pre.11111").unwrap();
+        let tag = select_beta_release_tag(
+            &current,
+            vec![
+                GithubReleaseListItem {
+                    tag_name: "v0.6.0-pre.22222".into(),
+                    draft: false,
+                },
+                GithubReleaseListItem {
+                    tag_name: "v0.6.0".into(),
+                    draft: false,
+                },
+                GithubReleaseListItem {
+                    tag_name: "v0.7.0-pre.ed4dc".into(),
+                    draft: false,
+                },
+                GithubReleaseListItem {
+                    tag_name: "v0.8.0-pre.abcde".into(),
+                    draft: true,
+                },
+            ],
+        );
+
+        assert_eq!(tag.as_deref(), Some("v0.7.0-pre.ed4dc"));
     }
 }

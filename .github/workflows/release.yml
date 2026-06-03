@@ -37,7 +37,7 @@ on:
           - release-new        # build + create a new draft release with release_tag
           - release-existing   # build + upload artifacts to an existing release (release_tag must exist)
       release_tag:
-        description: "Tag name (e.g. v0.2.6). Required for release-new (will be created) and release-existing (must already exist). Ignored for testbuild."
+        description: "Tag name (e.g. v0.2.6 or v0.5.1-pre.ed4dc). Required for release-new (will be created) and release-existing (must already exist). Ignored for testbuild."
         required: false
         default: ""
       platforms:
@@ -121,11 +121,14 @@ jobs:
     outputs:
       mode: ${{ steps.mode.outputs.mode }}
       release_tag: ${{ steps.mode.outputs.release_tag }}
+      is_prerelease: ${{ steps.mode.outputs.is_prerelease }}
       matrix: ${{ steps.matrix.outputs.matrix }}
       build_mac: ${{ steps.targets.outputs.build_mac }}
       build_windows: ${{ steps.targets.outputs.build_windows }}
       has_mac_entries: ${{ steps.targets.outputs.has_mac_entries }}
     steps:
+      - uses: actions/checkout@v4
+
       # Decide mode + tag, and validate against the GitHub API so we fail early (in resolve)
       # rather than after a 30-minute Windows build.
       #   push event:        release-new if the tag has no GitHub release yet, else release-existing
@@ -190,9 +193,43 @@ jobs:
               ;;
           esac
 
-          echo "Resolved mode=$mode release_tag=$release_tag"
+          is_prerelease=false
+          if [[ "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-pre\.[0-9A-Fa-f]{5}$ ]]; then
+            is_prerelease=true
+          fi
+
+          if [ -n "$release_tag" ]; then
+            tag_version="${release_tag#v}"
+            project_version="$(python3 - <<'PY'
+import json
+with open("src-tauri/tauri.conf.json", encoding="utf-8") as f:
+    print(json.load(f)["version"])
+PY
+)"
+            if [ "$tag_version" != "$project_version" ]; then
+              echo "::error::Release tag '$release_tag' does not match src-tauri/tauri.conf.json version '$project_version'. Run the release bump first and tag that commit."
+              exit 1
+            fi
+          fi
+
+          if [ "$is_prerelease" = "true" ]; then
+            tag_hash="${release_tag##*-pre.}"
+            head_hash="$(git rev-parse HEAD | cut -c1-5 | tr '[:upper:]' '[:lower:]')"
+            # Prerelease bumps may be followed by a release metadata commit. That commit
+            # cannot contain its own hash in the version string, so release-script tags
+            # identify the source parent commit instead.
+            parent_hash="$(git rev-parse HEAD^ 2>/dev/null | cut -c1-5 | tr '[:upper:]' '[:lower:]' || true)"
+            tag_hash="$(printf '%s' "$tag_hash" | tr '[:upper:]' '[:lower:]')"
+            if [ "$tag_hash" != "$head_hash" ] && [ "$tag_hash" != "$parent_hash" ]; then
+              echo "::error::Prerelease tag '$release_tag' uses hash '$tag_hash', but this workflow is building commit '$head_hash' (parent '$parent_hash')."
+              exit 1
+            fi
+          fi
+
+          echo "Resolved mode=$mode release_tag=$release_tag is_prerelease=$is_prerelease"
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
           echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=$is_prerelease" >> "$GITHUB_OUTPUT"
 
       - id: targets
         run: |
@@ -311,7 +348,7 @@ jobs:
           releaseName: "BLXCode ${{ needs.resolve.outputs.release_tag }}"
           releaseBody: "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details."
           releaseDraft: true
-          prerelease: false
+          prerelease: ${{ needs.resolve.outputs.is_prerelease == 'true' }}
           args: ${{ matrix.args }}
 
       - name: Upload bundles to existing release (release-existing, macOS)
@@ -365,6 +402,15 @@ jobs:
             --output target/latest.json \
             "${signatures[@]}"
           gh release upload "$TAG" -R "$REPO" --clobber target/latest.json
+
+      - name: Mark GitHub prerelease metadata
+        if: needs.resolve.outputs.is_prerelease == 'true' && (needs.resolve.outputs.mode == 'release-new' || needs.resolve.outputs.mode == 'release-existing')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.resolve.outputs.release_tag }}
+        run: gh release edit "$TAG" -R "$REPO" --prerelease --latest=false
 
   # Probe whether at least one 'blxcode-win-fast' self-hosted runner is currently online.
   # We need this because GitHub's `timeout-minutes` only counts elapsed *running* time, so a
@@ -449,6 +495,7 @@ jobs:
           mode: ${{ needs.resolve.outputs.mode }}
           repository: ${{ github.repository }}
           tag-name: ${{ needs.resolve.outputs.release_tag }}
+          is-prerelease: ${{ needs.resolve.outputs.is_prerelease }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           tauri-signing-private-key: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           tauri-signing-private-key-password: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -490,6 +537,7 @@ jobs:
           mode: ${{ needs.resolve.outputs.mode }}
           repository: ${{ github.repository }}
           tag-name: ${{ needs.resolve.outputs.release_tag }}
+          is-prerelease: ${{ needs.resolve.outputs.is_prerelease }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           tauri-signing-private-key: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           tauri-signing-private-key-password: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}

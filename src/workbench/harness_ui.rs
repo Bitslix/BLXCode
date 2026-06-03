@@ -16,7 +16,7 @@ use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_hooks_status, app_log_clear, app_log_delete, app_log_settings_get, app_log_settings_save,
     install_agent_hooks, is_tauri_shell, list_workspace_files, uninstall_agent_hooks,
-    AgentHooksReport, AppLogSettingsView,
+    AgentHooksReport, AppLogSettingsView, UpdateChannel,
 };
 use gloo_timers::future::TimeoutFuture;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
@@ -1232,7 +1232,53 @@ fn AppSettingsPane() -> impl IntoView {
                     <span>{move || i18n.tr(I18nKey::AppUpdateAutoCheck)()}</span>
                 </label>
                 <p class="app-prefs-hint">{move || i18n.tr(I18nKey::AppUpdateAutoCheckHint)()}</p>
+                <div class="app-prefs-toggle-grid">
+                    <div class="app-prefs-toggle-cell">
+                        <label class="app-prefs-radio">
+                            <input
+                                type="radio"
+                                name="app-update-channel"
+                                prop:checked=move || updates.channel().get() == UpdateChannel::Stable
+                                on:change=move |ev| {
+                                    if checkbox_checked(&ev).unwrap_or(false) {
+                                        updates.set_channel(UpdateChannel::Stable);
+                                    }
+                                }
+                            />
+                            <span>"Stable"</span>
+                        </label>
+                        <p class="app-prefs-hint">"Final GitHub Releases"</p>
+                    </div>
+                    <div class="app-prefs-toggle-cell">
+                        <label class="app-prefs-radio">
+                            <input
+                                type="radio"
+                                name="app-update-channel"
+                                prop:checked=move || updates.channel().get() == UpdateChannel::Beta
+                                on:change=move |ev| {
+                                    if checkbox_checked(&ev).unwrap_or(false) {
+                                        updates.set_channel(UpdateChannel::Beta);
+                                    }
+                                }
+                            />
+                            <span>"Beta"</span>
+                        </label>
+                        <p class="app-prefs-hint">"GitHub Prereleases plus newer finals"</p>
+                    </div>
+                </div>
                 <dl class="app-prefs-version">
+                    <div class="app-prefs-version__row">
+                        <dt>
+                            <span class="harness-field-label__icon" aria-hidden="true">
+                                <LxIcon icon=icondata::LuGitBranch width="0.82rem" height="0.82rem" />
+                            </span>
+                            <span>"Channel"</span>
+                        </dt>
+                        <dd>{move || match updates.channel().get() {
+                            UpdateChannel::Stable => "stable",
+                            UpdateChannel::Beta => "beta",
+                        }}</dd>
+                    </div>
                     <div class="app-prefs-version__row">
                         <dt>
                             <span class="harness-field-label__icon" aria-hidden="true">

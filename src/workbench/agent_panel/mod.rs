@@ -171,6 +171,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
     let slot_dnd = expect_context::<TerminalSlotDragService>();
+    let context_dnd = expect_context::<crate::workbench::context_drag::ContextDragService>();
 
     let draft = RwSignal::new(String::new());
     let timeline = RwSignal::new(TimelineDoc::default());
@@ -517,7 +518,12 @@ pub fn AgentPanelDock() -> impl IntoView {
                     class.push_str(" workbench-agent-pane--chat-maximized");
                 }
                 match drop_state.get() {
-                    DropZoneState::AcceptImage | DropZoneState::AcceptTerminal => {
+                    DropZoneState::AcceptImage
+                    | DropZoneState::AcceptTerminal
+                    | DropZoneState::AcceptFile
+                    | DropZoneState::AcceptFolder
+                    | DropZoneState::AcceptDiff
+                    | DropZoneState::AcceptCommit => {
                         class.push_str(" workbench-agent-pane--drop-active")
                     }
                     DropZoneState::Reject => class.push_str(" workbench-agent-pane--drop-reject"),
@@ -526,10 +532,10 @@ pub fn AgentPanelDock() -> impl IntoView {
                 class
             }
             aria-label=move || i18n.tr(I18nKey::AgAriaPane)()
-            on:dragenter=move |ev| handle_dom_drag_event(ev, drop_state, slot_dnd)
-            on:dragover=move |ev| handle_dom_drag_event(ev, drop_state, slot_dnd)
+            on:dragenter=move |ev| handle_dom_drag_event(ev, drop_state, slot_dnd, context_dnd)
+            on:dragover=move |ev| handle_dom_drag_event(ev, drop_state, slot_dnd, context_dnd)
             on:dragleave=move |_| clear_drop_state(drop_state)
-            on:drop=move |ev| handle_dom_drop(ev, wb, drop_state, status_line, slot_dnd)
+            on:drop=move |ev| handle_dom_drop(ev, wb, drop_state, status_line, slot_dnd, context_dnd)
         >
             <Show when=move || drop_state.get().is_active()>
                 <div class="agent-drop-overlay" aria-hidden="true">

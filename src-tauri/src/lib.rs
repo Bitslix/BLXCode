@@ -57,7 +57,7 @@ use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 use updater::{
     app_relaunch, app_version, post_update_release_notes, updater_check, updater_install_start,
-    updater_poll_progress, BlxUpdaterState,
+    updater_poll_progress, updater_settings_get, updater_settings_save, BlxUpdaterState,
 };
 use voice::{
     ptt_cancel, ptt_finalize, ptt_partial, ptt_start, voice_agent_input_active,
@@ -186,6 +186,8 @@ pub fn run() {
             window_controls::window_set_size,
             window_controls::window_set_fullscreen,
             app_version,
+            updater_settings_get,
+            updater_settings_save,
             updater_check,
             updater_install_start,
             updater_poll_progress,

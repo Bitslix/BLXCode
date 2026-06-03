@@ -2,8 +2,9 @@ use crate::config::POST_UPDATE_NOTES_SEEN_VERSION_KEY;
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    app_version, is_tauri_shell, post_update_release_notes, PostUpdateReleaseNotesItem,
-    PostUpdateReleaseNotesResponse, PostUpdateReleaseNotesSection,
+    app_version, is_tauri_shell, post_update_release_notes, updater_settings_get,
+    PostUpdateReleaseNotesItem, PostUpdateReleaseNotesResponse, PostUpdateReleaseNotesSection,
+    UpdateChannel,
 };
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -56,9 +57,13 @@ impl PostUpdateNotesService {
             if read_seen_version().as_deref() == Some(version.as_str()) {
                 return;
             }
+            let channel = updater_settings_get()
+                .await
+                .map(|settings| settings.channel)
+                .unwrap_or(UpdateChannel::Stable);
             service.loading.set(true);
             service.open.set(true);
-            match post_update_release_notes(version).await {
+            match post_update_release_notes(version, channel).await {
                 Ok(notes) => service.notes.set(Some(notes)),
                 Err(err) => {
                     leptos::logging::warn!("post_update_release_notes: {err}");

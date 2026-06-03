@@ -22,7 +22,7 @@ Authoritative list from `src-tauri/src/lib.rs` (grouped for navigation):
 
 ### App shell
 
-- `open_external_url`, `greet`, `exit_app`, `app_version`, `post_update_release_notes` — the *What's new* in-app dialog and the Settings → App update dialog both call `post_update_release_notes(version)`, which returns the same rendered Markdown used by the bundled release notes and the docs site. Pass the new `version`; an unknown version is treated as a "no release notes" response.
+- `open_external_url`, `greet`, `exit_app`, `app_version`, `updater_settings_get`, `updater_settings_save`, `updater_check`, `updater_install_start`, `updater_poll_progress`, `app_relaunch`, `post_update_release_notes` — updater settings persist the Stable/Beta channel under the app config dir. `updater_check` is channel-aware: Stable uses the configured GitHub latest manifest, while Beta resolves GitHub prereleases/final releases by SemVer before checking that release's `latest.json`. The *What's new* in-app dialog and the Settings → App update dialog both call `post_update_release_notes(version, channel)`, which returns the same rendered Markdown used by the bundled release notes and the docs site. Pass the new `version` and selected channel; Beta prefers exact prerelease notes and can fall back to the stable base notes. An unknown version is treated as a "no release notes" response.
 
 ### Agent runtime
 

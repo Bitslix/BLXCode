@@ -10,6 +10,7 @@
 //! lives in its own file with one co-located stylesheet (`app-titlebar.css`).
 //! Styling is tokens-only (`rule-theme-tokens`).
 mod brand;
+pub(crate) mod help_menu;
 mod navigate_menu;
 mod notifications_menu;
 mod window_controls;
@@ -19,6 +20,7 @@ use crate::service::I18nService;
 use crate::tauri_bridge::AgentNotification;
 use crate::workbench::WorkbenchService;
 use brand::TitleBarBrand;
+use help_menu::HelpMenu;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use navigate_menu::NavigateMenu;
@@ -158,6 +160,7 @@ pub fn AppTitleBar(#[prop(into)] workbench_active: Signal<bool>) -> impl IntoVie
                         >
                             <LxIcon icon=icondata::LuSettings width="1rem" height="1rem" />
                         </button>
+                        <HelpMenu />
                         <button
                             type="button"
                             class="app-titlebar__icon-btn"

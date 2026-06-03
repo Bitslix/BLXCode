@@ -6,7 +6,7 @@ use crate::tauri_bridge::{
     is_tauri_shell, workbench_list_agent_notifications, workbench_mark_agent_notifications_read,
     workbench_remove_agent_notification,
 };
-use crate::workbench::{HarnessSettingsCategory, RightPanelTab, WorkbenchService};
+use crate::workbench::{HarnessSettingsCategory, RightPanelTab, UpdateService, WorkbenchService};
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
@@ -17,6 +17,7 @@ pub fn NotificationsMenu() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let feed = expect_context::<TitleBarFeed>();
     let wb = expect_context::<WorkbenchService>();
+    let updates = expect_context::<UpdateService>();
     let open = RwSignal::new(false);
 
     Effect::new(move |_| {
@@ -136,6 +137,7 @@ pub fn NotificationsMenu() -> impl IntoView {
                                     let unread = !item.read;
                                     let wb_open = wb;
                                     let wb_remove = wb;
+                                    let updates_open = updates;
                                     view! {
                                         <li
                                             class="app-titlebar__notif-item"
@@ -145,7 +147,7 @@ pub fn NotificationsMenu() -> impl IntoView {
                                                 type="button"
                                                 class="app-titlebar__notif-main"
                                                 on:click=move |_| {
-                                                    open_notification_target(wb_open, target.clone());
+                                                    open_notification_target(wb_open, updates_open, target.clone());
                                                     wb_open.mark_agent_notification_read(&item_id);
                                                     let id = item_id.clone();
                                                     leptos::task::spawn_local(async move {
@@ -209,11 +211,19 @@ fn notification_icon(kind: &str) -> AnyView {
             view! { <LxIcon icon=icondata::LuMessagesSquare width="0.9rem" height="0.9rem" /> }
                 .into_any()
         }
+        "update" => {
+            view! { <LxIcon icon=icondata::LuCircleArrowUp width="0.9rem" height="0.9rem" /> }
+                .into_any()
+        }
         _ => view! { <LxIcon icon=icondata::LuBell width="0.9rem" height="0.9rem" /> }.into_any(),
     }
 }
 
-fn open_notification_target(wb: WorkbenchService, target: Option<serde_json::Value>) {
+fn open_notification_target(
+    wb: WorkbenchService,
+    updates: UpdateService,
+    target: Option<serde_json::Value>,
+) {
     let Some(target) = target else {
         return;
     };
@@ -242,6 +252,7 @@ fn open_notification_target(wb: WorkbenchService, target: Option<serde_json::Val
             }
         }
         "settings" => wb.open_center_settings_tab(HarnessSettingsCategory::App),
+        "update" => updates.open_dialog(),
         "file" => {
             if let (Some(ws_id), Some(path)) = (
                 wb.active_id().get_untracked(),

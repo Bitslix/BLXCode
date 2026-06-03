@@ -6,9 +6,14 @@ use crate::quit::request_app_quit;
 use crate::service::I18nService;
 use crate::workbench::AppTitleBar;
 use crate::workbench::ThemeService;
+use crate::workbench::UpdateCheckSource;
+use crate::workbench::UpdateService;
+use crate::workbench::UpdateUiStatus;
 use crate::workbench::WorkbenchService;
 use crate::workbench::WorkbenchShell;
+use crate::workbench::{CoreStatusBarItem, CoreStatusService};
 use crate::workbench::{HookInstallDialogService, HookStatusBarItem, HookStatusService};
+use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
@@ -30,11 +35,17 @@ pub fn App() -> impl IntoView {
     // must read the hook-check phase via context.
     let hook_status = HookStatusService::new();
     let hook_install = HookInstallDialogService::new();
+    let updates = UpdateService::new();
+    // Provided at the App root so the sibling `AppStatusLine` can show the
+    // enabled-rules/skills counts for the active workspace in its centre slot.
+    let core_status = CoreStatusService::new();
     provide_context(i18n);
     provide_context(theme);
     provide_context(wb);
     provide_context(hook_status);
     provide_context(hook_install);
+    provide_context(updates);
+    provide_context(core_status);
 
     Effect::new(move |_| {
         remove_static_boot_screen();
@@ -174,40 +185,135 @@ pub fn App() -> impl IntoView {
 
 #[component]
 fn AppStatusLine() -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let updates = expect_context::<UpdateService>();
+    let update_visible = RwSignal::new(false);
+    let hide_generation = RwSignal::new(0_u64);
+
+    Effect::new(move |_| {
+        let status = updates.status().get();
+        let manual = updates.manual_check_active().get();
+        let background = updates.check_source().get() == UpdateCheckSource::Background;
+        if background {
+            match status {
+                UpdateUiStatus::Checking => update_visible.set(true),
+                _ => update_visible.set(false),
+            }
+            return;
+        }
+        if !manual {
+            update_visible.set(false);
+            return;
+        }
+        match status {
+            UpdateUiStatus::Checking
+            | UpdateUiStatus::Available
+            | UpdateUiStatus::Downloading
+            | UpdateUiStatus::Installing
+            | UpdateUiStatus::Done
+            | UpdateUiStatus::Error
+            | UpdateUiStatus::DevUnavailable => update_visible.set(true),
+            UpdateUiStatus::UpToDate => {
+                update_visible.set(true);
+                hide_generation.update(|generation| *generation = generation.saturating_add(1));
+                let generation = hide_generation.get_untracked();
+                spawn_local(async move {
+                    TimeoutFuture::new(2200).await;
+                    if hide_generation.get_untracked() == generation {
+                        update_visible.set(false);
+                    }
+                });
+            }
+            UpdateUiStatus::Idle => update_visible.set(false),
+        }
+    });
+
     view! {
         <footer class="app-statusline" aria-label="Application status">
             <div class="app-statusline__slot app-statusline__slot--left">
-                <span class="app-statusline__item app-statusline__item--accent">
-                    <LxIcon icon=icondata::LuGitBranch width="0.78rem" height="0.78rem" />
-                    <span>"stage"</span>
-                </span>
-                <span class="app-statusline__item">
-                    <LxIcon icon=icondata::LuCircleAlert width="0.76rem" height="0.76rem" />
-                    <span>"0"</span>
-                </span>
-                <span class="app-statusline__item">
-                    <LxIcon icon=icondata::LuCircleCheck width="0.76rem" height="0.76rem" />
-                    <span>"0"</span>
-                </span>
+                <Show when=move || update_visible.get()>
+                    <span class=move || update_statusline_class(updates.status().get())>
+                        <LxIcon
+                            icon=move || update_statusline_icon(updates.status().get())
+                            width="0.76rem"
+                            height="0.76rem"
+                        />
+                        <span>{move || update_statusline_label(updates, i18n)}</span>
+                    </span>
+                </Show>
             </div>
             <div class="app-statusline__slot app-statusline__slot--center">
-                <span class="app-statusline__item app-statusline__item--quiet">
-                    <LxIcon icon=icondata::LuBot width="0.78rem" height="0.78rem" />
-                    <span>"BLXCode Agent idle"</span>
-                </span>
+                <CoreStatusBarItem />
             </div>
             <div class="app-statusline__slot app-statusline__slot--right">
                 <HookStatusBarItem />
-                <span class="app-statusline__item">
-                    <LxIcon icon=icondata::LuCode width="0.78rem" height="0.78rem" />
-                    <span>"Go Live"</span>
-                </span>
-                <span class="app-statusline__item">
-                    <LxIcon icon=icondata::LuBell width="0.78rem" height="0.78rem" />
-                    <span>"0"</span>
-                </span>
             </div>
         </footer>
+    }
+}
+
+fn update_statusline_class(status: UpdateUiStatus) -> String {
+    let modifier = match status {
+        UpdateUiStatus::Checking | UpdateUiStatus::Downloading | UpdateUiStatus::Installing => {
+            " app-statusline__item--update-busy"
+        }
+        UpdateUiStatus::Available | UpdateUiStatus::Done => {
+            " app-statusline__item--update-available"
+        }
+        UpdateUiStatus::UpToDate => " app-statusline__item--update-ok",
+        UpdateUiStatus::Error | UpdateUiStatus::DevUnavailable => {
+            " app-statusline__item--update-warn"
+        }
+        UpdateUiStatus::Idle => "",
+    };
+    format!("app-statusline__item app-statusline__item--update{modifier}")
+}
+
+fn update_statusline_icon(status: UpdateUiStatus) -> icondata::Icon {
+    match status {
+        UpdateUiStatus::Checking | UpdateUiStatus::Downloading | UpdateUiStatus::Installing => {
+            icondata::LuRefreshCw
+        }
+        UpdateUiStatus::Available | UpdateUiStatus::Done => icondata::LuCircleArrowUp,
+        UpdateUiStatus::UpToDate => icondata::LuCircleCheck,
+        UpdateUiStatus::Error | UpdateUiStatus::DevUnavailable => icondata::LuCircleAlert,
+        UpdateUiStatus::Idle => icondata::LuRefreshCw,
+    }
+}
+
+fn update_statusline_label(updates: UpdateService, i18n: I18nService) -> String {
+    match updates.status().get() {
+        UpdateUiStatus::Checking => i18n.tr(I18nKey::AppUpdateChecking)().to_string(),
+        UpdateUiStatus::Available => {
+            let version = updates.available_version().get().unwrap_or_default();
+            if version.trim().is_empty() {
+                i18n.tr(I18nKey::UpdateBannerTitle)().to_string()
+            } else {
+                format!("{} {version}", i18n.tr(I18nKey::UpdateBannerTitle)())
+            }
+        }
+        UpdateUiStatus::UpToDate => i18n.tr(I18nKey::AppUpdateUpToDate)().to_string(),
+        UpdateUiStatus::Downloading => {
+            let progress = updates
+                .progress_pct()
+                .get()
+                .map(|pct| format!(" {pct:.0}%"))
+                .unwrap_or_default();
+            format!(
+                "{}{}",
+                i18n.tr(I18nKey::UpdateDialogDownloading)(),
+                progress
+            )
+        }
+        UpdateUiStatus::Installing => i18n.tr(I18nKey::UpdateDialogInstalling)().to_string(),
+        UpdateUiStatus::Done => i18n.tr(I18nKey::UpdateDialogDone)().to_string(),
+        UpdateUiStatus::Error => updates
+            .message()
+            .get()
+            .filter(|message| !message.trim().is_empty())
+            .unwrap_or_else(|| i18n.tr(I18nKey::UpdateDialogError)().to_string()),
+        UpdateUiStatus::DevUnavailable => i18n.tr(I18nKey::AppUpdateDevUnavailable)().to_string(),
+        UpdateUiStatus::Idle => String::new(),
     }
 }
 

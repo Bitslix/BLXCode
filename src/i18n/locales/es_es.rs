@@ -884,6 +884,13 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HookCheckReady => "Ganchos listos",
         I18nKey::HookCheckMissing => "Ganchos no instalados",
         I18nKey::HookCheckFailed => "Error en la comprobación del gancho",
+        I18nKey::CoreStatusRulesTip => "Reglas activas",
+        I18nKey::CoreStatusSkillsTip => "Habilidades activas",
+        I18nKey::CoreStatusPlansTip => "Planes",
+        I18nKey::CoreStatusMemoryTip => "Uso de memoria",
+        I18nKey::CoreStatusMemoryCategoriesTip => "Categorías de memoria",
+        I18nKey::CoreStatusMemoryFilesTip => "Archivos de memoria",
+        I18nKey::CoreStatusMemorySizeTip => "Tamaño de memoria",
         I18nKey::HookInstallTitle => "Instalar ganchos CLI del agente",
         I18nKey::HookInstallBody => {
             "blxcode puede conectar enlaces para las CLI de su agente (Claude, Codex, Gemini, Cursor, OpenCode) para que las pestañas del terminal sigan el mensaje activo, las sesiones se reanuden después del reinicio y las notificaciones de finalización de turnos funcionen. ¿Instalarlos ahora?"

@@ -200,6 +200,10 @@ scripts\release.cmd --require-signing
 ./scripts/release.sh --bump patch --build --upload
 scripts\release.cmd --bump patch --build --upload
 
+# New prerelease: from 0.5.0 this becomes 0.5.1-pre.<hash5>; from 0.5.1-pre.<oldhash> it keeps the base and writes the current hash
+./scripts/release.sh --pre-release --build --upload
+scripts\release.cmd --pre-release --build --upload
+
 # Trigger CI for all platforms (after commit)
 ./scripts/release.sh --bump patch --tag --push --no-build --commit
 
@@ -210,7 +214,9 @@ scripts\release.cmd --bump patch --build --upload
 ./scripts/release.sh --upload-only
 ```
 
-If a GitHub release or tag `v{X.Y.Z}` already exists for the version in `src-tauri/tauri.conf.json`, `--upload` attaches new bundle files only (skips duplicate asset names unless you pass `--clobber`).
+If a GitHub release or tag `v{X.Y.Z}` or `v{X.Y.Z-pre.<hash5>}` already exists for the version in `src-tauri/tauri.conf.json`, `--upload` attaches new bundle files only (skips duplicate asset names unless you pass `--clobber`). Prerelease tags are marked as GitHub prereleases and are not promoted to the repository's "Latest" release.
+
+Prereleases are created only when `--pre-release` is passed. The prerelease identifier is the current Git commit hash truncated to five characters, for example `0.5.1-pre.ed4dc`; the default release path stays a normal stable version. If the release script then creates a release metadata commit, the prerelease hash still points at the source commit from which that prerelease was cut. When a prerelease bump is written, the release script also creates `docs/releases/v{X.Y.Z-pre.<hash5>}.md` if it does not exist yet, so the Beta channel has a matching in-app **What's new** entry.
 
 ## Cross-Platform Builds
 
@@ -222,7 +228,7 @@ For the least painful path, build each platform on that platform:
 
 Cross-compiling Tauri desktop bundles from Linux to macOS is **not supported** for release artifacts. Use a Mac or the repository **Release** workflow to produce binaries in CI:
 
-- **Tag push** (`v*`) — builds macOS universal and Windows. If a GitHub release for that tag already exists (typical when you created it locally before pushing the tag), CI uploads artifacts with **release-existing** instead of failing.
+- **Tag push** (`v*`) — builds macOS universal and Windows. If a GitHub release for that tag already exists (typical when you created it locally before pushing the tag), CI uploads artifacts with **release-existing** instead of failing. Tags matching `vX.Y.Z-pre.<hash5>` are published as GitHub prereleases with `latest=false`.
 - **Manual run** (`workflow_dispatch`) — choose **Alle**, **Mac Universal**, or **Windows**, and **release-existing** (or **release-new**, which downgrades automatically when the release already exists).
 
 Only the **repository owner** may trigger that workflow (on org-owned repos, set the Actions variable `RELEASE_OWNER` to the allowed GitHub login).
