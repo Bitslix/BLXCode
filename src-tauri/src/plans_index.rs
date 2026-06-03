@@ -1,11 +1,11 @@
 //! Auto-maintained plan index inside `.agents/plans/PLANS.md`.
 //!
-//! The index is a Markdown table with one row per plan file. Membership is
+//! The index is a Markdown table with one row per plan. Membership is
 //! *derived* from the files on disk, so creating, deleting, or renaming a
 //! plan keeps the table in sync without manual edits. The human-curated
-//! `Status` and `Description` cells are preserved across syncs (matched by
-//! the plan's relative path); a freshly discovered file gets a default
-//! `planned` status and its `# Heading` as the description.
+//! `Status` and `Description` cells are preserved across syncs. A freshly
+//! discovered file gets a default `planned` status and its `# Heading` as the
+//! description.
 //!
 //! Everything in `PLANS.md` *outside* the table — the intro prose, the
 //! `## Index` heading — is left untouched. The table is treated as a
@@ -22,6 +22,7 @@ const TABLE_SEP: &str = "|--------|------|-------------|";
 const DEFAULT_STATUS: &str = "planned";
 
 /// A preserved row of the index table, keyed elsewhere by plan path.
+#[derive(Clone)]
 struct IndexRow {
     status: String,
     description: String,
@@ -50,22 +51,17 @@ fn sync_inner(root: &Path, rename: Option<(String, String)>) -> Result<(), Strin
     let index_path = root.join(PLANS_INDEX);
 
     let mut files = Vec::new();
-    plans::walk_md(root, &mut files);
+    plans::walk_plan_markdown(root, &mut files);
     let mut entries: Vec<(String, String)> = files
         .iter()
         .filter_map(|abs| {
-            let rel = plans::rel_from_root(root, abs)?;
-            if rel.eq_ignore_ascii_case(PLANS_INDEX) {
+            let meta = plans::meta_from_plan_file(root, abs)?;
+            if meta.is_index {
                 return None;
             }
             let body = fs::read_to_string(abs).unwrap_or_default();
-            let stem = abs
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("")
-                .to_owned();
-            let title = plans::extract_title(&body, &stem);
-            Some((rel, title))
+            let title = plans::extract_title(&body, &meta.name);
+            Some((meta.path, title))
         })
         .collect();
     entries.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
@@ -175,13 +171,14 @@ fn parse_existing_rows(body: &str) -> HashMap<String, IndexRow> {
         let Some(path) = extract_link_target(plan_cell) else {
             continue;
         };
-        map.insert(
-            path,
-            IndexRow {
+        let row = IndexRow {
                 status: status.to_owned(),
                 description: description.to_owned(),
-            },
-        );
+        };
+        if let Some(canonical) = legacy_path_to_canonical(&path) {
+            map.entry(canonical).or_insert_with(|| row.clone());
+        }
+        map.insert(path, row);
     }
     map
 }
@@ -194,6 +191,26 @@ fn extract_link_target(cell: &str) -> Option<String> {
     Some(rest[..close].trim().to_owned())
 }
 
+fn legacy_path_to_canonical(path: &str) -> Option<String> {
+    if path.contains('/') || path.eq_ignore_ascii_case(PLANS_INDEX) {
+        return None;
+    }
+    let p = std::path::Path::new(path);
+    let is_md = p
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("md"))
+        .unwrap_or(false);
+    if !is_md {
+        return None;
+    }
+    let slug = p.file_stem()?.to_str()?;
+    if slug.eq_ignore_ascii_case("README") || slug.is_empty() {
+        return None;
+    }
+    Some(format!("{slug}/plan.md"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -204,8 +221,12 @@ mod tests {
 
     #[test]
     fn adds_new_plan_with_default_status_and_title_description() {
-        let body = render_index(&seed(), &[("alpha.md".into(), "Alpha Plan".into())], None);
-        assert!(body.contains("| planned | [alpha.md](alpha.md) | Alpha Plan |"));
+        let body = render_index(
+            &seed(),
+            &[("alpha/plan.md".into(), "Alpha Plan".into())],
+            None,
+        );
+        assert!(body.contains("| planned | [alpha/plan.md](alpha/plan.md) | Alpha Plan |"));
         assert!(body.contains("# Plans"));
         assert!(body.contains("## Index"));
     }
@@ -216,10 +237,10 @@ mod tests {
         existing.push_str("| done | [alpha.md](alpha.md) | Hand-written summary |\n");
         let body = render_index(
             &existing,
-            &[("alpha.md".into(), "Ignored Title".into())],
+            &[("alpha/plan.md".into(), "Ignored Title".into())],
             None,
         );
-        assert!(body.contains("| done | [alpha.md](alpha.md) | Hand-written summary |"));
+        assert!(body.contains("| done | [alpha/plan.md](alpha/plan.md) | Hand-written summary |"));
         assert!(!body.contains("Ignored Title"));
     }
 
@@ -227,18 +248,18 @@ mod tests {
     fn drops_rows_whose_file_no_longer_exists() {
         let mut existing = seed();
         existing.push_str("| done | [gone.md](gone.md) | Old |\n");
-        existing.push_str("| planned | [keep.md](keep.md) | Keep |\n");
-        let body = render_index(&existing, &[("keep.md".into(), "Keep".into())], None);
+        existing.push_str("| planned | [keep/plan.md](keep/plan.md) | Keep |\n");
+        let body = render_index(&existing, &[("keep/plan.md".into(), "Keep".into())], None);
         assert!(!body.contains("gone.md"));
-        assert!(body.contains("[keep.md](keep.md)"));
+        assert!(body.contains("[keep/plan.md](keep/plan.md)"));
     }
 
     #[test]
     fn preserves_trailing_content_after_table() {
         let mut existing = seed();
-        existing.push_str("| done | [a.md](a.md) | A |\n");
+        existing.push_str("| done | [a/plan.md](a/plan.md) | A |\n");
         existing.push_str("\n## Notes\n\nKeep me.\n");
-        let body = render_index(&existing, &[("a.md".into(), "A".into())], None);
+        let body = render_index(&existing, &[("a/plan.md".into(), "A".into())], None);
         assert!(body.contains("## Notes"));
         assert!(body.contains("Keep me."));
     }
@@ -247,35 +268,35 @@ mod tests {
     fn normalizes_malformed_duplicate_description_cell() {
         let mut existing = seed();
         // A row with an extra pipe-delimited duplicate description.
-        existing.push_str("| done | [a.md](a.md) | First | First |\n");
-        let body = render_index(&existing, &[("a.md".into(), "A".into())], None);
-        assert!(body.contains("| done | [a.md](a.md) | First |"));
+        existing.push_str("| done | [a/plan.md](a/plan.md) | First | First |\n");
+        let body = render_index(&existing, &[("a/plan.md".into(), "A".into())], None);
+        assert!(body.contains("| done | [a/plan.md](a/plan.md) | First |"));
         // The duplicate trailing cell is gone.
-        assert_eq!(body.matches("[a.md](a.md)").count(), 1);
+        assert_eq!(body.matches("[a/plan.md](a/plan.md)").count(), 1);
     }
 
     #[test]
     fn appends_table_when_no_header_present() {
         let body = render_index(
             "# Plans\n\nNo table yet.\n",
-            &[("a.md".into(), "A".into())],
+            &[("a/plan.md".into(), "A".into())],
             None,
         );
         assert!(body.contains(TABLE_HEADER));
-        assert!(body.contains("| planned | [a.md](a.md) | A |"));
+        assert!(body.contains("| planned | [a/plan.md](a/plan.md) | A |"));
     }
 
     #[test]
     fn rename_carries_status_and_description_to_new_path() {
         let mut existing = seed();
         existing.push_str("| done | [old.md](old.md) | Curated note |\n");
-        let rename = ("old.md".to_owned(), "new.md".to_owned());
+        let rename = ("old.md".to_owned(), "new/plan.md".to_owned());
         let body = render_index(
             &existing,
-            &[("new.md".into(), "Fresh Title".into())],
+            &[("new/plan.md".into(), "Fresh Title".into())],
             Some(&rename),
         );
-        assert!(body.contains("| done | [new.md](new.md) | Curated note |"));
+        assert!(body.contains("| done | [new/plan.md](new/plan.md) | Curated note |"));
         assert!(!body.contains("old.md"));
         assert!(!body.contains("Fresh Title"));
     }

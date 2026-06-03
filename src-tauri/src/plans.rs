@@ -3,8 +3,9 @@
 //! Layout per workspace:
 //!
 //! ```text
-//! <workspace_cwd>/.agents/plans/        — durable Markdown plans
-//!   PLANS.md                            — index (never deleted)
+//! <workspace_cwd>/.agents/plans/          — durable Markdown plans
+//!   PLANS.md                              — index (never deleted)
+//!   <plan-slug>/plan.md                   — canonical plan file
 //! ```
 //!
 //! Plans are Markdown-first. Each plan can contain a canonical `## Tasks`
@@ -29,13 +30,25 @@ use std::io::Write;
 use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
+const PLAN_FILE: &str = "plan.md";
+const PLANS_README: &str = "README.md";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlanMeta {
-    /// Relative path within the plans root, forward slashes, ends in `.md`.
+    /// Canonical relative path within the plans root.
+    ///
+    /// Normal plans use `<slug>/plan.md`; the protected index uses `PLANS.md`.
     pub path: String,
-    /// Basename without extension.
+    /// Stable plan slug, or `PLANS` for the protected index.
     pub name: String,
+    /// Stable plan slug. Empty for the protected index.
+    #[serde(default)]
+    pub slug: String,
+    /// Relative folder path containing the canonical plan file. Empty for the
+    /// protected index.
+    #[serde(default)]
+    pub folder_path: String,
     /// Heading from the file (first `# …`) or basename if missing.
     pub title: String,
     /// File size in bytes.
@@ -101,8 +114,37 @@ fn ensure_plans_root(ws: &str) -> Result<PathBuf, String> {
     Ok(roots.plans)
 }
 
-/// Validate a plan API path: relative, no `..`, `.md` extension, lives under root.
-fn safe_plan_path(root: &Path, rel: &str) -> Result<PathBuf, String> {
+#[derive(Debug, Clone)]
+struct PlanPath {
+    abs: PathBuf,
+    rel: String,
+    slug: String,
+    folder_path: String,
+    is_index: bool,
+    legacy_rel: Option<String>,
+}
+
+impl PlanPath {
+    fn legacy_rel_for_canonical(&self) -> Option<String> {
+        if self.is_index || self.slug.is_empty() {
+            None
+        } else {
+            Some(format!("{}.md", self.slug))
+        }
+    }
+}
+
+/// Validate and normalize a plan API path.
+///
+/// Accepted user-facing forms are:
+/// - `PLANS.md` for the protected index
+/// - `slug`
+/// - legacy `slug.md`
+/// - canonical `slug/plan.md`
+///
+/// Returned normal plans always use the canonical relative path
+/// `slug/plan.md`.
+fn normalize_plan_path(root: &Path, rel: &str) -> Result<PlanPath, String> {
     let rel = rel.trim().trim_start_matches('/').trim_start_matches('\\');
     if rel.is_empty() {
         return err("empty plan path");
@@ -115,25 +157,124 @@ fn safe_plan_path(root: &Path, rel: &str) -> Result<PathBuf, String> {
             _ => return err(format!("disallowed path component in {rel}")),
         }
     }
-    let is_md = candidate
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.eq_ignore_ascii_case("md"))
-        .unwrap_or(false);
-    if !is_md {
-        return err("plan paths must end in .md");
+
+    let parts: Vec<String> = candidate
+        .components()
+        .map(|c| match c {
+            Component::Normal(s) => s.to_str().map(str::to_owned),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()
+        .ok_or_else(|| "plan paths must be valid UTF-8".to_owned())?;
+
+    let (canonical_rel, slug, folder_path, is_index, legacy_rel) = match parts.as_slice() {
+        [file] if file.eq_ignore_ascii_case(PLANS_INDEX) => (
+            PLANS_INDEX.to_owned(),
+            String::new(),
+            String::new(),
+            true,
+            None,
+        ),
+        [file] if file.eq_ignore_ascii_case(PLANS_README) => {
+            return err("README.md is not a plan file")
+        }
+        [slug] if !slug.contains('.') => {
+            validate_slug(slug)?;
+            (
+                format!("{slug}/{PLAN_FILE}"),
+                slug.clone(),
+                slug.clone(),
+                false,
+                Some(format!("{slug}.md")),
+            )
+        }
+        [file] => {
+            let path = Path::new(file);
+            let is_md = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.eq_ignore_ascii_case("md"))
+                .unwrap_or(false);
+            if !is_md {
+                return err("plan paths must be a slug, legacy .md file, or slug/plan.md");
+            }
+            let slug = path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_owned();
+            validate_slug(&slug)?;
+            (
+                format!("{slug}/{PLAN_FILE}"),
+                slug.clone(),
+                slug.clone(),
+                false,
+                Some(format!("{slug}.md")),
+            )
+        }
+        [slug, file] if file.eq_ignore_ascii_case(PLAN_FILE) => {
+            validate_slug(slug)?;
+            (
+                format!("{slug}/{PLAN_FILE}"),
+                slug.clone(),
+                slug.clone(),
+                false,
+                Some(format!("{slug}.md")),
+            )
+        }
+        _ => return err("plan paths must be PLANS.md, a slug, legacy slug.md, or slug/plan.md"),
+    };
+
+    let abs = root.join(&canonical_rel);
+    ensure_under_root(root, &abs)?;
+    Ok(PlanPath {
+        abs,
+        rel: canonical_rel,
+        slug,
+        folder_path,
+        is_index,
+        legacy_rel,
+    })
+}
+
+fn validate_slug(slug: &str) -> Result<(), String> {
+    if slug.trim().is_empty() {
+        return err("empty plan slug");
     }
-    let abs = root.join(&candidate);
+    if slug == "." || slug == ".." {
+        return err("disallowed plan slug");
+    }
+    if slug.contains('/') || slug.contains('\\') {
+        return err("plan slugs may not contain path separators");
+    }
+    Ok(())
+}
+
+fn ensure_under_root(root: &Path, abs: &Path) -> Result<(), String> {
     let canon_root = fs::canonicalize(root).unwrap_or_else(|_| root.to_path_buf());
     let canon_abs = abs
         .parent()
         .and_then(|p| fs::canonicalize(p).ok())
         .map(|p| p.join(abs.file_name().unwrap_or_default()))
-        .unwrap_or_else(|| abs.clone());
+        .unwrap_or_else(|| abs.to_path_buf());
     if !canon_abs.starts_with(&canon_root) {
         return err("path escapes plans root");
     }
-    Ok(abs)
+    Ok(())
+}
+
+fn resolve_plan_path(root: &Path, rel: &str) -> Result<PlanPath, String> {
+    let mut plan = normalize_plan_path(root, rel)?;
+    if !plan.is_index && !plan.abs.exists() {
+        if let Some(legacy_rel) = plan.legacy_rel.clone() {
+            let legacy_abs = root.join(&legacy_rel);
+            ensure_under_root(root, &legacy_abs)?;
+            if legacy_abs.is_file() {
+                plan.abs = legacy_abs;
+            }
+        }
+    }
+    Ok(plan)
 }
 
 pub(crate) fn rel_from_root(root: &Path, abs: &Path) -> Option<String> {
@@ -151,24 +292,38 @@ fn mtime_secs(p: &Path) -> i64 {
         .unwrap_or(0)
 }
 
-pub(crate) fn walk_md(root: &Path, out: &mut Vec<PathBuf>) {
+pub(crate) fn walk_plan_markdown(root: &Path, out: &mut Vec<PathBuf>) {
     let Ok(read) = fs::read_dir(root) else { return };
     for entry in read.flatten() {
         let path = entry.path();
         let Ok(ft) = entry.file_type() else { continue };
         if ft.is_dir() {
-            walk_md(&path, out);
+            let canonical = path.join(PLAN_FILE);
+            if canonical.is_file() {
+                out.push(canonical);
+            }
             continue;
         }
-        if ft.is_file() {
-            let is_md = path
-                .extension()
-                .and_then(|e| e.to_str())
-                .map(|e| e.eq_ignore_ascii_case("md"))
-                .unwrap_or(false);
-            if is_md {
-                out.push(path);
-            }
+        if !ft.is_file() {
+            continue;
+        }
+        let Some(file) = path.file_name().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if file.eq_ignore_ascii_case(PLANS_INDEX) {
+            out.push(path);
+            continue;
+        }
+        if file.eq_ignore_ascii_case(PLANS_README) {
+            continue;
+        }
+        let is_legacy_plan = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.eq_ignore_ascii_case("md"))
+            .unwrap_or(false);
+        if is_legacy_plan {
+            out.push(path);
         }
     }
 }
@@ -186,16 +341,50 @@ pub(crate) fn extract_title(body: &str, fallback: &str) -> String {
     fallback.to_owned()
 }
 
-fn meta_from_abs(root: &Path, abs: &Path) -> Option<PlanMeta> {
+fn plan_identity_from_abs(root: &Path, abs: &Path) -> Option<(String, String, String, bool)> {
     let rel = rel_from_root(root, abs)?;
+    if rel.eq_ignore_ascii_case(PLANS_INDEX) {
+        return Some((
+            PLANS_INDEX.to_owned(),
+            "PLANS".to_owned(),
+            String::new(),
+            true,
+        ));
+    }
+    if rel.eq_ignore_ascii_case(PLANS_README) {
+        return None;
+    }
+    let parts: Vec<&str> = rel.split('/').collect();
+    match parts.as_slice() {
+        [file] => {
+            let path = Path::new(file);
+            let is_md = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.eq_ignore_ascii_case("md"))
+                .unwrap_or(false);
+            if !is_md {
+                return None;
+            }
+            let slug = path.file_stem()?.to_str()?.to_owned();
+            Some((format!("{slug}/{PLAN_FILE}"), slug.clone(), slug, false))
+        }
+        [slug, file] if file.eq_ignore_ascii_case(PLAN_FILE) => Some((
+            format!("{slug}/{PLAN_FILE}"),
+            (*slug).to_owned(),
+            (*slug).to_owned(),
+            false,
+        )),
+        _ => None,
+    }
+}
+
+fn meta_from_abs(root: &Path, abs: &Path) -> Option<PlanMeta> {
+    let (rel, slug, folder_path, is_index) = plan_identity_from_abs(root, abs)?;
     let meta = fs::metadata(abs).ok();
     let body = fs::read_to_string(abs).unwrap_or_default();
-    let basename = abs
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("")
-        .to_owned();
-    let title = extract_title(&body, &basename);
+    let fallback = if is_index { "PLANS" } else { slug.as_str() };
+    let title = extract_title(&body, fallback);
     let tasks = parse_plan_tasks(&body);
     let mut summary = PlanTaskSummary::default();
     for t in &tasks {
@@ -208,16 +397,21 @@ fn meta_from_abs(root: &Path, abs: &Path) -> Option<PlanMeta> {
             TaskStatus::Cancelled => summary.cancelled += 1,
         }
     }
-    let is_index = rel.eq_ignore_ascii_case(PLANS_INDEX);
     Some(PlanMeta {
         path: rel,
-        name: basename,
+        name: fallback.to_owned(),
+        slug,
+        folder_path,
         title,
         size: meta.as_ref().map(|m| m.len()).unwrap_or(0),
         modified: mtime_secs(abs),
         is_index,
         task_summary: summary,
     })
+}
+
+pub(crate) fn meta_from_plan_file(root: &Path, abs: &Path) -> Option<PlanMeta> {
+    meta_from_abs(root, abs)
 }
 
 /// Parse `## Tasks` / `## Todos` section into task entries.
@@ -396,7 +590,7 @@ pub fn rewrite_plan_tasks(body: &str, new_tasks: &[PlanTask]) -> String {
 pub fn plan_list_inner(workspace_cwd: &str) -> Result<Vec<PlanMeta>, String> {
     let root = ensure_plans_root(workspace_cwd)?;
     let mut files = Vec::new();
-    walk_md(&root, &mut files);
+    walk_plan_markdown(&root, &mut files);
     let mut out: Vec<PlanMeta> = files
         .iter()
         .filter_map(|abs| meta_from_abs(&root, abs))
@@ -412,15 +606,13 @@ pub fn plan_list_inner(workspace_cwd: &str) -> Result<Vec<PlanMeta>, String> {
 
 pub fn plan_read_inner(workspace_cwd: &str, path: &str) -> Result<PlanContent, String> {
     let root = ensure_plans_root(workspace_cwd)?;
-    let abs = safe_plan_path(&root, path)?;
-    let content = fs::read_to_string(&abs).map_err(|e| format!("read {path}: {e}"))?;
-    let rel = rel_from_root(&root, &abs).unwrap_or_else(|| path.to_owned());
-    let is_index = rel.eq_ignore_ascii_case(PLANS_INDEX);
+    let plan = resolve_plan_path(&root, path)?;
+    let content = fs::read_to_string(&plan.abs).map_err(|e| format!("read {path}: {e}"))?;
     Ok(PlanContent {
-        path: rel,
+        path: plan.rel,
         content,
-        modified: mtime_secs(&abs),
-        is_index,
+        modified: mtime_secs(&plan.abs),
+        is_index: plan.is_index,
     })
 }
 
@@ -430,25 +622,31 @@ pub fn plan_create_inner(
     content: Option<&str>,
 ) -> Result<PlanMeta, String> {
     let root = ensure_plans_root(workspace_cwd)?;
-    let abs = safe_plan_path(&root, path)?;
-    if abs.exists() {
+    let plan = normalize_plan_path(&root, path)?;
+    if plan.abs.exists()
+        || plan
+            .legacy_rel
+            .as_ref()
+            .map(|legacy| root.join(legacy).exists())
+            .unwrap_or(false)
+    {
         return err(format!("already exists: {path}"));
     }
-    if let Some(parent) = abs.parent() {
+    if let Some(parent) = plan.abs.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
     }
     let body = content.unwrap_or("").to_owned();
     let body = if body.is_empty() {
-        let stem = abs.file_stem().and_then(|s| s.to_str()).unwrap_or("Plan");
-        format!("# {stem}\n\n## Tasks\n\n")
+        let title = if plan.is_index { "PLANS" } else { &plan.slug };
+        format!("# {title}\n\n## Tasks\n\n")
     } else {
         body
     };
-    fs::write(&abs, body.as_bytes()).map_err(|e| format!("write {path}: {e}"))?;
+    fs::write(&plan.abs, body.as_bytes()).map_err(|e| format!("write {path}: {e}"))?;
     // Keep the PLANS.md index in sync with the new file. Best-effort: a
     // failed index rewrite must not fail the create itself.
     let _ = crate::plans_index::sync_plans_index(&root);
-    meta_from_abs(&root, &abs).ok_or_else(|| "failed to read back created plan".to_owned())
+    meta_from_abs(&root, &plan.abs).ok_or_else(|| "failed to read back created plan".to_owned())
 }
 
 pub fn plan_write_inner(
@@ -457,40 +655,37 @@ pub fn plan_write_inner(
     content: &str,
 ) -> Result<PlanContent, String> {
     let root = ensure_plans_root(workspace_cwd)?;
-    let abs = safe_plan_path(&root, path)?;
-    if let Some(parent) = abs.parent() {
+    let plan = resolve_plan_path(&root, path)?;
+    if let Some(parent) = plan.abs.parent() {
         fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
     }
-    let mut file = fs::File::create(&abs).map_err(|e| format!("create {path}: {e}"))?;
+    let mut file = fs::File::create(&plan.abs).map_err(|e| format!("create {path}: {e}"))?;
     file.write_all(content.as_bytes())
         .map_err(|e| format!("write {path}: {e}"))?;
-    let rel = rel_from_root(&root, &abs).unwrap_or_else(|| path.to_owned());
-    let is_index = rel.eq_ignore_ascii_case(PLANS_INDEX);
     // A write can create a brand-new plan file; keep the index in sync.
     // Skip when the index itself is the target so we don't recurse.
-    if !is_index {
+    if !plan.is_index {
         let _ = crate::plans_index::sync_plans_index(&root);
     }
     Ok(PlanContent {
-        path: rel,
+        path: plan.rel,
         content: content.to_owned(),
-        modified: mtime_secs(&abs),
-        is_index,
+        modified: mtime_secs(&plan.abs),
+        is_index: plan.is_index,
     })
 }
 
 pub fn plan_delete_inner(workspace_cwd: &str, path: &str) -> Result<(), String> {
     let root = ensure_plans_root(workspace_cwd)?;
-    let abs = safe_plan_path(&root, path)?;
-    let rel = rel_from_root(&root, &abs).unwrap_or_else(|| path.to_owned());
-    if rel.eq_ignore_ascii_case(PLANS_INDEX) {
+    let plan = resolve_plan_path(&root, path)?;
+    if plan.is_index {
         return err("PLANS.md is the protected index and cannot be deleted");
     }
-    if !abs.exists() {
+    if !plan.abs.exists() {
         return err(format!("not found: {path}"));
     }
-    fs::remove_file(&abs).map_err(|e| format!("delete {path}: {e}"))?;
-    if let Some(mut parent) = abs.parent() {
+    fs::remove_file(&plan.abs).map_err(|e| format!("delete {path}: {e}"))?;
+    if let Some(mut parent) = plan.abs.parent() {
         while parent != root {
             if fs::read_dir(parent)
                 .map(|mut r| r.next().is_none())
@@ -518,33 +713,65 @@ pub fn plan_rename_inner(
     new_path: &str,
 ) -> Result<PlanMeta, String> {
     let root = ensure_plans_root(workspace_cwd)?;
-    let abs_old = safe_plan_path(&root, old_path)?;
-    let abs_new = safe_plan_path(&root, new_path)?;
-    let rel_old = rel_from_root(&root, &abs_old).unwrap_or_else(|| old_path.to_owned());
-    if rel_old.eq_ignore_ascii_case(PLANS_INDEX) {
+    let old_plan = resolve_plan_path(&root, old_path)?;
+    let new_plan = normalize_plan_path(&root, new_path)?;
+    if old_plan.is_index {
         return err("PLANS.md is the protected index and cannot be renamed");
     }
-    if !abs_old.exists() {
+    if new_plan.is_index {
+        return err("PLANS.md is the protected index and cannot be renamed");
+    }
+    if !old_plan.abs.exists() {
         return err(format!("not found: {old_path}"));
     }
-    if abs_new.exists() {
+    if new_plan.abs.exists()
+        || new_plan
+            .legacy_rel
+            .as_ref()
+            .map(|legacy| root.join(legacy).exists())
+            .unwrap_or(false)
+    {
         return err(format!("already exists: {new_path}"));
     }
-    if let Some(parent) = abs_new.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
+
+    let old_parent = old_plan.abs.parent();
+    let old_is_canonical_folder = old_parent
+        .and_then(|p| p.parent())
+        .map(|p| p == root)
+        .unwrap_or(false)
+        && old_plan
+            .abs
+            .file_name()
+            .and_then(|s| s.to_str())
+            .map(|s| s.eq_ignore_ascii_case(PLAN_FILE))
+            .unwrap_or(false);
+
+    if old_is_canonical_folder {
+        let old_folder = old_parent.ok_or_else(|| "missing plan folder".to_owned())?;
+        let new_folder = root.join(&new_plan.folder_path);
+        fs::rename(old_folder, &new_folder).map_err(|e| format!("rename: {e}"))?;
+    } else {
+        if let Some(parent) = new_plan.abs.parent() {
+            fs::create_dir_all(parent).map_err(|e| format!("mkdir: {e}"))?;
+        }
+        fs::rename(&old_plan.abs, &new_plan.abs).map_err(|e| format!("rename: {e}"))?;
     }
-    fs::rename(&abs_old, &abs_new).map_err(|e| format!("rename: {e}"))?;
+
     // Plan task records that referenced the old path get rewritten too.
-    tasks::tasks_rewrite_plan_path(
-        workspace_cwd,
-        &rel_from_root(&root, &abs_old).unwrap_or_default(),
-        &rel_from_root(&root, &abs_new).unwrap_or_default(),
-    )?;
+    tasks::tasks_rewrite_plan_path(workspace_cwd, &old_plan.rel, &new_plan.rel)?;
+    if let Some(legacy_old) = old_plan.legacy_rel_for_canonical() {
+        if legacy_old != old_plan.rel {
+            tasks::tasks_rewrite_plan_path(workspace_cwd, &legacy_old, &new_plan.rel)?;
+        }
+    }
     // Rewrite the index so the row's path/link follows the rename, carrying
     // the curated status/description over to the new path. Best-effort.
-    let rel_new = rel_from_root(&root, &abs_new).unwrap_or_else(|| new_path.to_owned());
-    let _ = crate::plans_index::sync_plans_index_after_rename(&root, &rel_old, &rel_new);
-    meta_from_abs(&root, &abs_new).ok_or_else(|| "failed to read back renamed plan".to_owned())
+    let old_index_rel = old_plan
+        .legacy_rel_for_canonical()
+        .filter(|legacy| root.join(legacy) == old_plan.abs)
+        .unwrap_or_else(|| old_plan.rel.clone());
+    let _ = crate::plans_index::sync_plans_index_after_rename(&root, &old_index_rel, &new_plan.rel);
+    meta_from_abs(&root, &new_plan.abs).ok_or_else(|| "failed to read back renamed plan".to_owned())
 }
 
 /// Load plan tasks into the workspace task manager. Replaces only those
@@ -552,9 +779,8 @@ pub fn plan_rename_inner(
 /// `activePlanPath` on the store.
 pub fn plan_load_inner(workspace_cwd: &str, path: &str) -> Result<PlanLoadReport, String> {
     let root = ensure_plans_root(workspace_cwd)?;
-    let abs = safe_plan_path(&root, path)?;
-    let body = fs::read_to_string(&abs).map_err(|e| format!("read {path}: {e}"))?;
-    let rel = rel_from_root(&root, &abs).unwrap_or_else(|| path.to_owned());
+    let plan = resolve_plan_path(&root, path)?;
+    let body = fs::read_to_string(&plan.abs).map_err(|e| format!("read {path}: {e}"))?;
     let parsed = parse_plan_tasks(&body);
 
     let snapshot = tasks::tasks_snapshot(workspace_cwd)?;
@@ -564,10 +790,10 @@ pub fn plan_load_inner(workspace_cwd: &str, path: &str) -> Result<PlanLoadReport
         .filter(|t| t.plan_path.is_none())
         .count() as u32;
 
-    let report = tasks::tasks_replace_plan_set(workspace_cwd, &rel, &parsed)?;
+    let report = tasks::tasks_replace_plan_set(workspace_cwd, &plan.rel, &parsed)?;
 
     Ok(PlanLoadReport {
-        path: rel,
+        path: plan.rel,
         tasks_replaced: report.replaced,
         tasks_added: report.added,
         free_tasks_kept: free_kept,
@@ -581,15 +807,20 @@ pub fn plan_sync_from_tasks_inner(
     path: &str,
 ) -> Result<PlanSyncReport, String> {
     let root = ensure_plans_root(workspace_cwd)?;
-    let abs = safe_plan_path(&root, path)?;
-    let rel = rel_from_root(&root, &abs).unwrap_or_else(|| path.to_owned());
-    let body = fs::read_to_string(&abs).map_err(|e| format!("read {path}: {e}"))?;
+    let plan = resolve_plan_path(&root, path)?;
+    let body = fs::read_to_string(&plan.abs).map_err(|e| format!("read {path}: {e}"))?;
 
     let snapshot = tasks::tasks_snapshot(workspace_cwd)?;
     let plan_tasks: Vec<PlanTask> = snapshot
         .tasks
         .iter()
-        .filter(|t| t.plan_path.as_deref() == Some(rel.as_str()))
+        .filter(|t| {
+            t.plan_path.as_deref() == Some(plan.rel.as_str())
+                || plan
+                    .legacy_rel_for_canonical()
+                    .as_deref()
+                    .is_some_and(|legacy| t.plan_path.as_deref() == Some(legacy))
+        })
         .map(|t| {
             let id = t.plan_task_id.clone().unwrap_or_else(|| t.id.clone());
             PlanTask {
@@ -601,9 +832,9 @@ pub fn plan_sync_from_tasks_inner(
         .collect();
 
     let new_body = rewrite_plan_tasks(&body, &plan_tasks);
-    fs::write(&abs, new_body.as_bytes()).map_err(|e| format!("write {path}: {e}"))?;
+    fs::write(&plan.abs, new_body.as_bytes()).map_err(|e| format!("write {path}: {e}"))?;
     Ok(PlanSyncReport {
-        path: rel,
+        path: plan.rel,
         tasks_written: plan_tasks.len() as u32,
     })
 }
@@ -617,8 +848,8 @@ pub fn plan_write_back_task_status(
     status: TaskStatus,
 ) -> Result<(), String> {
     let root = ensure_plans_root(workspace_cwd)?;
-    let abs = safe_plan_path(&root, plan_path)?;
-    let body = fs::read_to_string(&abs).map_err(|e| format!("read {plan_path}: {e}"))?;
+    let plan = resolve_plan_path(&root, plan_path)?;
+    let body = fs::read_to_string(&plan.abs).map_err(|e| format!("read {plan_path}: {e}"))?;
     let mut tasks_parsed = parse_plan_tasks(&body);
     let mut found = false;
     for t in &mut tasks_parsed {
@@ -637,7 +868,7 @@ pub fn plan_write_back_task_status(
         });
     }
     let new_body = rewrite_plan_tasks(&body, &tasks_parsed);
-    fs::write(&abs, new_body.as_bytes()).map_err(|e| format!("write {plan_path}: {e}"))?;
+    fs::write(&plan.abs, new_body.as_bytes()).map_err(|e| format!("write {plan_path}: {e}"))?;
     Ok(())
 }
 
@@ -697,8 +928,8 @@ pub fn plan_sync_from_tasks(workspace_cwd: String, path: String) -> Result<PlanS
 /// to summarise an attached plan from its on-disk meta.
 pub fn plan_meta_for(workspace_cwd: &str, path: &str) -> Option<PlanMeta> {
     let root = ensure_plans_root(workspace_cwd).ok()?;
-    let abs = safe_plan_path(&root, path).ok()?;
-    meta_from_abs(&root, &abs)
+    let plan = resolve_plan_path(&root, path).ok()?;
+    meta_from_abs(&root, &plan.abs)
 }
 
 #[cfg(test)]
@@ -747,10 +978,13 @@ mod tests {
         let cwd = ws.to_string_lossy().into_owned();
 
         let meta = plan_create_inner(&cwd, "my-plan.md", None).unwrap();
-        assert_eq!(meta.path, "my-plan.md");
+        assert_eq!(meta.path, "my-plan/plan.md");
+        assert_eq!(meta.slug, "my-plan");
+        assert_eq!(meta.folder_path, "my-plan");
         assert!(meta.title.contains("my-plan"));
 
         let content = plan_read_inner(&cwd, "my-plan.md").unwrap();
+        assert_eq!(content.path, "my-plan/plan.md");
         assert!(content.content.contains("## Tasks"));
 
         plan_write_inner(
@@ -761,8 +995,8 @@ mod tests {
         .unwrap();
         let list = plan_list_inner(&cwd).unwrap();
         // Index first, then plan
-        assert!(list.iter().any(|m| m.path == "my-plan.md"));
-        let plan = list.iter().find(|m| m.path == "my-plan.md").unwrap();
+        assert!(list.iter().any(|m| m.path == "my-plan/plan.md"));
+        let plan = list.iter().find(|m| m.path == "my-plan/plan.md").unwrap();
         assert_eq!(plan.task_summary.total, 2);
         assert_eq!(plan.task_summary.completed, 1);
 
@@ -770,7 +1004,28 @@ mod tests {
         assert!(plan_list_inner(&cwd)
             .unwrap()
             .iter()
-            .all(|m| m.path != "my-plan.md"));
+            .all(|m| m.path != "my-plan/plan.md"));
+
+        let _ = fs::remove_dir_all(&ws);
+    }
+
+    #[test]
+    fn list_ignores_readme_and_plan_sidecars() {
+        let ws = temp_ws("sidecars");
+        let cwd = ws.to_string_lossy().into_owned();
+        let plans_root = ws.join(PLANS_REL);
+
+        plan_create_inner(&cwd, "with-sidecar.md", Some("# With Sidecar\n")).unwrap();
+        fs::write(
+            plans_root.join("with-sidecar").join("notes.md"),
+            "# Sidecar\n",
+        )
+        .unwrap();
+
+        let list = plan_list_inner(&cwd).unwrap();
+        assert!(list.iter().any(|m| m.path == "with-sidecar/plan.md"));
+        assert!(list.iter().all(|m| m.path != "README.md"));
+        assert!(list.iter().all(|m| m.path != "with-sidecar/notes.md"));
 
         let _ = fs::remove_dir_all(&ws);
     }
@@ -784,7 +1039,7 @@ mod tests {
         plan_create_inner(&cwd, "synced.md", Some("# Synced Plan\n")).unwrap();
         let body = fs::read_to_string(&index).unwrap();
         assert!(
-            body.contains("[synced.md](synced.md)"),
+            body.contains("[synced/plan.md](synced/plan.md)"),
             "index missing row after create: {body}"
         );
         assert!(body.contains("Synced Plan"));
@@ -792,7 +1047,7 @@ mod tests {
         plan_delete_inner(&cwd, "synced.md").unwrap();
         let body = fs::read_to_string(&index).unwrap();
         assert!(
-            !body.contains("synced.md"),
+            !body.contains("synced/plan.md"),
             "index kept row after delete: {body}"
         );
         let _ = fs::remove_dir_all(&ws);
@@ -808,18 +1063,18 @@ mod tests {
         // Mark the row as done with a curated description.
         let body = fs::read_to_string(&index).unwrap();
         let edited = body.replace(
-            "| planned | [before.md](before.md) | Before |",
-            "| done | [before.md](before.md) | Curated |",
+            "| planned | [before/plan.md](before/plan.md) | Before |",
+            "| done | [before/plan.md](before/plan.md) | Curated |",
         );
         fs::write(&index, edited).unwrap();
 
         plan_rename_inner(&cwd, "before.md", "after.md").unwrap();
         let body = fs::read_to_string(&index).unwrap();
         assert!(
-            body.contains("| done | [after.md](after.md) | Curated |"),
+            body.contains("| done | [after/plan.md](after/plan.md) | Curated |"),
             "rename lost curated cells: {body}"
         );
-        assert!(!body.contains("before.md"));
+        assert!(!body.contains("before/plan.md"));
         let _ = fs::remove_dir_all(&ws);
     }
 
@@ -897,7 +1152,7 @@ mod tests {
         assert_eq!(report.free_tasks_kept, 1);
 
         let snap = tasks_snapshot(&cwd).unwrap();
-        assert_eq!(snap.active_plan_path.as_deref(), Some("demo.md"));
+        assert_eq!(snap.active_plan_path.as_deref(), Some("demo/plan.md"));
         let free_count = snap.tasks.iter().filter(|t| t.plan_path.is_none()).count();
         let plan_count = snap.tasks.iter().filter(|t| t.plan_path.is_some()).count();
         assert_eq!(free_count, 1);
@@ -933,7 +1188,7 @@ mod tests {
         let task = snap
             .tasks
             .iter()
-            .find(|t| t.plan_path.as_deref() == Some("writeback.md"))
+            .find(|t| t.plan_path.as_deref() == Some("writeback/plan.md"))
             .cloned()
             .unwrap();
         tasks_update_inner(
@@ -949,7 +1204,7 @@ mod tests {
         )
         .unwrap();
 
-        let body = fs::read_to_string(ws.join(".agents/plans/writeback.md")).unwrap();
+        let body = fs::read_to_string(ws.join(".agents/plans/writeback/plan.md")).unwrap();
         assert!(body.contains("- [x] `t-1`"), "got body: {body}");
         let _ = fs::remove_dir_all(&ws);
     }
@@ -990,7 +1245,7 @@ mod tests {
         .unwrap();
         let rep = plan_sync_from_tasks_inner(&cwd, "sync.md").unwrap();
         assert_eq!(rep.tasks_written, 2);
-        let body = fs::read_to_string(ws.join(".agents/plans/sync.md")).unwrap();
+        let body = fs::read_to_string(ws.join(".agents/plans/sync/plan.md")).unwrap();
         assert!(body.contains("## Summary"));
         assert!(body.contains("## Notes"));
         assert!(body.contains("- [>] `t-2` - Two"));
