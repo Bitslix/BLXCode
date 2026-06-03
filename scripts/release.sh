@@ -16,6 +16,7 @@ RELEASE_DO_TAG=0
 RELEASE_DO_PUSH=0
 RELEASE_DO_COMMIT=0
 RELEASE_BUMP=""
+RELEASE_PRE_RELEASE=0
 RELEASE_BUNDLES=""
 RELEASE_PLATFORM_OVERRIDE=""
 RELEASE_LINUX_ARCH="${RELEASE_LINUX_ARCH:-all}"
@@ -44,6 +45,8 @@ Options:
   --bump patch|minor|major[+N]
                              Bump version in Cargo.toml + tauri.conf.json + CHANGELOG.
                              Optional +N (default +1), e.g. patch+3, minor+2, major+1.
+  --pre-release              Build the next prerelease version (X.Y.Z-pre.N). Without --bump,
+                             stable versions advance to next patch pre.1 and prereleases increment N.
   --no-changelog             Skip CHANGELOG rewrite on bump
   --build                    Run cargo tauri build (default when not --upload-only / --no-build)
   --no-build                 Skip build
@@ -79,6 +82,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --no-changelog) RELEASE_NO_CHANGELOG=1; shift ;;
+    --pre-release) RELEASE_PRE_RELEASE=1; shift ;;
     --build) RELEASE_DO_BUILD=1; shift ;;
     --no-build) RELEASE_DO_BUILD=0; RELEASE_NO_BUILD=1; shift ;;
     --bundles)
@@ -124,7 +128,7 @@ if [[ "${RELEASE_UPLOAD_ONLY:-0}" == "1" ]]; then
   RELEASE_DO_BUILD=0
 elif [[ "${RELEASE_NO_BUILD:-0}" != "1" ]] && [[ "$RELEASE_DO_BUILD" == "0" ]] && [[ "$RELEASE_DO_TAG" == "0" ]] && [[ -z "$RELEASE_BUMP" ]]; then
   RELEASE_DO_BUILD=1
-elif [[ -n "$RELEASE_BUMP" ]] && [[ "${RELEASE_NO_BUILD:-0}" != "1" ]] && [[ "$RELEASE_DO_BUILD" == "0" ]] && [[ "${RELEASE_UPLOAD_ONLY:-0}" != "1" ]]; then
+elif [[ ( -n "$RELEASE_BUMP" || "$RELEASE_PRE_RELEASE" == "1" ) ]] && [[ "${RELEASE_NO_BUILD:-0}" != "1" ]] && [[ "$RELEASE_DO_BUILD" == "0" ]] && [[ "${RELEASE_UPLOAD_ONLY:-0}" != "1" ]]; then
   RELEASE_DO_BUILD=1
 fi
 
@@ -153,7 +157,7 @@ if [[ "${RELEASE_UPLOAD_ONLY:-0}" == "1" ]]; then
   RELEASE_DO_BUILD=0
 fi
 
-if [[ -n "$RELEASE_BUMP" ]]; then
+if [[ -n "$RELEASE_BUMP" || "$RELEASE_PRE_RELEASE" == "1" ]]; then
   release_bump_version "$RELEASE_BUMP"
   tag_current="v${RELEASE_VERSION}"
   if release_gh_release_exists "$tag_current" 2>/dev/null || release_remote_tag_exists "$tag_current"; then
@@ -174,7 +178,7 @@ if [[ "$RELEASE_DO_COMMIT" == "1" ]]; then
   if [[ "${RELEASE_DRY_RUN:-0}" == "1" ]]; then
     release_info "Would: git commit version + CHANGELOG"
   else
-    git add CHANGELOG.md Cargo.toml src-tauri/Cargo.toml src-tauri/tauri.conf.json
+    git add CHANGELOG.md Cargo.toml src-tauri/Cargo.toml src-tauri/tauri.conf.json package.json package-lock.json
     if [[ -n "$(git status --porcelain scripts/release.sh scripts/release/ .gitignore docs/user/building.md 2>/dev/null)" ]]; then
       git add scripts/release.sh scripts/release/ .gitignore docs/user/building.md
     fi

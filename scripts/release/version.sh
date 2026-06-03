@@ -2,19 +2,30 @@
 # Semver bump and sync version files — source only.
 
 release_bump_version() {
-  local part="$1"
+  local part="${1:-}"
   local current new
   current="$(release_read_version)"
 
-  new="$(python3 - "$current" "$part" <<'PY'
+  new="$(python3 - "$current" "$part" "${RELEASE_PRE_RELEASE:-0}" <<'PY'
 import sys, re
 
-def bump(v: str, spec: str) -> str:
-    m = v.split(".")
-    if len(m) != 3 or not all(x.isdigit() for x in m):
+def parse(v: str):
+    mo = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:-pre\.(\d+))?", v)
+    if not mo:
         raise SystemExit(f"invalid semver: {v!r}")
-    major, minor, patch = (int(x) for x in m)
+    major, minor, patch = (int(mo.group(i)) for i in range(1, 4))
+    pre = int(mo.group(4)) if mo.group(4) else None
+    return major, minor, patch, pre
 
+def bump(v: str, spec: str, pre_release: bool) -> str:
+    major, minor, patch, pre = parse(v)
+    if pre_release and not spec:
+        if pre is not None:
+            return f"{major}.{minor}.{patch}-pre.{pre + 1}"
+        return f"{major}.{minor}.{patch + 1}-pre.1"
+
+    if not spec:
+        raise SystemExit("missing bump spec: use patch|minor|major[+N] or --pre-release")
     # Accept "patch", "minor", "major" (+1) or "patch+N", "minor+N", "major+N" (+N).
     mo = re.fullmatch(r"(patch|minor|major)(?:\+(\d+))?", spec)
     if not mo:
@@ -33,9 +44,11 @@ def bump(v: str, spec: str) -> str:
         major += step
         minor = 0
         patch = 0
+    if pre_release:
+        return f"{major}.{minor}.{patch}-pre.1"
     return f"{major}.{minor}.{patch}"
 
-print(bump(sys.argv[1], sys.argv[2]))
+print(bump(sys.argv[1], sys.argv[2], sys.argv[3] == "1"))
 PY
 )"
 
@@ -73,6 +86,17 @@ for rel in ("Cargo.toml", "src-tauri/Cargo.toml"):
     if n != 1:
         raise SystemExit(f"{path}: could not update version = ...")
     open(path, "w", encoding="utf-8").write(text2)
+
+for rel in ("package.json", "package-lock.json"):
+    path = f"{root}/{rel}"
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    data["version"] = new
+    if rel == "package-lock.json":
+        data.setdefault("packages", {}).setdefault("", {})["version"] = new
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
 PY
 
   release_info "Bumped $current -> $new ($part)"

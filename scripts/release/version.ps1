@@ -3,17 +3,29 @@
 function Get-ReleaseBumpedVersion {
     param(
         [Parameter(Mandatory = $true)][string]$Current,
-        [Parameter(Mandatory = $true)][string]$Part
+        [string]$Part = ""
     )
 
-    $pieces = $Current -split "\."
-    if ($pieces.Count -ne 3 -or ($pieces | Where-Object { $_ -notmatch "^\d+$" })) {
+    $versionMatch = [regex]::Match($Current, '^(\d+)\.(\d+)\.(\d+)(?:-pre\.(\d+))?$')
+    if (-not $versionMatch.Success) {
         Stop-Release "invalid semver: '$Current'"
     }
 
-    $major = [int]$pieces[0]
-    $minor = [int]$pieces[1]
-    $patch = [int]$pieces[2]
+    $major = [int]$versionMatch.Groups[1].Value
+    $minor = [int]$versionMatch.Groups[2].Value
+    $patch = [int]$versionMatch.Groups[3].Value
+    $pre = if ($versionMatch.Groups[4].Success) { [int]$versionMatch.Groups[4].Value } else { $null }
+
+    if ($script:RELEASE_PRE_RELEASE -eq 1 -and -not $Part) {
+        if ($null -ne $pre) {
+            return "$major.$minor.$patch-pre.$($pre + 1)"
+        }
+        return "$major.$minor.$($patch + 1)-pre.1"
+    }
+
+    if (-not $Part) {
+        Stop-Release "missing bump spec: use patch|minor|major[+N] or --pre-release"
+    }
 
     # Accept "patch", "minor", "major" (+1) or "patch+N", "minor+N", "major+N" (+N).
     $mo = [regex]::Match($Part, '^(patch|minor|major)(?:\+(\d+))?$')
@@ -35,11 +47,14 @@ function Get-ReleaseBumpedVersion {
         "major" { $major += $step; $minor = 0; $patch = 0 }
     }
 
+    if ($script:RELEASE_PRE_RELEASE -eq 1) {
+        return "$major.$minor.$patch-pre.1"
+    }
     return "$major.$minor.$patch"
 }
 
 function Invoke-ReleaseBumpVersion {
-    param([Parameter(Mandatory = $true)][string]$Part)
+    param([string]$Part = "")
 
     $current = Read-ReleaseVersion
     $new = Get-ReleaseBumpedVersion $current $Part
@@ -72,6 +87,24 @@ function Invoke-ReleaseBumpVersion {
         }
         $updated = $regex.Replace($text, "`${1}$new`$2", 1)
         [System.IO.File]::WriteAllText($path, $updated, [System.Text.UTF8Encoding]::new($false))
+    }
+
+    foreach ($rel in @("package.json", "package-lock.json")) {
+        $path = Join-Path $script:RELEASE_ROOT $rel
+        $jsonText = [System.IO.File]::ReadAllText($path, [System.Text.UTF8Encoding]::new($false, $true))
+        $json = $jsonText | ConvertFrom-Json
+        $json.version = $new
+        if ($rel -eq "package-lock.json" -and $json.packages) {
+            $rootPackage = $json.packages.PSObject.Properties[""]
+            if ($rootPackage) {
+                $rootPackage.Value.version = $new
+            }
+        }
+        [System.IO.File]::WriteAllText(
+            $path,
+            (($json | ConvertTo-Json -Depth 32) + [Environment]::NewLine),
+            [System.Text.UTF8Encoding]::new($false)
+        )
     }
 
     Write-ReleaseInfo "Bumped $current -> $new ($Part)"
