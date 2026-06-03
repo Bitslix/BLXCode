@@ -843,6 +843,11 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgProviderPortkey => "Portkey",
         I18nKey::AgProviderBaseUrlField => "Base URL",
         I18nKey::AgProviderBaseUrlHint => "OpenAI-compatible endpoint root, ending in /v1.",
+        I18nKey::AgProviderLocalServerUrlField => "Server URL",
+        I18nKey::AgProviderLocalServerUrlHint => {
+            "OpenAI-compatible /v1 endpoint. Use a LAN or remote host when the server runs on another machine."
+        }
+        I18nKey::AgProviderNoApiKeyRequired => "No API key required",
         I18nKey::AgProviderCloudflareAccountField => "Cloudflare Account ID",
         I18nKey::AgProviderCloudflareAccountHint => {
             "Stored as a non-secret setting. Put the API token in API Keys."

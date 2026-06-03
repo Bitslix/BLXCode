@@ -91,6 +91,14 @@ fn provider_requires_key(provider: AgentProviderKind) -> bool {
     )
 }
 
+fn local_provider_default_url(provider: AgentProviderKind) -> Option<&'static str> {
+    match provider {
+        AgentProviderKind::Ollama => Some("http://localhost:11434/v1"),
+        AgentProviderKind::LmStudio => Some("http://localhost:1234/v1"),
+        _ => None,
+    }
+}
+
 fn thinking_levels() -> [ThinkingLevel; 5] {
     [
         ThinkingLevel::Off,
@@ -128,7 +136,7 @@ fn provider_key_status_text(
     provider: AgentProviderKind,
 ) -> String {
     if !provider_requires_key(provider) {
-        return "No API key required.".to_string();
+        return i18n.tr(I18nKey::AgProviderNoApiKeyRequired)().to_string();
     }
     let configured = view
         .key_statuses
@@ -840,10 +848,49 @@ pub fn AgentProviderPane() -> impl IntoView {
                                 provider_refresh_request=provider_refresh_request
                             />
                         </label>
-                        <Show when=move || matches!(
-                            selected_provider.get(),
-                            AgentProviderKind::Ollama | AgentProviderKind::LmStudio | AgentProviderKind::Portkey
-                        )>
+                        <Show when=move || local_provider_default_url(selected_provider.get()).is_some()>
+                            <div class="agent-provider-pane__local-endpoint">
+                                <label class="agent-provider-pane__field">
+                                    <span class="harness-field-label">
+                                        <span class="harness-field-label__icon" aria-hidden="true">
+                                            <LxIcon icon=icondata::LuServer width="0.82rem" height="0.82rem" />
+                                        </span>
+                                        <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgProviderLocalServerUrlField)()}</span>
+                                    </span>
+                                    <input
+                                        class="workbench-plain-input agent-provider-pane__endpoint-input"
+                                        type="url"
+                                        placeholder=move || local_provider_default_url(selected_provider.get()).unwrap_or_default()
+                                        prop:value=move || {
+                                            provider_base_urls
+                                                .get()
+                                                .get(selected_provider.get().as_str())
+                                                .cloned()
+                                                .unwrap_or_else(|| {
+                                                    local_provider_default_url(selected_provider.get())
+                                                        .unwrap_or_default()
+                                                        .to_string()
+                                                })
+                                        }
+                                        on:input=move |ev| {
+                                            let provider = selected_provider.get_untracked();
+                                            let value = event_target_value(&ev);
+                                            provider_base_urls.update(|map| {
+                                                map.insert(provider.as_str().to_string(), value);
+                                            });
+                                        }
+                                    />
+                                    <small class="harness-muted agent-provider-pane__field-hint">
+                                        {move || i18n.tr(I18nKey::AgProviderLocalServerUrlHint)()}
+                                    </small>
+                                </label>
+                                <span class="agent-provider-pane__local-chip">
+                                    <LxIcon icon=icondata::LuKeyRound width="0.76rem" height="0.76rem" />
+                                    <span>{move || i18n.tr(I18nKey::AgProviderNoApiKeyRequired)()}</span>
+                                </span>
+                            </div>
+                        </Show>
+                        <Show when=move || selected_provider.get() == AgentProviderKind::Portkey>
                             <label class="agent-provider-pane__field">
                                 <span class="harness-field-label">
                                     <span class="harness-field-label__icon" aria-hidden="true">

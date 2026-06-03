@@ -172,7 +172,7 @@ sequenceDiagram
 - [x] `models-ui-cache` - Update Settings and Composer to use provider-keyed model cache access
 - [x] `models-selection` - Make provider switching preserve valid/custom models and choose a sensible fallback
 - [x] `models-metadata` - Resolve context/pricing metadata only from provider data or existing fallback tables
-- [ ] `ui-provider-picker` - Add Local/Cloud grouped provider choices to Agent settings and Composer
+- [x] `ui-provider-picker` - Add Local/Cloud grouped provider choices to Agent settings and Composer
 - [x] `ui-provider-options` - Add provider-specific base URL, Account ID, key status, and refresh/test controls
 - [x] `ui-api-keys` - Add API Keys pane rows and icons/fallbacks for new cloud providers
 - [x] `i18n-provider-keys` - Add provider labels, hints, errors, and option labels across locales
@@ -183,7 +183,7 @@ sequenceDiagram
 - [x] `chat-tools` - Verify tool schemas, MCP tools, and tool-result messages across compatible providers
 - [x] `chat-images` - Preserve compatible image-context behavior and document provider/model variance
 - [x] `tests-settings` - Add settings, serde migration, and key-resolution tests
-- [ ] `tests-models` - Add model-list parser tests and fixtures
+- [x] `tests-models` - Add model-list parser tests and fixtures
 - [x] `tests-requests` - Add request URL/header/body generation tests
-- [ ] `tests-runtime` - Add streaming/tool/error runtime tests
-- [!] `checks` - Run workspace backend/frontend checks and existing lint scripts
+- [x] `tests-runtime` - Add streaming/tool/error runtime tests
+- [x] `checks` - Run workspace backend/frontend checks and existing lint scripts

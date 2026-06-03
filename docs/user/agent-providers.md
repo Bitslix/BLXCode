@@ -31,8 +31,8 @@ Model lists are fetched live when possible. If a provider request fails or retur
 | OpenRouter | `https://openrouter.ai/api/v1` | `BLX_OPENROUTER_API_KEY` or API Keys row |
 | Anthropic | `https://api.anthropic.com/v1` | `BLX_ANTHROPIC_API_KEY` or API Keys row |
 | OpenAI | `https://api.openai.com/v1` | `BLX_OPENAI_API_KEY` or API Keys row |
-| Ollama | `http://localhost:11434/v1` | Running Ollama server |
-| LM Studio | `http://localhost:1234/v1` | Running LM Studio OpenAI-compatible server |
+| Ollama | `http://localhost:11434/v1` | Running Ollama server; change **Server URL** in Agent settings for LAN/remote hosts |
+| LM Studio | `http://localhost:1234/v1` | Running LM Studio OpenAI-compatible server; change **Server URL** in Agent settings for LAN/remote hosts |
 | Hugging Face | `https://router.huggingface.co/v1` | `BLX_HUGGINGFACE_API_KEY` or API Keys row |
 | Cloudflare | account-scoped Workers AI endpoint | `BLX_CLOUDFLARE_API_TOKEN` or API Keys row, plus Cloudflare Account ID in Agent settings |
 | Together AI | `https://api.together.ai/v1` | `BLX_TOGETHER_API_KEY` or API Keys row |
