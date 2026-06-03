@@ -4,9 +4,9 @@ use crate::service::I18nService;
 use crate::tauri_bridge::{
     clipboard_read_text_compat, clipboard_write_text_compat, kanban_board_load,
     kanban_export_layout, kanban_import_layout, kanban_layout_save, kanban_plan_move,
-    kanban_task_create, kanban_task_delete, kanban_task_move, kanban_task_update, KanbanBoard,
-    KanbanPlanMoveInput, KanbanPlanNode, KanbanPlanState, KanbanTaskCreateInput,
-    KanbanTaskMoveInput, KanbanTaskUpdatePatch,
+    kanban_task_create, kanban_task_delete, kanban_task_move, kanban_task_update,
+    mermaid_list_diagrams, DiagramRecord, KanbanBoard, KanbanPlanMoveInput, KanbanPlanNode,
+    KanbanPlanState, KanbanTaskCreateInput, KanbanTaskMoveInput, KanbanTaskUpdatePatch,
 };
 use crate::workbench::kanban_dnd::{
     is_kanban_drag, read_drag_payload, start_kanban_drag, KanbanDragKind, KanbanDragMeta,
@@ -710,8 +710,40 @@ fn KanbanPlanCard(
     highlighted_plan: RwSignal<Option<String>>,
 ) -> impl IntoView {
     let kanban_dnd = expect_context::<KanbanDragService>();
+    let wb = expect_context::<WorkbenchService>();
+    let i18n = expect_context::<I18nService>();
     let path = plan.meta.path.clone();
     let is_open = Signal::derive(move || expanded_plans.with(|items| items.contains(&path)));
+
+    // Mermaid diagrams are stored per plan slug. Load the set once per plan card
+    // (re-running on the shared plans epoch) so both the plan-row badge and the
+    // per-task badges can read it without N+1 requests.
+    let slug = plan.meta.slug.clone();
+    let diagrams = RwSignal::new(Vec::<DiagramRecord>::new());
+    Effect::new({
+        let slug = slug.clone();
+        move |_| {
+            let _ = wb.plans_epoch().get();
+            let Some(ws) = workspace_cwd.get() else {
+                diagrams.set(Vec::new());
+                return;
+            };
+            if slug.trim().is_empty() {
+                diagrams.set(Vec::new());
+                return;
+            }
+            let slug = slug.clone();
+            spawn_local(async move {
+                let list = mermaid_list_diagrams(&ws, &slug).await.unwrap_or_default();
+                diagrams.set(list);
+            });
+        }
+    });
+    let diagrams_signal = Signal::derive(move || diagrams.get());
+    let diagram_count = Signal::derive(move || diagrams.with(Vec::len));
+    let has_diagrams = Signal::derive(move || diagram_count.get() > 0);
+    let slug_for_btn = StoredValue::new(slug.clone());
+    let slug_for_lanes = StoredValue::new(slug);
     let drag_path = plan.meta.path.clone();
     let is_drag_source = Signal::derive({
         let path = plan.meta.path.clone();
@@ -789,27 +821,51 @@ fn KanbanPlanCard(
             on:drag=move |ev: web_sys::DragEvent| kanban_dnd.set_overlay_pos_from_event(&ev)
             on:dragend=move |_| kanban_dnd.clear()
         >
-            <button type="button" class="workspace-kanban-plan__head" on:click=toggle>
-                <span
-                    class="workspace-kanban-plan__drag"
-                    title="Drag plan"
-                >
-                    <LxIcon icon=icondata::LuGripVertical width="0.86rem" height="0.86rem" />
-                </span>
-                <LxIcon icon=icondata::LuFolderKanban width="1rem" height="1rem" />
-                <span class="workspace-kanban-plan__main">
-                    <span class="workspace-kanban-plan__title">{plan.meta.title.clone()}</span>
-                    <span class="workspace-kanban-plan__path">{plan.meta.path.clone()}</span>
-                </span>
-                <span class="workspace-kanban-plan__stats">
-                    {format!(
-                        "{} / {}",
-                        plan.meta.task_summary.completed,
-                        plan.meta.task_summary.total
-                    )}
-                </span>
-                <LxIcon icon=icondata::LuChevronDown width="0.9rem" height="0.9rem" />
-            </button>
+            <div class="workspace-kanban-plan__row">
+                <button type="button" class="workspace-kanban-plan__head" on:click=toggle>
+                    <span
+                        class="workspace-kanban-plan__drag"
+                        title="Drag plan"
+                    >
+                        <LxIcon icon=icondata::LuGripVertical width="0.86rem" height="0.86rem" />
+                    </span>
+                    <LxIcon icon=icondata::LuFolderKanban width="1rem" height="1rem" />
+                    <span class="workspace-kanban-plan__main">
+                        <span class="workspace-kanban-plan__title">{plan.meta.title.clone()}</span>
+                        <span class="workspace-kanban-plan__path">{plan.meta.path.clone()}</span>
+                    </span>
+                    <span class="workspace-kanban-plan__stats">
+                        {format!(
+                            "{} / {}",
+                            plan.meta.task_summary.completed,
+                            plan.meta.task_summary.total
+                        )}
+                    </span>
+                    <LxIcon icon=icondata::LuChevronDown width="0.9rem" height="0.9rem" />
+                </button>
+                <Show when=move || has_diagrams.get()>
+                    <button
+                        type="button"
+                        class="workspace-kanban-plan__diagram"
+                        data-kanban-no-card-drag="true"
+                        prop:draggable=false
+                        aria-label=move || i18n.tr(I18nKey::PlansOpenDiagrams)()
+                        title=move || i18n.tr(I18nKey::PlansOpenDiagrams)()
+                        on:click=move |ev: web_sys::MouseEvent| {
+                            ev.stop_propagation();
+                            wb.open_center_diagram_gallery_tab(
+                                workspace_id,
+                                slug_for_btn.get_value(),
+                            );
+                        }
+                    >
+                        <LxIcon icon=icondata::LuWorkflow width="0.86rem" height="0.86rem" />
+                        <span class="workspace-kanban-plan__diagram-count">
+                            {move || diagram_count.get()}
+                        </span>
+                    </button>
+                </Show>
+            </div>
             <Show when=move || is_open.get()>
                 <div class="workspace-kanban-plan__lanes">
                     <For
@@ -832,6 +888,8 @@ fn KanbanPlanCard(
                                     workspace_cwd=workspace_cwd
                                     on_reload=on_reload
                                     on_task_drop=on_task_drop
+                                    diagrams=diagrams_signal
+                                    slug=slug_for_lanes.get_value()
                                 />
                             }
                         }
@@ -851,11 +909,14 @@ fn KanbanTaskLane(
     workspace_cwd: Signal<Option<String>>,
     on_reload: Callback<()>,
     on_task_drop: Callback<KanbanTaskDrop>,
+    diagrams: Signal<Vec<DiagramRecord>>,
+    slug: String,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let label_status = status.clone();
     let plan_value = StoredValue::new(plan_path.clone());
     let status_value = StoredValue::new(status.clone());
+    let slug_value = StoredValue::new(slug);
 
     view! {
         <section
@@ -885,6 +946,8 @@ fn KanbanTaskLane(
                                 task=task
                                 workspace_cwd=workspace_cwd
                                 on_reload=on_reload
+                                diagrams=diagrams
+                                slug=slug_value.get_value()
                             />
                         }
                     }
@@ -906,14 +969,27 @@ fn KanbanTaskCardView(
     task: crate::tauri_bridge::KanbanTaskCard,
     workspace_cwd: Signal<Option<String>>,
     on_reload: Callback<()>,
+    diagrams: Signal<Vec<DiagramRecord>>,
+    slug: String,
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
+    let i18n = expect_context::<I18nService>();
     let toast = expect_context::<ToastService>();
     let kanban_dnd = expect_context::<KanbanDragService>();
     let editing = RwSignal::new(false);
     let draft = RwSignal::new(task.title.clone());
     let task_title = StoredValue::new(task.title.clone());
     let task_for_drag = task.clone();
+    // This task shows a diagram shortcut only when a stored diagram is linked to
+    // it via `task_id`. The shortcut opens the plan's shared gallery tab.
+    let task_id_for_diagram = task.id.clone();
+    let has_diagram = Signal::derive(move || {
+        diagrams.with(|list| {
+            list.iter()
+                .any(|record| record.task_id.as_deref() == Some(task_id_for_diagram.as_str()))
+        })
+    });
+    let slug_for_diagram = StoredValue::new(slug);
     let is_drag_source = Signal::derive({
         let task = task.clone();
         move || {
@@ -1048,6 +1124,25 @@ fn KanbanTaskCardView(
                 {task.runtime_task_id.as_ref().map(|runtime_id| view! {
                     <span title=runtime_id.clone()>{runtime_id.clone()}</span>
                 })}
+                <Show when=move || has_diagram.get()>
+                    <button
+                        type="button"
+                        class="workspace-kanban-task__diagram"
+                        aria-label=move || i18n.tr(I18nKey::PlansOpenDiagrams)()
+                        title=move || i18n.tr(I18nKey::PlansOpenDiagrams)()
+                        data-kanban-no-card-drag="true"
+                        prop:draggable=false
+                        on:click=move |ev: web_sys::MouseEvent| {
+                            ev.stop_propagation();
+                            wb.open_center_diagram_gallery_tab(
+                                workspace_id,
+                                slug_for_diagram.get_value(),
+                            );
+                        }
+                    >
+                        <LxIcon icon=icondata::LuWorkflow width="0.8rem" height="0.8rem" />
+                    </button>
+                </Show>
                 <button
                     type="button"
                     title="Rename"

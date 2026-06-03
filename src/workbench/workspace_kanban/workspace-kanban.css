@@ -502,12 +502,57 @@
   --kanban-state: var(--danger);
 }
 
+.workspace-kanban-plan__row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding-right: 0.45rem;
+}
+
 .workspace-kanban-plan__head {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-height: 2.8rem;
   padding: 0.5rem 0.65rem;
   background: transparent;
   cursor: inherit;
+}
+
+.workspace-kanban-plan__diagram {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  height: 1.5rem;
+  padding: 0 0.4rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--border));
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: color-mix(in srgb, var(--accent) 82%, var(--text));
+  font-size: var(--kanban-font-label);
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.workspace-kanban-plan__diagram:hover {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--border));
+  color: var(--accent);
+}
+
+.workspace-kanban-plan__diagram-count {
+  font-variant-numeric: tabular-nums;
+}
+
+.workspace-kanban-task__foot button.workspace-kanban-task__diagram {
+  color: color-mix(in srgb, var(--accent) 78%, var(--text-muted));
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+}
+
+.workspace-kanban-task__foot button.workspace-kanban-task__diagram:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
 .workspace-kanban-plan__drag {
