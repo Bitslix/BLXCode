@@ -466,7 +466,12 @@
   background: color-mix(in srgb, var(--bg-panel) 88%, var(--overlay-1));
   overflow: hidden;
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent);
+  cursor: grab;
   transition: transform 0.15s ease, opacity 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.workspace-kanban-plan:active {
+  cursor: grabbing;
 }
 
 .workspace-kanban-plan[data-state="blocked"] {
@@ -494,17 +499,16 @@
   min-height: 2.8rem;
   padding: 0.5rem 0.65rem;
   background: transparent;
+  cursor: inherit;
 }
 
-.workspace-kanban-plan__drag,
-.workspace-kanban-task__drag {
+.workspace-kanban-plan__drag {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-sm);
   color: color-mix(in srgb, var(--kanban-state, var(--kanban-lane, var(--accent))) 72%, var(--text-muted));
-  cursor: grab;
 }
 
 .workspace-kanban-plan__drag {
@@ -513,21 +517,9 @@
   margin-left: -0.18rem;
 }
 
-.workspace-kanban-task__drag {
-  width: 1.2rem;
-  height: 1.2rem;
-  margin-left: -0.18rem;
-}
-
-.workspace-kanban-plan__drag:hover,
-.workspace-kanban-task__drag:hover {
+.workspace-kanban-plan:hover .workspace-kanban-plan__drag {
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   color: var(--accent);
-}
-
-.workspace-kanban-plan__drag:active,
-.workspace-kanban-task__drag:active {
-  cursor: grabbing;
 }
 
 .workspace-kanban-plan__head > svg:nth-of-type(1) {
@@ -651,6 +643,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--bg-panel) 92%, var(--overlay-1));
+  cursor: grab;
   transition: border-color 0.14s ease, background 0.14s ease, transform 0.14s ease;
 }
 
@@ -673,11 +666,12 @@
   font: inherit;
   font-size: var(--kanban-font);
   text-align: left;
-  cursor: text;
+  cursor: inherit;
 }
 
 .workspace-kanban-task__input {
   width: 100%;
+  cursor: text;
 }
 
 .workspace-kanban-task__foot {

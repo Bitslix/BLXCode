@@ -17,6 +17,7 @@ use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
+use wasm_bindgen::JsCast;
 
 #[derive(Clone, Debug)]
 struct KanbanPlanDrop {
@@ -706,38 +707,41 @@ fn KanbanPlanCard(
             class:workspace-kanban-plan--drag-source=move || is_drag_source.get()
             class:workspace-kanban-plan--drag-potential=move || is_drag_potential.get()
             data-state=plan_state_key(&plan.state)
+            prop:draggable=true
+            on:dragstart={
+                let title = plan.meta.title.clone();
+                let subtitle = plan.meta.path.clone();
+                let payload_path = drag_path.clone();
+                move |ev: web_sys::DragEvent| {
+                    if drag_started_from_control(&ev) {
+                        ev.prevent_default();
+                        return;
+                    }
+                    start_kanban_drag(
+                        &ev,
+                        kanban_dnd,
+                        KanbanDragPayload {
+                            workspace_id,
+                            kind: KanbanDragKind::Plan,
+                            plan_path: payload_path.clone(),
+                            task_id: None,
+                        },
+                        KanbanDragMeta {
+                            kind: KanbanDragKind::Plan,
+                            title: title.clone(),
+                            subtitle: subtitle.clone(),
+                            badge: "Plan".into(),
+                        },
+                    );
+                }
+            }
+            on:drag=move |ev: web_sys::DragEvent| kanban_dnd.set_overlay_pos_from_event(&ev)
+            on:dragend=move |_| kanban_dnd.clear()
         >
             <button type="button" class="workspace-kanban-plan__head" on:click=toggle>
                 <span
                     class="workspace-kanban-plan__drag"
-                    prop:draggable=true
                     title="Drag plan"
-                    on:dragstart={
-                        let title = plan.meta.title.clone();
-                        let subtitle = plan.meta.path.clone();
-                        let payload_path = drag_path.clone();
-                        move |ev: web_sys::DragEvent| {
-                            ev.stop_propagation();
-                            start_kanban_drag(
-                                &ev,
-                                kanban_dnd,
-                                KanbanDragPayload {
-                                    workspace_id,
-                                    kind: KanbanDragKind::Plan,
-                                    plan_path: payload_path.clone(),
-                                    task_id: None,
-                                },
-                                KanbanDragMeta {
-                                    kind: KanbanDragKind::Plan,
-                                    title: title.clone(),
-                                    subtitle: subtitle.clone(),
-                                    badge: "Plan".into(),
-                                },
-                            );
-                        }
-                    }
-                    on:drag=move |ev: web_sys::DragEvent| kanban_dnd.set_overlay_pos_from_event(&ev)
-                    on:dragend=move |_| kanban_dnd.clear()
                 >
                     <LxIcon icon=icondata::LuGripVertical width="0.86rem" height="0.86rem" />
                 </span>
@@ -933,6 +937,34 @@ fn KanbanTaskCardView(
             class="workspace-kanban-task"
             class:workspace-kanban-task--drag-source=move || is_drag_source.get()
             class:workspace-kanban-task--drag-potential=move || is_drag_potential.get()
+            prop:draggable=true
+            on:dragstart={
+                let task = task.clone();
+                move |ev: web_sys::DragEvent| {
+                    if drag_started_from_control(&ev) {
+                        ev.prevent_default();
+                        return;
+                    }
+                    start_kanban_drag(
+                        &ev,
+                        kanban_dnd,
+                        KanbanDragPayload {
+                            workspace_id,
+                            kind: KanbanDragKind::Task,
+                            plan_path: task.plan_path.clone(),
+                            task_id: Some(task.id.clone()),
+                        },
+                        KanbanDragMeta {
+                            kind: KanbanDragKind::Task,
+                            title: task.title.clone(),
+                            subtitle: task.plan_path.clone(),
+                            badge: task.id.clone(),
+                        },
+                    );
+                }
+            }
+            on:drag=move |ev: web_sys::DragEvent| kanban_dnd.set_overlay_pos_from_event(&ev)
+            on:dragend=move |_| kanban_dnd.clear()
         >
             <Show
                 when=move || editing.get()
@@ -948,6 +980,7 @@ fn KanbanTaskCardView(
             >
                 <input
                     class="workspace-kanban-task__input"
+                    data-kanban-no-card-drag="true"
                     prop:value=move || draft.get()
                     on:input=move |ev| draft.set(input_value(&ev))
                     on:keydown=move |ev| {
@@ -960,45 +993,26 @@ fn KanbanTaskCardView(
                 />
             </Show>
             <footer class="workspace-kanban-task__foot">
-                <span
-                    class="workspace-kanban-task__drag"
-                    prop:draggable=true
-                    title="Drag task"
-                    on:dragstart={
-                        let task = task.clone();
-                        move |ev: web_sys::DragEvent| {
-                            ev.stop_propagation();
-                            start_kanban_drag(
-                                &ev,
-                                kanban_dnd,
-                                KanbanDragPayload {
-                                    workspace_id,
-                                    kind: KanbanDragKind::Task,
-                                    plan_path: task.plan_path.clone(),
-                                    task_id: Some(task.id.clone()),
-                                },
-                                KanbanDragMeta {
-                                    kind: KanbanDragKind::Task,
-                                    title: task.title.clone(),
-                                    subtitle: task.plan_path.clone(),
-                                    badge: task.id.clone(),
-                                },
-                            );
-                        }
-                    }
-                    on:drag=move |ev: web_sys::DragEvent| kanban_dnd.set_overlay_pos_from_event(&ev)
-                    on:dragend=move |_| kanban_dnd.clear()
-                >
-                    <LxIcon icon=icondata::LuGripVertical width="0.78rem" height="0.78rem" />
-                </span>
                 <span>{task.id.clone()}</span>
                 {task.runtime_task_id.as_ref().map(|runtime_id| view! {
                     <span title=runtime_id.clone()>{runtime_id.clone()}</span>
                 })}
-                <button type="button" title="Rename" on:click=move |_| editing.set(true)>
+                <button
+                    type="button"
+                    title="Rename"
+                    data-kanban-no-card-drag="true"
+                    prop:draggable=false
+                    on:click=move |_| editing.set(true)
+                >
                     <LxIcon icon=icondata::LuPencil width="0.8rem" height="0.8rem" />
                 </button>
-                <button type="button" title="Delete" on:click=delete_task>
+                <button
+                    type="button"
+                    title="Delete"
+                    data-kanban-no-card-drag="true"
+                    prop:draggable=false
+                    on:click=delete_task
+                >
                     <LxIcon icon=icondata::LuTrash2 width="0.8rem" height="0.8rem" />
                 </button>
             </footer>
@@ -1225,6 +1239,18 @@ fn accepts_plan_drop(
         }
         None => true,
     }
+}
+
+fn drag_started_from_control(ev: &web_sys::DragEvent) -> bool {
+    ev.target()
+        .and_then(|target| target.dyn_into::<web_sys::Element>().ok())
+        .and_then(|element| {
+            element
+                .closest("input, textarea, select, [data-kanban-no-card-drag='true']")
+                .ok()
+                .flatten()
+        })
+        .is_some()
 }
 
 fn accepts_task_drop(
