@@ -23,6 +23,7 @@ use crate::tauri_bridge::{
     agent_abort, agent_active_context_window, agent_clear_conversation, agent_compact_conversation,
     agent_drain_turn_opts, agent_enhance_prompt, agent_settings_get, agent_submit_turn,
     git_is_repository, git_status_changes, is_tauri_shell, tasks_list as fetch_tasks_list,
+    workbench_upsert_agent_notification, AgentNotificationInput,
 };
 use crate::workbench::agent_panel::client_tools::maybe_handle_client_tool;
 use crate::workbench::agent_panel::composer::Composer;
@@ -43,7 +44,7 @@ use crate::workbench::agent_panel::timeline::{
 use crate::workbench::agent_panel::voice_orb::{handle_voice_event, VoiceOrb, VoiceOrbHandle};
 use crate::workbench::agent_timeline::{ChangedFileEntry, TimelineDoc, TurnPart};
 use crate::workbench::terminal_slot_dnd::TerminalSlotDragService;
-use crate::workbench::WorkbenchService;
+use crate::workbench::{RightPanelTab, WorkbenchService};
 use gloo_timers::future::TimeoutFuture;
 use leptos::html;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
@@ -76,6 +77,82 @@ fn resolve_agent_timeline_name(raw: &str) -> String {
     } else {
         trimmed.to_string()
     }
+}
+
+fn agent_panel_visible_and_focused(wb: WorkbenchService) -> bool {
+    if wb.right_collapsed().get_untracked()
+        || wb.right_active_tab().get_untracked() != RightPanelTab::Agent
+    {
+        return false;
+    }
+    js_sys::eval(
+        r#"(() => {
+          try {
+            return document.visibilityState === "visible" && document.hasFocus();
+          } catch (_) {
+            return false;
+          }
+        })()"#,
+    )
+    .ok()
+    .and_then(|v| v.as_bool())
+    .unwrap_or(false)
+}
+
+fn spawn_agent_notification_fallback(
+    wb: WorkbenchService,
+    kind: &str,
+    title: &str,
+    body: Option<String>,
+    dedupe_key: &str,
+    target: Option<serde_json::Value>,
+) {
+    if agent_panel_visible_and_focused(wb) || !is_tauri_shell() {
+        return;
+    }
+    let input = AgentNotificationInput {
+        id: None,
+        title: title.to_string(),
+        body,
+        kind: kind.to_string(),
+        severity: Some(if kind == "error" { "error" } else { "info" }.to_string()),
+        source: Some("agent".into()),
+        target,
+        dedupe_key: Some(dedupe_key.to_string()),
+        read: Some(false),
+        sent: Some(true),
+    };
+    let os_title = input.title.clone();
+    let os_body = input.body.clone().unwrap_or_default();
+    leptos::task::spawn_local(async move {
+        if let Ok(item) = workbench_upsert_agent_notification(input).await {
+            wb.upsert_agent_notification(item);
+            send_native_notification_best_effort(&os_title, &os_body);
+            crate::workbench::notification_sound::play_notification_beep();
+        }
+    });
+}
+
+fn send_native_notification_best_effort(title: &str, body: &str) {
+    let title = serde_json::to_string(title).unwrap_or_else(|_| "\"BLXCode Agent\"".into());
+    let body = serde_json::to_string(body).unwrap_or_else(|_| "\"\"".into());
+    let script = format!(
+        r#"(() => {{
+          try {{
+            const n = window.__TAURI__ && window.__TAURI__.notification;
+            if (!n) return;
+            Promise.resolve(n.isPermissionGranted())
+              .then((granted) => granted ? "granted" : n.requestPermission())
+              .then((permission) => {{
+                if (permission === "granted" || permission === true) {{
+                  n.sendNotification({{ title: {title}, body: {body} }});
+                }}
+              }})
+              .catch(() => {{}});
+          }} catch (_) {{}}
+        }})()"#
+    );
+    let _ = js_sys::eval(&script);
 }
 
 fn refresh_agent_timeline_name(signal: RwSignal<String>) {
@@ -1211,12 +1288,38 @@ fn submit_turn(
             let loc_now = i18n_d.locale().get_untracked();
             for env in &batch {
                 let ev = &env.event;
-                if matches!(ev, AgentEvent::Error { .. }) {
+                if let AgentEvent::Error { message } = ev {
                     turn_had_error.set(true);
+                    spawn_agent_notification_fallback(
+                        wb_d,
+                        "error",
+                        "Agent error",
+                        Some(message.clone()),
+                        "agent:error",
+                        None,
+                    );
                 }
                 if let AgentEvent::ToolCall { tool, .. } = ev {
                     if is_file_mutating_tool(tool) {
                         turn_touched_files.set(true);
+                    }
+                }
+                if let AgentEvent::ToolCall { tool, args, .. } = ev {
+                    if tool == "harness.ask_user" {
+                        let question = args
+                            .as_ref()
+                            .and_then(|v| v.get("question"))
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("The agent needs your input.")
+                            .to_string();
+                        spawn_agent_notification_fallback(
+                            wb_d,
+                            "question",
+                            "Agent needs input",
+                            Some(question),
+                            "agent:question",
+                            Some(serde_json::json!({ "view": "agent" })),
+                        );
                     }
                 }
                 if matches!(ev, AgentEvent::VoiceReady { .. }) {

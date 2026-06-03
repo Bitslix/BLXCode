@@ -61,6 +61,10 @@ pub const CORE_SKILLS: &[(&str, &str)] = &[
         include_str!("../agent/harness_skills/prompt-generating.md"),
     ),
     (
+        "notifications",
+        include_str!("../agent/harness_skills/notifications.md"),
+    ),
+    (
         "grill-me",
         include_str!("../agent/harness_skills/grill-me.md"),
     ),
@@ -89,7 +93,7 @@ fn core_skill_category(name: &str) -> Option<String> {
         "file-access" | "environment" | "harness" | "shell" => "workspace",
         "memory" | "memory-architecture" => "memory",
         "plans" | "tasks" | "grill-me" => "planning",
-        "rules-skills" | "prompt-generating" => "workflow",
+        "rules-skills" | "prompt-generating" | "notifications" => "workflow",
         "git" => "git",
         "web" => "web",
         "subagents" => "agents",

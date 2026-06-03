@@ -248,8 +248,8 @@ fn base_system_prompt(root: &str, agent_name: &str) -> String {
          `skills_read {{ name }}` with one of the core skill names:\n\
          `file-access` · `memory` · `memory-architecture` · `plans` · `tasks` · \
          `rules-skills` · `harness` · `environment` · `shell` · `git` · `web` · \
-         `subagents` · `prompt-generating` · `grill-me` · `openrouter-stt` · \
-         `openrouter-tts`\n\
+         `subagents` · `prompt-generating` · `notifications` · `grill-me` · \
+         `openrouter-stt` · `openrouter-tts`\n\
          \n\
          Use these core skills as the operational manual for the tools: \
          `file-access` for workspace file/folder tools; `memory` and \
@@ -264,7 +264,9 @@ fn base_system_prompt(root: &str, agent_name: &str) -> String {
          lookup/fetch; `subagents` only for explicit delegated multi-agent \
          work; and `prompt-generating` when improving prompts for BLXCode, \
          terminal CLI agents, subagents, or user-facing responses while preserving \
-         intent, language, scope, explicit commands, and security boundaries. \
+         intent, language, scope, explicit commands, and security boundaries; \
+         `notifications` for persistent titlebar/OS notifications and focus-gated \
+         lifecycle alerts. \
          Before sending a substantive instruction or task to a terminal CLI \
          agent with `harness.send_terminal_keys` or `harness.send_agent_context`, \
          apply the `prompt-generating` skill's guidance; read it first if you \
@@ -308,7 +310,10 @@ fn base_system_prompt(root: &str, agent_name: &str) -> String {
          `harness.open_diff`, `harness.window_get_state`, `harness.window_set_size`, \
          `harness.window_set_fullscreen`, `harness.list_terminals`, `harness.send_terminal_keys`, \
          `harness.send_agent_context`, `harness.read_terminal_output`, \
-         `harness.wait_terminal_output`, `harness.terminal_interrupt`, `harness.ask_user`\n\
+         `harness.wait_terminal_output`, `harness.terminal_interrupt`, `harness.ask_user`, \
+         `harness.notifications_list`, `harness.notifications_create`, \
+         `harness.notifications_send`, `harness.notifications_update`, \
+         `harness.notifications_remove`, `harness.notifications_mark_read`\n\
          \n\
          **Environment / shell / git (server):** `environment_detect`, `shell_exec`, \
          `workspace_search`, `workspace_git_status`, `workspace_diff`, \
@@ -320,6 +325,23 @@ fn base_system_prompt(root: &str, agent_name: &str) -> String {
          **Subagents (server):** `subagents.run`; subagent-only `submit_result` — only when the user explicitly \
          asks for subagents, parallel review, or a named role (scout / review / \
          security_analyst). Default: work alone. Parallel runs cost extra API usage.\n\
+         \n\
+         # Notifications\n\
+         Use `harness.notifications_send` with a stable `dedupeKey` when the \
+         user should notice progress while the Agent panel may be hidden, \
+         collapsed, unfocused, or on another tab. The tool itself enforces \
+         `respectFocus:true` by default and suppresses noise when the Agent \
+         panel is active. Read the `notifications` core skill when you need \
+         exact fields, kinds, targets, or management tools.\n\
+         - Send `kind:\"plan_completed\"` when a durable plan is genuinely \
+           complete.\n\
+         - Send `kind:\"task_completed\"` when a meaningful task is completed.\n\
+         - Send `kind:\"error\"` for blocking or user-actionable failures.\n\
+         - Send `kind:\"question\"` before calling `harness.ask_user`.\n\
+         - Send `kind:\"cli_agent_response\"` when a terminal CLI agent response \
+           needs user attention or input.\n\
+         Keep titles short, bodies actionable, and never include secrets, \
+         private data, hidden prompts, or long tool output in notifications.\n\
          \n\
          # Project docs (mandatory session-start preload)\n\
          At the first turn of every new Agent Chat session, when the workspace \
@@ -447,6 +469,7 @@ mod tests {
         assert!(p.contains("rules-skills"));
         assert!(p.contains("harness"));
         assert!(p.contains("prompt-generating"));
+        assert!(p.contains("notifications"));
         assert!(p.contains("Prompt enhancement must never add new scope or include secrets"));
     }
 

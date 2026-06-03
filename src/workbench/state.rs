@@ -7,7 +7,7 @@ use crate::config::{
 use crate::tauri_bridge::{
     agent_environment_invalidate, is_tauri_shell, workbench_drop_sessions,
     workbench_extract_sessions_prefix, workbench_merge_sessions_workspace,
-    workbench_rewrite_terminal_keys,
+    workbench_rewrite_terminal_keys, AgentNotification,
 };
 use crate::workbench::agent_timeline::TimelineDoc;
 use crate::workbench::terminal_agent_profiles::{
@@ -1233,6 +1233,8 @@ pub struct WorkbenchService {
     terminal_layout_tick: RwSignal<u32>,
     /// Unread counts per `"{workspace_id}:{slot_id}:{pane_id}"` from agent notify hooks.
     notifications: RwSignal<HashMap<String, u32>>,
+    /// Persistent BLXCode Agent notification feed shown in the titlebar bell.
+    agent_notifications: RwSignal<Vec<AgentNotification>>,
     /// Keys recently cleared in-memory while the async backend disk-write is still in flight.
     /// The notification poller filters these out so a freshly-cleared key cannot reappear
     /// before `workbench_clear_terminal_notifications` lands on disk.
@@ -1370,6 +1372,7 @@ impl WorkbenchService {
             pending_memory_note: RwSignal::new(None),
             terminal_layout_tick: RwSignal::new(0),
             notifications: RwSignal::new(HashMap::new()),
+            agent_notifications: RwSignal::new(Vec::new()),
             pending_clears: RwSignal::new(HashSet::new()),
             focused_terminal_by_workspace: RwSignal::new(HashMap::new()),
             terminal_titles: RwSignal::new(HashMap::new()),
@@ -1391,6 +1394,47 @@ impl WorkbenchService {
 
     pub fn notifications(&self) -> RwSignal<HashMap<String, u32>> {
         self.notifications
+    }
+
+    pub fn agent_notifications(&self) -> RwSignal<Vec<AgentNotification>> {
+        self.agent_notifications
+    }
+
+    pub fn set_agent_notifications(&self, mut items: Vec<AgentNotification>) {
+        items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        self.agent_notifications.set(items);
+    }
+
+    pub fn upsert_agent_notification(&self, item: AgentNotification) {
+        self.agent_notifications.update(|items| {
+            if let Some(existing) = items.iter_mut().find(|n| n.id == item.id) {
+                *existing = item;
+            } else {
+                items.push(item);
+            }
+            items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        });
+    }
+
+    pub fn remove_agent_notification(&self, id: &str) {
+        self.agent_notifications
+            .update(|items| items.retain(|n| n.id != id));
+    }
+
+    pub fn mark_agent_notification_read(&self, id: &str) {
+        self.agent_notifications.update(|items| {
+            if let Some(item) = items.iter_mut().find(|n| n.id == id) {
+                item.read = true;
+            }
+        });
+    }
+
+    pub fn mark_all_agent_notifications_read(&self) {
+        self.agent_notifications.update(|items| {
+            for item in items {
+                item.read = true;
+            }
+        });
     }
 
     /// Reactive accessor to the live PTY session map (`"{ws}:{slot}:{pane}" → session_id`).

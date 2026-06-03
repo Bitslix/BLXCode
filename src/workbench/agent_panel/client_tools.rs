@@ -1,7 +1,10 @@
 use crate::agent_wire::{AgentContextItem, AgentContextKind, AgentEvent};
 use crate::tauri_bridge::{
     agent_submit_tool_result, memory_list, pty_peek_output, pty_wait_output, pty_write,
-    window_set_fullscreen, window_set_size, window_state,
+    window_set_fullscreen, window_set_size, window_state, workbench_list_agent_notifications,
+    workbench_mark_agent_notifications_read, workbench_remove_agent_notification,
+    workbench_update_agent_notification, workbench_upsert_agent_notification,
+    AgentNotificationInput, AgentNotificationPatch,
 };
 use crate::workbench::agent_context_handoff::{
     perform_handoff, HandoffRequest, WorkspaceTerminalTarget,
@@ -80,6 +83,14 @@ pub fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
         "harness.wait_terminal_output" => handle_wait_output(call_id, args.clone(), wb),
         "harness.terminal_interrupt" => handle_terminal_interrupt(call_id, args.clone(), wb),
         "harness.ask_user" => handle_ask_user(call_id, args.clone()),
+        "harness.notifications_list" => handle_notifications_list(call_id, args.clone(), wb),
+        "harness.notifications_create" => handle_notifications_create(call_id, args.clone(), wb),
+        "harness.notifications_send" => handle_notifications_send(call_id, args.clone(), wb),
+        "harness.notifications_update" => handle_notifications_update(call_id, args.clone(), wb),
+        "harness.notifications_remove" => handle_notifications_remove(call_id, args.clone(), wb),
+        "harness.notifications_mark_read" => {
+            handle_notifications_mark_read(call_id, args.clone(), wb)
+        }
         "memory_category_list" => handle_memory_category_list(call_id, wb),
         "memory_category_update" => handle_memory_category_update(call_id, args.clone(), wb),
         "memory_context_list" => handle_memory_context_list(call_id, wb),
@@ -781,6 +792,284 @@ fn handle_ask_user(call_id: String, args: Option<serde_json::Value>) {
     }
     // Valid: do nothing here — the AskUserCard owns the call_id and will
     // submit when the user answers or dismisses the card.
+}
+
+fn handle_notifications_list(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let include_read = args
+        .as_ref()
+        .and_then(|v| v.get("includeRead"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let limit = args
+        .as_ref()
+        .and_then(|v| v.get("limit"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(50)
+        .clamp(1, 200) as usize;
+    leptos::task::spawn_local(async move {
+        match workbench_list_agent_notifications(include_read, limit).await {
+            Ok(items) => {
+                wb.set_agent_notifications(items.clone());
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some(format!("{} notification(s)", items.len())),
+                    Some(serde_json::to_value(items).unwrap_or_default()),
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn handle_notifications_create(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let Some(input) = notification_input_from_args(args, false) else {
+        submit_async(call_id, false, "invalid notification args".into(), None);
+        return;
+    };
+    leptos::task::spawn_local(async move {
+        match workbench_upsert_agent_notification(input).await {
+            Ok(item) => {
+                wb.upsert_agent_notification(item.clone());
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some(format!("created notification {}", item.id)),
+                    Some(serde_json::to_value(item).unwrap_or_default()),
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn handle_notifications_send(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let respect_focus = args
+        .as_ref()
+        .and_then(|v| v.get("respectFocus"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    if respect_focus && agent_panel_is_active(wb) {
+        submit_async(
+            call_id,
+            true,
+            "notification suppressed because agent panel is active".into(),
+            Some(serde_json::json!({
+                "delivered": false,
+                "reason": "agent_active"
+            })),
+        );
+        return;
+    }
+    let Some(input) = notification_input_from_args(args, true) else {
+        submit_async(call_id, false, "invalid notification args".into(), None);
+        return;
+    };
+    let os_title = input.title.clone();
+    let os_body = input.body.clone().unwrap_or_default();
+    leptos::task::spawn_local(async move {
+        match workbench_upsert_agent_notification(input).await {
+            Ok(item) => {
+                wb.upsert_agent_notification(item.clone());
+                send_native_notification_best_effort(&os_title, &os_body);
+                crate::workbench::notification_sound::play_notification_beep();
+                let data = serde_json::json!({
+                    "delivered": true,
+                    "notification": item,
+                });
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some("notification sent".into()),
+                    Some(data),
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn handle_notifications_update(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let Some(args) = args else {
+        submit_async(call_id, false, "missing args".into(), None);
+        return;
+    };
+    let Ok(patch) = serde_json::from_value::<AgentNotificationPatch>(args) else {
+        submit_async(call_id, false, "invalid notification patch".into(), None);
+        return;
+    };
+    leptos::task::spawn_local(async move {
+        match workbench_update_agent_notification(patch).await {
+            Ok(item) => {
+                wb.upsert_agent_notification(item.clone());
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some(format!("updated notification {}", item.id)),
+                    Some(serde_json::to_value(item).unwrap_or_default()),
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn handle_notifications_remove(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let Some(id) = args
+        .as_ref()
+        .and_then(|v| v.get("id"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+    else {
+        submit_async(call_id, false, "missing id".into(), None);
+        return;
+    };
+    wb.remove_agent_notification(&id);
+    leptos::task::spawn_local(async move {
+        match workbench_remove_agent_notification(id.clone()).await {
+            Ok(()) => {
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some(format!("removed notification {id}")),
+                    None,
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn handle_notifications_mark_read(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let id = args
+        .as_ref()
+        .and_then(|v| v.get("id"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let all = args
+        .as_ref()
+        .and_then(|v| v.get("all"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if !all && id.is_none() {
+        submit_async(call_id, false, "missing id or all=true".into(), None);
+        return;
+    }
+    if all {
+        wb.mark_all_agent_notifications_read();
+    } else if let Some(id) = id.as_ref() {
+        wb.mark_agent_notification_read(id);
+    }
+    leptos::task::spawn_local(async move {
+        match workbench_mark_agent_notifications_read(id, all).await {
+            Ok(items) => {
+                wb.set_agent_notifications(items.clone());
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some("marked notification(s) read".into()),
+                    Some(serde_json::to_value(items).unwrap_or_default()),
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn notification_input_from_args(
+    args: Option<serde_json::Value>,
+    sent: bool,
+) -> Option<AgentNotificationInput> {
+    let mut input = serde_json::from_value::<AgentNotificationInput>(args?).ok()?;
+    if input.title.trim().is_empty() || input.kind.trim().is_empty() {
+        return None;
+    }
+    input.sent = Some(sent);
+    Some(input)
+}
+
+fn agent_panel_is_active(wb: WorkbenchService) -> bool {
+    if wb.right_collapsed().get_untracked()
+        || wb.right_active_tab().get_untracked() != RightPanelTab::Agent
+    {
+        return false;
+    }
+    js_sys::eval(
+        r#"(() => {
+          try {
+            return document.visibilityState === "visible" && document.hasFocus();
+          } catch (_) {
+            return false;
+          }
+        })()"#,
+    )
+    .ok()
+    .and_then(|v| v.as_bool())
+    .unwrap_or(false)
+}
+
+fn send_native_notification_best_effort(title: &str, body: &str) {
+    let title = serde_json::to_string(title).unwrap_or_else(|_| "\"BLXCode Agent\"".into());
+    let body = serde_json::to_string(body).unwrap_or_else(|_| "\"\"".into());
+    let script = format!(
+        r#"(() => {{
+          try {{
+            const n = window.__TAURI__ && window.__TAURI__.notification;
+            if (!n) return;
+            Promise.resolve(n.isPermissionGranted())
+              .then((granted) => granted ? "granted" : n.requestPermission())
+              .then((permission) => {{
+                if (permission === "granted" || permission === true) {{
+                  n.sendNotification({{ title: {title}, body: {body} }});
+                }}
+              }})
+              .catch(() => {{}});
+          }} catch (_) {{}}
+        }})()"#
+    );
+    let _ = js_sys::eval(&script);
 }
 
 fn handle_open_terminal(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {

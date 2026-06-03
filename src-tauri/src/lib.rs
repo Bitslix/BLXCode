@@ -68,11 +68,14 @@ use voice::{
 };
 use workbench_state::{
     agent_latest_session_id, agent_session_exists, workbench_clear_terminal_notifications,
-    workbench_drop_sessions, workbench_extract_sessions_prefix, workbench_load_notifications,
-    workbench_load_sessions, workbench_load_state, workbench_load_usage_snapshot,
+    workbench_drop_sessions, workbench_extract_sessions_prefix, workbench_list_agent_notifications,
+    workbench_load_notifications, workbench_load_sessions, workbench_load_state,
+    workbench_load_usage_snapshot, workbench_mark_agent_notifications_read,
     workbench_merge_sessions_workspace, workbench_notifications_path,
-    workbench_prune_notifications, workbench_prune_sessions, workbench_rewrite_terminal_keys,
-    workbench_save_state, workbench_sessions_path, workbench_usage_path, WorkbenchSessionsFileLock,
+    workbench_prune_notifications, workbench_prune_sessions, workbench_remove_agent_notification,
+    workbench_rewrite_terminal_keys, workbench_save_state, workbench_sessions_path,
+    workbench_update_agent_notification, workbench_upsert_agent_notification, workbench_usage_path,
+    WorkbenchSessionsFileLock,
 };
 
 #[tauri::command]
@@ -136,6 +139,7 @@ pub fn run() {
     init_keyring_store();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppLogState::default())
@@ -277,6 +281,11 @@ pub fn run() {
             workbench_notifications_path,
             workbench_load_notifications,
             workbench_clear_terminal_notifications,
+            workbench_list_agent_notifications,
+            workbench_upsert_agent_notification,
+            workbench_update_agent_notification,
+            workbench_remove_agent_notification,
+            workbench_mark_agent_notifications_read,
             workbench_prune_notifications,
             workbench_prune_sessions,
             workbench_rewrite_terminal_keys,

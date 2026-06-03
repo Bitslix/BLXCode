@@ -186,6 +186,8 @@ fn classify_tool_call(name: &str, args: &Value) -> ToolPermissionClass {
         | "skills_set_enabled"
         | "skills_remove"
         | "skills_install"
+        | "harness.notifications_update"
+        | "harness.notifications_remove"
         | "workspace_file_write"
         | "workspace_file_delete"
         | "workspace_dir_create"
@@ -209,7 +211,10 @@ fn classify_tool_call(name: &str, args: &Value) -> ToolPermissionClass {
         | "harness.open_memory"
         | "harness.open_plan"
         | "harness.open_file"
-        | "harness.open_diff" => ToolPermissionClass::NavigationView,
+        | "harness.open_diff"
+        | "harness.notifications_create"
+        | "harness.notifications_send"
+        | "harness.notifications_mark_read" => ToolPermissionClass::NavigationView,
         _ => ToolPermissionClass::Read,
     }
 }
@@ -400,6 +405,16 @@ mod tests {
             ToolPermissionClass::Read,
             "harness.wait_terminal_output",
             &json!({ "slotId": 1 })
+        ));
+        assert!(!blocks_in_plan(
+            ToolPermissionClass::NavigationView,
+            "harness.notifications_send",
+            &json!({ "title": "Done", "kind": "task_completed" })
+        ));
+        assert!(blocks_in_plan(
+            ToolPermissionClass::MutatingEdit,
+            "harness.notifications_remove",
+            &json!({ "id": "n1" })
         ));
     }
 

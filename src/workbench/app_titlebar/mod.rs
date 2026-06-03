@@ -16,6 +16,7 @@ mod window_controls;
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
+use crate::tauri_bridge::AgentNotification;
 use crate::workbench::WorkbenchService;
 use brand::TitleBarBrand;
 use leptos::prelude::*;
@@ -24,35 +25,18 @@ use navigate_menu::NavigateMenu;
 use notifications_menu::NotificationsMenu;
 use window_controls::WindowControls;
 
-/// One entry in the title-bar notification feed. v1 is always empty; the
-/// follow-up wiring (agent-done / toast) pushes into [`TitleBarFeed`].
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TitleBarFeedItem {
-    pub id: String,
-    pub title: String,
-    pub body: String,
-}
-
 /// Shared, future-facing store backing the Notifications popover. Provided at
 /// the bar root so external producers can populate it without restructuring
 /// the component tree.
 #[derive(Clone, Copy)]
 pub struct TitleBarFeed {
-    pub items: RwSignal<Vec<TitleBarFeedItem>>,
+    pub items: RwSignal<Vec<AgentNotification>>,
 }
 
 impl TitleBarFeed {
     #[must_use]
-    pub fn new() -> Self {
-        Self {
-            items: RwSignal::new(Vec::new()),
-        }
-    }
-}
-
-impl Default for TitleBarFeed {
-    fn default() -> Self {
-        Self::new()
+    pub fn new(items: RwSignal<Vec<AgentNotification>>) -> Self {
+        Self { items }
     }
 }
 
@@ -62,7 +46,7 @@ pub fn AppTitleBar(#[prop(into)] workbench_active: Signal<bool>) -> impl IntoVie
     let wb = expect_context::<WorkbenchService>();
 
     // Notification feed store, shared for future producers.
-    let feed = TitleBarFeed::new();
+    let feed = TitleBarFeed::new(wb.agent_notifications());
     provide_context(feed);
 
     let sidebar_collapsed = wb.sidebar_collapsed();

@@ -44,7 +44,7 @@ Returns JSON of every skill (core and user) with `enabled`, `title`, `summary`, 
 ### `skills_read { name }`
 Reads `SKILL.md` for a user-installed skill, or the embedded content for a core harness skill. Use this to get full guidance for a tool group.
 
-**Core skill names:** `file-access`, `memory`, `memory-architecture`, `plans`, `tasks`, `rules-skills`, `harness`, `environment`, `shell`, `git`, `web`, `subagents`, `prompt-generating`
+**Core skill names:** `file-access`, `memory`, `memory-architecture`, `plans`, `tasks`, `rules-skills`, `harness`, `environment`, `shell`, `git`, `web`, `subagents`, `prompt-generating`, `notifications`
 
 ### `skills_write { name, content }`
 Creates or overwrites a skill's `SKILL.md`. Source is set to `agent-created`. Only on explicit user request.

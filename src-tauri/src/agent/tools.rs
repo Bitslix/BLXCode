@@ -1350,9 +1350,124 @@ pub fn registry() -> Vec<ToolDef> {
             }),
             site: ToolSite::Client,
         },
+        ToolDef {
+            name: "harness.notifications_list",
+            description: "List persistent BLXCode Agent notifications from the titlebar bell feed.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "includeRead": { "type": "boolean", "default": false },
+                    "limit": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.notifications_create",
+            description: "Create or upsert a persistent in-app notification without sending a native OS toast.",
+            parameters: json!({
+                "type": "object",
+                "properties": notification_tool_properties(false),
+                "required": ["title", "kind"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.notifications_send",
+            description: "Create/upsert a persistent notification and best-effort native OS toast, but only when the Agent panel is not active if respectFocus is true.",
+            parameters: json!({
+                "type": "object",
+                "properties": notification_tool_properties(true),
+                "required": ["title", "kind"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.notifications_update",
+            description: "Update fields on one persistent Agent notification.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string" },
+                    "title": { "type": "string" },
+                    "body": { "type": "string" },
+                    "kind": { "type": "string" },
+                    "severity": { "type": "string", "enum": ["info", "success", "warning", "error"] },
+                    "source": { "type": "string" },
+                    "target": { "type": "object" },
+                    "read": { "type": "boolean" }
+                },
+                "required": ["id"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.notifications_remove",
+            description: "Remove one persistent Agent notification by id.",
+            parameters: json!({
+                "type": "object",
+                "properties": { "id": { "type": "string" } },
+                "required": ["id"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.notifications_mark_read",
+            description: "Mark one Agent notification read by id, or all notifications read with all=true.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string" },
+                    "all": { "type": "boolean", "default": false }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
     ];
     out.extend(crate::agent::tools_extra::extra_tool_defs());
     out
+}
+
+fn notification_tool_properties(include_respect_focus: bool) -> Value {
+    let mut props = serde_json::Map::new();
+    props.insert("id".into(), json!({ "type": "string" }));
+    props.insert("title".into(), json!({ "type": "string", "minLength": 1 }));
+    props.insert("body".into(), json!({ "type": "string" }));
+    props.insert(
+        "kind".into(),
+        json!({
+            "type": "string",
+            "enum": ["plan_completed", "task_completed", "error", "question", "cli_agent_response", "info"]
+        }),
+    );
+    props.insert(
+        "severity".into(),
+        json!({ "type": "string", "enum": ["info", "success", "warning", "error"], "default": "info" }),
+    );
+    props.insert("source".into(), json!({ "type": "string" }));
+    props.insert("target".into(), json!({ "type": "object" }));
+    props.insert("dedupeKey".into(), json!({ "type": "string" }));
+    props.insert(
+        "read".into(),
+        json!({ "type": "boolean", "default": false }),
+    );
+    if include_respect_focus {
+        props.insert(
+            "respectFocus".into(),
+            json!({
+                "type": "boolean",
+                "default": true,
+                "description": "When true, suppresses the notification if the Agent panel is visible and focused."
+            }),
+        );
+    }
+    Value::Object(props)
 }
 
 /// Find a tool definition by name. Tool names from the model are matched

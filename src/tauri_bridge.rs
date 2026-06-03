@@ -1804,6 +1804,52 @@ pub struct TerminalNotification {
     pub updated_at: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentNotification {
+    pub id: String,
+    pub kind: String,
+    pub severity: String,
+    pub title: String,
+    pub body: Option<String>,
+    pub source: Option<String>,
+    pub target: Option<serde_json::Value>,
+    pub read: bool,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub sent_at: Option<i64>,
+    pub dedupe_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentNotificationInput {
+    pub id: Option<String>,
+    pub title: String,
+    pub body: Option<String>,
+    pub kind: String,
+    pub severity: Option<String>,
+    pub source: Option<String>,
+    pub target: Option<serde_json::Value>,
+    pub dedupe_key: Option<String>,
+    pub read: Option<bool>,
+    pub sent: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentNotificationPatch {
+    pub id: String,
+    pub title: Option<String>,
+    pub body: Option<String>,
+    pub kind: Option<String>,
+    pub severity: Option<String>,
+    pub source: Option<String>,
+    pub target: Option<serde_json::Value>,
+    pub read: Option<bool>,
+    pub sent: Option<bool>,
+}
+
 pub async fn workbench_notifications_path() -> Result<String, String> {
     invoke_typed("workbench_notifications_path", serde_json::json!({})).await
 }
@@ -1837,6 +1883,74 @@ pub async fn workbench_prune_notifications(valid_terminal_keys: Vec<String>) -> 
         args_value(A {
             valid_terminal_keys,
         })?,
+    )
+    .await
+}
+
+pub async fn workbench_list_agent_notifications(
+    include_read: bool,
+    limit: usize,
+) -> Result<Vec<AgentNotification>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        include_read: Option<bool>,
+        limit: Option<usize>,
+    }
+    invoke_typed(
+        "workbench_list_agent_notifications",
+        A {
+            include_read: Some(include_read),
+            limit: Some(limit),
+        },
+    )
+    .await
+}
+
+pub async fn workbench_upsert_agent_notification(
+    input: AgentNotificationInput,
+) -> Result<AgentNotification, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        input: AgentNotificationInput,
+    }
+    invoke_typed("workbench_upsert_agent_notification", A { input }).await
+}
+
+pub async fn workbench_update_agent_notification(
+    patch: AgentNotificationPatch,
+) -> Result<AgentNotification, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        patch: AgentNotificationPatch,
+    }
+    invoke_typed("workbench_update_agent_notification", A { patch }).await
+}
+
+pub async fn workbench_remove_agent_notification(id: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        id: String,
+    }
+    invoke_unit_js("workbench_remove_agent_notification", args_value(A { id })?).await
+}
+
+pub async fn workbench_mark_agent_notifications_read(
+    id: Option<String>,
+    all: bool,
+) -> Result<Vec<AgentNotification>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        id: Option<String>,
+        all: Option<bool>,
+    }
+    invoke_typed(
+        "workbench_mark_agent_notifications_read",
+        A { id, all: Some(all) },
     )
     .await
 }
