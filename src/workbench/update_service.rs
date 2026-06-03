@@ -10,6 +10,7 @@ use leptos::task::spawn_local;
 #[derive(Clone, Copy)]
 pub struct UpdateService {
     status: RwSignal<UpdateUiStatus>,
+    check_source: RwSignal<UpdateCheckSource>,
     current_version: RwSignal<String>,
     available_version: RwSignal<Option<String>>,
     notes: RwSignal<Option<String>>,
@@ -38,11 +39,29 @@ pub enum UpdateUiStatus {
     DevUnavailable,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpdateCheckSource {
+    Startup,
+    Manual,
+    Background,
+}
+
+impl UpdateCheckSource {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Startup => "startup",
+            Self::Manual => "manual",
+            Self::Background => "background",
+        }
+    }
+}
+
 impl UpdateService {
     #[must_use]
     pub fn new() -> Self {
         Self {
             status: RwSignal::new(UpdateUiStatus::Idle),
+            check_source: RwSignal::new(UpdateCheckSource::Startup),
             current_version: RwSignal::new(String::new()),
             available_version: RwSignal::new(None),
             notes: RwSignal::new(None),
@@ -61,6 +80,10 @@ impl UpdateService {
 
     pub fn status(&self) -> RwSignal<UpdateUiStatus> {
         self.status
+    }
+
+    pub fn check_source(&self) -> RwSignal<UpdateCheckSource> {
+        self.check_source
     }
 
     pub fn current_version(&self) -> RwSignal<String> {
@@ -117,11 +140,21 @@ impl UpdateService {
     }
 
     pub fn check_silent(&self) {
-        self.check(false);
+        self.check(UpdateCheckSource::Startup);
     }
 
     pub fn check_manual(&self) {
-        self.check(true);
+        self.check(UpdateCheckSource::Manual);
+    }
+
+    pub fn check_background(&self) {
+        if matches!(
+            self.status.get_untracked(),
+            UpdateUiStatus::Checking | UpdateUiStatus::Downloading | UpdateUiStatus::Installing
+        ) {
+            return;
+        }
+        self.check(UpdateCheckSource::Background);
     }
 
     pub fn start_install(&self) {
@@ -156,13 +189,15 @@ impl UpdateService {
         });
     }
 
-    fn check(&self, manual: bool) {
+    fn check(&self, source: UpdateCheckSource) {
+        let manual = source == UpdateCheckSource::Manual;
         self.manual_check_active.set(manual);
+        self.check_source.set(source);
         if !is_tauri_shell() {
             crate::app_log::warn(
                 "updates",
                 "check_unavailable",
-                serde_json::json!({ "manual": manual }),
+                serde_json::json!({ "source": source.as_str(), "manual": manual }),
             );
             self.status.set(UpdateUiStatus::DevUnavailable);
             self.message
@@ -181,27 +216,30 @@ impl UpdateService {
         crate::app_log::info(
             "updates",
             "check_started",
-            serde_json::json!({ "manual": manual }),
+            serde_json::json!({ "source": source.as_str(), "manual": manual }),
         );
         spawn_local(async move {
             if let Ok(version) = app_version().await {
                 service.current_version.set(version);
             }
             match updater_check().await {
-                Ok(response) => service.apply_check(response, manual),
+                Ok(response) => service.apply_check(response, source),
                 Err(err) => service.set_error(err),
             }
         });
     }
 
-    fn apply_check(&self, response: UpdateCheckResponse, manual: bool) {
+    fn apply_check(&self, response: UpdateCheckResponse, source: UpdateCheckSource) {
+        let manual = source == UpdateCheckSource::Manual;
         let available_version = response.available_version.clone();
         crate::app_log::info(
             "updates",
             "check_finished",
             serde_json::json!({
+                "source": source.as_str(),
                 "manual": manual,
                 "status": response.status.clone(),
+                "channel": format!("{:?}", response.channel),
                 "currentVersion": response.current_version.clone(),
                 "availableVersion": available_version,
             }),

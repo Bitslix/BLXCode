@@ -461,10 +461,26 @@ pub fn WorkbenchShell() -> impl IntoView {
         });
     });
 
+    let update_background_started = RwSignal::new(false);
     Effect::new(move |_| {
-        if hydrated.get() && app_prefs.update_auto_check_enabled().get() {
-            updates.check_silent();
+        if !hydrated.get() || update_background_started.get_untracked() {
+            return;
         }
+        update_background_started.set(true);
+        spawn_local(async move {
+            let mut first = true;
+            loop {
+                if app_prefs.update_auto_check_enabled().get_untracked() {
+                    if first {
+                        updates.check_silent();
+                    } else {
+                        updates.check_background();
+                    }
+                }
+                first = false;
+                TimeoutFuture::new(10 * 60 * 1000).await;
+            }
+        });
     });
 
     Effect::new(move |_| {
