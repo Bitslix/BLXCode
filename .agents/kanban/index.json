@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "workspaceRoot": "/home/iptoux/Development/blxcode",
+  "planSectionOrder": [
+    "blocked",
+    "in_progress",
+    "pending",
+    "completed",
+    "cancelled",
+    "empty"
+  ],
+  "collapsedPlanSections": [],
+  "expandedPlans": [
+    "ai-plan-task-generation.md",
+    "leptos-to-typescript-migration.md"
+  ],
+  "taskLaneOrder": [
+    "pending",
+    "in_progress",
+    "blocked",
+    "completed",
+    "cancelled"
+  ],
+  "collapsedTaskLanes": [],
+  "planOrder": {},
+  "taskOrder": {},
+  "filters": {
+    "query": "",
+    "showCompleted": true,
+    "showCancelled": true,
+    "activeOnly": false
+  },
+  "updatedAt": 1780501825
+}

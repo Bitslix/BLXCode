@@ -228,41 +228,50 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
                 }
             >
                 <section class="workspace-kanban__quickadd">
-                    <KanbanPlanPicker
-                        plans=Signal::derive(move || board.get().map(|b| b.plans).unwrap_or_default())
-                        selected_path=new_task_plan
-                        on_select=Callback::new(move |path| new_task_plan.set(path))
-                    />
-                    <select
-                        class="workspace-kanban__status-select"
-                        prop:value=move || task_status_key(&new_task_status.get()).to_string()
-                        on:change=move |ev| {
-                            new_task_status.set(parse_task_status(&event_target_value(&ev)));
-                        }
-                    >
-                        <For
-                            each=task_statuses
-                            key=task_status_key
-                            children=move |status| {
-                                let label_status = status.clone();
-                                view! {
-                                    <option value=task_status_key(&status)>{move || i18n.tr(task_status_label_key(&label_status))()}</option>
+                    <div class="workspace-kanban-field workspace-kanban-field--plan">
+                        <span class="workspace-kanban-field__label">{move || i18n.tr(I18nKey::KanbanPlanLabel)()}</span>
+                        <KanbanPlanPicker
+                            plans=Signal::derive(move || board.get().map(|b| b.plans).unwrap_or_default())
+                            selected_path=new_task_plan
+                            on_select=Callback::new(move |path| new_task_plan.set(path))
+                        />
+                    </div>
+                    <div class="workspace-kanban-field workspace-kanban-field--status">
+                        <span class="workspace-kanban-field__label">{move || i18n.tr(I18nKey::KanbanStatusLabel)()}</span>
+                        <select
+                            class="workspace-kanban__status-select"
+                            prop:value=move || task_status_key(&new_task_status.get()).to_string()
+                            on:change=move |ev| {
+                                new_task_status.set(parse_task_status(&event_target_value(&ev)));
+                            }
+                        >
+                            <For
+                                each=task_statuses
+                                key=task_status_key
+                                children=move |status| {
+                                    let label_status = status.clone();
+                                    view! {
+                                        <option value=task_status_key(&status)>{move || i18n.tr(task_status_label_key(&label_status))()}</option>
+                                    }
+                                }
+                            />
+                        </select>
+                    </div>
+                    <div class="workspace-kanban-field workspace-kanban-field--task">
+                        <span class="workspace-kanban-field__label">{move || i18n.tr(I18nKey::KanbanTaskTitleLabel)()}</span>
+                        <input
+                            type="text"
+                            placeholder=move || i18n.tr(I18nKey::KanbanNewTask)()
+                            prop:value=move || new_task_title.get()
+                            on:input=move |ev| new_task_title.set(input_value(&ev))
+                            on:keydown=move |ev| {
+                                if ev.key() == "Enter" {
+                                    create_task.run(());
                                 }
                             }
                         />
-                    </select>
-                    <input
-                        type="text"
-                        placeholder=move || i18n.tr(I18nKey::KanbanNewTask)()
-                        prop:value=move || new_task_title.get()
-                        on:input=move |ev| new_task_title.set(input_value(&ev))
-                        on:keydown=move |ev| {
-                            if ev.key() == "Enter" {
-                                create_task.run(());
-                            }
-                        }
-                    />
-                    <button type="button" class="workspace-kanban__btn workspace-kanban__btn--primary" on:click=move |_| create_task.run(())>
+                    </div>
+                    <button type="button" class="workspace-kanban__btn workspace-kanban__btn--primary workspace-kanban__quickadd-submit" on:click=move |_| create_task.run(())>
                         <LxIcon icon=icondata::LuPlus width="0.9rem" height="0.9rem" />
                         <span>{move || i18n.tr(I18nKey::KanbanNewTask)()}</span>
                     </button>
@@ -386,6 +395,7 @@ fn KanbanPlanPicker(
     selected_path: RwSignal<String>,
     on_select: Callback<String>,
 ) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     let open = RwSignal::new(false);
     let selected = Signal::derive(move || {
         let selected_path = selected_path.get();
@@ -400,6 +410,7 @@ fn KanbanPlanPicker(
             <button
                 type="button"
                 class="workspace-kanban-plan-picker__button"
+                aria-label=move || i18n.tr(I18nKey::KanbanPlanLabel)()
                 aria-expanded=move || open.get().to_string()
                 on:click=move |_| open.update(|value| *value = !*value)
                 on:keydown=move |ev| {
@@ -415,7 +426,7 @@ fn KanbanPlanPicker(
                             selected
                                 .get()
                                 .map(|plan| plan.meta.title)
-                                .unwrap_or_else(|| "Select plan".to_string())
+                                .unwrap_or_else(|| i18n.tr(I18nKey::KanbanSelectPlan)().to_string())
                         }}
                     </span>
                     <span class="workspace-kanban-plan-picker__description">
@@ -423,7 +434,7 @@ fn KanbanPlanPicker(
                             selected
                                 .get()
                                 .map(|plan| plan_picker_description(&plan))
-                                .unwrap_or_else(|| "Choose where the new task should land".to_string())
+                                .unwrap_or_default()
                         }}
                     </span>
                 </span>
