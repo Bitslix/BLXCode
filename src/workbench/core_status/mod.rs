@@ -9,7 +9,8 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    git_branch, is_tauri_shell, memory_list, plan_list, rules_list, skills_list,
+    git_branch, is_tauri_shell, memory_list, plan_list, rules_list, skills_list, MemoryScope,
+    NoteMeta,
 };
 use crate::workbench::state::CenterTabKind;
 use crate::workbench::WorkbenchService;
@@ -30,14 +31,20 @@ pub struct ActiveEditorStatus {
     pub position: EditorCursorPosition,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MemoryScopeStats {
+    pub categories: usize,
+    pub files: usize,
+    pub size: u64,
+}
+
 #[derive(Clone, Copy)]
 pub struct CoreStatusService {
     rules: RwSignal<usize>,
     skills: RwSignal<usize>,
     plans: RwSignal<usize>,
-    memory_categories: RwSignal<usize>,
-    memory_files: RwSignal<usize>,
-    memory_size: RwSignal<u64>,
+    workspace_memory: RwSignal<HashMap<u64, MemoryScopeStats>>,
+    global_memory: RwSignal<MemoryScopeStats>,
     branch: RwSignal<Option<String>>,
     editor_cursors: RwSignal<HashMap<(u64, String), EditorCursorPosition>>,
     loaded: RwSignal<bool>,
@@ -57,9 +64,8 @@ impl CoreStatusService {
             rules: RwSignal::new(0),
             skills: RwSignal::new(0),
             plans: RwSignal::new(0),
-            memory_categories: RwSignal::new(0),
-            memory_files: RwSignal::new(0),
-            memory_size: RwSignal::new(0),
+            workspace_memory: RwSignal::new(HashMap::new()),
+            global_memory: RwSignal::new(MemoryScopeStats::default()),
             branch: RwSignal::new(None),
             editor_cursors: RwSignal::new(HashMap::new()),
             loaded: RwSignal::new(false),
@@ -83,18 +89,8 @@ impl CoreStatusService {
     }
 
     #[must_use]
-    pub fn memory_categories(&self) -> RwSignal<usize> {
-        self.memory_categories
-    }
-
-    #[must_use]
-    pub fn memory_files(&self) -> RwSignal<usize> {
-        self.memory_files
-    }
-
-    #[must_use]
-    pub fn memory_size(&self) -> RwSignal<u64> {
-        self.memory_size
+    pub fn global_memory(&self) -> RwSignal<MemoryScopeStats> {
+        self.global_memory
     }
 
     #[must_use]
@@ -147,6 +143,15 @@ impl CoreStatusService {
     }
 
     #[must_use]
+    pub fn active_workspace_memory(&self, wb: WorkbenchService) -> Option<MemoryScopeStats> {
+        let active = wb.active_id().get()?;
+        Some(
+            self.workspace_memory
+                .with(|stats| stats.get(&active).copied().unwrap_or_default()),
+        )
+    }
+
+    #[must_use]
     pub fn loaded(&self) -> RwSignal<bool> {
         self.loaded
     }
@@ -160,6 +165,7 @@ impl CoreStatusService {
         if !is_tauri_shell() {
             return;
         }
+        let workspace_id = wb.active_id().get_untracked();
         let Some(cwd) = wb.default_workspace_cwd() else {
             self.branch.set(None);
             self.loaded.set(false);
@@ -169,9 +175,8 @@ impl CoreStatusService {
         let rules = self.rules;
         let skills = self.skills;
         let plans = self.plans;
-        let memory_categories = self.memory_categories;
-        let memory_files = self.memory_files;
-        let memory_size = self.memory_size;
+        let workspace_memory = self.workspace_memory;
+        let global_memory = self.global_memory;
         let branch = self.branch;
         let loaded = self.loaded;
         branch.set(None);
@@ -215,32 +220,22 @@ impl CoreStatusService {
                 if refresh_generation.get_untracked() != generation {
                     return;
                 }
-                let workspace_notes = resp
-                    .notes
-                    .iter()
-                    .filter(|note| {
-                        note.scope == crate::tauri_bridge::MemoryScope::Workspace
-                            && note.enabled
-                            && !note.is_template
-                    })
-                    .collect::<Vec<_>>();
-                let mut categories = workspace_notes
-                    .iter()
-                    .filter_map(|note| {
-                        let category = note.category.trim();
-                        (!category.is_empty() && category != "memory")
-                            .then_some(category.to_owned())
-                    })
-                    .collect::<HashSet<_>>();
-                categories.extend(resp.memory_subcategories.workspace.into_iter().filter(
-                    |category| {
-                        let category = category.trim();
-                        !category.is_empty() && category != "memory"
-                    },
-                ));
-                memory_categories.set(categories.len());
-                memory_files.set(workspace_notes.len());
-                memory_size.set(workspace_notes.iter().map(|note| note.size).sum());
+                let ws_stats = memory_stats_for_scope(
+                    &resp.notes,
+                    &resp.memory_subcategories.workspace,
+                    MemoryScope::Workspace,
+                );
+                let global_stats = memory_stats_for_scope(
+                    &resp.notes,
+                    &resp.memory_subcategories.global,
+                    MemoryScope::Global,
+                );
+                if let Some(workspace_id) = workspace_id {
+                    workspace_memory.update(|stats| {
+                        stats.insert(workspace_id, ws_stats);
+                    });
+                }
+                global_memory.set(global_stats);
                 any = true;
             }
             if any {
@@ -261,16 +256,15 @@ pub fn CoreStatusBarItem() -> impl IntoView {
     let rules = status.rules();
     let skills = status.skills();
     let plans = status.plans();
-    let memory_categories = status.memory_categories();
-    let memory_files = status.memory_files();
-    let memory_size = status.memory_size();
+    let global_memory = status.global_memory();
     let branch = status.branch();
     let editor_status = Memo::new(move |_| status.active_editor_status(wb));
+    let workspace_memory = Memo::new(move |_| status.active_workspace_memory(wb));
+    let refresh_key = Memo::new(move |_| active_workspace_refresh_key(wb));
 
     // Re-count whenever the active workspace changes.
     Effect::new(move |_| {
-        let _ = wb.active_id().get();
-        let _ = wb.workspaces().get();
+        let _ = refresh_key.get();
         status.refresh(wb);
     });
 
@@ -325,17 +319,42 @@ pub fn CoreStatusBarItem() -> impl IntoView {
                     </span>
                     <span class="core-status-item__divider" aria-hidden="true"></span>
                     <span class="core-status-item__memory" title=move || i18n.tr(I18nKey::CoreStatusMemoryTip)()>
-                        <span class="core-status-item__seg" title=move || i18n.tr(I18nKey::CoreStatusMemoryCategoriesTip)()>
-                            <LxIcon icon=icondata::LuFolderTree width="0.78rem" height="0.78rem" />
-                            <span>{move || memory_categories.get().to_string()}</span>
+                        <span class="core-status-item__memory-scope" title="Workspace memory">
+                            <span class="core-status-item__memory-label">
+                                <LxIcon icon=icondata::LuFolderRoot width="0.78rem" height="0.78rem" />
+                                <span>"Workspace"</span>
+                            </span>
+                            <span class="core-status-item__seg" title=move || memory_scope_title("Workspace", workspace_memory.get().unwrap_or_default())>
+                                <LxIcon icon=icondata::LuFolderTree width="0.78rem" height="0.78rem" />
+                                <span>{move || workspace_memory.get().unwrap_or_default().categories.to_string()}</span>
+                            </span>
+                            <span class="core-status-item__seg" title=move || memory_scope_title("Workspace", workspace_memory.get().unwrap_or_default())>
+                                <LxIcon icon=icondata::LuFileText width="0.78rem" height="0.78rem" />
+                                <span>{move || workspace_memory.get().unwrap_or_default().files.to_string()}</span>
+                            </span>
+                            <span class="core-status-item__seg" title=move || memory_scope_title("Workspace", workspace_memory.get().unwrap_or_default())>
+                                <LxIcon icon=icondata::LuHardDrive width="0.78rem" height="0.78rem" />
+                                <span>{move || format_memory_size(workspace_memory.get().unwrap_or_default().size)}</span>
+                            </span>
                         </span>
-                        <span class="core-status-item__seg" title=move || i18n.tr(I18nKey::CoreStatusMemoryFilesTip)()>
-                            <LxIcon icon=icondata::LuFileText width="0.78rem" height="0.78rem" />
-                            <span>{move || memory_files.get().to_string()}</span>
-                        </span>
-                        <span class="core-status-item__seg" title=move || i18n.tr(I18nKey::CoreStatusMemorySizeTip)()>
-                            <LxIcon icon=icondata::LuHardDrive width="0.78rem" height="0.78rem" />
-                            <span>{move || format_memory_size(memory_size.get())}</span>
+                        <span class="core-status-item__divider core-status-item__divider--memory" aria-hidden="true"></span>
+                        <span class="core-status-item__memory-scope" title="Global memory">
+                            <span class="core-status-item__memory-label">
+                                <LxIcon icon=icondata::LuGlobe width="0.78rem" height="0.78rem" />
+                                <span>"Global"</span>
+                            </span>
+                            <span class="core-status-item__seg" title=move || memory_scope_title("Global", global_memory.get())>
+                                <LxIcon icon=icondata::LuFolderTree width="0.78rem" height="0.78rem" />
+                                <span>{move || global_memory.get().categories.to_string()}</span>
+                            </span>
+                            <span class="core-status-item__seg" title=move || memory_scope_title("Global", global_memory.get())>
+                                <LxIcon icon=icondata::LuFileText width="0.78rem" height="0.78rem" />
+                                <span>{move || global_memory.get().files.to_string()}</span>
+                            </span>
+                            <span class="core-status-item__seg" title=move || memory_scope_title("Global", global_memory.get())>
+                                <LxIcon icon=icondata::LuHardDrive width="0.78rem" height="0.78rem" />
+                                <span>{move || format_memory_size(global_memory.get().size)}</span>
+                            </span>
                         </span>
                     </span>
                 </Show>
@@ -344,12 +363,60 @@ pub fn CoreStatusBarItem() -> impl IntoView {
     }
 }
 
+fn active_workspace_refresh_key(wb: WorkbenchService) -> Option<(u64, String, Option<String>)> {
+    let active = wb.active_id().get()?;
+    wb.workspaces().with(|workspaces| {
+        let workspace = workspaces.iter().find(|w| w.id == active)?;
+        Some((
+            workspace.id,
+            workspace.cwd.clone(),
+            workspace.remote_connection_id.clone(),
+        ))
+    })
+}
+
 fn format_cursor_label(position: EditorCursorPosition) -> String {
     format!("Ln {}, Col {}", position.line, position.column)
 }
 
 fn format_cursor_title(position: EditorCursorPosition) -> String {
     format!("Line {}, Column {}", position.line, position.column)
+}
+
+fn memory_stats_for_scope(
+    notes: &[NoteMeta],
+    subcategories: &[String],
+    scope: MemoryScope,
+) -> MemoryScopeStats {
+    let scoped_notes = notes
+        .iter()
+        .filter(|note| note.scope == scope && note.enabled && !note.is_template)
+        .collect::<Vec<_>>();
+    let mut categories = scoped_notes
+        .iter()
+        .filter_map(|note| {
+            let category = note.category.trim();
+            (!category.is_empty() && category != "memory").then_some(category.to_owned())
+        })
+        .collect::<HashSet<_>>();
+    categories.extend(subcategories.iter().filter_map(|category| {
+        let category = category.trim();
+        (!category.is_empty() && category != "memory").then_some(category.to_owned())
+    }));
+    MemoryScopeStats {
+        categories: categories.len(),
+        files: scoped_notes.len(),
+        size: scoped_notes.iter().map(|note| note.size).sum(),
+    }
+}
+
+fn memory_scope_title(scope: &str, stats: MemoryScopeStats) -> String {
+    format!(
+        "{scope} memory: {} categories, {} files, {}",
+        stats.categories,
+        stats.files,
+        format_memory_size(stats.size)
+    )
 }
 
 fn format_memory_size(bytes: u64) -> String {

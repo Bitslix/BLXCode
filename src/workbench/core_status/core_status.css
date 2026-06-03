@@ -16,6 +16,23 @@
   min-width: 0;
 }
 
+.core-status-item__memory-scope,
+.core-status-item__memory-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.core-status-item__memory-scope {
+  gap: 0.34rem;
+  min-width: 0;
+}
+
+.core-status-item__memory-label {
+  gap: 0.22rem;
+  color: var(--text);
+  font-weight: 600;
+}
+
 .core-status-item__seg {
   gap: 0.24rem;
 }
