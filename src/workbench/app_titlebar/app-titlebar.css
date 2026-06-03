@@ -370,11 +370,16 @@
 
 .app-titlebar__about-dialog {
   position: relative;
-  width: min(320px, calc(100vw - 2rem));
+  width: min(560px, calc(100vw - 2rem));
   border: 1px solid var(--border-strong);
-  border-radius: 10px;
-  background: var(--bg-panel);
-  box-shadow: 0 22px 55px var(--scrim-bg);
+  border-radius: var(--radius-md);
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 38%),
+    linear-gradient(180deg, color-mix(in srgb, var(--overlay-2) 68%, transparent), transparent 46%),
+    var(--bg-panel);
+  box-shadow:
+    0 26px 70px var(--scrim-bg),
+    inset 0 1px 0 color-mix(in srgb, var(--overlay-4) 42%, transparent);
   color: var(--text);
   overflow: hidden;
 }
@@ -382,58 +387,229 @@
 .app-titlebar__about-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.8rem 0.9rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-panel-header);
+  justify-content: flex-end;
+  min-height: 2.3rem;
+  padding: 0.45rem 0.5rem 0;
 }
 
 .app-titlebar__about-head h2 {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  min-width: 0;
   margin: 0;
-  color: var(--text-bright);
-  font-size: 0.95rem;
-  font-weight: 650;
+}
+
+.app-titlebar__about-body {
+  padding: 0 1.35rem 1.25rem;
+}
+
+.app-titlebar__about-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.42rem;
 }
 
 .app-titlebar__about-logo {
   display: inline-flex;
   flex: 0 0 auto;
+  padding: 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--overlay-4) 38%, transparent), transparent),
+    var(--bg-panel);
+  box-shadow:
+    0 16px 32px color-mix(in srgb, var(--accent) 22%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--overlay-4) 45%, transparent);
 }
 
 .app-titlebar__about-logo img {
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
+  width: 74px;
+  height: 74px;
+  border-radius: 14px;
   display: block;
 }
 
-.app-titlebar__about-meta {
+.app-titlebar__about-kicker {
+  margin: 0.35rem 0 0;
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-titlebar__about-hero h2 {
   margin: 0;
-  padding: 0.85rem 0.9rem 0.95rem;
+  color: var(--text-bright);
+  font-size: 1.42rem;
+  font-weight: 760;
+  line-height: 1.1;
+}
+
+.app-titlebar__about-desc {
+  width: min(100%, 43rem);
+  margin: 0.1rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.app-titlebar__about-status {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.42rem;
+  margin: 1rem 0 0.78rem;
+}
+
+.app-titlebar__about-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 1.7rem;
+  padding: 0.28rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-panel) 78%, transparent);
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 650;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--overlay-4) 30%, transparent);
+}
+
+.app-titlebar__about-status-pill svg {
+  color: var(--accent);
+}
+
+.app-titlebar__about-status-pill--free {
+  border-color: color-mix(in srgb, var(--success, #3fb950) 42%, var(--border));
+  background: color-mix(in srgb, var(--success, #3fb950) 13%, var(--bg-panel));
+  color: var(--text-bright);
+}
+
+.app-titlebar__about-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.75rem 0;
+  border-block: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
 }
 
 .app-titlebar__about-meta div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  display: grid;
+  gap: 0.16rem;
+  min-width: 0;
+  padding: 0.55rem 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-panel) 72%, transparent);
 }
 
 .app-titlebar__about-meta dt {
   color: var(--text-muted);
-  font-size: 0.72rem;
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .app-titlebar__about-meta dd {
   margin: 0;
   color: var(--text-bright);
   font-size: 0.78rem;
+  font-weight: 650;
   font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-titlebar__about-stack {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+  margin: 0.85rem 0 0;
+}
+
+.app-titlebar__about-stack span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.55rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--text);
+  font-size: 0.68rem;
+  font-weight: 620;
+}
+
+.app-titlebar__about-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.48rem;
+  margin-top: 1rem;
+}
+
+.app-titlebar__about-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+  min-width: 0;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    color 120ms ease,
+    transform 120ms ease;
+}
+
+.app-titlebar__about-link:hover,
+.app-titlebar__about-link:focus-visible {
+  border-color: var(--border-strong);
+  background: var(--overlay-1);
+  color: var(--text-bright);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.app-titlebar__about-link--primary {
+  grid-column: 1 / -1;
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent),
+    var(--bg-panel);
+  color: var(--text-bright);
+}
+
+.app-titlebar__about-link svg {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 520px) {
+  .app-titlebar__about-body {
+    padding-inline: 1rem;
+  }
+
+  .app-titlebar__about-meta,
+  .app-titlebar__about-links {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-titlebar__about-link--primary {
+    grid-column: auto;
+  }
 }
 
 /* ---- Notifications empty / list ---- */

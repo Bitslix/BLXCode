@@ -12,6 +12,8 @@ pub(crate) const BLXCODE_CHECK_UPDATE_EVENT: &str = "blxcode-check-update";
 const DOCS_URL: &str = "https://blxcode.com/docs/";
 const DISCUSSIONS_URL: &str = "https://github.com/Bitslix/BLXCode/discussions";
 const ISSUES_URL: &str = "https://github.com/Bitslix/BLXCode/issues";
+const KOFI_URL: &str = "https://ko-fi.com/bitslix";
+const REPO_URL: &str = "https://github.com/Bitslix/BLXCode";
 const WEBSITE_URL: &str = "https://blxcode.com";
 const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -167,12 +169,6 @@ pub fn HelpMenu() -> impl IntoView {
                         aria-labelledby="app-titlebar-about-title"
                     >
                         <header class="app-titlebar__about-head">
-                            <h2 id="app-titlebar-about-title">
-                                <span class="app-titlebar__about-logo" aria-hidden="true">
-                                    <img src="/blxcode.png" alt="" />
-                                </span>
-                                <span>"BLXCode"</span>
-                            </h2>
                             <button
                                 type="button"
                                 class="app-titlebar__icon-btn"
@@ -183,12 +179,95 @@ pub fn HelpMenu() -> impl IntoView {
                                 <LxIcon icon=icondata::LuX width="0.95rem" height="0.95rem" />
                             </button>
                         </header>
-                        <dl class="app-titlebar__about-meta">
-                            <div>
-                                <dt>"Version"</dt>
-                                <dd>{APP_VERSION}</dd>
+                        <div class="app-titlebar__about-body">
+                            <div class="app-titlebar__about-hero">
+                                <span class="app-titlebar__about-logo" aria-hidden="true">
+                                    <img src="/blxcode.png" alt="" />
+                                </span>
+                                <p class="app-titlebar__about-kicker">"Open-source AI workbench"</p>
+                                <h2 id="app-titlebar-about-title">"BLXCode"</h2>
+                                <p class="app-titlebar__about-desc">
+                                    "Local-first desktop workbench for AI-assisted development: terminals, agent, memory, plans, Git, file preview, and an embedded browser in one Tauri shell."
+                                </p>
                             </div>
-                        </dl>
+
+                            <div class="app-titlebar__about-status" aria-label="Project status">
+                                <span class="app-titlebar__about-status-pill app-titlebar__about-status-pill--free">
+                                    <LxIcon icon=icondata::LuShieldCheck width="0.8rem" height="0.8rem" />
+                                    <span>"Yes, Free!"</span>
+                                </span>
+                                <span class="app-titlebar__about-status-pill">
+                                    <LxIcon icon=icondata::LuGithub width="0.8rem" height="0.8rem" />
+                                    <span>"Open Source"</span>
+                                </span>
+                                <span class="app-titlebar__about-status-pill">
+                                    <span>"MIT"</span>
+                                </span>
+                            </div>
+
+                            <dl class="app-titlebar__about-meta">
+                                <div>
+                                    <dt>"Version"</dt>
+                                    <dd>{APP_VERSION}</dd>
+                                </div>
+                                <div>
+                                    <dt>"Inventor & main author"</dt>
+                                    <dd>"Bitslix / iptoux"</dd>
+                                </div>
+                            </dl>
+
+                            <div class="app-titlebar__about-stack" aria-label="Stack">
+                                <span>"Rust 2021"</span>
+                                <span>"Tauri 2"</span>
+                                <span>"Leptos 0.8"</span>
+                                <span>"Linux · macOS · Windows"</span>
+                                <span>"14 locales"</span>
+                                <span>"20 themes"</span>
+                            </div>
+
+                            <div class="app-titlebar__about-links" aria-label="Project links">
+                                <button
+                                    type="button"
+                                    class="app-titlebar__about-link app-titlebar__about-link--primary"
+                                    on:click=move |_| open_external(KOFI_URL)
+                                >
+                                    <LxIcon icon=icondata::LuSparkles width="0.88rem" height="0.88rem" />
+                                    <span>"Sponsor / Ko-fi"</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="app-titlebar__about-link"
+                                    on:click=move |_| open_external(REPO_URL)
+                                >
+                                    <LxIcon icon=icondata::LuGithub width="0.88rem" height="0.88rem" />
+                                    <span>"Repository"</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="app-titlebar__about-link"
+                                    on:click=move |_| dispatch_open_http(WEBSITE_URL)
+                                >
+                                    <LxIcon icon=icondata::LuGlobe width="0.88rem" height="0.88rem" />
+                                    <span>"Website"</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="app-titlebar__about-link"
+                                    on:click=move |_| open_external(ISSUES_URL)
+                                >
+                                    <LxIcon icon=icondata::LuBug width="0.88rem" height="0.88rem" />
+                                    <span>"Issues"</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="app-titlebar__about-link"
+                                    on:click=move |_| open_external(DISCUSSIONS_URL)
+                                >
+                                    <LxIcon icon=icondata::LuMessagesSquare width="0.88rem" height="0.88rem" />
+                                    <span>"Discussions"</span>
+                                </button>
+                            </div>
+                        </div>
                     </section>
                 </div>
             </Show>
