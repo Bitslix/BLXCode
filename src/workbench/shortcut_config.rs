@@ -77,6 +77,28 @@ impl KeyChord {
         self.key == normalize_key(&ev.key())
     }
 
+    /// CodeMirror key notation, e.g. `Mod-s`, `Mod-Shift-[`, `Alt-ArrowUp`.
+    /// `ctrl` maps to CM's cross-platform `Mod` (Ctrl on Linux/Win, Cmd on mac).
+    #[must_use]
+    pub fn cm_key(&self) -> String {
+        let mut parts: Vec<String> = Vec::new();
+        if self.ctrl {
+            parts.push("Mod".to_owned());
+        }
+        if self.shift {
+            parts.push("Shift".to_owned());
+        }
+        if self.alt {
+            parts.push("Alt".to_owned());
+        }
+        parts.push(if self.key == " " {
+            "Space".to_owned()
+        } else {
+            self.key.clone()
+        });
+        parts.join("-")
+    }
+
     /// Display segments, e.g. `["Ctrl", "Shift", "N"]`.
     #[must_use]
     pub fn parts(&self) -> Vec<String> {

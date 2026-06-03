@@ -66,6 +66,25 @@ fn call_method(obj: &JsValue, name: &str, args: &Array) -> Result<JsValue, Strin
 /// for preview only (no edits) while keeping the same gutter, folding, syntax
 /// highlighting and selection as edit mode. Returns the opaque `EditorView`
 /// handle.
+/// A single editor shortcut binding handed to the bundle: a CodeMirror key
+/// string (e.g. `Mod-s`) plus the command id (e.g. `find`).
+pub struct EditorKeyBinding {
+    pub key: String,
+    pub command: &'static str,
+}
+
+/// Build the JS `[{ key, command }]` array consumed by `buildEditorKeymap`.
+fn editor_keymap_array(bindings: &[EditorKeyBinding]) -> Array {
+    let arr = Array::new();
+    for b in bindings {
+        let obj = Object::new();
+        let _ = Reflect::set(&obj, &"key".into(), &JsValue::from_str(&b.key));
+        let _ = Reflect::set(&obj, &"command".into(), &JsValue::from_str(b.command));
+        arr.push(&obj);
+    }
+    arr
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn create_editor(
     parent: &web_sys::Element,
@@ -73,6 +92,7 @@ pub async fn create_editor(
     language: Option<&str>,
     read_only: bool,
     vim: bool,
+    editor_keymap: &[EditorKeyBinding],
     on_change: &Function,
     on_save: &Function,
     on_cursor: &Function,
@@ -85,6 +105,7 @@ pub async fn create_editor(
     let _ = Reflect::set(&opts, &"language".into(), &lang);
     let _ = Reflect::set(&opts, &"readOnly".into(), &JsValue::from_bool(read_only));
     let _ = Reflect::set(&opts, &"vim".into(), &JsValue::from_bool(vim));
+    let _ = Reflect::set(&opts, &"editorKeymap".into(), &editor_keymap_array(editor_keymap));
     let _ = Reflect::set(&opts, &"onChange".into(), on_change);
     let _ = Reflect::set(&opts, &"onSave".into(), on_save);
     let _ = Reflect::set(&opts, &"onCursor".into(), on_cursor);
@@ -108,6 +129,14 @@ pub fn set_vim(view: &JsValue, enabled: bool) {
     if let Some(cm) = cm_global() {
         let args = Array::of2(view, &JsValue::from_bool(enabled));
         let _ = call_method(&cm, "setVim", &args);
+    }
+}
+
+/// Replace the configurable editor shortcut keymap on a live editor.
+pub fn set_editor_keymap(view: &JsValue, bindings: &[EditorKeyBinding]) {
+    if let Some(cm) = cm_global() {
+        let args = Array::of2(view, &editor_keymap_array(bindings));
+        let _ = call_method(&cm, "setEditorKeymap", &args);
     }
 }
 

@@ -9,6 +9,9 @@ use crate::service::I18nService;
 use crate::workbench::agent_context_handoff::list_terminal_targets_all_workspaces;
 use crate::workbench::file_preview::code_context_menu::CodeContextMenuState;
 use crate::workbench::file_preview::codemirror_glue as cm;
+use crate::workbench::app_prefs::AppPrefsService;
+use crate::workbench::editor_shortcut_config::EditorShortcutAction;
+use crate::workbench::file_preview::codemirror_glue::EditorKeyBinding;
 use crate::workbench::toast::ToastService;
 use crate::workbench::{
     CoreStatusService, EditorSettingsService, HarnessUiService, WorkbenchService,
@@ -43,7 +46,9 @@ pub fn CodeMirrorEditor(
     let i18n = expect_context::<I18nService>();
     let core_status = expect_context::<CoreStatusService>();
     let editor_settings = expect_context::<EditorSettingsService>();
+    let prefs = expect_context::<AppPrefsService>();
     let vim_enabled = editor_settings.vim_enabled();
+    let editor_shortcuts = prefs.editor_shortcut_config();
 
     let host_ref = NodeRef::<leptos::html::Div>::new();
     // `JsValue` and the wasm-bindgen closures are !Send, so they live in the
@@ -94,6 +99,7 @@ pub fn CodeMirrorEditor(
         let host_el: web_sys::Element = host.unchecked_into();
         let doc = session.buffer.get_untracked();
         let vim_on = vim_enabled.get_untracked();
+        let keymap = editor_shortcuts.with_untracked(editor_key_bindings);
         spawn_local(async move {
             match cm::create_editor(
                 &host_el,
@@ -101,6 +107,7 @@ pub fn CodeMirrorEditor(
                 language,
                 read_only,
                 vim_on,
+                &keymap,
                 &on_change_fn,
                 &on_save_fn,
                 &on_cursor_fn,
@@ -138,6 +145,18 @@ pub fn CodeMirrorEditor(
         });
     });
 
+    // Rebuild the configurable editor shortcut keymap when the bindings change.
+    // The JS side keeps it empty while Vim is on, so this stays in sync with the
+    // vim toggle too.
+    Effect::new(move |_| {
+        let keymap = editor_shortcuts.with(editor_key_bindings);
+        view_handle.with_value(|v| {
+            if let Some(view) = v {
+                cm::set_editor_keymap(view, &keymap);
+            }
+        });
+    });
+
     on_cleanup(move || {
         core_status.clear_editor_cursor(session.workspace_id, &session.rel_path());
         view_handle.update_value(|v| {
@@ -168,4 +187,17 @@ pub fn CodeMirrorEditor(
     view! {
         <div class="code-view__cm" node_ref=host_ref on:contextmenu=on_contextmenu />
     }
+}
+
+/// Convert the persisted editor shortcut config into the CodeMirror key list.
+fn editor_key_bindings(
+    cfg: &crate::workbench::editor_shortcut_config::EditorShortcutConfig,
+) -> Vec<EditorKeyBinding> {
+    EditorShortcutAction::ALL
+        .into_iter()
+        .map(|action| EditorKeyBinding {
+            key: cfg.binding(action).cm_key(),
+            command: action.id(),
+        })
+        .collect()
 }

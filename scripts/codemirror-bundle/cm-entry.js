@@ -10,10 +10,65 @@
 import { EditorView, basicSetup } from "codemirror";
 import { EditorState, Compartment } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
-import { indentWithTab } from "@codemirror/commands";
+import {
+  indentWithTab,
+  toggleComment,
+  moveLineUp,
+  moveLineDown,
+  copyLineDown,
+  indentSelection,
+} from "@codemirror/commands";
+import {
+  openSearchPanel,
+  gotoLine,
+  replaceNext,
+} from "@codemirror/search";
+import { foldCode, unfoldCode } from "@codemirror/language";
 import { StreamLanguage } from "@codemirror/language";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { vim } from "@replit/codemirror-vim";
+
+// Map an EditorShortcutAction id (Rust-side) to a CM6 command. `save` is
+// handled by the dedicated save keymap (Mod-s) and intentionally omitted here.
+const EDITOR_COMMANDS = {
+  find: openSearchPanel,
+  replace: (view) => {
+    openSearchPanel(view);
+    return replaceNext(view);
+  },
+  gotoLine: gotoLine,
+  toggleComment: toggleComment,
+  fold: foldCode,
+  unfold: unfoldCode,
+  moveLineUp: moveLineUp,
+  moveLineDown: moveLineDown,
+  duplicateLine: copyLineDown,
+  format: indentSelection,
+};
+
+// Build a CM keymap from a [{ key, command }] list (the persisted editor
+// shortcut bindings). Unknown commands and the save binding are skipped.
+function buildEditorKeymap(list) {
+  const binds = [];
+  for (const entry of list || []) {
+    if (!entry || !entry.key) continue;
+    if (entry.command === "save") {
+      binds.push({
+        key: entry.key,
+        preventDefault: true,
+        run: (view) => {
+          if (view.__blxOnSave) view.__blxOnSave();
+          return true;
+        },
+      });
+      continue;
+    }
+    const cmd = EDITOR_COMMANDS[entry.command];
+    if (!cmd) continue;
+    binds.push({ key: entry.key, preventDefault: true, run: cmd });
+  }
+  return keymap.of(binds);
+}
 
 // Native CodeMirror 6 language packages (richest support).
 import { rust } from "@codemirror/lang-rust";
@@ -171,6 +226,9 @@ export function create(parent, opts) {
   // Vim lives in its own compartment so it can be toggled live (see setVim)
   // without re-mounting the editor. CM6 vim must precede basicSetup.
   const vimCompartment = new Compartment();
+  // Configurable file editor / preview shortcuts. Empty while vim is on (vim
+  // owns the keymap); rebuilt live via setEditorKeymap.
+  const editorKeymapCompartment = new Compartment();
 
   const emitCursor = (state) => {
     if (typeof o.onCursor !== "function") return;
@@ -202,8 +260,13 @@ export function create(parent, opts) {
     indentWithTab,
   ]);
 
+  // Vim owns the keymap, so the configurable editor shortcuts start empty when
+  // vim is enabled.
+  const initialEditorKeymap = o.vim ? [] : buildEditorKeymap(o.editorKeymap);
+
   const extensions = [
     vimCompartment.of(o.vim ? vim() : []),
+    editorKeymapCompartment.of(initialEditorKeymap),
     basicSetup,
     saveKeymap,
     langExt(o.language),
@@ -221,10 +284,33 @@ export function create(parent, opts) {
   });
   emitCursor(view.state);
 
-  // Live vim toggle (revert / settings change) without a remount.
+  // Exposed so a rebound "save" shortcut can reach the host save handler.
+  view.__blxOnSave = typeof o.onSave === "function" ? o.onSave : null;
+  // Remember the latest bindings so a vim→off toggle can restore them.
+  view.__blxEditorKeymap = o.editorKeymap || [];
+  view.__blxVimOn = !!o.vim;
+
+  // Live vim toggle (revert / settings change) without a remount. Toggling vim
+  // also swaps the editor-shortcut keymap (vim owns the keys when enabled).
   view.__blxSetVim = (enabled) => {
+    view.__blxVimOn = !!enabled;
     view.dispatch({
-      effects: vimCompartment.reconfigure(enabled ? vim() : []),
+      effects: [
+        vimCompartment.reconfigure(enabled ? vim() : []),
+        editorKeymapCompartment.reconfigure(
+          enabled ? [] : buildEditorKeymap(view.__blxEditorKeymap),
+        ),
+      ],
+    });
+  };
+
+  // Live update of the configurable editor shortcuts (settings change).
+  view.__blxSetEditorKeymap = (list) => {
+    view.__blxEditorKeymap = list || [];
+    view.dispatch({
+      effects: editorKeymapCompartment.reconfigure(
+        view.__blxVimOn ? [] : buildEditorKeymap(view.__blxEditorKeymap),
+      ),
     });
   };
 
@@ -250,6 +336,11 @@ export function setDoc(view, text) {
 /** Enable/disable vim key bindings on a live editor (no remount). */
 export function setVim(view, enabled) {
   if (view && view.__blxSetVim) view.__blxSetVim(!!enabled);
+}
+
+/** Replace the configurable editor shortcut keymap (live, no remount). */
+export function setEditorKeymap(view, list) {
+  if (view && view.__blxSetEditorKeymap) view.__blxSetEditorKeymap(list);
 }
 
 export function getDoc(view) {
