@@ -216,7 +216,7 @@ scripts\release.cmd --pre-release --build --upload
 
 If a GitHub release or tag `v{X.Y.Z}` or `v{X.Y.Z-pre.<hash5>}` already exists for the version in `src-tauri/tauri.conf.json`, `--upload` attaches new bundle files only (skips duplicate asset names unless you pass `--clobber`). Prerelease tags are marked as GitHub prereleases and are not promoted to the repository's "Latest" release.
 
-Prereleases are created only when `--pre-release` is passed. The prerelease identifier is the current Git commit hash truncated to five characters, for example `0.5.1-pre.ed4dc`; the default release path stays a normal stable version. When a prerelease bump is written, the release script also creates `docs/releases/v{X.Y.Z-pre.<hash5>}.md` if it does not exist yet, so the Beta channel has a matching in-app **What's new** entry.
+Prereleases are created only when `--pre-release` is passed. The prerelease identifier is the current Git commit hash truncated to five characters, for example `0.5.1-pre.ed4dc`; the default release path stays a normal stable version. If the release script then creates a release metadata commit, the prerelease hash still points at the source commit from which that prerelease was cut. When a prerelease bump is written, the release script also creates `docs/releases/v{X.Y.Z-pre.<hash5>}.md` if it does not exist yet, so the Beta channel has a matching in-app **What's new** entry.
 
 ## Cross-Platform Builds
 
