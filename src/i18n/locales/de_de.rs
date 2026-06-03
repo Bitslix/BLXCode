@@ -520,10 +520,10 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::FilePreviewUnsupported => "Vorschau für diesen Dateityp nicht verfügbar.",
         I18nKey::FilePreviewLoadingMermaid => "Mermaid wird geladen…",
         I18nKey::FilePreviewMermaidError => "Mermaid-Diagramm konnte nicht gerendert werden.",
-        I18nKey::DiagramGalleryEmpty => "No diagrams yet.",
-        I18nKey::DiagramExportMd => "Export .md",
-        I18nKey::DiagramExportPdf => "Export .pdf",
-        I18nKey::PlansOpenDiagrams => "Diagrams",
+        I18nKey::DiagramGalleryEmpty => "Noch keine Diagramme.",
+        I18nKey::DiagramExportMd => ".md exportieren",
+        I18nKey::DiagramExportPdf => ".pdf exportieren",
+        I18nKey::PlansOpenDiagrams => "Diagramme",
         I18nKey::PlansShowInKanban => "Im Kanban anzeigen",
         I18nKey::FilePreviewRefresh => "Aktualisieren",
         I18nKey::FilePreviewLoading => "Datei wird geladen…",
@@ -870,21 +870,19 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgProviderOpenai => "OpenAI",
         I18nKey::AgProviderOllama => "Ollama",
         I18nKey::AgProviderLmStudio => "LM Studio",
-        I18nKey::AgProviderHuggingFace => "Hugging Face",
-        I18nKey::AgProviderCloudflare => "Cloudflare",
-        I18nKey::AgProviderTogether => "Together AI",
-        I18nKey::AgProviderPortkey => "Portkey",
-        I18nKey::AgProviderBaseUrlField => "Base URL",
-        I18nKey::AgProviderBaseUrlHint => "OpenAI-compatible endpoint root, ending in /v1.",
+        I18nKey::AgProviderHuggingFace => "Umarmendes Gesicht",
+        I18nKey::AgProviderCloudflare => "Wolkenflare",
+        I18nKey::AgProviderTogether => "Gemeinsam KI",
+        I18nKey::AgProviderPortkey => "Portschlüssel",
+        I18nKey::AgProviderBaseUrlField => "Basis-URL",
+        I18nKey::AgProviderBaseUrlHint => "OpenAI-kompatibler Endpunktstamm, endend auf /v1.",
         I18nKey::AgProviderLocalServerUrlField => "Server-URL",
         I18nKey::AgProviderLocalServerUrlHint => {
             "OpenAI-kompatibler /v1-Endpunkt. Nutze eine LAN- oder Remote-Adresse, wenn der Server auf einem anderen Rechner läuft."
         }
         I18nKey::AgProviderNoApiKeyRequired => "Kein API-Key erforderlich",
-        I18nKey::AgProviderCloudflareAccountField => "Cloudflare Account ID",
-        I18nKey::AgProviderCloudflareAccountHint => {
-            "Stored as a non-secret setting. Put the API token in API Keys."
-        }
+        I18nKey::AgProviderCloudflareAccountField => "Cloudflare-Konto-ID",
+        I18nKey::AgProviderCloudflareAccountHint => "Als nicht geheime Einstellung gespeichert. Fügen Sie das API-Token in API Keys ein.",
         I18nKey::AgModelField => "Modell",
         I18nKey::AgModelCustomField => "Eigene Model-ID",
         I18nKey::AgThinkingField => "Thinking-Level",
@@ -1000,18 +998,18 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WzLaunch => "Arbeitsbereich starten",
         I18nKey::WzSessionRoleLabel => "Session-Rolle",
         I18nKey::WzSessionRoleNone => "Standard-Agent",
-        I18nKey::WzSessionRoleTools => "Tools",
-        I18nKey::WzPresetsHeading => "Presets",
+        I18nKey::WzSessionRoleTools => "Werkzeuge",
+        I18nKey::WzPresetsHeading => "Voreinstellungen",
         I18nKey::WzPresetsSubline => "Ein-Klick-Start",
         I18nKey::WzPresetNew => "+ Neu",
         I18nKey::WzPresetSavePrompt => "Preset-Name",
         I18nKey::WzPresetDeleteAria => "Preset löschen",
         I18nKey::WzPresetEmpty => "Noch keine Presets",
         I18nKey::WzSlotNamesLabel => "Terminal-Namen (optional)",
-        I18nKey::WzSlotNamePh => "Slot {n}",
-        I18nKey::WzAgentModelLabel => "Model",
+        I18nKey::WzSlotNamePh => "Steckplatz {n}",
+        I18nKey::WzAgentModelLabel => "Modell",
         I18nKey::WzAgentModelDefault => "Standard",
-        I18nKey::WzAgentEffortLabel => "Effort",
+        I18nKey::WzAgentEffortLabel => "Bemühung",
         I18nKey::WzAgentEffortDefault => "Standard-Effort",
         I18nKey::AgRoleBadgeAria => "Aktive Rolle",
         I18nKey::WzPresetSingle => "1 Terminal",
@@ -1277,6 +1275,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::EdKwDuplicateLine => "Zeile duplizieren",
         I18nKey::EdKwFormat => "Formatieren / einrücken",
         I18nKey::ShortcutsEditorHeading => "Datei-Editor / Vorschau",
-        I18nKey::ShortcutsEditorVimDisabledHint => "Deaktiviert, solange der Vim-Modus aktiv ist. Schalte Vim unter Einstellungen → Code-Editor aus, um diese Shortcuts zu nutzen.",
+        I18nKey::ShortcutsEditorVimDisabledHint => {
+            "Deaktiviert, solange der Vim-Modus aktiv ist. Schalte Vim unter Einstellungen → Code-Editor aus, um diese Shortcuts zu nutzen."
+        }
     }
 }
