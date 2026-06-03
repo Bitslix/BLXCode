@@ -143,6 +143,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppLogState::default())
@@ -341,6 +342,11 @@ pub fn run() {
             plans::plan_rename,
             plans::plan_load,
             plans::plan_sync_from_tasks,
+            agent::mermaid::commands::mermaid_list_diagrams,
+            agent::mermaid::commands::mermaid_create_diagram,
+            agent::mermaid::commands::mermaid_delete_diagram,
+            agent::mermaid::commands::mermaid_export_markdown,
+            agent::mermaid::commands::mermaid_export_pdf,
             kanban::kanban_board_load,
             kanban::kanban_layout_save,
             kanban::kanban_task_create,

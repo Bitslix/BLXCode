@@ -729,6 +729,7 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
     let is_index = plan.is_index;
     let bucket = plan_bucket(&summary);
     let card_path = StoredValue::new(path.clone());
+    let card_slug = StoredValue::new(plan.slug.clone());
 
     let expanded = RwSignal::new(false);
     let editing = RwSignal::new(false);
@@ -836,6 +837,22 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
                             <LxIcon icon=icondata::LuTrash2 width="13px" height="13px" />
                         </button>
                     })}
+                    <Show when=move || !is_index>
+                        <button
+                            type="button"
+                            class="blx-sr-btn blx-sr-btn--icon"
+                            aria-label=move || i18n.tr(I18nKey::PlansOpenDiagrams)()
+                            title=move || i18n.tr(I18nKey::PlansOpenDiagrams)()
+                            on:click=move |ev: web_sys::MouseEvent| {
+                                ev.stop_propagation();
+                                if let Some(ws_id) = wb.active_id().get_untracked() {
+                                    wb.open_center_diagram_gallery_tab(ws_id, card_slug.get_value());
+                                }
+                            }
+                        >
+                            <LxIcon icon=icondata::LuWorkflow width="13px" height="13px" />
+                        </button>
+                    </Show>
                     <button
                         type="button"
                         class="blx-sr-btn blx-sr-btn--icon blx-plans-card__edit-toggle"

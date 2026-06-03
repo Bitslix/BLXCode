@@ -1,0 +1,35 @@
+.diagram-render {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+}
+
+.diagram-render__stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg-raised);
+  border-radius: var(--radius-md);
+}
+
+.diagram-render__stage svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.diagram-render__node {
+  margin: 0;
+}
+
+.diagram-render__error {
+  margin-top: 8px;
+  padding: 8px 12px;
+  color: var(--danger);
+  background: var(--danger-surface);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}

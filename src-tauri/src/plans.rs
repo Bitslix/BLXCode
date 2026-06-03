@@ -154,6 +154,18 @@ fn ensure_plans_root(ws: &str) -> Result<PathBuf, String> {
     Ok(roots.plans)
 }
 
+/// Absolute path to a plan's folder (`<plans_root>/<slug>`), creating the
+/// `.agents/plans` layout if needed. Validates the slug and guarantees the
+/// result stays under the plans root. Used by the mermaid diagram store so
+/// plan-linked diagrams live next to their `plan.md`.
+pub(crate) fn plan_folder_abs(ws: &str, slug: &str) -> Result<PathBuf, String> {
+    validate_slug(slug)?;
+    let root = ensure_plans_root(ws)?;
+    let abs = root.join(slug);
+    ensure_under_root(&root, &abs)?;
+    Ok(abs)
+}
+
 fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(UNIX_EPOCH)

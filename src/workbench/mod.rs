@@ -21,6 +21,8 @@ pub mod context_drag;
 mod context_drag_overlay;
 mod core_status;
 mod create_workspace_wizard;
+mod diagram_gallery;
+mod diagram_render;
 mod file_diff;
 mod file_diff_section;
 mod file_preview;

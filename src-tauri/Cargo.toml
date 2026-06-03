@@ -27,6 +27,8 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["unstable"] }
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"
+tauri-plugin-dialog = "2"
+svg2pdf = "0.13"
 reqwest = { version = "0.13", default-features = false, features = ["rustls", "rustls-native-certs", "json", "stream", "multipart"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

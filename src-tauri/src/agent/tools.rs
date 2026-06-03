@@ -598,6 +598,52 @@ pub fn registry() -> Vec<ToolDef> {
             site: ToolSite::Server,
         },
         ToolDef {
+            name: "mermaid_create",
+            description: "Create a single Mermaid diagram. `code` is raw Mermaid source (e.g. `flowchart TD ...`). Provide `kind` (flowchart|sequence|class|state|er|gantt|mindmap|...) for labelling. When `plan_slug` is given the diagram is persisted under that plan's `diagrams/` folder and travels in git; optionally link it to a plan task via `task_id`. Without `plan_slug` it is an ad-hoc diagram shown inline in the chat (not persisted). Use this for plan/task illustrations and on user request. Returns a `diagrams` array.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "title":     { "type": "string" },
+                    "code":      { "type": "string" },
+                    "kind":      { "type": "string" },
+                    "plan_slug": { "type": "string" },
+                    "task_id":   { "type": "string" },
+                    "id":        { "type": "string", "description": "Optional stable kebab-case id; auto-derived from title when omitted." }
+                },
+                "required": ["title", "code"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "mermaid_create_many",
+            description: "Create several Mermaid diagrams at once. `diagrams` is an array of objects each with `title`, `code`, optional `kind`/`task_id`/`id`. A top-level `plan_slug` persists every diagram under that plan (per-item `plan_slug` overrides). Use when illustrating a plan from multiple angles or when the user asks for multiple diagrams. Returns a `diagrams` array.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "plan_slug": { "type": "string" },
+                    "diagrams": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "title":     { "type": "string" },
+                                "code":      { "type": "string" },
+                                "kind":      { "type": "string" },
+                                "task_id":   { "type": "string" },
+                                "id":        { "type": "string" }
+                            },
+                            "required": ["title", "code"],
+                            "additionalProperties": false
+                        }
+                    }
+                },
+                "required": ["diagrams"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
             name: "plan_write",
             description: "Overwrite an existing plan Markdown file. Accepts `slug`, legacy `slug.md`, or canonical `slug/plan.md`; output path is canonical. Content capped at 64 KiB. Use `plan_sync_from_tasks` if you just want to update the task section.",
             parameters: json!({
@@ -1649,6 +1695,8 @@ pub fn execute_server_tool(
         "plan_rename" => tool_plan_rename(args, root),
         "plan_load" => tool_plan_load(args, root),
         "plan_sync_from_tasks" => tool_plan_sync_from_tasks(args, root),
+        "mermaid_create" => tool_mermaid_create(args, root),
+        "mermaid_create_many" => tool_mermaid_create_many(args, root),
         "kanban_board_load" => tool_kanban_board_load(root),
         "kanban_layout_save" => tool_kanban_layout_save(args, root),
         "kanban_task_create" => tool_kanban_task_create(args, root),
@@ -2843,6 +2891,28 @@ fn tool_plan_create(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutc
     };
     match plans::plan_create_inner(&ws, path, content) {
         Ok(meta) => json_outcome(&meta),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_mermaid_create(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match crate::agent::mermaid::tool::run_create(&ws, args) {
+        Ok(content) => ToolOutcome { ok: true, content },
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_mermaid_create_many(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match crate::agent::mermaid::tool::run_create_many(&ws, args) {
+        Ok(content) => ToolOutcome { ok: true, content },
         Err(e) => err_outcome(e),
     }
 }

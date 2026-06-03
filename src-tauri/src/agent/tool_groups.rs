@@ -122,6 +122,8 @@ impl ToolGroup {
                 "plan_delete",
                 "plan_rename",
                 "plan_sync_from_tasks",
+                "mermaid_create",
+                "mermaid_create_many",
                 "kanban_layout_save",
                 "kanban_task_create",
                 "kanban_task_update",

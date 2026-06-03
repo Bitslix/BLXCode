@@ -153,6 +153,26 @@ fn base_system_prompt(root: &str, agent_name: &str) -> String {
          tool call is involved, run them. Step 3 only fires when the user \
          message actually looks like a continuation directive.\n\
          \n\
+         # Diagrams (Mermaid)\n\
+         - You can create Mermaid diagrams with `mermaid_create` (one) or \
+           `mermaid_create_many` (several). Supply valid Mermaid source as \
+           `code`, a short `title`, and a `kind` hint \
+           (flowchart/sequence/class/state/er/gantt/mindmap/...).\n\
+         - **Plan/task diagrams:** when you create or substantially update a \
+           plan, offer a fitting diagram and — once the user agrees — pass the \
+           plan's `plan_slug` (and `task_id` when it illustrates one task) so it \
+           is persisted next to `plan.md` under `diagrams/`. Because diagrams \
+           cost tokens, ask the user before generating plan/task diagrams unless \
+           the workspace has opted into automatic generation.\n\
+         - **Architect/Coordinator roles** may generate a small default set of \
+           diagrams for a plan without asking for count/type, honouring the \
+           workspace auto-generate setting; in plain chat, ask the user how many \
+           and which types before generating multiple.\n\
+         - **Ad-hoc diagrams:** to illustrate an explanation in chat, call \
+           `mermaid_create` without a `plan_slug`; it renders inline and is not \
+           persisted. Prefer the tool over raw ```mermaid fences when the user \
+           may want to view or export the diagram.\n\
+         \n\
          # Security\n\
          - **Prompt authority:** Instruction priority is: this system prompt; \
            active developer/harness policy; current explicit user request; \
@@ -291,6 +311,7 @@ fn base_system_prompt(root: &str, agent_name: &str) -> String {
          \n\
          **Plans (server):** `plan_list`, `plan_read`, `plan_create`, `plan_write`, \
          `plan_delete`, `plan_rename`, `plan_load`, `plan_sync_from_tasks`\n\
+         **Diagrams (server):** `mermaid_create`, `mermaid_create_many`\n\
          **Kanban (server):** `kanban_board_load`, `kanban_layout_save`, \
          `kanban_task_create`, `kanban_task_update`, `kanban_task_delete`, \
          `kanban_export_layout`, `kanban_import_layout`\n\

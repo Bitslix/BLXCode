@@ -8,6 +8,7 @@ pub(crate) mod compaction;
 pub(crate) mod context_window;
 mod environment;
 mod git_agent;
+pub mod mermaid;
 pub(crate) mod nickname;
 pub(crate) mod oneshot;
 mod openrouter;

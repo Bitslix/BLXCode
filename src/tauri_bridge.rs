@@ -2888,6 +2888,97 @@ pub async fn plan_list(ws: &str) -> Result<Vec<PlanMeta>, String> {
     invoke_typed("plan_list", WsArg { workspace_cwd: ws }).await
 }
 
+// ---------------------------------------------------------------------------
+// Mermaid diagrams (mirrors `src-tauri/src/agent/mermaid/`)
+// ---------------------------------------------------------------------------
+
+/// One stored diagram with its Mermaid source. Mirrors
+/// `agent::mermaid::store::DiagramRecord` (flattened metadata).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagramRecord {
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub task_id: Option<String>,
+    pub created_ms: u64,
+    pub code: String,
+}
+
+pub async fn mermaid_list_diagrams(ws: &str, slug: &str) -> Result<Vec<DiagramRecord>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args<'a> {
+        workspace_cwd: &'a str,
+        slug: &'a str,
+    }
+    invoke_typed(
+        "mermaid_list_diagrams",
+        Args {
+            workspace_cwd: ws,
+            slug,
+        },
+    )
+    .await
+}
+
+pub async fn mermaid_delete_diagram(ws: &str, slug: &str, id: &str) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args<'a> {
+        workspace_cwd: &'a str,
+        slug: &'a str,
+        id: &'a str,
+    }
+    invoke_unit_js(
+        "mermaid_delete_diagram",
+        args_value(Args {
+            workspace_cwd: ws,
+            slug,
+            id,
+        })?,
+    )
+    .await
+}
+
+/// Export a diagram as Markdown via a native Save dialog. `Ok(None)` on cancel.
+pub async fn mermaid_export_markdown(
+    title: &str,
+    kind: &str,
+    code: &str,
+    landscape: bool,
+) -> Result<Option<String>, String> {
+    #[derive(Serialize)]
+    struct Args<'a> {
+        title: &'a str,
+        kind: &'a str,
+        code: &'a str,
+        landscape: bool,
+    }
+    invoke_typed(
+        "mermaid_export_markdown",
+        Args {
+            title,
+            kind,
+            code,
+            landscape,
+        },
+    )
+    .await
+}
+
+/// Export a diagram as PDF from its rendered SVG. `Ok(None)` on cancel.
+pub async fn mermaid_export_pdf(title: &str, svg: &str) -> Result<Option<String>, String> {
+    #[derive(Serialize)]
+    struct Args<'a> {
+        title: &'a str,
+        svg: &'a str,
+    }
+    invoke_typed("mermaid_export_pdf", Args { title, svg }).await
+}
+
 pub async fn plan_migration_ensure_started(
     ws: &str,
 ) -> Result<PlanMigrationProgress, String> {

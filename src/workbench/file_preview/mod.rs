@@ -10,7 +10,7 @@ mod editor;
 mod header;
 mod image_view;
 mod markdown_view;
-mod mermaid_glue;
+pub(crate) mod mermaid_glue;
 mod mermaid_view;
 mod util;
 mod video_view;

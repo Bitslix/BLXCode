@@ -219,6 +219,11 @@ pub enum CenterTabKind {
         rel_path: String,
         staged: bool,
     },
+    /// Centered Mermaid diagram gallery for a plan's diagram set.
+    DiagramGallery {
+        /// Plan slug whose `diagrams/` folder is shown.
+        slug: String,
+    },
 }
 
 /// Aggregated token / cost stats for a workspace's agent chat. Each
@@ -2203,6 +2208,36 @@ impl WorkbenchService {
             repair_center_tab_state(workspace);
         });
         self.bump_terminal_layout();
+    }
+
+    /// Open (or focus) a centered Mermaid diagram gallery tab for a plan's
+    /// `diagrams/` set.
+    pub fn open_center_diagram_gallery_tab(&self, workspace_id: u64, slug: String) {
+        let slug = slug.trim().to_string();
+        if slug.is_empty() {
+            return;
+        }
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            if let Some(tab) = workspace.center_tabs.iter().find(|tab| {
+                matches!(&tab.kind, CenterTabKind::DiagramGallery { slug: existing } if existing == &slug)
+            }) {
+                workspace.center_active_tab_id = tab.id;
+                repair_center_tab_state(workspace);
+                return;
+            }
+            let id = workspace.center_next_tab_id.max(default_center_next_tab_id());
+            workspace.center_next_tab_id = id.saturating_add(1);
+            workspace.center_tabs.push(CenterTab {
+                id,
+                title: format!("◇ {slug}"),
+                kind: CenterTabKind::DiagramGallery { slug },
+            });
+            workspace.center_active_tab_id = id;
+            repair_center_tab_state(workspace);
+        });
     }
 
     pub fn open_center_file_tab(&self, workspace_id: u64, rel_path: String) {

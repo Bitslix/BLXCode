@@ -1,0 +1,109 @@
+.diagram-gallery {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 12px;
+  gap: 10px;
+}
+
+.diagram-gallery__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Top thumbnail slider */
+.diagram-gallery__slider {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  flex: 0 0 auto;
+}
+
+.diagram-gallery__thumb {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 120px;
+  max-width: 200px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.diagram-gallery__thumb:hover {
+  border-color: var(--border-strong);
+}
+
+.diagram-gallery__thumb--active {
+  border-color: var(--border-focus);
+  background: var(--bg-raised);
+}
+
+.diagram-gallery__thumb-title {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.diagram-gallery__thumb-kind {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* Toolbar */
+.diagram-gallery__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.diagram-gallery__active-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-bright);
+}
+
+.diagram-gallery__spacer {
+  flex: 1;
+}
+
+.diagram-gallery__export {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.diagram-gallery__export:hover {
+  border-color: var(--border-strong);
+}
+
+/* Large active stage */
+.diagram-gallery__active {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.diagram-gallery__active .diagram-render {
+  flex: 1;
+}

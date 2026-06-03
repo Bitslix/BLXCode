@@ -3,6 +3,7 @@ use crate::service::I18nService;
 use crate::workbench::app_prefs::AppPrefsService;
 use crate::workbench::browser_tab::sync_embedded_browser_layer;
 use crate::workbench::create_workspace_wizard::WorkspaceConfigurator;
+use crate::workbench::diagram_gallery::{DiagramGallery, GalleryScope};
 use crate::workbench::file_diff::FileDiffDock;
 use crate::workbench::file_preview::FilePreviewDock;
 use crate::workbench::harness_chords::dispatch_shortcut_action;
@@ -774,6 +775,17 @@ fn DynamicCenterPanels(
                             />
                         </div>
                     }.into_any(),
+                    CenterTabKind::DiagramGallery { slug } => view! {
+                        <div
+                            class="workspace-center-panel"
+                            class:workspace-center-panel--hidden=move || active_tab_id.get() != tab_id
+                        >
+                            <DiagramGallery
+                                scope=GalleryScope::Plan { slug }
+                                workspace_id=workspace_id
+                            />
+                        </div>
+                    }.into_any(),
                     CenterTabKind::Terminals => view! { <></> }.into_any(),
                 }
             }
@@ -789,6 +801,7 @@ fn center_tab_icon(kind: &CenterTabKind) -> icondata::Icon {
         CenterTabKind::Memory => icondata::LuLayers,
         CenterTabKind::FilePreview { .. } => icondata::LuFileText,
         CenterTabKind::FileDiff { .. } => icondata::LuFileDiff,
+        CenterTabKind::DiagramGallery { .. } => icondata::LuWorkflow,
     }
 }
 
