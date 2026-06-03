@@ -890,6 +890,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgHooksStatusMissing => "non installé",
         I18nKey::AgHooksStatusUnknown => "inconnu",
         I18nKey::AgHooksBusy => "Fonctionnement…",
+        I18nKey::HookCheckChecking => "Vérification des crochets…",
+        I18nKey::HookCheckReady => "Crochets prêts",
+        I18nKey::HookCheckMissing => "Crochets non installés",
+        I18nKey::HookCheckFailed => "La vérification du crochet a échoué",
+        I18nKey::HookInstallTitle => "Installer les hooks CLI de l'agent",
+        I18nKey::HookInstallBody => {
+            "blxcode peut connecter des hooks pour les CLI de votre agent (Claude, Codex, Gemini, Cursor, OpenCode) afin que les onglets du terminal suivent l'invite active, que les sessions reprennent après le redémarrage et que les notifications de fin de tour fonctionnent. Les installer maintenant ?"
+        }
+        I18nKey::HookInstallCta => "Installer des crochets",
+        I18nKey::HookInstallLater => "Plus tard",
+        I18nKey::HookInstallBusy => "Installation…",
         I18nKey::BlxLoading => "Chargement …",
         I18nKey::SbRenameTitle => "Modifier l'espace de travail",
         I18nKey::SbRenameNameLabel => "Nom de l'espace de travail",

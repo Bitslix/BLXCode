@@ -872,6 +872,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgHooksStatusMissing => "nincs telepítve",
         I18nKey::AgHooksStatusUnknown => "ismeretlen",
         I18nKey::AgHooksBusy => "Dolgozó…",
+        I18nKey::HookCheckChecking => "Horgok ellenőrzése…",
+        I18nKey::HookCheckReady => "A horgok készen állnak",
+        I18nKey::HookCheckMissing => "A horgok nincsenek felszerelve",
+        I18nKey::HookCheckFailed => "A horogellenőrzés nem sikerült",
+        I18nKey::HookInstallTitle => "Telepítse az ügynök CLI-horgokat",
+        I18nKey::HookInstallBody => {
+            "A blxcode bekötheti az ügynök CLI-jeit (Claude, Codex, Gemini, Cursor, OpenCode), így a terminállapok követik az aktív promptot, a munkamenetek újraindítás után folytatódnak, és a forduló befejezéséről szóló értesítések működnek. Telepítse őket most?"
+        }
+        I18nKey::HookInstallCta => "Szerelje be a horgokat",
+        I18nKey::HookInstallLater => "Később",
+        I18nKey::HookInstallBusy => "Telepítés…",
         I18nKey::BlxLoading => "Betöltés…",
         I18nKey::SbRenameTitle => "Munkaterület szerkesztése",
         I18nKey::SbRenameNameLabel => "Munkaterület neve",

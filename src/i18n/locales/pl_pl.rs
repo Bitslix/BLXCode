@@ -864,6 +864,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgHooksStatusMissing => "nie zainstalowany",
         I18nKey::AgHooksStatusUnknown => "nieznany",
         I18nKey::AgHooksBusy => "Pracujący…",
+        I18nKey::HookCheckChecking => "Sprawdzanie haków…",
+        I18nKey::HookCheckReady => "Haczyki gotowe",
+        I18nKey::HookCheckMissing => "Haki nie są zainstalowane",
+        I18nKey::HookCheckFailed => "Sprawdzanie haka nie powiodło się",
+        I18nKey::HookInstallTitle => "Zainstaluj zaczepy interfejsu CLI agenta",
+        I18nKey::HookInstallBody => {
+            "blxcode może podłączyć linki do CLI agenta (Claude, Codex, Gemini, Cursor, OpenCode), dzięki czemu zakładki terminala podążają za aktywnym monitem, sesje są wznawiane po ponownym uruchomieniu i działają powiadomienia o zakończeniu tury. Zainstalować je teraz?"
+        }
+        I18nKey::HookInstallCta => "Zainstaluj haki",
+        I18nKey::HookInstallLater => "Później",
+        I18nKey::HookInstallBusy => "Instaluję…",
         I18nKey::BlxLoading => "Ładowanie…",
         I18nKey::SbRenameTitle => "Edytuj obszar roboczy",
         I18nKey::SbRenameNameLabel => "Nazwa obszaru roboczego",

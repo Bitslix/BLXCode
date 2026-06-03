@@ -866,6 +866,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgHooksStatusMissing => "nicht installiert",
         I18nKey::AgHooksStatusUnknown => "unbekannt",
         I18nKey::AgHooksBusy => "Arbeiten…",
+        I18nKey::HookCheckChecking => "Hooks werden geprüft…",
+        I18nKey::HookCheckReady => "Hooks bereit",
+        I18nKey::HookCheckMissing => "Hooks nicht installiert",
+        I18nKey::HookCheckFailed => "Hook-Prüfung fehlgeschlagen",
+        I18nKey::HookInstallTitle => "Agent-CLI-Hooks installieren",
+        I18nKey::HookInstallBody => {
+            "blxcode kann Hooks für Ihre Agent-CLIs (Claude, Codex, Gemini, Cursor, OpenCode) einrichten, sodass Terminal-Tabs der aktiven Eingabeaufforderung folgen, Sitzungen nach dem Neustart fortgesetzt werden und Benachrichtigungen über den Abschluss der Runde funktionieren. Jetzt installieren?"
+        }
+        I18nKey::HookInstallCta => "Hooks installieren",
+        I18nKey::HookInstallLater => "Später",
+        I18nKey::HookInstallBusy => "Installieren…",
         I18nKey::BlxLoading => "Laden …",
         I18nKey::SbRenameTitle => "Arbeitsbereich bearbeiten",
         I18nKey::SbRenameNameLabel => "Name des Arbeitsbereichs",

@@ -836,6 +836,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgHooksStatusMissing => "未安装",
         I18nKey::AgHooksStatusUnknown => "未知",
         I18nKey::AgHooksBusy => "在职的…",
+        I18nKey::HookCheckChecking => "检查钩子...",
+        I18nKey::HookCheckReady => "挂钩准备好",
+        I18nKey::HookCheckMissing => "挂钩未安装",
+        I18nKey::HookCheckFailed => "钩子检查失败",
+        I18nKey::HookInstallTitle => "安装代理 CLI 挂钩",
+        I18nKey::HookInstallBody => {
+            "blxcode 可以为您的代理 CLI（Claude、Codex、Gemini、Cursor、OpenCode）连接挂钩，以便终端选项卡遵循活动提示，会话在重新启动后恢复，并且回合完成通知有效。现在安装它们吗？"
+        }
+        I18nKey::HookInstallCta => "安装挂钩",
+        I18nKey::HookInstallLater => "之后",
+        I18nKey::HookInstallBusy => "正在安装...",
         I18nKey::BlxLoading => "加载中 …",
         I18nKey::SbRenameTitle => "编辑工作区",
         I18nKey::SbRenameNameLabel => "工作区名称",

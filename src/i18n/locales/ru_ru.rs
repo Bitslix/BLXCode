@@ -872,6 +872,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgHooksStatusMissing => "не установлен",
         I18nKey::AgHooksStatusUnknown => "неизвестный",
         I18nKey::AgHooksBusy => "Работающий…",
+        I18nKey::HookCheckChecking => "Проверка крючков…",
+        I18nKey::HookCheckReady => "Крючки готовы",
+        I18nKey::HookCheckMissing => "Крючки не установлены",
+        I18nKey::HookCheckFailed => "Проверка крючка не удалась",
+        I18nKey::HookInstallTitle => "Установите перехватчики CLI агента",
+        I18nKey::HookInstallBody => {
+            "blxcode может подключать перехватчики для интерфейсов командной строки вашего агента (Claude, Codex, Gemini, Cursor, OpenCode), чтобы вкладки терминала следовали за активным приглашением, сеансы возобновлялись после перезапуска, а уведомления о завершении хода работали. Установить их сейчас?"
+        }
+        I18nKey::HookInstallCta => "Установить крючки",
+        I18nKey::HookInstallLater => "Позже",
+        I18nKey::HookInstallBusy => "Установка…",
         I18nKey::BlxLoading => "Загрузка…",
         I18nKey::SbRenameTitle => "Редактировать рабочую область",
         I18nKey::SbRenameNameLabel => "Имя рабочей области",

@@ -867,6 +867,16 @@ pub enum I18nKey {
     AgHooksStatusMissing,
     AgHooksStatusUnknown,
     AgHooksBusy,
+
+    HookCheckChecking,
+    HookCheckReady,
+    HookCheckMissing,
+    HookCheckFailed,
+    HookInstallTitle,
+    HookInstallBody,
+    HookInstallCta,
+    HookInstallLater,
+    HookInstallBusy,
     BlxLoading,
 
     SbRenameTitle,

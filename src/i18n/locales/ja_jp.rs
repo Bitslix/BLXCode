@@ -842,6 +842,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgHooksStatusMissing => "インストールされていません",
         I18nKey::AgHooksStatusUnknown => "未知",
         I18nKey::AgHooksBusy => "働く…",
+        I18nKey::HookCheckChecking => "フックを確認中…",
+        I18nKey::HookCheckReady => "フックの準備完了",
+        I18nKey::HookCheckMissing => "フックは取り付けられていません",
+        I18nKey::HookCheckFailed => "フックチェックに失敗しました",
+        I18nKey::HookInstallTitle => "エージェントの CLI フックをインストールする",
+        I18nKey::HookInstallBody => {
+            "blxcode はエージェント CLI (Claude、Codex、Gemini、Cursor、OpenCode) のフックを接続できるため、ターミナル タブはアクティブなプロンプトに従い、再起動後にセッションが再開され、ターン完了通知が機能します。今すぐインストールしますか?"
+        }
+        I18nKey::HookInstallCta => "フックを取り付ける",
+        I18nKey::HookInstallLater => "後で",
+        I18nKey::HookInstallBusy => "インストール中…",
         I18nKey::BlxLoading => "読み込み中…",
         I18nKey::SbRenameTitle => "ワークスペースを編集",
         I18nKey::SbRenameNameLabel => "ワークスペース名",

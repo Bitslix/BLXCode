@@ -8,6 +8,7 @@ use crate::workbench::AppTitleBar;
 use crate::workbench::ThemeService;
 use crate::workbench::WorkbenchService;
 use crate::workbench::WorkbenchShell;
+use crate::workbench::{HookInstallDialogService, HookStatusBarItem, HookStatusService};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
@@ -24,9 +25,16 @@ pub fn App() -> impl IntoView {
     // its workspace-scoped state via context. Its hydration/auto-save effects
     // still live in `WorkbenchShell`, which only mounts after the EULA gate.
     let wb = WorkbenchService::new();
+    // Hook-check + install-dialog services live at the App root (not inside
+    // WorkbenchShell) because `AppStatusLine` is a sibling of the shell and
+    // must read the hook-check phase via context.
+    let hook_status = HookStatusService::new();
+    let hook_install = HookInstallDialogService::new();
     provide_context(i18n);
     provide_context(theme);
     provide_context(wb);
+    provide_context(hook_status);
+    provide_context(hook_install);
 
     Effect::new(move |_| {
         remove_static_boot_screen();
@@ -189,6 +197,7 @@ fn AppStatusLine() -> impl IntoView {
                 </span>
             </div>
             <div class="app-statusline__slot app-statusline__slot--right">
+                <HookStatusBarItem />
                 <span class="app-statusline__item">
                     <LxIcon icon=icondata::LuCode width="0.78rem" height="0.78rem" />
                     <span>"Go Live"</span>

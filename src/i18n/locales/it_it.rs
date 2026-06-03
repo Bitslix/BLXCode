@@ -882,6 +882,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgHooksStatusMissing => "non installato",
         I18nKey::AgHooksStatusUnknown => "sconosciuto",
         I18nKey::AgHooksBusy => "Lavorando…",
+        I18nKey::HookCheckChecking => "Controllo dei ganci...",
+        I18nKey::HookCheckReady => "Ganci pronti",
+        I18nKey::HookCheckMissing => "Ganci non installati",
+        I18nKey::HookCheckFailed => "Il controllo del gancio non è riuscito",
+        I18nKey::HookInstallTitle => "Installa gli hook CLI dell'agente",
+        I18nKey::HookInstallBody => {
+            "blxcode può collegare gli hook per le CLI dell'agente (Claude, Codex, Gemini, Cursor, OpenCode) in modo che le schede del terminale seguano il prompt attivo, le sessioni riprendano dopo il riavvio e le notifiche di completamento del turno funzionino. Installarli adesso?"
+        }
+        I18nKey::HookInstallCta => "Installa i ganci",
+        I18nKey::HookInstallLater => "Dopo",
+        I18nKey::HookInstallBusy => "Installazione…",
         I18nKey::BlxLoading => "Caricamento …",
         I18nKey::SbRenameTitle => "Modifica area di lavoro",
         I18nKey::SbRenameNameLabel => "Nome dell'area di lavoro",

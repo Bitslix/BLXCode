@@ -26,6 +26,8 @@ mod harness_chords;
 mod harness_image_pane;
 mod harness_ui;
 mod harness_voice_pane;
+mod hook_install_dialog;
+mod hook_status;
 mod memory_graph;
 mod memory_panel;
 mod memory_settings_pane;
@@ -68,6 +70,8 @@ pub use api_keys_pane::ApiKeysPane;
 pub use app_titlebar::AppTitleBar;
 pub use appearance_settings_pane::AppearanceSettingsPane;
 pub use browser_tab::{BrowserTabDock, EmbeddedBrowserGlue};
+pub use hook_install_dialog::{HookInstallDialog, HookInstallDialogService};
+pub use hook_status::{HookStatusBarItem, HookStatusService};
 pub use memory_panel::MemoryPanel;
 pub use memory_settings_pane::MemorySettingsPane;
 pub use plans_panel::PlansPanel;
@@ -242,6 +246,10 @@ pub fn WorkbenchShell() -> impl IntoView {
     let toast = ToastService::new(app_prefs);
     let updates = UpdateService::new();
     let post_update_notes = PostUpdateNotesService::new();
+    // Provided at the App root (app.rs); read here to sequence the startup
+    // hook check + install prompt after the post-update screen.
+    let hook_status = expect_context::<HookStatusService>();
+    let hook_install = expect_context::<HookInstallDialogService>();
     let slot_dnd = TerminalSlotDragService::new();
     let git_sync = git_sync_controls::GitSyncControls::new();
 
@@ -454,6 +462,20 @@ pub fn WorkbenchShell() -> impl IntoView {
     Effect::new(move |_| {
         if hydrated.get() {
             post_update_notes.check_after_start();
+            hook_status.check_after_start();
+        }
+    });
+
+    // Open the install prompt once the check resolved to "no hooks", but only
+    // after the post-update ("What's new") screen is dismissed, so the two
+    // modal overlays never stack. No persistence: it reappears each launch
+    // while hooks remain missing.
+    Effect::new(move |_| {
+        if hook_status.needs_install()
+            && !post_update_notes.open().get()
+            && !hook_install.open().get_untracked()
+        {
+            hook_install.show();
         }
     });
 
@@ -746,6 +768,7 @@ pub fn WorkbenchShell() -> impl IntoView {
             <UpdateBanner />
             <UpdateDialog />
             <PostUpdateNotesDialog />
+            <HookInstallDialog />
             <CloseTerminalsTabDialog />
             <ConfirmDialog />
             <HarnessHost />

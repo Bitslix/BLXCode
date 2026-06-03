@@ -880,6 +880,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgHooksStatusMissing => "no instalado",
         I18nKey::AgHooksStatusUnknown => "desconocido",
         I18nKey::AgHooksBusy => "Laboral…",
+        I18nKey::HookCheckChecking => "Comprobando ganchos...",
+        I18nKey::HookCheckReady => "Ganchos listos",
+        I18nKey::HookCheckMissing => "Ganchos no instalados",
+        I18nKey::HookCheckFailed => "Error en la comprobación del gancho",
+        I18nKey::HookInstallTitle => "Instalar ganchos CLI del agente",
+        I18nKey::HookInstallBody => {
+            "blxcode puede conectar enlaces para las CLI de su agente (Claude, Codex, Gemini, Cursor, OpenCode) para que las pestañas del terminal sigan el mensaje activo, las sesiones se reanuden después del reinicio y las notificaciones de finalización de turnos funcionen. ¿Instalarlos ahora?"
+        }
+        I18nKey::HookInstallCta => "Instalar ganchos",
+        I18nKey::HookInstallLater => "Más tarde",
+        I18nKey::HookInstallBusy => "Instalando…",
         I18nKey::BlxLoading => "Cargando …",
         I18nKey::SbRenameTitle => "Editar espacio de trabajo",
         I18nKey::SbRenameNameLabel => "Nombre del espacio de trabajo",
