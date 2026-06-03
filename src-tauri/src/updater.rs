@@ -34,15 +34,6 @@ pub enum UpdateChannel {
     Beta,
 }
 
-impl UpdateChannel {
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Stable => "stable",
-            Self::Beta => "beta",
-        }
-    }
-}
-
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateSettings {
