@@ -55,7 +55,7 @@ genauso „cool" aussieht wie beim Terminal-Drag.
 |---|--------|-------|
 | 1 | **done** | **Datenmodell**: Kinds `FileRef`, `GitDiff`, `GitCommit` in `agent_wire.rs` + `protocol.rs` |
 | 2 | **done** | **DnD-Service**: neu `src/workbench/context_drag.rs` (MIME `application/x-blxcode-context`, `ContextDragKind`, `ContextDragPayload`, `ContextDragService`, `ContextDragMeta`); im Workbench-Context bereitstellen |
-| 3 | **done** | **Drag-Quellen**: `draggable`+`dragstart/drag/dragend` an File-/Diff-/Commit-Rows (Muster `terminal_cell.rs`) |
+| 3 | **done** | **Drag-Quellen**: `draggable`+`dragstart/drag/dragend` an File-/**Folder**-/Diff-/Commit-Rows (Muster `terminal_cell.rs`). Folder = eigener `ContextDragKind::Folder` mit Folder-Icon/Badge im Overlay, landet als `dir_ref_context_item` (Pfad-Referenz, kind `FileRef`, Label mit `/`) |
 | 4 | **done** | **Drop-Zone**: `DropZoneState` um `AcceptFile/AcceptDiff/AcceptCommit`; Drag/Drop-Handler für neuen MIME; Diff/Commit async via `git_file_diff`/`git_commit_details`. Konstruktoren `file_ref_context_item`/`git_diff_context_item`/`git_commit_context_item` in `agent_context_handoff.rs` + Tests |
 | 5 | **done** | **Overlay**: neu `src/workbench/context_drag_overlay.rs`, cursor-folgende Karte, Icon+Farbe je Kind (analog `terminal_slot_drag_overlay.rs`) |
 | 6 | **done** | **Rendering**: neue Sektionen in `session_orchestrator.rs` (Backend-Prompt) + `render_agent_context_block` (Handoff): FileRef→Pfad-Liste, Diff/Commit→Inline-Blöcke |

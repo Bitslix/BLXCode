@@ -1279,6 +1279,28 @@ pub fn file_ref_context_item(rel_path: &str) -> AgentContextItem {
     }
 }
 
+/// Build a folder reference `AgentContextItem` dragged from the project
+/// explorer. Like [`file_ref_context_item`] it carries only the path (kind
+/// `FileRef`); the trailing-slash source hints that the path is a directory.
+#[must_use]
+pub fn dir_ref_context_item(rel_path: &str) -> AgentContextItem {
+    let trimmed = rel_path.trim_end_matches('/');
+    let name = trimmed
+        .rsplit('/')
+        .next()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(trimmed);
+    AgentContextItem {
+        id: format!("dir-ref:{trimmed}"),
+        kind: AgentContextKind::FileRef,
+        label: format!("{name}/"),
+        source: format!("{trimmed}/"),
+        paths: vec![trimmed.to_owned()],
+        added_at: context_now_ms(),
+        content: None,
+    }
+}
+
 /// Build a `GitDiff` context item for a single file's diff dragged from the
 /// diff sidebar. `diff_text` is the raw unified diff; it is wrapped in a fenced
 /// ```diff block as inline `content`.
@@ -1569,6 +1591,17 @@ mod tests {
         assert_eq!(item.id, "file-ref:src/workbench/mod.rs");
         assert_eq!(item.label, "mod.rs");
         assert_eq!(item.paths, vec!["src/workbench/mod.rs".to_string()]);
+        assert!(item.content.is_none());
+    }
+
+    #[test]
+    fn dir_ref_item_is_path_only_with_trailing_slash() {
+        let item = dir_ref_context_item("src/workbench");
+        assert_eq!(item.kind, AgentContextKind::FileRef);
+        assert_eq!(item.id, "dir-ref:src/workbench");
+        assert_eq!(item.label, "workbench/");
+        assert_eq!(item.source, "src/workbench/");
+        assert_eq!(item.paths, vec!["src/workbench".to_string()]);
         assert!(item.content.is_none());
     }
 

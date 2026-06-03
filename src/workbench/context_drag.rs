@@ -25,6 +25,8 @@ pub const CONTEXT_DRAG_MIME: &str = "application/x-blxcode-context";
 pub enum ContextDragKind {
     /// A whole file from the project explorer (attached as a path reference).
     File,
+    /// A folder from the project explorer (attached as a path reference).
+    Folder,
     /// A single file's git diff from the diff sidebar.
     Diff,
     /// A git commit from the commit graph.

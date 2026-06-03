@@ -30,6 +30,7 @@ pub fn ContextDragOverlay() -> impl IntoView {
                 };
                 let (variant, label) = match meta.kind {
                     ContextDragKind::File => ("context-drag-preview--file", "File"),
+                    ContextDragKind::Folder => ("context-drag-preview--folder", "Folder"),
                     ContextDragKind::Diff => ("context-drag-preview--diff", "Diff"),
                     ContextDragKind::Commit => ("context-drag-preview--commit", "Commit"),
                 };
@@ -76,6 +77,10 @@ fn ContextDragIcon(kind: ContextDragKind) -> impl IntoView {
     match kind {
         ContextDragKind::File => view! {
             <LxIcon icon=icondata::LuFile width="0.95rem" height="0.95rem" />
+        }
+        .into_any(),
+        ContextDragKind::Folder => view! {
+            <LxIcon icon=icondata::LuFolder width="0.95rem" height="0.95rem" />
         }
         .into_any(),
         ContextDragKind::Diff => view! {

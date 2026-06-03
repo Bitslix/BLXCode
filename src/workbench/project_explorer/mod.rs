@@ -671,6 +671,9 @@ fn ExplorerNode(
     let rel_for_click = rel_path.clone();
     let rel_for_newfile = rel_path.clone();
     let rel_for_newfolder = rel_path.clone();
+    let ctx_dnd = expect_context::<crate::workbench::context_drag::ContextDragService>();
+    let name_for_drag = name.clone();
+    let rel_for_drag = rel_path.clone();
 
     view! {
         <li class="project-explorer__node" role="none">
@@ -686,6 +689,31 @@ fn ExplorerNode(
                 style=pad
                 role="treeitem"
                 aria-expanded=move || (is_dir && is_open.get()).to_string()
+                prop:draggable="true"
+                on:dragstart={
+                    let name = name_for_drag.clone();
+                    let rel = rel_for_drag.clone();
+                    move |ev: web_sys::DragEvent| {
+                        let Some(ws_id) = wb.active_id().get_untracked() else { return; };
+                        let payload = crate::workbench::context_drag::ContextDragPayload {
+                            workspace_id: ws_id,
+                            kind: crate::workbench::context_drag::ContextDragKind::Folder,
+                            rel_path: Some(rel.clone()),
+                            staged: None,
+                            oid: None,
+                            short_oid: None,
+                            subject: None,
+                        };
+                        let meta = crate::workbench::context_drag::ContextDragMeta {
+                            kind: crate::workbench::context_drag::ContextDragKind::Folder,
+                            title: name.clone(),
+                            subtitle: rel.clone(),
+                        };
+                        crate::workbench::context_drag::start_context_drag(&ev, ctx_dnd, payload, meta);
+                    }
+                }
+                on:drag=move |ev: web_sys::DragEvent| ctx_dnd.set_overlay_pos_from_event(&ev)
+                on:dragend=move |_| ctx_dnd.clear()
                 on:click=move |ev| {
                     ev.stop_propagation();
                     selected_dir.set(Some(rel_for_click.clone()));

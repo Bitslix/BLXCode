@@ -521,6 +521,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                     DropZoneState::AcceptImage
                     | DropZoneState::AcceptTerminal
                     | DropZoneState::AcceptFile
+                    | DropZoneState::AcceptFolder
                     | DropZoneState::AcceptDiff
                     | DropZoneState::AcceptCommit => {
                         class.push_str(" workbench-agent-pane--drop-active")

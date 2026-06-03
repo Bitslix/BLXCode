@@ -8084,6 +8084,10 @@ button {
   --ctx-accent: var(--accent);
 }
 
+.context-drag-preview--folder {
+  --ctx-accent: var(--success, #4a9d6a);
+}
+
 .context-drag-preview--diff {
   --ctx-accent: var(--warning, #d6a02a);
 }

@@ -4,7 +4,7 @@ use crate::tauri_bridge::{
     AgentImageFilePayload,
 };
 use crate::workbench::agent_context_handoff::{
-    file_ref_context_item, git_commit_context_item, git_diff_context_item,
+    dir_ref_context_item, file_ref_context_item, git_commit_context_item, git_diff_context_item,
     list_workspace_terminal_targets, terminal_session_context_item_with_content,
 };
 use crate::workbench::context_drag::{
@@ -34,6 +34,7 @@ pub enum DropZoneState {
     AcceptImage,
     AcceptTerminal,
     AcceptFile,
+    AcceptFolder,
     AcceptDiff,
     AcceptCommit,
     Reject,
@@ -52,6 +53,7 @@ impl DropZoneState {
             Self::AcceptImage => "Drop images to attach",
             Self::AcceptTerminal => "Drop terminal to attach session context",
             Self::AcceptFile => "Drop file to attach as context",
+            Self::AcceptFolder => "Drop folder to attach as context",
             Self::AcceptDiff => "Drop diff to attach as context",
             Self::AcceptCommit => "Drop commit to attach as context",
             Self::Reject => "Only image files or terminal sessions can be attached",
@@ -91,6 +93,7 @@ pub fn handle_dom_drag_event(
         }
         context_dnd.set_overlay_pos_from_event(&ev);
         let state = match context_dnd.active.get_untracked().map(|m| m.kind) {
+            Some(ContextDragKind::Folder) => DropZoneState::AcceptFolder,
             Some(ContextDragKind::Diff) => DropZoneState::AcceptDiff,
             Some(ContextDragKind::Commit) => DropZoneState::AcceptCommit,
             _ => DropZoneState::AcceptFile,
@@ -481,6 +484,16 @@ fn attach_context_drag(
                 return;
             };
             wb.upsert_workspace_agent_context(active_ws_id, file_ref_context_item(&rel));
+            status_line.set(None);
+            context_dnd.clear();
+        }
+        ContextDragKind::Folder => {
+            let Some(rel) = payload.rel_path.filter(|p| !p.trim().is_empty()) else {
+                context_dnd.clear();
+                status_line.set(Some("Dragged folder has no path.".into()));
+                return;
+            };
+            wb.upsert_workspace_agent_context(active_ws_id, dir_ref_context_item(&rel));
             status_line.set(None);
             context_dnd.clear();
         }
