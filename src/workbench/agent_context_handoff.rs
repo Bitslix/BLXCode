@@ -169,6 +169,57 @@ pub fn render_agent_context_block(input: &RenderInputs) -> String {
         }
     }
 
+    let file_ref_items: Vec<&AgentContextItem> = input
+        .context_items
+        .iter()
+        .filter(|item| matches!(item.kind, AgentContextKind::FileRef))
+        .collect();
+    if !file_ref_items.is_empty() {
+        out.push_str("\n## Attached files (paths only; read if needed)\n");
+        for item in file_ref_items {
+            let path = item.paths.first().cloned().unwrap_or_else(|| item.source.clone());
+            out.push_str(&format!("- {} — `{path}`\n", item.label));
+        }
+    }
+
+    let diff_items: Vec<&AgentContextItem> = input
+        .context_items
+        .iter()
+        .filter(|item| matches!(item.kind, AgentContextKind::GitDiff))
+        .collect();
+    if !diff_items.is_empty() {
+        out.push_str("\n## Attached git diffs\n");
+        for item in diff_items {
+            out.push_str(&format!("- {}\n", item.label));
+            if let Some(body) = item.content.as_deref().filter(|s| !s.is_empty()) {
+                let trimmed = body.trim_end();
+                out.push_str(trimmed);
+                if !trimmed.ends_with('\n') {
+                    out.push('\n');
+                }
+            }
+        }
+    }
+
+    let commit_items: Vec<&AgentContextItem> = input
+        .context_items
+        .iter()
+        .filter(|item| matches!(item.kind, AgentContextKind::GitCommit))
+        .collect();
+    if !commit_items.is_empty() {
+        out.push_str("\n## Attached git commits\n");
+        for item in commit_items {
+            out.push_str(&format!("- {}\n", item.label));
+            if let Some(body) = item.content.as_deref().filter(|s| !s.is_empty()) {
+                let trimmed = body.trim_end();
+                out.push_str(trimmed);
+                if !trimmed.ends_with('\n') {
+                    out.push('\n');
+                }
+            }
+        }
+    }
+
     if input.include_plans || input.include_tasks {
         out.push_str("\n## Attached plans / tasks\n");
         let plan_items: Vec<&AgentContextItem> = input
@@ -630,14 +681,21 @@ pub async fn perform_handoff(
                 | AgentContextKind::PlanFile
                 | AgentContextKind::PlanTaskGroup
         );
-        let is_snippet = matches!(item.kind, AgentContextKind::FileSnippet);
+        // File snippets, file refs, diffs and commits carry their own payload
+        // (inline content or a path) and are surfaced regardless of the
+        // include_memory toggle.
+        let is_self_contained = matches!(
+            item.kind,
+            AgentContextKind::FileSnippet
+                | AgentContextKind::FileRef
+                | AgentContextKind::GitDiff
+                | AgentContextKind::GitCommit
+        );
         if is_plan {
             if include_plans {
                 effective_items.push(item);
             }
-        } else if is_snippet {
-            // File snippets always carry their content inline; surface them
-            // in the rendered block regardless of include_memory.
+        } else if is_self_contained {
             effective_items.push(item);
         } else if include_memory {
             effective_items.push(item);
@@ -1524,6 +1582,34 @@ mod tests {
         let content = item.content.as_deref().unwrap();
         assert!(content.contains("```diff"));
         assert!(content.contains("+b"));
+    }
+
+    #[test]
+    fn render_block_emits_file_diff_and_commit_sections() {
+        let inputs = RenderInputs {
+            workspace_root: Some("/repo".into()),
+            include_memory: true,
+            context_items: vec![
+                file_ref_context_item("src/foo.rs"),
+                git_diff_context_item("src/foo.rs", false, "@@ -1 +1 @@\n-a\n+b"),
+                git_commit_context_item("deadbeef", "deadbee", "Fix bug", "", &[]),
+            ],
+            ..Default::default()
+        };
+        let out = render_agent_context_block(&inputs);
+        assert!(out.contains("## Attached files (paths only"));
+        assert!(out.contains("`src/foo.rs`"));
+        assert!(out.contains("## Attached git diffs"));
+        assert!(out.contains("```diff"));
+        assert!(out.contains("## Attached git commits"));
+        assert!(out.contains("commit `deadbee`"));
+        // New kinds must not leak into the memory section.
+        let memory_section = out
+            .split("## Attached memory")
+            .nth(1)
+            .and_then(|rest| rest.split("\n## ").next())
+            .unwrap_or("");
+        assert!(!memory_section.contains("Diff · foo.rs"));
     }
 
     #[test]

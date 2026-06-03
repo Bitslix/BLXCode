@@ -236,6 +236,8 @@ fn render_context_prompt(
     let mut plans: Vec<&AgentContextItem> = Vec::new();
     let mut snippets: Vec<&AgentContextItem> = Vec::new();
     let mut terminals: Vec<&AgentContextItem> = Vec::new();
+    let mut diffs: Vec<&AgentContextItem> = Vec::new();
+    let mut commits: Vec<&AgentContextItem> = Vec::new();
     let mut memory_like: Vec<&AgentContextItem> = Vec::new();
     for item in context_items {
         match item.kind {
@@ -244,6 +246,9 @@ fn render_context_prompt(
             | AgentContextKind::PlanTaskGroup => plans.push(item),
             AgentContextKind::FileSnippet => snippets.push(item),
             AgentContextKind::TerminalSession => terminals.push(item),
+            AgentContextKind::GitDiff => diffs.push(item),
+            AgentContextKind::GitCommit => commits.push(item),
+            // FileRef and memory/learning items render as path-only references.
             _ => memory_like.push(item),
         }
     }
@@ -294,6 +299,42 @@ fn render_context_prompt(
         }
         out.push_str("Attached file snippets (verbatim, line-numbered headers):\n");
         for item in &snippets {
+            out.push_str(&format!("- {}\n", item.label.trim()));
+            if let Some(body) = item.content.as_deref().filter(|s| !s.is_empty()) {
+                let trimmed = body.trim_end();
+                out.push_str(trimmed);
+                if !trimmed.ends_with('\n') {
+                    out.push('\n');
+                }
+            }
+        }
+        wrote_section = true;
+    }
+
+    if !diffs.is_empty() {
+        if wrote_section {
+            out.push('\n');
+        }
+        out.push_str("Attached git diffs (verbatim):\n");
+        for item in &diffs {
+            out.push_str(&format!("- {}\n", item.label.trim()));
+            if let Some(body) = item.content.as_deref().filter(|s| !s.is_empty()) {
+                let trimmed = body.trim_end();
+                out.push_str(trimmed);
+                if !trimmed.ends_with('\n') {
+                    out.push('\n');
+                }
+            }
+        }
+        wrote_section = true;
+    }
+
+    if !commits.is_empty() {
+        if wrote_section {
+            out.push('\n');
+        }
+        out.push_str("Attached git commits (use `git show <hash>` for the full patch):\n");
+        for item in &commits {
             out.push_str(&format!("- {}\n", item.label.trim()));
             if let Some(body) = item.content.as_deref().filter(|s| !s.is_empty()) {
                 let trimmed = body.trim_end();
