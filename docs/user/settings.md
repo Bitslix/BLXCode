@@ -6,7 +6,7 @@ BLXCode opens settings in a **center workbench tab** (not a modal). The command 
 
 | Category | What it configures |
 |----------|-------------------|
-| **App** | UI language, STT language + push-to-talk, notifications, terminal hooks, app updates (with the structured release-notes dialog) |
+| **App** | UI language, STT language + push-to-talk, notifications, terminal hooks, app updates (Stable/Beta channel, background checks, structured release-notes dialog) |
 | **Appearance** | App themes — 32 presets, search, Dark/Light filters, plus theme-independent **Roundings** and **Font** controls; see [Appearance & Themes](appearance-themes.md) |
 | **Shortcuts** | Keyboard shortcut preset, prefix key, and per-action rebinding (incl. **Push-to-Talk**); see [Keyboard Shortcuts](keyboard-shortcuts.md) |
 | **API Keys** | All provider secrets in one pane — see below |
@@ -18,7 +18,16 @@ Legacy saved categories (`Image`, `Voice`, `Memory`) still open the correct pane
 
 ## App
 
-**Settings → App** collects shell-wide preferences that aren't tied to a single workspace: UI language, voice/STT defaults, push-to-talk, notification toasts and sounds, terminal hooks, and the GitHub Releases auto-updater. Keyboard shortcuts moved to their own **Shortcuts** category (see [Keyboard Shortcuts](keyboard-shortcuts.md)). The update dialog now reuses the structured release-notes view from `post_update_release_notes(version)` (hero summary, sections, loading state, fallback to the updater manifest body) instead of showing the manifest body as plain text — the update-specific controls (current → available version, install/download progress, retry, restart, **Later**) stay in place.
+**Settings → App** collects shell-wide preferences that aren't tied to a single workspace: UI language, voice/STT defaults, push-to-talk, notification toasts and sounds, terminal hooks, and the GitHub Releases auto-updater. Keyboard shortcuts moved to their own **Shortcuts** category (see [Keyboard Shortcuts](keyboard-shortcuts.md)).
+
+App updates support two channels:
+
+- **Stable** uses final GitHub Releases.
+- **Beta** includes GitHub prereleases such as `0.6.0-pre.1`, and also accepts newer final stable releases when they supersede the current beta.
+
+When **Check for updates on startup** is enabled, BLXCode checks immediately after launch and then every 10 minutes while the app is open. Background checks are quiet when nothing changed, show a discreet statusline item only during the check, and add a titlebar/native notification when a new update is available. Clicking that notification opens the update dialog.
+
+The update dialog reuses the structured release-notes view from `post_update_release_notes(version)` (hero summary, sections, loading state, fallback to the updater manifest body) instead of showing the manifest body as plain text — the update-specific controls (current → available version, install/download progress, retry, restart, **Later**) stay in place.
 
 <p align="center">
   <img src="../images/settings-app.png" alt="Settings → App pane with UI Language (English), Input language (Follow app language / Auto-detect / Manual), Keyboard shortcuts (Tmux style / Classic), push-to-talk toggle, Notifications (Show success toasts, Play success sound), Terminal hooks for claude/codex/gemini/cursor/opencode with Install hooks button, and App updates (Check for updates on startup, Current version 0.2.3)" />

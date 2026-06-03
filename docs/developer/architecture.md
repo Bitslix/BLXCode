@@ -192,7 +192,7 @@ flowchart LR
 - `src-tauri/src/git_sync.rs` — `git_sync_status`, `git_fetch`, `git_pull`, `git_push` (`GIT_TERMINAL_PROMPT=0`).
 - `src-tauri/src/git_commit_ai.rs` — `git_generate_commit_message` via `agent::oneshot`.
 - `src/workbench/confirm_dialog/` — themed `ConfirmDialog` + `HarnessUiService::ConfirmRequest` (replaces `window.confirm` for destructive actions).
-- `src-tauri/src/updater.rs` — `post_update_release_notes` loads `docs/releases/v{version}.md` from the matching Git tag (GitHub Release body fallback). The **update dialog** in **Settings → App** reuses the same structured release-notes renderer (hero summary, sections, loading state, manifest-body fallback) — see [User: Settings](../user/settings.md#app) — so the update flow and the post-update **What's new** dialog share the same UI.
+- `src-tauri/src/updater.rs` — channel-aware Tauri updater. Stable uses the configured GitHub Releases `latest.json`; Beta stores the user's channel in app config, lists GitHub Releases, ignores drafts, includes prereleases and newer final releases, and checks the selected tag's `latest.json`. The Leptos `UpdateService` runs the app-global startup/background check loop (10 minutes while enabled), shows statusline progress only while checking, and creates a deduped titlebar/native notification when a background update is available. `post_update_release_notes` loads `docs/releases/v{version}.md` from the matching Git tag (GitHub Release body fallback). The **update dialog** in **Settings → App** reuses the same structured release-notes renderer (hero summary, sections, loading state, manifest-body fallback) — see [User: Settings](../user/settings.md#app) — so the update flow and the post-update **What's new** dialog share the same UI.
 
 Frontend:
 

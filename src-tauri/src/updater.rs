@@ -353,27 +353,34 @@ async fn beta_update_endpoint(current_version: &str) -> Result<Option<Url>, Stri
         .await
         .map_err(|err| format!("parse GitHub releases: {err}"))?;
 
+    let Some(tag) = select_beta_release_tag(&current, releases) else {
+        return Ok(None);
+    };
+    let endpoint =
+        format!("https://github.com/{RELEASE_NOTES_REPO}/releases/download/{tag}/latest.json");
+    Url::parse(&endpoint)
+        .map(Some)
+        .map_err(|err| format!("build beta updater endpoint for {tag}: {err}"))
+}
+
+fn parse_release_semver(version: &str) -> Result<Version, semver::Error> {
+    Version::parse(version.trim().trim_start_matches('v'))
+}
+
+fn select_beta_release_tag(
+    current: &Version,
+    releases: Vec<GithubReleaseListItem>,
+) -> Option<String> {
     let mut candidates = releases
         .into_iter()
         .filter(|release| !release.draft)
         .filter_map(|release| {
             let version = parse_release_semver(&release.tag_name).ok()?;
-            (version > current).then_some((version, release.tag_name))
+            (version > *current).then_some((version, release.tag_name))
         })
         .collect::<Vec<_>>();
     candidates.sort_by(|(a, _), (b, _)| b.cmp(a));
-
-    let Some((_, tag)) = candidates.into_iter().next() else {
-        return Ok(None);
-    };
-    let endpoint = format!("https://github.com/{RELEASE_NOTES_REPO}/releases/download/{tag}/latest.json");
-    Url::parse(&endpoint).map(Some).map_err(|err| {
-        format!("build beta updater endpoint for {tag}: {err}")
-    })
-}
-
-fn parse_release_semver(version: &str) -> Result<Version, semver::Error> {
-    Version::parse(version.trim().trim_start_matches('v'))
+    candidates.into_iter().next().map(|(_, tag)| tag)
 }
 
 #[tauri::command]
@@ -792,5 +799,48 @@ summary: "Daily coding feels calmer."
     fn normalizes_release_version() {
         assert_eq!(normalize_release_version("v0.2.9"), "0.2.9");
         assert_eq!(normalize_release_version(" 0.2.9 "), "0.2.9");
+    }
+
+    #[test]
+    fn update_settings_default_to_stable_channel() {
+        let settings: UpdateSettings = serde_json::from_str("{}").unwrap();
+        assert_eq!(settings.channel, UpdateChannel::Stable);
+    }
+
+    #[test]
+    fn parses_prerelease_versions() {
+        let version = parse_release_semver("v0.6.0-pre.2").unwrap();
+        assert_eq!(version.major, 0);
+        assert_eq!(version.minor, 6);
+        assert_eq!(version.patch, 0);
+        assert_eq!(version.pre.as_str(), "pre.2");
+    }
+
+    #[test]
+    fn beta_channel_picks_highest_prerelease_or_newer_final() {
+        let current = parse_release_semver("0.6.0-pre.2").unwrap();
+        let tag = select_beta_release_tag(
+            &current,
+            vec![
+                GithubReleaseListItem {
+                    tag_name: "v0.6.0-pre.1".into(),
+                    draft: false,
+                },
+                GithubReleaseListItem {
+                    tag_name: "v0.6.0".into(),
+                    draft: false,
+                },
+                GithubReleaseListItem {
+                    tag_name: "v0.7.0-pre.1".into(),
+                    draft: false,
+                },
+                GithubReleaseListItem {
+                    tag_name: "v0.8.0-pre.1".into(),
+                    draft: true,
+                },
+            ],
+        );
+
+        assert_eq!(tag.as_deref(), Some("v0.7.0-pre.1"));
     }
 }

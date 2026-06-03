@@ -77,12 +77,12 @@ Add a Beta update channel to **Settings -> App -> App updates**, backed by GitHu
 
 ## Tasks
 
-- [ ] `settings-storage` - Add persisted update channel settings and IPC commands
-- [ ] `channel-aware-updater` - Make update checks stable/beta aware and clear pending updates on channel change
-- [ ] `background-check-service` - Add 10-minute app-global background update checks
-- [ ] `update-statusline` - Show discreet statusline progress for manual/background checks
-- [ ] `update-notifications` - Add deduped update notification and titlebar click target
-- [ ] `settings-ui` - Add Stable/Beta channel control to Settings -> App -> App updates
-- [ ] `versioning-scripts` - Add `X.Y.Z-pre.N` parsing and `--pre-release` release script support
-- [ ] `ci-prerelease` - Mark prerelease CI builds as GitHub prereleases and not latest
-- [ ] `docs-tests` - Update docs and add backend/frontend/release verification coverage
+- [x] `settings-storage` - Add persisted update channel settings and IPC commands
+- [x] `channel-aware-updater` - Make update checks stable/beta aware and clear pending updates on channel change
+- [x] `background-check-service` - Add 10-minute app-global background update checks
+- [x] `update-statusline` - Show discreet statusline progress for manual/background checks
+- [x] `update-notifications` - Add deduped update notification and titlebar click target
+- [x] `settings-ui` - Add Stable/Beta channel control to Settings -> App -> App updates
+- [x] `versioning-scripts` - Add `X.Y.Z-pre.N` parsing and `--pre-release` release script support
+- [x] `ci-prerelease` - Mark prerelease CI builds as GitHub prereleases and not latest
+- [x] `docs-tests` - Update docs and add backend/frontend/release verification coverage
