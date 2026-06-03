@@ -6192,7 +6192,17 @@ button.workbench-shortcut-row--action:focus-visible {
 
 .harness-sheet--agent-onboarding {
   width: min(31rem, calc(100vw - 2rem));
+  box-sizing: border-box;
   padding: 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent 42%),
+    var(--bg-panel);
+  box-shadow:
+    0 24px 70px var(--scrim-bg),
+    0 0 0 1px var(--overlay-1);
+  color: var(--text);
 }
 
 .agent-onboarding__head {
