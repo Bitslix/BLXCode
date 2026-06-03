@@ -11,11 +11,18 @@ use crate::service::I18nService;
 use crate::tauri_bridge::{
     git_branch, is_tauri_shell, memory_list, plan_list, rules_list, skills_list,
 };
+use crate::workbench::state::CenterTabKind;
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EditorCursorPosition {
+    pub line: u32,
+    pub column: u32,
+}
 
 #[derive(Clone, Copy)]
 pub struct CoreStatusService {
@@ -26,6 +33,7 @@ pub struct CoreStatusService {
     memory_files: RwSignal<usize>,
     memory_size: RwSignal<u64>,
     branch: RwSignal<Option<String>>,
+    editor_cursors: RwSignal<HashMap<(u64, String), EditorCursorPosition>>,
     loaded: RwSignal<bool>,
     refresh_generation: RwSignal<u64>,
 }
@@ -47,6 +55,7 @@ impl CoreStatusService {
             memory_files: RwSignal::new(0),
             memory_size: RwSignal::new(0),
             branch: RwSignal::new(None),
+            editor_cursors: RwSignal::new(HashMap::new()),
             loaded: RwSignal::new(false),
             refresh_generation: RwSignal::new(0),
         }
@@ -85,6 +94,48 @@ impl CoreStatusService {
     #[must_use]
     pub fn branch(&self) -> RwSignal<Option<String>> {
         self.branch
+    }
+
+    pub fn set_editor_cursor(&self, workspace_id: u64, rel_path: &str, line: u32, column: u32) {
+        let rel_path = rel_path.trim().trim_start_matches(['/', '\\']);
+        if rel_path.is_empty() {
+            return;
+        }
+        let position = EditorCursorPosition {
+            line: line.max(1),
+            column: column.max(1),
+        };
+        self.editor_cursors.update(|cursors| {
+            cursors.insert((workspace_id, rel_path.to_string()), position);
+        });
+    }
+
+    pub fn clear_editor_cursor(&self, workspace_id: u64, rel_path: &str) {
+        let rel_path = rel_path.trim().trim_start_matches(['/', '\\']);
+        if rel_path.is_empty() {
+            return;
+        }
+        self.editor_cursors.update(|cursors| {
+            cursors.remove(&(workspace_id, rel_path.to_string()));
+        });
+    }
+
+    #[must_use]
+    pub fn active_editor_cursor(&self, wb: WorkbenchService) -> Option<EditorCursorPosition> {
+        let active = wb.active_id().get()?;
+        let rel_path = wb.workspaces().with(|workspaces| {
+            let workspace = workspaces.iter().find(|w| w.id == active)?;
+            let active_tab = workspace
+                .center_tabs
+                .iter()
+                .find(|tab| tab.id == workspace.center_active_tab_id)?;
+            match &active_tab.kind {
+                CenterTabKind::FilePreview { rel_path } => Some(rel_path.clone()),
+                _ => None,
+            }
+        })?;
+        self.editor_cursors
+            .with(|cursors| cursors.get(&(active, rel_path)).copied())
     }
 
     #[must_use]
@@ -206,6 +257,7 @@ pub fn CoreStatusBarItem() -> impl IntoView {
     let memory_files = status.memory_files();
     let memory_size = status.memory_size();
     let branch = status.branch();
+    let cursor = Memo::new(move |_| status.active_editor_cursor(wb));
 
     // Re-count whenever the active workspace changes.
     Effect::new(move |_| {
@@ -215,45 +267,67 @@ pub fn CoreStatusBarItem() -> impl IntoView {
     });
 
     view! {
-        <Show when=move || loaded.get()>
+        <Show when=move || loaded.get() || cursor.get().is_some()>
             <div class="app-statusline__item core-status-item app-statusline__item--quiet">
-                <Show when=move || branch.with(|b| b.is_some())>
-                    <span class="core-status-item__seg core-status-item__seg--branch" title=move || i18n.tr(I18nKey::CoreStatusGitBranchTip)()>
-                        <LxIcon icon=icondata::LuGitBranch width="0.78rem" height="0.78rem" />
-                        <span>{move || branch.get().unwrap_or_default()}</span>
+                <Show when=move || cursor.get().is_some()>
+                    <span
+                        class="core-status-item__seg core-status-item__seg--cursor"
+                        title=move || cursor.get().map(format_cursor_title).unwrap_or_default()
+                    >
+                        <LxIcon icon=icondata::LuTextCursor width="0.78rem" height="0.78rem" />
+                        <span>{move || cursor.get().map(format_cursor_label).unwrap_or_default()}</span>
+                    </span>
+                    <Show when=move || loaded.get()>
+                        <span class="core-status-item__divider" aria-hidden="true"></span>
+                    </Show>
+                </Show>
+                <Show when=move || loaded.get()>
+                    <Show when=move || branch.with(|b| b.is_some())>
+                        <span class="core-status-item__seg core-status-item__seg--branch" title=move || i18n.tr(I18nKey::CoreStatusGitBranchTip)()>
+                            <LxIcon icon=icondata::LuGitBranch width="0.78rem" height="0.78rem" />
+                            <span>{move || branch.get().unwrap_or_default()}</span>
+                        </span>
+                        <span class="core-status-item__divider" aria-hidden="true"></span>
+                    </Show>
+                    <span class="core-status-item__seg" title=move || i18n.tr(I18nKey::CoreStatusRulesTip)()>
+                        <LxIcon icon=icondata::LuShield width="0.78rem" height="0.78rem" />
+                        <span>{move || rules.get().to_string()}</span>
+                    </span>
+                    <span class="core-status-item__seg" title=move || i18n.tr(I18nKey::CoreStatusSkillsTip)()>
+                        <LxIcon icon=icondata::LuSparkles width="0.78rem" height="0.78rem" />
+                        <span>{move || skills.get().to_string()}</span>
+                    </span>
+                    <span class="core-status-item__seg" title=move || i18n.tr(I18nKey::CoreStatusPlansTip)()>
+                        <LxIcon icon=icondata::LuClipboardList width="0.78rem" height="0.78rem" />
+                        <span>{move || plans.get().to_string()}</span>
                     </span>
                     <span class="core-status-item__divider" aria-hidden="true"></span>
+                    <span class="core-status-item__memory" title=move || i18n.tr(I18nKey::CoreStatusMemoryTip)()>
+                        <span class="core-status-item__seg" title=move || i18n.tr(I18nKey::CoreStatusMemoryCategoriesTip)()>
+                            <LxIcon icon=icondata::LuFolderTree width="0.78rem" height="0.78rem" />
+                            <span>{move || memory_categories.get().to_string()}</span>
+                        </span>
+                        <span class="core-status-item__seg" title=move || i18n.tr(I18nKey::CoreStatusMemoryFilesTip)()>
+                            <LxIcon icon=icondata::LuFileText width="0.78rem" height="0.78rem" />
+                            <span>{move || memory_files.get().to_string()}</span>
+                        </span>
+                        <span class="core-status-item__seg" title=move || i18n.tr(I18nKey::CoreStatusMemorySizeTip)()>
+                            <LxIcon icon=icondata::LuHardDrive width="0.78rem" height="0.78rem" />
+                            <span>{move || format_memory_size(memory_size.get())}</span>
+                        </span>
+                    </span>
                 </Show>
-                <span class="core-status-item__seg" title=move || i18n.tr(I18nKey::CoreStatusRulesTip)()>
-                    <LxIcon icon=icondata::LuShield width="0.78rem" height="0.78rem" />
-                    <span>{move || rules.get().to_string()}</span>
-                </span>
-                <span class="core-status-item__seg" title=move || i18n.tr(I18nKey::CoreStatusSkillsTip)()>
-                    <LxIcon icon=icondata::LuSparkles width="0.78rem" height="0.78rem" />
-                    <span>{move || skills.get().to_string()}</span>
-                </span>
-                <span class="core-status-item__seg" title=move || i18n.tr(I18nKey::CoreStatusPlansTip)()>
-                    <LxIcon icon=icondata::LuClipboardList width="0.78rem" height="0.78rem" />
-                    <span>{move || plans.get().to_string()}</span>
-                </span>
-                <span class="core-status-item__divider" aria-hidden="true"></span>
-                <span class="core-status-item__memory" title=move || i18n.tr(I18nKey::CoreStatusMemoryTip)()>
-                    <span class="core-status-item__seg" title=move || i18n.tr(I18nKey::CoreStatusMemoryCategoriesTip)()>
-                        <LxIcon icon=icondata::LuFolderTree width="0.78rem" height="0.78rem" />
-                        <span>{move || memory_categories.get().to_string()}</span>
-                    </span>
-                    <span class="core-status-item__seg" title=move || i18n.tr(I18nKey::CoreStatusMemoryFilesTip)()>
-                        <LxIcon icon=icondata::LuFileText width="0.78rem" height="0.78rem" />
-                        <span>{move || memory_files.get().to_string()}</span>
-                    </span>
-                    <span class="core-status-item__seg" title=move || i18n.tr(I18nKey::CoreStatusMemorySizeTip)()>
-                        <LxIcon icon=icondata::LuHardDrive width="0.78rem" height="0.78rem" />
-                        <span>{move || format_memory_size(memory_size.get())}</span>
-                    </span>
-                </span>
             </div>
         </Show>
     }
+}
+
+fn format_cursor_label(position: EditorCursorPosition) -> String {
+    format!("Ln {}, Col {}", position.line, position.column)
+}
+
+fn format_cursor_title(position: EditorCursorPosition) -> String {
+    format!("Line {}, Column {}", position.line, position.column)
 }
 
 fn format_memory_size(bytes: u64) -> String {

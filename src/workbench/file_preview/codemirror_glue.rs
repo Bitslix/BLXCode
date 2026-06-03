@@ -73,6 +73,7 @@ pub async fn create_editor(
     read_only: bool,
     on_change: &Function,
     on_save: &Function,
+    on_cursor: &Function,
 ) -> Result<JsValue, String> {
     ensure_cm_loaded().await?;
     let cm = cm_global().ok_or("BlxCM not available")?;
@@ -83,6 +84,7 @@ pub async fn create_editor(
     let _ = Reflect::set(&opts, &"readOnly".into(), &JsValue::from_bool(read_only));
     let _ = Reflect::set(&opts, &"onChange".into(), on_change);
     let _ = Reflect::set(&opts, &"onSave".into(), on_save);
+    let _ = Reflect::set(&opts, &"onCursor".into(), on_cursor);
     let parent_val: JsValue = parent.clone().into();
     let args = Array::of2(&parent_val, &opts);
     call_method(&cm, "create", &args)

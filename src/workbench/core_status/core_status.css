@@ -20,6 +20,11 @@
   gap: 0.24rem;
 }
 
+.core-status-item__seg--cursor {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
 .core-status-item__seg--branch {
   max-width: min(22vw, 14rem);
   color: var(--text);

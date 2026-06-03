@@ -4,7 +4,7 @@
 //
 // The Rust glue (`src/workbench/file_preview/codemirror_glue.rs`) only ever
 // calls the small wrapper API below (create / setDoc / getDoc / destroy /
-// selectionLines), so the CodeMirror module graph stays an implementation
+// cursorPosition / selectionLines), so the CodeMirror module graph stays an implementation
 // detail of this file.
 
 import { EditorView, basicSetup } from "codemirror";
@@ -159,16 +159,29 @@ const blxChrome = EditorView.theme(
 
 /**
  * Create an editor inside `parent`.
- * opts: { doc, language, onChange(str), onSave(), readOnly }
+ * opts: { doc, language, onChange(str), onSave(), onCursor(line, column), readOnly }
  * Returns the EditorView (opaque handle for the other helpers).
  */
 export function create(parent, opts) {
   const o = opts || {};
   let syncing = false;
+  let lastCursor = "";
+
+  const emitCursor = (state) => {
+    if (typeof o.onCursor !== "function") return;
+    const [line, column] = cursorPosition({ state });
+    const key = `${line}:${column}`;
+    if (key === lastCursor) return;
+    lastCursor = key;
+    o.onCursor(line, column);
+  };
 
   const updateListener = EditorView.updateListener.of((u) => {
     if (u.docChanged && !syncing && typeof o.onChange === "function") {
       o.onChange(u.state.doc.toString());
+    }
+    if (u.selectionSet || u.docChanged || u.focusChanged) {
+      emitCursor(u.state);
     }
   });
 
@@ -200,6 +213,7 @@ export function create(parent, opts) {
     parent,
     state: EditorState.create({ doc: o.doc || "", extensions }),
   });
+  emitCursor(view.state);
 
   // External updates (revert / reload) must not re-fire onChange.
   view.__blxSetDoc = (text) => {
@@ -226,6 +240,16 @@ export function getDoc(view) {
 
 export function destroy(view) {
   if (view) view.destroy();
+}
+
+/**
+ * 1-based [line, column] for the primary caret head.
+ */
+export function cursorPosition(view) {
+  if (!view) return [1, 1];
+  const pos = view.state.selection.main.head;
+  const line = view.state.doc.lineAt(pos);
+  return [line.number, pos - line.from + 1];
 }
 
 /**
