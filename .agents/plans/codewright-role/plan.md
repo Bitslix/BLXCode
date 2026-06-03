@@ -68,5 +68,5 @@ The role is enabled, uses `terminalAgentSwarm: true`, and may use both terminal-
 - [x] `add-role` - Add and register Codewright specialized role markdown.
 - [x] `allow-subagents` - Update system prompt and tests so Codewright can use `subagents.run`.
 - [x] `auto-accept-ui` - Extend permission-card AskUser options and frontend mode switching.
-- [ ] `auto-accept-backend` - Add runtime chat-mode override in backend dispatch.
+- [x] `auto-accept-backend` - Add runtime chat-mode override in backend dispatch.
 - [ ] `docs-tests` - Update docs and run targeted Rust/frontend tests.
