@@ -111,6 +111,9 @@ pub fn render_agent_context_block(input: &RenderInputs) -> String {
                         | AgentContextKind::PlanFile
                         | AgentContextKind::PlanTaskGroup
                         | AgentContextKind::FileSnippet
+                        | AgentContextKind::FileRef
+                        | AgentContextKind::GitDiff
+                        | AgentContextKind::GitCommit
                 )
             })
             .collect();
@@ -127,7 +130,10 @@ pub fn render_agent_context_block(input: &RenderInputs) -> String {
                     AgentContextKind::PlanIndex
                     | AgentContextKind::PlanFile
                     | AgentContextKind::PlanTaskGroup
-                    | AgentContextKind::FileSnippet => continue,
+                    | AgentContextKind::FileSnippet
+                    | AgentContextKind::FileRef
+                    | AgentContextKind::GitDiff
+                    | AgentContextKind::GitCommit => continue,
                 };
                 out.push_str(&format!("- [{kind}] {} — {}\n", item.label, item.source));
                 if !item.paths.is_empty() && item.paths.len() <= 12 {
