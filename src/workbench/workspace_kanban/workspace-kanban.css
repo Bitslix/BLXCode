@@ -334,12 +334,15 @@
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding-right: 0.2rem;
+  scrollbar-gutter: stable;
 }
 
 .workspace-kanban-section {
   --kanban-state: var(--text-muted);
+  flex: 0 0 auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--bg-raised) 92%, var(--overlay-1));
@@ -391,7 +394,9 @@
 }
 
 .workspace-kanban-section__head {
+  flex: 0 0 2.4rem;
   height: 2.4rem;
+  min-height: 2.4rem;
   padding: 0 0.7rem;
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--bg-panel-header) 90%, var(--overlay-1));
@@ -442,6 +447,7 @@
 }
 
 .workspace-kanban-plan {
+  flex: 0 0 auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--bg-panel) 88%, var(--overlay-1));
@@ -470,6 +476,7 @@
 }
 
 .workspace-kanban-plan__head {
+  flex: 0 0 auto;
   min-height: 2.8rem;
   padding: 0.5rem 0.65rem;
   background: transparent;

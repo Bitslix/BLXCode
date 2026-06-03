@@ -7575,6 +7575,10 @@ button {
   overflow: auto;
 }
 
+.workspace-center-panel--kanban {
+  overflow: hidden;
+}
+
 .harness-settings-grid--docked {
   flex: 1 1 0;
   min-height: 0;

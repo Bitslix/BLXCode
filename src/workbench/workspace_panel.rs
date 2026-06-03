@@ -722,7 +722,7 @@ fn DynamicCenterPanels(
                 match tab.kind {
                     CenterTabKind::Kanban => view! {
                         <div
-                            class="workspace-center-panel"
+                            class="workspace-center-panel workspace-center-panel--kanban"
                             class:workspace-center-panel--hidden=move || active_tab_id.get() != tab_id
                         >
                             <WorkspaceKanban workspace_id=workspace_id />
