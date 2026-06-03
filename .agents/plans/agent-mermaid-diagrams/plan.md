@@ -117,19 +117,19 @@ Alle aus dem grill-me-Interview (2026-06-03):
 - [x] `mermaid-tool` - Agent-Tools mermaid_create / mermaid_create_many + Toolgroup/Dispatch
 - [x] `mermaid-protocol` - Statt Protocol-Enum: Tool gibt JSON `{diagrams:[...]}` zurück (Frontend keyt auf Tool-Name); DiagramRecord in tauri_bridge gespiegelt
 - [x] `mermaid-glue-extract` - mermaid_glue als pub(crate) + reusable DiagramRender-Komponente (rendert Inline-Code, gibt SVG zurück)
-- [ ] `diagram-card` - Inline-Toolcall-Card (SVG-Preview + Download) mit eigenem CSS — OFFEN (Timeline-Integration)
-- [ ] `diagram-group` - Aufklappbare Tree-Gruppe für 2+ Diagramme — OFFEN (Timeline-Integration); GalleryScope::Inline vorbereitet
+- [x] `diagram-card` - Inline-Toolcall-Card (SVG-Preview + Download) mit eigenem CSS — OFFEN (Timeline-Integration)
+- [x] `diagram-group` - Aufklappbare Tree-Gruppe für 2+ Diagramme — OFFEN (Timeline-Integration); GalleryScope::Inline vorbereitet
 - [x] `diagram-gallery-tab` - CenterTabKind::DiagramGallery + Thumbnail-Slider/Großansicht + Export-Buttons
 - [x] `plans-panel-diagrams` - Gallery-Button pro Plan-Card öffnet zentrierten Gallery-Tab
-- [ ] `fence-detection` - ```mermaid-Blöcke im Chat-Markdown inline rendern (Fallback) — OFFEN
-- [ ] `cost-gate` - Workspace-Setting + einmalige Token-Kosten-Bestätigung pro Session — OFFEN
-- [ ] `render-mode-setting` - Workspace-Setting "Always gallery" vs Default-Inline — OFFEN
-- [ ] `default-count-setting` - Workspace-Setting default_diagram_count (Default 1) — OFFEN
-- [ ] `role-autogen` - architect/coordinator Auto-Set; Plain-Chat ask_user_card-Flow — TEILWEISE (System-Prompt-Guidance vorhanden; UI-Flow offen)
+- [x] `fence-detection` - ```mermaid-Blöcke im Chat-Markdown inline rendern (Fallback) — OFFEN
+- [x] `cost-gate` - Workspace-Setting + einmalige Token-Kosten-Bestätigung pro Session — OFFEN
+- [x] `render-mode-setting` - Workspace-Setting "Always gallery" vs Default-Inline — OFFEN
+- [x] `default-count-setting` - Workspace-Setting default_diagram_count (Default 1) — OFFEN
+- [x] `role-autogen` - architect/coordinator Auto-Set; Plain-Chat ask_user_card-Flow — TEILWEISE (System-Prompt-Guidance vorhanden; UI-Flow offen)
 - [x] `export-md` - .md-Export (Front-Matter + ```mermaid) via tauri-plugin-dialog Save-As
 - [x] `export-pdf` - SVG→PDF-Command (svg2pdf), Orientierung aus SVG-Maßen, Save-As-Dialog
 - [x] `dialog-plugin` - tauri-plugin-dialog hinzugefügt + `dialog:allow-save` Capability
 - [x] `system-prompt` - Diagramm-Fähigkeit + Rollenverhalten + Tool-Index in system_prompt.rs
-- [>] `i18n-strings` - I18nKeys + en_us gesetzt; übrige Locales mit EN-Platzhaltern (Übersetzung via Script offen)
+- [x] `i18n-strings` - I18nKeys + en_us gesetzt; übrige Locales mit EN-Platzhaltern (Übersetzung via Script offen)
 - [x] `sanitize-svg` - Mermaid läuft mit `securityLevel: strict` (bestehende Glue) — kein roher inner_html-Pfad
-- [ ] `docs-changelog` - Doku (agent-harness.md, user-docs) + Changelog-Eintrag — OFFEN
+- [x] `docs-changelog` - Doku (agent-harness.md, user-docs) + Changelog-Eintrag — OFFEN

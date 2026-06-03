@@ -10,7 +10,9 @@
     "empty"
   ],
   "collapsedPlanSections": [],
-  "expandedPlans": [],
+  "expandedPlans": [
+    "kanban-board-view/plan.md"
+  ],
   "taskLaneOrder": [
     "pending",
     "in_progress",
@@ -19,7 +21,21 @@
     "cancelled"
   ],
   "collapsedTaskLanes": [],
-  "planOrder": {},
+  "planOrder": {
+    "agent-mermaid-diagrams/plan.md": 2,
+    "agent-plan-status-lifecycle/plan.md": 0,
+    "codewright-role/plan.md": 4,
+    "custom-app-titlebar/plan.md": 3,
+    "heartbeat-memory-indexer/plan.md": 5,
+    "kanban-board-view/plan.md": 1,
+    "kanban-dnd-agent-mermaid/plan.md": 6,
+    "leptos-to-typescript-migration/plan.md": 7,
+    "performance-optimization/plan.md": 8,
+    "plan-folder-migration/plan.md": 9,
+    "provider-grouped-model-picker-logos/plan.md": 10,
+    "russh-transport-refactor/plan.md": 11,
+    "security-hardening/plan.md": 12
+  },
   "taskOrder": {},
   "filters": {
     "query": "",
@@ -27,5 +43,5 @@
     "showCancelled": true,
     "activeOnly": false
   },
-  "updatedAt": 1780515061
+  "updatedAt": 1780527474
 }

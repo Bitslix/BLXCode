@@ -165,6 +165,6 @@ collapse toggle lives in `sidebar.rs`; the right collapse toggle lives in
 - [x] `titlebar-layout-css` - App-shell vertical flex, `--titlebar-h` offset, terminal fit re-check, tokens-only styling
 - [x] `titlebar-boot-eula` - Ensure the bar (drag + window controls) is present during boot and the EULA gate
 - [x] `titlebar-i18n` - Title bar tooltip/menu i18n keys across keys.rs + all 14 locale files (reuse existing keys where they fit)
-- [ ] `titlebar-platform` - Verify platform nuances (Windows hit-targets, macOS no-traffic-lights, Linux drag) on the dev target — needs a manual run of `cargo tauri dev`
-- [ ] `titlebar-notifications-feed` - Follow-up: wire real notifications (agent-done/needs-input, toasts) into the popover store (store stub in place: `TitleBarFeed`)
+- [x] `titlebar-platform` - Verify platform nuances (Windows hit-targets, macOS no-traffic-lights, Linux drag) on the dev target — needs a manual run of `cargo tauri dev`
+- [x] `titlebar-notifications-feed` - Follow-up: wire real notifications (agent-done/needs-input, toasts) into the popover store (store stub in place: `TitleBarFeed`)
 - [x] `titlebar-verify` - cargo check (wasm) ✓ + cargo check (backend) ✓ + cargo test --workspace ✓ (89 passed). Manual cross-platform checklist tracked under `titlebar-platform`.

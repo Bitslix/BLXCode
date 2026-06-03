@@ -185,18 +185,18 @@ Build a workspace-scoped Multi-Kanban as a pinned center tab for every real work
 - [x] `kanban-task-lanes` - Render nested task-state lanes and cards.
 - [x] `kanban-toolbar` - Add search, filters, refresh, import, export, and quick-create actions.
 - [x] `kanban-plans-panel-sync` - Keep Workspace Kanban and the right-side Plans panel synchronized after create, write, rename, delete, update, remove, and drag/move actions.
-- [>] `kanban-expand-collapse` - Persist expanded plans and collapsed sections/lanes.
-- [>] `kanban-task-dnd` - Drag tasks across lanes and within lanes.
-- [ ] `kanban-plan-order` - Persist manual plan ordering within derived state groups.
-- [>] `kanban-inline-actions` - Quick-add, rename, delete, load into Agent, open/edit/preview.
-- [>] `kanban-error-states` - Handle stale files, missing plans, write conflicts, invalid imports, and no-workspace state.
+- [x] `kanban-expand-collapse` - Persist expanded plans and collapsed sections/lanes.
+- [x] `kanban-task-dnd` - Drag tasks across lanes and within lanes.
+- [x] `kanban-plan-order` - Persist manual plan ordering within derived state groups.
+- [x] `kanban-inline-actions` - Quick-add, rename, delete, load into Agent, open/edit/preview.
+- [x] `kanban-error-states` - Handle stale files, missing plans, write conflicts, invalid imports, and no-workspace state.
 - [x] `kanban-agent-tools` - Add Kanban tools, schemas, dispatch, tool groups, and permission classes.
 - [x] `kanban-agent-skill` - Update embedded skill/rule guidance for Kanban use.
 - [x] `kanban-system-prompt` - Add Kanban tools to the prompt index and tests.
-- [>] `kanban-notifications` - Add `{view:"kanban"}` target handling and Kanban notification semantics.
+- [x] `kanban-notifications` - Add `{view:"kanban"}` target handling and Kanban notification semantics.
 - [x] `kanban-titlebar-shortcut` - Add Navigate menu item for active workspace Kanban.
 - [x] `kanban-i18n` - Add exhaustive locale keys and run frontend check.
 - [x] `kanban-theme-css` - Use only semantic tokens and component-scoped CSS.
 - [x] `kanban-docs` - Update user/developer docs and fix plan-state wording.
 - [x] `kanban-tests` - Add backend parser/storage/API tests and frontend compile checks.
-- [ ] `kanban-manual-qa` - Verify app restart/reload, new workspace defaults, old snapshot migration, DnD, import/export, notifications, and titlebar navigation.
+- [x] `kanban-manual-qa` - Verify app restart/reload, new workspace defaults, old snapshot migration, DnD, import/export, notifications, and titlebar navigation.
