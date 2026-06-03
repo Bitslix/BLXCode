@@ -891,6 +891,7 @@ fn harness_settings_cat_icon(cat: HarnessSettingsCategory) -> icondata::Icon {
         HarnessSettingsCategory::ApiKeys => icondata::LuKeyRound,
         HarnessSettingsCategory::Workspace => icondata::LuFolderOpen,
         HarnessSettingsCategory::AgentProvider => icondata::LuCpu,
+        HarnessSettingsCategory::Heartbeat => icondata::LuHeartPulse,
         HarnessSettingsCategory::Remote => icondata::LuServer,
         HarnessSettingsCategory::Memory => icondata::LuLayers,
         HarnessSettingsCategory::Mcp => icondata::LuPlug,
@@ -925,6 +926,7 @@ pub fn SettingsDock(
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::App label=I18nKey::HsCatApp />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Appearance label=I18nKey::HsCatAppearance />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::CodeEditor label=I18nKey::HsCatCodeEditor />
+                <HarnessCatBtnStatic ui=ui cat=HarnessSettingsCategory::Heartbeat label="HeartBeat" />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Memory label=I18nKey::TabMemory />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Mcp label=I18nKey::HsCatMcp />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Remote label=I18nKey::HsCatRemote />
@@ -952,6 +954,9 @@ pub fn SettingsDock(
                     }.into_any(),
                     HarnessSettingsCategory::AgentProvider => view! {
                         <crate::workbench::AgentProviderPane />
+                    }.into_any(),
+                    HarnessSettingsCategory::Heartbeat => view! {
+                        <crate::workbench::HeartbeatSettingsPane />
                     }.into_any(),
                     HarnessSettingsCategory::Remote => view! {
                         <crate::workbench::RemoteSettingsPane />
@@ -998,6 +1003,28 @@ fn HarnessCatBtn(
                 <LxIcon icon=icon width="0.92rem" height="0.92rem" />
             </span>
             <span class="harness-cat-btn__label">{move || i18n.tr(label)()}</span>
+        </button>
+    }
+}
+
+#[component]
+fn HarnessCatBtnStatic(
+    ui: HarnessUiService,
+    cat: HarnessSettingsCategory,
+    label: &'static str,
+) -> impl IntoView {
+    let icon = harness_settings_cat_icon(cat);
+    view! {
+        <button
+            type="button"
+            class:harness-cat-active=move || ui.settings_category().get() == cat
+            class="harness-cat-btn"
+            on:click=move |_| ui.settings_category().set(cat)
+        >
+            <span class="harness-cat-btn__icon" aria-hidden="true">
+                <LxIcon icon=icon width="0.92rem" height="0.92rem" />
+            </span>
+            <span class="harness-cat-btn__label">{label}</span>
         </button>
     }
 }

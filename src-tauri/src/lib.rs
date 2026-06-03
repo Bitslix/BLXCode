@@ -15,6 +15,7 @@ mod git_info;
 mod git_remote;
 mod git_status;
 mod git_sync;
+mod heartbeat;
 mod image;
 mod kanban;
 mod mcp;
@@ -147,6 +148,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(AppLogState::default())
+        .manage(heartbeat::HeartbeatState::default())
         .setup(|app| {
             let dir = app
                 .path()
@@ -157,6 +159,7 @@ pub fn run() {
             app_paths::init(dir);
             let log_state = app.state::<AppLogState>();
             log_state.initialize(&app.handle())?;
+            heartbeat::ensure_scheduler_started(app.handle().clone());
             Ok(())
         })
         .manage(AgentEngineState::new())
@@ -326,6 +329,15 @@ pub fn run() {
             memory::memory_install_pointers,
             memory::memory_uninstall_pointers,
             memory::memory_pointer_status,
+            memory::indexer::memory_index_settings_get,
+            memory::indexer::memory_index_settings_save,
+            memory::indexer::memory_index_stats,
+            heartbeat::heartbeat_settings_get,
+            heartbeat::heartbeat_settings_save,
+            heartbeat::heartbeat_services_list,
+            heartbeat::heartbeat_service_set_enabled,
+            heartbeat::heartbeat_set_open_workspaces,
+            heartbeat::heartbeat_service_run_now,
             tasks::tasks_list,
             tasks::tasks_get,
             tasks::tasks_create,

@@ -22,6 +22,10 @@ use leptos_icons::Icon as LxIcon;
 use send_wrapper::SendWrapper;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
+use crate::tauri_bridge::{
+    heartbeat_services_list, heartbeat_set_open_workspaces, is_tauri_shell,
+    listen_heartbeat_services_changed, HeartbeatServiceStatus, HeartbeatServiceView,
+};
 
 #[component]
 pub fn App() -> impl IntoView {
@@ -200,6 +204,51 @@ fn AppStatusLine() -> impl IntoView {
     let plan_migration = expect_context::<PlanMigrationService>();
     let update_visible = RwSignal::new(false);
     let hide_generation = RwSignal::new(0_u64);
+    let heartbeat_services = RwSignal::new(Vec::<HeartbeatServiceView>::new());
+    let left_process_index = RwSignal::new(0_usize);
+
+    Effect::new(move |_| {
+        if !is_tauri_shell() {
+            return;
+        }
+        let workspaces = wb
+            .workspaces()
+            .get()
+            .into_iter()
+            .map(|workspace| workspace.cwd.trim().to_string())
+            .filter(|cwd| !cwd.is_empty())
+            .collect::<Vec<_>>();
+        spawn_local(async move {
+            let _ = heartbeat_set_open_workspaces(workspaces).await;
+        });
+    });
+
+    Effect::new(move |_| {
+        if !is_tauri_shell() {
+            return;
+        }
+        spawn_local(async move {
+            if let Ok(list) = heartbeat_services_list().await {
+                heartbeat_services.set(list);
+            }
+        });
+        let listener = listen_heartbeat_services_changed(move |list| {
+            heartbeat_services.set(list);
+        });
+        let listener = SendWrapper::new(listener);
+        on_cleanup(move || {
+            drop(listener.take());
+        });
+    });
+
+    Effect::new(move |_| {
+        spawn_local(async move {
+            loop {
+                TimeoutFuture::new(3000).await;
+                left_process_index.update(|idx| *idx = idx.wrapping_add(1));
+            }
+        });
+    });
 
     Effect::new(move |_| {
         let active_id = wb.active_id().get();
@@ -260,10 +309,61 @@ fn AppStatusLine() -> impl IntoView {
         }
     });
 
+    let memory_indexer_visible = move || {
+        heartbeat_services.with(|services| {
+            services.iter().any(|service| {
+                service.id == "memory_indexer"
+                    && matches!(
+                        service.status,
+                        HeartbeatServiceStatus::Running | HeartbeatServiceStatus::Stalled
+                    )
+            })
+        })
+    };
+    let memory_indexer_service = move || {
+        heartbeat_services.with(|services| {
+            services
+                .iter()
+                .find(|service| service.id == "memory_indexer")
+                .cloned()
+        })
+    };
+    let process_visible_count = move || {
+        [
+            update_visible.get(),
+            plan_migration_statusline_visible(plan_migration),
+            memory_indexer_visible(),
+        ]
+        .into_iter()
+        .filter(|visible| *visible)
+        .count()
+        .max(1)
+    };
+    let process_slot = move || left_process_index.get() % process_visible_count();
+    let process_item_index = move |target: usize| {
+        let mut idx = 0usize;
+        if update_visible.get() {
+            if target == 0 {
+                return Some(idx);
+            }
+            idx += 1;
+        }
+        if plan_migration_statusline_visible(plan_migration) {
+            if target == 1 {
+                return Some(idx);
+            }
+            idx += 1;
+        }
+        if memory_indexer_visible() && target == 2 {
+            return Some(idx);
+        }
+        None
+    };
+
     view! {
         <footer class="app-statusline" aria-label="Application status">
             <div class="app-statusline__slot app-statusline__slot--left">
-                <Show when=move || update_visible.get()>
+                <Show when=move || update_visible.get() && process_item_index(0) == Some(process_slot())>
                     <span class=move || update_statusline_class(updates.status().get())>
                         <LxIcon
                             icon=move || update_statusline_icon(updates.status().get())
@@ -273,7 +373,7 @@ fn AppStatusLine() -> impl IntoView {
                         <span>{move || update_statusline_label(updates, i18n)}</span>
                     </span>
                 </Show>
-                <Show when=move || plan_migration_statusline_visible(plan_migration)>
+                <Show when=move || plan_migration_statusline_visible(plan_migration) && process_item_index(1) == Some(process_slot())>
                     <span class=move || plan_migration_statusline_class(plan_migration)>
                         <LxIcon
                             icon=move || plan_migration_statusline_icon(plan_migration)
@@ -282,6 +382,9 @@ fn AppStatusLine() -> impl IntoView {
                         />
                         <span>{move || plan_migration_statusline_label(plan_migration)}</span>
                     </span>
+                </Show>
+                <Show when=move || memory_indexer_visible() && process_item_index(2) == Some(process_slot())>
+                    <HeartbeatStatusBarItem service=memory_indexer_service />
                 </Show>
                 <VimStatusIndicator />
             </div>
@@ -298,6 +401,57 @@ fn AppStatusLine() -> impl IntoView {
 fn plan_migration_statusline_visible(service: PlanMigrationService) -> bool {
     let progress = service.progress().get();
     progress.busy || progress.phase == "error"
+}
+
+#[component]
+fn HeartbeatStatusBarItem(
+    service: impl Fn() -> Option<HeartbeatServiceView> + Copy + Send + Sync + 'static,
+) -> impl IntoView {
+    view! {
+        <span class=move || heartbeat_statusline_class(service().as_ref())>
+            <LxIcon
+                icon=move || heartbeat_statusline_icon(service().as_ref())
+                width="0.76rem"
+                height="0.76rem"
+            />
+            <span>{move || heartbeat_statusline_label(service())}</span>
+        </span>
+    }
+}
+
+fn heartbeat_statusline_class(service: Option<&HeartbeatServiceView>) -> String {
+    let modifier = match service.map(|s| s.status) {
+        Some(HeartbeatServiceStatus::Stalled | HeartbeatServiceStatus::Error) => {
+            " app-statusline__item--heartbeat-warn"
+        }
+        Some(HeartbeatServiceStatus::Running) => " app-statusline__item--heartbeat-busy",
+        _ => " app-statusline__item--quiet",
+    };
+    format!("app-statusline__item app-statusline__item--heartbeat{modifier}")
+}
+
+fn heartbeat_statusline_icon(service: Option<&HeartbeatServiceView>) -> icondata::Icon {
+    match service.map(|s| s.status) {
+        Some(HeartbeatServiceStatus::Stalled | HeartbeatServiceStatus::Error) => {
+            icondata::LuCircleAlert
+        }
+        Some(HeartbeatServiceStatus::Running) => icondata::LuDatabaseZap,
+        _ => icondata::LuHeartPulse,
+    }
+}
+
+fn heartbeat_statusline_label(service: Option<HeartbeatServiceView>) -> String {
+    let Some(service) = service else {
+        return "HeartBeat".into();
+    };
+    match service.status {
+        HeartbeatServiceStatus::Stalled => "Memory index stalled".into(),
+        HeartbeatServiceStatus::Error => service
+            .last_response
+            .unwrap_or_else(|| "Memory index error".into()),
+        HeartbeatServiceStatus::Running => "Memory indexing".into(),
+        _ => service.name,
+    }
 }
 
 fn plan_migration_statusline_class(service: PlanMigrationService) -> String {

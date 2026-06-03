@@ -71,12 +71,12 @@ The Memory Indexer processes all open workspaces on each eligible tick. It build
 
 ## Tasks
 
-- [ ] `heartbeat-backend` - Implement HeartBeat settings, scheduler runtime, service registry, status snapshots, and IPC commands.
-- [ ] `workspace-sync` - Send all open frontend workspaces to the HeartBeat backend and keep the backend workspace set current.
-- [ ] `memory-index-settings` - Add independent Memory Indexer provider/model settings and reuse existing provider/model/key infrastructure.
-- [ ] `memory-indexer-service` - Implement the Memory Indexer service with per-workspace concurrency, skip counting, stalled marking, and manual run support.
-- [ ] `memory-index-rendering` - Generate managed Rules, Skills, and Plans memory notes directly under their category folders with Graph3D-friendly wikilinks.
-- [ ] `heartbeat-settings-ui` - Add Settings -> HeartBeat with global controls and registered service list.
-- [ ] `memory-settings-ui` - Extend Settings -> Memory with stats and Memory Indexer provider/model controls.
-- [ ] `statusbar-rotator` - Add left statusline rotation and Memory Indexer running/stalled indicator.
-- [ ] `tests-and-verification` - Add backend/frontend tests and run the integration verification flow.
+- [x] `heartbeat-backend` - Implement HeartBeat settings, scheduler runtime, service registry, status snapshots, and IPC commands.
+- [x] `workspace-sync` - Send all open frontend workspaces to the HeartBeat backend and keep the backend workspace set current.
+- [x] `memory-index-settings` - Add independent Memory Indexer provider/model settings and reuse existing provider/model/key infrastructure.
+- [x] `memory-indexer-service` - Implement the Memory Indexer service with per-workspace concurrency, skip counting, stalled marking, and manual run support.
+- [x] `memory-index-rendering` - Generate managed Rules, Skills, and Plans memory notes directly under their category folders with Graph3D-friendly wikilinks.
+- [x] `heartbeat-settings-ui` - Add Settings -> HeartBeat with global controls and registered service list.
+- [x] `memory-settings-ui` - Extend Settings -> Memory with stats and Memory Indexer provider/model controls.
+- [x] `statusbar-rotator` - Add left statusline rotation and Memory Indexer running/stalled indicator.
+- [x] `tests-and-verification` - Add backend/frontend tests and run the integration verification flow.

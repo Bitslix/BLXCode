@@ -847,6 +847,7 @@ pub enum HarnessSettingsCategory {
     ApiKeys,
     Workspace,
     AgentProvider,
+    Heartbeat,
     Remote,
     Memory,
     Mcp,

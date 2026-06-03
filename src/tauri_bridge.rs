@@ -957,6 +957,139 @@ pub async fn agent_provider_models(
     .await
 }
 
+// ---------- HeartBeat + Memory Indexer ----------
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatSettings {
+    pub enabled: bool,
+    pub interval_minutes: u32,
+    #[serde(default)]
+    pub service_enabled: std::collections::BTreeMap<String, bool>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum HeartbeatServiceStatus {
+    Idle,
+    Running,
+    Stalled,
+    Error,
+    Disabled,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatServiceView {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub kind: String,
+    pub source: String,
+    #[serde(default)]
+    pub capabilities: Vec<String>,
+    pub enabled: bool,
+    pub status: HeartbeatServiceStatus,
+    pub last_call: Option<u64>,
+    pub next_call: Option<u64>,
+    pub last_response: Option<String>,
+    pub skip_count: u32,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryIndexSettings {
+    pub provider: AgentProviderKind,
+    pub model_id: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryIndexStats {
+    pub workspace_count: usize,
+    pub global_count: usize,
+    pub last_indexed_at: Option<u64>,
+    #[serde(default)]
+    pub generated_files: Vec<String>,
+    #[serde(default)]
+    pub warnings: Vec<String>,
+}
+
+pub async fn heartbeat_settings_get() -> Result<HeartbeatSettings, String> {
+    invoke_typed("heartbeat_settings_get", serde_json::json!({})).await
+}
+
+pub async fn heartbeat_settings_save(
+    settings: HeartbeatSettings,
+) -> Result<HeartbeatSettings, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        settings: HeartbeatSettings,
+    }
+    invoke_typed("heartbeat_settings_save", Args { settings }).await
+}
+
+pub async fn heartbeat_services_list() -> Result<Vec<HeartbeatServiceView>, String> {
+    invoke_typed("heartbeat_services_list", serde_json::json!({})).await
+}
+
+pub async fn heartbeat_service_set_enabled(
+    id: String,
+    enabled: bool,
+) -> Result<Vec<HeartbeatServiceView>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        id: String,
+        enabled: bool,
+    }
+    invoke_typed("heartbeat_service_set_enabled", Args { id, enabled }).await
+}
+
+pub async fn heartbeat_service_run_now(id: String) -> Result<Vec<HeartbeatServiceView>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        id: String,
+    }
+    invoke_typed("heartbeat_service_run_now", Args { id }).await
+}
+
+pub async fn heartbeat_set_open_workspaces(workspaces: Vec<String>) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        workspaces: Vec<String>,
+    }
+    invoke_unit_js("heartbeat_set_open_workspaces", args_value(Args { workspaces })?).await
+}
+
+pub async fn memory_index_settings_get() -> Result<MemoryIndexSettings, String> {
+    invoke_typed("memory_index_settings_get", serde_json::json!({})).await
+}
+
+pub async fn memory_index_settings_save(
+    settings: MemoryIndexSettings,
+) -> Result<MemoryIndexSettings, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        settings: MemoryIndexSettings,
+    }
+    invoke_typed("memory_index_settings_save", Args { settings }).await
+}
+
+pub async fn memory_index_stats() -> Result<MemoryIndexStats, String> {
+    invoke_typed("memory_index_stats", serde_json::json!({})).await
+}
+
+pub fn listen_heartbeat_services_changed(
+    callback: impl FnMut(Vec<HeartbeatServiceView>) + 'static,
+) -> Option<TauriEventListener> {
+    listen_tauri_event::<Vec<HeartbeatServiceView>>("heartbeat_services_changed", callback)
+}
+
 pub async fn exit_app_ipc() -> Result<(), String> {
     invoke_unit_js("exit_app", JsValue::UNDEFINED).await
 }

@@ -291,6 +291,7 @@ fn parse_settings_category(raw: &str) -> Option<HarnessSettingsCategory> {
         "api_keys" => HarnessSettingsCategory::ApiKeys,
         "workspace" => HarnessSettingsCategory::Workspace,
         "agent_provider" => HarnessSettingsCategory::AgentProvider,
+        "heartbeat" => HarnessSettingsCategory::Heartbeat,
         "remote" => HarnessSettingsCategory::Remote,
         "memory" => HarnessSettingsCategory::Memory,
         "voice" => HarnessSettingsCategory::Voice,

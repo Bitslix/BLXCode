@@ -13,6 +13,7 @@
 pub(crate) mod architecture;
 mod frontmatter;
 mod graph;
+pub mod indexer;
 pub mod paths;
 mod store;
 mod types;
