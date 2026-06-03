@@ -38,6 +38,12 @@ pub fn TerminalUsageButton(terminal_key: String, agent_slug: String) -> impl Int
     let wb = expect_context::<WorkbenchService>();
     let open = RwSignal::new(false);
     let state = RwSignal::new(UsageState::Idle);
+    // The popover lives inside `.ws-term-cell`, which sets `overflow: hidden`,
+    // so an absolutely-positioned popover gets clipped at the cell edge. We
+    // anchor it with `position: fixed` against the button's viewport rect and
+    // clamp it inside the window instead.
+    let button_ref = NodeRef::<leptos::html::Button>::new();
+    let popover_style = RwSignal::new(String::new());
     let terminal_key_for_visible = terminal_key.clone();
     let agent_slug_for_visible = agent_slug.clone();
     let visible = Signal::derive(move || {
@@ -54,6 +60,36 @@ pub fn TerminalUsageButton(terminal_key: String, agent_slug: String) -> impl Int
         let sessions = wb.pty_sessions_signal().get();
         sessions.contains_key(&terminal_key_for_visible)
     });
+
+    let reposition = move || {
+        let Some(btn) = button_ref.get_untracked() else {
+            return;
+        };
+        let rect = btn.get_bounding_client_rect();
+        let win = web_sys::window();
+        let vw = win
+            .as_ref()
+            .and_then(|w| w.inner_width().ok())
+            .and_then(|v| v.as_f64())
+            .unwrap_or(rect.right());
+        let vh = win
+            .as_ref()
+            .and_then(|w| w.inner_height().ok())
+            .and_then(|v| v.as_f64())
+            .unwrap_or(rect.bottom());
+        // Mirror `width: min(21rem, 100vw - 2rem)` (1rem == 16px).
+        let margin = 8.0;
+        let width = (21.0_f64 * 16.0).min(vw - 2.0 * 16.0).max(0.0);
+        // Anchor the popover's right edge to the button, then clamp.
+        let mut left = rect.right() - width;
+        let max_left = (vw - margin - width).max(margin);
+        left = left.clamp(margin, max_left);
+        let top = (rect.bottom() + margin).min((vh - margin).max(margin));
+        popover_style.set(format!(
+            "position: fixed; top: {top:.0}px; left: {left:.0}px; right: auto; width: {width:.0}px; max-height: calc(100vh - {:.0}px); overflow-y: auto;",
+            top + margin
+        ));
+    };
 
     let close_click = window_event_listener_untyped("click", {
         let open = open;
@@ -82,9 +118,15 @@ pub fn TerminalUsageButton(terminal_key: String, agent_slug: String) -> impl Int
             }
         }
     });
+    let reposition_resize = window_event_listener_untyped("resize", move |_| {
+        if open.get_untracked() {
+            reposition();
+        }
+    });
     on_cleanup(move || {
         close_click.remove();
         close_esc.remove();
+        reposition_resize.remove();
     });
 
     let refresh = Callback::new({
@@ -115,6 +157,7 @@ pub fn TerminalUsageButton(terminal_key: String, agent_slug: String) -> impl Int
             <div class="terminal-usage">
                 <button
                     type="button"
+                    node_ref=button_ref
                     class="ws-term-cell__tool terminal-usage__button"
                     class:terminal-usage__button--active=move || open.get()
                     prop:draggable=false
@@ -130,6 +173,7 @@ pub fn TerminalUsageButton(terminal_key: String, agent_slug: String) -> impl Int
                             let next = !open.get_untracked();
                             open.set(next);
                             if next {
+                                reposition();
                                 refresh.run(());
                             }
                         }
@@ -140,6 +184,7 @@ pub fn TerminalUsageButton(terminal_key: String, agent_slug: String) -> impl Int
                 <Show when=move || open.get()>
                     <div
                         class="terminal-usage__popover"
+                        style=move || popover_style.get()
                         role="menu"
                         on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
                         on:click=|ev: web_sys::MouseEvent| ev.stop_propagation()
