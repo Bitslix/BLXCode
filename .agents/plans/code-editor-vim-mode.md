@@ -174,13 +174,13 @@ disabled with an **inline hint** pointing to the Code Editor → Vim toggle.
 
 ## Tasks
 
-- [>] `vim-bundle` - Add @replit/codemirror-vim to bundle, wire compartment + setVim in cm-entry.js, rebuild (commit)
-- [ ] `vim-glue` - Extend codemirror_glue: vim param in create_editor + set_vim helper (commit)
-- [ ] `editor-settings-service` - Add CODE_EDITOR_VIM_KEY + EditorSettingsService, provide in app.rs, re-export (commit)
-- [ ] `editor-vim-bind` - CodeMirrorEditor reads service, passes vim, live Effect → set_vim (commit)
-- [ ] `code-editor-settings-tab` - New CodeEditor category + tab button/routing + code_editor_settings_pane (header + vim switch) + i18n keys (commit)
-- [ ] `vim-status-indicator` - VimStatusIndicator in status bar left slot, gated on vim_enabled && active_editor_status, theme-token CSS + i18n tooltip (commit)
-- [ ] `editor-shortcut-model` - EditorShortcutAction enum (ALL/labels/defaults/id), EDITOR_SHORTCUT_BINDINGS_KEY, AppPrefsService editor_bindings persistence + serde test (commit)
-- [ ] `editor-shortcut-keymap` - cm-entry editorKeymap compartment + command map, glue set_editor_keymap + create_editor param, CodeMirrorEditor builds/reconfigures keymap (empty when vim on) (commit)
-- [ ] `editor-shortcut-pane` - Shortcuts pane "File Editor / Preview" section (reuse ActionRow), disabled+inline-hint when vim active, i18n keys (commit)
-- [ ] `final-checks` - Run cargo check for both crates + bundle build, fix fallout, final commit
+- [x] `vim-bundle` - Add @replit/codemirror-vim to bundle, wire compartment + setVim in cm-entry.js, rebuild (commit)
+- [x] `vim-glue` - Extend codemirror_glue: vim param in create_editor + set_vim helper (commit)
+- [x] `editor-settings-service` - Add CODE_EDITOR_VIM_KEY + EditorSettingsService, provide in app.rs, re-export (commit)
+- [x] `editor-vim-bind` - CodeMirrorEditor reads service, passes vim, live Effect → set_vim (commit)
+- [x] `code-editor-settings-tab` - New CodeEditor category + tab button/routing + code_editor_settings_pane (header + vim switch) + i18n keys (commit)
+- [x] `vim-status-indicator` - VimStatusIndicator in status bar left slot, gated on vim_enabled && active_editor_status, theme-token CSS + i18n tooltip (commit)
+- [x] `editor-shortcut-model` - EditorShortcutAction enum (ALL/labels/defaults/id), EDITOR_SHORTCUT_BINDINGS_KEY, AppPrefsService editor_bindings persistence + serde test (commit)
+- [x] `editor-shortcut-keymap` - cm-entry editorKeymap compartment + command map, glue set_editor_keymap + create_editor param, CodeMirrorEditor builds/reconfigures keymap (empty when vim on) (commit)
+- [x] `editor-shortcut-pane` - Shortcuts pane "File Editor / Preview" section (reuse ActionRow), disabled+inline-hint when vim active, i18n keys (commit)
+- [x] `final-checks` - Run cargo check for both crates + bundle build, fix fallout, final commit
