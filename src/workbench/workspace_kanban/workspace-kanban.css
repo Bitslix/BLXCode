@@ -27,9 +27,7 @@
 .workspace-kanban__quickadd {
   position: relative;
   align-items: stretch;
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--accent) 9%, transparent), transparent 38%),
-    color-mix(in srgb, var(--bg-raised) 88%, var(--overlay-1));
+  background: color-mix(in srgb, var(--bg-raised) 88%, var(--overlay-1));
 }
 
 .workspace-kanban__title {
@@ -108,11 +106,7 @@
   flex: 0 0 9.5rem;
   min-height: 3rem;
   padding: 0 2rem 0 0.72rem;
-  appearance: none;
-  background:
-    linear-gradient(45deg, transparent 50%, var(--text-muted) 50%) calc(100% - 1rem) 52% / 0.38rem 0.38rem no-repeat,
-    linear-gradient(135deg, var(--text-muted) 50%, transparent 50%) calc(100% - 0.72rem) 52% / 0.38rem 0.38rem no-repeat,
-    color-mix(in srgb, var(--bg-panel) 88%, var(--overlay-1));
+  background: color-mix(in srgb, var(--bg-panel) 88%, var(--overlay-1));
 }
 
 .workspace-kanban__status-select option {
@@ -136,9 +130,7 @@
   padding: 0.42rem 0.72rem;
   border: 1px solid color-mix(in srgb, var(--accent-cool) 24%, var(--border));
   border-radius: var(--radius-sm);
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--accent-cool) 12%, transparent), transparent 58%),
-    color-mix(in srgb, var(--bg-panel) 86%, var(--overlay-1));
+  background: color-mix(in srgb, var(--bg-panel) 86%, var(--overlay-1));
   color: var(--text);
   font: inherit;
   text-align: left;
@@ -148,9 +140,7 @@
 
 .workspace-kanban-plan-picker__button:hover {
   border-color: color-mix(in srgb, var(--accent-cool) 48%, var(--border));
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--accent-cool) 16%, transparent), transparent 62%),
-    color-mix(in srgb, var(--bg-panel) 78%, var(--overlay-2));
+  background: color-mix(in srgb, var(--bg-panel) 78%, var(--overlay-2));
 }
 
 .workspace-kanban-plan-picker__text {
@@ -272,34 +262,31 @@
 
 .workspace-kanban-section {
   --kanban-state: var(--text-muted);
-  --kanban-state-soft: color-mix(in srgb, var(--kanban-state) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--kanban-state) 24%, var(--border));
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--kanban-state) 8%, transparent), transparent 46%),
-    color-mix(in srgb, var(--bg-raised) 92%, var(--overlay-1));
+  background: color-mix(in srgb, var(--bg-raised) 92%, var(--overlay-1));
   overflow: hidden;
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent);
 }
 
 .workspace-kanban-section[data-state="blocked"] {
-  --kanban-state: var(--warning);
+  --kanban-state: var(--text-muted);
 }
 
 .workspace-kanban-section[data-state="in-progress"] {
-  --kanban-state: var(--accent-cool);
+  --kanban-state: var(--text-muted);
 }
 
 .workspace-kanban-section[data-state="pending"] {
-  --kanban-state: var(--accent);
+  --kanban-state: var(--text-muted);
 }
 
 .workspace-kanban-section[data-state="completed"] {
-  --kanban-state: var(--success);
+  --kanban-state: var(--text-muted);
 }
 
 .workspace-kanban-section[data-state="cancelled"] {
-  --kanban-state: var(--danger);
+  --kanban-state: var(--text-muted);
 }
 
 .workspace-kanban-section[data-state="empty"] {
@@ -307,7 +294,7 @@
 }
 
 .workspace-kanban-section--open {
-  border-color: color-mix(in srgb, var(--kanban-state) 42%, var(--border));
+  border-color: var(--border-strong);
 }
 
 .workspace-kanban-section__head,
@@ -328,10 +315,8 @@
 .workspace-kanban-section__head {
   height: 2.4rem;
   padding: 0 0.7rem;
-  border-bottom: 1px solid color-mix(in srgb, var(--kanban-state) 18%, var(--border));
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--kanban-state) 18%, transparent), transparent 50%),
-    color-mix(in srgb, var(--bg-panel-header) 90%, var(--overlay-1));
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-panel-header) 90%, var(--overlay-1));
   font-weight: 700;
   position: relative;
 }
@@ -342,7 +327,7 @@
   align-self: stretch;
   margin: 0.35rem 0.15rem 0.35rem -0.2rem;
   border-radius: var(--radius-pill);
-  background: var(--kanban-state);
+  background: var(--border-strong);
 }
 
 .workspace-kanban-section__head > svg:last-child {
@@ -361,8 +346,8 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--kanban-state) 15%, var(--overlay-2));
-  color: color-mix(in srgb, var(--kanban-state) 68%, var(--text));
+  background: var(--overlay-2);
+  color: var(--text-muted);
   font-size: 0.72rem;
   font-weight: 800;
 }
@@ -375,7 +360,7 @@
 }
 
 .workspace-kanban-plan {
-  border: 1px solid color-mix(in srgb, var(--kanban-state, var(--text-muted)) 24%, var(--border));
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--bg-panel) 88%, var(--overlay-1));
   overflow: hidden;
@@ -383,29 +368,29 @@
 }
 
 .workspace-kanban-plan[data-state="blocked"] {
-  --kanban-state: var(--warning);
+  --kanban-state: var(--text-muted);
 }
 
 .workspace-kanban-plan[data-state="in-progress"] {
-  --kanban-state: var(--accent-cool);
+  --kanban-state: var(--text-muted);
 }
 
 .workspace-kanban-plan[data-state="pending"] {
-  --kanban-state: var(--accent);
+  --kanban-state: var(--text-muted);
 }
 
 .workspace-kanban-plan[data-state="completed"] {
-  --kanban-state: var(--success);
+  --kanban-state: var(--text-muted);
 }
 
 .workspace-kanban-plan[data-state="cancelled"] {
-  --kanban-state: var(--danger);
+  --kanban-state: var(--text-muted);
 }
 
 .workspace-kanban-plan__head {
   min-height: 2.8rem;
   padding: 0.5rem 0.65rem;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--kanban-state) 8%, transparent), transparent 54%);
+  background: transparent;
 }
 
 .workspace-kanban-plan__main {
@@ -445,7 +430,7 @@
   grid-template-columns: repeat(5, minmax(11rem, 1fr));
   gap: 0.5rem;
   padding: 0.6rem;
-  border-top: 1px solid color-mix(in srgb, var(--kanban-state) 18%, var(--border));
+  border-top: 1px solid var(--border);
   overflow-x: auto;
 }
 
@@ -457,38 +442,36 @@
   flex-direction: column;
   gap: 0.4rem;
   padding: 0.45rem;
-  border: 1px solid color-mix(in srgb, var(--kanban-lane) 20%, var(--border));
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--kanban-lane) 8%, transparent), transparent 5rem),
-    color-mix(in srgb, var(--bg-raised) 82%, transparent);
+  background: color-mix(in srgb, var(--bg-raised) 82%, transparent);
 }
 
 .workspace-kanban-lane[data-status="pending"] {
-  --kanban-lane: var(--accent);
+  --kanban-lane: var(--text-muted);
 }
 
 .workspace-kanban-lane[data-status="in_progress"] {
-  --kanban-lane: var(--accent-cool);
+  --kanban-lane: var(--text-muted);
 }
 
 .workspace-kanban-lane[data-status="blocked"] {
-  --kanban-lane: var(--warning);
+  --kanban-lane: var(--text-muted);
 }
 
 .workspace-kanban-lane[data-status="completed"] {
-  --kanban-lane: var(--success);
+  --kanban-lane: var(--text-muted);
 }
 
 .workspace-kanban-lane[data-status="cancelled"] {
-  --kanban-lane: var(--danger);
+  --kanban-lane: var(--text-muted);
 }
 
 .workspace-kanban-lane__head {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  color: color-mix(in srgb, var(--kanban-lane) 70%, var(--text-muted));
+  color: var(--text-muted);
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -509,15 +492,15 @@
   flex-direction: column;
   gap: 0.4rem;
   padding: 0.5rem;
-  border: 1px solid color-mix(in srgb, var(--kanban-lane) 16%, var(--border));
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--bg-panel) 92%, var(--kanban-lane) 3%);
+  background: color-mix(in srgb, var(--bg-panel) 92%, var(--overlay-1));
   transition: border-color 0.14s ease, background 0.14s ease, transform 0.14s ease;
 }
 
 .workspace-kanban-task:hover {
-  border-color: color-mix(in srgb, var(--kanban-lane) 34%, var(--border));
-  background: color-mix(in srgb, var(--bg-panel) 88%, var(--kanban-lane) 6%);
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--bg-panel) 86%, var(--overlay-2));
   transform: translateY(-1px);
 }
 
