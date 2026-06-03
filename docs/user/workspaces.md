@@ -38,7 +38,7 @@ The supported fleet labels are:
 - `opencode`
 - `cursor`
 
-The available session roles come from the built-in specialized harness skills (`src-tauri/src/agent/harness_skills/specialized/*.md`): `architect`, `coordinator`, `doc-updater`, `harness-optimizer`, `pr-test-analyzer`, `refactor-cleaner`, and `security-reviewer`. Leaving the dropdown on **Default agent** runs the agent without a role.
+The available session roles come from the built-in specialized harness skills (`src-tauri/src/agent/harness_skills/specialized/*.md`): `architect`, `branch-steward`, `coordinator`, `doc-updater`, `harness-optimizer`, `pr-test-analyzer`, `refactor-cleaner`, and `security-reviewer`. Leaving the dropdown on **Default agent** runs the agent without a role.
 
 <p align="center">
   <img src="../images/create-workspace-step-1.png" alt="Create workspace step 1: name, working directory, and terminal grid preset" />

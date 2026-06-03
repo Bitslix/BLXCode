@@ -75,6 +75,7 @@ impl ToolGroup {
                 "git_status",
                 "git_diff",
                 "git_show",
+                "git_conflicts",
             ],
             Self::GitRead => &[
                 "git_status",
@@ -83,6 +84,7 @@ impl ToolGroup {
                 "git_show",
                 "git_branch_info",
                 "git_ls_files",
+                "git_conflicts",
             ],
             Self::GitWrite => &["git_apply_patch", "git_add", "git_commit"],
             Self::ShellRead => &["shell_exec"],
@@ -343,6 +345,13 @@ mod tests {
         let (ok, bad) = parse_allowed_groups_strict(&input);
         assert_eq!(ok, vec![ToolGroup::WorkspaceRead, ToolGroup::GitRead]);
         assert_eq!(bad, vec!["file_access".to_string(), "shell".to_string()]);
+    }
+
+    #[test]
+    fn git_conflicts_is_available_to_read_groups() {
+        assert!(ToolGroup::GitRead.tool_names().contains(&"git_conflicts"));
+        assert!(ToolGroup::DiffRead.tool_names().contains(&"git_conflicts"));
+        assert!(!ToolGroup::GitWrite.tool_names().contains(&"git_conflicts"));
     }
 
     #[test]

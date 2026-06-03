@@ -91,7 +91,7 @@ When terminals are in **named** mode (see [Workspaces → Named terminals](works
 
 ### Git and diff
 
-Read-only Git inspection is available via dedicated tools (`git_status`, `git_diff`, `git_log`, …) and workspace helpers (`workspace_git_status`, `workspace_diff`, `workspace_search`). Mutating Git (`git_add`, `git_commit`, `git_apply_patch`) is coordinator-only and requires explicit `git_write` permission in subagent runs (subagents do not get write by default).
+Read-only Git inspection is available via dedicated tools (`git_status`, `git_diff`, `git_log`, `git_conflicts`, …) and workspace helpers (`workspace_git_status`, `workspace_diff`, `workspace_search`). Mutating Git (`git_add`, `git_commit`, `git_apply_patch`) is coordinator-only and requires explicit `git_write` permission in subagent runs (subagents do not get write by default).
 
 Core skill **git** has full parameter notes.
 

@@ -34,6 +34,11 @@ Reports current branch and upstream/ahead/behind details.
 ### `git_ls_files { path? }`
 Lists tracked files, optionally scoped to a path.
 
+### `git_conflicts { cwd?, maxFiles?, maxHunksPerFile? }`
+Inspects current merge/rebase/cherry-pick conflicts. Returns unmerged paths, index stage entries, and conflict-marker hunks. Read-only.
+
+When this reports conflicts, **do not resolve them silently**. Summarize the choices and ask the user before editing, staging, committing, continuing, aborting, or otherwise changing the conflict state.
+
 ## Mutating tools
 
 ### `git_apply_patch { patch }`
@@ -52,4 +57,5 @@ Mutating operations (`git_add`, `git_commit`, `git_apply_patch`) require the `gi
 ## Patterns
 - Use `workspace_git_status` or `git_status` before reporting changes.
 - Use `git_diff`/`workspace_diff` before committing or reviewing edits.
+- Use `git_conflicts` whenever status shows unmerged paths or a merge/rebase/cherry-pick appears interrupted.
 - Use `shell_exec` for git only when no dedicated tool exists, and never for unsupported destructive operations unless the user explicitly asks and the active mode allows it.

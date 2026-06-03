@@ -342,7 +342,7 @@ fn base_system_prompt(root: &str, agent_name: &str) -> String {
          **Environment / shell / git (server):** `environment_detect`, `shell_exec`, \
          `workspace_search`, `workspace_git_status`, `workspace_diff`, \
          `git_status`, `git_diff`, `git_log`, `git_show`, `git_branch_info`, \
-         `git_ls_files`, `git_apply_patch`, `git_add`, `git_commit`\n\
+         `git_ls_files`, `git_conflicts`, `git_apply_patch`, `git_add`, `git_commit`\n\
          \n\
          **Web (server, when API key configured):** `web_search`, `web_fetch`\n\
          \n\
@@ -503,6 +503,7 @@ mod tests {
         assert!(p.contains("harness"));
         assert!(p.contains("prompt-generating"));
         assert!(p.contains("notifications"));
+        assert!(p.contains("git_conflicts"));
         assert!(p.contains("Prompt enhancement must never add new scope or include secrets"));
     }
 

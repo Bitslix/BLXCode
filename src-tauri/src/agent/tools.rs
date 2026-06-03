@@ -1658,6 +1658,7 @@ pub fn execute_server_tool(
         "git_show" => crate::agent::git_agent::tool_git_show(args, root),
         "git_branch_info" => crate::agent::git_agent::tool_git_branch_info(root),
         "git_ls_files" => crate::agent::git_agent::tool_git_ls_files(args, root),
+        "git_conflicts" => crate::agent::git_agent::tool_git_conflicts(args, root),
         "git_apply_patch" => crate::agent::git_agent::tool_git_apply_patch(args, root),
         "git_add" => crate::agent::git_agent::tool_git_add(args, root),
         "git_commit" => crate::agent::git_agent::tool_git_commit(args, root),

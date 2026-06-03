@@ -96,8 +96,8 @@ Subagents only see tools from groups the coordinator assigns. Empty `allowedTool
 |----------|-----------------|
 | `environment_read` | `environment_detect` |
 | `workspace_read` | List/read files, `workspace_search` |
-| `diff_read` | `workspace_git_status`, `workspace_diff`, `git_status`, `git_diff`, `git_show` |
-| `git_read` | Status, diff, log, show, branches, ls-files |
+| `diff_read` | `workspace_git_status`, `workspace_diff`, `git_status`, `git_diff`, `git_show`, `git_conflicts` |
+| `git_read` | Status, diff, conflicts, log, show, branches, ls-files |
 | `git_write` | `git_apply_patch`, `git_add`, `git_commit` (coordinator-only in practice; not in subagent defaults) |
 | `shell_read` | `shell_exec` read-only allowlist |
 | `shell_write` | **Not available** to subagents |

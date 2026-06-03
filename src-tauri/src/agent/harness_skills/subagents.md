@@ -23,7 +23,7 @@ If you set it, the value MUST be drawn from this exact list. Anything else is re
 - `environment_read` — `environment_detect`
 - `workspace_read` — `list_workspace_files`, `read_workspace_file`, `workspace_search`
 - `diff_read` — `workspace_git_status`, `workspace_diff`
-- `git_read` — `git_status`, `git_diff`, `git_log`, `git_show`, `git_branch_info`, `git_ls_files`
+- `git_read` — `git_status`, `git_diff`, `git_log`, `git_show`, `git_branch_info`, `git_ls_files`, `git_conflicts`
 - `memory_read` — memory note read tools
 - `plans_read` — plan read tools
 - `tasks_read` — `task_list`, `task_get`

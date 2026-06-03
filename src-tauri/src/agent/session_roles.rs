@@ -22,6 +22,10 @@ pub const SPECIALIZED_ROLES: &[(&str, &str)] = &[
         include_str!("harness_skills/specialized/architect.md"),
     ),
     (
+        "branch-steward",
+        include_str!("harness_skills/specialized/branch-steward.md"),
+    ),
+    (
         "coordinator",
         include_str!("harness_skills/specialized/coordinator.md"),
     ),
@@ -262,6 +266,7 @@ mod tests {
     fn lists_all_embedded_roles() {
         let roles = list_roles();
         assert_eq!(roles.len(), SPECIALIZED_ROLES.len());
+        assert!(roles.iter().any(|r| r.slug == "branch-steward"));
         assert!(roles.iter().any(|r| r.slug == "coordinator"));
         assert!(roles.iter().any(|r| r.slug == "security-reviewer"));
     }
@@ -280,11 +285,14 @@ mod tests {
     }
 
     #[test]
-    fn only_architect_and_coordinator_are_enabled() {
+    fn expected_roles_are_enabled() {
         for r in list_roles() {
             assert_eq!(
                 r.enabled,
-                matches!(r.slug.as_str(), "architect" | "coordinator"),
+                matches!(
+                    r.slug.as_str(),
+                    "architect" | "branch-steward" | "coordinator"
+                ),
                 "unexpected enabled value for {}",
                 r.slug
             );

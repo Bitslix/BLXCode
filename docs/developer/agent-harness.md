@@ -252,7 +252,7 @@ Skills panel: `SrSkillsTabCore`, `SrSkillsTabUser`, `SrSourceCore` — see [Inte
 ## Session roles (harness session modes)
 
 A **session role** lets the user launch a workspace in a specialized mode
-(Coordinator, Architect, Security Reviewer, …). Roles are read-only built-ins,
+(Coordinator, Architect, Branch Steward, Security Reviewer, …). Roles are read-only built-ins,
 embedded from `src-tauri/src/agent/harness_skills/specialized/*.md`.
 
 - `agent/session_roles.rs` — embeds each role via `include_str!`
