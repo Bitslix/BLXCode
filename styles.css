@@ -12696,6 +12696,7 @@ body.blxcode-dragging-terminal * {
     min-width: 0;
 }
 .blx-sr-card__title {
+    min-width: 0;
     font-size: 0.86rem;
     font-weight: 600;
     color: var(--text);
@@ -12761,6 +12762,7 @@ body.blxcode-dragging-terminal * {
     max-width: 100%;
 }
 .blx-sr-card__category {
+    flex-shrink: 0;
     max-width: 9rem;
     overflow: hidden;
     text-overflow: ellipsis;

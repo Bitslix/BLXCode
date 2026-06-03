@@ -74,7 +74,7 @@ Each skill is an **expandable card**:
 
 | Collapsed | Expanded |
 |-----------|----------|
-| Name, summary, category chip, source badge (`core`, `git`, `npm`, `local`, `agent`), enable switch | Lazy-loaded `SKILL.md` body on first expand |
+| Name, summary, category chip, enable switch | Lazy-loaded `SKILL.md` body on first expand |
 
 - **SKILL.md missing** warning (user skills only) when the folder has no top-level `SKILL.md`
 - Enable/disable; **remove** only for non-core skills
