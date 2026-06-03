@@ -1869,7 +1869,7 @@ body {
 }
 
 .workbench-empty-editor__logo-wrap {
-  margin: clamp(1rem, 3vh, 1.65rem) 0 clamp(1.1rem, 3.2vh, 1.75rem);
+  margin: clamp(1rem, 3vh, 1.65rem) 0 clamp(0.75rem, 2.4vh, 1.15rem);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -1884,17 +1884,9 @@ body {
   filter: drop-shadow(0 10px 28px var(--scrim-bg));
 }
 
-.workbench-empty-editor__note {
-  margin: 0 0 1.1rem;
-  font-size: 0.82rem;
-  color: var(--text-muted);
-  line-height: 1.45;
-  text-align: center;
-}
-
 .workbench-empty-recent {
   width: min(100%, 44rem);
-  margin: 0.85rem auto 1.15rem;
+  margin: 0.65rem auto 1rem;
 }
 
 .workbench-empty-editor .workbench-empty-recent-list {
@@ -1990,20 +1982,20 @@ button.workbench-recent-remove:focus-visible {
 .workbench-shortcut-list {
   list-style: none;
   margin: 0 auto;
-  width: min(100%, 28rem);
-  padding: 1.15rem 1rem 0.35rem;
+  width: min(100%, 44rem);
+  padding: 0.85rem 0 0.25rem;
   border-top: 1px solid var(--overlay-2);
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(5.6rem, 1fr));
+  gap: 0.5rem;
 }
 
 .workbench-shortcut-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  font-size: 0.82rem;
+  justify-content: center;
+  gap: 0.42rem;
+  font-size: 0.7rem;
   color: var(--text-muted);
   text-shadow: 0 1px 2px var(--scrim-bg);
 }
@@ -2016,25 +2008,44 @@ button.workbench-recent-remove:focus-visible {
 
 button.workbench-shortcut-row--action {
   width: 100%;
+  min-height: 5.45rem;
   margin: 0;
-  padding: 0.48rem 0.55rem;
-  border: none;
+  padding: 0.6rem 0.48rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
   border-radius: var(--radius-lg);
-  background: transparent;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--overlay-2) 68%, transparent), transparent),
+    color-mix(in srgb, var(--bg-panel) 76%, transparent);
   font: inherit;
   color: inherit;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
-  display: flex;
+  display: grid;
+  grid-template-rows: auto minmax(1.1rem, auto) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  justify-items: center;
+  gap: 0.36rem;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--overlay-4) 26%, transparent),
+    0 8px 18px color-mix(in srgb, var(--scrim-bg) 32%, transparent);
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
 }
 
 button.workbench-shortcut-row--action:hover,
 button.workbench-shortcut-row--action:focus-visible {
-  background: var(--overlay-2);
+  border-color: var(--border-strong);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 32%, transparent), transparent),
+    color-mix(in srgb, var(--bg-panel) 84%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--overlay-4) 32%, transparent),
+    0 12px 24px color-mix(in srgb, var(--scrim-bg) 40%, transparent);
   outline: none;
+  transform: translateY(-2px);
 }
 
 button.workbench-shortcut-row--action:focus-visible {
@@ -2108,15 +2119,15 @@ button.workbench-shortcut-row--action:focus-visible {
 }
 
 .workbench-shortcut-row--spacer {
-  min-height: 0.35rem;
-  pointer-events: none;
-  visibility: hidden;
+  display: none;
 }
 
 .workbench-shortcut-row__lead {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.45rem;
+  justify-content: center;
+  gap: 0.34rem;
   min-width: 0;
 }
 
@@ -2125,8 +2136,13 @@ button.workbench-shortcut-row--action:focus-visible {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  color: var(--text-muted);
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--accent-soft) 48%, transparent);
+  color: var(--accent);
   opacity: 0.9;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--overlay-4) 30%, transparent);
 }
 
 .workbench-shortcut-row__icon-dot {
@@ -2138,6 +2154,11 @@ button.workbench-shortcut-row--action:focus-visible {
 
 .workbench-shortcut-row__label {
   color: var(--text-muted);
+  max-width: 8.4rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 620;
 }
 
 .workbench-shortcut-row__keys {
@@ -2145,33 +2166,36 @@ button.workbench-shortcut-row--action:focus-visible {
   display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: center;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .workbench-kbd {
   font: inherit;
-  font-size: 0.75rem;
+  font-size: 0.58rem;
   font-weight: 500;
   line-height: 1;
   color: var(--text);
-  background: var(--overlay-2);
-  border: 1px solid var(--border-strong);
+  background: color-mix(in srgb, var(--overlay-2) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-strong) 80%, transparent);
   border-radius: var(--radius-xs);
-  padding: 0.2rem 0.35rem;
-  box-shadow: 0 1px 0 var(--border);
+  padding: 0.14rem 0.24rem;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--border) 70%, transparent);
+  white-space: nowrap;
 }
 
 .workbench-kbd-gap {
   color: var(--text-faint);
-  font-size: 0.7rem;
-  padding: 0 0.05rem;
+  font-size: 0.6rem;
+  padding: 0 0.035rem;
   user-select: none;
 }
 
 .workbench-kbd-chord-gap {
   color: var(--text-faint);
-  font-size: 0.68rem;
-  padding: 0 0.2rem;
+  font-size: 0.6rem;
+  padding: 0 0.12rem;
   user-select: none;
 }
 
@@ -5830,6 +5854,21 @@ button.workbench-shortcut-row--action:focus-visible {
   padding: 0.65rem;
 }
 
+.harness-sheet.harness-sheet--command-palette {
+  width: min(92vw, 56rem);
+  min-width: min(92vw, 56rem);
+  max-width: 56rem;
+  padding: 0.9rem;
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--overlay-2) 70%, transparent), transparent 42%),
+    var(--bg-panel);
+  box-shadow:
+    0 26px 70px var(--scrim-bg),
+    inset 0 1px 0 color-mix(in srgb, var(--overlay-4) 36%, transparent);
+}
+
 .harness-filter {
   width: 100%;
   margin-bottom: 0;
@@ -5859,6 +5898,18 @@ button.workbench-shortcut-row--action:focus-visible {
   padding-right: 0.9rem;
 }
 
+.harness-sheet--command-palette .harness-palette-filter-wrap {
+  margin-bottom: 0.75rem;
+}
+
+.harness-sheet--command-palette .harness-filter {
+  padding-top: 0.68rem;
+  padding-bottom: 0.68rem;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-panel) 86%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--overlay-4) 28%, transparent);
+}
+
 .harness-cmd-list {
   margin: 0;
   padding: 0;
@@ -5867,17 +5918,33 @@ button.workbench-shortcut-row--action:focus-visible {
   flex-direction: column;
 }
 
+.harness-sheet--command-palette .harness-cmd-list {
+  gap: 0.38rem;
+  padding: 0.1rem 0;
+}
+
 .harness-cmd-btn {
   width: 100%;
   padding: 0.45rem 0.55rem;
   border-radius: var(--radius-sm);
-  border: none;
+  border: 1px solid transparent;
   text-align: left;
   cursor: pointer;
   background: transparent;
   display: flex;
   align-items: flex-start;
   gap: 0.55rem;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    transform 120ms ease;
+}
+
+.harness-sheet--command-palette .harness-cmd-btn {
+  min-height: 3rem;
+  padding: 0.62rem 0.72rem;
+  border-radius: var(--radius-md);
+  gap: 0.7rem;
 }
 
 .harness-cmd-btn__icon {
@@ -5904,10 +5971,21 @@ button.workbench-shortcut-row--action:focus-visible {
 
 .harness-cmd-btn:hover {
   background: var(--overlay-1);
+  border-color: color-mix(in srgb, var(--border-strong) 76%, transparent);
 }
 
 .harness-cmd-btn--active {
-  outline: 1px solid var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 62%, var(--border));
+  background: color-mix(in srgb, var(--accent-soft) 58%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--overlay-4) 28%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+  outline: none;
+}
+
+.harness-sheet--command-palette .harness-cmd-btn:hover,
+.harness-sheet--command-palette .harness-cmd-btn--active {
+  transform: translateY(-1px);
 }
 
 .harness-cmd-title {
@@ -5927,6 +6005,12 @@ button.workbench-shortcut-row--action:focus-visible {
   margin: 0.4rem 0 0;
   font-size: 0.72rem;
   color: var(--text-muted);
+}
+
+.harness-sheet--command-palette .harness-sheet-hint {
+  margin-top: 0.7rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid color-mix(in srgb, var(--border) 74%, transparent);
 }
 
 .harness-sheet--settings {

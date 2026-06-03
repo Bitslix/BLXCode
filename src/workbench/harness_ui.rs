@@ -169,7 +169,11 @@ fn PaletteChrome(
 
     view! {
         <div class="harness-overlay harness-overlay--modal" role="presentation">
-            <div class="harness-sheet harness-sheet--palette" role="dialog" aria-modal="true">
+            <div
+                class="harness-sheet harness-sheet--palette harness-sheet--command-palette"
+                role="dialog"
+                aria-modal="true"
+            >
                 <div class="harness-palette-filter-wrap">
                     <span class="harness-palette-filter__icon" aria-hidden="true">
                         <LxIcon icon=icondata::LuSearch width="0.92rem" height="0.92rem" />

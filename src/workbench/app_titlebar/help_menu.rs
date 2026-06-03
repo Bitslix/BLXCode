@@ -182,7 +182,7 @@ pub fn HelpMenu() -> impl IntoView {
                         <div class="app-titlebar__about-body">
                             <div class="app-titlebar__about-hero">
                                 <span class="app-titlebar__about-logo" aria-hidden="true">
-                                    <img src="/blxcode.png" alt="" />
+                                    <img src="/public/blxcode.png" alt="" />
                                 </span>
                                 <p class="app-titlebar__about-kicker">"Open-source AI workbench"</p>
                                 <h2 id="app-titlebar-about-title">"BLXCode"</h2>

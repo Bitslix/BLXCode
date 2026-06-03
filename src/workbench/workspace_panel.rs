@@ -797,7 +797,6 @@ fn WorkspaceEmptyState() -> impl IntoView {
                     decoding="async"
                 />
             </div>
-            <p class="workbench-empty-editor__note">{move || i18n.tr(I18nKey::WsEmptyNote)()}</p>
             <div class="ws-config__recent workbench-empty-recent">
                 <div class="ws-config__recent-head">
                     <span class="ws-config__recent-label">
@@ -909,11 +908,9 @@ fn WorkspaceEmptyState() -> impl IntoView {
                 <ShortcutActionRow icon=icondata::LuFolderSearch action=ShortcutAction::QuickOpen />
                 <ShortcutActionRow icon=icondata::LuFileSearch action=ShortcutAction::FindFile />
                 <ShortcutActionRow icon=icondata::LuPanelRight action=ShortcutAction::SidePanel />
-                <li class="workbench-shortcut-row workbench-shortcut-row--spacer" aria-hidden="true"></li>
                 <ShortcutActionRow icon=icondata::LuSparkles action=ShortcutAction::Agent />
                 <ShortcutActionRow icon=icondata::LuGlobe action=ShortcutAction::Browser />
                 <ShortcutActionRow icon=icondata::LuLayers action=ShortcutAction::Memory />
-                <li class="workbench-shortcut-row workbench-shortcut-row--spacer" aria-hidden="true"></li>
                 <ShortcutActionRow icon=icondata::LuTerminal action=ShortcutAction::Terminal />
                 <ShortcutActionRow icon=icondata::LuCommand action=ShortcutAction::CommandPalette />
             </ul>
@@ -923,7 +920,6 @@ fn WorkspaceEmptyState() -> impl IntoView {
 
 #[component]
 fn ShortcutActionRow(icon: icondata::Icon, action: ShortcutAction) -> impl IntoView {
-    let _ = icon;
     let i18n = expect_context::<I18nService>();
     let prefs = expect_context::<AppPrefsService>();
     let ui = expect_context::<HarnessUiService>();
@@ -943,7 +939,7 @@ fn ShortcutActionRow(icon: icondata::Icon, action: ShortcutAction) -> impl IntoV
             >
                 <span class="workbench-shortcut-row__lead">
                     <span class="workbench-shortcut-row__icon-wrap" aria-hidden="true">
-                        <span class="workbench-shortcut-row__icon-dot"></span>
+                        <LxIcon icon=icon width="0.92rem" height="0.92rem" />
                     </span>
                     <span class="workbench-shortcut-row__label">{move || i18n.tr(label)()}</span>
                 </span>
