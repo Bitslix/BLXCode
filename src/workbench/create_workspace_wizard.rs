@@ -1034,7 +1034,10 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                             {agent_rows(wb, i18n, workspace_id, draft_memo)}
                         </ul>
                         <div class="ws-config__slot-names">
-                            <label class="ws-config__label">{move || i18n.tr(I18nKey::WzSlotNamesLabel)()}</label>
+                            <label class="ws-config__label">
+                                <LxIcon icon=icondata::LuTerminal width="0.8rem" height="0.8rem" />
+                                <span>{move || i18n.tr(I18nKey::WzSlotNamesLabel)()}</span>
+                            </label>
                             <div class="ws-config__slot-names-grid">
                                 {move || {
                                     let d = draft_memo.get();
@@ -1043,15 +1046,18 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                                         let ph = i18n.tr(I18nKey::WzSlotNamePh)().replace("{n}", &(i + 1).to_string());
                                         let val = d.slot_names.get(i).cloned().unwrap_or_default();
                                         view! {
-                                            <input
-                                                class="ws-config__field ws-config__slot-name-input"
-                                                type="text"
-                                                placeholder=ph
-                                                prop:value=val
-                                                on:input=move |ev| {
-                                                    wb.set_workspace_slot_name(workspace_id, i, input_value(&ev));
-                                                }
-                                            />
+                                            <label class="ws-config__slot-name-card">
+                                                <span class="ws-config__slot-name-index">{format!("{:02}", i + 1)}</span>
+                                                <input
+                                                    class="ws-config__slot-name-input"
+                                                    type="text"
+                                                    placeholder=ph
+                                                    prop:value=val
+                                                    on:input=move |ev| {
+                                                        wb.set_workspace_slot_name(workspace_id, i, input_value(&ev));
+                                                    }
+                                                />
+                                            </label>
                                         }
                                     }).collect_view()
                                 }}
