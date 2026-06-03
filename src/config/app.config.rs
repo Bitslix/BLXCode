@@ -16,6 +16,14 @@ pub const FONT_FAMILY_STORAGE_KEY: &str = "blxcode_font_family_v1";
 /// `localStorage` key for the global UI/terminal font size in pixels.
 pub const FONT_SIZE_STORAGE_KEY: &str = "blxcode_font_size_px_v1";
 
+/// `localStorage` key for the in-app code editor Vim key bindings toggle
+/// (`true` / `false`). Defaults to enabled when unset.
+pub const CODE_EDITOR_VIM_KEY: &str = "blxcode_code_editor_vim_v1";
+
+/// `localStorage` key for the persisted file editor / preview shortcut bindings
+/// (JSON map of `EditorShortcutAction` → `KeyChord`).
+pub const EDITOR_SHORTCUT_BINDINGS_KEY: &str = "blxcode_editor_shortcut_bindings_v1";
+
 /// `localStorage` key for memory graph rendering mode (`2d` / `3d`).
 pub const GRAPH_MODE_STORAGE_KEY: &str = "blxcode_memory_graph_mode_v1";
 

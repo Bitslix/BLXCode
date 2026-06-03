@@ -60,6 +60,7 @@ pub(crate) mod terminal_agent_profiles;
 mod terminal_cell;
 mod terminal_context_menu;
 mod terminal_glue;
+mod editor_settings_service;
 mod terminal_naming;
 mod terminal_slot_dnd;
 mod terminal_slot_drag_overlay;
@@ -99,6 +100,7 @@ pub use state::{
     LegacyStorageMigration, RightPanelTab, WorkbenchService, WorkbenchSnapshot,
     WorkspaceAgentImage,
 };
+pub use editor_settings_service::EditorSettingsService;
 pub use theme_service::ThemeService;
 pub use update_service::{UpdateCheckSource, UpdateService, UpdateUiStatus};
 pub use workspace_kanban::WorkspaceKanban;

@@ -5,6 +5,7 @@ use crate::open_http::dom_click_http_url_from_mouse_event;
 use crate::quit::request_app_quit;
 use crate::service::I18nService;
 use crate::workbench::AppTitleBar;
+use crate::workbench::EditorSettingsService;
 use crate::workbench::ThemeService;
 use crate::workbench::UpdateCheckSource;
 use crate::workbench::UpdateService;
@@ -25,6 +26,10 @@ use wasm_bindgen::JsCast;
 pub fn App() -> impl IntoView {
     let i18n = I18nService::new();
     let theme = ThemeService::new();
+    // Code editor preferences (Vim toggle, …) — provided at the App root so the
+    // editor, the Code Editor settings pane, and the status-bar Vim indicator
+    // all read the same signal.
+    let editor_settings = EditorSettingsService::new();
     // The workbench service is created (and provided) at the App root rather
     // than inside `WorkbenchShell` so the always-mounted `AppTitleBar` can read
     // its workspace-scoped state via context. Its hydration/auto-save effects
@@ -41,6 +46,7 @@ pub fn App() -> impl IntoView {
     let core_status = CoreStatusService::new();
     provide_context(i18n);
     provide_context(theme);
+    provide_context(editor_settings);
     provide_context(wb);
     provide_context(hook_status);
     provide_context(hook_install);
