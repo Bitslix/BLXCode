@@ -26,6 +26,10 @@ pub const SPECIALIZED_ROLES: &[(&str, &str)] = &[
         include_str!("harness_skills/specialized/branch-steward.md"),
     ),
     (
+        "codewright",
+        include_str!("harness_skills/specialized/codewright.md"),
+    ),
+    (
         "coordinator",
         include_str!("harness_skills/specialized/coordinator.md"),
     ),
@@ -267,6 +271,7 @@ mod tests {
         let roles = list_roles();
         assert_eq!(roles.len(), SPECIALIZED_ROLES.len());
         assert!(roles.iter().any(|r| r.slug == "branch-steward"));
+        assert!(roles.iter().any(|r| r.slug == "codewright"));
         assert!(roles.iter().any(|r| r.slug == "coordinator"));
         assert!(roles.iter().any(|r| r.slug == "security-reviewer"));
     }
@@ -291,7 +296,7 @@ mod tests {
                 r.enabled,
                 matches!(
                     r.slug.as_str(),
-                    "architect" | "branch-steward" | "coordinator"
+                    "architect" | "branch-steward" | "codewright" | "coordinator"
                 ),
                 "unexpected enabled value for {}",
                 r.slug
@@ -300,11 +305,11 @@ mod tests {
     }
 
     #[test]
-    fn only_coordinator_enables_terminal_agent_swarm() {
+    fn expected_roles_enable_terminal_agent_swarm() {
         for r in list_roles() {
             assert_eq!(
                 r.terminal_agent_swarm,
-                r.slug == "coordinator",
+                matches!(r.slug.as_str(), "codewright" | "coordinator"),
                 "unexpected terminalAgentSwarm value for {}",
                 r.slug
             );
