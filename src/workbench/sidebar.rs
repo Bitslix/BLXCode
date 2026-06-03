@@ -625,7 +625,17 @@ pub fn Sidebar() -> impl IntoView {
                 </Show>
             </nav>
 
-            <Show when=move || !collapsed.get()>
+            // The panels block (resizers + Explorer/Graph/Diff) stays mounted
+            // across collapse/expand so its state and caches survive — a prior
+            // `<Show when=!collapsed>` here tore the whole subtree down and
+            // remounted it on every toggle, forcing a full re-fetch (git graph,
+            // file tree, diff) and a synchronous DOM rebuild that froze the UI
+            // for 1-2s. Visibility is already handled by each section's own
+            // `!collapsed` gating plus the CSS `display:none` on
+            // `.workbench-sidebar--collapsed .workbench-sidebar__panels`
+            // (and `.workbench-sidebar__resizer--panels-boundary`).
+            {
+                view! {
                 <SidebarResizer
                     height_pct=panels_height_pct
                     container_selector=".workbench-sidebar"
@@ -774,7 +784,8 @@ pub fn Sidebar() -> impl IntoView {
                         <GitGraphSection git_repo_available=git_repo_available.read_only() />
                     </div>
                 </div>
-            </Show>
+                }
+            }
 
             <div class="workbench-sidebar__footer">
                 <SidebarFooter ui=ui wb=wb />

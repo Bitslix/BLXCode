@@ -235,6 +235,7 @@ pub struct ProviderEnv {
 }
 
 impl ProviderEnv {
+    #[allow(dead_code)] // env-based provider path not yet wired in
     pub fn from_environment() -> Self {
         Self {
             anthropic_api_key: std::env::var("BLX_ANTHROPIC_API_KEY")

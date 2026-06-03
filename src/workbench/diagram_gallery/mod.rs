@@ -26,6 +26,7 @@ pub enum GalleryScope {
     /// Load diagrams from the store for this plan slug.
     Plan { slug: String },
     /// Render the supplied diagrams directly (not necessarily persisted).
+    #[allow(dead_code)] // alternate scope; construction site pending
     Inline { diagrams: Vec<DiagramRecord> },
 }
 
