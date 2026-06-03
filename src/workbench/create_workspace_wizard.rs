@@ -12,6 +12,7 @@ use crate::workbench::state::{
     CreateWorkspaceDraft, HarnessSettingsCategory, HarnessUiService, WorkbenchService,
     WORKSPACE_FLEET_AGENT_SLUGS,
 };
+use crate::workbench::SessionRolePicker;
 use crate::workbench::terminal_agent_profiles::{terminal_agent_efforts, terminal_agent_models};
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
@@ -74,7 +75,6 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
     let remote_conns: RwSignal<Vec<RemoteConnectionView>> = RwSignal::new(Vec::new());
     // Built-in harness session roles (specialized skills) for the mode picker.
     let session_roles: RwSignal<Vec<SessionRoleView>> = RwSignal::new(Vec::new());
-    let role_open = RwSignal::new(false);
     // Persisted workspace presets (app-data; one-click launch).
     let presets: RwSignal<Vec<WorkspacePresetView>> = RwSignal::new(Vec::new());
     // Inline "new preset" editor state.
@@ -140,7 +140,6 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
     let wrap_id_for_measure = wrap_id.clone();
     let wrap_id_for_outside = wrap_id.clone();
     let role_wrap_id = format!("wz-role-wrap-{workspace_id}");
-    let role_wrap_id_for_outside = role_wrap_id.clone();
 
     Effect::new(move |_| {
         let d = draft_memo.get();
@@ -266,35 +265,6 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
         }
     });
 
-    Effect::new({
-        let outside_id = role_wrap_id_for_outside;
-        move |_| {
-            if !role_open.get() {
-                return;
-            }
-
-            let outside_id_inner = outside_id.clone();
-            let h_down = window_event_listener_untyped("mousedown", move |ev| {
-                let Some(target) = ev.target() else {
-                    return;
-                };
-                let Ok(node) = target.dyn_into::<web_sys::Node>() else {
-                    return;
-                };
-                let Some(doc) = web_sys::window().and_then(|w| w.document()) else {
-                    return;
-                };
-                let Some(wrap) = doc.get_element_by_id(&outside_id_inner) else {
-                    return;
-                };
-                if !wrap.contains(Some(&node)) {
-                    role_open.set(false);
-                }
-            });
-            on_cleanup(move || h_down.remove());
-        }
-    });
-
     let create_folder = move || {
         let name = new_folder_name.get_untracked().trim().to_string();
         if name.is_empty() {
@@ -328,14 +298,6 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
 
     let cwd_val = move || draft_memo.get().cwd_display.clone();
     let name_val = move || draft_memo.get().name_input.clone();
-    let enabled_session_roles = Memo::new(move |_| {
-        session_roles
-            .get()
-            .into_iter()
-            .filter(|role| role.enabled)
-            .collect::<Vec<_>>()
-    });
-
     // Distinct working directories from previously opened workspaces, so the
     // user can refill the cwd field with one click instead of re-typing or
     // re-browsing. Deduplicated by normalized path, newest first.
@@ -735,150 +697,14 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                             <LxIcon icon=icondata::LuBot width="0.8rem" height="0.8rem" />
                             <span>{move || i18n.tr(I18nKey::WzSessionRoleLabel)()}</span>
                         </label>
-                        <div id=role_wrap_id.clone() class="ws-config__role-picker">
-                            <button
-                                type="button"
-                                class="ws-config__role-trigger"
-                                class:ws-config__role-trigger--open=move || role_open.get()
-                                aria-haspopup="listbox"
-                                aria-expanded=move || role_open.get().to_string()
-                                on:click=move |_| role_open.update(|open| *open = !*open)
-                                on:keydown=move |ev: web_sys::KeyboardEvent| {
-                                    match ev.key().as_str() {
-                                        "Escape" => {
-                                            role_open.set(false);
-                                            ev.prevent_default();
-                                        }
-                                        "ArrowDown" | "Enter" | " " => {
-                                            role_open.set(true);
-                                            ev.prevent_default();
-                                        }
-                                        _ => {}
-                                    }
-                                }
-                            >
-                                <span class="ws-config__role-trigger-copy">
-                                    <span class="ws-config__role-title">
-                                        {move || {
-                                            let cur = draft_memo.get().session_role;
-                                            let Some(slug) = cur else {
-                                                return i18n.tr(I18nKey::WzSessionRoleNone)().to_string();
-                                            };
-                                            enabled_session_roles
-                                                .get()
-                                                .into_iter()
-                                                .find(|r| r.slug == slug)
-                                                .map(|r| r.title)
-                                                .unwrap_or_else(|| i18n.tr(I18nKey::WzSessionRoleNone)().to_string())
-                                        }}
-                                    </span>
-                                    <span class="ws-config__role-desc">
-                                        {move || {
-                                            let cur = draft_memo.get().session_role;
-                                            let Some(slug) = cur else {
-                                                return "Default BLXCode Agent without a specialized harness session role.".to_string();
-                                            };
-                                            enabled_session_roles
-                                                .get()
-                                                .into_iter()
-                                                .find(|r| r.slug == slug)
-                                                .map(|r| r.description)
-                                                .unwrap_or_else(|| "Default BLXCode Agent without a specialized harness session role.".to_string())
-                                        }}
-                                    </span>
-                                </span>
-                                <LxIcon icon=icondata::LuChevronDown width="0.85rem" height="0.85rem" />
-                            </button>
-                            <Show when=move || role_open.get()>
-                                <div class="ws-config__role-menu" role="listbox">
-                                    <button
-                                        type="button"
-                                        class=move || {
-                                            let mut c = String::from("ws-config__role-option");
-                                            if draft_memo.get().session_role.is_none() {
-                                                c.push_str(" ws-config__role-option--active");
-                                            }
-                                            c
-                                        }
-                                        role="option"
-                                        aria-selected=move || draft_memo.get().session_role.is_none().to_string()
-                                        on:click=move |_| {
-                                            wb.set_workspace_session_role(workspace_id, None);
-                                            role_open.set(false);
-                                        }
-                                    >
-                                        <span class="ws-config__role-option-main">
-                                            <span class="ws-config__role-title">{move || i18n.tr(I18nKey::WzSessionRoleNone)()}</span>
-                                            <span class="ws-config__role-desc">"Default BLXCode Agent without a specialized harness session role."</span>
-                                        </span>
-                                        <Show when=move || draft_memo.get().session_role.is_none()>
-                                            <LxIcon icon=icondata::LuCheck width="0.82rem" height="0.82rem" />
-                                        </Show>
-                                    </button>
-                                    {move || {
-                                        enabled_session_roles
-                                            .get()
-                                            .into_iter()
-                                            .map(|r| {
-                                                let slug = r.slug.clone();
-                                                let slug_for_class = slug.clone();
-                                                let slug_for_aria = slug.clone();
-                                                let slug_for_click = slug.clone();
-                                                let title = r.title.clone();
-                                                let desc = r.description.clone();
-                                                let mut meta: Vec<String> = Vec::new();
-                                                if !r.tools.is_empty() {
-                                                    meta.push(format!(
-                                                        "{}: {}",
-                                                        i18n.tr(I18nKey::WzSessionRoleTools)(),
-                                                        r.tools.join(", ")
-                                                    ));
-                                                }
-                                                if !r.models.is_empty() {
-                                                    meta.push(format!(
-                                                        "{}: {}",
-                                                        i18n.tr(I18nKey::WzAgentModelLabel)(),
-                                                        r.models.join(", ")
-                                                    ));
-                                                }
-                                                let meta = meta.join("  ·  ");
-                                                let meta_for_when = meta.clone();
-                                                let meta_for_view = meta.clone();
-                                                view! {
-                                                    <button
-                                                        type="button"
-                                                        class=move || {
-                                                            let mut c = String::from("ws-config__role-option");
-                                                            if draft_memo.get().session_role.as_deref() == Some(slug_for_class.as_str()) {
-                                                                c.push_str(" ws-config__role-option--active");
-                                                            }
-                                                            c
-                                                        }
-                                                        role="option"
-                                                        aria-selected=move || (draft_memo.get().session_role.as_deref() == Some(slug_for_aria.as_str())).to_string()
-                                                        on:click=move |_| {
-                                                            wb.set_workspace_session_role(workspace_id, Some(slug_for_click.clone()));
-                                                            role_open.set(false);
-                                                        }
-                                                    >
-                                                        <span class="ws-config__role-option-main">
-                                                            <span class="ws-config__role-title">{title.clone()}</span>
-                                                            <span class="ws-config__role-desc">{desc.clone()}</span>
-                                                            <Show when=move || !meta_for_when.is_empty()>
-                                                                <span class="ws-config__role-meta">{meta_for_view.clone()}</span>
-                                                            </Show>
-                                                        </span>
-                                                        <Show when=move || draft_memo.get().session_role.as_deref() == Some(slug.as_str())>
-                                                            <LxIcon icon=icondata::LuCheck width="0.82rem" height="0.82rem" />
-                                                        </Show>
-                                                    </button>
-                                                }
-                                            })
-                                            .collect_view()
-                                    }}
-                                </div>
-                            </Show>
-                        </div>
+                        <SessionRolePicker
+                            id=role_wrap_id.clone()
+                            roles=Signal::derive(move || session_roles.get())
+                            selected=Signal::derive(move || draft_memo.get().session_role)
+                            on_select=Callback::new(move |slug| {
+                                wb.set_workspace_session_role(workspace_id, slug);
+                            })
+                        />
                     </div>
 
                     <div class="ws-config__group">
