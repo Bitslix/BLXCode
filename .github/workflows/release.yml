@@ -121,6 +121,7 @@ jobs:
     outputs:
       mode: ${{ steps.mode.outputs.mode }}
       release_tag: ${{ steps.mode.outputs.release_tag }}
+      is_prerelease: ${{ steps.mode.outputs.is_prerelease }}
       matrix: ${{ steps.matrix.outputs.matrix }}
       build_mac: ${{ steps.targets.outputs.build_mac }}
       build_windows: ${{ steps.targets.outputs.build_windows }}
@@ -190,9 +191,15 @@ jobs:
               ;;
           esac
 
-          echo "Resolved mode=$mode release_tag=$release_tag"
+          is_prerelease=false
+          if [[ "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-pre\.[0-9]+$ ]]; then
+            is_prerelease=true
+          fi
+
+          echo "Resolved mode=$mode release_tag=$release_tag is_prerelease=$is_prerelease"
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
           echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=$is_prerelease" >> "$GITHUB_OUTPUT"
 
       - id: targets
         run: |
@@ -311,7 +318,7 @@ jobs:
           releaseName: "BLXCode ${{ needs.resolve.outputs.release_tag }}"
           releaseBody: "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details."
           releaseDraft: true
-          prerelease: false
+          prerelease: ${{ needs.resolve.outputs.is_prerelease == 'true' }}
           args: ${{ matrix.args }}
 
       - name: Upload bundles to existing release (release-existing, macOS)
@@ -365,6 +372,15 @@ jobs:
             --output target/latest.json \
             "${signatures[@]}"
           gh release upload "$TAG" -R "$REPO" --clobber target/latest.json
+
+      - name: Mark GitHub prerelease metadata
+        if: needs.resolve.outputs.is_prerelease == 'true' && (needs.resolve.outputs.mode == 'release-new' || needs.resolve.outputs.mode == 'release-existing')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.resolve.outputs.release_tag }}
+        run: gh release edit "$TAG" -R "$REPO" --prerelease --latest=false
 
   # Probe whether at least one 'blxcode-win-fast' self-hosted runner is currently online.
   # We need this because GitHub's `timeout-minutes` only counts elapsed *running* time, so a
@@ -449,6 +465,7 @@ jobs:
           mode: ${{ needs.resolve.outputs.mode }}
           repository: ${{ github.repository }}
           tag-name: ${{ needs.resolve.outputs.release_tag }}
+          is-prerelease: ${{ needs.resolve.outputs.is_prerelease }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           tauri-signing-private-key: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           tauri-signing-private-key-password: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -490,6 +507,7 @@ jobs:
           mode: ${{ needs.resolve.outputs.mode }}
           repository: ${{ github.repository }}
           tag-name: ${{ needs.resolve.outputs.release_tag }}
+          is-prerelease: ${{ needs.resolve.outputs.is_prerelease }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           tauri-signing-private-key: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           tauri-signing-private-key-password: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
