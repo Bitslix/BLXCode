@@ -30,6 +30,7 @@ Press the **prefix** (**Ctrl+b**), then a second key within **1.5 seconds**. Pre
 | `m` | Memory tab |
 | `n` | New terminal slot (active workspace) |
 | `p` | Command palette |
+| `c` | **Create Workspace** — open the inline Create-Workspace configurator from anywhere, including the welcome screen |
 
 ## Classic preset
 
@@ -45,6 +46,7 @@ Direct chords (no prefix):
 | `Ctrl+Shift+M` | Memory tab |
 | `Ctrl+Shift+N` | New terminal slot (active workspace) |
 | `Ctrl+Shift+P` | Command palette |
+| `Ctrl+Shift+C` | **Create Workspace** — open the inline Create-Workspace configurator |
 
 ## Notifications (handoff feedback)
 

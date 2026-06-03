@@ -46,10 +46,11 @@ The agent subsystem lives under `src-tauri/src/agent/`. See [Agent Harness](agen
 
 ### Harness extensions
 
-- `harness_skills/*.md`: eleven embedded core skill documents.
-- `tool_groups.rs` / `tool_dispatch.rs`: filtered catalogs for coordinator vs subagents.
+- `harness_skills/*.md`: thirteen embedded core skill documents (file-access, memory, plans, tasks, rules-skills, harness, environment, shell, git, web, subagents, **mcp**, **prompt-generating**).
+- `tool_groups.rs` / `tool_dispatch.rs`: filtered catalogs for coordinator vs subagents. Both branches parse `mcp.<server>.<tool>` and dispatch to `agent/mcp/mcp_client.rs`.
 - `environment.rs`, `shell_exec.rs`, `git_agent.rs`, `workspace_agent.rs`: server tools.
 - `web_settings.rs`, `web_tools.rs`, `web_commands.rs`: Tavily/Brave keys and search.
+- `mcp/`: `mcp.rs`, `mcp_registry.rs` (central `{app_data_dir}/mcp/servers.json`), `mcp_cli_configs.rs` (parses `.mcp.json`/`.codex/config.toml`/`.gemini/settings.json`/`opencode.json`/`.cursor/mcp.json`; skips remote `ssh:` entries), `mcp_client.rs` (built-in JSON-RPC; no external SDK), `mcp_commands.rs` (`mcp_*` Tauri commands), `mcp_models.rs` (wire types).
 - `subagents.rs`, `subagent_runner.rs`, `subagent_prompts.rs`: parallel subagent runs — [Subagents](subagents.md).
 
 The frontend submits turns through `agent_submit_turn` and polls `agent_poll_events`. Subagent timeline updates are debounced 50 ms ([Subagents](subagents.md)). Tool results that need client execution are returned through `agent_submit_tool_result`.
@@ -88,6 +89,53 @@ The voice subsystem lives under `src-tauri/src/voice/` with frontend support in 
 It captures microphone audio with `cpal`, writes temporary mono WAV files with `hound`, sends STT requests to OpenAI or OpenRouter, and sends TTS requests to OpenAI. Voice settings are persisted as a `voice` sub-object inside `agent_provider_settings.json` and reuse the existing provider keyring entries.
 
 See [Voice Architecture](voice.md) for the detailed flow.
+
+## HeartBeat
+
+`src-tauri/src/heartbeat.rs` runs a single named background task (Tokio interval) that wakes the agent on a schedule. It exposes:
+
+- 10-min–24-h interval clamp (`HeartbeatSettings.interval_minutes`)
+- `Run now` button + Tauri command `heartbeat_run_now`
+- `set_service_enabled` start/stop without losing the schedule
+- A "stalled after 3 skips" escalation that calls `memory_indexer_reindex` so the architecture map never silently drifts
+- A statusbar rotator (3-second dwell) showing `HeartBeat · 12m` / `Next: 14:32` / `Idle` / `Service off`
+
+## Memory Indexer
+
+`src-tauri/src/memory/indexer.rs` rebuilds the per-workspace architecture map off the main event loop. The async `memory_rebuild_architecture` / `memory_lint_architecture` commands spawn the CPU/IO-bound work on the blocking thread pool via `tauri::async_runtime::spawn_blocking`. `memory_indexer_reindex` performs an incremental scan after workspace changes (file watcher + HeartBeat escalation). See [Memory And Tasks](#memory-and-tasks) above for the architecture map pipeline.
+
+## Notifications
+
+`src-tauri/src/notification.rs` bridges the workbench to OS notifications. It uses `tauri-plugin-notification` for desktop banners and the workbench's own status line / titlebar for in-app echoes. Settings cover global on/off, focus-suppression, and per-channel rules (agent complete, subagent complete, HeartBeat, background update). The **notification history** command returns the rolling log used by the App status line.
+
+## App Log
+
+`src-tauri/src/log_capture.rs` captures structured `tracing` events into a rolling in-memory buffer (capped, with a download-to-file path). The **Settings → App → View app log** button calls `log_get_recent`; the **Export** button uses `tauri-plugin-dialog` to pick a destination and `log_export` to write it; **Clear** flushes the buffer.
+
+## Kanban (Multi-Kanban)
+
+The kanban is a workspace-scoped multi-board plan/tasks surface:
+
+- `src-tauri/src/kanban.rs` — board persistence at `<workspace>/.agents/kanban/<plan-slug>/index.json`, registered in `<workspace>/.agents/kanban/index.json`
+- `kanban_plan_move` / `kanban_task_move` Tauri commands allow atomic re-ordering across columns and across boards
+- Center tab `0` hosts one or more boards; the agent can author new boards through the existing `plans.rs` / `tasks.rs` commands
+
+## Mermaid
+
+`src-tauri/src/mermaid/` (or `mermaid.rs` in `plans.rs`) handles persistence of Mermaid diagrams under `<workspace>/.agents/plans/<slug>/diagrams/`, with a `diagrams.json` registry. The **Diagram gallery** center tab (`CenterTabKind::DiagramGallery`) lists diagrams; the agent creates them through `mermaid_create` / `mermaid_create_many` server tools; the user can Save As Markdown or PDF (`mermaid_export_markdown` / `mermaid_export_pdf`, both backed by `tauri-plugin-dialog`).
+
+## App Status Line
+
+The bottom status bar (added above the existing footer) is a single thin row that concatenates:
+
+- `VIM` indicator (when an editor/preview tab is focused and Vim is on)
+- `file.rs · 42:13` cursor coordinates from the active editor signal
+- `HeartBeat · 12m` / `Next: 14:32` (rotating)
+- `Memory: indexed 3m ago` (rotating)
+- `MCP: 3 servers · 12 tools` (rotating)
+- `Notifications: 2 new` (rotating)
+
+The status line is read-only and never captures input; the Webview Tauri app uses the same status string as the native window title bar.
 
 ## Workbench State
 
@@ -276,6 +324,19 @@ The i18n service lives under `src/i18n/` and `src/service/`. Locale tables are R
 Themes are frontend-only. `ThemeService` (`src/workbench/theme_service.rs`) sets `html[data-theme]` from `themes/tokens.css` and persists to `localStorage`. The Appearance settings pane reads the catalog from `src/theme/catalog.rs`. JavaScript subsystems (xterm, 3D memory graph) listen for `blxcode-theme-changed` and read computed CSS variables.
 
 See [Themes](themes.md) and [Theme exceptions](../THEME_EXCEPTIONS.md).
+
+## Sidebar Context Drag-and-Drop
+
+The sidebar can drag any of four kinds onto the Agent panel to enqueue them as handoff candidates:
+
+| Kind | Source | Wire form |
+|------|--------|-----------|
+| `File` | file preview / explorer / search results | `rel_path` (workspace-relative) |
+| `Folder` | explorer | `rel_path` (folder root) |
+| `Diff` | git status / commit graph | `rel_path` + `commit-ish` (defaults to working tree) |
+| `Commit` | commit graph | `rel_path` + `sha` |
+
+The drag uses the standard HTML5 DnD API and a custom `application/x-blxcode-context` MIME that the Agent panel's composer recognises; the same handoff pipeline (full-block vs lightweight file-snippet) reuses the existing [Terminal Context Handoff](#terminal-context-handoff) code so memory, plan, and image kinds remain unaffected. `Folder` and `Commit` are pre-rolled to the lightweight file-snippet envelope; `File` and `Diff` follow the existing snippet-vs-full-block rules.
 
 ## Boundaries To Preserve
 

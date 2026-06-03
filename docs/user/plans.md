@@ -126,6 +126,47 @@ Switch the Plans toolbar to **Kanban** (alongside **Editor** and **Preview**).
 
 Quick-add and delete actions on cards keep the board and plan files in sync. When a card’s task is mirrored in the task store, status updates best-effort sync there too.
 
+## Workspace Multi-Kanban
+
+Every workspace also gets a pinned **center-tab `0` Kanban view** backed by `.agents/plans/` and persistent layout metadata under `.agents/kanban/index.json`. The Terminals tab remains the active default view, but the Multi-Kanban tab is always present as the first tab so plans and tasks stay one click away — without competing with the right-side Plans panel for screen real estate.
+
+The Multi-Kanban groups plans by the same derived states as the right-side Plans panel and **nests task-state lanes for each plan**, with:
+
+- Quick task creation, inline rename/delete.
+- **Drag-to-status updates** — move whole plans between derived status sections, and reorder plans within the board, using dedicated dashed drop zones and a cursor-following drag preview that matches the existing terminal/context DnD styling. Plan drops write back to the plan's canonical Markdown task lines using a minimal status-change policy, while subtask drops are constrained to their parent plan and can change both status lane and Markdown order.
+- **Search** — live filter over plan titles and task titles.
+- **Refresh** to re-read from disk.
+- **Layout import/export** — share or back up a team's Kanban layout.
+- **Titlebar Navigate shortcut** — the titlebar **NAVIGATE** menu exposes the Multi-Kanban tab.
+- **Notification targeting** — plan/task state changes can deep-link to the right center tab.
+- **i18n, token-only styling, async Tauri commands** for every action.
+
+Kanban and the right-side Plans panel share a single Workbench plans revision signal, so create/write/rename/delete actions in the Plans panel and create/update/delete/drag actions in Kanban invalidate both views and keep their plan/task state synchronized. New Tauri commands: `kanban_plan_move` and `kanban_task_move`.
+
+## Agent-authored Mermaid diagrams
+
+The BLXCode Agent can generate Mermaid diagrams as first-class objects via two new server tools — **`mermaid_create`** (one) and **`mermaid_create_many`** (several).
+
+- When a `plan_slug` (and optional `task_id`) is supplied, each diagram is **persisted next to its plan** under `.agents/plans/<slug>/diagrams/<id>.mmd` with a `diagrams.json` manifest (`id`, `title`, `kind`, linked task, created), so plan/task diagrams travel in git and are removed when the plan folder is.
+- Without a `plan_slug` the diagram is treated as an **ad-hoc, non-persisted chat diagram**.
+- The backend derives unique kebab-case ids, guards against path traversal, and caps source size.
+- The tools are wired into the `PlansWrite` tool group, the dispatch path, and the mutating-edit classification.
+- The system prompt documents the diagram capability plus the plan/task token-cost rule and architect/coordinator auto-generation behavior.
+
+### Centered diagram gallery
+
+A new **centered diagram gallery** center tab (`CenterTabKind::DiagramGallery`) renders a plan's diagram set as:
+
+- A horizontal **thumbnail slider** on top.
+- The **active diagram large below**, rendered through the existing vendored Mermaid renderer (`mermaid_glue`, `securityLevel: strict`) via a new shared `DiagramRender` component.
+
+Each plan card in the right-side Plans panel gains a button that opens the gallery for that plan. Diagrams export to:
+
+- **`.md`** — YAML front-matter + a fenced `mermaid` block.
+- **`.pdf`** — the rendered SVG converted via `svg2pdf`, with page orientation derived from the SVG dimensions.
+
+Exports go through a native **Save As** dialog (the `tauri-plugin-dialog` dependency + `dialog:allow-save` capability). New Tauri commands: `mermaid_list_diagrams`, `mermaid_create_diagram`, `mermaid_delete_diagram`, `mermaid_export_markdown`, `mermaid_export_pdf`.
+
 ## Plan-linked tasks
 
 Tasks in `{app_data_dir}/tasks/<workspace_hash>/index.json` can reference a plan:
@@ -169,11 +210,17 @@ flowchart LR
   PlanLoad[plan_load]
   TaskJson["{app_data_dir}/tasks/<workspace_hash>/index.json"]
   Agent[BLXCode Agent]
+  Diagram[".agents/plans/<slug>/diagrams/<id>.mmd"]
+  MmdTools["mermaid_create(_many)"]
+  Gallery[Diagram gallery center tab]
   PlanMd -->|parse ## Tasks| PlanLoad
   PlanLoad --> TaskJson
   TaskJson -->|task_update| PlanMd
   PlanMd --> Agent
   TaskJson --> Agent
+  Agent -->|plan_slug + task_id| MmdTools
+  MmdTools --> Diagram
+  Diagram --> Gallery
 ```
 
 ## See also

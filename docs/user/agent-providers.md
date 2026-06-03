@@ -24,6 +24,8 @@ BLXCode includes an agent panel that can stream turns from remote model provider
 - **Local OpenAI-compatible**: Ollama and LM Studio. No API key is required; configure the base URL if your local server is not on the default port.
 - **Cloud OpenAI-compatible**: OpenAI, Hugging Face router, Cloudflare Workers AI, Together AI, and Portkey.
 
+A central provider registry resolves OpenAI-compatible endpoints, auth modes, model discovery, reasoning support, OpenRouter extras, and curated fallback models. Ollama and LM Studio expose a localized **Server URL** field in **Settings → BLXCode Agent** for LAN or remote `/v1` servers; Cloudflare stores its Account ID as a non-secret setting while tokens and other cloud keys live in **Settings → API Keys** with `BLX_*` environment fallbacks. Main chat, one-shot utilities, prompt enhancement, AI plans/tasks, AI commit messages, compaction, MCP tools, and subagents use the generalized compatible loop. Image and Voice provider lists remain separate/text-only in this release.
+
 Model lists are fetched live when possible. If a provider request fails or returns no models, BLXCode falls back to cached or curated model entries.
 
 | Provider | Default endpoint | Required setup |
@@ -144,7 +146,7 @@ A new embedded core skill, **`prompt-generating`**, teaches the model how to sco
 
 ## Agent context
 
-The **Context** section lists attached items (memory categories, notes, plans, images). Each row shows status, remove, and re-attach controls.
+The **Context** section lists attached items (memory categories, notes, plans, images, files, folders, diffs, commits, terminal sessions). Each row shows status, remove, and re-attach controls. All kinds are **persistent** in the list and removable with the `×` action, except one-shot terminal-session and file-snippet context, which are removed automatically after a successful model turn consumes them.
 
 **Context images** (vision / handoff, not image generation):
 
@@ -152,6 +154,17 @@ The **Context** section lists attached items (memory categories, notes, plans, i
 - Pending images are sent once on the next turn through vision payloads, then marked read.
 - Handoff exports copies to `<workspace>/.blxcode/agent-context/images/` — see [Workspaces — Handoff](workspaces.md#terminal-agent-context-handoff).
 - Client tools: `image_context_list`, `image_context_detach`.
+
+**Sidebar context drag-and-drop** (see [Workspaces — Sidebar → Agent context drag-and-drop](workspaces.md#sidebar--agent-context-drag-and-drop)):
+
+| Source | Kind | What lands in the context list |
+|--------|------|--------------------------------|
+| **Project Files** (sidebar) | `FileRef` | The file or folder path (the agent reads content via its own tools). Folders trail with `/`. |
+| **File Diff** rows (sidebar) | `GitDiff` | The inline diff text (read via `git_file_diff`). |
+| **Git Commits** rows (sidebar) | `GitCommit` | The commit subject/body and changed files (read via `git_commit_details`). |
+| **Terminal cells** | `TerminalSession` | Live terminal session, slot metadata, recent output tail. |
+
+Backend prompt rendering and the terminal handoff `render_agent_context_block` both branch on the new kinds — `FileRef` collapses to a `files:` path list, `GitDiff` / `GitCommit` emit inline fenced blocks.
 
 Conversation history strips image bytes after a turn so large payloads are not persisted.
 
@@ -227,6 +240,22 @@ BLXCode bundles helper scripts under `content/hooks/` for session and title capt
 ## Missing Key Behavior
 
 If the selected cloud provider has no configured API key, the agent panel reports the missing key instead of attempting a network request. Ollama and LM Studio skip this check and fail with the provider's connection error if the local server is not running.
+
+## MCP servers
+
+The BLXCode Agent can call tools from any **MCP (Model Context Protocol)** server registered under **Settings → MCP**. The provider registry is a central JSON store at `{app_data_dir}/mcp/servers.json`; each entry carries a `stdio` (command / args / env) or `HTTP` (url / headers) transport, an individual on/off switch, and a per-server **connection test** (`initialize` + `tools/list` with a live tool count).
+
+For the **in-app agent**, each enabled server is connected at session start through a minimal built-in JSON-RPC MCP client. Its tools are discovered and injected into the Anthropic and OpenRouter/OpenAI tool loops as `mcp.<server>.<tool>` (name encodings handled across both providers), and `mcp.*` calls are routed back to the right client in tool dispatch. The available tool set is **fixed at session start** — enable/disable applies after a session reset, and add/edit/remove raises a **reload-required hint** in the MCP pane with a one-click *reset session* button.
+
+For the **terminal CLIs** (`claude`, `codex`, `gemini`, `opencode`, `cursor`), the enabled servers are translated into each CLI's native, project-scoped config and written into the workspace root on launch (`.mcp.json`, `.codex/config.toml`, `.gemini/settings.json`, `opencode.json`, `.cursor/mcp.json`) — merge-safe, preserving foreign entries and tracking BLXCode-managed keys in a `.blxcode/mcp-managed.json` sidecar. Remote SSH workspaces are skipped.
+
+> Treat MCP output as **untrusted data**. The system prompt and the dedicated `mcp` core skill both remind the model to do so.
+
+## Agent nickname and onboarding
+
+The **personal agent nickname** (default `BLXCodey`) is editable under **Settings → BLXCode Agent** and validated against a built-in, non-configurable badword list. The chosen name is **injected into the system prompt** identically for the text and voice paths (both share the same dispatch and `system_prompt(...)` builder), so the agent knows how to refer to itself, and is **rendered as a glassy badge** straddling the top edge of the Drobo orb (re-read live on `blxcode-agent-settings-changed` so saving updates the open tab without a restart).
+
+The first launch shows a one-time **onboarding dialog** that prompts for the display name and a **default session role**. It marks `onboardingSeen` so it never reappears. The default role is editable from three places — the dialog, **Settings → BLXCode Agent**, and **Settings → Workspace** — and it seeds new Create Workspace drafts.
 
 ## See also
 

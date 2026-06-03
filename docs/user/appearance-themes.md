@@ -88,6 +88,10 @@ A global corner-radius scale applied through a single `--radius-scale` multiplie
 
 The previous hardcoded `border-radius` declarations were migrated to these tokens, so the whole workbench re-rounds instantly when you change the scale.
 
+## Font size
+
+A separate, theme-independent **Font size** stepper (Small / Medium / Large / Extra) overrides the central `--font-size-base` token used by the workbench, plans/rules/skills cards, and the [App status line](workspaces.md#app-status-line). It is persisted in `localStorage`, applied as an inline custom property on `<html>`, and broadcast through `blxcode-theme-changed` so dynamic UI respects it.
+
 ### Font
 
 A curated monospace picker that overrides the central `--font-mono` token. The xterm terminals read their `fontFamily` from `--font-mono` and re-measure/re-fit (with a PTY resize) when the font changes.

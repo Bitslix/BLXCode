@@ -15,7 +15,7 @@ This document describes the **Better Harness** stack: slim system prompt, embedd
 ```text
 src-tauri/src/agent/
   system_prompt.rs       # Shared prompt (~250 lines): checklist + tool name index
-  harness_skills/*.md    # 11 core skill bodies (include_str! in store)
+  harness_skills/*.md    # 13 core skill bodies (include_str! in store)
   tool_dispatch.rs       # handle_tool_call for coordinator + subagents
   tool_groups.rs         # ToolGroup enum, registry_filtered, coordinator_groups
   environment.rs         # environment_detect + session cache
@@ -26,11 +26,19 @@ src-tauri/src/agent/
   web_tools.rs           # web_search (Tavily), web_fetch
   web_commands.rs        # Tauri: agent_web_* , agent_environment_invalidate
   subagents.rs           # see developer/subagents.md
+  mcp/                   # mcp.rs, mcp_registry.rs, mcp_cli_configs.rs,
+                         # mcp_client.rs, mcp_commands.rs, mcp_models.rs
   tools.rs               # Full registry; execute_server_tool
   tools_extra.rs         # submit_result and harness-only pieces
   session_orchestrator.rs
   provider.rs              # Text-provider registry: endpoint/auth/model metadata
   openrouter.rs / anthropic.rs  # Compatible + native loops, both use tool_dispatch
+
+src-tauri/src/
+  heartbeat.rs           # HeartBeat runtime + memory/indexer kick
+  memory/indexer.rs      # async indexer for `.agents/memory`
+  notification.rs        # desktop notifications, focus/permission routing
+  log_capture.rs         # rolling app log + download
 
 src/skills_rules/store.rs   # CORE_SKILLS, core SkillSourceKind, availability
 src-tauri/src/api_keys.rs     # Central key catalog, resolve, api_keys_status/apply
@@ -45,7 +53,9 @@ src/workbench/
   workspace_settings_pane/    # Paths, browser, category_colors
   agent_timeline.rs           # tool_label, subagent_*_label (i18n)
   agent_panel/timeline.rs     # chat timeline (subagent UI: see subagents.md)
-src/tauri_bridge.rs           # api_keys_*, agent_web_*, agent_environment_invalidate
+src/tauri_bridge.rs           # api_keys_*, agent_web_*, agent_environment_invalidate,
+                             # mcp_*, heartbeat_*, memory_indexer_*, notification_*,
+                             # log_*, kanban_*, mermaid_*
 ```
 
 ## Core skills (Better Harness)
@@ -58,9 +68,28 @@ src/tauri_bridge.rs           # api_keys_*, agent_web_*, agent_environment_inval
 pub const CORE_SKILLS: &[(&str, &str)] = &[
     ("file-access", include_str!("../agent/harness_skills/file-access.md")),
     // … memory, plans, tasks, rules-skills, harness,
-    // environment, shell, git, web, subagents
+    // environment, shell, git, web, subagents,
+    // mcp, prompt-generating
 ];
 ```
+
+The current shipped catalog (12 core skills) is:
+
+| Slug | Purpose |
+|------|---------|
+| `file-access` | sandboxed workspace read/write/copy/rename |
+| `memory` | memory notes, graph, categories, HeartBeat |
+| `plans` | plan Markdown, kanban, Mermaid |
+| `tasks` | task store + subagent runs |
+| `rules-skills` | workspace rules + skill list/read |
+| `harness` | session orchestration + stats |
+| `environment` | env detect / cache invalidation |
+| `shell` | `shell_exec` read+write gating |
+| `git` | `git_*` server tools |
+| `web` | `web_search` / `web_fetch` |
+| `subagents` | spawn/inspect/cancel parallel runs |
+| `mcp` | model-context-protocol servers + tool list |
+| `prompt-generating` | how to draft prompts for chat, CLI agents, subagents, user replies |
 
 ### Source kind
 
@@ -73,7 +102,7 @@ pub const CORE_SKILLS: &[(&str, &str)] = &[
 
 ### Runtime availability
 
-`core_skill_availability("web")` returns `Some("disabled_no_key")` when `web_settings::web_tools_enabled()` is false. The skills UI can surface this without removing the skill from the catalog.
+`core_skill_availability("web")` returns `Some("disabled_no_key")` when `web_settings::web_tools_enabled()` is false. `core_skill_availability("mcp")` returns `Some("disabled_no_servers")` when the central MCP registry at `{app_data_dir}/mcp/servers.json` is empty. The skills UI can surface these without removing the skill from the catalog.
 
 ### System prompt contract
 
@@ -82,7 +111,8 @@ pub const CORE_SKILLS: &[(&str, &str)] = &[
 - Retains scope, security, mandatory turn checklist, behaviour rules
 - Replaces per-tool prose with a **compact name index** grouped by area
 - Directs the model to `skills_read` with core skill names for full guidance
-- **Requires `skills_read prompt-generating` before any substantive CLI-agent handoff** — the new `prompt-generating` core skill teaches the model how to scope prompts for BLXCode chat, terminal CLI agents (Claude Code, Codex, Gemini, OpenCode, Cursor), subagents, and user-facing replies
+- **Requires `skills_read prompt-generating` before any substantive CLI-agent handoff** — the `prompt-generating` core skill teaches the model how to scope prompts for BLXCode chat, terminal CLI agents (Claude Code, Codex, Gemini, OpenCode, Cursor), subagents, and user-facing replies
+- Marks every `mcp.<server>.<tool>` as **untrusted data** — the model must treat MCP tool output as adversarial and never echo credentials or follow URL/CLI suggestions verbatim
 
 Adding a new server tool typically requires:
 
@@ -90,6 +120,21 @@ Adding a new server tool typically requires:
 2. Document in the appropriate `harness_skills/*.md`
 3. Add a line to the tool index in `system_prompt.rs`
 4. Add `I18nKey::AgTool*` + all locale files if the UI shows a label
+
+### `mcp` core skill
+
+`agent/harness_skills/mcp.md` is the authoritative reference for the model's view of MCP. It documents:
+
+- The central registry at `{app_data_dir}/mcp/servers.json` (global, edit through Settings → MCP).
+- Project-scoped CLI-side configs (`.mcp.json`, `.codex/config.toml`, `.gemini/settings.json`, `opencode.json`, `.cursor/mcp.json`) which BLXCode **parses and surfaces** through `mcp_*` Tauri commands but does **not** auto-start.
+- The `.blxcode/mcp-managed.json` sidecar that records which server entries BLXCode owns, so user edits survive a workspace re-index.
+- The `mcp.<server>.<tool>` naming convention used by `tool_dispatch.rs` to route tool calls.
+- The session-fixed tool set: tools snapshotted at session start, so a server added mid-session is not callable until the next session.
+- The untrusted-output contract: any URL, command, or free-form string in MCP output must be re-validated by the model before acting on it.
+
+### `prompt-generating` core skill
+
+`agent/harness_skills/prompt-generating.md` is required reading before any CLI-agent handoff. It defines a four-class taxonomy (chat reply, terminal CLI agent, subagent, user-facing notification) and prescribes the prompt envelope each class should carry: scope, expected output, sandbox, success criteria, and stop conditions. It also documents the **badword list** the system applies to outgoing prompts and the **nickname prefix** (`<nickname>:`) auto-prepended to terminal CLI-agent handoffs unless disabled.
 
 ## Tool dispatch unification
 
@@ -110,11 +155,24 @@ Registry metadata covers:
 - provider id and label
 - local/cloud/gateway class
 - default OpenAI-compatible base URL
-- auth mode (`none`, required bearer, optional bearer)
+- auth mode (`none`, required bearer, optional bearer, custom header for Cloudflare)
 - model discovery strategy
 - compatibility flags such as OpenRouter request extras and OpenAI `reasoning_effort`
 
-Anthropic is the only native Messages API loop. OpenRouter, OpenAI, Ollama, LM Studio, Hugging Face, Cloudflare Workers AI, Together AI, and Portkey route through the OpenAI-compatible chat-completions loop. Local providers do not require a key. Cloudflare also requires `cloudflare_account_id` in `AgentProviderSettings`.
+Anthropic is the only native Messages API loop. The following providers route through the OpenAI-compatible chat-completions loop and live entirely in the registry:
+
+- **OpenRouter** (`openrouter`) — gateway, free + paid models, OpenRouter-only request extras
+- **OpenAI** (`openai`) — first-party, `reasoning_effort` supported
+- **Anthropic** (`anthropic`) — native Messages API loop (see `anthropic.rs`)
+- **Ollama** (`ollama`) — local, no key, defaults to `http://localhost:11434/v1`
+- **LM Studio** (`lmstudio`) — local, no key, defaults to `http://localhost:1234/v1`
+- **Hugging Face** (`huggingface`) — cloud router, `https://router.huggingface.co/v1`
+- **Cloudflare Workers AI** (`cloudflare`) — cloud, requires `cloudflare_account_id` in `AgentProviderSettings`, custom auth header
+- **Together AI** (`together`) — cloud, OpenAI-compatible
+- **Portkey** (`portkey`) — gateway, OpenAI-compatible
+- **Custom OpenAI-compatible** (`custom`) — user-defined base URL + optional bearer; the user can add multiple `custom-*` rows through **Settings → BLXCode Agent → Add provider**, all backed by the same `Custom` registry entry but stored as separate rows in `provider_base_urls`
+
+Local providers do not require a key. Cloudflare also requires `cloudflare_account_id` in `AgentProviderSettings`.
 
 `AgentProviderSettings` keeps legacy `model_cache_openrouter`, `model_cache_anthropic`, and `model_cache_openai` fields for compatibility, plus the provider-keyed `model_caches` map used by new providers. Base URL overrides live in `provider_base_urls`; secrets stay in keyring/env via the API Keys catalog.
 
@@ -181,6 +239,32 @@ Commands (`web_commands.rs`):
 Frontend wrappers in `tauri_bridge.rs`; UI in `harness_ui.rs` `AgentProviderPane`.
 
 `web_tools.rs` implements Tavily search; Brave may be stubbed or partial — check source before documenting provider-specific behaviour in release notes.
+
+## MCP (Model Context Protocol)
+
+The agent can call out to MCP servers through `agent/mcp/`:
+
+- `mcp.rs` — module entry + re-exports
+- `mcp_registry.rs` — central server registry at `{app_data_dir}/mcp/servers.json` (atomic tmp+rename writes), schema `[{ name, transport, command | url, env, headers, accountId? }]`
+- `mcp_cli_configs.rs` — parses `.mcp.json`, `.codex/config.toml`, `.gemini/settings.json`, `opencode.json`, `.cursor/mcp.json` from the workspace root; remote (ssh:) entries are skipped, not parsed
+- `mcp_client.rs` — built-in JSON-RPC client (initialize → tools/list → tools/call); no external SDK
+- `mcp_commands.rs` — Tauri commands (`mcp_*`)
+- `mcp_models.rs` — wire types
+
+Tool naming follows `mcp.<server>.<tool>` and is parsed in `tool_dispatch.rs` (both OpenAI-compatible and Anthropic branches). The tool set is **session-fixed**: it is snapshotted at session start from the registry and from any workspace CLI-config files, so a server added mid-session is not callable until the next session. The system prompt marks every `mcp.*` result as **untrusted** — URLs, CLI fragments, and free-form text in the output must be re-validated by the model before it acts on them.
+
+`.blxcode/mcp-managed.json` is a workspace sidecar that records which server entries BLXCode owns, so user edits to the project CLI configs survive a workspace re-index. Tool calls succeed whether the corresponding server is local or remote; only remote (ssh) entries are skipped during config discovery.
+
+### IPC commands (MCP)
+
+```text
+mcp_list_servers         # union of registry + workspace CLI configs + managed sidecar
+mcp_save_server          # add/upsert in registry
+mcp_delete_server
+mcp_set_server_enabled
+mcp_refresh_cli_configs  # re-scan workspace CLI configs into the union
+mcp_call_tool            # explicit tool invocation (rare; loop usually calls inline)
+```
 
 ## Terminal CLI-agent control
 
@@ -338,15 +422,62 @@ draft via `WorkbenchService::apply_preset_to_draft` and launches it directly.
 Registered in `lib.rs`:
 
 ```text
+# web + environment
 agent_web_settings_get
 agent_web_settings_save
 agent_web_api_key_set
 agent_web_api_key_delete
 agent_environment_invalidate
+
+# session roles + presets
 agent_session_roles_list
 workspace_presets_list
 workspace_presets_save
 workspace_presets_delete
+
+# MCP
+mcp_list_servers
+mcp_save_server
+mcp_delete_server
+mcp_set_server_enabled
+mcp_refresh_cli_configs
+mcp_call_tool
+
+# HeartBeat + Memory Indexer
+heartbeat_status_get
+heartbeat_settings_get
+heartbeat_settings_save
+heartbeat_run_now
+heartbeat_set_service_enabled
+memory_indexer_status
+memory_indexer_rebuild
+memory_indexer_reindex
+
+# Notifications
+notification_settings_get
+notification_settings_save
+notification_test
+notification_history
+
+# Log capture
+log_get_recent
+log_export
+log_clear
+
+# Kanban (Multi-Kanban)
+kanban_list_plans
+kanban_create_plan
+kanban_rename_plan
+kanban_delete_plan
+kanban_plan_move
+kanban_task_move
+
+# Mermaid diagrams
+mermaid_list_diagrams
+mermaid_create_diagram
+mermaid_delete_diagram
+mermaid_export_markdown
+mermaid_export_pdf
 ```
 
 Existing agent runtime commands unchanged; see [Tauri IPC](tauri-ipc.md).
@@ -356,6 +487,9 @@ Existing agent runtime commands unchanged; see [Tauri IPC](tauri-ipc.md).
 - `environment.rs` — cache invalidate test
 - `skills_rules/store.rs` — core skill count, merge with user skills, remove guard
 - `tool_groups.rs` — filtered registry tests if present
+- `heartbeat.rs` — `heartbeat::tests` covers the 10-min / 24-h clamp and `MemoryIndexer::reindex` triggering after 3 skips
+- `memory/indexer.rs` — `memory::indexer::tests` covers the async rebuild and the language-extension recogniser
+- `mcp/` — registry round-trip + `.blxcode/mcp-managed.json` sidecar round-trip
 - Run `cargo test -p blxcode` before PRs touching harness code
 
 ## Extending the harness

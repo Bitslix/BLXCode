@@ -95,11 +95,59 @@ Authoritative list from `src-tauri/src/lib.rs` (grouped for navigation):
 - `plan_list`, `plan_read`, `plan_create`, `plan_write`, `plan_delete`, `plan_rename`, `plan_load`, `plan_sync_from_tasks`
 - `plan_generate_ai` — one-shot AI plan generation (`{ prompt, with_tasks }`) that runs the same non-streaming completion used for AI commit messages. Output is post-processed into the canonical plan Markdown and (optionally) synced into the task manager. The system prompt is Skill-conformant so the output always matches the built-in plan format.
 
+### Kanban (Multi-Kanban)
+
+Center tab `0` shows one or more kanban boards; each board lives at `<workspace>/.agents/kanban/<plan-slug>/index.json` and is referenced from the global `<workspace>/.agents/kanban/index.json`. The commands are intentionally narrow so the frontend can mutate a single cell without rewriting the whole board:
+
+- `kanban_list_plans` — enumerate kanban plans for a workspace
+- `kanban_create_plan`, `kanban_rename_plan`, `kanban_delete_plan`
+- `kanban_plan_move` — re-order plan columns or move a plan across boards
+- `kanban_task_move` — move a task across columns (and across plans) atomically
+
+### Mermaid diagrams
+
+The agent can author Mermaid diagrams through two server tools (`mermaid_create`, `mermaid_create_many`) and the user can browse them from the **Diagram gallery** center tab (`CenterTabKind::DiagramGallery`):
+
+- `mermaid_list_diagrams`, `mermaid_create_diagram`, `mermaid_delete_diagram`
+- `mermaid_export_markdown`, `mermaid_export_pdf` — Save As (uses `tauri-plugin-dialog` for the picker; PDF uses Chromium headless via the same channel as the workbench's `app_relaunch`)
+
 ### Skills and rules
 
 - `rules_list`, `rules_read`, `rules_write`, `rules_set_enabled`, `rules_remove`
 - `skills_list`, `skills_read`, `skills_write`, `skills_set_enabled`, `skills_remove`, `skills_install`
 - `skills_rules_bootstrap` — populates the workspace's skills/rules index on workspace open. The Skills UI tab is scoped to user/workspace skills only; `skills_list` still returns the merged list (core + user + workspace) so the agent backend can resolve core skills, but the UI filters `SkillSourceKind::Core` out of the cards.
+
+### MCP
+
+- `mcp_list_servers` — union of the central registry (`{app_data_dir}/mcp/servers.json`) and any project-scoped CLI configs (`.mcp.json`, `.codex/config.toml`, `.gemini/settings.json`, `opencode.json`, `.cursor/mcp.json`) that BLXCode discovered at workspace open; remote (ssh:) entries are skipped
+- `mcp_save_server`, `mcp_delete_server` — add/upsert/remove entries in the central registry
+- `mcp_set_server_enabled` — runtime on/off for a single server without removing it from the registry
+- `mcp_refresh_cli_configs` — re-scan the workspace CLI configs and update the union (preserves user edits through the `.blxcode/mcp-managed.json` sidecar)
+- `mcp_call_tool` — explicit `mcp.<server>.<tool>` invocation; the model loop usually calls inline, this is for the test harness and ad-hoc UI
+
+### HeartBeat
+
+- `heartbeat_status_get`, `heartbeat_settings_get`, `heartbeat_settings_save` — read/write the 10-min–24-h interval, the next-tick ETA, and the service-enabled flag
+- `heartbeat_run_now` — fire a tick immediately (used by the **Run now** button and by the Memory Indexer's "stalled after 3 skips" path)
+- `heartbeat_set_service_enabled` — start/stop the background tick without losing the schedule
+
+### Memory Indexer
+
+- `memory_indexer_status` — current rebuild/reindex job, last-finished timestamp, language-extension stats
+- `memory_indexer_rebuild` — full rebuild (rebuilds `.agents/memory/architecture/` and the architecture map)
+- `memory_indexer_reindex` — incremental reindex after workspace changes
+
+### Notifications
+
+- `notification_settings_get`, `notification_settings_save` — system notifications, focus-suppression, per-channel rules
+- `notification_test` — fire a sample notification to verify the OS permission
+- `notification_history` — rolling log of in-app notifications surfaced in the App status line
+
+### App log
+
+- `log_get_recent` — return the rolling app log buffer (capped)
+- `log_export` — write the log to a user-chosen file (uses `tauri-plugin-dialog`)
+- `log_clear` — clear the rolling buffer
 
 ### Voice
 

@@ -86,9 +86,17 @@ BLXCode can build a **project architecture map** under `.agents/memory/architect
 
 Rebuild works for Rust, Node/TypeScript, Python, CMake, Go, Zig, Makefile-based C/C++, and other trees via a generic fallback — not only `Cargo.toml` workspaces. In the Files tree, `ARCHITECTURE.md` opens from the **architecture** category header (it is not a duplicate row). The BLXCode Agent can call `memory_rebuild_architecture` / `memory_lint_architecture` and is steered to read the map before broad repo searches.
 
+The first-touch architecture rebuild walks the whole workspace tree, which can take seconds on a large codebase. `memory_rebuild_architecture` and `memory_lint_architecture` are now `async` and run on the blocking thread pool, so opening a large workspace no longer freezes the UI.
+
 Commit `ARCHITECTURE.md` and `architecture/modules/*.md` with structural PRs; local staleness metadata lives in `.agents/memory/.meta/` (gitignored).
 
 Each category header has a hover **+** button to create a note prefilled for that category.
+
+### Memory Indexer (HeartBeat)
+
+A background **Memory Indexer** service is registered with the HeartBeat runtime (configured under **Settings → HeartBeat**). It indexes all currently open workspaces asynchronously and produces Memory notes with frontmatter, written into the existing Memory categories (`rules`, `skills`, `plans`) for both workspace memory (`.agents/memory/...`) and global memory (`~/.blxcode/memory/...`) — so the existing Memory graph and Graph3D clustering consume them without a separate `index` category.
+
+The service keeps per-workspace runs from overlapping (skipped while one is already in flight) and marks a run **stalled** after three consecutive skips. The left statusbar process area rotates active processes every three seconds, including **Memory Indexer running or stalled** state. Stats and the independent provider/model settings live under **Settings → Memory**.
 
 Right-click a category header to **Edit** display settings or **Send to BLXCode Agent** (whole category). Right-click a note for **Open** or **Send to BLXCode Agent**.
 
@@ -184,6 +192,8 @@ Use **Send to BLXCode Agent** in the Memory panel to attach notes or categories 
 
 ## See also
 
+- [Settings → Memory](settings.md#memory) — Memory settings pane (right-panel toggle, memory pointers, Memory Indexer)
+- [Settings → HeartBeat](settings.md#heartbeat) — interval, service listing, Run now
 - [Plans](plans.md) — plan Markdown and plan-linked tasks
 - [Rules And Skills](rules-and-skills.md) — binding workspace rules
 - [Image Mode](image.md) — generating images (separate from context images for vision/handoff)

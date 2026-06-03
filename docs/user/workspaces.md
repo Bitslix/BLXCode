@@ -26,8 +26,9 @@ The workspace configurator lets you:
 - Assign terminal slots to a fleet of coding tools.
 - Skip agent assignment when you only want plain terminals.
 - **Recent directories** — when you have opened workspaces before, previously used folders appear below the working-directory field; click a row to fill the path in one step.
-- **Session role** — pick a BLXCode Agent harness *session mode* (e.g. Coordinator, Architect, Codewright, Security Reviewer) from the dropdown. The picker shows each role's title with a dimmed sub-line summarising its description, skills, tools, and recommended models. The selected role is loaded and handed to the BLXCode Agent as a trailing system-prompt block, so the agent adopts that working style for the session. The role ranks **below** the Security rules and the active Agent Chat mode and can never expand scope. The BLXCode Agent always runs on the **provider/model configured in Settings** — a role never changes its model; its `provider`/`models` are advisory metadata only. The role is saved with the workspace, so it is restored when you reload the workspace, and it appears as a **colored sub-line in the agent name badge** (the color comes from the role definition).
-- **Per-agent model and effort (step 2)** — when you assign a CLI agent (claude/codex/gemini/opencode/cursor) to terminal slots, a small model dropdown appears for that agent with its built-in model options. Leaving it on **Default** uses the CLI's own default; otherwise the chosen model is passed to the launch command (`--model …`). CLIs that support a safe launch-time reasoning-effort override also show an **Effort** dropdown. Gemini, OpenCode, and Cursor currently keep effort in their own config/UI, so BLXCode does not pass an effort value at launch for them.
+- **Welcome-screen "Create Workspace" action** — the empty/welcome screen leads with a prominent, highlighted **Create Workspace** call-to-action (folder-plus icon + hint) above the Agent/Memory/Browser/Kanban destinations row. It is backed by a real, rebindable shortcut — `ShortcutAction::CreateWorkspace` (default **Ctrl+B then C**) — that appears in **Settings → Shortcuts** like every other binding and dispatches through the shared harness action path to open the inline Create-Workspace configurator. The welcome destination cards and utility links also **hide their keybinding hints when the workspace panel is narrow** (e.g. split view) via a container query, so the `kbd` chips no longer overlap or crowd the labels.
+- **Session role** — pick a BLXCode Agent harness *session mode* (e.g. Coordinator, Architect, Codewright, Security Reviewer) from the dropdown. The picker shows each role's title with a dimmed sub-line summarising its description, skills, tools, and recommended models. The selected role is loaded and handed to the BLXCode Agent as a trailing system-prompt block, so the agent adopts that working style for the session. The role ranks **below** the Security rules and the active Agent Chat mode and can never expand scope. The BLXCode Agent always runs on the **provider/model configured in Settings** — a role never changes its model; its `provider`/`models` are advisory metadata only. The role is saved with the workspace, so it is restored when you reload the workspace, and it appears as a **colored sub-line in the agent name badge** (the color comes from the role definition). The default session role is also seeded from the one-time onboarding dialog and editable in three places — the dialog, **Settings → BLXCode Agent**, and **Settings → Workspace** — with a cross-link explaining they share the same `defaultSessionRole` value.
+- **Per-agent model and effort (step 2)** — when you assign a CLI agent (claude/codex/gemini/opencode/cursor) to terminal slots, a small model dropdown appears for that agent with its built-in model options. Leaving it on **Default** uses the CLI's own default; otherwise the chosen model is passed to the launch command (`--model …`). CLIs that support a safe launch-time reasoning-effort override also show an **Effort** dropdown. Launch profiles map supported effort values into the correct CLI mechanism: **Claude** via `CLAUDE_CODE_EFFORT_LEVEL`, **Codex** via `-c model_reasoning_effort=...`, and **Gemini / OpenCode / Cursor** as model-only until their CLIs expose confirmed launch-time effort flags. Selections are persisted on workspaces and presets, kept aligned when terminal slots are reordered, swapped, transferred, added, or removed, and applied when launching/resuming terminal agents. Gemini, OpenCode, and Cursor currently keep effort in their own config/UI, so BLXCode does not pass an effort value at launch for them.
 - **Presets** — save a fleet configuration (terminal count, assigned agents, their models, their supported effort levels, per-slot names, and the session role) and relaunch it in one click. Presets are stored globally per installation in the application-data folder (not committed with any workspace). Use **+ New** to save the current configuration as a preset, the **✕** on a preset chip to delete it.
 
 The supported fleet labels are:
@@ -289,6 +290,42 @@ Persisted state includes:
 - Agent timeline and compose draft.
 
 If a saved snapshot has an unsupported schema version, BLXCode ignores it and starts with defaults rather than crashing.
+
+## App status line
+
+An always-visible **status bar** at the bottom of the workbench surfaces live, low-noise context for the active workspace:
+
+- **Rules / skills chip group** — enabled counts; clickable links to **Settings**.
+- **Memory scope** — Project vs. Global, with the loaded note path.
+- **Active editor** — file name + `line:col` for the focused CodeMirror tab.
+- **Git branch** — the workspace branch (with detached/upstream-aware states).
+- **Claude usage** — when the focused terminal session is Claude, the bar doubles as a passive Claude meter that captures 5-hour and 7-day usage from the CLI's status line (silently falls back when Claude isn't running).
+- **Plans / memory chips** — counts that jump to the corresponding center tab.
+- **Update indicator** — `Checking…` while a check runs, `Update available (vX.Y.Z)` when a new release is found, `Up to date` for manual checks.
+- **Process rotator** — every three seconds, the left slot rotates through active processes (Memory Indexer running or stalled, hook install outcomes, …).
+- **VIM indicator** — `VIM` shows in the left slot while a file editor/preview tab is focused and Vim mode is on.
+- **Help button** — opens the titlebar Help menu (product metadata, link grid, About, integrated *Check for updates*).
+
+All sections are theme-token styled, hide themselves when no relevant context exists (e.g. no rules), and respect the existing app font-size token.
+
+## Sidebar → Agent context drag-and-drop
+
+The agent drop-zone (the chat input area) now accepts four kinds of context, each with its own kind-specific icon, color, and cursor-following overlay:
+
+| Source | Kind | What's attached |
+|--------|------|-----------------|
+| Terminal cells | `TerminalSession` | Live terminal session, slot metadata, recent output tail. |
+| **Project Files** | `FileRef` | **File** or **Folder** rows — path-only; the agent reads content via its own tools. Folders land with a trailing `/` so the agent knows it is a directory. |
+| **File Diff** rows | `GitDiff` | The inline diff text (read via `git_file_diff`). |
+| **Git Commits** rows | `GitCommit` | The commit subject/body and changed files (read via `git_commit_details`). |
+
+All are **persistent** in the agent context list and removable with the existing `×` action. Backend prompt rendering and the terminal handoff `render_agent_context_block` both branch on the new kinds — `FileRef` collapses to a `files:` path list, `GitDiff` / `GitCommit` emit inline fenced blocks.
+
+## Hook installation dialog
+
+A themed `HookInstallDialog` prompts the user to install or refresh the missing **terminal CLI agent hooks** (Claude, Codex, Gemini, OpenCode, Cursor). The **Settings → App** pane's hook list uses a 3-column grid layout (collapsing to 2 / 1 below 900 / 600 px) with icon-only status pills (check / X) and full text in `title` + `aria-label`. A new in-app log shows the install/refresh outcome.
+
+`HookStatusService` tracks which hooks are installed for the active workspace, and the dialog is shown again whenever a hook is missing after a workspace switch or app upgrade.
 
 ## See also
 

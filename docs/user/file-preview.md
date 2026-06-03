@@ -215,6 +215,19 @@ Folding is CodeMirror's, in **both** preview and edit mode: the fold gutter fold
 
 > Remote (SSH) workspaces support editing and saving over the connection's exec channel; the remote sandbox is enforced the same way as remote reads.
 
+## Vim mode
+
+The file editor and the read-only preview share a single CodeMirror surface, so **Vim mode** is available in both. Turn it on under **Settings → Code Editor → Vim key bindings** (default on).
+
+- **Engine** — `@replit/codemirror-vim`, configured in its own CodeMirror `Compartment` (`setVim`) so toggling reconfigures the live editor **without a remount** — you don't need to reopen the file.
+- **Preview** — Vim motions and search work for navigation in read-only mode; edits stay blocked.
+- **Status indicator** — while a file editor/preview tab is focused and Vim is on, the **status bar's left slot shows a `VIM` indicator** (gated on `active_editor_status`).
+- **Per-action editor shortcuts** — the **Save / Find / Find & Replace / Go to line / Toggle comment / Fold / Unfold / Move line / Duplicate line / Format** actions appear in **Settings → Shortcuts → Code Editor**. While Vim is active, this whole section is **disabled with an inline hint** because Vim owns the keymap.
+
+Cursor position (line + column, 1-indexed) is tracked in a shared signal so the [App status line](workspaces.md#app-status-line) renders `file.rs · 42:13` for the focused editor tab and updates on every selection change.
+
+All editor and preview settings persist under `blxcode_editor_settings_v1` in `localStorage`; shortcut bindings persist separately under `EDITOR_SHORTCUT_BINDINGS_KEY`.
+
 ## Mermaid files
 
 `.mmd` and `.mermaid` files render as a single full-tab diagram. The first preview on a session lazily loads the vendored Mermaid bundle from `public/vendor/mermaid/mermaid.min.js` and calls `mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: 'dark' })`; subsequent previews reuse `globalThis.mermaid` without re-downloading.

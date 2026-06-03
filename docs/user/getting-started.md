@@ -51,10 +51,12 @@ After accepting, the workbench opens. In the desktop shell, BLXCode also creates
 
 ## Create A Workspace
 
-1. Open the workspace creation flow from the sidebar.
-2. Choose a folder. The picker defaults to your home directory in the desktop shell.
+The empty/welcome screen leads with a prominent, highlighted **Create Workspace** call-to-action (folder-plus icon + hint) above the Agent/Memory/Browser/Kanban destinations row. You can also fire it from anywhere with the rebindable **Create Workspace** shortcut (default `Ctrl+B then C` in tmux mode, `Ctrl+Shift+C` in classic — see [Keyboard Shortcuts](keyboard-shortcuts.md)).
+
+1. Open the workspace creation flow from the sidebar, the welcome screen, or the shortcut above.
+2. Choose a folder. The picker defaults to your home directory in the desktop shell, and a **Recent directories** cluster lists previously-opened workspace directories (deduplicated, newest first) as one-click welcome-screen-style rows.
 3. Pick a terminal count. Supported presets include `1`, `2`, `4`, `6`, `8`, `9`, `12`, and `16`.
-4. Optionally assign terminal slots to coding agents such as Claude, Codex, Gemini, OpenCode, or Cursor.
+4. Optionally assign terminal slots to coding agents such as Claude, Codex, Gemini, OpenCode (1.0+), or Cursor. For each agent row, choose a **Model** and (where the CLI supports a safe launch-time effort override) an **Effort** level — the selection persists with the workspace and any preset derived from it.
 5. Confirm the workspace to open the terminal grid.
 
 Workspace layout and recent workspace state are persisted by the Tauri backend and restored on the next launch. With [agent hooks](agent-providers.md) installed, terminal slots can **resume** prior Claude/Codex/Gemini/OpenCode/Cursor sessions and surface **completion badges** in the sidebar—see [Workspaces](workspaces.md#session-resume).
@@ -92,14 +94,18 @@ Opening or switching to a workspace runs `workspace_ensure_agents`, which create
 
 **Next steps:**
 
-- [Workspaces](workspaces.md) — terminals, sidebar explorer, handoff
-- [Memory And Tasks](memory-and-tasks.md) — notes, graph, categories
-- [Plans](plans.md) — plan Markdown and plan-linked tasks
+- [Workspaces](workspaces.md) — terminals, sidebar explorer, handoff, **app status line**, **sidebar context drag-and-drop**
+- [Memory And Tasks](memory-and-tasks.md) — notes, graph, categories, **HeartBeat / Memory Indexer**
+- [Plans](plans.md) — plan Markdown, plan-linked tasks, **workspace Multi-Kanban**, **Mermaid diagrams**
 - [Rules And Skills](rules-and-skills.md) — workspace rules and skills (core + user)
-- [Agent Harness](agent-harness.md) — core skills, shell/git/web tools
+- [Agent Harness](agent-harness.md) — core skills, shell/git/web tools, **MCP servers**, **prompt-generating skill**
 - [Subagents](subagents.md) — parallel agent runs
-- [Keyboard Shortcuts](keyboard-shortcuts.md) — tmux prefix vs legacy mode
+- [Agent Providers](agent-providers.md) — text providers, MCP, agent nickname, sidebar context
+- [Keyboard Shortcuts](keyboard-shortcuts.md) — tmux prefix vs legacy mode, Create Workspace, Push-to-Talk
+- [Appearance & Themes](appearance-themes.md) — themes, roundings, font, **font size**
 - [Image Mode](image.md) — generate images from the agent panel
+- [Voice](voice.md) — STT, TTS, **Push-to-Talk (local Whisper / cloud)**
+- [Troubleshooting](troubleshooting.md) — common issues
 
 App layout, provider settings, and secrets live in platform-specific Tauri app config or app data directories.
 
