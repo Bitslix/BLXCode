@@ -12,7 +12,7 @@ Siehe Befund-IDs SEC-01 … SEC-20 in Implementation Notes.
 
 ## Decisions
 
-- **P0 zuerst:** Subagent `writes:true`-Bypass und fehlende Runtime-Tool-Allowlist — widersprechen dokumentiertem Harness ([coordinated-subagents.md](coordinated-subagents.md)).
+- **P0 zuerst:** Subagent `writes:true`-Bypass und fehlende Runtime-Tool-Allowlist — widersprechen dokumentiertem Harness ([coordinated-subagents/plan.md](../coordinated-subagents/plan.md)).
 - **`writes`-Argument:** Nur aus `ToolExecOpts.shell_writes` / Gruppen ableiten; LLM-JSON darf `writes` nicht setzen ohne `shell_write`-Gruppe.
 - **Shell Read-only:** Metazeichen `;`, `&&`, `|`, `` ` ``, `$()` verbieten; `node`/`npm`/`cargo` verschärfen oder entfernen.
 - **XSS:** `sanitize_markdown_html` auf alle Chat/Memory/Plans/Skills `inner_html`-Pfade (wie File-Preview).

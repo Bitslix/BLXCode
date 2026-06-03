@@ -116,7 +116,7 @@ flowchart TB
 - [docs/developer/architecture.md](docs/developer/architecture.md), [themes.md](docs/developer/themes.md), [agent-harness.md](docs/developer/agent-harness.md), [voice.md](docs/developer/voice.md)
 - [docs/user/voice.md](docs/user/voice.md), [image.md](docs/user/image.md), [file-preview.md](docs/user/file-preview.md)
 - [src-tauri/src/agent/system_prompt.rs](src-tauri/src/agent/system_prompt.rs) — Kommentar „Leptos workbench"
-- ~15 historische `.agents/plans/*.md` — archivieren oder Grep schlägt fehl
+- ~15 historische `.agents/plans/<slug>/plan.md` — archivieren oder Grep schlägt fehl
 - [scripts/tools/render_i18n_locales_from_en.py](scripts/tools/render_i18n_locales_from_en.py) — nach JSON-Migration löschen
 
 ---
@@ -271,7 +271,7 @@ Alle in `app-prefs-store` oder `layout-store`: EULA, Locale, Theme, Graph-Mode, 
 - [render_i18n_locales_from_en_json.py](scripts/tools/render_i18n_locales_from_en_json.py) (neu)
 - CI: [scripts/ci/check-i18n-keys.ts](scripts/ci/check-i18n-keys.ts)
 - **DOMPurify-Config** + Tests (Sanitizer-Parität zu 4 `sanitize_markdown_*` + 2 `sanitize_svg_*` Tests)
-- CSP-Grundlage ([security-hardening.md](.agents/plans/security-hardening.md) SEC-05/06) — **vor** Feature-Panels
+- CSP-Grundlage ([security-hardening.md](../security-hardening/plan.md) SEC-05/06) — **vor** Feature-Panels
 
 ---
 
@@ -369,7 +369,7 @@ toast, update, boot, notification_sound, harness_chords
 | voice_orb | 441 | |
 | rest | ~800 | |
 
-**PERF-P0 als DoD** ([performance-optimization.md](.agents/plans/performance-optimization.md)):
+**PERF-P0 als DoD** ([performance-optimization.md](../performance-optimization/plan.md)):
 
 - Debounced Timeline-Persist (nicht pro Delta)
 - Auto-Save entkoppeln von Agent-Streaming
@@ -465,7 +465,7 @@ CLAUDE.md, README.md, CONTRIBUTING.md, CHANGELOG.md, docs/developer/{setup,contr
 
 - [skills-lock.json](skills-lock.json), [.agents/skills/index.json](.agents/skills/index.json)
 - Rules: Leptos → React/TS
-- [PLANS.md](.agents/plans/PLANS.md) — diesen Plan indexieren; leptos-0.8-upgrade → cancelled
+- [PLANS.md](../PLANS.md) — diesen Plan indexieren; leptos-0.8-upgrade → cancelled
 - Historische Pläne mit `wasm32 check` → archivieren oder Header „historisch"
 
 ### 7.7 Grep-Verifikation

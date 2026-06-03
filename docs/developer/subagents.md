@@ -193,7 +193,7 @@ render_for_anthropic_filtered(groups, web_enabled)  // names via to_anthropic_na
 
 ## Plan reference
 
-`.agents/plans/coordinated-subagents.md` — original design decisions (German), including truncation limits and harness-vs-shell notes.
+`.agents/plans/coordinated-subagents/plan.md` — original design decisions (German), including truncation limits and harness-vs-shell notes.
 
 ## See also
 

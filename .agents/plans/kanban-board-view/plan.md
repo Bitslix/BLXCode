@@ -8,7 +8,7 @@ Build a workspace-scoped Multi-Kanban as a pinned center tab for every real work
 - Keep the existing `Terminals` tab ID `1` as the active/default loaded view.
 - Plan states stay derived exactly like the current Plans tab from task summaries: blocked > in progress > pending > completed > cancelled > empty.
 - Task states remain the existing canonical statuses: pending, in progress, blocked, completed, cancelled.
-- Plan Markdown under `.agents/plans/*.md` remains the source of truth for plan/task content.
+- Plan Markdown under `.agents/plans/<slug>/plan.md` remains the source of truth for plan/task content.
 - Kanban persistence stores only layout and metadata.
 - Export/import covers Kanban layout and metadata, not plan Markdown contents.
 

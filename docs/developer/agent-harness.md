@@ -367,8 +367,8 @@ Existing agent runtime commands unchanged; see [Tauri IPC](tauri-ipc.md).
 
 ## Plans (reference)
 
-- `.agents/plans/better-harness.md` — core skills + slim prompt
-- `.agents/plans/coordinated-subagents.md` — subagents (see [Subagents](subagents.md))
+- `.agents/plans/better-harness/plan.md` — core skills + slim prompt
+- `.agents/plans/coordinated-subagents/plan.md` — subagents (see [Subagents](subagents.md))
 
 ## See also
 

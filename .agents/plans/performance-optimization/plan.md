@@ -11,7 +11,7 @@ Zwei parallele Audits (Rust/Tauri-Backend + Leptos/WASM-Frontend) fuer schneller
 
 Positiv: statischer Boot-Screen, `wasm-opt=z`, lazy hljs/mermaid/graph3d, atomische Workbench-Writes.
 
-Verwandt: Push-IPC in [v2-roadmap.md](v2-roadmap.md) (`push-ipc-events`); unabhaengig von [security-hardening.md](security-hardening.md).
+Verwandt: Push-IPC in [v2-roadmap.md](v2-roadmap.md) (`push-ipc-events`); unabhaengig von [security-hardening/plan.md](../security-hardening/plan.md).
 
 Phasen P0 (Agent UX) → P1 (Backend/Boot) → P2 (Terminal/Git) → P3 (Polish).
 

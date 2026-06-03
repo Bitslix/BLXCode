@@ -6,7 +6,7 @@ Der BLXCode Agent soll Plan-Tasks waehrend der Abarbeitung sichtbar und
 zuverlaessig auf `in_progress` (Running) setzen und danach automatisch auf
 den passenden Folgezustand (`pending`, `blocked`, `completed`, `cancelled`)
 zuruecksetzen. Die Statusaenderung muss in die jeweilige Plan-Markdown-Datei
-unter `.agents/plans/*.md` zurueckgeschrieben werden, damit Plan-Karten,
+unter `.agents/plans/<slug>/plan.md` zurueckgeschrieben werden, damit Plan-Karten,
 Buckets und Filter im Plans-Panel den realen Fortschritt zeigen.
 
 Parallel fehlt im Plans-Panel ein eigener **In Progress / Running**-Filter

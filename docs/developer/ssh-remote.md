@@ -101,7 +101,7 @@ in the frontend-owned workbench snapshot.
 
 These are addressed by the planned **russh** migration (multiplex all terminals + exec over one
 authenticated connection per preset, Windows-friendly, no `ControlMaster`):
-[`.agents/plans/russh-transport-refactor.md`](../../.agents/plans/russh-transport-refactor.md).
+[`.agents/plans/russh-transport-refactor/plan.md`](../../.agents/plans/russh-transport-refactor/plan.md).
 
 ## Tests
 

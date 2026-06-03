@@ -74,10 +74,17 @@ The implementation must apply the Tauri v2, Rust best practices, Rust async patt
   - Added timeline/session stats display support for `plan_context_*`.
   - Check: `cargo check -p blxcode-ui --locked` passed.
   - Check: `cargo test -p blxcode --locked` passed with 312 tests.
+- 2026-06-03 Phase 4 complete:
+  - Migrated repository-owned flat plan files into `.agents/plans/<slug>/plan.md`.
+  - Updated `PLANS.md` to canonical links and revised plan-internal references that pointed at migrated plan files.
+  - Confirmed `.agents/plans/` root now contains only `PLANS.md` and `README.md`.
+  - Check: `cargo check -p blxcode-ui --locked` passed.
+  - Check: `cargo check -p blxcode --locked` passed with existing `ProviderEnv::from_environment` dead-code warning.
+  - Check: `cargo test -p blxcode --locked` passed with 312 tests.
 
 ## Tasks
 
 - [x] `phase-1-backend-path-model` - Implement canonical plan path model and backend CRUD/list/index behavior, update this plan, run checks, and commit phase 1.
 - [x] `phase-2-async-migration-statusbar` - Implement async migration, reference rewrites, and statusbar progress, update this plan, run checks, and commit phase 2.
 - [x] `phase-3-ui-agent-docs-skills` - Update UI surfaces, agent tools/prompts, skills, i18n, and docs, update this plan, run checks, and commit phase 3.
-- [ ] `phase-4-tests-repo-migration` - Complete tests, migrate repository plan files to folder layout, update this plan, run final checks, and commit phase 4.
+- [x] `phase-4-tests-repo-migration` - Complete tests, migrate repository plan files to folder layout, update this plan, run final checks, and commit phase 4.
