@@ -157,33 +157,33 @@ sequenceDiagram
 
 ## Tasks
 
-- [ ] `prov-registry` - Add central provider registry with endpoint, auth, model discovery, and capability metadata
-- [ ] `prov-enum-mirror` - Extend backend and frontend provider enums with Ollama, LM Studio, Hugging Face, Cloudflare, Together, and Portkey
-- [ ] `prov-options` - Add provider options for base URLs and Cloudflare Account ID with backward-compatible serde defaults
-- [ ] `prov-cache-map` - Migrate fixed model caches to provider-keyed cache helpers while preserving old settings
-- [ ] `prov-key-catalog` - Add cloud provider key rows, keyring accounts, and `BLX_*` env fallbacks
-- [ ] `compat-loop` - Extract the OpenAI-compatible runtime from the OpenRouter/OpenAI-specific enum path
-- [ ] `compat-auth` - Implement required bearer, optional bearer, and no-auth local request modes
-- [ ] `compat-reasoning` - Gate reasoning request fields by provider capability
-- [ ] `compat-errors` - Normalize provider setup and HTTP/SSE errors for user-facing chat events
-- [ ] `compat-usage` - Preserve usage/cost metrics when reported and avoid fake pricing when missing
-- [ ] `models-refresh` - Implement live model refresh for all new providers
-- [ ] `models-curated` - Add curated fallback entries and custom-model behavior for all new providers
-- [ ] `models-ui-cache` - Update Settings and Composer to use provider-keyed model cache access
-- [ ] `models-selection` - Make provider switching preserve valid/custom models and choose a sensible fallback
-- [ ] `models-metadata` - Resolve context/pricing metadata only from provider data or existing fallback tables
+- [x] `prov-registry` - Add central provider registry with endpoint, auth, model discovery, and capability metadata
+- [x] `prov-enum-mirror` - Extend backend and frontend provider enums with Ollama, LM Studio, Hugging Face, Cloudflare, Together, and Portkey
+- [x] `prov-options` - Add provider options for base URLs and Cloudflare Account ID with backward-compatible serde defaults
+- [x] `prov-cache-map` - Migrate fixed model caches to provider-keyed cache helpers while preserving old settings
+- [x] `prov-key-catalog` - Add cloud provider key rows, keyring accounts, and `BLX_*` env fallbacks
+- [x] `compat-loop` - Extract the OpenAI-compatible runtime from the OpenRouter/OpenAI-specific enum path
+- [x] `compat-auth` - Implement required bearer, optional bearer, and no-auth local request modes
+- [x] `compat-reasoning` - Gate reasoning request fields by provider capability
+- [x] `compat-errors` - Normalize provider setup and HTTP/SSE errors for user-facing chat events
+- [x] `compat-usage` - Preserve usage/cost metrics when reported and avoid fake pricing when missing
+- [x] `models-refresh` - Implement live model refresh for all new providers
+- [x] `models-curated` - Add curated fallback entries and custom-model behavior for all new providers
+- [x] `models-ui-cache` - Update Settings and Composer to use provider-keyed model cache access
+- [x] `models-selection` - Make provider switching preserve valid/custom models and choose a sensible fallback
+- [x] `models-metadata` - Resolve context/pricing metadata only from provider data or existing fallback tables
 - [ ] `ui-provider-picker` - Add Local/Cloud grouped provider choices to Agent settings and Composer
-- [ ] `ui-provider-options` - Add provider-specific base URL, Account ID, key status, and refresh/test controls
-- [ ] `ui-api-keys` - Add API Keys pane rows and icons/fallbacks for new cloud providers
-- [ ] `i18n-provider-keys` - Add provider labels, hints, errors, and option labels across locales
-- [ ] `docs-provider-guide` - Update user/developer docs for setup, env vars, feature support, and troubleshooting
-- [ ] `chat-main` - Route main Agent Chat through the generalized endpoint resolver
-- [ ] `chat-oneshot` - Route one-shot utilities through the generalized endpoint resolver
-- [ ] `chat-subagents` - Enable compatible providers in subagent runner
-- [ ] `chat-tools` - Verify tool schemas, MCP tools, and tool-result messages across compatible providers
-- [ ] `chat-images` - Preserve compatible image-context behavior and document provider/model variance
-- [ ] `tests-settings` - Add settings, serde migration, and key-resolution tests
+- [x] `ui-provider-options` - Add provider-specific base URL, Account ID, key status, and refresh/test controls
+- [x] `ui-api-keys` - Add API Keys pane rows and icons/fallbacks for new cloud providers
+- [x] `i18n-provider-keys` - Add provider labels, hints, errors, and option labels across locales
+- [x] `docs-provider-guide` - Update user/developer docs for setup, env vars, feature support, and troubleshooting
+- [x] `chat-main` - Route main Agent Chat through the generalized endpoint resolver
+- [x] `chat-oneshot` - Route one-shot utilities through the generalized endpoint resolver
+- [x] `chat-subagents` - Enable compatible providers in subagent runner
+- [x] `chat-tools` - Verify tool schemas, MCP tools, and tool-result messages across compatible providers
+- [x] `chat-images` - Preserve compatible image-context behavior and document provider/model variance
+- [x] `tests-settings` - Add settings, serde migration, and key-resolution tests
 - [ ] `tests-models` - Add model-list parser tests and fixtures
-- [ ] `tests-requests` - Add request URL/header/body generation tests
+- [x] `tests-requests` - Add request URL/header/body generation tests
 - [ ] `tests-runtime` - Add streaming/tool/error runtime tests
-- [ ] `checks` - Run workspace backend/frontend checks and existing lint scripts
+- [!] `checks` - Run workspace backend/frontend checks and existing lint scripts

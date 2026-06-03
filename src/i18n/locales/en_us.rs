@@ -917,6 +917,18 @@ keys; the preset only fills in defaults."
         I18nKey::AgProviderOpenrouter => "OpenRouter",
         I18nKey::AgProviderAnthropic => "Anthropic",
         I18nKey::AgProviderOpenai => "OpenAI",
+        I18nKey::AgProviderOllama => "Ollama",
+        I18nKey::AgProviderLmStudio => "LM Studio",
+        I18nKey::AgProviderHuggingFace => "Hugging Face",
+        I18nKey::AgProviderCloudflare => "Cloudflare",
+        I18nKey::AgProviderTogether => "Together AI",
+        I18nKey::AgProviderPortkey => "Portkey",
+        I18nKey::AgProviderBaseUrlField => "Base URL",
+        I18nKey::AgProviderBaseUrlHint => "OpenAI-compatible endpoint root, ending in /v1.",
+        I18nKey::AgProviderCloudflareAccountField => "Cloudflare Account ID",
+        I18nKey::AgProviderCloudflareAccountHint => {
+            "Stored as a non-secret setting. Put the API token in API Keys."
+        }
         I18nKey::AgModelField => "Model",
         I18nKey::AgModelCustomField => "Custom model ID",
         I18nKey::AgThinkingField => "Thinking level",

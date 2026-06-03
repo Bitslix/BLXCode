@@ -2,7 +2,7 @@
 //! provider (real HTTP stream) or falls back to the mock engine when no
 //! key/model is available.
 use crate::agent::anthropic::run_chat_turn as run_anthropic_turn;
-use crate::agent::openrouter::{run_chat_turn, Endpoint};
+use crate::agent::openrouter::run_chat_turn;
 use crate::agent::project_docs;
 use crate::agent::protocol::{
     AgentContextItem, AgentContextKind, AgentEvent, AgentImageContextItem, UserTurn,
@@ -42,13 +42,16 @@ pub fn dispatch_user_turn(
         }
     };
 
-    // Every wired provider needs a key — bail early with a friendly UI message.
-    let api_key = match provider_key_pub(app, settings.provider) {
-        Ok(k) if !k.trim().is_empty() => k,
-        Ok(_) | Err(_) => {
-            spawn_chat_missing_key(Arc::clone(agent), settings.provider);
-            return Ok(());
+    let api_key = if crate::agent::provider::provider_requires_key(settings.provider) {
+        match provider_key_pub(app, settings.provider) {
+            Ok(k) if !k.trim().is_empty() => k,
+            Ok(_) | Err(_) => {
+                spawn_chat_missing_key(Arc::clone(agent), settings.provider);
+                return Ok(());
+            }
         }
+    } else {
+        String::new()
     };
 
     let state = Arc::clone(agent);
@@ -95,9 +98,14 @@ pub fn dispatch_user_turn(
                 }
             });
         }
-        AgentProviderKind::Openrouter | AgentProviderKind::Openai => {
-            let endpoint = Endpoint::from_provider(settings.provider)
-                .expect("openrouter/openai endpoint mapping");
+        _ => {
+            let endpoint = match crate::agent::provider::compatible_endpoint(&settings) {
+                Ok(endpoint) => endpoint,
+                Err(err) => {
+                    spawn_settings_error(Arc::clone(agent), err);
+                    return Ok(());
+                }
+            };
             async_runtime::spawn(async move {
                 // Connect/refresh MCP clients for this session before the turn.
                 crate::mcp::runtime::ensure_built(&app_handle).await;

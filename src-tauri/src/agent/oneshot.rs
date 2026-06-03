@@ -7,6 +7,7 @@
 //! to reuse the user's provider/model/key without entering the chat loop.
 
 use crate::agent::openrouter::Endpoint;
+use crate::agent::provider::AuthMode;
 use crate::agent_settings::{AgentProviderKind, AgentProviderSettings};
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -44,12 +45,11 @@ pub async fn complete_text(
             )
             .await
         }
-        AgentProviderKind::Openrouter | AgentProviderKind::Openai => {
-            let endpoint = Endpoint::from_provider(settings.provider)
-                .expect("openrouter/openai endpoint mapping");
+        _ => {
+            let endpoint = crate::agent::provider::compatible_endpoint(settings)?;
             openai_complete(
                 &client,
-                endpoint,
+                &endpoint,
                 api_key,
                 &settings.model_id,
                 system,
@@ -108,7 +108,7 @@ async fn anthropic_complete(
 
 async fn openai_complete(
     client: &reqwest::Client,
-    endpoint: Endpoint,
+    endpoint: &Endpoint,
     api_key: &str,
     model: &str,
     system: &str,
@@ -124,10 +124,16 @@ async fn openai_complete(
         ],
     });
     let mut req = client
-        .post(endpoint.url())
-        .bearer_auth(api_key)
+        .post(&endpoint.url)
         .header("Content-Type", "application/json");
-    if matches!(endpoint, Endpoint::Openrouter) {
+    if matches!(
+        endpoint.auth_mode,
+        AuthMode::RequiredBearer | AuthMode::OptionalBearer
+    ) && !api_key.trim().is_empty()
+    {
+        req = req.bearer_auth(api_key);
+    }
+    if endpoint.sends_openrouter_extras {
         req = req
             .header("HTTP-Referer", "https://bitslix.com/blxcode")
             .header("X-Title", "blxcode");

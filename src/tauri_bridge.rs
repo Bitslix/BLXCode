@@ -513,6 +513,12 @@ pub enum AgentProviderKind {
     Openrouter,
     Anthropic,
     Openai,
+    Ollama,
+    LmStudio,
+    HuggingFace,
+    Cloudflare,
+    Together,
+    Portkey,
 }
 
 impl AgentProviderKind {
@@ -521,6 +527,12 @@ impl AgentProviderKind {
             Self::Openrouter => "openrouter",
             Self::Anthropic => "anthropic",
             Self::Openai => "openai",
+            Self::Ollama => "ollama",
+            Self::LmStudio => "lmStudio",
+            Self::HuggingFace => "huggingFace",
+            Self::Cloudflare => "cloudflare",
+            Self::Together => "together",
+            Self::Portkey => "portkey",
         }
     }
 }
@@ -630,6 +642,12 @@ pub struct AgentProviderSettingsView {
     pub model_cache_openrouter: Vec<ProviderModelEntry>,
     pub model_cache_anthropic: Vec<ProviderModelEntry>,
     pub model_cache_openai: Vec<ProviderModelEntry>,
+    #[serde(default)]
+    pub model_caches: std::collections::BTreeMap<String, Vec<ProviderModelEntry>>,
+    #[serde(default)]
+    pub provider_base_urls: std::collections::BTreeMap<String, String>,
+    #[serde(default)]
+    pub cloudflare_account_id: String,
     pub key_statuses: Vec<ProviderKeyStatus>,
 }
 
@@ -748,6 +766,8 @@ pub async fn agent_settings_save(
     orb_mode: AgentOrbMode,
     agent_nickname: String,
     default_session_role: Option<String>,
+    provider_base_urls: std::collections::BTreeMap<String, String>,
+    cloudflare_account_id: String,
 ) -> Result<AgentProviderSettingsView, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -767,6 +787,8 @@ pub async fn agent_settings_save(
         orb_mode: AgentOrbMode,
         agent_nickname: String,
         default_session_role: Option<String>,
+        provider_base_urls: std::collections::BTreeMap<String, String>,
+        cloudflare_account_id: String,
     }
 
     invoke_typed(
@@ -782,6 +804,8 @@ pub async fn agent_settings_save(
                 orb_mode,
                 agent_nickname,
                 default_session_role,
+                provider_base_urls,
+                cloudflare_account_id,
             },
         },
     )

@@ -13,6 +13,7 @@
 
 use crate::agent::pricing;
 use crate::agent::protocol::{AgentChatMode, AgentEvent, AgentImageContextItem};
+use crate::agent::provider::{AuthMode, CompatibleEndpoint};
 use crate::agent::state::AgentEngineState;
 use crate::agent::system_prompt::system_prompt;
 use crate::agent::tool_dispatch::{dispatch_tool, DispatchContext};
@@ -26,28 +27,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::io::AsyncBufReadExt;
 
-#[derive(Clone, Copy, Debug)]
-pub enum Endpoint {
-    Openrouter,
-    Openai,
-}
-
-impl Endpoint {
-    pub(crate) fn url(self) -> &'static str {
-        match self {
-            Self::Openrouter => "https://openrouter.ai/api/v1/chat/completions",
-            Self::Openai => "https://api.openai.com/v1/chat/completions",
-        }
-    }
-
-    pub fn from_provider(p: AgentProviderKind) -> Option<Self> {
-        match p {
-            AgentProviderKind::Openrouter => Some(Self::Openrouter),
-            AgentProviderKind::Openai => Some(Self::Openai),
-            AgentProviderKind::Anthropic => None,
-        }
-    }
-}
+pub type Endpoint = CompatibleEndpoint;
 
 /// Endpoint-specific reasoning payload. The request body shape differs:
 ///   - OpenRouter: nested object `reasoning: { effort, exclude: false }`
@@ -57,7 +37,7 @@ struct ReasoningPayload {
     value: Value,
 }
 
-fn reasoning_for(level: ThinkingLevel, endpoint: Endpoint) -> Option<ReasoningPayload> {
+fn reasoning_for(level: ThinkingLevel, endpoint: &Endpoint) -> Option<ReasoningPayload> {
     let effort = match level {
         ThinkingLevel::Off => return None,
         ThinkingLevel::Low => "low",
@@ -65,14 +45,15 @@ fn reasoning_for(level: ThinkingLevel, endpoint: Endpoint) -> Option<ReasoningPa
         ThinkingLevel::High | ThinkingLevel::Max => "high",
     };
     Some(match endpoint {
-        Endpoint::Openrouter => ReasoningPayload {
+        _ if endpoint.provider == AgentProviderKind::Openrouter => ReasoningPayload {
             key: "reasoning",
             value: json!({ "effort": effort, "exclude": false }),
         },
-        Endpoint::Openai => ReasoningPayload {
+        _ if endpoint.supports_openai_reasoning_effort => ReasoningPayload {
             key: "reasoning_effort",
             value: Value::String(effort.to_owned()),
         },
+        _ => return None,
     })
 }
 
@@ -242,7 +223,7 @@ pub async fn run_chat_turn(
     if let Some(arr) = tools.as_array_mut() {
         arr.extend(crate::mcp::runtime::openai_tool_specs().await);
     }
-    let reasoning = reasoning_for(settings.thinking_level, endpoint);
+    let reasoning = reasoning_for(settings.thinking_level, &endpoint);
     let dispatch_ctx = DispatchContext {
         settings: settings.clone(),
         api_key: api_key.clone(),
@@ -264,10 +245,7 @@ pub async fn run_chat_turn(
         }
     };
 
-    let provider_kind = match endpoint {
-        Endpoint::Openrouter => AgentProviderKind::Openrouter,
-        Endpoint::Openai => AgentProviderKind::Openai,
-    };
+    let provider_kind = endpoint.provider;
 
     // Configurable per-turn tool-call ceiling (Settings → Agent). Clamped
     // again here in case the on-disk value was hand-edited out of range.
@@ -289,7 +267,7 @@ pub async fn run_chat_turn(
         // OpenRouter exposes a native `usage.cost` field but only when the
         // request opts in via `usage: { include: true }`. Cheaper than
         // computing locally and avoids drift when models reprice.
-        if matches!(endpoint, Endpoint::Openrouter) {
+        if endpoint.sends_openrouter_extras {
             body["usage"] = json!({ "include": true });
         }
         if let Some(r) = &reasoning {
@@ -304,7 +282,7 @@ pub async fn run_chat_turn(
         let round_start = Instant::now();
         let round_res = match run_one_round(
             &client,
-            endpoint,
+            &endpoint,
             &api_key,
             &body,
             &state,
@@ -479,18 +457,24 @@ fn emit_aborted(state: &Arc<AgentEngineState>) {
 
 async fn run_one_round(
     client: &reqwest::Client,
-    endpoint: Endpoint,
+    endpoint: &Endpoint,
     api_key: &str,
     body: &Value,
     state: &Arc<AgentEngineState>,
     consumed_image_ids: Option<&[String]>,
 ) -> Result<RoundResult, String> {
     let mut req = client
-        .post(endpoint.url())
-        .bearer_auth(api_key)
+        .post(&endpoint.url)
         .header("Accept", "text/event-stream")
         .header("Content-Type", "application/json");
-    if matches!(endpoint, Endpoint::Openrouter) {
+    if matches!(
+        endpoint.auth_mode,
+        AuthMode::RequiredBearer | AuthMode::OptionalBearer
+    ) && !api_key.trim().is_empty()
+    {
+        req = req.bearer_auth(api_key);
+    }
+    if endpoint.sends_openrouter_extras {
         req = req
             .header("HTTP-Referer", "https://bitslix.com/blxcode")
             .header("X-Title", "blxcode");

@@ -12,8 +12,11 @@
 //! first, which keeps this provider-agnostic (OpenAI-style and Anthropic-style
 //! message shapes both reduce to readable text).
 
+use crate::agent::provider::AuthMode;
 use crate::agent::state::AgentEngineState;
-use crate::agent_settings::{load_settings_pub, provider_key_pub, AgentProviderKind};
+use crate::agent_settings::{
+    load_settings_pub, provider_key_pub, AgentProviderKind, AgentProviderSettings,
+};
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -64,7 +67,8 @@ pub async fn agent_compact_conversation(
 
     let settings = load_settings_pub(&app)?;
     let api_key = provider_key_pub(&app, settings.provider)?;
-    if api_key.trim().is_empty() {
+    if crate::agent::provider::provider_requires_key(settings.provider) && api_key.trim().is_empty()
+    {
         return Err(format!(
             "Kein API-Key für {} hinterlegt.",
             settings.provider.as_str()
@@ -79,7 +83,7 @@ pub async fn agent_compact_conversation(
 
     // Block concurrent turns while the summarization call is in flight.
     agent.set_busy(true);
-    let outcome = summarize(&settings.model_id, settings.provider, &api_key, &transcript).await;
+    let outcome = summarize(&settings, &api_key, &transcript).await;
     let summary = match outcome {
         Ok(s) if !s.trim().is_empty() => s.trim().to_string(),
         Ok(_) => {
@@ -219,8 +223,7 @@ fn estimate_tokens(s: &str) -> u64 {
 /// One non-streaming completion that returns the summary text. Dispatches on
 /// the active provider's API shape.
 async fn summarize(
-    model_id: &str,
-    provider: AgentProviderKind,
+    settings: &AgentProviderSettings,
     api_key: &str,
     transcript: &str,
 ) -> Result<String, String> {
@@ -229,6 +232,8 @@ async fn summarize(
         .build()
         .map_err(|e| format!("http client: {e}"))?;
 
+    let model_id = settings.model_id.as_str();
+    let provider = settings.provider;
     let user_content = format!("Conversation to compact:\n\n{transcript}");
 
     match provider {
@@ -270,11 +275,8 @@ async fn summarize(
                 .unwrap_or_default();
             Ok(summary)
         }
-        AgentProviderKind::Openrouter | AgentProviderKind::Openai => {
-            let url = match provider {
-                AgentProviderKind::Openrouter => "https://openrouter.ai/api/v1/chat/completions",
-                _ => "https://api.openai.com/v1/chat/completions",
-            };
+        _ => {
+            let endpoint = crate::agent::provider::compatible_endpoint(settings)?;
             let body = json!({
                 "model": model_id,
                 "messages": [
@@ -284,10 +286,16 @@ async fn summarize(
                 "stream": false,
             });
             let mut req = client
-                .post(url)
-                .bearer_auth(api_key)
+                .post(&endpoint.url)
                 .header("Content-Type", "application/json");
-            if matches!(provider, AgentProviderKind::Openrouter) {
+            if matches!(
+                endpoint.auth_mode,
+                AuthMode::RequiredBearer | AuthMode::OptionalBearer
+            ) && !api_key.trim().is_empty()
+            {
+                req = req.bearer_auth(api_key);
+            }
+            if endpoint.sends_openrouter_extras {
                 req = req
                     .header("HTTP-Referer", "https://bitslix.com/blxcode")
                     .header("X-Title", "blxcode");

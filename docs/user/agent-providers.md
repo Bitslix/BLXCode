@@ -21,9 +21,24 @@ BLXCode includes an agent panel that can stream turns from remote model provider
 
 - **OpenRouter**: default provider kind. The default model ID is `openai/gpt-5`.
 - **Anthropic**: native Anthropic Messages API path.
-- **OpenAI-compatible**: OpenAI API-compatible chat/model path.
+- **Local OpenAI-compatible**: Ollama and LM Studio. No API key is required; configure the base URL if your local server is not on the default port.
+- **Cloud OpenAI-compatible**: OpenAI, Hugging Face router, Cloudflare Workers AI, Together AI, and Portkey.
 
 Model lists are fetched live when possible. If a provider request fails or returns no models, BLXCode falls back to cached or curated model entries.
+
+| Provider | Default endpoint | Required setup |
+|----------|------------------|----------------|
+| OpenRouter | `https://openrouter.ai/api/v1` | `BLX_OPENROUTER_API_KEY` or API Keys row |
+| Anthropic | `https://api.anthropic.com/v1` | `BLX_ANTHROPIC_API_KEY` or API Keys row |
+| OpenAI | `https://api.openai.com/v1` | `BLX_OPENAI_API_KEY` or API Keys row |
+| Ollama | `http://localhost:11434/v1` | Running Ollama server |
+| LM Studio | `http://localhost:1234/v1` | Running LM Studio OpenAI-compatible server |
+| Hugging Face | `https://router.huggingface.co/v1` | `BLX_HUGGINGFACE_API_KEY` or API Keys row |
+| Cloudflare | account-scoped Workers AI endpoint | `BLX_CLOUDFLARE_API_TOKEN` or API Keys row, plus Cloudflare Account ID in Agent settings |
+| Together AI | `https://api.together.ai/v1` | `BLX_TOGETHER_API_KEY` or API Keys row |
+| Portkey | `https://api.portkey.ai/v1` | `BLX_PORTKEY_API_KEY` or API Keys row; optional base URL override |
+
+These providers are text-agent providers in this release. Image mode and Voice settings keep their existing provider lists; adding an LLM key row does not enable image generation, STT, or TTS for that provider.
 
 ## API Keys
 
@@ -33,7 +48,7 @@ All secrets are managed under **Settings → API Keys** (single Save/Discard pan
 
 | Use | Keys in API Keys pane |
 |-----|------------------------|
-| Text agent | OpenRouter, Anthropic, OpenAI, … |
+| Text agent | OpenRouter, Anthropic, OpenAI, Hugging Face, Cloudflare, Together AI, Portkey |
 | Image mode | OpenAI, OpenRouter, fal.ai |
 | Voice STT/TTS | OpenAI, OpenRouter, AWS (Polly) |
 | Web search/fetch | Tavily, Brave |
@@ -211,7 +226,7 @@ BLXCode bundles helper scripts under `content/hooks/` for session and title capt
 
 ## Missing Key Behavior
 
-If the selected provider has no configured API key, the agent panel reports the missing key instead of attempting a network request.
+If the selected cloud provider has no configured API key, the agent panel reports the missing key instead of attempting a network request. Ollama and LM Studio skip this check and fail with the provider's connection error if the local server is not running.
 
 ## See also
 

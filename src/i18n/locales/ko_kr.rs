@@ -833,6 +833,18 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgProviderOpenrouter => "오픈라우터",
         I18nKey::AgProviderAnthropic => "인류학",
         I18nKey::AgProviderOpenai => "오픈AI",
+        I18nKey::AgProviderOllama => "Ollama",
+        I18nKey::AgProviderLmStudio => "LM Studio",
+        I18nKey::AgProviderHuggingFace => "Hugging Face",
+        I18nKey::AgProviderCloudflare => "Cloudflare",
+        I18nKey::AgProviderTogether => "Together AI",
+        I18nKey::AgProviderPortkey => "Portkey",
+        I18nKey::AgProviderBaseUrlField => "Base URL",
+        I18nKey::AgProviderBaseUrlHint => "OpenAI-compatible endpoint root, ending in /v1.",
+        I18nKey::AgProviderCloudflareAccountField => "Cloudflare Account ID",
+        I18nKey::AgProviderCloudflareAccountHint => {
+            "Stored as a non-secret setting. Put the API token in API Keys."
+        }
         I18nKey::AgModelField => "모델",
         I18nKey::AgModelCustomField => "맞춤 모델 ID",
         I18nKey::AgThinkingField => "사고 수준",

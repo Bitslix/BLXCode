@@ -53,7 +53,7 @@ Full guide: [Appearance & Themes](appearance-themes.md).
 
 **Settings → API Keys** is the only place to enter provider secrets.
 
-- LLM providers: OpenRouter, Anthropic, OpenAI, and coming-soon rows (Google, Mistral, Grok xAI).
+- LLM providers: OpenRouter, Anthropic, OpenAI, Hugging Face, Cloudflare Workers AI, Together AI, Portkey, and coming-soon rows (Google, Mistral, Grok xAI).
 - Media / search: Tavily, Brave, **fal.ai** (image), **Amazon Polly** (AWS voice).
 - One **Save** / **Discard** footer for the whole pane; per-row remove marks keys for deletion on save.
 - Keys use the OS keyring (`BLXCode` service) with `BLX_*` env fallback when the store is empty; the UI shows **via env** when a fallback is active.

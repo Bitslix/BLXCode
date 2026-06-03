@@ -15,7 +15,7 @@ pub mod plan_ai;
 pub(crate) mod pricing;
 mod project_docs;
 pub mod prompt_enhance;
-mod provider;
+pub(crate) mod provider;
 mod session_orchestrator;
 pub(crate) mod session_roles;
 mod shell_exec;

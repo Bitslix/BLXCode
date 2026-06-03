@@ -859,6 +859,18 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgProviderOpenrouter => "OpenRouter",
         I18nKey::AgProviderAnthropic => "Antrópico",
         I18nKey::AgProviderOpenai => "OpenAI",
+        I18nKey::AgProviderOllama => "Ollama",
+        I18nKey::AgProviderLmStudio => "LM Studio",
+        I18nKey::AgProviderHuggingFace => "Hugging Face",
+        I18nKey::AgProviderCloudflare => "Cloudflare",
+        I18nKey::AgProviderTogether => "Together AI",
+        I18nKey::AgProviderPortkey => "Portkey",
+        I18nKey::AgProviderBaseUrlField => "Base URL",
+        I18nKey::AgProviderBaseUrlHint => "OpenAI-compatible endpoint root, ending in /v1.",
+        I18nKey::AgProviderCloudflareAccountField => "Cloudflare Account ID",
+        I18nKey::AgProviderCloudflareAccountHint => {
+            "Stored as a non-secret setting. Put the API token in API Keys."
+        }
         I18nKey::AgModelField => "Modelo",
         I18nKey::AgModelCustomField => "ID do modelo personalizado",
         I18nKey::AgThinkingField => "Nível de pensamento",

@@ -292,6 +292,8 @@ pub fn Composer(
                 view.orb_mode,
                 view.agent_nickname.clone(),
                 view.default_session_role.clone(),
+                view.provider_base_urls.clone(),
+                view.cloudflare_account_id.clone(),
             )
             .await
             {

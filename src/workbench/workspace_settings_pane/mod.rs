@@ -167,6 +167,8 @@ pub fn WorkspaceSettingsPane(wb: WorkbenchService, embed: BrowserEmbedSurface) -
                             view.orb_mode,
                             view.agent_nickname,
                             role,
+                            view.provider_base_urls,
+                            view.cloudflare_account_id,
                         )
                         .await;
                         match result {

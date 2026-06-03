@@ -15,7 +15,20 @@ use crate::workbench::{SessionRolePicker, SettingsPaneHeader, WorkbenchService};
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
+use std::collections::BTreeMap;
 use wasm_bindgen::JsCast;
+
+const AGENT_PROVIDERS: &[AgentProviderKind] = &[
+    AgentProviderKind::Ollama,
+    AgentProviderKind::LmStudio,
+    AgentProviderKind::Openrouter,
+    AgentProviderKind::Anthropic,
+    AgentProviderKind::Openai,
+    AgentProviderKind::HuggingFace,
+    AgentProviderKind::Cloudflare,
+    AgentProviderKind::Together,
+    AgentProviderKind::Portkey,
+];
 
 #[derive(Clone, PartialEq, Eq)]
 struct AgentSettingsBaseline {
@@ -28,6 +41,8 @@ struct AgentSettingsBaseline {
     orb_mode: AgentOrbMode,
     agent_nickname: String,
     default_session_role: Option<String>,
+    provider_base_urls: BTreeMap<String, String>,
+    cloudflare_account_id: String,
     web_provider: WebProviderKind,
 }
 
@@ -45,6 +60,12 @@ fn provider_label(i18n: &I18nService, provider: AgentProviderKind) -> String {
         AgentProviderKind::Openrouter => I18nKey::AgProviderOpenrouter,
         AgentProviderKind::Anthropic => I18nKey::AgProviderAnthropic,
         AgentProviderKind::Openai => I18nKey::AgProviderOpenai,
+        AgentProviderKind::Ollama => I18nKey::AgProviderOllama,
+        AgentProviderKind::LmStudio => I18nKey::AgProviderLmStudio,
+        AgentProviderKind::HuggingFace => I18nKey::AgProviderHuggingFace,
+        AgentProviderKind::Cloudflare => I18nKey::AgProviderCloudflare,
+        AgentProviderKind::Together => I18nKey::AgProviderTogether,
+        AgentProviderKind::Portkey => I18nKey::AgProviderPortkey,
     };
     i18n.tr(key)().to_string()
 }
@@ -54,7 +75,20 @@ fn provider_icon_url(provider: AgentProviderKind) -> &'static str {
         AgentProviderKind::Openrouter => "/public/brand-icons/openrouter.svg",
         AgentProviderKind::Anthropic => "/public/brand-icons/anthropic.svg",
         AgentProviderKind::Openai => "/public/brand-icons/openai.svg",
+        AgentProviderKind::Ollama => "/public/brand-icons/provider.svg",
+        AgentProviderKind::LmStudio => "/public/brand-icons/provider.svg",
+        AgentProviderKind::HuggingFace => "/public/brand-icons/provider.svg",
+        AgentProviderKind::Cloudflare => "/public/brand-icons/provider.svg",
+        AgentProviderKind::Together => "/public/brand-icons/provider.svg",
+        AgentProviderKind::Portkey => "/public/brand-icons/provider.svg",
     }
+}
+
+fn provider_requires_key(provider: AgentProviderKind) -> bool {
+    !matches!(
+        provider,
+        AgentProviderKind::Ollama | AgentProviderKind::LmStudio
+    )
 }
 
 fn thinking_levels() -> [ThinkingLevel; 5] {
@@ -93,6 +127,9 @@ fn provider_key_status_text(
     view: &AgentProviderSettingsView,
     provider: AgentProviderKind,
 ) -> String {
+    if !provider_requires_key(provider) {
+        return "No API key required.".to_string();
+    }
     let configured = view
         .key_statuses
         .iter()
@@ -119,11 +156,30 @@ fn provider_cache(
     view: &AgentProviderSettingsView,
     provider: AgentProviderKind,
 ) -> Vec<ProviderModelEntry> {
-    match provider {
-        AgentProviderKind::Openrouter => view.model_cache_openrouter.clone(),
-        AgentProviderKind::Anthropic => view.model_cache_anthropic.clone(),
-        AgentProviderKind::Openai => view.model_cache_openai.clone(),
+    view.model_caches
+        .get(provider.as_str())
+        .cloned()
+        .unwrap_or_else(|| match provider {
+            AgentProviderKind::Openrouter => view.model_cache_openrouter.clone(),
+            AgentProviderKind::Anthropic => view.model_cache_anthropic.clone(),
+            AgentProviderKind::Openai => view.model_cache_openai.clone(),
+            _ => Vec::new(),
+        })
+}
+
+fn choose_model_for_provider(
+    current: &str,
+    previous_entries: &[ProviderModelEntry],
+    entries: &[ProviderModelEntry],
+) -> Option<String> {
+    let trimmed = current.trim();
+    if !trimmed.is_empty() && entries.iter().any(|entry| entry.id == trimmed) {
+        return Some(trimmed.to_string());
     }
+    if !trimmed.is_empty() && !previous_entries.iter().any(|entry| entry.id == trimmed) {
+        return Some(trimmed.to_string());
+    }
+    entries.first().map(|entry| entry.id.clone())
 }
 
 fn focus_provider_option(provider: AgentProviderKind) {
@@ -150,19 +206,19 @@ fn focus_by_id(id: &str) {
 }
 
 fn next_provider(provider: AgentProviderKind) -> AgentProviderKind {
-    match provider {
-        AgentProviderKind::Openrouter => AgentProviderKind::Anthropic,
-        AgentProviderKind::Anthropic => AgentProviderKind::Openai,
-        AgentProviderKind::Openai => AgentProviderKind::Openrouter,
-    }
+    let idx = AGENT_PROVIDERS
+        .iter()
+        .position(|p| *p == provider)
+        .unwrap_or(0);
+    AGENT_PROVIDERS[(idx + 1) % AGENT_PROVIDERS.len()]
 }
 
 fn prev_provider(provider: AgentProviderKind) -> AgentProviderKind {
-    match provider {
-        AgentProviderKind::Openrouter => AgentProviderKind::Openai,
-        AgentProviderKind::Anthropic => AgentProviderKind::Openrouter,
-        AgentProviderKind::Openai => AgentProviderKind::Anthropic,
-    }
+    let idx = AGENT_PROVIDERS
+        .iter()
+        .position(|p| *p == provider)
+        .unwrap_or(0);
+    AGENT_PROVIDERS[(idx + AGENT_PROVIDERS.len() - 1) % AGENT_PROVIDERS.len()]
 }
 
 fn next_thinking(level: ThinkingLevel) -> ThinkingLevel {
@@ -189,6 +245,7 @@ fn dispatch_agent_settings_changed() {
 #[component]
 fn ProviderPicker(
     selected_provider: RwSignal<AgentProviderKind>,
+    custom_model: RwSignal<String>,
     settings: RwSignal<Option<AgentProviderSettingsView>>,
     model_entries: RwSignal<Vec<ProviderModelEntry>>,
     provider_refresh_request: RwSignal<Option<AgentProviderKind>>,
@@ -199,7 +256,16 @@ fn ProviderPicker(
     let choose = move |provider: AgentProviderKind| {
         selected_provider.set(provider);
         if let Some(view) = settings.get_untracked() {
-            model_entries.set(provider_cache(&view, provider));
+            let previous_entries = model_entries.get_untracked();
+            let entries = provider_cache(&view, provider);
+            model_entries.set(entries.clone());
+            if let Some(model) = choose_model_for_provider(
+                &custom_model.get_untracked(),
+                &previous_entries,
+                &entries,
+            ) {
+                custom_model.set(model);
+            }
         }
         open.set(false);
         provider_refresh_request.set(Some(provider));
@@ -264,12 +330,9 @@ fn ProviderPicker(
             <Show when=move || open.get()>
                 <div class="harness-provider-menu" role="listbox">
                     {move || {
-                        [
-                            AgentProviderKind::Openrouter,
-                            AgentProviderKind::Anthropic,
-                            AgentProviderKind::Openai,
-                        ]
-                        .into_iter()
+                        AGENT_PROVIDERS
+                        .iter()
+                        .copied()
                         .map(|provider| {
                             view! {
                                 <button
@@ -457,6 +520,8 @@ pub fn AgentProviderPane() -> impl IntoView {
     let orb_mode = RwSignal::new(AgentOrbMode::ThreeD);
     let nickname = RwSignal::new(String::new());
     let default_session_role: RwSignal<Option<String>> = RwSignal::new(None);
+    let provider_base_urls: RwSignal<BTreeMap<String, String>> = RwSignal::new(BTreeMap::new());
+    let cloudflare_account_id = RwSignal::new(String::new());
     let session_roles: RwSignal<Vec<SessionRoleView>> = RwSignal::new(Vec::new());
     let nickname_error: RwSignal<Option<I18nKey>> = RwSignal::new(None);
     let model_entries: RwSignal<Vec<ProviderModelEntry>> = RwSignal::new(Vec::new());
@@ -478,6 +543,8 @@ pub fn AgentProviderPane() -> impl IntoView {
         orb_mode: AgentOrbMode::ThreeD,
         agent_nickname: String::new(),
         default_session_role: None,
+        provider_base_urls: BTreeMap::new(),
+        cloudflare_account_id: String::new(),
         web_provider: WebProviderKind::None,
     });
 
@@ -492,6 +559,8 @@ pub fn AgentProviderPane() -> impl IntoView {
             || orb_mode.get() != b.orb_mode
             || nickname.get() != b.agent_nickname
             || default_session_role.get() != b.default_session_role
+            || provider_base_urls.get() != b.provider_base_urls
+            || cloudflare_account_id.get() != b.cloudflare_account_id
             || web_provider.get() != b.web_provider
     });
 
@@ -505,6 +574,8 @@ pub fn AgentProviderPane() -> impl IntoView {
         orb_mode: orb_mode.get_untracked(),
         agent_nickname: nickname.get_untracked(),
         default_session_role: default_session_role.get_untracked(),
+        provider_base_urls: provider_base_urls.get_untracked(),
+        cloudflare_account_id: cloudflare_account_id.get_untracked(),
         web_provider: web_provider.get_untracked(),
     };
 
@@ -518,6 +589,8 @@ pub fn AgentProviderPane() -> impl IntoView {
         orb_mode.set(view.orb_mode);
         nickname.set(view.agent_nickname.clone());
         default_session_role.set(view.default_session_role.clone());
+        provider_base_urls.set(view.provider_base_urls.clone());
+        cloudflare_account_id.set(view.cloudflare_account_id.clone());
         wb.set_default_session_role(view.default_session_role.clone());
         nickname_error.set(None);
         model_entries.set(provider_cache(&view, view.provider));
@@ -532,6 +605,8 @@ pub fn AgentProviderPane() -> impl IntoView {
             b.orb_mode = orb_mode.get_untracked();
             b.agent_nickname = nickname.get_untracked();
             b.default_session_role = default_session_role.get_untracked();
+            b.provider_base_urls = provider_base_urls.get_untracked();
+            b.cloudflare_account_id = cloudflare_account_id.get_untracked();
         });
     };
 
@@ -576,6 +651,15 @@ pub fn AgentProviderPane() -> impl IntoView {
                     message,
                     ..
                 }) => {
+                    if provider == selected_provider.get_untracked() {
+                        if let Some(model) = choose_model_for_provider(
+                            &custom_model.get_untracked(),
+                            &model_entries.get_untracked(),
+                            &entries,
+                        ) {
+                            custom_model.set(model);
+                        }
+                    }
                     model_entries.set(entries);
                     models_source.set(source);
                     models_message.set(message.or_else(|| {
@@ -623,6 +707,8 @@ pub fn AgentProviderPane() -> impl IntoView {
         );
         let orb = orb_mode.get_untracked();
         let nick = nickname.get_untracked();
+        let base_urls = provider_base_urls.get_untracked();
+        let cf_account = cloudflare_account_id.get_untracked();
         let web = web_provider.get_untracked();
         let role = default_session_role.get_untracked();
         leptos::task::spawn_local(async move {
@@ -637,6 +723,8 @@ pub fn AgentProviderPane() -> impl IntoView {
                 orb,
                 nick,
                 role,
+                base_urls,
+                cf_account,
             )
             .await
             {
@@ -746,11 +834,65 @@ pub fn AgentProviderPane() -> impl IntoView {
                             </span>
                             <ProviderPicker
                                 selected_provider=selected_provider
+                                custom_model=custom_model
                                 settings=settings
                                 model_entries=model_entries
                                 provider_refresh_request=provider_refresh_request
                             />
                         </label>
+                        <Show when=move || matches!(
+                            selected_provider.get(),
+                            AgentProviderKind::Ollama | AgentProviderKind::LmStudio | AgentProviderKind::Portkey
+                        )>
+                            <label class="agent-provider-pane__field">
+                                <span class="harness-field-label">
+                                    <span class="harness-field-label__icon" aria-hidden="true">
+                                        <LxIcon icon=icondata::LuLink width="0.82rem" height="0.82rem" />
+                                    </span>
+                                    <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgProviderBaseUrlField)()}</span>
+                                </span>
+                                <input
+                                    class="workbench-plain-input"
+                                    type="url"
+                                    prop:value=move || {
+                                        provider_base_urls
+                                            .get()
+                                            .get(selected_provider.get().as_str())
+                                            .cloned()
+                                            .unwrap_or_default()
+                                    }
+                                    on:input=move |ev| {
+                                        let provider = selected_provider.get_untracked();
+                                        let value = event_target_value(&ev);
+                                        provider_base_urls.update(|map| {
+                                            map.insert(provider.as_str().to_string(), value);
+                                        });
+                                    }
+                                />
+                                <small class="harness-muted agent-provider-pane__field-hint">
+                                    {move || i18n.tr(I18nKey::AgProviderBaseUrlHint)()}
+                                </small>
+                            </label>
+                        </Show>
+                        <Show when=move || selected_provider.get() == AgentProviderKind::Cloudflare>
+                            <label class="agent-provider-pane__field">
+                                <span class="harness-field-label">
+                                    <span class="harness-field-label__icon" aria-hidden="true">
+                                        <LxIcon icon=icondata::LuCloud width="0.82rem" height="0.82rem" />
+                                    </span>
+                                    <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AgProviderCloudflareAccountField)()}</span>
+                                </span>
+                                <input
+                                    class="workbench-plain-input"
+                                    type="text"
+                                    prop:value=move || cloudflare_account_id.get()
+                                    on:input=move |ev| cloudflare_account_id.set(event_target_value(&ev))
+                                />
+                                <small class="harness-muted agent-provider-pane__field-hint">
+                                    {move || i18n.tr(I18nKey::AgProviderCloudflareAccountHint)()}
+                                </small>
+                            </label>
+                        </Show>
                         <label class="agent-provider-pane__field">
                             <span class="harness-field-label">
                                 <span class="harness-field-label__icon" aria-hidden="true">

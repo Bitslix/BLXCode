@@ -3,12 +3,13 @@
 use crate::agent::anthropic::{from_anthropic_name, to_anthropic_name};
 use crate::agent::openrouter::Endpoint;
 use crate::agent::protocol::AgentEvent;
+use crate::agent::provider::AuthMode;
 use crate::agent::state::AgentEngineState;
 use crate::agent::subagent_prompts::{self, truncate_submit_result, SubagentRole};
 use crate::agent::tool_dispatch::DispatchContext;
 use crate::agent::tool_groups::{openai_tool_name_to_internal, ToolGroup};
 use crate::agent::tools::{self, WorkspaceRootGuard};
-use crate::agent_settings::AgentProviderKind;
+use crate::agent_settings::{AgentProviderKind, AgentProviderSettings};
 use futures_util::TryStreamExt;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -21,18 +22,19 @@ const ANTHROPIC_VERSION: &str = "2023-06-01";
 const MAX_SUBAGENT_ROUNDS: u32 = 24;
 const MAX_OUTPUT_TOKENS_ESTIMATE: usize = 20_000;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum SubagentProvider {
     OpenAi(Endpoint),
     Anthropic,
 }
 
 impl SubagentProvider {
-    pub fn from_settings(provider: AgentProviderKind) -> Option<Self> {
-        match provider {
+    pub fn from_settings(settings: &AgentProviderSettings) -> Option<Self> {
+        match settings.provider {
             AgentProviderKind::Anthropic => Some(Self::Anthropic),
-            AgentProviderKind::Openrouter => Some(Self::OpenAi(Endpoint::Openrouter)),
-            AgentProviderKind::Openai => Some(Self::OpenAi(Endpoint::Openai)),
+            _ => crate::agent::provider::compatible_endpoint(settings)
+                .ok()
+                .map(Self::OpenAi),
         }
     }
 }
@@ -206,10 +208,7 @@ pub async fn run_one_subagent(
 
     match provider {
         SubagentProvider::OpenAi(endpoint) => {
-            let provider_kind = match endpoint {
-                Endpoint::Openrouter => AgentProviderKind::Openrouter,
-                Endpoint::Openai => AgentProviderKind::Openai,
-            };
+            let provider_kind = endpoint.provider;
             let mut messages = vec![
                 json!({ "role": "system", "content": system }),
                 json!({ "role": "user", "content": task }),
@@ -229,14 +228,14 @@ pub async fn run_one_subagent(
                     "stream": true,
                     "stream_options": { "include_usage": true },
                 });
-                if matches!(endpoint, Endpoint::Openrouter) {
+                if endpoint.sends_openrouter_extras {
                     body["usage"] = json!({ "include": true });
                 }
                 let round_start = Instant::now();
                 let round = match stream_openai_subagent_round(
                     state,
                     &client,
-                    endpoint,
+                    &endpoint,
                     &ctx.api_key,
                     &body,
                     agent_id,
@@ -1075,17 +1074,23 @@ async fn stream_anthropic_subagent_round(
 async fn stream_openai_subagent_round(
     state: &Arc<AgentEngineState>,
     client: &reqwest::Client,
-    endpoint: Endpoint,
+    endpoint: &Endpoint,
     api_key: &str,
     body: &Value,
     agent_id: &str,
 ) -> Result<OpenAiRoundResult, String> {
     let mut req = client
-        .post(endpoint.url())
-        .bearer_auth(api_key)
+        .post(&endpoint.url)
         .header("Accept", "text/event-stream")
         .header("Content-Type", "application/json");
-    if matches!(endpoint, Endpoint::Openrouter) {
+    if matches!(
+        endpoint.auth_mode,
+        AuthMode::RequiredBearer | AuthMode::OptionalBearer
+    ) && !api_key.trim().is_empty()
+    {
+        req = req.bearer_auth(api_key);
+    }
+    if endpoint.sends_openrouter_extras {
         req = req
             .header("HTTP-Referer", "https://bitslix.com/blxcode")
             .header("X-Title", "blxcode");

@@ -29,7 +29,8 @@ src-tauri/src/agent/
   tools.rs               # Full registry; execute_server_tool
   tools_extra.rs         # submit_result and harness-only pieces
   session_orchestrator.rs
-  openrouter.rs / anthropic.rs  # Use tool_dispatch
+  provider.rs              # Text-provider registry: endpoint/auth/model metadata
+  openrouter.rs / anthropic.rs  # Compatible + native loops, both use tool_dispatch
 
 src/skills_rules/store.rs   # CORE_SKILLS, core SkillSourceKind, availability
 src-tauri/src/api_keys.rs     # Central key catalog, resolve, api_keys_status/apply
@@ -99,6 +100,25 @@ Adding a new server tool typically requires:
 - `subagent_runner.rs` — see [Subagents](subagents.md)
 
 New tools should be wired once in dispatch + `tools::execute_server_tool`, not duplicated per provider.
+
+## Text provider registry
+
+`agent/provider.rs` is the central registry for BLXCode Agent text providers. Add new text providers there first, then reuse the registry metadata from settings/model refresh/runtime code.
+
+Registry metadata covers:
+
+- provider id and label
+- local/cloud/gateway class
+- default OpenAI-compatible base URL
+- auth mode (`none`, required bearer, optional bearer)
+- model discovery strategy
+- compatibility flags such as OpenRouter request extras and OpenAI `reasoning_effort`
+
+Anthropic is the only native Messages API loop. OpenRouter, OpenAI, Ollama, LM Studio, Hugging Face, Cloudflare Workers AI, Together AI, and Portkey route through the OpenAI-compatible chat-completions loop. Local providers do not require a key. Cloudflare also requires `cloudflare_account_id` in `AgentProviderSettings`.
+
+`AgentProviderSettings` keeps legacy `model_cache_openrouter`, `model_cache_anthropic`, and `model_cache_openai` fields for compatibility, plus the provider-keyed `model_caches` map used by new providers. Base URL overrides live in `provider_base_urls`; secrets stay in keyring/env via the API Keys catalog.
+
+The v1 provider expansion is text-only. Image and Voice settings intentionally keep their own provider enums and HTTP clients.
 
 ### Agent Chat modes and permission gate
 
