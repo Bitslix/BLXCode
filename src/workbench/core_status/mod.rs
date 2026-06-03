@@ -24,6 +24,12 @@ pub struct EditorCursorPosition {
     pub column: u32,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ActiveEditorStatus {
+    pub rel_path: String,
+    pub position: EditorCursorPosition,
+}
+
 #[derive(Clone, Copy)]
 pub struct CoreStatusService {
     rules: RwSignal<usize>,
@@ -121,7 +127,7 @@ impl CoreStatusService {
     }
 
     #[must_use]
-    pub fn active_editor_cursor(&self, wb: WorkbenchService) -> Option<EditorCursorPosition> {
+    pub fn active_editor_status(&self, wb: WorkbenchService) -> Option<ActiveEditorStatus> {
         let active = wb.active_id().get()?;
         let rel_path = wb.workspaces().with(|workspaces| {
             let workspace = workspaces.iter().find(|w| w.id == active)?;
@@ -134,8 +140,10 @@ impl CoreStatusService {
                 _ => None,
             }
         })?;
-        self.editor_cursors
-            .with(|cursors| cursors.get(&(active, rel_path)).copied())
+        let position = self
+            .editor_cursors
+            .with(|cursors| cursors.get(&(active, rel_path.clone())).copied())?;
+        Some(ActiveEditorStatus { rel_path, position })
     }
 
     #[must_use]
@@ -257,7 +265,7 @@ pub fn CoreStatusBarItem() -> impl IntoView {
     let memory_files = status.memory_files();
     let memory_size = status.memory_size();
     let branch = status.branch();
-    let cursor = Memo::new(move |_| status.active_editor_cursor(wb));
+    let editor_status = Memo::new(move |_| status.active_editor_status(wb));
 
     // Re-count whenever the active workspace changes.
     Effect::new(move |_| {
@@ -267,15 +275,29 @@ pub fn CoreStatusBarItem() -> impl IntoView {
     });
 
     view! {
-        <Show when=move || loaded.get() || cursor.get().is_some()>
+        <Show when=move || loaded.get() || editor_status.get().is_some()>
             <div class="app-statusline__item core-status-item app-statusline__item--quiet">
-                <Show when=move || cursor.get().is_some()>
+                <Show when=move || editor_status.get().is_some()>
+                    <span
+                        class="core-status-item__seg core-status-item__seg--file"
+                        title=move || editor_status.get().map(|s| s.rel_path).unwrap_or_default()
+                    >
+                        <LxIcon icon=icondata::LuFileText width="0.78rem" height="0.78rem" />
+                        <span>{move || editor_status.get().map(|s| s.rel_path).unwrap_or_default()}</span>
+                    </span>
+                    <span class="core-status-item__divider" aria-hidden="true"></span>
                     <span
                         class="core-status-item__seg core-status-item__seg--cursor"
-                        title=move || cursor.get().map(format_cursor_title).unwrap_or_default()
+                        title=move || editor_status
+                            .get()
+                            .map(|s| format_cursor_title(s.position))
+                            .unwrap_or_default()
                     >
                         <LxIcon icon=icondata::LuTextCursor width="0.78rem" height="0.78rem" />
-                        <span>{move || cursor.get().map(format_cursor_label).unwrap_or_default()}</span>
+                        <span>{move || editor_status
+                            .get()
+                            .map(|s| format_cursor_label(s.position))
+                            .unwrap_or_default()}</span>
                     </span>
                     <Show when=move || loaded.get()>
                         <span class="core-status-item__divider" aria-hidden="true"></span>

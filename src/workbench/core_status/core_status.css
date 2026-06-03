@@ -20,6 +20,18 @@
   gap: 0.24rem;
 }
 
+.core-status-item__seg--file {
+  max-width: min(28vw, 18rem);
+  color: var(--text);
+}
+
+.core-status-item__seg--file span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .core-status-item__seg--cursor {
   color: var(--text);
   font-variant-numeric: tabular-nums;
