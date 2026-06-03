@@ -12,6 +12,7 @@ use crate::workbench::UpdateService;
 use crate::workbench::UpdateUiStatus;
 use crate::workbench::WorkbenchService;
 use crate::workbench::WorkbenchShell;
+use crate::workbench::PlanMigrationService;
 use crate::workbench::{CoreStatusBarItem, CoreStatusService, VimStatusIndicator};
 use crate::workbench::{HookInstallDialogService, HookStatusBarItem, HookStatusService};
 use gloo_timers::future::TimeoutFuture;
@@ -41,6 +42,7 @@ pub fn App() -> impl IntoView {
     let hook_status = HookStatusService::new();
     let hook_install = HookInstallDialogService::new();
     let updates = UpdateService::new();
+    let plan_migration = PlanMigrationService::new();
     // Provided at the App root so the sibling `AppStatusLine` can show the
     // enabled-rules/skills counts for the active workspace in its centre slot.
     let core_status = CoreStatusService::new();
@@ -51,6 +53,7 @@ pub fn App() -> impl IntoView {
     provide_context(hook_status);
     provide_context(hook_install);
     provide_context(updates);
+    provide_context(plan_migration);
     provide_context(core_status);
 
     Effect::new(move |_| {
@@ -192,9 +195,32 @@ pub fn App() -> impl IntoView {
 #[component]
 fn AppStatusLine() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let wb = expect_context::<WorkbenchService>();
     let updates = expect_context::<UpdateService>();
+    let plan_migration = expect_context::<PlanMigrationService>();
     let update_visible = RwSignal::new(false);
     let hide_generation = RwSignal::new(0_u64);
+
+    Effect::new(move |_| {
+        let active_id = wb.active_id().get();
+        let workspaces = wb.workspaces().get();
+        let harness_root = wb.harness_workspace_root().get();
+        let cwd = active_id
+            .and_then(|id| {
+                workspaces
+                    .iter()
+                    .find(|workspace| workspace.id == id)
+                    .map(|workspace| workspace.cwd.trim().to_string())
+            })
+            .filter(|cwd| !cwd.is_empty())
+            .or_else(|| {
+                let root = harness_root.trim();
+                (!root.is_empty()).then(|| root.to_string())
+            });
+        if let Some(cwd) = cwd {
+            plan_migration.ensure_for_workspace(cwd, wb);
+        }
+    });
 
     Effect::new(move |_| {
         let status = updates.status().get();
@@ -247,6 +273,16 @@ fn AppStatusLine() -> impl IntoView {
                         <span>{move || update_statusline_label(updates, i18n)}</span>
                     </span>
                 </Show>
+                <Show when=move || plan_migration_statusline_visible(plan_migration)>
+                    <span class=move || plan_migration_statusline_class(plan_migration)>
+                        <LxIcon
+                            icon=move || plan_migration_statusline_icon(plan_migration)
+                            width="0.76rem"
+                            height="0.76rem"
+                        />
+                        <span>{move || plan_migration_statusline_label(plan_migration)}</span>
+                    </span>
+                </Show>
                 <VimStatusIndicator />
             </div>
             <div class="app-statusline__slot app-statusline__slot--center">
@@ -256,6 +292,44 @@ fn AppStatusLine() -> impl IntoView {
                 <HookStatusBarItem />
             </div>
         </footer>
+    }
+}
+
+fn plan_migration_statusline_visible(service: PlanMigrationService) -> bool {
+    let progress = service.progress().get();
+    progress.busy || progress.phase == "error"
+}
+
+fn plan_migration_statusline_class(service: PlanMigrationService) -> String {
+    let progress = service.progress().get();
+    let modifier = if progress.phase == "error" {
+        " app-statusline__item--plan-migration-warn"
+    } else {
+        " app-statusline__item--plan-migration-busy"
+    };
+    format!("app-statusline__item app-statusline__item--plan-migration{modifier}")
+}
+
+fn plan_migration_statusline_icon(service: PlanMigrationService) -> icondata::Icon {
+    if service.progress().get().phase == "error" {
+        icondata::LuCircleAlert
+    } else {
+        icondata::LuFolderSync
+    }
+}
+
+fn plan_migration_statusline_label(service: PlanMigrationService) -> String {
+    let progress = service.progress().get();
+    if progress.phase == "error" {
+        return progress
+            .error
+            .filter(|message| !message.trim().is_empty())
+            .unwrap_or_else(|| "Plan migration failed".into());
+    }
+    if progress.total > 0 {
+        format!("Plans {}/{}", progress.processed, progress.total)
+    } else {
+        "Plans".into()
     }
 }
 

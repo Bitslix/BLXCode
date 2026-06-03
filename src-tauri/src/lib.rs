@@ -61,6 +61,7 @@ use updater::{
     app_relaunch, app_version, post_update_release_notes, updater_check, updater_install_start,
     updater_poll_progress, updater_settings_get, updater_settings_save, BlxUpdaterState,
 };
+use plans::PlanMigrationState;
 use voice::{
     ptt_cancel, ptt_finalize, ptt_partial, ptt_start, voice_agent_input_active,
     voice_cancel_recording, voice_settings_get, voice_settings_save, voice_start_recording,
@@ -159,6 +160,7 @@ pub fn run() {
         })
         .manage(AgentEngineState::new())
         .manage(BlxUpdaterState::default())
+        .manage(PlanMigrationState::default())
         .manage(BrowserHost::default())
         .manage(git_status::GitWatcherState::default())
         .manage(PtyManager::default())
@@ -330,6 +332,8 @@ pub fn run() {
             tasks::tasks_delete,
             tasks::tasks_reorder,
             plans::plan_list,
+            plans::plan_migration_ensure_started,
+            plans::plan_migration_poll,
             plans::plan_read,
             plans::plan_create,
             plans::plan_write,

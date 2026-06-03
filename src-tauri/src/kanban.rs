@@ -326,6 +326,53 @@ pub fn kanban_layout_save_inner(
     write_layout(&root, layout, workspace_cwd)
 }
 
+pub fn kanban_rewrite_plan_paths(
+    workspace_cwd: &str,
+    mapping: &[(String, String)],
+) -> Result<(), String> {
+    if mapping.is_empty() {
+        return Ok(());
+    }
+    let root = kanban_root(workspace_cwd)?;
+    if !index_path(&root).is_file() {
+        return Ok(());
+    }
+    let replacements: HashMap<&str, &str> = mapping
+        .iter()
+        .map(|(old_path, new_path)| (old_path.as_str(), new_path.as_str()))
+        .collect();
+    let mut layout = load_layout(&root, workspace_cwd)?;
+    let mut changed = false;
+
+    for path in &mut layout.expanded_plans {
+        if let Some(next) = replacements.get(path.as_str()) {
+            *path = (*next).to_owned();
+            changed = true;
+        }
+    }
+
+    let mut next_plan_order = BTreeMap::new();
+    for (path, order) in &layout.plan_order {
+        let next_path = replacements
+            .get(path.as_str())
+            .copied()
+            .unwrap_or(path.as_str())
+            .to_owned();
+        if next_path != *path {
+            changed = true;
+        }
+        next_plan_order
+            .entry(next_path)
+            .and_modify(|existing: &mut u32| *existing = (*existing).min(*order))
+            .or_insert(*order);
+    }
+    if changed {
+        layout.plan_order = next_plan_order;
+        let _ = write_layout(&root, layout, workspace_cwd)?;
+    }
+    Ok(())
+}
+
 fn read_plan_tasks(
     workspace_cwd: &str,
     plan_path: &str,

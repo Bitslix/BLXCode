@@ -22,12 +22,15 @@
 //!   `[x]` completed,  `[-]` cancelled.
 
 use crate::agents_layout::{ensure_agents_layout, PLANS_INDEX};
+use crate::kanban;
 use crate::tasks;
 use crate::tasks::TaskStatus;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Component, Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::UNIX_EPOCH;
 
 const PLAN_FILE: &str = "plan.md";
@@ -105,13 +108,57 @@ pub struct PlanSyncReport {
     pub tasks_written: u32,
 }
 
+#[derive(Clone, Default)]
+pub struct PlanMigrationState {
+    inner: Arc<Mutex<HashMap<String, PlanMigrationProgress>>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanMigrationProgress {
+    pub phase: String,
+    pub busy: bool,
+    pub total: u32,
+    pub processed: u32,
+    pub migrated: u32,
+    pub skipped: u32,
+    pub error: Option<String>,
+    pub updated_at_ms: u64,
+}
+
+impl Default for PlanMigrationProgress {
+    fn default() -> Self {
+        Self {
+            phase: "idle".into(),
+            busy: false,
+            total: 0,
+            processed: 0,
+            migrated: 0,
+            skipped: 0,
+            error: None,
+            updated_at_ms: now_ms(),
+        }
+    }
+}
+
 fn err<T>(s: impl Into<String>) -> Result<T, String> {
     Err(s.into())
+}
+
+fn lock_err<T>(_: std::sync::PoisonError<T>) -> String {
+    "plan migration state lock poisoned".into()
 }
 
 fn ensure_plans_root(ws: &str) -> Result<PathBuf, String> {
     let roots = ensure_agents_layout(ws)?;
     Ok(roots.plans)
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 #[derive(Debug, Clone)]
@@ -872,9 +919,218 @@ pub fn plan_write_back_task_status(
     Ok(())
 }
 
+fn current_migration_progress(
+    state: &PlanMigrationState,
+    workspace_cwd: &str,
+) -> Result<PlanMigrationProgress, String> {
+    let inner = state.inner.lock().map_err(lock_err)?;
+    Ok(inner.get(workspace_cwd).cloned().unwrap_or_default())
+}
+
+fn set_migration_progress(
+    state: &Arc<Mutex<HashMap<String, PlanMigrationProgress>>>,
+    workspace_cwd: &str,
+    update: impl FnOnce(&mut PlanMigrationProgress),
+) -> Result<PlanMigrationProgress, String> {
+    let mut inner = state.lock().map_err(lock_err)?;
+    let progress = inner.entry(workspace_cwd.to_owned()).or_default();
+    update(progress);
+    progress.updated_at_ms = now_ms();
+    Ok(progress.clone())
+}
+
+fn discover_legacy_plan_files(root: &Path) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    let Ok(read) = fs::read_dir(root) else {
+        return files;
+    };
+    for entry in read.flatten() {
+        let path = entry.path();
+        let Ok(ft) = entry.file_type() else { continue };
+        if !ft.is_file() {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|s| s.to_str()) else {
+            continue;
+        };
+        if name.eq_ignore_ascii_case(PLANS_INDEX) || name.eq_ignore_ascii_case(PLANS_README) {
+            continue;
+        }
+        let is_md = path
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.eq_ignore_ascii_case("md"))
+            .unwrap_or(false);
+        if is_md {
+            files.push(path);
+        }
+    }
+    files.sort_by(|a, b| {
+        a.file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or_default()
+            .to_lowercase()
+            .cmp(
+                &b.file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or_default()
+                    .to_lowercase(),
+            )
+    });
+    files
+}
+
+fn unique_plan_target_rel(root: &Path, slug: &str, source_legacy_rel: &str) -> String {
+    let mut candidate = slug.to_owned();
+    for n in 2..10_000 {
+        let rel = format!("{candidate}/{PLAN_FILE}");
+        let legacy_rel = format!("{candidate}.md");
+        let legacy_blocks = legacy_rel != source_legacy_rel && root.join(&legacy_rel).exists();
+        if !root.join(&rel).exists() && !legacy_blocks {
+            return rel;
+        }
+        candidate = format!("{slug}-{n}");
+    }
+    format!("{slug}-{}", now_ms())
+}
+
+fn migrate_legacy_plan_files(
+    workspace_cwd: &str,
+    root: &Path,
+    state: Arc<Mutex<HashMap<String, PlanMigrationProgress>>>,
+) -> Result<(), String> {
+    let legacy_files = discover_legacy_plan_files(root);
+    let total = legacy_files.len() as u32;
+    set_migration_progress(&state, workspace_cwd, |progress| {
+        progress.phase = if total == 0 { "done".into() } else { "migrating".into() };
+        progress.busy = total > 0;
+        progress.total = total;
+        progress.processed = 0;
+        progress.migrated = 0;
+        progress.skipped = 0;
+        progress.error = None;
+    })?;
+    if legacy_files.is_empty() {
+        return Ok(());
+    }
+
+    let mut mapping: Vec<(String, String)> = Vec::new();
+    for legacy_abs in legacy_files {
+        let old_rel = rel_from_root(root, &legacy_abs).unwrap_or_default();
+        let Some(slug) = legacy_abs.file_stem().and_then(|s| s.to_str()) else {
+            set_migration_progress(&state, workspace_cwd, |progress| {
+                progress.processed = progress.processed.saturating_add(1);
+                progress.skipped = progress.skipped.saturating_add(1);
+            })?;
+            continue;
+        };
+        let target_rel = unique_plan_target_rel(root, slug, &old_rel);
+        let target_abs = root.join(&target_rel);
+        if let Some(parent) = target_abs.parent() {
+            fs::create_dir_all(parent).map_err(|e| format!("mkdir {}: {e}", parent.display()))?;
+        }
+        fs::rename(&legacy_abs, &target_abs)
+            .map_err(|e| format!("migrate {old_rel} -> {target_rel}: {e}"))?;
+        mapping.push((old_rel, target_rel));
+        set_migration_progress(&state, workspace_cwd, |progress| {
+            progress.processed = progress.processed.saturating_add(1);
+            progress.migrated = progress.migrated.saturating_add(1);
+        })?;
+    }
+
+    set_migration_progress(&state, workspace_cwd, |progress| {
+        progress.phase = "rewriting".into();
+    })?;
+    for (old_path, new_path) in &mapping {
+        tasks::tasks_rewrite_plan_path(workspace_cwd, old_path, new_path)?;
+    }
+    kanban::kanban_rewrite_plan_paths(workspace_cwd, &mapping)?;
+    crate::plans_index::sync_plans_index(root)?;
+
+    set_migration_progress(&state, workspace_cwd, |progress| {
+        progress.phase = "done".into();
+        progress.busy = false;
+        progress.error = None;
+    })?;
+    Ok(())
+}
+
+fn mark_migration_error(
+    state: &Arc<Mutex<HashMap<String, PlanMigrationProgress>>>,
+    workspace_cwd: &str,
+    error: String,
+) {
+    let _ = set_migration_progress(state, workspace_cwd, |progress| {
+        progress.phase = "error".into();
+        progress.busy = false;
+        progress.error = Some(error);
+    });
+}
+
 #[tauri::command]
 pub fn plan_list(workspace_cwd: String) -> Result<Vec<PlanMeta>, String> {
     plan_list_inner(&workspace_cwd)
+}
+
+#[tauri::command]
+pub fn plan_migration_poll(
+    workspace_cwd: String,
+    state: tauri::State<'_, PlanMigrationState>,
+) -> Result<PlanMigrationProgress, String> {
+    current_migration_progress(&state, &workspace_cwd)
+}
+
+#[tauri::command]
+pub fn plan_migration_ensure_started(
+    workspace_cwd: String,
+    state: tauri::State<'_, PlanMigrationState>,
+) -> Result<PlanMigrationProgress, String> {
+    let root = ensure_plans_root(&workspace_cwd)?;
+    let state_inner = state.inner.clone();
+    let current = current_migration_progress(&state, &workspace_cwd)?;
+    if current.busy {
+        return Ok(current);
+    }
+
+    let legacy_files = discover_legacy_plan_files(&root);
+    if legacy_files.is_empty() {
+        return set_migration_progress(&state_inner, &workspace_cwd, |progress| {
+            progress.phase = "done".into();
+            progress.busy = false;
+            progress.total = 0;
+            progress.processed = 0;
+            progress.migrated = 0;
+            progress.skipped = 0;
+            progress.error = None;
+        });
+    }
+
+    let total = legacy_files.len() as u32;
+    let initial = set_migration_progress(&state_inner, &workspace_cwd, |progress| {
+        progress.phase = "migrating".into();
+        progress.busy = true;
+        progress.total = total;
+        progress.processed = 0;
+        progress.migrated = 0;
+        progress.skipped = 0;
+        progress.error = None;
+    })?;
+
+    let ws = workspace_cwd.clone();
+    let state_for_task = state_inner.clone();
+    tauri::async_runtime::spawn(async move {
+        let state_for_work = state_for_task.clone();
+        let ws_for_work = ws.clone();
+        let result = crate::proc::run_blocking(move || {
+            migrate_legacy_plan_files(&ws_for_work, &root, state_for_work)
+        })
+        .await;
+        if let Err(error) = result {
+            mark_migration_error(&state_for_task, &ws, error);
+        }
+    });
+
+    Ok(initial)
 }
 
 #[tauri::command]
@@ -1026,6 +1282,81 @@ mod tests {
         assert!(list.iter().any(|m| m.path == "with-sidecar/plan.md"));
         assert!(list.iter().all(|m| m.path != "README.md"));
         assert!(list.iter().all(|m| m.path != "with-sidecar/notes.md"));
+
+        let _ = fs::remove_dir_all(&ws);
+    }
+
+    #[test]
+    fn migration_moves_legacy_plans_and_rewrites_references() {
+        use crate::kanban::{kanban_board_load_inner, kanban_layout_save_inner, KanbanLayout};
+        use crate::tasks::tasks_snapshot;
+
+        let (ws, _guard) = temp_ws_with_tasks("migration_refs");
+        let cwd = ws.to_string_lossy().into_owned();
+        let root = ensure_plans_root(&cwd).unwrap();
+        fs::write(
+            root.join("legacy.md"),
+            "# Legacy\n\n## Tasks\n\n- [ ] `a` - Old task\n",
+        )
+        .unwrap();
+        fs::write(
+            root.join(PLANS_INDEX),
+            "# Plans\n\n## Index\n\n| Status | Plan | Description |\n|--------|------|-------------|\n| done | [legacy.md](legacy.md) | Curated legacy row |\n",
+        )
+        .unwrap();
+
+        let task_root = crate::app_paths::tasks_root_for(&cwd).unwrap();
+        fs::write(
+            task_root.join("index.json"),
+            serde_json::json!({
+                "version": 1,
+                "workspaceRoot": cwd.clone(),
+                "activePlanPath": "legacy.md",
+                "tasks": [{
+                    "id": "task-1",
+                    "title": "Old task",
+                    "description": "",
+                    "status": "pending",
+                    "position": 0,
+                    "createdAt": 1,
+                    "updatedAt": 1,
+                    "completedAt": null,
+                    "parentId": null,
+                    "notes": null,
+                    "planPath": "legacy.md",
+                    "planTaskId": "a"
+                }]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let mut layout = KanbanLayout::default();
+        layout.expanded_plans.push("legacy.md".into());
+        layout.plan_order.insert("legacy.md".into(), 4);
+        kanban_layout_save_inner(&cwd, layout).unwrap();
+
+        let state = Arc::new(Mutex::new(HashMap::new()));
+        migrate_legacy_plan_files(&cwd, &root, state).unwrap();
+
+        assert!(!root.join("legacy.md").exists());
+        assert!(root.join("legacy").join(PLAN_FILE).is_file());
+        let index = fs::read_to_string(root.join(PLANS_INDEX)).unwrap();
+        assert!(
+            index.contains("| done | [legacy/plan.md](legacy/plan.md) | Curated legacy row |"),
+            "index did not preserve curated row: {index}"
+        );
+
+        let snap = tasks_snapshot(&cwd).unwrap();
+        assert_eq!(snap.active_plan_path.as_deref(), Some("legacy/plan.md"));
+        assert_eq!(
+            snap.tasks.first().and_then(|task| task.plan_path.as_deref()),
+            Some("legacy/plan.md")
+        );
+
+        let board = kanban_board_load_inner(&cwd).unwrap();
+        assert_eq!(board.layout.expanded_plans, vec!["legacy/plan.md"]);
+        assert_eq!(board.layout.plan_order.get("legacy/plan.md"), Some(&4));
 
         let _ = fs::remove_dir_all(&ws);
     }

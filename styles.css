@@ -220,12 +220,25 @@ body {
   max-width: min(36vw, 34rem);
 }
 
+.app-statusline__item--plan-migration {
+  max-width: min(30vw, 24rem);
+}
+
 .app-statusline__item--update-busy {
   color: var(--accent-cool);
 }
 
-.app-statusline__item--update-busy svg {
+.app-statusline__item--update-busy svg,
+.app-statusline__item--plan-migration-busy svg {
   animation: app-statusline-spin 0.9s linear infinite;
+}
+
+.app-statusline__item--plan-migration-busy {
+  color: var(--accent-cool);
+}
+
+.app-statusline__item--plan-migration-warn {
+  color: var(--danger);
 }
 
 .app-statusline__item--update-available {

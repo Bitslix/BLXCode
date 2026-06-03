@@ -2867,8 +2867,31 @@ pub struct PlanSyncReport {
     pub tasks_written: u32,
 }
 
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanMigrationProgress {
+    pub phase: String,
+    pub busy: bool,
+    pub total: u32,
+    pub processed: u32,
+    pub migrated: u32,
+    pub skipped: u32,
+    pub error: Option<String>,
+    pub updated_at_ms: u64,
+}
+
 pub async fn plan_list(ws: &str) -> Result<Vec<PlanMeta>, String> {
     invoke_typed("plan_list", WsArg { workspace_cwd: ws }).await
+}
+
+pub async fn plan_migration_ensure_started(
+    ws: &str,
+) -> Result<PlanMigrationProgress, String> {
+    invoke_typed("plan_migration_ensure_started", WsArg { workspace_cwd: ws }).await
+}
+
+pub async fn plan_migration_poll(ws: &str) -> Result<PlanMigrationProgress, String> {
+    invoke_typed("plan_migration_poll", WsArg { workspace_cwd: ws }).await
 }
 
 pub async fn plan_read(ws: &str, path: &str) -> Result<PlanContent, String> {
