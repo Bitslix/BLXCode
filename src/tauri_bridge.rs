@@ -164,19 +164,14 @@ pub async fn mcp_test(id: String) -> Result<McpTestResult, String> {
     invoke_typed("mcp_test", Args { id }).await
 }
 
-#[derive(Clone, Debug, Deserialize)]
-pub struct McpExportEntry {
-    pub slug: String,
-    pub path: Option<String>,
-    pub error: Option<String>,
-}
-
-pub async fn mcp_export_cli_configs(workspace_root: String) -> Result<Vec<McpExportEntry>, String> {
+/// Fire-and-forget: the caller does not inspect the per-CLI export results, so
+/// the response payload is discarded.
+pub async fn mcp_export_cli_configs(workspace_root: String) -> Result<(), String> {
     #[derive(Serialize)]
     struct Args {
         workspace_root: String,
     }
-    invoke_typed("mcp_export_cli_configs", Args { workspace_root }).await
+    invoke_unit_js("mcp_export_cli_configs", args_value(Args { workspace_root })?).await
 }
 
 #[derive(Debug, Clone, Deserialize)]
