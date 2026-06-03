@@ -8,11 +8,12 @@
 // detail of this file.
 
 import { EditorView, basicSetup } from "codemirror";
-import { EditorState } from "@codemirror/state";
+import { EditorState, Compartment } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
 import { indentWithTab } from "@codemirror/commands";
 import { StreamLanguage } from "@codemirror/language";
 import { oneDark } from "@codemirror/theme-one-dark";
+import { vim } from "@replit/codemirror-vim";
 
 // Native CodeMirror 6 language packages (richest support).
 import { rust } from "@codemirror/lang-rust";
@@ -159,13 +160,17 @@ const blxChrome = EditorView.theme(
 
 /**
  * Create an editor inside `parent`.
- * opts: { doc, language, onChange(str), onSave(), onCursor(line, column), readOnly }
+ * opts: { doc, language, onChange(str), onSave(), onCursor(line, column), readOnly, vim }
  * Returns the EditorView (opaque handle for the other helpers).
  */
 export function create(parent, opts) {
   const o = opts || {};
   let syncing = false;
   let lastCursor = "";
+
+  // Vim lives in its own compartment so it can be toggled live (see setVim)
+  // without re-mounting the editor. CM6 vim must precede basicSetup.
+  const vimCompartment = new Compartment();
 
   const emitCursor = (state) => {
     if (typeof o.onCursor !== "function") return;
@@ -198,6 +203,7 @@ export function create(parent, opts) {
   ]);
 
   const extensions = [
+    vimCompartment.of(o.vim ? vim() : []),
     basicSetup,
     saveKeymap,
     langExt(o.language),
@@ -214,6 +220,13 @@ export function create(parent, opts) {
     state: EditorState.create({ doc: o.doc || "", extensions }),
   });
   emitCursor(view.state);
+
+  // Live vim toggle (revert / settings change) without a remount.
+  view.__blxSetVim = (enabled) => {
+    view.dispatch({
+      effects: vimCompartment.reconfigure(enabled ? vim() : []),
+    });
+  };
 
   // External updates (revert / reload) must not re-fire onChange.
   view.__blxSetDoc = (text) => {
@@ -232,6 +245,11 @@ export function create(parent, opts) {
 
 export function setDoc(view, text) {
   if (view && view.__blxSetDoc) view.__blxSetDoc(text);
+}
+
+/** Enable/disable vim key bindings on a live editor (no remount). */
+export function setVim(view, enabled) {
+  if (view && view.__blxSetVim) view.__blxSetVim(!!enabled);
 }
 
 export function getDoc(view) {

@@ -174,7 +174,7 @@ disabled with an **inline hint** pointing to the Code Editor → Vim toggle.
 
 ## Tasks
 
-- [ ] `vim-bundle` - Add @replit/codemirror-vim to bundle, wire compartment + setVim in cm-entry.js, rebuild (commit)
+- [>] `vim-bundle` - Add @replit/codemirror-vim to bundle, wire compartment + setVim in cm-entry.js, rebuild (commit)
 - [ ] `vim-glue` - Extend codemirror_glue: vim param in create_editor + set_vim helper (commit)
 - [ ] `editor-settings-service` - Add CODE_EDITOR_VIM_KEY + EditorSettingsService, provide in app.rs, re-export (commit)
 - [ ] `editor-vim-bind` - CodeMirrorEditor reads service, passes vim, live Effect → set_vim (commit)
