@@ -16,6 +16,7 @@ mod close_terminals_tab_dialog;
 mod commit_dialog;
 mod confirm_dialog;
 pub mod context_drag;
+mod context_drag_overlay;
 mod create_workspace_wizard;
 mod file_diff;
 mod file_diff_section;
@@ -107,6 +108,7 @@ use app_prefs::AppPrefsService;
 use close_terminals_tab_dialog::CloseTerminalsTabDialog;
 use confirm_dialog::ConfirmDialog;
 use context_drag::ContextDragService;
+use context_drag_overlay::ContextDragOverlay;
 use gloo_timers::future::TimeoutFuture;
 use harness_ui::HarnessHost;
 use js_sys;
@@ -816,6 +818,7 @@ pub fn WorkbenchShell() -> impl IntoView {
             <HarnessHost />
             <ToastHost />
             <TerminalSlotDragOverlay />
+            <ContextDragOverlay />
         </Show>
     }
 }
