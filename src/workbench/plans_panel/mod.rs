@@ -4,19 +4,18 @@
 
 mod ai_generate_dialog;
 
-use crate::agent_wire::{AgentContextItem, AgentContextKind};
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    self, mermaid_list_diagrams, plan_create, plan_delete, plan_list, plan_load, plan_read,
-    plan_rename, plan_write, PlanContent, PlanMeta, PlanTaskSummaryWire,
+    mermaid_list_diagrams, plan_create, plan_delete, plan_list, plan_read, plan_rename, plan_write,
+    PlanContent, PlanMeta, PlanTaskSummaryWire,
 };
+use crate::workbench::agent_context_handoff::attach_plan_into_agent;
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::state::{ConfirmRequest, HarnessUiService};
 use crate::workbench::{RightPanelTab, WorkbenchService};
 use ai_generate_dialog::{AiGenMode, AiGenerateDialog};
 use gloo_timers::future::TimeoutFuture;
-use js_sys::Date;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
@@ -1214,38 +1213,19 @@ fn load_plan_into_agent(state: PlansState, wb: WorkbenchService, path: String) {
     let Some(ws_id) = wb.active_id().get_untracked() else {
         return;
     };
-    spawn_local(async move {
-        match plan_load(&ws, &path).await {
-            Ok(report) => {
-                let label = state
-                    .plans
-                    .get_untracked()
-                    .into_iter()
-                    .find(|m| m.path == report.path)
-                    .map(|m| m.title)
-                    .unwrap_or_else(|| report.path.clone());
-                let summary = format!(
-                    "{} task(s) - kept {} free task(s)",
-                    report.tasks_added, report.free_tasks_kept
-                );
-                let item = AgentContextItem {
-                    id: format!("plan-file:{}", report.path),
-                    kind: AgentContextKind::PlanFile,
-                    label,
-                    source: summary,
-                    paths: vec![report.path.clone()],
-                    added_at: Date::now() as i64,
-                    content: None,
-                };
-                wb.upsert_workspace_agent_context(ws_id, item);
-                if let Ok(snap) = tauri_bridge::tasks_list(ws.clone()).await {
-                    crate::workbench::agent_context_handoff::store_task_snapshot(ws_id, snap);
-                }
-                state.error.set(None);
-                load_plans_list(state, ws);
-            }
-            Err(e) => state.error.set(Some(e)),
+    let label_hint = state
+        .plans
+        .get_untracked()
+        .into_iter()
+        .find(|m| m.path == path)
+        .map(|m| m.title);
+    let ws_for_done = ws.clone();
+    attach_plan_into_agent(wb, ws_id, ws, path, label_hint, move |result| match result {
+        Ok(_) => {
+            state.error.set(None);
+            load_plans_list(state, ws_for_done.clone());
         }
+        Err(e) => state.error.set(Some(e)),
     });
 }
 

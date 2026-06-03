@@ -10,7 +10,8 @@
 
 use crate::agent_wire::{AgentContextItem, AgentContextKind};
 use crate::tauri_bridge::{
-    agent_export_context_images, pty_write, AgentContextExportReport, AgentContextImageInput,
+    agent_export_context_images, plan_load, pty_write, AgentContextExportReport,
+    AgentContextImageInput,
 };
 use crate::workbench::app_prefs::AppPrefsService;
 use crate::workbench::notification_sound::play_action_success_sound;
@@ -1370,6 +1371,73 @@ pub fn git_commit_context_item(
     }
 }
 
+/// Build a `PlanFile` context item for a plan loaded into the agent. `summary`
+/// is the human-readable task-load result (e.g. `"3 task(s) - kept 1 free
+/// task(s)"`). Shared by the Plans panel and the Kanban→Agent drag.
+#[must_use]
+pub fn plan_file_context_item(plan_path: &str, label: &str, summary: &str) -> AgentContextItem {
+    AgentContextItem {
+        id: format!("plan-file:{plan_path}"),
+        kind: AgentContextKind::PlanFile,
+        label: label.to_owned(),
+        source: summary.to_owned(),
+        paths: vec![plan_path.to_owned()],
+        added_at: context_now_ms(),
+        content: None,
+    }
+}
+
+/// Build a `PlanTaskGroup` context item for a single Kanban task dragged into
+/// the agent. Carries the plan path and the stable task id in `source` so the
+/// agent can locate the task; no inline content.
+#[must_use]
+pub fn plan_task_context_item(plan_path: &str, task_id: &str, title: &str) -> AgentContextItem {
+    AgentContextItem {
+        id: format!("plan-task:{plan_path}#{task_id}"),
+        kind: AgentContextKind::PlanTaskGroup,
+        label: title.to_owned(),
+        source: format!("{plan_path}#{task_id}"),
+        paths: vec![plan_path.to_owned()],
+        added_at: context_now_ms(),
+        content: None,
+    }
+}
+
+/// Load a plan into the agent: apply the plan's tasks (`plan_load`), attach a
+/// `PlanFile` context item, and refresh the workspace task snapshot. Shared by
+/// the Plans panel "Load into agent" button and the Kanban→Agent drag.
+///
+/// `label_hint` is the plan title to show in the context list; the plan path is
+/// used as a fallback. `on_done` reports success (resolved plan path) or the
+/// error string so each caller can drive its own status/error surface.
+pub fn attach_plan_into_agent(
+    wb: WorkbenchService,
+    ws_id: u64,
+    ws_cwd: String,
+    plan_path: String,
+    label_hint: Option<String>,
+    on_done: impl Fn(Result<String, String>) + 'static,
+) {
+    spawn_local(async move {
+        match plan_load(&ws_cwd, &plan_path).await {
+            Ok(report) => {
+                let label = label_hint.unwrap_or_else(|| report.path.clone());
+                let summary = format!(
+                    "{} task(s) - kept {} free task(s)",
+                    report.tasks_added, report.free_tasks_kept
+                );
+                let item = plan_file_context_item(&report.path, &label, &summary);
+                wb.upsert_workspace_agent_context(ws_id, item);
+                if let Ok(snap) = tasks_list(ws_cwd.clone()).await {
+                    store_task_snapshot(ws_id, snap);
+                }
+                on_done(Ok(report.path));
+            }
+            Err(e) => on_done(Err(e)),
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1386,6 +1454,17 @@ mod tests {
         assert!(out.contains("Workspace: <not set>"));
         assert!(out.contains("## Attached memory"));
         assert!(out.contains("## Attached images"));
+    }
+
+    #[test]
+    fn plan_task_context_item_carries_plan_and_task() {
+        let item = plan_task_context_item(".agents/plans/foo/plan.md", "task-1", "Do the thing");
+        assert!(matches!(item.kind, AgentContextKind::PlanTaskGroup));
+        assert_eq!(item.label, "Do the thing");
+        assert_eq!(item.source, ".agents/plans/foo/plan.md#task-1");
+        assert_eq!(item.paths, vec![".agents/plans/foo/plan.md".to_string()]);
+        assert_eq!(item.id, "plan-task:.agents/plans/foo/plan.md#task-1");
+        assert!(item.content.is_none());
     }
 
     #[test]

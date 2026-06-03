@@ -4,12 +4,17 @@ use crate::tauri_bridge::{
     AgentImageFilePayload,
 };
 use crate::workbench::agent_context_handoff::{
-    dir_ref_context_item, file_ref_context_item, git_commit_context_item, git_diff_context_item,
-    list_workspace_terminal_targets, terminal_session_context_item_with_content,
+    attach_plan_into_agent, dir_ref_context_item, file_ref_context_item, git_commit_context_item,
+    git_diff_context_item, list_workspace_terminal_targets, plan_task_context_item,
+    terminal_session_context_item_with_content,
 };
 use crate::workbench::context_drag::{
     read_drag_payload as read_context_payload, ContextDragKind, ContextDragPayload,
     ContextDragService,
+};
+use crate::workbench::kanban_dnd::{
+    is_kanban_drag, read_drag_payload as read_kanban_payload, KanbanDragKind, KanbanDragPayload,
+    KanbanDragService,
 };
 use crate::workbench::terminal_slot_dnd::{
     is_terminal_drag, read_drag_payload, TerminalSlotDragPayload, TerminalSlotDragService,
@@ -37,6 +42,8 @@ pub enum DropZoneState {
     AcceptFolder,
     AcceptDiff,
     AcceptCommit,
+    AcceptPlan,
+    AcceptTask,
     Reject,
 }
 
@@ -56,6 +63,8 @@ impl DropZoneState {
             Self::AcceptFolder => "Drop folder to attach as context",
             Self::AcceptDiff => "Drop diff to attach as context",
             Self::AcceptCommit => "Drop commit to attach as context",
+            Self::AcceptPlan => "Drop plan to load into the agent",
+            Self::AcceptTask => "Drop task to attach as context",
             Self::Reject => "Only image files or terminal sessions can be attached",
         }
     }
@@ -73,10 +82,38 @@ pub fn install_agent_image_intake(
 
 pub fn handle_dom_drag_event(
     ev: DragEvent,
+    wb: WorkbenchService,
     drop_state: RwSignal<DropZoneState>,
     slot_dnd: TerminalSlotDragService,
     context_dnd: ContextDragService,
+    kanban_dnd: KanbanDragService,
 ) {
+    if has_kanban_drag(&ev, kanban_dnd) {
+        ev.prevent_default();
+        ev.stop_propagation();
+        let payload = kanban_dnd.active_payload.get_untracked();
+        let active_ws = wb.active_id().get_untracked();
+        let accept = payload
+            .as_ref()
+            .is_some_and(|p| active_ws == Some(p.workspace_id));
+        if accept {
+            if let Some(dt) = ev.data_transfer() {
+                let _ = dt.set_drop_effect("copy");
+            }
+            kanban_dnd.set_overlay_pos_from_event(&ev);
+            let state = match payload.as_ref().map(|p| p.kind) {
+                Some(KanbanDragKind::Task) => DropZoneState::AcceptTask,
+                _ => DropZoneState::AcceptPlan,
+            };
+            drop_state.set(state);
+        } else {
+            if let Some(dt) = ev.data_transfer() {
+                let _ = dt.set_drop_effect("none");
+            }
+            drop_state.set(DropZoneState::Reject);
+        }
+        return;
+    }
     if has_terminal_drag(&ev, slot_dnd) {
         ev.prevent_default();
         ev.stop_propagation();
@@ -121,12 +158,23 @@ pub fn handle_dom_drop(
     status_line: RwSignal<Option<String>>,
     slot_dnd: TerminalSlotDragService,
     context_dnd: ContextDragService,
+    kanban_dnd: KanbanDragService,
 ) {
     ev.prevent_default();
     drop_state.set(DropZoneState::Inactive);
     let Some(dt) = ev.data_transfer() else {
         return;
     };
+
+    // Kanban plan/task dragged onto the agent. Checked first: it uses a distinct
+    // MIME, so there is no overlap with terminal/context drags.
+    if let Some(payload) =
+        read_kanban_payload(&dt).or_else(|| kanban_dnd.active_payload.get_untracked())
+    {
+        ev.stop_propagation();
+        attach_kanban_drop(payload, wb, status_line, kanban_dnd);
+        return;
+    }
 
     if let Some(payload) = read_drag_payload(&dt).or_else(|| terminal_payload_from_active(slot_dnd))
     {
@@ -455,6 +503,79 @@ fn attach_terminal_context(
         wb.upsert_workspace_agent_context(active_ws_id, item);
         slot_dnd.clear();
     });
+}
+
+fn has_kanban_drag(ev: &DragEvent, kanban_dnd: KanbanDragService) -> bool {
+    kanban_dnd.session_active() || ev.data_transfer().as_ref().is_some_and(is_kanban_drag)
+}
+
+/// Attach a Kanban plan or task dropped onto the agent. A plan is loaded into
+/// the agent (tasks applied + `PlanFile` context, like the Plans panel button);
+/// a task becomes a compact `PlanTaskGroup` context item. Cross-workspace drops
+/// are rejected.
+fn attach_kanban_drop(
+    payload: KanbanDragPayload,
+    wb: WorkbenchService,
+    status_line: RwSignal<Option<String>>,
+    kanban_dnd: KanbanDragService,
+) {
+    let Some(active_ws_id) = wb.active_id().get_untracked() else {
+        kanban_dnd.clear();
+        status_line.set(Some("Select a workspace tab first.".into()));
+        return;
+    };
+    if payload.workspace_id != active_ws_id {
+        kanban_dnd.clear();
+        status_line.set(Some(
+            "Kanban items can only be attached to their own workspace.".into(),
+        ));
+        return;
+    }
+    let ws_cwd = wb.workspaces().with_untracked(|list| {
+        list.iter()
+            .find(|w| w.id == active_ws_id)
+            .map(|w| w.cwd.clone())
+            .filter(|cwd| !cwd.trim().is_empty())
+    });
+    let Some(ws_cwd) = ws_cwd else {
+        kanban_dnd.clear();
+        status_line.set(Some("Select a workspace tab first.".into()));
+        return;
+    };
+
+    match payload.kind {
+        KanbanDragKind::Plan => {
+            status_line.set(None);
+            attach_plan_into_agent(
+                wb,
+                active_ws_id,
+                ws_cwd,
+                payload.plan_path,
+                None,
+                move |result| {
+                    if let Err(err) = result {
+                        status_line.set(Some(format!("Could not load plan: {err}")));
+                    }
+                },
+            );
+        }
+        KanbanDragKind::Task => {
+            if let Some(task_id) = payload.task_id {
+                // The serialized payload carries only ids; the task title lives on
+                // the in-memory drag meta. Fall back to the task id if absent.
+                let title = kanban_dnd
+                    .active
+                    .get_untracked()
+                    .map(|meta| meta.title)
+                    .filter(|t| !t.trim().is_empty())
+                    .unwrap_or_else(|| task_id.clone());
+                let item = plan_task_context_item(&payload.plan_path, &task_id, &title);
+                wb.upsert_workspace_agent_context(active_ws_id, item);
+                status_line.set(None);
+            }
+        }
+    }
+    kanban_dnd.clear();
 }
 
 fn attach_context_drag(

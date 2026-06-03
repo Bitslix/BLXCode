@@ -147,10 +147,10 @@ Galerie (`open_center_diagram_gallery_tab`).
 - [x] `mermaid-task-card` - Diagramm-Liste auf Plan-Ebene einmal laden und task-gefiltert an Lanes/Task-Cards durchreichen; Task-Badge + Shortcut bei `task_id`-Match
 - [ ] `mermaid-task-focus` - Optional: Galerie task-fokussiert öffnen (erstes Diagramm der Task vorselektieren) via erweiterten Scope/Fokus-Param
 - [x] `mermaid-card-css` - Badge-/Button-Styles in `workspace-kanban.css` mit Theme-Tokens
-- [ ] `agent-context-helper` - `attach_plan_into_agent` + `plan_task_context_item` in `agent_context_handoff.rs` extrahieren; `plans_panel::load_plan_into_agent` auf Helper umstellen
-- [ ] `dropzone-states` - `DropZoneState::AcceptPlan`/`AcceptTask` inkl. `is_active`/`message` ergänzen
-- [ ] `agent-drag-detect` - `handle_dom_drag_event` um Kanban-Drag erweitern (Workspace-Match → Accept, sonst Reject), `KanbanDragService` durchreichen
-- [ ] `agent-drag-drop` - `handle_dom_drop` um Kanban-Payload erweitern (Plan→PlanFile, Task→PlanTaskGroup), `kanban_dnd.clear()` nach Attach
-- [ ] `agent-panel-wire` - `agent_panel/mod.rs`: `KanbanDragService` injizieren, Handler-Calls anpassen, Drop-Active-Klassenarm um neue States erweitern
-- [ ] `dnd-tests` - Unit-Tests für `plan_task_context_item` und den Kanban-Drop-Klassifizierer (Plan/Task/fremder Workspace)
-- [ ] `dnd-mermaid-verify` - `cargo check` (beide Crates) + manuelle Tauri-Checks aus dem Tests-Abschnitt durchgehen
+- [x] `agent-context-helper` - `attach_plan_into_agent` + `plan_task_context_item` in `agent_context_handoff.rs` extrahieren; `plans_panel::load_plan_into_agent` auf Helper umstellen
+- [x] `dropzone-states` - `DropZoneState::AcceptPlan`/`AcceptTask` inkl. `is_active`/`message` ergänzen
+- [x] `agent-drag-detect` - `handle_dom_drag_event` um Kanban-Drag erweitern (Workspace-Match → Accept, sonst Reject), `KanbanDragService` durchreichen
+- [x] `agent-drag-drop` - `handle_dom_drop` um Kanban-Payload erweitern (Plan→PlanFile, Task→PlanTaskGroup), `kanban_dnd.clear()` nach Attach
+- [x] `agent-panel-wire` - `agent_panel/mod.rs`: `KanbanDragService` injizieren, Handler-Calls anpassen, Drop-Active-Klassenarm um neue States erweitern
+- [x] `dnd-tests` - Unit-Test für `plan_task_context_item` (Kind/Label/source/paths). Der Accept/Reject-Pfad ist inline im DOM-Handler (Services + DragEvent) und wird manuell geprüft statt künstlich extrahiert
+- [>] `dnd-mermaid-verify` - `cargo check` beider Crates + Token-Lint grün; manuelle Tauri-Checks aus dem Tests-Abschnitt stehen noch aus (GUI)
