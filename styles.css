@@ -736,8 +736,8 @@ body {
 
 .workbench-sidebar__resizer:hover,
 .workbench-sidebar__resizer--active {
-  background: color-mix(in srgb, var(--overlay-1) 68%, transparent);
-  border-bottom-color: var(--border);
+  background: color-mix(in srgb, var(--overlay-1) 42%, transparent);
+  border-bottom-color: color-mix(in srgb, var(--border) 76%, transparent);
 }
 
 .workbench-sidebar__resizer-grip {
@@ -751,8 +751,8 @@ body {
 
 .workbench-sidebar__resizer:hover .workbench-sidebar__resizer-grip,
 .workbench-sidebar__resizer--active .workbench-sidebar__resizer-grip {
-  background: color-mix(in srgb, var(--border-strong) 86%, var(--accent) 14%);
-  opacity: 0.86;
+  background: color-mix(in srgb, var(--border-strong) 88%, var(--accent) 12%);
+  opacity: 0.68;
 }
 
 .workbench-sidebar--collapsed .workbench-sidebar__panels,
@@ -2364,8 +2364,8 @@ button.workbench-shortcut-row--action:focus-visible {
 .workbench-splitter:hover::before,
 .workbench-left-slot--resizing .workbench-splitter::before,
 .workbench-right-slot--resizing .workbench-splitter::before {
-  background: color-mix(in srgb, var(--accent) 58%, var(--border));
-  opacity: 0.34;
+  background: color-mix(in srgb, var(--border-strong) 86%, var(--accent) 14%);
+  opacity: 0.42;
 }
 
 .workbench-splitter:hover .workbench-splitter__grip,
@@ -2373,12 +2373,12 @@ button.workbench-shortcut-row--action:focus-visible {
 .workbench-right-slot--resizing .workbench-splitter__grip {
   width: 0.3rem;
   height: 5.8rem;
-  background: var(--accent);
+  background: color-mix(in srgb, var(--text-muted) 62%, var(--accent) 22%);
   box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--bg-app) 75%, transparent),
-    0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent),
-    0 0 18px color-mix(in srgb, var(--accent) 28%, transparent);
-  opacity: 1;
+    0 0 0 1px color-mix(in srgb, var(--bg-app) 82%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--accent) 8%, transparent),
+    0 0 12px color-mix(in srgb, var(--accent) 12%, transparent);
+  opacity: 0.74;
   transform: scaleY(1);
 }
 
@@ -7098,8 +7098,8 @@ button {
 
 .workspace-center-split-resizer:hover span,
 .workspace-center-split-resizer--active span {
-  background: var(--accent);
-  opacity: 0.9;
+  background: color-mix(in srgb, var(--border-strong) 78%, var(--accent) 18%);
+  opacity: 0.64;
 }
 
 .workspace-center-split-shield {
@@ -7792,7 +7792,7 @@ button {
 .ws-term-grid__resize:hover,
 .ws-term-grid__resize:focus-visible {
   opacity: 1;
-  background: var(--accent-soft);
+  background: color-mix(in srgb, var(--accent-soft) 34%, transparent);
 }
 
 .ws-term-grid__resize--col {
