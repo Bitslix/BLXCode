@@ -10,7 +10,9 @@ use crate::workbench::agent_context_handoff::list_terminal_targets_all_workspace
 use crate::workbench::file_preview::code_context_menu::CodeContextMenuState;
 use crate::workbench::file_preview::codemirror_glue as cm;
 use crate::workbench::toast::ToastService;
-use crate::workbench::{CoreStatusService, HarnessUiService, WorkbenchService};
+use crate::workbench::{
+    CoreStatusService, EditorSettingsService, HarnessUiService, WorkbenchService,
+};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use wasm_bindgen::prelude::*;
@@ -40,6 +42,8 @@ pub fn CodeMirrorEditor(
     let ui = expect_context::<HarnessUiService>();
     let i18n = expect_context::<I18nService>();
     let core_status = expect_context::<CoreStatusService>();
+    let editor_settings = expect_context::<EditorSettingsService>();
+    let vim_enabled = editor_settings.vim_enabled();
 
     let host_ref = NodeRef::<leptos::html::Div>::new();
     // `JsValue` and the wasm-bindgen closures are !Send, so they live in the
@@ -89,12 +93,14 @@ pub fn CodeMirrorEditor(
 
         let host_el: web_sys::Element = host.unchecked_into();
         let doc = session.buffer.get_untracked();
+        let vim_on = vim_enabled.get_untracked();
         spawn_local(async move {
             match cm::create_editor(
                 &host_el,
                 &doc,
                 language,
                 read_only,
+                vim_on,
                 &on_change_fn,
                 &on_save_fn,
                 &on_cursor_fn,
@@ -117,6 +123,17 @@ pub fn CodeMirrorEditor(
         view_handle.with_value(|v| {
             if let Some(view) = v {
                 cm::set_doc(view, &text);
+            }
+        });
+    });
+
+    // Toggle Vim key bindings live when the setting changes — applies to both
+    // edit and read-only (preview) mounts, no remount required.
+    Effect::new(move |_| {
+        let enabled = vim_enabled.get();
+        view_handle.with_value(|v| {
+            if let Some(view) = v {
+                cm::set_vim(view, enabled);
             }
         });
     });
