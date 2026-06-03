@@ -48,8 +48,9 @@ pub fn reset_blocking() {
 }
 
 /// Ensure clients are connected for the current session. Connection failures
-/// are swallowed per-server (logged) so one broken server cannot break a turn.
-pub async fn ensure_built() {
+/// are swallowed per-server (logged to the app log) so one broken server cannot
+/// break a turn.
+pub async fn ensure_built(app: &tauri::AppHandle) {
     {
         let guard = cell().lock().await;
         if guard.servers.is_some() {
@@ -58,25 +59,56 @@ pub async fn ensure_built() {
     }
     let registry = registry::load().unwrap_or_default();
     let mut built: HashMap<String, ActiveServer> = HashMap::new();
+    let mut total_tools = 0usize;
     for server in registry.enabled() {
         match McpClient::connect(server).await {
             Ok(client) => match client.list_tools(&server.id).await {
                 Ok(tools) => {
+                    total_tools += tools.len();
+                    crate::app_logging::write_app_event(
+                        app,
+                        "info",
+                        "mcp",
+                        "server_connected",
+                        serde_json::json!({ "id": server.id, "toolCount": tools.len() }),
+                    );
                     built.insert(server.id.clone(), ActiveServer { client, tools });
                 }
                 Err(e) => {
-                    eprintln!("[mcp] tools/list failed for {}: {e}", server.id);
+                    crate::app_logging::write_app_event(
+                        app,
+                        "warn",
+                        "mcp",
+                        "list_tools_failed",
+                        serde_json::json!({ "id": server.id, "error": e }),
+                    );
                 }
             },
             Err(e) => {
-                eprintln!("[mcp] connect failed for {}: {e}", server.id);
+                crate::app_logging::write_app_event(
+                    app,
+                    "warn",
+                    "mcp",
+                    "connect_failed",
+                    serde_json::json!({ "id": server.id, "error": e }),
+                );
             }
         }
     }
+    let connected = built.len();
     let mut guard = cell().lock().await;
     // Another task may have built concurrently; keep the first result.
     if guard.servers.is_none() {
         guard.servers = Some(built);
+        if connected > 0 {
+            crate::app_logging::write_app_event(
+                app,
+                "info",
+                "mcp",
+                "session_clients_ready",
+                serde_json::json!({ "servers": connected, "tools": total_tools }),
+            );
+        }
     }
 }
 

@@ -38,6 +38,16 @@ pub enum McpTransport {
     },
 }
 
+impl McpTransport {
+    /// Short tag for logs/badges: `stdio` or `http`.
+    pub fn label(&self) -> &'static str {
+        match self {
+            McpTransport::Stdio { .. } => "stdio",
+            McpTransport::Http { .. } => "http",
+        }
+    }
+}
+
 /// A single registered MCP server.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct McpServer {
