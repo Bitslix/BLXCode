@@ -300,4 +300,17 @@ mod tests {
         assert!(!body.contains("old.md"));
         assert!(!body.contains("Fresh Title"));
     }
+
+    #[test]
+    fn canonical_subdir_links_are_preserved_directly() {
+        let mut existing = seed();
+        existing.push_str("| active | [feature/plan.md](feature/plan.md) | Curated |\n");
+        let body = render_index(
+            &existing,
+            &[("feature/plan.md".into(), "Ignored Title".into())],
+            None,
+        );
+        assert!(body.contains("| active | [feature/plan.md](feature/plan.md) | Curated |"));
+        assert!(!body.contains("Ignored Title"));
+    }
 }

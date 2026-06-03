@@ -81,6 +81,10 @@ The implementation must apply the Tauri v2, Rust best practices, Rust async patt
   - Check: `cargo check -p blxcode-ui --locked` passed.
   - Check: `cargo check -p blxcode --locked` passed with existing `ProviderEnv::from_environment` dead-code warning.
   - Check: `cargo test -p blxcode --locked` passed with 312 tests.
+- 2026-06-03 final hardening:
+  - Added explicit test coverage that the protected `PLANS.md` stays in the root plans folder and nested/sidecar Markdown files are not tracked as plans.
+  - Added explicit index coverage for canonical `slug/plan.md` links.
+  - Added the Unreleased changelog entry under Changed.
 
 ## Tasks
 

@@ -1277,11 +1277,17 @@ mod tests {
             "# Sidecar\n",
         )
         .unwrap();
+        fs::write(
+            plans_root.join("with-sidecar").join(PLANS_INDEX),
+            "# Nested index\n",
+        )
+        .unwrap();
 
         let list = plan_list_inner(&cwd).unwrap();
         assert!(list.iter().any(|m| m.path == "with-sidecar/plan.md"));
         assert!(list.iter().all(|m| m.path != "README.md"));
         assert!(list.iter().all(|m| m.path != "with-sidecar/notes.md"));
+        assert!(list.iter().all(|m| m.path != "with-sidecar/PLANS.md"));
 
         let _ = fs::remove_dir_all(&ws);
     }
@@ -1341,6 +1347,8 @@ mod tests {
 
         assert!(!root.join("legacy.md").exists());
         assert!(root.join("legacy").join(PLAN_FILE).is_file());
+        assert!(root.join(PLANS_INDEX).is_file());
+        assert!(!root.join("legacy").join(PLANS_INDEX).exists());
         let index = fs::read_to_string(root.join(PLANS_INDEX)).unwrap();
         assert!(
             index.contains("| done | [legacy/plan.md](legacy/plan.md) | Curated legacy row |"),
