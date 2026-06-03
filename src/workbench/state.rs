@@ -3477,14 +3477,7 @@ impl WorkbenchService {
         let slot_agent_efforts =
             fleet_slot_efforts_for_labels(&slot_agent_labels, &draft.agent_efforts);
 
-        let title = {
-            let t = draft.name_input.trim();
-            if t.is_empty() {
-                format!("Workspace {id}")
-            } else {
-                t.to_string()
-            }
-        };
+        let title = workspace_title_from_name_or_cwd(id, &draft.name_input, &cwd);
 
         let slot_ids: Vec<u64> = (1..=n as u64).collect();
         let slot_pane_states: Vec<SlotPaneState> = slot_ids
@@ -4379,6 +4372,40 @@ pub fn derive_workspace_name(path: &str) -> Option<String> {
         return None;
     }
     Some(last.to_string())
+}
+
+fn workspace_title_from_name_or_cwd(id: u64, name_input: &str, cwd: &str) -> String {
+    let explicit = name_input.trim();
+    if !explicit.is_empty() {
+        return explicit.to_string();
+    }
+    derive_workspace_name(cwd).unwrap_or_else(|| format!("Workspace {id}"))
+}
+
+#[cfg(test)]
+mod workspace_title_tests {
+    use super::*;
+
+    #[test]
+    fn blank_name_uses_selected_directory_name() {
+        assert_eq!(
+            workspace_title_from_name_or_cwd(7, "", "/home/iptoux/Development/blxcode"),
+            "blxcode"
+        );
+    }
+
+    #[test]
+    fn explicit_name_wins_over_directory_name() {
+        assert_eq!(
+            workspace_title_from_name_or_cwd(7, " backend refactor ", "/home/iptoux/blxcode"),
+            "backend refactor"
+        );
+    }
+
+    #[test]
+    fn invalid_directory_falls_back_to_workspace_id() {
+        assert_eq!(workspace_title_from_name_or_cwd(7, "", "/"), "Workspace 7");
+    }
 }
 
 /// Pure swap of two slots by id within a single workspace. Returns

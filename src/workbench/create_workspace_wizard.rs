@@ -154,8 +154,9 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
             if let Ok(p) = default_cwd().await {
                 if !p.trim().is_empty() {
                     // Bypass `set_workspace_cwd` so the auto-populated HOME
-                    // path doesn't derive a workspace name (would otherwise
-                    // turn into the username — we want "Workspace N").
+                    // path does not write into the optional name field. The
+                    // final commit still derives a title from the directory
+                    // when the user leaves the field blank.
                     wb.update_workspace_draft(workspace_id, |d| d.cwd_display = p);
                 }
             }
