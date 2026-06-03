@@ -178,12 +178,35 @@ fn current_workspace_cwd(wb: WorkbenchService) -> Option<String> {
     })
 }
 
+pub(crate) fn memory_api_workspace_arg(state: MemoryState) -> String {
+    state.workspace_cwd.get_untracked().unwrap_or_default()
+}
+
+fn memory_api_workspace_for_scope(state: MemoryState, scope: &MemoryScope) -> Option<String> {
+    match scope {
+        MemoryScope::Workspace => state.workspace_cwd.get_untracked(),
+        MemoryScope::Global => Some(memory_api_workspace_arg(state)),
+    }
+}
+
+fn open_memory_note(state: MemoryState, scope: MemoryScope, path: String) {
+    let Some(ws) = memory_api_workspace_for_scope(state, &scope) else {
+        return;
+    };
+    load_note(state, ws, scope, path);
+}
+
 fn load_notes(state: MemoryState, ws: String) {
     spawn_local(async move {
         match tauri_bridge::memory_list(&ws).await {
             Ok(resp) => {
+                let default_scope = if ws.trim().is_empty() {
+                    MemoryScope::Global
+                } else {
+                    MemoryScope::Workspace
+                };
                 let should_load_default = state.active_path.get_untracked().is_none()
-                    && has_workspace_memory_index(&resp.notes);
+                    && has_memory_index_for_scope(&resp.notes, &default_scope);
                 state
                     .empty_categories
                     .set(resp.memory_subcategories.workspace);
@@ -196,7 +219,7 @@ fn load_notes(state: MemoryState, ws: String) {
                     load_note(
                         state.clone(),
                         ws.clone(),
-                        MemoryScope::Workspace,
+                        default_scope,
                         MEMORY_INDEX_PATH.to_string(),
                     );
                 }
@@ -262,9 +285,9 @@ fn clear_memory_selection(state: MemoryState) {
     state.backlinks.set(Vec::new());
 }
 
-fn has_workspace_memory_index(notes: &[NoteMeta]) -> bool {
+fn has_memory_index_for_scope(notes: &[NoteMeta], scope: &MemoryScope) -> bool {
     notes.iter().any(|note| {
-        note.scope == MemoryScope::Workspace
+        &note.scope == scope
             && note.enabled
             && !note.is_template
             && note.path.eq_ignore_ascii_case(MEMORY_INDEX_PATH)
@@ -272,19 +295,21 @@ fn has_workspace_memory_index(notes: &[NoteMeta]) -> bool {
 }
 
 fn load_default_memory_index(state: MemoryState) -> bool {
-    let has_index = state.notes.with(|notes| has_workspace_memory_index(notes));
+    let scope = if state.workspace_cwd.get_untracked().is_some() {
+        MemoryScope::Workspace
+    } else {
+        MemoryScope::Global
+    };
+    let has_index = state
+        .notes
+        .with(|notes| has_memory_index_for_scope(notes, &scope));
     if !has_index {
         return false;
     }
-    let Some(ws) = state.workspace_cwd.get_untracked() else {
+    let Some(ws) = memory_api_workspace_for_scope(state, &scope) else {
         return false;
     };
-    load_note(
-        state,
-        ws,
-        MemoryScope::Workspace,
-        MEMORY_INDEX_PATH.to_string(),
-    );
+    load_note(state, ws, scope, MEMORY_INDEX_PATH.to_string());
     true
 }
 
@@ -374,7 +399,6 @@ pub fn MemoryPanel(
     #[prop(optional)] split_view: Option<RwSignal<bool>>,
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
-    let i18n = expect_context::<I18nService>();
     let toast = expect_context::<ToastService>();
     let state = MemoryState::new(centered);
     let split_view = split_view.filter(|_| centered);
@@ -384,7 +408,8 @@ pub fn MemoryPanel(
     Effect::new(move |_| {
         let cwd = current_workspace_cwd(wb);
         let prev = eff_state.workspace_cwd.get_untracked();
-        if cwd != prev {
+        let needs_initial_memory_load = eff_state.memory_status.get_untracked().is_none();
+        if cwd != prev || needs_initial_memory_load {
             eff_state.workspace_cwd.set(cwd.clone());
             eff_state.active_path.set(None);
             eff_state.active_scope.set(MemoryScope::Workspace);
@@ -401,11 +426,11 @@ pub fn MemoryPanel(
             eff_state.pointers_busy.set(false);
             eff_state.architecture_rebuild_busy.set(false);
             eff_state.selected_pointer_agents.set(HashSet::new());
+            load_notes(eff_state.clone(), cwd.clone().unwrap_or_default());
             if let Some(ws) = cwd {
                 let st = eff_state.clone();
                 let ws2 = ws.clone();
                 spawn_local(async move {
-                    load_notes(st.clone(), ws2.clone());
                     load_pointer_status(st, ws2);
                 });
             }
@@ -488,7 +513,10 @@ pub fn MemoryPanel(
                         class="workbench-memory__action"
                         title="Rebuild architecture map"
                         aria-label="Rebuild architecture map"
-                        disabled=move || state.architecture_rebuild_busy.get()
+                        disabled=move || {
+                            state.architecture_rebuild_busy.get()
+                                || state.workspace_cwd.get().is_none()
+                        }
                         on:click={
                             let state = state.clone();
                             let toast = toast;
@@ -573,19 +601,6 @@ pub fn MemoryPanel(
             </div>
             <Show when={
                 let s = state.clone();
-                move || s.workspace_cwd.get().is_none()
-            }>
-                <div class="workbench-memory__placeholder">
-                    <p class="workbench-memory__placeholder-title">
-                        {move || i18n.tr(I18nKey::MemEmptyTitle)()}
-                    </p>
-                    <p class="workbench-memory__placeholder-lead">
-                        {move || i18n.tr(I18nKey::MemEmptyLead)()}
-                    </p>
-                </div>
-            </Show>
-            <Show when={
-                let s = state.clone();
                 move || s.pointers_open.get()
             }>
                 <MemoryPointersDialog state=state.clone() />
@@ -603,11 +618,13 @@ fn memory_needs_global_bootstrap(status: &MemoryStatusResponse) -> bool {
 }
 
 fn memory_show_bootstrap_prompt(state: MemoryState) -> bool {
-    if state.workspace_cwd.get().is_none() || !state.notes.get().is_empty() {
+    if !state.notes.get().is_empty() {
         return false;
     }
+    let has_workspace = state.workspace_cwd.get().is_some();
     state.memory_status.get().is_some_and(|status| {
-        memory_needs_workspace_bootstrap(&status) || memory_needs_global_bootstrap(&status)
+        (has_workspace && memory_needs_workspace_bootstrap(&status))
+            || memory_needs_global_bootstrap(&status)
     })
 }
 
@@ -618,7 +635,8 @@ fn MemoryBootstrapView(state: MemoryState) -> impl IntoView {
             let Some(status) = state.memory_status.get() else {
                 return ().into_any();
             };
-            let show_workspace = memory_needs_workspace_bootstrap(&status);
+            let show_workspace =
+                state.workspace_cwd.get().is_some() && memory_needs_workspace_bootstrap(&status);
             let show_global = memory_needs_global_bootstrap(&status);
             view! {
                 <div class="workbench-memory-bootstrap">
@@ -683,9 +701,24 @@ fn MemoryBootstrapCard(
 }
 
 fn bootstrap_memory_scope(state: MemoryState, target: &'static str) {
-    let Some(ws) = state.workspace_cwd.get_untracked() else {
-        return;
+    let ws = match target {
+        "workspace" => {
+            let Some(ws) = state.workspace_cwd.get_untracked() else {
+                return;
+            };
+            ws
+        }
+        "global" => memory_api_workspace_arg(state),
+        _ => {
+            let Some(ws) = state.workspace_cwd.get_untracked() else {
+                return;
+            };
+            ws
+        }
     };
+    if target == "workspace" && ws.trim().is_empty() {
+        return;
+    }
     spawn_local(async move {
         match tauri_bridge::memory_bootstrap(&ws, target).await {
             Ok(()) => {
@@ -982,7 +1015,14 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
     let new_note_category: RwSignal<Option<(MemoryScope, String)>> = RwSignal::new(None);
     let memory_stats = {
         let s = state.clone();
-        move || memory_files_stats_text(s.notes.get(), s.empty_categories.get())
+        move || {
+            memory_files_stats_text(
+                s.notes.get(),
+                s.empty_categories.get(),
+                s.global_subcategories.get(),
+                s.workspace_cwd.get().is_some(),
+            )
+        }
     };
     let centered = state.centered;
     let tree_width_min = if centered {
@@ -1217,36 +1257,38 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                     </button>
                 </div>
 
-                // ── Workspace (Projekt) section ──────────────────────────────
-                <div class="workbench-memory-files__scope-section">
-                    <div class="workbench-memory-files__scope-head">
-                        <span>"Projekt"</span>
-                        <button
-                            type="button"
-                            class="workbench-memory-files__scope-add"
-                            title=move || i18n.tr(I18nKey::MemNewNoteTitle)()
-                            aria-label=move || i18n.tr(I18nKey::MemNewNoteTitle)()
-                            on:click=move |_| {
-                                new_note_category.set(Some((
-                                    MemoryScope::Workspace,
-                                    CATEGORY_MEMORY.to_string(),
-                                )));
-                            }
-                        >
-                            <LxIcon icon=icondata::LuFilePlus width="0.75rem" height="0.75rem" />
-                        </button>
-                        <button
-                            type="button"
-                            class="workbench-memory-files__scope-add"
-                            title=move || i18n.tr(I18nKey::MemNewCategory)()
-                            aria-label=move || i18n.tr(I18nKey::MemNewCategory)()
-                            on:click=move |_| new_category_scope.set(Some(MemoryScope::Workspace))
-                        >
-                            <LxIcon icon=icondata::LuFolderPlus width="0.75rem" height="0.75rem" />
-                        </button>
+                <Show when=move || state.workspace_cwd.get().is_some()>
+                    // ── Workspace (Projekt) section ──────────────────────────────
+                    <div class="workbench-memory-files__scope-section">
+                        <div class="workbench-memory-files__scope-head">
+                            <span>"Projekt"</span>
+                            <button
+                                type="button"
+                                class="workbench-memory-files__scope-add"
+                                title=move || i18n.tr(I18nKey::MemNewNoteTitle)()
+                                aria-label=move || i18n.tr(I18nKey::MemNewNoteTitle)()
+                                on:click=move |_| {
+                                    new_note_category.set(Some((
+                                        MemoryScope::Workspace,
+                                        CATEGORY_MEMORY.to_string(),
+                                    )));
+                                }
+                            >
+                                <LxIcon icon=icondata::LuFilePlus width="0.75rem" height="0.75rem" />
+                            </button>
+                            <button
+                                type="button"
+                                class="workbench-memory-files__scope-add"
+                                title=move || i18n.tr(I18nKey::MemNewCategory)()
+                                aria-label=move || i18n.tr(I18nKey::MemNewCategory)()
+                                on:click=move |_| new_category_scope.set(Some(MemoryScope::Workspace))
+                            >
+                                <LxIcon icon=icondata::LuFolderPlus width="0.75rem" height="0.75rem" />
+                            </button>
+                        </div>
+                        {section(MemoryScope::Workspace)}
                     </div>
-                    {section(MemoryScope::Workspace)}
-                </div>
+                </Show>
 
                 // ── Global section ───────────────────────────────────────────
                 <div class="workbench-memory-files__scope-section">
@@ -1292,15 +1334,7 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                                         <button
                                             type="button"
                                             class="workbench-memory-files__global-init-btn"
-                                            on:click=move |_| {
-                                                let Some(ws) = st2.workspace_cwd.get_untracked() else { return };
-                                                let st3 = st2.clone();
-                                                spawn_local(async move {
-                                                    if tauri_bridge::memory_bootstrap(&ws, "global").await.is_ok() {
-                                                        load_notes(st3, ws);
-                                                    }
-                                                });
-                                            }
+                                            on:click=move |_| bootstrap_memory_scope(st2.clone(), "global")
                                         >
                                             <LxIcon icon=icondata::LuGlobe width="0.82rem" height="0.82rem" />
                                             " "
@@ -1440,7 +1474,10 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                                     let Ok(el) = t.dyn_into::<web_sys::HtmlTextAreaElement>() else { return };
                                     s.editor_content.set(el.value());
                                     s.editor_dirty.set(true);
-                                    if let Some(ws) = s.workspace_cwd.get_untracked() {
+                                    if let Some(ws) = memory_api_workspace_for_scope(
+                                        s,
+                                        &s.active_scope.get_untracked(),
+                                    ) {
                                         schedule_save(s.clone(), ws);
                                     }
                                 }
@@ -1475,8 +1512,7 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                                                         type="button"
                                                         class="workbench-memory-editor__backlink"
                                                         on:click=move |_| {
-                                                            let Some(ws) = s.workspace_cwd.get_untracked() else { return };
-                                                            load_note(s.clone(), ws, scope.clone(), path.clone());
+                                                            open_memory_note(s.clone(), scope.clone(), path.clone());
                                                         }
                                                     >{label}</button>
                                                 </li>
@@ -1570,11 +1606,11 @@ fn NewCategoryDialog(
             ));
             return;
         }
-        let Some(ws) = state.workspace_cwd.get_untracked() else {
+        let sc = scope.clone();
+        let Some(ws) = memory_api_workspace_for_scope(state, &sc) else {
             return;
         };
         let cat = trimmed.to_string();
-        let sc = scope.clone();
         let state2 = state.clone();
         spawn_local(async move {
             match tauri_bridge::memory_create_category(&ws, &sc, &cat).await {
@@ -1682,7 +1718,8 @@ fn NewNoteDialog(
             ));
             return;
         }
-        let Some(ws) = state.workspace_cwd.get_untracked() else {
+        let sc = scope.clone();
+        let Some(ws) = memory_api_workspace_for_scope(state, &sc) else {
             return;
         };
         let fname = slug_to_filename(trimmed);
@@ -1693,7 +1730,6 @@ fn NewNoteDialog(
         };
         let body = format!("# {}\n\n", strip_ext(&fname));
         let state2 = state.clone();
-        let sc = scope.clone();
         let cat = category_for_submit.clone();
         // Group key uses scope prefix for global notes.
         let group_key = match sc {
@@ -2193,16 +2229,18 @@ fn MemoryFileNoteListItem(
 ) -> impl IntoView {
     let path = note.path.clone();
     let expanded_note = note.clone();
-    let collapsed_note = note;
+    let collapsed_note = note.clone();
     let s_active = state.clone();
     let path_for_active = path.clone();
+    let scope_for_active = note.scope.clone();
     view! {
         <li
             class="workbench-memory-files__item"
             class:workbench-memory-files__item--nested=nested
             class:workbench-memory-files__item--collapsed=move || files_collapsed.get()
             class:workbench-memory-files__item--active=move || {
-                s_active.active_path.get().as_deref() == Some(path_for_active.as_str())
+                s_active.active_scope.get() == scope_for_active
+                    && s_active.active_path.get().as_deref() == Some(path_for_active.as_str())
             }
         >
             <Show
@@ -2258,10 +2296,7 @@ fn MemoryFileCollapsedRow(
                 }));
             }
             on:click=move |_| {
-                let Some(ws) = state.workspace_cwd.get_untracked() else {
-                    return;
-                };
-                load_note(state, ws, scope.clone(), path.clone());
+                open_memory_note(state, scope.clone(), path.clone());
             }
         >
             {badge}
@@ -2323,7 +2358,7 @@ fn MemoryFileExpandedRow(
                         class="workbench-memory-files__rename"
                         on:submit=move |ev: web_sys::SubmitEvent| {
                             ev.prevent_default();
-                            let Some(ws) = state.workspace_cwd.get_untracked() else {
+                            let Some(ws) = memory_api_workspace_for_scope(state, &scope_for_rename) else {
                                 return;
                             };
                             let v = rename_input.get_untracked();
@@ -2399,10 +2434,7 @@ fn MemoryFileExpandedRow(
                             }
                         }
                         on:click=move |_| {
-                            let Some(ws) = state.workspace_cwd.get_untracked() else {
-                                return;
-                            };
-                            load_note(state, ws, scope_for_open.clone(), path_for_select.clone());
+                            open_memory_note(state, scope_for_open.clone(), path_for_select.clone());
                         }
                     >
                         <span class="workbench-memory-files__name-text">{label.clone()}</span>
@@ -2425,7 +2457,7 @@ fn MemoryFileExpandedRow(
                         title=move || i18n.tr(I18nKey::MemDelete)()
                         disabled=move || managed_for_delete.is_some()
                         on:click=move |_| {
-                            let Some(ws) = state.workspace_cwd.get_untracked() else {
+                            let Some(ws) = memory_api_workspace_for_scope(state, &scope_for_del) else {
                                 return;
                             };
                             let p = path_for_del.clone();
@@ -2505,9 +2537,7 @@ fn MemoryContextMenuView(
                                     class="workspace-context-menu__item"
                                     on:click=move |_| {
                                         menu.set(None);
-                                        if let Some(ws) = current_workspace_cwd(wb) {
-                                            load_note(state, ws, open_scope.clone(), open_path.clone());
-                                        }
+                                        open_memory_note(state, open_scope.clone(), open_path.clone());
                                     }
                                 >"Open"</button>
                                 <button
@@ -2912,15 +2942,30 @@ fn memory_group_index_path(group: &MemoryNoteGroup) -> Option<String> {
         })
 }
 
-fn memory_files_stats_text(notes: Vec<NoteMeta>, empty_categories: Vec<String>) -> String {
+fn memory_files_stats_text(
+    notes: Vec<NoteMeta>,
+    empty_workspace_categories: Vec<String>,
+    empty_global_categories: Vec<String>,
+    has_workspace: bool,
+) -> String {
+    let scope = if has_workspace {
+        MemoryScope::Workspace
+    } else {
+        MemoryScope::Global
+    };
+    let empty_categories = if has_workspace {
+        empty_workspace_categories
+    } else {
+        empty_global_categories
+    };
     let file_count = notes
         .iter()
-        .filter(|note| note.scope == MemoryScope::Workspace && note.enabled && !note.is_template)
+        .filter(|note| note.scope == scope && note.enabled && !note.is_template)
         .count();
     let mut categories = HashSet::new();
     for note in notes
         .iter()
-        .filter(|note| note.scope == MemoryScope::Workspace && note.enabled && !note.is_template)
+        .filter(|note| note.scope == scope && note.enabled && !note.is_template)
     {
         let cat = category_for_path(&note.path);
         if cat != CATEGORY_MEMORY {
@@ -2960,9 +3005,7 @@ fn memory_open_group_index(
 ) {
     groups_open.update(|open| set_exclusive_open_group(open, &group_key));
     if let Some(path) = index_path {
-        if let Some(ws) = state.workspace_cwd.get_untracked() {
-            load_note(state, ws, scope, path);
-        }
+        open_memory_note(state, scope, path);
     } else {
         clear_memory_selection(state);
     }
@@ -3229,9 +3272,7 @@ fn MemorySearchView(state: MemoryState) -> impl IntoView {
                 if debounce_token.get_untracked() != token {
                     return;
                 }
-                let Some(ws) = s.workspace_cwd.get_untracked() else {
-                    return;
-                };
+                let ws = memory_api_workspace_arg(s);
                 if v.trim().is_empty() {
                     s.search_results.set(Vec::new());
                     return;
@@ -3322,9 +3363,8 @@ fn MemorySearchView(state: MemoryState) -> impl IntoView {
                                             let p = p.clone();
                                             let sc = scope.clone();
                                             move |_| {
-                                                let Some(ws) = s.workspace_cwd.get_untracked() else { return };
                                                 expand_files_group_for_path(s.clone(), &sc, &p);
-                                                load_note(s.clone(), ws, sc.clone(), p.clone());
+                                                open_memory_note(s.clone(), sc.clone(), p.clone());
                                                 s.view.set(MemoryView::Files);
                                             }
                                         }

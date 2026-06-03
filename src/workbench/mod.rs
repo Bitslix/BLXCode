@@ -95,8 +95,8 @@ pub use state::{
 };
 pub use theme_service::ThemeService;
 pub use update_service::{UpdateCheckSource, UpdateService, UpdateUiStatus};
-pub use workspace_panel::WorkspacePanel;
 pub use workspace_kanban::WorkspaceKanban;
+pub use workspace_panel::WorkspacePanel;
 pub use workspace_settings_pane::WorkspaceSettingsPane;
 
 use crate::boot_loading::{BootLoadingScreen, BootPhase};

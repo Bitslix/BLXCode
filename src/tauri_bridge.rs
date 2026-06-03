@@ -173,7 +173,11 @@ pub async fn mcp_export_cli_configs(workspace_root: String) -> Result<(), String
     struct Args {
         workspace_root: String,
     }
-    invoke_unit_js("mcp_export_cli_configs", args_value(Args { workspace_root })?).await
+    invoke_unit_js(
+        "mcp_export_cli_configs",
+        args_value(Args { workspace_root })?,
+    )
+    .await
 }
 
 #[derive(Debug, Clone, Deserialize)]

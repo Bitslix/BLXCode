@@ -42,9 +42,9 @@ impl McpClient {
     /// Connect + `initialize` handshake.
     pub async fn connect(server: &McpServer) -> Result<Self, String> {
         match &server.transport {
-            McpTransport::Stdio { command, args, env } => {
-                Ok(McpClient::Stdio(StdioClient::connect(command, args, env).await?))
-            }
+            McpTransport::Stdio { command, args, env } => Ok(McpClient::Stdio(
+                StdioClient::connect(command, args, env).await?,
+            )),
             McpTransport::Http { url, headers } => {
                 Ok(McpClient::Http(HttpClient::connect(url, headers).await?))
             }
@@ -373,7 +373,8 @@ mod tests {
 
     #[test]
     fn parses_sse_framed_http_body() {
-        let body = "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"ok\":true}}\n\n";
+        let body =
+            "event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"ok\":true}}\n\n";
         let msg = parse_http_body(body).unwrap();
         assert_eq!(msg["result"]["ok"], json!(true));
     }

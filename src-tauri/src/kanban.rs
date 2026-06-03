@@ -187,7 +187,10 @@ fn load_layout(root: &Path, workspace_cwd: &str) -> Result<KanbanLayout, String>
     let mut layout: KanbanLayout =
         serde_json::from_str(&raw).map_err(|e| format!("parse {}: {e}", path.display()))?;
     if layout.version != KANBAN_STORE_VERSION {
-        return Err(format!("unsupported kanban layout version: {}", layout.version));
+        return Err(format!(
+            "unsupported kanban layout version: {}",
+            layout.version
+        ));
     }
     normalize_layout(&mut layout, workspace_cwd);
     Ok(layout)
@@ -199,7 +202,11 @@ fn default_layout_for(workspace_cwd: &str) -> KanbanLayout {
     layout
 }
 
-fn write_layout(root: &Path, mut layout: KanbanLayout, workspace_cwd: &str) -> Result<KanbanLayout, String> {
+fn write_layout(
+    root: &Path,
+    mut layout: KanbanLayout,
+    workspace_cwd: &str,
+) -> Result<KanbanLayout, String> {
     normalize_layout(&mut layout, workspace_cwd);
     fs::create_dir_all(root).map_err(|e| format!("mkdir {}: {e}", root.display()))?;
     let path = index_path(root);
@@ -240,12 +247,7 @@ fn runtime_task_map(workspace_cwd: &str) -> HashMap<(String, String), String> {
             snapshot
                 .tasks
                 .into_iter()
-                .filter_map(|task| {
-                    Some((
-                        (task.plan_path?, task.plan_task_id?),
-                        task.id,
-                    ))
-                })
+                .filter_map(|task| Some(((task.plan_path?, task.plan_task_id?), task.id)))
                 .collect()
         })
         .unwrap_or_default()
@@ -265,9 +267,7 @@ pub fn kanban_board_load_inner(workspace_cwd: &str) -> Result<KanbanBoard, Strin
             let tasks = plans::parse_plan_tasks(&content)
                 .into_iter()
                 .map(|task| KanbanTaskCard {
-                    runtime_task_id: runtime
-                        .get(&(meta.path.clone(), task.id.clone()))
-                        .cloned(),
+                    runtime_task_id: runtime.get(&(meta.path.clone(), task.id.clone())).cloned(),
                     plan_path: meta.path.clone(),
                     id: task.id,
                     title: task.title,
@@ -307,7 +307,10 @@ pub fn kanban_layout_save_inner(
     write_layout(&root, layout, workspace_cwd)
 }
 
-fn read_plan_tasks(workspace_cwd: &str, plan_path: &str) -> Result<(String, Vec<PlanTask>), String> {
+fn read_plan_tasks(
+    workspace_cwd: &str,
+    plan_path: &str,
+) -> Result<(String, Vec<PlanTask>), String> {
     let content = plans::plan_read_inner(workspace_cwd, plan_path)?;
     if content.is_index {
         return Err("PLANS.md is the protected index and cannot be used as a kanban plan".into());
@@ -316,7 +319,12 @@ fn read_plan_tasks(workspace_cwd: &str, plan_path: &str) -> Result<(String, Vec<
     Ok((content.content, tasks))
 }
 
-fn write_plan_tasks(workspace_cwd: &str, plan_path: &str, body: &str, tasks: &[PlanTask]) -> Result<(), String> {
+fn write_plan_tasks(
+    workspace_cwd: &str,
+    plan_path: &str,
+    body: &str,
+    tasks: &[PlanTask],
+) -> Result<(), String> {
     let next = plans::rewrite_plan_tasks(body, tasks);
     plans::plan_write_inner(workspace_cwd, plan_path, &next)?;
     Ok(())
@@ -338,7 +346,11 @@ fn next_plan_task_id(tasks: &[PlanTask], title: &str) -> String {
         .take(5)
         .collect::<Vec<_>>()
         .join("-");
-    let base = if slug.is_empty() { "task".to_string() } else { slug };
+    let base = if slug.is_empty() {
+        "task".to_string()
+    } else {
+        slug
+    };
     if !tasks.iter().any(|task| task.id == base) {
         return base;
     }
@@ -387,7 +399,12 @@ pub fn kanban_task_update_inner(
     let Some(task) = tasks.iter_mut().find(|task| task.id == task_id) else {
         return Err(format!("task not found: {task_id}"));
     };
-    if let Some(title) = patch.title.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
+    if let Some(title) = patch
+        .title
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
         task.title = title.to_owned();
     }
     if let Some(status) = patch.status.clone() {

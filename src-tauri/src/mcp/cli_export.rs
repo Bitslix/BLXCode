@@ -32,7 +32,11 @@ fn config_rel_path(slug: &str) -> Option<&'static str> {
 /// Write the project-scoped MCP config for `slug` into `workspace_root`, merging
 /// with any pre-existing file. Returns the path written, or `None` when the CLI
 /// is unsupported. Disabled servers are skipped.
-pub fn export_for_cli(slug: &str, workspace_root: &Path, servers: &[McpServer]) -> Result<Option<PathBuf>, String> {
+pub fn export_for_cli(
+    slug: &str,
+    workspace_root: &Path,
+    servers: &[McpServer],
+) -> Result<Option<PathBuf>, String> {
     let Some(rel) = config_rel_path(slug) else {
         return Ok(None);
     };
@@ -57,10 +61,18 @@ pub fn export_for_cli(slug: &str, workspace_root: &Path, servers: &[McpServer]) 
 
 /// Export configs for every supported CLI. Best-effort: errors are collected
 /// and returned but do not stop the other exports.
-pub fn export_all(workspace_root: &Path, servers: &[McpServer]) -> Vec<(String, Result<Option<PathBuf>, String>)> {
+pub fn export_all(
+    workspace_root: &Path,
+    servers: &[McpServer],
+) -> Vec<(String, Result<Option<PathBuf>, String>)> {
     ["claude", "codex", "gemini", "opencode", "cursor"]
         .into_iter()
-        .map(|slug| (slug.to_string(), export_for_cli(slug, workspace_root, servers)))
+        .map(|slug| {
+            (
+                slug.to_string(),
+                export_for_cli(slug, workspace_root, servers),
+            )
+        })
         .collect()
 }
 
@@ -75,13 +87,18 @@ fn render_json(
     previous_keys: &[String],
 ) -> Result<String, String> {
     let mut root: Map<String, Value> = match existing {
-        Some(raw) if !raw.trim().is_empty() => serde_json::from_str(raw)
-            .map_err(|e| format!("parse existing {slug} config: {e}"))?,
+        Some(raw) if !raw.trim().is_empty() => {
+            serde_json::from_str(raw).map_err(|e| format!("parse existing {slug} config: {e}"))?
+        }
         _ => Map::new(),
     };
 
     // opencode nests servers under `mcp`; the others use `mcpServers`.
-    let section_key = if slug == "opencode" { "mcp" } else { "mcpServers" };
+    let section_key = if slug == "opencode" {
+        "mcp"
+    } else {
+        "mcpServers"
+    };
     let mut section: Map<String, Value> = root
         .get(section_key)
         .and_then(|v| v.as_object().cloned())
@@ -328,8 +345,15 @@ mod tests {
 
     #[test]
     fn previous_managed_keys_are_dropped_on_reexport() {
-        let existing = r#"{ "mcpServers": { "old": { "command": "x" }, "hand": { "command": "y" } } }"#;
-        let out = render_json("claude", &[&stdio_server("fs")], Some(existing), &["old".into()]).unwrap();
+        let existing =
+            r#"{ "mcpServers": { "old": { "command": "x" }, "hand": { "command": "y" } } }"#;
+        let out = render_json(
+            "claude",
+            &[&stdio_server("fs")],
+            Some(existing),
+            &["old".into()],
+        )
+        .unwrap();
         let v: Value = serde_json::from_str(&out).unwrap();
         assert!(v["mcpServers"].get("old").is_none()); // managed -> removed
         assert!(v["mcpServers"]["hand"].is_object()); // foreign -> kept
@@ -354,7 +378,8 @@ mod tests {
         assert!(out.contains("TOKEN = \"secret\""));
 
         let existing = "[some.other]\nkeep = true\n\n[mcp_servers.fs]\ncommand = \"old\"\n";
-        let out2 = render_codex_toml(&[&stdio_server("fs")], Some(existing), &["fs".into()]).unwrap();
+        let out2 =
+            render_codex_toml(&[&stdio_server("fs")], Some(existing), &["fs".into()]).unwrap();
         assert!(out2.contains("[some.other]"));
         assert!(out2.contains("keep = true"));
         assert_eq!(out2.matches("[mcp_servers.fs]").count(), 1);

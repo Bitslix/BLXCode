@@ -115,7 +115,11 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
             match result {
                 Ok(_) => {
                     new_task_title.set(String::new());
-                    toast.resolve(progress, ToastKind::Success, i18n.tr(I18nKey::KanbanTaskAdded)());
+                    toast.resolve(
+                        progress,
+                        ToastKind::Success,
+                        i18n.tr(I18nKey::KanbanTaskAdded)(),
+                    );
                     wb.bump_plans_epoch();
                 }
                 Err(err) => toast.resolve(progress, ToastKind::Error, err),
@@ -166,7 +170,10 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
         current.expanded_plans = expanded;
         spawn_local(async move {
             if let Err(err) = kanban_layout_save(&ws, current).await {
-                toast.error(format!("{}: {err}", i18n.tr(I18nKey::KanbanLayoutSaveFailed)()));
+                toast.error(format!(
+                    "{}: {err}",
+                    i18n.tr(I18nKey::KanbanLayoutSaveFailed)()
+                ));
             }
         });
     });

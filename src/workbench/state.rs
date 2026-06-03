@@ -567,7 +567,9 @@ fn ensure_workspace_pinned_tabs(workspace: &mut WorkspaceEntry) {
             .map(|idx| idx.saturating_add(1))
             .unwrap_or(0)
             .min(workspace.center_tabs.len());
-        workspace.center_tabs.insert(insert_at, CenterTab::terminals());
+        workspace
+            .center_tabs
+            .insert(insert_at, CenterTab::terminals());
     }
     workspace.center_tabs.sort_by_key(|tab| match tab.kind {
         CenterTabKind::Kanban => (0_u8, tab.id),

@@ -11,7 +11,8 @@ use crate::workbench::memory_graph::graph_glue::{
     graph3d_reset_view, graph3d_resize, graph3d_set_data, graph3d_zoom,
 };
 use crate::workbench::memory_panel::{
-    expand_files_group_for_path, load_note, refresh_graph, MemoryState, MemoryView,
+    expand_files_group_for_path, load_note, memory_api_workspace_arg, refresh_graph, MemoryState,
+    MemoryView,
 };
 use crate::workbench::ThemeService;
 use crate::workbench::WorkbenchService;
@@ -106,9 +107,7 @@ pub fn MemoryGraphView(state: MemoryState) -> impl IntoView {
             if state.view.get() != MemoryView::Graph {
                 return;
             }
-            let Some(ws) = state.workspace_cwd.get() else {
-                return;
-            };
+            let ws = state.workspace_cwd.get().unwrap_or_default();
             refresh_graph(state.clone(), ws);
         }
     });
@@ -882,7 +881,7 @@ fn GraphPreviewPopover(
                             title=move || i18n.tr(I18nKey::MemGraphOpenInFiles)()
                             aria-label=move || i18n.tr(I18nKey::MemGraphOpenInFiles)()
                             on:click=move |_| {
-                                let Some(ws) = state.workspace_cwd.get_untracked() else { return };
+                                let ws = memory_api_workspace_arg(state);
                                 let Some(path) = preview.path.get_untracked() else { return };
                                 let scope = preview.scope.get_untracked();
                                 expand_files_group_for_path(state.clone(), &scope, &path);
@@ -959,10 +958,7 @@ fn open_graph_preview(state: MemoryState, preview: GraphPreviewState, node_id: S
     preview.scope.set(scope.clone());
     preview.path.set(Some(path.clone()));
     preview.label.set(label_for_node_id(&state, &node_id));
-    let Some(ws) = state.workspace_cwd.get_untracked() else {
-        preview.loading.set(false);
-        return;
-    };
+    let ws = memory_api_workspace_arg(state);
     spawn_local(async move {
         TimeoutFuture::new(40).await;
         match tauri_bridge::memory_read(&ws, &scope, &path).await {
@@ -1302,7 +1298,6 @@ pub fn navigate_to_graph_node(state: MemoryState, scope: MemoryScope, path: Stri
     state.graph_focus_generation.update(|n| *n += 1);
     state.graph_prefer_3d.set(true);
     state.view.set(MemoryView::Graph);
-    if let Some(ws) = state.workspace_cwd.get_untracked() {
-        refresh_graph(state, ws);
-    }
+    let ws = memory_api_workspace_arg(state);
+    refresh_graph(state, ws);
 }

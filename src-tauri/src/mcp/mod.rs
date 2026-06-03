@@ -71,7 +71,11 @@ pub fn mcp_upsert(app: AppHandle, server: McpServer) -> Result<McpServer, String
         &app,
         "info",
         LOG_SRC,
-        if existed { "server_updated" } else { "server_added" },
+        if existed {
+            "server_updated"
+        } else {
+            "server_added"
+        },
         serde_json::json!({
             "id": normalized.id,
             "transport": normalized.transport.label(),

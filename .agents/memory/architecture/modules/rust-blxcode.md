@@ -19,8 +19,8 @@ Manual notes about this unit can live above or below the generated block.
 - Manifest: `src-tauri/Cargo.toml`
 - Root: `src-tauri`
 - Source root: `src-tauri/src`
-- Source files: 110
-- Root declarations: `agent`, `agent_hooks`, `agent_settings`, `agents_layout`, `api_keys`, `app_paths`, `browser_host`, `clipboard`, `commands`, `fs_entries`, `git_commit_ai`, `git_graph`, `git_info`, `git_remote`, `git_status`, `git_sync`, `image`, `media_keys`, `memory`, `plans`, `plans_index`, `pointers`, `proc`, `pty_host`, `skills_rules`, `ssh_exec`, `ssh_remotes`, `ssh_secrets`, `tasks`, `updater`, `voice`, `window_controls`, `workbench_state`, `workspace_presets`
+- Source files: 117
+- Root declarations: `agent`, `agent_hooks`, `agent_settings`, `agents_layout`, `api_keys`, `app_logging`, `app_paths`, `browser_host`, `clipboard`, `commands`, `fs_entries`, `git_commit_ai`, `git_graph`, `git_info`, `git_remote`, `git_status`, `git_sync`, `image`, `kanban`, `mcp`, `media_keys`, `memory`, `plans`, `plans_index`, `pointers`, `proc`, `pty_host`, `skills_rules`, `ssh_exec`, `ssh_remotes`, `ssh_secrets`, `tasks`, `updater`, `voice`, `window_controls`, `workbench_state`, `workspace_presets`
 
 ### Top-Level Modules
 
@@ -29,6 +29,7 @@ Manual notes about this unit can live above or below the generated block.
 - `agent_settings` (1 files)
 - `agents_layout` (1 files); declarations: `tests`
 - `api_keys` (1 files)
+- `app_logging` (1 files); declarations: `tests`
 - `app_paths` (1 files); declarations: `test_support`, `tests`
 - `browser_host` (1 files)
 - `clipboard` (1 files)
@@ -41,6 +42,8 @@ Manual notes about this unit can live above or below the generated block.
 - `git_status` (1 files); declarations: `tests`
 - `git_sync` (1 files); declarations: `tests`
 - `image` (4 files) — submodules: `commands`, `generate`, `settings`; declarations: `commands`, `generate`, `settings`, `tests`
+- `kanban` (1 files); declarations: `tests`
+- `mcp` (5 files) — submodules: `cli_export`, `client`, `registry`, `runtime`; declarations: `cli_export`, `client`, `registry`, `runtime`, `tests`
 - `media_keys` (1 files)
 - `memory` (23 files) — submodules: `architecture`, `frontmatter`, `graph`, `paths`, `store`, `types`, `wikilinks`; declarations: `architecture_guard_tests`, `cmake`, `common`, `detect`, `frontmatter`, `generic`, `go`, `graph`, `indexers`, `jai`, `make`, `node`, `paths`, `pointer_tests`, `python`, `rust`, `state`, `static_index`, `store`, `tests`, `types`, `unit`, `wikilinks`, `zig`; 15 deeper source files aggregated here
 - `plans` (1 files); declarations: `tests`
@@ -56,7 +59,7 @@ Manual notes about this unit can live above or below the generated block.
 - `updater` (1 files); declarations: `tests`
 - `voice` (14 files) — submodules: `commands`, `models`, `ptt`, `recorder`, `settings`, `stt`, `tts`; declarations: `catalog`, `cloud`, `collision`, `commands`, `imp`, `local_whisper`, `models`, `ptt`, `recorder`, `settings`, `stt`, `tests`, `tts`; 6 deeper source files aggregated here
 - `window_controls` (1 files)
-- `workbench_state` (1 files)
+- `workbench_state` (1 files); declarations: `tests`
 - `workspace_presets` (1 files); declarations: `tests`
 
 ### Source Paths
@@ -97,6 +100,7 @@ Manual notes about this unit can live above or below the generated block.
 - `src-tauri/src/agent_settings.rs`
 - `src-tauri/src/agents_layout.rs`
 - `src-tauri/src/api_keys.rs`
+- `src-tauri/src/app_logging.rs`
 - `src-tauri/src/app_paths.rs`
 - `src-tauri/src/browser_host.rs`
 - `src-tauri/src/clipboard.rs`
@@ -112,8 +116,14 @@ Manual notes about this unit can live above or below the generated block.
 - `src-tauri/src/image/generate.rs`
 - `src-tauri/src/image/mod.rs`
 - `src-tauri/src/image/settings.rs`
+- `src-tauri/src/kanban.rs`
 - `src-tauri/src/lib.rs`
 - `src-tauri/src/main.rs`
+- `src-tauri/src/mcp/cli_export.rs`
+- `src-tauri/src/mcp/client.rs`
+- `src-tauri/src/mcp/mod.rs`
+- `src-tauri/src/mcp/registry.rs`
+- `src-tauri/src/mcp/runtime.rs`
 - `src-tauri/src/media_keys.rs`
 - `src-tauri/src/memory/architecture/common.rs`
 - `src-tauri/src/memory/architecture/detect.rs`
@@ -134,14 +144,7 @@ Manual notes about this unit can live above or below the generated block.
 - `src-tauri/src/memory/frontmatter.rs`
 - `src-tauri/src/memory/graph.rs`
 - `src-tauri/src/memory/mod.rs`
-- `src-tauri/src/memory/paths.rs`
-- `src-tauri/src/memory/store.rs`
-- `src-tauri/src/memory/types.rs`
-- `src-tauri/src/memory/wikilinks.rs`
-- `src-tauri/src/plans.rs`
-- `src-tauri/src/plans_index.rs`
-- `src-tauri/src/pointers/mod.rs`
-- ... 30 more source paths omitted
+- ... 37 more source paths omitted
 <!-- architecture:static:end -->
 
 

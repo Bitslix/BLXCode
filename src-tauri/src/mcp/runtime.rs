@@ -207,7 +207,10 @@ mod tests {
 
     #[test]
     fn splits_qualified_names_including_dotted_tools() {
-        assert_eq!(split_qualified("mcp.fs.read_file"), Some(("fs", "read_file")));
+        assert_eq!(
+            split_qualified("mcp.fs.read_file"),
+            Some(("fs", "read_file"))
+        );
         assert_eq!(
             split_qualified("mcp.gh.repos.list"),
             Some(("gh", "repos.list"))
