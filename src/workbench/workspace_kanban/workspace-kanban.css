@@ -1,4 +1,8 @@
 .workspace-kanban {
+  --kanban-font: 0.78rem;
+  --kanban-font-title: 0.8rem;
+  --kanban-font-small: 0.72rem;
+  --kanban-font-label: 0.66rem;
   min-height: 0;
   height: 100%;
   display: flex;
@@ -44,8 +48,8 @@
 .workspace-kanban-field__label {
   min-height: 0.85rem;
   color: var(--text-muted);
-  font-size: 0.66rem;
-  font-weight: 700;
+  font-size: var(--kanban-font-label);
+  font-weight: 600;
   line-height: 1;
   text-transform: uppercase;
 }
@@ -56,8 +60,8 @@
   gap: 0.4rem;
   min-width: max-content;
   color: var(--text-bright);
-  font-weight: 700;
-  font-size: 0.86rem;
+  font-weight: 650;
+  font-size: var(--kanban-font-title);
 }
 
 .workspace-kanban__search {
@@ -84,7 +88,7 @@
   background: color-mix(in srgb, var(--bg-panel) 88%, var(--overlay-1));
   color: var(--text);
   font: inherit;
-  font-size: 0.78rem;
+  font-size: var(--kanban-font);
   outline: none;
   transition: border-color 0.14s ease, background 0.14s ease, box-shadow 0.14s ease;
 }
@@ -198,13 +202,13 @@
 
 .workspace-kanban-plan-picker__title {
   color: var(--text-bright);
-  font-size: 0.79rem;
-  font-weight: 700;
+  font-size: var(--kanban-font);
+  font-weight: 600;
 }
 
 .workspace-kanban-plan-picker__description {
   color: var(--text-muted);
-  font-size: 0.68rem;
+  font-size: var(--kanban-font-small);
 }
 
 .workspace-kanban-plan-picker__menu,
@@ -282,13 +286,13 @@
 
 .workspace-kanban-plan-picker__option-title {
   color: var(--text-bright);
-  font-size: 0.78rem;
-  font-weight: 650;
+  font-size: var(--kanban-font);
+  font-weight: 600;
 }
 
 .workspace-kanban-plan-picker__option-description {
   color: var(--text-muted);
-  font-size: 0.68rem;
+  font-size: var(--kanban-font-small);
 }
 
 .workspace-kanban__btn {
@@ -303,7 +307,7 @@
   background: var(--bg-panel);
   color: var(--text-muted);
   font: inherit;
-  font-size: 0.76rem;
+  font-size: var(--kanban-font);
   cursor: pointer;
 }
 
@@ -319,7 +323,7 @@
   background: var(--accent);
   min-height: var(--kanban-control-height, 2.5rem);
   padding-inline: 0.86rem;
-  font-weight: 700;
+  font-weight: 650;
   box-shadow: none;
 }
 
@@ -400,7 +404,8 @@
   padding: 0 0.7rem;
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--bg-panel-header) 90%, var(--overlay-1));
-  font-weight: 700;
+  font-size: var(--kanban-font-title);
+  font-weight: 600;
   position: relative;
 }
 
@@ -435,8 +440,8 @@
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--kanban-state) 13%, var(--overlay-2));
   color: color-mix(in srgb, var(--kanban-state) 70%, var(--text-muted));
-  font-size: 0.72rem;
-  font-weight: 800;
+  font-size: var(--kanban-font-small);
+  font-weight: 650;
 }
 
 .workspace-kanban-section__body {
@@ -504,18 +509,18 @@
 
 .workspace-kanban-plan__title {
   color: var(--text-bright);
-  font-weight: 700;
-  font-size: 0.82rem;
+  font-weight: 600;
+  font-size: var(--kanban-font-title);
 }
 
 .workspace-kanban-plan__path {
   color: var(--text-muted);
-  font-size: 0.7rem;
+  font-size: var(--kanban-font-small);
 }
 
 .workspace-kanban-plan__stats {
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: var(--kanban-font-small);
 }
 
 .workspace-kanban-plan__lanes {
@@ -565,8 +570,8 @@
   align-items: center;
   gap: 0.35rem;
   color: color-mix(in srgb, var(--kanban-lane) 66%, var(--text-muted));
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-size: var(--kanban-font-small);
+  font-weight: 600;
   text-transform: uppercase;
 }
 
@@ -608,7 +613,7 @@
   background: transparent;
   color: var(--text);
   font: inherit;
-  font-size: 0.76rem;
+  font-size: var(--kanban-font);
   text-align: left;
   cursor: text;
 }
@@ -623,7 +628,7 @@
   align-items: center;
   gap: 0.25rem;
   color: var(--text-faint);
-  font-size: 0.66rem;
+  font-size: var(--kanban-font-label);
 }
 
 .workspace-kanban-task__foot span {
@@ -656,7 +661,7 @@
 .workspace-kanban__hint,
 .workspace-kanban__empty {
   color: var(--text-muted);
-  font-size: 0.78rem;
+  font-size: var(--kanban-font);
 }
 
 .workspace-kanban__error {
