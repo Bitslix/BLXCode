@@ -904,16 +904,21 @@ fn WorkspaceEmptyState() -> impl IntoView {
                 </Show>
                 </ul>
             </div>
-            <ul class="workbench-shortcut-list">
-                <ShortcutActionRow icon=icondata::LuFolderSearch action=ShortcutAction::QuickOpen />
-                <ShortcutActionRow icon=icondata::LuFileSearch action=ShortcutAction::FindFile />
-                <ShortcutActionRow icon=icondata::LuPanelRight action=ShortcutAction::SidePanel />
-                <ShortcutActionRow icon=icondata::LuSparkles action=ShortcutAction::Agent />
-                <ShortcutActionRow icon=icondata::LuGlobe action=ShortcutAction::Browser />
-                <ShortcutActionRow icon=icondata::LuLayers action=ShortcutAction::Memory />
-                <ShortcutActionRow icon=icondata::LuTerminal action=ShortcutAction::Terminal />
-                <ShortcutActionRow icon=icondata::LuCommand action=ShortcutAction::CommandPalette />
-            </ul>
+            <div class="workbench-shortcut-wrap">
+                <ul class="workbench-shortcut-list" aria-label="Main destinations">
+                    <ShortcutActionRow icon=icondata::LuSparkles action=ShortcutAction::Agent />
+                    <ShortcutActionRow icon=icondata::LuLayers action=ShortcutAction::Memory />
+                    <ShortcutActionRow icon=icondata::LuGlobe action=ShortcutAction::Browser />
+                    <ComingSoonShortcutCard icon=icondata::LuClipboardList label="Kanban" />
+                </ul>
+                <ul class="workbench-shortcut-utility-list" aria-label="Utility shortcuts">
+                    <ShortcutUtilityRow icon=icondata::LuFolderSearch action=ShortcutAction::QuickOpen />
+                    <ShortcutUtilityRow icon=icondata::LuFileSearch action=ShortcutAction::FindFile />
+                    <ShortcutUtilityRow icon=icondata::LuPanelRight action=ShortcutAction::SidePanel />
+                    <ShortcutUtilityRow icon=icondata::LuTerminal action=ShortcutAction::Terminal />
+                    <ShortcutUtilityRow icon=icondata::LuCommand action=ShortcutAction::CommandPalette />
+                </ul>
+            </div>
         </div>
     }
 }
@@ -952,6 +957,62 @@ fn ShortcutActionRow(icon: icondata::Icon, action: ShortcutAction) -> impl IntoV
                         }}
                     </kbd>
                 </span>
+            </button>
+        </li>
+    }
+}
+
+#[component]
+fn ComingSoonShortcutCard(icon: icondata::Icon, label: &'static str) -> impl IntoView {
+    view! {
+        <li class="workbench-shortcut-li">
+            <button
+                type="button"
+                class="workbench-shortcut-row workbench-shortcut-row--action workbench-shortcut-row--disabled"
+                disabled
+            >
+                <span class="workbench-shortcut-row__lead">
+                    <span class="workbench-shortcut-row__icon-wrap" aria-hidden="true">
+                        <LxIcon icon=icon width="0.92rem" height="0.92rem" />
+                    </span>
+                    <span class="workbench-shortcut-row__label">{label}</span>
+                </span>
+                <span class="workbench-shortcut-row__soon">"coming soon"</span>
+            </button>
+        </li>
+    }
+}
+
+#[component]
+fn ShortcutUtilityRow(icon: icondata::Icon, action: ShortcutAction) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let prefs = expect_context::<AppPrefsService>();
+    let ui = expect_context::<HarnessUiService>();
+    let wb = expect_context::<WorkbenchService>();
+    let embed = expect_context::<BrowserEmbedSurface>();
+    let label = action.label_key();
+    view! {
+        <li class="workbench-shortcut-utility-li">
+            <button
+                type="button"
+                class="workbench-shortcut-utility"
+                on:click=move |_| {
+                    if let Some(harness) = action.to_harness_action() {
+                        dispatch_shortcut_action(harness, ui, wb, embed);
+                    }
+                }
+            >
+                <span class="workbench-shortcut-utility__lead">
+                    <LxIcon icon=icon width="0.72rem" height="0.72rem" />
+                    <span>{move || i18n.tr(label)()}</span>
+                </span>
+                <kbd class="workbench-kbd workbench-kbd--utility">
+                    {move || {
+                        let cfg = prefs.shortcut_config().get();
+                        let then = lookup(i18n.locale().get(), I18nKey::WsKwThen);
+                        cfg.binding(action).display(&cfg.prefix, then)
+                    }}
+                </kbd>
             </button>
         </li>
     }
