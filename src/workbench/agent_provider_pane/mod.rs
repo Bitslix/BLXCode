@@ -3,15 +3,15 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_provider_models, agent_settings_get, agent_settings_save, agent_validate_nickname,
-    agent_web_settings_get, agent_web_settings_save, is_tauri_shell, AgentOrbMode,
-    AgentProviderKind, AgentProviderSettingsView, AgentWebSettingsView, ProviderModelEntry,
-    ProviderModelsResponse, ThinkingLevel, WebProviderKind, DEFAULT_AUTO_COMPACT_THRESHOLD_PCT,
-    DEFAULT_TOOL_LOOP_LIMIT, MAX_AUTO_COMPACT_THRESHOLD_PCT, MAX_TOOL_LOOP_LIMIT,
-    MIN_AUTO_COMPACT_THRESHOLD_PCT, MIN_TOOL_LOOP_LIMIT,
+    agent_provider_models, agent_session_roles_list, agent_settings_get, agent_settings_save,
+    agent_validate_nickname, agent_web_settings_get, agent_web_settings_save, is_tauri_shell,
+    AgentOrbMode, AgentProviderKind, AgentProviderSettingsView, AgentWebSettingsView,
+    ProviderModelEntry, ProviderModelsResponse, SessionRoleView, ThinkingLevel, WebProviderKind,
+    DEFAULT_AUTO_COMPACT_THRESHOLD_PCT, DEFAULT_TOOL_LOOP_LIMIT, MAX_AUTO_COMPACT_THRESHOLD_PCT,
+    MAX_TOOL_LOOP_LIMIT, MIN_AUTO_COMPACT_THRESHOLD_PCT, MIN_TOOL_LOOP_LIMIT,
 };
 use crate::workbench::agent_model_picker::AgentModelPicker;
-use crate::workbench::SettingsPaneHeader;
+use crate::workbench::{SessionRolePicker, SettingsPaneHeader, WorkbenchService};
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
@@ -27,6 +27,7 @@ struct AgentSettingsBaseline {
     auto_compact_threshold_pct: u8,
     orb_mode: AgentOrbMode,
     agent_nickname: String,
+    default_session_role: Option<String>,
     web_provider: WebProviderKind,
 }
 
@@ -445,6 +446,7 @@ fn ThinkingLevelPicker(selected: RwSignal<ThinkingLevel>) -> impl IntoView {
 #[component]
 pub fn AgentProviderPane() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let wb = expect_context::<WorkbenchService>();
     let settings: RwSignal<Option<AgentProviderSettingsView>> = RwSignal::new(None);
     let selected_provider = RwSignal::new(AgentProviderKind::Openrouter);
     let custom_model = RwSignal::new(String::new());
@@ -454,6 +456,8 @@ pub fn AgentProviderPane() -> impl IntoView {
     let auto_compact_threshold = RwSignal::new(DEFAULT_AUTO_COMPACT_THRESHOLD_PCT);
     let orb_mode = RwSignal::new(AgentOrbMode::ThreeD);
     let nickname = RwSignal::new(String::new());
+    let default_session_role: RwSignal<Option<String>> = RwSignal::new(None);
+    let session_roles: RwSignal<Vec<SessionRoleView>> = RwSignal::new(Vec::new());
     let nickname_error: RwSignal<Option<I18nKey>> = RwSignal::new(None);
     let model_entries: RwSignal<Vec<ProviderModelEntry>> = RwSignal::new(Vec::new());
     let models_source = RwSignal::new(String::new());
@@ -473,6 +477,7 @@ pub fn AgentProviderPane() -> impl IntoView {
         auto_compact_threshold_pct: DEFAULT_AUTO_COMPACT_THRESHOLD_PCT,
         orb_mode: AgentOrbMode::ThreeD,
         agent_nickname: String::new(),
+        default_session_role: None,
         web_provider: WebProviderKind::None,
     });
 
@@ -486,6 +491,7 @@ pub fn AgentProviderPane() -> impl IntoView {
             || auto_compact_threshold.get() != b.auto_compact_threshold_pct
             || orb_mode.get() != b.orb_mode
             || nickname.get() != b.agent_nickname
+            || default_session_role.get() != b.default_session_role
             || web_provider.get() != b.web_provider
     });
 
@@ -498,6 +504,7 @@ pub fn AgentProviderPane() -> impl IntoView {
         auto_compact_threshold_pct: auto_compact_threshold.get_untracked(),
         orb_mode: orb_mode.get_untracked(),
         agent_nickname: nickname.get_untracked(),
+        default_session_role: default_session_role.get_untracked(),
         web_provider: web_provider.get_untracked(),
     };
 
@@ -510,6 +517,8 @@ pub fn AgentProviderPane() -> impl IntoView {
         auto_compact_threshold.set(view.auto_compact_threshold_pct);
         orb_mode.set(view.orb_mode);
         nickname.set(view.agent_nickname.clone());
+        default_session_role.set(view.default_session_role.clone());
+        wb.set_default_session_role(view.default_session_role.clone());
         nickname_error.set(None);
         model_entries.set(provider_cache(&view, view.provider));
         settings.set(Some(view));
@@ -522,6 +531,7 @@ pub fn AgentProviderPane() -> impl IntoView {
             b.auto_compact_threshold_pct = auto_compact_threshold.get_untracked();
             b.orb_mode = orb_mode.get_untracked();
             b.agent_nickname = nickname.get_untracked();
+            b.default_session_role = default_session_role.get_untracked();
         });
     };
 
@@ -537,6 +547,9 @@ pub fn AgentProviderPane() -> impl IntoView {
             return;
         }
         leptos::task::spawn_local(async move {
+            if let Ok(list) = agent_session_roles_list().await {
+                session_roles.set(list);
+            }
             match agent_settings_get().await {
                 Ok(view) => {
                     error_msg.set(None);
@@ -611,9 +624,7 @@ pub fn AgentProviderPane() -> impl IntoView {
         let orb = orb_mode.get_untracked();
         let nick = nickname.get_untracked();
         let web = web_provider.get_untracked();
-        let default_session_role = settings
-            .get_untracked()
-            .and_then(|view| view.default_session_role.clone());
+        let role = default_session_role.get_untracked();
         leptos::task::spawn_local(async move {
             let mut err: Option<String> = None;
             match agent_settings_save(
@@ -625,7 +636,7 @@ pub fn AgentProviderPane() -> impl IntoView {
                 ac_threshold,
                 orb,
                 nick,
-                default_session_role,
+                role,
             )
             .await
             {
@@ -705,6 +716,26 @@ pub fn AgentProviderPane() -> impl IntoView {
                                     {move || nickname_error.get().map(|k| i18n.tr(k)()).unwrap_or_default()}
                                 </small>
                             </Show>
+                        </label>
+                        <label class="agent-provider-pane__field">
+                            <span class="harness-field-label">
+                                <span class="harness-field-label__icon" aria-hidden="true">
+                                    <LxIcon icon=icondata::LuSparkles width="0.82rem" height="0.82rem" />
+                                </span>
+                                <span class="harness-field-label__text">{move || i18n.tr(I18nKey::WzSessionRoleLabel)()}</span>
+                            </span>
+                            <SessionRolePicker
+                                id="agent-settings-default-role-picker".to_string()
+                                roles=Signal::derive(move || session_roles.get())
+                                selected=Signal::derive(move || default_session_role.get())
+                                on_select=Callback::new(move |role: Option<String>| {
+                                    default_session_role.set(role.clone());
+                                    wb.set_default_session_role(role);
+                                })
+                            />
+                            <small class="harness-muted agent-provider-pane__field-hint">
+                                "Default role for newly-created workspaces."
+                            </small>
                         </label>
                         <label class="agent-provider-pane__field">
                             <span class="harness-field-label">

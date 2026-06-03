@@ -9,7 +9,11 @@ use super::state::{BrowserEmbedSurface, WorkbenchService};
 use crate::config::HARNESS_BROWSER_DEFAULT_URL;
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::workbench::SettingsPaneHeader;
+use crate::tauri_bridge::{
+    agent_session_roles_list, agent_settings_get, agent_settings_save, is_tauri_shell,
+    SessionRoleView,
+};
+use crate::workbench::{SessionRolePicker, SettingsPaneHeader};
 use category_colors::WorkspaceCategoryColorsSection;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
@@ -23,6 +27,7 @@ struct WorkspaceBaseline {
     sandbox_root: String,
     browser_url: String,
     architecture_llm_prose: bool,
+    default_session_role: Option<String>,
 }
 
 fn input_str(ev: &web_sys::Event) -> Option<String> {
@@ -50,6 +55,7 @@ fn snapshot_baseline(wb: &WorkbenchService) -> WorkspaceBaseline {
         sandbox_root: wb.harness_workspace_root().get_untracked(),
         browser_url: wb.browser_url().get_untracked(),
         architecture_llm_prose,
+        default_session_role: wb.default_session_role().get_untracked(),
     }
 }
 
@@ -73,7 +79,9 @@ pub fn WorkspaceSettingsPane(wb: WorkbenchService, embed: BrowserEmbedSurface) -
     let prefs = expect_context::<AppPrefsService>();
     let baseline = RwSignal::new(snapshot_baseline(&wb));
     let status_msg = RwSignal::new(None::<String>);
+    let error_msg = RwSignal::new(None::<String>);
     let busy = RwSignal::new(false);
+    let session_roles: RwSignal<Vec<SessionRoleView>> = RwSignal::new(Vec::new());
 
     let dirty = Memo::new(move |_| {
         let b = baseline.get();
@@ -86,6 +94,22 @@ pub fn WorkspaceSettingsPane(wb: WorkbenchService, embed: BrowserEmbedSurface) -
             || wb.harness_workspace_root().get() != b.sandbox_root
             || wb.browser_url().get() != b.browser_url
             || architecture_llm_prose != b.architecture_llm_prose
+            || wb.default_session_role().get() != b.default_session_role
+    });
+
+    Effect::new(move |_| {
+        if !is_tauri_shell() {
+            return;
+        }
+        leptos::task::spawn_local(async move {
+            if let Ok(list) = agent_session_roles_list().await {
+                session_roles.set(list);
+            }
+            if let Ok(view) = agent_settings_get().await {
+                wb.set_default_session_role(view.default_session_role);
+                baseline.set(snapshot_baseline(&wb));
+            }
+        });
     });
 
     let save = move || {
@@ -94,6 +118,7 @@ pub fn WorkspaceSettingsPane(wb: WorkbenchService, embed: BrowserEmbedSurface) -
         }
         busy.set(true);
         status_msg.set(None);
+        error_msg.set(None);
         let b = baseline.get_untracked();
         let project = wb.default_project_dir().get_untracked().trim().to_owned();
         let sandbox = wb
@@ -126,9 +151,42 @@ pub fn WorkspaceSettingsPane(wb: WorkbenchService, embed: BrowserEmbedSurface) -
             }
         }
 
-        baseline.set(snapshot_baseline(&wb));
-        status_msg.set(Some(i18n.tr(I18nKey::ApiKeysSaved)().to_string()));
-        busy.set(false);
+        let role_changed = wb.default_session_role().get_untracked() != b.default_session_role;
+        if role_changed {
+            let role = wb.default_session_role().get_untracked();
+            leptos::task::spawn_local(async move {
+                match agent_settings_get().await {
+                    Ok(view) => {
+                        let result = agent_settings_save(
+                            view.provider,
+                            view.model_id,
+                            view.thinking_level,
+                            view.tool_loop_limit,
+                            view.auto_compact_enabled,
+                            view.auto_compact_threshold_pct,
+                            view.orb_mode,
+                            view.agent_nickname,
+                            role,
+                        )
+                        .await;
+                        match result {
+                            Ok(view) => {
+                                wb.set_default_session_role(view.default_session_role);
+                                baseline.set(snapshot_baseline(&wb));
+                                status_msg.set(Some(i18n.tr(I18nKey::ApiKeysSaved)().to_string()));
+                            }
+                            Err(err) => error_msg.set(Some(err)),
+                        }
+                    }
+                    Err(err) => error_msg.set(Some(err)),
+                }
+                busy.set(false);
+            });
+        } else {
+            baseline.set(snapshot_baseline(&wb));
+            status_msg.set(Some(i18n.tr(I18nKey::ApiKeysSaved)().to_string()));
+            busy.set(false);
+        }
     };
 
     let discard = move || {
@@ -139,6 +197,7 @@ pub fn WorkspaceSettingsPane(wb: WorkbenchService, embed: BrowserEmbedSurface) -
         wb.set_default_project_dir_text(b.project_dir);
         wb.set_harness_workspace_root_text(b.sandbox_root);
         wb.set_browser_url_text(b.browser_url);
+        wb.set_default_session_role(b.default_session_role);
         if let Some(id) = wb.active_id().get_untracked() {
             wb.set_workspace_architecture_llm_prose(id, b.architecture_llm_prose);
         }
@@ -278,6 +337,26 @@ pub fn WorkspaceSettingsPane(wb: WorkbenchService, embed: BrowserEmbedSurface) -
 
             <TerminalNamingSection />
 
+            <section class="harness-subpane">
+                <h4 class="harness-pane-subhead">
+                    <span class="harness-pane-subhead__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuSparkles width="0.82rem" height="0.82rem" />
+                    </span>
+                    <span class="harness-pane-subhead__text">{move || i18n.tr(I18nKey::WzSessionRoleLabel)()}</span>
+                </h4>
+                <SessionRolePicker
+                    id="workspace-settings-default-role-picker".to_string()
+                    roles=Signal::derive(move || session_roles.get())
+                    selected=Signal::derive(move || wb.default_session_role().get())
+                    on_select=Callback::new(move |role| {
+                        wb.set_default_session_role(role);
+                    })
+                />
+                <p class="app-prefs-hint">
+                    "Diese Auswahl ändert dieselbe Default-Role wie in Settings -> Agent und überschreibt dort die Auswahl."
+                </p>
+            </section>
+
             <WorkspaceCategoryColorsSection wb=wb />
 
             <section class="harness-subpane">
@@ -307,6 +386,9 @@ pub fn WorkspaceSettingsPane(wb: WorkbenchService, embed: BrowserEmbedSurface) -
 
             <Show when=move || status_msg.with(|m| m.is_some())>
                 <p class="harness-status">{move || status_msg.get().unwrap_or_default()}</p>
+            </Show>
+            <Show when=move || error_msg.with(|m| m.is_some())>
+                <p class="harness-error-text">{move || error_msg.get().unwrap_or_default()}</p>
             </Show>
 
             <footer class="settings-pane-footer harness-row-gap">

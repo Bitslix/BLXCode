@@ -1263,6 +1263,10 @@ pub struct WorkbenchService {
     /// cwds. Sandbox path above is reserved for BLXCode Agent sandbox
     /// actions only; this is what regular workspaces start from.
     default_project_dir: RwSignal<String>,
+    /// Global default BLXCode harness session-role slug for newly-created
+    /// workspaces. Persisted in agent provider settings, mirrored here so
+    /// Settings panes and the workspace wizard share one reactive value.
+    default_session_role: RwSignal<Option<String>>,
     workspace_next_id: RwSignal<u64>,
     /// Drafts for workspaces currently in inline-configuration mode,
     /// keyed by workspace id. Entries are removed on commit or cancel.
@@ -1418,6 +1422,7 @@ impl WorkbenchService {
             embedded_browser_next_id: RwSignal::new(first_tab_id + 1),
             harness_workspace_root: RwSignal::new(harness_workspace_root),
             default_project_dir: RwSignal::new(default_project_dir),
+            default_session_role: RwSignal::new(None),
             workspace_next_id: RwSignal::new(1),
             workspace_drafts: RwSignal::new(HashMap::new()),
             workspace_config_steps: RwSignal::new(HashMap::new()),
@@ -1456,6 +1461,22 @@ impl WorkbenchService {
 
     pub fn notifications(&self) -> RwSignal<HashMap<String, u32>> {
         self.notifications
+    }
+
+    pub fn default_session_role(&self) -> RwSignal<Option<String>> {
+        self.default_session_role
+    }
+
+    pub fn set_default_session_role(&self, role: Option<String>) {
+        let normalized = role.and_then(|value| {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        });
+        self.default_session_role.set(normalized);
     }
 
     pub fn agent_notifications(&self) -> RwSignal<Vec<AgentNotification>> {

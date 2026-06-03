@@ -566,6 +566,7 @@ pub fn WorkbenchShell() -> impl IntoView {
             match agent_settings_get().await {
                 Ok(view) => {
                     let should_open = !view.onboarding_seen;
+                    wb.set_default_session_role(view.default_session_role.clone());
                     agent_onboarding_settings.set(Some(view));
                     if should_open {
                         agent_onboarding_open.set(true);
@@ -922,7 +923,8 @@ pub fn WorkbenchShell() -> impl IntoView {
             <AgentOnboardingDialog
                 open=agent_onboarding_open
                 settings=agent_onboarding_settings
-                on_complete=Callback::new(move |view| {
+                on_complete=Callback::new(move |view: AgentProviderSettingsView| {
+                    wb.set_default_session_role(view.default_session_role.clone());
                     agent_onboarding_settings.set(Some(view));
                 })
             />
