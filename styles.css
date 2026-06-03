@@ -156,7 +156,7 @@ body {
   gap: 0.5rem;
   padding: 0 0.6rem;
   border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg-panel-header) 84%, var(--bg-app));
+  background: var(--bg-raised);
   color: var(--text-muted);
   font-family: var(--font-mono);
   font-size: 0.72rem;
