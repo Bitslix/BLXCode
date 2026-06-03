@@ -1,6 +1,15 @@
 {
   "version": 1,
   "skills": {
+    "caveman": {
+      "enabled": true,
+      "source": {
+        "kind": "local"
+      },
+      "installedAt": "2026-05-29T17:40:30Z",
+      "updatedAt": "2026-06-03T17:14:36Z",
+      "category": "workflow"
+    },
     "create-agentsmd": {
       "enabled": true,
       "source": {
@@ -9,6 +18,15 @@
       "installedAt": "2026-05-20T11:32:10Z",
       "updatedAt": "2026-05-20T11:32:10Z",
       "category": "docs"
+    },
+    "diagnose": {
+      "enabled": true,
+      "source": {
+        "kind": "local"
+      },
+      "installedAt": "2026-05-29T17:40:30Z",
+      "updatedAt": "2026-06-03T17:14:36Z",
+      "category": "debugging"
     },
     "frontend-design": {
       "enabled": true,
@@ -27,6 +45,33 @@
       "installedAt": "2026-05-20T11:32:10Z",
       "updatedAt": "2026-05-20T11:32:10Z",
       "category": "media"
+    },
+    "grill-me": {
+      "enabled": true,
+      "source": {
+        "kind": "local"
+      },
+      "installedAt": "2026-05-29T17:40:30Z",
+      "updatedAt": "2026-06-03T17:14:36Z",
+      "category": "workflow"
+    },
+    "handoff": {
+      "enabled": true,
+      "source": {
+        "kind": "local"
+      },
+      "installedAt": "2026-05-29T17:40:30Z",
+      "updatedAt": "2026-06-03T17:14:36Z",
+      "category": "workflow"
+    },
+    "improve-codebase-architecture": {
+      "enabled": true,
+      "source": {
+        "kind": "local"
+      },
+      "installedAt": "2026-05-29T17:40:30Z",
+      "updatedAt": "2026-06-03T17:14:36Z",
+      "category": "architecture"
     },
     "leptos-guide": {
       "enabled": true,
@@ -64,15 +109,6 @@
       "updatedAt": "2026-05-20T11:32:10Z",
       "category": "rust"
     },
-    "tauri-v2": {
-      "enabled": true,
-      "source": {
-        "kind": "local"
-      },
-      "installedAt": "2026-05-20T11:32:10Z",
-      "updatedAt": "2026-05-20T11:32:10Z",
-      "category": "tauri"
-    },
     "rust-patterns": {
       "enabled": true,
       "source": {
@@ -90,6 +126,15 @@
       "installedAt": "2026-05-20T11:32:10Z",
       "updatedAt": "2026-05-20T11:32:10Z",
       "category": "rust"
+    },
+    "tauri-v2": {
+      "enabled": true,
+      "source": {
+        "kind": "local"
+      },
+      "installedAt": "2026-05-20T11:32:10Z",
+      "updatedAt": "2026-05-20T11:32:10Z",
+      "category": "tauri"
     }
   }
 }

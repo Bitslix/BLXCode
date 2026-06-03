@@ -69,11 +69,15 @@ pub fn NavigateMenu() -> impl IntoView {
         }
         open.set(false);
     };
-    let open_kanban = move |_| {
-        if let Some(id) = wb.active_id().get_untracked() {
-            wb.open_center_kanban_tab(id);
-        }
+    let open_kanban_for_workspace = move |id: u64| {
+        wb.select_workspace(id);
+        wb.open_center_kanban_tab(id);
         open.set(false);
+    };
+    let open_active_kanban = move |_| {
+        if let Some(id) = wb.active_id().get_untracked() {
+            open_kanban_for_workspace(id);
+        }
     };
     let new_terminal = move |_| {
         if let Some(id) = wb.active_id().get_untracked() {
@@ -155,23 +159,66 @@ pub fn NavigateMenu() -> impl IntoView {
                         </span>
                     </button>
                     <div class="app-titlebar__menu-sep" role="separator"></div>
-                    <button
-                        type="button"
-                        class="app-titlebar__menu-item"
-                        role="menuitem"
-                        disabled=move || !has_workspace()
-                        on:click=open_kanban
+                    <div
+                        class="app-titlebar__submenu"
+                        class:app-titlebar__submenu--disabled=move || !has_workspace()
+                        role="none"
                     >
-                        <LxIcon icon=icondata::LuKanban width="0.95rem" height="0.95rem" />
-                        <span class="app-titlebar__menu-item-label">
-                            <span>{move || i18n.tr(I18nKey::KanbanTitle)()}</span>
-                            <Show when=move || active_workspace_label.get().is_some()>
-                                <span class="app-titlebar__menu-item-workspace">
-                                    {move || active_workspace_label.get().map(|title| format!("({title})"))}
-                                </span>
-                            </Show>
-                        </span>
-                    </button>
+                        <button
+                            type="button"
+                            class="app-titlebar__menu-item app-titlebar__menu-item--submenu"
+                            role="menuitem"
+                            aria-haspopup="menu"
+                            disabled=move || !has_workspace()
+                            on:click=open_active_kanban
+                        >
+                            <LxIcon icon=icondata::LuKanban width="0.95rem" height="0.95rem" />
+                            <span class="app-titlebar__menu-item-label">
+                                <span>{move || i18n.tr(I18nKey::KanbanTitle)()}</span>
+                                <Show when=move || active_workspace_label.get().is_some()>
+                                    <span class="app-titlebar__menu-item-workspace">
+                                        {move || active_workspace_label.get().map(|title| format!("({title})"))}
+                                    </span>
+                                </Show>
+                            </span>
+                            <span class="app-titlebar__menu-item-caret" aria-hidden="true">
+                                <LxIcon icon=icondata::LuChevronRight width="0.85rem" height="0.85rem" />
+                            </span>
+                        </button>
+                        <Show when=move || has_workspace()>
+                            <div class="app-titlebar__submenu-panel" role="menu">
+                                <For
+                                    each=move || wb.workspaces().get()
+                                    key=|workspace| workspace.id
+                                    children=move |workspace| {
+                                        let id = workspace.id;
+                                        let title = workspace_menu_title(&workspace.title, workspace.id);
+                                        let tooltip = title.clone();
+                                        view! {
+                                            <button
+                                                type="button"
+                                                class="app-titlebar__submenu-item"
+                                                class:app-titlebar__submenu-item--active=move || wb.active_id().get() == Some(id)
+                                                role="menuitem"
+                                                title=tooltip
+                                                on:click=move |ev| {
+                                                    ev.stop_propagation();
+                                                    open_kanban_for_workspace(id);
+                                                }
+                                            >
+                                                <span class="app-titlebar__submenu-check" aria-hidden="true">
+                                                    <Show when=move || wb.active_id().get() == Some(id)>
+                                                        <LxIcon icon=icondata::LuCheck width="0.8rem" height="0.8rem" />
+                                                    </Show>
+                                                </span>
+                                                <span class="app-titlebar__submenu-label">{title}</span>
+                                            </button>
+                                        }
+                                    }
+                                />
+                            </div>
+                        </Show>
+                    </div>
                     <button
                         type="button"
                         class="app-titlebar__menu-item"
@@ -221,5 +268,14 @@ pub fn NavigateMenu() -> impl IntoView {
                 </div>
             </Show>
         </div>
+    }
+}
+
+fn workspace_menu_title(title: &str, id: u64) -> String {
+    let title = title.trim();
+    if title.is_empty() {
+        format!("Workspace {id}")
+    } else {
+        title.to_string()
     }
 }

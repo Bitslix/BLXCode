@@ -10,10 +10,7 @@
     "empty"
   ],
   "collapsedPlanSections": [],
-  "expandedPlans": [
-    "agent-plan-status-lifecycle.md",
-    "ai-plan-task-generation.md"
-  ],
+  "expandedPlans": [],
   "taskLaneOrder": [
     "pending",
     "in_progress",
@@ -30,5 +27,5 @@
     "showCancelled": true,
     "activeOnly": false
   },
-  "updatedAt": 1780505484
+  "updatedAt": 1780507217
 }
