@@ -463,11 +463,16 @@ pub fn WorkbenchShell() -> impl IntoView {
     });
 
     let update_background_started = RwSignal::new(false);
+    let update_settings_loaded = RwSignal::new(false);
     Effect::new(move |_| {
         if !hydrated.get() || update_background_started.get_untracked() {
             return;
         }
         update_background_started.set(true);
+        if !update_settings_loaded.get_untracked() {
+            update_settings_loaded.set(true);
+            updates.load_settings();
+        }
         spawn_local(async move {
             let mut first = true;
             loop {

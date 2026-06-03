@@ -1,7 +1,7 @@
 use crate::tauri_bridge::{
     app_relaunch, app_version, is_tauri_shell, post_update_release_notes, updater_check,
-    updater_install_start, updater_poll_progress, PostUpdateReleaseNotesResponse,
-    UpdateCheckResponse, UpdateProgress,
+    updater_install_start, updater_poll_progress, updater_settings_get, updater_settings_save,
+    PostUpdateReleaseNotesResponse, UpdateChannel, UpdateCheckResponse, UpdateProgress,
 };
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
@@ -11,6 +11,7 @@ use leptos::task::spawn_local;
 pub struct UpdateService {
     status: RwSignal<UpdateUiStatus>,
     check_source: RwSignal<UpdateCheckSource>,
+    channel: RwSignal<UpdateChannel>,
     current_version: RwSignal<String>,
     available_version: RwSignal<Option<String>>,
     notes: RwSignal<Option<String>>,
@@ -62,6 +63,7 @@ impl UpdateService {
         Self {
             status: RwSignal::new(UpdateUiStatus::Idle),
             check_source: RwSignal::new(UpdateCheckSource::Startup),
+            channel: RwSignal::new(UpdateChannel::Stable),
             current_version: RwSignal::new(String::new()),
             available_version: RwSignal::new(None),
             notes: RwSignal::new(None),
@@ -84,6 +86,10 @@ impl UpdateService {
 
     pub fn check_source(&self) -> RwSignal<UpdateCheckSource> {
         self.check_source
+    }
+
+    pub fn channel(&self) -> RwSignal<UpdateChannel> {
+        self.channel
     }
 
     pub fn current_version(&self) -> RwSignal<String> {
@@ -137,6 +143,42 @@ impl UpdateService {
 
     pub fn close_dialog(&self) {
         self.dialog_open.set(false);
+    }
+
+    pub fn load_settings(&self) {
+        if !is_tauri_shell() {
+            return;
+        }
+        let service = *self;
+        spawn_local(async move {
+            match updater_settings_get().await {
+                Ok(view) => service.channel.set(view.channel),
+                Err(err) => service.set_error(err),
+            }
+        });
+    }
+
+    pub fn set_channel(&self, channel: UpdateChannel) {
+        if self.channel.get_untracked() == channel {
+            return;
+        }
+        if !is_tauri_shell() {
+            self.channel.set(channel);
+            return;
+        }
+        let service = *self;
+        spawn_local(async move {
+            match updater_settings_save(channel).await {
+                Ok(view) => {
+                    service.channel.set(view.channel);
+                    service.available_version.set(None);
+                    service.release_notes.set(None);
+                    service.notes.set(None);
+                    service.check_manual();
+                }
+                Err(err) => service.set_error(err),
+            }
+        });
     }
 
     pub fn check_silent(&self) {
@@ -245,6 +287,7 @@ impl UpdateService {
             }),
         );
         self.current_version.set(response.current_version);
+        self.channel.set(response.channel);
         self.available_version.set(response.available_version);
         self.notes.set(response.notes);
         self.message.set(response.message);
