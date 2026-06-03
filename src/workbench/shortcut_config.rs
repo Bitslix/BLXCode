@@ -188,7 +188,7 @@ impl ShortcutAction {
             Self::SidePanel => HarnessShortcutAction::ToggleRightPanel,
             Self::Agent => HarnessShortcutAction::RightTab(RightPanelTab::Agent),
             Self::Browser => HarnessShortcutAction::RightTab(RightPanelTab::Browser),
-            Self::Memory => HarnessShortcutAction::RightTab(RightPanelTab::Memory),
+            Self::Memory => HarnessShortcutAction::OpenCenterMemory,
             Self::Terminal => HarnessShortcutAction::OpenNewTerminal,
             Self::CommandPalette => HarnessShortcutAction::ToggleCommandPalette,
             Self::PushToTalk => return None,

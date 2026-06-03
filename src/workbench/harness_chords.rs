@@ -22,6 +22,8 @@ pub enum HarnessShortcutAction {
     OpenFindFile,
     ToggleRightPanel,
     RightTab(RightPanelTab),
+    /// Open Memory as a centered workspace tab (not the right-panel tab).
+    OpenCenterMemory,
     OpenNewTerminal,
     ToggleCommandPalette,
 }
@@ -44,6 +46,10 @@ pub fn dispatch_shortcut_action(
                 wb.toggle_right_panel();
             }
             wb.set_right_tab(tab);
+            defer_browser_bounds(wb, embed);
+        }
+        HarnessShortcutAction::OpenCenterMemory => {
+            wb.open_center_memory_tab();
             defer_browser_bounds(wb, embed);
         }
         HarnessShortcutAction::OpenNewTerminal => open_new_terminal(wb),
