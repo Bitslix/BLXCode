@@ -48,6 +48,16 @@
   margin-top: 0.5rem;
 }
 
+.mcp-reload-hint {
+  margin-top: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--overlay-1);
+}
+
 .mcp-server-list {
   list-style: none;
   margin: 0;

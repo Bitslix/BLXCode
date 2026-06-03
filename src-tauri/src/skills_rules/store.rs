@@ -76,6 +76,7 @@ pub const CORE_SKILLS: &[(&str, &str)] = &[
         "openrouter-tts",
         include_str!("../agent/harness_skills/openrouter-tts.md"),
     ),
+    ("mcp", include_str!("../agent/harness_skills/mcp.md")),
 ];
 
 const CORE_INSTALLED_AT: &str = "2026-01-01T00:00:00Z";
@@ -97,6 +98,7 @@ fn core_skill_category(name: &str) -> Option<String> {
         "git" => "git",
         "web" => "web",
         "subagents" => "agents",
+        "mcp" => "agents",
         "openrouter-stt" | "openrouter-tts" => "voice",
         _ => return None,
     };

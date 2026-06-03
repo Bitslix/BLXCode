@@ -42,6 +42,9 @@ pub fn McpSettingsPane() -> impl IntoView {
     // `Some(server)` while the add/edit dialog is open.
     let editing = RwSignal::new(None::<McpServer>);
     let status = RwSignal::new(String::new());
+    // True after any registry mutation (add/edit/remove/toggle) to remind the
+    // user a session reset / app reload is needed for it to take effect.
+    let needs_reload = RwSignal::new(false);
 
     let reload = move || {
         leptos::task::spawn_local(async move {
@@ -54,11 +57,18 @@ pub fn McpSettingsPane() -> impl IntoView {
     // Initial load.
     Effect::new(move |_| reload());
 
+    // A registry mutation happened: refresh the list and raise the reload hint.
+    let changed = Callback::new(move |_: ()| {
+        needs_reload.set(true);
+        reload();
+    });
+
     let on_save = move |server: McpServer| {
         leptos::task::spawn_local(async move {
             match mcp_upsert(server).await {
                 Ok(_) => {
                     editing.set(None);
+                    needs_reload.set(true);
                     match mcp_list().await {
                         Ok(list) => servers.set(list),
                         Err(e) => status.set(e),
@@ -72,7 +82,10 @@ pub fn McpSettingsPane() -> impl IntoView {
     let reset_session = move |_| {
         leptos::task::spawn_local(async move {
             match agent_clear_conversation().await {
-                Ok(()) => status.set(String::new()),
+                Ok(()) => {
+                    status.set(String::new());
+                    needs_reload.set(false);
+                }
                 Err(e) => status.set(e),
             }
         });
@@ -130,12 +143,18 @@ pub fn McpSettingsPane() -> impl IntoView {
                                     <McpServerRow
                                         server=server
                                         on_edit=Callback::new(move |s| editing.set(Some(s)))
-                                        on_changed=Callback::new(move |_| reload())
+                                        on_changed=changed
                                     />
                                 }
                             }
                         />
                     </ul>
+                </Show>
+
+                <Show when=move || needs_reload.get()>
+                    <p class="mcp-reload-hint" role="status">
+                        {move || i18n.tr(I18nKey::McpReloadHint)()}
+                    </p>
                 </Show>
 
                 <Show when=move || !status.get().is_empty()>

@@ -664,6 +664,7 @@ keys; the preset only fills in defaults."
         I18nKey::McpTestFailed => "Test failed",
         I18nKey::McpToolsSuffix => "tools",
         I18nKey::McpCancel => "Cancel",
+        I18nKey::McpReloadHint => "Enable/disable applies to the in-app agent after a session reset, and to terminal CLIs after an app reload.",
         I18nKey::MemorySettingsDescription => "Configure where Memory appears in the workbench.",
         I18nKey::MemorySettingsSidePanelSection => "Right side panel",
         I18nKey::MemorySettingsRightPanelToggle => "Show Memory tab in right side panel",

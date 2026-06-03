@@ -631,6 +631,7 @@ pub enum I18nKey {
     McpTestFailed,
     McpToolsSuffix,
     McpCancel,
+    McpReloadHint,
     MemorySettingsDescription,
     MemorySettingsSidePanelSection,
     MemorySettingsRightPanelToggle,

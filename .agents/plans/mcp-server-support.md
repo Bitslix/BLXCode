@@ -228,3 +228,6 @@ verwalteten Keys geführt.
 - [x] `mcp-ipc-bridge` - `tauri_bridge.rs` Wrapper + `agent_wire.rs` Shared-Typen
 - [x] `mcp-i18n` - Neue I18nKeys in `keys.rs` + `en_us.rs`, übrige Locales via Script
 - [x] `mcp-tests` - Unit/Integration/Snapshot-Tests (registry, cli_export, dispatch, mock-server)
+- [x] `mcp-system-prompt` - Systemprompt informiert über MCP-Tools (`mcp.<srv>.<tool>`, Lifecycle, untrusted) + neuer Core-Skill `mcp.md` registriert in `store.rs`
+- [x] `mcp-per-entry-toggle` - Per-Eintrag On/Off-Switch in der Liste; Enable/Disable propagiert (Agent nach Session-Reset, Terminals nach App-Reload) inkl. `McpReloadHint`
+- [x] `mcp-i18n-full` - Alle 27 MCP-Keys in **allen** 12 Nicht-EN-Locales via `render_i18n_locales_from_en.py` übersetzt (kein English-Fallback mehr)
