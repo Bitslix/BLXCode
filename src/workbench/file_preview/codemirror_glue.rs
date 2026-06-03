@@ -66,11 +66,13 @@ fn call_method(obj: &JsValue, name: &str, args: &Array) -> Result<JsValue, Strin
 /// for preview only (no edits) while keeping the same gutter, folding, syntax
 /// highlighting and selection as edit mode. Returns the opaque `EditorView`
 /// handle.
+#[allow(clippy::too_many_arguments)]
 pub async fn create_editor(
     parent: &web_sys::Element,
     doc: &str,
     language: Option<&str>,
     read_only: bool,
+    vim: bool,
     on_change: &Function,
     on_save: &Function,
     on_cursor: &Function,
@@ -82,6 +84,7 @@ pub async fn create_editor(
     let lang = language.map(JsValue::from_str).unwrap_or(JsValue::NULL);
     let _ = Reflect::set(&opts, &"language".into(), &lang);
     let _ = Reflect::set(&opts, &"readOnly".into(), &JsValue::from_bool(read_only));
+    let _ = Reflect::set(&opts, &"vim".into(), &JsValue::from_bool(vim));
     let _ = Reflect::set(&opts, &"onChange".into(), on_change);
     let _ = Reflect::set(&opts, &"onSave".into(), on_save);
     let _ = Reflect::set(&opts, &"onCursor".into(), on_cursor);
@@ -96,6 +99,15 @@ pub fn set_doc(view: &JsValue, text: &str) {
     if let Some(cm) = cm_global() {
         let args = Array::of2(view, &JsValue::from_str(text));
         let _ = call_method(&cm, "setDoc", &args);
+    }
+}
+
+/// Enable/disable Vim key bindings on a live editor (no remount). Mirrors the
+/// `EditorSettingsService.vim_enabled` signal.
+pub fn set_vim(view: &JsValue, enabled: bool) {
+    if let Some(cm) = cm_global() {
+        let args = Array::of2(view, &JsValue::from_bool(enabled));
+        let _ = call_method(&cm, "setVim", &args);
     }
 }
 
