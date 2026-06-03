@@ -1892,35 +1892,15 @@ body {
   text-align: center;
 }
 
-.workbench-empty-editor .workbench-empty-recent-heading {
-  margin: 0.85rem auto 0.55rem;
-  width: min(100%, 28rem);
-  text-align: left;
+.workbench-empty-recent {
+  width: min(100%, 44rem);
+  margin: 0.85rem auto 1.15rem;
 }
 
 .workbench-empty-editor .workbench-empty-recent-list {
-  width: min(100%, 28rem);
-  margin: 0 auto 1.15rem;
   max-height: min(42vh, 15rem);
   overflow-y: auto;
-  padding: 0.55rem 0.5rem;
-  border-radius: 10px;
-  border: 1px solid var(--overlay-2);
-  background: var(--scrim-bg);
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-}
-
-.workbench-empty-editor .workbench-empty-recent-list .harness-cmd-li {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.workbench-empty-editor .workbench-empty-recent-list .harness-cmd-btn {
-  padding: 0.58rem 0.65rem;
-  border-radius: var(--radius-lg);
+  padding-right: 0.08rem;
 }
 
 .workbench-recent-row {
@@ -1935,6 +1915,34 @@ body {
 .workbench-recent-row .harness-cmd-btn {
   flex: 1;
   min-width: 0;
+}
+
+.workbench-empty-recent .workbench-recent-row {
+  position: relative;
+  display: block;
+}
+
+.workbench-empty-recent .workbench-empty-recent-card {
+  padding-right: 2.25rem;
+}
+
+.workbench-empty-recent .workbench-recent-remove {
+  position: absolute;
+  top: 50%;
+  right: 0.48rem;
+  width: 1.35rem;
+  height: 1.35rem;
+  transform: translateY(-50%);
+  opacity: 0;
+  transition:
+    opacity 120ms ease,
+    color 0.12s ease,
+    background 0.12s ease;
+}
+
+.workbench-empty-recent .workbench-recent-row:hover .workbench-recent-remove,
+.workbench-empty-recent .workbench-recent-remove:focus-visible {
+  opacity: 1;
 }
 
 button.workbench-recent-remove {
@@ -1971,6 +1979,7 @@ button.workbench-recent-remove:focus-visible {
 }
 
 .workbench-empty-recent-empty {
+  grid-column: 1 / -1;
   margin: 0;
   padding: 0.75rem 0.55rem;
   font-size: 0.82rem;
@@ -2032,8 +2041,10 @@ button.workbench-shortcut-row--action:focus-visible {
   box-shadow: 0 0 0 2px var(--accent-soft);
 }
 
-.harness-sheet--quickopen {
-  max-width: min(96vw, 32rem);
+.harness-sheet.harness-sheet--quickopen {
+  width: min(92vw, 56rem);
+  min-width: min(92vw, 56rem);
+  max-width: 56rem;
 }
 
 .harness-quickopen-title {
@@ -5831,18 +5842,21 @@ button.workbench-shortcut-row--action:focus-visible {
 
 .harness-palette-filter__icon {
   position: absolute;
-  left: 0.55rem;
+  left: 0.72rem;
   top: 50%;
   transform: translateY(-50%);
   display: grid;
   place-items: center;
+  width: 1rem;
+  height: 1rem;
   color: var(--text-muted);
   pointer-events: none;
   opacity: 0.82;
 }
 
-.harness-filter--with-icon {
-  padding-left: 2rem;
+.harness-palette-filter-wrap .harness-filter--with-icon {
+  padding-left: 2.35rem;
+  padding-right: 0.9rem;
 }
 
 .harness-cmd-list {

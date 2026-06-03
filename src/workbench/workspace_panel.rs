@@ -798,10 +798,24 @@ fn WorkspaceEmptyState() -> impl IntoView {
                 />
             </div>
             <p class="workbench-empty-editor__note">{move || i18n.tr(I18nKey::WsEmptyNote)()}</p>
-            <p class="harness-quickopen-section workbench-empty-recent-heading">
-                {move || i18n.tr(I18nKey::QkRecentHeading)()}
-            </p>
-            <ul class="harness-cmd-list workbench-empty-recent-list" role="list">
+            <div class="ws-config__recent workbench-empty-recent">
+                <div class="ws-config__recent-head">
+                    <span class="ws-config__recent-label">
+                        <LxIcon icon=icondata::LuClock width="0.82rem" height="0.82rem" />
+                        <span>{move || i18n.tr(I18nKey::QkRecentHeading)()}</span>
+                        <span class="ws-config__recent-count">
+                            {move || {
+                                wb.recent_workspaces()
+                                    .get()
+                                    .iter()
+                                    .filter(|it| workspace_entry_has_folder(&it.workspace))
+                                    .count()
+                            }}
+                        </span>
+                    </span>
+                    <span class="ws-config__recent-note">"Last opened workspaces"</span>
+                </div>
+                <ul class="ws-config__recent-list workbench-empty-recent-list" role="list">
                 <Show
                     when=move || {
                         wb.recent_workspaces()
@@ -830,11 +844,26 @@ fn WorkspaceEmptyState() -> impl IntoView {
                         children=move |(orig_idx, item)| {
                             let title = item.workspace.title.clone();
                             let cwd = item.workspace.cwd.clone();
+                            let terminal_count = item.workspace.terminal_count;
+                            let base = cwd
+                                .trim_end_matches(['/', '\\'])
+                                .rsplit(['/', '\\'])
+                                .next()
+                                .unwrap_or(cwd.as_str())
+                                .to_string();
+                            let label = if title.trim().is_empty() {
+                                base
+                            } else {
+                                title
+                            };
+                            let card_title = cwd.clone();
+                            let path_label = cwd.clone();
                             view! {
-                                <li class="harness-cmd-li workbench-recent-row">
+                                <li class="ws-config__recent-item workbench-recent-row">
                                     <button
                                         type="button"
-                                        class="harness-cmd-btn"
+                                        class="ws-config__recent-card workbench-empty-recent-card"
+                                        title=card_title
                                         on:click=move |_| {
                                             wb.reopen_recent_workspace(orig_idx);
                                             let wb_c = wb;
@@ -846,13 +875,14 @@ fn WorkspaceEmptyState() -> impl IntoView {
                                             });
                                         }
                                     >
-                                        <span class="harness-cmd-btn__icon" aria-hidden="true">
-                                            <span class="workbench-shortcut-row__icon-dot"></span>
+                                        <span class="ws-config__recent-icon" aria-hidden="true">
+                                            <LxIcon icon=icondata::LuFolderClock width="0.9rem" height="0.9rem" />
                                         </span>
-                                        <span class="harness-cmd-btn__text">
-                                            <span class="harness-cmd-title">{title}</span>
-                                            <span class="harness-cmd-sub">{cwd}</span>
+                                        <span class="ws-config__recent-text">
+                                            <span class="ws-config__recent-title">{label}</span>
+                                            <span class="ws-config__recent-path">{path_label}</span>
                                         </span>
+                                        <span class="ws-config__recent-terminals">{terminal_count}</span>
                                     </button>
                                     <button
                                         type="button"
@@ -865,7 +895,7 @@ fn WorkspaceEmptyState() -> impl IntoView {
                                         }
                                     >
                                         <span aria-hidden="true">
-                                            "x"
+                                            <LxIcon icon=icondata::LuX width="0.82rem" height="0.82rem" />
                                         </span>
                                     </button>
                                 </li>
@@ -873,7 +903,8 @@ fn WorkspaceEmptyState() -> impl IntoView {
                         }
                     />
                 </Show>
-            </ul>
+                </ul>
+            </div>
             <ul class="workbench-shortcut-list">
                 <ShortcutActionRow icon=icondata::LuFolderSearch action=ShortcutAction::QuickOpen />
                 <ShortcutActionRow icon=icondata::LuFileSearch action=ShortcutAction::FindFile />
