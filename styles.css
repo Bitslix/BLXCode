@@ -8057,6 +8057,90 @@ button {
   color: var(--text-muted);
 }
 
+/* Cursor-following preview for file / diff / commit drags into the agent
+   context drop zone. Mirrors .ws-term-drag-preview but with a per-kind accent
+   so File, Diff and Commit each read at a glance. --ctx-accent is overridden
+   per variant below. */
+.context-drag-preview {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px 11px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-raised) 92%, transparent);
+  border: 1px solid var(--ctx-accent, var(--accent));
+  box-shadow:
+    0 12px 32px color-mix(in srgb, var(--ctx-accent, var(--accent)) 25%, var(--scrim-bg)),
+    inset 0 0 0 1px color-mix(in srgb, var(--ctx-accent, var(--accent)) 30%, transparent);
+  backdrop-filter: blur(6px);
+  transform: rotate(-1.5deg);
+  overflow: hidden;
+}
+
+.context-drag-preview--file {
+  --ctx-accent: var(--accent);
+}
+
+.context-drag-preview--diff {
+  --ctx-accent: var(--warning, #d6a02a);
+}
+
+.context-drag-preview--commit {
+  --ctx-accent: var(--info, #8b7bd8);
+}
+
+.context-drag-preview__head {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.context-drag-preview__icon {
+  color: var(--ctx-accent, var(--accent));
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.context-drag-preview__title {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+  color: var(--text);
+}
+
+.context-drag-preview__badge {
+  flex-shrink: 0;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--ctx-accent, var(--accent));
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--ctx-accent, var(--accent)) 18%, transparent);
+}
+
+.context-drag-preview__body {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.context-drag-preview__subtitle {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
 /* Document-level cursor while a slot drag is in flight. EB sets
    document.body.style.cursor = 'grabbing'; we do the same via a class
    so the user gets a consistent cue across the whole window. */

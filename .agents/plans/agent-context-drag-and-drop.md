@@ -58,7 +58,7 @@ genauso „cool" aussieht wie beim Terminal-Drag.
 | 4 | **done** | **Drop-Zone**: `DropZoneState` um `AcceptFile/AcceptDiff/AcceptCommit`; Drag/Drop-Handler für neuen MIME; Diff/Commit async via `git_file_diff`/`git_commit_details`. Konstruktoren `file_ref_context_item`/`git_diff_context_item`/`git_commit_context_item` in `agent_context_handoff.rs` + Tests |
 | 5 | **done** | **Overlay**: neu `src/workbench/context_drag_overlay.rs`, cursor-folgende Karte, Icon+Farbe je Kind (analog `terminal_slot_drag_overlay.rs`) |
 | 6 | **done** | **Rendering**: neue Sektionen in `session_orchestrator.rs` (Backend-Prompt) + `render_agent_context_block` (Handoff): FileRef→Pfad-Liste, Diff/Commit→Inline-Blöcke |
-| 7 | pending | **CSS**: Overlay-Varianten `.context-drag-preview--{file,diff,commit}` + Dropzone-Tönung je Kind (`styles.css`) |
+| 7 | **done** | **CSS**: Overlay-Varianten `.context-drag-preview--{file,diff,commit}` + Dropzone-Tönung je Kind (`styles.css`) |
 | 8 | pending | **Verify**: `cargo check` (wasm + tauri) + `cargo test --workspace` + manuell `cargo tauri dev` |
 
 ## Verifikation
