@@ -1779,8 +1779,21 @@ pub async fn workbench_sessions_path() -> Result<String, String> {
     invoke_typed("workbench_sessions_path", serde_json::json!({})).await
 }
 
+pub async fn workbench_usage_path() -> Result<String, String> {
+    invoke_typed("workbench_usage_path", serde_json::json!({})).await
+}
+
 pub async fn workbench_load_sessions() -> Result<Option<String>, String> {
     invoke_typed("workbench_load_sessions", serde_json::json!({})).await
+}
+
+pub async fn workbench_load_usage_snapshot(terminal_key: String) -> Result<Option<String>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        terminal_key: String,
+    }
+    invoke_typed("workbench_load_usage_snapshot", A { terminal_key }).await
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -25,12 +25,14 @@
 //! - `~/.codex/hooks.json`      — Codex   (same shape as Claude)
 //! - `~/.gemini/settings.json`  — Gemini  (same shape as Claude)
 //! - `~/.cursor/hooks.json`     — Cursor  (flat `{version, hooks:{event:[{command,type}]}}`)
+use base64::Engine;
 use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
 const CLAUDE_TITLE_SCRIPT: &str = "claude_title.py";
+const CLAUDE_USAGE_STATUSLINE_SCRIPT: &str = "claude_usage_statusline.py";
 const CODEX_TITLE_SCRIPT: &str = "codex_title.py";
 const CLAUDE_CAPTURE_SCRIPT: &str = "claude_session_capture.py";
 const CODEX_CAPTURE_SCRIPT: &str = "codex_session_capture.py";
@@ -55,6 +57,7 @@ const OPENCODE_PLUGIN_SCRIPT: &str = "opencode_blxcode.ts";
 const OPENCODE_PLUGIN_SOURCE: &str = include_str!("../../content/hooks/opencode_blxcode.ts");
 
 const CLAUDE_TITLE_MARKER: &str = "blxcode:claude-title";
+const CLAUDE_USAGE_STATUSLINE_MARKER: &str = "blxcode:claude-usage-statusline";
 const CLAUDE_CAPTURE_MARKER: &str = "blxcode:claude-session-capture";
 const CODEX_CAPTURE_MARKER: &str = "blxcode:codex-session-capture";
 const GEMINI_TITLE_MARKER: &str = "blxcode:gemini-title";
@@ -73,6 +76,16 @@ const PYTHON_BIN: &str = "python3";
 
 fn build_hook_command(script_path: &Path) -> String {
     format!("{PYTHON_BIN} \"{}\"", script_path.display())
+}
+
+fn build_status_line_command(script_path: &Path, previous_command: Option<&str>) -> String {
+    let mut command = build_hook_command(script_path);
+    if let Some(previous) = previous_command.map(str::trim).filter(|s| !s.is_empty()) {
+        let encoded = base64::engine::general_purpose::STANDARD.encode(previous.as_bytes());
+        command.push_str(" --next-b64 ");
+        command.push_str(&encoded);
+    }
+    command
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -146,6 +159,104 @@ fn write_json_pretty(path: &Path, value: &serde_json::Value) -> Result<(), Strin
     let body = serde_json::to_string_pretty(value)
         .map_err(|e| format!("serialize {}: {e}", path.display()))?;
     fs::write(path, body).map_err(|e| format!("write {}: {e}", path.display()))
+}
+
+fn status_line_already_installed(settings: &serde_json::Value, script_path: &Path) -> bool {
+    let Some(command) = settings
+        .get("statusLine")
+        .and_then(|s| s.get("command"))
+        .and_then(|v| v.as_str())
+    else {
+        return false;
+    };
+    let needle = script_path.to_string_lossy();
+    let filename = script_path
+        .file_name()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    command.contains(needle.as_ref())
+        || command.contains(CLAUDE_USAGE_STATUSLINE_MARKER)
+        || (!filename.is_empty() && command.contains(&filename))
+}
+
+fn patch_claude_status_line(settings_path: &Path, script_path: &Path) -> Result<bool, String> {
+    let mut settings = read_json_or_empty(settings_path)?;
+    if status_line_already_installed(&settings, script_path) {
+        return Ok(false);
+    }
+    let previous_command = settings
+        .get("statusLine")
+        .and_then(|s| s.get("command"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let mut next = settings
+        .get("statusLine")
+        .and_then(|v| v.as_object())
+        .cloned()
+        .unwrap_or_default();
+    next.insert("type".into(), serde_json::json!("command"));
+    next.insert(
+        "command".into(),
+        serde_json::json!(build_status_line_command(
+            script_path,
+            previous_command.as_deref(),
+        )),
+    );
+    let root = settings
+        .as_object_mut()
+        .ok_or_else(|| format!("{} is not a JSON object", settings_path.display()))?;
+    root.insert("statusLine".into(), serde_json::Value::Object(next));
+    write_json_pretty(settings_path, &settings)?;
+    Ok(true)
+}
+
+fn decode_status_line_previous(command: &str) -> Option<String> {
+    let encoded = command
+        .split_whitespace()
+        .skip_while(|part| *part != "--next-b64")
+        .nth(1)?;
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(encoded)
+        .ok()?;
+    String::from_utf8(bytes)
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+fn unpatch_claude_status_line(settings_path: &Path, script_name: &str) -> Result<bool, String> {
+    if !settings_path.exists() {
+        return Ok(false);
+    }
+    let mut settings = read_json_or_empty(settings_path)?;
+    let Some(command) = settings
+        .get("statusLine")
+        .and_then(|s| s.get("command"))
+        .and_then(|v| v.as_str())
+    else {
+        return Ok(false);
+    };
+    if !command.contains(script_name) && !command.contains(CLAUDE_USAGE_STATUSLINE_MARKER) {
+        return Ok(false);
+    }
+    let previous = decode_status_line_previous(command);
+    let root = settings
+        .as_object_mut()
+        .ok_or_else(|| format!("{} is not a JSON object", settings_path.display()))?;
+    if let Some(previous) = previous {
+        let mut next = root
+            .get("statusLine")
+            .and_then(|v| v.as_object())
+            .cloned()
+            .unwrap_or_default();
+        next.insert("type".into(), serde_json::json!("command"));
+        next.insert("command".into(), serde_json::json!(previous));
+        root.insert("statusLine".into(), serde_json::Value::Object(next));
+    } else {
+        root.remove("statusLine");
+    }
+    write_json_pretty(settings_path, &settings)?;
+    Ok(true)
 }
 
 /// Returns true if `<settings>.hooks.<event>` already references our
@@ -451,6 +562,17 @@ fn install_claude(home: &Path, hooks_dir: &Path, app: &AppHandle) -> AgentHookEn
             Err(e) => notes.push(format!("{script}: {e}")),
         }
     }
+    match copy_script(app, CLAUDE_USAGE_STATUSLINE_SCRIPT, hooks_dir) {
+        Ok(path) => {
+            last_script = Some(path.clone());
+            match patch_claude_status_line(&settings, &path) {
+                Ok(true) => notes.push("statusLine usage capture installed".into()),
+                Ok(false) => notes.push("statusLine usage capture already installed".into()),
+                Err(e) => notes.push(format!("statusLine usage capture failed: {e}")),
+            }
+        }
+        Err(e) => notes.push(format!("{CLAUDE_USAGE_STATUSLINE_SCRIPT}: {e}")),
+    }
 
     AgentHookEntry {
         agent: "claude".into(),
@@ -681,6 +803,7 @@ pub fn agent_hooks_status(app: AppHandle) -> Result<AgentHooksReport, String> {
     let dir = hooks_dir(&app)?;
 
     let claude_title = dir.join(CLAUDE_TITLE_SCRIPT);
+    let claude_usage = dir.join(CLAUDE_USAGE_STATUSLINE_SCRIPT);
     let claude_capture = dir.join(CLAUDE_CAPTURE_SCRIPT);
     let codex_title = dir.join(CODEX_TITLE_SCRIPT);
     let codex_capture = dir.join(CODEX_CAPTURE_SCRIPT);
@@ -705,6 +828,7 @@ pub fn agent_hooks_status(app: AppHandle) -> Result<AgentHooksReport, String> {
             hook_already_installed(&v, "UserPromptSubmit", &claude_title)
                 && hook_already_installed(&v, "SessionStart", &claude_capture)
                 && hook_already_installed(&v, "Stop", &claude_notify)
+                && status_line_already_installed(&v, &claude_usage)
         })
         .unwrap_or(false);
     let codex_installed = read_json_or_empty(&codex_cfg)
@@ -820,6 +944,7 @@ pub fn uninstall_agent_hooks(app: AppHandle) -> Result<AgentHooksReport, String>
         CLAUDE_NOTIFY_MARKER,
         CLAUDE_NOTIFY_SCRIPT,
     );
+    let _ = unpatch_claude_status_line(&claude_cfg, CLAUDE_USAGE_STATUSLINE_SCRIPT);
     let _ = unpatch_settings(
         &codex_cfg,
         "UserPromptSubmit",
@@ -872,6 +997,7 @@ pub fn uninstall_agent_hooks(app: AppHandle) -> Result<AgentHooksReport, String>
 
     for name in [
         CLAUDE_TITLE_SCRIPT,
+        CLAUDE_USAGE_STATUSLINE_SCRIPT,
         CLAUDE_CAPTURE_SCRIPT,
         CODEX_TITLE_SCRIPT,
         CODEX_CAPTURE_SCRIPT,

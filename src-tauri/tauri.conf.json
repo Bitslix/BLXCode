@@ -41,6 +41,7 @@
     ],
     "resources": [
       "../content/hooks/claude_title.py",
+      "../content/hooks/claude_usage_statusline.py",
       "../content/hooks/codex_title.py",
       "../content/hooks/claude_session_capture.py",
       "../content/hooks/codex_session_capture.py",

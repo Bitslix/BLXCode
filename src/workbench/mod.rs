@@ -53,6 +53,7 @@ mod terminal_glue;
 mod terminal_naming;
 mod terminal_slot_dnd;
 mod terminal_slot_drag_overlay;
+mod terminal_usage;
 mod theme_service;
 mod toast;
 mod update_dialog;

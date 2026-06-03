@@ -69,10 +69,10 @@ use voice::{
 use workbench_state::{
     agent_latest_session_id, agent_session_exists, workbench_clear_terminal_notifications,
     workbench_drop_sessions, workbench_extract_sessions_prefix, workbench_load_notifications,
-    workbench_load_sessions, workbench_load_state, workbench_merge_sessions_workspace,
-    workbench_notifications_path, workbench_prune_notifications, workbench_prune_sessions,
-    workbench_rewrite_terminal_keys, workbench_save_state, workbench_sessions_path,
-    WorkbenchSessionsFileLock,
+    workbench_load_sessions, workbench_load_state, workbench_load_usage_snapshot,
+    workbench_merge_sessions_workspace, workbench_notifications_path,
+    workbench_prune_notifications, workbench_prune_sessions, workbench_rewrite_terminal_keys,
+    workbench_save_state, workbench_sessions_path, workbench_usage_path, WorkbenchSessionsFileLock,
 };
 
 #[tauri::command]
@@ -268,7 +268,9 @@ pub fn run() {
             workbench_save_state,
             workbench_load_state,
             workbench_sessions_path,
+            workbench_usage_path,
             workbench_load_sessions,
+            workbench_load_usage_snapshot,
             workbench_drop_sessions,
             workbench_extract_sessions_prefix,
             workbench_merge_sessions_workspace,

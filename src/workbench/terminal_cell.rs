@@ -4,7 +4,7 @@ use crate::tauri_bridge::{
     agent_latest_session_id, agent_remote_latest_session_id, agent_session_exists, git_branch,
     is_tauri_shell, pty_drain_wait, pty_kill, pty_resize, pty_spawn_remote, pty_spawn_with_env,
     pty_write, workbench_drop_sessions, workbench_load_sessions, workbench_notifications_path,
-    workbench_sessions_path,
+    workbench_sessions_path, workbench_usage_path,
 };
 use crate::workbench::agent_accent::agent_accent_class;
 use crate::workbench::agent_context_handoff::TerminalSlotHandoffButton;
@@ -19,6 +19,7 @@ use crate::workbench::terminal_naming;
 use crate::workbench::terminal_slot_dnd::{
     set_drag_payload, TerminalDragMeta, TerminalSlotDragPayload, TerminalSlotDragService,
 };
+use crate::workbench::terminal_usage::TerminalUsageButton;
 use gloo_timers::future::TimeoutFuture;
 use leptos::callback::{Callable, Callback};
 use leptos::html;
@@ -714,6 +715,10 @@ pub fn WorkspaceTerminalCell(
                     workspace_id=workspace_id
                     terminal_title=Signal::derive(move || dynamic_title.get())
                 />
+                <TerminalUsageButton
+                    terminal_key=terminal_key.clone()
+                    agent_slug=agent_slug.clone()
+                />
                 <button
                     type="button"
                     class="ws-term-cell__tool"
@@ -1000,6 +1005,7 @@ async fn bootstrap_terminal_cell(
         }
         let sessions_path = workbench_sessions_path().await.ok();
         let notifications_path = workbench_notifications_path().await.ok();
+        let usage_path = workbench_usage_path().await.ok();
         let mut env: Vec<(String, String)> = Vec::new();
         env.push(("BLX_TERMINAL_KEY".into(), terminal_key.clone()));
         if !agent_slug.trim().is_empty() {
@@ -1010,6 +1016,9 @@ async fn bootstrap_terminal_cell(
         }
         if let Some(p) = notifications_path.as_ref() {
             env.push(("BLX_NOTIFICATIONS_PATH".into(), p.clone()));
+        }
+        if let Some(p) = usage_path.as_ref() {
+            env.push(("BLX_USAGE_PATH".into(), p.clone()));
         }
         let cwd_trimmed = cwd.trim().trim_end_matches(['/', '\\']);
         if !cwd_trimmed.is_empty() {

@@ -24,6 +24,7 @@ use tauri::{AppHandle, Manager};
 const STATE_FILE: &str = "workbench.json";
 const SESSIONS_FILE: &str = "sessions.json";
 const NOTIFICATIONS_FILE: &str = "notifications.json";
+const USAGE_FILE: &str = "usage.json";
 
 /// Serialises every `sessions.json` load / update from this process so
 /// overlapping Tauri commands cannot clobber each other's read-modify-write.
@@ -57,6 +58,14 @@ fn notifications_path_impl(app: &AppHandle) -> Result<PathBuf, String> {
         .app_config_dir()
         .map_err(|e| format!("app config dir unavailable: {e}"))?;
     Ok(base.join(NOTIFICATIONS_FILE))
+}
+
+fn usage_path_impl(app: &AppHandle) -> Result<PathBuf, String> {
+    let base = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("app config dir unavailable: {e}"))?;
+    Ok(base.join(USAGE_FILE))
 }
 
 fn load_notifications_document(target: &Path) -> Result<Value, String> {
@@ -216,6 +225,50 @@ pub fn workbench_load_state(app: AppHandle) -> Result<Option<String>, String> {
 #[tauri::command]
 pub fn workbench_sessions_path(app: AppHandle) -> Result<String, String> {
     Ok(sessions_path_impl(&app)?.to_string_lossy().into_owned())
+}
+
+/// Returns the absolute path used by terminal-agent usage capture helpers.
+#[tauri::command]
+pub fn workbench_usage_path(app: AppHandle) -> Result<String, String> {
+    Ok(usage_path_impl(&app)?.to_string_lossy().into_owned())
+}
+
+/// Read the latest cached usage snapshot for one terminal, if a provider hook
+/// has written one. Currently used by Claude's status-line capture wrapper.
+#[tauri::command]
+pub fn workbench_load_usage_snapshot(
+    app: AppHandle,
+    terminal_key: String,
+) -> Result<Option<String>, String> {
+    let key = terminal_key.trim();
+    if key.is_empty()
+        || key.len() > 512
+        || key.contains('/')
+        || key.contains('\\')
+        || key.chars().any(char::is_control)
+    {
+        return Ok(None);
+    }
+    let target = usage_path_impl(&app)?;
+    let raw = match fs::read_to_string(&target) {
+        Ok(s) if s.trim().is_empty() => return Ok(None),
+        Ok(s) => s,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(format!("read {}: {e}", target.display())),
+    };
+    let parsed: Value = match serde_json::from_str(&raw) {
+        Ok(v) => v,
+        Err(_) => {
+            atomic_write_json(&target, &json!({ "version": 1, "terminals": {} }))?;
+            return Ok(None);
+        }
+    };
+    let Some(snapshot) = parsed.get("terminals").and_then(|t| t.get(key)) else {
+        return Ok(None);
+    };
+    serde_json::to_string(snapshot)
+        .map(Some)
+        .map_err(|e| format!("serialize usage snapshot: {e}"))
 }
 
 /// Read the SessionStart-hook output (terminal_key → agent/session_id
