@@ -10,7 +10,9 @@
     "empty"
   ],
   "collapsedPlanSections": [],
-  "expandedPlans": [],
+  "expandedPlans": [
+    "kanban-dnd-agent-mermaid/plan.md"
+  ],
   "taskLaneOrder": [
     "pending",
     "in_progress",
@@ -41,5 +43,5 @@
     "showCancelled": true,
     "activeOnly": false
   },
-  "updatedAt": 1780527551
+  "updatedAt": 1780528221
 }
