@@ -15,6 +15,7 @@ mod chat_markdown;
 mod close_terminals_tab_dialog;
 mod commit_dialog;
 mod confirm_dialog;
+pub mod context_drag;
 mod create_workspace_wizard;
 mod file_diff;
 mod file_diff_section;
@@ -87,6 +88,7 @@ pub use state::{
     WorkspaceAgentImage,
 };
 pub use theme_service::ThemeService;
+pub use update_service::{UpdateService, UpdateUiStatus};
 pub use workspace_panel::WorkspacePanel;
 pub use workspace_settings_pane::WorkspaceSettingsPane;
 
@@ -104,6 +106,7 @@ use crate::tauri_bridge::{
 use app_prefs::AppPrefsService;
 use close_terminals_tab_dialog::CloseTerminalsTabDialog;
 use confirm_dialog::ConfirmDialog;
+use context_drag::ContextDragService;
 use gloo_timers::future::TimeoutFuture;
 use harness_ui::HarnessHost;
 use js_sys;
@@ -118,7 +121,6 @@ use terminal_slot_dnd::TerminalSlotDragService;
 use terminal_slot_drag_overlay::TerminalSlotDragOverlay;
 use toast::{ToastHost, ToastKind, ToastService};
 use update_dialog::{UpdateBanner, UpdateDialog};
-use update_service::UpdateService;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
 
@@ -239,18 +241,20 @@ fn missing_agents_layout_body(missing_dirs: &[String], missing_files: &[String])
 pub fn WorkbenchShell() -> impl IntoView {
     // Provided at the App root so the always-mounted `AppTitleBar` shares it.
     let wb = expect_context::<WorkbenchService>();
+    let i18n = expect_context::<I18nService>();
     let harness = HarnessUiService::new();
     let embed_surface = BrowserEmbedSurface(RwSignal::new(None));
     let skills_rules = SkillsRulesService::new();
     let app_prefs = AppPrefsService::new();
     let toast = ToastService::new(app_prefs);
-    let updates = UpdateService::new();
+    let updates = expect_context::<UpdateService>();
     let post_update_notes = PostUpdateNotesService::new();
     // Provided at the App root (app.rs); read here to sequence the startup
     // hook check + install prompt after the post-update screen.
     let hook_status = expect_context::<HookStatusService>();
     let hook_install = expect_context::<HookInstallDialogService>();
     let slot_dnd = TerminalSlotDragService::new();
+    let context_dnd = ContextDragService::new();
     let git_sync = git_sync_controls::GitSyncControls::new();
 
     provide_context(harness);
@@ -258,9 +262,9 @@ pub fn WorkbenchShell() -> impl IntoView {
     provide_context(skills_rules);
     provide_context(app_prefs);
     provide_context(toast);
-    provide_context(updates);
     provide_context(post_update_notes);
     provide_context(slot_dnd);
+    provide_context(context_dnd);
     provide_context(git_sync);
 
     Effect::new(move |_| {
@@ -582,6 +586,46 @@ pub fn WorkbenchShell() -> impl IntoView {
         });
     });
 
+    Effect::new(move |_| {
+        let Some(win) = web_sys::window() else {
+            return;
+        };
+        let check_update = Closure::wrap(Box::new({
+            let updates = updates;
+            move |_ev: web_sys::Event| {
+                updates.check_manual();
+            }
+        }) as Box<dyn FnMut(_)>);
+        let _ = win.add_event_listener_with_callback(
+            app_titlebar::help_menu::BLXCODE_CHECK_UPDATE_EVENT,
+            check_update.as_ref().unchecked_ref(),
+        );
+        let check_update = SendWrapper::new(check_update);
+        let win_cleanup = win.clone();
+        on_cleanup(move || {
+            let c = check_update.take();
+            let _ = win_cleanup.remove_event_listener_with_callback(
+                app_titlebar::help_menu::BLXCODE_CHECK_UPDATE_EVENT,
+                c.as_ref().unchecked_ref(),
+            );
+        });
+    });
+
+    let previous_update_status = RwSignal::new(UpdateUiStatus::Idle);
+    Effect::new(move |_| {
+        let status = updates.status().get();
+        let manual = updates.manual_check_active().get();
+        let previous = previous_update_status.get_untracked();
+        if manual && status == UpdateUiStatus::UpToDate && previous != UpdateUiStatus::UpToDate {
+            let message = i18n.tr(I18nKey::AppUpdateUpToDate)();
+            spawn_local(async move {
+                TimeoutFuture::new(2200).await;
+                toast.info(message);
+            });
+        }
+        previous_update_status.set(status);
+    });
+
     // HTTP(S) links from Markdown / DOM: capture clicks; PTY uses `blxcode-open-http` from terminal_bootstrap.mjs.
     Effect::new(move |_| {
         let Some(win) = web_sys::window() else {
@@ -665,8 +709,6 @@ pub fn WorkbenchShell() -> impl IntoView {
             );
         });
     });
-
-    let i18n = expect_context::<I18nService>();
 
     // Push-to-talk: cache settings + install the window-level hold handler.
     ptt_runtime::refresh_ptt_settings_cache();
