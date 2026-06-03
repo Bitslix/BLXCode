@@ -154,3 +154,4 @@ Galerie (`open_center_diagram_gallery_tab`).
 - [x] `agent-panel-wire` - `agent_panel/mod.rs`: `KanbanDragService` injizieren, Handler-Calls anpassen, Drop-Active-Klassenarm um neue States erweitern
 - [x] `dnd-tests` - Unit-Test für `plan_task_context_item` (Kind/Label/source/paths). Der Accept/Reject-Pfad ist inline im DOM-Handler (Services + DragEvent) und wird manuell geprüft statt künstlich extrahiert
 - [>] `dnd-mermaid-verify` - `cargo check` beider Crates + Token-Lint grün; manuelle Tauri-Checks aus dem Tests-Abschnitt stehen noch aus (GUI)
+- [x] `fix-task-drag-bubble` - Bugfix: Task-`dragstart` bubblet zum draggable Plan-`<article>` und wird als Plan-Drag neu gestartet → Task-Lanes lehnen den Drop ab; `ev.stop_propagation()` auf Task dragstart/drag/dragend

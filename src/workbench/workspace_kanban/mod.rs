@@ -1072,6 +1072,10 @@ fn KanbanTaskCardView(
                         ev.prevent_default();
                         return;
                     }
+                    // The enclosing plan <article> is also draggable; without this
+                    // the task dragstart bubbles up and the plan handler restarts
+                    // the drag as a Plan, so task lanes reject the drop.
+                    ev.stop_propagation();
                     start_kanban_drag(
                         &ev,
                         kanban_dnd,
@@ -1090,8 +1094,14 @@ fn KanbanTaskCardView(
                     );
                 }
             }
-            on:drag=move |ev: web_sys::DragEvent| kanban_dnd.set_overlay_pos_from_event(&ev)
-            on:dragend=move |_| kanban_dnd.clear()
+            on:drag=move |ev: web_sys::DragEvent| {
+                ev.stop_propagation();
+                kanban_dnd.set_overlay_pos_from_event(&ev);
+            }
+            on:dragend=move |ev: web_sys::DragEvent| {
+                ev.stop_propagation();
+                kanban_dnd.clear();
+            }
         >
             <Show
                 when=move || editing.get()
