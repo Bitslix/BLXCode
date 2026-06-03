@@ -313,7 +313,8 @@ pub fn WorkspaceTerminalCell(
                         use base64::Engine;
                         let b64 = base64::engine::general_purpose::STANDARD.encode(data);
                         if let Err(err) = pty_write(sid, b64).await {
-                            if let Some(t) = state.lock().expect("cell").term_id {
+                            let term_id = state.lock().expect("cell").term_id;
+                            if let Some(t) = term_id {
                                 let msg =
                                     format!("{}\n{}", i18n.tr(I18nKey::WsPtySpawnFailed)(), err);
                                 terminal_show_fallback(t, &msg);
@@ -982,13 +983,19 @@ async fn bootstrap_terminal_cell(
                     }
                     match pty_drain_wait(sid, 65536, 250).await {
                         Ok(b64) if !b64.is_empty() => {
-                            if let Some(t) = state2.lock().expect("cell").term_id {
+                            // Read term_id and drop the lock before writing: the
+                            // synchronous xterm write can emit an OSC title that
+                            // re-enters the `blxcode-pty-title` listener and locks
+                            // this same mutex (recursive-lock panic otherwise).
+                            let term_id = state2.lock().expect("cell").term_id;
+                            if let Some(t) = term_id {
                                 terminal_write_b64(t, &b64);
                             }
                         }
                         Ok(_) => {}
                         Err(err) => {
-                            if let Some(t) = state2.lock().expect("cell").term_id {
+                            let term_id = state2.lock().expect("cell").term_id;
+                            if let Some(t) = term_id {
                                 let msg =
                                     format!("{}\n{}", i18n2.tr(I18nKey::WsPtySpawnFailed)(), err);
                                 terminal_show_fallback(t, &msg);
@@ -1072,13 +1079,18 @@ async fn bootstrap_terminal_cell(
                         }
                         match pty_drain_wait(sid, 65536, 250).await {
                             Ok(b64) if !b64.is_empty() => {
-                                if let Some(t) = state2.lock().expect("cell").term_id {
+                                // Drop the lock before writing (see the matching
+                                // note above): the write can re-enter the title
+                                // listener and lock this same mutex.
+                                let term_id = state2.lock().expect("cell").term_id;
+                                if let Some(t) = term_id {
                                     terminal_write_b64(t, &b64);
                                 }
                             }
                             Ok(_) => {}
                             Err(err) => {
-                                if let Some(t) = state2.lock().expect("cell").term_id {
+                                let term_id = state2.lock().expect("cell").term_id;
+                                if let Some(t) = term_id {
                                     let msg = format!(
                                         "{}\n{}",
                                         i18n2.tr(I18nKey::WsPtySpawnFailed)(),

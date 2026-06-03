@@ -4,6 +4,7 @@ use crate::tauri_bridge::{
 use crate::workbench::state::WorkbenchService;
 use base64::Engine;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
+use leptos::portal::Portal;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
@@ -38,10 +39,8 @@ pub fn TerminalUsageButton(terminal_key: String, agent_slug: String) -> impl Int
     let wb = expect_context::<WorkbenchService>();
     let open = RwSignal::new(false);
     let state = RwSignal::new(UsageState::Idle);
-    // The popover lives inside `.ws-term-cell`, which sets `overflow: hidden`,
-    // so an absolutely-positioned popover gets clipped at the cell edge. We
-    // anchor it with `position: fixed` against the button's viewport rect and
-    // clamp it inside the window instead.
+    // Render the popover in a Portal. Terminal cells apply overflow and visual
+    // filters that otherwise turn fixed positioning into cell-relative layout.
     let button_ref = NodeRef::<leptos::html::Button>::new();
     let popover_style = RwSignal::new(String::new());
     let terminal_key_for_visible = terminal_key.clone();
@@ -100,7 +99,11 @@ pub fn TerminalUsageButton(terminal_key: String, agent_slug: String) -> impl Int
             let inside = ev
                 .target()
                 .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
-                .and_then(|el| el.closest(".terminal-usage").ok().flatten())
+                .and_then(|el| {
+                    el.closest(".terminal-usage, .terminal-usage__popover")
+                        .ok()
+                        .flatten()
+                })
                 .is_some();
             if !inside {
                 open.set(false);
@@ -182,31 +185,33 @@ pub fn TerminalUsageButton(terminal_key: String, agent_slug: String) -> impl Int
                     <LxIcon icon=icondata::LuGauge width="0.82rem" height="0.82rem" />
                 </button>
                 <Show when=move || open.get()>
-                    <div
-                        class="terminal-usage__popover"
-                        style=move || popover_style.get()
-                        role="menu"
-                        on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
-                        on:click=|ev: web_sys::MouseEvent| ev.stop_propagation()
-                    >
-                        <div class="terminal-usage__head">
-                            <span>USAGE</span>
-                            <button
-                                type="button"
-                                class="terminal-usage__refresh"
-                                title="Refresh usage"
-                                aria-label="Refresh usage"
-                                disabled=move || matches!(state.get(), UsageState::Loading)
-                                on:click={
-                                    let refresh = refresh;
-                                    move |_| refresh.run(())
-                                }
-                            >
-                                <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
-                            </button>
+                    <Portal>
+                        <div
+                            class="terminal-usage__popover"
+                            style=move || popover_style.get()
+                            role="menu"
+                            on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
+                            on:click=|ev: web_sys::MouseEvent| ev.stop_propagation()
+                        >
+                            <div class="terminal-usage__head">
+                                <span>USAGE</span>
+                                <button
+                                    type="button"
+                                    class="terminal-usage__refresh"
+                                    title="Refresh usage"
+                                    aria-label="Refresh usage"
+                                    disabled=move || matches!(state.get(), UsageState::Loading)
+                                    on:click={
+                                        let refresh = refresh;
+                                        move |_| refresh.run(())
+                                    }
+                                >
+                                    <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
+                                </button>
+                            </div>
+                            {move || usage_body(state.get()).into_any()}
                         </div>
-                        {move || usage_body(state.get()).into_any()}
-                    </div>
+                    </Portal>
                 </Show>
             </div>
         </Show>
