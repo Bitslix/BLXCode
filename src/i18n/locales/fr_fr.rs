@@ -25,6 +25,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsKwMemory => "Mémoire",
         I18nKey::WsKwTerminal => "Terminal",
         I18nKey::WsKwPushToTalk => "Appuyer pour parler",
+        I18nKey::WsKwCreateWorkspace => "Créer un espace de travail",
+        I18nKey::WsCreateWorkspaceHint => "Démarrez un nouvel espace de travail et configurez ses terminaux.",
         I18nKey::WsKwThen => "puis",
         I18nKey::WsResizeTermCols => "Redimensionner les colonnes des terminaux",
         I18nKey::WsResizeTermRows => "Redimensionner les lignes de terminaux",

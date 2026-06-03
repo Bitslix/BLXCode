@@ -21,6 +21,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsKwMemory => "メモリ",
         I18nKey::WsKwTerminal => "ターミナル",
         I18nKey::WsKwPushToTalk => "プッシュ・トゥ・トーク",
+        I18nKey::WsKwCreateWorkspace => "ワークスペースの作成",
+        I18nKey::WsCreateWorkspaceHint => "新しいワークスペースを開始し、そのターミナルを構成します。",
         I18nKey::WsKwThen => "次に",
         I18nKey::WsResizeTermCols => "端子列のサイズを変更する",
         I18nKey::WsResizeTermRows => "端子行のサイズを変更する",

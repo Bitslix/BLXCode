@@ -23,6 +23,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsKwMemory => "Memória",
         I18nKey::WsKwTerminal => "Terminál",
         I18nKey::WsKwPushToTalk => "Nyomd meg és beszélj",
+        I18nKey::WsKwCreateWorkspace => "Munkaterület létrehozása",
+        I18nKey::WsCreateWorkspaceHint => "Indítson el egy új munkaterületet, és konfigurálja a termináljait.",
         I18nKey::WsKwThen => "majd",
         I18nKey::WsResizeTermCols => "A termináloszlopok átméretezése",
         I18nKey::WsResizeTermRows => "A terminál sorok átméretezése",

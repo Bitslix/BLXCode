@@ -24,6 +24,8 @@ pub enum HarnessShortcutAction {
     RightTab(RightPanelTab),
     /// Open Memory as a centered workspace tab (not the right-panel tab).
     OpenCenterMemory,
+    /// Create a new workspace via the inline Create-Workspace configurator.
+    CreateWorkspace,
     OpenNewTerminal,
     ToggleCommandPalette,
 }
@@ -50,6 +52,10 @@ pub fn dispatch_shortcut_action(
         }
         HarnessShortcutAction::OpenCenterMemory => {
             wb.open_center_memory_tab();
+            defer_browser_bounds(wb, embed);
+        }
+        HarnessShortcutAction::CreateWorkspace => {
+            let _ = wb.start_inline_configure();
             defer_browser_bounds(wb, embed);
         }
         HarnessShortcutAction::OpenNewTerminal => open_new_terminal(wb),

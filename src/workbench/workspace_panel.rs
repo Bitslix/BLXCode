@@ -907,6 +907,7 @@ fn WorkspaceEmptyState() -> impl IntoView {
                 </ul>
             </div>
             <div class="workbench-shortcut-wrap">
+                <CreateWorkspaceHeroCard />
                 <ul class="workbench-shortcut-list" aria-label="Main destinations">
                     <ShortcutActionRow icon=icondata::LuSparkles action=ShortcutAction::Agent />
                     <ShortcutActionRow icon=icondata::LuLayers action=ShortcutAction::Memory />
@@ -922,6 +923,50 @@ fn WorkspaceEmptyState() -> impl IntoView {
                 </ul>
             </div>
         </div>
+    }
+}
+
+/// Prominent, highlighted "Create Workspace" call-to-action above the
+/// destinations row. Larger than the regular shortcut cards.
+#[component]
+fn CreateWorkspaceHeroCard() -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let prefs = expect_context::<AppPrefsService>();
+    let ui = expect_context::<HarnessUiService>();
+    let wb = expect_context::<WorkbenchService>();
+    let embed = expect_context::<BrowserEmbedSurface>();
+    let action = ShortcutAction::CreateWorkspace;
+    view! {
+        <button
+            type="button"
+            class="workbench-create-hero"
+            on:click=move |_| {
+                if let Some(harness) = action.to_harness_action() {
+                    dispatch_shortcut_action(harness, ui, wb, embed);
+                }
+            }
+        >
+            <span class="workbench-create-hero__icon" aria-hidden="true">
+                <LxIcon icon=icondata::LuFolderPlus width="1.35rem" height="1.35rem" />
+            </span>
+            <span class="workbench-create-hero__copy">
+                <span class="workbench-create-hero__title">
+                    {move || i18n.tr(I18nKey::WsKwCreateWorkspace)()}
+                </span>
+                <span class="workbench-create-hero__hint">
+                    {move || i18n.tr(I18nKey::WsCreateWorkspaceHint)()}
+                </span>
+            </span>
+            <span class="workbench-create-hero__keys">
+                <kbd class="workbench-kbd">
+                    {move || {
+                        let cfg = prefs.shortcut_config().get();
+                        let then = lookup(i18n.locale().get(), I18nKey::WsKwThen);
+                        cfg.binding(action).display(&cfg.prefix, then)
+                    }}
+                </kbd>
+            </span>
+        </button>
     }
 }
 

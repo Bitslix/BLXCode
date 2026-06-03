@@ -25,6 +25,7 @@ enum CaptureTarget {
 
 fn action_icon(action: ShortcutAction) -> icondata::Icon {
     match action {
+        ShortcutAction::CreateWorkspace => icondata::LuFolderPlus,
         ShortcutAction::QuickOpen => icondata::LuFolderSearch,
         ShortcutAction::FindFile => icondata::LuFileSearch,
         ShortcutAction::SidePanel => icondata::LuPanelRight,

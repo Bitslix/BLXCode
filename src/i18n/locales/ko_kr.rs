@@ -21,6 +21,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsKwMemory => "메모리",
         I18nKey::WsKwTerminal => "단말기",
         I18nKey::WsKwPushToTalk => "푸시 투 토크",
+        I18nKey::WsKwCreateWorkspace => "작업공간 만들기",
+        I18nKey::WsCreateWorkspaceHint => "새로운 작업공간을 시작하고 터미널을 구성하세요.",
         I18nKey::WsKwThen => "다음",
         I18nKey::WsResizeTermCols => "터미널 열 크기 조정",
         I18nKey::WsResizeTermRows => "터미널 행 크기 조정",

@@ -21,6 +21,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsKwMemory => "記憶",
         I18nKey::WsKwTerminal => "終端",
         I18nKey::WsKwPushToTalk => "按住說話",
+        I18nKey::WsKwCreateWorkspace => "創建工作空間",
+        I18nKey::WsCreateWorkspaceHint => "啟動一個新的工作區並配置其終端。",
         I18nKey::WsKwThen => "然後",
         I18nKey::WsResizeTermCols => "調整終端列的大小",
         I18nKey::WsResizeTermRows => "調整終端機行的大小",

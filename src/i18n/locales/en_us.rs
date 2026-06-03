@@ -26,6 +26,8 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::WsKwMemory => "Memory",
         I18nKey::WsKwTerminal => "Terminal",
         I18nKey::WsKwPushToTalk => "Push-to-Talk",
+        I18nKey::WsKwCreateWorkspace => "Create Workspace",
+        I18nKey::WsCreateWorkspaceHint => "Start a fresh workspace and configure its terminals.",
         I18nKey::WsKwThen => "then",
         I18nKey::WsResizeTermCols => "Resize terminal columns",
         I18nKey::WsResizeTermRows => "Resize terminal rows",

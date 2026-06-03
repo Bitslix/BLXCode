@@ -25,6 +25,8 @@ pub enum I18nKey {
     WsKwMemory,
     WsKwTerminal,
     WsKwPushToTalk,
+    WsKwCreateWorkspace,
+    WsCreateWorkspaceHint,
     WsKwThen,
     WsResizeTermCols,
     WsResizeTermRows,

@@ -127,6 +127,8 @@ impl Binding {
 /// The bindable harness actions (the rows shown on the welcome screen).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ShortcutAction {
+    /// Create a new workspace (opens the inline Create-Workspace configurator).
+    CreateWorkspace,
     QuickOpen,
     FindFile,
     SidePanel,
@@ -144,7 +146,8 @@ pub enum ShortcutAction {
 
 impl ShortcutAction {
     /// Stable iteration order (mirrors the welcome-screen layout).
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
+        Self::CreateWorkspace,
         Self::QuickOpen,
         Self::FindFile,
         Self::SidePanel,
@@ -166,6 +169,7 @@ impl ShortcutAction {
     #[must_use]
     pub fn label_key(self) -> I18nKey {
         match self {
+            Self::CreateWorkspace => I18nKey::WsKwCreateWorkspace,
             Self::QuickOpen => I18nKey::WsKwQuickOpen,
             Self::FindFile => I18nKey::WsKwFindFile,
             Self::SidePanel => I18nKey::WsKwSidePanel,
@@ -183,6 +187,7 @@ impl ShortcutAction {
     #[must_use]
     pub fn to_harness_action(self) -> Option<HarnessShortcutAction> {
         Some(match self {
+            Self::CreateWorkspace => HarnessShortcutAction::CreateWorkspace,
             Self::QuickOpen => HarnessShortcutAction::OpenQuickOpen,
             Self::FindFile => HarnessShortcutAction::OpenFindFile,
             Self::SidePanel => HarnessShortcutAction::ToggleRightPanel,
@@ -199,6 +204,7 @@ impl ShortcutAction {
     #[must_use]
     fn default_second(self) -> &'static str {
         match self {
+            Self::CreateWorkspace => "c",
             Self::QuickOpen => "o",
             Self::FindFile => "f",
             Self::SidePanel => "r",
@@ -216,6 +222,7 @@ impl ShortcutAction {
     #[must_use]
     fn default_combo(self) -> KeyChord {
         match self {
+            Self::CreateWorkspace => KeyChord::new(true, true, false, "c"),
             Self::QuickOpen => KeyChord::new(true, false, false, "o"),
             // Ctrl+Alt+F so it doesn't clobber the in-editor find (Ctrl+F).
             Self::FindFile => KeyChord::new(true, true, false, "f"),
