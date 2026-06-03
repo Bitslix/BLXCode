@@ -1,3 +1,6 @@
+use std::fs;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -7,6 +10,7 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 
 const RELEASE_NOTES_REPO: &str = "Bitslix/BLXCode";
 const RELEASE_NOTES_USER_AGENT: &str = "BLXCode post-update release notes";
+const UPDATE_SETTINGS_FILE: &str = "app_update_settings.json";
 
 #[derive(Default)]
 pub struct BlxUpdaterState {
@@ -19,10 +23,41 @@ struct BlxUpdaterInner {
     progress: UpdateProgress,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum UpdateChannel {
+    #[default]
+    Stable,
+    Beta,
+}
+
+impl UpdateChannel {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Stable => "stable",
+            Self::Beta => "beta",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateSettings {
+    #[serde(default)]
+    pub channel: UpdateChannel,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateSettingsView {
+    pub channel: UpdateChannel,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateCheckResponse {
     pub status: String,
+    pub channel: UpdateChannel,
     pub current_version: String,
     pub available_version: Option<String>,
     pub notes: Option<String>,
@@ -91,10 +126,36 @@ pub fn app_version(app: AppHandle) -> String {
 }
 
 #[tauri::command]
+pub fn updater_settings_get(app: AppHandle) -> Result<UpdateSettingsView, String> {
+    settings_view(&load_update_settings(&app)?)
+}
+
+#[tauri::command]
+pub fn updater_settings_save(
+    app: AppHandle,
+    state: tauri::State<'_, BlxUpdaterState>,
+    patch: UpdateSettingsView,
+) -> Result<UpdateSettingsView, String> {
+    let previous = load_update_settings(&app)?;
+    let next = UpdateSettings {
+        channel: patch.channel,
+    };
+    save_update_settings(&app, &next)?;
+    if previous.channel != next.channel {
+        let mut inner = state.inner.lock().map_err(lock_err)?;
+        inner.pending_update = None;
+        inner.progress = UpdateProgress::default();
+    }
+    settings_view(&next)
+}
+
+#[tauri::command]
 pub async fn updater_check(
     app: AppHandle,
     state: tauri::State<'_, BlxUpdaterState>,
 ) -> Result<UpdateCheckResponse, String> {
+    let settings = load_update_settings(&app)?;
+    let channel = settings.channel;
     if cfg!(debug_assertions) {
         let current_version = app.package_info().version.to_string();
         let mut inner = state.inner.lock().map_err(lock_err)?;
@@ -107,6 +168,7 @@ pub async fn updater_check(
         };
         return Ok(UpdateCheckResponse {
             status: "devUnavailable".into(),
+            channel,
             current_version,
             available_version: None,
             notes: None,
@@ -137,6 +199,7 @@ pub async fn updater_check(
         Some(update) => {
             let response = UpdateCheckResponse {
                 status: "available".into(),
+                channel,
                 current_version,
                 available_version: Some(update.version.clone()),
                 notes: update.body.clone(),
@@ -166,6 +229,7 @@ pub async fn updater_check(
             };
             Ok(UpdateCheckResponse {
                 status: "upToDate".into(),
+                channel,
                 current_version,
                 available_version: None,
                 notes: None,
@@ -176,6 +240,56 @@ pub async fn updater_check(
             })
         }
     }
+}
+
+fn update_settings_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let base = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("app config dir unavailable: {e}"))?;
+    Ok(base.join(UPDATE_SETTINGS_FILE))
+}
+
+fn load_update_settings(app: &AppHandle) -> Result<UpdateSettings, String> {
+    let path = update_settings_path(app)?;
+    match fs::read_to_string(&path) {
+        Ok(raw) if raw.trim().is_empty() => Ok(UpdateSettings::default()),
+        Ok(raw) => serde_json::from_str::<UpdateSettings>(&raw)
+            .map_err(|e| format!("parse update settings {}: {e}", path.display())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(UpdateSettings::default()),
+        Err(e) => Err(format!("read update settings {}: {e}", path.display())),
+    }
+}
+
+fn save_update_settings(app: &AppHandle, settings: &UpdateSettings) -> Result<(), String> {
+    let path = update_settings_path(app)?;
+    atomic_write_json(&path, settings)
+}
+
+fn atomic_write_json<T: Serialize>(path: &Path, value: &T) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("invalid update settings path {}", path.display()))?;
+    fs::create_dir_all(parent)
+        .map_err(|e| format!("create update settings dir {}: {e}", parent.display()))?;
+    let tmp = path.with_extension("json.tmp");
+    let body = serde_json::to_string_pretty(value)
+        .map_err(|e| format!("encode update settings {}: {e}", path.display()))?;
+    {
+        let mut file =
+            fs::File::create(&tmp).map_err(|e| format!("create {}: {e}", tmp.display()))?;
+        file.write_all(body.as_bytes())
+            .map_err(|e| format!("write {}: {e}", tmp.display()))?;
+        file.sync_all().ok();
+    }
+    fs::rename(&tmp, path)
+        .map_err(|e| format!("rename {} -> {}: {e}", tmp.display(), path.display()))
+}
+
+fn settings_view(settings: &UpdateSettings) -> Result<UpdateSettingsView, String> {
+    Ok(UpdateSettingsView {
+        channel: settings.channel,
+    })
 }
 
 #[tauri::command]
