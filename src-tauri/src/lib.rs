@@ -42,7 +42,8 @@ use agent::{
 };
 use agent_hooks::{agent_hooks_status, install_agent_hooks, uninstall_agent_hooks};
 use agent_settings::{
-    agent_active_context_window, agent_provider_models, agent_session_roles_list,
+    agent_active_context_window, agent_onboarding_complete, agent_provider_models,
+    agent_session_roles_list,
     agent_settings_get, agent_settings_save, agent_validate_nickname,
 };
 use api_keys::{api_keys_apply, api_keys_status};
@@ -211,6 +212,7 @@ pub fn run() {
             agent_export_context_images,
             harness_ensure_default_sandbox,
             harness_user_home_dir,
+            agent_onboarding_complete,
             agent_settings_get,
             agent_settings_save,
             agent_validate_nickname,

@@ -8,7 +8,7 @@
 use super::badwords::BADWORDS;
 
 /// Default agent name when the user has not set one.
-pub const DEFAULT_AGENT_NICKNAME: &str = "BLXCodey";
+pub const DEFAULT_AGENT_NICKNAME: &str = "BLXCody";
 
 /// Maximum length (in characters) of a user-chosen nickname.
 pub const MAX_NICKNAME_LEN: usize = 32;
@@ -138,6 +138,7 @@ mod tests {
 
     #[test]
     fn default_name_is_clean() {
+        assert_eq!(DEFAULT_AGENT_NICKNAME, "BLXCody");
         assert_eq!(
             validate_nickname(DEFAULT_AGENT_NICKNAME),
             Ok(DEFAULT_AGENT_NICKNAME.to_string())

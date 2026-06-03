@@ -47,6 +47,10 @@ fn default_orb_mode() -> AgentOrbMode {
     AgentOrbMode::ThreeD
 }
 
+fn default_onboarding_seen() -> bool {
+    false
+}
+
 /// Clamp an auto-compact threshold percent into the supported range.
 pub fn clamp_auto_compact_threshold_pct(value: u8) -> u8 {
     value.clamp(
@@ -146,6 +150,13 @@ pub struct AgentProviderSettings {
     /// User-chosen agent name. Empty = use [`DEFAULT_AGENT_NICKNAME`].
     #[serde(default)]
     pub agent_nickname: String,
+    /// Whether the one-time startup dialog for name + default role has been
+    /// completed. Defaults to false so existing installations see it once.
+    #[serde(default = "default_onboarding_seen")]
+    pub onboarding_seen: bool,
+    /// Default harness session-role slug for newly-created workspaces.
+    #[serde(default)]
+    pub default_session_role: Option<String>,
     #[serde(default)]
     pub model_cache_openrouter: Vec<ProviderModelEntry>,
     #[serde(default)]
@@ -165,6 +176,8 @@ impl Default for AgentProviderSettings {
             auto_compact_threshold_pct: DEFAULT_AUTO_COMPACT_THRESHOLD_PCT,
             orb_mode: default_orb_mode(),
             agent_nickname: String::new(),
+            onboarding_seen: default_onboarding_seen(),
+            default_session_role: None,
             model_cache_openrouter: curated_models(AgentProviderKind::Openrouter),
             model_cache_anthropic: curated_models(AgentProviderKind::Anthropic),
             model_cache_openai: curated_models(AgentProviderKind::Openai),
@@ -216,6 +229,8 @@ pub struct AgentProviderSettingsPatch {
     pub orb_mode: AgentOrbMode,
     #[serde(default)]
     pub agent_nickname: String,
+    #[serde(default)]
+    pub default_session_role: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -230,6 +245,17 @@ fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
         .app_config_dir()
         .map_err(|e| format!("app config dir unavailable: {e}"))?;
     Ok(base.join(SETTINGS_FILE))
+}
+
+fn normalize_session_role(raw: Option<String>) -> Option<String> {
+    raw.and_then(|value| {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
 }
 
 fn secrets_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -910,6 +936,22 @@ pub fn agent_settings_save(
             // Surface the stable reason code; the UI maps it to a localized message.
             format!("nickname:{}", e.reason_code())
         })?;
+    settings.default_session_role = normalize_session_role(patch.default_session_role);
+    save_settings(&app, &settings)?;
+    settings_view(&app, settings)
+}
+
+#[tauri::command]
+pub fn agent_onboarding_complete(
+    app: AppHandle,
+    agent_nickname: String,
+    default_session_role: Option<String>,
+) -> Result<AgentProviderSettingsView, String> {
+    let mut settings = load_settings(&app)?;
+    settings.agent_nickname = crate::agent::nickname::validate_nickname(&agent_nickname)
+        .map_err(|e| format!("nickname:{}", e.reason_code()))?;
+    settings.default_session_role = normalize_session_role(default_session_role);
+    settings.onboarding_seen = true;
     save_settings(&app, &settings)?;
     settings_view(&app, settings)
 }
