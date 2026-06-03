@@ -147,6 +147,75 @@ body {
   position: relative;
 }
 
+.app-statusline {
+  flex: 0 0 24px;
+  min-height: 24px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.6rem;
+  border-top: 1px solid color-mix(in srgb, var(--accent-cool) 54%, var(--border-strong));
+  background: color-mix(in srgb, var(--bg-panel-header) 84%, var(--bg-app));
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  line-height: 1;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.app-statusline__slot {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  overflow: hidden;
+}
+
+.app-statusline__slot--left {
+  justify-self: start;
+}
+
+.app-statusline__slot--center {
+  justify-self: center;
+}
+
+.app-statusline__slot--right {
+  justify-self: end;
+}
+
+.app-statusline__item {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  height: 18px;
+  padding: 0 0.28rem;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.app-statusline__item svg {
+  flex: 0 0 auto;
+}
+
+.app-statusline__item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-statusline__item--accent {
+  color: var(--accent-cool);
+  font-weight: 600;
+}
+
+.app-statusline__item--quiet {
+  color: color-mix(in srgb, var(--text-muted) 82%, var(--text-faint));
+}
+
 .container {
   margin: 0;
   height: 100%;

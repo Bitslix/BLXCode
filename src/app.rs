@@ -10,6 +10,7 @@ use crate::workbench::WorkbenchService;
 use crate::workbench::WorkbenchShell;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use leptos_icons::Icon as LxIcon;
 use send_wrapper::SendWrapper;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
@@ -156,7 +157,48 @@ pub fn App() -> impl IntoView {
                     </Show>
                 </Show>
             </div>
+            <Show when=move || workbench_active.get()>
+                <AppStatusLine />
+            </Show>
         </div>
+    }
+}
+
+#[component]
+fn AppStatusLine() -> impl IntoView {
+    view! {
+        <footer class="app-statusline" aria-label="Application status">
+            <div class="app-statusline__slot app-statusline__slot--left">
+                <span class="app-statusline__item app-statusline__item--accent">
+                    <LxIcon icon=icondata::LuGitBranch width="0.78rem" height="0.78rem" />
+                    <span>"stage"</span>
+                </span>
+                <span class="app-statusline__item">
+                    <LxIcon icon=icondata::LuCircleAlert width="0.76rem" height="0.76rem" />
+                    <span>"0"</span>
+                </span>
+                <span class="app-statusline__item">
+                    <LxIcon icon=icondata::LuCircleCheck width="0.76rem" height="0.76rem" />
+                    <span>"0"</span>
+                </span>
+            </div>
+            <div class="app-statusline__slot app-statusline__slot--center">
+                <span class="app-statusline__item app-statusline__item--quiet">
+                    <LxIcon icon=icondata::LuBot width="0.78rem" height="0.78rem" />
+                    <span>"BLXCode Agent idle"</span>
+                </span>
+            </div>
+            <div class="app-statusline__slot app-statusline__slot--right">
+                <span class="app-statusline__item">
+                    <LxIcon icon=icondata::LuCode width="0.78rem" height="0.78rem" />
+                    <span>"Go Live"</span>
+                </span>
+                <span class="app-statusline__item">
+                    <LxIcon icon=icondata::LuBell width="0.78rem" height="0.78rem" />
+                    <span>"0"</span>
+                </span>
+            </div>
+        </footer>
     }
 }
 
