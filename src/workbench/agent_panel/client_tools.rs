@@ -1436,7 +1436,7 @@ async fn wait_for_target_session(
         TimeoutFuture::new(PTY_READY_DELAY_MS).await;
     }
     resolve_target_session(&wb, workspace_id, args)
-        .or_else(|_| Err(last_err.unwrap_or_else(|| "terminal session not running".into())))
+        .map_err(|_| last_err.unwrap_or_else(|| "terminal session not running".into()))
 }
 
 fn handle_list_terminals(call_id: String, wb: WorkbenchService) {

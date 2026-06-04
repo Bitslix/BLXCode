@@ -219,7 +219,7 @@ fn normalize_blx_open_fenced_markers(md: &str) -> (String, Vec<bool>) {
             expand_defaults.push(expand);
             if expand {
                 let indent = body.len() - trim.len();
-                out.extend(std::iter::repeat(' ').take(indent));
+                out.extend(std::iter::repeat_n(' ', indent));
                 out.push_str("```");
                 if !rewritten.is_empty() {
                     out.push(' ');

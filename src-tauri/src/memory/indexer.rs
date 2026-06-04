@@ -394,10 +394,9 @@ fn slugify(raw: &str) -> String {
     for ch in raw.chars() {
         if ch.is_ascii_alphanumeric() {
             out.push(ch.to_ascii_lowercase());
-        } else if ch == '-' || ch == '_' || ch.is_whitespace() || ch == '.' {
-            if !out.ends_with('-') {
-                out.push('-');
-            }
+        } else if (ch == '-' || ch == '_' || ch.is_whitespace() || ch == '.') && !out.ends_with('-')
+        {
+            out.push('-');
         }
     }
     let out = out.trim_matches('-').to_string();

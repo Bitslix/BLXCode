@@ -545,6 +545,10 @@ fn remote_stat_file(
     })
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Remote binary reads share one implementation across preview commands with explicit policy inputs."
+)]
 fn remote_read_binary(
     app: &AppHandle,
     pty: &PtyManager,
@@ -815,6 +819,10 @@ fn local_read_text_file(workspace_root: &str, path: &str) -> Result<TextFilePrev
 /// itself is atomic (temp sibling + rename). Returns a fresh baseline so the
 /// frontend can clear its dirty/conflict state without reloading.
 #[tauri::command]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Tauri command signature is the IPC boundary consumed by the frontend."
+)]
 pub fn write_workspace_text_file(
     app: AppHandle,
     pty: State<'_, PtyManager>,

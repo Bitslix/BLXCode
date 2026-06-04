@@ -364,6 +364,6 @@ fn reduce_to_iso639_1(tag: &str) -> String {
         return String::new();
     }
     // BCP-47 like `de-DE`, `zh-CN` → primary subtag.
-    let primary = t.split(|c| c == '-' || c == '_').next().unwrap_or("");
+    let primary = t.split(['-', '_']).next().unwrap_or("");
     primary.to_ascii_lowercase()
 }

@@ -1260,7 +1260,7 @@ pub fn TimelineRow(
                                         };
                                         view! {
                                             <details class=class>
-                                                <summary>"Thinking"{(!thinking_done).then(|| "…")}</summary>
+                                                <summary>"Thinking"{(!thinking_done).then_some("…")}</summary>
                                                 <pre class="agent-subagent-card__thinking-body">{live_thinking}</pre>
                                             </details>
                                         }

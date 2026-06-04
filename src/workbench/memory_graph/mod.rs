@@ -1023,8 +1023,7 @@ fn clean_display_label(raw: &str) -> String {
     let tail = raw
         .replace('\\', "/")
         .split('/')
-        .filter(|part| !part.is_empty())
-        .last()
+        .rfind(|part| !part.is_empty())
         .unwrap_or(raw)
         .trim_end_matches(".md")
         .trim_end_matches(".MD")

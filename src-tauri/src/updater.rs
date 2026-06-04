@@ -708,9 +708,7 @@ fn parse_release_item(raw: &str) -> PostUpdateReleaseNotesItem {
 fn clean_inline_markdown(value: &str) -> String {
     value
         .replace("**", "")
-        .replace('`', "")
-        .replace('[', "")
-        .replace(']', "")
+        .replace(['`', '[', ']'], "")
         .trim()
         .to_string()
 }

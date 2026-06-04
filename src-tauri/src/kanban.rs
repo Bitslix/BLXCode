@@ -216,9 +216,10 @@ fn load_layout(root: &Path, workspace_cwd: &str) -> Result<KanbanLayout, String>
 }
 
 fn default_layout_for(workspace_cwd: &str) -> KanbanLayout {
-    let mut layout = KanbanLayout::default();
-    layout.workspace_root = Some(workspace_cwd.to_owned());
-    layout
+    KanbanLayout {
+        workspace_root: Some(workspace_cwd.to_owned()),
+        ..KanbanLayout::default()
+    }
 }
 
 fn write_layout(

@@ -74,7 +74,7 @@ pub fn mermaid_export_markdown(
         .dialog()
         .file()
         .add_filter("Markdown", &["md"])
-        .set_file_name(&format!("{}.md", file_stem(&title)))
+        .set_file_name(format!("{}.md", file_stem(&title)))
         .blocking_save_file();
     write_chosen(path, body.into_bytes())
 }
@@ -93,7 +93,7 @@ pub fn mermaid_export_pdf(
         .dialog()
         .file()
         .add_filter("PDF", &["pdf"])
-        .set_file_name(&format!("{}.pdf", file_stem(&title)))
+        .set_file_name(format!("{}.pdf", file_stem(&title)))
         .blocking_save_file();
     write_chosen(path, bytes)
 }

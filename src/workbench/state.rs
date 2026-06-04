@@ -733,7 +733,7 @@ impl WorkspaceEntry {
     fn grid_heuristic(n: u8) -> (u8, u8) {
         let n = n.max(1) as u32;
         let cols = ((n as f64).sqrt().ceil() as u32).max(1);
-        let rows = (n + cols - 1) / cols;
+        let rows = n.div_ceil(cols);
         (rows as u8, cols as u8)
     }
 
@@ -1770,7 +1770,7 @@ impl WorkbenchService {
     }
 
     pub fn set_agent_notifications(&self, mut items: Vec<AgentNotification>) {
-        items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        items.sort_by_key(|item| std::cmp::Reverse(item.created_at));
         self.agent_notifications.set(items);
     }
 
@@ -1781,7 +1781,7 @@ impl WorkbenchService {
             } else {
                 items.push(item);
             }
-            items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+            items.sort_by_key(|item| std::cmp::Reverse(item.created_at));
         });
     }
 
@@ -3150,7 +3150,7 @@ impl WorkbenchService {
             }
             for slug in &slugs {
                 let mut new_slot_id = workspace.next_terminal_id.max(1);
-                while workspace.slot_ids.iter().any(|id| *id == new_slot_id) {
+                while workspace.slot_ids.contains(&new_slot_id) {
                     new_slot_id += 1;
                 }
                 workspace.slot_ids.push(new_slot_id);
@@ -3424,7 +3424,7 @@ impl WorkbenchService {
                     if source.slot_ids.len() <= 1 {
                         return Err("source workspace must keep at least one slot".into());
                     }
-                    if !source.slot_ids.iter().any(|id| *id == slot_id) {
+                    if !source.slot_ids.contains(&slot_id) {
                         return Err("slot not found in source workspace".into());
                     }
                     Ok((source.cwd.clone(), list.len()))
@@ -3802,13 +3802,15 @@ impl WorkbenchService {
         let id = self.allocate_workspace_id();
 
         let project_root = self.default_project_dir.get_untracked();
-        let mut draft = CreateWorkspaceDraft::default();
-        draft.cwd_display = if project_root.trim().is_empty() {
-            self.harness_workspace_root.get_untracked()
-        } else {
-            project_root
+        let draft = CreateWorkspaceDraft {
+            cwd_display: if project_root.trim().is_empty() {
+                self.harness_workspace_root.get_untracked()
+            } else {
+                project_root
+            },
+            session_role: self.default_session_role.get_untracked(),
+            ..CreateWorkspaceDraft::default()
         };
-        draft.session_role = self.default_session_role.get_untracked();
 
         let color = self.workspace_color_for_new_index(self.workspaces.get_untracked().len());
         let entry = WorkspaceEntry {
@@ -4962,11 +4964,7 @@ pub fn derive_workspace_name(path: &str) -> Option<String> {
     if trimmed.is_empty() {
         return None;
     }
-    let last = trimmed
-        .rsplit(|c| c == '/' || c == '\\')
-        .next()
-        .unwrap_or("")
-        .trim();
+    let last = trimmed.rsplit(['/', '\\']).next().unwrap_or("").trim();
     if last.is_empty() || last == "." || last == ".." {
         return None;
     }
@@ -5048,7 +5046,7 @@ fn swap_workspace_slots(workspace: &mut WorkspaceEntry, slot_a: u64, slot_b: u64
 /// returning the resulting [`TerminalSlotMove`]. Callers wire any
 /// side-effects (PTY adoption, key rewrites, focus changes) themselves.
 fn transfer_workspace_slot(
-    workspaces: &mut Vec<WorkspaceEntry>,
+    workspaces: &mut [WorkspaceEntry],
     from_workspace_id: u64,
     to_workspace_id: u64,
     slot_id: u64,
@@ -5120,7 +5118,7 @@ fn transfer_workspace_slot(
             return Err("target workspace already at maximum (16 slots)".into());
         }
         let mut new_slot_id = target.next_terminal_id.max(1);
-        while target.slot_ids.iter().any(|x| *x == new_slot_id) {
+        while target.slot_ids.contains(&new_slot_id) {
             new_slot_id += 1;
         }
         (target.storage_key.clone(), new_slot_id)

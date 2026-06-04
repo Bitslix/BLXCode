@@ -9,7 +9,9 @@ use crate::agent_settings;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub enum ImageProviderKind {
+    #[default]
     Openai,
     Openrouter,
     Fal,
@@ -22,12 +24,6 @@ impl ImageProviderKind {
             Self::Openrouter => "openrouter",
             Self::Fal => "fal",
         }
-    }
-}
-
-impl Default for ImageProviderKind {
-    fn default() -> Self {
-        Self::Openai
     }
 }
 

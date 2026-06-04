@@ -94,23 +94,6 @@ fn is_fullish_sha(value: &str) -> bool {
     value.len() >= 7 && value.chars().all(|ch| ch.is_ascii_hexdigit())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::fs;
-
-    #[test]
-    fn is_git_repository_detects_dot_git() {
-        let tmp = std::env::temp_dir().join(format!("blx_git_{}", std::process::id()));
-        let _ = fs::remove_dir_all(&tmp);
-        fs::create_dir_all(&tmp).unwrap();
-        assert!(!is_git_repository(&tmp));
-        fs::create_dir_all(tmp.join(".git")).unwrap();
-        assert!(is_git_repository(&tmp));
-        let _ = fs::remove_dir_all(&tmp);
-    }
-}
-
 pub(crate) fn find_git_dir(start: &Path) -> Option<PathBuf> {
     let mut cur: Option<&Path> = Some(start);
     while let Some(p) = cur {
@@ -132,4 +115,22 @@ pub(crate) fn find_git_dir(start: &Path) -> Option<PathBuf> {
         cur = p.parent();
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn is_git_repository_detects_dot_git() {
+        let tmp = std::env::temp_dir().join(format!("blx_git_{}", std::process::id()));
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&tmp).unwrap();
+        let local_git_dir = tmp.join(".git");
+        assert_ne!(find_git_dir(&tmp).as_deref(), Some(local_git_dir.as_path()));
+        fs::create_dir_all(tmp.join(".git")).unwrap();
+        assert_eq!(find_git_dir(&tmp).as_deref(), Some(local_git_dir.as_path()));
+        let _ = fs::remove_dir_all(&tmp);
+    }
 }

@@ -144,7 +144,7 @@ fn effort_segment(profile: &TerminalAgentProfile, effort: Option<&str>) -> (Stri
         return (String::new(), String::new());
     };
     let trimmed = raw.trim();
-    if trimmed.is_empty() || !profile.efforts.iter().any(|known| *known == trimmed) {
+    if trimmed.is_empty() || !profile.efforts.contains(&trimmed) {
         return (String::new(), String::new());
     }
     match profile.effort_passing {

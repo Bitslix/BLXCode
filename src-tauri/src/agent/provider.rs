@@ -337,8 +337,10 @@ mod tests {
 
     #[test]
     fn ollama_endpoint_uses_no_auth_default_url() {
-        let mut settings = AgentProviderSettings::default();
-        settings.provider = AgentProviderKind::Ollama;
+        let settings = AgentProviderSettings {
+            provider: AgentProviderKind::Ollama,
+            ..AgentProviderSettings::default()
+        };
 
         let endpoint = compatible_endpoint(&settings).expect("ollama endpoint");
 
@@ -348,8 +350,10 @@ mod tests {
 
     #[test]
     fn cloudflare_endpoint_requires_account_id() {
-        let mut settings = AgentProviderSettings::default();
-        settings.provider = AgentProviderKind::Cloudflare;
+        let settings = AgentProviderSettings {
+            provider: AgentProviderKind::Cloudflare,
+            ..AgentProviderSettings::default()
+        };
 
         let err = compatible_endpoint(&settings).expect_err("missing account id");
 
@@ -358,9 +362,11 @@ mod tests {
 
     #[test]
     fn cloudflare_endpoint_injects_account_id() {
-        let mut settings = AgentProviderSettings::default();
-        settings.provider = AgentProviderKind::Cloudflare;
-        settings.cloudflare_account_id = "acct_123".into();
+        let settings = AgentProviderSettings {
+            provider: AgentProviderKind::Cloudflare,
+            cloudflare_account_id: "acct_123".into(),
+            ..AgentProviderSettings::default()
+        };
 
         let endpoint = compatible_endpoint(&settings).expect("cloudflare endpoint");
 

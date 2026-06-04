@@ -16,7 +16,7 @@
 use crate::plans::plan_folder_abs;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 const DIAGRAMS_DIRNAME: &str = "diagrams";
@@ -97,7 +97,7 @@ fn validate_id(id: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn read_manifest(dir: &PathBuf) -> Manifest {
+fn read_manifest(dir: &Path) -> Manifest {
     let path = dir.join(MANIFEST_FILE);
     match fs::read_to_string(&path) {
         Ok(s) => serde_json::from_str(&s).unwrap_or_default(),

@@ -9,7 +9,9 @@ use crate::agent_settings;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub enum VoiceProviderKind {
+    #[default]
     Openai,
     Openrouter,
     Aws,
@@ -22,12 +24,6 @@ impl VoiceProviderKind {
             Self::Openrouter => "openrouter",
             Self::Aws => "aws",
         }
-    }
-}
-
-impl Default for VoiceProviderKind {
-    fn default() -> Self {
-        Self::Openai
     }
 }
 
@@ -71,29 +67,23 @@ impl Default for TtsSettings {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub enum PostSttFlow {
+    #[default]
     AutoSend,
     Draft,
 }
 
-impl Default for PostSttFlow {
-    fn default() -> Self {
-        Self::AutoSend
-    }
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "mode")]
+#[derive(Default)]
 pub enum SttLanguageMode {
+    #[default]
     FollowApp,
     AutoDetect,
-    Manual { code: String },
-}
-
-impl Default for SttLanguageMode {
-    fn default() -> Self {
-        Self::FollowApp
-    }
+    Manual {
+        code: String,
+    },
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -127,78 +117,58 @@ impl Default for PttHotkey {
 /// Push-to-talk backend selection. Local-first by default for privacy.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub enum PttMode {
+    #[default]
     Local,
     Cloud,
-}
-
-impl Default for PttMode {
-    fn default() -> Self {
-        Self::Local
-    }
 }
 
 /// Decode-quality preset for the local whisper engine. This is an *inference*
 /// parameter (threads/beam/strategy) and is independent of the chosen model.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub enum WhisperQuality {
     Fast,
+    #[default]
     Balanced,
     Best,
-}
-
-impl Default for WhisperQuality {
-    fn default() -> Self {
-        Self::Balanced
-    }
 }
 
 /// Where a finalized PTT transcript is written.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub enum PttInsertTarget {
+    #[default]
     Agent,
     Terminal,
     ActiveInput,
     Clipboard,
 }
 
-impl Default for PttInsertTarget {
-    fn default() -> Self {
-        Self::Agent
-    }
-}
-
 /// Whether the insert target follows the focus at release time, or is pinned
 /// at the moment recording starts (so a focus change mid-utterance is ignored).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub enum PttTargetMode {
+    #[default]
     CurrentFocus,
     RememberStart,
-}
-
-impl Default for PttTargetMode {
-    fn default() -> Self {
-        Self::CurrentFocus
-    }
 }
 
 /// What to do when PTT starts while TTS is still playing — avoids a feedback
 /// loop where the mic captures the assistant's own voice.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub enum TtsCollision {
     Stop,
     Pause,
+    #[default]
     Block,
-}
-
-impl Default for TtsCollision {
-    fn default() -> Self {
-        Self::Block
-    }
 }
 
 /// Push-to-talk settings. Stored under `voice.ptt`; every field carries a

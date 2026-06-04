@@ -34,7 +34,7 @@ pub struct McpToolSpec {
 
 /// A live connection to one MCP server.
 pub enum McpClient {
-    Stdio(StdioClient),
+    Stdio(Box<StdioClient>),
     Http(HttpClient),
 }
 
@@ -42,9 +42,9 @@ impl McpClient {
     /// Connect + `initialize` handshake.
     pub async fn connect(server: &McpServer) -> Result<Self, String> {
         match &server.transport {
-            McpTransport::Stdio { command, args, env } => Ok(McpClient::Stdio(
+            McpTransport::Stdio { command, args, env } => Ok(McpClient::Stdio(Box::new(
                 StdioClient::connect(command, args, env).await?,
-            )),
+            ))),
             McpTransport::Http { url, headers } => {
                 Ok(McpClient::Http(HttpClient::connect(url, headers).await?))
             }

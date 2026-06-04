@@ -14,7 +14,6 @@ use crate::theme::{
     clamp_font_size_px, font_stack_for, is_valid_font_id, RadiusScale, DEFAULT_FONT_ID,
     DEFAULT_FONT_SIZE_PX, DEFAULT_THEME_ID, THEMES,
 };
-use js_sys;
 use leptos::prelude::*;
 use wasm_bindgen::{JsCast, JsValue};
 

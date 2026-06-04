@@ -64,7 +64,7 @@ fn sync_inner(root: &Path, rename: Option<(String, String)>) -> Result<(), Strin
             Some((meta.path, title))
         })
         .collect();
-    entries.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+    entries.sort_by_key(|a| a.0.to_lowercase());
 
     let existing = fs::read_to_string(&index_path).unwrap_or_default();
     let rendered = render_index(&existing, &entries, rename.as_ref());

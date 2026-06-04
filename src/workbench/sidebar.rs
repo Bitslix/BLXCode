@@ -1052,8 +1052,7 @@ fn read_panels_height_pct() -> f64 {
         .and_then(|s| s.get_item(SIDEBAR_PANELS_HEIGHT_PCT_KEY).ok().flatten())
         .and_then(|raw| raw.parse::<f64>().ok());
     let pct = stored.unwrap_or(SIDEBAR_PANELS_HEIGHT_PCT_DEFAULT);
-    pct.max(SIDEBAR_PANELS_HEIGHT_PCT_MIN)
-        .min(SIDEBAR_PANELS_HEIGHT_PCT_MAX)
+    pct.clamp(SIDEBAR_PANELS_HEIGHT_PCT_MIN, SIDEBAR_PANELS_HEIGHT_PCT_MAX)
 }
 
 fn write_panels_height_pct(pct: f64) {
@@ -1071,8 +1070,10 @@ fn read_explorer_height_pct() -> f64 {
         .and_then(|s| s.get_item(SIDEBAR_EXPLORER_HEIGHT_PCT_KEY).ok().flatten())
         .and_then(|raw| raw.parse::<f64>().ok());
     let pct = stored.unwrap_or(SIDEBAR_EXPLORER_HEIGHT_PCT_DEFAULT);
-    pct.max(SIDEBAR_EXPLORER_HEIGHT_PCT_MIN)
-        .min(SIDEBAR_EXPLORER_HEIGHT_PCT_MAX)
+    pct.clamp(
+        SIDEBAR_EXPLORER_HEIGHT_PCT_MIN,
+        SIDEBAR_EXPLORER_HEIGHT_PCT_MAX,
+    )
 }
 
 fn write_explorer_height_pct(pct: f64) {
@@ -1090,8 +1091,7 @@ fn read_diff_height_pct() -> f64 {
         .and_then(|s| s.get_item(SIDEBAR_DIFF_HEIGHT_PCT_KEY).ok().flatten())
         .and_then(|raw| raw.parse::<f64>().ok());
     let pct = stored.unwrap_or(SIDEBAR_DIFF_HEIGHT_PCT_DEFAULT);
-    pct.max(SIDEBAR_DIFF_HEIGHT_PCT_MIN)
-        .min(SIDEBAR_DIFF_HEIGHT_PCT_MAX)
+    pct.clamp(SIDEBAR_DIFF_HEIGHT_PCT_MIN, SIDEBAR_DIFF_HEIGHT_PCT_MAX)
 }
 
 fn write_diff_height_pct(pct: f64) {

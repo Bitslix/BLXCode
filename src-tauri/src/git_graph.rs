@@ -208,7 +208,7 @@ fn git_commit_details_remote(
 ) -> Result<GitCommitDetails, String> {
     let work_tree = remote_work_tree(app, pty, exec, cid, cwd)?;
     let pretty = details_pretty_format();
-    let owned = vec![
+    let owned = [
         "show".to_string(),
         "--find-renames".to_string(),
         "--numstat".to_string(),

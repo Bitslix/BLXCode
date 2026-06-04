@@ -100,9 +100,8 @@ mod tests {
     };
 
     fn settings_with_openrouter(entries: Vec<ProviderModelEntry>) -> AgentProviderSettings {
-        let mut settings = AgentProviderSettings::default();
-        settings.model_cache_openrouter = entries.clone();
-        settings.model_caches.insert("openrouter".into(), entries);
+        let mut model_caches = std::collections::BTreeMap::new();
+        model_caches.insert("openrouter".into(), entries.clone());
         AgentProviderSettings {
             provider: AgentProviderKind::Openrouter,
             model_id: String::new(),
@@ -114,7 +113,9 @@ mod tests {
             agent_nickname: String::new(),
             onboarding_seen: false,
             default_session_role: None,
-            ..settings
+            model_cache_openrouter: entries,
+            model_caches,
+            ..AgentProviderSettings::default()
         }
     }
 

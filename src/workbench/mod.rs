@@ -134,7 +134,6 @@ use context_drag::ContextDragService;
 use context_drag_overlay::ContextDragOverlay;
 use gloo_timers::future::TimeoutFuture;
 use harness_ui::HarnessHost;
-use js_sys;
 use kanban_dnd::KanbanDragService;
 use kanban_drag_overlay::KanbanDragOverlay;
 use leptos::prelude::*;

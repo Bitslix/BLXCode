@@ -129,6 +129,10 @@ struct OpenAiAggregatedCall {
     arguments: String,
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Subagent runner receives the full tool/provider context at a single orchestration boundary."
+)]
 pub async fn run_one_subagent(
     state: &Arc<AgentEngineState>,
     ctx: &DispatchContext,
@@ -580,6 +584,10 @@ enum ToolCallOutcome {
     NotSubmit,
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Tool call handling threads mutable loop state through one small internal boundary."
+)]
 fn handle_tool_call(
     state: &Arc<AgentEngineState>,
     agent_id: &str,
@@ -881,9 +889,8 @@ async fn stream_anthropic_subagent_round(
 
     let req_start = Instant::now();
     let stream = resp.bytes_stream();
-    let reader = tokio_util::io::StreamReader::new(
-        stream.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string())),
-    );
+    let reader =
+        tokio_util::io::StreamReader::new(stream.map_err(|e| std::io::Error::other(e.to_string())));
     let mut lines = tokio::io::BufReader::new(reader).lines();
 
     let mut acc = AnthropicRoundResult::default();
@@ -1122,9 +1129,8 @@ async fn stream_openai_subagent_round(
 
     let req_start = Instant::now();
     let stream = resp.bytes_stream();
-    let reader = tokio_util::io::StreamReader::new(
-        stream.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string())),
-    );
+    let reader =
+        tokio_util::io::StreamReader::new(stream.map_err(|e| std::io::Error::other(e.to_string())));
     let mut lines = tokio::io::BufReader::new(reader).lines();
 
     let mut acc = OpenAiRoundResult::default();

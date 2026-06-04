@@ -24,7 +24,7 @@ pub fn agent_poll_events(
     max: usize,
     agent: State<'_, Arc<AgentEngineState>>,
 ) -> Vec<EventEnvelope> {
-    agent.drain(max.max(1).min(512))
+    agent.drain(max.clamp(1, 512))
 }
 
 #[tauri::command]
@@ -666,10 +666,10 @@ pub fn list_directory(path: String) -> Result<Vec<DirEntryBrief>, String> {
     let mut out: Vec<DirEntryBrief> = read
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
-        .filter_map(|e| {
+        .map(|e| {
             let name = e.file_name().to_string_lossy().into_owned();
             let hidden = name.starts_with('.');
-            Some(DirEntryBrief { name, hidden })
+            DirEntryBrief { name, hidden }
         })
         .collect();
     out.sort_by(|a, b| {

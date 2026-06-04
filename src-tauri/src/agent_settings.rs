@@ -1113,7 +1113,7 @@ pub async fn agent_provider_models(
 
 pub fn provider_status_json() -> serde_json::Value {
     let key_statuses = crate::agent::provider::all_providers()
-        .into_iter()
+        .iter()
         .map(|spec| {
             serde_json::json!({
                 "id": spec.id,

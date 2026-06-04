@@ -763,7 +763,7 @@ fn agent_notifications_from_state(state: &Value) -> Vec<AgentNotification> {
         .flatten()
         .filter_map(|v| serde_json::from_value(v.clone()).ok())
         .collect();
-    items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    items.sort_by_key(|item| std::cmp::Reverse(item.created_at));
     items
 }
 
@@ -771,7 +771,7 @@ fn store_agent_notifications(
     state: &mut Value,
     mut items: Vec<AgentNotification>,
 ) -> Result<(), String> {
-    items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    items.sort_by_key(|item| std::cmp::Reverse(item.created_at));
     if items.len() > AGENT_NOTIFICATIONS_MAX {
         let mut kept = Vec::with_capacity(AGENT_NOTIFICATIONS_MAX);
         let mut unread_overflow = Vec::new();
@@ -783,7 +783,7 @@ fn store_agent_notifications(
             }
         }
         kept.extend(unread_overflow);
-        kept.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        kept.sort_by_key(|item| std::cmp::Reverse(item.created_at));
         kept.truncate(AGENT_NOTIFICATIONS_MAX);
         items = kept;
     }

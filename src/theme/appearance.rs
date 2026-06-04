@@ -4,11 +4,12 @@
 
 /// Global corner-roundings multiplier applied to every `--radius-*` token.
 /// Pills and circles are not affected (they use fixed tokens).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum RadiusScale {
     /// Square corners (`×0`).
     Sharp,
     /// Default look (`×1`).
+    #[default]
     Default,
     /// Softer corners (`×1.5`).
     Rounded,
@@ -48,12 +49,6 @@ impl RadiusScale {
             Some("extra") => RadiusScale::Extra,
             _ => RadiusScale::Default,
         }
-    }
-}
-
-impl Default for RadiusScale {
-    fn default() -> Self {
-        RadiusScale::Default
     }
 }
 

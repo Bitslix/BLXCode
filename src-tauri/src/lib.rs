@@ -158,7 +158,7 @@ pub fn run() {
                 .map_err(|e| format!("create app data dir {}: {e}", dir.display()))?;
             app_paths::init(dir);
             let log_state = app.state::<AppLogState>();
-            log_state.initialize(&app.handle())?;
+            log_state.initialize(app.handle())?;
             heartbeat::ensure_scheduler_started(app.handle().clone());
             Ok(())
         })

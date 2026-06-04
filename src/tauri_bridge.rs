@@ -1606,10 +1606,11 @@ pub enum RemoteAuthKind {
     Agent,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RemoteResume {
     Tmux,
+    #[default]
     KeepaliveOnly,
 }
 
@@ -1630,12 +1631,6 @@ pub struct RemoteConnection {
     pub resume: RemoteResume,
     #[serde(default)]
     pub default_remote_dir: Option<String>,
-}
-
-impl Default for RemoteResume {
-    fn default() -> Self {
-        Self::KeepaliveOnly
-    }
 }
 
 /// Preset + secret-presence flags returned by `ssh_remotes_list`/`ssh_remote_save`.
@@ -4860,19 +4855,14 @@ impl ImageProviderKind {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ImageQualityLevel {
     Low,
+    #[default]
     Medium,
     High,
     Max,
-}
-
-impl Default for ImageQualityLevel {
-    fn default() -> Self {
-        Self::Medium
-    }
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]

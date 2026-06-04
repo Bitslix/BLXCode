@@ -269,7 +269,7 @@ impl PtyManager {
             .sessions
             .get(&session_id)
             .ok_or_else(|| "unknown session".to_string())?;
-        let cap = max_bytes.max(1).min(65536);
+        let cap = max_bytes.clamp(1, 65536);
         let mut q = s.queue.lock().map_err(|_| "queue lock")?;
         let out = drain_queue(&mut q, cap);
         Ok(base64::engine::general_purpose::STANDARD.encode(out))
@@ -292,7 +292,7 @@ impl PtyManager {
                 .ok_or_else(|| "unknown session".to_string())?;
             (Arc::clone(&s.queue), Arc::clone(&s.output_ready))
         };
-        let cap = max_bytes.max(1).min(65536);
+        let cap = max_bytes.clamp(1, 65536);
         let mut q = queue.lock().map_err(|_| "queue lock")?;
         if q.is_empty() && timeout_ms > 0 {
             let timeout = Duration::from_millis(timeout_ms.min(5_000));
@@ -314,7 +314,7 @@ impl PtyManager {
             .sessions
             .get(&session_id)
             .ok_or_else(|| "unknown session".to_string())?;
-        let cap = max_bytes.max(1).min(TAIL_CAP_BYTES);
+        let cap = max_bytes.clamp(1, TAIL_CAP_BYTES);
         let state = s.output_state.lock().map_err(|_| "output state lock")?;
         Ok(state.tail_text(cap))
     }
@@ -330,7 +330,7 @@ impl PtyManager {
             .get(&session_id)
             .ok_or_else(|| "unknown session".to_string())?;
         let state = s.output_state.lock().map_err(|_| "output state lock")?;
-        let text = state.tail_text(max_bytes.max(1).min(TAIL_CAP_BYTES));
+        let text = state.tail_text(max_bytes.clamp(1, TAIL_CAP_BYTES));
         Ok(snapshot_from_state(session_id, &state, text, false))
     }
 
@@ -739,7 +739,7 @@ fn drain_queue(q: &mut VecDeque<Vec<u8>>, cap: usize) -> Vec<u8> {
 }
 
 fn tail_to_text(tail: &VecDeque<u8>, cap: usize) -> String {
-    let cap = cap.max(1).min(TAIL_CAP_BYTES);
+    let cap = cap.clamp(1, TAIL_CAP_BYTES);
     let len = tail.len();
     let start = len.saturating_sub(cap);
     let mut out: Vec<u8> = Vec::with_capacity(len - start);

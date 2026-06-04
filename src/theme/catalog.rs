@@ -359,7 +359,7 @@ pub fn is_valid_theme_id(id: &str) -> bool {
 #[allow(dead_code)]
 pub fn themes_for_mode(mode: Option<ThemeMode>) -> Vec<AppTheme> {
     match mode {
-        None => THEMES.iter().copied().collect(),
+        None => THEMES.to_vec(),
         Some(m) => THEMES.iter().copied().filter(|t| t.mode == m).collect(),
     }
 }

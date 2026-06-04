@@ -477,7 +477,7 @@ fn strip_ansi(input: &str) -> String {
         match chars.peek().copied() {
             Some('[') => {
                 chars.next();
-                while let Some(c) = chars.next() {
+                for c in chars.by_ref() {
                     if ('@'..='~').contains(&c) {
                         break;
                     }

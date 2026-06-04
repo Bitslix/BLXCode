@@ -224,7 +224,7 @@ pub fn WorkspaceTerminalCell(
         let wb = wb;
         move |_| {
             let _ = wb.terminal_layout_tick().get();
-            if !(is_workspace_active.get() && !is_slot_hidden.get()) {
+            if !is_workspace_active.get() || is_slot_hidden.get() {
                 return;
             }
             let Some(el) = node_ref.get() else {

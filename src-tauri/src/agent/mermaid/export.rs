@@ -63,9 +63,8 @@ pub fn build_markdown(title: &str, kind: &str, orientation: Orientation, code: &
 /// Quote a YAML scalar only when needed (contains characters that would
 /// otherwise change meaning).
 fn yaml_scalar(s: &str) -> String {
-    let needs_quote = s.is_empty()
-        || s.contains(|c: char| matches!(c, ':' | '#' | '"' | '\'' | '\n'))
-        || s.starts_with(|c: char| c == '-' || c == ' ');
+    let needs_quote =
+        s.is_empty() || s.contains([':', '#', '"', '\'', '\n']) || s.starts_with(['-', ' ']);
     if needs_quote {
         format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))
     } else {

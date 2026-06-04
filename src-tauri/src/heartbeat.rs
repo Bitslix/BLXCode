@@ -37,18 +37,14 @@ impl Default for HeartbeatSettings {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub enum HeartbeatServiceStatus {
+    #[default]
     Idle,
     Running,
     Stalled,
     Error,
     Disabled,
-}
-
-impl Default for HeartbeatServiceStatus {
-    fn default() -> Self {
-        Self::Idle
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

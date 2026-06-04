@@ -159,6 +159,10 @@ struct AggregatedToolCall {
     arguments: String,
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Provider turn entrypoint mirrors dispatch context and avoids an extra allocation-only wrapper."
+)]
 pub async fn run_chat_turn(
     state: Arc<AgentEngineState>,
     endpoint: Endpoint,
@@ -195,10 +199,7 @@ pub async fn run_chat_turn(
             }
         },
     };
-    let workspace_string = workspace_root
-        .as_ref()
-        .map(|s| s.clone())
-        .filter(|s| !s.trim().is_empty());
+    let workspace_string = workspace_root.clone().filter(|s| !s.trim().is_empty());
 
     let sys = system_prompt(
         workspace_string.as_deref(),
@@ -509,9 +510,8 @@ async fn run_one_round(
 
     let stream = resp.bytes_stream();
     use futures_util::TryStreamExt;
-    let reader = tokio_util::io::StreamReader::new(
-        stream.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string())),
-    );
+    let reader =
+        tokio_util::io::StreamReader::new(stream.map_err(|e| std::io::Error::other(e.to_string())));
     let mut lines = tokio::io::BufReader::new(reader).lines();
 
     let mut acc = RoundResult::default();

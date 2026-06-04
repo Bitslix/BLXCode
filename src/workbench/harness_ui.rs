@@ -1132,7 +1132,7 @@ fn LocalePicker() -> impl IntoView {
             <Show when=move || open.get()>
                 <div class="harness-provider-menu" role="listbox">
                     <For
-                        each={move || APP_LOCALES.iter().copied().collect::<Vec<_>>()}
+                        each={move || APP_LOCALES.to_vec()}
                         key=|&(loc, _)| loc
                         children={move |(loc, label)| {
                             view! {

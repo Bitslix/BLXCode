@@ -2997,7 +2997,7 @@ fn root_memory_notes_for_scope(notes: &[NoteMeta], scope: &MemoryScope) -> Vec<N
         })
         .cloned()
         .collect();
-    out.sort_by(|a, b| a.title.to_lowercase().cmp(&b.title.to_lowercase()));
+    out.sort_by_key(|item| item.title.to_lowercase());
     out
 }
 
@@ -3088,8 +3088,7 @@ fn clean_memory_label(raw: &str) -> String {
     let tail = raw
         .replace('\\', "/")
         .split('/')
-        .filter(|part| !part.is_empty())
-        .last()
+        .rfind(|part| !part.is_empty())
         .unwrap_or(raw)
         .trim_end_matches(".md")
         .trim_end_matches(".MD")
