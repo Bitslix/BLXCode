@@ -250,7 +250,7 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
                     <Show when=move || allow_delete>
                         <button
                             class="diagram-gallery__export diagram-gallery__delete"
-                            on:click=on_delete.clone()
+                            on:click=on_delete
                         >
                             {move || i18n.tr(I18nKey::MemDelete)}
                         </button>

@@ -58,6 +58,68 @@ pub async fn ensure_mermaid_loaded() -> Result<(), String> {
     Err("Mermaid bundle did not become ready".into())
 }
 
+/// Read a CSS custom property (design token) resolved on `:root`, e.g.
+/// `css_token("--bg-panel")`. Returns `None` when unset/empty so callers can
+/// fall back to Mermaid's own default.
+fn css_token(name: &str) -> Option<String> {
+    let root = web_sys::window()?.document()?.document_element()?;
+    let style = web_sys::window()?.get_computed_style(&root).ok()??;
+    let v = style.get_property_value(name).ok()?;
+    let v = v.trim().to_string();
+    if v.is_empty() {
+        None
+    } else {
+        Some(v)
+    }
+}
+
+/// Map an app design token onto a Mermaid `themeVariables` entry, skipping it
+/// when the token is unset (Mermaid keeps its base default).
+fn set_token(vars: &Object, key: &str, token: &str) {
+    if let Some(val) = css_token(token) {
+        let _ = Reflect::set(vars, &JsValue::from_str(key), &JsValue::from_str(&val));
+    }
+}
+
+/// Build Mermaid `themeVariables` from the active theme's design tokens so
+/// diagram colors stay consistent across all themes (multi-theme support).
+/// Uses the `base` theme, which is fully overridable via these variables.
+fn theme_variables() -> Object {
+    let vars = Object::new();
+    // Surfaces.
+    set_token(&vars, "background", "--bg-raised");
+    set_token(&vars, "primaryColor", "--bg-panel");
+    set_token(&vars, "mainBkg", "--bg-panel");
+    set_token(&vars, "secondaryColor", "--bg-raised");
+    set_token(&vars, "tertiaryColor", "--bg-app");
+    set_token(&vars, "clusterBkg", "--bg-app");
+    set_token(&vars, "edgeLabelBackground", "--bg-panel");
+    // Borders / lines.
+    set_token(&vars, "primaryBorderColor", "--border");
+    set_token(&vars, "secondaryBorderColor", "--border");
+    set_token(&vars, "tertiaryBorderColor", "--border");
+    set_token(&vars, "clusterBorder", "--border");
+    set_token(&vars, "nodeBorder", "--border");
+    set_token(&vars, "lineColor", "--text-muted");
+    // Text.
+    set_token(&vars, "primaryTextColor", "--text");
+    set_token(&vars, "secondaryTextColor", "--text");
+    set_token(&vars, "tertiaryTextColor", "--text");
+    set_token(&vars, "textColor", "--text");
+    set_token(&vars, "titleColor", "--text");
+    set_token(&vars, "nodeTextColor", "--text");
+    // Accent (active/selected states, notes).
+    set_token(&vars, "noteBkgColor", "--accent-soft");
+    set_token(&vars, "noteTextColor", "--text");
+    set_token(&vars, "activationBkgColor", "--accent-soft");
+    if let Some(font) = css_token("--font-sans").or_else(|| css_token("font-family")) {
+        let _ = Reflect::set(&vars, &JsValue::from_str("fontFamily"), &JsValue::from_str(&font));
+    }
+    vars
+}
+
+/// (Re-)initialize Mermaid with the current theme's tokens. Called on every
+/// render so a live theme switch is reflected in subsequently rendered nodes.
 fn initialize_mermaid() -> Result<(), String> {
     let mermaid = mermaid_global().ok_or("mermaid not available")?;
     let init =
@@ -75,9 +137,15 @@ fn initialize_mermaid() -> Result<(), String> {
     Reflect::set(
         &opts,
         &JsValue::from_str("theme"),
-        &JsValue::from_str("dark"),
+        &JsValue::from_str("base"),
     )
     .map_err(|_| "set theme")?;
+    Reflect::set(
+        &opts,
+        &JsValue::from_str("themeVariables"),
+        &theme_variables(),
+    )
+    .map_err(|_| "set themeVariables")?;
     init.call1(&mermaid, &opts)
         .map_err(|e| format!("mermaid.initialize: {e:?}"))?;
     Ok(())
@@ -88,6 +156,9 @@ fn initialize_mermaid() -> Result<(), String> {
 /// them.
 pub async fn run_mermaid_on(nodes: &[HtmlElement]) -> Result<(), String> {
     ensure_mermaid_loaded().await?;
+    // Re-initialize with the current theme tokens so a live theme switch is
+    // reflected in this render (cheap; just resets config).
+    initialize_mermaid()?;
     let mermaid = mermaid_global().ok_or("mermaid not available")?;
     let run = Reflect::get(&mermaid, &JsValue::from_str("run")).map_err(|_| "no run")?;
     let run: Function = run.dyn_into().map_err(|_| "run not callable")?;

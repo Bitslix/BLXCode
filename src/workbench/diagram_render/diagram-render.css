@@ -92,3 +92,18 @@
 .diagram-result-card__btn:hover {
   background: var(--bg-hover);
 }
+
+/* In the (often narrow) timeline the diagram must scale down to the available
+   width and stay height-capped so it never dominates the chat. The SVG keeps
+   its aspect ratio and shrinks below its natural size on narrow panes; on a
+   wide chat window it renders larger. */
+.diagram-result .diagram-render__stage {
+  max-height: 340px;
+  padding: 4px;
+}
+
+.diagram-result .diagram-render__stage svg {
+  max-width: 100%;
+  width: auto;
+  height: auto;
+}

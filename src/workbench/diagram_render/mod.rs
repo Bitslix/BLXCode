@@ -12,6 +12,7 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::workbench::file_preview::mermaid_glue::run_mermaid_on;
+use crate::workbench::theme_service::ThemeService;
 use leptos::html;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -39,11 +40,15 @@ pub fn DiagramRender(
     dom_id: String,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let theme = expect_context::<ThemeService>();
     let node_ref: NodeRef<html::Div> = NodeRef::new();
     let render_err = RwSignal::new(false);
 
     Effect::new(move |_| {
         let text = code.get();
+        // Subscribe to theme changes so the diagram re-renders with the active
+        // theme's tokens (multi-theme support, see rule-theme-tokens.md).
+        let _theme = theme.active_theme_id().get();
         let Some(el) = node_ref.get() else {
             return;
         };

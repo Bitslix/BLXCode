@@ -78,13 +78,13 @@ fn DiagramResultCards(
             let has_kind = !kind.is_empty();
 
             // Export .md — straight from the diagram source.
-            let toast_md = toast.clone();
+            let toast_md = toast;
             let md_title = d.title.clone();
             let md_kind = d.kind.clone();
             let md_code = d.code.clone();
             let on_export_md = move |_| {
                 let (title, kind, code) = (md_title.clone(), md_kind.clone(), md_code.clone());
-                let toast = toast_md.clone();
+                let toast = toast_md;
                 spawn_local(async move {
                     match mermaid_export_markdown(&title, &kind, &code, false).await {
                         Ok(Some(path)) => toast.success(format!("Saved {path}")),
@@ -95,11 +95,11 @@ fn DiagramResultCards(
             };
 
             // Export .pdf — needs the rendered SVG read back from this card's node.
-            let toast_pdf = toast.clone();
+            let toast_pdf = toast;
             let pdf_title = d.title.clone();
             let pdf_dom_id = dom_id.clone();
             let on_export_pdf = move |_| {
-                let toast = toast_pdf.clone();
+                let toast = toast_pdf;
                 let Some(svg) = rendered_svg_outer_html(&pdf_dom_id) else {
                     toast.error("Diagram not rendered yet".to_string());
                     return;
@@ -115,7 +115,7 @@ fn DiagramResultCards(
             };
 
             // Open the whole group in the centered gallery.
-            let wb_open = wb.clone();
+            let wb_open = wb;
             let open_title = group_title.clone();
             let on_open = move |_| {
                 if let Some(ws_id) = workspace_id {

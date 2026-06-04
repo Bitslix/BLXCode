@@ -66,7 +66,7 @@ pub fn ToolPill(
     // than as expandable raw JSON. When parsing succeeds the pill has no
     // expandable detail body.
     let mermaid_view = if is_mermaid_tool(&tool.tool) && matches!(tool.status, ActivityStatus::Ok) {
-        diagram_result_view(&detail_text, &detail_key, wb.clone(), workspace_id)
+        diagram_result_view(&detail_text, &detail_key, wb, workspace_id)
     } else {
         None
     };
