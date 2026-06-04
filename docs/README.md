@@ -55,6 +55,7 @@ Welcome to the BLXCode docs. User guides explain how to run and use the app; dev
 - [Agent Harness](developer/agent-harness.md) — core skills (incl. **MCP**, **prompt-generating**), tool dispatch, web settings, text-provider registry, **MCP module**, extension guide.
 - [Subagents](developer/subagents.md) — `subagents.run`, runner, protocol, tool groups, new roles.
 - [Tauri IPC](developer/tauri-ipc.md) — command registration, wrappers, command groups, **HeartBeat / Memory Indexer / MCP / Kanban / Mermaid / Notifications / App log** commands.
+- [Plugins](developer/plugins.md) — plugin package manifest, runtime detector schema, GitHub install source, Run menu execution flow.
 - [SSH Remote Transport](developer/ssh-remote.md) — wrapped-`ssh` terminals, persistent exec channel, fs/git remote routing, secrets, resume, teardown, russh follow-up.
 - [Voice Architecture](developer/voice.md) — STT/TTS modules and flows.
 - [Internationalization](developer/i18n.md) — locales, EULA content, translation workflow.
