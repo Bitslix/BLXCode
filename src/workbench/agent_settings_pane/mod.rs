@@ -11,6 +11,7 @@ mod configuration;
 mod data;
 mod models;
 mod personality;
+mod pickers;
 mod providers;
 
 pub(crate) use data::{GenderFilter, SpeechKind};
