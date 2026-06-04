@@ -28,6 +28,7 @@ Leptos UI
 - `src-tauri/src/commands.rs`: general app commands, agent command shims, browser commands, directory picker helpers, PTY command wrappers, and git helpers.
 - `src-tauri/src/workbench_state.rs`: persisted workbench snapshot/session storage.
 - `src-tauri/src/pty_host.rs`: terminal session lifecycle and PTY IO.
+- `src-tauri/src/git_worktree.rs`: local and remote Git worktree list/create/remove helpers used by workspace creation, the titlebar menu, and Agent client tools.
 - `src-tauri/src/browser_host.rs`: native or iframe browser embedding support.
 - `src-tauri/src/voice/`: microphone recording, voice settings, STT, TTS, and voice catalog.
 
@@ -142,6 +143,25 @@ The status line is read-only and never captures input; the Webview Tauri app use
 Workbench snapshots are serialized from frontend state and saved through backend commands. The snapshot version is defined by `WORKBENCH_SNAPSHOT_VERSION` in `src/workbench/state.rs`.
 
 The state model includes workspaces, active workspace ID, recent workspaces, sidebar/right-panel layout, browser tabs, agent timeline, and terminal pane layout.
+
+Workspace entries can also carry `WorkspaceWorktreeMeta` when the workspace root is a Git worktree. The frontend draft model exposes `workspace_kind`, `worktree_base_path`, `worktree_branch`, `worktree_start_point`, and `worktree_path`, so the same create-workspace wizard can create normal local/remote workspaces or Git worktree workspaces.
+
+## Git Worktree Workspaces
+
+Worktree support is split across the backend Git helpers, workspace state, titlebar UI, and Agent harness:
+
+- Backend commands in `src-tauri/src/git_worktree.rs` expose `git_worktree_list`, `git_worktree_open_info`, `git_worktree_create`, and `git_worktree_remove`.
+- Local commands run normal `git worktree` operations after resolving the repository root with `git rev-parse --show-toplevel`.
+- Remote commands use the active `RemoteExecManager` connection and execute the same Git checks on the remote host.
+- `git worktree list --porcelain -z` is parsed into structured entries so paths, branches, bare/detached state, lock state, and prunable annotations stay unambiguous.
+- Creation checks for an existing matching branch or target path before running `git worktree add`; an existing match is returned as an openable workspace outcome.
+- Removal checks `git status --porcelain=v1 -z` first and refuses to remove dirty worktrees.
+
+Frontend integration lives in `src/workbench/app_titlebar/worktree_menu.rs`, `src/workbench/create_workspace_wizard.rs`, and `src/tauri_bridge.rs`. The titlebar menu is rendered near the left brand cluster and is always scoped to the active workspace/repository. The create wizard uses the same command path for local and remote worktrees and stores the resulting metadata on the opened workspace.
+
+Agent integration carries worktree scope through `UserTurn.workspace_scope` and `WorkspaceScope.worktree`. Provider loops call `system_prompt_with_scope`, which appends an active-worktree block with the root, base repository, branch, and local/remote connection. Client tools `harness.worktree_list` and `harness.create_worktree_workspace` live in the frontend harness tool layer; creation has a preview phase (`confirmed: false`) and a confirmed phase (`confirmed: true`) so the model must ask the user before creating/opening a worktree.
+
+Remote terminal cells pass the workspace cwd to `pty_spawn_remote` as `remote_dir`, so terminals launched in a remote worktree start in that worktree instead of the remote account default directory.
 
 ## Memory And Tasks
 

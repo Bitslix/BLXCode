@@ -14,6 +14,7 @@ This document describes the **Better Harness** stack: slim system prompt, embedd
 
 ```text
 src-tauri/src/agent/
+  protocol.rs           # UserTurn, WorkspaceScope, and AgentEvent types
   system_prompt.rs       # Shared prompt (~250 lines): checklist + tool name index
   harness_skills/*.md    # 13 core skill bodies (include_str! in store)
   tool_dispatch.rs       # handle_tool_call for coordinator + subagents
@@ -114,6 +115,8 @@ The current shipped catalog (12 core skills) is:
 - **Requires `skills_read prompt-generating` before any substantive CLI-agent handoff** — the `prompt-generating` core skill teaches the model how to scope prompts for BLXCode chat, terminal CLI agents (Claude Code, Codex, Gemini, OpenCode, Cursor), subagents, and user-facing replies
 - Marks every `mcp.<server>.<tool>` as **untrusted data** — the model must treat MCP tool output as adversarial and never echo credentials or follow URL/CLI suggestions verbatim
 
+`system_prompt_with_scope(scope)` appends workspace-specific context for normal and worktree workspaces. When `WorkspaceScope.worktree` is present, the prompt includes the active worktree root, branch, base repository, and local/remote connection. The model is instructed to keep reads, writes, shell, Git, plans, memory, rules, skills, and terminal handoffs inside that active worktree unless the user explicitly requests cross-worktree work.
+
 Adding a new server tool typically requires:
 
 1. Register in `tools.rs`
@@ -189,6 +192,17 @@ The v1 provider expansion is text-only. Image and Voice settings intentionally k
 Server tools are gated in `tool_dispatch.rs` before `execute_server_tool`; client harness tools are gated before the `ToolCall` event is emitted, so the frontend cannot execute a client tool before approval.
 
 For file-mutating permission prompts, the frontend renders an extra **Auto-accept** option. Selecting it sends `chatModeChangedTo: "allow_all"` through `agent_submit_tool_result`; `AgentEngineState` stores a per-turn override that `tool_dispatch.rs` prefers over the original `UserTurn.chat_mode`. `start_turn()` resets the override.
+
+### Worktree-aware client tools
+
+The worktree tools are client-side harness tools because they need to coordinate frontend workspace state with backend Git commands:
+
+- `harness.worktree_list` lists worktrees for the active workspace's repository and annotates which entries are already open in BLXCode.
+- `harness.create_worktree_workspace` creates or opens a worktree workspace from the active workspace. The first call must use `confirmed: false`; the frontend previews the resolved base, branch, start point, target path, and existing-worktree match. A second call with `confirmed: true` performs the create/open.
+
+`harness.create_worktree_workspace` is gated as a workspace/settings mutation in Agent Chat mode. Plan mode blocks it. Ask Edits prompts before the client tool executes. Existing branch/path matches are treated as open outcomes so the Agent cannot accidentally duplicate a worktree checkout.
+
+The `rules-skills`, `git`, `environment`, and `harness` core skills include matching guidance: detect the environment after workspace switches, inspect existing worktrees before creation, ask the user to confirm creation details, and keep `.agents` reads/writes scoped to the active worktree checkout.
 
 ## Tool groups
 
