@@ -44,6 +44,46 @@ fn provider_display_name(provider: AgentProviderKind) -> &'static str {
     }
 }
 
+fn provider_icon_url(provider: AgentProviderKind) -> &'static str {
+    match provider {
+        AgentProviderKind::Openrouter => "/public/brand-icons/openrouter.svg",
+        AgentProviderKind::Openai => "/public/brand-icons/openai.svg",
+        AgentProviderKind::Anthropic => "/public/brand-icons/anthropic.svg",
+        _ => "/public/brand-icons/provider.svg",
+    }
+}
+
+fn openrouter_owner_slug(model_id: &str) -> Option<String> {
+    model_id
+        .split_once('/')
+        .map(|(owner, _)| owner.trim().to_ascii_lowercase())
+        .filter(|owner| !owner.is_empty())
+}
+
+fn owner_logo_url(owner_slug: &str) -> Option<&'static str> {
+    match owner_slug {
+        "openai" => Some("/public/brand-icons/openai.svg"),
+        "anthropic" => Some("/public/brand-icons/anthropic.svg"),
+        "google" => Some("/public/brand-icons/google.svg"),
+        "mistral" => Some("/public/brand-icons/mistral.svg"),
+        "x-ai" | "xai" => Some("/public/brand-icons/grok.svg"),
+        "amazon" | "aws" => Some("/public/brand-icons/aws.svg"),
+        _ => None,
+    }
+}
+
+fn owner_initials(owner_slug: Option<&str>, model_id: &str) -> String {
+    let source = owner_slug
+        .filter(|owner| !owner.trim().is_empty())
+        .unwrap_or(model_id);
+    source
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .filter_map(|part| part.chars().next())
+        .take(2)
+        .collect::<String>()
+        .to_ascii_uppercase()
+}
+
 fn initial_provider_model_cache(
     view: &AgentProviderSettingsView,
 ) -> BTreeMap<String, Vec<ProviderModelEntry>> {
@@ -171,6 +211,7 @@ fn write_model_favorites(favorites: &HashSet<String>) {
 }
 
 fn model_row(
+    provider: AgentProviderKind,
     model: ProviderModelEntry,
     active: String,
     favorites: HashSet<String>,
@@ -193,6 +234,13 @@ fn model_row(
     let detail = model_detail_line(&model);
     let is_active = id == active;
     let is_favorite = favorites.contains(&id);
+    let owner_slug = if provider == AgentProviderKind::Openrouter {
+        openrouter_owner_slug(&id)
+    } else {
+        Some(provider_cache_key(provider))
+    };
+    let owner_logo = owner_slug.as_deref().and_then(owner_logo_url);
+    let owner_initials = owner_initials(owner_slug.as_deref(), &id);
 
     view! {
         <li>
@@ -209,6 +257,17 @@ fn model_row(
                         model_open.set(false);
                     }
                 >
+                    <span class="agent-composer__model-logo" aria-hidden="true">
+                        {if let Some(url) = owner_logo {
+                            Either::Left(view! {
+                                <img class="agent-composer__model-logo-img" src=url alt="" />
+                            })
+                        } else {
+                            Either::Right(view! {
+                                <span class="agent-composer__model-logo-fallback">{owner_initials}</span>
+                            })
+                        }}
+                    </span>
                     <span class="agent-composer__model-copy">
                         <span class="agent-composer__model-name">{label}</span>
                         <span class="agent-composer__model-meta">{detail}</span>
@@ -495,6 +554,7 @@ pub fn Composer(
                                         .map(|provider| {
                                             let provider_key = provider_cache_key(provider);
                                             let provider_label = provider_display_name(provider);
+                                            let provider_icon = provider_icon_url(provider);
                                             let is_open = provider_key == open_provider_group.get();
                                             let is_active_provider = provider_key == active_provider_key;
                                             let is_loading = loading_providers.contains(&provider_key);
@@ -544,6 +604,7 @@ pub fn Composer(
                                                     let mut rows = Vec::new();
                                                     if let Some(model) = active_row {
                                                         rows.push(model_row(
+                                                            provider,
                                                             model,
                                                             active.clone(),
                                                             favorites.clone(),
@@ -557,6 +618,7 @@ pub fn Composer(
                                                     }
                                                     rows.extend(rest.into_iter().map(|model| {
                                                         model_row(
+                                                            provider,
                                                             model,
                                                             active.clone(),
                                                             favorites.clone(),
@@ -587,6 +649,9 @@ pub fn Composer(
                                                             open_provider_group.set(click_provider_key.clone());
                                                         }
                                                     >
+                                                        <span class="agent-composer__provider-logo" aria-hidden="true">
+                                                            <img class="agent-composer__provider-logo-img" src=provider_icon alt="" />
+                                                        </span>
                                                         <span class="agent-composer__provider-headline">
                                                             <span class="agent-composer__provider-name">{provider_label}</span>
                                                             {active_badge}
