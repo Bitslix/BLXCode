@@ -2976,6 +2976,91 @@ impl WorkbenchService {
         Ok(id)
     }
 
+    pub fn open_or_create_worktree_workspace(
+        &self,
+        worktree: WorkspaceWorktreeMeta,
+        remote_connection_id: Option<String>,
+    ) -> Result<u64, String> {
+        let cwd = normalize_cwd_key(&worktree.worktree_cwd);
+        if cwd.is_empty() {
+            return Err("worktree path empty".into());
+        }
+        if let Some(existing_id) = self.workspaces.with(|workspaces| {
+            workspaces
+                .iter()
+                .find(|workspace| {
+                    normalize_cwd_key(&workspace.cwd) == cwd
+                        && workspace.remote_connection_id == remote_connection_id
+                })
+                .map(|workspace| workspace.id)
+        }) {
+            self.select_workspace(existing_id);
+            return Ok(existing_id);
+        }
+
+        let terminal_count = 1;
+        let slot_ids: Vec<u64> = vec![1];
+        let slot_pane_states = vec![SlotPaneState::default_for_slot(1)];
+        let (grid_rows, grid_cols) = WorkspaceEntry::grid_dims_for_count(terminal_count);
+        let id = self.allocate_workspace_id();
+        let title = worktree
+            .branch
+            .as_deref()
+            .map(str::trim)
+            .filter(|branch| !branch.is_empty())
+            .map(|branch| format!("wt: {branch}"))
+            .or_else(|| derive_workspace_name(&cwd))
+            .unwrap_or_else(|| format!("Workspace {id}"));
+        let color = self.workspace_color_for_new_index(self.workspaces.get_untracked().len());
+
+        self.active_id.set(Some(id));
+        self.workspaces.update(|workspaces| {
+            workspaces.push(WorkspaceEntry {
+                id,
+                storage_key: WorkspaceEntry::new_storage_key(),
+                title,
+                color,
+                cwd,
+                terminal_count,
+                grid_rows,
+                grid_cols,
+                next_terminal_id: terminal_count as u64 + 1,
+                slot_ids,
+                slot_agent_labels: vec![String::new()],
+                slot_agent_models: Vec::new(),
+                slot_agent_efforts: Vec::new(),
+                slot_pane_states,
+                configuring: false,
+                agent_timeline: TimelineDoc::default(),
+                agent_compose_draft: String::new(),
+                agent_image_mode: false,
+                agent_chat_mode: AgentChatMode::AskEdits,
+                agent_enhance_prompt_before_send: false,
+                architecture_llm_prose: false,
+                agent_context_items: Vec::new(),
+                memory_category_settings: HashMap::new(),
+                agent_chat_usage: ChatUsageStats::default(),
+                sidebar_explorer_open: true,
+                sidebar_graph_open: false,
+                sidebar_diff_open: true,
+                sidebar_explorer_expanded_paths: Vec::new(),
+                center_tabs: default_center_tabs(),
+                center_active_tab_id: default_center_active_tab_id(),
+                center_next_tab_id: default_center_next_tab_id(),
+                remote_connection_id,
+                worktree: Some(worktree),
+                slot_name_overrides: std::collections::HashMap::new(),
+                agent_session_role: None,
+                view_mode: WorkspaceViewMode::Grid,
+                canvas_view_state: CanvasViewState::default(),
+                canvas_edges: Vec::new(),
+                canvas_default_transfer_mode: CanvasTransferMode::Structured,
+                swarm_view_state: SwarmViewState::default(),
+            });
+        });
+        Ok(id)
+    }
+
     /// Opens a workspace from an absolute directory path (Quick Open).
     pub fn open_workspace_from_path_quick(&self, cwd: String) -> Result<u64, String> {
         let cwd = normalize_cwd_key(&cwd);

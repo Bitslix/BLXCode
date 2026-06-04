@@ -96,7 +96,7 @@ the BLXCode Agent get the same worktree creation/opening capability.
 - [x] `worktree-backend-local` - Implement local worktree list/create/open-info/remove commands with validation and existing-worktree detection.
 - [x] `worktree-backend-remote` - Implement remote SSH worktree list/create/open-info/remove using RemoteExecManager.
 - [x] `worktree-remote-pty-cwd` - Pass workspace cwd as remote_dir into remote PTY spawning so remote terminals start in the active worktree.
-- [ ] `worktree-titlebar-menu` - Add left-aligned active-workspace Worktree Management menu to the BLXCode app titlebar.
+- [x] `worktree-titlebar-menu` - Add left-aligned active-workspace Worktree Management menu to the BLXCode app titlebar.
 - [ ] `worktree-wizard` - Add Worktree mode to the Create Workspace wizard and reuse the backend worktree creation/open path.
 - [ ] `worktree-agent-protocol` - Extend UserTurn/agent_wire/system_prompt with workspace scope and worktree metadata.
 - [ ] `worktree-agent-tools` - Add harness.worktree_list and harness.create_worktree_workspace client tools with preview/confirmed behavior.
