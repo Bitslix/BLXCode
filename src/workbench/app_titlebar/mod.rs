@@ -149,8 +149,13 @@ pub fn AppTitleBar(#[prop(into)] workbench_active: Signal<bool>) -> impl IntoVie
             <div class="app-titlebar__cluster app-titlebar__cluster--right" data-tauri-drag-region="">
                 <Show when=move || workbench_active.get()>
                     <div class="app-titlebar__actions">
-                        <NavigateMenu />
                         <ViewModeMenu />
+                        <NavigateMenu />
+                        <div
+                            class="app-titlebar__divider"
+                            role="separator"
+                            aria-orientation="vertical"
+                        ></div>
                         <NotificationsMenu />
                         <button
                             type="button"

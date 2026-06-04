@@ -119,7 +119,7 @@ pub fn NavigateMenu() -> impl IntoView {
                     open.update(|o| *o = !*o);
                 }
             >
-                <LxIcon icon=icondata::LuLayoutGrid width="1rem" height="1rem" />
+                <LxIcon icon=icondata::LuCommand width="1rem" height="1rem" />
             </button>
             <Show when=move || open.get()>
                 <div class="app-titlebar__popover app-titlebar__popover--navigate" role="menu">

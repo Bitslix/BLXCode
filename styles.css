@@ -7667,6 +7667,17 @@ button {
     var(--bg-app);
 }
 
+.workspace-terminal-board--swarm {
+  flex: 0 0 0 !important;
+  width: 0;
+  min-width: 0;
+  max-width: 0;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .ws-term-grid--canvas {
   min-width: 1280px;
   min-height: 860px;
@@ -7962,6 +7973,13 @@ button {
   justify-items: center;
   gap: 0.35rem;
   color: var(--text);
+  cursor: grab;
+  user-select: none;
+}
+
+.workspace-swarm__hub:active,
+.workspace-swarm__node:active {
+  cursor: grabbing;
 }
 
 .workspace-swarm__hub-core {
@@ -7991,7 +8009,8 @@ button {
   background: transparent;
   color: var(--text);
   font: inherit;
-  cursor: pointer;
+  cursor: grab;
+  user-select: none;
 }
 
 .workspace-swarm__node-icon {
@@ -8059,9 +8078,13 @@ button {
   padding: 0.55rem;
   border-radius: var(--radius-md);
   background: var(--bg-app);
-  color: var(--text-muted);
-  font-size: 0.7rem;
+  color: var(--text);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 0.68rem;
+  line-height: 1.38;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 2;
 }
 
 .workspace-swarm__badge {

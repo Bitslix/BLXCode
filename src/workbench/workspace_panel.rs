@@ -35,6 +35,7 @@ use base64::Engine;
 use gloo_timers::future::TimeoutFuture;
 use leptos::callback::Callback;
 use leptos::html;
+use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
@@ -111,6 +112,15 @@ struct CanvasNodeDragState {
     start_y: f64,
     layout: CanvasNodeLayout,
     resizing: bool,
+}
+
+#[derive(Clone)]
+struct SwarmDragState {
+    node_id: String,
+    start_x: f64,
+    start_y: f64,
+    origin_x: f64,
+    origin_y: f64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -375,6 +385,8 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
         Memo::new(move |_| is_mode_tab_active.get() && view_mode.get() == WorkspaceViewMode::Grid);
     let swarm_active =
         Memo::new(move |_| is_mode_tab_active.get() && view_mode.get() == WorkspaceViewMode::Swarm);
+    let terminal_split_active =
+        Memo::new(move |_| memory_split_active.get() && !swarm_active.get());
     let on_canvas_port = Callback::new(move |port: CanvasPortRef| {
         let can_start = matches!(
             port.direction,
@@ -398,7 +410,7 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
     Effect::new({
         let wb = wb;
         move |_| {
-            if memory_split_active.get() {
+            if terminal_split_active.get() {
                 let _ = memory_split_fraction.get();
                 force_workbench_terminal_layout();
                 wb.bump_terminal_layout();
@@ -450,7 +462,7 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
             <CenterTabStrip workspace_id=workspace_id active_tab_id=active_center_tab_id />
             <div
                 class="workspace-center-tab-body"
-                class:workspace-center-tab-body--split=move || memory_split_active.get()
+                class:workspace-center-tab-body--split=move || terminal_split_active.get()
             >
                 <Show when=move || is_configuring.get() && active_center_tab_id.get() == CENTER_TERMINALS_TAB_ID>
                     <div class="workspace-center-panel">
@@ -469,11 +481,10 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                             class
                         }
                         class:workspace-center-panel--hidden=move || {
-                            (!grid_active.get() && !canvas_active.get())
-                                && !memory_split_active.get()
+                            !grid_active.get() && !canvas_active.get() && !terminal_split_active.get()
                         }
                         style=move || {
-                            if memory_split_active.get() {
+                            if terminal_split_active.get() {
                                 format!(
                                     "flex:0 1 calc({:.3}% - 2px);",
                                     memory_split_fraction.get() * 100.0
@@ -567,8 +578,9 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                                             slot_drag_enabled=slot_drag_enabled
                                             is_workspace_active=Signal::derive(move || {
                                                 wb.active_id().get() == Some(workspace_id)
-                                                    && (active_center_tab_id.get() == CENTER_TERMINALS_TAB_ID
-                                                        || memory_split_active.get())
+                                                    && (grid_active.get()
+                                                        || canvas_active.get()
+                                                        || terminal_split_active.get())
                                             })
                                             hidden=Signal::derive(move || {
                                                 full_size_terminal.get().is_some_and(|active| active != terminal_id)
@@ -710,7 +722,7 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                         <WorkspaceSwarmView workspace_id=workspace_id />
                     </div>
                 </Show>
-                <Show when=move || memory_split_active.get()>
+                <Show when=move || terminal_split_active.get()>
                     <button
                         type="button"
                         class="workspace-center-split-resizer"
@@ -727,7 +739,7 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                     workspace_id=workspace_id
                     active_tab_id=active_center_tab_id
                     memory_split_view=memory_split_view
-                    memory_split_active=memory_split_active
+                    memory_split_active=terminal_split_active
                     memory_split_fraction=memory_split_fraction
                 />
                 <Show when=move || memory_split_drag.get().is_some()>
@@ -1632,6 +1644,7 @@ fn WorkspaceSwarmView(workspace_id: u64) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let roles = RwSignal::new(Vec::<SessionRoleView>::new());
     let selected_slot = RwSignal::new(None::<u64>);
+    let drag_state = RwSignal::new(None::<SwarmDragState>);
     Effect::new(move |_| {
         spawn_local(async move {
             if let Ok(list) = agent_session_roles_list().await {
@@ -1655,6 +1668,29 @@ fn WorkspaceSwarmView(workspace_id: u64) -> impl IntoView {
             .find(|role| role.slug == slug && role.terminal_agent_swarm)
     });
 
+    let move_handle = window_event_listener_untyped("mousemove", {
+        let wb = wb;
+        move |ev| {
+            let Some(drag) = drag_state.get_untracked() else {
+                return;
+            };
+            let Some(ev) = ev.dyn_ref::<MouseEvent>() else {
+                return;
+            };
+            ev.prevent_default();
+            let x = drag.origin_x + ev.client_x() as f64 - drag.start_x;
+            let y = drag.origin_y + ev.client_y() as f64 - drag.start_y;
+            wb.set_swarm_node_position(workspace_id, drag.node_id, x, y);
+        }
+    });
+    let up_handle = window_event_listener_untyped("mouseup", move |_| {
+        drag_state.set(None);
+    });
+    on_cleanup(move || {
+        move_handle.remove();
+        up_handle.remove();
+    });
+
     view! {
         <section class="workspace-swarm">
             <svg
@@ -1667,13 +1703,16 @@ fn WorkspaceSwarmView(workspace_id: u64) -> impl IntoView {
                     let Some(ws) = workspace.get() else {
                         return Vec::<AnyView>::new();
                     };
+                    let hub = swarm_node_position(&ws, "hub", (0.0, 0.0));
                     ws.slot_ids
                         .iter()
                         .copied()
                         .enumerate()
-                        .map(|(idx, _)| {
-                            let (tx, ty) = swarm_node_point(idx, ws.slot_ids.len());
-                            let d = curved_path(0.0, 0.0, tx, ty);
+                        .map(|(idx, slot_id)| {
+                            let fallback = swarm_node_point(idx, ws.slot_ids.len());
+                            let node_id = swarm_slot_node_id(slot_id);
+                            let (tx, ty) = swarm_node_position(&ws, &node_id, fallback);
+                            let d = curved_path(hub.0, hub.1, tx, ty);
                             view! { <path class="workspace-swarm__edge" d=d></path> }.into_any()
                         })
                         .collect::<Vec<_>>()
@@ -1682,12 +1721,30 @@ fn WorkspaceSwarmView(workspace_id: u64) -> impl IntoView {
             <div
                 class="workspace-swarm__hub"
                 style=move || {
+                    let (x, y) = workspace
+                        .get()
+                        .map(|ws| swarm_node_position(&ws, "hub", (0.0, 0.0)))
+                        .unwrap_or((0.0, 0.0));
                     let color = hub_role
                         .get()
                         .map(|role| role.color)
                         .filter(|color| !color.trim().is_empty())
                         .unwrap_or_else(|| "var(--accent)".into());
-                    format!("--role-accent:{color};")
+                    format!("--role-accent:{color};left:calc(50% + {x:.1}px);top:calc(43% + {y:.1}px);")
+                }
+                on:mousedown=move |ev| {
+                    ev.prevent_default();
+                    let (x, y) = workspace
+                        .get_untracked()
+                        .map(|ws| swarm_node_position(&ws, "hub", (0.0, 0.0)))
+                        .unwrap_or((0.0, 0.0));
+                    drag_state.set(Some(SwarmDragState {
+                        node_id: "hub".into(),
+                        start_x: ev.client_x() as f64,
+                        start_y: ev.client_y() as f64,
+                        origin_x: x,
+                        origin_y: y,
+                    }));
                 }
             >
                 <div class="workspace-swarm__hub-core">
@@ -1721,7 +1778,9 @@ fn WorkspaceSwarmView(workspace_id: u64) -> impl IntoView {
                         .map(|(idx, slot_id)| {
                             let agent = ws.slot_agent_labels.get(idx).cloned().unwrap_or_default();
                             let running_now = running.iter().any(|(slot, _, _)| *slot == slot_id);
-                            let (x, y) = swarm_node_point(idx, ws.slot_ids.len());
+                            let fallback = swarm_node_point(idx, ws.slot_ids.len());
+                            let node_id = swarm_slot_node_id(slot_id);
+                            let (x, y) = swarm_node_position(&ws, &node_id, fallback);
                             let label = if agent.trim().is_empty() {
                                 i18n.tr(I18nKey::SwarmTerminalLabel)().replace("{id}", &slot_id.to_string())
                             } else {
@@ -1739,6 +1798,17 @@ fn WorkspaceSwarmView(workspace_id: u64) -> impl IntoView {
                                     class:workspace-swarm__node--running=move || running_now
                                     class:workspace-swarm__node--selected=move || selected_slot.get() == Some(slot_id)
                                     style=format!("left:calc(50% + {x:.1}px);top:calc(50% + {y:.1}px);")
+                                    on:mousedown=move |ev| {
+                                        ev.prevent_default();
+                                        selected_slot.set(Some(slot_id));
+                                        drag_state.set(Some(SwarmDragState {
+                                            node_id: node_id.clone(),
+                                            start_x: ev.client_x() as f64,
+                                            start_y: ev.client_y() as f64,
+                                            origin_x: x,
+                                            origin_y: y,
+                                        }));
+                                    }
                                     on:click=move |_| selected_slot.set(Some(slot_id))
                                 >
                                     <span class="workspace-swarm__node-icon">
@@ -1774,7 +1844,7 @@ fn SwarmNodePanel(workspace_id: u64, selected_slot: RwSignal<Option<u64>>) -> im
                 Some(session) => pty_peek_output(session, 2048).await.unwrap_or_default(),
                 None => String::new(),
             };
-            preview.set(text);
+            preview.set(strip_ansi_for_preview(&text));
         });
     });
 
@@ -1831,12 +1901,75 @@ fn swarm_node_point(index: usize, count: usize) -> (f64, f64) {
     (angle.cos() * rx, angle.sin() * ry)
 }
 
+fn swarm_slot_node_id(slot_id: u64) -> String {
+    format!("slot:{slot_id}")
+}
+
+fn swarm_node_position(
+    workspace: &WorkspaceEntry,
+    node_id: &str,
+    fallback: (f64, f64),
+) -> (f64, f64) {
+    workspace
+        .swarm_view_state
+        .node_positions
+        .get(node_id)
+        .map(|layout| (layout.x, layout.y))
+        .unwrap_or(fallback)
+}
+
 fn title_case_ascii(value: &str) -> String {
     let mut chars = value.chars();
     match chars.next() {
         Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
         None => String::new(),
     }
+}
+
+fn strip_ansi_for_preview(input: &str) -> String {
+    let mut output = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch != '\u{1b}' {
+            if ch == '\n' || ch == '\r' || ch == '\t' || !ch.is_control() {
+                output.push(ch);
+            }
+            continue;
+        }
+
+        match chars.peek().copied() {
+            Some('[') => {
+                chars.next();
+                for next in chars.by_ref() {
+                    if ('@'..='~').contains(&next) {
+                        break;
+                    }
+                }
+            }
+            Some(']') => {
+                chars.next();
+                let mut prev_was_escape = false;
+                for next in chars.by_ref() {
+                    if next == '\u{7}' || (prev_was_escape && next == '\\') {
+                        break;
+                    }
+                    prev_was_escape = next == '\u{1b}';
+                }
+            }
+            Some(_) => {
+                chars.next();
+            }
+            None => {}
+        }
+    }
+
+    output
+        .lines()
+        .map(str::trim_end)
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_string()
 }
 
 #[component]
@@ -2279,6 +2412,18 @@ fn terminal_slots(workspace: &WorkspaceEntry) -> Vec<TerminalRenderSlot> {
                 .unwrap_or_default(),
         })
         .collect()
+}
+
+#[cfg(test)]
+mod swarm_preview_tests {
+    use super::strip_ansi_for_preview;
+
+    #[test]
+    fn strips_terminal_escape_sequences_for_preview() {
+        let raw = "\u{1b}[1mClaude\u{1b}[0m\r\n\u{1b}]0;title\u{7}ready\u{1b}[38;2;1;2;3m!";
+
+        assert_eq!(strip_ansi_for_preview(raw), "Claude\nready!");
+    }
 }
 
 fn fr_template(values: &[f64]) -> String {

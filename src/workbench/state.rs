@@ -379,11 +379,13 @@ pub struct CanvasEdge {
     pub transfer_mode: CanvasTransferMode,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SwarmViewState {
     #[serde(default)]
     pub selected_node_id: Option<String>,
+    #[serde(default)]
+    pub node_positions: HashMap<String, SwarmNodeLayout>,
     #[serde(default = "default_true")]
     pub show_agent_links: bool,
     #[serde(default = "default_true")]
@@ -394,10 +396,18 @@ impl Default for SwarmViewState {
     fn default() -> Self {
         Self {
             selected_node_id: None,
+            node_positions: HashMap::new(),
             show_agent_links: true,
             show_idle: true,
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SwarmNodeLayout {
+    pub x: f64,
+    pub y: f64,
 }
 
 fn default_true() -> bool {
@@ -2392,6 +2402,18 @@ impl WorkbenchService {
                 return;
             };
             workspace.canvas_edges.retain(|edge| edge.id != edge_id);
+        });
+    }
+
+    pub fn set_swarm_node_position(&self, workspace_id: u64, node_id: String, x: f64, y: f64) {
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            workspace
+                .swarm_view_state
+                .node_positions
+                .insert(node_id, SwarmNodeLayout { x, y });
         });
     }
 
