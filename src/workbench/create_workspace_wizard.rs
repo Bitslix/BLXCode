@@ -268,16 +268,16 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
     let create_folder = move || {
         let name = new_folder_name.get_untracked().trim().to_string();
         if name.is_empty() {
-            new_folder_err.set("Name darf nicht leer sein".into());
+            new_folder_err.set(i18n.tr(I18nKey::CreateWorkspaceNameRequired)().to_string());
             return;
         }
         let parent = draft_memo.get_untracked().cwd_display.trim().to_string();
         if parent.is_empty() {
-            new_folder_err.set("Kein Verzeichnis ausgewählt".into());
+            new_folder_err.set(i18n.tr(I18nKey::CreateWorkspaceDirectoryRequired)().to_string());
             return;
         }
         if !is_tauri_shell() {
-            new_folder_err.set("Nicht in Tauri-Shell".into());
+            new_folder_err.set(i18n.tr(I18nKey::CreateWorkspaceDesktopOnly)().to_string());
             return;
         }
         spawn_local(async move {

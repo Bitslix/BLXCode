@@ -1,4 +1,6 @@
 use crate::agent_wire::AgentContextItem;
+use crate::i18n::I18nKey;
+use crate::service::I18nService;
 use crate::workbench::{AgentImageContextStatus, WorkbenchService, WorkspaceAgentImage};
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
@@ -8,6 +10,7 @@ use web_sys::KeyboardEvent;
 
 #[component]
 pub fn ContextSection(context_open: RwSignal<bool>) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     let wb = expect_context::<WorkbenchService>();
     let preview = RwSignal::new(None::<WorkspaceAgentImage>);
     let attached_count =
@@ -25,9 +28,9 @@ pub fn ContextSection(context_open: RwSignal<bool>) -> impl IntoView {
                         aria-controls="agent-context-list"
                         aria-label=move || {
                             if context_open.get() {
-                                "Collapse context".to_string()
+                                i18n.tr(I18nKey::AgentContextCollapseContext)().to_string()
                             } else {
-                                "Expand context".to_string()
+                                i18n.tr(I18nKey::AgentContextExpandContext)().to_string()
                             }
                         }
                         on:click=move |_| context_open.update(|open| *open = !*open)
@@ -95,6 +98,7 @@ fn active_context_items(wb: WorkbenchService) -> Vec<AgentContextItem> {
 
 #[component]
 fn ContextRow(item: AgentContextItem, wb: WorkbenchService) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     let id = item.id.clone();
     let label = item.label.clone();
     let source = item.source.clone();
@@ -108,8 +112,8 @@ fn ContextRow(item: AgentContextItem, wb: WorkbenchService) -> impl IntoView {
                     <button
                         type="button"
                         class="agent-context-item__remove"
-                        title="Remove context"
-                        aria-label="Remove context"
+                        title=move || i18n.tr(I18nKey::AgentContextRemoveContext)()
+                        aria-label=move || i18n.tr(I18nKey::AgentContextRemoveContext)()
                         on:click=move |_| {
                             if let Some(ws_id) = wb.active_id().get_untracked() {
                                 wb.remove_workspace_agent_context(ws_id, &id);
@@ -131,6 +135,7 @@ fn ImageContextRow(
     wb: WorkbenchService,
     preview: RwSignal<Option<WorkspaceAgentImage>>,
 ) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     let id = image.item.id.clone();
     let id_for_use = id.clone();
     let id_for_remove = id.clone();
@@ -147,8 +152,8 @@ fn ImageContextRow(
             <button
                 type="button"
                 class="agent-context-item__remove"
-                title="Use image again"
-                aria-label="Use image again"
+                title=move || i18n.tr(I18nKey::AgentContextUseImageAgain)()
+                aria-label=move || i18n.tr(I18nKey::AgentContextUseImageAgain)()
                 on:click=move |_| {
                     if let Some(ws_id) = wb.active_id().get_untracked() {
                         wb.reactivate_workspace_agent_image(ws_id, &id_for_use);
@@ -180,7 +185,13 @@ fn ImageContextRow(
                                 "agent-task__status agent-context-image__status agent-context-image__status--pending"
                             }
                         }>
-                            {if is_read { "Read" } else { "Pending" }}
+                            {move || {
+                                if is_read {
+                                    i18n.tr(I18nKey::SrRead)()
+                                } else {
+                                    i18n.tr(I18nKey::PlansTaskStatPending)()
+                                }
+                            }}
                         </span>
                     </span>
                     <small>{source}</small>
@@ -190,8 +201,8 @@ fn ImageContextRow(
                     <button
                         type="button"
                         class="agent-context-item__remove"
-                        title="Remove image"
-                        aria-label="Remove image"
+                        title=move || i18n.tr(I18nKey::AgentContextRemoveImage)()
+                        aria-label=move || i18n.tr(I18nKey::AgentContextRemoveImage)()
                         on:click=move |_| {
                             if let Some(ws_id) = wb.active_id().get_untracked() {
                                 wb.remove_workspace_agent_image(ws_id, &id_for_remove);
@@ -211,6 +222,7 @@ fn ImagePreviewDialog(
     preview: RwSignal<Option<WorkspaceAgentImage>>,
     wb: WorkbenchService,
 ) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     if let Some(window) = web_sys::window() {
         let cb: Closure<dyn FnMut(KeyboardEvent)> = Closure::new(move |ev: KeyboardEvent| {
             if ev.key() == "Escape" {
@@ -248,7 +260,7 @@ fn ImagePreviewDialog(
                             }
                         >
                             <LxIcon icon=icondata::LuRotateCcw width="0.9rem" height="0.9rem" />
-                            <span>"Use again"</span>
+                            <span>{move || i18n.tr(I18nKey::AgentContextUseAgain)()}</span>
                         </button>
                     }
                     .into_any()
@@ -261,25 +273,32 @@ fn ImagePreviewDialog(
                             class="agent-image-preview-dialog"
                             role="dialog"
                             aria-modal="true"
-                            aria-label="Image preview"
+                            aria-label=move || i18n.tr(I18nKey::AgentContextImagePreview)()
                             on:click=move |ev| ev.stop_propagation()
                         >
                             <header class="agent-image-preview__head">
                                 <div>
                                     <h3>{title}</h3>
-                                    <p>{format!("{mime} · {size} · {}", if is_read { "Read" } else { "Pending" })}</p>
+                                    <p>{move || {
+                                        let status = if is_read {
+                                            i18n.tr(I18nKey::SrRead)()
+                                        } else {
+                                            i18n.tr(I18nKey::PlansTaskStatPending)()
+                                        };
+                                        format!("{mime} · {size} · {status}")
+                                    }}</p>
                                 </div>
                                 <button
                                     type="button"
                                     class="agent-context-item__remove"
-                                    aria-label="Close preview"
+                                    aria-label=move || i18n.tr(I18nKey::MemGraphPreviewClose)()
                                     on:click=move |_| preview.set(None)
                                 >
                                     <LxIcon icon=icondata::LuX width="0.9rem" height="0.9rem" />
                                 </button>
                             </header>
                             <div class="agent-image-preview__stage">
-                                <img src=data_url alt="Attached image preview" />
+                                <img src=data_url alt=move || i18n.tr(I18nKey::AgentContextAttachedImagePreview)() />
                             </div>
                             <footer class="agent-image-preview__actions">
                                 {use_again}
@@ -288,7 +307,7 @@ fn ImagePreviewDialog(
                                     class="workbench-mini-btn"
                                     on:click=move |_| preview.set(None)
                                 >
-                                    <span>"Close"</span>
+                                    <span>{move || i18n.tr(I18nKey::BtnClose)()}</span>
                                 </button>
                                 <button
                                     type="button"
@@ -301,7 +320,7 @@ fn ImagePreviewDialog(
                                     }
                                 >
                                     <LxIcon icon=icondata::LuTrash2 width="0.9rem" height="0.9rem" />
-                                    <span>"Remove"</span>
+                                    <span>{move || i18n.tr(I18nKey::SrRemove)()}</span>
                                 </button>
                             </footer>
                         </div>

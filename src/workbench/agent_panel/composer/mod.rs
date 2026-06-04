@@ -143,6 +143,7 @@ fn model_row(
     persist: impl Fn(Option<String>, Option<ThinkingLevel>) + Copy + 'static,
     model_open: RwSignal<bool>,
 ) -> AnyView {
+    let i18n = expect_context::<I18nService>();
     let id = model.id.clone();
     let select_id = id.clone();
     let favorite_id = id.clone();
@@ -186,8 +187,20 @@ fn model_row(
                     class="agent-composer__model-fav"
                     class:agent-composer__model-fav--active=move || model_favorites.with(|set| set.contains(&favorite_id))
                     aria-pressed=move || model_favorites.with(|set| set.contains(&favorite_id_for_aria)).to_string()
-                    aria-label=move || if is_favorite { "Remove favorite" } else { "Add favorite" }
-                    title=move || if is_favorite { "Remove favorite" } else { "Add favorite" }
+                    aria-label=move || {
+                        if is_favorite {
+                            i18n.tr(I18nKey::AgentComposerRemoveFavorite)()
+                        } else {
+                            i18n.tr(I18nKey::AgentComposerAddFavorite)()
+                        }
+                    }
+                    title=move || {
+                        if is_favorite {
+                            i18n.tr(I18nKey::AgentComposerRemoveFavorite)()
+                        } else {
+                            i18n.tr(I18nKey::AgentComposerAddFavorite)()
+                        }
+                    }
                     on:click=move |_| {
                         model_favorites.update(|set| {
                             if !set.remove(&favorite_id_for_click) {

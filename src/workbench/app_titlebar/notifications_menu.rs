@@ -94,8 +94,8 @@ pub fn NotificationsMenu() -> impl IntoView {
                             <button
                                 type="button"
                                 class="app-titlebar__notif-action"
-                                title="Mark all read"
-                                aria-label="Mark all read"
+                                title=move || i18n.tr(I18nKey::NotificationsMenuMarkAllRead)()
+                                aria-label=move || i18n.tr(I18nKey::NotificationsMenuMarkAllRead)()
                                 on:click=move |ev| {
                                     ev.stop_propagation();
                                     wb.mark_all_agent_notifications_read();
@@ -170,8 +170,8 @@ pub fn NotificationsMenu() -> impl IntoView {
                                             <button
                                                 type="button"
                                                 class="app-titlebar__notif-remove"
-                                                title="Remove"
-                                                aria-label="Remove notification"
+                                                title=move || i18n.tr(I18nKey::SrRemove)()
+                                                aria-label=move || i18n.tr(I18nKey::CommonRemoveNotification)()
                                                 on:click=move |ev| {
                                                     ev.stop_propagation();
                                                     wb_remove.remove_agent_notification(&remove_id);

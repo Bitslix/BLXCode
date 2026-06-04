@@ -380,7 +380,7 @@ fn AppStatusLine() -> impl IntoView {
                             width="0.76rem"
                             height="0.76rem"
                         />
-                        <span>{move || plan_migration_statusline_label(plan_migration)}</span>
+                        <span>{move || plan_migration_statusline_label(plan_migration, i18n)}</span>
                     </span>
                 </Show>
                 <Show when=move || memory_indexer_visible() && process_item_index(2) == Some(process_slot())>
@@ -407,6 +407,7 @@ fn plan_migration_statusline_visible(service: PlanMigrationService) -> bool {
 fn HeartbeatStatusBarItem(
     service: impl Fn() -> Option<HeartbeatServiceView> + Copy + Send + Sync + 'static,
 ) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     view! {
         <span class=move || heartbeat_statusline_class(service().as_ref())>
             <LxIcon
@@ -414,7 +415,7 @@ fn HeartbeatStatusBarItem(
                 width="0.76rem"
                 height="0.76rem"
             />
-            <span>{move || heartbeat_statusline_label(service())}</span>
+            <span>{move || heartbeat_statusline_label(service(), i18n)}</span>
         </span>
     }
 }
@@ -440,16 +441,16 @@ fn heartbeat_statusline_icon(service: Option<&HeartbeatServiceView>) -> icondata
     }
 }
 
-fn heartbeat_statusline_label(service: Option<HeartbeatServiceView>) -> String {
+fn heartbeat_statusline_label(service: Option<HeartbeatServiceView>, i18n: I18nService) -> String {
     let Some(service) = service else {
         return "HeartBeat".into();
     };
     match service.status {
-        HeartbeatServiceStatus::Stalled => "Memory index stalled".into(),
+        HeartbeatServiceStatus::Stalled => i18n.tr(I18nKey::AppMemoryIndexStalled)().to_string(),
         HeartbeatServiceStatus::Error => service
             .last_response
-            .unwrap_or_else(|| "Memory index error".into()),
-        HeartbeatServiceStatus::Running => "Memory indexing".into(),
+            .unwrap_or_else(|| i18n.tr(I18nKey::AppMemoryIndexError)().to_string()),
+        HeartbeatServiceStatus::Running => i18n.tr(I18nKey::AppMemoryIndexing)().to_string(),
         _ => service.name,
     }
 }
@@ -472,13 +473,13 @@ fn plan_migration_statusline_icon(service: PlanMigrationService) -> icondata::Ic
     }
 }
 
-fn plan_migration_statusline_label(service: PlanMigrationService) -> String {
+fn plan_migration_statusline_label(service: PlanMigrationService, i18n: I18nService) -> String {
     let progress = service.progress().get();
     if progress.phase == "error" {
         return progress
             .error
             .filter(|message| !message.trim().is_empty())
-            .unwrap_or_else(|| "Plan migration failed".into());
+            .unwrap_or_else(|| i18n.tr(I18nKey::AppPlanMigrationFailed)().to_string());
     }
     if progress.total > 0 {
         format!("Plans {}/{}", progress.processed, progress.total)

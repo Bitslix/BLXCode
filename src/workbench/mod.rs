@@ -219,7 +219,7 @@ fn write_agents_bootstrap_choice(value: &str) {
     let _ = storage.set_item(AGENTS_BOOTSTRAP_CHOICE_KEY, value);
 }
 
-async fn run_agents_layout_bootstrap(cwd: String, toast: ToastService) {
+async fn run_agents_layout_bootstrap(cwd: String, toast: ToastService, i18n: I18nService) {
     let progress = toast.loading("Creating BLXCode workspace files…");
     let result = async {
         workspace_ensure_agents(&cwd).await?;
@@ -233,7 +233,7 @@ async fn run_agents_layout_bootstrap(cwd: String, toast: ToastService) {
             toast.resolve(
                 progress,
                 ToastKind::Success,
-                "BLXCode workspace files are ready.",
+                i18n.tr(I18nKey::WorkbenchWorkspaceFilesReady)(),
             );
         }
         Ok(status) => {
@@ -430,13 +430,13 @@ pub fn WorkbenchShell() -> impl IntoView {
             match read_agents_bootstrap_choice().as_deref() {
                 Some(AGENTS_BOOTSTRAP_AUTO) => {
                     toast.dismiss(progress);
-                    run_agents_layout_bootstrap(cwd, toast).await;
+                    run_agents_layout_bootstrap(cwd, toast, i18n).await;
                 }
                 Some(AGENTS_BOOTSTRAP_SKIP) => {
                     toast.resolve(
                         progress,
                         ToastKind::Info,
-                        "BLXCode workspace files are missing; bootstrap skipped by saved choice.",
+                        i18n.tr(I18nKey::WorkbenchWorkspaceFilesMissingBootstrapSkipped)(),
                     );
                 }
                 _ => {
@@ -445,22 +445,21 @@ pub fn WorkbenchShell() -> impl IntoView {
                         missing_agents_layout_body(&status.missing_dirs, &status.missing_files);
                     let cwd_for_create = cwd.clone();
                     ui.request_confirm(state::ConfirmRequest {
-                        title: "Create BLXCode workspace files?".into(),
+                        title: i18n.tr(I18nKey::WorkbenchCreateWorkspaceFilesPrompt)().to_string(),
                         body,
-                        confirm_label: "Create automatically".into(),
-                        cancel_label: "Not now".into(),
+                        confirm_label: i18n.tr(I18nKey::WorkbenchCreateAutomatically)().to_string(),
+                        cancel_label: i18n.tr(I18nKey::WorkbenchNotNow)().to_string(),
                         danger: false,
                         on_confirm: Callback::new(move |_| {
                             write_agents_bootstrap_choice(AGENTS_BOOTSTRAP_AUTO);
                             let cwd = cwd_for_create.clone();
                             spawn_local(async move {
-                                run_agents_layout_bootstrap(cwd, toast).await;
+                                run_agents_layout_bootstrap(cwd, toast, i18n).await;
                             });
                         }),
                         on_cancel: Some(Callback::new(move |_| {
                             write_agents_bootstrap_choice(AGENTS_BOOTSTRAP_SKIP);
-                            toast
-                                .info("BLXCode workspace bootstrap skipped. The choice was saved.");
+                            toast.info(i18n.tr(I18nKey::WorkbenchWorkspaceBootstrapSkippedSaved)());
                         })),
                     });
                 }

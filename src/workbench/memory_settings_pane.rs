@@ -252,7 +252,7 @@ pub fn MemorySettingsPane() -> impl IntoView {
                     >
                         <span class="harness-btn-inline">
                             <LxIcon icon=icondata::LuSave width="0.78rem" height="0.78rem" />
-                            <span>"Save indexing model"</span>
+                            <span>{move || i18n.tr(I18nKey::MemorySettingsSaveIndexingModel)()}</span>
                         </span>
                     </button>
                     <button
@@ -263,7 +263,13 @@ pub fn MemorySettingsPane() -> impl IntoView {
                     >
                         <span class="harness-btn-inline">
                             <LxIcon icon=icondata::LuRefreshCw width="0.78rem" height="0.78rem" />
-                            <span>{move || if loading_models.get() { "Loading..." } else { "Refresh models" }}</span>
+                            <span>{move || {
+                                if loading_models.get() {
+                                    i18n.tr(I18nKey::CommonLoading)().to_string()
+                                } else {
+                                    i18n.tr(I18nKey::AgModelsRefresh)().to_string()
+                                }
+                            }}</span>
                         </span>
                     </button>
                 </div>

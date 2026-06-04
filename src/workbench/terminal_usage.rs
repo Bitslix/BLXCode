@@ -1,3 +1,5 @@
+use crate::i18n::I18nKey;
+use crate::service::I18nService;
 use crate::tauri_bridge::{
     is_tauri_shell, pty_wait_output, pty_write, workbench_load_usage_snapshot,
 };
@@ -36,6 +38,7 @@ enum UsageState {
 
 #[component]
 pub fn TerminalUsageButton(terminal_key: String, agent_slug: String) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     let wb = expect_context::<WorkbenchService>();
     let open = RwSignal::new(false);
     let state = RwSignal::new(UsageState::Idle);
@@ -145,10 +148,12 @@ pub fn TerminalUsageButton(terminal_key: String, agent_slug: String) -> impl Int
             let sessions = wb.pty_sessions_signal().get_untracked();
             let session_id = sessions.get(&terminal_key).copied();
             spawn_local(async move {
-                let result = refresh_usage(&agent_slug, &terminal_key, session_id).await;
+                let result = refresh_usage(i18n, &agent_slug, &terminal_key, session_id).await;
                 state.set(match result {
                     Ok(snapshot) if !snapshot.windows.is_empty() => UsageState::Ready(snapshot),
-                    Ok(_) => UsageState::Unavailable("Usage unavailable".into()),
+                    Ok(_) => {
+                        UsageState::Unavailable(i18n.tr(I18nKey::UsageUnavailable)().to_string())
+                    }
                     Err(err) => UsageState::Unavailable(err),
                 });
             });
@@ -164,8 +169,8 @@ pub fn TerminalUsageButton(terminal_key: String, agent_slug: String) -> impl Int
                     class="ws-term-cell__tool terminal-usage__button"
                     class:terminal-usage__button--active=move || open.get()
                     prop:draggable=false
-                    title="Agent usage"
-                    aria-label="Agent usage"
+                    title=move || i18n.tr(I18nKey::UsageAgentUsage)()
+                    aria-label=move || i18n.tr(I18nKey::UsageAgentUsage)()
                     aria-haspopup="menu"
                     aria-expanded=move || open.get().to_string()
                     on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
@@ -198,8 +203,8 @@ pub fn TerminalUsageButton(terminal_key: String, agent_slug: String) -> impl Int
                                 <button
                                     type="button"
                                     class="terminal-usage__refresh"
-                                    title="Refresh usage"
-                                    aria-label="Refresh usage"
+                                    title=move || i18n.tr(I18nKey::UsageRefreshUsage)()
+                                    aria-label=move || i18n.tr(I18nKey::UsageRefreshUsage)()
                                     disabled=move || matches!(state.get(), UsageState::Loading)
                                     on:click={
                                         let refresh = refresh;
@@ -278,6 +283,7 @@ fn usage_body(state: UsageState) -> impl IntoView {
 }
 
 async fn refresh_usage(
+    i18n: I18nService,
     agent_slug: &str,
     terminal_key: &str,
     session_id: Option<u64>,
@@ -287,13 +293,15 @@ async fn refresh_usage(
             let raw = workbench_load_usage_snapshot(terminal_key.to_string())
                 .await?
                 .ok_or_else(|| {
-                    "Usage unavailable until Claude updates its status line".to_string()
+                    i18n.tr(I18nKey::UsageUnavailableUntilClaudeUpdatesItsStatus)().to_string()
                 })?;
             parse_claude_usage_snapshot(&raw)
         }
         "codex" => {
             refresh_interactive_usage(
-                session_id.ok_or_else(|| "No running terminal session".to_string())?,
+                i18n,
+                session_id
+                    .ok_or_else(|| i18n.tr(I18nKey::UsageNoRunningTerminalSession)().to_string())?,
                 "/status\r",
                 parse_codex_usage_output,
             )
@@ -301,17 +309,20 @@ async fn refresh_usage(
         }
         "gemini" => {
             refresh_interactive_usage(
-                session_id.ok_or_else(|| "No running terminal session".to_string())?,
+                i18n,
+                session_id
+                    .ok_or_else(|| i18n.tr(I18nKey::UsageNoRunningTerminalSession)().to_string())?,
                 "/stats model\r",
                 parse_gemini_usage_output,
             )
             .await
         }
-        _ => Err("Usage unavailable for this agent".into()),
+        _ => Err(i18n.tr(I18nKey::UsageUnavailableForThisAgent)().to_string()),
     }
 }
 
 async fn refresh_interactive_usage(
+    i18n: I18nService,
     session_id: u64,
     command: &str,
     parser: fn(&str) -> Result<TerminalUsageSnapshot, String>,
@@ -329,7 +340,7 @@ async fn refresh_interactive_usage(
     )
     .await?;
     if after.timed_out && after.seq <= before.seq {
-        return Err("Usage command timed out".into());
+        return Err(i18n.tr(I18nKey::UsageUsageCommandTimedOut)().to_string());
     }
     parser(&after.text)
 }

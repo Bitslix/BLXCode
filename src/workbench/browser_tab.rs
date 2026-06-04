@@ -609,7 +609,7 @@ pub fn BrowserTabDock() -> impl IntoView {
                                                     view! {
                                                         <div class="workbench-browser-new-tab">
                                                             <p class="workbench-browser-new-tab-hint">
-                                                                "This page blocks iframe embedding in the app."
+                                                                {move || i18n.tr(I18nKey::BrowserThisPageBlocksIframeEmbeddingInTheApp)()}
                                                             </p>
                                                             <button
                                                                 type="button"
@@ -622,7 +622,7 @@ pub fn BrowserTabDock() -> impl IntoView {
                                                                     });
                                                                 }
                                                             >
-                                                                "Open In Browser"
+                                                                {move || i18n.tr(I18nKey::BrowserOpenInBrowser)()}
                                                             </button>
                                                         </div>
                                                     }.into_any()

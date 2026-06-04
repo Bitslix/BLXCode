@@ -1,3 +1,5 @@
+use crate::i18n::I18nKey;
+use crate::service::I18nService;
 use leptos::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -8,25 +10,26 @@ pub enum BootPhase {
 }
 
 impl BootPhase {
-    fn eyebrow(self) -> &'static str {
+    fn eyebrow_key(self) -> I18nKey {
         match self {
-            Self::Starting => "Starting BLXCode",
-            Self::RestoringWorkspace => "Restoring workspace",
-            Self::OpeningWorkbench => "Opening workbench",
+            Self::Starting => I18nKey::BootStartingBLXCode,
+            Self::RestoringWorkspace => I18nKey::BootRestoringWorkspace,
+            Self::OpeningWorkbench => I18nKey::BootOpeningWorkbench,
         }
     }
 
-    fn status(self) -> &'static str {
+    fn status_key(self) -> I18nKey {
         match self {
-            Self::Starting => "Preparing the interface",
-            Self::RestoringWorkspace => "Loading sidebar, sessions, and workspace state",
-            Self::OpeningWorkbench => "Bringing the panels online",
+            Self::Starting => I18nKey::BootPreparingTheInterface,
+            Self::RestoringWorkspace => I18nKey::BootLoadingSidebarSessionsAndWorkspaceState,
+            Self::OpeningWorkbench => I18nKey::BootBringingThePanelsOnline,
         }
     }
 }
 
 #[component]
 pub fn BootLoadingScreen(phase: BootPhase) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     view! {
         <section
             class="blx-boot app-shell app-shell--boot"
@@ -48,9 +51,9 @@ pub fn BootLoadingScreen(phase: BootPhase) -> impl IntoView {
                         />
                     </div>
                     <div class="blx-boot__copy">
-                        <p class="blx-boot__eyebrow">{phase.eyebrow()}</p>
+                        <p class="blx-boot__eyebrow">{move || i18n.tr(phase.eyebrow_key())()}</p>
                         <h1 class="blx-boot__title">"BLXCode"</h1>
-                        <p class="blx-boot__status">{phase.status()}</p>
+                        <p class="blx-boot__status">{move || i18n.tr(phase.status_key())()}</p>
                     </div>
                 </div>
 

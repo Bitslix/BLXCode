@@ -7,6 +7,8 @@
 //! the in-flight [`ContextDragKind`] so each type gets its own look — File,
 //! Diff and Commit — matching the "cool" static overlay the terminals use.
 
+use crate::i18n::I18nKey;
+use crate::service::I18nService;
 use crate::workbench::context_drag::{ContextDragKind, ContextDragService};
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
@@ -19,6 +21,7 @@ const PREVIEW_HEIGHT_PX: f64 = 84.0;
 #[component]
 pub fn ContextDragOverlay() -> impl IntoView {
     let context_dnd = expect_context::<ContextDragService>();
+    let i18n = expect_context::<I18nService>();
 
     let visible = Memo::new(move |_| context_dnd.active.get().is_some());
 
@@ -28,11 +31,11 @@ pub fn ContextDragOverlay() -> impl IntoView {
                 let Some(meta) = context_dnd.active.get() else {
                     return view! { <></> }.into_any();
                 };
-                let (variant, label) = match meta.kind {
-                    ContextDragKind::File => ("context-drag-preview--file", "File"),
-                    ContextDragKind::Folder => ("context-drag-preview--folder", "Folder"),
-                    ContextDragKind::Diff => ("context-drag-preview--diff", "Diff"),
-                    ContextDragKind::Commit => ("context-drag-preview--commit", "Commit"),
+                let (variant, label_key) = match meta.kind {
+                    ContextDragKind::File => ("context-drag-preview--file", I18nKey::CommonFile),
+                    ContextDragKind::Folder => ("context-drag-preview--folder", I18nKey::CommonFolder),
+                    ContextDragKind::Diff => ("context-drag-preview--diff", I18nKey::CommonDiff),
+                    ContextDragKind::Commit => ("context-drag-preview--commit", I18nKey::SbDiffCommit),
                 };
                 let kind = meta.kind;
                 let title = meta.title.clone();
@@ -59,7 +62,7 @@ pub fn ContextDragOverlay() -> impl IntoView {
                                 <ContextDragIcon kind=kind />
                             </span>
                             <span class="context-drag-preview__title">{title}</span>
-                            <span class="context-drag-preview__badge">{label}</span>
+                            <span class="context-drag-preview__badge">{move || i18n.tr(label_key)()}</span>
                         </header>
                         <div class="context-drag-preview__body">
                             <span class="context-drag-preview__subtitle">{subtitle}</span>

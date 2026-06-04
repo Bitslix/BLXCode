@@ -1,5 +1,7 @@
 //! HeartBeat settings pane.
 
+use crate::i18n::I18nKey;
+use crate::service::I18nService;
 use crate::tauri_bridge::{
     heartbeat_service_run_now, heartbeat_service_set_enabled, heartbeat_services_list,
     heartbeat_settings_get, heartbeat_settings_save, is_tauri_shell, HeartbeatServiceStatus,
@@ -26,6 +28,7 @@ fn number_value(ev: &web_sys::Event) -> Option<u32> {
 
 #[component]
 pub fn HeartbeatSettingsPane() -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     let enabled = RwSignal::new(false);
     let interval = RwSignal::new(60_u32);
     let service_enabled = RwSignal::new(BTreeMap::<String, bool>::new());
@@ -95,10 +98,10 @@ pub fn HeartbeatSettingsPane() -> impl IntoView {
                 </span>
                 <div class="harness-pane-header__copy">
                     <h3 class="harness-pane-title">
-                        <span class="harness-pane-title__text">"HeartBeat"</span>
+                        <span class="harness-pane-title__text">{move || i18n.tr(I18nKey::HarnessHeartBeat)()}</span>
                     </h3>
                     <p class="harness-pane-description">
-                        "Run internal BLXCode background services on a controlled interval."
+                        {move || i18n.tr(I18nKey::HeartbeatIntervalDescription)()}
                     </p>
                 </div>
             </header>
@@ -123,7 +126,7 @@ pub fn HeartbeatSettingsPane() -> impl IntoView {
                     <span class="blx-switch" class:blx-switch--on=move || enabled.get() aria-hidden="true">
                         <span class="blx-switch__thumb" />
                     </span>
-                    <span>"Enable HeartBeat"</span>
+                    <span>{move || i18n.tr(I18nKey::HeartbeatEnableHeartBeat)()}</span>
                 </label>
                 <label class="harness-stack" style="max-width: 18rem;">
                     <span class="harness-field-label">
@@ -151,7 +154,13 @@ pub fn HeartbeatSettingsPane() -> impl IntoView {
                     >
                         <span class="harness-btn-inline">
                             <LxIcon icon=icondata::LuSave width="0.78rem" height="0.78rem" />
-                            <span>{move || if busy.get() { "Saving..." } else { "Save" }}</span>
+                            <span>{move || {
+                                if busy.get() {
+                                    i18n.tr(I18nKey::CommonSaving)().to_string()
+                                } else {
+                                    i18n.tr(I18nKey::BtnSave)().to_string()
+                                }
+                            }}</span>
                         </span>
                     </button>
                 </div>
@@ -179,11 +188,13 @@ pub fn HeartbeatSettingsPane() -> impl IntoView {
                                         <small>{format!("{} / {} / {}", service.kind, service.source, service.capabilities.join(", "))}</small>
                                     </div>
                                     <div class="heartbeat-service-row__meta">
-                                        <span>{status_label(service.status)}</span>
+                                        <span>{move || i18n.tr(status_label_key(service.status))()}</span>
                                         <span>{format_time(service.last_call)}</span>
                                         <span>{format_time(service.next_call)}</span>
                                         <span>{format!("skips: {}", service.skip_count)}</span>
-                                        <span>{service.last_response.clone().unwrap_or_else(|| "No response yet.".into())}</span>
+                                        <span>{service.last_response.clone().unwrap_or_else(|| {
+                                            i18n.tr(I18nKey::HeartbeatNoResponseYet)().to_string()
+                                        })}</span>
                                     </div>
                                     <div class="heartbeat-service-row__actions">
                                         <label class="app-prefs-toggle">
@@ -221,7 +232,7 @@ pub fn HeartbeatSettingsPane() -> impl IntoView {
                                         >
                                             <span class="harness-btn-inline">
                                                 <LxIcon icon=icondata::LuPlay width="0.78rem" height="0.78rem" />
-                                                <span>"Run"</span>
+                                                <span>{move || i18n.tr(I18nKey::CommonRun)()}</span>
                                             </span>
                                         </button>
                                     </div>
@@ -242,13 +253,13 @@ pub fn HeartbeatSettingsPane() -> impl IntoView {
     }
 }
 
-fn status_label(status: HeartbeatServiceStatus) -> &'static str {
+fn status_label_key(status: HeartbeatServiceStatus) -> I18nKey {
     match status {
-        HeartbeatServiceStatus::Idle => "Idle",
-        HeartbeatServiceStatus::Running => "Running",
-        HeartbeatServiceStatus::Stalled => "Stalled",
-        HeartbeatServiceStatus::Error => "Error",
-        HeartbeatServiceStatus::Disabled => "Disabled",
+        HeartbeatServiceStatus::Idle => I18nKey::CommonIdle,
+        HeartbeatServiceStatus::Running => I18nKey::SwarmStatusRunning,
+        HeartbeatServiceStatus::Stalled => I18nKey::HeartbeatStalled,
+        HeartbeatServiceStatus::Error => I18nKey::CommonError,
+        HeartbeatServiceStatus::Disabled => I18nKey::AgWebProviderNone,
     }
 }
 

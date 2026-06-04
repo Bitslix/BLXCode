@@ -243,7 +243,10 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
             match mermaid_export_markdown(&title, &kind, &code, false).await {
                 Ok(Some(path)) => toast.success(format!("Saved {path}")),
                 Ok(None) => {}
-                Err(e) => toast.error(format!("Export failed: {e}")),
+                Err(e) => toast.error(format!(
+                    "{} {e}",
+                    i18n.tr(I18nKey::AgentDiagramExportFailed)()
+                )),
             }
         });
     };
@@ -253,14 +256,17 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
         let title = active_title.get_untracked();
         let toast = toast_pdf.clone();
         let Some(svg) = rendered_svg_outer_html(STAGE_DOM_ID) else {
-            toast.error("Diagram not rendered yet".to_string());
+            toast.error(i18n.tr(I18nKey::AgentDiagramNotRenderedYet)().to_string());
             return;
         };
         spawn_local(async move {
             match mermaid_export_pdf(&title, &svg).await {
                 Ok(Some(path)) => toast.success(format!("Saved {path}")),
                 Ok(None) => {}
-                Err(e) => toast.error(format!("Export failed: {e}")),
+                Err(e) => toast.error(format!(
+                    "{} {e}",
+                    i18n.tr(I18nKey::AgentDiagramExportFailed)()
+                )),
             }
         });
     };
@@ -292,7 +298,10 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
                     let len = diagrams.with_untracked(|d| d.len());
                     active.set(if len == 0 { 0 } else { idx.min(len - 1) });
                 }
-                Err(e) => toast.error(format!("Delete failed: {e}")),
+                Err(e) => toast.error(format!(
+                    "{} {e}",
+                    i18n.tr(I18nKey::DiagramGalleryDeleteFailed)()
+                )),
             }
         });
     };

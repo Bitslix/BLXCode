@@ -1,5 +1,7 @@
 //! HELP popover: product metadata, docs/community links, embedded website,
 //! and the same manual update check exposed from Settings.
+use crate::i18n::I18nKey;
+use crate::service::I18nService;
 use crate::tauri_bridge::{is_tauri_shell, open_external_url};
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
@@ -19,6 +21,7 @@ const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[component]
 pub fn HelpMenu() -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     let open = RwSignal::new(false);
     let about_open = RwSignal::new(false);
 
@@ -83,8 +86,8 @@ pub fn HelpMenu() -> impl IntoView {
                 class:app-titlebar__icon-btn--active=move || open.get()
                 aria-haspopup="menu"
                 aria-expanded=move || open.get().to_string()
-                aria-label="Help"
-                title="Help"
+                aria-label=move || i18n.tr(I18nKey::HelpMenuTitle)()
+                title=move || i18n.tr(I18nKey::HelpMenuTitle)()
                 on:click=move |ev| {
                     ev.stop_propagation();
                     open.update(|o| *o = !*o);
@@ -94,7 +97,7 @@ pub fn HelpMenu() -> impl IntoView {
             </button>
             <Show when=move || open.get()>
                 <div class="app-titlebar__popover app-titlebar__popover--help" role="menu">
-                    <p class="app-titlebar__popover-head">"Help"</p>
+                    <p class="app-titlebar__popover-head">{move || i18n.tr(I18nKey::HelpMenuTitle)()}</p>
                     <button
                         type="button"
                         class="app-titlebar__menu-item"
@@ -159,7 +162,7 @@ pub fn HelpMenu() -> impl IntoView {
                         type="button"
                         class="app-titlebar__about-scrim"
                         tabindex="-1"
-                        aria-label="Close"
+                        aria-label=move || i18n.tr(I18nKey::BtnClose)()
                         on:click=move |_| about_open.set(false)
                     ></button>
                     <section
@@ -172,8 +175,8 @@ pub fn HelpMenu() -> impl IntoView {
                             <button
                                 type="button"
                                 class="app-titlebar__icon-btn"
-                                aria-label="Close"
-                                title="Close"
+                                aria-label=move || i18n.tr(I18nKey::BtnClose)()
+                                title=move || i18n.tr(I18nKey::BtnClose)()
                                 on:click=move |_| about_open.set(false)
                             >
                                 <LxIcon icon=icondata::LuX width="0.95rem" height="0.95rem" />
@@ -194,14 +197,14 @@ pub fn HelpMenu() -> impl IntoView {
                             <div class="app-titlebar__about-status" aria-label="Project status">
                                 <span class="app-titlebar__about-status-pill app-titlebar__about-status-pill--free">
                                     <LxIcon icon=icondata::LuShieldCheck width="0.8rem" height="0.8rem" />
-                                    <span>"Yes, Free!"</span>
+                                    <span>{move || i18n.tr(I18nKey::HelpMenuYesFree)()}</span>
                                 </span>
                                 <span class="app-titlebar__about-status-pill">
                                     <LxIcon icon=icondata::LuGithub width="0.8rem" height="0.8rem" />
-                                    <span>"Open Source"</span>
+                                    <span>{move || i18n.tr(I18nKey::HelpMenuOpenSource)()}</span>
                                 </span>
                                 <span class="app-titlebar__about-status-pill">
-                                    <span>"MIT"</span>
+                                    <span>{move || i18n.tr(I18nKey::HelpMenuLicenseMIT)()}</span>
                                 </span>
                             </div>
 
@@ -217,9 +220,9 @@ pub fn HelpMenu() -> impl IntoView {
                             </dl>
 
                             <div class="app-titlebar__about-stack" aria-label="Stack">
-                                <span>"Rust 2021"</span>
-                                <span>"Tauri 2"</span>
-                                <span>"Leptos 0.8"</span>
+                                <span>{move || i18n.tr(I18nKey::HelpMenuRustEdition)()}</span>
+                                <span>{move || i18n.tr(I18nKey::HelpMenuTauriVersion)()}</span>
+                                <span>{move || i18n.tr(I18nKey::HelpMenuLeptosVersion)()}</span>
                                 <span>"Linux · macOS · Windows"</span>
                                 <span>"14 locales"</span>
                                 <span>"20 themes"</span>
@@ -240,7 +243,7 @@ pub fn HelpMenu() -> impl IntoView {
                                     on:click=move |_| open_external(REPO_URL)
                                 >
                                     <LxIcon icon=icondata::LuGithub width="0.88rem" height="0.88rem" />
-                                    <span>"Repository"</span>
+                                    <span>{move || i18n.tr(I18nKey::HelpMenuRepository)()}</span>
                                 </button>
                                 <button
                                     type="button"
@@ -248,7 +251,7 @@ pub fn HelpMenu() -> impl IntoView {
                                     on:click=move |_| dispatch_open_http(WEBSITE_URL)
                                 >
                                     <LxIcon icon=icondata::LuGlobe width="0.88rem" height="0.88rem" />
-                                    <span>"Website"</span>
+                                    <span>{move || i18n.tr(I18nKey::HelpMenuWebsite)()}</span>
                                 </button>
                                 <button
                                     type="button"
@@ -256,7 +259,7 @@ pub fn HelpMenu() -> impl IntoView {
                                     on:click=move |_| open_external(ISSUES_URL)
                                 >
                                     <LxIcon icon=icondata::LuBug width="0.88rem" height="0.88rem" />
-                                    <span>"Issues"</span>
+                                    <span>{move || i18n.tr(I18nKey::HelpMenuIssues)()}</span>
                                 </button>
                                 <button
                                     type="button"
@@ -264,7 +267,7 @@ pub fn HelpMenu() -> impl IntoView {
                                     on:click=move |_| open_external(DISCUSSIONS_URL)
                                 >
                                     <LxIcon icon=icondata::LuMessagesSquare width="0.88rem" height="0.88rem" />
-                                    <span>"Discussions"</span>
+                                    <span>{move || i18n.tr(I18nKey::HelpMenuDiscussions)()}</span>
                                 </button>
                             </div>
                         </div>

@@ -1,4 +1,6 @@
 use crate::agent_wire::AgentImageContextItem;
+use crate::i18n::I18nKey;
+use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_read_image_file, git_commit_details, git_file_diff, pty_peek_output,
     AgentImageFilePayload,
@@ -54,35 +56,45 @@ impl DropZoneState {
     }
 
     #[must_use]
-    pub fn message(&self) -> &'static str {
+    pub fn message(&self, i18n: I18nService) -> String {
         match self {
-            Self::Inactive => "",
-            Self::AcceptImage => "Drop images to attach",
-            Self::AcceptTerminal => "Drop terminal to attach session context",
-            Self::AcceptFile => "Drop file to attach as context",
-            Self::AcceptFolder => "Drop folder to attach as context",
-            Self::AcceptDiff => "Drop diff to attach as context",
-            Self::AcceptCommit => "Drop commit to attach as context",
-            Self::AcceptPlan => "Drop plan to load into the agent",
-            Self::AcceptTask => "Drop task to attach as context",
-            Self::Reject => "Only image files or terminal sessions can be attached",
+            Self::Inactive => String::new(),
+            Self::AcceptImage => i18n.tr(I18nKey::AgentImageDropImagesToAttach)().to_string(),
+            Self::AcceptTerminal => {
+                i18n.tr(I18nKey::AgentImageDropTerminalToAttachSessionContext)().to_string()
+            }
+            Self::AcceptFile => i18n.tr(I18nKey::AgentImageDropFileToAttachAsContext)().to_string(),
+            Self::AcceptFolder => {
+                i18n.tr(I18nKey::AgentImageDropFolderToAttachAsContext)().to_string()
+            }
+            Self::AcceptDiff => i18n.tr(I18nKey::AgentImageDropDiffToAttachAsContext)().to_string(),
+            Self::AcceptCommit => {
+                i18n.tr(I18nKey::AgentImageDropCommitToAttachAsContext)().to_string()
+            }
+            Self::AcceptPlan => {
+                i18n.tr(I18nKey::AgentImageDropPlanToLoadIntoTheAgent)().to_string()
+            }
+            Self::AcceptTask => i18n.tr(I18nKey::AgentImageDropTaskToAttachAsContext)().to_string(),
+            Self::Reject => i18n.tr(I18nKey::AgentImageUnsupportedDrop)().to_string(),
         }
     }
 }
 
 pub fn install_agent_image_intake(
     wb: WorkbenchService,
+    i18n: I18nService,
     drop_state: RwSignal<DropZoneState>,
     status_line: RwSignal<Option<String>>,
 ) {
-    install_paste_listener(wb, status_line);
+    install_paste_listener(wb, i18n, status_line);
     install_escape_listener(drop_state);
-    install_tauri_drop_listener(wb, drop_state, status_line);
+    install_tauri_drop_listener(wb, i18n, drop_state, status_line);
 }
 
 pub fn handle_dom_drag_event(
     ev: DragEvent,
     wb: WorkbenchService,
+    _i18n: I18nService,
     drop_state: RwSignal<DropZoneState>,
     slot_dnd: TerminalSlotDragService,
     context_dnd: ContextDragService,
@@ -154,6 +166,7 @@ pub fn handle_dom_drag_event(
 pub fn handle_dom_drop(
     ev: DragEvent,
     wb: WorkbenchService,
+    i18n: I18nService,
     drop_state: RwSignal<DropZoneState>,
     status_line: RwSignal<Option<String>>,
     slot_dnd: TerminalSlotDragService,
@@ -172,14 +185,14 @@ pub fn handle_dom_drop(
         read_kanban_payload(&dt).or_else(|| kanban_dnd.active_payload.get_untracked())
     {
         ev.stop_propagation();
-        attach_kanban_drop(payload, wb, status_line, kanban_dnd);
+        attach_kanban_drop(payload, wb, i18n, status_line, kanban_dnd);
         return;
     }
 
     if let Some(payload) = read_drag_payload(&dt).or_else(|| terminal_payload_from_active(slot_dnd))
     {
         ev.stop_propagation();
-        attach_terminal_context(payload, wb, status_line, slot_dnd);
+        attach_terminal_context(payload, wb, i18n, status_line, slot_dnd);
         return;
     }
 
@@ -187,7 +200,7 @@ pub fn handle_dom_drop(
         read_context_payload(&dt).or_else(|| context_dnd.active_payload.get_untracked())
     {
         ev.stop_propagation();
-        attach_context_drag(payload, wb, status_line, context_dnd);
+        attach_context_drag(payload, wb, i18n, status_line, context_dnd);
         return;
     }
 
@@ -200,7 +213,7 @@ pub fn handle_dom_drop(
     }
     for idx in 0..len {
         if let Some(file) = files.get(idx) {
-            read_dom_file(file, wb, status_line);
+            read_dom_file(file, wb, i18n, status_line);
         }
     }
 }
@@ -209,7 +222,11 @@ pub fn clear_drop_state(drop_state: RwSignal<DropZoneState>) {
     drop_state.set(DropZoneState::Inactive);
 }
 
-fn install_paste_listener(wb: WorkbenchService, status_line: RwSignal<Option<String>>) {
+fn install_paste_listener(
+    wb: WorkbenchService,
+    i18n: I18nService,
+    status_line: RwSignal<Option<String>>,
+) {
     let Some(window) = web_sys::window() else {
         return;
     };
@@ -229,7 +246,7 @@ fn install_paste_listener(wb: WorkbenchService, status_line: RwSignal<Option<Str
             if let Some(file) = files.get(idx) {
                 if is_supported_image_mime(&file.type_()) {
                     handled = true;
-                    read_dom_file(file, wb, status_line);
+                    read_dom_file(file, wb, i18n, status_line);
                 }
             }
         }
@@ -256,6 +273,7 @@ fn install_escape_listener(drop_state: RwSignal<DropZoneState>) {
 
 fn install_tauri_drop_listener(
     wb: WorkbenchService,
+    i18n: I18nService,
     drop_state: RwSignal<DropZoneState>,
     status_line: RwSignal<Option<String>>,
 ) {
@@ -297,7 +315,7 @@ fn install_tauri_drop_listener(
             "drop" => {
                 drop_state.set(DropZoneState::Inactive);
                 for path in payload_paths(&payload) {
-                    read_tauri_file(path, wb, status_line);
+                    read_tauri_file(path, wb, i18n, status_line);
                 }
             }
             _ => {}
@@ -326,18 +344,28 @@ fn payload_paths(payload: &JsValue) -> Vec<String> {
         .collect()
 }
 
-fn read_tauri_file(path: String, wb: WorkbenchService, status_line: RwSignal<Option<String>>) {
+fn read_tauri_file(
+    path: String,
+    wb: WorkbenchService,
+    i18n: I18nService,
+    status_line: RwSignal<Option<String>>,
+) {
     leptos::task::spawn_local(async move {
         match agent_read_image_file(path).await {
-            Ok(payload) => add_image_payload(wb, status_line, payload),
+            Ok(payload) => add_image_payload(wb, i18n, status_line, payload),
             Err(e) => status_line.set(Some(e)),
         }
     });
 }
 
-fn read_dom_file(file: File, wb: WorkbenchService, status_line: RwSignal<Option<String>>) {
+fn read_dom_file(
+    file: File,
+    wb: WorkbenchService,
+    i18n: I18nService,
+    status_line: RwSignal<Option<String>>,
+) {
     let label = if file.name().trim().is_empty() {
-        "Pasted image".to_string()
+        i18n.tr(I18nKey::AgentImagePastedImage)().to_string()
     } else {
         file.name()
     };
@@ -345,7 +373,7 @@ fn read_dom_file(file: File, wb: WorkbenchService, status_line: RwSignal<Option<
     let size_bytes = file.size() as u64;
     if !is_supported_image_mime(&mime) {
         status_line.set(Some(
-            "Only PNG, JPEG, WebP, and GIF images can be attached.".into(),
+            i18n.tr(I18nKey::AgentImageUnsupportedFormat)().to_string(),
         ));
         return;
     }
@@ -358,7 +386,9 @@ fn read_dom_file(file: File, wb: WorkbenchService, status_line: RwSignal<Option<
     }
 
     let Ok(reader) = FileReader::new() else {
-        status_line.set(Some("Could not create image reader.".into()));
+        status_line.set(Some(
+            i18n.tr(I18nKey::AgentImageCouldNotCreateImageReader)().to_string(),
+        ));
         return;
     };
     let reader_for_cb = reader.clone();
@@ -366,15 +396,20 @@ fn read_dom_file(file: File, wb: WorkbenchService, status_line: RwSignal<Option<
         Closure::once(move |_ev: web_sys::ProgressEvent| {
             let result = reader_for_cb.result().ok().and_then(|v| v.as_string());
             let Some(data_url) = result else {
-                status_line.set(Some("Could not read image data.".into()));
+                status_line.set(Some(
+                    i18n.tr(I18nKey::AgentImageCouldNotReadImageData)().to_string(),
+                ));
                 return;
             };
             let Some((mime_from_url, bytes_b64)) = parse_data_url(&data_url) else {
-                status_line.set(Some("Could not parse image data.".into()));
+                status_line.set(Some(
+                    i18n.tr(I18nKey::AgentImageCouldNotParseImageData)().to_string(),
+                ));
                 return;
             };
             add_image_payload(
                 wb,
+                i18n,
                 status_line,
                 AgentImageFilePayload {
                     label,
@@ -393,12 +428,13 @@ fn read_dom_file(file: File, wb: WorkbenchService, status_line: RwSignal<Option<
 
 fn add_image_payload(
     wb: WorkbenchService,
+    i18n: I18nService,
     status_line: RwSignal<Option<String>>,
     payload: AgentImageFilePayload,
 ) {
     if !is_supported_image_mime(&payload.mime) {
         status_line.set(Some(
-            "Only PNG, JPEG, WebP, and GIF images can be attached.".into(),
+            i18n.tr(I18nKey::AgentImageUnsupportedFormat)().to_string(),
         ));
         return;
     }
@@ -410,7 +446,9 @@ fn add_image_payload(
         return;
     }
     let Some(ws_id) = wb.active_id().get_untracked() else {
-        status_line.set(Some("Select a workspace tab first.".into()));
+        status_line.set(Some(
+            i18n.tr(I18nKey::AgentImageSelectAWorkspaceTabFirst)().to_string(),
+        ));
         return;
     };
     let pending = wb.pending_agent_images_for_workspace_untracked(ws_id);
@@ -447,18 +485,21 @@ fn add_image_payload(
 fn attach_terminal_context(
     payload: TerminalSlotDragPayload,
     wb: WorkbenchService,
+    i18n: I18nService,
     status_line: RwSignal<Option<String>>,
     slot_dnd: TerminalSlotDragService,
 ) {
     let Some(active_ws_id) = wb.active_id().get_untracked() else {
         slot_dnd.clear();
-        status_line.set(Some("Select a workspace tab first.".into()));
+        status_line.set(Some(
+            i18n.tr(I18nKey::AgentImageSelectAWorkspaceTabFirst)().to_string(),
+        ));
         return;
     };
     if payload.workspace_id != active_ws_id {
         slot_dnd.clear();
         status_line.set(Some(
-            "Terminal context can only be attached to its own workspace.".into(),
+            i18n.tr(I18nKey::AgentImageTerminalWorkspaceMismatch)().to_string(),
         ));
         return;
     }
@@ -516,18 +557,21 @@ fn has_kanban_drag(ev: &DragEvent, kanban_dnd: KanbanDragService) -> bool {
 fn attach_kanban_drop(
     payload: KanbanDragPayload,
     wb: WorkbenchService,
+    i18n: I18nService,
     status_line: RwSignal<Option<String>>,
     kanban_dnd: KanbanDragService,
 ) {
     let Some(active_ws_id) = wb.active_id().get_untracked() else {
         kanban_dnd.clear();
-        status_line.set(Some("Select a workspace tab first.".into()));
+        status_line.set(Some(
+            i18n.tr(I18nKey::AgentImageSelectAWorkspaceTabFirst)().to_string(),
+        ));
         return;
     };
     if payload.workspace_id != active_ws_id {
         kanban_dnd.clear();
         status_line.set(Some(
-            "Kanban items can only be attached to their own workspace.".into(),
+            i18n.tr(I18nKey::AgentImageKanbanWorkspaceMismatch)().to_string(),
         ));
         return;
     }
@@ -539,7 +583,9 @@ fn attach_kanban_drop(
     });
     let Some(ws_cwd) = ws_cwd else {
         kanban_dnd.clear();
-        status_line.set(Some("Select a workspace tab first.".into()));
+        status_line.set(Some(
+            i18n.tr(I18nKey::AgentImageSelectAWorkspaceTabFirst)().to_string(),
+        ));
         return;
     };
 
@@ -581,18 +627,21 @@ fn attach_kanban_drop(
 fn attach_context_drag(
     payload: ContextDragPayload,
     wb: WorkbenchService,
+    i18n: I18nService,
     status_line: RwSignal<Option<String>>,
     context_dnd: ContextDragService,
 ) {
     let Some(active_ws_id) = wb.active_id().get_untracked() else {
         context_dnd.clear();
-        status_line.set(Some("Select a workspace tab first.".into()));
+        status_line.set(Some(
+            i18n.tr(I18nKey::AgentImageSelectAWorkspaceTabFirst)().to_string(),
+        ));
         return;
     };
     if payload.workspace_id != active_ws_id {
         context_dnd.clear();
         status_line.set(Some(
-            "Context can only be attached to its own workspace.".into(),
+            i18n.tr(I18nKey::AgentImageContextWorkspaceMismatch)().to_string(),
         ));
         return;
     }
@@ -601,7 +650,9 @@ fn attach_context_drag(
         ContextDragKind::File => {
             let Some(rel) = payload.rel_path.filter(|p| !p.trim().is_empty()) else {
                 context_dnd.clear();
-                status_line.set(Some("Dragged file has no path.".into()));
+                status_line.set(Some(
+                    i18n.tr(I18nKey::AgentImageDraggedFileHasNoPath)().to_string(),
+                ));
                 return;
             };
             wb.upsert_workspace_agent_context(active_ws_id, file_ref_context_item(&rel));
@@ -611,7 +662,9 @@ fn attach_context_drag(
         ContextDragKind::Folder => {
             let Some(rel) = payload.rel_path.filter(|p| !p.trim().is_empty()) else {
                 context_dnd.clear();
-                status_line.set(Some("Dragged folder has no path.".into()));
+                status_line.set(Some(
+                    i18n.tr(I18nKey::AgentImageDraggedFolderHasNoPath)().to_string(),
+                ));
                 return;
             };
             wb.upsert_workspace_agent_context(active_ws_id, dir_ref_context_item(&rel));
@@ -621,13 +674,17 @@ fn attach_context_drag(
         ContextDragKind::Diff => {
             let Some(rel) = payload.rel_path.filter(|p| !p.trim().is_empty()) else {
                 context_dnd.clear();
-                status_line.set(Some("Dragged diff has no path.".into()));
+                status_line.set(Some(
+                    i18n.tr(I18nKey::AgentImageDraggedDiffHasNoPath)().to_string(),
+                ));
                 return;
             };
             let staged = payload.staged.unwrap_or(false);
             let Some(cwd) = wb.default_workspace_cwd() else {
                 context_dnd.clear();
-                status_line.set(Some("Workspace has no path.".into()));
+                status_line.set(Some(
+                    i18n.tr(I18nKey::AgentImageWorkspaceHasNoPath)().to_string(),
+                ));
                 return;
             };
             let conn = wb.active_remote_connection_id();
@@ -646,7 +703,9 @@ fn attach_context_drag(
         ContextDragKind::Commit => {
             let Some(oid) = payload.oid.filter(|o| !o.trim().is_empty()) else {
                 context_dnd.clear();
-                status_line.set(Some("Dragged commit has no id.".into()));
+                status_line.set(Some(
+                    i18n.tr(I18nKey::AgentImageDraggedCommitHasNoId)().to_string(),
+                ));
                 return;
             };
             let short = payload
@@ -656,7 +715,9 @@ fn attach_context_drag(
             let subject = payload.subject.unwrap_or_default();
             let Some(cwd) = wb.default_workspace_cwd() else {
                 context_dnd.clear();
-                status_line.set(Some("Workspace has no path.".into()));
+                status_line.set(Some(
+                    i18n.tr(I18nKey::AgentImageWorkspaceHasNoPath)().to_string(),
+                ));
                 return;
             };
             let conn = wb.active_remote_connection_id();

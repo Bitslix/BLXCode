@@ -524,8 +524,8 @@ pub fn PlansPanel() -> impl IntoView {
                         <input
                             type="search"
                             class="blx-sr-search__input"
-                            placeholder="Search plans..."
-                            aria-label="Search plans"
+                            placeholder=move || i18n.tr(I18nKey::PlansSearchPlans)()
+                            aria-label=move || i18n.tr(I18nKey::PlansSearchPlansAria)()
                             prop:value=move || search_query.get()
                             on:input=move |ev| search_query.set(input_value(&ev))
                         />

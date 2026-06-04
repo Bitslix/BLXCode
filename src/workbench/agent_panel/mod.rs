@@ -369,7 +369,7 @@ pub fn AgentPanelDock() -> impl IntoView {
     // Window-level PTT hotkey: install once on mount; listeners are removed
     // via on_cleanup inside install_ptt_hotkey.
     if is_tauri_shell() {
-        install_agent_image_intake(wb, drop_state, status_line);
+        install_agent_image_intake(wb, i18n, drop_state, status_line);
     }
 
     // Push-to-talk transcripts targeting the agent composer arrive via the
@@ -536,14 +536,14 @@ pub fn AgentPanelDock() -> impl IntoView {
                 class
             }
             aria-label=move || i18n.tr(I18nKey::AgAriaPane)()
-            on:dragenter=move |ev| handle_dom_drag_event(ev, wb, drop_state, slot_dnd, context_dnd, kanban_dnd)
-            on:dragover=move |ev| handle_dom_drag_event(ev, wb, drop_state, slot_dnd, context_dnd, kanban_dnd)
+            on:dragenter=move |ev| handle_dom_drag_event(ev, wb, i18n, drop_state, slot_dnd, context_dnd, kanban_dnd)
+            on:dragover=move |ev| handle_dom_drag_event(ev, wb, i18n, drop_state, slot_dnd, context_dnd, kanban_dnd)
             on:dragleave=move |_| clear_drop_state(drop_state)
-            on:drop=move |ev| handle_dom_drop(ev, wb, drop_state, status_line, slot_dnd, context_dnd, kanban_dnd)
+            on:drop=move |ev| handle_dom_drop(ev, wb, i18n, drop_state, status_line, slot_dnd, context_dnd, kanban_dnd)
         >
             <Show when=move || drop_state.get().is_active()>
                 <div class="agent-drop-overlay" aria-hidden="true">
-                    <span>{move || drop_state.get().message()}</span>
+                    <span>{move || drop_state.get().message(i18n)}</span>
                 </div>
             </Show>
             <header class=move || {
@@ -683,7 +683,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                                 type="button"
                                 class="agent-chat-head__icon-btn"
                                 aria-describedby="agent-chat-jump-bottom-tooltip"
-                                aria-label="Jump to bottom"
+                                aria-label=move || i18n.tr(I18nKey::AgentPanelJumpToBottom)()
                                 on:click=move |_| {
                                     if let Some(log) = chat_scroll_ref.get_untracked() {
                                         smooth_scroll_chat_to_bottom(log);
@@ -697,7 +697,7 @@ pub fn AgentPanelDock() -> impl IntoView {
                                     <span class="blx-tooltip__spark" aria-hidden="true"></span>
                                     "Timeline"
                                 </span>
-                                <span class="blx-tooltip__main">"Jump to bottom"</span>
+                                <span class="blx-tooltip__main">{move || i18n.tr(I18nKey::AgentPanelJumpToBottom)()}</span>
                                 <span class="blx-tooltip__hint">"Slide to the latest output"</span>
                             </span>
                         </span>
@@ -757,7 +757,11 @@ pub fn AgentPanelDock() -> impl IntoView {
                                     let tool_detail_open = tool_detail_open;
                                     leptos::task::spawn_local(async move {
                                         let Some(ws_id) = wb.active_id().get_untracked() else {
-                                            status_line.set(Some("Select a workspace tab first.".into()));
+                                            status_line.set(Some(
+                                                i18n
+                                                    .tr(I18nKey::AgentImageSelectAWorkspaceTabFirst)()
+                                                    .to_string(),
+                                            ));
                                             return;
                                         };
                                         match agent_clear_conversation().await {
@@ -885,6 +889,7 @@ pub fn AgentPanelDock() -> impl IntoView {
 
 #[component]
 fn AgentThinkingStream(timeline: RwSignal<TimelineDoc>) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     let stream_ref = NodeRef::<html::Div>::new();
     let thinking_text = Memo::new(move |_| timeline.with(latest_active_thinking_text));
     let speed_samples = Memo::new(move |_| timeline.with(turn_speed_samples));
@@ -924,7 +929,13 @@ fn AgentThinkingStream(timeline: RwSignal<TimelineDoc>) -> impl IntoView {
         >
             <div class="agent-thinking-stream__head">
                 <span class="agent-thinking-stream__pulse" aria-hidden="true"></span>
-                <span>{move || if thinking_text.with(Option::is_some) { "Thinking" } else { "Idle" }}</span>
+                <span>{move || {
+                    if thinking_text.with(Option::is_some) {
+                        i18n.tr(I18nKey::AgComposerThinking)().to_string()
+                    } else {
+                        i18n.tr(I18nKey::CommonIdle)().to_string()
+                    }
+                }}</span>
             </div>
             <div class="agent-thinking-stream__body" node_ref=stream_ref>
                 {move || {
@@ -1132,7 +1143,9 @@ fn submit_turn(
     let prompt_chars = prompt.chars().count();
 
     let Some(ws_id) = wb.active_id().get_untracked() else {
-        status_line.set(Some("Select a workspace tab first.".into()));
+        status_line.set(Some(
+            i18n.tr(I18nKey::AgentImageSelectAWorkspaceTabFirst)().to_string(),
+        ));
         return;
     };
 
@@ -1168,8 +1181,10 @@ fn submit_turn(
                     let enhanced_prompt = enhanced.prompt.trim().to_string();
                     if enhanced_prompt.is_empty() {
                         busy.set(false);
-                        status_line
-                            .set(Some("Prompt enhancement returned an empty prompt.".into()));
+                        status_line.set(Some(
+                            i18n.tr(I18nKey::AgentPanelPromptEnhancementReturnedAnEmptyPrompt)()
+                                .to_string(),
+                        ));
                         draft.set(original_prompt.clone());
                         wb.set_workspace_agent_compose_draft(ws_id, original_prompt);
                         return;
@@ -1304,7 +1319,7 @@ fn submit_turn(
                     spawn_agent_notification_fallback(
                         wb_d,
                         "error",
-                        "Agent error",
+                        i18n_d.tr(I18nKey::AgentPanelAgentError)(),
                         Some(message.clone()),
                         "agent:error",
                         None,
@@ -1321,12 +1336,14 @@ fn submit_turn(
                             .as_ref()
                             .and_then(|v| v.get("question"))
                             .and_then(|v| v.as_str())
-                            .unwrap_or("The agent needs your input.")
+                            .unwrap_or_else(|| {
+                                i18n_d.tr(I18nKey::AgentPanelTheAgentNeedsYourInput)()
+                            })
                             .to_string();
                         spawn_agent_notification_fallback(
                             wb_d,
                             "question",
-                            "Agent needs input",
+                            i18n_d.tr(I18nKey::AgentPanelAgentNeedsInput)(),
                             Some(question),
                             "agent:question",
                             Some(serde_json::json!({ "view": "agent" })),

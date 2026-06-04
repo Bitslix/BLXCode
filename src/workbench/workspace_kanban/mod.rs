@@ -203,9 +203,15 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
             match kanban_export_layout(&ws).await {
                 Ok(json) => match clipboard_write_text_compat(json).await {
                     Ok(()) => toast.success(i18n.tr(I18nKey::KanbanLayoutCopied)()),
-                    Err(err) => toast.error(format!("Export failed: {err}")),
+                    Err(err) => toast.error(format!(
+                        "{} {err}",
+                        i18n.tr(I18nKey::AgentDiagramExportFailed)()
+                    )),
                 },
-                Err(err) => toast.error(format!("Export failed: {err}")),
+                Err(err) => toast.error(format!(
+                    "{} {err}",
+                    i18n.tr(I18nKey::AgentDiagramExportFailed)()
+                )),
             }
         });
     };
@@ -221,9 +227,13 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
                         toast.success(i18n.tr(I18nKey::KanbanLayoutImported)());
                         load_board();
                     }
-                    Err(err) => toast.error(format!("Import failed: {err}")),
+                    Err(err) => {
+                        toast.error(format!("{} {err}", i18n.tr(I18nKey::KanbanImportFailed)()))
+                    }
                 },
-                Err(err) => toast.error(format!("Import failed: {err}")),
+                Err(err) => {
+                    toast.error(format!("{} {err}", i18n.tr(I18nKey::KanbanImportFailed)()))
+                }
             }
         });
     };
@@ -277,7 +287,10 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
                     board.set(Some(next));
                     wb.bump_plans_epoch();
                 }
-                Err(err) => toast.error(format!("Plan move failed: {err}")),
+                Err(err) => toast.error(format!(
+                    "{} {err}",
+                    i18n.tr(I18nKey::KanbanPlanMoveFailed)()
+                )),
             }
             kanban_dnd.clear();
         });
@@ -300,7 +313,10 @@ pub fn WorkspaceKanban(workspace_id: u64) -> impl IntoView {
                     wb.bump_plans_epoch();
                     load_board();
                 }
-                Err(err) => toast.error(format!("Task move failed: {err}")),
+                Err(err) => toast.error(format!(
+                    "{} {err}",
+                    i18n.tr(I18nKey::KanbanTaskMoveFailed)()
+                )),
             }
             kanban_dnd.clear();
         });
@@ -1019,7 +1035,10 @@ fn KanbanTaskCardView(
                         wb.bump_plans_epoch();
                         on_reload.run(());
                     }
-                    Err(err) => toast.error(format!("Delete failed: {err}")),
+                    Err(err) => toast.error(format!(
+                        "{} {err}",
+                        i18n.tr(I18nKey::DiagramGalleryDeleteFailed)()
+                    )),
                 }
             });
         }
@@ -1053,7 +1072,9 @@ fn KanbanTaskCardView(
                         wb.bump_plans_epoch();
                         on_reload.run(());
                     }
-                    Err(err) => toast.error(format!("Rename failed: {err}")),
+                    Err(err) => {
+                        toast.error(format!("{} {err}", i18n.tr(I18nKey::KanbanRenameFailed)()))
+                    }
                 }
             });
         }

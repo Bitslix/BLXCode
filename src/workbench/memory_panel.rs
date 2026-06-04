@@ -400,6 +400,7 @@ pub fn MemoryPanel(
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let toast = expect_context::<ToastService>();
+    let i18n = expect_context::<I18nService>();
     let state = MemoryState::new(centered);
     let split_view = split_view.filter(|_| centered);
 
@@ -487,16 +488,16 @@ pub fn MemoryPanel(
                                 class:workbench-memory__action--active=move || split_view.get()
                                 title=move || {
                                     if split_view.get() {
-                                        "Hide terminal split view"
+                                        i18n.tr(I18nKey::MemoryHideTerminalSplitView)()
                                     } else {
-                                        "Show terminal split view"
+                                        i18n.tr(I18nKey::MemoryShowTerminalSplitView)()
                                     }
                                 }
                                 aria-label=move || {
                                     if split_view.get() {
-                                        "Hide terminal split view"
+                                        i18n.tr(I18nKey::MemoryHideTerminalSplitView)()
                                     } else {
-                                        "Show terminal split view"
+                                        i18n.tr(I18nKey::MemoryShowTerminalSplitView)()
                                     }
                                 }
                                 aria-pressed=move || split_view.get().to_string()
@@ -511,8 +512,8 @@ pub fn MemoryPanel(
                     <button
                         type="button"
                         class="workbench-memory__action"
-                        title="Rebuild architecture map"
-                        aria-label="Rebuild architecture map"
+                        title=move || i18n.tr(I18nKey::MemoryRebuildArchitectureMap)()
+                        aria-label=move || i18n.tr(I18nKey::MemoryRebuildArchitectureMap)()
                         disabled=move || {
                             state.architecture_rebuild_busy.get()
                                 || state.workspace_cwd.get().is_none()
@@ -644,9 +645,9 @@ fn MemoryBootstrapView(state: MemoryState) -> impl IntoView {
                         <MemoryBootstrapCard
                             state=state
                             scope=MemoryScope::Workspace
-                            title="Create workspace memory"
+                            title=I18nKey::MemoryCreateWorkspaceMemory
                             path=".agents/memory + .agents/learnings"
-                            description="Create the workspace memory and learnings folders with matching README.md overview files."
+                            description=I18nKey::MemoryCreateWorkspaceMemoryDesc
                         />
                     </Show>
                     <Show when=move || show_workspace && show_global>
@@ -656,9 +657,9 @@ fn MemoryBootstrapView(state: MemoryState) -> impl IntoView {
                         <MemoryBootstrapCard
                             state=state
                             scope=MemoryScope::Global
-                            title="Create global memory"
+                            title=I18nKey::MemoryCreateGlobalMemory
                             path="~/.blxcode/memory + ~/.blxcode/learnings"
-                            description="Create the global memory and learnings folders with matching README.md overview files."
+                            description=I18nKey::MemoryCreateGlobalMemoryDesc
                         />
                     </Show>
                 </div>
@@ -672,10 +673,11 @@ fn MemoryBootstrapView(state: MemoryState) -> impl IntoView {
 fn MemoryBootstrapCard(
     state: MemoryState,
     scope: MemoryScope,
-    title: &'static str,
+    title: I18nKey,
     path: &'static str,
-    description: &'static str,
+    description: I18nKey,
 ) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     let target = match scope {
         MemoryScope::Workspace => "workspace",
         MemoryScope::Global => "global",
@@ -685,8 +687,8 @@ fn MemoryBootstrapCard(
             <div class="workbench-memory-bootstrap__icon" aria-hidden="true">
                 <LxIcon icon=icondata::LuFolderOpen width="1.3rem" height="1.3rem" />
             </div>
-            <h3>{title}</h3>
-            <p>{description}</p>
+            <h3>{move || i18n.tr(title)()}</h3>
+            <p>{move || i18n.tr(description)()}</p>
             <code>{path}</code>
             <button
                 type="button"
@@ -694,7 +696,7 @@ fn MemoryBootstrapCard(
                 on:click=move |_| bootstrap_memory_scope(state, target)
             >
                 <LxIcon icon=icondata::LuFolderPlus width="0.85rem" height="0.85rem" />
-                <span>"Create folders"</span>
+                <span>{move || i18n.tr(I18nKey::MemoryCreateFolders)()}</span>
             </button>
         </section>
     }
@@ -760,6 +762,7 @@ fn MemoryPointersNotice(state: MemoryState) -> impl IntoView {
 
 #[component]
 fn MemoryPointersDialog(state: MemoryState) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     view! {
         <div
             class="workspace-rename-backdrop"
@@ -781,7 +784,7 @@ fn MemoryPointersDialog(state: MemoryState) -> impl IntoView {
                         <LxIcon icon=icondata::LuLink2 width="1.1rem" height="1.1rem" />
                     </div>
                     <div>
-                        <h2 id="memory-pointers-title">"Agent memory pointers"</h2>
+                        <h2 id="memory-pointers-title">{move || i18n.tr(I18nKey::MemoryAgentMemoryPointers)()}</h2>
                         <p>
                             "Install a marked block in CLAUDE.md, AGENTS.md, or similar so external agents know where memory lives. Target files must already exist."
                         </p>
@@ -881,6 +884,7 @@ fn MemoryPointerAgentRow(state: MemoryState, agent: PointerAgent) -> impl IntoVi
 
 #[component]
 fn PointerStatusBadge(state: MemoryState, agent_id: &'static str) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     view! {
         {move || {
             let entry = state
@@ -893,7 +897,7 @@ fn PointerStatusBadge(state: MemoryState, agent_id: &'static str) -> impl IntoVi
                     {icon.map(|icon| view! {
                         <LxIcon icon=icon width="0.7rem" height="0.7rem" />
                     })}
-                    <span>{label}</span>
+                    <span>{move || i18n.tr(label)()}</span>
                 </span>
             }
         }}
@@ -902,12 +906,12 @@ fn PointerStatusBadge(state: MemoryState, agent_id: &'static str) -> impl IntoVi
 
 fn pointer_status_view(
     entry: Option<&PointerResult>,
-) -> (&'static str, Option<icondata::Icon>, &'static str) {
+) -> (&'static str, Option<icondata::Icon>, I18nKey) {
     if entry.is_some_and(|result| result.installed) {
         (
             "pointers-dialog__status pointers-dialog__status--installed",
             Some(icondata::LuCircleCheck),
-            "Installed",
+            I18nKey::VoicePttModelInstalled,
         )
     } else if entry
         .and_then(|result| result.note.as_deref())
@@ -916,13 +920,13 @@ fn pointer_status_view(
         (
             "pointers-dialog__status pointers-dialog__status--missing",
             Some(icondata::LuFileWarning),
-            "File missing",
+            I18nKey::CommonFileMissing,
         )
     } else {
         (
             "pointers-dialog__status pointers-dialog__status--pending",
             None,
-            "Not installed",
+            I18nKey::MemoryNotInstalled,
         )
     }
 }
@@ -1211,8 +1215,8 @@ fn MemoryFilesView(state: MemoryState) -> impl IntoView {
                                 <button
                                     type="button"
                                     class="workbench-memory-files__center-btn"
-                                    title="Open memory in centered tab"
-                                    aria-label="Open memory in centered tab"
+                                    title=move || i18n.tr(I18nKey::AgentTimelineOpenMemoryInCenteredTab)()
+                                    aria-label=move || i18n.tr(I18nKey::AgentTimelineOpenMemoryInCenteredTab)()
                                     on:click={
                                         let wb = wb;
                                         move |_| wb.open_center_memory_tab()
@@ -2560,6 +2564,7 @@ fn MemoryContextMenuView(
 
 #[component]
 fn MemoryCategoryEditDialog(category: String, on_close: Callback<()>) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     let wb = expect_context::<WorkbenchService>();
     let initial = wb
         .active_id()
@@ -2647,7 +2652,7 @@ fn MemoryCategoryEditDialog(category: String, on_close: Callback<()>) -> impl In
                                 show_sidebar.set(checked);
                             }
                         />
-                        <span>"Show in sidebar"</span>
+                        <span>{move || i18n.tr(I18nKey::MemoryShowInSidebar)()}</span>
                     </label>
                     <label class="memory-category-dialog__toggle">
                         <input

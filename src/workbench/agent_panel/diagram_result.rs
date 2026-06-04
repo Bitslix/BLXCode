@@ -92,7 +92,10 @@ fn DiagramResultCards(
                     match mermaid_export_markdown(&title, &kind, &code, false).await {
                         Ok(Some(path)) => toast.success(format!("Saved {path}")),
                         Ok(None) => {}
-                        Err(e) => toast.error(format!("Export failed: {e}")),
+                        Err(e) => toast.error(format!(
+                            "{} {e}",
+                            i18n.tr(I18nKey::AgentDiagramExportFailed)()
+                        )),
                     }
                 });
             };
@@ -104,7 +107,7 @@ fn DiagramResultCards(
             let on_export_pdf = move |_| {
                 let toast = toast_pdf;
                 let Some(svg) = rendered_svg_outer_html(&pdf_dom_id) else {
-                    toast.error("Diagram not rendered yet".to_string());
+                    toast.error(i18n.tr(I18nKey::AgentDiagramNotRenderedYet)().to_string());
                     return;
                 };
                 let title = pdf_title.clone();
@@ -112,7 +115,10 @@ fn DiagramResultCards(
                     match mermaid_export_pdf(&title, &svg).await {
                         Ok(Some(path)) => toast.success(format!("Saved {path}")),
                         Ok(None) => {}
-                        Err(e) => toast.error(format!("Export failed: {e}")),
+                        Err(e) => toast.error(format!(
+                            "{} {e}",
+                            i18n.tr(I18nKey::AgentDiagramExportFailed)()
+                        )),
                     }
                 });
             };

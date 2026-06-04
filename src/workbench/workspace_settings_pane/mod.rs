@@ -379,7 +379,7 @@ pub fn WorkspaceSettingsPane(wb: WorkbenchService, embed: BrowserEmbedSurface) -
                         }
                         on:change=on_architecture_prose_change
                     />
-                    <span>"LLM prose ingest"</span>
+                    <span>{move || i18n.tr(I18nKey::WorkspaceSettingsLlmProseIngestSource)()}</span>
                 </label>
                 <p class="app-prefs-hint">
                     "Default off. Rebuilds stay deterministic; enabling this only permits future explicit prose synthesis into manual architecture sections."

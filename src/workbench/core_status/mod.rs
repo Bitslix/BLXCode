@@ -385,7 +385,7 @@ pub fn VimStatusIndicator() -> impl IntoView {
                 title=move || i18n.tr(I18nKey::CodeEditorVimStatusTip)()
             >
                 <LxIcon icon=icondata::LuKeyboard width="0.76rem" height="0.76rem" />
-                <span>"VIM"</span>
+                <span>{move || i18n.tr(I18nKey::CoreStatusVimMode)()}</span>
             </span>
         </Show>
     }

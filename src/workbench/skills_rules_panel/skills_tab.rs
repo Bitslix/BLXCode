@@ -177,8 +177,8 @@ pub fn SkillsTabDock() -> impl IntoView {
                     <input
                         type="search"
                         class="blx-sr-search__input"
-                        placeholder="Search skills..."
-                        aria-label="Search skills"
+                        placeholder=move || i18n.tr(I18nKey::SrSkillsSearchSkills)()
+                        aria-label=move || i18n.tr(I18nKey::SrSkillsSearchSkillsAria)()
                         prop:value=move || search_query.get()
                         on:input=move |ev| search_query.set(input_value(&ev))
                     />

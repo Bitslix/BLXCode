@@ -977,6 +977,7 @@ pub fn ChatLineIndexColumn(
     tts_text: Option<String>,
     voice_handle: VoiceOrbHandle,
 ) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     let play_text = StoredValue::new(tts_text.clone().unwrap_or_default());
     let show_play = move || {
         is_tauri_shell()
@@ -992,8 +993,8 @@ pub fn ChatLineIndexColumn(
                 <button
                     type="button"
                     class="agent-chat-tts-btn"
-                    title="Play"
-                    aria-label="Play message audio"
+                    title=move || i18n.tr(I18nKey::AgentTimelinePlay)()
+                    aria-label=move || i18n.tr(I18nKey::AgentTimelinePlayMessageAudio)()
                     on:click=move |_| {
                         let text = play_text.get_value();
                         if text.trim().is_empty() {
@@ -1067,8 +1068,8 @@ pub fn TimelineRow(
                         <button
                             type="button"
                             class="agent-chat-action"
-                            title="Copy answer to clipboard"
-                            aria-label="Copy answer"
+                            title=move || i18n.tr(I18nKey::AgentTimelineCopyAnswerToClipboard)()
+                            aria-label=move || i18n.tr(I18nKey::AgentTimelineCopyAnswer)()
                             on:click=move |_| {
                                 let text = copy_text.clone();
                                 copied.set(true);
@@ -1096,8 +1097,8 @@ pub fn TimelineRow(
                             <button
                                 type="button"
                                 class="agent-chat-action"
-                                title="Redo this turn (resubmit the same prompt)"
-                                aria-label="Redo"
+                                title=move || i18n.tr(I18nKey::AgentTimelineRedoThisTurnResubmitTheSamePrompt)()
+                                aria-label=move || i18n.tr(I18nKey::AgentTimelineRedo)()
                                 on:click={
                                     let r = redo_text.clone();
                                     move |_| {

@@ -98,31 +98,59 @@ pub fn tool_label(tool: &str, loc: Locale) -> String {
     if let Some(k) = key {
         return lookup(loc, k).to_string();
     }
-    legacy_tool_label(tool)
+    legacy_tool_label(loc, tool)
 }
 
-fn legacy_tool_label(tool: &str) -> String {
-    match tool {
+fn legacy_tool_label(loc: Locale, tool: &str) -> String {
+    let key = match tool {
         "harness.create_workspace" => "Create workspace",
-        "harness.workspace_list" => "List workspaces",
-        "harness.workspace_switch" => "Switch workspace",
-        "harness.workspace_prev" => "Previous workspace",
-        "harness.workspace_next" => "Next workspace",
-        "harness.view_show" => "Show view",
-        "harness.open_settings" => "Open settings",
-        "harness.open_memory" => "Open memory",
-        "harness.open_plan" => "Open plans",
-        "harness.open_file" => "Open file",
-        "harness.open_diff" => "Open diff",
-        "harness.window_get_state" => "Window state",
-        "harness.window_set_size" => "Set window size",
-        "harness.window_set_fullscreen" => "Set fullscreen",
-        "harness.notifications_list" => "List notifications",
-        "harness.notifications_create" => "Create notification",
-        "harness.notifications_send" => "Send notification",
-        "harness.notifications_update" => "Update notification",
-        "harness.notifications_remove" => "Remove notification",
-        "harness.notifications_mark_read" => "Mark notification read",
+        "harness.workspace_list" => {
+            return lookup(loc, I18nKey::AgentTimelineListWorkspaces).to_string()
+        }
+        "harness.workspace_switch" => {
+            return lookup(loc, I18nKey::AgentTimelineSwitchWorkspace).to_string()
+        }
+        "harness.workspace_prev" => {
+            return lookup(loc, I18nKey::AgentTimelinePreviousWorkspace).to_string()
+        }
+        "harness.workspace_next" => {
+            return lookup(loc, I18nKey::AgentTimelineNextWorkspace).to_string()
+        }
+        "harness.view_show" => return lookup(loc, I18nKey::AgentTimelineShowView).to_string(),
+        "harness.open_settings" => {
+            return lookup(loc, I18nKey::AgentTimelineOpenSettings).to_string()
+        }
+        "harness.open_memory" => return lookup(loc, I18nKey::AgentTimelineOpenMemory).to_string(),
+        "harness.open_plan" => return lookup(loc, I18nKey::AgentTimelineOpenPlans).to_string(),
+        "harness.open_file" => return lookup(loc, I18nKey::AgentTimelineOpenFile).to_string(),
+        "harness.open_diff" => return lookup(loc, I18nKey::AgentTimelineOpenDiff).to_string(),
+        "harness.window_get_state" => {
+            return lookup(loc, I18nKey::AgentTimelineWindowState).to_string()
+        }
+        "harness.window_set_size" => {
+            return lookup(loc, I18nKey::AgentTimelineSetWindowSize).to_string()
+        }
+        "harness.window_set_fullscreen" => {
+            return lookup(loc, I18nKey::AgentTimelineSetFullscreen).to_string()
+        }
+        "harness.notifications_list" => {
+            return lookup(loc, I18nKey::AgentTimelineListNotifications).to_string()
+        }
+        "harness.notifications_create" => {
+            return lookup(loc, I18nKey::AgentTimelineCreateNotification).to_string()
+        }
+        "harness.notifications_send" => {
+            return lookup(loc, I18nKey::AgentTimelineSendNotification).to_string()
+        }
+        "harness.notifications_update" => {
+            return lookup(loc, I18nKey::AgentTimelineUpdateNotification).to_string()
+        }
+        "harness.notifications_remove" => {
+            return lookup(loc, I18nKey::CommonRemoveNotification).to_string()
+        }
+        "harness.notifications_mark_read" => {
+            return lookup(loc, I18nKey::AgentTimelineMarkNotificationRead).to_string()
+        }
         "workspace_file_write" => "Write workspace file",
         "workspace_file_delete" => "Delete workspace entry",
         "workspace_dir_create" => "Create workspace folder",
@@ -153,16 +181,30 @@ fn legacy_tool_label(tool: &str) -> String {
         "task_update" => "Update task",
         "task_delete" => "Delete task",
         "task_reorder" => "Reorder tasks",
-        "harness.open_terminal" => "Open terminal",
-        "harness.list_terminals" => "List terminals",
-        "harness.send_terminal_keys" => "Send keys to terminal",
-        "harness.send_agent_context" => "Send agent context to terminal",
-        "harness.read_terminal_output" => "Read terminal output",
-        "harness.wait_terminal_output" => "Wait for terminal output",
-        "harness.terminal_interrupt" => "Interrupt terminal",
+        "harness.open_terminal" => {
+            return lookup(loc, I18nKey::AgentTimelineOpenTerminal).to_string()
+        }
+        "harness.list_terminals" => {
+            return lookup(loc, I18nKey::AgentTimelineListTerminals).to_string()
+        }
+        "harness.send_terminal_keys" => {
+            return lookup(loc, I18nKey::AgentTimelineSendKeysToTerminal).to_string()
+        }
+        "harness.send_agent_context" => {
+            return lookup(loc, I18nKey::AgentTimelineSendAgentContextToTerminal).to_string()
+        }
+        "harness.read_terminal_output" => {
+            return lookup(loc, I18nKey::AgentTimelineReadTerminalOutput).to_string()
+        }
+        "harness.wait_terminal_output" => {
+            return lookup(loc, I18nKey::AgentTimelineWaitForTerminalOutput).to_string()
+        }
+        "harness.terminal_interrupt" => {
+            return lookup(loc, I18nKey::AgentTimelineInterruptTerminal).to_string()
+        }
         other => return other.to_string(),
-    }
-    .to_string()
+    };
+    key.to_string()
 }
 
 /// Lokalisiertes Subagent-Status-Label (`running`, `completed`, …).

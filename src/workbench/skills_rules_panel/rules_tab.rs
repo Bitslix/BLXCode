@@ -231,8 +231,8 @@ pub fn RulesTabDock() -> impl IntoView {
                     <input
                         type="search"
                         class="blx-sr-search__input"
-                        placeholder="Search rules..."
-                        aria-label="Search rules"
+                        placeholder=move || i18n.tr(I18nKey::SrRulesSearchRules)()
+                        aria-label=move || i18n.tr(I18nKey::SrRulesSearchRulesAria)()
                         prop:value=move || search_query.get()
                         on:input=move |ev| search_query.set(input_value(&ev))
                     />

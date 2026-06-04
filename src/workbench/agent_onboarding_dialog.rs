@@ -114,10 +114,10 @@ pub fn AgentOnboardingDialog(
                         </span>
                         <div class="agent-onboarding__title-wrap">
                             <h2 id="agent-onboarding-title" class="harness-settings-title">
-                                "Name your BLXCode Agent"
+                                {move || i18n.tr(I18nKey::AgentOnboardingNameYourBLXCodeAgent)()}
                             </h2>
                             <p class="harness-muted agent-onboarding__lead">
-                                "Choose the name and default role used when you create new workspaces."
+                                {move || i18n.tr(I18nKey::AgentOnboardingChooseTheNameAndDefaultRoleUsedWhen)()}
                             </p>
                         </div>
                     </header>
@@ -185,7 +185,7 @@ pub fn AgentOnboardingDialog(
                             disabled=move || busy.get()
                             on:click=move |_| save_with(true)
                         >
-                            "Use defaults"
+                            {move || i18n.tr(I18nKey::AgentOnboardingUseDefaults)()}
                         </button>
                         <button
                             type="button"
