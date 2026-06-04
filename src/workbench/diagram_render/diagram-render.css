@@ -1,0 +1,109 @@
+.diagram-render {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 0;
+}
+
+.diagram-render__stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 0;
+  overflow: auto;
+  background: var(--bg-raised);
+  border-radius: var(--radius-md);
+}
+
+.diagram-render__stage svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.diagram-render__node {
+  margin: 0;
+}
+
+.diagram-render__error {
+  margin-top: 8px;
+  padding: 8px 12px;
+  color: var(--danger);
+  background: var(--danger-surface);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+/* Inline diagram cards rendered for mermaid_create* tool results in the
+   agent timeline. */
+.diagram-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0 2px;
+}
+
+.diagram-result-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+}
+
+.diagram-result-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.diagram-result-card__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.diagram-result-card__kind {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.diagram-result-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.diagram-result-card__btn {
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.diagram-result-card__btn:hover {
+  background: var(--bg-hover);
+}
+
+/* In the (often narrow) timeline the diagram must scale down to the available
+   width and stay height-capped so it never dominates the chat. The SVG keeps
+   its aspect ratio and shrinks below its natural size on narrow panes; on a
+   wide chat window it renders larger. */
+.diagram-result .diagram-render__stage {
+  max-height: 340px;
+  padding: 4px;
+}
+
+.diagram-result .diagram-render__stage svg {
+  max-width: 100%;
+  width: auto;
+  height: auto;
+}

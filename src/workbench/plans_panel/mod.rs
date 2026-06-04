@@ -2,18 +2,20 @@
 //! Rules tab: create, view, edit, rename, remove, and load plans from
 //! `<workspace>/.agents/plans/` into the BLXCode Agent.
 
-use crate::agent_wire::{AgentContextItem, AgentContextKind};
+mod ai_generate_dialog;
+
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    self, plan_create, plan_delete, plan_list, plan_load, plan_read, plan_rename, plan_write,
+    mermaid_list_diagrams, plan_create, plan_delete, plan_list, plan_read, plan_rename, plan_write,
     PlanContent, PlanMeta, PlanTaskSummaryWire,
 };
+use crate::workbench::agent_context_handoff::attach_plan_into_agent;
 use crate::workbench::chat_markdown::render_markdown_to_html;
 use crate::workbench::state::{ConfirmRequest, HarnessUiService};
 use crate::workbench::{RightPanelTab, WorkbenchService};
+use ai_generate_dialog::{AiGenMode, AiGenerateDialog};
 use gloo_timers::future::TimeoutFuture;
-use js_sys::Date;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
@@ -88,6 +90,17 @@ impl PlanBucket {
             Self::Completed => I18nKey::PlansTaskStatCompleted,
             Self::Cancelled => I18nKey::PlansTaskStatCancelled,
             Self::Empty => I18nKey::PlansFilterEmpty,
+        }
+    }
+
+    fn desc_key(self) -> I18nKey {
+        match self {
+            Self::Blocked => I18nKey::PlansGroupDescBlocked,
+            Self::InProgress => I18nKey::PlansGroupDescInProgress,
+            Self::Pending => I18nKey::PlansGroupDescPending,
+            Self::Completed => I18nKey::PlansGroupDescCompleted,
+            Self::Cancelled => I18nKey::PlansGroupDescCancelled,
+            Self::Empty => I18nKey::PlansGroupDescEmpty,
         }
     }
 }
@@ -234,6 +247,12 @@ fn grouped_plans(plans: &[PlanMeta]) -> Vec<PlanGroup> {
         .collect()
 }
 
+fn plan_matches_search(plan: &PlanMeta, query: &str) -> bool {
+    plan.title.to_lowercase().contains(query)
+        || plan.name.to_lowercase().contains(query)
+        || plan.path.to_lowercase().contains(query)
+}
+
 fn open_plan_composer(composer_open: RwSignal<bool>, draft_error: RwSignal<Option<String>>) {
     composer_open.set(true);
     draft_error.set(None);
@@ -278,15 +297,19 @@ pub fn PlansPanel() -> impl IntoView {
     let active_id = wb.active_id();
     let filter = RwSignal::new(PlanFilter::All);
     let composer_open = RwSignal::new(false);
+    let search_query = RwSignal::new(String::new());
     let draft_title = RwSignal::new(String::new());
     let draft_body = RwSignal::new(String::new());
     let draft_error = RwSignal::<Option<String>>::new(None);
     let saving = RwSignal::new(false);
+    let ai_dialog_open = RwSignal::new(false);
+    let ai_dialog_mode = RwSignal::new(AiGenMode::Plan);
 
     Effect::new(move |_| {
         if active_tab.get() != RightPanelTab::Plans {
             return;
         }
+        let _ = wb.plans_epoch().get();
         let cwd = current_workspace_cwd(wb);
         let prev = state.workspace_cwd.get_untracked();
         let _ = active_id.get();
@@ -334,6 +357,7 @@ pub fn PlansPanel() -> impl IntoView {
             match plan_create(&ws, &path, Some(&content)).await {
                 Ok(_) => {
                     reset_composer();
+                    wb.bump_plans_epoch();
                     load_plans_list(state, ws);
                 }
                 Err(e) => {
@@ -345,9 +369,32 @@ pub fn PlansPanel() -> impl IntoView {
         });
     };
 
+    // The protected PLANS.md index is never listed as a plan card.
+    let displayed_plans = Signal::derive(move || {
+        state.plans.with(|plans| {
+            plans
+                .iter()
+                .filter(|p| !p.is_index)
+                .cloned()
+                .collect::<Vec<_>>()
+        })
+    });
+    let searched_plans = Signal::derive(move || {
+        let query = search_query.get().trim().to_lowercase();
+        displayed_plans.with(|plans| {
+            if query.is_empty() {
+                return plans.clone();
+            }
+            plans
+                .iter()
+                .filter(|plan| plan_matches_search(plan, &query))
+                .cloned()
+                .collect::<Vec<_>>()
+        })
+    });
     let visible_plans = Signal::derive(move || {
         let mode = filter.get();
-        state.plans.with(|plans| {
+        searched_plans.with(|plans| {
             plans
                 .iter()
                 .filter(|p| filter_matches(mode, p))
@@ -355,7 +402,23 @@ pub fn PlansPanel() -> impl IntoView {
                 .collect()
         })
     });
-    let visible_groups = Signal::derive(move || grouped_plans(&state.plans.get()));
+    let visible_groups = Signal::derive(move || grouped_plans(&searched_plans.get()));
+
+    // Accordion state for the grouped (All) view: at most one status group is
+    // open at a time, defaulting to the topmost group. Reset to the first group
+    // whenever the current selection is gone (e.g. after a refresh or filter).
+    let open_bucket = RwSignal::<Option<String>>::new(None);
+    Effect::new(move |_| {
+        let groups = visible_groups.get();
+        let first = groups.first().map(|g| g.bucket.key().to_string());
+        let still_valid = open_bucket.with_untracked(|cur| {
+            cur.as_deref()
+                .is_some_and(|key| groups.iter().any(|g| g.bucket.key() == key))
+        });
+        if !still_valid {
+            open_bucket.set(first);
+        }
+    });
 
     view! {
         <div class="blx-sr-pane blx-plans-pane" role="region" aria-label=move || i18n.tr(I18nKey::TabPlans)()>
@@ -367,6 +430,30 @@ pub fn PlansPanel() -> impl IntoView {
                     <h2 class="blx-sr-pane__title">{i18n.tr(I18nKey::TabPlans)}</h2>
                 </div>
                 <div class="blx-sr-pane__actions">
+                    <button
+                        type="button"
+                        class="blx-sr-btn blx-sr-btn--icon"
+                        aria-label=move || i18n.tr(I18nKey::PlansAiPlanBtn)()
+                        title=move || i18n.tr(I18nKey::PlansAiPlanBtn)()
+                        on:click=move |_| {
+                            ai_dialog_mode.set(AiGenMode::Plan);
+                            ai_dialog_open.set(true);
+                        }
+                    >
+                        <LxIcon icon=icondata::LuSparkles width="13px" height="13px" />
+                    </button>
+                    <button
+                        type="button"
+                        class="blx-sr-btn blx-sr-btn--icon"
+                        aria-label=move || i18n.tr(I18nKey::PlansAiTasksBtn)()
+                        title=move || i18n.tr(I18nKey::PlansAiTasksBtn)()
+                        on:click=move |_| {
+                            ai_dialog_mode.set(AiGenMode::Tasks);
+                            ai_dialog_open.set(true);
+                        }
+                    >
+                        <LxIcon icon=icondata::LuListPlus width="13px" height="13px" />
+                    </button>
                     <button
                         type="button"
                         class="blx-sr-btn blx-sr-btn--primary blx-sr-btn--icon"
@@ -410,7 +497,7 @@ pub fn PlansPanel() -> impl IntoView {
                             <LxIcon icon=mode.icon() width="13px" height="13px" />
                             <span>{i18n.tr(mode.label_key())}</span>
                             <span class="blx-sr-tab__count">
-                                {move || state.plans.with(|plans| filter_count(mode, plans))}
+                                {move || displayed_plans.with(|plans| filter_count(mode, plans))}
                             </span>
                         </button>
                     }
@@ -430,6 +517,19 @@ pub fn PlansPanel() -> impl IntoView {
                         </div>
                     }
                 >
+                    <label class="blx-sr-search">
+                        <span class="blx-sr-search__icon" aria-hidden="true">
+                            <LxIcon icon=icondata::LuSearch width="14px" height="14px" />
+                        </span>
+                        <input
+                            type="search"
+                            class="blx-sr-search__input"
+                            placeholder=move || i18n.tr(I18nKey::PlansSearchPlans)()
+                            aria-label=move || i18n.tr(I18nKey::PlansSearchPlansAria)()
+                            prop:value=move || search_query.get()
+                            on:input=move |ev| search_query.set(input_value(&ev))
+                        />
+                    </label>
                     {move || composer_open.get().then(|| {
                         let is_saving = saving.get();
                         view! {
@@ -496,9 +596,9 @@ pub fn PlansPanel() -> impl IntoView {
                     })}
 
                     {move || {
-                        if state.loading.get() && state.plans.with(|plans| plans.is_empty()) {
+                        if state.loading.get() && displayed_plans.with(|plans| plans.is_empty()) {
                             view! { <p class="blx-sr-pane__hint">{i18n.tr(I18nKey::SrLoading)}</p> }.into_any()
-                        } else if state.plans.with(|plans| plans.is_empty()) && !composer_open.get() {
+                        } else if displayed_plans.with(|plans| plans.is_empty()) && !composer_open.get() {
                             view! {
                                 <div class="blx-sr-empty">
                                     <span class="blx-sr-empty__icon" aria-hidden="true">
@@ -515,13 +615,15 @@ pub fn PlansPanel() -> impl IntoView {
                                     </button>
                                 </div>
                             }.into_any()
+                        } else if searched_plans.with(|plans| plans.is_empty()) {
+                            view! { <p class="blx-sr-pane__hint">{i18n.tr(I18nKey::PlansNoFilteredPlans)}</p> }.into_any()
                         } else if filter.get() == PlanFilter::All {
                             view! {
                                 <For
                                     each=move || visible_groups.get()
                                     key=|group| group.bucket.key()
                                     children=move |group| view! {
-                                        <PlanGroupView state=state group=group />
+                                        <PlanGroupView state=state group=group open_bucket=open_bucket />
                                     }
                                 />
                             }.into_any()
@@ -542,31 +644,71 @@ pub fn PlansPanel() -> impl IntoView {
                     }}
                 </Show>
             </div>
+            <AiGenerateDialog
+                open=ai_dialog_open
+                mode=ai_dialog_mode.into()
+                state=state
+                on_saved=Callback::new(move |_| {
+                    if let Some(ws) = state.workspace_cwd.get_untracked() {
+                        load_plans_list(state, ws);
+                    }
+                })
+            />
         </div>
     }
 }
 
 #[component]
-fn PlanGroupView(state: PlansState, group: PlanGroup) -> impl IntoView {
+fn PlanGroupView(
+    state: PlansState,
+    group: PlanGroup,
+    open_bucket: RwSignal<Option<String>>,
+) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let bucket = group.bucket;
-    let plans = group.plans;
+    let key = bucket.key();
+    let count = group.plans.len();
+    let plans = StoredValue::new(group.plans);
+    let expanded = Memo::new(move |_| open_bucket.with(|cur| cur.as_deref() == Some(key)));
     view! {
-        <section class="blx-plans-group" data-state=bucket.key()>
-            <header class="blx-plans-group__header">
+        <section
+            class="blx-plans-group"
+            class:blx-plans-group--collapsed=move || !expanded.get()
+            data-state=bucket.key()
+        >
+            <button
+                type="button"
+                class="blx-plans-group__header"
+                aria-expanded=move || if expanded.get() { "true" } else { "false" }
+                on:click=move |_| {
+                    if expanded.get_untracked() {
+                        open_bucket.set(None);
+                    } else {
+                        open_bucket.set(Some(key.to_string()));
+                    }
+                }
+            >
                 <span class="blx-plans-group__icon" aria-hidden="true">
                     <LxIcon icon=bucket.icon() width="13px" height="13px" />
                 </span>
-                <span class="blx-plans-group__title">{i18n.tr(bucket.label_key())}</span>
-                <span class="blx-plans-group__count">{plans.len()}</span>
-            </header>
-            <div class="blx-plans-group__cards">
-                <For
-                    each=move || plans.clone()
-                    key=|plan| plan.path.clone()
-                    children=move |plan| view! { <PlanCard state=state plan=plan /> }
-                />
-            </div>
+                <span class="blx-plans-group__head-text">
+                    <span class="blx-plans-group__title">{i18n.tr(bucket.label_key())}</span>
+                    <span class="blx-plans-group__desc">{i18n.tr(bucket.desc_key())}</span>
+                </span>
+                <span class="blx-plans-group__count">{count}</span>
+                <span class="blx-plans-group__chevron" aria-hidden="true">
+                    <LxIcon icon=icondata::LuChevronDown width="14px" height="14px" />
+                </span>
+            </button>
+            <Show when=move || expanded.get()>
+                <div class="blx-plans-group__cards">
+                    <For
+                        each=move || plans.get_value()
+                        key=|plan| plan.path.clone()
+                        children=move |plan| view! { <PlanCard state=state plan=plan /> }
+                    />
+                </div>
+            </Show>
         </section>
     }
 }
@@ -586,6 +728,7 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
     let is_index = plan.is_index;
     let bucket = plan_bucket(&summary);
     let card_path = StoredValue::new(path.clone());
+    let card_slug = StoredValue::new(plan.slug.clone());
 
     let expanded = RwSignal::new(false);
     let editing = RwSignal::new(false);
@@ -595,6 +738,31 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
     let draft = RwSignal::new(String::new());
     let body_loading = RwSignal::new(false);
     let saving = RwSignal::new(false);
+    let has_diagrams = RwSignal::new(false);
+
+    Effect::new({
+        let slug = plan.slug.clone();
+        move |_| {
+            let _ = wb.plans_epoch().get();
+            let Some(ws) = state.workspace_cwd.get() else {
+                has_diagrams.set(false);
+                return;
+            };
+            if is_index || slug.trim().is_empty() {
+                has_diagrams.set(false);
+                return;
+            }
+            let slug = slug.clone();
+            spawn_local(async move {
+                has_diagrams.set(
+                    mermaid_list_diagrams(&ws, &slug)
+                        .await
+                        .map(|items| !items.is_empty())
+                        .unwrap_or(false),
+                );
+            });
+        }
+    });
 
     let on_toggle_card = move |_| {
         let next = !expanded.get();
@@ -641,37 +809,96 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
                         </span>
                     </span>
                 </button>
-                <button
-                    type="button"
-                    class="blx-sr-btn blx-sr-btn--icon blx-plans-card__edit-toggle"
-                    disabled=move || body_loading.get() || saving.get()
-                    aria-label=move || {
-                        if editing.get() {
-                            i18n.tr(I18nKey::PlansPreview)()
-                        } else {
-                            i18n.tr(I18nKey::PlansEdit)()
+                <div class="blx-plans-card__quick">
+                    {move || (!expanded.get()).then(|| view! {
+                        <button
+                            type="button"
+                            class="blx-sr-btn blx-sr-btn--icon blx-sr-btn--primary blx-plans-card__quick-btn"
+                            aria-label=move || i18n.tr(I18nKey::PlansShowInKanban)()
+                            title=move || i18n.tr(I18nKey::PlansShowInKanban)()
+                            on:click=move |ev: web_sys::MouseEvent| {
+                                ev.stop_propagation();
+                                if let Some(ws_id) = wb.active_id().get_untracked() {
+                                    wb.open_center_kanban_plan(ws_id, card_path.get_value());
+                                }
+                            }
+                        >
+                            <LxIcon icon=icondata::LuKanban width="13px" height="13px" />
+                        </button>
+                        <button
+                            type="button"
+                            class="blx-sr-btn blx-sr-btn--icon blx-sr-btn--primary blx-plans-card__quick-btn"
+                            aria-label=move || i18n.tr(I18nKey::PlansLoadIntoAgent)()
+                            title=move || i18n.tr(I18nKey::PlansLoadIntoAgent)()
+                            on:click=move |ev: web_sys::MouseEvent| {
+                                ev.stop_propagation();
+                                load_plan_into_agent(state, wb, on_load.get_value());
+                            }
+                        >
+                            <LxIcon icon=icondata::LuBot width="13px" height="13px" />
+                        </button>
+                        <button
+                            type="button"
+                            class="blx-sr-btn blx-sr-btn--icon blx-plans-card__quick-btn"
+                            disabled=is_index
+                            aria-label=move || i18n.tr(I18nKey::PlansRename)()
+                            title=move || i18n.tr(I18nKey::PlansRename)()
+                            on:click=move |ev: web_sys::MouseEvent| {
+                                ev.stop_propagation();
+                                open_rename_from_header(state, card_path.get_value(), expanded, renaming, rename_input, body, body_loading);
+                            }
+                        >
+                            <LxIcon icon=icondata::LuFilePenLine width="13px" height="13px" />
+                        </button>
+                    })}
+                    <Show when=move || !is_index && has_diagrams.get()>
+                        <button
+                            type="button"
+                            class="blx-sr-btn blx-sr-btn--icon"
+                            aria-label=move || i18n.tr(I18nKey::PlansOpenDiagrams)()
+                            title=move || i18n.tr(I18nKey::PlansOpenDiagrams)()
+                            on:click=move |ev: web_sys::MouseEvent| {
+                                ev.stop_propagation();
+                                if let Some(ws_id) = wb.active_id().get_untracked() {
+                                    wb.open_center_diagram_gallery_tab(ws_id, card_slug.get_value());
+                                }
+                            }
+                        >
+                            <LxIcon icon=icondata::LuWorkflow width="13px" height="13px" />
+                        </button>
+                    </Show>
+                    <button
+                        type="button"
+                        class="blx-sr-btn blx-sr-btn--icon blx-plans-card__edit-toggle"
+                        disabled=move || body_loading.get() || saving.get()
+                        aria-label=move || {
+                            if editing.get() {
+                                i18n.tr(I18nKey::PlansPreview)()
+                            } else {
+                                i18n.tr(I18nKey::PlansEdit)()
+                            }
                         }
-                    }
-                    title=move || {
-                        if editing.get() {
-                            i18n.tr(I18nKey::PlansPreview)()
-                        } else {
-                            i18n.tr(I18nKey::PlansEdit)()
+                        title=move || {
+                            if editing.get() {
+                                i18n.tr(I18nKey::PlansPreview)()
+                            } else {
+                                i18n.tr(I18nKey::PlansEdit)()
+                            }
                         }
-                    }
-                    on:click=move |ev: web_sys::MouseEvent| {
-                        ev.stop_propagation();
-                        toggle_plan_edit_from_header(state, card_path.get_value(), expanded, editing, body, draft, body_loading);
-                    }
-                >
-                    {move || {
-                        if editing.get() {
-                            view! { <LxIcon icon=icondata::LuEye width="13px" height="13px" /> }.into_any()
-                        } else {
-                            view! { <LxIcon icon=icondata::LuPencil width="13px" height="13px" /> }.into_any()
+                        on:click=move |ev: web_sys::MouseEvent| {
+                            ev.stop_propagation();
+                            toggle_plan_edit_from_header(state, card_path.get_value(), expanded, editing, body, draft, body_loading);
                         }
-                    }}
-                </button>
+                    >
+                        {move || {
+                            if editing.get() {
+                                view! { <LxIcon icon=icondata::LuEye width="13px" height="13px" /> }.into_any()
+                            } else {
+                                view! { <LxIcon icon=icondata::LuPencil width="13px" height="13px" /> }.into_any()
+                            }
+                        }}
+                    </button>
+                </div>
             </div>
 
             {move || expanded.get().then(|| {
@@ -709,7 +936,7 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
                                 class="blx-plans-card__rename"
                                 on:submit=move |ev: web_sys::SubmitEvent| {
                                     ev.prevent_default();
-                                    submit_rename(state, card_path.get_value(), rename_input.get_untracked(), renaming);
+                                    submit_rename(state, wb, card_path.get_value(), rename_input.get_untracked(), renaming);
                                 }
                             >
                                 <input
@@ -754,6 +981,7 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
                                             ev.stop_propagation();
                                             write_plan_body(
                                                 state,
+                                                wb,
                                                 on_save.get_value(),
                                                 draft.get_untracked(),
                                                 body,
@@ -806,8 +1034,9 @@ fn PlanCard(state: PlansState, plan: PlanMeta) -> impl IntoView {
                                                 cancel_label: i18n.tr(I18nKey::SrCancel)().to_string(),
                                                 danger: true,
                                                 on_confirm: Callback::new(move |_| {
-                                                    remove_plan(state, path.clone());
+                                                    remove_plan(state, wb, path.clone());
                                                 }),
+                                                on_cancel: None,
                                             });
                                         }
                                     >
@@ -888,8 +1117,26 @@ fn toggle_plan_edit_from_header(
     });
 }
 
+fn open_rename_from_header(
+    state: PlansState,
+    path: String,
+    expanded: RwSignal<bool>,
+    renaming: RwSignal<bool>,
+    rename_input: RwSignal<String>,
+    body: RwSignal<Option<String>>,
+    loading: RwSignal<bool>,
+) {
+    expanded.set(true);
+    rename_input.set(path.clone());
+    renaming.set(true);
+    if body.with_untracked(|b| b.is_none()) && !loading.get_untracked() {
+        read_plan_into(state, path, body, loading);
+    }
+}
+
 fn write_plan_body(
     state: PlansState,
+    wb: WorkbenchService,
     path: String,
     content: String,
     body: RwSignal<Option<String>>,
@@ -906,6 +1153,7 @@ fn write_plan_body(
                 body.set(Some(content));
                 editing.set(false);
                 state.error.set(None);
+                wb.bump_plans_epoch();
                 load_plans_list(state, ws);
             }
             Err(e) => state.error.set(Some(e)),
@@ -914,7 +1162,13 @@ fn write_plan_body(
     });
 }
 
-fn submit_rename(state: PlansState, old_path: String, raw: String, renaming: RwSignal<bool>) {
+fn submit_rename(
+    state: PlansState,
+    wb: WorkbenchService,
+    old_path: String,
+    raw: String,
+    renaming: RwSignal<bool>,
+) {
     let new_path = normalize_plan_path(&raw);
     if new_path.trim().is_empty() || new_path == old_path {
         renaming.set(false);
@@ -928,6 +1182,7 @@ fn submit_rename(state: PlansState, old_path: String, raw: String, renaming: RwS
             Ok(_) => {
                 renaming.set(false);
                 state.error.set(None);
+                wb.bump_plans_epoch();
                 load_plans_list(state, ws);
             }
             Err(e) => state.error.set(Some(e)),
@@ -935,7 +1190,7 @@ fn submit_rename(state: PlansState, old_path: String, raw: String, renaming: RwS
     });
 }
 
-fn remove_plan(state: PlansState, path: String) {
+fn remove_plan(state: PlansState, wb: WorkbenchService, path: String) {
     let Some(ws) = state.workspace_cwd.get_untracked() else {
         return;
     };
@@ -943,6 +1198,7 @@ fn remove_plan(state: PlansState, path: String) {
         match plan_delete(&ws, &path).await {
             Ok(()) => {
                 state.error.set(None);
+                wb.bump_plans_epoch();
                 load_plans_list(state, ws);
             }
             Err(e) => state.error.set(Some(e)),
@@ -957,39 +1213,27 @@ fn load_plan_into_agent(state: PlansState, wb: WorkbenchService, path: String) {
     let Some(ws_id) = wb.active_id().get_untracked() else {
         return;
     };
-    spawn_local(async move {
-        match plan_load(&ws, &path).await {
-            Ok(report) => {
-                let label = state
-                    .plans
-                    .get_untracked()
-                    .into_iter()
-                    .find(|m| m.path == report.path)
-                    .map(|m| m.title)
-                    .unwrap_or_else(|| report.path.clone());
-                let summary = format!(
-                    "{} task(s) - kept {} free task(s)",
-                    report.tasks_added, report.free_tasks_kept
-                );
-                let item = AgentContextItem {
-                    id: format!("plan-file:{}", report.path),
-                    kind: AgentContextKind::PlanFile,
-                    label,
-                    source: summary,
-                    paths: vec![report.path.clone()],
-                    added_at: Date::now() as i64,
-                    content: None,
-                };
-                wb.upsert_workspace_agent_context(ws_id, item);
-                if let Ok(snap) = tauri_bridge::tasks_list(ws.clone()).await {
-                    crate::workbench::agent_context_handoff::store_task_snapshot(ws_id, snap);
-                }
+    let label_hint = state
+        .plans
+        .get_untracked()
+        .into_iter()
+        .find(|m| m.path == path)
+        .map(|m| m.title);
+    let ws_for_done = ws.clone();
+    attach_plan_into_agent(
+        wb,
+        ws_id,
+        ws,
+        path,
+        label_hint,
+        move |result| match result {
+            Ok(_) => {
                 state.error.set(None);
-                load_plans_list(state, ws);
+                load_plans_list(state, ws_for_done.clone());
             }
             Err(e) => state.error.set(Some(e)),
-        }
-    });
+        },
+    );
 }
 
 #[component]
@@ -1064,19 +1308,30 @@ fn normalize_plan_content(title: &str, body: &str) -> String {
 
 fn normalize_plan_path(raw: &str) -> String {
     let trimmed = raw.trim();
-    if trimmed.to_ascii_lowercase().ends_with(".md") {
+    if trimmed.is_empty() {
+        return String::new();
+    }
+    if trimmed.to_ascii_lowercase().ends_with("/plan.md") {
         trimmed.to_owned()
+    } else if trimmed.to_ascii_lowercase().ends_with(".md") {
+        let slug = &trimmed[..trimmed.len().saturating_sub(3)];
+        format!("{slug}/plan.md")
     } else {
-        format!("{trimmed}.md")
+        format!("{trimmed}/plan.md")
     }
 }
 
 fn next_plan_name(title: &str, existing: &[PlanMeta]) -> String {
     let base = slugify_title(title);
-    let mut name = format!("{base}.md");
+    let mut slug = base.clone();
+    let mut name = format!("{slug}/plan.md");
     let mut i = 2;
-    while existing.iter().any(|plan| plan.path == name) {
-        name = format!("{base}-{i}.md");
+    while existing
+        .iter()
+        .any(|plan| plan.path == name || plan.slug == slug || plan.name == slug)
+    {
+        slug = format!("{base}-{i}");
+        name = format!("{slug}/plan.md");
         i += 1;
     }
     name

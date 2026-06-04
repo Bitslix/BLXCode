@@ -19,13 +19,14 @@ Manual notes about this unit can live above or below the generated block.
 - Manifest: `Cargo.toml`
 - Root: `.`
 - Source root: `src`
-- Source files: 126
-- Root declarations: `agent_wire`, `app`, `boot_loading`, `config`, `i18n`, `memory_paths`, `open_http`, `quit`, `service`, `skills_rules_wire`, `tauri_bridge`, `theme`, `workbench`
+- Source files: 160
+- Root declarations: `agent_wire`, `app`, `app_log`, `boot_loading`, `config`, `i18n`, `memory_paths`, `open_http`, `quit`, `service`, `skills_rules_wire`, `tauri_bridge`, `theme`, `workbench`
 
 ### Top-Level Modules
 
 - `agent_wire` (1 files)
 - `app` (1 files)
+- `app_log` (1 files)
 - `boot_loading` (1 files)
 - `config` (2 files) — submodules: `app.config`; declarations: `app_config`
 - `i18n` (19 files) — submodules: `eula`, `keys`, `locale`, `locales`, `resolve`; declarations: `de_de`, `en_us`, `es_es`, `eula`, `fr_fr`, `hu_hu`, `it_it`, `ja_jp`, `keys`, `ko_kr`, `locale`, `locales`, `pl_pl`, `pt_br`, `resolve`, `ru_ru`, `tests`, `zh_cn`, `zh_tw`; 13 deeper source files aggregated here
@@ -35,13 +36,14 @@ Manual notes about this unit can live above or below the generated block.
 - `service` (2 files) — submodules: `service.i18n`; declarations: `i18n`
 - `skills_rules_wire` (1 files)
 - `tauri_bridge` (1 files)
-- `theme` (3 files) — submodules: `catalog`, `i18n`; declarations: `catalog`, `i18n`
-- `workbench` (91 files) — submodules: `agent_accent`, `agent_context_handoff`, `agent_model_picker`, `agent_panel`, `agent_provider_pane`, `agent_timeline`, `api_keys_pane`, `app_prefs`, `appearance_settings_pane`, `browser_tab`, `chat_markdown`, `close_terminals_tab_dialog`, `commit_dialog`, `confirm_dialog`, `create_workspace_wizard`, `file_diff`, `file_diff_section`, `file_preview`, `fuzzy`, `git_graph`, `git_sync_controls`, `harness_chords`, `harness_image_pane`, `harness_ui`, `harness_voice_pane`, `memory_graph`, `memory_panel`, `notification_sound`, `path_nav`, `plans_panel`, `pointer_agents`, `post_update_notes`, `project_explorer`, `remote_settings_pane`, `right_panel`, `shortcut_config`, `shortcuts_settings_pane`, `sidebar`, `sidebar_resizer`, `sidebar_view_section`, `skills_rules_panel`, `state`, `terminal_cell`, `terminal_context_menu`, `terminal_glue`, `terminal_slot_dnd`, `terminal_slot_drag_overlay`, `theme_service`, `toast`, `update_dialog`, `update_service`, `voice_app_controls`, `workspace_panel`, `workspace_settings_pane`; declarations: `agent_accent`, `agent_context_handoff`, `agent_model_picker`, `agent_panel`, `agent_provider_pane`, `agent_timeline`, `api_keys_pane`, `app_prefs`, `appearance_settings_pane`, `ask_user_card`, `browser_tab`, `buffer`, `category_colors`, `center_tab_tests`, `chat_markdown`, `client_tools`, `close_terminals_tab_dialog`, `code_context_menu`, `code_mirror`, `code_view`, `codemirror_glue`, `commit_dialog`, `confirm_dialog`, `context_list`, `create_workspace_wizard`, `editor`, `file_diff`, `file_diff_section`, `file_preview`, `folding`, `fuzzy`, `git_graph`, `git_sync_controls`, `graph_glue`, `harness_chords`, `harness_image_pane`, `harness_ui`, `harness_voice_pane`, `header`, `hljs_glue`, `image_context`, `image_view`, `install_dialog`, `markdown_view`, `memory_graph`, `memory_panel`, `mermaid_glue`, `mermaid_view`, `notification_sound`, `path_nav`, `plans_panel`, `policy`, `post_update_notes`, `project_explorer`, `reducer`, `remote_settings_pane`, `right_panel`, `rule_card`, `rules_pointers`, `rules_tab`, `shortcut_config`, `shortcuts_settings_pane`, `sidebar`, `sidebar_resizer`, `sidebar_view_section`, `skill_card`, `skills_rules_panel`, `skills_tab`, `state`, `task_list`, `terminal_cell`, `terminal_context_menu`, `terminal_glue`, `terminal_slot_dnd`, `terminal_slot_drag_overlay`, `terminal_slot_tests`, `tests`, `theme_preview_card`, `theme_service`, `timeline`, `toast`, `update_dialog`, `update_service`, `util`, `video_view`, `voice_app_controls`, `voice_orb`, `workspace_panel`, `workspace_settings_pane`; 36 deeper source files aggregated here
+- `theme` (4 files) — submodules: `appearance`, `catalog`, `i18n`; declarations: `appearance`, `catalog`, `i18n`
+- `workbench` (123 files) — submodules: `agent_accent`, `agent_context_handoff`, `agent_model_picker`, `agent_panel`, `agent_provider_pane`, `agent_timeline`, `agent_voice_settings`, `api_keys_pane`, `app_prefs`, `app_titlebar`, `appearance_settings_pane`, `browser_tab`, `chat_markdown`, `close_terminals_tab_dialog`, `commit_dialog`, `confirm_dialog`, `context_drag`, `context_drag_overlay`, `core_status`, `create_workspace_wizard`, `file_diff`, `file_diff_section`, `file_preview`, `fuzzy`, `git_graph`, `git_sync_controls`, `harness_chords`, `harness_image_pane`, `harness_ui`, `harness_voice_pane`, `hook_install_dialog`, `hook_status`, `mcp_settings_pane`, `memory_graph`, `memory_panel`, `memory_settings_pane`, `notification_sound`, `path_nav`, `plans_panel`, `pointer_agents`, `post_update_notes`, `project_explorer`, `ptt_runtime`, `remote_settings_pane`, `right_panel`, `settings_pane_header`, `shortcut_config`, `shortcuts_settings_pane`, `sidebar`, `sidebar_resizer`, `sidebar_view_section`, `skills_rules_panel`, `state`, `terminal_agent_profiles`, `terminal_cell`, `terminal_context_menu`, `terminal_glue`, `terminal_naming`, `terminal_slot_dnd`, `terminal_slot_drag_overlay`, `terminal_usage`, `theme_service`, `toast`, `update_dialog`, `update_service`, `voice_app_controls`, `workspace_kanban`, `workspace_panel`, `workspace_settings_pane`; declarations: `agent_accent`, `agent_context_handoff`, `agent_model_picker`, `agent_panel`, `agent_provider_pane`, `agent_timeline`, `ai_generate_dialog`, `api_keys_pane`, `app_prefs`, `app_titlebar`, `appearance_settings_pane`, `ask_user_card`, `brand`, `browser_tab`, `buffer`, `category_colors`, `center_tab_tests`, `changed_files_card`, `chat_markdown`, `client_tools`, `close_terminals_tab_dialog`, `code_context_menu`, `code_mirror`, `code_view`, `codemirror_glue`, `commit_dialog`, `composer`, `confirm_dialog`, `connection_card`, `connection_editor`, `context_drag`, `context_drag_overlay`, `context_list`, `context_meter`, `core_status`, `create_workspace_wizard`, `drobo_glue`, `editor`, `file_diff`, `file_diff_section`, `file_preview`, `fuzzy`, `git_graph`, `git_sync_controls`, `graph_glue`, `harness_chords`, `harness_image_pane`, `harness_ui`, `harness_voice_pane`, `header`, `hook_install_dialog`, `hook_status`, `image_context`, `image_view`, `install_dialog`, `markdown_view`, `mcp_settings_pane`, `memory_graph`, `memory_panel`, `memory_settings_pane`, `mermaid_glue`, `mermaid_view`, `model_manager`, `navigate_menu`, `notification_sound`, `notifications_menu`, `path_nav`, `plans_panel`, `policy`, `post_update_notes`, `project_explorer`, `ptt_runtime`, `ptt_section`, `reducer`, `remote_settings_pane`, `right_panel`, `rule_card`, `rules_pointers`, `rules_tab`, `session_stats`, `settings_pane_header`, `shortcut_config`, `shortcuts_settings_pane`, `sidebar`, `sidebar_resizer`, `sidebar_view_section`, `skill_card`, `skills_rules_panel`, `skills_tab`, `state`, `task_list`, `terminal_cell`, `terminal_context_menu`, `terminal_glue`, `terminal_naming`, `terminal_naming_section`, `terminal_slot_dnd`, `terminal_slot_drag_overlay`, `terminal_slot_tests`, `terminal_usage`, `tests`, `theme_preview_card`, `theme_service`, `timeline`, `toast`, `tool_group`, `update_dialog`, `update_service`, `util`, `video_view`, `view`, `voice_app_controls`, `voice_orb`, `window_controls`, `workspace_kanban`, `workspace_panel`, `workspace_settings_pane`, `workspace_title_tests`; 53 deeper source files aggregated here
 
 ### Source Paths
 
 - `src/agent_wire.rs`
 - `src/app.rs`
+- `src/app_log.rs`
 - `src/boot_loading.rs`
 - `src/config/app.config.rs`
 - `src/config/mod.rs`
@@ -72,6 +74,7 @@ Manual notes about this unit can live above or below the generated block.
 - `src/service/service.i18n.rs`
 - `src/skills_rules_wire.rs`
 - `src/tauri_bridge.rs`
+- `src/theme/appearance.rs`
 - `src/theme/catalog.rs`
 - `src/theme/i18n.rs`
 - `src/theme/mod.rs`
@@ -79,20 +82,33 @@ Manual notes about this unit can live above or below the generated block.
 - `src/workbench/agent_context_handoff.rs`
 - `src/workbench/agent_model_picker/mod.rs`
 - `src/workbench/agent_panel/ask_user_card/mod.rs`
+- `src/workbench/agent_panel/changed_files_card/mod.rs`
 - `src/workbench/agent_panel/client_tools.rs`
+- `src/workbench/agent_panel/composer/mod.rs`
 - `src/workbench/agent_panel/context_list.rs`
+- `src/workbench/agent_panel/context_meter/mod.rs`
 - `src/workbench/agent_panel/image_context.rs`
 - `src/workbench/agent_panel/mod.rs`
 - `src/workbench/agent_panel/reducer.rs`
+- `src/workbench/agent_panel/session_stats.rs`
 - `src/workbench/agent_panel/task_list.rs`
 - `src/workbench/agent_panel/timeline.rs`
+- `src/workbench/agent_panel/tool_group/mod.rs`
 - `src/workbench/agent_panel/turn_metrics_bar/mod.rs`
+- `src/workbench/agent_panel/voice_orb/drobo_glue.rs`
 - `src/workbench/agent_panel/voice_orb/mod.rs`
 - `src/workbench/agent_panel/voice_orb/state.rs`
 - `src/workbench/agent_provider_pane/mod.rs`
 - `src/workbench/agent_timeline.rs`
+- `src/workbench/agent_voice_settings.rs`
 - `src/workbench/api_keys_pane/mod.rs`
 - `src/workbench/app_prefs.rs`
+- `src/workbench/app_titlebar/brand.rs`
+- `src/workbench/app_titlebar/help_menu.rs`
+- `src/workbench/app_titlebar/mod.rs`
+- `src/workbench/app_titlebar/navigate_menu.rs`
+- `src/workbench/app_titlebar/notifications_menu.rs`
+- `src/workbench/app_titlebar/window_controls.rs`
 - `src/workbench/appearance_settings_pane/mod.rs`
 - `src/workbench/appearance_settings_pane/theme_preview_card.rs`
 - `src/workbench/browser_tab.rs`
@@ -100,27 +116,13 @@ Manual notes about this unit can live above or below the generated block.
 - `src/workbench/close_terminals_tab_dialog/mod.rs`
 - `src/workbench/commit_dialog/mod.rs`
 - `src/workbench/confirm_dialog/mod.rs`
+- `src/workbench/context_drag.rs`
+- `src/workbench/context_drag_overlay.rs`
+- `src/workbench/core_status/mod.rs`
 - `src/workbench/create_workspace_wizard.rs`
 - `src/workbench/file_diff/mod.rs`
-- `src/workbench/file_diff_section/mod.rs`
-- `src/workbench/file_preview/code_context_menu.rs`
-- `src/workbench/file_preview/code_view.rs`
-- `src/workbench/file_preview/codemirror_glue.rs`
-- `src/workbench/file_preview/editor/buffer.rs`
-- `src/workbench/file_preview/editor/code_mirror.rs`
-- `src/workbench/file_preview/editor/folding.rs`
-- `src/workbench/file_preview/editor/mod.rs`
-- `src/workbench/file_preview/editor/policy.rs`
-- `src/workbench/file_preview/header.rs`
-- `src/workbench/file_preview/hljs_glue.rs`
-- `src/workbench/file_preview/image_view.rs`
-- `src/workbench/file_preview/markdown_view.rs`
-- `src/workbench/file_preview/mermaid_glue.rs`
-- `src/workbench/file_preview/mermaid_view.rs`
-- `src/workbench/file_preview/mod.rs`
-- `src/workbench/file_preview/util.rs`
-- `src/workbench/file_preview/video_view.rs`
-- ... 46 more source paths omitted
+- ... 80 more source paths omitted
 <!-- architecture:static:end -->
+
 
 

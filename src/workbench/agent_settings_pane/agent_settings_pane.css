@@ -1,0 +1,271 @@
+/* Settings → Agent — Personality / Provider / Models / Configuration cards. */
+
+.agent-settings-pane {
+  --agent-card-gap: 0.85rem;
+}
+
+.agent-settings-card {
+  gap: 0.85rem;
+}
+
+/* Generic field cluster reused across cards. */
+.agent-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.agent-field__hint {
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.agent-field__error {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--danger);
+}
+
+/* Two-column responsive grid for Provider / Models / Personality rows. */
+.agent-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--agent-card-gap);
+}
+
+@media (max-width: 860px) {
+  .agent-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Sub-groups inside the Configuration card. */
+.agent-subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+}
+
+.agent-subgroup__head {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.agent-subgroup__head svg {
+  width: 0.85rem;
+  height: 0.85rem;
+  color: var(--accent-cool, var(--accent));
+}
+
+.agent-subgroup__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.65rem 0.85rem;
+  align-items: end;
+}
+
+/* Key-status line. */
+.agent-key-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.3rem 0.6rem;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.agent-key-row__status {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+.agent-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+/* Local-endpoint / conditional provider fields. */
+.agent-endpoint {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: end;
+  padding: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--overlay-1);
+}
+
+.agent-endpoint__input {
+  font-family: var(--font-mono);
+}
+
+.agent-endpoint__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.1rem;
+  padding: 0 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--accent-soft) 42%, transparent);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .agent-endpoint {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+}
+
+/* Error state on the name input. */
+.workbench-plain-input.agent-input--error {
+  border-color: color-mix(in srgb, var(--danger) 58%, var(--border));
+}
+
+.workbench-plain-input.agent-input--error:focus {
+  border-color: var(--danger);
+}
+
+/* 2D|3D switch row + inline number toggles. */
+.agent-switch-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.agent-switch-input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.agent-switch-input:focus-visible + .blx-switch {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.agent-inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.agent-pct-input {
+  width: 4.5rem;
+}
+
+/* Choice button rows (sample rate, post-stt flow, gender). */
+.agent-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.agent-choice {
+  padding: 0.32rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg-raised, var(--overlay-2));
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.agent-choice:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
+.agent-choice--active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-bright, var(--text));
+}
+
+/* Reply-voice grid. */
+.agent-voice-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr));
+  gap: 0.5rem;
+}
+
+.agent-voice-grid--disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.agent-voice-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised, var(--overlay-2));
+  overflow: hidden;
+}
+
+.agent-voice-card--active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.agent-voice-pick {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0.4rem 0.55rem;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.agent-voice-gender {
+  color: var(--text-muted);
+}
+
+.agent-voice-preview {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.5rem;
+  align-self: stretch;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--accent-cool, var(--accent));
+  cursor: pointer;
+}
+
+/* Save confirmation (auto-save). */
+.agent-settings-pane .harness-status {
+  margin: 0;
+  font-size: 0.76rem;
+  color: color-mix(in srgb, var(--success, var(--accent)) 85%, var(--text));
+}
+
+/* Orb field: keep the switch + hint left-aligned under the label. */
+.agent-field--orb {
+  align-items: flex-start;
+}

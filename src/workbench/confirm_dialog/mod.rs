@@ -26,12 +26,21 @@ pub fn ConfirmDialog() -> impl IntoView {
     let cancel_label = move || request.get().map(|r| r.cancel_label).unwrap_or_default();
     let is_danger = move || request.get().map(|r| r.danger).unwrap_or(false);
 
-    let accept = move || {
+    let cancel = Callback::new(move |()| {
+        if let Some(req) = request.get_untracked() {
+            if let Some(on_cancel) = req.on_cancel {
+                on_cancel.run(());
+            }
+        }
+        ui.dismiss_confirm();
+    });
+
+    let accept = Callback::new(move |()| {
         if let Some(req) = request.get_untracked() {
             req.on_confirm.run(());
         }
         ui.dismiss_confirm();
-    };
+    });
 
     view! {
         <Show when=move || request.get().is_some()>
@@ -41,7 +50,7 @@ pub fn ConfirmDialog() -> impl IntoView {
                     class="harness-scrim"
                     tabindex="-1"
                     aria-label=move || i18n.tr(I18nKey::BtnClose)()
-                    on:click=move |_| ui.dismiss_confirm()
+                    on:click=move |_| cancel.run(())
                 ></button>
                 <section
                     class="harness-sheet blx-confirm"
@@ -50,7 +59,7 @@ pub fn ConfirmDialog() -> impl IntoView {
                     on:keydown=move |ev: web_sys::KeyboardEvent| {
                         if ev.key() == "Escape" {
                             ev.prevent_default();
-                            ui.dismiss_confirm();
+                            cancel.run(());
                         }
                     }
                 >
@@ -73,7 +82,7 @@ pub fn ConfirmDialog() -> impl IntoView {
                         <button
                             type="button"
                             class="workbench-mini-btn"
-                            on:click=move |_| ui.dismiss_confirm()
+                            on:click=move |_| cancel.run(())
                         >
                             {cancel_label}
                         </button>
@@ -81,7 +90,7 @@ pub fn ConfirmDialog() -> impl IntoView {
                             type="button"
                             class="workbench-mini-btn workbench-mini-btn--primary"
                             class:blx-confirm__accept--danger=is_danger
-                            on:click=move |_| accept()
+                            on:click=move |_| accept.run(())
                         >
                             {confirm_label}
                         </button>

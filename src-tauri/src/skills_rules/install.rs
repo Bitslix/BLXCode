@@ -36,17 +36,15 @@ pub fn install_skill(ws: &str, name: &str, source: SkillSourceInput) -> Result<S
     let _ = fs::remove_dir_all(&staging);
     fs::create_dir_all(&staging).map_err(|e| format!("create staging dir: {e}"))?;
 
-    let result = (|| -> Result<SkillSourceMeta, String> {
-        match source.kind {
-            SkillSourceKind::Git => install_git(&staging, &source),
-            SkillSourceKind::Npm => install_npm(&staging, &source),
-            SkillSourceKind::Local => install_local(&staging, ws, &source),
-            SkillSourceKind::AgentCreated => {
-                Err("agent-created skills must use skills_write, not skills_install".into())
-            }
-            SkillSourceKind::Core => Err("core skills are built-in and cannot be installed".into()),
+    let result = match source.kind {
+        SkillSourceKind::Git => install_git(&staging, &source),
+        SkillSourceKind::Npm => install_npm(&staging, &source),
+        SkillSourceKind::Local => install_local(&staging, ws, &source),
+        SkillSourceKind::AgentCreated => {
+            Err("agent-created skills must use skills_write, not skills_install".into())
         }
-    })();
+        SkillSourceKind::Core => Err("core skills are built-in and cannot be installed".into()),
+    };
 
     let meta = match result {
         Ok(meta) => meta,
@@ -213,7 +211,7 @@ fn install_npm(staging: &Path, src: &SkillSourceInput) -> Result<SkillSourceMeta
         pack_dir.join(&tgz_name)
     };
     if !tgz_path.is_file() {
-        return Err(format!("npm pack tarball missing on disk"));
+        return Err("npm pack tarball missing on disk".to_string());
     }
     extract_tarball_via_tar(&tgz_path, staging)?;
     let _ = fs::remove_dir_all(&pack_dir);
@@ -338,7 +336,7 @@ fn promote_dir_contents(src: &Path, dest: &Path) -> Result<(), String> {
         }
         if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
             fs::rename(&from, &to)
-                .or_else(|_| copy_dir_recursive(&from, &to).and_then(|_| Ok(())))
+                .or_else(|_| copy_dir_recursive(&from, &to).map(|_| ()))
                 .map_err(|e| format!("promote dir {}: {e}", from.display()))?;
         } else {
             fs::rename(&from, &to)

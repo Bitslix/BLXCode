@@ -17,3 +17,40 @@
   margin-left: 0.35rem;
   font-size: 0.75rem;
 }
+
+/* Terminal naming — editable name pool */
+.terminal-naming-pool {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.terminal-naming-pool__label {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.terminal-naming-pool__items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.terminal-naming-pool__row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.terminal-naming-pool__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.terminal-naming-pool__actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.2rem;
+}

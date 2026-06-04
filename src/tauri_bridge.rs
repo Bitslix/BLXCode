@@ -1,5 +1,7 @@
 //! Typisierte Aufrufe von Tauri `invoke` (vgl. `quit.rs`).
-use crate::agent_wire::{AgentEvent, BrowserBoundsPayload, EventEnvelope, TaskSnapshot, UserTurn};
+use crate::agent_wire::{
+    AgentEvent, BrowserBoundsPayload, EventEnvelope, TaskSnapshot, TaskStatus, UserTurn,
+};
 use crate::skills_rules_wire::{RuleEntry, SkillEntry, SkillSourceInput};
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Reflect;
@@ -86,6 +88,151 @@ pub async fn agent_clear_conversation() -> Result<(), String> {
     invoke_unit_js("agent_clear_conversation", JsValue::UNDEFINED).await
 }
 
+// ---------------------------------------------------------------------------
+// MCP server registry (mirrors `src-tauri/src/mcp`)
+// ---------------------------------------------------------------------------
+
+/// Transport for an MCP server. Mirror of the backend `McpTransport`; the
+/// `kind` tag must match the backend's `#[serde(tag = "kind")]`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "lowercase")]
+pub enum McpTransport {
+    Stdio {
+        command: String,
+        #[serde(default)]
+        args: Vec<String>,
+        #[serde(default)]
+        env: std::collections::BTreeMap<String, String>,
+    },
+    Http {
+        url: String,
+        #[serde(default)]
+        headers: std::collections::BTreeMap<String, String>,
+    },
+}
+
+impl McpTransport {
+    pub fn label(&self) -> &'static str {
+        match self {
+            McpTransport::Stdio { .. } => "stdio",
+            McpTransport::Http { .. } => "http",
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct McpServer {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub description: String,
+    pub transport: McpTransport,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct McpTestResult {
+    pub ok: bool,
+    pub tool_count: usize,
+    pub error: Option<String>,
+}
+
+pub async fn mcp_list() -> Result<Vec<McpServer>, String> {
+    invoke_typed("mcp_list", serde_json::json!({})).await
+}
+
+pub async fn mcp_upsert(server: McpServer) -> Result<McpServer, String> {
+    #[derive(Serialize)]
+    struct Args {
+        server: McpServer,
+    }
+    invoke_typed("mcp_upsert", Args { server }).await
+}
+
+pub async fn mcp_remove(id: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        id: String,
+    }
+    invoke_unit_js("mcp_remove", args_value(Args { id })?).await
+}
+
+pub async fn mcp_test(id: String) -> Result<McpTestResult, String> {
+    #[derive(Serialize)]
+    struct Args {
+        id: String,
+    }
+    invoke_typed("mcp_test", Args { id }).await
+}
+
+/// Fire-and-forget: the caller does not inspect the per-CLI export results, so
+/// the response payload is discarded.
+pub async fn mcp_export_cli_configs(workspace_root: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        workspace_root: String,
+    }
+    invoke_unit_js(
+        "mcp_export_cli_configs",
+        args_value(Args { workspace_root })?,
+    )
+    .await
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppLogSettingsView {
+    pub log_path: Option<String>,
+    pub default_log_path: String,
+    pub effective_log_path: String,
+}
+
+pub async fn app_log_settings_get() -> Result<AppLogSettingsView, String> {
+    invoke_typed("app_log_settings_get", serde_json::json!({})).await
+}
+
+pub async fn app_log_settings_save(log_path: Option<String>) -> Result<AppLogSettingsView, String> {
+    #[derive(Serialize)]
+    struct Args {
+        log_path: Option<String>,
+    }
+    invoke_typed("app_log_settings_save", Args { log_path }).await
+}
+
+pub async fn app_log_event(
+    level: String,
+    source: String,
+    event: String,
+    metadata: serde_json::Value,
+) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        level: String,
+        source: String,
+        event: String,
+        metadata: serde_json::Value,
+    }
+    invoke_unit_js(
+        "app_log_event",
+        args_value(Args {
+            level,
+            source,
+            event,
+            metadata,
+        })?,
+    )
+    .await
+}
+
+pub async fn app_log_clear() -> Result<(), String> {
+    invoke_unit_js("app_log_clear", JsValue::UNDEFINED).await
+}
+
+pub async fn app_log_delete() -> Result<(), String> {
+    invoke_unit_js("app_log_delete", JsValue::UNDEFINED).await
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentImageFilePayload {
@@ -119,10 +266,43 @@ pub async fn app_version() -> Result<String, String> {
     invoke_typed("app_version", serde_json::json!({})).await
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum UpdateChannel {
+    Stable,
+    Beta,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateSettingsView {
+    pub channel: UpdateChannel,
+}
+
+pub async fn updater_settings_get() -> Result<UpdateSettingsView, String> {
+    invoke_typed("updater_settings_get", serde_json::json!({})).await
+}
+
+pub async fn updater_settings_save(channel: UpdateChannel) -> Result<UpdateSettingsView, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        patch: UpdateSettingsView,
+    }
+    invoke_typed(
+        "updater_settings_save",
+        Args {
+            patch: UpdateSettingsView { channel },
+        },
+    )
+    .await
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateCheckResponse {
     pub status: String,
+    pub channel: UpdateChannel,
     pub current_version: String,
     pub available_version: Option<String>,
     pub notes: Option<String>,
@@ -185,12 +365,14 @@ pub struct PostUpdateReleaseNotesItem {
 
 pub async fn post_update_release_notes(
     version: String,
+    channel: UpdateChannel,
 ) -> Result<PostUpdateReleaseNotesResponse, String> {
     #[derive(Serialize)]
     struct Args {
         version: String,
+        channel: UpdateChannel,
     }
-    invoke_typed("post_update_release_notes", Args { version }).await
+    invoke_typed("post_update_release_notes", Args { version, channel }).await
 }
 
 /// Submits the result of a client-side tool back into the running turn.
@@ -331,6 +513,12 @@ pub enum AgentProviderKind {
     Openrouter,
     Anthropic,
     Openai,
+    Ollama,
+    LmStudio,
+    HuggingFace,
+    Cloudflare,
+    Together,
+    Portkey,
 }
 
 impl AgentProviderKind {
@@ -339,6 +527,12 @@ impl AgentProviderKind {
             Self::Openrouter => "openrouter",
             Self::Anthropic => "anthropic",
             Self::Openai => "openai",
+            Self::Ollama => "ollama",
+            Self::LmStudio => "lmStudio",
+            Self::HuggingFace => "huggingFace",
+            Self::Cloudflare => "cloudflare",
+            Self::Together => "together",
+            Self::Portkey => "portkey",
         }
     }
 }
@@ -351,6 +545,42 @@ pub enum ThinkingLevel {
     Medium,
     High,
     Max,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum AgentOrbMode {
+    #[serde(rename = "3d")]
+    ThreeD,
+    #[serde(rename = "2d")]
+    TwoD,
+}
+
+/// Mirrors `agent_settings::DEFAULT_TOOL_LOOP_LIMIT` on the backend. Used as
+/// the serde default so older settings payloads without the field decode.
+pub const DEFAULT_TOOL_LOOP_LIMIT: u32 = 36;
+/// Supported UI range for the tool-loop limit (matches backend clamp).
+pub const MIN_TOOL_LOOP_LIMIT: u32 = 1;
+pub const MAX_TOOL_LOOP_LIMIT: u32 = 500;
+
+fn default_tool_loop_limit() -> u32 {
+    DEFAULT_TOOL_LOOP_LIMIT
+}
+
+/// Auto-compaction defaults / range (mirrors `agent_settings`).
+pub const DEFAULT_AUTO_COMPACT_THRESHOLD_PCT: u8 = 85;
+pub const MIN_AUTO_COMPACT_THRESHOLD_PCT: u8 = 50;
+pub const MAX_AUTO_COMPACT_THRESHOLD_PCT: u8 = 95;
+
+fn default_auto_compact_enabled() -> bool {
+    true
+}
+
+fn default_auto_compact_threshold_pct() -> u8 {
+    DEFAULT_AUTO_COMPACT_THRESHOLD_PCT
+}
+
+fn default_orb_mode() -> AgentOrbMode {
+    AgentOrbMode::ThreeD
 }
 
 #[allow(dead_code)]
@@ -366,6 +596,10 @@ pub struct ProviderModelEntry {
     /// the id-mapping table in `agent/pricing.rs`.
     #[serde(default)]
     pub pricing: Option<ModelPricing>,
+    /// Max context window in tokens from OpenRouter `/models`. `None` for
+    /// direct providers (resolved server-side via the fallback table).
+    #[serde(default)]
+    pub context_length: Option<u64>,
 }
 
 #[allow(dead_code)]
@@ -391,9 +625,29 @@ pub struct AgentProviderSettingsView {
     pub provider: AgentProviderKind,
     pub model_id: String,
     pub thinking_level: ThinkingLevel,
+    #[serde(default = "default_tool_loop_limit")]
+    pub tool_loop_limit: u32,
+    #[serde(default = "default_auto_compact_enabled")]
+    pub auto_compact_enabled: bool,
+    #[serde(default = "default_auto_compact_threshold_pct")]
+    pub auto_compact_threshold_pct: u8,
+    #[serde(default = "default_orb_mode")]
+    pub orb_mode: AgentOrbMode,
+    #[serde(default)]
+    pub agent_nickname: String,
+    #[serde(default)]
+    pub onboarding_seen: bool,
+    #[serde(default)]
+    pub default_session_role: Option<String>,
     pub model_cache_openrouter: Vec<ProviderModelEntry>,
     pub model_cache_anthropic: Vec<ProviderModelEntry>,
     pub model_cache_openai: Vec<ProviderModelEntry>,
+    #[serde(default)]
+    pub model_caches: std::collections::BTreeMap<String, Vec<ProviderModelEntry>>,
+    #[serde(default)]
+    pub provider_base_urls: std::collections::BTreeMap<String, String>,
+    #[serde(default)]
+    pub cloudflare_account_id: String,
     pub key_statuses: Vec<ProviderKeyStatus>,
 }
 
@@ -484,10 +738,36 @@ pub async fn agent_settings_get() -> Result<AgentProviderSettingsView, String> {
     invoke_typed("agent_settings_get", serde_json::json!({})).await
 }
 
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ActiveContextWindow {
+    pub provider: AgentProviderKind,
+    pub model_id: String,
+    /// Max context window in tokens; `None` when the model is unknown.
+    #[serde(default)]
+    pub context_length: Option<u64>,
+}
+
+/// Resolve the active model's context-window size (tokens). Drives the chat
+/// header occupancy meter.
+pub async fn agent_active_context_window() -> Result<ActiveContextWindow, String> {
+    invoke_typed("agent_active_context_window", serde_json::json!({})).await
+}
+
+#[allow(clippy::too_many_arguments)]
 pub async fn agent_settings_save(
     provider: AgentProviderKind,
     model_id: String,
     thinking_level: ThinkingLevel,
+    tool_loop_limit: u32,
+    auto_compact_enabled: bool,
+    auto_compact_threshold_pct: u8,
+    orb_mode: AgentOrbMode,
+    agent_nickname: String,
+    default_session_role: Option<String>,
+    provider_base_urls: std::collections::BTreeMap<String, String>,
+    cloudflare_account_id: String,
 ) -> Result<AgentProviderSettingsView, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -501,6 +781,14 @@ pub async fn agent_settings_save(
         provider: AgentProviderKind,
         model_id: String,
         thinking_level: ThinkingLevel,
+        tool_loop_limit: u32,
+        auto_compact_enabled: bool,
+        auto_compact_threshold_pct: u8,
+        orb_mode: AgentOrbMode,
+        agent_nickname: String,
+        default_session_role: Option<String>,
+        provider_base_urls: std::collections::BTreeMap<String, String>,
+        cloudflare_account_id: String,
     }
 
     invoke_typed(
@@ -510,10 +798,76 @@ pub async fn agent_settings_save(
                 provider,
                 model_id,
                 thinking_level,
+                tool_loop_limit,
+                auto_compact_enabled,
+                auto_compact_threshold_pct,
+                orb_mode,
+                agent_nickname,
+                default_session_role,
+                provider_base_urls,
+                cloudflare_account_id,
             },
         },
     )
     .await
+}
+
+pub async fn agent_onboarding_complete(
+    agent_nickname: String,
+    default_session_role: Option<String>,
+) -> Result<AgentProviderSettingsView, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        agent_nickname: String,
+        default_session_role: Option<String>,
+    }
+
+    invoke_typed(
+        "agent_onboarding_complete",
+        Args {
+            agent_nickname,
+            default_session_role,
+        },
+    )
+    .await
+}
+
+/// Validate a candidate agent nickname without saving. `Ok(())` = acceptable
+/// (blank means "use default"); `Err(code)` is a stable reason code
+/// (`tooLong` / `invalidChars` / `badWord`) for i18n mapping in the UI.
+pub async fn agent_validate_nickname(name: String) -> Result<(), String> {
+    invoke_typed(
+        "agent_validate_nickname",
+        serde_json::json!({ "name": name }),
+    )
+    .await
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct CompactionResult {
+    pub summary: String,
+    #[serde(default)]
+    pub before_tokens: u64,
+    #[serde(default)]
+    pub after_tokens_estimate: u64,
+    #[serde(default)]
+    pub messages_before: usize,
+}
+
+/// Summarize the running conversation and replace it with a compact briefing.
+/// `current_tokens` is the meter's live occupancy (for an accurate before/after).
+pub async fn agent_compact_conversation(
+    current_tokens: Option<u64>,
+) -> Result<CompactionResult, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        current_tokens: Option<u64>,
+    }
+    invoke_typed("agent_compact_conversation", Args { current_tokens }).await
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -603,8 +957,209 @@ pub async fn agent_provider_models(
     .await
 }
 
+// ---------- HeartBeat + Memory Indexer ----------
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatSettings {
+    pub enabled: bool,
+    pub interval_minutes: u32,
+    #[serde(default)]
+    pub service_enabled: std::collections::BTreeMap<String, bool>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum HeartbeatServiceStatus {
+    Idle,
+    Running,
+    Stalled,
+    Error,
+    Disabled,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatServiceView {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub kind: String,
+    pub source: String,
+    #[serde(default)]
+    pub capabilities: Vec<String>,
+    pub enabled: bool,
+    pub status: HeartbeatServiceStatus,
+    pub last_call: Option<u64>,
+    pub next_call: Option<u64>,
+    pub last_response: Option<String>,
+    pub skip_count: u32,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryIndexSettings {
+    pub provider: AgentProviderKind,
+    pub model_id: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryIndexStats {
+    pub workspace_count: usize,
+    pub global_count: usize,
+    pub last_indexed_at: Option<u64>,
+    #[serde(default)]
+    pub generated_files: Vec<String>,
+    #[serde(default)]
+    pub warnings: Vec<String>,
+}
+
+pub async fn heartbeat_settings_get() -> Result<HeartbeatSettings, String> {
+    invoke_typed("heartbeat_settings_get", serde_json::json!({})).await
+}
+
+pub async fn heartbeat_settings_save(
+    settings: HeartbeatSettings,
+) -> Result<HeartbeatSettings, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        settings: HeartbeatSettings,
+    }
+    invoke_typed("heartbeat_settings_save", Args { settings }).await
+}
+
+pub async fn heartbeat_services_list() -> Result<Vec<HeartbeatServiceView>, String> {
+    invoke_typed("heartbeat_services_list", serde_json::json!({})).await
+}
+
+pub async fn heartbeat_service_set_enabled(
+    id: String,
+    enabled: bool,
+) -> Result<Vec<HeartbeatServiceView>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        id: String,
+        enabled: bool,
+    }
+    invoke_typed("heartbeat_service_set_enabled", Args { id, enabled }).await
+}
+
+pub async fn heartbeat_service_run_now(id: String) -> Result<Vec<HeartbeatServiceView>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        id: String,
+    }
+    invoke_typed("heartbeat_service_run_now", Args { id }).await
+}
+
+pub async fn heartbeat_set_open_workspaces(workspaces: Vec<String>) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        workspaces: Vec<String>,
+    }
+    invoke_unit_js(
+        "heartbeat_set_open_workspaces",
+        args_value(Args { workspaces })?,
+    )
+    .await
+}
+
+pub async fn memory_index_settings_get() -> Result<MemoryIndexSettings, String> {
+    invoke_typed("memory_index_settings_get", serde_json::json!({})).await
+}
+
+pub async fn memory_index_settings_save(
+    settings: MemoryIndexSettings,
+) -> Result<MemoryIndexSettings, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        settings: MemoryIndexSettings,
+    }
+    invoke_typed("memory_index_settings_save", Args { settings }).await
+}
+
+pub async fn memory_index_stats() -> Result<MemoryIndexStats, String> {
+    invoke_typed("memory_index_stats", serde_json::json!({})).await
+}
+
+pub fn listen_heartbeat_services_changed(
+    callback: impl FnMut(Vec<HeartbeatServiceView>) + 'static,
+) -> Option<TauriEventListener> {
+    listen_tauri_event::<Vec<HeartbeatServiceView>>("heartbeat_services_changed", callback)
+}
+
 pub async fn exit_app_ipc() -> Result<(), String> {
     invoke_unit_js("exit_app", JsValue::UNDEFINED).await
+}
+
+// ---------------------------------------------------------------------------
+// Custom title bar — window controls (decorations:false). The privileged
+// min/max/close/fullscreen calls live in the Rust backend; the frontend only
+// holds the drag permission. All wrappers are guarded by `is_tauri_shell()`
+// via `invoke_js`, so they degrade to an `Err` in the browser preview.
+// ---------------------------------------------------------------------------
+
+pub async fn window_minimize() -> Result<(), String> {
+    invoke_unit_js("window_minimize", JsValue::UNDEFINED).await
+}
+
+/// Toggles maximize/restore; returns the resulting `is_maximized` flag.
+pub async fn window_toggle_maximize() -> Result<bool, String> {
+    invoke_typed("window_toggle_maximize", serde_json::json!({})).await
+}
+
+pub async fn window_is_maximized() -> Result<bool, String> {
+    invoke_typed("window_is_maximized", serde_json::json!({})).await
+}
+
+pub async fn window_close() -> Result<(), String> {
+    invoke_unit_js("window_close", JsValue::UNDEFINED).await
+}
+
+/// Toggles fullscreen; returns the resulting `is_fullscreen` flag.
+pub async fn window_toggle_fullscreen() -> Result<bool, String> {
+    invoke_typed("window_toggle_fullscreen", serde_json::json!({})).await
+}
+
+#[allow(dead_code)]
+pub async fn window_is_fullscreen() -> Result<bool, String> {
+    invoke_typed("window_is_fullscreen", serde_json::json!({})).await
+}
+
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowStatePayload {
+    pub width: u32,
+    pub height: u32,
+    pub maximized: bool,
+    pub fullscreen: bool,
+}
+
+pub async fn window_state() -> Result<WindowStatePayload, String> {
+    invoke_typed("window_state", serde_json::json!({})).await
+}
+
+pub async fn window_set_size(width: u32, height: u32) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        width: u32,
+        height: u32,
+    }
+    invoke_unit_js("window_set_size", args_value(Args { width, height })?).await
+}
+
+pub async fn window_set_fullscreen(enabled: bool) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        enabled: bool,
+    }
+    invoke_unit_js("window_set_fullscreen", args_value(Args { enabled })?).await
 }
 
 pub async fn clipboard_read_text() -> Result<String, String> {
@@ -1051,10 +1606,11 @@ pub enum RemoteAuthKind {
     Agent,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum RemoteResume {
     Tmux,
+    #[default]
     KeepaliveOnly,
 }
 
@@ -1077,12 +1633,6 @@ pub struct RemoteConnection {
     pub default_remote_dir: Option<String>,
 }
 
-impl Default for RemoteResume {
-    fn default() -> Self {
-        Self::KeepaliveOnly
-    }
-}
-
 /// Preset + secret-presence flags returned by `ssh_remotes_list`/`ssh_remote_save`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1096,6 +1646,79 @@ pub struct RemoteConnectionView {
 
 pub async fn ssh_remotes_list() -> Result<Vec<RemoteConnectionView>, String> {
     invoke_typed("ssh_remotes_list", serde_json::json!({})).await
+}
+
+/// One built-in harness session role (specialized skill), mirrors the backend
+/// `agent::session_roles::RoleMeta`. Drives the Create-Workspace session-mode
+/// picker and the colored role sub-line in the agent name badge.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionRoleView {
+    pub slug: String,
+    pub title: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub tools: Vec<String>,
+    #[serde(default)]
+    pub skills: Vec<String>,
+    #[serde(default)]
+    pub color: String,
+    #[serde(default)]
+    pub provider: String,
+    #[serde(default)]
+    pub models: Vec<String>,
+    #[serde(default)]
+    pub terminal_agent_swarm: bool,
+    #[serde(default)]
+    pub enabled: bool,
+}
+
+pub async fn agent_session_roles_list() -> Result<Vec<SessionRoleView>, String> {
+    invoke_typed("agent_session_roles_list", serde_json::json!({})).await
+}
+
+/// One saved workspace fleet preset, mirrors the backend
+/// `workspace_presets::WorkspacePreset`. Stored globally in the app-data dir.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspacePresetView {
+    #[serde(default)]
+    pub id: String,
+    pub name: String,
+    pub terminal_count: u8,
+    #[serde(default)]
+    pub agent_counts: [u8; 5],
+    #[serde(default)]
+    pub agent_models: [String; 5],
+    #[serde(default)]
+    pub agent_efforts: [String; 5],
+    #[serde(default)]
+    pub slot_names: Vec<String>,
+    #[serde(default)]
+    pub session_role: Option<String>,
+}
+
+pub async fn workspace_presets_list() -> Result<Vec<WorkspacePresetView>, String> {
+    invoke_typed("workspace_presets_list", serde_json::json!({})).await
+}
+
+pub async fn workspace_presets_save(
+    preset: WorkspacePresetView,
+) -> Result<Vec<WorkspacePresetView>, String> {
+    #[derive(Serialize)]
+    struct Args {
+        preset: WorkspacePresetView,
+    }
+    invoke_typed("workspace_presets_save", Args { preset }).await
+}
+
+pub async fn workspace_presets_delete(id: String) -> Result<Vec<WorkspacePresetView>, String> {
+    #[derive(Serialize)]
+    struct Args {
+        id: String,
+    }
+    invoke_typed("workspace_presets_delete", Args { id }).await
 }
 
 pub async fn ssh_remote_save(
@@ -1164,6 +1787,41 @@ pub async fn ssh_remote_test(
                 passphrase,
             },
         })?,
+    )
+    .await
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteDirEntry {
+    pub name: String,
+    pub path: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteDirListing {
+    pub path: String,
+    pub parent: Option<String>,
+    pub entries: Vec<RemoteDirEntry>,
+}
+
+pub async fn ssh_remote_list_dirs(
+    connection_id: String,
+    path: String,
+) -> Result<RemoteDirListing, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        connection_id: String,
+        path: String,
+    }
+    invoke_typed(
+        "ssh_remote_list_dirs",
+        Args {
+            connection_id,
+            path,
+        },
     )
     .await
 }
@@ -1340,6 +1998,55 @@ pub async fn pty_peek_output(session_id: u64, max_bytes: usize) -> Result<String
     .await
 }
 
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PtyOutputSnapshot {
+    pub session_id: u64,
+    pub seq: u64,
+    pub bytes: usize,
+    pub text: String,
+    pub timed_out: bool,
+    pub last_output_ms: Option<u128>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PtyWaitOutputArgs {
+    session_id: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    after_seq: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    timeout_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    idle_ms: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_bytes: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    contains: Option<String>,
+}
+
+pub async fn pty_wait_output(
+    session_id: u64,
+    after_seq: Option<u64>,
+    timeout_ms: Option<u64>,
+    idle_ms: Option<u64>,
+    max_bytes: Option<usize>,
+    contains: Option<String>,
+) -> Result<PtyOutputSnapshot, String> {
+    invoke_typed(
+        "pty_wait_output",
+        PtyWaitOutputArgs {
+            session_id,
+            after_seq,
+            timeout_ms,
+            idle_ms,
+            max_bytes,
+            contains,
+        },
+    )
+    .await
+}
+
 #[allow(dead_code)]
 #[derive(Clone, Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -1387,8 +2094,21 @@ pub async fn workbench_sessions_path() -> Result<String, String> {
     invoke_typed("workbench_sessions_path", serde_json::json!({})).await
 }
 
+pub async fn workbench_usage_path() -> Result<String, String> {
+    invoke_typed("workbench_usage_path", serde_json::json!({})).await
+}
+
 pub async fn workbench_load_sessions() -> Result<Option<String>, String> {
     invoke_typed("workbench_load_sessions", serde_json::json!({})).await
+}
+
+pub async fn workbench_load_usage_snapshot(terminal_key: String) -> Result<Option<String>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        terminal_key: String,
+    }
+    invoke_typed("workbench_load_usage_snapshot", A { terminal_key }).await
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1397,6 +2117,52 @@ pub struct TerminalNotification {
     pub unread: u32,
     pub agent: Option<String>,
     pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentNotification {
+    pub id: String,
+    pub kind: String,
+    pub severity: String,
+    pub title: String,
+    pub body: Option<String>,
+    pub source: Option<String>,
+    pub target: Option<serde_json::Value>,
+    pub read: bool,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub sent_at: Option<i64>,
+    pub dedupe_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentNotificationInput {
+    pub id: Option<String>,
+    pub title: String,
+    pub body: Option<String>,
+    pub kind: String,
+    pub severity: Option<String>,
+    pub source: Option<String>,
+    pub target: Option<serde_json::Value>,
+    pub dedupe_key: Option<String>,
+    pub read: Option<bool>,
+    pub sent: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentNotificationPatch {
+    pub id: String,
+    pub title: Option<String>,
+    pub body: Option<String>,
+    pub kind: Option<String>,
+    pub severity: Option<String>,
+    pub source: Option<String>,
+    pub target: Option<serde_json::Value>,
+    pub read: Option<bool>,
+    pub sent: Option<bool>,
 }
 
 pub async fn workbench_notifications_path() -> Result<String, String> {
@@ -1432,6 +2198,74 @@ pub async fn workbench_prune_notifications(valid_terminal_keys: Vec<String>) -> 
         args_value(A {
             valid_terminal_keys,
         })?,
+    )
+    .await
+}
+
+pub async fn workbench_list_agent_notifications(
+    include_read: bool,
+    limit: usize,
+) -> Result<Vec<AgentNotification>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        include_read: Option<bool>,
+        limit: Option<usize>,
+    }
+    invoke_typed(
+        "workbench_list_agent_notifications",
+        A {
+            include_read: Some(include_read),
+            limit: Some(limit),
+        },
+    )
+    .await
+}
+
+pub async fn workbench_upsert_agent_notification(
+    input: AgentNotificationInput,
+) -> Result<AgentNotification, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        input: AgentNotificationInput,
+    }
+    invoke_typed("workbench_upsert_agent_notification", A { input }).await
+}
+
+pub async fn workbench_update_agent_notification(
+    patch: AgentNotificationPatch,
+) -> Result<AgentNotification, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        patch: AgentNotificationPatch,
+    }
+    invoke_typed("workbench_update_agent_notification", A { patch }).await
+}
+
+pub async fn workbench_remove_agent_notification(id: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        id: String,
+    }
+    invoke_unit_js("workbench_remove_agent_notification", args_value(A { id })?).await
+}
+
+pub async fn workbench_mark_agent_notifications_read(
+    id: Option<String>,
+    all: bool,
+) -> Result<Vec<AgentNotification>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A {
+        id: Option<String>,
+        all: Option<bool>,
+    }
+    invoke_typed(
+        "workbench_mark_agent_notifications_read",
+        A { id, all: Some(all) },
     )
     .await
 }
@@ -1577,6 +2411,29 @@ pub async fn agent_remote_latest_session_id(
 
 pub async fn workspace_ensure_agents(ws: &str) -> Result<(), String> {
     invoke_typed("workspace_ensure_agents", WsArg { workspace_cwd: ws }).await
+}
+
+#[allow(dead_code)]
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentsLayoutStatus {
+    pub missing_dirs: Vec<String>,
+    pub missing_files: Vec<String>,
+}
+
+impl AgentsLayoutStatus {
+    #[must_use]
+    pub fn is_complete(&self) -> bool {
+        self.missing_dirs.is_empty() && self.missing_files.is_empty()
+    }
+}
+
+pub async fn workspace_agents_layout_status(ws: &str) -> Result<AgentsLayoutStatus, String> {
+    invoke_typed(
+        "workspace_agents_layout_status",
+        WsArg { workspace_cwd: ws },
+    )
+    .await
 }
 
 // ── Scope ──────────────────────────────────────────────────────────────────────
@@ -2109,6 +2966,10 @@ pub struct PlanTaskSummaryWire {
 pub struct PlanMeta {
     pub path: String,
     pub name: String,
+    #[serde(default)]
+    pub slug: String,
+    #[serde(default)]
+    pub folder_path: String,
     pub title: String,
     pub size: u64,
     pub modified: i64,
@@ -2144,8 +3005,168 @@ pub struct PlanSyncReport {
     pub tasks_written: u32,
 }
 
+#[derive(Clone, Debug, Default, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanMigrationProgress {
+    pub phase: String,
+    pub busy: bool,
+    pub total: u32,
+    pub processed: u32,
+    pub migrated: u32,
+    pub skipped: u32,
+    pub error: Option<String>,
+    pub updated_at_ms: u64,
+}
+
 pub async fn plan_list(ws: &str) -> Result<Vec<PlanMeta>, String> {
     invoke_typed("plan_list", WsArg { workspace_cwd: ws }).await
+}
+
+// ---------------------------------------------------------------------------
+// Mermaid diagrams (mirrors `src-tauri/src/agent/mermaid/`)
+// ---------------------------------------------------------------------------
+
+/// One stored diagram with its Mermaid source. Mirrors
+/// `agent::mermaid::store::DiagramRecord` (flattened metadata).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagramRecord {
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub task_id: Option<String>,
+    pub created_ms: u64,
+    pub code: String,
+    /// Provider/model that generated the diagram (absent for older files).
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
+}
+
+/// One diagram as returned inline by the `mermaid_create` / `mermaid_create_many`
+/// agent tools. Mirrors the backend `DiagramOut` envelope
+/// (`src-tauri/src/agent/mermaid/tool.rs`). Unlike [`DiagramRecord`] these may be
+/// ephemeral (`persisted == false`, no `plan_slug`); they are embedded into an
+/// opened center tab, hence `Serialize`/`Deserialize`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimelineDiagram {
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub kind: String,
+    pub code: String,
+    #[serde(default)]
+    pub task_id: Option<String>,
+    #[serde(default)]
+    pub plan_slug: Option<String>,
+    #[serde(default)]
+    pub persisted: bool,
+    /// Provider/model that generated the diagram (when recorded by the backend).
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct TimelineDiagramsEnvelope {
+    diagrams: Vec<TimelineDiagram>,
+}
+
+/// Parse the JSON `content` of a `mermaid_create*` tool result into its diagram
+/// list. Returns `None` when the text is not a diagrams envelope (e.g. an error
+/// string), so callers can fall back to the raw detail view.
+#[must_use]
+pub fn parse_timeline_diagrams(detail: &str) -> Option<Vec<TimelineDiagram>> {
+    let env: TimelineDiagramsEnvelope = serde_json::from_str(detail.trim()).ok()?;
+    if env.diagrams.is_empty() {
+        return None;
+    }
+    Some(env.diagrams)
+}
+
+pub async fn mermaid_list_diagrams(ws: &str, slug: &str) -> Result<Vec<DiagramRecord>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args<'a> {
+        workspace_cwd: &'a str,
+        slug: &'a str,
+    }
+    invoke_typed(
+        "mermaid_list_diagrams",
+        Args {
+            workspace_cwd: ws,
+            slug,
+        },
+    )
+    .await
+}
+
+pub async fn mermaid_delete_diagram(ws: &str, slug: &str, id: &str) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args<'a> {
+        workspace_cwd: &'a str,
+        slug: &'a str,
+        id: &'a str,
+    }
+    invoke_unit_js(
+        "mermaid_delete_diagram",
+        args_value(Args {
+            workspace_cwd: ws,
+            slug,
+            id,
+        })?,
+    )
+    .await
+}
+
+/// Export a diagram as Markdown via a native Save dialog. `Ok(None)` on cancel.
+pub async fn mermaid_export_markdown(
+    title: &str,
+    kind: &str,
+    code: &str,
+    landscape: bool,
+) -> Result<Option<String>, String> {
+    #[derive(Serialize)]
+    struct Args<'a> {
+        title: &'a str,
+        kind: &'a str,
+        code: &'a str,
+        landscape: bool,
+    }
+    invoke_typed(
+        "mermaid_export_markdown",
+        Args {
+            title,
+            kind,
+            code,
+            landscape,
+        },
+    )
+    .await
+}
+
+/// Export a diagram as PDF from its rendered SVG. `Ok(None)` on cancel.
+pub async fn mermaid_export_pdf(title: &str, svg: &str) -> Result<Option<String>, String> {
+    #[derive(Serialize)]
+    struct Args<'a> {
+        title: &'a str,
+        svg: &'a str,
+    }
+    invoke_typed("mermaid_export_pdf", Args { title, svg }).await
+}
+
+pub async fn plan_migration_ensure_started(ws: &str) -> Result<PlanMigrationProgress, String> {
+    invoke_typed("plan_migration_ensure_started", WsArg { workspace_cwd: ws }).await
+}
+
+pub async fn plan_migration_poll(ws: &str) -> Result<PlanMigrationProgress, String> {
+    invoke_typed("plan_migration_poll", WsArg { workspace_cwd: ws }).await
 }
 
 pub async fn plan_read(ws: &str, path: &str) -> Result<PlanContent, String> {
@@ -2257,6 +3278,41 @@ pub async fn plan_load(ws: &str, path: &str) -> Result<PlanLoadReport, String> {
     .await
 }
 
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct GeneratedPlan {
+    pub title: String,
+    pub markdown: String,
+}
+
+/// Generates a Skill-conformant plan (and optionally tasks) from a prompt via
+/// the agent tab's configured provider. Returns the title + cleaned Markdown.
+pub async fn plan_generate_ai(prompt: String, with_tasks: bool) -> Result<GeneratedPlan, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        prompt: String,
+        with_tasks: bool,
+    }
+    invoke_typed("plan_generate_ai", Args { prompt, with_tasks }).await
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EnhancedPrompt {
+    pub prompt: String,
+}
+
+/// Enhances a draft prompt through an isolated one-shot provider request. This
+/// does not mutate the Agent chat session, timeline, tasks, tools, or memory.
+pub async fn agent_enhance_prompt(prompt: String) -> Result<EnhancedPrompt, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        prompt: String,
+    }
+    invoke_typed("agent_enhance_prompt", Args { prompt }).await
+}
+
 #[allow(dead_code)]
 pub async fn plan_sync_from_tasks(ws: &str, path: &str) -> Result<PlanSyncReport, String> {
     #[derive(Serialize)]
@@ -2270,6 +3326,255 @@ pub async fn plan_sync_from_tasks(ws: &str, path: &str) -> Result<PlanSyncReport
         A {
             workspace_cwd: ws,
             path,
+        },
+    )
+    .await
+}
+
+// ---------------------------------------------------------------------
+// Workspace Multi-Kanban (layout metadata + plan task mutations)
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KanbanPlanState {
+    Blocked,
+    InProgress,
+    Pending,
+    Completed,
+    Cancelled,
+    Empty,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanFilters {
+    #[serde(default)]
+    pub query: String,
+    #[serde(default)]
+    pub show_completed: bool,
+    #[serde(default)]
+    pub show_cancelled: bool,
+    #[serde(default)]
+    pub active_only: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanLayout {
+    pub version: u32,
+    #[serde(default)]
+    pub workspace_root: Option<String>,
+    pub plan_section_order: Vec<KanbanPlanState>,
+    pub collapsed_plan_sections: Vec<KanbanPlanState>,
+    pub expanded_plans: Vec<String>,
+    pub task_lane_order: Vec<TaskStatus>,
+    pub collapsed_task_lanes: Vec<TaskStatus>,
+    pub plan_order: std::collections::BTreeMap<String, u32>,
+    pub task_order: std::collections::BTreeMap<String, u32>,
+    pub filters: KanbanFilters,
+    pub updated_at: i64,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanBoard {
+    pub layout: KanbanLayout,
+    pub plans: Vec<KanbanPlanNode>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanPlanNode {
+    pub meta: PlanMeta,
+    pub state: KanbanPlanState,
+    pub tasks: Vec<KanbanTaskCard>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanTaskCard {
+    pub plan_path: String,
+    pub id: String,
+    pub title: String,
+    pub status: TaskStatus,
+    pub runtime_task_id: Option<String>,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanTaskCreateInput {
+    pub plan_path: String,
+    pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<TaskStatus>,
+}
+
+#[derive(Clone, Debug, Default, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanTaskUpdatePatch {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<TaskStatus>,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanPlanMoveInput {
+    pub plan_path: String,
+    pub target_state: KanbanPlanState,
+    pub ordered_plan_paths: Vec<String>,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KanbanTaskMoveInput {
+    pub plan_path: String,
+    pub task_id: String,
+    pub target_status: TaskStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub before_task_id: Option<String>,
+}
+
+pub async fn kanban_board_load(ws: &str) -> Result<KanbanBoard, String> {
+    invoke_typed("kanban_board_load", WsArg { workspace_cwd: ws }).await
+}
+
+pub async fn kanban_layout_save(ws: &str, layout: KanbanLayout) -> Result<KanbanLayout, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        layout: KanbanLayout,
+    }
+    invoke_typed(
+        "kanban_layout_save",
+        A {
+            workspace_cwd: ws,
+            layout,
+        },
+    )
+    .await
+}
+
+pub async fn kanban_task_create(
+    ws: &str,
+    input: KanbanTaskCreateInput,
+) -> Result<KanbanTaskCard, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        input: KanbanTaskCreateInput,
+    }
+    invoke_typed(
+        "kanban_task_create",
+        A {
+            workspace_cwd: ws,
+            input,
+        },
+    )
+    .await
+}
+
+pub async fn kanban_task_update(
+    ws: &str,
+    plan_path: &str,
+    task_id: &str,
+    patch: KanbanTaskUpdatePatch,
+) -> Result<KanbanTaskCard, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        plan_path: &'a str,
+        task_id: &'a str,
+        patch: KanbanTaskUpdatePatch,
+    }
+    invoke_typed(
+        "kanban_task_update",
+        A {
+            workspace_cwd: ws,
+            plan_path,
+            task_id,
+            patch,
+        },
+    )
+    .await
+}
+
+pub async fn kanban_task_delete(ws: &str, plan_path: &str, task_id: &str) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        plan_path: &'a str,
+        task_id: &'a str,
+    }
+    invoke_unit_js(
+        "kanban_task_delete",
+        args_value(A {
+            workspace_cwd: ws,
+            plan_path,
+            task_id,
+        })?,
+    )
+    .await
+}
+
+pub async fn kanban_plan_move(ws: &str, input: KanbanPlanMoveInput) -> Result<KanbanBoard, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        input: KanbanPlanMoveInput,
+    }
+    invoke_typed(
+        "kanban_plan_move",
+        A {
+            workspace_cwd: ws,
+            input,
+        },
+    )
+    .await
+}
+
+pub async fn kanban_task_move(
+    ws: &str,
+    input: KanbanTaskMoveInput,
+) -> Result<KanbanTaskCard, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        input: KanbanTaskMoveInput,
+    }
+    invoke_typed(
+        "kanban_task_move",
+        A {
+            workspace_cwd: ws,
+            input,
+        },
+    )
+    .await
+}
+
+pub async fn kanban_export_layout(ws: &str) -> Result<String, String> {
+    invoke_typed("kanban_export_layout", WsArg { workspace_cwd: ws }).await
+}
+
+pub async fn kanban_import_layout(ws: &str, json: &str) -> Result<KanbanLayout, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct A<'a> {
+        workspace_cwd: &'a str,
+        json: &'a str,
+    }
+    invoke_typed(
+        "kanban_import_layout",
+        A {
+            workspace_cwd: ws,
+            json,
         },
     )
     .await
@@ -2445,17 +3750,39 @@ pub struct GitRefDecoration {
 #[serde(rename_all = "camelCase")]
 pub struct GitCommitNode {
     pub oid: String,
+    pub short_oid: String,
     pub parents: Vec<String>,
     pub subject: String,
+    pub body: String,
     pub author: String,
+    pub author_email: String,
+    pub author_time: String,
     pub rel_time: String,
     pub decorations: Vec<GitRefDecoration>,
+    pub files_changed: Option<u32>,
+    pub insertions: Option<u32>,
+    pub deletions: Option<u32>,
+    pub remote_url: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitGraphEdge {
+    pub from_lane: usize,
+    pub to_lane: usize,
+    pub color_index: usize,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitGraphEntry {
-    pub gutter: String,
+    pub row_index: usize,
+    pub lane: usize,
+    pub lanes: usize,
+    pub active_lanes: Vec<usize>,
+    pub edges: Vec<GitGraphEdge>,
+    pub is_merge: bool,
+    pub is_head: bool,
     pub commit: GitCommitNode,
 }
 
@@ -2463,7 +3790,36 @@ pub struct GitGraphEntry {
 #[serde(rename_all = "camelCase")]
 pub struct GitGraphLayout {
     pub entries: Vec<GitGraphEntry>,
-    pub gutter_cols: usize,
+    pub lane_count: usize,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCommitFileChange {
+    pub path: String,
+    pub old_path: Option<String>,
+    pub status: String,
+    pub added: Option<u32>,
+    pub removed: Option<u32>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitCommitDetails {
+    pub oid: String,
+    pub short_oid: String,
+    pub subject: String,
+    pub body: String,
+    pub author: String,
+    pub author_email: String,
+    pub author_time: String,
+    pub rel_time: String,
+    pub decorations: Vec<GitRefDecoration>,
+    pub files_changed: u32,
+    pub insertions: u32,
+    pub deletions: u32,
+    pub remote_url: Option<String>,
+    pub files: Vec<GitCommitFileChange>,
 }
 
 pub const GIT_MISSING_CODE: &str = "git_missing";
@@ -2486,6 +3842,30 @@ pub async fn git_commit_graph(
         Args {
             cwd,
             limit,
+            connection_id,
+        },
+    )
+    .await
+}
+
+pub async fn git_commit_details(
+    cwd: String,
+    oid: String,
+    connection_id: Option<String>,
+) -> Result<GitCommitDetails, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        cwd: String,
+        oid: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
+    }
+    invoke_typed(
+        "git_commit_details",
+        Args {
+            cwd,
+            oid,
             connection_id,
         },
     )
@@ -2980,6 +4360,117 @@ pub struct TtsSettings {
     pub enabled: bool,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PttMode {
+    Local,
+    Cloud,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WhisperQuality {
+    Fast,
+    Balanced,
+    Best,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PttInsertTarget {
+    Agent,
+    Terminal,
+    ActiveInput,
+    Clipboard,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PttTargetMode {
+    CurrentFocus,
+    RememberStart,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TtsCollision {
+    Stop,
+    Pause,
+    Block,
+}
+
+/// Mirror of the backend `PttSettings` (see `src-tauri/src/voice/settings.rs`).
+/// Every field carries `#[serde(default)]` so older envelopes load cleanly.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PttSettings {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "ptt_mode_default")]
+    pub mode: PttMode,
+    #[serde(default)]
+    pub local_model_path: Option<String>,
+    #[serde(default = "ptt_quality_default")]
+    pub local_quality: WhisperQuality,
+    #[serde(default = "ptt_provider_default")]
+    pub cloud_provider: VoiceProviderKind,
+    #[serde(default = "ptt_cloud_model_default")]
+    pub cloud_model_id: String,
+    #[serde(default = "ptt_insert_default")]
+    pub insert_target: PttInsertTarget,
+    #[serde(default = "ptt_target_mode_default")]
+    pub target_mode: PttTargetMode,
+    #[serde(default)]
+    pub auto_submit: bool,
+    #[serde(default = "ptt_true")]
+    pub partial_transcript: bool,
+    #[serde(default = "ptt_collision_default")]
+    pub tts_collision: TtsCollision,
+}
+
+fn ptt_mode_default() -> PttMode {
+    PttMode::Local
+}
+fn ptt_quality_default() -> WhisperQuality {
+    WhisperQuality::Balanced
+}
+fn ptt_provider_default() -> VoiceProviderKind {
+    VoiceProviderKind::Openai
+}
+fn ptt_cloud_model_default() -> String {
+    "gpt-4o-mini-transcribe".into()
+}
+fn ptt_insert_default() -> PttInsertTarget {
+    PttInsertTarget::Agent
+}
+fn ptt_target_mode_default() -> PttTargetMode {
+    PttTargetMode::CurrentFocus
+}
+fn ptt_collision_default() -> TtsCollision {
+    TtsCollision::Block
+}
+fn ptt_true() -> bool {
+    true
+}
+
+impl Default for PttSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            mode: ptt_mode_default(),
+            local_model_path: None,
+            local_quality: ptt_quality_default(),
+            cloud_provider: ptt_provider_default(),
+            cloud_model_id: ptt_cloud_model_default(),
+            insert_target: ptt_insert_default(),
+            target_mode: ptt_target_mode_default(),
+            auto_submit: false,
+            partial_transcript: true,
+            tts_collision: ptt_collision_default(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VoiceSettings {
@@ -2988,6 +4479,8 @@ pub struct VoiceSettings {
     pub post_stt_flow: PostSttFlow,
     pub stt_language: SttLanguageMode,
     pub ptt_hotkey: PttHotkey,
+    #[serde(default)]
+    pub ptt: PttSettings,
 }
 
 impl Default for VoiceSettings {
@@ -3014,6 +4507,7 @@ impl Default for VoiceSettings {
                 alt: false,
                 meta: false,
             },
+            ptt: PttSettings::default(),
         }
     }
 }
@@ -3133,6 +4627,179 @@ pub async fn voice_settings_save(patch: VoiceSettings) -> Result<VoiceSettings, 
     invoke_typed("voice_settings_save", Args { patch }).await
 }
 
+// ---------------------------------------------------------------------------
+// Push-to-talk + whisper model manager bridge
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PttStartResponse {
+    pub turn_id: Option<String>,
+    pub started: bool,
+    /// "start" | "stopTts" | "pauseTts" | "rejectBusy" | "rejectTtsPlaying"
+    pub decision: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ModelFamily {
+    Standard,
+    Quantized,
+    Turbo,
+    Large,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhisperModelView {
+    pub id: String,
+    pub label: String,
+    pub family: ModelFamily,
+    pub multilingual: bool,
+    pub size_bytes: u64,
+    pub speed_rating: u8,
+    pub accuracy_rating: u8,
+    pub best_for: String,
+    pub installed: bool,
+    pub installed_path: Option<String>,
+    pub partial_bytes: Option<u64>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhisperDownloadProgress {
+    pub id: String,
+    pub received: u64,
+    pub total: u64,
+    pub speed_bps: f64,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhisperDownloadDone {
+    pub id: String,
+    /// Final installed path (informational; the UI reloads the list instead).
+    #[allow(dead_code)]
+    pub path: String,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WhisperDownloadError {
+    pub id: String,
+    pub message: String,
+}
+
+pub async fn ptt_start() -> Result<PttStartResponse, String> {
+    invoke_typed("ptt_start", serde_json::json!({})).await
+}
+
+pub async fn ptt_partial(turn_id: String, locale_hint: Option<String>) -> Result<String, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        turn_id: String,
+        locale_hint: Option<String>,
+    }
+    invoke_typed(
+        "ptt_partial",
+        Args {
+            turn_id,
+            locale_hint,
+        },
+    )
+    .await
+}
+
+pub async fn ptt_finalize(turn_id: String, locale_hint: Option<String>) -> Result<String, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        turn_id: String,
+        locale_hint: Option<String>,
+    }
+    invoke_typed(
+        "ptt_finalize",
+        Args {
+            turn_id,
+            locale_hint,
+        },
+    )
+    .await
+}
+
+pub async fn ptt_cancel(turn_id: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        turn_id: String,
+    }
+    invoke_unit_js("ptt_cancel", args_value(Args { turn_id })?).await
+}
+
+pub async fn voice_tts_playing(playing: bool) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        playing: bool,
+    }
+    invoke_unit_js("voice_tts_playing", args_value(Args { playing })?).await
+}
+
+#[allow(dead_code)]
+pub async fn voice_agent_input_active(active: bool) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        active: bool,
+    }
+    invoke_unit_js("voice_agent_input_active", args_value(Args { active })?).await
+}
+
+pub async fn whisper_models_list() -> Result<Vec<WhisperModelView>, String> {
+    invoke_typed("whisper_models_list", serde_json::json!({})).await
+}
+
+pub async fn whisper_model_download(id: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        id: String,
+    }
+    invoke_unit_js("whisper_model_download", args_value(Args { id })?).await
+}
+
+pub async fn whisper_model_cancel(id: String) -> Result<bool, String> {
+    #[derive(Serialize)]
+    struct Args {
+        id: String,
+    }
+    invoke_typed("whisper_model_cancel", Args { id }).await
+}
+
+pub async fn whisper_model_delete(id: String) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct Args {
+        id: String,
+    }
+    invoke_unit_js("whisper_model_delete", args_value(Args { id })?).await
+}
+
+pub fn listen_whisper_download_progress(
+    callback: impl FnMut(WhisperDownloadProgress) + 'static,
+) -> Option<TauriEventListener> {
+    listen_tauri_event::<WhisperDownloadProgress>("whisper_download_progress", callback)
+}
+
+pub fn listen_whisper_download_done(
+    callback: impl FnMut(WhisperDownloadDone) + 'static,
+) -> Option<TauriEventListener> {
+    listen_tauri_event::<WhisperDownloadDone>("whisper_download_done", callback)
+}
+
+pub fn listen_whisper_download_error(
+    callback: impl FnMut(WhisperDownloadError) + 'static,
+) -> Option<TauriEventListener> {
+    listen_tauri_event::<WhisperDownloadError>("whisper_download_error", callback)
+}
+
 pub async fn voice_tts_preview(
     provider: VoiceProviderKind,
     model_id: String,
@@ -3188,19 +4855,14 @@ impl ImageProviderKind {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ImageQualityLevel {
     Low,
+    #[default]
     Medium,
     High,
     Max,
-}
-
-impl Default for ImageQualityLevel {
-    fn default() -> Self {
-        Self::Medium
-    }
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]

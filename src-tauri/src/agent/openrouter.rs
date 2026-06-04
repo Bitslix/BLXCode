@@ -12,7 +12,8 @@
 //! between rounds; pending oneshots are dropped on cancel.
 
 use crate::agent::pricing;
-use crate::agent::protocol::{AgentEvent, AgentImageContextItem};
+use crate::agent::protocol::{AgentChatMode, AgentEvent, AgentImageContextItem};
+use crate::agent::provider::{AuthMode, CompatibleEndpoint};
 use crate::agent::state::AgentEngineState;
 use crate::agent::system_prompt::system_prompt;
 use crate::agent::tool_dispatch::{dispatch_tool, DispatchContext};
@@ -26,32 +27,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::io::AsyncBufReadExt;
 
-/// Hard upper bound on tool-call rounds per turn. Stops runaway loops if
-/// the model keeps invoking tools without ever finishing.
-const MAX_ROUNDS: u32 = 36;
-
-#[derive(Clone, Copy, Debug)]
-pub enum Endpoint {
-    Openrouter,
-    Openai,
-}
-
-impl Endpoint {
-    pub(crate) fn url(self) -> &'static str {
-        match self {
-            Self::Openrouter => "https://openrouter.ai/api/v1/chat/completions",
-            Self::Openai => "https://api.openai.com/v1/chat/completions",
-        }
-    }
-
-    pub fn from_provider(p: AgentProviderKind) -> Option<Self> {
-        match p {
-            AgentProviderKind::Openrouter => Some(Self::Openrouter),
-            AgentProviderKind::Openai => Some(Self::Openai),
-            AgentProviderKind::Anthropic => None,
-        }
-    }
-}
+pub type Endpoint = CompatibleEndpoint;
 
 /// Endpoint-specific reasoning payload. The request body shape differs:
 ///   - OpenRouter: nested object `reasoning: { effort, exclude: false }`
@@ -61,7 +37,7 @@ struct ReasoningPayload {
     value: Value,
 }
 
-fn reasoning_for(level: ThinkingLevel, endpoint: Endpoint) -> Option<ReasoningPayload> {
+fn reasoning_for(level: ThinkingLevel, endpoint: &Endpoint) -> Option<ReasoningPayload> {
     let effort = match level {
         ThinkingLevel::Off => return None,
         ThinkingLevel::Low => "low",
@@ -69,14 +45,15 @@ fn reasoning_for(level: ThinkingLevel, endpoint: Endpoint) -> Option<ReasoningPa
         ThinkingLevel::High | ThinkingLevel::Max => "high",
     };
     Some(match endpoint {
-        Endpoint::Openrouter => ReasoningPayload {
+        _ if endpoint.provider == AgentProviderKind::Openrouter => ReasoningPayload {
             key: "reasoning",
             value: json!({ "effort": effort, "exclude": false }),
         },
-        Endpoint::Openai => ReasoningPayload {
+        _ if endpoint.supports_openai_reasoning_effort => ReasoningPayload {
             key: "reasoning_effort",
             value: Value::String(effort.to_owned()),
         },
+        _ => return None,
     })
 }
 
@@ -96,11 +73,19 @@ struct StreamUsage {
     prompt_tokens: Option<u64>,
     #[serde(default)]
     completion_tokens: Option<u64>,
+    #[serde(default)]
+    prompt_tokens_details: Option<PromptTokenDetails>,
     /// OpenRouter-native USD cost. Only present when the request set
     /// `usage: { include: true }`. Falls back to local token×price math
     /// when missing.
     #[serde(default)]
     cost: Option<f64>,
+}
+
+#[derive(Deserialize, Default)]
+struct PromptTokenDetails {
+    #[serde(default)]
+    cached_tokens: Option<u64>,
 }
 
 #[derive(Deserialize, Default)]
@@ -161,6 +146,8 @@ struct RoundResult {
     prompt_tokens: Option<u64>,
     /// Cumulative completion_tokens reported by the provider for this round.
     completion_tokens: Option<u64>,
+    /// Prompt tokens served from provider prompt-cache when reported.
+    cached_input_tokens: Option<u64>,
     /// OpenRouter-native cost for this round when the provider returned one.
     cost_usd: Option<f64>,
 }
@@ -172,14 +159,20 @@ struct AggregatedToolCall {
     arguments: String,
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Provider turn entrypoint mirrors dispatch context and avoids an extra allocation-only wrapper."
+)]
 pub async fn run_chat_turn(
     state: Arc<AgentEngineState>,
     endpoint: Endpoint,
     api_key: String,
     settings: AgentProviderSettings,
+    chat_mode: AgentChatMode,
     prompt: String,
     image_context_items: Vec<AgentImageContextItem>,
     workspace_root: Option<String>,
+    session_role: Option<String>,
 ) {
     state.start_turn();
     state.clear_cancel();
@@ -206,12 +199,13 @@ pub async fn run_chat_turn(
             }
         },
     };
-    let workspace_string = workspace_root
-        .as_ref()
-        .map(|s| s.clone())
-        .filter(|s| !s.trim().is_empty());
+    let workspace_string = workspace_root.clone().filter(|s| !s.trim().is_empty());
 
-    let sys = system_prompt(workspace_string.as_deref());
+    let sys = system_prompt(
+        workspace_string.as_deref(),
+        &crate::agent::nickname::resolve_agent_name(&settings.agent_nickname),
+        session_role.as_deref(),
+    );
     let mut messages: Vec<Value> = Vec::with_capacity(8);
     messages.push(json!({ "role": "system", "content": sys }));
     // Carry prior turns so the model has multi-turn memory.
@@ -225,11 +219,16 @@ pub async fn run_chat_turn(
         "content": openai_user_content(&prompt, &image_context_items),
     }));
 
-    let tools = crate::agent::tools::render_for_openai();
-    let reasoning = reasoning_for(settings.thinking_level, endpoint);
+    let mut tools = crate::agent::tools::render_for_openai();
+    // Append live MCP-server tools so the in-app agent can call them.
+    if let Some(arr) = tools.as_array_mut() {
+        arr.extend(crate::mcp::runtime::openai_tool_specs().await);
+    }
+    let reasoning = reasoning_for(settings.thinking_level, &endpoint);
     let dispatch_ctx = DispatchContext {
         settings: settings.clone(),
         api_key: api_key.clone(),
+        chat_mode,
     };
 
     let client = match reqwest::Client::builder()
@@ -247,12 +246,13 @@ pub async fn run_chat_turn(
         }
     };
 
-    let provider_kind = match endpoint {
-        Endpoint::Openrouter => AgentProviderKind::Openrouter,
-        Endpoint::Openai => AgentProviderKind::Openai,
-    };
+    let provider_kind = endpoint.provider;
 
-    for round in 0..MAX_ROUNDS {
+    // Configurable per-turn tool-call ceiling (Settings → Agent). Clamped
+    // again here in case the on-disk value was hand-edited out of range.
+    let max_rounds = crate::agent_settings::clamp_tool_loop_limit(settings.tool_loop_limit);
+
+    for round in 0..max_rounds {
         if state.cancelled() {
             emit_aborted(&state);
             return;
@@ -268,7 +268,7 @@ pub async fn run_chat_turn(
         // OpenRouter exposes a native `usage.cost` field but only when the
         // request opts in via `usage: { include: true }`. Cheaper than
         // computing locally and avoids drift when models reprice.
-        if matches!(endpoint, Endpoint::Openrouter) {
+        if endpoint.sends_openrouter_extras {
             body["usage"] = json!({ "include": true });
         }
         if let Some(r) = &reasoning {
@@ -283,7 +283,7 @@ pub async fn run_chat_turn(
         let round_start = Instant::now();
         let round_res = match run_one_round(
             &client,
-            endpoint,
+            &endpoint,
             &api_key,
             &body,
             &state,
@@ -324,6 +324,8 @@ pub async fn run_chat_turn(
             turn_generation: state.turn_generation(),
             input_tokens: round_res.prompt_tokens,
             output_tokens: round_res.completion_tokens,
+            cached_input_tokens: round_res.cached_input_tokens,
+            cache_write_input_tokens: None,
             ttft_ms: round_res.ttft_ms,
             elapsed_ms: round_elapsed_ms,
             cost_usd: round_cost,
@@ -402,6 +404,8 @@ pub async fn run_chat_turn(
                 turn_generation: state.turn_generation(),
                 input_tokens: None,
                 output_tokens: None,
+                cached_input_tokens: None,
+                cache_write_input_tokens: None,
                 ttft_ms: None,
                 elapsed_ms: tool_elapsed_ms,
                 cost_usd: None,
@@ -414,9 +418,9 @@ pub async fn run_chat_turn(
             }));
         }
 
-        if round + 1 == MAX_ROUNDS {
+        if round + 1 == max_rounds {
             state.push(AgentEvent::Error {
-                message: format!("Tool-Loop-Limit erreicht ({MAX_ROUNDS} Runden)."),
+                message: format!("Tool-Loop-Limit erreicht ({max_rounds} Runden)."),
             });
             break;
         }
@@ -454,18 +458,24 @@ fn emit_aborted(state: &Arc<AgentEngineState>) {
 
 async fn run_one_round(
     client: &reqwest::Client,
-    endpoint: Endpoint,
+    endpoint: &Endpoint,
     api_key: &str,
     body: &Value,
     state: &Arc<AgentEngineState>,
     consumed_image_ids: Option<&[String]>,
 ) -> Result<RoundResult, String> {
     let mut req = client
-        .post(endpoint.url())
-        .bearer_auth(api_key)
+        .post(&endpoint.url)
         .header("Accept", "text/event-stream")
         .header("Content-Type", "application/json");
-    if matches!(endpoint, Endpoint::Openrouter) {
+    if matches!(
+        endpoint.auth_mode,
+        AuthMode::RequiredBearer | AuthMode::OptionalBearer
+    ) && !api_key.trim().is_empty()
+    {
+        req = req.bearer_auth(api_key);
+    }
+    if endpoint.sends_openrouter_extras {
         req = req
             .header("HTTP-Referer", "https://bitslix.com/blxcode")
             .header("X-Title", "blxcode");
@@ -500,9 +510,8 @@ async fn run_one_round(
 
     let stream = resp.bytes_stream();
     use futures_util::TryStreamExt;
-    let reader = tokio_util::io::StreamReader::new(
-        stream.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string())),
-    );
+    let reader =
+        tokio_util::io::StreamReader::new(stream.map_err(|e| std::io::Error::other(e.to_string())));
     let mut lines = tokio::io::BufReader::new(reader).lines();
 
     let mut acc = RoundResult::default();
@@ -543,6 +552,9 @@ async fn run_one_round(
             }
             if let Some(c) = u.completion_tokens {
                 acc.completion_tokens = Some(c);
+            }
+            if let Some(cached) = u.prompt_tokens_details.and_then(|d| d.cached_tokens) {
+                acc.cached_input_tokens = Some(cached);
             }
             if let Some(cost) = u.cost {
                 acc.cost_usd = Some(cost);

@@ -59,17 +59,54 @@
     margin-bottom: 0.25rem;
 }
 
+/* Header line: "MODEL ROUND" label with the merged thinking toggle floated
+   to the right edge of the same row. */
+.model-round-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.model-round-header .agent-chat-decision-label {
+    margin-bottom: 0;
+}
+
+.model-round-thinking__toggle {
+    margin-left: auto;
+    font-size: 0.72rem;
+    flex: 0 0 auto;
+}
+
+.model-round-thinking__body {
+    margin-top: 0.35rem;
+}
+
 /* Tool list nested inside the model-round block. */
 .model-round-tools {
+    position: relative;
     list-style: none;
-    margin: 0.3rem 0 0 0;
-    padding: 0;
+    margin: 0.36rem 0 0;
+    padding: 0.06rem 0 0 0.85rem;
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: 0.18rem;
+    background:
+        linear-gradient(var(--overlay-2), var(--overlay-2)) 0.22rem 0.15rem / 1px calc(100% - 0.3rem)
+        no-repeat;
 }
 
 .model-round-tool-item {
+    position: relative;
     display: flex;
     flex-direction: column;
+}
+
+.model-round-tool-item::before {
+    content: "";
+    position: absolute;
+    left: -0.63rem;
+    top: 0.82rem;
+    width: 0.48rem;
+    height: 1px;
+    background: var(--overlay-2);
 }

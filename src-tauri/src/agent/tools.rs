@@ -4,6 +4,7 @@
 //! The orchestrator renders the registry for the provider, then dispatches
 //! incoming tool calls back through here.
 
+use crate::kanban;
 use crate::memory;
 use crate::plans;
 use crate::skills_rules::{self, types::SkillSourceInput};
@@ -128,6 +129,90 @@ impl RelativePath {
     }
 }
 
+const WORKSPACE_WRITE_MAX_BYTES: usize = 1024 * 1024;
+const WORKSPACE_PROTECTED_COMPONENTS: &[&str] = &[
+    ".git",
+    ".agents",
+    ".blxcode",
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    "out",
+    ".next",
+    ".cache",
+    "vendor",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "coverage",
+];
+
+fn path_has_protected_component(rel: &Path) -> bool {
+    rel.components().any(|component| {
+        component
+            .as_os_str()
+            .to_str()
+            .map(|s| WORKSPACE_PROTECTED_COMPONENTS.contains(&s))
+            .unwrap_or(false)
+    })
+}
+
+fn resolve_workspace_new_path(
+    root: Option<&WorkspaceRootGuard>,
+    raw: &str,
+) -> Result<(PathBuf, PathBuf), ToolOutcome> {
+    let guard = root.ok_or(ToolOutcome {
+        ok: false,
+        content: "no workspace configured".into(),
+    })?;
+    let rel = RelativePath::normalize(raw).ok_or(ToolOutcome {
+        ok: false,
+        content: "invalid path".into(),
+    })?;
+    if path_has_protected_component(&rel) {
+        return Err(ToolOutcome {
+            ok: false,
+            content: "path is in a protected folder".into(),
+        });
+    }
+    let full = guard.path.join(&rel);
+    if full.is_absolute() && !guard.contains(&full) {
+        return Err(ToolOutcome {
+            ok: false,
+            content: "path escapes workspace root".into(),
+        });
+    }
+    Ok((rel, full))
+}
+
+fn ensure_parent_under_workspace(
+    root: &WorkspaceRootGuard,
+    full: &Path,
+) -> Result<(), ToolOutcome> {
+    let Some(parent) = full.parent() else {
+        return Err(ToolOutcome {
+            ok: false,
+            content: "target has no parent".into(),
+        });
+    };
+    fs::create_dir_all(parent).map_err(|e| ToolOutcome {
+        ok: false,
+        content: format!("create parent: {e}"),
+    })?;
+    let parent = fs::canonicalize(parent).map_err(|e| ToolOutcome {
+        ok: false,
+        content: format!("canonicalize parent: {e}"),
+    })?;
+    if !root.contains(&parent) {
+        return Err(ToolOutcome {
+            ok: false,
+            content: "path escapes workspace root".into(),
+        });
+    }
+    Ok(())
+}
+
 // ---------------------------------------------------------------------
 // Tool registry
 
@@ -148,10 +233,13 @@ pub struct ToolDef {
     pub site: ToolSite,
 }
 
-/// Options for server-tool execution (shell write mode, etc.).
-#[derive(Clone, Copy, Debug, Default)]
+/// Options for server-tool execution (shell write mode, generating model, etc.).
+#[derive(Clone, Debug, Default)]
 pub struct ToolExecOpts {
     pub shell_writes: bool,
+    /// Provider/model that issued the call, stamped onto created diagrams.
+    pub provider: Option<String>,
+    pub model: Option<String>,
 }
 
 /// Output of an in-process server-tool execution.
@@ -199,6 +287,61 @@ pub fn registry() -> Vec<ToolDef> {
                     "path": { "type": "string", "description": "Relative path within the workspace." }
                 },
                 "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "workspace_file_write",
+            description: "Create or overwrite a UTF-8 text file under the workspace root. Path is relative to the workspace; absolute paths, `..`, and protected folders are rejected.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" },
+                    "content": { "type": "string" },
+                    "create": { "type": "boolean", "default": true }
+                },
+                "required": ["path", "content"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "workspace_file_delete",
+            description: "Delete a file or directory under the workspace root. Directories are removed recursively. Path is relative to the workspace; protected folders are rejected.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "workspace_dir_create",
+            description: "Create a directory under the workspace root, including missing parents. Path is relative to the workspace; protected folders are rejected.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "workspace_entry_rename",
+            description: "Rename or move a file or directory under the workspace root. Paths are relative to the workspace; protected folders are rejected.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "oldPath": { "type": "string" },
+                    "newPath": { "type": "string" }
+                },
+                "required": ["oldPath", "newPath"],
                 "additionalProperties": false
             }),
             site: ToolSite::Server,
@@ -422,7 +565,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "plan_list",
-            description: "List Markdown plans in `<workspace>/.agents/plans/`. Each entry has `path`, `name`, `title`, `size`, `modified`, `isIndex`, and `taskSummary` ({ total, pending, inProgress, blocked, completed, cancelled }). Call before guessing about plans.",
+            description: "List Markdown plans in `<workspace>/.agents/plans/`. Normal plans are returned as canonical `<slug>/plan.md` paths. Each entry has `path`, `name`, `slug`, `folderPath`, `title`, `size`, `modified`, `isIndex`, and `taskSummary` ({ total, pending, inProgress, blocked, completed, cancelled }). Call before guessing about plans.",
             parameters: json!({
                 "type": "object",
                 "properties": {},
@@ -432,11 +575,11 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "plan_read",
-            description: "Read the Markdown body of one plan in `.agents/plans/` (path ends in `.md`). Returns `{ path, content, modified, isIndex }`. Output is truncated at 6000 chars.",
+            description: "Read the Markdown body of one plan in `.agents/plans/`. Accepts `slug`, legacy `slug.md`, or canonical `slug/plan.md`; returns canonical `{ path, content, modified, isIndex }`. Output is truncated at 6000 chars.",
             parameters: json!({
                 "type": "object",
                 "properties": {
-                    "path": { "type": "string", "description": "Plan path relative to `.agents/plans/`." }
+                    "path": { "type": "string", "description": "Plan path relative to `.agents/plans/`, preferably `slug/plan.md`." }
                 },
                 "required": ["path"],
                 "additionalProperties": false
@@ -445,7 +588,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "plan_create",
-            description: "Create a new plan under `.agents/plans/`. Path must end in `.md` and not exist. If `content` is omitted, the plan is seeded with `# <name>` and an empty `## Tasks` section. Content capped at 64 KiB.",
+            description: "Create a new plan under `.agents/plans/<slug>/plan.md`. Accepts `slug`, legacy `slug.md`, or canonical `slug/plan.md`; output path is canonical. If `content` is omitted, the plan is seeded with `# <slug>` and an empty `## Tasks` section. Content capped at 64 KiB.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -458,8 +601,54 @@ pub fn registry() -> Vec<ToolDef> {
             site: ToolSite::Server,
         },
         ToolDef {
+            name: "mermaid_create",
+            description: "Create a single Mermaid diagram. `code` is raw Mermaid source (e.g. `flowchart TD ...`). Provide `kind` (flowchart|sequence|class|state|er|gantt|mindmap|...) for labelling. When `plan_slug` is given the diagram is persisted under that plan's `diagrams/` folder and travels in git; optionally link it to a plan task via `task_id`. Without `plan_slug` it is an ad-hoc diagram shown inline in the chat (not persisted). Use this for plan/task illustrations and on user request. Returns a `diagrams` array.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "title":     { "type": "string" },
+                    "code":      { "type": "string" },
+                    "kind":      { "type": "string" },
+                    "plan_slug": { "type": "string" },
+                    "task_id":   { "type": "string" },
+                    "id":        { "type": "string", "description": "Optional stable kebab-case id; auto-derived from title when omitted." }
+                },
+                "required": ["title", "code"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "mermaid_create_many",
+            description: "Create several Mermaid diagrams at once. `diagrams` is an array of objects each with `title`, `code`, optional `kind`/`task_id`/`id`. A top-level `plan_slug` persists every diagram under that plan (per-item `plan_slug` overrides). Use when illustrating a plan from multiple angles or when the user asks for multiple diagrams. Returns a `diagrams` array.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "plan_slug": { "type": "string" },
+                    "diagrams": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "title":     { "type": "string" },
+                                "code":      { "type": "string" },
+                                "kind":      { "type": "string" },
+                                "task_id":   { "type": "string" },
+                                "id":        { "type": "string" }
+                            },
+                            "required": ["title", "code"],
+                            "additionalProperties": false
+                        }
+                    }
+                },
+                "required": ["diagrams"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
             name: "plan_write",
-            description: "Overwrite an existing plan Markdown file. Content capped at 64 KiB. Use `plan_sync_from_tasks` if you just want to update the task section.",
+            description: "Overwrite an existing plan Markdown file. Accepts `slug`, legacy `slug.md`, or canonical `slug/plan.md`; output path is canonical. Content capped at 64 KiB. Use `plan_sync_from_tasks` if you just want to update the task section.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -473,7 +662,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "plan_delete",
-            description: "Delete a plan Markdown file (cannot delete `PLANS.md`).",
+            description: "Delete a plan Markdown file or plan folder (cannot delete `PLANS.md`). Accepts `slug`, legacy `slug.md`, or canonical `slug/plan.md`.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -486,7 +675,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "plan_rename",
-            description: "Rename or move a plan within `.agents/plans/`. Cannot rename `PLANS.md`. Task records pointing at the old path are rewritten to the new path.",
+            description: "Rename a plan folder within `.agents/plans/`. Accepts `slug`, legacy `slug.md`, or canonical `slug/plan.md`; returns canonical `new-slug/plan.md`. Cannot rename `PLANS.md`. Task records pointing at the old path are rewritten to the new path.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -500,7 +689,7 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "plan_load",
-            description: "Parse a plan's `## Tasks` (or `## Todos`) section and load it into the workspace task manager. Replaces only tasks where `planPath == path`; free tasks stay untouched. Sets the snapshot's `activePlanPath` to this plan. Call after writing a plan or whenever you want to act from a plan.",
+            description: "Parse a plan's `## Tasks` (or `## Todos`) section and load it into the workspace task manager. Accepts `slug`, legacy `slug.md`, or canonical `slug/plan.md`; task `planPath` and `activePlanPath` become canonical. Free tasks stay untouched. Call after writing a plan or whenever you want to act from a plan.",
             parameters: json!({
                 "type": "object",
                 "properties": {
@@ -513,13 +702,104 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "plan_sync_from_tasks",
-            description: "Write the current state of plan-linked tasks back into the plan Markdown's `## Tasks` section. Use after re-ordering or batch-status-changing plan tasks via `task_*` tools.",
+            description: "Write the current state of plan-linked tasks back into the plan Markdown's `## Tasks` section. Accepts `slug`, legacy `slug.md`, or canonical `slug/plan.md`. Use after re-ordering or batch-status-changing plan tasks via `task_*` tools.",
             parameters: json!({
                 "type": "object",
                 "properties": {
                     "path": { "type": "string" }
                 },
                 "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "kanban_board_load",
+            description: "Load the active workspace Multi-Kanban board. Returns non-index plans, derived plan states, parsed plan tasks, runtime task links, and layout metadata. Plan/task content comes from `.agents/plans`; Kanban metadata is layout only.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "kanban_layout_save",
+            description: "Save workspace Kanban layout metadata only. Does not modify plan Markdown.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "layout": { "type": "object" }
+                },
+                "required": ["layout"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "kanban_task_create",
+            description: "Create a plan task from the Kanban board by appending a canonical task line to a plan's `## Tasks` section.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "planPath": { "type": "string" },
+                    "title": { "type": "string" },
+                    "status": { "type": "string", "enum": ["pending", "in_progress", "blocked", "completed", "cancelled"] }
+                },
+                "required": ["planPath", "title"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "kanban_task_update",
+            description: "Update one plan task from Kanban. Status/title changes rewrite the plan Markdown task line and best-effort sync mirrored runtime tasks.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "planPath": { "type": "string" },
+                    "taskId": { "type": "string" },
+                    "title": { "type": "string" },
+                    "status": { "type": "string", "enum": ["pending", "in_progress", "blocked", "completed", "cancelled"] }
+                },
+                "required": ["planPath", "taskId"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "kanban_task_delete",
+            description: "Delete one plan task line from a plan's `## Tasks` section.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "planPath": { "type": "string" },
+                    "taskId": { "type": "string" }
+                },
+                "required": ["planPath", "taskId"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "kanban_export_layout",
+            description: "Export Kanban layout metadata JSON. Does not include plan Markdown contents.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
+            name: "kanban_import_layout",
+            description: "Import Kanban layout metadata JSON. Validates schema and does not write plan Markdown contents.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "json": { "type": "string" }
+                },
+                "required": ["json"],
                 "additionalProperties": false
             }),
             site: ToolSite::Server,
@@ -536,11 +816,11 @@ pub fn registry() -> Vec<ToolDef> {
         },
         ToolDef {
             name: "plan_context_attach",
-            description: "Attach a plan file to BLXCode Agent context (kind `plan_file`). Use `plan_load` first if you also want the plan's tasks in the task manager.",
+            description: "Attach a plan file to BLXCode Agent context (kind `plan_file`). Accepts `slug`, legacy `slug.md`, or canonical `slug/plan.md`; stores the canonical path. Use `plan_load` first if you also want the plan's tasks in the task manager.",
             parameters: json!({
                 "type": "object",
                 "properties": {
-                    "path":  { "type": "string", "description": "Plan path relative to `.agents/plans/`." },
+                    "path":  { "type": "string", "description": "Plan path relative to `.agents/plans/`, preferably `slug/plan.md`." },
                     "label": { "type": "string" }
                 },
                 "required": ["path"],
@@ -870,6 +1150,170 @@ pub fn registry() -> Vec<ToolDef> {
             site: ToolSite::Client,
         },
         ToolDef {
+            name: "harness.workspace_list",
+            description: "List open workspaces in the BLXCode workbench and identify the active workspace.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.workspace_switch",
+            description: "Switch the visible workbench to another already-open workspace by id, title, or cwd.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "integer", "minimum": 1 },
+                    "title": { "type": "string" },
+                    "cwd": { "type": "string" }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.workspace_prev",
+            description: "Switch to the previous open workspace in sidebar order. Wraps at the beginning.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.workspace_next",
+            description: "Switch to the next open workspace in sidebar order. Wraps at the end.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.view_show",
+            description: "Show or focus a BLXCode workbench view/panel/tab.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "target": {
+                        "type": "string",
+                        "enum": ["agent", "browser", "plans", "memory", "rules", "skills", "settings", "terminals", "project_files", "git_diff", "git_graph"]
+                    }
+                },
+                "required": ["target"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.open_settings",
+            description: "Open the Settings center tab and focus a settings category.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "category": {
+                        "type": "string",
+                        "enum": ["app", "appearance", "shortcuts", "api_keys", "workspace", "agent_provider", "remote", "memory", "voice", "image"]
+                    }
+                },
+                "required": ["category"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.open_memory",
+            description: "Open the Memory view. Optionally focus one memory API path.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.open_plan",
+            description: "Open the Plans right-panel view. Optionally attach/read a plan path in follow-up plan tools.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.open_file",
+            description: "Open or focus a workspace-relative file preview center tab.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.open_diff",
+            description: "Open or focus a workspace-relative file diff center tab.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" },
+                    "staged": { "type": "boolean", "default": false }
+                },
+                "required": ["path"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.window_get_state",
+            description: "Return BLXCode main-window size and fullscreen/maximized state.",
+            parameters: json!({
+                "type": "object",
+                "properties": {},
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.window_set_size",
+            description: "Set BLXCode main-window inner size in logical pixels.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "width": { "type": "integer", "minimum": 480, "maximum": 7680 },
+                    "height": { "type": "integer", "minimum": 360, "maximum": 4320 }
+                },
+                "required": ["width", "height"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.window_set_fullscreen",
+            description: "Set BLXCode main-window fullscreen state.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "enabled": { "type": "boolean" }
+                },
+                "required": ["enabled"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
             name: "harness.list_terminals",
             description: "List terminal slots in the active workspace. Each entry has `slotId`, `agentSlug` (one of claude/codex/gemini/opencode/cursor or empty for plain shell), and `running` (whether a PTY session is currently attached). Use this before targeting a slot.",
             parameters: json!({
@@ -924,6 +1368,39 @@ pub fn registry() -> Vec<ToolDef> {
                     "slotId":    { "type": "integer", "minimum": 1 },
                     "agentSlug": { "type": "string", "enum": ["claude", "codex", "gemini", "opencode", "cursor"] },
                     "maxBytes":  { "type": "integer", "minimum": 1, "maximum": 65536, "default": 4096 }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.wait_terminal_output",
+            description: "Wait for terminal output from a targeted slot without consuming the user's terminal view. Use after `harness.send_terminal_keys` or `harness.send_agent_context` to observe CLI-agent responses. Supports `afterSeq` for incremental waits, `contains` for marker text, `idleMs` to wait until output settles, and returns `{ sessionId, seq, bytes, text, timedOut }`.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "slotId":    { "type": "integer", "minimum": 1 },
+                    "agentSlug": { "type": "string", "enum": ["claude", "codex", "gemini", "opencode", "cursor"] },
+                    "name":      { "type": "string", "description": "Friendly terminal name from `harness.list_terminals`." },
+                    "afterSeq":  { "type": "integer", "minimum": 0, "description": "Only complete after the terminal output sequence advances beyond this value." },
+                    "timeoutMs": { "type": "integer", "minimum": 1, "maximum": 120000, "default": 10000 },
+                    "idleMs":    { "type": "integer", "minimum": 0, "maximum": 30000, "default": 250, "description": "After matching output arrives, wait until no more output has arrived for this many milliseconds." },
+                    "maxBytes":  { "type": "integer", "minimum": 1, "maximum": 65536, "default": 4096 },
+                    "contains":  { "type": "string", "description": "Optional text that must appear in the returned rolling tail before the wait completes." }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.terminal_interrupt",
+            description: "Send Ctrl+C to a targeted running PTY terminal session. Use when an interactive shell or CLI agent is stuck, running too long, or the user asks to interrupt it. Address by `slotId` (preferred), friendly `name`, or `agentSlug`.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "slotId":    { "type": "integer", "minimum": 1 },
+                    "agentSlug": { "type": "string", "enum": ["claude", "codex", "gemini", "opencode", "cursor"] },
+                    "name":      { "type": "string", "description": "Friendly terminal name from `harness.list_terminals`." }
                 },
                 "additionalProperties": false
             }),
@@ -992,6 +1469,11 @@ pub fn registry() -> Vec<ToolDef> {
                                 "description": {
                                     "type": "string",
                                     "description": "Optional explanation of the option's implication or trade-off."
+                                },
+                                "setChatModeOnSelect": {
+                                    "type": "string",
+                                    "enum": ["allow_all"],
+                                    "description": "Optional. When the user selects this option, switch the current workspace Agent Chat mode to Full Access."
                                 }
                             },
                             "required": ["label"],
@@ -1014,9 +1496,124 @@ pub fn registry() -> Vec<ToolDef> {
             }),
             site: ToolSite::Client,
         },
+        ToolDef {
+            name: "harness.notifications_list",
+            description: "List persistent BLXCode Agent notifications from the titlebar bell feed.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "includeRead": { "type": "boolean", "default": false },
+                    "limit": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.notifications_create",
+            description: "Create or upsert a persistent in-app notification without sending a native OS toast.",
+            parameters: json!({
+                "type": "object",
+                "properties": notification_tool_properties(false),
+                "required": ["title", "kind"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.notifications_send",
+            description: "Create/upsert a persistent notification and best-effort native OS toast, but only when the Agent panel is not active if respectFocus is true.",
+            parameters: json!({
+                "type": "object",
+                "properties": notification_tool_properties(true),
+                "required": ["title", "kind"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.notifications_update",
+            description: "Update fields on one persistent Agent notification.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string" },
+                    "title": { "type": "string" },
+                    "body": { "type": "string" },
+                    "kind": { "type": "string" },
+                    "severity": { "type": "string", "enum": ["info", "success", "warning", "error"] },
+                    "source": { "type": "string" },
+                    "target": { "type": "object" },
+                    "read": { "type": "boolean" }
+                },
+                "required": ["id"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.notifications_remove",
+            description: "Remove one persistent Agent notification by id.",
+            parameters: json!({
+                "type": "object",
+                "properties": { "id": { "type": "string" } },
+                "required": ["id"],
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
+        ToolDef {
+            name: "harness.notifications_mark_read",
+            description: "Mark one Agent notification read by id, or all notifications read with all=true.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "id": { "type": "string" },
+                    "all": { "type": "boolean", "default": false }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Client,
+        },
     ];
     out.extend(crate::agent::tools_extra::extra_tool_defs());
     out
+}
+
+fn notification_tool_properties(include_respect_focus: bool) -> Value {
+    let mut props = serde_json::Map::new();
+    props.insert("id".into(), json!({ "type": "string" }));
+    props.insert("title".into(), json!({ "type": "string", "minLength": 1 }));
+    props.insert("body".into(), json!({ "type": "string" }));
+    props.insert(
+        "kind".into(),
+        json!({
+            "type": "string",
+            "enum": ["plan_completed", "task_completed", "error", "question", "cli_agent_response", "info"]
+        }),
+    );
+    props.insert(
+        "severity".into(),
+        json!({ "type": "string", "enum": ["info", "success", "warning", "error"], "default": "info" }),
+    );
+    props.insert("source".into(), json!({ "type": "string" }));
+    props.insert("target".into(), json!({ "type": "object" }));
+    props.insert("dedupeKey".into(), json!({ "type": "string" }));
+    props.insert(
+        "read".into(),
+        json!({ "type": "boolean", "default": false }),
+    );
+    if include_respect_focus {
+        props.insert(
+            "respectFocus".into(),
+            json!({
+                "type": "boolean",
+                "default": true,
+                "description": "When true, suppresses the notification if the Agent panel is visible and focused."
+            }),
+        );
+    }
+    Value::Object(props)
 }
 
 /// Find a tool definition by name. Tool names from the model are matched
@@ -1056,7 +1653,12 @@ pub fn execute_server_tool(
     root: Option<&WorkspaceRootGuard>,
     opts: Option<ToolExecOpts>,
 ) -> ToolOutcome {
-    let shell_writes = opts.map(|o| o.shell_writes).unwrap_or(false);
+    let opts = opts.unwrap_or_default();
+    let shell_writes = opts.shell_writes;
+    let origin = crate::agent::mermaid::tool::DiagramOrigin {
+        provider: opts.provider.clone(),
+        model: opts.model.clone(),
+    };
     match name {
         "environment_detect" => crate::agent::environment::tool_environment_detect(root),
         "shell_exec" => crate::agent::shell_exec::tool_shell_exec(args, root, shell_writes),
@@ -1069,6 +1671,7 @@ pub fn execute_server_tool(
         "git_show" => crate::agent::git_agent::tool_git_show(args, root),
         "git_branch_info" => crate::agent::git_agent::tool_git_branch_info(root),
         "git_ls_files" => crate::agent::git_agent::tool_git_ls_files(args, root),
+        "git_conflicts" => crate::agent::git_agent::tool_git_conflicts(args, root),
         "git_apply_patch" => crate::agent::git_agent::tool_git_apply_patch(args, root),
         "git_add" => crate::agent::git_agent::tool_git_add(args, root),
         "git_commit" => crate::agent::git_agent::tool_git_commit(args, root),
@@ -1077,6 +1680,10 @@ pub fn execute_server_tool(
         "list_tools" => tool_list_tools(),
         "read_workspace_file" => tool_read_workspace_file(args, root),
         "list_workspace_files" => tool_list_workspace_files(args, root),
+        "workspace_file_write" => tool_workspace_file_write(args, root),
+        "workspace_file_delete" => tool_workspace_file_delete(args, root),
+        "workspace_dir_create" => tool_workspace_dir_create(args, root),
+        "workspace_entry_rename" => tool_workspace_entry_rename(args, root),
         "memory_list" => tool_memory_list(root),
         "memory_read" => tool_memory_read(args, root),
         "memory_search" => tool_memory_search(args, root),
@@ -1102,6 +1709,15 @@ pub fn execute_server_tool(
         "plan_rename" => tool_plan_rename(args, root),
         "plan_load" => tool_plan_load(args, root),
         "plan_sync_from_tasks" => tool_plan_sync_from_tasks(args, root),
+        "mermaid_create" => tool_mermaid_create(args, root, &origin),
+        "mermaid_create_many" => tool_mermaid_create_many(args, root, &origin),
+        "kanban_board_load" => tool_kanban_board_load(root),
+        "kanban_layout_save" => tool_kanban_layout_save(args, root),
+        "kanban_task_create" => tool_kanban_task_create(args, root),
+        "kanban_task_update" => tool_kanban_task_update(args, root),
+        "kanban_task_delete" => tool_kanban_task_delete(args, root),
+        "kanban_export_layout" => tool_kanban_export_layout(root),
+        "kanban_import_layout" => tool_kanban_import_layout(args, root),
         "rules_list" => tool_rules_list(root),
         "rules_read" => tool_rules_read(args, root),
         "rules_write" => tool_rules_write(args, root),
@@ -1415,6 +2031,198 @@ fn tool_list_workspace_files(args: &Value, root: Option<&WorkspaceRootGuard>) ->
     }
 }
 
+fn tool_workspace_file_write(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(guard) = root else {
+        return ToolOutcome {
+            ok: false,
+            content: "no workspace configured".into(),
+        };
+    };
+    let path = match need_str(args, "path") {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    let content = match need_str(args, "content") {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    if content.len() > WORKSPACE_WRITE_MAX_BYTES {
+        return ToolOutcome {
+            ok: false,
+            content: "content exceeds 1 MiB".into(),
+        };
+    }
+    let create = args.get("create").and_then(|v| v.as_bool()).unwrap_or(true);
+    let (rel, full) = match resolve_workspace_new_path(root, path) {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    if !create && !full.exists() {
+        return ToolOutcome {
+            ok: false,
+            content: format!("file does not exist: {}", rel.display()),
+        };
+    }
+    if let Err(out) = ensure_parent_under_workspace(guard, &full) {
+        return out;
+    }
+    if full.exists() && full.is_dir() {
+        return ToolOutcome {
+            ok: false,
+            content: "target is a directory".into(),
+        };
+    }
+    let tmp = full.with_extension("blx-agent-tmp");
+    if let Err(e) = fs::write(&tmp, content) {
+        return ToolOutcome {
+            ok: false,
+            content: format!("write temp file: {e}"),
+        };
+    }
+    if let Err(e) = fs::rename(&tmp, &full) {
+        let _ = fs::remove_file(&tmp);
+        return ToolOutcome {
+            ok: false,
+            content: format!("rename temp file: {e}"),
+        };
+    }
+    ToolOutcome {
+        ok: true,
+        content: format!("wrote {}", rel.display()),
+    }
+}
+
+fn tool_workspace_file_delete(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(guard) = root else {
+        return ToolOutcome {
+            ok: false,
+            content: "no workspace configured".into(),
+        };
+    };
+    let path = match need_str(args, "path") {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    let (rel, full) = match resolve_workspace_new_path(root, path) {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    let Ok(canon) = fs::canonicalize(&full) else {
+        return ToolOutcome {
+            ok: false,
+            content: format!("path not found: {}", rel.display()),
+        };
+    };
+    if !guard.contains(&canon) {
+        return ToolOutcome {
+            ok: false,
+            content: "path escapes workspace root".into(),
+        };
+    }
+    let result = if canon.is_dir() {
+        fs::remove_dir_all(&canon)
+    } else {
+        fs::remove_file(&canon)
+    };
+    match result {
+        Ok(()) => ToolOutcome {
+            ok: true,
+            content: format!("deleted {}", rel.display()),
+        },
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: format!("delete {}: {e}", rel.display()),
+        },
+    }
+}
+
+fn tool_workspace_dir_create(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(guard) = root else {
+        return ToolOutcome {
+            ok: false,
+            content: "no workspace configured".into(),
+        };
+    };
+    let path = match need_str(args, "path") {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    let (rel, full) = match resolve_workspace_new_path(root, path) {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    if let Err(e) = fs::create_dir_all(&full) {
+        return ToolOutcome {
+            ok: false,
+            content: format!("create dir {}: {e}", rel.display()),
+        };
+    }
+    match fs::canonicalize(&full) {
+        Ok(canon) if guard.contains(&canon) => ToolOutcome {
+            ok: true,
+            content: format!("created directory {}", rel.display()),
+        },
+        Ok(_) => ToolOutcome {
+            ok: false,
+            content: "path escapes workspace root".into(),
+        },
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: format!("canonicalize created dir: {e}"),
+        },
+    }
+}
+
+fn tool_workspace_entry_rename(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(guard) = root else {
+        return ToolOutcome {
+            ok: false,
+            content: "no workspace configured".into(),
+        };
+    };
+    let old_path = match need_str(args, "oldPath") {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    let new_path = match need_str(args, "newPath") {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    let (old_rel, old_full) = match resolve_workspace_new_path(root, old_path) {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    let (new_rel, new_full) = match resolve_workspace_new_path(root, new_path) {
+        Ok(v) => v,
+        Err(out) => return out,
+    };
+    let Ok(old_canon) = fs::canonicalize(&old_full) else {
+        return ToolOutcome {
+            ok: false,
+            content: format!("path not found: {}", old_rel.display()),
+        };
+    };
+    if !guard.contains(&old_canon) {
+        return ToolOutcome {
+            ok: false,
+            content: "old path escapes workspace root".into(),
+        };
+    }
+    if let Err(out) = ensure_parent_under_workspace(guard, &new_full) {
+        return out;
+    }
+    match fs::rename(&old_canon, &new_full) {
+        Ok(()) => ToolOutcome {
+            ok: true,
+            content: format!("renamed {} -> {}", old_rel.display(), new_rel.display()),
+        },
+        Err(e) => ToolOutcome {
+            ok: false,
+            content: format!("rename: {e}"),
+        },
+    }
+}
+
 fn tool_list_tools() -> ToolOutcome {
     match catalog_json() {
         Ok(body) => ToolOutcome {
@@ -1714,7 +2522,9 @@ fn tool_memory_rebuild_architecture(root: Option<&WorkspaceRootGuard>) -> ToolOu
         Ok(s) => s,
         Err(out) => return out,
     };
-    match memory::memory_rebuild_architecture(ws.to_owned()) {
+    // Call the sync impl directly: tool dispatch already runs on the agent's
+    // background task, and the `#[tauri::command]` wrappers are now async.
+    match memory::architecture::rebuild_architecture_impl(&ws) {
         Ok(report) => {
             let body =
                 serde_json::to_string(&report).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
@@ -1735,7 +2545,7 @@ fn tool_memory_lint_architecture(root: Option<&WorkspaceRootGuard>) -> ToolOutco
         Ok(s) => s,
         Err(out) => return out,
     };
-    match memory::memory_lint_architecture(ws.to_owned()) {
+    match memory::architecture::lint_architecture_impl(&ws) {
         Ok(report) => {
             let body =
                 serde_json::to_string(&report).unwrap_or_else(|e| format!("{{\"error\":\"{e}\"}}"));
@@ -2099,6 +2909,36 @@ fn tool_plan_create(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutc
     }
 }
 
+fn tool_mermaid_create(
+    args: &Value,
+    root: Option<&WorkspaceRootGuard>,
+    origin: &crate::agent::mermaid::tool::DiagramOrigin,
+) -> ToolOutcome {
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match crate::agent::mermaid::tool::run_create(&ws, args, origin) {
+        Ok(content) => ToolOutcome { ok: true, content },
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_mermaid_create_many(
+    args: &Value,
+    root: Option<&WorkspaceRootGuard>,
+    origin: &crate::agent::mermaid::tool::DiagramOrigin,
+) -> ToolOutcome {
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match crate::agent::mermaid::tool::run_create_many(&ws, args, origin) {
+        Ok(content) => ToolOutcome { ok: true, content },
+        Err(e) => err_outcome(e),
+    }
+}
+
 fn tool_plan_write(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
     let path = match need_str(args, "path") {
         Ok(s) => s,
@@ -2194,6 +3034,176 @@ fn tool_plan_sync_from_tasks(args: &Value, root: Option<&WorkspaceRootGuard>) ->
     match plans::plan_sync_from_tasks_inner(&ws, path) {
         Ok(report) => json_outcome(&report),
         Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_kanban_board_load(root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match kanban::kanban_board_load_inner(&ws) {
+        Ok(board) => json_outcome(&board),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_kanban_layout_save(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let Some(layout_value) = args.get("layout") else {
+        return err_outcome("missing required field: layout".to_string());
+    };
+    let layout = match serde_json::from_value::<kanban::KanbanLayout>(layout_value.clone()) {
+        Ok(layout) => layout,
+        Err(e) => return err_outcome(format!("invalid layout: {e}")),
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match kanban::kanban_layout_save_inner(&ws, layout) {
+        Ok(layout) => json_outcome(&layout),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_kanban_task_create(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let plan_path = match need_str(args, "planPath") {
+        Ok(s) => s.to_owned(),
+        Err(o) => return o,
+    };
+    let title = match need_str(args, "title") {
+        Ok(s) => s.to_owned(),
+        Err(o) => return o,
+    };
+    let status = args
+        .get("status")
+        .and_then(|v| v.as_str())
+        .map(parse_task_status_arg)
+        .transpose();
+    let status = match status {
+        Ok(status) => status,
+        Err(out) => return out,
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match kanban::kanban_task_create_inner(
+        &ws,
+        kanban::KanbanTaskCreateInput {
+            plan_path,
+            title,
+            status,
+        },
+    ) {
+        Ok(card) => json_outcome(&card),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_kanban_task_update(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let plan_path = match need_str(args, "planPath") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let task_id = match need_str(args, "taskId") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let title = args
+        .get("title")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_owned());
+    let status = args
+        .get("status")
+        .and_then(|v| v.as_str())
+        .map(parse_task_status_arg)
+        .transpose();
+    let status = match status {
+        Ok(status) => status,
+        Err(out) => return out,
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match kanban::kanban_task_update_inner(
+        &ws,
+        plan_path,
+        task_id,
+        kanban::KanbanTaskUpdatePatch { title, status },
+    ) {
+        Ok(card) => json_outcome(&card),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_kanban_task_delete(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let plan_path = match need_str(args, "planPath") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let task_id = match need_str(args, "taskId") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match kanban::kanban_task_delete_inner(&ws, plan_path, task_id) {
+        Ok(()) => ToolOutcome {
+            ok: true,
+            content: format!("deleted kanban task {task_id} from {plan_path}"),
+        },
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_kanban_export_layout(root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match kanban::kanban_board_load_inner(&ws).and_then(|board| {
+        serde_json::to_string_pretty(&board.layout)
+            .map_err(|e| format!("serialize kanban layout: {e}"))
+    }) {
+        Ok(json) => ToolOutcome {
+            ok: true,
+            content: json,
+        },
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn tool_kanban_import_layout(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+    let raw = match need_str(args, "json") {
+        Ok(s) => s,
+        Err(o) => return o,
+    };
+    let layout = match serde_json::from_str::<kanban::KanbanLayout>(raw) {
+        Ok(layout) => layout,
+        Err(e) => return err_outcome(format!("invalid kanban layout JSON: {e}")),
+    };
+    let ws = match workspace_string(root) {
+        Ok(s) => s,
+        Err(out) => return out,
+    };
+    match kanban::kanban_layout_save_inner(&ws, layout) {
+        Ok(layout) => json_outcome(&layout),
+        Err(e) => err_outcome(e),
+    }
+}
+
+fn parse_task_status_arg(raw: &str) -> Result<TaskStatus, ToolOutcome> {
+    match raw {
+        "pending" => Ok(TaskStatus::Pending),
+        "in_progress" => Ok(TaskStatus::InProgress),
+        "blocked" => Ok(TaskStatus::Blocked),
+        "completed" => Ok(TaskStatus::Completed),
+        "cancelled" => Ok(TaskStatus::Cancelled),
+        other => Err(err_outcome(format!("unknown task status: {other}"))),
     }
 }
 

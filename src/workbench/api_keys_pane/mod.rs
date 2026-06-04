@@ -12,6 +12,7 @@ use crate::tauri_bridge::{
     api_keys_apply, api_keys_status, is_tauri_shell, ApiKeyAction, ApiKeyCategory, ApiKeyEntry,
     ApiKeysStatus,
 };
+use crate::workbench::SettingsPaneHeader;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
@@ -32,6 +33,10 @@ fn api_key_brand_icon_url(kind: &str) -> Option<&'static str> {
         "openrouter" => Some("/public/brand-icons/openrouter.svg"),
         "anthropic" => Some("/public/brand-icons/anthropic.svg"),
         "openai" => Some("/public/brand-icons/openai.svg"),
+        "huggingFace" => Some("/public/brand-icons/provider.svg"),
+        "cloudflare" => Some("/public/brand-icons/provider.svg"),
+        "together" => Some("/public/brand-icons/provider.svg"),
+        "portkey" => Some("/public/brand-icons/provider.svg"),
         "google" => Some("/public/brand-icons/gemini.svg"),
         "mistral" => Some("/public/brand-icons/mistral.svg"),
         "grok" => Some("/public/brand-icons/grok.svg"),
@@ -179,14 +184,18 @@ pub fn ApiKeysPane() -> impl IntoView {
 
     view! {
         <article class="harness-pane api-keys-pane">
-            <h3 class="harness-pane-title">
-                <span class="harness-pane-title__icon" aria-hidden="true">
-                    <LxIcon icon=icondata::LuKeyRound width="1.02rem" height="1.02rem" />
-                </span>
-                <span class="harness-pane-title__text">{move || i18n.tr(I18nKey::ApiKeysHeading)()}</span>
-            </h3>
+            <SettingsPaneHeader
+                icon=icondata::LuKeyRound
+                title=I18nKey::ApiKeysHeading
+                description=I18nKey::ApiKeysDescription
+            />
 
-            <p class="harness-muted">{move || i18n.tr(I18nKey::AgApiKeyHint)()}</p>
+            <div class="harness-inline-notice" role="note">
+                <span class="harness-inline-notice__icon" aria-hidden="true">
+                    <LxIcon icon=icondata::LuInfo width="0.9rem" height="0.9rem" />
+                </span>
+                <span>{move || i18n.tr(I18nKey::AgApiKeyHint)()}</span>
+            </div>
 
             <section class="harness-subpane">
                 <h4 class="harness-pane-subhead">

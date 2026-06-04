@@ -1,3 +1,9 @@
+---
+name: memory
+description: Persist and retrieve workspace memory, learnings, architecture notes, categories, and context attachments.
+categorie: memory
+---
+
 # Workspace Memory
 
 Persist and retrieve notes and learnings scoped to the active workspace.
@@ -36,16 +42,10 @@ Returns graph nodes/edges/tags clustered by category. Use for a high-level overv
 ### `memory_backlinks { path }`
 Returns notes that link to the given path via `[[wikilinks]]`.
 
-### `memory_list_categories`
-Lists every category present in the workspace (built-in + user-created folders).
-
-### `memory_create_category { name }`
-Creates an empty category (subfolder under `.agents/memory/`). Use sparingly — prefer creating the first note with a `<category>/<note>.md` path instead.
-
 ## Category UI & agent context (client-side)
 
 ### `memory_category_list`
-Returns label/color/sidebar/graph flags for every visible category.
+Returns label/color/sidebar/graph flags for every visible category. Categories are derived from built-in roots and subfolders under `.agents/memory/`; create the first note with `memory_create { path: "<category>/<note>.md" }` when a new category is needed.
 
 ### `memory_category_update { category, label?, color?, showInSidebar?, showInGraph? }`
 Updates display settings for a category. `color` as `#rrggbb`.
@@ -64,6 +64,14 @@ Lists images attached to the active Agent context.
 
 ### `image_context_detach { id }`
 Removes an attached image by id.
+
+## Architecture helpers
+
+### `memory_rebuild_architecture { maxFiles?, maxBytesPerFile?, force? }`
+Regenerates the harness architecture map under `.agents/memory/architecture/` and refreshes `ARCHITECTURE.md`.
+
+### `memory_lint_architecture`
+Checks architecture-map consistency and reports stale/missing module notes.
 
 ## When to read / write
 

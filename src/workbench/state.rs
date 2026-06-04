@@ -1,15 +1,18 @@
-use crate::agent_wire::{AgentContextItem, AgentImageContextItem};
+use crate::agent_wire::{AgentChatMode, AgentContextItem, AgentImageContextItem};
 use crate::config::{
     DEFAULT_PROJECT_DIR_KEY, HARNESS_BROWSER_DEFAULT_URL, HARNESS_BROWSER_URL_KEY,
     HARNESS_WORKSPACE_ROOT_KEY, MEMORY_COLOR_PRESETS_STORAGE_KEY, SIDEBAR_WIDTH_PX_DEFAULT,
     SIDEBAR_WIDTH_PX_KEY,
 };
 use crate::tauri_bridge::{
-    agent_environment_invalidate, is_tauri_shell, skills_rules_bootstrap, workbench_drop_sessions,
+    agent_environment_invalidate, is_tauri_shell, workbench_drop_sessions,
     workbench_extract_sessions_prefix, workbench_merge_sessions_workspace,
-    workbench_rewrite_terminal_keys, workspace_ensure_agents,
+    workbench_rewrite_terminal_keys, AgentNotification, TimelineDiagram,
 };
 use crate::workbench::agent_timeline::TimelineDoc;
+use crate::workbench::terminal_agent_profiles::{
+    is_supported_terminal_agent_slug, supported_terminal_agent_slugs,
+};
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -53,6 +56,16 @@ pub struct WorkspaceEntry {
     pub slot_ids: Vec<u64>,
     /// One label/slug per terminal slot (e.g. `"claude"` or empty after skip).
     pub slot_agent_labels: Vec<String>,
+    /// Optional CLI model id per terminal slot, parallel to `slot_agent_labels`.
+    /// Empty entries use the agent's own default model. Chosen in the
+    /// Create-Workspace fleet step from the per-CLI built-in model catalog.
+    #[serde(default)]
+    pub slot_agent_models: Vec<String>,
+    /// Optional reasoning effort per terminal slot, parallel to
+    /// `slot_agent_labels` / `slot_agent_models`. Empty entries use the CLI's
+    /// own default effort.
+    #[serde(default)]
+    pub slot_agent_efforts: Vec<String>,
     /// Split-pane state per slot, parallel-indexed to `slot_ids`. Missing
     /// entries (older snapshots, freshly-created slots) fall back to a
     /// single un-split pane via [`SlotPaneState::default_for_slot`].
@@ -73,6 +86,13 @@ pub struct WorkspaceEntry {
     /// Image-generation toggle for the agent chat (per workspace).
     #[serde(default)]
     pub agent_image_mode: bool,
+    /// Execution/approval mode for the current Agent Chat session.
+    #[serde(default)]
+    pub agent_chat_mode: AgentChatMode,
+    /// When true, the composer runs a separate one-shot prompt enhancement
+    /// before submitting the user turn. Per workspace/session, default off.
+    #[serde(default)]
+    pub agent_enhance_prompt_before_send: bool,
     /// Default-off setting for future optional LLM prose synthesis into the
     /// architecture map. Current rebuilds remain deterministic and non-LLM.
     #[serde(default)]
@@ -117,6 +137,34 @@ pub struct WorkspaceEntry {
     /// of a local shell. `None` (default, back-compat) means a local workspace.
     #[serde(default)]
     pub remote_connection_id: Option<String>,
+    /// Per-slot friendly-name overrides, keyed by `slot_id`. Empty by
+    /// default; an entry takes precedence over the deterministic name pool
+    /// when the terminal naming mode is `names`. Keyed by `slot_id` (not a
+    /// parallel vector) so it survives slot insertion/removal without
+    /// index maintenance.
+    #[serde(default)]
+    pub slot_name_overrides: HashMap<u64, String>,
+    /// Active BLXCode harness session-role slug (specialized skill) for this
+    /// workspace, e.g. `"coordinator"`. `None` = default agent. Persisted with
+    /// the workspace snapshot so the role is restored on reload and handed to
+    /// the agent each turn via `UserTurn.session_role`.
+    #[serde(default)]
+    pub agent_session_role: Option<String>,
+    /// Active workspace view mode. Legacy snapshots default to Grid.
+    #[serde(default)]
+    pub view_mode: WorkspaceViewMode,
+    /// Canvas viewport, terminal positions, and display filters.
+    #[serde(default)]
+    pub canvas_view_state: CanvasViewState,
+    /// User-created Canvas routing edges.
+    #[serde(default)]
+    pub canvas_edges: Vec<CanvasEdge>,
+    /// Default transfer behavior for newly created Canvas edges.
+    #[serde(default)]
+    pub canvas_default_transfer_mode: CanvasTransferMode,
+    /// Swarm graph display state.
+    #[serde(default)]
+    pub swarm_view_state: SwarmViewState,
 }
 
 fn default_sidebar_section_open() -> bool {
@@ -127,6 +175,7 @@ fn default_sidebar_graph_open() -> bool {
     false
 }
 
+pub const CENTER_KANBAN_TAB_ID: u64 = 0;
 pub const CENTER_TERMINALS_TAB_ID: u64 = 1;
 
 fn default_center_active_tab_id() -> u64 {
@@ -138,7 +187,7 @@ fn default_center_next_tab_id() -> u64 {
 }
 
 fn default_center_tabs() -> Vec<CenterTab> {
-    vec![CenterTab::terminals()]
+    vec![CenterTab::kanban(), CenterTab::terminals()]
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -151,6 +200,15 @@ pub struct CenterTab {
 
 impl CenterTab {
     #[must_use]
+    pub fn kanban() -> Self {
+        Self {
+            id: CENTER_KANBAN_TAB_ID,
+            title: "Kanban".into(),
+            kind: CenterTabKind::Kanban,
+        }
+    }
+
+    #[must_use]
     pub fn terminals() -> Self {
         Self {
             id: CENTER_TERMINALS_TAB_ID,
@@ -158,13 +216,26 @@ impl CenterTab {
             kind: CenterTabKind::Terminals,
         }
     }
+
+    #[must_use]
+    pub fn mode(mode: WorkspaceViewMode) -> Self {
+        Self {
+            id: CENTER_TERMINALS_TAB_ID,
+            title: mode.title().into(),
+            kind: mode.tab_kind(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "type")]
 pub enum CenterTabKind {
+    Kanban,
     Terminals,
+    Canvas,
+    Swarm,
     Settings,
+    Memory,
     FilePreview {
         rel_path: String,
     },
@@ -174,6 +245,180 @@ pub enum CenterTabKind {
         rel_path: String,
         staged: bool,
     },
+    /// Centered Mermaid diagram gallery for a plan's diagram set.
+    DiagramGallery {
+        /// Plan slug whose `diagrams/` folder is shown.
+        slug: String,
+    },
+    /// Centered gallery for an ephemeral (non-persisted) diagram group opened
+    /// from the agent timeline. The diagrams are embedded directly since they
+    /// live only in the chat, not in any plan's `diagrams/` folder.
+    DiagramGroup {
+        title: String,
+        diagrams: Vec<TimelineDiagram>,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WorkspaceViewMode {
+    #[default]
+    Grid,
+    Canvas,
+    Swarm,
+}
+
+impl WorkspaceViewMode {
+    #[must_use]
+    pub fn title(self) -> &'static str {
+        match self {
+            Self::Grid => "Terminals",
+            Self::Canvas => "Canvas",
+            Self::Swarm => "Swarm",
+        }
+    }
+
+    #[must_use]
+    pub fn tab_kind(self) -> CenterTabKind {
+        match self {
+            Self::Grid => CenterTabKind::Terminals,
+            Self::Canvas => CenterTabKind::Canvas,
+            Self::Swarm => CenterTabKind::Swarm,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CanvasTransferMode {
+    Raw,
+    #[default]
+    Structured,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasNodeLayout {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+impl CanvasNodeLayout {
+    #[must_use]
+    pub fn for_index(index: usize) -> Self {
+        let col = index % 2;
+        let row = index / 2;
+        Self {
+            x: 48.0 + col as f64 * 460.0,
+            y: 52.0 + row as f64 * 330.0,
+            width: 420.0,
+            height: 260.0,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasViewState {
+    pub pan_x: f64,
+    pub pan_y: f64,
+    pub zoom: f64,
+    #[serde(default)]
+    pub terminal_nodes: HashMap<u64, CanvasNodeLayout>,
+    #[serde(default)]
+    pub selected_node_ids: Vec<String>,
+    #[serde(default)]
+    pub selected_edge_ids: Vec<String>,
+    #[serde(default = "default_true")]
+    pub show_agent_links: bool,
+}
+
+impl Default for CanvasViewState {
+    fn default() -> Self {
+        Self {
+            pan_x: 0.0,
+            pan_y: 0.0,
+            zoom: 1.0,
+            terminal_nodes: HashMap::new(),
+            selected_node_ids: Vec::new(),
+            selected_edge_ids: Vec::new(),
+            show_agent_links: true,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasPortRef {
+    pub node_kind: CanvasNodeKind,
+    #[serde(default)]
+    pub slot_id: Option<u64>,
+    #[serde(default)]
+    pub pane_id: Option<u64>,
+    pub direction: CanvasPortDirection,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CanvasNodeKind {
+    Terminal,
+    AgentHub,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CanvasPortDirection {
+    Stdin,
+    Stdout,
+    AgentCommand,
+    AgentObserve,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasEdge {
+    pub id: String,
+    pub source: CanvasPortRef,
+    pub target: CanvasPortRef,
+    #[serde(default)]
+    pub transfer_mode: CanvasTransferMode,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SwarmViewState {
+    #[serde(default)]
+    pub selected_node_id: Option<String>,
+    #[serde(default)]
+    pub node_positions: HashMap<String, SwarmNodeLayout>,
+    #[serde(default = "default_true")]
+    pub show_agent_links: bool,
+    #[serde(default = "default_true")]
+    pub show_idle: bool,
+}
+
+impl Default for SwarmViewState {
+    fn default() -> Self {
+        Self {
+            selected_node_id: None,
+            node_positions: HashMap::new(),
+            show_agent_links: true,
+            show_idle: true,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SwarmNodeLayout {
+    pub x: f64,
+    pub y: f64,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// Aggregated token / cost stats for a workspace's agent chat. Each
@@ -205,6 +450,21 @@ pub struct ChatUsageStats {
     /// main agent and subagents). Rendered as `N turns` in the chat header.
     #[serde(default)]
     pub turn_count: u32,
+    /// Input tokens reported by the **most recent main-agent `ModelRound`**.
+    /// Unlike `total_input_tokens` (a cumulative sum used for cost), this is
+    /// the live context-window occupancy: each provider round re-sends the
+    /// whole conversation, so the latest round's prompt size is "tokens
+    /// currently in the window". Drives the chat-header context meter; reset
+    /// on clear and overwritten after a compaction. Subagent rounds are
+    /// excluded (they don't sit in the main conversation window).
+    #[serde(default)]
+    pub last_round_input_tokens: u64,
+    /// Epoch-ms timestamp of the **first user turn** in the current session.
+    /// Mirrored from the timeline on submit; cleared by `clear_chat_usage`
+    /// (alongside `agent_clear_conversation`). Drives the "Session start" row
+    /// in the agent stats panel. Persisted so it survives reloads.
+    #[serde(default)]
+    pub session_started_at: Option<f64>,
     /// Highest `turn_generation` observed in a `TurnUsage` event for this
     /// workspace. Events stamped with a lower generation are dropped — they
     /// belong to a turn that was cancelled by `agent_clear_conversation`.
@@ -424,11 +684,15 @@ impl WorkspaceEntry {
             next_terminal_id: 1,
             slot_ids: Vec::new(),
             slot_agent_labels: Vec::new(),
+            slot_agent_models: Vec::new(),
+            slot_agent_efforts: Vec::new(),
             slot_pane_states: Vec::new(),
             configuring: false,
             agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            agent_chat_mode: AgentChatMode::AskEdits,
+            agent_enhance_prompt_before_send: false,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
@@ -441,6 +705,13 @@ impl WorkspaceEntry {
             center_active_tab_id: default_center_active_tab_id(),
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
+            slot_name_overrides: HashMap::new(),
+            agent_session_role: None,
+            view_mode: WorkspaceViewMode::Grid,
+            canvas_view_state: CanvasViewState::default(),
+            canvas_edges: Vec::new(),
+            canvas_default_transfer_mode: CanvasTransferMode::Structured,
+            swarm_view_state: SwarmViewState::default(),
         }
     }
 
@@ -462,7 +733,7 @@ impl WorkspaceEntry {
     fn grid_heuristic(n: u8) -> (u8, u8) {
         let n = n.max(1) as u32;
         let cols = ((n as f64).sqrt().ceil() as u32).max(1);
-        let rows = (n + cols - 1) / cols;
+        let rows = n.div_ceil(cols);
         (rows as u8, cols as u8)
     }
 
@@ -474,13 +745,97 @@ impl WorkspaceEntry {
     }
 }
 
+fn should_have_workspace_pinned_tabs(workspace: &WorkspaceEntry) -> bool {
+    workspace_entry_has_folder(workspace) || workspace.configuring
+}
+
+fn ensure_workspace_pinned_tabs(workspace: &mut WorkspaceEntry) {
+    if !should_have_workspace_pinned_tabs(workspace) {
+        return;
+    }
+    if !workspace
+        .center_tabs
+        .iter()
+        .any(|tab| matches!(tab.kind, CenterTabKind::Kanban))
+    {
+        workspace.center_tabs.insert(0, CenterTab::kanban());
+    }
+    // Collapse every view-mode tab into a single canonical one. The terminal
+    // grid / Canvas / Swarm views are *one* mutable tab; older or corrupted
+    // snapshots could carry more than one mode tab, which then rendered as two
+    // centered tabs (e.g. Terminals + Swarm) sharing `CENTER_TERMINALS_TAB_ID`
+    // — making the duplicate appear unclickable. Keep the first, drop the rest.
+    let mut seen_mode_tab = false;
+    workspace.center_tabs.retain(|tab| {
+        let is_mode = is_workspace_mode_tab_kind(&tab.kind) || tab.id == CENTER_TERMINALS_TAB_ID;
+        if is_mode {
+            if seen_mode_tab {
+                return false;
+            }
+            seen_mode_tab = true;
+        }
+        true
+    });
+    if let Some(tab) = workspace
+        .center_tabs
+        .iter_mut()
+        .find(|tab| is_workspace_mode_tab_kind(&tab.kind) || tab.id == CENTER_TERMINALS_TAB_ID)
+    {
+        tab.id = CENTER_TERMINALS_TAB_ID;
+        tab.title = workspace.view_mode.title().into();
+        tab.kind = workspace.view_mode.tab_kind();
+    } else {
+        let insert_at = workspace
+            .center_tabs
+            .iter()
+            .position(|tab| matches!(tab.kind, CenterTabKind::Kanban))
+            .map(|idx| idx.saturating_add(1))
+            .unwrap_or(0)
+            .min(workspace.center_tabs.len());
+        workspace
+            .center_tabs
+            .insert(insert_at, CenterTab::mode(workspace.view_mode));
+    }
+    workspace.center_tabs.sort_by_key(|tab| match tab.kind {
+        CenterTabKind::Kanban => (0_u8, tab.id),
+        CenterTabKind::Terminals | CenterTabKind::Canvas | CenterTabKind::Swarm => (1_u8, tab.id),
+        _ => (2_u8, tab.id),
+    });
+}
+
+fn is_workspace_mode_tab_kind(kind: &CenterTabKind) -> bool {
+    matches!(
+        kind,
+        CenterTabKind::Terminals | CenterTabKind::Canvas | CenterTabKind::Swarm
+    )
+}
+
+fn valid_canvas_edge(source: &CanvasPortRef, target: &CanvasPortRef) -> bool {
+    use CanvasNodeKind::{AgentHub, Terminal};
+    use CanvasPortDirection::{AgentCommand, AgentObserve, Stdin, Stdout};
+
+    if source == target {
+        return false;
+    }
+    matches!(
+        (
+            source.node_kind,
+            source.direction,
+            target.node_kind,
+            target.direction
+        ),
+        (Terminal, Stdout, Terminal, Stdin)
+            | (Terminal, Stdout, AgentHub, AgentObserve)
+            | (AgentHub, AgentCommand, Terminal, Stdin)
+    )
+}
+
 /// Repair `center_active_tab_id` / `center_next_tab_id` so they stay
-/// consistent with `center_tabs`. Does **not** re-insert a Terminals tab —
-/// callers (`open_center_terminals_tab`, wizard commit, …) decide when a
-/// Terminals tab should exist. When `center_tabs` is empty, `active_tab_id`
-/// is left at `0` to signal "no tab"; the close-flow upgrades this to a
-/// full `close_workspace` via the empty-tabs fallback.
+/// consistent with `center_tabs`. Real/configuring workspaces always get the
+/// pinned Kanban and current view-mode tabs; ephemeral shell workspaces keep
+/// only the tabs the caller explicitly opens.
 fn repair_center_tab_state(workspace: &mut WorkspaceEntry) {
+    ensure_workspace_pinned_tabs(workspace);
     if workspace.center_tabs.is_empty() {
         workspace.center_active_tab_id = 0;
     } else if !workspace
@@ -488,7 +843,13 @@ fn repair_center_tab_state(workspace: &mut WorkspaceEntry) {
         .iter()
         .any(|tab| tab.id == workspace.center_active_tab_id)
     {
-        workspace.center_active_tab_id = workspace.center_tabs[0].id;
+        workspace.center_active_tab_id = workspace
+            .center_tabs
+            .iter()
+            .find(|tab| tab.id == CENTER_TERMINALS_TAB_ID)
+            .or_else(|| workspace.center_tabs.first())
+            .map(|tab| tab.id)
+            .unwrap_or(0);
     }
     let max_id = workspace
         .center_tabs
@@ -523,20 +884,6 @@ pub(crate) fn workspace_entry_has_folder(ws: &WorkspaceEntry) -> bool {
     !normalize_cwd_key(&ws.cwd).is_empty()
 }
 
-fn spawn_ensure_agents_layout(cwd: String) {
-    let trimmed = cwd.trim();
-    if trimmed.is_empty() || !is_tauri_shell() {
-        return;
-    }
-    let cwd = trimmed.to_owned();
-    spawn_local(async move {
-        let _ = workspace_ensure_agents(&cwd).await;
-        // First-touch bootstrap of `.agents/{rules,skills}/index.json` — runs
-        // after `workspace_ensure_agents` so the `.agents/` parent exists.
-        let _ = skills_rules_bootstrap(cwd).await;
-    });
-}
-
 fn normalize_workspace_agent_labels(
     terminal_count: usize,
     agent_slugs: &[String],
@@ -549,9 +896,15 @@ fn normalize_workspace_agent_labels(
     let mut out = Vec::with_capacity(terminal_count);
     for slug in agent_slugs {
         let normalized = slug.trim().to_ascii_lowercase();
-        match normalized.as_str() {
-            "" | "claude" | "codex" | "gemini" | "opencode" | "cursor" => out.push(normalized),
-            _ => return Err(format!("unsupported agent slug: {slug}")),
+        if normalized.is_empty() || is_supported_terminal_agent_slug(&normalized) {
+            out.push(normalized);
+        } else {
+            let supported = supported_terminal_agent_slugs()
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(format!(
+                "unsupported agent slug: {slug} (supported: {supported})"
+            ));
         }
     }
     while out.len() < terminal_count {
@@ -580,6 +933,19 @@ pub struct CreateWorkspaceDraft {
     /// (default) keeps it local. For remote, `cwd_display` becomes the optional
     /// remote start directory rather than a validated local path.
     pub remote_connection_id: Option<String>,
+    /// Selected BLXCode harness session-role slug (specialized skill), or `None`
+    /// for the default agent. Carried into the created `WorkspaceEntry`.
+    pub session_role: Option<String>,
+    /// Optional per-slot friendly names (index = slot 0..terminal_count). Empty
+    /// entries keep the deterministic terminal name. Captured by presets.
+    pub slot_names: Vec<String>,
+    /// Selected CLI model id per agent row, parallel to `agent_counts` /
+    /// `WORKSPACE_FLEET_AGENT_SLUGS`. Empty = the agent's default model.
+    pub agent_models: [String; 5],
+    /// Selected reasoning effort per agent row. Empty = the CLI's default
+    /// effort, or no launch override for CLIs that only support config-file
+    /// effort.
+    pub agent_efforts: [String; 5],
 }
 
 impl Default for CreateWorkspaceDraft {
@@ -594,6 +960,10 @@ impl Default for CreateWorkspaceDraft {
             agent_counts: [0; 5],
             agents_skipped: false,
             remote_connection_id: None,
+            session_role: None,
+            slot_names: Vec::new(),
+            agent_models: Default::default(),
+            agent_efforts: Default::default(),
         }
     }
 }
@@ -618,6 +988,47 @@ pub fn fleet_counts_to_slot_labels(n: usize, counts: &[u8; 5]) -> Vec<String> {
     }
     out.truncate(n);
     out
+}
+
+/// Build per-slot model ids parallel to `slot_agent_labels`. Each slot's label
+/// (agent slug) is matched to its row in `WORKSPACE_FLEET_AGENT_SLUGS` to pull
+/// the chosen `agent_models` entry; unknown/empty labels yield an empty model.
+#[must_use]
+pub fn fleet_slot_models_for_labels(labels: &[String], agent_models: &[String; 5]) -> Vec<String> {
+    labels
+        .iter()
+        .map(|label| {
+            let slug = label.trim();
+            WORKSPACE_FLEET_AGENT_SLUGS
+                .iter()
+                .position(|s| *s == slug)
+                .and_then(|row| agent_models.get(row))
+                .map(|m| m.trim().to_string())
+                .unwrap_or_default()
+        })
+        .collect()
+}
+
+/// Build per-slot reasoning-effort ids parallel to `slot_agent_labels`. Each
+/// slot's label (agent slug) is matched to its row in
+/// `WORKSPACE_FLEET_AGENT_SLUGS`; unknown/empty labels yield an empty effort.
+#[must_use]
+pub fn fleet_slot_efforts_for_labels(
+    labels: &[String],
+    agent_efforts: &[String; 5],
+) -> Vec<String> {
+    labels
+        .iter()
+        .map(|label| {
+            let slug = label.trim();
+            WORKSPACE_FLEET_AGENT_SLUGS
+                .iter()
+                .position(|s| *s == slug)
+                .and_then(|row| agent_efforts.get(row))
+                .map(|e| e.trim().to_string())
+                .unwrap_or_default()
+        })
+        .collect()
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -689,10 +1100,13 @@ pub enum HarnessSettingsCategory {
     ApiKeys,
     Workspace,
     AgentProvider,
+    Heartbeat,
     Remote,
     Memory,
+    Mcp,
     Voice,
     Image,
+    CodeEditor,
 }
 
 /// Live state of the "Close Terminals tab" confirmation overlay. The 10s
@@ -720,6 +1134,7 @@ pub struct ConfirmRequest {
     /// Style the confirm button as destructive (red).
     pub danger: bool,
     pub on_confirm: Callback<()>,
+    pub on_cancel: Option<Callback<()>>,
 }
 
 #[derive(Clone, Copy)]
@@ -1076,6 +1491,17 @@ pub struct EmbeddedBrowserTab {
 #[derive(Clone, Copy)]
 pub struct BrowserEmbedSurface(pub RwSignal<Option<String>>);
 
+/// Live title info a terminal cell publishes for the title-bar breadcrumb.
+/// `auto` is the OSC/auto title (empty when none yet); `label` is the resolved
+/// slot label (`#2` or friendly name per the naming mode); `slot` is the
+/// numeric slot id used to disambiguate terminals with identical auto titles.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TerminalBreadcrumb {
+    pub slot: u64,
+    pub auto: String,
+    pub label: String,
+}
+
 /// Application layout + workspace selection (sidebar, center, inspector).
 #[derive(Clone, Copy)]
 pub struct WorkbenchService {
@@ -1097,6 +1523,10 @@ pub struct WorkbenchService {
     /// cwds. Sandbox path above is reserved for BLXCode Agent sandbox
     /// actions only; this is what regular workspaces start from.
     default_project_dir: RwSignal<String>,
+    /// Global default BLXCode harness session-role slug for newly-created
+    /// workspaces. Persisted in agent provider settings, mirrored here so
+    /// Settings panes and the workspace wizard share one reactive value.
+    default_session_role: RwSignal<Option<String>>,
     workspace_next_id: RwSignal<u64>,
     /// Drafts for workspaces currently in inline-configuration mode,
     /// keyed by workspace id. Entries are removed on commit or cancel.
@@ -1116,6 +1546,8 @@ pub struct WorkbenchService {
     terminal_layout_tick: RwSignal<u32>,
     /// Unread counts per `"{workspace_id}:{slot_id}:{pane_id}"` from agent notify hooks.
     notifications: RwSignal<HashMap<String, u32>>,
+    /// Persistent BLXCode Agent notification feed shown in the titlebar bell.
+    agent_notifications: RwSignal<Vec<AgentNotification>>,
     /// Keys recently cleared in-memory while the async backend disk-write is still in flight.
     /// The notification poller filters these out so a freshly-cleared key cannot reappear
     /// before `workbench_clear_terminal_notifications` lands on disk.
@@ -1124,12 +1556,24 @@ pub struct WorkbenchService {
     /// `storage_key` (UUID). Survives workspace switches. The value is the
     /// full `terminal_key`.
     focused_terminal_by_workspace: RwSignal<HashMap<String, String>>,
+    /// Live title info per terminal, keyed by the full `terminal_key`.
+    /// Published by each terminal cell as the header title changes. Read by
+    /// the app title bar breadcrumb. Session-only; not part of
+    /// `WorkbenchSnapshot`.
+    terminal_titles: RwSignal<HashMap<String, TerminalBreadcrumb>>,
     memory_color_presets: RwSignal<Vec<MemoryColorPreset>>,
     /// Session-only image context; intentionally not part of WorkbenchSnapshot.
     agent_image_context: RwSignal<HashMap<u64, Vec<WorkspaceAgentImage>>>,
     /// Bumped when the active workspace repo root changes (e.g. inline configure
     /// commit). Agent timeline/draft updates must not re-subscribe sidebar git checks.
     sidebar_repo_epoch: RwSignal<u32>,
+    /// Bumped when `.agents/plans/` content changes through any workspace UI.
+    /// PlansPanel and WorkspaceKanban both subscribe to this to stay in sync
+    /// without directly coupling their local component state.
+    plans_epoch: RwSignal<u32>,
+    /// Session-only request for Kanban to reveal a specific plan after it has
+    /// loaded the current board.
+    kanban_plan_focus: RwSignal<Option<KanbanPlanFocusRequest>>,
     /// Old `terminal_key`s whose PTY is currently being adopted by a new
     /// cell mount (Cross-workspace transfer or extract-to-new-workspace).
     /// While present, the unmounting source cell's cleanup must NOT call
@@ -1194,6 +1638,12 @@ pub struct WorkspaceNotificationCounts {
     pub total_unread: u32,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct KanbanPlanFocusRequest {
+    pub workspace_id: u64,
+    pub plan_path: String,
+}
+
 impl WorkbenchService {
     /// Demo list until real workspace loading exists.
     #[must_use]
@@ -1241,6 +1691,7 @@ impl WorkbenchService {
             embedded_browser_next_id: RwSignal::new(first_tab_id + 1),
             harness_workspace_root: RwSignal::new(harness_workspace_root),
             default_project_dir: RwSignal::new(default_project_dir),
+            default_session_role: RwSignal::new(None),
             workspace_next_id: RwSignal::new(1),
             workspace_drafts: RwSignal::new(HashMap::new()),
             workspace_config_steps: RwSignal::new(HashMap::new()),
@@ -1248,11 +1699,15 @@ impl WorkbenchService {
             pending_memory_note: RwSignal::new(None),
             terminal_layout_tick: RwSignal::new(0),
             notifications: RwSignal::new(HashMap::new()),
+            agent_notifications: RwSignal::new(Vec::new()),
             pending_clears: RwSignal::new(HashSet::new()),
             focused_terminal_by_workspace: RwSignal::new(HashMap::new()),
+            terminal_titles: RwSignal::new(HashMap::new()),
             memory_color_presets: RwSignal::new(memory_color_presets),
             agent_image_context: RwSignal::new(HashMap::new()),
             sidebar_repo_epoch: RwSignal::new(0),
+            plans_epoch: RwSignal::new(0),
+            kanban_plan_focus: RwSignal::new(None),
             terminal_move_guards: RwSignal::new(HashMap::new()),
             terminal_adopt_pending: RwSignal::new(HashMap::new()),
         }
@@ -1266,8 +1721,89 @@ impl WorkbenchService {
         self.sidebar_repo_epoch.update(|n| *n = n.wrapping_add(1));
     }
 
+    pub fn plans_epoch(&self) -> RwSignal<u32> {
+        self.plans_epoch
+    }
+
+    pub fn bump_plans_epoch(&self) {
+        self.plans_epoch.update(|n| *n = n.wrapping_add(1));
+    }
+
+    pub fn kanban_plan_focus_request(&self) -> RwSignal<Option<KanbanPlanFocusRequest>> {
+        self.kanban_plan_focus
+    }
+
+    pub fn open_center_kanban_plan(&self, workspace_id: u64, plan_path: String) {
+        let plan_path = plan_path.trim().to_string();
+        if plan_path.is_empty() {
+            return;
+        }
+        self.kanban_plan_focus.set(Some(KanbanPlanFocusRequest {
+            workspace_id,
+            plan_path,
+        }));
+        self.open_center_kanban_tab(workspace_id);
+    }
+
     pub fn notifications(&self) -> RwSignal<HashMap<String, u32>> {
         self.notifications
+    }
+
+    pub fn default_session_role(&self) -> RwSignal<Option<String>> {
+        self.default_session_role
+    }
+
+    pub fn set_default_session_role(&self, role: Option<String>) {
+        let normalized = role.and_then(|value| {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        });
+        self.default_session_role.set(normalized);
+    }
+
+    pub fn agent_notifications(&self) -> RwSignal<Vec<AgentNotification>> {
+        self.agent_notifications
+    }
+
+    pub fn set_agent_notifications(&self, mut items: Vec<AgentNotification>) {
+        items.sort_by_key(|item| std::cmp::Reverse(item.created_at));
+        self.agent_notifications.set(items);
+    }
+
+    pub fn upsert_agent_notification(&self, item: AgentNotification) {
+        self.agent_notifications.update(|items| {
+            if let Some(existing) = items.iter_mut().find(|n| n.id == item.id) {
+                *existing = item;
+            } else {
+                items.push(item);
+            }
+            items.sort_by_key(|item| std::cmp::Reverse(item.created_at));
+        });
+    }
+
+    pub fn remove_agent_notification(&self, id: &str) {
+        self.agent_notifications
+            .update(|items| items.retain(|n| n.id != id));
+    }
+
+    pub fn mark_agent_notification_read(&self, id: &str) {
+        self.agent_notifications.update(|items| {
+            if let Some(item) = items.iter_mut().find(|n| n.id == id) {
+                item.read = true;
+            }
+        });
+    }
+
+    pub fn mark_all_agent_notifications_read(&self) {
+        self.agent_notifications.update(|items| {
+            for item in items {
+                item.read = true;
+            }
+        });
     }
 
     /// Reactive accessor to the live PTY session map (`"{ws}:{slot}:{pane}" → session_id`).
@@ -1387,6 +1923,37 @@ impl WorkbenchService {
         })
     }
 
+    /// Selected CLI-agent model id for the terminal's slot, if any. Empty/blank
+    /// entries return `None` so the agent's own default model is used.
+    pub fn agent_model_for_terminal_key(&self, terminal_key: &str) -> Option<String> {
+        let storage_key = super::agent_accent::terminal_key_storage_key(terminal_key)?;
+        let slot_id = terminal_key.split(':').nth(1)?.parse::<u64>().ok()?;
+        self.workspaces.with_untracked(|list| {
+            let ws = list.iter().find(|w| w.storage_key == storage_key)?;
+            let idx = ws.slot_ids.iter().position(|&id| id == slot_id)?;
+            ws.slot_agent_models
+                .get(idx)
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+        })
+    }
+
+    /// Selected CLI-agent reasoning effort for the terminal's slot, if any.
+    /// Empty/blank entries return `None` so the CLI's own default effort is
+    /// used.
+    pub fn agent_effort_for_terminal_key(&self, terminal_key: &str) -> Option<String> {
+        let storage_key = super::agent_accent::terminal_key_storage_key(terminal_key)?;
+        let slot_id = terminal_key.split(':').nth(1)?.parse::<u64>().ok()?;
+        self.workspaces.with_untracked(|list| {
+            let ws = list.iter().find(|w| w.storage_key == storage_key)?;
+            let idx = ws.slot_ids.iter().position(|&id| id == slot_id)?;
+            ws.slot_agent_efforts
+                .get(idx)
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+        })
+    }
+
     fn notification_ack_keys_for_terminal(&self, terminal_key: &str) -> Vec<String> {
         let mut keys = vec![terminal_key.to_string()];
         let Some(storage_key) = super::agent_accent::terminal_key_storage_key(terminal_key) else {
@@ -1449,6 +2016,67 @@ impl WorkbenchService {
         self.focused_terminal_by_workspace.update(|m| {
             m.insert(storage_key, terminal_key);
         });
+    }
+
+    /// Publish the live title info for a terminal. Drives the title-bar
+    /// breadcrumb. `auto` is the OSC/auto title (empty when none), `label` the
+    /// resolved slot label, `slot` the numeric slot id.
+    pub fn set_terminal_title(&self, terminal_key: String, slot: u64, auto: String, label: String) {
+        let next = TerminalBreadcrumb { slot, auto, label };
+        self.terminal_titles.update(|m| {
+            match m.get(&terminal_key) {
+                Some(existing) if *existing == next => {}
+                _ => {
+                    m.insert(terminal_key, next);
+                }
+            };
+        });
+    }
+
+    /// Drop a terminal's published title (on cell unmount).
+    pub fn clear_terminal_title(&self, terminal_key: &str) {
+        self.terminal_titles.update(|m| {
+            m.remove(terminal_key);
+        });
+    }
+
+    /// Resolve the focused terminal's breadcrumb for the active workspace,
+    /// but only while its active center tab is the Terminals grid. Returns
+    /// `(slot, text)` where `slot` is `Some(n)` only when an auto title is
+    /// shown (so identical auto titles can be told apart by their slot
+    /// number); when falling back to the slot label, `slot` is `None` since
+    /// the label already carries the number/name. Reactive — call inside a
+    /// tracking scope.
+    #[must_use]
+    pub fn active_terminal_breadcrumb_title(&self) -> Option<(Option<u64>, String)> {
+        let active = self.active_id.get()?;
+        let (storage_key, is_terminals) = self.workspaces.with(|list| {
+            let ws = list.iter().find(|w| w.id == active)?;
+            let is_terminals = ws
+                .center_tabs
+                .iter()
+                .find(|t| t.id == ws.center_active_tab_id)
+                .map(|t| matches!(t.kind, CenterTabKind::Terminals))
+                .unwrap_or(false);
+            Some((ws.storage_key.clone(), is_terminals))
+        })?;
+        if !is_terminals {
+            return None;
+        }
+        let focused = self
+            .focused_terminal_by_workspace
+            .with(|m| m.get(&storage_key).cloned())?;
+        let info = self.terminal_titles.with(|m| m.get(&focused).cloned())?;
+        let auto = info.auto.trim();
+        if !auto.is_empty() {
+            return Some((Some(info.slot), auto.to_string()));
+        }
+        let label = info.label.trim();
+        if label.is_empty() {
+            None
+        } else {
+            Some((None, label.to_string()))
+        }
     }
 
     /// True when a notification's terminal key still maps to an agent-attached
@@ -1598,9 +2226,6 @@ impl WorkbenchService {
 
     pub fn select_workspace(&self, id: u64) {
         self.active_id.set(Some(id));
-        if let Some(cwd) = self.workspace_cwd_for(id) {
-            spawn_ensure_agents_layout(cwd);
-        }
         Self::invalidate_agent_environment_cache();
     }
 
@@ -1611,16 +2236,6 @@ impl WorkbenchService {
         leptos::task::spawn_local(async {
             let _ = agent_environment_invalidate().await;
         });
-    }
-
-    fn workspace_cwd_for(&self, id: u64) -> Option<String> {
-        self.workspaces.with_untracked(|workspaces| {
-            workspaces
-                .iter()
-                .find(|w| w.id == id)
-                .filter(|w| workspace_entry_has_folder(w))
-                .map(|w| w.cwd.clone())
-        })
     }
 
     #[must_use]
@@ -1706,6 +2321,125 @@ impl WorkbenchService {
         })
     }
 
+    #[must_use]
+    pub fn view_mode_for_workspace(&self, workspace_id: u64) -> WorkspaceViewMode {
+        self.workspaces.with(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.view_mode)
+                .unwrap_or_default()
+        })
+    }
+
+    #[must_use]
+    pub fn active_workspace_view_mode(&self) -> Option<WorkspaceViewMode> {
+        let id = self.active_id.get()?;
+        Some(self.view_mode_for_workspace(id))
+    }
+
+    pub fn set_workspace_view_mode(&self, workspace_id: u64, mode: WorkspaceViewMode) {
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            workspace.view_mode = mode;
+            if let Some(tab) = workspace.center_tabs.iter_mut().find(|tab| {
+                is_workspace_mode_tab_kind(&tab.kind) || tab.id == CENTER_TERMINALS_TAB_ID
+            }) {
+                tab.id = CENTER_TERMINALS_TAB_ID;
+                tab.title = mode.title().into();
+                tab.kind = mode.tab_kind();
+            }
+            workspace.center_active_tab_id = CENTER_TERMINALS_TAB_ID;
+            repair_center_tab_state(workspace);
+        });
+        self.bump_terminal_layout();
+    }
+
+    pub fn set_canvas_terminal_layout(
+        &self,
+        workspace_id: u64,
+        slot_id: u64,
+        layout: CanvasNodeLayout,
+    ) {
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            workspace
+                .canvas_view_state
+                .terminal_nodes
+                .insert(slot_id, layout);
+        });
+        self.bump_terminal_layout();
+    }
+
+    pub fn connect_canvas_ports(
+        &self,
+        workspace_id: u64,
+        source: CanvasPortRef,
+        target: CanvasPortRef,
+    ) -> Option<String> {
+        if !valid_canvas_edge(&source, &target) {
+            return None;
+        }
+        let id = uuid::Uuid::new_v4().simple().to_string();
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            let transfer_mode = workspace.canvas_default_transfer_mode;
+            workspace.canvas_edges.push(CanvasEdge {
+                id: id.clone(),
+                source,
+                target,
+                transfer_mode,
+            });
+        });
+        Some(id)
+    }
+
+    pub fn toggle_canvas_edge_transfer_mode(&self, workspace_id: u64, edge_id: String) {
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            let Some(edge) = workspace
+                .canvas_edges
+                .iter_mut()
+                .find(|edge| edge.id == edge_id)
+            else {
+                return;
+            };
+            edge.transfer_mode = match edge.transfer_mode {
+                CanvasTransferMode::Raw => CanvasTransferMode::Structured,
+                CanvasTransferMode::Structured => CanvasTransferMode::Raw,
+            };
+        });
+    }
+
+    pub fn remove_canvas_edge(&self, workspace_id: u64, edge_id: String) {
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            workspace.canvas_edges.retain(|edge| edge.id != edge_id);
+        });
+    }
+
+    pub fn set_swarm_node_position(&self, workspace_id: u64, node_id: String, x: f64, y: f64) {
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            workspace
+                .swarm_view_state
+                .node_positions
+                .insert(node_id, SwarmNodeLayout { x, y });
+        });
+    }
+
     pub fn set_active_center_tab(&self, workspace_id: u64, tab_id: u64) {
         self.workspaces.update(|workspaces| {
             let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
@@ -1737,7 +2471,13 @@ impl WorkbenchService {
             else {
                 return;
             };
-            if matches!(workspace.center_tabs[index].kind, CenterTabKind::Terminals) {
+            if matches!(
+                workspace.center_tabs[index].kind,
+                CenterTabKind::Kanban
+                    | CenterTabKind::Terminals
+                    | CenterTabKind::Canvas
+                    | CenterTabKind::Swarm
+            ) {
                 return;
             }
             workspace.center_tabs.remove(index);
@@ -1777,18 +2517,24 @@ impl WorkbenchService {
     /// make it the active tab. Used by the "new terminal" shortcut and
     /// the optional palette entry that reopens the terminal grid.
     pub fn open_center_terminals_tab(&self, workspace_id: u64) {
+        self.set_workspace_view_mode(workspace_id, WorkspaceViewMode::Grid);
+    }
+
+    pub fn open_center_canvas_tab(&self, workspace_id: u64) {
+        self.set_workspace_view_mode(workspace_id, WorkspaceViewMode::Canvas);
+    }
+
+    pub fn open_center_swarm_tab(&self, workspace_id: u64) {
+        self.set_workspace_view_mode(workspace_id, WorkspaceViewMode::Swarm);
+    }
+
+    pub fn open_center_kanban_tab(&self, workspace_id: u64) {
         self.workspaces.update(|workspaces| {
             let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
                 return;
             };
-            if !workspace
-                .center_tabs
-                .iter()
-                .any(|tab| matches!(tab.kind, CenterTabKind::Terminals))
-            {
-                workspace.center_tabs.insert(0, CenterTab::terminals());
-            }
-            workspace.center_active_tab_id = CENTER_TERMINALS_TAB_ID;
+            ensure_workspace_pinned_tabs(workspace);
+            workspace.center_active_tab_id = CENTER_KANBAN_TAB_ID;
             repair_center_tab_state(workspace);
         });
         self.bump_terminal_layout();
@@ -1825,6 +2571,110 @@ impl WorkbenchService {
             repair_center_tab_state(workspace);
         });
         self.bump_terminal_layout();
+    }
+
+    pub fn open_center_memory_tab(&self) {
+        let workspace_id = self
+            .active_id
+            .get_untracked()
+            .unwrap_or_else(|| self.ensure_tab_host_workspace());
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            if let Some(tab) = workspace
+                .center_tabs
+                .iter()
+                .find(|tab| matches!(tab.kind, CenterTabKind::Memory))
+            {
+                workspace.center_active_tab_id = tab.id;
+                repair_center_tab_state(workspace);
+                return;
+            }
+            let id = workspace
+                .center_next_tab_id
+                .max(default_center_next_tab_id());
+            workspace.center_next_tab_id = id.saturating_add(1);
+            workspace.center_tabs.push(CenterTab {
+                id,
+                title: "Memory".into(),
+                kind: CenterTabKind::Memory,
+            });
+            workspace.center_active_tab_id = id;
+            repair_center_tab_state(workspace);
+        });
+        self.bump_terminal_layout();
+    }
+
+    /// Open (or focus) a centered Mermaid diagram gallery tab for a plan's
+    /// `diagrams/` set.
+    pub fn open_center_diagram_gallery_tab(&self, workspace_id: u64, slug: String) {
+        let slug = slug.trim().to_string();
+        if slug.is_empty() {
+            return;
+        }
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            if let Some(tab) = workspace.center_tabs.iter().find(|tab| {
+                matches!(&tab.kind, CenterTabKind::DiagramGallery { slug: existing } if existing == &slug)
+            }) {
+                workspace.center_active_tab_id = tab.id;
+                repair_center_tab_state(workspace);
+                return;
+            }
+            let id = workspace.center_next_tab_id.max(default_center_next_tab_id());
+            workspace.center_next_tab_id = id.saturating_add(1);
+            workspace.center_tabs.push(CenterTab {
+                id,
+                title: format!("◇ {slug}"),
+                kind: CenterTabKind::DiagramGallery { slug },
+            });
+            workspace.center_active_tab_id = id;
+            repair_center_tab_state(workspace);
+        });
+    }
+
+    /// Open (or focus) a center tab showing an ephemeral diagram group from the
+    /// agent timeline. Re-opening the same group (identical title + diagrams)
+    /// focuses the existing tab instead of duplicating it.
+    pub fn open_center_diagram_group(
+        &self,
+        workspace_id: u64,
+        title: String,
+        diagrams: Vec<TimelineDiagram>,
+    ) {
+        if diagrams.is_empty() {
+            return;
+        }
+        let group_title = title.trim().to_string();
+        let tab_title = if group_title.is_empty() {
+            "◇ Diagrams".to_string()
+        } else {
+            format!("◇ {group_title}")
+        };
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            if let Some(tab) = workspace.center_tabs.iter().find(|tab| {
+                matches!(&tab.kind, CenterTabKind::DiagramGroup { diagrams: existing, .. } if existing == &diagrams)
+            }) {
+                workspace.center_active_tab_id = tab.id;
+                repair_center_tab_state(workspace);
+                return;
+            }
+            let id = workspace.center_next_tab_id.max(default_center_next_tab_id());
+            workspace.center_next_tab_id = id.saturating_add(1);
+            workspace.center_tabs.push(CenterTab {
+                id,
+                title: tab_title,
+                kind: CenterTabKind::DiagramGroup { title: group_title, diagrams },
+            });
+            workspace.center_active_tab_id = id;
+            repair_center_tab_state(workspace);
+        });
     }
 
     pub fn open_center_file_tab(&self, workspace_id: u64, rel_path: String) {
@@ -1914,11 +2764,15 @@ impl WorkbenchService {
             next_terminal_id: 1,
             slot_ids: Vec::new(),
             slot_agent_labels: Vec::new(),
+            slot_agent_models: Vec::new(),
+            slot_agent_efforts: Vec::new(),
             slot_pane_states: Vec::new(),
             configuring: false,
             agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            agent_chat_mode: AgentChatMode::AskEdits,
+            agent_enhance_prompt_before_send: false,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
@@ -1931,6 +2785,13 @@ impl WorkbenchService {
             center_active_tab_id: 0,
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
+            slot_name_overrides: std::collections::HashMap::new(),
+            agent_session_role: None,
+            view_mode: WorkspaceViewMode::Grid,
+            canvas_view_state: CanvasViewState::default(),
+            canvas_edges: Vec::new(),
+            canvas_default_transfer_mode: CanvasTransferMode::Structured,
+            swarm_view_state: SwarmViewState::default(),
         };
         self.workspaces.update(|v| v.push(entry));
         self.active_id.set(Some(id));
@@ -2043,11 +2904,15 @@ impl WorkbenchService {
                 next_terminal_id: terminal_count as u64 + 1,
                 slot_ids,
                 slot_agent_labels,
+                slot_agent_models: Vec::new(),
+                slot_agent_efforts: Vec::new(),
                 slot_pane_states,
                 configuring: false,
                 agent_timeline: TimelineDoc::default(),
                 agent_compose_draft: String::new(),
                 agent_image_mode: false,
+                agent_chat_mode: AgentChatMode::AskEdits,
+                agent_enhance_prompt_before_send: false,
                 architecture_llm_prose: false,
                 agent_context_items: Vec::new(),
                 memory_category_settings: HashMap::new(),
@@ -2060,6 +2925,13 @@ impl WorkbenchService {
                 center_active_tab_id: default_center_active_tab_id(),
                 center_next_tab_id: default_center_next_tab_id(),
                 remote_connection_id: None,
+                slot_name_overrides: std::collections::HashMap::new(),
+                agent_session_role: None,
+                view_mode: WorkspaceViewMode::Grid,
+                canvas_view_state: CanvasViewState::default(),
+                canvas_edges: Vec::new(),
+                canvas_default_transfer_mode: CanvasTransferMode::Structured,
+                swarm_view_state: SwarmViewState::default(),
             });
         });
         Ok(id)
@@ -2278,11 +3150,13 @@ impl WorkbenchService {
             }
             for slug in &slugs {
                 let mut new_slot_id = workspace.next_terminal_id.max(1);
-                while workspace.slot_ids.iter().any(|id| *id == new_slot_id) {
+                while workspace.slot_ids.contains(&new_slot_id) {
                     new_slot_id += 1;
                 }
                 workspace.slot_ids.push(new_slot_id);
                 workspace.slot_agent_labels.push(slug.clone());
+                workspace.slot_agent_models.push(String::new());
+                workspace.slot_agent_efforts.push(String::new());
                 workspace
                     .slot_pane_states
                     .push(SlotPaneState::default_for_slot(new_slot_id));
@@ -2316,6 +3190,13 @@ impl WorkbenchService {
             };
             workspace.slot_ids.remove(index);
             workspace.slot_agent_labels.remove(index);
+            if index < workspace.slot_agent_models.len() {
+                workspace.slot_agent_models.remove(index);
+            }
+            if index < workspace.slot_agent_efforts.len() {
+                workspace.slot_agent_efforts.remove(index);
+            }
+            workspace.slot_name_overrides.remove(&terminal_id);
             if index < workspace.slot_pane_states.len() {
                 workspace.slot_pane_states.remove(index);
             }
@@ -2324,6 +3205,51 @@ impl WorkbenchService {
         if let Some(storage_key) = storage_key {
             drop_sessions_for_prefix(format!("{storage_key}:{terminal_id}:"));
         }
+    }
+
+    /// All slot ids of a workspace (reactive). Used to compute collision-free
+    /// auto names for the terminal naming feature.
+    #[must_use]
+    pub fn slot_ids_for_workspace(&self, workspace_id: u64) -> Vec<u64> {
+        self.workspaces.with(|list| {
+            list.iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.slot_ids.clone())
+                .unwrap_or_default()
+        })
+    }
+
+    /// The per-slot friendly-name override, if any (reactive).
+    #[must_use]
+    pub fn slot_name_override(&self, workspace_id: u64, slot_id: u64) -> Option<String> {
+        self.workspaces.with(|list| {
+            list.iter()
+                .find(|w| w.id == workspace_id)
+                .and_then(|w| w.slot_name_overrides.get(&slot_id).cloned())
+        })
+    }
+
+    /// Set (non-empty) or clear (empty/whitespace) the friendly-name override
+    /// for a slot. Persistence rides the workspaces autosave.
+    pub fn set_slot_name_override(&self, workspace_id: u64, slot_id: u64, name: String) {
+        let trimmed = name.trim().to_string();
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            if trimmed.is_empty() {
+                workspace.slot_name_overrides.remove(&slot_id);
+            } else {
+                workspace
+                    .slot_name_overrides
+                    .insert(slot_id, trimmed.clone());
+            }
+        });
+    }
+
+    /// Clear the friendly-name override for a slot (revert to the auto name).
+    pub fn clear_slot_name_override(&self, workspace_id: u64, slot_id: u64) {
+        self.set_slot_name_override(workspace_id, slot_id, String::new());
     }
 
     /// Swaps two terminal slots by id. Used by the EB-parity grid DnD
@@ -2498,7 +3424,7 @@ impl WorkbenchService {
                     if source.slot_ids.len() <= 1 {
                         return Err("source workspace must keep at least one slot".into());
                     }
-                    if !source.slot_ids.iter().any(|id| *id == slot_id) {
+                    if !source.slot_ids.contains(&slot_id) {
                         return Err("slot not found in source workspace".into());
                     }
                     Ok((source.cwd.clone(), list.len()))
@@ -2519,11 +3445,15 @@ impl WorkbenchService {
                 next_terminal_id: 1,
                 slot_ids: Vec::new(),
                 slot_agent_labels: Vec::new(),
+                slot_agent_models: Vec::new(),
+                slot_agent_efforts: Vec::new(),
                 slot_pane_states: Vec::new(),
                 configuring: false,
                 agent_timeline: TimelineDoc::default(),
                 agent_compose_draft: String::new(),
                 agent_image_mode: false,
+                agent_chat_mode: AgentChatMode::AskEdits,
+                agent_enhance_prompt_before_send: false,
                 architecture_llm_prose: false,
                 agent_context_items: Vec::new(),
                 memory_category_settings: HashMap::new(),
@@ -2536,6 +3466,13 @@ impl WorkbenchService {
                 center_active_tab_id: default_center_active_tab_id(),
                 center_next_tab_id: default_center_next_tab_id(),
                 remote_connection_id: None,
+                slot_name_overrides: std::collections::HashMap::new(),
+                agent_session_role: None,
+                view_mode: WorkspaceViewMode::Grid,
+                canvas_view_state: CanvasViewState::default(),
+                canvas_edges: Vec::new(),
+                canvas_default_transfer_mode: CanvasTransferMode::Structured,
+                swarm_view_state: SwarmViewState::default(),
             });
         });
         match self.transfer_terminal_slot(workspace_id, new_id, slot_id) {
@@ -2833,6 +3770,12 @@ impl WorkbenchService {
         self.workspace_config_steps
     }
 
+    #[must_use]
+    pub fn workspace_is_configuring(&self, id: u64) -> bool {
+        self.workspaces
+            .with_untracked(|w| w.iter().any(|ws| ws.id == id && ws.configuring))
+    }
+
     pub fn set_workspace_config_step(&self, id: u64, step: u8) {
         self.workspace_config_steps.update(|m| {
             m.insert(id, step);
@@ -2859,11 +3802,14 @@ impl WorkbenchService {
         let id = self.allocate_workspace_id();
 
         let project_root = self.default_project_dir.get_untracked();
-        let mut draft = CreateWorkspaceDraft::default();
-        draft.cwd_display = if project_root.trim().is_empty() {
-            self.harness_workspace_root.get_untracked()
-        } else {
-            project_root
+        let draft = CreateWorkspaceDraft {
+            cwd_display: if project_root.trim().is_empty() {
+                self.harness_workspace_root.get_untracked()
+            } else {
+                project_root
+            },
+            session_role: self.default_session_role.get_untracked(),
+            ..CreateWorkspaceDraft::default()
         };
 
         let color = self.workspace_color_for_new_index(self.workspaces.get_untracked().len());
@@ -2879,11 +3825,15 @@ impl WorkbenchService {
             next_terminal_id: 1,
             slot_ids: Vec::new(),
             slot_agent_labels: Vec::new(),
+            slot_agent_models: Vec::new(),
+            slot_agent_efforts: Vec::new(),
             slot_pane_states: Vec::new(),
             configuring: true,
             agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            agent_chat_mode: AgentChatMode::AskEdits,
+            agent_enhance_prompt_before_send: false,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
@@ -2896,6 +3846,13 @@ impl WorkbenchService {
             center_active_tab_id: default_center_active_tab_id(),
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
+            slot_name_overrides: std::collections::HashMap::new(),
+            agent_session_role: None,
+            view_mode: WorkspaceViewMode::Grid,
+            canvas_view_state: CanvasViewState::default(),
+            canvas_edges: Vec::new(),
+            canvas_default_transfer_mode: CanvasTransferMode::Structured,
+            swarm_view_state: SwarmViewState::default(),
         };
         self.active_id.set(Some(id));
         self.workspaces.update(|v| v.push(entry));
@@ -2938,6 +3895,67 @@ impl WorkbenchService {
     /// Select (or clear) the SSH remote connection for a workspace draft.
     pub fn set_workspace_remote_connection(&self, id: u64, connection_id: Option<String>) {
         self.update_workspace_draft(id, |d| d.remote_connection_id = connection_id);
+    }
+
+    /// Set (or clear) the harness session-role slug for a workspace draft.
+    pub fn set_workspace_session_role(&self, id: u64, slug: Option<String>) {
+        let slug = slug.filter(|s| !s.trim().is_empty());
+        self.update_workspace_draft(id, |d| d.session_role = slug);
+    }
+
+    /// Set a per-slot friendly name in the draft (grows the vec as needed).
+    pub fn set_workspace_slot_name(&self, id: u64, slot_index: usize, name: String) {
+        self.update_workspace_draft(id, |d| {
+            if d.slot_names.len() <= slot_index {
+                d.slot_names.resize(slot_index + 1, String::new());
+            }
+            d.slot_names[slot_index] = name;
+        });
+    }
+
+    /// Set the CLI model id for an agent row (0..5) in the draft.
+    pub fn set_workspace_agent_model(&self, id: u64, idx: usize, model: String) {
+        if idx >= 5 {
+            return;
+        }
+        self.update_workspace_draft(id, |d| d.agent_models[idx] = model);
+    }
+
+    /// Set the CLI reasoning effort for an agent row (0..5) in the draft.
+    pub fn set_workspace_agent_effort(&self, id: u64, idx: usize, effort: String) {
+        if idx >= 5 {
+            return;
+        }
+        self.update_workspace_draft(id, |d| d.agent_efforts[idx] = effort);
+    }
+
+    /// Apply a saved preset onto a workspace draft: terminal count + grid,
+    /// per-agent counts, per-agent models, per-slot names, and session role.
+    /// Clears the `agents_skipped` flag so the fleet step reflects the preset.
+    pub fn apply_preset_to_draft(
+        &self,
+        id: u64,
+        terminal_count: u8,
+        agent_counts: [u8; 5],
+        agent_models: [String; 5],
+        agent_efforts: [String; 5],
+        slot_names: Vec<String>,
+        session_role: Option<String>,
+    ) {
+        let count = terminal_count.clamp(1, 16);
+        let (r, c) = WorkspaceEntry::grid_dims_for_count(count);
+        let session_role = session_role.filter(|s| !s.trim().is_empty());
+        self.update_workspace_draft(id, |d| {
+            d.terminal_count = count;
+            d.grid_rows = r;
+            d.grid_cols = c;
+            d.agent_counts = agent_counts;
+            d.agent_models = agent_models;
+            d.agent_efforts = agent_efforts;
+            d.agents_skipped = false;
+            d.slot_names = slot_names;
+            d.session_role = session_role;
+        });
     }
 
     pub fn workspace_back_to_layout(&self, id: u64) {
@@ -3042,7 +4060,6 @@ impl WorkbenchService {
         if cwd.is_empty() && remote_connection_id.is_none() {
             return;
         }
-        let cwd_for_agents = cwd.clone();
         let n = draft.terminal_count as usize;
         let (gr, gc) = (draft.grid_rows, draft.grid_cols);
 
@@ -3055,15 +4072,12 @@ impl WorkbenchService {
             }
             fleet_counts_to_slot_labels(n, &draft.agent_counts)
         };
+        let slot_agent_models =
+            fleet_slot_models_for_labels(&slot_agent_labels, &draft.agent_models);
+        let slot_agent_efforts =
+            fleet_slot_efforts_for_labels(&slot_agent_labels, &draft.agent_efforts);
 
-        let title = {
-            let t = draft.name_input.trim();
-            if t.is_empty() {
-                format!("Workspace {id}")
-            } else {
-                t.to_string()
-            }
-        };
+        let title = workspace_title_from_name_or_cwd(id, &draft.name_input, &cwd);
 
         let slot_ids: Vec<u64> = (1..=n as u64).collect();
         let slot_pane_states: Vec<SlotPaneState> = slot_ids
@@ -3099,9 +4113,23 @@ impl WorkbenchService {
             ws.grid_cols = gc;
             ws.slot_ids = slot_ids;
             ws.slot_agent_labels = slot_agent_labels;
+            ws.slot_agent_models = slot_agent_models;
+            ws.slot_agent_efforts = slot_agent_efforts;
             ws.slot_pane_states = slot_pane_states;
             ws.next_terminal_id = n as u64 + 1;
             ws.remote_connection_id = remote_connection_id.clone();
+            ws.agent_session_role = draft.session_role.clone();
+            // Seed per-slot name overrides from the draft (index → slot_id).
+            ws.slot_name_overrides.clear();
+            for (i, name) in draft.slot_names.iter().enumerate() {
+                let trimmed = name.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                if let Some(slot_id) = ws.slot_ids.get(i).copied() {
+                    ws.slot_name_overrides.insert(slot_id, trimmed.to_string());
+                }
+            }
             ws.configuring = false;
         });
 
@@ -3113,7 +4141,6 @@ impl WorkbenchService {
         });
         self.bump_terminal_layout();
         self.bump_sidebar_repo_epoch();
-        spawn_ensure_agents_layout(cwd_for_agents);
         // Grid cells mount on the next frame; delayed ticks retry agent
         // launch once xterm has real dimensions (plain shells don't need this).
         let wb = *self;
@@ -3206,16 +4233,35 @@ impl WorkbenchService {
         output_tokens: Option<u64>,
         elapsed_ms: u64,
         cost_usd: Option<f64>,
+        // Some(tokens) only for a **main-agent `ModelRound`** event — the
+        // caller decides this from `kind`/`agent_id`. Overwrites the live
+        // context-window occupancy with the newest round's prompt size.
+        round_input_tokens: Option<u64>,
     ) -> bool {
         let mut applied = false;
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                let timeline_started_at = ws
+                    .agent_timeline
+                    .turns
+                    .first()
+                    .and_then(|turn| turn.user.created_at);
+                let single_untimed_turn = ws.agent_timeline.turns.len() <= 1;
                 let u = &mut ws.agent_chat_usage;
                 if turn_generation < u.current_turn_generation {
                     return;
                 }
                 if turn_generation > u.current_turn_generation {
                     u.current_turn_generation = turn_generation;
+                }
+                if u.turn_count == 0 && u.session_started_at.is_none() {
+                    u.session_started_at = timeline_started_at.or_else(|| {
+                        if single_untimed_turn {
+                            Some(js_sys::Date::now())
+                        } else {
+                            None
+                        }
+                    });
                 }
                 u.turn_count = u.turn_count.saturating_add(1);
                 if let Some(p) = input_tokens {
@@ -3228,10 +4274,38 @@ impl WorkbenchService {
                 if let Some(c) = cost_usd {
                     u.total_cost_usd += c;
                 }
+                if let Some(t) = round_input_tokens {
+                    u.last_round_input_tokens = t;
+                }
                 applied = true;
             }
         });
         applied
+    }
+
+    /// Mark the current chat session as started without crediting a usage
+    /// event. Called immediately when the user submits a turn so the Agent
+    /// stats header updates before the first backend `TurnUsage` event lands.
+    pub fn ensure_chat_session_started(&self, workspace_id: u64, started_at: f64) {
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                if ws.agent_chat_usage.session_started_at.is_none() {
+                    ws.agent_chat_usage.session_started_at = Some(started_at);
+                }
+            }
+        });
+    }
+
+    /// Overwrite the live context-window occupancy directly. Called after a
+    /// compaction replaces the conversation with a much smaller summary, so
+    /// the meter reflects the new (estimated) prompt size immediately rather
+    /// than waiting for the next real turn's `TurnUsage`.
+    pub fn set_last_round_input_tokens(&self, workspace_id: u64, tokens: u64) {
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                ws.agent_chat_usage.last_round_input_tokens = tokens;
+            }
+        });
     }
 
     /// Reset the chat-usage aggregate (call alongside `agent_clear_conversation`).
@@ -3251,6 +4325,10 @@ impl WorkbenchService {
                 };
             }
         });
+    }
+
+    pub fn reset_workspace_agent_chat_mode(&self, workspace_id: u64) {
+        self.set_workspace_agent_chat_mode(workspace_id, AgentChatMode::AskEdits);
     }
 
     #[must_use]
@@ -3294,10 +4372,61 @@ impl WorkbenchService {
         })
     }
 
+    /// Active harness session-role slug for a workspace (committed entry), or
+    /// `None`. Used to populate `UserTurn.session_role` at submit time and the
+    /// agent name-badge role sub-line.
+    #[must_use]
+    pub fn agent_session_role_for_workspace_untracked(&self, workspace_id: u64) -> Option<String> {
+        self.workspaces.with_untracked(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .and_then(|w| w.agent_session_role.clone())
+        })
+    }
+
     pub fn set_workspace_agent_image_mode(&self, workspace_id: u64, image_mode: bool) {
         self.workspaces.update(|workspaces| {
             if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
                 ws.agent_image_mode = image_mode;
+            }
+        });
+    }
+
+    #[must_use]
+    pub fn agent_chat_mode_for_workspace_untracked(&self, workspace_id: u64) -> AgentChatMode {
+        self.workspaces.with_untracked(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.agent_chat_mode)
+                .unwrap_or_default()
+        })
+    }
+
+    pub fn set_workspace_agent_chat_mode(&self, workspace_id: u64, mode: AgentChatMode) {
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                ws.agent_chat_mode = mode;
+            }
+        });
+    }
+
+    #[must_use]
+    pub fn agent_enhance_prompt_for_workspace_untracked(&self, workspace_id: u64) -> bool {
+        self.workspaces.with_untracked(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.agent_enhance_prompt_before_send)
+                .unwrap_or(false)
+        })
+    }
+
+    pub fn set_workspace_agent_enhance_prompt(&self, workspace_id: u64, enabled: bool) {
+        self.workspaces.update(|workspaces| {
+            if let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) {
+                ws.agent_enhance_prompt_before_send = enabled;
             }
         });
     }
@@ -3669,6 +4798,7 @@ impl WorkbenchService {
                     if !project_root.is_empty() {
                         d.cwd_display.clone_from(&project_root);
                     }
+                    d.session_role = self.default_session_role.get_untracked();
                     m.insert(ws.id, d);
                 }
             }
@@ -3713,11 +4843,6 @@ impl WorkbenchService {
 
         if has_workspaces {
             self.bump_terminal_layout();
-            if let Some(id) = active_id {
-                if let Some(cwd) = self.workspace_cwd_for(id) {
-                    spawn_ensure_agents_layout(cwd);
-                }
-            }
             let wb = *self;
             spawn_local(async move {
                 for delay_ms in [0_u32, 16, 50, 150, 300, 600, 1000] {
@@ -3839,15 +4964,45 @@ pub fn derive_workspace_name(path: &str) -> Option<String> {
     if trimmed.is_empty() {
         return None;
     }
-    let last = trimmed
-        .rsplit(|c| c == '/' || c == '\\')
-        .next()
-        .unwrap_or("")
-        .trim();
+    let last = trimmed.rsplit(['/', '\\']).next().unwrap_or("").trim();
     if last.is_empty() || last == "." || last == ".." {
         return None;
     }
     Some(last.to_string())
+}
+
+fn workspace_title_from_name_or_cwd(id: u64, name_input: &str, cwd: &str) -> String {
+    let explicit = name_input.trim();
+    if !explicit.is_empty() {
+        return explicit.to_string();
+    }
+    derive_workspace_name(cwd).unwrap_or_else(|| format!("Workspace {id}"))
+}
+
+#[cfg(test)]
+mod workspace_title_tests {
+    use super::*;
+
+    #[test]
+    fn blank_name_uses_selected_directory_name() {
+        assert_eq!(
+            workspace_title_from_name_or_cwd(7, "", "/home/iptoux/Development/blxcode"),
+            "blxcode"
+        );
+    }
+
+    #[test]
+    fn explicit_name_wins_over_directory_name() {
+        assert_eq!(
+            workspace_title_from_name_or_cwd(7, " backend refactor ", "/home/iptoux/blxcode"),
+            "backend refactor"
+        );
+    }
+
+    #[test]
+    fn invalid_directory_falls_back_to_workspace_id() {
+        assert_eq!(workspace_title_from_name_or_cwd(7, "", "/"), "Workspace 7");
+    }
 }
 
 /// Pure swap of two slots by id within a single workspace. Returns
@@ -3873,8 +5028,16 @@ fn swap_workspace_slots(workspace: &mut WorkspaceEntry, slot_a: u64, slot_b: u64
     while workspace.slot_agent_labels.len() < workspace.slot_ids.len() {
         workspace.slot_agent_labels.push(String::new());
     }
+    while workspace.slot_agent_models.len() < workspace.slot_ids.len() {
+        workspace.slot_agent_models.push(String::new());
+    }
+    while workspace.slot_agent_efforts.len() < workspace.slot_ids.len() {
+        workspace.slot_agent_efforts.push(String::new());
+    }
     workspace.slot_ids.swap(idx_a, idx_b);
     workspace.slot_agent_labels.swap(idx_a, idx_b);
+    workspace.slot_agent_models.swap(idx_a, idx_b);
+    workspace.slot_agent_efforts.swap(idx_a, idx_b);
     workspace.slot_pane_states.swap(idx_a, idx_b);
     true
 }
@@ -3883,7 +5046,7 @@ fn swap_workspace_slots(workspace: &mut WorkspaceEntry, slot_a: u64, slot_b: u64
 /// returning the resulting [`TerminalSlotMove`]. Callers wire any
 /// side-effects (PTY adoption, key rewrites, focus changes) themselves.
 fn transfer_workspace_slot(
-    workspaces: &mut Vec<WorkspaceEntry>,
+    workspaces: &mut [WorkspaceEntry],
     from_workspace_id: u64,
     to_workspace_id: u64,
     slot_id: u64,
@@ -3897,6 +5060,8 @@ fn transfer_workspace_slot(
         index: usize,
         storage_key: String,
         agent_label: String,
+        agent_model: String,
+        agent_effort: String,
         pane_state: SlotPaneState,
     }
     let src = {
@@ -3917,6 +5082,16 @@ fn transfer_workspace_slot(
             .get(index)
             .cloned()
             .unwrap_or_default();
+        let agent_model = source
+            .slot_agent_models
+            .get(index)
+            .cloned()
+            .unwrap_or_default();
+        let agent_effort = source
+            .slot_agent_efforts
+            .get(index)
+            .cloned()
+            .unwrap_or_default();
         let pane_state = source
             .slot_pane_states
             .get(index)
@@ -3926,6 +5101,8 @@ fn transfer_workspace_slot(
             index,
             storage_key: source.storage_key.clone(),
             agent_label,
+            agent_model,
+            agent_effort,
             pane_state,
         }
     };
@@ -3941,7 +5118,7 @@ fn transfer_workspace_slot(
             return Err("target workspace already at maximum (16 slots)".into());
         }
         let mut new_slot_id = target.next_terminal_id.max(1);
-        while target.slot_ids.iter().any(|x| *x == new_slot_id) {
+        while target.slot_ids.contains(&new_slot_id) {
             new_slot_id += 1;
         }
         (target.storage_key.clone(), new_slot_id)
@@ -3952,6 +5129,12 @@ fn transfer_workspace_slot(
         if src.index < source.slot_agent_labels.len() {
             source.slot_agent_labels.remove(src.index);
         }
+        if src.index < source.slot_agent_models.len() {
+            source.slot_agent_models.remove(src.index);
+        }
+        if src.index < source.slot_agent_efforts.len() {
+            source.slot_agent_efforts.remove(src.index);
+        }
         if src.index < source.slot_pane_states.len() {
             source.slot_pane_states.remove(src.index);
         }
@@ -3961,6 +5144,8 @@ fn transfer_workspace_slot(
     if let Some(target) = workspaces.iter_mut().find(|w| w.id == to_workspace_id) {
         target.slot_ids.push(new_slot_id);
         target.slot_agent_labels.push(src.agent_label.clone());
+        target.slot_agent_models.push(src.agent_model.clone());
+        target.slot_agent_efforts.push(src.agent_effort.clone());
         target.slot_pane_states.push(src.pane_state.clone());
         target.next_terminal_id = new_slot_id.saturating_add(1);
         let next_count = target.slot_ids.len() as u8;
@@ -3990,6 +5175,16 @@ fn reorder_workspace_slots(workspace: &mut WorkspaceEntry, from_index: usize, to
     }
     let id = workspace.slot_ids.remove(from_index);
     let label = workspace.slot_agent_labels.remove(from_index);
+    let model = if from_index < workspace.slot_agent_models.len() {
+        workspace.slot_agent_models.remove(from_index)
+    } else {
+        String::new()
+    };
+    let effort = if from_index < workspace.slot_agent_efforts.len() {
+        workspace.slot_agent_efforts.remove(from_index)
+    } else {
+        String::new()
+    };
     let pane = if from_index < workspace.slot_pane_states.len() {
         workspace.slot_pane_states.remove(from_index)
     } else {
@@ -3998,6 +5193,12 @@ fn reorder_workspace_slots(workspace: &mut WorkspaceEntry, from_index: usize, to
     let insert_at = to_index.min(workspace.slot_ids.len());
     workspace.slot_ids.insert(insert_at, id);
     workspace.slot_agent_labels.insert(insert_at, label);
+    workspace
+        .slot_agent_models
+        .insert(insert_at.min(workspace.slot_agent_models.len()), model);
+    workspace
+        .slot_agent_efforts
+        .insert(insert_at.min(workspace.slot_agent_efforts.len()), effort);
     workspace
         .slot_pane_states
         .insert(insert_at.min(workspace.slot_pane_states.len()), pane);
@@ -4021,11 +5222,15 @@ mod center_tab_tests {
             next_terminal_id: 2,
             slot_ids: vec![1],
             slot_agent_labels: vec![String::new()],
+            slot_agent_models: Vec::new(),
+            slot_agent_efforts: Vec::new(),
             slot_pane_states: vec![SlotPaneState::default_for_slot(1)],
             configuring: false,
             agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            agent_chat_mode: AgentChatMode::AskEdits,
+            agent_enhance_prompt_before_send: false,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
@@ -4038,11 +5243,40 @@ mod center_tab_tests {
             center_active_tab_id: active,
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
+            slot_name_overrides: std::collections::HashMap::new(),
+            agent_session_role: None,
+            view_mode: WorkspaceViewMode::Grid,
+            canvas_view_state: CanvasViewState::default(),
+            canvas_edges: Vec::new(),
+            canvas_default_transfer_mode: CanvasTransferMode::Structured,
+            swarm_view_state: SwarmViewState::default(),
         }
     }
 
     #[test]
-    fn repair_does_not_reinsert_terminals() {
+    fn legacy_snapshot_defaults_to_grid_view_mode() {
+        let mut value = serde_json::to_value(mk_workspace(1, default_center_tabs())).unwrap();
+        let object = value.as_object_mut().unwrap();
+        object.remove("viewMode");
+        object.remove("canvasViewState");
+        object.remove("canvasEdges");
+        object.remove("canvasDefaultTransferMode");
+        object.remove("swarmViewState");
+
+        let ws: WorkspaceEntry = serde_json::from_value(value).unwrap();
+
+        assert_eq!(ws.view_mode, WorkspaceViewMode::Grid);
+        assert_eq!(ws.canvas_view_state, CanvasViewState::default());
+        assert!(ws.canvas_edges.is_empty());
+        assert_eq!(
+            ws.canvas_default_transfer_mode,
+            CanvasTransferMode::Structured
+        );
+        assert_eq!(ws.swarm_view_state, SwarmViewState::default());
+    }
+
+    #[test]
+    fn repair_syncs_single_mode_tab_to_canvas() {
         let mut ws = mk_workspace(
             1,
             vec![CenterTab {
@@ -4051,20 +5285,68 @@ mod center_tab_tests {
                 kind: CenterTabKind::Settings,
             }],
         );
+        ws.view_mode = WorkspaceViewMode::Canvas;
+
         repair_center_tab_state(&mut ws);
-        assert!(
-            !ws.center_tabs
-                .iter()
-                .any(|tab| matches!(tab.kind, CenterTabKind::Terminals)),
-            "repair_center_tab_state must not reinsert a Terminals tab"
-        );
+
+        let mode_tabs: Vec<_> = ws
+            .center_tabs
+            .iter()
+            .filter(|tab| is_workspace_mode_tab_kind(&tab.kind))
+            .collect();
+        assert_eq!(mode_tabs.len(), 1);
+        assert_eq!(mode_tabs[0].id, CENTER_TERMINALS_TAB_ID);
+        assert_eq!(mode_tabs[0].title, "Canvas");
+        assert!(matches!(mode_tabs[0].kind, CenterTabKind::Canvas));
         assert_eq!(ws.center_active_tab_id, 42);
     }
 
     #[test]
-    fn repair_handles_empty_tabs() {
-        let mut ws = mk_workspace(1, vec![]);
+    fn repair_collapses_duplicate_mode_tabs() {
+        // A corrupted snapshot carrying both a Terminals and a Swarm mode tab
+        // must collapse to a single canonical view-mode tab on load — no
+        // duplicate (and unclickable) centered tab.
+        let mut ws = mk_workspace(
+            1,
+            vec![
+                CenterTab::kanban(),
+                CenterTab::terminals(),
+                CenterTab {
+                    id: 999,
+                    title: "Swarm".into(),
+                    kind: CenterTabKind::Swarm,
+                },
+            ],
+        );
+        ws.view_mode = WorkspaceViewMode::Swarm;
+
         repair_center_tab_state(&mut ws);
+
+        let mode_tabs: Vec<_> = ws
+            .center_tabs
+            .iter()
+            .filter(|tab| {
+                is_workspace_mode_tab_kind(&tab.kind) || tab.id == CENTER_TERMINALS_TAB_ID
+            })
+            .collect();
+        assert_eq!(mode_tabs.len(), 1, "duplicate mode tabs must be collapsed");
+        assert_eq!(mode_tabs[0].id, CENTER_TERMINALS_TAB_ID);
+        assert!(matches!(mode_tabs[0].kind, CenterTabKind::Swarm));
+        // No two center tabs may share an id.
+        let mut ids: Vec<u64> = ws.center_tabs.iter().map(|t| t.id).collect();
+        ids.sort_unstable();
+        let mut deduped = ids.clone();
+        deduped.dedup();
+        assert_eq!(ids, deduped, "center tab ids must be unique");
+    }
+
+    #[test]
+    fn repair_keeps_empty_shell_tabs_empty() {
+        let mut ws = mk_workspace(1, vec![]);
+        ws.cwd = String::new();
+
+        repair_center_tab_state(&mut ws);
+
         assert_eq!(ws.center_active_tab_id, 0);
         assert!(ws.center_tabs.is_empty());
     }
@@ -4114,11 +5396,15 @@ mod terminal_slot_tests {
             next_terminal_id: n as u64 + 1,
             slot_ids,
             slot_agent_labels: (0..n as usize).map(|i| format!("label{i}")).collect(),
+            slot_agent_models: (0..n as usize).map(|i| format!("model{i}")).collect(),
+            slot_agent_efforts: (0..n as usize).map(|i| format!("effort{i}")).collect(),
             slot_pane_states,
             configuring: false,
             agent_timeline: TimelineDoc::default(),
             agent_compose_draft: String::new(),
             agent_image_mode: false,
+            agent_chat_mode: AgentChatMode::AskEdits,
+            agent_enhance_prompt_before_send: false,
             architecture_llm_prose: false,
             agent_context_items: Vec::new(),
             memory_category_settings: HashMap::new(),
@@ -4131,15 +5417,26 @@ mod terminal_slot_tests {
             center_active_tab_id: default_center_active_tab_id(),
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
+            slot_name_overrides: std::collections::HashMap::new(),
+            agent_session_role: None,
+            view_mode: WorkspaceViewMode::Grid,
+            canvas_view_state: CanvasViewState::default(),
+            canvas_edges: Vec::new(),
+            canvas_default_transfer_mode: CanvasTransferMode::Structured,
+            swarm_view_state: SwarmViewState::default(),
         }
     }
 
     #[test]
     fn reorder_permutes_parallel_vectors() {
         let mut ws = mk_slots(3);
+        ws.slot_agent_models = vec!["m0".into(), "m1".into(), "m2".into()];
+        ws.slot_agent_efforts = vec!["e0".into(), "e1".into(), "e2".into()];
         reorder_workspace_slots(&mut ws, 1, 2);
         assert_eq!(ws.slot_ids, vec![1, 3, 2]);
         assert_eq!(ws.slot_agent_labels, vec!["label0", "label2", "label1"]);
+        assert_eq!(ws.slot_agent_models, vec!["m0", "m2", "m1"]);
+        assert_eq!(ws.slot_agent_efforts, vec!["e0", "e2", "e1"]);
     }
 
     #[test]
@@ -4159,12 +5456,16 @@ mod terminal_slot_tests {
     #[test]
     fn swap_exchanges_slot_positions() {
         let mut ws = mk_slots(3);
+        ws.slot_agent_models = vec!["m0".into(), "m1".into(), "m2".into()];
+        ws.slot_agent_efforts = vec!["e0".into(), "e1".into(), "e2".into()];
         assert!(swap_workspace_slots(&mut ws, 1, 3));
         assert_eq!(ws.slot_ids, vec![3, 2, 1]);
         assert_eq!(
             ws.slot_agent_labels,
             vec!["label2".to_string(), "label1".into(), "label0".into()]
         );
+        assert_eq!(ws.slot_agent_models, vec!["m2", "m1", "m0"]);
+        assert_eq!(ws.slot_agent_efforts, vec!["e2", "e1", "e0"]);
         assert_eq!(ws.slot_pane_states[0], SlotPaneState::default_for_slot(3));
         assert_eq!(ws.slot_pane_states[2], SlotPaneState::default_for_slot(1));
     }
@@ -4212,9 +5513,16 @@ mod terminal_slot_tests {
         let target = list.iter().find(|w| w.id == 2).unwrap();
         assert_eq!(source.slot_ids, vec![1, 3]);
         assert_eq!(source.slot_agent_labels.len(), source.slot_ids.len());
+        assert_eq!(source.slot_agent_models.len(), source.slot_ids.len());
+        assert_eq!(source.slot_agent_efforts.len(), source.slot_ids.len());
         assert_eq!(source.slot_pane_states.len(), source.slot_ids.len());
         assert_eq!(target.slot_ids.len(), 2);
         assert_eq!(target.slot_ids[1], mv.new_slot_id);
+        assert_eq!(target.slot_agent_labels.len(), target.slot_ids.len());
+        assert_eq!(target.slot_agent_models.len(), target.slot_ids.len());
+        assert_eq!(target.slot_agent_efforts.len(), target.slot_ids.len());
+        assert_eq!(target.slot_agent_models[1], "model1");
+        assert_eq!(target.slot_agent_efforts[1], "effort1");
         assert!(target.next_terminal_id > mv.new_slot_id);
         // Pane state on the target preserves the source's pane layout.
         assert_eq!(target.slot_pane_states[1].pane_ids, mv.pane_ids);

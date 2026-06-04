@@ -3,12 +3,13 @@
 use crate::agent::anthropic::{from_anthropic_name, to_anthropic_name};
 use crate::agent::openrouter::Endpoint;
 use crate::agent::protocol::AgentEvent;
+use crate::agent::provider::AuthMode;
 use crate::agent::state::AgentEngineState;
 use crate::agent::subagent_prompts::{self, truncate_submit_result, SubagentRole};
 use crate::agent::tool_dispatch::DispatchContext;
 use crate::agent::tool_groups::{openai_tool_name_to_internal, ToolGroup};
 use crate::agent::tools::{self, WorkspaceRootGuard};
-use crate::agent_settings::AgentProviderKind;
+use crate::agent_settings::{AgentProviderKind, AgentProviderSettings};
 use futures_util::TryStreamExt;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -21,18 +22,19 @@ const ANTHROPIC_VERSION: &str = "2023-06-01";
 const MAX_SUBAGENT_ROUNDS: u32 = 24;
 const MAX_OUTPUT_TOKENS_ESTIMATE: usize = 20_000;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub enum SubagentProvider {
     OpenAi(Endpoint),
     Anthropic,
 }
 
 impl SubagentProvider {
-    pub fn from_settings(provider: AgentProviderKind) -> Option<Self> {
-        match provider {
+    pub fn from_settings(settings: &AgentProviderSettings) -> Option<Self> {
+        match settings.provider {
             AgentProviderKind::Anthropic => Some(Self::Anthropic),
-            AgentProviderKind::Openrouter => Some(Self::OpenAi(Endpoint::Openrouter)),
-            AgentProviderKind::Openai => Some(Self::OpenAi(Endpoint::Openai)),
+            _ => crate::agent::provider::compatible_endpoint(settings)
+                .ok()
+                .map(Self::OpenAi),
         }
     }
 }
@@ -94,9 +96,17 @@ struct OpenAiUsage {
     prompt_tokens: Option<u64>,
     #[serde(default)]
     completion_tokens: Option<u64>,
+    #[serde(default)]
+    prompt_tokens_details: Option<OpenAiPromptTokenDetails>,
     /// OpenRouter-native USD cost (when `usage: { include: true }` is set).
     #[serde(default)]
     cost: Option<f64>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct OpenAiPromptTokenDetails {
+    #[serde(default)]
+    cached_tokens: Option<u64>,
 }
 
 #[derive(Default)]
@@ -105,6 +115,7 @@ struct OpenAiRoundResult {
     tool_calls: Vec<OpenAiAggregatedCall>,
     prompt_tokens: Option<u64>,
     completion_tokens: Option<u64>,
+    cached_input_tokens: Option<u64>,
     /// Wall-clock ms from request send to first content / reasoning delta.
     ttft_ms: Option<u64>,
     /// OpenRouter-native cost for this round when the provider returned one.
@@ -118,6 +129,10 @@ struct OpenAiAggregatedCall {
     arguments: String,
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Subagent runner receives the full tool/provider context at a single orchestration boundary."
+)]
 pub async fn run_one_subagent(
     state: &Arc<AgentEngineState>,
     ctx: &DispatchContext,
@@ -197,10 +212,7 @@ pub async fn run_one_subagent(
 
     match provider {
         SubagentProvider::OpenAi(endpoint) => {
-            let provider_kind = match endpoint {
-                Endpoint::Openrouter => AgentProviderKind::Openrouter,
-                Endpoint::Openai => AgentProviderKind::Openai,
-            };
+            let provider_kind = endpoint.provider;
             let mut messages = vec![
                 json!({ "role": "system", "content": system }),
                 json!({ "role": "user", "content": task }),
@@ -220,14 +232,14 @@ pub async fn run_one_subagent(
                     "stream": true,
                     "stream_options": { "include_usage": true },
                 });
-                if matches!(endpoint, Endpoint::Openrouter) {
+                if endpoint.sends_openrouter_extras {
                     body["usage"] = json!({ "include": true });
                 }
                 let round_start = Instant::now();
                 let round = match stream_openai_subagent_round(
                     state,
                     &client,
-                    endpoint,
+                    &endpoint,
                     &ctx.api_key,
                     &body,
                     agent_id,
@@ -260,6 +272,8 @@ pub async fn run_one_subagent(
                     turn_generation: state.turn_generation(),
                     input_tokens: round.prompt_tokens,
                     output_tokens: round.completion_tokens,
+                    cached_input_tokens: round.cached_input_tokens,
+                    cache_write_input_tokens: None,
                     ttft_ms: round.ttft_ms,
                     elapsed_ms: round_elapsed_ms,
                     cost_usd: round_cost,
@@ -347,6 +361,7 @@ pub async fn run_one_subagent(
                                 &args,
                                 groups,
                                 root_guard.as_ref(),
+                                ctx,
                             );
                             let tool_elapsed_ms =
                                 tool_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
@@ -358,6 +373,8 @@ pub async fn run_one_subagent(
                                 turn_generation: state.turn_generation(),
                                 input_tokens: None,
                                 output_tokens: None,
+                                cached_input_tokens: None,
+                                cache_write_input_tokens: None,
                                 ttft_ms: None,
                                 elapsed_ms: tool_elapsed_ms,
                                 cost_usd: None,
@@ -430,6 +447,8 @@ pub async fn run_one_subagent(
                     turn_generation: state.turn_generation(),
                     input_tokens: round.input_tokens,
                     output_tokens: round.output_tokens,
+                    cached_input_tokens: round.cached_input_tokens,
+                    cache_write_input_tokens: round.cache_write_input_tokens,
                     ttft_ms: round.ttft_ms,
                     elapsed_ms: round_elapsed_ms,
                     cost_usd: round_cost,
@@ -487,8 +506,13 @@ pub async fn run_one_subagent(
                         ToolCallOutcome::NotSubmit => {
                             let args: Value = serde_json::from_str(&args_str).unwrap_or(json!({}));
                             let tool_start = Instant::now();
-                            let outcome =
-                                execute_subagent_tool(&name, &args, groups, root_guard.as_ref());
+                            let outcome = execute_subagent_tool(
+                                &name,
+                                &args,
+                                groups,
+                                root_guard.as_ref(),
+                                ctx,
+                            );
                             let tool_elapsed_ms =
                                 tool_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
                             state.push(AgentEvent::TurnUsage {
@@ -499,6 +523,8 @@ pub async fn run_one_subagent(
                                 turn_generation: state.turn_generation(),
                                 input_tokens: None,
                                 output_tokens: None,
+                                cached_input_tokens: None,
+                                cache_write_input_tokens: None,
                                 ttft_ms: None,
                                 elapsed_ms: tool_elapsed_ms,
                                 cost_usd: None,
@@ -558,6 +584,10 @@ enum ToolCallOutcome {
     NotSubmit,
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Tool call handling threads mutable loop state through one small internal boundary."
+)]
 fn handle_tool_call(
     state: &Arc<AgentEngineState>,
     agent_id: &str,
@@ -599,20 +629,20 @@ fn execute_subagent_tool(
     args: &Value,
     groups: &[ToolGroup],
     root: Option<&WorkspaceRootGuard>,
+    ctx: &DispatchContext,
 ) -> tools::ToolOutcome {
-    let shell_write = groups.contains(&ToolGroup::ShellWrite);
-    if name == "shell_exec" {
-        tools::execute_server_tool(
-            name,
-            args,
-            root,
-            Some(tools::ToolExecOpts {
-                shell_writes: shell_write,
-            }),
-        )
-    } else {
-        tools::execute_server_tool(name, args, root, None)
-    }
+    let shell_write = name == "shell_exec" && groups.contains(&ToolGroup::ShellWrite);
+    // Stamp the subagent's own provider/model so diagrams it creates record it.
+    tools::execute_server_tool(
+        name,
+        args,
+        root,
+        Some(tools::ToolExecOpts {
+            shell_writes: shell_write,
+            provider: Some(ctx.settings.provider.as_str().to_string()),
+            model: Some(ctx.settings.model_id.clone()),
+        }),
+    )
 }
 
 fn finish_subagent(state: &Arc<AgentEngineState>, agent_id: &str, result: &Value) {
@@ -788,6 +818,10 @@ struct AnthroStreamUsage {
     input_tokens: Option<u64>,
     #[serde(default)]
     output_tokens: Option<u64>,
+    #[serde(default)]
+    cache_read_input_tokens: Option<u64>,
+    #[serde(default)]
+    cache_creation_input_tokens: Option<u64>,
 }
 
 #[derive(Default)]
@@ -816,6 +850,8 @@ struct AnthropicRoundResult {
     stop_reason: Option<String>,
     input_tokens: Option<u64>,
     output_tokens: Option<u64>,
+    cached_input_tokens: Option<u64>,
+    cache_write_input_tokens: Option<u64>,
     /// Wall-clock ms from request send to first content / thinking delta.
     ttft_ms: Option<u64>,
 }
@@ -853,9 +889,8 @@ async fn stream_anthropic_subagent_round(
 
     let req_start = Instant::now();
     let stream = resp.bytes_stream();
-    let reader = tokio_util::io::StreamReader::new(
-        stream.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string())),
-    );
+    let reader =
+        tokio_util::io::StreamReader::new(stream.map_err(|e| std::io::Error::other(e.to_string())));
     let mut lines = tokio::io::BufReader::new(reader).lines();
 
     let mut acc = AnthropicRoundResult::default();
@@ -895,6 +930,12 @@ async fn stream_anthropic_subagent_round(
                 if let Some(usage) = message.and_then(|m| m.usage) {
                     if let Some(p) = usage.input_tokens {
                         acc.input_tokens = Some(p);
+                    }
+                    if let Some(cached) = usage.cache_read_input_tokens {
+                        acc.cached_input_tokens = Some(cached);
+                    }
+                    if let Some(written) = usage.cache_creation_input_tokens {
+                        acc.cache_write_input_tokens = Some(written);
                     }
                 }
             }
@@ -980,8 +1021,16 @@ async fn stream_anthropic_subagent_round(
                 if let Some(reason) = delta.stop_reason {
                     acc.stop_reason = Some(reason);
                 }
-                if let Some(u) = usage.and_then(|u| u.output_tokens) {
-                    acc.output_tokens = Some(u);
+                if let Some(usage) = usage {
+                    if let Some(u) = usage.output_tokens {
+                        acc.output_tokens = Some(u);
+                    }
+                    if let Some(cached) = usage.cache_read_input_tokens {
+                        acc.cached_input_tokens = Some(cached);
+                    }
+                    if let Some(written) = usage.cache_creation_input_tokens {
+                        acc.cache_write_input_tokens = Some(written);
+                    }
                 }
             }
             AnthroStreamEvent::Other => {}
@@ -1038,17 +1087,23 @@ async fn stream_anthropic_subagent_round(
 async fn stream_openai_subagent_round(
     state: &Arc<AgentEngineState>,
     client: &reqwest::Client,
-    endpoint: Endpoint,
+    endpoint: &Endpoint,
     api_key: &str,
     body: &Value,
     agent_id: &str,
 ) -> Result<OpenAiRoundResult, String> {
     let mut req = client
-        .post(endpoint.url())
-        .bearer_auth(api_key)
+        .post(&endpoint.url)
         .header("Accept", "text/event-stream")
         .header("Content-Type", "application/json");
-    if matches!(endpoint, Endpoint::Openrouter) {
+    if matches!(
+        endpoint.auth_mode,
+        AuthMode::RequiredBearer | AuthMode::OptionalBearer
+    ) && !api_key.trim().is_empty()
+    {
+        req = req.bearer_auth(api_key);
+    }
+    if endpoint.sends_openrouter_extras {
         req = req
             .header("HTTP-Referer", "https://bitslix.com/blxcode")
             .header("X-Title", "blxcode");
@@ -1074,9 +1129,8 @@ async fn stream_openai_subagent_round(
 
     let req_start = Instant::now();
     let stream = resp.bytes_stream();
-    let reader = tokio_util::io::StreamReader::new(
-        stream.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string())),
-    );
+    let reader =
+        tokio_util::io::StreamReader::new(stream.map_err(|e| std::io::Error::other(e.to_string())));
     let mut lines = tokio::io::BufReader::new(reader).lines();
 
     let mut acc = OpenAiRoundResult::default();
@@ -1117,6 +1171,9 @@ async fn stream_openai_subagent_round(
             }
             if let Some(c) = u.completion_tokens {
                 acc.completion_tokens = Some(c);
+            }
+            if let Some(cached) = u.prompt_tokens_details.and_then(|d| d.cached_tokens) {
+                acc.cached_input_tokens = Some(cached);
             }
             if let Some(cost) = u.cost {
                 acc.cost_usd = Some(cost);

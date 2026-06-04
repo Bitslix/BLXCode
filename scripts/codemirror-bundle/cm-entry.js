@@ -4,15 +4,71 @@
 //
 // The Rust glue (`src/workbench/file_preview/codemirror_glue.rs`) only ever
 // calls the small wrapper API below (create / setDoc / getDoc / destroy /
-// selectionLines), so the CodeMirror module graph stays an implementation
+// cursorPosition / selectionLines), so the CodeMirror module graph stays an implementation
 // detail of this file.
 
 import { EditorView, basicSetup } from "codemirror";
-import { EditorState } from "@codemirror/state";
+import { EditorState, Compartment } from "@codemirror/state";
 import { keymap } from "@codemirror/view";
-import { indentWithTab } from "@codemirror/commands";
+import {
+  indentWithTab,
+  toggleComment,
+  moveLineUp,
+  moveLineDown,
+  copyLineDown,
+  indentSelection,
+} from "@codemirror/commands";
+import {
+  openSearchPanel,
+  gotoLine,
+  replaceNext,
+} from "@codemirror/search";
+import { foldCode, unfoldCode } from "@codemirror/language";
 import { StreamLanguage } from "@codemirror/language";
 import { oneDark } from "@codemirror/theme-one-dark";
+import { vim } from "@replit/codemirror-vim";
+
+// Map an EditorShortcutAction id (Rust-side) to a CM6 command. `save` is
+// handled by the dedicated save keymap (Mod-s) and intentionally omitted here.
+const EDITOR_COMMANDS = {
+  find: openSearchPanel,
+  replace: (view) => {
+    openSearchPanel(view);
+    return replaceNext(view);
+  },
+  gotoLine: gotoLine,
+  toggleComment: toggleComment,
+  fold: foldCode,
+  unfold: unfoldCode,
+  moveLineUp: moveLineUp,
+  moveLineDown: moveLineDown,
+  duplicateLine: copyLineDown,
+  format: indentSelection,
+};
+
+// Build a CM keymap from a [{ key, command }] list (the persisted editor
+// shortcut bindings). Unknown commands and the save binding are skipped.
+function buildEditorKeymap(list) {
+  const binds = [];
+  for (const entry of list || []) {
+    if (!entry || !entry.key) continue;
+    if (entry.command === "save") {
+      binds.push({
+        key: entry.key,
+        preventDefault: true,
+        run: (view) => {
+          if (view.__blxOnSave) view.__blxOnSave();
+          return true;
+        },
+      });
+      continue;
+    }
+    const cmd = EDITOR_COMMANDS[entry.command];
+    if (!cmd) continue;
+    binds.push({ key: entry.key, preventDefault: true, run: cmd });
+  }
+  return keymap.of(binds);
+}
 
 // Native CodeMirror 6 language packages (richest support).
 import { rust } from "@codemirror/lang-rust";
@@ -159,16 +215,36 @@ const blxChrome = EditorView.theme(
 
 /**
  * Create an editor inside `parent`.
- * opts: { doc, language, onChange(str), onSave(), readOnly }
+ * opts: { doc, language, onChange(str), onSave(), onCursor(line, column), readOnly, vim }
  * Returns the EditorView (opaque handle for the other helpers).
  */
 export function create(parent, opts) {
   const o = opts || {};
   let syncing = false;
+  let lastCursor = "";
+
+  // Vim lives in its own compartment so it can be toggled live (see setVim)
+  // without re-mounting the editor. CM6 vim must precede basicSetup.
+  const vimCompartment = new Compartment();
+  // Configurable file editor / preview shortcuts. Empty while vim is on (vim
+  // owns the keymap); rebuilt live via setEditorKeymap.
+  const editorKeymapCompartment = new Compartment();
+
+  const emitCursor = (state) => {
+    if (typeof o.onCursor !== "function") return;
+    const [line, column] = cursorPosition({ state });
+    const key = `${line}:${column}`;
+    if (key === lastCursor) return;
+    lastCursor = key;
+    o.onCursor(line, column);
+  };
 
   const updateListener = EditorView.updateListener.of((u) => {
     if (u.docChanged && !syncing && typeof o.onChange === "function") {
       o.onChange(u.state.doc.toString());
+    }
+    if (u.selectionSet || u.docChanged || u.focusChanged) {
+      emitCursor(u.state);
     }
   });
 
@@ -184,7 +260,13 @@ export function create(parent, opts) {
     indentWithTab,
   ]);
 
+  // Vim owns the keymap, so the configurable editor shortcuts start empty when
+  // vim is enabled.
+  const initialEditorKeymap = o.vim ? [] : buildEditorKeymap(o.editorKeymap);
+
   const extensions = [
+    vimCompartment.of(o.vim ? vim() : []),
+    editorKeymapCompartment.of(initialEditorKeymap),
     basicSetup,
     saveKeymap,
     langExt(o.language),
@@ -200,6 +282,37 @@ export function create(parent, opts) {
     parent,
     state: EditorState.create({ doc: o.doc || "", extensions }),
   });
+  emitCursor(view.state);
+
+  // Exposed so a rebound "save" shortcut can reach the host save handler.
+  view.__blxOnSave = typeof o.onSave === "function" ? o.onSave : null;
+  // Remember the latest bindings so a vim→off toggle can restore them.
+  view.__blxEditorKeymap = o.editorKeymap || [];
+  view.__blxVimOn = !!o.vim;
+
+  // Live vim toggle (revert / settings change) without a remount. Toggling vim
+  // also swaps the editor-shortcut keymap (vim owns the keys when enabled).
+  view.__blxSetVim = (enabled) => {
+    view.__blxVimOn = !!enabled;
+    view.dispatch({
+      effects: [
+        vimCompartment.reconfigure(enabled ? vim() : []),
+        editorKeymapCompartment.reconfigure(
+          enabled ? [] : buildEditorKeymap(view.__blxEditorKeymap),
+        ),
+      ],
+    });
+  };
+
+  // Live update of the configurable editor shortcuts (settings change).
+  view.__blxSetEditorKeymap = (list) => {
+    view.__blxEditorKeymap = list || [];
+    view.dispatch({
+      effects: editorKeymapCompartment.reconfigure(
+        view.__blxVimOn ? [] : buildEditorKeymap(view.__blxEditorKeymap),
+      ),
+    });
+  };
 
   // External updates (revert / reload) must not re-fire onChange.
   view.__blxSetDoc = (text) => {
@@ -220,12 +333,32 @@ export function setDoc(view, text) {
   if (view && view.__blxSetDoc) view.__blxSetDoc(text);
 }
 
+/** Enable/disable vim key bindings on a live editor (no remount). */
+export function setVim(view, enabled) {
+  if (view && view.__blxSetVim) view.__blxSetVim(!!enabled);
+}
+
+/** Replace the configurable editor shortcut keymap (live, no remount). */
+export function setEditorKeymap(view, list) {
+  if (view && view.__blxSetEditorKeymap) view.__blxSetEditorKeymap(list);
+}
+
 export function getDoc(view) {
   return view ? view.state.doc.toString() : "";
 }
 
 export function destroy(view) {
   if (view) view.destroy();
+}
+
+/**
+ * 1-based [line, column] for the primary caret head.
+ */
+export function cursorPosition(view) {
+  if (!view) return [1, 1];
+  const pos = view.state.selection.main.head;
+  const line = view.state.doc.lineAt(pos);
+  return [line.number, pos - line.from + 1];
 }
 
 /**

@@ -1,10 +1,174 @@
 /*
- * blxcode — global theme tokens (20 app themes)
- * Default / blxcode-dark matches styles.css :root color tokens 1:1; extended tokens complete the set.
+ * blxcode — global theme tokens (32 app themes)
+ * Default / blxcode-dark is the flagship BLXCode look: a Tokyo Night night-blue
+ * base fused with Dracula's purple/pink/cyan accents. The previous default lives
+ * on as blxcode-legacy-dark / blxcode-legacy-light.
  */
 
 :root,
 [data-theme="blxcode-dark"] {
+  color-scheme: dark;
+
+  --bg-app: #16161e;
+  --bg-raised: #1a1b26;
+  --bg-panel: #1f2030;
+  --bg-panel-header: #24263a;
+
+  --border: rgba(189, 200, 245, 0.09);
+  --border-strong: rgba(189, 200, 245, 0.16);
+  --border-focus: #bd93f9;
+
+  --text: #c8d3f5;
+  --text-muted: #a9b1d6;
+  --text-faint: #565f89;
+  --text-bright: #f8f8f2;
+
+  --accent: #bd93f9;
+  --accent-hover: #cda9fb;
+  --accent-soft: rgba(189, 147, 249, 0.18);
+  --accent-cool: #7dcfff;
+  --accent-cool-soft: rgba(125, 207, 255, 0.12);
+
+  --syntax-type: #8be9fd;
+  --syntax-keyword: #ff79c6;
+
+  --font-mono: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, "SF Mono", Menlo, ui-monospace, monospace;
+
+  /* Corner roundings — user-tunable via the global --radius-scale multiplier
+     (Settings → Appearance). Pills and circles intentionally do NOT scale.
+     These live on :root so every theme inherits them; the active scale is set
+     as an inline style on <html> by ThemeService. */
+  --radius-scale: 1;
+  --radius-xs: calc(3px * var(--radius-scale));
+  --radius-sm: calc(4px * var(--radius-scale));
+  --radius-md: calc(6px * var(--radius-scale));
+  --radius-lg: calc(8px * var(--radius-scale));
+  --radius-xl: calc(12px * var(--radius-scale));
+  --radius-pill: 999px;
+  --radius-circle: 50%;
+
+  --overlay-1: rgba(189, 200, 245, 0.04);
+  --overlay-2: rgba(189, 200, 245, 0.07);
+  --overlay-3: rgba(189, 200, 245, 0.1);
+  --overlay-4: rgba(189, 200, 245, 0.14);
+  --overlay-5: rgba(189, 200, 245, 0.2);
+  --overlay-6: rgba(189, 200, 245, 0.28);
+
+  --danger: #ff5555;
+  --danger-soft: rgba(255, 85, 85, 0.2);
+  --warning: #ffb86c;
+  --success: #50fa7b;
+
+  --term-fg: #c8d3f5;
+  --term-bg: #16161e;
+  --term-surface: #1f2030;
+  --term-cursor: #bd93f9;
+
+  --on-accent: #16161e;
+  --scrim-bg: rgba(0, 0, 0, 0.56);
+
+  --agent-claude: #ffb86c;
+  --agent-codex: #50fa7b;
+  --agent-gemini: #7aa2f7;
+  --agent-copilot: #bd93f9;
+  --agent-cursor: #ff79c6;
+
+  --git-lane-0: #bd93f9;
+  --git-lane-1: #7dcfff;
+  --git-lane-2: #50fa7b;
+  --git-lane-3: #ffb86c;
+  --git-lane-4: #ff5555;
+  --git-lane-5: #7aa2f7;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 88%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 10%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: color-mix(in srgb, var(--success) 75%, var(--text));
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 32%, transparent);
+  --danger-text-soft: color-mix(in srgb, var(--danger) 70%, var(--text));
+  --hook-brand-bg: color-mix(in srgb, var(--text-bright) 92%, transparent);
+  --hook-brand-fg: var(--bg-app);
+}
+
+[data-theme="blxcode-light"] {
+  color-scheme: light;
+
+  --bg-app: #e6e7f0;
+  --bg-raised: #dcdeea;
+  --bg-panel: #f4f4fb;
+  --bg-panel-header: #e4e5f1;
+
+  --border: rgba(86, 95, 137, 0.12);
+  --border-strong: rgba(86, 95, 137, 0.2);
+  --border-focus: #8839ef;
+
+  --text: #3a3a5c;
+  --text-muted: #6c6f93;
+  --text-faint: #8d90b3;
+  --text-bright: #1f1d3a;
+
+  --accent: #8839ef;
+  --accent-hover: #7530d6;
+  --accent-soft: rgba(136, 57, 239, 0.12);
+  --accent-cool: #1a8fb8;
+  --accent-cool-soft: rgba(26, 143, 184, 0.1);
+
+  --syntax-type: #1a8fb8;
+  --syntax-keyword: #d3318e;
+
+  --overlay-1: rgba(86, 95, 137, 0.04);
+  --overlay-2: rgba(86, 95, 137, 0.06);
+  --overlay-3: rgba(86, 95, 137, 0.09);
+  --overlay-4: rgba(86, 95, 137, 0.12);
+  --overlay-5: rgba(86, 95, 137, 0.16);
+  --overlay-6: rgba(86, 95, 137, 0.24);
+
+  --danger: #d6336c;
+  --danger-soft: rgba(214, 51, 108, 0.12);
+  --warning: #b07d18;
+  --success: #2f9e5e;
+
+  --term-fg: #3a3a5c;
+  --term-bg: #f4f4fb;
+  --term-surface: #e6e7f0;
+  --term-cursor: #8839ef;
+
+  --on-accent: #ffffff;
+  --scrim-bg: rgba(31, 29, 58, 0.35);
+
+  --agent-claude: #b25d2e;
+  --agent-codex: #2f9e5e;
+  --agent-gemini: #2e7de9;
+  --agent-copilot: #8839ef;
+  --agent-cursor: #d3318e;
+
+  --git-lane-0: #8839ef;
+  --git-lane-1: #1a8fb8;
+  --git-lane-2: #2f9e5e;
+  --git-lane-3: #b07d18;
+  --git-lane-4: #d6336c;
+  --git-lane-5: #2e7de9;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 90%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 12%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: var(--success);
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
+  --danger-text-soft: var(--danger);
+  --hook-brand-bg: var(--bg-panel);
+  --hook-brand-fg: var(--text);
+}
+
+/* BLXCode Legacy — the original GitHub-blue workbench (previous default) */
+[data-theme="blxcode-legacy-dark"] {
   color-scheme: dark;
 
   --bg-app: #090a0d;
@@ -29,8 +193,6 @@
 
   --syntax-type: #63e6be;
   --syntax-keyword: #f2a3ff;
-
-  --font-mono: "JetBrains Mono", "Cascadia Mono", "Cascadia Code", Consolas, "SF Mono", Menlo, ui-monospace, monospace;
 
   --overlay-1: rgba(255, 255, 255, 0.04);
   --overlay-2: rgba(255, 255, 255, 0.07);
@@ -80,7 +242,7 @@
   --hook-brand-fg: #14161d;
 }
 
-[data-theme="blxcode-light"] {
+[data-theme="blxcode-legacy-light"] {
   color-scheme: light;
 
   --bg-app: #f6f8fc;
@@ -1205,64 +1367,64 @@
 
 
 /* GitHub Dark — primer design tokens */
-[data-theme="github-dark"] {
+[data-theme="claude-code"] {
   color-scheme: dark;
 
-  --bg-app: #0d1117;
-  --bg-raised: #010409;
-  --bg-panel: #161b22;
-  --bg-panel-header: #21262d;
+  --bg-app: #1f1e1d;
+  --bg-raised: #191817;
+  --bg-panel: #262624;
+  --bg-panel-header: #30302e;
 
-  --border: rgba(240, 246, 252, 0.1);
-  --border-strong: rgba(240, 246, 252, 0.16);
-  --border-focus: #58a6ff;
+  --border: rgba(245, 244, 239, 0.1);
+  --border-strong: rgba(245, 244, 239, 0.17);
+  --border-focus: #d97757;
 
-  --text: #e6edf3;
-  --text-muted: #8b949e;
-  --text-faint: #6e7681;
-  --text-bright: #f0f6fc;
+  --text: #ededeb;
+  --text-muted: #a3a098;
+  --text-faint: #6f6d66;
+  --text-bright: #faf9f5;
 
-  --accent: #58a6ff;
-  --accent-hover: #79b8ff;
-  --accent-soft: rgba(88, 166, 255, 0.16);
-  --accent-cool: #79c0ff;
-  --accent-cool-soft: rgba(121, 192, 255, 0.12);
+  --accent: #d97757;
+  --accent-hover: #e6906f;
+  --accent-soft: rgba(217, 119, 87, 0.16);
+  --accent-cool: #e0a589;
+  --accent-cool-soft: rgba(217, 119, 87, 0.12);
 
-  --syntax-type: #79c0ff;
-  --syntax-keyword: #d2a8ff;
+  --syntax-type: #c9a987;
+  --syntax-keyword: #d97757;
 
-  --overlay-1: rgba(240, 246, 252, 0.04);
-  --overlay-2: rgba(240, 246, 252, 0.07);
-  --overlay-3: rgba(240, 246, 252, 0.1);
-  --overlay-4: rgba(240, 246, 252, 0.13);
-  --overlay-5: rgba(240, 246, 252, 0.18);
-  --overlay-6: rgba(240, 246, 252, 0.26);
+  --overlay-1: rgba(245, 244, 239, 0.04);
+  --overlay-2: rgba(245, 244, 239, 0.07);
+  --overlay-3: rgba(245, 244, 239, 0.1);
+  --overlay-4: rgba(245, 244, 239, 0.13);
+  --overlay-5: rgba(245, 244, 239, 0.18);
+  --overlay-6: rgba(245, 244, 239, 0.26);
 
-  --danger: #f85149;
-  --danger-soft: rgba(248, 81, 73, 0.18);
-  --warning: #d29922;
-  --success: #3fb950;
+  --danger: #e5604d;
+  --danger-soft: rgba(229, 96, 77, 0.18);
+  --warning: #d9a05b;
+  --success: #7fa563;
 
-  --term-fg: #e6edf3;
-  --term-bg: #0d1117;
-  --term-surface: #161b22;
-  --term-cursor: #58a6ff;
+  --term-fg: #ededeb;
+  --term-bg: #1f1e1d;
+  --term-surface: #262624;
+  --term-cursor: #d97757;
 
-  --on-accent: #0d1117;
-  --scrim-bg: rgba(0, 0, 0, 0.6);
+  --on-accent: #2a1a12;
+  --scrim-bg: rgba(0, 0, 0, 0.62);
 
-  --agent-claude: #ffa657;
-  --agent-codex: #3fb950;
-  --agent-gemini: #58a6ff;
-  --agent-copilot: #d2a8ff;
-  --agent-cursor: #79c0ff;
+  --agent-claude: #d97757;
+  --agent-codex: #7fa563;
+  --agent-gemini: #7aa2c4;
+  --agent-copilot: #b89ad1;
+  --agent-cursor: #e0a589;
 
-  --git-lane-0: #58a6ff;
-  --git-lane-1: #d2a8ff;
-  --git-lane-2: #3fb950;
-  --git-lane-3: #d29922;
-  --git-lane-4: #f85149;
-  --git-lane-5: #79c0ff;
+  --git-lane-0: #d97757;
+  --git-lane-1: #c9a987;
+  --git-lane-2: #7fa563;
+  --git-lane-3: #d9a05b;
+  --git-lane-4: #e5604d;
+  --git-lane-5: #7aa2c4;
 
   --fg-main: var(--text);
   --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
@@ -1501,4 +1663,754 @@
   --danger-text-soft: color-mix(in srgb, var(--danger) 70%, var(--text));
   --hook-brand-bg: color-mix(in srgb, var(--text-bright) 92%, transparent);
   --hook-brand-fg: var(--bg-app);
+}
+
+
+/* Tokyo Night Day — github.com/folke/tokyonight.nvim */
+[data-theme="tokyo-night-light"] {
+  color-scheme: light;
+
+  --bg-app: #e1e2e7;
+  --bg-raised: #d4d6dc;
+  --bg-panel: #f0f1f4;
+  --bg-panel-header: #d8d9df;
+
+  --border: rgba(55, 96, 191, 0.1);
+  --border-strong: rgba(55, 96, 191, 0.16);
+  --border-focus: #2e7de9;
+
+  --text: #3760bf;
+  --text-muted: #5e6c9c;
+  --text-faint: #8a92ad;
+  --text-bright: #1f2d5c;
+
+  --accent: #2e7de9;
+  --accent-hover: #1a68c9;
+  --accent-soft: rgba(46, 125, 233, 0.12);
+  --accent-cool: #007197;
+  --accent-cool-soft: rgba(0, 113, 151, 0.1);
+
+  --syntax-type: #007197;
+  --syntax-keyword: #ad55ee;
+
+  --overlay-1: rgba(55, 96, 191, 0.03);
+  --overlay-2: rgba(55, 96, 191, 0.055);
+  --overlay-3: rgba(55, 96, 191, 0.08);
+  --overlay-4: rgba(55, 96, 191, 0.11);
+  --overlay-5: rgba(55, 96, 191, 0.15);
+  --overlay-6: rgba(55, 96, 191, 0.22);
+
+  --danger: #c64343;
+  --danger-soft: rgba(198, 67, 67, 0.12);
+  --warning: #8c6c0f;
+  --success: #4f9050;
+
+  --term-fg: #3760bf;
+  --term-bg: #f0f1f4;
+  --term-surface: #e1e2e7;
+  --term-cursor: #2e7de9;
+
+  --on-accent: #ffffff;
+  --scrim-bg: rgba(31, 45, 92, 0.35);
+
+  --agent-claude: #b25d2e;
+  --agent-codex: #4f9050;
+  --agent-gemini: #2e7de9;
+  --agent-copilot: #8839ef;
+  --agent-cursor: #ad55ee;
+
+  --git-lane-0: #2e7de9;
+  --git-lane-1: #ad55ee;
+  --git-lane-2: #4f9050;
+  --git-lane-3: #8c6c0f;
+  --git-lane-4: #c64343;
+  --git-lane-5: #007197;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 90%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 12%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: var(--success);
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
+  --danger-text-soft: var(--danger);
+  --hook-brand-bg: var(--bg-panel);
+  --hook-brand-fg: var(--text);
+}
+
+
+/* Nord Light — https://www.nordtheme.com */
+[data-theme="nord-light"] {
+  color-scheme: light;
+
+  --bg-app: #e5e9f0;
+  --bg-raised: #d8dee9;
+  --bg-panel: #eceff4;
+  --bg-panel-header: #d8dee9;
+
+  --border: rgba(46, 52, 64, 0.1);
+  --border-strong: rgba(46, 52, 64, 0.15);
+  --border-focus: #5e81ac;
+
+  --text: #2e3440;
+  --text-muted: #4c566a;
+  --text-faint: #707a8a;
+  --text-bright: #1a1f2c;
+
+  --accent: #5e81ac;
+  --accent-hover: #4c6e95;
+  --accent-soft: rgba(94, 129, 172, 0.14);
+  --accent-cool: #88c0d0;
+  --accent-cool-soft: rgba(136, 192, 208, 0.12);
+
+  --syntax-type: #5e81ac;
+  --syntax-keyword: #81a1c1;
+
+  --overlay-1: rgba(46, 52, 64, 0.03);
+  --overlay-2: rgba(46, 52, 64, 0.055);
+  --overlay-3: rgba(46, 52, 64, 0.08);
+  --overlay-4: rgba(46, 52, 64, 0.11);
+  --overlay-5: rgba(46, 52, 64, 0.15);
+  --overlay-6: rgba(46, 52, 64, 0.22);
+
+  --danger: #bf616a;
+  --danger-soft: rgba(191, 97, 106, 0.14);
+  --warning: #b57614;
+  --success: #a3be8c;
+
+  --term-fg: #2e3440;
+  --term-bg: #eceff4;
+  --term-surface: #d8dee9;
+  --term-cursor: #5e81ac;
+
+  --on-accent: #eceff4;
+  --scrim-bg: rgba(46, 52, 64, 0.32);
+
+  --agent-claude: #d08770;
+  --agent-codex: #a3be8c;
+  --agent-gemini: #5e81ac;
+  --agent-copilot: #b48ead;
+  --agent-cursor: #88c0d0;
+
+  --git-lane-0: #5e81ac;
+  --git-lane-1: #b48ead;
+  --git-lane-2: #a3be8c;
+  --git-lane-3: #ebcb8b;
+  --git-lane-4: #bf616a;
+  --git-lane-5: #88c0d0;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 90%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 14%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 38%, transparent);
+  --success-text: var(--success);
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
+  --danger-text-soft: var(--danger);
+  --hook-brand-bg: var(--bg-panel);
+  --hook-brand-fg: var(--text);
+}
+
+
+/* GitHub Light — primer.cool */
+[data-theme="github-light"] {
+  color-scheme: light;
+
+  --bg-app: #f6f8fa;
+  --bg-raised: #eaeef2;
+  --bg-panel: #ffffff;
+  --bg-panel-header: #eef1f4;
+
+  --border: rgba(31, 35, 40, 0.1);
+  --border-strong: rgba(31, 35, 40, 0.15);
+  --border-focus: #0969da;
+
+  --text: #1f2328;
+  --text-muted: #59636e;
+  --text-faint: #818b98;
+  --text-bright: #0d1117;
+
+  --accent: #0969da;
+  --accent-hover: #0550ae;
+  --accent-soft: rgba(9, 105, 218, 0.12);
+  --accent-cool: #1f883d;
+  --accent-cool-soft: rgba(31, 136, 61, 0.1);
+
+  --syntax-type: #953800;
+  --syntax-keyword: #cf222e;
+
+  --overlay-1: rgba(31, 35, 40, 0.03);
+  --overlay-2: rgba(31, 35, 40, 0.055);
+  --overlay-3: rgba(31, 35, 40, 0.08);
+  --overlay-4: rgba(31, 35, 40, 0.11);
+  --overlay-5: rgba(31, 35, 40, 0.15);
+  --overlay-6: rgba(31, 35, 40, 0.22);
+
+  --danger: #cf222e;
+  --danger-soft: rgba(207, 34, 46, 0.12);
+  --warning: #9a6700;
+  --success: #1a7f37;
+
+  --term-fg: #1f2328;
+  --term-bg: #ffffff;
+  --term-surface: #f6f8fa;
+  --term-cursor: #0969da;
+
+  --on-accent: #ffffff;
+  --scrim-bg: rgba(13, 17, 23, 0.35);
+
+  --agent-claude: #b45309;
+  --agent-codex: #1a7f37;
+  --agent-gemini: #1a73e8;
+  --agent-copilot: #5b21b6;
+  --agent-cursor: #6d28d9;
+
+  --git-lane-0: #0969da;
+  --git-lane-1: #8250df;
+  --git-lane-2: #1a7f37;
+  --git-lane-3: #9a6700;
+  --git-lane-4: #cf222e;
+  --git-lane-5: #1f883d;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 90%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 12%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: var(--success);
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
+  --danger-text-soft: var(--danger);
+  --hook-brand-bg: var(--bg-panel);
+  --hook-brand-fg: var(--text);
+}
+
+
+/* Ayu Light — github.com/ayu-theme/ayu */
+[data-theme="ayu-light"] {
+  color-scheme: light;
+
+  --bg-app: #f3f3f3;
+  --bg-raised: #ebebeb;
+  --bg-panel: #fafafa;
+  --bg-panel-header: #ececec;
+
+  --border: rgba(92, 97, 102, 0.1);
+  --border-strong: rgba(92, 97, 102, 0.15);
+  --border-focus: #399ee6;
+
+  --text: #5c6166;
+  --text-muted: #828a91;
+  --text-faint: #a3a8ae;
+  --text-bright: #3b4045;
+
+  --accent: #399ee6;
+  --accent-hover: #1f86c7;
+  --accent-soft: rgba(57, 158, 230, 0.12);
+  --accent-cool: #55b4d4;
+  --accent-cool-soft: rgba(85, 180, 212, 0.12);
+
+  --syntax-type: #a37acc;
+  --syntax-keyword: #ed9366;
+
+  --overlay-1: rgba(92, 97, 102, 0.03);
+  --overlay-2: rgba(92, 97, 102, 0.055);
+  --overlay-3: rgba(92, 97, 102, 0.08);
+  --overlay-4: rgba(92, 97, 102, 0.11);
+  --overlay-5: rgba(92, 97, 102, 0.15);
+  --overlay-6: rgba(92, 97, 102, 0.22);
+
+  --danger: #f07178;
+  --danger-soft: rgba(240, 113, 120, 0.12);
+  --warning: #e6b450;
+  --success: #86b300;
+
+  --term-fg: #5c6166;
+  --term-bg: #fafafa;
+  --term-surface: #f3f3f3;
+  --term-cursor: #399ee6;
+
+  --on-accent: #ffffff;
+  --scrim-bg: rgba(59, 64, 69, 0.32);
+
+  --agent-claude: #ed9366;
+  --agent-codex: #86b300;
+  --agent-gemini: #399ee6;
+  --agent-copilot: #a37acc;
+  --agent-cursor: #55b4d4;
+
+  --git-lane-0: #399ee6;
+  --git-lane-1: #a37acc;
+  --git-lane-2: #86b300;
+  --git-lane-3: #e6b450;
+  --git-lane-4: #f07178;
+  --git-lane-5: #4d7b22;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 90%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 12%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: var(--success);
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
+  --danger-text-soft: var(--danger);
+  --hook-brand-bg: var(--bg-panel);
+  --hook-brand-fg: var(--text);
+}
+
+
+/* Atom One Light — github.com/atom/one-light-syntax */
+[data-theme="one-light"] {
+  color-scheme: light;
+
+  --bg-app: #e8e8e8;
+  --bg-raised: #dedede;
+  --bg-panel: #fafafa;
+  --bg-panel-header: #e6e6e6;
+
+  --border: rgba(56, 58, 66, 0.1);
+  --border-strong: rgba(56, 58, 66, 0.15);
+  --border-focus: #4078f2;
+
+  --text: #383a42;
+  --text-muted: #696c77;
+  --text-faint: #a0a1a7;
+  --text-bright: #1d1f23;
+
+  --accent: #4078f2;
+  --accent-hover: #2f63d4;
+  --accent-soft: rgba(64, 120, 242, 0.12);
+  --accent-cool: #0184bc;
+  --accent-cool-soft: rgba(1, 132, 188, 0.1);
+
+  --syntax-type: #c18401;
+  --syntax-keyword: #a626a4;
+
+  --overlay-1: rgba(56, 58, 66, 0.03);
+  --overlay-2: rgba(56, 58, 66, 0.055);
+  --overlay-3: rgba(56, 58, 66, 0.08);
+  --overlay-4: rgba(56, 58, 66, 0.11);
+  --overlay-5: rgba(56, 58, 66, 0.15);
+  --overlay-6: rgba(56, 58, 66, 0.22);
+
+  --danger: #e45649;
+  --danger-soft: rgba(228, 86, 73, 0.12);
+  --warning: #c18401;
+  --success: #50a14f;
+
+  --term-fg: #383a42;
+  --term-bg: #fafafa;
+  --term-surface: #e8e8e8;
+  --term-cursor: #4078f2;
+
+  --on-accent: #ffffff;
+  --scrim-bg: rgba(29, 31, 35, 0.32);
+
+  --agent-claude: #b45309;
+  --agent-codex: #50a14f;
+  --agent-gemini: #4078f2;
+  --agent-copilot: #a626a4;
+  --agent-cursor: #0184bc;
+
+  --git-lane-0: #4078f2;
+  --git-lane-1: #a626a4;
+  --git-lane-2: #50a14f;
+  --git-lane-3: #c18401;
+  --git-lane-4: #e45649;
+  --git-lane-5: #0184bc;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 90%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 12%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: var(--success);
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
+  --danger-text-soft: var(--danger);
+  --hook-brand-bg: var(--bg-panel);
+  --hook-brand-fg: var(--text);
+}
+
+
+/* Winter Light — frosty cool light with cyan accent (custom) */
+[data-theme="winter-light"] {
+  color-scheme: light;
+
+  --bg-app: #e6eef2;
+  --bg-raised: #d8e3e9;
+  --bg-panel: #f4f8fa;
+  --bg-panel-header: #dde7ec;
+
+  --border: rgba(26, 54, 64, 0.1);
+  --border-strong: rgba(26, 54, 64, 0.15);
+  --border-focus: #0891b2;
+
+  --text: #1a3640;
+  --text-muted: #4d6b75;
+  --text-faint: #7a909a;
+  --text-bright: #0c1f25;
+
+  --accent: #0891b2;
+  --accent-hover: #06779a;
+  --accent-soft: rgba(8, 145, 178, 0.12);
+  --accent-cool: #0e7490;
+  --accent-cool-soft: rgba(14, 116, 144, 0.1);
+
+  --syntax-type: #0e7490;
+  --syntax-keyword: #7c3aed;
+
+  --overlay-1: rgba(26, 54, 64, 0.03);
+  --overlay-2: rgba(26, 54, 64, 0.055);
+  --overlay-3: rgba(26, 54, 64, 0.08);
+  --overlay-4: rgba(26, 54, 64, 0.11);
+  --overlay-5: rgba(26, 54, 64, 0.15);
+  --overlay-6: rgba(26, 54, 64, 0.22);
+
+  --danger: #dc2626;
+  --danger-soft: rgba(220, 38, 38, 0.12);
+  --warning: #b45309;
+  --success: #059669;
+
+  --term-fg: #1a3640;
+  --term-bg: #f4f8fa;
+  --term-surface: #e6eef2;
+  --term-cursor: #0891b2;
+
+  --on-accent: #ffffff;
+  --scrim-bg: rgba(12, 31, 37, 0.35);
+
+  --agent-claude: #b45309;
+  --agent-codex: #059669;
+  --agent-gemini: #0891b2;
+  --agent-copilot: #7c3aed;
+  --agent-cursor: #0e7490;
+
+  --git-lane-0: #0891b2;
+  --git-lane-1: #7c3aed;
+  --git-lane-2: #059669;
+  --git-lane-3: #b45309;
+  --git-lane-4: #dc2626;
+  --git-lane-5: #0e7490;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 90%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 12%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: var(--success);
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
+  --danger-text-soft: var(--danger);
+  --hook-brand-bg: var(--bg-panel);
+  --hook-brand-fg: var(--text);
+}
+
+
+/* Paper Light — modern paper white with cobalt accent (custom) */
+[data-theme="paper-light"] {
+  color-scheme: light;
+
+  --bg-app: #ebe8e1;
+  --bg-raised: #e0ddd5;
+  --bg-panel: #fbfaf7;
+  --bg-panel-header: #e5e2da;
+
+  --border: rgba(26, 31, 44, 0.1);
+  --border-strong: rgba(26, 31, 44, 0.15);
+  --border-focus: #1d4ed8;
+
+  --text: #1a1f2c;
+  --text-muted: #5b606e;
+  --text-faint: #888d97;
+  --text-bright: #0a0d18;
+
+  --accent: #1d4ed8;
+  --accent-hover: #1740b5;
+  --accent-soft: rgba(29, 78, 216, 0.12);
+  --accent-cool: #4338ca;
+  --accent-cool-soft: rgba(67, 56, 202, 0.1);
+
+  --syntax-type: #4338ca;
+  --syntax-keyword: #be185d;
+
+  --overlay-1: rgba(26, 31, 44, 0.03);
+  --overlay-2: rgba(26, 31, 44, 0.055);
+  --overlay-3: rgba(26, 31, 44, 0.08);
+  --overlay-4: rgba(26, 31, 44, 0.11);
+  --overlay-5: rgba(26, 31, 44, 0.15);
+  --overlay-6: rgba(26, 31, 44, 0.22);
+
+  --danger: #b91c1c;
+  --danger-soft: rgba(185, 28, 28, 0.12);
+  --warning: #92400e;
+  --success: #15803d;
+
+  --term-fg: #1a1f2c;
+  --term-bg: #fbfaf7;
+  --term-surface: #ebe8e1;
+  --term-cursor: #1d4ed8;
+
+  --on-accent: #ffffff;
+  --scrim-bg: rgba(10, 13, 24, 0.35);
+
+  --agent-claude: #92400e;
+  --agent-codex: #15803d;
+  --agent-gemini: #1d4ed8;
+  --agent-copilot: #4338ca;
+  --agent-cursor: #be185d;
+
+  --git-lane-0: #1d4ed8;
+  --git-lane-1: #4338ca;
+  --git-lane-2: #15803d;
+  --git-lane-3: #92400e;
+  --git-lane-4: #b91c1c;
+  --git-lane-5: #be185d;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 90%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 12%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: var(--success);
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
+  --danger-text-soft: var(--danger);
+  --hook-brand-bg: var(--bg-panel);
+  --hook-brand-fg: var(--text);
+}
+
+
+/* Alpine Light — alpine fresh green-blue (custom) */
+[data-theme="alpine-light"] {
+  color-scheme: light;
+
+  --bg-app: #dee9e6;
+  --bg-raised: #cfdeda;
+  --bg-panel: #f1f7f4;
+  --bg-panel-header: #d3dfdb;
+
+  --border: rgba(20, 56, 50, 0.1);
+  --border-strong: rgba(20, 56, 50, 0.15);
+  --border-focus: #0d9488;
+
+  --text: #143832;
+  --text-muted: #4d6660;
+  --text-faint: #75847f;
+  --text-bright: #0a1f1c;
+
+  --accent: #0d9488;
+  --accent-hover: #0b7d72;
+  --accent-soft: rgba(13, 148, 136, 0.12);
+  --accent-cool: #0e7490;
+  --accent-cool-soft: rgba(14, 116, 144, 0.1);
+
+  --syntax-type: #0e7490;
+  --syntax-keyword: #7c3aed;
+
+  --overlay-1: rgba(20, 56, 50, 0.03);
+  --overlay-2: rgba(20, 56, 50, 0.055);
+  --overlay-3: rgba(20, 56, 50, 0.08);
+  --overlay-4: rgba(20, 56, 50, 0.11);
+  --overlay-5: rgba(20, 56, 50, 0.15);
+  --overlay-6: rgba(20, 56, 50, 0.22);
+
+  --danger: #b91c1c;
+  --danger-soft: rgba(185, 28, 28, 0.12);
+  --warning: #a16207;
+  --success: #15803d;
+
+  --term-fg: #143832;
+  --term-bg: #f1f7f4;
+  --term-surface: #dee9e6;
+  --term-cursor: #0d9488;
+
+  --on-accent: #ffffff;
+  --scrim-bg: rgba(10, 31, 28, 0.35);
+
+  --agent-claude: #a16207;
+  --agent-codex: #15803d;
+  --agent-gemini: #0d9488;
+  --agent-copilot: #7c3aed;
+  --agent-cursor: #0e7490;
+
+  --git-lane-0: #0d9488;
+  --git-lane-1: #7c3aed;
+  --git-lane-2: #15803d;
+  --git-lane-3: #a16207;
+  --git-lane-4: #b91c1c;
+  --git-lane-5: #0e7490;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 90%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 12%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: var(--success);
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
+  --danger-text-soft: var(--danger);
+  --hook-brand-bg: var(--bg-panel);
+  --hook-brand-fg: var(--text);
+}
+
+
+/* Frost Light — pure white with ice-blue accent (custom) */
+[data-theme="frost-light"] {
+  color-scheme: light;
+
+  --bg-app: #eaf0f4;
+  --bg-raised: #dde6ec;
+  --bg-panel: #f7fafc;
+  --bg-panel-header: #e1e9ee;
+
+  --border: rgba(28, 53, 64, 0.1);
+  --border-strong: rgba(28, 53, 64, 0.15);
+  --border-focus: #0284c7;
+
+  --text: #1c3540;
+  --text-muted: #566c77;
+  --text-faint: #7d8e98;
+  --text-bright: #0c1f28;
+
+  --accent: #0284c7;
+  --accent-hover: #016da5;
+  --accent-soft: rgba(2, 132, 199, 0.12);
+  --accent-cool: #0ea5e9;
+  --accent-cool-soft: rgba(14, 165, 233, 0.1);
+
+  --syntax-type: #0ea5e9;
+  --syntax-keyword: #6366f1;
+
+  --overlay-1: rgba(28, 53, 64, 0.03);
+  --overlay-2: rgba(28, 53, 64, 0.055);
+  --overlay-3: rgba(28, 53, 64, 0.08);
+  --overlay-4: rgba(28, 53, 64, 0.11);
+  --overlay-5: rgba(28, 53, 64, 0.15);
+  --overlay-6: rgba(28, 53, 64, 0.22);
+
+  --danger: #dc2626;
+  --danger-soft: rgba(220, 38, 38, 0.12);
+  --warning: #b45309;
+  --success: #059669;
+
+  --term-fg: #1c3540;
+  --term-bg: #f7fafc;
+  --term-surface: #eaf0f4;
+  --term-cursor: #0284c7;
+
+  --on-accent: #ffffff;
+  --scrim-bg: rgba(12, 31, 40, 0.35);
+
+  --agent-claude: #b45309;
+  --agent-codex: #059669;
+  --agent-gemini: #0284c7;
+  --agent-copilot: #6366f1;
+  --agent-cursor: #0ea5e9;
+
+  --git-lane-0: #0284c7;
+  --git-lane-1: #6366f1;
+  --git-lane-2: #059669;
+  --git-lane-3: #b45309;
+  --git-lane-4: #dc2626;
+  --git-lane-5: #0ea5e9;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 90%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 12%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: var(--success);
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
+  --danger-text-soft: var(--danger);
+  --hook-brand-bg: var(--bg-panel);
+  --hook-brand-fg: var(--text);
+}
+
+
+/* Lilac Light — soft lavender with violet accent (custom) */
+[data-theme="lilac-light"] {
+  color-scheme: light;
+
+  --bg-app: #ebe6f0;
+  --bg-raised: #ddd5e6;
+  --bg-panel: #f6f3fa;
+  --bg-panel-header: #e3daea;
+
+  --border: rgba(46, 31, 92, 0.1);
+  --border-strong: rgba(46, 31, 92, 0.15);
+  --border-focus: #7c3aed;
+
+  --text: #2e1f5c;
+  --text-muted: #5d4f7d;
+  --text-faint: #8477a0;
+  --text-bright: #1a0f3d;
+
+  --accent: #7c3aed;
+  --accent-hover: #6c2bd9;
+  --accent-soft: rgba(124, 58, 237, 0.12);
+  --accent-cool: #6366f1;
+  --accent-cool-soft: rgba(99, 102, 241, 0.1);
+
+  --syntax-type: #6366f1;
+  --syntax-keyword: #db2777;
+
+  --overlay-1: rgba(46, 31, 92, 0.03);
+  --overlay-2: rgba(46, 31, 92, 0.055);
+  --overlay-3: rgba(46, 31, 92, 0.08);
+  --overlay-4: rgba(46, 31, 92, 0.11);
+  --overlay-5: rgba(46, 31, 92, 0.15);
+  --overlay-6: rgba(46, 31, 92, 0.22);
+
+  --danger: #be123c;
+  --danger-soft: rgba(190, 18, 60, 0.12);
+  --warning: #a16207;
+  --success: #15803d;
+
+  --term-fg: #2e1f5c;
+  --term-bg: #f6f3fa;
+  --term-surface: #ebe6f0;
+  --term-cursor: #7c3aed;
+
+  --on-accent: #ffffff;
+  --scrim-bg: rgba(26, 15, 61, 0.35);
+
+  --agent-claude: #a16207;
+  --agent-codex: #15803d;
+  --agent-gemini: #7c3aed;
+  --agent-copilot: #6366f1;
+  --agent-cursor: #db2777;
+
+  --git-lane-0: #7c3aed;
+  --git-lane-1: #6366f1;
+  --git-lane-2: #15803d;
+  --git-lane-3: #a16207;
+  --git-lane-4: #be123c;
+  --git-lane-5: #db2777;
+
+  --fg-main: var(--text);
+  --text-secondary: color-mix(in srgb, var(--text) 92%, transparent);
+  --text-hint: color-mix(in srgb, var(--text-muted) 90%, transparent);
+  --accent-control: color-mix(in srgb, var(--accent) 85%, transparent);
+  --success-surface: color-mix(in srgb, var(--success) 12%, transparent);
+  --success-border: color-mix(in srgb, var(--success) 35%, transparent);
+  --success-text: var(--success);
+  --danger-surface: color-mix(in srgb, var(--danger) 10%, transparent);
+  --danger-border-soft: color-mix(in srgb, var(--danger) 30%, transparent);
+  --danger-text-soft: var(--danger);
+  --hook-brand-bg: var(--bg-panel);
+  --hook-brand-fg: var(--text);
 }

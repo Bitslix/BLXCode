@@ -3,7 +3,6 @@
 use std::path::{Path, PathBuf};
 
 /// When not in Tauri, resolve `cd` without `canonicalize` (no FS verification).
-#[must_use]
 pub fn path_nav_wasm_string(base: &str, line: &str) -> Result<(String, String), String> {
     let base_pb = if base.trim().is_empty() {
         PathBuf::from("/")

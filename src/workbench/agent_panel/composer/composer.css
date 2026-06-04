@@ -1,0 +1,370 @@
+/* Modern agent chat composer: auto-grow textarea + footer pills (model, mode,
+   thinking) and a round send/stop orb. Theme tokens only. */
+
+.agent-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  padding: 0.55rem 0.6rem 0.5rem;
+  transition: border-color 0.12s ease;
+}
+
+.agent-composer:focus-within {
+  border-color: var(--border);
+}
+
+.agent-composer__field {
+  display: flex;
+}
+
+.agent-composer__textarea {
+  flex: 1 1 auto;
+  resize: none;
+  border: none;
+  background: transparent;
+  color: color-mix(in srgb, var(--text) 78%, var(--text-muted));
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1.38;
+  letter-spacing: 0;
+  min-height: 2.46rem;
+  max-height: 12rem;
+  overflow-y: auto;
+  padding: 0.1rem 0.2rem;
+}
+
+.agent-composer__textarea:focus {
+  outline: none;
+}
+
+.agent-composer__textarea::placeholder {
+  color: color-mix(in srgb, var(--text-muted) 68%, transparent);
+}
+
+.agent-composer__footer {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.agent-composer__spacer {
+  flex: 1 1 auto;
+}
+
+.agent-composer__menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.agent-composer__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0.18rem 0.5rem;
+  font-size: 0.72rem;
+  cursor: pointer;
+  max-width: 14rem;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.agent-composer__pill:hover:not(:disabled) {
+  background: var(--overlay-1);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border-strong));
+}
+
+.agent-composer__pill--mode {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.agent-composer__pill--mode:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--overlay-1);
+  color: var(--text);
+}
+
+.agent-composer__pill--active {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  background: var(--accent-soft);
+}
+
+.agent-composer__pill:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.agent-composer__pill-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Popovers ---- */
+.agent-composer__popover {
+  position: absolute;
+  bottom: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 40;
+  min-width: 13rem;
+  max-width: 18rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  box-shadow: 0 8px 24px var(--scrim-bg);
+  backdrop-filter: blur(8px);
+}
+
+.agent-composer__popover--model {
+  min-width: 18rem;
+  max-width: 24rem;
+}
+
+.agent-composer__search {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0.38rem 0.5rem;
+  font: inherit;
+  font-size: 0.74rem;
+  margin-bottom: 0.35rem;
+}
+
+.agent-composer__search:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.agent-composer__model-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
+.agent-composer__model-item,
+.agent-composer__option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  appearance: none;
+  border: none;
+  background: none;
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0.42rem 0.5rem;
+  font: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.agent-composer__option {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.1rem;
+}
+
+.agent-composer__model-item {
+  gap: 0.4rem;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 0;
+}
+
+.agent-composer__model-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  min-width: 0;
+  flex: 1 1 auto;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0.42rem 0.12rem 0.42rem 0.5rem;
+}
+
+.agent-composer__model-fav {
+  display: inline-grid;
+  place-items: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  margin: 0.28rem 0.34rem 0 0;
+  flex: 0 0 auto;
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0.72;
+  transition: color 0.12s ease, background 0.12s ease, opacity 0.12s ease;
+}
+
+.agent-composer__model-fav:hover,
+.agent-composer__model-fav:focus-visible {
+  background: var(--overlay-1);
+  color: color-mix(in srgb, var(--accent) 78%, var(--text));
+  opacity: 1;
+  outline: none;
+}
+
+.agent-composer__model-fav--active {
+  color: var(--accent);
+  opacity: 0.92;
+}
+
+.agent-composer__model-item:hover,
+.agent-composer__option:hover {
+  background: var(--overlay-1);
+}
+
+.agent-composer__model-item--active,
+.agent-composer__option--active {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.agent-composer__model-separator {
+  height: 1px;
+  margin: 0.32rem 0.16rem;
+  background: color-mix(in srgb, var(--border) 74%, transparent);
+}
+
+.agent-composer__model-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.agent-composer__model-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-composer__model-meta {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 0.66rem;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-composer__option-head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.agent-composer__option-title {
+  flex: 1 1 auto;
+  font-weight: 600;
+}
+
+.agent-composer__option-desc {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  padding-left: 1.15rem;
+}
+
+.agent-composer__enhance {
+  display: inline-grid;
+  place-items: center;
+  width: 1.72rem;
+  height: 1.72rem;
+  flex: 0 0 auto;
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-circle);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0.76;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease,
+    opacity 0.12s ease,
+    transform 0.08s ease;
+}
+
+.agent-composer__enhance:hover:not(:disabled),
+.agent-composer__enhance:focus-visible {
+  background: var(--overlay-1);
+  color: var(--text);
+  opacity: 1;
+  outline: none;
+}
+
+.agent-composer__enhance--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  opacity: 1;
+}
+
+.agent-composer__enhance:active {
+  transform: scale(0.94);
+}
+
+.agent-composer__enhance:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+.agent-composer__enhance-tip {
+  align-items: center;
+}
+
+.agent-composer__tooltip {
+  min-width: 12.5rem;
+}
+
+/* ---- Send / stop orb ---- */
+.agent-composer__send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  flex: 0 0 auto;
+  border: none;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.08s ease;
+}
+
+.agent-composer__send:hover {
+  background: var(--accent-hover);
+}
+
+.agent-composer__send:active {
+  transform: scale(0.94);
+}
+
+.agent-composer__send--stop {
+  background: var(--danger);
+}

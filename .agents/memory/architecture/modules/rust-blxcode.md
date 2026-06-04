@@ -19,16 +19,17 @@ Manual notes about this unit can live above or below the generated block.
 - Manifest: `src-tauri/Cargo.toml`
 - Root: `src-tauri`
 - Source root: `src-tauri/src`
-- Source files: 93
-- Root declarations: `agent`, `agent_hooks`, `agent_settings`, `agents_layout`, `api_keys`, `app_paths`, `browser_host`, `clipboard`, `commands`, `fs_entries`, `git_commit_ai`, `git_graph`, `git_info`, `git_remote`, `git_status`, `git_sync`, `image`, `media_keys`, `memory`, `plans`, `plans_index`, `pointers`, `proc`, `pty_host`, `skills_rules`, `ssh_exec`, `ssh_remotes`, `ssh_secrets`, `tasks`, `updater`, `voice`, `workbench_state`
+- Source files: 117
+- Root declarations: `agent`, `agent_hooks`, `agent_settings`, `agents_layout`, `api_keys`, `app_logging`, `app_paths`, `browser_host`, `clipboard`, `commands`, `fs_entries`, `git_commit_ai`, `git_graph`, `git_info`, `git_remote`, `git_status`, `git_sync`, `image`, `kanban`, `mcp`, `media_keys`, `memory`, `plans`, `plans_index`, `pointers`, `proc`, `pty_host`, `skills_rules`, `ssh_exec`, `ssh_remotes`, `ssh_secrets`, `tasks`, `updater`, `voice`, `window_controls`, `workbench_state`, `workspace_presets`
 
 ### Top-Level Modules
 
-- `agent` (25 files) — submodules: `anthropic`, `environment`, `git_agent`, `oneshot`, `openrouter`, `pricing`, `project_docs`, `protocol`, `provider`, `session_orchestrator`, `shell_exec`, `state`, `subagent_prompts`, `subagent_runner`, `subagents`, `system_prompt`, `tool_dispatch`, `tool_groups`, `tools`, `tools_extra`, `web_commands`, `web_settings`, `web_tools`, `workspace_agent`; declarations: `anthropic`, `environment`, `git_agent`, `openrouter`, `project_docs`, `provider`, `session_orchestrator`, `shell_exec`, `subagent_prompts`, `subagent_runner`, `subagents`, `system_prompt`, `tests`, `tool_dispatch`, `tool_groups`, `tools`, `tools_extra`, `web_commands`, `web_tools`, `workspace_agent`
+- `agent` (32 files) — submodules: `anthropic`, `badwords`, `compaction`, `context_window`, `environment`, `git_agent`, `nickname`, `oneshot`, `openrouter`, `plan_ai`, `pricing`, `project_docs`, `prompt_enhance`, `protocol`, `provider`, `session_orchestrator`, `session_roles`, `shell_exec`, `state`, `subagent_prompts`, `subagent_runner`, `subagents`, `system_prompt`, `tool_dispatch`, `tool_groups`, `tools`, `tools_extra`, `web_commands`, `web_settings`, `web_tools`, `workspace_agent`; declarations: `anthropic`, `environment`, `git_agent`, `openrouter`, `plan_ai`, `project_docs`, `prompt_enhance`, `provider`, `session_orchestrator`, `shell_exec`, `subagent_prompts`, `subagent_runner`, `subagents`, `system_prompt`, `tests`, `tool_dispatch`, `tool_groups`, `tools`, `tools_extra`, `web_commands`, `web_tools`, `workspace_agent`
 - `agent_hooks` (1 files)
 - `agent_settings` (1 files)
 - `agents_layout` (1 files); declarations: `tests`
 - `api_keys` (1 files)
+- `app_logging` (1 files); declarations: `tests`
 - `app_paths` (1 files); declarations: `test_support`, `tests`
 - `browser_host` (1 files)
 - `clipboard` (1 files)
@@ -41,6 +42,8 @@ Manual notes about this unit can live above or below the generated block.
 - `git_status` (1 files); declarations: `tests`
 - `git_sync` (1 files); declarations: `tests`
 - `image` (4 files) — submodules: `commands`, `generate`, `settings`; declarations: `commands`, `generate`, `settings`, `tests`
+- `kanban` (1 files); declarations: `tests`
+- `mcp` (5 files) — submodules: `cli_export`, `client`, `registry`, `runtime`; declarations: `cli_export`, `client`, `registry`, `runtime`, `tests`
 - `media_keys` (1 files)
 - `memory` (23 files) — submodules: `architecture`, `frontmatter`, `graph`, `paths`, `store`, `types`, `wikilinks`; declarations: `architecture_guard_tests`, `cmake`, `common`, `detect`, `frontmatter`, `generic`, `go`, `graph`, `indexers`, `jai`, `make`, `node`, `paths`, `pointer_tests`, `python`, `rust`, `state`, `static_index`, `store`, `tests`, `types`, `unit`, `wikilinks`, `zig`; 15 deeper source files aggregated here
 - `plans` (1 files); declarations: `tests`
@@ -54,22 +57,31 @@ Manual notes about this unit can live above or below the generated block.
 - `ssh_secrets` (1 files)
 - `tasks` (1 files); declarations: `tests`
 - `updater` (1 files); declarations: `tests`
-- `voice` (6 files) — submodules: `commands`, `recorder`, `settings`, `stt`, `tts`; declarations: `commands`, `recorder`, `settings`, `stt`, `tts`
-- `workbench_state` (1 files)
+- `voice` (14 files) — submodules: `commands`, `models`, `ptt`, `recorder`, `settings`, `stt`, `tts`; declarations: `catalog`, `cloud`, `collision`, `commands`, `imp`, `local_whisper`, `models`, `ptt`, `recorder`, `settings`, `stt`, `tests`, `tts`; 6 deeper source files aggregated here
+- `window_controls` (1 files)
+- `workbench_state` (1 files); declarations: `tests`
+- `workspace_presets` (1 files); declarations: `tests`
 
 ### Source Paths
 
 - `src-tauri/src/agent/anthropic.rs`
+- `src-tauri/src/agent/badwords.rs`
+- `src-tauri/src/agent/compaction.rs`
+- `src-tauri/src/agent/context_window.rs`
 - `src-tauri/src/agent/environment.rs`
 - `src-tauri/src/agent/git_agent.rs`
 - `src-tauri/src/agent/mod.rs`
+- `src-tauri/src/agent/nickname.rs`
 - `src-tauri/src/agent/oneshot.rs`
 - `src-tauri/src/agent/openrouter.rs`
+- `src-tauri/src/agent/plan_ai.rs`
 - `src-tauri/src/agent/pricing.rs`
 - `src-tauri/src/agent/project_docs.rs`
+- `src-tauri/src/agent/prompt_enhance.rs`
 - `src-tauri/src/agent/protocol.rs`
 - `src-tauri/src/agent/provider.rs`
 - `src-tauri/src/agent/session_orchestrator.rs`
+- `src-tauri/src/agent/session_roles.rs`
 - `src-tauri/src/agent/shell_exec.rs`
 - `src-tauri/src/agent/state.rs`
 - `src-tauri/src/agent/subagent_prompts.rs`
@@ -88,6 +100,7 @@ Manual notes about this unit can live above or below the generated block.
 - `src-tauri/src/agent_settings.rs`
 - `src-tauri/src/agents_layout.rs`
 - `src-tauri/src/api_keys.rs`
+- `src-tauri/src/app_logging.rs`
 - `src-tauri/src/app_paths.rs`
 - `src-tauri/src/browser_host.rs`
 - `src-tauri/src/clipboard.rs`
@@ -103,8 +116,14 @@ Manual notes about this unit can live above or below the generated block.
 - `src-tauri/src/image/generate.rs`
 - `src-tauri/src/image/mod.rs`
 - `src-tauri/src/image/settings.rs`
+- `src-tauri/src/kanban.rs`
 - `src-tauri/src/lib.rs`
 - `src-tauri/src/main.rs`
+- `src-tauri/src/mcp/cli_export.rs`
+- `src-tauri/src/mcp/client.rs`
+- `src-tauri/src/mcp/mod.rs`
+- `src-tauri/src/mcp/registry.rs`
+- `src-tauri/src/mcp/runtime.rs`
 - `src-tauri/src/media_keys.rs`
 - `src-tauri/src/memory/architecture/common.rs`
 - `src-tauri/src/memory/architecture/detect.rs`
@@ -125,21 +144,8 @@ Manual notes about this unit can live above or below the generated block.
 - `src-tauri/src/memory/frontmatter.rs`
 - `src-tauri/src/memory/graph.rs`
 - `src-tauri/src/memory/mod.rs`
-- `src-tauri/src/memory/paths.rs`
-- `src-tauri/src/memory/store.rs`
-- `src-tauri/src/memory/types.rs`
-- `src-tauri/src/memory/wikilinks.rs`
-- `src-tauri/src/plans.rs`
-- `src-tauri/src/plans_index.rs`
-- `src-tauri/src/pointers/mod.rs`
-- `src-tauri/src/proc.rs`
-- `src-tauri/src/pty_host.rs`
-- `src-tauri/src/skills_rules/commands.rs`
-- `src-tauri/src/skills_rules/install.rs`
-- `src-tauri/src/skills_rules/mod.rs`
-- `src-tauri/src/skills_rules/pointers.rs`
-- `src-tauri/src/skills_rules/store.rs`
-- ... 13 more source paths omitted
+- ... 37 more source paths omitted
 <!-- architecture:static:end -->
+
 
 

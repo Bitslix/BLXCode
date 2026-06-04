@@ -42,15 +42,25 @@
 }
 
 .blx-plans-group__header {
+    all: unset;
+    box-sizing: border-box;
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    padding: 0.1rem 0.15rem;
+    gap: 0.45rem;
+    width: 100%;
+    padding: 0.2rem 0.25rem;
     color: var(--text-muted);
-    font-size: 0.68rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 0.35rem;
+}
+
+.blx-plans-group__header:hover {
+    background: var(--overlay-1);
+}
+
+.blx-plans-group__header:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
 }
 
 .blx-plans-group__icon {
@@ -58,18 +68,54 @@
     color: var(--accent-cool);
 }
 
+.blx-plans-group__head-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 0;
+}
+
 .blx-plans-group__title {
     min-width: 0;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.blx-plans-group__desc {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.66rem;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text-faint, var(--text-muted));
+    opacity: 0.85;
+}
+
+.blx-plans-group__chevron {
+    display: inline-flex;
+    margin-left: 0.1rem;
+    color: var(--text-muted);
+    transition: transform 0.15s ease;
+}
+
+.blx-plans-group--collapsed .blx-plans-group__chevron {
+    transform: rotate(-90deg);
 }
 
 .blx-plans-group__count {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    margin-left: auto;
     min-width: 17px;
     height: 15px;
     padding: 0 0.3rem;
-    border-radius: 999px;
+    border-radius: var(--radius-pill);
     background: var(--overlay-2);
     color: var(--text);
     font-size: 0.62rem;
@@ -108,9 +154,34 @@
     border-radius: 0.35rem;
 }
 
+.blx-plans-card__quick {
+    display: flex;
+    align-items: center;
+    align-self: end;
+    gap: 0.25rem;
+    margin-bottom: 0.05rem;
+}
+
 .blx-plans-card__edit-toggle {
-    align-self: start;
-    margin-top: 0.05rem;
+    align-self: flex-end;
+}
+
+.blx-plans-card__quick-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Quick danger button: keep the subtle icon-button border at rest so it
+   lines up with its siblings; only read as danger on hover. */
+.blx-plans-card__quick-btn.blx-sr-btn--danger {
+    background: var(--overlay-1);
+    border-color: var(--border);
+}
+
+.blx-plans-card__quick-btn.blx-sr-btn--danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger) 14%, transparent);
+    border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+    color: var(--danger);
 }
 
 .blx-plans-card__summary {

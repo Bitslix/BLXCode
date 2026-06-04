@@ -29,6 +29,7 @@
     "@codemirror/theme-one-dark": "^6.1.2",
     "@codemirror/view": "^6.36.1",
     "@lezer/highlight": "^1.2.1",
+    "@replit/codemirror-vim": "^6.3.0",
     "codemirror": "^6.0.1"
   },
   "devDependencies": {

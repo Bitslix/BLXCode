@@ -56,6 +56,27 @@ pub const CORE_SKILLS: &[(&str, &str)] = &[
         "subagents",
         include_str!("../agent/harness_skills/subagents.md"),
     ),
+    (
+        "prompt-generating",
+        include_str!("../agent/harness_skills/prompt-generating.md"),
+    ),
+    (
+        "notifications",
+        include_str!("../agent/harness_skills/notifications.md"),
+    ),
+    (
+        "grill-me",
+        include_str!("../agent/harness_skills/grill-me.md"),
+    ),
+    (
+        "openrouter-stt",
+        include_str!("../agent/harness_skills/openrouter-stt.md"),
+    ),
+    (
+        "openrouter-tts",
+        include_str!("../agent/harness_skills/openrouter-tts.md"),
+    ),
+    ("mcp", include_str!("../agent/harness_skills/mcp.md")),
 ];
 
 const CORE_INSTALLED_AT: &str = "2026-01-01T00:00:00Z";
@@ -66,6 +87,22 @@ fn core_skill_availability(name: &str) -> Option<String> {
     } else {
         None
     }
+}
+
+fn core_skill_category(name: &str) -> Option<String> {
+    let category = match name {
+        "file-access" | "environment" | "harness" | "shell" => "workspace",
+        "memory" | "memory-architecture" => "memory",
+        "plans" | "tasks" | "grill-me" => "planning",
+        "rules-skills" | "prompt-generating" | "notifications" => "workflow",
+        "git" => "git",
+        "web" => "web",
+        "subagents" => "agents",
+        "mcp" => "agents",
+        "openrouter-stt" | "openrouter-tts" => "voice",
+        _ => return None,
+    };
+    Some(category.into())
 }
 
 const RULES_INDEX_FILE: &str = "index.json";
@@ -97,6 +134,7 @@ pub fn ensure_skills_rules_roots(ws: &str) -> Result<SkillsRulesRoots, String> {
     fs::create_dir_all(&agents).map_err(|e| format!("create {AGENTS_REL}: {e}"))?;
     fs::create_dir_all(&rules).map_err(|e| format!("create {RULES_REL}: {e}"))?;
     fs::create_dir_all(&skills).map_err(|e| format!("create {SKILLS_REL}: {e}"))?;
+    crate::agents_layout::seed_rules_readme_if_missing(&rules)?;
     bootstrap_rules_index(&rules)?;
     bootstrap_skills_index(&skills)?;
     Ok(SkillsRulesRoots { rules, skills })
@@ -117,6 +155,8 @@ fn bootstrap_rules_index(rules_dir: &Path) -> Result<(), String> {
             RuleIndexEntry {
                 enabled: true,
                 updated_at: now.clone(),
+                category: None,
+                legacy_tags: Vec::new(),
             },
         );
     }
@@ -149,6 +189,7 @@ fn bootstrap_skills_index(skills_dir: &Path) -> Result<(), String> {
                 },
                 installed_at: now.clone(),
                 updated_at: now.clone(),
+                category: None,
             },
         );
     }
@@ -287,8 +328,73 @@ fn read_or_default_json<T: serde::de::DeserializeOwned + Default>(path: &Path) -
         .unwrap_or_default()
 }
 
-/// Strip leading `# Heading` line if present and shrink to `SUMMARY_MAX_CHARS`.
+fn markdown_body_without_frontmatter(body: &str) -> &str {
+    let Some(rest) = body.strip_prefix("---") else {
+        return body;
+    };
+    let rest = rest
+        .strip_prefix('\r')
+        .or_else(|| rest.strip_prefix('\n'))
+        .unwrap_or(rest);
+    for marker in ["\n---\n", "\n---\r\n", "\r\n---\r\n", "\r\n---\n"] {
+        if let Some(pos) = rest.find(marker) {
+            return &rest[pos + marker.len()..];
+        }
+    }
+    body
+}
+
+fn normalize_rule_category(raw: &str) -> Option<String> {
+    let value = raw
+        .trim()
+        .trim_matches('"')
+        .trim_matches('\'')
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.chars().take(48).collect())
+    }
+}
+
+fn extract_frontmatter_category(body: &str) -> Option<String> {
+    let rest = body.strip_prefix("---")?;
+    let rest = rest
+        .strip_prefix('\r')
+        .or_else(|| rest.strip_prefix('\n'))
+        .unwrap_or(rest);
+    for line in rest.lines() {
+        let trimmed = line.trim();
+        if trimmed == "---" {
+            break;
+        }
+        let Some((key, value)) = trimmed.split_once(':') else {
+            continue;
+        };
+        if key.trim().eq_ignore_ascii_case("category")
+            || key.trim().eq_ignore_ascii_case("categorie")
+        {
+            return normalize_rule_category(value);
+        }
+    }
+    None
+}
+
+fn extract_rule_category(body: &str) -> Option<String> {
+    extract_frontmatter_category(body)
+}
+
+fn extract_skill_category(body: &str) -> Option<String> {
+    extract_frontmatter_category(body)
+}
+
+/// Use the first H1 as title, then summarize the first body paragraph.
+/// Markdown section headings are skipped so a rule starting with `## Ziel`
+/// shows the paragraph under it instead of the heading text itself.
 fn extract_title_and_summary(body: &str, fallback_title: &str) -> (String, String) {
+    let body = markdown_body_without_frontmatter(body);
     let mut title = fallback_title.to_owned();
     let mut summary = String::new();
     let mut seen_title = false;
@@ -300,9 +406,14 @@ fn extract_title_and_summary(body: &str, fallback_title: &str) -> (String, Strin
             }
             continue;
         }
-        if !seen_title && trimmed.starts_with('#') {
-            title = trimmed.trim_start_matches('#').trim().to_owned();
+        if trimmed.starts_with('#') {
+            if !seen_title && trimmed.starts_with("# ") {
+                title = trimmed.trim_start_matches('#').trim().to_owned();
+            }
             seen_title = true;
+            continue;
+        }
+        if trimmed == "---" && summary.is_empty() {
             continue;
         }
         if !summary.is_empty() {
@@ -371,12 +482,9 @@ pub fn list_rules(ws: &str) -> Result<Vec<RuleEntry>, String> {
         .filter(|k| !known.contains(*k))
         .cloned()
         .collect();
-    let dirty = !stale.is_empty();
+    let mut dirty = !stale.is_empty();
     for k in stale {
         idx.rules.remove(&k);
-    }
-    if dirty {
-        let _ = write_rules_index(&roots.rules, &idx);
     }
 
     let mut entries = Vec::with_capacity(files.len());
@@ -384,16 +492,45 @@ pub fn list_rules(ws: &str) -> Result<Vec<RuleEntry>, String> {
         let path = roots.rules.join(&name);
         let body = fs::read_to_string(&path).unwrap_or_default();
         let meta = fs::metadata(&path).ok();
+        let updated_at = meta.as_ref().map(modified_rfc3339).unwrap_or_default();
         let (title, summary) = extract_title_and_summary(&body, name.trim_end_matches(".md"));
-        let enabled = idx.rules.get(&name).map(|e| e.enabled).unwrap_or(true);
+        let file_category = extract_rule_category(&body);
+        let index_entry = idx.rules.get(&name);
+        let enabled = index_entry.map(|e| e.enabled).unwrap_or(true);
+        let category = index_entry
+            .and_then(|e| e.category.clone())
+            .or_else(|| index_entry.and_then(|e| e.legacy_tags.first().cloned()))
+            .or_else(|| file_category.clone());
+        if let Some(category) = category.clone() {
+            let needs_update = idx
+                .rules
+                .get(&name)
+                .is_none_or(|entry| entry.category.as_deref() != Some(category.as_str()));
+            if needs_update {
+                idx.rules
+                    .entry(name.clone())
+                    .and_modify(|entry| entry.category = Some(category.clone()))
+                    .or_insert_with(|| RuleIndexEntry {
+                        enabled: true,
+                        updated_at: updated_at.clone(),
+                        category: Some(category.clone()),
+                        legacy_tags: Vec::new(),
+                    });
+                dirty = true;
+            }
+        }
         entries.push(RuleEntry {
             name,
             title,
             summary,
+            category,
             enabled,
             size_bytes: meta.as_ref().map(|m| m.len()).unwrap_or(0),
-            updated_at: meta.map(|m| modified_rfc3339(&m)).unwrap_or_default(),
+            updated_at,
         });
+    }
+    if dirty {
+        let _ = write_rules_index(&roots.rules, &idx);
     }
     Ok(entries)
 }
@@ -415,10 +552,17 @@ pub fn write_rule(ws: &str, name: &str, content: &str) -> Result<RuleEntry, Stri
     let now = now_rfc3339();
     idx.rules
         .entry(name.to_owned())
-        .and_modify(|e| e.updated_at = now.clone())
+        .and_modify(|e| {
+            e.updated_at = now.clone();
+            if let Some(category) = extract_rule_category(content) {
+                e.category = Some(category);
+            }
+        })
         .or_insert(RuleIndexEntry {
             enabled: true,
             updated_at: now.clone(),
+            category: extract_rule_category(content),
+            legacy_tags: Vec::new(),
         });
     write_rules_index(&roots.rules, &idx)?;
     list_rules(ws)?
@@ -444,6 +588,8 @@ pub fn set_rule_enabled(ws: &str, name: &str, enabled: bool) -> Result<RuleEntry
         .or_insert(RuleIndexEntry {
             enabled,
             updated_at: now.clone(),
+            category: None,
+            legacy_tags: Vec::new(),
         });
     write_rules_index(&roots.rules, &idx)?;
     list_rules(ws)?
@@ -514,12 +660,9 @@ pub fn list_skills(ws: &str) -> Result<Vec<SkillEntry>, String> {
         .filter(|k| !known.contains(*k) && !core_names.contains(k.as_str()))
         .cloned()
         .collect();
-    let dirty = !stale.is_empty();
+    let mut dirty = !stale.is_empty();
     for k in stale {
         idx.skills.remove(&k);
-    }
-    if dirty {
-        let _ = write_skills_index(&roots.skills, &idx);
     }
 
     // Prepend core skills.
@@ -540,6 +683,7 @@ pub fn list_skills(ws: &str) -> Result<Vec<SkillEntry>, String> {
                 name: name.to_string(),
                 title,
                 summary,
+                category: extract_skill_category(content).or_else(|| core_skill_category(name)),
                 enabled,
                 source: core_source.clone(),
                 installed_at: CORE_INSTALLED_AT.to_string(),
@@ -557,13 +701,15 @@ pub fn list_skills(ws: &str) -> Result<Vec<SkillEntry>, String> {
         let body = fs::read_to_string(&doc_path).unwrap_or_default();
         let missing = body.is_empty() && !doc_path.is_file();
         let (title, summary) = extract_title_and_summary(&body, &name);
+        let file_category = extract_skill_category(&body);
 
-        let (source, installed_at, updated_at, enabled) = match idx.skills.get(&name) {
+        let (source, installed_at, updated_at, enabled, category) = match idx.skills.get(&name) {
             Some(e) => (
                 e.source.clone(),
                 e.installed_at.clone(),
                 e.updated_at.clone(),
                 e.enabled,
+                e.category.clone().or_else(|| file_category.clone()),
             ),
             None => (
                 SkillSourceMeta {
@@ -584,13 +730,41 @@ pub fn list_skills(ws: &str) -> Result<Vec<SkillEntry>, String> {
                     .map(|m| modified_rfc3339(&m))
                     .unwrap_or_default(),
                 true,
+                file_category.clone(),
             ),
         };
+        if let Some(category) = category.clone() {
+            let needs_update = idx
+                .skills
+                .get(&name)
+                .is_none_or(|entry| entry.category.as_deref() != Some(category.as_str()));
+            if needs_update {
+                idx.skills
+                    .entry(name.clone())
+                    .and_modify(|entry| entry.category = Some(category.clone()))
+                    .or_insert_with(|| SkillIndexEntry {
+                        enabled: true,
+                        source: SkillSourceMeta {
+                            kind: SkillSourceKind::Local,
+                            url: None,
+                            git_ref: None,
+                            package: None,
+                            version: None,
+                            path: None,
+                        },
+                        installed_at: installed_at.clone(),
+                        updated_at: updated_at.clone(),
+                        category: Some(category.clone()),
+                    });
+                dirty = true;
+            }
+        }
 
         entries.push(SkillEntry {
             name,
             title,
             summary,
+            category,
             enabled,
             source,
             installed_at,
@@ -598,6 +772,9 @@ pub fn list_skills(ws: &str) -> Result<Vec<SkillEntry>, String> {
             missing_skill_md: missing,
             availability: None,
         });
+    }
+    if dirty {
+        let _ = write_skills_index(&roots.skills, &idx);
     }
     Ok(entries)
 }
@@ -628,6 +805,9 @@ pub fn write_skill(ws: &str, name: &str, content: &str) -> Result<SkillEntry, St
         .entry(name.to_owned())
         .and_modify(|e| {
             e.updated_at = now.clone();
+            if let Some(category) = extract_skill_category(content) {
+                e.category = Some(category);
+            }
         })
         .or_insert(SkillIndexEntry {
             enabled: true,
@@ -641,6 +821,7 @@ pub fn write_skill(ws: &str, name: &str, content: &str) -> Result<SkillEntry, St
             },
             installed_at: now.clone(),
             updated_at: now.clone(),
+            category: extract_skill_category(content),
         });
     write_skills_index(&roots.skills, &idx)?;
 
@@ -678,6 +859,7 @@ pub fn set_skill_enabled(ws: &str, name: &str, enabled: bool) -> Result<SkillEnt
             },
             installed_at: now.clone(),
             updated_at: now.clone(),
+            category: None,
         });
     write_skills_index(&roots.skills, &idx)?;
     list_skills(ws)?
@@ -722,6 +904,7 @@ pub fn record_installed_skill(
             source,
             installed_at: now.clone(),
             updated_at: now,
+            category: None,
         },
     );
     write_skills_index(&roots.skills, &idx)?;
@@ -837,6 +1020,8 @@ mod tests {
             RuleIndexEntry {
                 enabled: true,
                 updated_at: now_rfc3339(),
+                category: None,
+                legacy_tags: Vec::new(),
             },
         );
         write_rules_index(&roots.rules, &idx).unwrap();
@@ -967,5 +1152,39 @@ mod tests {
         assert_eq!(s, "bar baz");
         let (t2, _s2) = extract_title_and_summary("no heading text", "fallback");
         assert_eq!(t2, "fallback");
+    }
+
+    #[test]
+    fn extract_summary_skips_section_heading() {
+        let (t, s) =
+            extract_title_and_summary("# Foo\n\n## Ziel\n\nActual description", "fallback");
+        assert_eq!(t, "Foo");
+        assert_eq!(s, "Actual description");
+    }
+
+    #[test]
+    fn extract_category_from_rule_frontmatter() {
+        let category = extract_rule_category("---\ncategory: workflow\n---\n# Foo");
+        assert_eq!(category.as_deref(), Some("workflow"));
+    }
+
+    #[test]
+    fn extract_category_from_skill_frontmatter() {
+        let category = extract_skill_category("---\ncategory: frontend\n---\n# Skill");
+        assert_eq!(category.as_deref(), Some("frontend"));
+    }
+
+    #[test]
+    fn extract_category_accepts_categorie_alias() {
+        let category = extract_skill_category("---\ncategorie: planning\n---\n# Skill");
+        assert_eq!(category.as_deref(), Some("planning"));
+    }
+
+    #[test]
+    fn title_summary_ignore_frontmatter() {
+        let (title, summary) =
+            extract_title_and_summary("---\ncategory: workflow\n---\n# Foo\n\nBody", "fallback");
+        assert_eq!(title, "Foo");
+        assert_eq!(summary, "Body");
     }
 }

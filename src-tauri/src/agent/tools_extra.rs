@@ -138,6 +138,20 @@ pub fn extra_tool_defs() -> Vec<ToolDef> {
             site: ToolSite::Server,
         },
         ToolDef {
+            name: "git_conflicts",
+            description: "Inspect current merge/rebase/cherry-pick conflicts: unmerged paths, index stages, and conflict-marker hunks. Read-only; never resolves conflicts.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "cwd": { "type": "string" },
+                    "maxFiles": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 },
+                    "maxHunksPerFile": { "type": "integer", "minimum": 1, "maximum": 20, "default": 6 }
+                },
+                "additionalProperties": false
+            }),
+            site: ToolSite::Server,
+        },
+        ToolDef {
             name: "git_apply_patch",
             description: "Apply a unified diff patch in the workspace.",
             parameters: json!({

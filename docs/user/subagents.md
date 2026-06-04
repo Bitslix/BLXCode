@@ -24,7 +24,7 @@ flowchart LR
   Coord --> You[Final reply]
 ```
 
-1. You send a message that **explicitly** asks for subagents.
+1. You send a message that **explicitly** asks for subagents, or the active session role explicitly allows subagent orchestration.
 2. The coordinator may call `skills_read subagents` (core skill) and then `subagents.run`.
 3. Each subagent runs its own tool loop in the background (up to 3 in parallel by default).
 4. Results return as structured JSON; the coordinator writes a **single** answer for you.
@@ -33,7 +33,7 @@ Subagents do **not** appear in long-term chat history as separate threads — on
 
 ## When subagents run
 
-The coordinator must **not** spawn subagents unless you ask. Phrases that typically trigger a run:
+The coordinator must **not** spawn subagents unless you ask or the active session role explicitly allows subagent orchestration. Architect, Codewright, and Coordinator are allowed to use bounded scout/review/security subagents while keeping final decisions in the main turn. Phrases that typically trigger a run:
 
 | Intent | Example prompts |
 |--------|------------------|
@@ -42,7 +42,7 @@ The coordinator must **not** spawn subagents unless you ask. Phrases that typica
 | Exploration | “Scout the repo structure with a subagent” |
 | Named role | “Start a review subagent for the timeline UI” |
 
-If nothing happens, your wording may be too vague — say **subagent**, **parallel**, or a role name (`scout`, `review`, `security_analyst`).
+If nothing happens, your wording may be too vague and your active role may not authorize subagents — say **subagent**, **parallel**, or a role name (`scout`, `review`, `security_analyst`).
 
 ## Roles
 
@@ -96,8 +96,8 @@ Subagents only see tools from groups the coordinator assigns. Empty `allowedTool
 |----------|-----------------|
 | `environment_read` | `environment_detect` |
 | `workspace_read` | List/read files, `workspace_search` |
-| `diff_read` | `workspace_git_status`, `workspace_diff`, `git_status`, `git_diff`, `git_show` |
-| `git_read` | Status, diff, log, show, branches, ls-files |
+| `diff_read` | `workspace_git_status`, `workspace_diff`, `git_status`, `git_diff`, `git_show`, `git_conflicts` |
+| `git_read` | Status, diff, conflicts, log, show, branches, ls-files |
 | `git_write` | `git_apply_patch`, `git_add`, `git_commit` (coordinator-only in practice; not in subagent defaults) |
 | `shell_read` | `shell_exec` read-only allowlist |
 | `shell_write` | **Not available** to subagents |

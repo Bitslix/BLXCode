@@ -24,9 +24,19 @@ struct ActiveRecording {
     worker: JoinHandle<Result<PathBuf, String>>,
 }
 
+/// In-memory PCM recording: samples accumulate into a shared buffer (target
+/// rate, mono, f32) so a re-decode worker can read the partial audio while the
+/// user is still holding the key. No file is ever written (privacy + speed).
+struct ActivePcmRecording {
+    buffer: Arc<Mutex<Vec<f32>>>,
+    stop_tx: mpsc::Sender<RecorderCmd>,
+    worker: JoinHandle<Result<(), String>>,
+}
+
 #[derive(Default)]
 pub struct VoiceRecorderState {
     inner: Mutex<HashMap<String, ActiveRecording>>,
+    pcm: Mutex<HashMap<String, ActivePcmRecording>>,
 }
 
 impl VoiceRecorderState {
@@ -194,6 +204,147 @@ fn take_recording(state: &VoiceRecorderState, turn_id: &str) -> Result<ActiveRec
         .map_err(|_| "recorder state poisoned".to_string())?;
     map.remove(turn_id)
         .ok_or_else(|| format!("Keine aktive Aufnahme für {turn_id}."))
+}
+
+/// Start an in-memory PCM recording at `target_rate` (mono, f32). Returns the
+/// turn id. Samples are appended to a shared buffer that [`snapshot_pcm`] can
+/// read mid-recording for live partial decoding.
+pub fn start_pcm(state: &VoiceRecorderState, target_rate: u32) -> Result<String, String> {
+    let turn_id = uuid::Uuid::new_v4().to_string();
+
+    let host = cpal::default_host();
+    let device = host
+        .default_input_device()
+        .ok_or_else(|| "Kein Default-Audio-Eingang gefunden.".to_string())?;
+    let device_name = device
+        .description()
+        .map(|description| description.name().to_string())
+        .unwrap_or_else(|_| "unknown".into());
+    let supported = device
+        .default_input_config()
+        .map_err(|e| format!("default_input_config({device_name}): {e}"))?;
+
+    let input_rate = supported.sample_rate();
+    let channels = supported.channels() as usize;
+
+    let (sample_tx, sample_rx) = mpsc::channel::<Vec<f32>>();
+    let (cmd_tx, cmd_rx) = mpsc::channel::<RecorderCmd>();
+
+    let stream_sample_format = supported.sample_format();
+    let stream_config: cpal::StreamConfig = supported.into();
+
+    let buffer: Arc<Mutex<Vec<f32>>> = Arc::new(Mutex::new(Vec::new()));
+    let worker_buffer = buffer.clone();
+
+    let worker = thread::spawn(move || -> Result<(), String> {
+        let stream = build_stream(
+            &device,
+            &stream_config,
+            stream_sample_format,
+            sample_tx.clone(),
+        )?;
+        stream.play().map_err(|e| format!("stream.play: {e}"))?;
+
+        let mut resampler = LinearResampler::new(input_rate, target_rate);
+        let mut cancelled = false;
+        let push = |buf: &Arc<Mutex<Vec<f32>>>, samples: Vec<f32>| {
+            if let Ok(mut guard) = buf.lock() {
+                guard.extend_from_slice(&samples);
+            }
+        };
+        loop {
+            match cmd_rx.try_recv() {
+                Ok(RecorderCmd::Stop) => break,
+                Ok(RecorderCmd::Cancel) => {
+                    cancelled = true;
+                    break;
+                }
+                Err(mpsc::TryRecvError::Empty) => {}
+                Err(mpsc::TryRecvError::Disconnected) => break,
+            }
+            match sample_rx.recv_timeout(std::time::Duration::from_millis(50)) {
+                Ok(buf) => {
+                    let mono = downmix_to_mono(&buf, channels);
+                    push(&worker_buffer, resampler.process(&mono));
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => continue,
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            }
+        }
+        drop(stream);
+        while let Ok(buf) = sample_rx.try_recv() {
+            let mono = downmix_to_mono(&buf, channels);
+            push(&worker_buffer, resampler.process(&mono));
+        }
+        if cancelled {
+            if let Ok(mut guard) = worker_buffer.lock() {
+                guard.clear();
+            }
+        }
+        Ok(())
+    });
+
+    let mut map = state
+        .pcm
+        .lock()
+        .map_err(|_| "recorder state poisoned".to_string())?;
+    map.insert(
+        turn_id.clone(),
+        ActivePcmRecording {
+            buffer,
+            stop_tx: cmd_tx,
+            worker,
+        },
+    );
+    Ok(turn_id)
+}
+
+/// Snapshot the audio captured so far for `turn_id` without stopping the
+/// recording. Used by the live re-decode worker.
+pub fn snapshot_pcm(state: &VoiceRecorderState, turn_id: &str) -> Result<Vec<f32>, String> {
+    let map = state
+        .pcm
+        .lock()
+        .map_err(|_| "recorder state poisoned".to_string())?;
+    let rec = map
+        .get(turn_id)
+        .ok_or_else(|| format!("Keine aktive PCM-Aufnahme für {turn_id}."))?;
+    let guard = rec
+        .buffer
+        .lock()
+        .map_err(|_| "pcm buffer poisoned".to_string())?;
+    Ok(guard.clone())
+}
+
+/// Stop a PCM recording and return the full captured audio (mono f32).
+pub fn stop_pcm(state: &VoiceRecorderState, turn_id: &str) -> Result<Vec<f32>, String> {
+    let rec = take_pcm(state, turn_id)?;
+    let _ = rec.stop_tx.send(RecorderCmd::Stop);
+    rec.worker
+        .join()
+        .map_err(|_| "recorder worker panicked".to_string())??;
+    let guard = rec
+        .buffer
+        .lock()
+        .map_err(|_| "pcm buffer poisoned".to_string())?;
+    Ok(guard.clone())
+}
+
+/// Cancel a PCM recording, discarding any captured audio.
+pub fn cancel_pcm(state: &VoiceRecorderState, turn_id: &str) -> Result<(), String> {
+    let rec = take_pcm(state, turn_id)?;
+    let _ = rec.stop_tx.send(RecorderCmd::Cancel);
+    let _ = rec.worker.join();
+    Ok(())
+}
+
+fn take_pcm(state: &VoiceRecorderState, turn_id: &str) -> Result<ActivePcmRecording, String> {
+    let mut map = state
+        .pcm
+        .lock()
+        .map_err(|_| "recorder state poisoned".to_string())?;
+    map.remove(turn_id)
+        .ok_or_else(|| format!("Keine aktive PCM-Aufnahme für {turn_id}."))
 }
 
 fn build_stream(

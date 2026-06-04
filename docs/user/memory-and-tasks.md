@@ -34,7 +34,7 @@ Paths are sandboxed per root. BLXCode rejects absolute paths, `..` escapes, and 
 
 ## Memory Panel
 
-Open the Memory panel from the right workbench rail (legacy: `Ctrl+Shift+M`; tmux: `Ctrl+b` then `m` — see [Keyboard Shortcuts](keyboard-shortcuts.md)). It has three tabs:
+Open the Memory panel from the right workbench rail (legacy: `Ctrl+Shift+M`; tmux: `Ctrl+b` then `m` — see [Keyboard Shortcuts](keyboard-shortcuts.md)). The **titlebar → NAVIGATE → Memory** action now opens or focuses the Memory **center tab** instead of switching the right sidebar to Memory, matching the centered workflow. It has three tabs:
 
 | Tab | Purpose |
 |-----|---------|
@@ -43,8 +43,28 @@ Open the Memory panel from the right workbench rail (legacy: `Ctrl+Shift+M`; tmu
 | **Search** | Full-text search with category filter badges; jump to a node in the graph. |
 
 <p align="center">
-  <img src="../images/memory-files.png" alt="Memory Files tab with category toolbar and grouped notes" />
+  <img src="../images/memory-center-architecture-files.png" alt="Memory center tab Files view showing the Architecture category, generated module notes, an Architecture index preview, agent memory pointer banner, and workspace sidebar" />
 </p>
+
+### Memory as a center tab
+
+When you open Memory from the titlebar **NAVIGATE** menu (or via the in-panel **Open memory in centered tab** button), Memory opens as a **center workbench tab** with a wider minimum column width (the files/categories column starts at double the normal minimum and cannot be resized below that wider center-tab minimum), and the redundant "Open memory in centered tab" button is hidden. Graph node details dock to the right of the graph canvas on wide center-tab layouts while retaining the bottom layout on narrow viewports. A new centered-only **Split View** toggle sits before the architecture refresh button, letting you intentionally keep the terminal grid visible beside Memory while the normal tab-exclusive behavior remains the default.
+
+### Collapsed summary
+
+When the right rail Memory panel is fully collapsed, the collapsed-header summary shows an **Open memory in centered tab** button (`LuPanelTopOpen`) and a live `X files / Y cats` count derived from the enabled, non-template workspace notes. Templates and the built-in `memory` pseudo-category are excluded from the category total. Both the button and the count are hidden when the panel is fully expanded.
+
+### Default workspace index
+
+When a workspace opens, the Memory panel auto-loads its `.agents/memory/README.md` index as the active note (if it exists) — the file tree no longer boots into a blank preview. The `load_note` helper seeds the active scope, path, editor-dirty, and preview state synchronously so the UI never flashes a stale selection.
+
+### Exclusive group open
+
+Category groups are **mutually exclusive**: opening a category auto-closes the previously open one. A single `set_exclusive_open_group` helper is reused by *New category*, *New note*, *Category click*, and the *Group-index click* path.
+
+### Read-only note kinds
+
+A `memory_note_is_read_only` helper lets the editor correctly identify read-only note kinds (architecture map notes, etc.) so the **Edit** button is hidden for them.
 
 ### Toolbar and dialogs
 
@@ -66,9 +86,17 @@ BLXCode can build a **project architecture map** under `.agents/memory/architect
 
 Rebuild works for Rust, Node/TypeScript, Python, CMake, Go, Zig, Makefile-based C/C++, and other trees via a generic fallback — not only `Cargo.toml` workspaces. In the Files tree, `ARCHITECTURE.md` opens from the **architecture** category header (it is not a duplicate row). The BLXCode Agent can call `memory_rebuild_architecture` / `memory_lint_architecture` and is steered to read the map before broad repo searches.
 
+The first-touch architecture rebuild walks the whole workspace tree, which can take seconds on a large codebase. `memory_rebuild_architecture` and `memory_lint_architecture` are now `async` and run on the blocking thread pool, so opening a large workspace no longer freezes the UI.
+
 Commit `ARCHITECTURE.md` and `architecture/modules/*.md` with structural PRs; local staleness metadata lives in `.agents/memory/.meta/` (gitignored).
 
 Each category header has a hover **+** button to create a note prefilled for that category.
+
+### Memory Indexer (HeartBeat)
+
+A background **Memory Indexer** service is registered with the HeartBeat runtime (configured under **Settings → HeartBeat**). It indexes all currently open workspaces asynchronously and produces Memory notes with frontmatter, written into the existing Memory categories (`rules`, `skills`, `plans`) for both workspace memory (`.agents/memory/...`) and global memory (`~/.blxcode/memory/...`) — so the existing Memory graph and Graph3D clustering consume them without a separate `index` category.
+
+The service keeps per-workspace runs from overlapping (skipped while one is already in flight) and marks a run **stalled** after three consecutive skips. The left statusbar process area rotates active processes every three seconds, including **Memory Indexer running or stalled** state. Stats and the independent provider/model settings live under **Settings → Memory**.
 
 Right-click a category header to **Edit** display settings or **Send to BLXCode Agent** (whole category). Right-click a note for **Open** or **Send to BLXCode Agent**.
 
@@ -100,7 +128,7 @@ The backend builds graph data from notes, backlinks, and tags. Nodes carry a `ca
 Selecting a node in **Graph** opens a preview popover with **Open in Files**, wikilink navigation, and handoff to terminals (see [Workspaces](workspaces.md#terminal-agent-context-handoff)).
 
 <p align="center">
-  <img src="../images/memory-graph.png" alt="Memory Graph with category-colored clustered nodes" />
+  <img src="../images/memory-graph-3d-architecture.png" alt="Memory Graph 3D view showing architecture and generated module nodes clustered in a dark canvas with graph toolbar controls" />
 </p>
 
 <p align="center">
@@ -148,22 +176,24 @@ Each task includes ID, title, description, status, position, timestamps, optiona
 
 Supported statuses: `pending`, `in_progress`, `blocked`, `completed`, `cancelled`.
 
-**Plan-linked tasks** sync with Markdown under `.agents/plans/`. Tasks without a `planPath` are **free tasks**. See [Plans](plans.md) for syntax and the Plans panel.
+**Plan-linked tasks** sync with Markdown under `.agents/plans/<slug>/plan.md`. Tasks without a `planPath` are **free tasks**. See [Plans](plans.md) for syntax and the Plans panel.
 
 ## Agent Memory Tools
 
-The BLXCode agent can list, read, search, create, rename, delete, and graph workspace notes. Category tools include `memory_list_categories`, `memory_create_category`, `memory_category_list`, and `memory_category_update` (any existing category key).
+The BLXCode agent can list, read, search, create, rename, delete, and graph workspace notes. Category tools include `memory_category_list` and `memory_category_update` (any existing category key). To create a new category through the agent, create the first note under that category path, e.g. `research/notes.md`.
 
 Context tools: `memory_context_list`, `memory_context_attach`, `memory_context_detach`.
 
 Use **Send to BLXCode Agent** in the Memory panel to attach notes or categories without pasting paths. For the full tool catalog, call `list_tools` or see [Agent Providers](agent-providers.md).
 
 <p align="center">
-  <img src="../images/agent-panel.png" alt="BLXCode Agent panel with context and task sections" />
+  <img src="../images/agent-panel-session-stats.png" alt="BLXCode Agent panel with session stats, context-window meter, tool-call counts, Drobo orb, and modern composer" />
 </p>
 
 ## See also
 
+- [Settings → Memory](settings.md#memory) — Memory settings pane (right-panel toggle, memory pointers, Memory Indexer)
+- [Settings → HeartBeat](settings.md#heartbeat) — interval, service listing, Run now
 - [Plans](plans.md) — plan Markdown and plan-linked tasks
 - [Rules And Skills](rules-and-skills.md) — binding workspace rules
 - [Image Mode](image.md) — generating images (separate from context images for vision/handoff)

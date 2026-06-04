@@ -65,6 +65,18 @@ const LLM_KINDS: &[(AgentProviderKind, &str, &str)] = &[
     (AgentProviderKind::Openrouter, "openrouter", "OpenRouter"),
     (AgentProviderKind::Anthropic, "anthropic", "Anthropic"),
     (AgentProviderKind::Openai, "openai", "OpenAI"),
+    (
+        AgentProviderKind::HuggingFace,
+        "huggingFace",
+        "Hugging Face",
+    ),
+    (
+        AgentProviderKind::Cloudflare,
+        "cloudflare",
+        "Cloudflare Workers AI",
+    ),
+    (AgentProviderKind::Together, "together", "Together AI"),
+    (AgentProviderKind::Portkey, "portkey", "Portkey"),
 ];
 
 const SEARCH_KINDS: &[(WebKeyKind, &str, &str)] = &[

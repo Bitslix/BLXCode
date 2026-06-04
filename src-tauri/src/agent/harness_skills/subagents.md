@@ -1,8 +1,14 @@
+---
+name: subagents
+description: Run bounded parallel scout, review, or security analyst subagents when explicitly requested or role-authorized and tool permissions allow it.
+categorie: agents
+---
+
 # Subagents
 
 ## `subagents.run { agents, mode?, maxConcurrency? }`
 
-Run parallel subagents **only when the user explicitly asks** (e.g. "use subagents", "parallel review").
+Run parallel subagents only when the user explicitly asks (e.g. "use subagents", "parallel review") or the active session role explicitly permits subagent orchestration.
 
 Roles: `scout`, `review`, `security_analyst`. Each agent must finish via `submit_result` (subagent-only tool).
 
@@ -17,7 +23,7 @@ If you set it, the value MUST be drawn from this exact list. Anything else is re
 - `environment_read` — `environment_detect`
 - `workspace_read` — `list_workspace_files`, `read_workspace_file`, `workspace_search`
 - `diff_read` — `workspace_git_status`, `workspace_diff`
-- `git_read` — `git_status`, `git_diff`, `git_log`, `git_show`, `git_branch_info`, `git_ls_files`
+- `git_read` — `git_status`, `git_diff`, `git_log`, `git_show`, `git_branch_info`, `git_ls_files`, `git_conflicts`
 - `memory_read` — memory note read tools
 - `plans_read` — plan read tools
 - `tasks_read` — `task_list`, `task_get`

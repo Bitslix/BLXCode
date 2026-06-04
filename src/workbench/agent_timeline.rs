@@ -1,7 +1,7 @@
 //! Reine Datenstrukturen für die Agent-Chat-Timeline (serde-fähig, ohne Leptos).
 //! Wird von [`crate::workbench::state::WorkspaceEntry`] und [`agent_panel::timeline`] genutzt.
 
-use crate::agent_wire::TurnMetrics;
+use crate::agent_wire::{AgentChatMode, TurnMetrics};
 use crate::i18n::{lookup, I18nKey, Locale};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -98,12 +98,63 @@ pub fn tool_label(tool: &str, loc: Locale) -> String {
     if let Some(k) = key {
         return lookup(loc, k).to_string();
     }
-    legacy_tool_label(tool)
+    legacy_tool_label(loc, tool)
 }
 
-fn legacy_tool_label(tool: &str) -> String {
-    match tool {
+fn legacy_tool_label(loc: Locale, tool: &str) -> String {
+    let key = match tool {
         "harness.create_workspace" => "Create workspace",
+        "harness.workspace_list" => {
+            return lookup(loc, I18nKey::AgentTimelineListWorkspaces).to_string()
+        }
+        "harness.workspace_switch" => {
+            return lookup(loc, I18nKey::AgentTimelineSwitchWorkspace).to_string()
+        }
+        "harness.workspace_prev" => {
+            return lookup(loc, I18nKey::AgentTimelinePreviousWorkspace).to_string()
+        }
+        "harness.workspace_next" => {
+            return lookup(loc, I18nKey::AgentTimelineNextWorkspace).to_string()
+        }
+        "harness.view_show" => return lookup(loc, I18nKey::AgentTimelineShowView).to_string(),
+        "harness.open_settings" => {
+            return lookup(loc, I18nKey::AgentTimelineOpenSettings).to_string()
+        }
+        "harness.open_memory" => return lookup(loc, I18nKey::AgentTimelineOpenMemory).to_string(),
+        "harness.open_plan" => return lookup(loc, I18nKey::AgentTimelineOpenPlans).to_string(),
+        "harness.open_file" => return lookup(loc, I18nKey::AgentTimelineOpenFile).to_string(),
+        "harness.open_diff" => return lookup(loc, I18nKey::AgentTimelineOpenDiff).to_string(),
+        "harness.window_get_state" => {
+            return lookup(loc, I18nKey::AgentTimelineWindowState).to_string()
+        }
+        "harness.window_set_size" => {
+            return lookup(loc, I18nKey::AgentTimelineSetWindowSize).to_string()
+        }
+        "harness.window_set_fullscreen" => {
+            return lookup(loc, I18nKey::AgentTimelineSetFullscreen).to_string()
+        }
+        "harness.notifications_list" => {
+            return lookup(loc, I18nKey::AgentTimelineListNotifications).to_string()
+        }
+        "harness.notifications_create" => {
+            return lookup(loc, I18nKey::AgentTimelineCreateNotification).to_string()
+        }
+        "harness.notifications_send" => {
+            return lookup(loc, I18nKey::AgentTimelineSendNotification).to_string()
+        }
+        "harness.notifications_update" => {
+            return lookup(loc, I18nKey::AgentTimelineUpdateNotification).to_string()
+        }
+        "harness.notifications_remove" => {
+            return lookup(loc, I18nKey::CommonRemoveNotification).to_string()
+        }
+        "harness.notifications_mark_read" => {
+            return lookup(loc, I18nKey::AgentTimelineMarkNotificationRead).to_string()
+        }
+        "workspace_file_write" => "Write workspace file",
+        "workspace_file_delete" => "Delete workspace entry",
+        "workspace_dir_create" => "Create workspace folder",
+        "workspace_entry_rename" => "Rename workspace entry",
         "list_workspace_files" => "List files",
         "read_workspace_file" => "Read file",
         "memory_list" => "List memory notes",
@@ -120,6 +171,9 @@ fn legacy_tool_label(tool: &str) -> String {
         "memory_context_list" => "List agent context",
         "memory_context_attach" => "Attach memory context",
         "memory_context_detach" => "Detach memory context",
+        "plan_context_list" => "List plan context",
+        "plan_context_attach" => "Attach plan context",
+        "plan_context_detach" => "Detach plan context",
         "list_tools" => "List tools",
         "task_list" => "List tasks",
         "task_get" => "Read task",
@@ -127,14 +181,30 @@ fn legacy_tool_label(tool: &str) -> String {
         "task_update" => "Update task",
         "task_delete" => "Delete task",
         "task_reorder" => "Reorder tasks",
-        "harness.open_terminal" => "Open terminal",
-        "harness.list_terminals" => "List terminals",
-        "harness.send_terminal_keys" => "Send keys to terminal",
-        "harness.send_agent_context" => "Send agent context to terminal",
-        "harness.read_terminal_output" => "Read terminal output",
+        "harness.open_terminal" => {
+            return lookup(loc, I18nKey::AgentTimelineOpenTerminal).to_string()
+        }
+        "harness.list_terminals" => {
+            return lookup(loc, I18nKey::AgentTimelineListTerminals).to_string()
+        }
+        "harness.send_terminal_keys" => {
+            return lookup(loc, I18nKey::AgentTimelineSendKeysToTerminal).to_string()
+        }
+        "harness.send_agent_context" => {
+            return lookup(loc, I18nKey::AgentTimelineSendAgentContextToTerminal).to_string()
+        }
+        "harness.read_terminal_output" => {
+            return lookup(loc, I18nKey::AgentTimelineReadTerminalOutput).to_string()
+        }
+        "harness.wait_terminal_output" => {
+            return lookup(loc, I18nKey::AgentTimelineWaitForTerminalOutput).to_string()
+        }
+        "harness.terminal_interrupt" => {
+            return lookup(loc, I18nKey::AgentTimelineInterruptTerminal).to_string()
+        }
         other => return other.to_string(),
-    }
-    .to_string()
+    };
+    key.to_string()
 }
 
 /// Lokalisiertes Subagent-Status-Label (`running`, `completed`, …).
@@ -212,6 +282,12 @@ pub struct AskUserOption {
     pub label: String,
     #[serde(default)]
     pub description: Option<String>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "setChatModeOnSelect"
+    )]
+    pub set_chat_mode_on_select: Option<AgentChatMode>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -348,11 +424,15 @@ pub struct TurnNode {
     pub parts: Vec<TurnPart>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserPart {
     pub id: String,
     pub text: String,
+    /// Epoch-ms timestamp of the user submit that started this turn. Older
+    /// persisted timelines did not carry this field, so it remains optional.
+    #[serde(default)]
+    pub created_at: Option<f64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -370,6 +450,19 @@ pub enum SubagentStatus {
     Running,
     Done,
     Error,
+}
+
+/// One entry in a turn-end [`TurnPart::ChangedFiles`] summary. Mirrors the
+/// relevant fields of `tauri_bridge::ChangedFile`, collapsed to a single
+/// added/removed pair (staged + unstaged combined) for display.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangedFileEntry {
+    pub rel_path: String,
+    /// `"modified" | "added" | "deleted" | "renamed" | "untracked" | "conflicted"`.
+    pub status: String,
+    pub added: u32,
+    pub removed: u32,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -428,6 +521,13 @@ pub enum TurnPart {
         #[serde(default)]
         metrics: TurnMetrics,
     },
+    /// Turn-end summary of the workspace files that changed during the turn.
+    /// Emitted once after a turn that ran a mutating tool, in a Git repo.
+    ChangedFiles {
+        id: String,
+        #[serde(default)]
+        files: Vec<ChangedFileEntry>,
+    },
     GeneratedImage {
         id: String,
         prompt: String,
@@ -464,6 +564,7 @@ impl TurnPart {
             | TurnPart::Tool { id, .. }
             | TurnPart::Subagent { id, .. }
             | TurnPart::ModelRound { id, .. }
+            | TurnPart::ChangedFiles { id, .. }
             | TurnPart::GeneratedImage { id, .. }
             | TurnPart::AskUser { id, .. } => id,
         }
@@ -485,18 +586,26 @@ impl TimelineDoc {
     }
 
     pub fn push_user_turn(&mut self, text: String) {
+        self.push_user_turn_with_started_at(text, None);
+    }
+
+    pub fn push_user_turn_with_started_at(&mut self, text: String, started_at: Option<f64>) {
         let id = format!("turn-{}", self.turns.len());
         let user_id = format!("user-{}", self.turns.len());
         self.turns.push(TurnNode {
             id,
-            user: UserPart { id: user_id, text },
+            user: UserPart {
+                id: user_id,
+                text,
+                created_at: started_at,
+            },
             parts: Vec::new(),
         });
     }
 
-    pub fn push_user_turn_with_pending(&mut self, text: String) {
+    pub fn push_user_turn_with_pending(&mut self, text: String, started_at: Option<f64>) {
         let pending_id = format!("think-pending-{}", self.turns.len());
-        self.push_user_turn(text);
+        self.push_user_turn_with_started_at(text, started_at);
         if let Some(turn) = self.turns.last_mut() {
             turn.parts.push(TurnPart::Thinking {
                 id: pending_id,
@@ -504,6 +613,23 @@ impl TimelineDoc {
                 done: false,
             });
         }
+    }
+
+    /// Replace (or remove) the turn-end changed-files summary on the most
+    /// recent turn. Removes any prior `ChangedFiles` part first so repeated
+    /// turn-end refreshes never stack. A turn with no remaining changes drops
+    /// the card entirely.
+    pub fn set_last_turn_changed_files(&mut self, files: Vec<ChangedFileEntry>) {
+        let Some(turn) = self.turns.last_mut() else {
+            return;
+        };
+        turn.parts
+            .retain(|part| !matches!(part, TurnPart::ChangedFiles { .. }));
+        if files.is_empty() {
+            return;
+        }
+        let id = format!("changed-{}", turn.id);
+        turn.parts.push(TurnPart::ChangedFiles { id, files });
     }
 
     pub fn sanitize_for_persistence(mut self) -> Self {
@@ -757,11 +883,15 @@ fn summarize_args(tool: &str, args: Option<&Value>) -> String {
         "memory_category_update" => Some("category"),
         "memory_context_attach" => Some("kind"),
         "memory_context_detach" => Some("id"),
+        "plan_context_attach" => Some("path"),
+        "plan_context_detach" => Some("id"),
         "task_get" | "task_update" | "task_delete" => Some("id"),
         "task_create" => Some("title"),
         "harness.open_terminal" => Some("agentSlug"),
         "harness.send_terminal_keys" => Some("text"),
         "harness.send_agent_context" => Some("instruction"),
+        "harness.wait_terminal_output" => Some("contains"),
+        "harness.terminal_interrupt" => Some("slotId"),
         "workspace_search" | "web_search" => Some("query"),
         "shell_exec" => Some("command"),
         "git_show" => Some("rev"),

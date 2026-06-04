@@ -7,6 +7,23 @@ pub const I18N_LOCALE_STORAGE_KEY: &str = "blxcode_locale_v1";
 /// `localStorage` key for the active app theme id (e.g. `blxcode-dark`).
 pub const THEME_STORAGE_KEY: &str = "blxcode_theme_v1";
 
+/// `localStorage` key for the global corner-roundings scale (`sharp`/`default`/`rounded`/`extra`).
+pub const RADIUS_SCALE_STORAGE_KEY: &str = "blxcode_radius_scale_v1";
+
+/// `localStorage` key for the chosen UI/terminal font family id (e.g. `jetbrains-mono`).
+pub const FONT_FAMILY_STORAGE_KEY: &str = "blxcode_font_family_v1";
+
+/// `localStorage` key for the global UI/terminal font size in pixels.
+pub const FONT_SIZE_STORAGE_KEY: &str = "blxcode_font_size_px_v1";
+
+/// `localStorage` key for the in-app code editor Vim key bindings toggle
+/// (`true` / `false`). Defaults to enabled when unset.
+pub const CODE_EDITOR_VIM_KEY: &str = "blxcode_code_editor_vim_v1";
+
+/// `localStorage` key for the persisted file editor / preview shortcut bindings
+/// (JSON map of `EditorShortcutAction` → `KeyChord`).
+pub const EDITOR_SHORTCUT_BINDINGS_KEY: &str = "blxcode_editor_shortcut_bindings_v1";
+
 /// `localStorage` key for memory graph rendering mode (`2d` / `3d`).
 pub const GRAPH_MODE_STORAGE_KEY: &str = "blxcode_memory_graph_mode_v1";
 
@@ -45,6 +62,26 @@ pub const UPDATE_AUTO_CHECK_KEY: &str = "blxcode_update_auto_check_v1";
 
 /// `localStorage` key for showing the close-workspace confirmation dialog (`1` / `0`).
 pub const CONFIRM_CLOSE_WORKSPACE_KEY: &str = "blxcode_confirm_close_workspace_v1";
+
+/// `localStorage` key for the user's `.agents` bootstrap choice (`auto` / `skip`).
+pub const AGENTS_BOOTSTRAP_CHOICE_KEY: &str = "blxcode_agents_bootstrap_choice_v1";
+
+/// `localStorage` key for showing Memory as a right-side panel tab (`1` / `0`).
+pub const MEMORY_RIGHT_PANEL_ENABLED_KEY: &str = "blxcode_memory_right_panel_enabled_v1";
+
+/// `localStorage` key for the terminal title naming mode (`slots` / `names`).
+pub const TERMINAL_NAMING_MODE_KEY: &str = "blxcode_terminal_naming_mode_v1";
+
+/// `localStorage` key for the editable terminal name pool (JSON string array).
+pub const TERMINAL_NAME_POOL_KEY: &str = "blxcode_terminal_name_pool_v1";
+
+/// Predefined agent-style display names used when the terminal naming mode is
+/// `names` and no per-slot override exists. Users can edit this list in the
+/// Workspace settings; resetting restores exactly this order.
+pub const DEFAULT_TERMINAL_NAME_POOL: &[&str] = &[
+    "Devon", "Tom", "Mia", "Ada", "Leo", "Nova", "Kai", "Iris", "Max", "Zoe", "Eli", "Luna",
+    "Finn", "Ruby", "Theo", "Sage",
+];
 
 /// `localStorage` key for the app version whose post-update notes were acknowledged.
 pub const POST_UPDATE_NOTES_SEEN_VERSION_KEY: &str = "blxcode_seen_release_notes_version_v1";

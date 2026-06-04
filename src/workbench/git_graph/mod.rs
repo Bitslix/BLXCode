@@ -1,10 +1,12 @@
-//! Sidebar git commit graph — native `git log --graph` gutter + commit rows.
+//! Sidebar git commit graph with VS Code-style lanes, compact rows and lazy
+//! commit details.
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    git_commit_graph, listen_git_status_dirty, GitGraphEntry, GitGraphLayout, TauriEventListener,
-    GIT_MISSING_CODE,
+    git_commit_details, git_commit_graph, listen_git_status_dirty, open_external_url,
+    GitCommitDetails, GitCommitFileChange, GitCommitNode, GitGraphEntry, GitGraphLayout,
+    TauriEventListener, GIT_MISSING_CODE,
 };
 use crate::workbench::git_sync_controls::{run_sync_op, GitSyncControls, SyncOp};
 use crate::workbench::sidebar_view_section::SidebarViewSection;
@@ -16,7 +18,9 @@ use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
 use send_wrapper::SendWrapper;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
+use wasm_bindgen::JsCast;
 
 #[component]
 pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl IntoView {
@@ -104,9 +108,6 @@ pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
         });
     });
 
-    // Auto-refresh on `git_status_dirty` (shared watcher with the
-    // FileDiffSection). 400ms debounce keeps a burst of HEAD/index/refs
-    // changes from triggering more than one `git log`.
     let pending_timeout: SendWrapper<Rc<RefCell<Option<Timeout>>>> =
         SendWrapper::new(Rc::new(RefCell::new(None)));
     let pending_for_cleanup = pending_timeout.clone();
@@ -138,7 +139,6 @@ pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
         listener_for_cleanup.borrow_mut().take();
     });
 
-    // Keep the shared sync status fresh for the Fetch/Pull buttons.
     Effect::new(move |_| {
         let _ = load_gen.get();
         let _ = wb.sidebar_repo_epoch().get();
@@ -159,12 +159,12 @@ pub fn GitGraphSection(git_repo_available: ReadSignal<Option<bool>>) -> impl Int
                 .get()
                 .is_some_and(|s| s.has_remote && !s.detached && s.upstream.is_some())
     };
-    let fetch_title = move || format!("{}", i18n.tr(I18nKey::SbDiffFetch)());
+    let fetch_title = move || i18n.tr(I18nKey::SbDiffFetch)().to_string();
     let pull_title = move || {
         let base = i18n.tr(I18nKey::SbDiffPull)();
         match sync.get() {
-            Some(s) if s.behind > 0 => format!("{base} \u{2193}{}", s.behind),
-            _ => format!("{base}"),
+            Some(s) if s.behind > 0 => format!("{base} v{}", s.behind),
+            _ => base.to_string(),
         }
     };
 
@@ -253,6 +253,10 @@ fn GitGraphBody(
     error_kind: RwSignal<Option<GraphErrorKind>>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
+    let selected_oid = RwSignal::new(None::<String>);
+    let hovered_oid = RwSignal::new(None::<String>);
+    let details = RwSignal::new(HashMap::<String, GitCommitDetails>::new());
+    let loading = RwSignal::new(Vec::<String>::new());
 
     view! {
         <div class="git-graph">
@@ -260,7 +264,7 @@ fn GitGraphBody(
                 when=move || error_kind.get().is_some()
                 fallback=move || {
                     let Some(g) = layout.get() else {
-                        return view! { <p class="sidebar-view-section__empty">"…"</p> }.into_any();
+                        return view! { <p class="sidebar-view-section__empty">"..."</p> }.into_any();
                     };
                     if g.entries.is_empty() {
                         return view! {
@@ -268,7 +272,15 @@ fn GitGraphBody(
                         }
                         .into_any();
                     }
-                    view! { <GitGraphList layout=g /> }.into_any()
+                    view! {
+                        <GitGraphList
+                            layout=g
+                            selected_oid=selected_oid
+                            hovered_oid=hovered_oid
+                            details=details
+                            loading=loading
+                        />
+                    }.into_any()
                 }
             >
                 <p class="sidebar-view-section__empty">
@@ -283,9 +295,36 @@ fn GitGraphBody(
 }
 
 #[component]
-fn GitGraphList(layout: GitGraphLayout) -> impl IntoView {
-    let gutter_ch = layout.gutter_cols.max(2);
-    let gutter_style = format!("--git-graph-cols: {gutter_ch}");
+fn GitGraphList(
+    layout: GitGraphLayout,
+    selected_oid: RwSignal<Option<String>>,
+    hovered_oid: RwSignal<Option<String>>,
+    details: RwSignal<HashMap<String, GitCommitDetails>>,
+    loading: RwSignal<Vec<String>>,
+) -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+    let load_details = Callback::new(move |oid: String| {
+        if details.with_untracked(|m| m.contains_key(&oid))
+            || loading.with_untracked(|v| v.iter().any(|x| x == &oid))
+        {
+            return;
+        }
+        let Some(cwd) = wb.default_workspace_cwd() else {
+            return;
+        };
+        let conn = wb.active_remote_connection_id();
+        loading.update(|v| v.push(oid.clone()));
+        spawn_local(async move {
+            if let Ok(detail) = git_commit_details(cwd, oid.clone(), conn).await {
+                details.update(|m| {
+                    m.insert(oid.clone(), detail);
+                });
+            }
+            loading.update(|v| v.retain(|x| x != &oid));
+        });
+    });
+    let lane_count = layout.lane_count.max(1);
+    let gutter_style = format!("--git-graph-lanes: {lane_count}");
 
     view! {
         <ul class="git-graph__list" role="list" style=gutter_style>
@@ -293,7 +332,16 @@ fn GitGraphList(layout: GitGraphLayout) -> impl IntoView {
                 each=move || layout.entries.clone()
                 key=|e| e.commit.oid.clone()
                 children=move |entry: GitGraphEntry| {
-                    view! { <GitGraphEntryView entry=entry /> }
+                    view! {
+                        <GitGraphRow
+                            entry=entry
+                            selected_oid=selected_oid
+                            hovered_oid=hovered_oid
+                            details=details
+                            loading=loading
+                            load_details=load_details
+                        />
+                    }
                 }
             />
         </ul>
@@ -301,32 +349,415 @@ fn GitGraphList(layout: GitGraphLayout) -> impl IntoView {
 }
 
 #[component]
-fn GitGraphEntryView(entry: GitGraphEntry) -> impl IntoView {
+fn GitGraphRow(
+    entry: GitGraphEntry,
+    selected_oid: RwSignal<Option<String>>,
+    hovered_oid: RwSignal<Option<String>>,
+    details: RwSignal<HashMap<String, GitCommitDetails>>,
+    loading: RwSignal<Vec<String>>,
+    load_details: Callback<String>,
+) -> impl IntoView {
     let commit = entry.commit.clone();
-    let gutter = entry.gutter.clone();
+    let oid = commit.oid.clone();
+    let oid_for_class = oid.clone();
+    let oid_for_expanded = oid.clone();
+    let oid_for_hovered = oid.clone();
+    let oid_for_click = oid.clone();
+    let oid_for_mouse = oid.clone();
+    let oid_for_focus = oid.clone();
+    let oid_for_loading_expanded = oid.clone();
+    let oid_for_loading_hover = oid.clone();
+    let oid_for_detail_expanded = oid.clone();
+    let oid_for_detail_hover = oid.clone();
+    let commit_for_expanded = commit.clone();
+    let commit_for_hover = commit.clone();
+    let wb = expect_context::<WorkbenchService>();
+    let ctx_dnd = expect_context::<crate::workbench::context_drag::ContextDragService>();
+    let drag_oid = commit.oid.clone();
+    let drag_short = commit.short_oid.clone();
+    let drag_subject = commit.subject.clone();
+    let commit_lane = entry.lane;
+    let text_lane = entry.lanes.saturating_sub(1);
+    let hover_card_style = RwSignal::new(default_hover_card_style());
+    let expanded_signal =
+        Signal::derive(move || selected_oid.get().as_deref() == Some(oid_for_expanded.as_str()));
+    let expanded_detail = Signal::derive(move || {
+        let oid = oid_for_detail_expanded.clone();
+        details.with(|m| m.get(&oid).cloned())
+    });
+    let expanded_loading =
+        Signal::derive(move || loading.with(|v| v.iter().any(|x| x == &oid_for_loading_expanded)));
+    let hover_detail = Signal::derive(move || {
+        let oid = oid_for_detail_hover.clone();
+        details.with(|m| m.get(&oid).cloned())
+    });
+    let hover_loading =
+        Signal::derive(move || loading.with(|v| v.iter().any(|x| x == &oid_for_loading_hover)));
+    let row_class = move || {
+        let mut class = String::from("git-graph__row");
+        if selected_oid.get().as_deref() == Some(oid_for_class.as_str()) {
+            class.push_str(" git-graph__row--selected");
+        }
+        if hovered_oid.get().as_deref() == Some(oid_for_class.as_str()) {
+            class.push_str(" git-graph__row--hovered");
+        }
+        class
+    };
+    let hovered = move || hovered_oid.get().as_deref() == Some(oid_for_hovered.as_str());
 
     view! {
-        <li class="git-graph__row">
-            <pre class="git-graph__gutter" aria-hidden="true">{gutter}</pre>
-            <div class="git-graph__text">
-                <div class="git-graph__subject-line">
-                    <span class="git-graph__subject" title=commit.subject.clone()>
-                        {commit.subject.clone()}
-                    </span>
-                    <For
-                        each=move || commit.decorations.clone()
-                        key=|d| (d.kind.clone(), d.label.clone())
-                        children=move |d| {
-                            view! {
-                                <span class="git-graph__ref">{d.label.clone()}</span>
-                            }
+        <li
+            class=row_class
+            style=format!("--commit-lane:{commit_lane};--text-lane:{text_lane};")
+            prop:draggable="true"
+            on:dragstart={
+                let oid = drag_oid.clone();
+                let short = drag_short.clone();
+                let subject = drag_subject.clone();
+                move |ev: web_sys::DragEvent| {
+                    let Some(ws_id) = wb.active_id().get_untracked() else { return; };
+                    let payload = crate::workbench::context_drag::ContextDragPayload {
+                        workspace_id: ws_id,
+                        kind: crate::workbench::context_drag::ContextDragKind::Commit,
+                        rel_path: None,
+                        staged: None,
+                        oid: Some(oid.clone()),
+                        short_oid: Some(short.clone()),
+                        subject: Some(subject.clone()),
+                    };
+                    let meta = crate::workbench::context_drag::ContextDragMeta {
+                        kind: crate::workbench::context_drag::ContextDragKind::Commit,
+                        title: short.clone(),
+                        subtitle: subject.clone(),
+                    };
+                    crate::workbench::context_drag::start_context_drag(&ev, ctx_dnd, payload, meta);
+                }
+            }
+            on:drag=move |ev: web_sys::DragEvent| ctx_dnd.set_overlay_pos_from_event(&ev)
+            on:dragend=move |_| ctx_dnd.clear()
+            on:mouseenter=move |ev: web_sys::MouseEvent| {
+                hover_card_style.set(hover_card_style_for_target(ev.current_target()));
+                hovered_oid.set(Some(oid_for_mouse.clone()));
+                load_details.run(oid_for_mouse.clone());
+            }
+            on:mouseleave=move |_| hovered_oid.set(None)
+        >
+            <div class="git-graph__line">
+                <GitGraphLaneGutter entry=entry.clone() selected=expanded_signal />
+                <button
+                    type="button"
+                    class="git-graph__commit-btn"
+                    aria-expanded=move || expanded_signal.get().to_string()
+                    on:click=move |_| {
+                        if selected_oid.get_untracked().as_deref() == Some(oid_for_click.as_str()) {
+                            selected_oid.set(None);
+                        } else {
+                            selected_oid.set(Some(oid_for_click.clone()));
+                            load_details.run(oid_for_click.clone());
                         }
-                    />
-                </div>
-                <span class="git-graph__meta">
-                    {commit.author.clone()}" · "{commit.rel_time.clone()}
-                </span>
+                    }
+                    on:focus=move |ev: web_sys::FocusEvent| {
+                        hover_card_style.set(hover_card_style_for_target(ev.current_target()));
+                        hovered_oid.set(Some(oid_for_focus.clone()));
+                        load_details.run(oid_for_focus.clone());
+                    }
+                    on:blur=move |_| hovered_oid.set(None)
+                >
+                    <span class="git-graph__subject">{commit.subject.clone()}</span>
+                </button>
             </div>
+            <Show when=move || expanded_signal.get()>
+                <GitGraphExpandedFiles
+                    detail=expanded_detail
+                    loading=expanded_loading
+                    fallback_commit=commit_for_expanded.clone()
+                />
+            </Show>
+            <Show when=hovered>
+                <GitCommitHoverCard
+                    detail=hover_detail
+                    loading=hover_loading
+                    fallback_commit=commit_for_hover.clone()
+                    card_style=Signal::derive(move || hover_card_style.get())
+                />
+            </Show>
         </li>
     }
+}
+
+#[component]
+fn GitGraphLaneGutter(entry: GitGraphEntry, selected: Signal<bool>) -> impl IntoView {
+    let node_lane = entry.lane;
+    view! {
+        <div class="git-graph__gutter" aria-hidden="true">
+            <For
+                each=move || entry.active_lanes.clone()
+                key=|lane| *lane
+                children=move |lane| {
+                    let style = format!("--lane:{lane};--lane-color:var(--git-lane-{});", lane % 8);
+                    view! { <span class="git-graph__lane" style=style></span> }
+                }
+            />
+            <For
+                each=move || entry.edges.clone()
+                key=|e| (e.from_lane, e.to_lane, e.color_index)
+                children=move |edge| {
+                    let left = edge.from_lane.min(edge.to_lane);
+                    let width = edge.from_lane.max(edge.to_lane) - left;
+                    let style = format!(
+                        "--lane:{left};--edge-width:{width};--lane-color:var(--git-lane-{});",
+                        edge.color_index % 8
+                    );
+                    view! { <span class="git-graph__edge" style=style></span> }
+                }
+            />
+            <span
+                class="git-graph__node"
+                class:git-graph__node--selected=move || selected.get()
+                style=format!("--lane:{node_lane};--lane-color:var(--git-lane-{});", node_lane % 8)
+            ></span>
+        </div>
+    }
+}
+
+#[component]
+fn GitGraphExpandedFiles(
+    detail: Signal<Option<GitCommitDetails>>,
+    loading: Signal<bool>,
+    fallback_commit: GitCommitNode,
+) -> impl IntoView {
+    view! {
+        <div class="git-graph__expanded">
+            <div class="git-graph__expanded-meta">
+                <span>{fallback_commit.author.clone()}</span>
+                <span>{fallback_commit.rel_time.clone()}</span>
+            </div>
+            {move || match detail.get() {
+                Some(d) if d.files.is_empty() => view! {
+                    <p class="git-graph__details-empty">"No files changed"</p>
+                }.into_any(),
+                Some(d) => view! {
+                    <ul class="git-graph__files" role="list">
+                        <For
+                            each=move || d.files.clone()
+                            key=|file| (file.path.clone(), file.status.clone())
+                            children=move |file| view! { <GitGraphFileRow file=file /> }
+                        />
+                    </ul>
+                }.into_any(),
+                None if loading.get() => view! {
+                    <p class="git-graph__details-empty">"Loading files..."</p>
+                }.into_any(),
+                None => view! {
+                    <p class="git-graph__details-empty">"Could not load files"</p>
+                }.into_any(),
+            }}
+        </div>
+    }
+}
+
+#[component]
+fn GitGraphFileRow(file: GitCommitFileChange) -> impl IntoView {
+    let marker = status_marker_for(&file.status);
+    let status_class = format!(
+        "git-graph__file-status git-graph__file-status--{}",
+        file.status
+    );
+    let (dir, name) = split_path(&file.path);
+    let has_dir = !dir.is_empty();
+    let dir_text = dir.clone();
+    let added = file.added.unwrap_or(0);
+    let removed = file.removed.unwrap_or(0);
+    view! {
+        <li class="git-graph__file">
+            <span class=status_class>{marker}</span>
+            <span class="git-graph__file-path" title=file.path.clone()>
+                <Show when=move || has_dir>
+                    <span class="git-graph__file-dir">{dir_text.clone()}"/"</span>
+                </Show>
+                <span class="git-graph__file-name">{name.clone()}</span>
+            </span>
+            <span class="git-graph__file-stats">
+                <Show when=move || { added > 0 }>
+                    <span class="git-graph__stat git-graph__stat--add">{format!("+{added}")}</span>
+                </Show>
+                <Show when=move || { removed > 0 }>
+                    <span class="git-graph__stat git-graph__stat--del">{format!("-{removed}")}</span>
+                </Show>
+            </span>
+        </li>
+    }
+}
+
+#[component]
+fn GitCommitHoverCard(
+    detail: Signal<Option<GitCommitDetails>>,
+    loading: Signal<bool>,
+    fallback_commit: GitCommitNode,
+    card_style: Signal<String>,
+) -> impl IntoView {
+    let fallback_decorations = fallback_commit.decorations.clone();
+    let github_url = Signal::derive(move || {
+        detail
+            .get()
+            .and_then(|d| github_commit_url(d.remote_url.as_deref(), &d.oid))
+    });
+    let show_loading = Signal::derive(move || loading.get() && detail.get().is_none());
+    view! {
+        <aside class="git-graph__hover-card" role="tooltip" style=move || card_style.get()>
+            {move || {
+                let d = detail.get();
+                let subject = d.as_ref().map(|d| d.subject.clone()).unwrap_or_else(|| fallback_commit.subject.clone());
+                let body = d.as_ref().map(|d| d.body.clone()).unwrap_or_else(|| fallback_commit.body.clone());
+                let author = d.as_ref().map(|d| d.author.clone()).unwrap_or_else(|| fallback_commit.author.clone());
+                let rel = d.as_ref().map(|d| d.rel_time.clone()).unwrap_or_else(|| fallback_commit.rel_time.clone());
+                let when = d.as_ref().map(|d| d.author_time.clone()).unwrap_or_else(|| fallback_commit.author_time.clone());
+                let short = d.as_ref().map(|d| d.short_oid.clone()).unwrap_or_else(|| fallback_commit.short_oid.clone());
+                let files = d.as_ref().map(|d| d.files_changed).unwrap_or(0);
+                let add = d.as_ref().map(|d| d.insertions).unwrap_or(0);
+                let del = d.as_ref().map(|d| d.deletions).unwrap_or(0);
+                let body_view = if body.trim().is_empty() {
+                    ().into_any()
+                } else {
+                    view! { <p class="git-graph__hover-body">{body.clone()}</p> }.into_any()
+                };
+                let refs = fallback_decorations.clone();
+                view! {
+                    <div>
+                        <header class="git-graph__hover-head">
+                            <span class="git-graph__avatar">{initials(&author)}</span>
+                            <span class="git-graph__hover-author">{author}</span>
+                            <span class="git-graph__hover-time" title=when>{rel}</span>
+                        </header>
+                        <p class="git-graph__hover-subject">{subject}</p>
+                        {body_view}
+                        <div class="git-graph__hover-stats">
+                            <span>{format!("{files} files changed")}</span>
+                            <span class="git-graph__stat--add">{format!("{add} insertions(+)")}</span>
+                            <span class="git-graph__stat--del">{format!("{del} deletions(-)")}</span>
+                        </div>
+                        <div class="git-graph__hover-refs">
+                            <For
+                                each=move || refs.clone()
+                                key=|d| (d.kind.clone(), d.label.clone())
+                                children=move |d| view! { <span class="git-graph__ref">{d.label.clone()}</span> }
+                            />
+                        </div>
+                        <footer class="git-graph__hover-foot">
+                            <span class="git-graph__sha">{short}</span>
+                            <Show when=move || show_loading.get()>
+                                <span class="git-graph__hover-loading">"Loading..."</span>
+                            </Show>
+                            <Show when=move || github_url.get().is_some()>
+                                <button
+                                    type="button"
+                                    class="git-graph__github"
+                                    on:click=move |ev| {
+                                        ev.stop_propagation();
+                                        if let Some(url) = github_url.get() {
+                                            spawn_local(async move {
+                                                let _ = open_external_url(&url).await;
+                                            });
+                                        }
+                                    }
+                                >
+                                    <LxIcon icon=icondata::LuGithub width="0.78rem" height="0.78rem" />
+                                    <span>"Open on GitHub"</span>
+                                </button>
+                            </Show>
+                        </footer>
+                    </div>
+                }
+            }}
+        </aside>
+    }
+}
+
+fn split_path(path: &str) -> (String, String) {
+    match path.rsplit_once('/') {
+        Some((dir, name)) => (dir.to_string(), name.to_string()),
+        None => (String::new(), path.to_string()),
+    }
+}
+
+fn status_marker_for(kind: &str) -> &'static str {
+    match kind {
+        "added" => "A",
+        "deleted" => "D",
+        "renamed" => "R",
+        "copied" => "C",
+        _ => "M",
+    }
+}
+
+fn initials(name: &str) -> String {
+    let mut out = String::new();
+    for part in name.split_whitespace().take(2) {
+        if let Some(ch) = part.chars().next() {
+            out.push(ch.to_ascii_uppercase());
+        }
+    }
+    if out.is_empty() {
+        "?".into()
+    } else {
+        out
+    }
+}
+
+fn github_commit_url(remote: Option<&str>, oid: &str) -> Option<String> {
+    let remote = remote?.trim().trim_end_matches(".git");
+    let path = if let Some(rest) = remote.strip_prefix("https://github.com/") {
+        rest
+    } else if let Some(rest) = remote.strip_prefix("http://github.com/") {
+        rest
+    } else if let Some(rest) = remote.strip_prefix("git@github.com:") {
+        rest
+    } else if let Some(rest) = remote.strip_prefix("ssh://git@github.com/") {
+        rest
+    } else {
+        return None;
+    };
+    if path.split('/').count() < 2 {
+        return None;
+    }
+    Some(format!("https://github.com/{path}/commit/{oid}"))
+}
+
+fn default_hover_card_style() -> String {
+    "left: 0.75rem; top: 0.75rem;".into()
+}
+
+fn hover_card_style_for_target(target: Option<web_sys::EventTarget>) -> String {
+    let Some(target) = target else {
+        return default_hover_card_style();
+    };
+    let Ok(element) = target.dyn_into::<web_sys::Element>() else {
+        return default_hover_card_style();
+    };
+    let rect = element.get_bounding_client_rect();
+    let (viewport_w, viewport_h) = viewport_size();
+    let card_w = 420.0_f64.min((viewport_w - 32.0).max(260.0));
+    let card_h = 220.0;
+    let left = (rect.right() + 8.0).min((viewport_w - card_w - 12.0).max(12.0));
+    let top = (rect.top() - 8.0)
+        .min((viewport_h - card_h - 12.0).max(12.0))
+        .max(12.0);
+    format!("left:{left:.0}px;top:{top:.0}px;")
+}
+
+fn viewport_size() -> (f64, f64) {
+    let Some(window) = web_sys::window() else {
+        return (1280.0, 720.0);
+    };
+    let width = window
+        .inner_width()
+        .ok()
+        .and_then(|v| v.as_f64())
+        .unwrap_or(1280.0);
+    let height = window
+        .inner_height()
+        .ok()
+        .and_then(|v| v.as_f64())
+        .unwrap_or(720.0);
+    (width, height)
 }

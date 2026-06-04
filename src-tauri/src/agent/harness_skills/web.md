@@ -1,3 +1,9 @@
+---
+name: web
+description: Search and fetch current web information through configured BLXCode web tools when fresh or primary-source context is needed.
+categorie: web
+---
+
 # Web
 
 ## `web_search` / `web_fetch`

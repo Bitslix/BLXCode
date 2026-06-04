@@ -69,6 +69,36 @@ impl KeyChord {
             && self.key == normalize_key(&ev.key())
     }
 
+    /// True when only the main key matches (modifiers ignored). Used for
+    /// hold-to-talk key-up, where the user may release modifiers before the
+    /// main key.
+    #[must_use]
+    pub fn matches_key_only(&self, ev: &KeyboardEvent) -> bool {
+        self.key == normalize_key(&ev.key())
+    }
+
+    /// CodeMirror key notation, e.g. `Mod-s`, `Mod-Shift-[`, `Alt-ArrowUp`.
+    /// `ctrl` maps to CM's cross-platform `Mod` (Ctrl on Linux/Win, Cmd on mac).
+    #[must_use]
+    pub fn cm_key(&self) -> String {
+        let mut parts: Vec<String> = Vec::new();
+        if self.ctrl {
+            parts.push("Mod".to_owned());
+        }
+        if self.shift {
+            parts.push("Shift".to_owned());
+        }
+        if self.alt {
+            parts.push("Alt".to_owned());
+        }
+        parts.push(if self.key == " " {
+            "Space".to_owned()
+        } else {
+            self.key.clone()
+        });
+        parts.join("-")
+    }
+
     /// Display segments, e.g. `["Ctrl", "Shift", "N"]`.
     #[must_use]
     pub fn parts(&self) -> Vec<String> {
@@ -119,6 +149,8 @@ impl Binding {
 /// The bindable harness actions (the rows shown on the welcome screen).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum ShortcutAction {
+    /// Create a new workspace (opens the inline Create-Workspace configurator).
+    CreateWorkspace,
     QuickOpen,
     FindFile,
     SidePanel,
@@ -127,11 +159,17 @@ pub enum ShortcutAction {
     Memory,
     Terminal,
     CommandPalette,
+    /// Hold-to-talk microphone key. Unlike the others this fires on key *hold*
+    /// (down→up), not a single press, so it is excluded from the press-fire
+    /// matchers and handled by the push-to-talk runtime. It lives here only so
+    /// the user can rebind it in Settings → Shortcuts like any other key.
+    PushToTalk,
 }
 
 impl ShortcutAction {
     /// Stable iteration order (mirrors the welcome-screen layout).
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 10] = [
+        Self::CreateWorkspace,
         Self::QuickOpen,
         Self::FindFile,
         Self::SidePanel,
@@ -140,11 +178,20 @@ impl ShortcutAction {
         Self::Memory,
         Self::Terminal,
         Self::CommandPalette,
+        Self::PushToTalk,
     ];
+
+    /// True for actions handled by hold (not a single press). These never
+    /// participate in the press-fire chord/combo dispatch.
+    #[must_use]
+    pub fn is_hold(self) -> bool {
+        matches!(self, Self::PushToTalk)
+    }
 
     #[must_use]
     pub fn label_key(self) -> I18nKey {
         match self {
+            Self::CreateWorkspace => I18nKey::WsKwCreateWorkspace,
             Self::QuickOpen => I18nKey::WsKwQuickOpen,
             Self::FindFile => I18nKey::WsKwFindFile,
             Self::SidePanel => I18nKey::WsKwSidePanel,
@@ -153,27 +200,33 @@ impl ShortcutAction {
             Self::Memory => I18nKey::WsKwMemory,
             Self::Terminal => I18nKey::WsKwTerminal,
             Self::CommandPalette => I18nKey::WsKwCmdPalette,
+            Self::PushToTalk => I18nKey::WsKwPushToTalk,
         }
     }
 
+    /// The harness action triggered on a single press, if any. Hold actions
+    /// (push-to-talk) return `None` so they are never dispatched on press.
     #[must_use]
-    pub fn to_harness_action(self) -> HarnessShortcutAction {
-        match self {
+    pub fn to_harness_action(self) -> Option<HarnessShortcutAction> {
+        Some(match self {
+            Self::CreateWorkspace => HarnessShortcutAction::CreateWorkspace,
             Self::QuickOpen => HarnessShortcutAction::OpenQuickOpen,
             Self::FindFile => HarnessShortcutAction::OpenFindFile,
             Self::SidePanel => HarnessShortcutAction::ToggleRightPanel,
             Self::Agent => HarnessShortcutAction::RightTab(RightPanelTab::Agent),
             Self::Browser => HarnessShortcutAction::RightTab(RightPanelTab::Browser),
-            Self::Memory => HarnessShortcutAction::RightTab(RightPanelTab::Memory),
+            Self::Memory => HarnessShortcutAction::OpenCenterMemory,
             Self::Terminal => HarnessShortcutAction::OpenNewTerminal,
             Self::CommandPalette => HarnessShortcutAction::ToggleCommandPalette,
-        }
+            Self::PushToTalk => return None,
+        })
     }
 
     /// Default tmux second key.
     #[must_use]
     fn default_second(self) -> &'static str {
         match self {
+            Self::CreateWorkspace => "c",
             Self::QuickOpen => "o",
             Self::FindFile => "f",
             Self::SidePanel => "r",
@@ -182,6 +235,8 @@ impl ShortcutAction {
             Self::Memory => "m",
             Self::Terminal => "n",
             Self::CommandPalette => "p",
+            // PTT is always a direct combo, never a tmux chord; unused.
+            Self::PushToTalk => "Space",
         }
     }
 
@@ -189,6 +244,7 @@ impl ShortcutAction {
     #[must_use]
     fn default_combo(self) -> KeyChord {
         match self {
+            Self::CreateWorkspace => KeyChord::new(true, true, false, "c"),
             Self::QuickOpen => KeyChord::new(true, false, false, "o"),
             // Ctrl+Alt+F so it doesn't clobber the in-editor find (Ctrl+F).
             Self::FindFile => KeyChord::new(true, true, false, "f"),
@@ -198,6 +254,8 @@ impl ShortcutAction {
             Self::Memory => KeyChord::new(true, true, false, "m"),
             Self::Terminal => KeyChord::new(true, true, false, "n"),
             Self::CommandPalette => KeyChord::new(true, true, false, "p"),
+            // Ctrl+Shift+Space: a hold key that avoids the bare-Space conflict.
+            Self::PushToTalk => KeyChord::new(true, true, false, "Space"),
         }
     }
 }
@@ -228,11 +286,17 @@ impl ShortcutConfig {
         let bindings = ShortcutAction::ALL
             .into_iter()
             .map(|action| {
-                let binding = match mode {
-                    ShortcutMode::Tmux => Binding::Chord {
-                        second: action.default_second().to_owned(),
-                    },
-                    ShortcutMode::Legacy => Binding::Combo(action.default_combo()),
+                // Hold actions (push-to-talk) are always a direct combo,
+                // independent of the tmux/legacy preset.
+                let binding = if action.is_hold() {
+                    Binding::Combo(action.default_combo())
+                } else {
+                    match mode {
+                        ShortcutMode::Tmux => Binding::Chord {
+                            second: action.default_second().to_owned(),
+                        },
+                        ShortcutMode::Legacy => Binding::Combo(action.default_combo()),
+                    }
                 };
                 (action, binding)
             })
@@ -262,6 +326,7 @@ impl ShortcutConfig {
         let key = normalize_key(&ev.key());
         self.bindings
             .iter()
+            .filter(|(action, _)| !action.is_hold())
             .find_map(|(action, binding)| match binding {
                 Binding::Chord { second } if *second == key => Some(*action),
                 _ => None,
@@ -273,10 +338,21 @@ impl ShortcutConfig {
     pub fn combo_match(&self, ev: &KeyboardEvent) -> Option<ShortcutAction> {
         self.bindings
             .iter()
+            .filter(|(action, _)| !action.is_hold())
             .find_map(|(action, binding)| match binding {
                 Binding::Combo(chord) if chord.matches(ev) => Some(*action),
                 _ => None,
             })
+    }
+
+    /// The key combo currently bound to push-to-talk, if it is a direct combo
+    /// (it always is). Used by the push-to-talk runtime for hold matching.
+    #[must_use]
+    pub fn ptt_chord(&self) -> Option<KeyChord> {
+        match self.binding(ShortcutAction::PushToTalk) {
+            Binding::Combo(chord) => Some(chord),
+            Binding::Chord { .. } => None,
+        }
     }
 
     /// Actions that collide with `action`'s current binding (same combo, or

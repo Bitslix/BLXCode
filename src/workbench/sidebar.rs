@@ -14,9 +14,10 @@ use crate::workbench::app_prefs::AppPrefsService;
 use crate::workbench::file_diff_section::FileDiffSection;
 use crate::workbench::git_graph::GitGraphSection;
 use crate::workbench::project_explorer::ProjectExplorerSection;
+use crate::workbench::ptt_runtime::PttBus;
 use crate::workbench::sidebar_resizer::SidebarResizer;
 use crate::workbench::sidebar_resizer::SidebarResizerClamp;
-use crate::workbench::state::{is_shell_workspace, HarnessUiService};
+use crate::workbench::state::{is_shell_workspace, HarnessSettingsCategory, HarnessUiService};
 use crate::workbench::terminal_slot_dnd::{
     is_terminal_drag, read_drag_payload, TerminalSlotDragService,
 };
@@ -29,7 +30,6 @@ use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
 use web_sys::{DragEvent, HtmlInputElement};
 
-const APP_NAME: &str = "BLXCode";
 const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 fn workspace_icon_label(title: &str, fallback_num: u64) -> String {
@@ -66,10 +66,12 @@ pub fn Sidebar() -> impl IntoView {
     // through the same confirmation dialog as the Terminals tab when the
     // user has it enabled; otherwise it closes immediately.
     let close_workspace_gated = move |id: u64| {
-        if prefs.confirm_close_workspace_enabled().get_untracked() {
-            ui.request_close_terminals_tab(id);
-        } else {
+        if wb.workspace_is_configuring(id)
+            || !prefs.confirm_close_workspace_enabled().get_untracked()
+        {
             wb.close_workspace(id);
+        } else {
+            ui.request_close_terminals_tab(id);
         }
     };
 
@@ -173,27 +175,10 @@ pub fn Sidebar() -> impl IntoView {
             }
             aria-label=move || i18n.tr(I18nKey::SbAria)()
         >
-            <header class=move || {
-                if collapsed.get() {
-                    "workbench-gutter-bar".to_string()
-                } else {
-                    "workbench-sidebar__header".to_string()
-                }
-            }>
-                <Show
-                    when=move || !collapsed.get()
-                    fallback=move || view! {
-                        <button
-                            type="button"
-                            class="workbench-icon-btn"
-                            aria-expanded="false"
-                            aria-label=move || i18n.tr(I18nKey::SbExpand)()
-                            on:click=move |_| wb.toggle_sidebar()
-                        >
-                            "›"
-                        </button>
-                    }
-                >
+            // The sidebar collapse/expand toggle now lives in the app title
+            // bar; the header only carries the heading + add-workspace button.
+            <Show when=move || !collapsed.get()>
+                <header class="workbench-sidebar__header">
                     <div class="workbench-sidebar__title-row">
                         <span class="workbench-sidebar__title">{move || i18n.tr(I18nKey::SbHeading)()}</span>
                         <button
@@ -205,18 +190,8 @@ pub fn Sidebar() -> impl IntoView {
                             "+"
                         </button>
                     </div>
-                    <button
-                        type="button"
-                        class="workbench-icon-btn"
-                        aria-expanded="true"
-                        aria-controls="workbench-workspace-list"
-                        aria-label=move || i18n.tr(I18nKey::SbCollapse)()
-                        on:click=move |_| wb.toggle_sidebar()
-                    >
-                        "«"
-                    </button>
-                </Show>
-            </header>
+                </header>
+            </Show>
 
             <nav class="workbench-sidebar__nav">
                 <Show when=move || !collapsed.get() && slot_dnd.active.get().is_some()>
@@ -330,6 +305,19 @@ pub fn Sidebar() -> impl IntoView {
                                         .find(|w| w.id == id)
                                         .map(|w| w.slot_ids.len())
                                         .unwrap_or(0)
+                                })
+                            });
+                            let terminal_layout = Memo::new(move |_| {
+                                workspaces.with(|list| {
+                                    list.iter()
+                                        .find(|w| w.id == id)
+                                        .map(|w| {
+                                            let count = w.slot_ids.len().max(1);
+                                            let rows = w.grid_rows.max(1);
+                                            let cols = w.grid_cols.max(1);
+                                            (count, rows, cols)
+                                        })
+                                        .unwrap_or((1, 1, 1))
                                 })
                             });
                             let icon_label = move || {
@@ -556,18 +544,24 @@ pub fn Sidebar() -> impl IntoView {
                                         </Show>
                                         <Show when=move || !collapsed.get() && (terminal_slot_count.get() >= 1)>
                                             {move || {
-                                                let count = terminal_slot_count.get();
+                                                let (count, rows, cols) = terminal_layout.get();
                                                 let aria = i18n
                                                     .tr(I18nKey::SbTerminalCountAria)()
                                                     .replace("{n}", &count.to_string());
                                                 let title = aria.clone();
+                                                let style = format!(
+                                                    "grid-template-columns:repeat({cols},1fr);grid-template-rows:repeat({rows},1fr);"
+                                                );
                                                 view! {
                                                     <span
-                                                        class="workbench-sidebar__terminal-count"
+                                                        class="workbench-sidebar__terminal-layout"
                                                         aria-label=aria
                                                         title=title
+                                                        style=style
                                                     >
-                                                        {count.to_string()}
+                                                        {(0..count).map(|_| view! {
+                                                            <span class="workbench-sidebar__terminal-layout-cell"></span>
+                                                        }).collect_view()}
                                                     </span>
                                                 }
                                             }}
@@ -631,7 +625,17 @@ pub fn Sidebar() -> impl IntoView {
                 </Show>
             </nav>
 
-            <Show when=move || !collapsed.get()>
+            // The panels block (resizers + Explorer/Graph/Diff) stays mounted
+            // across collapse/expand so its state and caches survive — a prior
+            // `<Show when=!collapsed>` here tore the whole subtree down and
+            // remounted it on every toggle, forcing a full re-fetch (git graph,
+            // file tree, diff) and a synchronous DOM rebuild that froze the UI
+            // for 1-2s. Visibility is already handled by each section's own
+            // `!collapsed` gating plus the CSS `display:none` on
+            // `.workbench-sidebar--collapsed .workbench-sidebar__panels`
+            // (and `.workbench-sidebar__resizer--panels-boundary`).
+            {
+                view! {
                 <SidebarResizer
                     height_pct=panels_height_pct
                     container_selector=".workbench-sidebar"
@@ -780,13 +784,11 @@ pub fn Sidebar() -> impl IntoView {
                         <GitGraphSection git_repo_available=git_repo_available.read_only() />
                     </div>
                 </div>
-            </Show>
+                }
+            }
 
             <div class="workbench-sidebar__footer">
-                <div class="sidebar-app-brand" aria-label=APP_NAME>
-                    <span class="sidebar-app-brand__name">{APP_NAME}</span>
-                    <span class="sidebar-app-brand__version">{format!("v{APP_VERSION}")}</span>
-                </div>
+                <SidebarFooter ui=ui wb=wb />
             </div>
             <Show when=move || context_menu.get().is_some()>
                 {move || {
@@ -977,6 +979,59 @@ pub fn Sidebar() -> impl IntoView {
     }
 }
 
+#[component]
+fn SidebarFooter(ui: HarnessUiService, wb: WorkbenchService) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let ptt = expect_context::<PttBus>();
+
+    let state_label = move || {
+        if ptt.recording.get() {
+            i18n.tr(I18nKey::VoicePttRecording)().to_string()
+        } else if ptt.hint.get().is_some() {
+            ptt.hint.get().unwrap_or_default()
+        } else {
+            i18n.tr(I18nKey::VoicePttSection)().to_string()
+        }
+    };
+
+    view! {
+        <div class="sidebar-footer-brand">
+            <button
+                type="button"
+                class="sidebar-ptt-orb"
+                class:sidebar-ptt-orb--recording=move || ptt.recording.get()
+                class:sidebar-ptt-orb--hint=move || ptt.hint.get().is_some() && !ptt.recording.get()
+                aria-label=move || format!("{} - Voice settings - v{}", state_label(), APP_VERSION)
+                aria-describedby="sidebar-ptt-tooltip"
+                on:click=move |_| {
+                    ui.settings_category().set(HarnessSettingsCategory::Voice);
+                    wb.open_center_settings_tab(HarnessSettingsCategory::Voice);
+                }
+            >
+                <span class="sidebar-ptt-orb__aura" aria-hidden="true"></span>
+                <span class="sidebar-ptt-orb__ring" aria-hidden="true"></span>
+                <span class="sidebar-ptt-orb__core" aria-hidden="true">
+                    <LxIcon icon=icondata::LuMic width="0.88rem" height="0.88rem" />
+                </span>
+                <span class="sidebar-ptt-orb__wave sidebar-ptt-orb__wave--one" aria-hidden="true"></span>
+                <span class="sidebar-ptt-orb__wave sidebar-ptt-orb__wave--two" aria-hidden="true"></span>
+            </button>
+            <span id="sidebar-ptt-tooltip" class="sidebar-ptt-tooltip blx-tooltip" role="tooltip">
+                <span class="blx-tooltip__eyebrow">
+                    <span class="blx-tooltip__spark" aria-hidden="true"></span>
+                    {move || state_label()}
+                </span>
+                <span class="blx-tooltip__main">"Push to start voice transcription"</span>
+                <span class="blx-tooltip__hint">"Open push-to-talk settings and local models"</span>
+            </span>
+            <div class="sidebar-footer-brand__copy" aria-label=format!("BLXCode v{APP_VERSION}")>
+                <span class="sidebar-footer-brand__name">"BLXCode"</span>
+                <span class="sidebar-footer-brand__version">{format!("v{APP_VERSION}")}</span>
+            </div>
+        </div>
+    }
+}
+
 #[derive(Clone, Debug)]
 struct WorkspaceContextMenu {
     workspace_id: u64,
@@ -997,8 +1052,7 @@ fn read_panels_height_pct() -> f64 {
         .and_then(|s| s.get_item(SIDEBAR_PANELS_HEIGHT_PCT_KEY).ok().flatten())
         .and_then(|raw| raw.parse::<f64>().ok());
     let pct = stored.unwrap_or(SIDEBAR_PANELS_HEIGHT_PCT_DEFAULT);
-    pct.max(SIDEBAR_PANELS_HEIGHT_PCT_MIN)
-        .min(SIDEBAR_PANELS_HEIGHT_PCT_MAX)
+    pct.clamp(SIDEBAR_PANELS_HEIGHT_PCT_MIN, SIDEBAR_PANELS_HEIGHT_PCT_MAX)
 }
 
 fn write_panels_height_pct(pct: f64) {
@@ -1016,8 +1070,10 @@ fn read_explorer_height_pct() -> f64 {
         .and_then(|s| s.get_item(SIDEBAR_EXPLORER_HEIGHT_PCT_KEY).ok().flatten())
         .and_then(|raw| raw.parse::<f64>().ok());
     let pct = stored.unwrap_or(SIDEBAR_EXPLORER_HEIGHT_PCT_DEFAULT);
-    pct.max(SIDEBAR_EXPLORER_HEIGHT_PCT_MIN)
-        .min(SIDEBAR_EXPLORER_HEIGHT_PCT_MAX)
+    pct.clamp(
+        SIDEBAR_EXPLORER_HEIGHT_PCT_MIN,
+        SIDEBAR_EXPLORER_HEIGHT_PCT_MAX,
+    )
 }
 
 fn write_explorer_height_pct(pct: f64) {
@@ -1035,8 +1091,7 @@ fn read_diff_height_pct() -> f64 {
         .and_then(|s| s.get_item(SIDEBAR_DIFF_HEIGHT_PCT_KEY).ok().flatten())
         .and_then(|raw| raw.parse::<f64>().ok());
     let pct = stored.unwrap_or(SIDEBAR_DIFF_HEIGHT_PCT_DEFAULT);
-    pct.max(SIDEBAR_DIFF_HEIGHT_PCT_MIN)
-        .min(SIDEBAR_DIFF_HEIGHT_PCT_MAX)
+    pct.clamp(SIDEBAR_DIFF_HEIGHT_PCT_MIN, SIDEBAR_DIFF_HEIGHT_PCT_MAX)
 }
 
 fn write_diff_height_pct(pct: f64) {

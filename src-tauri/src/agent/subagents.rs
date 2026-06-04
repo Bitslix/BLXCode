@@ -65,7 +65,7 @@ pub async fn run(
         };
     }
 
-    let provider = match SubagentProvider::from_settings(ctx.settings.provider) {
+    let provider = match SubagentProvider::from_settings(&ctx.settings) {
         Some(p) => p,
         None => {
             return ToolOutcome {
@@ -163,7 +163,7 @@ pub async fn run(
         let root_s = root.map(|r| r.as_str());
         let agent = agent.clone();
         let display_c = display.clone();
-        let provider_c = provider;
+        let provider_c = provider.clone();
         let handle = tokio::spawn(async move {
             let _permit = permit;
             run_one_subagent(

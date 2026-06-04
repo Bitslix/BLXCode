@@ -7,10 +7,15 @@
 use super::EditorSession;
 use crate::service::I18nService;
 use crate::workbench::agent_context_handoff::list_terminal_targets_all_workspaces;
+use crate::workbench::app_prefs::AppPrefsService;
+use crate::workbench::editor_shortcut_config::EditorShortcutAction;
 use crate::workbench::file_preview::code_context_menu::CodeContextMenuState;
 use crate::workbench::file_preview::codemirror_glue as cm;
+use crate::workbench::file_preview::codemirror_glue::EditorKeyBinding;
 use crate::workbench::toast::ToastService;
-use crate::workbench::{HarnessUiService, WorkbenchService};
+use crate::workbench::{
+    CoreStatusService, EditorSettingsService, HarnessUiService, WorkbenchService,
+};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use wasm_bindgen::prelude::*;
@@ -19,18 +24,31 @@ use wasm_bindgen::JsCast;
 /// Keeps the wasm-bindgen closures alive for the lifetime of the editor (CM
 /// holds JS references to them). Dropped on cleanup, after the view is torn
 /// down.
-type EditorClosures = (Closure<dyn Fn(String)>, Closure<dyn Fn()>);
+type EditorClosures = (
+    Closure<dyn Fn(String)>,
+    Closure<dyn Fn()>,
+    Closure<dyn Fn(f64, f64)>,
+);
 
 #[component]
 pub fn CodeMirrorEditor(
     session: EditorSession,
     #[prop(default = None)] language: Option<&'static str>,
+    /// Mount the editor read-only (preview mode). Same chrome as edit mode, but
+    /// edits and `Mod-s` save are disabled.
+    #[prop(default = false)]
+    read_only: bool,
     menu_state: RwSignal<Option<CodeContextMenuState>>,
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let toast = expect_context::<ToastService>();
     let ui = expect_context::<HarnessUiService>();
     let i18n = expect_context::<I18nService>();
+    let core_status = expect_context::<CoreStatusService>();
+    let editor_settings = expect_context::<EditorSettingsService>();
+    let prefs = expect_context::<AppPrefsService>();
+    let vim_enabled = editor_settings.vim_enabled();
+    let editor_shortcuts = prefs.editor_shortcut_config();
 
     let host_ref = NodeRef::<leptos::html::Div>::new();
     // `JsValue` and the wasm-bindgen closures are !Send, so they live in the
@@ -51,7 +69,20 @@ pub fn CodeMirrorEditor(
             session.buffer.set(s);
         });
         let on_save = Closure::<dyn Fn()>::new(move || {
-            session.save(wb, toast, ui, i18n, false);
+            if !read_only {
+                session.save(wb, toast, ui, i18n, false);
+            }
+        });
+        let cursor_rel_path = session.rel_path();
+        let on_cursor = Closure::<dyn Fn(f64, f64)>::new(move |line: f64, column: f64| {
+            if line.is_finite() && column.is_finite() {
+                core_status.set_editor_cursor(
+                    session.workspace_id,
+                    &cursor_rel_path,
+                    line.round().max(1.0) as u32,
+                    column.round().max(1.0) as u32,
+                );
+            }
         });
         let on_change_fn: js_sys::Function = on_change
             .as_ref()
@@ -59,12 +90,30 @@ pub fn CodeMirrorEditor(
             .clone();
         let on_save_fn: js_sys::Function =
             on_save.as_ref().unchecked_ref::<js_sys::Function>().clone();
-        closures.set_value(Some((on_change, on_save)));
+        let on_cursor_fn: js_sys::Function = on_cursor
+            .as_ref()
+            .unchecked_ref::<js_sys::Function>()
+            .clone();
+        closures.set_value(Some((on_change, on_save, on_cursor)));
 
         let host_el: web_sys::Element = host.unchecked_into();
         let doc = session.buffer.get_untracked();
+        let vim_on = vim_enabled.get_untracked();
+        let keymap = editor_shortcuts.with_untracked(editor_key_bindings);
         spawn_local(async move {
-            match cm::create_editor(&host_el, &doc, language, &on_change_fn, &on_save_fn).await {
+            match cm::create_editor(
+                &host_el,
+                &doc,
+                language,
+                read_only,
+                vim_on,
+                &keymap,
+                &on_change_fn,
+                &on_save_fn,
+                &on_cursor_fn,
+            )
+            .await
+            {
                 Ok(view) => view_handle.set_value(Some(view)),
                 Err(e) => {
                     web_sys::console::error_1(&format!("codemirror init: {e}").into());
@@ -85,7 +134,31 @@ pub fn CodeMirrorEditor(
         });
     });
 
+    // Toggle Vim key bindings live when the setting changes — applies to both
+    // edit and read-only (preview) mounts, no remount required.
+    Effect::new(move |_| {
+        let enabled = vim_enabled.get();
+        view_handle.with_value(|v| {
+            if let Some(view) = v {
+                cm::set_vim(view, enabled);
+            }
+        });
+    });
+
+    // Rebuild the configurable editor shortcut keymap when the bindings change.
+    // The JS side keeps it empty while Vim is on, so this stays in sync with the
+    // vim toggle too.
+    Effect::new(move |_| {
+        let keymap = editor_shortcuts.with(editor_key_bindings);
+        view_handle.with_value(|v| {
+            if let Some(view) = v {
+                cm::set_editor_keymap(view, &keymap);
+            }
+        });
+    });
+
     on_cleanup(move || {
+        core_status.clear_editor_cursor(session.workspace_id, &session.rel_path());
         view_handle.update_value(|v| {
             if let Some(view) = v.take() {
                 cm::destroy(&view);
@@ -114,4 +187,17 @@ pub fn CodeMirrorEditor(
     view! {
         <div class="code-view__cm" node_ref=host_ref on:contextmenu=on_contextmenu />
     }
+}
+
+/// Convert the persisted editor shortcut config into the CodeMirror key list.
+fn editor_key_bindings(
+    cfg: &crate::workbench::editor_shortcut_config::EditorShortcutConfig,
+) -> Vec<EditorKeyBinding> {
+    EditorShortcutAction::ALL
+        .into_iter()
+        .map(|action| EditorKeyBinding {
+            key: cfg.binding(action).cm_key(),
+            command: action.id(),
+        })
+        .collect()
 }

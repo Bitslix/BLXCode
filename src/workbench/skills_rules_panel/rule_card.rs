@@ -28,6 +28,9 @@ pub fn RuleCard(entry: RuleEntry) -> impl IntoView {
     let enabled = entry.enabled;
     let title = entry.title.clone();
     let summary = entry.summary.clone();
+    let category = entry.category.clone();
+    let closed_category = category.clone();
+    let open_category = category.clone();
 
     let expanded = RwSignal::new(false);
     let editing = RwSignal::new(false);
@@ -73,9 +76,13 @@ pub fn RuleCard(entry: RuleEntry) -> impl IntoView {
                 <span class="blx-sr-card__main">
                     <span class="blx-sr-card__title-row">
                         <span class="blx-sr-card__title">{title}</span>
-                        <span class="blx-sr-card__badge" data-kind="rule">rule</span>
                     </span>
                     <span class="blx-sr-card__summary">{summary}</span>
+                    {move || (!expanded.get()).then(|| {
+                        closed_category.clone().map(|category| {
+                            view! { <RuleCategoryLine category=category /> }
+                        })
+                    })}
                 </span>
                 <span
                     class="blx-switch"
@@ -122,6 +129,9 @@ pub fn RuleCard(entry: RuleEntry) -> impl IntoView {
                                 />
                             }.into_any()
                         }}
+                        {open_category.clone().map(|category| {
+                            view! { <RuleCategoryLine category=category /> }
+                        })}
                         <div class="blx-sr-card__actions">
                             {if is_editing {
                                 view! {
@@ -187,6 +197,7 @@ pub fn RuleCard(entry: RuleEntry) -> impl IntoView {
                                                 on_confirm: Callback::new(move |_| {
                                                     svc.remove_rule(wb, n.clone());
                                                 }),
+                                                on_cancel: None,
                                             });
                                         }
                                     >
@@ -200,6 +211,15 @@ pub fn RuleCard(entry: RuleEntry) -> impl IntoView {
                 }
             })}
         </article>
+    }
+}
+
+#[component]
+fn RuleCategoryLine(category: String) -> impl IntoView {
+    view! {
+        <span class="blx-sr-card__category-line" aria-label="Rule category">
+            <span class="blx-sr-card__category">{category}</span>
+        </span>
     }
 }
 

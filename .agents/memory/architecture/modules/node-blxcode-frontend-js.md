@@ -19,8 +19,8 @@ Manual notes about this unit can live above or below the generated block.
 - Manifest: `frontend-js/package.json`
 - Root: `frontend-js`
 - Source root: `frontend-js`
-- Source files: 3
-- Root declarations: `build.mjs`, `graph3d_entry.mjs`
+- Source files: 4
+- Root declarations: `build.mjs`, `drobo_orb_entry.mjs`, `graph3d_entry.mjs`
 
 ### Top-Level Modules
 
@@ -29,6 +29,7 @@ Manual notes about this unit can live above or below the generated block.
 ### Source Paths
 
 - `frontend-js/build.mjs`
+- `frontend-js/drobo_orb_entry.mjs`
 - `frontend-js/graph3d_entry.mjs`
 - `frontend-js/scripts/tauri-before-build.cjs`
 <!-- architecture:static:end -->

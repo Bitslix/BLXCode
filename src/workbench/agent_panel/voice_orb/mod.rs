@@ -1,25 +1,69 @@
 //! Voice orb — hybrid (click toggle / hold PTT) microphone button with
 //! audio-playback support for TTS replies streamed via `AgentEvent::VoiceReady`.
 
+mod drobo_glue;
 mod state;
 
 use crate::agent_wire::AgentEvent;
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
+use crate::tauri_bridge::{agent_session_roles_list, SessionRoleView};
 use crate::tauri_bridge::{
-    is_tauri_shell, voice_cancel_recording, voice_settings_get, voice_start_recording,
-    voice_stop_and_transcribe, voice_tts_preview, PostSttFlow, SttLanguageMode, VoiceSettings,
+    agent_settings_get, api_keys_status, is_tauri_shell, voice_cancel_recording,
+    voice_settings_get, voice_start_recording, voice_stop_and_transcribe, voice_tts_preview,
+    AgentOrbMode, AgentProviderKind, AgentProviderSettingsView, ApiKeysStatus, PostSttFlow,
+    SttLanguageMode, VoiceProviderKind, VoiceSettings,
 };
+use crate::workbench::agent_panel::voice_orb::drobo_glue::{
+    drobo_orb_create, drobo_orb_dispose, drobo_orb_resize, drobo_orb_set_state,
+    ensure_drobo_orb_script,
+};
+use crate::workbench::state::WorkbenchService;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use js_sys::Uint8Array;
 use leptos::html;
+use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
-use web_sys::{Blob, BlobPropertyBag, HtmlAudioElement, KeyboardEvent, MouseEvent};
+use web_sys::{Blob, BlobPropertyBag, HtmlAudioElement, HtmlElement, KeyboardEvent, MouseEvent};
 
 pub use state::{focus_in_editable, hotkey_matches, VoiceOrbState};
+
+/// Default agent name shown when the user has not set a nickname. Mirrors the
+/// backend `agent::nickname::DEFAULT_AGENT_NICKNAME`.
+const DEFAULT_AGENT_NICKNAME: &str = "BLXCody";
+
+/// Resolve the effective agent name: trimmed nickname, or the default if blank.
+fn resolve_agent_name(raw: &str) -> String {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        DEFAULT_AGENT_NICKNAME.to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+/// Maps a role frontmatter `color` to a CSS color string. Recognised theme
+/// keywords resolve to fixed hues; anything else (e.g. a `#rrggbb` hex or named
+/// CSS color) is passed through. Empty falls back to a neutral accent.
+fn role_color_css(color: &str) -> String {
+    let c = color.trim();
+    match c.to_ascii_lowercase().as_str() {
+        "violet" | "purple" => "#a78bfa".to_string(),
+        "teal" => "#2dd4bf".to_string(),
+        "blue" => "#60a5fa".to_string(),
+        "amber" | "yellow" => "#fbbf24".to_string(),
+        "green" => "#4ade80".to_string(),
+        "orange" => "#fb923c".to_string(),
+        "red" => "#f87171".to_string(),
+        "" => "var(--text-muted, #9ca3af)".to_string(),
+        _ => c.to_string(),
+    }
+}
 
 /// Public handle the agent panel uses to read the orb's state and drive
 /// playback when `AgentEvent::VoiceReady` arrives.
@@ -28,6 +72,9 @@ pub struct VoiceOrbHandle {
     pub state: RwSignal<VoiceOrbState>,
     pub voice_pending: RwSignal<bool>,
     pub settings: RwSignal<Option<VoiceSettings>>,
+    /// True only when TTS is enabled *and* the configured TTS provider has an
+    /// API key set in settings — gates the per-line "Play" button.
+    pub tts_ready: RwSignal<bool>,
     pub audio_ref: NodeRef<html::Audio>,
 }
 
@@ -37,26 +84,151 @@ impl VoiceOrbHandle {
             state: RwSignal::new(VoiceOrbState::Idle),
             voice_pending: RwSignal::new(false),
             settings: RwSignal::new(None),
+            tts_ready: RwSignal::new(false),
             audio_ref: NodeRef::<html::Audio>::new(),
         }
     }
 }
 
+/// True when the TTS provider selected in `settings` has a configured API key.
+fn tts_provider_key_configured(
+    settings: &VoiceSettings,
+    agent_settings: Option<&AgentProviderSettingsView>,
+    api_keys: Option<&ApiKeysStatus>,
+) -> bool {
+    if !settings.tts.enabled {
+        return false;
+    }
+    match settings.tts.provider {
+        VoiceProviderKind::Aws => api_keys.is_some_and(|s| {
+            s.entries
+                .iter()
+                .any(|e| e.kind == "aws_polly" && e.configured)
+        }),
+        VoiceProviderKind::Openai => {
+            agent_provider_key_configured(agent_settings, AgentProviderKind::Openai)
+        }
+        VoiceProviderKind::Openrouter => {
+            agent_provider_key_configured(agent_settings, AgentProviderKind::Openrouter)
+        }
+    }
+}
+
+fn agent_provider_key_configured(
+    view: Option<&AgentProviderSettingsView>,
+    provider: AgentProviderKind,
+) -> bool {
+    view.is_some_and(|v| {
+        v.key_statuses
+            .iter()
+            .any(|s| s.provider == provider && s.configured)
+    })
+}
+
+/// Fetch voice settings + API-key status and update `handle.tts_ready` so the
+/// per-line Play button only appears once voice chat is actually configured.
+pub async fn refresh_tts_ready(handle: VoiceOrbHandle) {
+    if !is_tauri_shell() {
+        return;
+    }
+    let settings = match handle.settings.get_untracked() {
+        Some(s) => s,
+        None => match voice_settings_get().await {
+            Ok(s) => {
+                handle.settings.set(Some(s.clone()));
+                s
+            }
+            Err(_) => {
+                handle.tts_ready.set(false);
+                return;
+            }
+        },
+    };
+    let agent_settings = agent_settings_get().await.ok();
+    let api_keys = api_keys_status().await.ok();
+    handle.tts_ready.set(tts_provider_key_configured(
+        &settings,
+        agent_settings.as_ref(),
+        api_keys.as_ref(),
+    ));
+}
+
 #[component]
-pub fn VoiceOrb<F>(handle: VoiceOrbHandle, on_transcript: F) -> impl IntoView
+pub fn VoiceOrb<F>(
+    handle: VoiceOrbHandle,
+    /// True in the maximized chat header; keeps the header light and forces
+    /// the low-cost 2D orb.
+    #[prop(into)]
+    compact: Signal<bool>,
+    /// True while the agent is generating a response; drives the Drobo orb's
+    /// "thinking" glow animation.
+    #[prop(into)]
+    thinking: Signal<bool>,
+    on_transcript: F,
+) -> impl IntoView
 where
     F: Fn(String, bool) + 'static + Copy,
 {
     let i18n = expect_context::<I18nService>();
     let active_turn_id = RwSignal::new(Option::<String>::None);
     let mousedown_at = RwSignal::new(0.0_f64);
+    let orb_mode = RwSignal::new(AgentOrbMode::ThreeD);
+    let agent_name = RwSignal::new(DEFAULT_AGENT_NICKNAME.to_string());
+
+    // Active harness session role for the badge sub-line. The slug comes from
+    // the active workspace; title + color come from the role registry.
+    let wb = expect_context::<WorkbenchService>();
+    let session_roles: RwSignal<Vec<SessionRoleView>> = RwSignal::new(Vec::new());
+    let workspaces = wb.workspaces();
+    let active_id = wb.active_id();
+    let active_role_slug = Memo::new(move |_| {
+        let id = active_id.get()?;
+        workspaces.with(|list| {
+            list.iter()
+                .find(|w| w.id == id)
+                .and_then(|w| w.agent_session_role.clone())
+        })
+    });
+    let active_role_meta = Memo::new(move |_| {
+        let slug = active_role_slug.get()?;
+        session_roles.with(|roles| roles.iter().find(|r| r.slug == slug).cloned())
+    });
+    if is_tauri_shell() {
+        leptos::task::spawn_local(async move {
+            if let Ok(list) = agent_session_roles_list().await {
+                session_roles.set(list);
+            }
+        });
+    }
+
+    let refresh_agent_settings = move || {
+        if !is_tauri_shell() {
+            return;
+        }
+        leptos::task::spawn_local(async move {
+            if let Ok(view) = agent_settings_get().await {
+                orb_mode.set(view.orb_mode);
+                agent_name.set(resolve_agent_name(&view.agent_nickname));
+            }
+        });
+    };
 
     if is_tauri_shell() {
         leptos::task::spawn_local(async move {
             if let Ok(v) = voice_settings_get().await {
                 handle.settings.set(Some(v));
             }
+            if let Ok(view) = agent_settings_get().await {
+                orb_mode.set(view.orb_mode);
+                agent_name.set(resolve_agent_name(&view.agent_nickname));
+            }
+            refresh_tts_ready(handle).await;
         });
+        let settings_change_handle =
+            window_event_listener_untyped("blxcode-agent-settings-changed", move |_| {
+                refresh_agent_settings();
+            });
+        on_cleanup(move || drop(settings_change_handle));
     }
 
     let start_recording = move || {
@@ -193,22 +365,158 @@ where
                 on:mouseleave=on_mouseleave
                 on:keydown=on_keydown
             >
-                <Show
-                    when=move || matches!(handle.state.get(), VoiceOrbState::Transcribing)
-                    fallback=move || view! {
-                        <Show
-                            when=move || handle.state.get().is_recording()
-                            fallback=move || view! { <span class="agent-hero__logo">"B"</span> }.into_any()
-                        >
-                            <LxIcon icon=icondata::LuMic width="1.5rem" height="1.5rem" />
-                        </Show>
-                    }.into_any()
+                <span
+                    class="agent-name-badge"
+                    class:agent-name-badge--live=move || thinking.get()
+                    class:agent-name-badge--has-role=move || active_role_meta.get().is_some()
+                    role="status"
+                    aria-label=move || format!("{}: {}", i18n.tr(I18nKey::AgNameBadgeAria)(), agent_name.get())
                 >
-                    <LxIcon icon=icondata::LuLoader width="1.4rem" height="1.4rem" />
-                </Show>
+                    <span class="agent-name-badge__name">{move || agent_name.get()}</span>
+                    <Show when=move || active_role_meta.get().is_some()>
+                        {move || {
+                            let meta = active_role_meta.get();
+                            let title = meta.as_ref().map(|m| m.title.clone()).unwrap_or_default();
+                            let color = meta
+                                .as_ref()
+                                .map(|m| role_color_css(&m.color))
+                                .unwrap_or_default();
+                            view! {
+                                <span
+                                    class="agent-name-badge__role"
+                                    style:color=color
+                                    aria-label=move || format!("{}: {}", i18n.tr(I18nKey::AgRoleBadgeAria)(), title.clone())
+                                >
+                                    {title.clone()}
+                                </span>
+                            }
+                        }}
+                    </Show>
+                </span>
+                <span class="drobo-orb" aria-hidden="true">
+                    <Show
+                        when=move || !compact.get() && orb_mode.get() == AgentOrbMode::ThreeD
+                        fallback=move || view! {
+                            <span class="drobo-orb__stage drobo-orb__stage--2d">
+                                <span class="agent-hero__logo drobo-orb__fallback">"B"</span>
+                            </span>
+                        }
+                    >
+                        <DroboOrbView orb_state=handle.state thinking=thinking />
+                    </Show>
+                    <Show when=move || matches!(handle.state.get(), VoiceOrbState::Transcribing)>
+                        <span class="drobo-orb__state drobo-orb__state--transcribing">
+                            <LxIcon icon=icondata::LuLoader width="1.05rem" height="1.05rem" />
+                        </span>
+                    </Show>
+                    <Show when=move || handle.state.get().is_recording()>
+                        <span class="drobo-orb__state drobo-orb__state--recording">
+                            <LxIcon icon=icondata::LuMic width="1.05rem" height="1.05rem" />
+                        </span>
+                    </Show>
+                </span>
             </button>
             <audio node_ref=handle.audio_ref class="voice-orb__audio" preload="none" />
         </>
+    }
+}
+
+#[component]
+fn DroboOrbView(orb_state: RwSignal<VoiceOrbState>, thinking: Signal<bool>) -> impl IntoView {
+    let node_ref = NodeRef::<html::Span>::new();
+    let load_failed = RwSignal::new(false);
+    let bootstrap_started = RwSignal::new(false);
+    let orb_id = RwSignal::new(Option::<f64>::None);
+    let alive = Arc::new(AtomicBool::new(true));
+    let orb_id_live = Arc::new(Mutex::new(Option::<f64>::None));
+
+    Effect::new({
+        let alive = alive.clone();
+        let orb_id_live = orb_id_live.clone();
+        move |_| {
+            if bootstrap_started.get_untracked() || load_failed.get_untracked() {
+                return;
+            }
+            let Some(el) = node_ref.get() else {
+                return;
+            };
+            let Ok(container) = el.dyn_into::<HtmlElement>() else {
+                load_failed.set(true);
+                return;
+            };
+            bootstrap_started.set(true);
+            let alive = alive.clone();
+            let orb_id_live = orb_id_live.clone();
+            leptos::task::spawn_local(async move {
+                let result = async {
+                    ensure_drobo_orb_script().await?;
+                    let id = drobo_orb_create(&container)?;
+                    let state = orb_state.get_untracked();
+                    drobo_orb_set_state(
+                        id,
+                        state.is_recording(),
+                        matches!(state, VoiceOrbState::Transcribing),
+                        thinking.get_untracked(),
+                        false,
+                    )?;
+                    drobo_orb_resize(id);
+                    Ok::<f64, String>(id)
+                }
+                .await;
+                if !alive.load(Ordering::Relaxed) {
+                    if let Ok(id) = result {
+                        drobo_orb_dispose(id);
+                    }
+                    return;
+                }
+                match result {
+                    Ok(id) => {
+                        if let Ok(mut live_id) = orb_id_live.lock() {
+                            *live_id = Some(id);
+                        }
+                        orb_id.set(Some(id));
+                        load_failed.set(false);
+                    }
+                    Err(_) => load_failed.set(true),
+                }
+            });
+        }
+    });
+
+    Effect::new(move |_| {
+        let state = orb_state.get();
+        let is_thinking = thinking.get();
+        let Some(id) = orb_id.get() else {
+            return;
+        };
+        let _ = drobo_orb_set_state(
+            id,
+            state.is_recording(),
+            matches!(state, VoiceOrbState::Transcribing),
+            is_thinking,
+            false,
+        );
+    });
+
+    on_cleanup(move || {
+        alive.store(false, Ordering::Relaxed);
+        let live_orb_id = orb_id_live
+            .lock()
+            .ok()
+            .and_then(|mut live_id| live_id.take());
+        if let Some(id) = live_orb_id {
+            drobo_orb_dispose(id);
+        }
+    });
+
+    view! {
+        <span
+            node_ref=node_ref
+            class="drobo-orb__stage"
+            class:drobo-orb__stage--rust-failed=move || load_failed.get()
+        >
+            <span class="agent-hero__logo drobo-orb__fallback">"B"</span>
+        </span>
     }
 }
 
@@ -294,6 +602,10 @@ fn build_locale_hint(settings: Option<&VoiceSettings>, i18n: &I18nService) -> Op
 /// Window-level keyboard listener for the configured PTT hotkey. Registers
 /// listeners on `window` and tears them down via `on_cleanup` when the
 /// caller's reactive scope is dropped.
+///
+/// Legacy: superseded by `workbench::ptt_runtime`, which reads the key from
+/// Settings → Shortcuts and routes to all targets. Retained for reference.
+#[allow(dead_code)]
 pub fn install_ptt_hotkey(
     handle: VoiceOrbHandle,
     i18n: I18nService,

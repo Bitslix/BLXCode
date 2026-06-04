@@ -11,7 +11,8 @@ use crate::workbench::memory_graph::graph_glue::{
     graph3d_reset_view, graph3d_resize, graph3d_set_data, graph3d_zoom,
 };
 use crate::workbench::memory_panel::{
-    expand_files_group_for_path, load_note, refresh_graph, MemoryState, MemoryView,
+    expand_files_group_for_path, load_note, memory_api_workspace_arg, refresh_graph, MemoryState,
+    MemoryView,
 };
 use crate::workbench::ThemeService;
 use crate::workbench::WorkbenchService;
@@ -22,6 +23,8 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
 use std::collections::{HashMap, HashSet};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
 
@@ -104,9 +107,7 @@ pub fn MemoryGraphView(state: MemoryState) -> impl IntoView {
             if state.view.get() != MemoryView::Graph {
                 return;
             }
-            let Some(ws) = state.workspace_cwd.get() else {
-                return;
-            };
+            let ws = state.workspace_cwd.get().unwrap_or_default();
             refresh_graph(state.clone(), ws);
         }
     });
@@ -277,13 +278,18 @@ fn Graph3dView(
 ) -> impl IntoView {
     let node_ref = NodeRef::<html::Div>::new();
     let graph_id = RwSignal::new(None::<f64>);
+    let graph_id_live = Arc::new(Mutex::new(None::<f64>));
     let bootstrap_inflight = RwSignal::new(false);
-    let disposed = RwSignal::new(false);
+    let alive = Arc::new(AtomicBool::new(true));
     let last_zoom_tick = RwSignal::new(zoom_tick.get_untracked());
     let last_reset_tick = RwSignal::new(reset_tick.get_untracked());
 
+    let alive_for_bootstrap = alive.clone();
+    let graph_id_live_for_bootstrap = graph_id_live.clone();
     Effect::new({
         let state = state.clone();
+        let alive = alive_for_bootstrap.clone();
+        let graph_id_live = graph_id_live_for_bootstrap.clone();
         move |_| {
             let Some(graph) = configured_graph(wb, state.graph.get()) else {
                 return;
@@ -299,6 +305,8 @@ fn Graph3dView(
                 return;
             };
             bootstrap_inflight.set(true);
+            let alive = alive.clone();
+            let graph_id_live = graph_id_live.clone();
             spawn_local(async move {
                 let result = async {
                     ensure_graph3d_script().await?;
@@ -308,15 +316,20 @@ fn Graph3dView(
                     Ok::<f64, String>(id)
                 }
                 .await;
+                if !alive.load(Ordering::Relaxed) {
+                    if let Ok(id) = result {
+                        graph3d_dispose(id);
+                    }
+                    return;
+                }
                 bootstrap_inflight.set(false);
                 match result {
                     Ok(id) => {
-                        if disposed.get_untracked() {
-                            graph3d_dispose(id);
-                        } else {
-                            graph_id.set(Some(id));
-                            load_failed.set(false);
+                        if let Ok(mut live_id) = graph_id_live.lock() {
+                            *live_id = Some(id);
                         }
+                        graph_id.set(Some(id));
+                        load_failed.set(false);
                     }
                     Err(_) => load_failed.set(true),
                 }
@@ -395,7 +408,12 @@ fn Graph3dView(
 
     let click_handle = {
         let state = state.clone();
+        let alive = alive.clone();
+        let graph_id_live = graph_id_live.clone();
         window_event_listener_untyped("blxcode-graph3d-node-click", move |ev| {
+            if !alive.load(Ordering::Relaxed) {
+                return;
+            }
             let Some(custom) = ev.dyn_ref::<web_sys::CustomEvent>() else {
                 return;
             };
@@ -404,7 +422,8 @@ fn Graph3dView(
                 js_sys::Reflect::get(&detail, &wasm_bindgen::JsValue::from_str("graphId"))
                     .ok()
                     .and_then(|v| v.as_f64());
-            if event_graph_id != graph_id.get_untracked() {
+            let live_graph_id = graph_id_live.lock().ok().and_then(|live_id| *live_id);
+            if event_graph_id != live_graph_id {
                 return;
             }
             let Some(node_id) =
@@ -420,9 +439,13 @@ fn Graph3dView(
     };
 
     on_cleanup(move || {
-        disposed.set(true);
+        alive.store(false, Ordering::Relaxed);
         drop(click_handle);
-        if let Some(id) = graph_id.get_untracked() {
+        let live_graph_id = graph_id_live
+            .lock()
+            .ok()
+            .and_then(|mut live_id| live_id.take());
+        if let Some(id) = live_graph_id {
             graph3d_dispose(id);
         }
     });
@@ -858,7 +881,7 @@ fn GraphPreviewPopover(
                             title=move || i18n.tr(I18nKey::MemGraphOpenInFiles)()
                             aria-label=move || i18n.tr(I18nKey::MemGraphOpenInFiles)()
                             on:click=move |_| {
-                                let Some(ws) = state.workspace_cwd.get_untracked() else { return };
+                                let ws = memory_api_workspace_arg(state);
                                 let Some(path) = preview.path.get_untracked() else { return };
                                 let scope = preview.scope.get_untracked();
                                 expand_files_group_for_path(state.clone(), &scope, &path);
@@ -935,10 +958,7 @@ fn open_graph_preview(state: MemoryState, preview: GraphPreviewState, node_id: S
     preview.scope.set(scope.clone());
     preview.path.set(Some(path.clone()));
     preview.label.set(label_for_node_id(&state, &node_id));
-    let Some(ws) = state.workspace_cwd.get_untracked() else {
-        preview.loading.set(false);
-        return;
-    };
+    let ws = memory_api_workspace_arg(state);
     spawn_local(async move {
         TimeoutFuture::new(40).await;
         match tauri_bridge::memory_read(&ws, &scope, &path).await {
@@ -1003,8 +1023,7 @@ fn clean_display_label(raw: &str) -> String {
     let tail = raw
         .replace('\\', "/")
         .split('/')
-        .filter(|part| !part.is_empty())
-        .last()
+        .rfind(|part| !part.is_empty())
         .unwrap_or(raw)
         .trim_end_matches(".md")
         .trim_end_matches(".MD")
@@ -1278,7 +1297,6 @@ pub fn navigate_to_graph_node(state: MemoryState, scope: MemoryScope, path: Stri
     state.graph_focus_generation.update(|n| *n += 1);
     state.graph_prefer_3d.set(true);
     state.view.set(MemoryView::Graph);
-    if let Some(ws) = state.workspace_cwd.get_untracked() {
-        refresh_graph(state, ws);
-    }
+    let ws = memory_api_workspace_arg(state);
+    refresh_graph(state, ws);
 }

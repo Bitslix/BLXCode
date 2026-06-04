@@ -3,6 +3,7 @@ mod agent_hooks;
 mod agent_settings;
 mod agents_layout;
 mod api_keys;
+mod app_logging;
 mod app_paths;
 mod browser_host;
 mod clipboard;
@@ -14,7 +15,10 @@ mod git_info;
 mod git_remote;
 mod git_status;
 mod git_sync;
+mod heartbeat;
 mod image;
+mod kanban;
+mod mcp;
 mod media_keys;
 mod memory;
 mod plans;
@@ -29,35 +33,52 @@ mod ssh_secrets;
 mod tasks;
 mod updater;
 mod voice;
+mod window_controls;
 mod workbench_state;
+mod workspace_presets;
 
 use agent::{
-    agent_environment_invalidate, agent_web_settings_get, agent_web_settings_save, AgentEngineState,
+    agent_compact_conversation, agent_environment_invalidate, agent_web_settings_get,
+    agent_web_settings_save, AgentEngineState,
 };
 use agent_hooks::{agent_hooks_status, install_agent_hooks, uninstall_agent_hooks};
-use agent_settings::{agent_provider_models, agent_settings_get, agent_settings_save};
+use agent_settings::{
+    agent_active_context_window, agent_onboarding_complete, agent_provider_models,
+    agent_session_roles_list, agent_settings_get, agent_settings_save, agent_validate_nickname,
+};
 use api_keys::{api_keys_apply, api_keys_status};
+use app_logging::{
+    app_log_clear, app_log_delete, app_log_event, app_log_settings_get, app_log_settings_save,
+    AppLogState,
+};
 use browser_host::BrowserHost;
 use clipboard::{clipboard_read_text, clipboard_write_text};
 use commands::*;
 use image::{image_curated_models, image_settings_get, image_settings_save};
+use plans::PlanMigrationState;
 use pty_host::PtyManager;
 use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 use updater::{
     app_relaunch, app_version, post_update_release_notes, updater_check, updater_install_start,
-    updater_poll_progress, BlxUpdaterState,
+    updater_poll_progress, updater_settings_get, updater_settings_save, BlxUpdaterState,
 };
 use voice::{
+    ptt_cancel, ptt_finalize, ptt_partial, ptt_start, voice_agent_input_active,
     voice_cancel_recording, voice_settings_get, voice_settings_save, voice_start_recording,
-    voice_stop_and_transcribe, voice_tts_preview, VoiceRecorderState,
+    voice_stop_and_transcribe, voice_tts_playing, voice_tts_preview, whisper_model_cancel,
+    whisper_model_delete, whisper_model_download, whisper_models_list, VoiceRecorderState,
+    VoiceRuntimeStateHandle, WhisperDownloadState, WhisperEngine,
 };
 use workbench_state::{
     agent_latest_session_id, agent_session_exists, workbench_clear_terminal_notifications,
-    workbench_drop_sessions, workbench_extract_sessions_prefix, workbench_load_notifications,
-    workbench_load_sessions, workbench_load_state, workbench_merge_sessions_workspace,
-    workbench_notifications_path, workbench_prune_notifications, workbench_prune_sessions,
+    workbench_drop_sessions, workbench_extract_sessions_prefix, workbench_list_agent_notifications,
+    workbench_load_notifications, workbench_load_sessions, workbench_load_state,
+    workbench_load_usage_snapshot, workbench_mark_agent_notifications_read,
+    workbench_merge_sessions_workspace, workbench_notifications_path,
+    workbench_prune_notifications, workbench_prune_sessions, workbench_remove_agent_notification,
     workbench_rewrite_terminal_keys, workbench_save_state, workbench_sessions_path,
+    workbench_update_agent_notification, workbench_upsert_agent_notification, workbench_usage_path,
     WorkbenchSessionsFileLock,
 };
 
@@ -74,8 +95,13 @@ fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
-fn frontend_console_log(level: String, message: String) {
+fn frontend_console_log(
+    state: tauri::State<'_, AppLogState>,
+    level: String,
+    message: String,
+) -> Result<(), String> {
     eprintln!("[frontend:{level}] {message}");
+    app_logging::log_frontend_console(state, level, message)
 }
 
 #[tauri::command]
@@ -117,8 +143,12 @@ pub fn run() {
     init_keyring_store();
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(AppLogState::default())
+        .manage(heartbeat::HeartbeatState::default())
         .setup(|app| {
             let dir = app
                 .path()
@@ -127,22 +157,45 @@ pub fn run() {
             std::fs::create_dir_all(&dir)
                 .map_err(|e| format!("create app data dir {}: {e}", dir.display()))?;
             app_paths::init(dir);
+            let log_state = app.state::<AppLogState>();
+            log_state.initialize(app.handle())?;
+            heartbeat::ensure_scheduler_started(app.handle().clone());
             Ok(())
         })
         .manage(AgentEngineState::new())
         .manage(BlxUpdaterState::default())
+        .manage(PlanMigrationState::default())
         .manage(BrowserHost::default())
         .manage(git_status::GitWatcherState::default())
         .manage(PtyManager::default())
         .manage(ssh_exec::RemoteExecManager::default())
         .manage(VoiceRecorderState::new())
+        .manage(std::sync::Arc::new(VoiceRuntimeStateHandle::new()))
+        .manage(std::sync::Arc::new(WhisperEngine::new()))
+        .manage(std::sync::Arc::new(WhisperDownloadState::new()))
         .manage(WorkbenchSessionsFileLock::default())
         .invoke_handler(tauri::generate_handler![
             open_external_url,
             greet,
             frontend_console_log,
+            app_log_settings_get,
+            app_log_settings_save,
+            app_log_event,
+            app_log_clear,
+            app_log_delete,
             exit_app,
+            window_controls::window_minimize,
+            window_controls::window_toggle_maximize,
+            window_controls::window_is_maximized,
+            window_controls::window_close,
+            window_controls::window_toggle_fullscreen,
+            window_controls::window_is_fullscreen,
+            window_controls::window_state,
+            window_controls::window_set_size,
+            window_controls::window_set_fullscreen,
             app_version,
+            updater_settings_get,
+            updater_settings_save,
             updater_check,
             updater_install_start,
             updater_poll_progress,
@@ -153,13 +206,26 @@ pub fn run() {
             agent_poll_events,
             agent_abort,
             agent_clear_conversation,
+            mcp::mcp_list,
+            mcp::mcp_upsert,
+            mcp::mcp_remove,
+            mcp::mcp_test,
+            mcp::mcp_export_cli_configs,
+            agent_compact_conversation,
             agent_provider_status,
             agent_read_image_file,
             agent_export_context_images,
             harness_ensure_default_sandbox,
             harness_user_home_dir,
+            agent_onboarding_complete,
             agent_settings_get,
             agent_settings_save,
+            agent_validate_nickname,
+            agent_session_roles_list,
+            workspace_presets::workspace_presets_list,
+            workspace_presets::workspace_presets_save,
+            workspace_presets::workspace_presets_delete,
+            agent_active_context_window,
             agent_provider_models,
             api_keys_status,
             api_keys_apply,
@@ -181,15 +247,18 @@ pub fn run() {
             pty_drain,
             pty_drain_wait,
             pty_peek_output,
+            pty_wait_output,
             ssh_remotes::ssh_remotes_list,
             ssh_remotes::ssh_remote_save,
             ssh_remotes::ssh_remote_delete,
             ssh_remotes::ssh_remote_test,
+            ssh_remotes::ssh_remote_list_dirs,
             ssh_exec::remote_exec_close,
             ssh_exec::agent_remote_latest_session_id,
             git_branch,
             git_graph::git_is_repository,
             git_graph::git_commit_graph,
+            git_graph::git_commit_details,
             git_status::git_status_changes,
             git_status::git_file_diff,
             git_status::git_stage_file,
@@ -219,18 +288,26 @@ pub fn run() {
             workbench_save_state,
             workbench_load_state,
             workbench_sessions_path,
+            workbench_usage_path,
             workbench_load_sessions,
+            workbench_load_usage_snapshot,
             workbench_drop_sessions,
             workbench_extract_sessions_prefix,
             workbench_merge_sessions_workspace,
             workbench_notifications_path,
             workbench_load_notifications,
             workbench_clear_terminal_notifications,
+            workbench_list_agent_notifications,
+            workbench_upsert_agent_notification,
+            workbench_update_agent_notification,
+            workbench_remove_agent_notification,
+            workbench_mark_agent_notifications_read,
             workbench_prune_notifications,
             workbench_prune_sessions,
             workbench_rewrite_terminal_keys,
             agent_session_exists,
             agent_latest_session_id,
+            agents_layout::workspace_agents_layout_status,
             memory::workspace_ensure_agents,
             memory::memory_root,
             memory::memory_status,
@@ -252,6 +329,15 @@ pub fn run() {
             memory::memory_install_pointers,
             memory::memory_uninstall_pointers,
             memory::memory_pointer_status,
+            memory::indexer::memory_index_settings_get,
+            memory::indexer::memory_index_settings_save,
+            memory::indexer::memory_index_stats,
+            heartbeat::heartbeat_settings_get,
+            heartbeat::heartbeat_settings_save,
+            heartbeat::heartbeat_services_list,
+            heartbeat::heartbeat_service_set_enabled,
+            heartbeat::heartbeat_set_open_workspaces,
+            heartbeat::heartbeat_service_run_now,
             tasks::tasks_list,
             tasks::tasks_get,
             tasks::tasks_create,
@@ -259,6 +345,8 @@ pub fn run() {
             tasks::tasks_delete,
             tasks::tasks_reorder,
             plans::plan_list,
+            plans::plan_migration_ensure_started,
+            plans::plan_migration_poll,
             plans::plan_read,
             plans::plan_create,
             plans::plan_write,
@@ -266,6 +354,22 @@ pub fn run() {
             plans::plan_rename,
             plans::plan_load,
             plans::plan_sync_from_tasks,
+            agent::mermaid::commands::mermaid_list_diagrams,
+            agent::mermaid::commands::mermaid_create_diagram,
+            agent::mermaid::commands::mermaid_delete_diagram,
+            agent::mermaid::commands::mermaid_export_markdown,
+            agent::mermaid::commands::mermaid_export_pdf,
+            kanban::kanban_board_load,
+            kanban::kanban_layout_save,
+            kanban::kanban_task_create,
+            kanban::kanban_task_update,
+            kanban::kanban_task_delete,
+            kanban::kanban_plan_move,
+            kanban::kanban_task_move,
+            kanban::kanban_export_layout,
+            kanban::kanban_import_layout,
+            agent::plan_ai::plan_generate_ai,
+            agent::prompt_enhance::agent_enhance_prompt,
             skills_rules::commands::rules_list,
             skills_rules::commands::rules_read,
             skills_rules::commands::rules_write,
@@ -287,6 +391,16 @@ pub fn run() {
             voice_settings_get,
             voice_settings_save,
             voice_tts_preview,
+            ptt_start,
+            ptt_partial,
+            ptt_finalize,
+            ptt_cancel,
+            voice_tts_playing,
+            voice_agent_input_active,
+            whisper_models_list,
+            whisper_model_download,
+            whisper_model_cancel,
+            whisper_model_delete,
             image_settings_get,
             image_settings_save,
             agent_web_settings_get,

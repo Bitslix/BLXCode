@@ -15,7 +15,7 @@ This document describes the **Better Harness** stack: slim system prompt, embedd
 ```text
 src-tauri/src/agent/
   system_prompt.rs       # Shared prompt (~250 lines): checklist + tool name index
-  harness_skills/*.md    # 11 core skill bodies (include_str! in store)
+  harness_skills/*.md    # 13 core skill bodies (include_str! in store)
   tool_dispatch.rs       # handle_tool_call for coordinator + subagents
   tool_groups.rs         # ToolGroup enum, registry_filtered, coordinator_groups
   environment.rs         # environment_detect + session cache
@@ -26,10 +26,19 @@ src-tauri/src/agent/
   web_tools.rs           # web_search (Tavily), web_fetch
   web_commands.rs        # Tauri: agent_web_* , agent_environment_invalidate
   subagents.rs           # see developer/subagents.md
+  mcp/                   # mcp.rs, mcp_registry.rs, mcp_cli_configs.rs,
+                         # mcp_client.rs, mcp_commands.rs, mcp_models.rs
   tools.rs               # Full registry; execute_server_tool
   tools_extra.rs         # submit_result and harness-only pieces
   session_orchestrator.rs
-  openrouter.rs / anthropic.rs  # Use tool_dispatch
+  provider.rs              # Text-provider registry: endpoint/auth/model metadata
+  openrouter.rs / anthropic.rs  # Compatible + native loops, both use tool_dispatch
+
+src-tauri/src/
+  heartbeat.rs           # HeartBeat runtime + memory/indexer kick
+  memory/indexer.rs      # async indexer for `.agents/memory`
+  notification.rs        # desktop notifications, focus/permission routing
+  log_capture.rs         # rolling app log + download
 
 src/skills_rules/store.rs   # CORE_SKILLS, core SkillSourceKind, availability
 src-tauri/src/api_keys.rs     # Central key catalog, resolve, api_keys_status/apply
@@ -44,7 +53,9 @@ src/workbench/
   workspace_settings_pane/    # Paths, browser, category_colors
   agent_timeline.rs           # tool_label, subagent_*_label (i18n)
   agent_panel/timeline.rs     # chat timeline (subagent UI: see subagents.md)
-src/tauri_bridge.rs           # api_keys_*, agent_web_*, agent_environment_invalidate
+src/tauri_bridge.rs           # api_keys_*, agent_web_*, agent_environment_invalidate,
+                             # mcp_*, heartbeat_*, memory_indexer_*, notification_*,
+                             # log_*, kanban_*, mermaid_*
 ```
 
 ## Core skills (Better Harness)
@@ -57,9 +68,28 @@ src/tauri_bridge.rs           # api_keys_*, agent_web_*, agent_environment_inval
 pub const CORE_SKILLS: &[(&str, &str)] = &[
     ("file-access", include_str!("../agent/harness_skills/file-access.md")),
     // … memory, plans, tasks, rules-skills, harness,
-    // environment, shell, git, web, subagents
+    // environment, shell, git, web, subagents,
+    // mcp, prompt-generating
 ];
 ```
+
+The current shipped catalog (12 core skills) is:
+
+| Slug | Purpose |
+|------|---------|
+| `file-access` | sandboxed workspace read/write/copy/rename |
+| `memory` | memory notes, graph, categories, HeartBeat |
+| `plans` | plan Markdown, kanban, Mermaid |
+| `tasks` | task store + subagent runs |
+| `rules-skills` | workspace rules + skill list/read |
+| `harness` | session orchestration + stats |
+| `environment` | env detect / cache invalidation |
+| `shell` | `shell_exec` read+write gating |
+| `git` | `git_*` server tools |
+| `web` | `web_search` / `web_fetch` |
+| `subagents` | spawn/inspect/cancel parallel runs |
+| `mcp` | model-context-protocol servers + tool list |
+| `prompt-generating` | how to draft prompts for chat, CLI agents, subagents, user replies |
 
 ### Source kind
 
@@ -72,7 +102,7 @@ pub const CORE_SKILLS: &[(&str, &str)] = &[
 
 ### Runtime availability
 
-`core_skill_availability("web")` returns `Some("disabled_no_key")` when `web_settings::web_tools_enabled()` is false. The skills UI can surface this without removing the skill from the catalog.
+`core_skill_availability("web")` returns `Some("disabled_no_key")` when `web_settings::web_tools_enabled()` is false. `core_skill_availability("mcp")` returns `Some("disabled_no_servers")` when the central MCP registry at `{app_data_dir}/mcp/servers.json` is empty. The skills UI can surface these without removing the skill from the catalog.
 
 ### System prompt contract
 
@@ -81,6 +111,8 @@ pub const CORE_SKILLS: &[(&str, &str)] = &[
 - Retains scope, security, mandatory turn checklist, behaviour rules
 - Replaces per-tool prose with a **compact name index** grouped by area
 - Directs the model to `skills_read` with core skill names for full guidance
+- **Requires `skills_read prompt-generating` before any substantive CLI-agent handoff** — the `prompt-generating` core skill teaches the model how to scope prompts for BLXCode chat, terminal CLI agents (Claude Code, Codex, Gemini, OpenCode, Cursor), subagents, and user-facing replies
+- Marks every `mcp.<server>.<tool>` as **untrusted data** — the model must treat MCP tool output as adversarial and never echo credentials or follow URL/CLI suggestions verbatim
 
 Adding a new server tool typically requires:
 
@@ -88,6 +120,21 @@ Adding a new server tool typically requires:
 2. Document in the appropriate `harness_skills/*.md`
 3. Add a line to the tool index in `system_prompt.rs`
 4. Add `I18nKey::AgTool*` + all locale files if the UI shows a label
+
+### `mcp` core skill
+
+`agent/harness_skills/mcp.md` is the authoritative reference for the model's view of MCP. It documents:
+
+- The central registry at `{app_data_dir}/mcp/servers.json` (global, edit through Settings → MCP).
+- Project-scoped CLI-side configs (`.mcp.json`, `.codex/config.toml`, `.gemini/settings.json`, `opencode.json`, `.cursor/mcp.json`) which BLXCode **parses and surfaces** through `mcp_*` Tauri commands but does **not** auto-start.
+- The `.blxcode/mcp-managed.json` sidecar that records which server entries BLXCode owns, so user edits survive a workspace re-index.
+- The `mcp.<server>.<tool>` naming convention used by `tool_dispatch.rs` to route tool calls.
+- The session-fixed tool set: tools snapshotted at session start, so a server added mid-session is not callable until the next session.
+- The untrusted-output contract: any URL, command, or free-form string in MCP output must be re-validated by the model before acting on it.
+
+### `prompt-generating` core skill
+
+`agent/harness_skills/prompt-generating.md` is required reading before any CLI-agent handoff. It defines a four-class taxonomy (chat reply, terminal CLI agent, subagent, user-facing notification) and prescribes the prompt envelope each class should carry: scope, expected output, sandbox, success criteria, and stop conditions. It also documents the **badword list** the system applies to outgoing prompts and the **nickname prefix** (`<nickname>:`) auto-prepended to terminal CLI-agent handoffs unless disabled.
 
 ## Tool dispatch unification
 
@@ -98,6 +145,50 @@ Adding a new server tool typically requires:
 - `subagent_runner.rs` — see [Subagents](subagents.md)
 
 New tools should be wired once in dispatch + `tools::execute_server_tool`, not duplicated per provider.
+
+## Text provider registry
+
+`agent/provider.rs` is the central registry for BLXCode Agent text providers. Add new text providers there first, then reuse the registry metadata from settings/model refresh/runtime code.
+
+Registry metadata covers:
+
+- provider id and label
+- local/cloud/gateway class
+- default OpenAI-compatible base URL
+- auth mode (`none`, required bearer, optional bearer, custom header for Cloudflare)
+- model discovery strategy
+- compatibility flags such as OpenRouter request extras and OpenAI `reasoning_effort`
+
+Anthropic is the only native Messages API loop. The following providers route through the OpenAI-compatible chat-completions loop and live entirely in the registry:
+
+- **OpenRouter** (`openrouter`) — gateway, free + paid models, OpenRouter-only request extras
+- **OpenAI** (`openai`) — first-party, `reasoning_effort` supported
+- **Anthropic** (`anthropic`) — native Messages API loop (see `anthropic.rs`)
+- **Ollama** (`ollama`) — local, no key, defaults to `http://localhost:11434/v1`
+- **LM Studio** (`lmstudio`) — local, no key, defaults to `http://localhost:1234/v1`
+- **Hugging Face** (`huggingface`) — cloud router, `https://router.huggingface.co/v1`
+- **Cloudflare Workers AI** (`cloudflare`) — cloud, requires `cloudflare_account_id` in `AgentProviderSettings`, custom auth header
+- **Together AI** (`together`) — cloud, OpenAI-compatible
+- **Portkey** (`portkey`) — gateway, OpenAI-compatible
+- **Custom OpenAI-compatible** (`custom`) — user-defined base URL + optional bearer; the user can add multiple `custom-*` rows through **Settings → BLXCode Agent → Add provider**, all backed by the same `Custom` registry entry but stored as separate rows in `provider_base_urls`
+
+Local providers do not require a key. Cloudflare also requires `cloudflare_account_id` in `AgentProviderSettings`.
+
+`AgentProviderSettings` keeps legacy `model_cache_openrouter`, `model_cache_anthropic`, and `model_cache_openai` fields for compatibility, plus the provider-keyed `model_caches` map used by new providers. Base URL overrides live in `provider_base_urls`; secrets stay in keyring/env via the API Keys catalog.
+
+The v1 provider expansion is text-only. Image and Voice settings intentionally keep their own provider enums and HTTP clients.
+
+### Agent Chat modes and permission gate
+
+`UserTurn.chat_mode` carries the per-session mode selected in the Agent panel:
+
+- `ask_edits` — mutating edit tools, command execution, and app/window/settings state changes emit `ToolPermissionRequest` and wait for `agent_submit_tool_result`.
+- `allow_all` — no prompt; tool calls execute directly.
+- `plan` — non-mutating mode; write tools, write-capable commands, workspace switches, window/settings changes, submitted terminal commands, context handoff, and terminal interrupts are blocked before execution.
+
+Server tools are gated in `tool_dispatch.rs` before `execute_server_tool`; client harness tools are gated before the `ToolCall` event is emitted, so the frontend cannot execute a client tool before approval.
+
+For file-mutating permission prompts, the frontend renders an extra **Auto-accept** option. Selecting it sends `chatModeChangedTo: "allow_all"` through `agent_submit_tool_result`; `AgentEngineState` stores a per-turn override that `tool_dispatch.rs` prefers over the original `UserTurn.chat_mode`. `start_turn()` resets the override.
 
 ## Tool groups
 
@@ -149,22 +240,244 @@ Frontend wrappers in `tauri_bridge.rs`; UI in `harness_ui.rs` `AgentProviderPane
 
 `web_tools.rs` implements Tavily search; Brave may be stubbed or partial — check source before documenting provider-specific behaviour in release notes.
 
+## MCP (Model Context Protocol)
+
+The agent can call out to MCP servers through `agent/mcp/`:
+
+- `mcp.rs` — module entry + re-exports
+- `mcp_registry.rs` — central server registry at `{app_data_dir}/mcp/servers.json` (atomic tmp+rename writes), schema `[{ name, transport, command | url, env, headers, accountId? }]`
+- `mcp_cli_configs.rs` — parses `.mcp.json`, `.codex/config.toml`, `.gemini/settings.json`, `opencode.json`, `.cursor/mcp.json` from the workspace root; remote (ssh:) entries are skipped, not parsed
+- `mcp_client.rs` — built-in JSON-RPC client (initialize → tools/list → tools/call); no external SDK
+- `mcp_commands.rs` — Tauri commands (`mcp_*`)
+- `mcp_models.rs` — wire types
+
+Tool naming follows `mcp.<server>.<tool>` and is parsed in `tool_dispatch.rs` (both OpenAI-compatible and Anthropic branches). The tool set is **session-fixed**: it is snapshotted at session start from the registry and from any workspace CLI-config files, so a server added mid-session is not callable until the next session. The system prompt marks every `mcp.*` result as **untrusted** — URLs, CLI fragments, and free-form text in the output must be re-validated by the model before it acts on them.
+
+`.blxcode/mcp-managed.json` is a workspace sidecar that records which server entries BLXCode owns, so user edits to the project CLI configs survive a workspace re-index. Tool calls succeed whether the corresponding server is local or remote; only remote (ssh) entries are skipped during config discovery.
+
+### IPC commands (MCP)
+
+```text
+mcp_list_servers         # union of registry + workspace CLI configs + managed sidecar
+mcp_save_server          # add/upsert in registry
+mcp_delete_server
+mcp_set_server_enabled
+mcp_refresh_cli_configs  # re-scan workspace CLI configs into the union
+mcp_call_tool            # explicit tool invocation (rare; loop usually calls inline)
+```
+
+## Terminal CLI-agent control
+
+The coordinator and subagent loops can drive **interactive terminal CLI agents** end to end through the same harness PTY pipeline. The supported slugs are `claude`, `codex`, `gemini`, `opencode`, and `cursor` (empty string for a plain shell). The launch / resume profiles for each are centralized in `agent/terminal_agents.rs` so UI launch commands, docs, and the model prompt stay in sync.
+
+Tools (in `agent/tools.rs`, gated by `ToolGroup::harness`):
+
+| Tool | Purpose |
+|------|---------|
+| `harness.list_terminals` | Enumerate terminal slots in the active workspace. Each entry carries `slotId`, `agentSlug`, `running`, and (post v0.5.0) `name` + `namingMode` (see [Named terminals](#named-terminals) in [Workspaces](../user/workspaces.md)). |
+| `harness.send_terminal_keys` | Send keystrokes to a targeted slot. Address by `slotId` (preferred) or `agentSlug`. Set `submit: true` to append a newline so the command executes. |
+| `harness.send_agent_context` | Render the current BLXCode context as a Markdown block, export any selected images to `<workspace>/.blxcode/agent-context/images/`, and write the block into the terminal's PTY. `includeKinds` defaults to `["memory", "plans", "tasks", "images"]`. |
+| `harness.read_terminal_output` | Non-destructive read of the slot's rolling tail buffer (capped at **64 KiB**). Use after `send_terminal_keys` to see how a CLI agent responded. |
+| `harness.wait_terminal_output` | Incremental wait with `afterSeq`, optional `contains` marker, and `idleMs`; returns `{ sessionId, seq, bytes, text, timedOut }`. `wait_terminal_output` runs as an **async polling command** that takes short PTY snapshots and sleeps with Tokio, so it never blocks the Tauri command thread. |
+| `harness.terminal_interrupt` | Send Ctrl+C to a targeted slot. |
+
+The system prompt requires the model to call `skills_read prompt-generating` before any substantive CLI-agent handoff. `prompt-generating` is a new core skill that teaches the model how to scope prompts for BLXCode chat, terminal CLI agents, subagents, and user-facing replies.
+
+`harness.ask_user` is also part of the same harness tool family and is the way the model requests a structured decision before driving a long-lived CLI agent run.
+
+## Agent timeline refactor
+
+The chat timeline lives in `src/workbench/agent_panel/`. The v0.5.0 refactor split it into three focused component folders, each with its own token-only CSS:
+
+- `agent_panel/tool_group/` — consecutive tool activity in a single round now renders as slim **grouped status rows** (per-tool icons, argument summaries, status indicators, expandable details, metrics, path aggregation, `×N` counts). Same component for the main agent and for subagent cards.
+- `agent_panel/changed_files_card/` — when a model round mutates workspace files, the turn ends with a **Changed files** summary card built from the existing `git_status_changes` command (totals + collapsible directory tree with per-file stats). Clicking a row opens the file's diff in the existing center-tab diff view. **No new backend protocol fields** — the card is a pure renderer over the same `git_status_changes` payload the sidebar already uses.
+- `agent_panel/composer/` — the modern auto-growing composer replaces the old mode toolbar + single-line input. Footer model picker, Plan / Build / access mode popover, thinking-level selector, busy-safe controls, and a single **Send / Stop toggle** orb. The compose bar's `chat_mode` (`AgentChatMode::ask_edits | allow_all | plan`) is unchanged — the popover is a UI presentation of the existing values.
+
+The model-round line number is **decoupled from the stable expand-state key** (`stable_index` was being passed where the display index was expected, leaking `hash + 1` into the UI). The display line number is now threaded through explicitly, and rounds sort correctly into the sequential numbering.
+
+A finished **Thinking** block that is immediately followed by a tool-bearing **MODEL ROUND** is collapsed onto the same line: the round label on the left, the *Thinking ▾* toggle on the right of the same line, with the reasoning text dropping below when expanded. The pair occupies a single line number. Rounds without groupable tools, and still-streaming thinking, keep their standalone rows.
+
+## Agent tool list output (UI-only)
+
+JSON-array tool results such as `rules_list` and `skills_list` are rendered as readable compact lists in the chat timeline instead of raw one-line JSON blobs. The agent itself still receives the original JSON; the renderer lives in `agent_panel/tool_group/list_view.rs` and extracts common fields (`title` / `name`, `summary`, category / kind, small metadata chips). A tolerant fallback can still show complete list items from truncated array prefixes so a large payload stays usable.
+
+## Enhance prompt before send
+
+A per-workspace **Enhance prompt before send** toggle in the composer rewrites the draft through an isolated one-shot provider call (the same `oneshot::complete_text` path that backs AI commit messages and AI plans) before submitting it as the actual user turn. The enhanced text is what the model sees, but chat history, tools, memory, plans, and timeline state are never mutated.
+
+## Tool-loop limit and auto-compact
+
+`AgentProviderSettings` gained a configurable `tool_loop_limit` and an `auto_compact` boolean.
+
+- `tool_loop_limit` — caps the number of consecutive tool calls within a single assistant turn (default 24). When the cap is hit, the orchestrator stops the loop, returns the partial tool result set to the model, and asks the model to summarize. The chat panel surfaces a "Tool loop cap reached" notice for the affected turn. The cap is checked in `tool_dispatch::handle_tool_call` and applied across coordinator and subagent loops.
+- `auto_compact` — when true, the orchestrator transparently compacts the conversation before submitting the next turn if estimated input tokens would exceed 80% of the active provider's context window. Compaction uses a one-shot, non-streaming completion that summarizes the older turns (preserving file paths, decisions, and current plan status) and prepends the summary as a system message; the original messages are still kept on disk for audit and can be expanded from the session timeline. The 80% threshold and the compaction prompt are tunable in `src-tauri/src/agent/session_orchestrator.rs`.
+- `context_window` — the active provider's configured context window, returned by the new Tauri command. The chat panel's context meter reads this value to show real-time usage; auto-compact uses the same number as its ceiling. The setting is per-provider in `agent_provider_settings.json` under `models.<model_id>.context_window` (with a sensible default per provider family).
+
+The settings UI exposes both as Advanced controls on the *BLXCode Agent* pane (see [Settings](../user/settings.md) and [Agent Providers](../user/agent-providers.md)). The chat panel's send button toggles to a stop button while the model is streaming; abort cleanly tears down the tool loop and re-enables the send button with the original prompt restored.
+
+## Session stats
+
+The chat panel shows a per-session stats strip at the top of the conversation:
+
+- **Provider/Model chip** — the active provider and model from `AgentProviderSettings`.
+- **Session start** — wall-clock time of the first user turn; persisted as `ChatUsageStats.session_started_at` (back-compat with older `ChatUsageStats` envelopes that omit the field).
+- **Context meter** — current estimated input tokens vs the active `context_window`; coloured by usage band.
+- **Turn counts** — user turns, assistant turns, and tool turns; tool turns include subagent-spawned turns.
+- **Tool calls** — total number of `ToolCall` events since session start, broken down by tool name on hover.
+- **Subagents** — number of subagent runs and their statuses; clicking filters the timeline to the selected subagent's children.
+- **Cost** — running cost computed from the model's per-token price (USD) and the cumulative prompt / completion tokens; opens the model-picker detail when clicked.
+
+The stats are produced by a dedicated `session_stats` aggregator in `session_orchestrator.rs` that subscribes to `AgentEvent`s and writes into the persisted `ChatUsageStats` envelope on every event boundary. The `UserPart` envelope gained an optional `createdAt` so a session re-opened mid-conversation can reconstruct its stats from the persisted transcript even if the in-memory aggregator was dropped.
+
 ## Frontend i18n
 
 Tool and web labels use `I18nKey` variants (`AgWeb*`, `AgTool*`) in all `src/i18n/locales/*.rs`. Subagent-specific keys (`AgSubagent*`, `AgRole*`) are documented in [Subagents](subagents.md).
 
 Skills panel: `SrSkillsTabCore`, `SrSkillsTabUser`, `SrSourceCore` — see [Internationalization](i18n.md).
 
+## Session roles (harness session modes)
+
+A **session role** lets the user launch a workspace in a specialized mode
+(Coordinator, Architect, Branch Steward, Codewright, Security Reviewer, …). Roles are read-only built-ins,
+embedded from `src-tauri/src/agent/harness_skills/specialized/*.md`.
+
+- `agent/session_roles.rs` — embeds each role via `include_str!`
+  (`SPECIALIZED_ROLES`), parses the YAML frontmatter (`name`, `description`,
+  `skills`, `tools`, `color`, `provider`, `models`), and exposes `list_roles()`,
+  `role_meta(slug)`, and `role_prompt_body(slug)`. `role_prompt_body` strips the
+  frontmatter and the duplicated `## Prompt Defense Baseline` section (Security
+  already covers it).
+- `skills` is a role-level preload list. When a role is active, the prompt tells
+  the agent to call `skills_read` for each listed enabled skill after
+  `skills_list`; unavailable or disabled skills are skipped without inventing
+  guidance.
+- Each specialized `.md` must carry a `color:` frontmatter key; it drives the
+  colored role sub-line in the agent name badge.
+- `provider` (a terminal CLI-agent slug, e.g. `claude`) and `models` (a list)
+  are **advisory metadata** shown in the role picker. They **never** change the
+  BLXCode Agent's runtime model — the BLXCode Agent always uses the
+  provider/model from **Settings** (`AgentProviderSettings`). The role is a
+  behavioural overlay only.
+- The chosen slug travels per turn on `UserTurn.session_role` (mirrored in
+  `src/agent_wire.rs`) and is appended to the shared prompt by
+  `system_prompt(workspace_root, agent_name, session_role)` as a trailing
+  `# Active session role` block. The block **ranks below** Security, the Agent
+  Chat mode, and the explicit user request — it shapes working style only.
+- Roles can explicitly permit `subagents.run` by declaring `Subagents` in
+  frontmatter `tools`; the system prompt then adds a role-authorized subagent
+  note. Architect, Codewright, and Coordinator use this path for bounded
+  scouting/review/security support while the main turn remains responsible for
+  final decisions and verification.
+- Persistence: the slug lives on `WorkspaceEntry.agent_session_role`
+  (`#[serde(default)]`), so it is restored with the workbench snapshot. The
+  composer reads it via `agent_session_role_for_workspace_untracked` when
+  building the turn.
+
+### CLI-agent model and effort selection (fleet)
+
+Each terminal CLI agent (the fleet assigned in Create-Workspace step 2) can run
+on chosen model and, where the CLI supports a safe launch-time override,
+reasoning effort:
+
+- `terminal_agent_profiles.rs` carries a per-slug model catalog
+  (`models: &[&str]`), `model_flag`, `effort_passing`, and selectable
+  `efforts`.
+- The fleet step renders a model `<select>` per assigned agent row (options from
+  `terminal_agent_models(slug)`). It renders an effort `<select>` only when
+  `terminal_agent_efforts(slug)` is non-empty.
+- Choices are stored per agent row in `CreateWorkspaceDraft.agent_models[5]` and
+  `CreateWorkspaceDraft.agent_efforts[5]`, then expanded on commit into
+  `WorkspaceEntry.slot_agent_models` and `WorkspaceEntry.slot_agent_efforts`
+  (parallel to `slot_agent_labels`) via `fleet_slot_models_for_labels` and
+  `fleet_slot_efforts_for_labels`.
+- At launch, `terminal_cell.rs` resolves slot values through
+  `WorkbenchService::agent_model_for_terminal_key` and
+  `agent_effort_for_terminal_key`, then passes both to
+  `terminal_agent_launch_command`. Empty values pass no override, so the
+  external CLI keeps its own defaults/config.
+- Model and effort vectors are kept parallel across slot add/remove/swap.
+
+Current launch mapping:
+
+| CLI | Model launch override | Effort launch override |
+|-----|------------------------|------------------------|
+| Claude Code | `claude --model <id-or-alias>`; aliases `opus`, `sonnet`, `haiku` track the latest family model | `CLAUDE_CODE_EFFORT_LEVEL=<level> claude ...` (`low`, `medium`, `high`, `xhigh`, `max`) |
+| Codex | `codex --model <id>` | `codex ... -c 'model_reasoning_effort="<level>"'` (`minimal`, `low`, `medium`, `high`, `xhigh`) |
+| Gemini CLI | `gemini --model <id>` | Config-file only (`~/.gemini/settings.json`); BLXCode does not write it at launch |
+| OpenCode | `opencode --model <provider/model>` | Config-file only (`reasoningEffort` in OpenCode config); BLXCode does not write it at launch |
+| Cursor Agent | `cursor-agent --model <id>` | No confirmed launch flag in the installed CLI help; BLXCode leaves effort to Cursor defaults/config |
+
+### Workspace presets
+
+`workspace_presets.rs` stores reusable fleet configurations (terminal count,
+per-agent counts, per-agent models/efforts, per-slot names, session role) in
+`{app_data_dir}/workspace_presets.json` (atomic tmp+rename). It is **global per
+installation**, not committed with a workspace. CRUD commands:
+`workspace_presets_list` / `_save` / `_delete`, mirrored in `tauri_bridge.rs`
+as `WorkspacePresetView`. The Create-Workspace UI applies a preset onto the
+draft via `WorkbenchService::apply_preset_to_draft` and launches it directly.
+
 ## IPC commands (harness-specific)
 
 Registered in `lib.rs`:
 
 ```text
+# web + environment
 agent_web_settings_get
 agent_web_settings_save
 agent_web_api_key_set
 agent_web_api_key_delete
 agent_environment_invalidate
+
+# session roles + presets
+agent_session_roles_list
+workspace_presets_list
+workspace_presets_save
+workspace_presets_delete
+
+# MCP
+mcp_list_servers
+mcp_save_server
+mcp_delete_server
+mcp_set_server_enabled
+mcp_refresh_cli_configs
+mcp_call_tool
+
+# HeartBeat + Memory Indexer
+heartbeat_status_get
+heartbeat_settings_get
+heartbeat_settings_save
+heartbeat_run_now
+heartbeat_set_service_enabled
+memory_indexer_status
+memory_indexer_rebuild
+memory_indexer_reindex
+
+# Notifications
+notification_settings_get
+notification_settings_save
+notification_test
+notification_history
+
+# Log capture
+log_get_recent
+log_export
+log_clear
+
+# Kanban (Multi-Kanban)
+kanban_list_plans
+kanban_create_plan
+kanban_rename_plan
+kanban_delete_plan
+kanban_plan_move
+kanban_task_move
+
+# Mermaid diagrams
+mermaid_list_diagrams
+mermaid_create_diagram
+mermaid_delete_diagram
+mermaid_export_markdown
+mermaid_export_pdf
 ```
 
 Existing agent runtime commands unchanged; see [Tauri IPC](tauri-ipc.md).
@@ -174,6 +487,9 @@ Existing agent runtime commands unchanged; see [Tauri IPC](tauri-ipc.md).
 - `environment.rs` — cache invalidate test
 - `skills_rules/store.rs` — core skill count, merge with user skills, remove guard
 - `tool_groups.rs` — filtered registry tests if present
+- `heartbeat.rs` — `heartbeat::tests` covers the 10-min / 24-h clamp and `MemoryIndexer::reindex` triggering after 3 skips
+- `memory/indexer.rs` — `memory::indexer::tests` covers the async rebuild and the language-extension recogniser
+- `mcp/` — registry round-trip + `.blxcode/mcp-managed.json` sidecar round-trip
 - Run `cargo test -p blxcode` before PRs touching harness code
 
 ## Extending the harness
@@ -196,8 +512,8 @@ Existing agent runtime commands unchanged; see [Tauri IPC](tauri-ipc.md).
 
 ## Plans (reference)
 
-- `.agents/plans/better-harness.md` — core skills + slim prompt
-- `.agents/plans/coordinated-subagents.md` — subagents (see [Subagents](subagents.md))
+- `.agents/plans/better-harness/plan.md` — core skills + slim prompt
+- `.agents/plans/coordinated-subagents/plan.md` — subagents (see [Subagents](subagents.md))
 
 ## See also
 

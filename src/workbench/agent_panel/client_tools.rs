@@ -1,16 +1,54 @@
 use crate::agent_wire::{AgentContextItem, AgentContextKind, AgentEvent};
-use crate::tauri_bridge::{agent_submit_tool_result, memory_list, pty_peek_output, pty_write};
+use crate::tauri_bridge::{
+    agent_submit_tool_result, memory_list, plan_read, pty_peek_output, pty_wait_output, pty_write,
+    window_set_fullscreen, window_set_size, window_state, workbench_list_agent_notifications,
+    workbench_mark_agent_notifications_read, workbench_remove_agent_notification,
+    workbench_update_agent_notification, workbench_upsert_agent_notification,
+    AgentNotificationInput, AgentNotificationPatch,
+};
 use crate::workbench::agent_context_handoff::{
     perform_handoff, HandoffRequest, WorkspaceTerminalTarget,
 };
 use crate::workbench::state::normalize_hex_color;
-use crate::workbench::WorkbenchService;
+use crate::workbench::terminal_naming::{self, TerminalNamingMode, NAME_POOL_KEY, NAMING_MODE_KEY};
+use crate::workbench::{HarnessSettingsCategory, RightPanelTab, WorkbenchService};
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Date;
 use leptos::prelude::*;
 
 const PTY_READY_ATTEMPTS: u32 = 40;
 const PTY_READY_DELAY_MS: u32 = 50;
+
+/// Read a localStorage value (the agent tool handlers run inside a spawned
+/// task where the reactive owner — and thus `expect_context` — may be
+/// unavailable, so we read the persisted naming prefs directly).
+fn read_local_storage(key: &str) -> Option<String> {
+    web_sys::window()
+        .and_then(|w| w.local_storage().ok().flatten())
+        .and_then(|s| s.get_item(key).ok().flatten())
+}
+
+fn current_naming_mode() -> TerminalNamingMode {
+    TerminalNamingMode::from_storage(read_local_storage(NAMING_MODE_KEY).as_deref())
+}
+
+fn current_name_pool() -> Vec<String> {
+    terminal_naming::parse_pool(read_local_storage(NAME_POOL_KEY).as_deref())
+}
+
+/// Friendly name for a slot (override > deterministic pool), independent of
+/// the active display mode so the agent can address terminals by name even
+/// when the user currently sees slot numbers.
+fn resolved_slot_name(
+    wb: &WorkbenchService,
+    workspace_id: u64,
+    slot_id: u64,
+    pool: &[String],
+    siblings: &[u64],
+) -> Option<String> {
+    let override_name = wb.slot_name_override(workspace_id, slot_id);
+    terminal_naming::resolve_slot_name(slot_id, override_name.as_deref(), pool, siblings)
+}
 
 pub fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
     let AgentEvent::ToolCall {
@@ -24,17 +62,43 @@ pub fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
     let call_id = call_id.clone();
     match tool.as_str() {
         "harness.create_workspace" => handle_create_workspace(call_id, args.clone(), wb),
+        "harness.workspace_list" => handle_workspace_list(call_id, wb),
+        "harness.workspace_switch" => handle_workspace_switch(call_id, args.clone(), wb),
+        "harness.workspace_prev" => handle_workspace_step(call_id, wb, -1),
+        "harness.workspace_next" => handle_workspace_step(call_id, wb, 1),
+        "harness.view_show" => handle_view_show(call_id, args.clone(), wb),
+        "harness.open_settings" => handle_open_settings(call_id, args.clone(), wb),
+        "harness.open_memory" => handle_open_memory(call_id, args.clone(), wb),
+        "harness.open_plan" => handle_open_plan(call_id, args.clone(), wb),
+        "harness.open_file" => handle_open_file(call_id, args.clone(), wb),
+        "harness.open_diff" => handle_open_diff(call_id, args.clone(), wb),
+        "harness.window_get_state" => handle_window_get_state(call_id),
+        "harness.window_set_size" => handle_window_set_size(call_id, args.clone()),
+        "harness.window_set_fullscreen" => handle_window_set_fullscreen(call_id, args.clone()),
         "harness.open_terminal" => handle_open_terminal(call_id, args.clone(), wb),
         "harness.list_terminals" => handle_list_terminals(call_id, wb),
         "harness.send_terminal_keys" => handle_send_keys(call_id, args.clone(), wb),
         "harness.send_agent_context" => handle_send_agent_context(call_id, args.clone(), wb),
         "harness.read_terminal_output" => handle_read_output(call_id, args.clone(), wb),
+        "harness.wait_terminal_output" => handle_wait_output(call_id, args.clone(), wb),
+        "harness.terminal_interrupt" => handle_terminal_interrupt(call_id, args.clone(), wb),
         "harness.ask_user" => handle_ask_user(call_id, args.clone()),
+        "harness.notifications_list" => handle_notifications_list(call_id, args.clone(), wb),
+        "harness.notifications_create" => handle_notifications_create(call_id, args.clone(), wb),
+        "harness.notifications_send" => handle_notifications_send(call_id, args.clone(), wb),
+        "harness.notifications_update" => handle_notifications_update(call_id, args.clone(), wb),
+        "harness.notifications_remove" => handle_notifications_remove(call_id, args.clone(), wb),
+        "harness.notifications_mark_read" => {
+            handle_notifications_mark_read(call_id, args.clone(), wb)
+        }
         "memory_category_list" => handle_memory_category_list(call_id, wb),
         "memory_category_update" => handle_memory_category_update(call_id, args.clone(), wb),
         "memory_context_list" => handle_memory_context_list(call_id, wb),
         "memory_context_attach" => handle_memory_context_attach(call_id, args.clone(), wb),
         "memory_context_detach" => handle_memory_context_detach(call_id, args.clone(), wb),
+        "plan_context_list" => handle_plan_context_list(call_id, wb),
+        "plan_context_attach" => handle_plan_context_attach(call_id, args.clone(), wb),
+        "plan_context_detach" => handle_plan_context_detach(call_id, args.clone(), wb),
         "image_context_list" => handle_image_context_list(call_id, wb),
         "image_context_detach" => handle_image_context_detach(call_id, args.clone(), wb),
         _ => {}
@@ -42,6 +106,363 @@ pub fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
 }
 
 const LEARNINGS_PREFIX: &str = "learnings/";
+
+fn handle_workspace_list(call_id: String, wb: WorkbenchService) {
+    let active = wb.active_id().get_untracked();
+    let items = wb.workspaces().with_untracked(|workspaces| {
+        workspaces
+            .iter()
+            .map(|ws| {
+                serde_json::json!({
+                    "id": ws.id,
+                    "title": ws.title,
+                    "cwd": ws.cwd,
+                    "active": Some(ws.id) == active,
+                    "terminalCount": ws.terminal_count,
+                })
+            })
+            .collect::<Vec<_>>()
+    });
+    submit_async(
+        call_id,
+        true,
+        format!("{} open workspace(s)", items.len()),
+        Some(serde_json::Value::Array(items)),
+    );
+}
+
+fn handle_workspace_switch(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    let id_arg = args
+        .as_ref()
+        .and_then(|v| v.get("id"))
+        .and_then(|v| v.as_u64());
+    let title_arg = args
+        .as_ref()
+        .and_then(|v| v.get("title"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| !s.is_empty());
+    let cwd_arg = args
+        .as_ref()
+        .and_then(|v| v.get("cwd"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| !s.is_empty());
+    let target = wb.workspaces().with_untracked(|workspaces| {
+        workspaces.iter().find_map(|ws| {
+            if id_arg == Some(ws.id)
+                || title_arg
+                    .as_ref()
+                    .map(|title| ws.title.to_lowercase() == *title)
+                    .unwrap_or(false)
+                || cwd_arg
+                    .as_ref()
+                    .map(|cwd| ws.cwd.to_lowercase() == *cwd)
+                    .unwrap_or(false)
+            {
+                Some((ws.id, ws.title.clone(), ws.cwd.clone()))
+            } else {
+                None
+            }
+        })
+    });
+    let Some((id, title, cwd)) = target else {
+        submit_async(call_id, false, "workspace not found".into(), None);
+        return;
+    };
+    wb.select_workspace(id);
+    submit_async(
+        call_id,
+        true,
+        format!("switched to workspace {id}"),
+        Some(serde_json::json!({ "id": id, "title": title, "cwd": cwd })),
+    );
+}
+
+fn handle_workspace_step(call_id: String, wb: WorkbenchService, delta: isize) {
+    let active = wb.active_id().get_untracked();
+    let target = wb.workspaces().with_untracked(|workspaces| {
+        if workspaces.is_empty() {
+            return None;
+        }
+        let current = active
+            .and_then(|id| workspaces.iter().position(|ws| ws.id == id))
+            .unwrap_or(0);
+        let len = workspaces.len() as isize;
+        let next = (current as isize + delta).rem_euclid(len) as usize;
+        let ws = &workspaces[next];
+        Some((ws.id, ws.title.clone(), ws.cwd.clone()))
+    });
+    let Some((id, title, cwd)) = target else {
+        submit_async(call_id, false, "no open workspaces".into(), None);
+        return;
+    };
+    wb.select_workspace(id);
+    submit_async(
+        call_id,
+        true,
+        format!("switched to workspace {id}"),
+        Some(serde_json::json!({ "id": id, "title": title, "cwd": cwd })),
+    );
+}
+
+fn ensure_right_panel_visible(wb: WorkbenchService) {
+    if wb.right_collapsed().get_untracked() {
+        wb.toggle_right_panel();
+    }
+}
+
+fn ensure_sidebar_visible(wb: WorkbenchService) {
+    if wb.sidebar_collapsed().get_untracked() {
+        wb.toggle_sidebar();
+    }
+}
+
+fn handle_view_show(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    let Some(target) = args
+        .as_ref()
+        .and_then(|v| v.get("target"))
+        .and_then(|v| v.as_str())
+    else {
+        submit_async(call_id, false, "missing target".into(), None);
+        return;
+    };
+    match target {
+        "agent" => {
+            wb.set_right_tab(RightPanelTab::Agent);
+            ensure_right_panel_visible(wb);
+        }
+        "browser" => {
+            wb.set_right_tab(RightPanelTab::Browser);
+            ensure_right_panel_visible(wb);
+        }
+        "plans" => {
+            wb.set_right_tab(RightPanelTab::Plans);
+            ensure_right_panel_visible(wb);
+        }
+        "memory" => {
+            wb.set_right_tab(RightPanelTab::Memory);
+            ensure_right_panel_visible(wb);
+        }
+        "rules" => {
+            wb.set_right_tab(RightPanelTab::Rules);
+            ensure_right_panel_visible(wb);
+        }
+        "skills" => {
+            wb.set_right_tab(RightPanelTab::Skills);
+            ensure_right_panel_visible(wb);
+        }
+        "settings" => wb.open_center_settings_tab(HarnessSettingsCategory::App),
+        "terminals" => {
+            if let Some(ws_id) = wb.active_id().get_untracked() {
+                wb.open_center_terminals_tab(ws_id);
+            }
+        }
+        "project_files" => {
+            ensure_sidebar_visible(wb);
+            wb.set_active_sidebar_explorer_open(true);
+        }
+        "git_diff" => {
+            ensure_sidebar_visible(wb);
+            wb.set_active_sidebar_diff_open(true);
+        }
+        "git_graph" => {
+            ensure_sidebar_visible(wb);
+            wb.set_active_sidebar_graph_open(true);
+        }
+        other => {
+            submit_async(
+                call_id,
+                false,
+                format!("unknown view target: {other}"),
+                None,
+            );
+            return;
+        }
+    }
+    submit_async(call_id, true, format!("showed {target}"), None);
+}
+
+fn parse_settings_category(raw: &str) -> Option<HarnessSettingsCategory> {
+    Some(match raw {
+        "app" => HarnessSettingsCategory::App,
+        "appearance" => HarnessSettingsCategory::Appearance,
+        "shortcuts" => HarnessSettingsCategory::Shortcuts,
+        "api_keys" => HarnessSettingsCategory::ApiKeys,
+        "workspace" => HarnessSettingsCategory::Workspace,
+        "agent_provider" => HarnessSettingsCategory::AgentProvider,
+        "heartbeat" => HarnessSettingsCategory::Heartbeat,
+        "remote" => HarnessSettingsCategory::Remote,
+        "memory" => HarnessSettingsCategory::Memory,
+        "voice" => HarnessSettingsCategory::Voice,
+        "image" => HarnessSettingsCategory::Image,
+        "code_editor" => HarnessSettingsCategory::CodeEditor,
+        _ => return None,
+    })
+}
+
+fn handle_open_settings(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    let raw = args
+        .as_ref()
+        .and_then(|v| v.get("category"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("app");
+    let Some(category) = parse_settings_category(raw) else {
+        submit_async(
+            call_id,
+            false,
+            format!("unknown settings category: {raw}"),
+            None,
+        );
+        return;
+    };
+    wb.open_center_settings_tab(category);
+    submit_async(call_id, true, format!("opened settings {raw}"), None);
+}
+
+fn handle_open_memory(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    if let Some(path) = args
+        .as_ref()
+        .and_then(|v| v.get("path"))
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.trim().is_empty())
+    {
+        wb.request_open_memory_note(path.to_owned());
+    } else {
+        wb.set_right_tab(RightPanelTab::Memory);
+        ensure_right_panel_visible(wb);
+    }
+    submit_async(call_id, true, "opened memory".into(), None);
+}
+
+fn handle_open_plan(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    let path = args
+        .as_ref()
+        .and_then(|v| v.get("path"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    wb.set_right_tab(RightPanelTab::Plans);
+    ensure_right_panel_visible(wb);
+    let data = (!path.trim().is_empty()).then(|| serde_json::json!({ "path": path }));
+    submit_async(call_id, true, "opened plans".into(), data);
+}
+
+fn handle_open_file(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    let Some(path) = args
+        .as_ref()
+        .and_then(|v| v.get("path"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().trim_start_matches(['/', '\\']).to_owned())
+        .filter(|s| !s.is_empty())
+    else {
+        submit_async(call_id, false, "missing path".into(), None);
+        return;
+    };
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    wb.open_center_file_tab(ws_id, path.clone());
+    submit_async(call_id, true, format!("opened file {path}"), None);
+}
+
+fn handle_open_diff(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    let Some(path) = args
+        .as_ref()
+        .and_then(|v| v.get("path"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().trim_start_matches(['/', '\\']).to_owned())
+        .filter(|s| !s.is_empty())
+    else {
+        submit_async(call_id, false, "missing path".into(), None);
+        return;
+    };
+    let staged = args
+        .as_ref()
+        .and_then(|v| v.get("staged"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    wb.open_center_diff_tab(ws_id, path.clone(), staged);
+    submit_async(call_id, true, format!("opened diff {path}"), None);
+}
+
+fn handle_window_get_state(call_id: String) {
+    leptos::task::spawn_local(async move {
+        match window_state().await {
+            Ok(state) => {
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some("window state".into()),
+                    Some(serde_json::to_value(state).unwrap_or_default()),
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn handle_window_set_size(call_id: String, args: Option<serde_json::Value>) {
+    let width = args
+        .as_ref()
+        .and_then(|v| v.get("width"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(1280)
+        .clamp(480, 7680) as u32;
+    let height = args
+        .as_ref()
+        .and_then(|v| v.get("height"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(900)
+        .clamp(360, 4320) as u32;
+    leptos::task::spawn_local(async move {
+        match window_set_size(width, height).await {
+            Ok(()) => {
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some(format!("set window size to {width}x{height}")),
+                    None,
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn handle_window_set_fullscreen(call_id: String, args: Option<serde_json::Value>) {
+    let enabled = args
+        .as_ref()
+        .and_then(|v| v.get("enabled"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    leptos::task::spawn_local(async move {
+        match window_set_fullscreen(enabled).await {
+            Ok(()) => {
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some(format!("fullscreen={enabled}")),
+                    None,
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
 
 fn handle_memory_category_list(call_id: String, wb: WorkbenchService) {
     let Some(ws_id) = wb.active_id().get_untracked() else {
@@ -167,6 +588,109 @@ fn handle_memory_context_detach(
     };
     wb.remove_workspace_agent_context(ws_id, id);
     submit_async(call_id, true, format!("detached context {id}"), None);
+}
+
+fn handle_plan_context_list(call_id: String, wb: WorkbenchService) {
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    let items: Vec<AgentContextItem> = wb
+        .agent_context_for_workspace_untracked(ws_id)
+        .into_iter()
+        .filter(|item| {
+            matches!(
+                item.kind,
+                AgentContextKind::PlanIndex
+                    | AgentContextKind::PlanFile
+                    | AgentContextKind::PlanTaskGroup
+            )
+        })
+        .collect();
+    let body = serde_json::to_value(&items).unwrap_or(serde_json::Value::Array(vec![]));
+    submit_async(
+        call_id,
+        true,
+        format!("{} plan context item(s)", items.len()),
+        Some(body),
+    );
+}
+
+fn handle_plan_context_detach(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    let Some(id) = args
+        .as_ref()
+        .and_then(|v| v.get("id"))
+        .and_then(|v| v.as_str())
+    else {
+        submit_async(call_id, false, "missing id".into(), None);
+        return;
+    };
+    wb.remove_workspace_agent_context(ws_id, id);
+    submit_async(call_id, true, format!("detached plan context {id}"), None);
+}
+
+fn handle_plan_context_attach(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let Some(ws_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    let Some(cwd) = wb.default_workspace_cwd() else {
+        submit_async(call_id, false, "workspace has no folder".into(), None);
+        return;
+    };
+    let Some(path) = args
+        .as_ref()
+        .and_then(|v| v.get("path"))
+        .and_then(|v| v.as_str())
+        .map(str::to_owned)
+    else {
+        submit_async(call_id, false, "missing path".into(), None);
+        return;
+    };
+    let label_override = args
+        .as_ref()
+        .and_then(|v| v.get("label"))
+        .and_then(|v| v.as_str())
+        .map(str::to_owned);
+    leptos::task::spawn_local(async move {
+        match plan_read(&cwd, &path).await {
+            Ok(plan) => {
+                let label = label_override.unwrap_or_else(|| {
+                    plan.content
+                        .lines()
+                        .find_map(|line| line.trim_start().strip_prefix("# "))
+                        .map(str::trim)
+                        .filter(|title| !title.is_empty())
+                        .unwrap_or(plan.path.as_str())
+                        .to_owned()
+                });
+                let item = AgentContextItem {
+                    id: format!("plan-file:{}", plan.path),
+                    kind: AgentContextKind::PlanFile,
+                    label,
+                    source: "plan file".into(),
+                    paths: vec![plan.path.clone()],
+                    added_at: Date::now() as i64,
+                    content: None,
+                };
+                wb.upsert_workspace_agent_context(ws_id, item);
+                submit_async(call_id, true, format!("attached plan {}", plan.path), None);
+            }
+            Err(err) => submit_async(call_id, false, err, None),
+        }
+    });
 }
 
 fn handle_image_context_list(call_id: String, wb: WorkbenchService) {
@@ -378,6 +902,284 @@ fn handle_ask_user(call_id: String, args: Option<serde_json::Value>) {
     // submit when the user answers or dismisses the card.
 }
 
+fn handle_notifications_list(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let include_read = args
+        .as_ref()
+        .and_then(|v| v.get("includeRead"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    let limit = args
+        .as_ref()
+        .and_then(|v| v.get("limit"))
+        .and_then(|v| v.as_u64())
+        .unwrap_or(50)
+        .clamp(1, 200) as usize;
+    leptos::task::spawn_local(async move {
+        match workbench_list_agent_notifications(include_read, limit).await {
+            Ok(items) => {
+                wb.set_agent_notifications(items.clone());
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some(format!("{} notification(s)", items.len())),
+                    Some(serde_json::to_value(items).unwrap_or_default()),
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn handle_notifications_create(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let Some(input) = notification_input_from_args(args, false) else {
+        submit_async(call_id, false, "invalid notification args".into(), None);
+        return;
+    };
+    leptos::task::spawn_local(async move {
+        match workbench_upsert_agent_notification(input).await {
+            Ok(item) => {
+                wb.upsert_agent_notification(item.clone());
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some(format!("created notification {}", item.id)),
+                    Some(serde_json::to_value(item).unwrap_or_default()),
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn handle_notifications_send(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let respect_focus = args
+        .as_ref()
+        .and_then(|v| v.get("respectFocus"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+    if respect_focus && agent_panel_is_active(wb) {
+        submit_async(
+            call_id,
+            true,
+            "notification suppressed because agent panel is active".into(),
+            Some(serde_json::json!({
+                "delivered": false,
+                "reason": "agent_active"
+            })),
+        );
+        return;
+    }
+    let Some(input) = notification_input_from_args(args, true) else {
+        submit_async(call_id, false, "invalid notification args".into(), None);
+        return;
+    };
+    let os_title = input.title.clone();
+    let os_body = input.body.clone().unwrap_or_default();
+    leptos::task::spawn_local(async move {
+        match workbench_upsert_agent_notification(input).await {
+            Ok(item) => {
+                wb.upsert_agent_notification(item.clone());
+                send_native_notification_best_effort(&os_title, &os_body);
+                crate::workbench::notification_sound::play_notification_beep();
+                let data = serde_json::json!({
+                    "delivered": true,
+                    "notification": item,
+                });
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some("notification sent".into()),
+                    Some(data),
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn handle_notifications_update(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let Some(args) = args else {
+        submit_async(call_id, false, "missing args".into(), None);
+        return;
+    };
+    let Ok(patch) = serde_json::from_value::<AgentNotificationPatch>(args) else {
+        submit_async(call_id, false, "invalid notification patch".into(), None);
+        return;
+    };
+    leptos::task::spawn_local(async move {
+        match workbench_update_agent_notification(patch).await {
+            Ok(item) => {
+                wb.upsert_agent_notification(item.clone());
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some(format!("updated notification {}", item.id)),
+                    Some(serde_json::to_value(item).unwrap_or_default()),
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn handle_notifications_remove(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let Some(id) = args
+        .as_ref()
+        .and_then(|v| v.get("id"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string)
+    else {
+        submit_async(call_id, false, "missing id".into(), None);
+        return;
+    };
+    wb.remove_agent_notification(&id);
+    leptos::task::spawn_local(async move {
+        match workbench_remove_agent_notification(id.clone()).await {
+            Ok(()) => {
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some(format!("removed notification {id}")),
+                    None,
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn handle_notifications_mark_read(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let id = args
+        .as_ref()
+        .and_then(|v| v.get("id"))
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
+    let all = args
+        .as_ref()
+        .and_then(|v| v.get("all"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if !all && id.is_none() {
+        submit_async(call_id, false, "missing id or all=true".into(), None);
+        return;
+    }
+    if all {
+        wb.mark_all_agent_notifications_read();
+    } else if let Some(id) = id.as_ref() {
+        wb.mark_agent_notification_read(id);
+    }
+    leptos::task::spawn_local(async move {
+        match workbench_mark_agent_notifications_read(id, all).await {
+            Ok(items) => {
+                wb.set_agent_notifications(items.clone());
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some("marked notification(s) read".into()),
+                    Some(serde_json::to_value(items).unwrap_or_default()),
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn notification_input_from_args(
+    args: Option<serde_json::Value>,
+    sent: bool,
+) -> Option<AgentNotificationInput> {
+    let mut input = serde_json::from_value::<AgentNotificationInput>(args?).ok()?;
+    if input.title.trim().is_empty() || input.kind.trim().is_empty() {
+        return None;
+    }
+    input.sent = Some(sent);
+    Some(input)
+}
+
+fn agent_panel_is_active(wb: WorkbenchService) -> bool {
+    if wb.right_collapsed().get_untracked()
+        || wb.right_active_tab().get_untracked() != RightPanelTab::Agent
+    {
+        return false;
+    }
+    js_sys::eval(
+        r#"(() => {
+          try {
+            return document.visibilityState === "visible" && document.hasFocus();
+          } catch (_) {
+            return false;
+          }
+        })()"#,
+    )
+    .ok()
+    .and_then(|v| v.as_bool())
+    .unwrap_or(false)
+}
+
+fn send_native_notification_best_effort(title: &str, body: &str) {
+    let title = serde_json::to_string(title).unwrap_or_else(|_| "\"BLXCode Agent\"".into());
+    let body = serde_json::to_string(body).unwrap_or_else(|_| "\"\"".into());
+    let script = format!(
+        r#"(() => {{
+          try {{
+            const n = window.__TAURI__ && window.__TAURI__.notification;
+            if (!n) return;
+            Promise.resolve(n.isPermissionGranted())
+              .then((granted) => granted ? "granted" : n.requestPermission())
+              .then((permission) => {{
+                if (permission === "granted" || permission === true) {{
+                  n.sendNotification({{ title: {title}, body: {body} }});
+                }}
+              }})
+              .catch(() => {{}});
+          }} catch (_) {{}}
+        }})()"#
+    );
+    let _ = js_sys::eval(&script);
+}
+
 fn handle_open_terminal(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
     // Resolve count (default 1, clamped 1..=16).
     let count = args
@@ -537,6 +1339,12 @@ fn resolve_target_session(
         .as_ref()
         .and_then(|v| v.get("slotId"))
         .and_then(|v| v.as_u64());
+    let name_filter = args
+        .as_ref()
+        .and_then(|v| v.get("name"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty());
     let agent_slug = args
         .as_ref()
         .and_then(|v| v.get("agentSlug"))
@@ -568,6 +1376,22 @@ fn resolve_target_session(
             return Ok((sid, pane));
         }
         return Err(format!("slot {slot} not running"));
+    }
+    if let Some(name) = name_filter {
+        let pool = current_name_pool();
+        let siblings = wb.slot_ids_for_workspace(workspace_id);
+        let target = name.to_lowercase();
+        for (slot, pane, sid) in &entries {
+            let resolved = resolved_slot_name(wb, workspace_id, *slot, &pool, &siblings);
+            if resolved
+                .as_deref()
+                .map(|n| n.to_lowercase() == target)
+                .unwrap_or(false)
+            {
+                return Ok((*sid, *pane));
+            }
+        }
+        return Err(format!("no running terminal named '{name}'"));
     }
     if let Some(slug) = agent_slug {
         for (slot, pane, sid) in &entries {
@@ -612,7 +1436,7 @@ async fn wait_for_target_session(
         TimeoutFuture::new(PTY_READY_DELAY_MS).await;
     }
     resolve_target_session(&wb, workspace_id, args)
-        .or_else(|_| Err(last_err.unwrap_or_else(|| "terminal session not running".into())))
+        .map_err(|_| last_err.unwrap_or_else(|| "terminal session not running".into()))
 }
 
 fn handle_list_terminals(call_id: String, wb: WorkbenchService) {
@@ -621,18 +1445,25 @@ fn handle_list_terminals(call_id: String, wb: WorkbenchService) {
         return;
     };
     let running = wb.pty_sessions_for_workspace(workspace_id);
+    let pool = current_name_pool();
+    let mode = current_naming_mode();
     let entries = wb.workspaces().with_untracked(|ws| {
         let Some(w) = ws.iter().find(|w| w.id == workspace_id) else {
             return Vec::new();
         };
+        let siblings = w.slot_ids.clone();
         w.slot_ids
             .iter()
             .enumerate()
             .map(|(idx, slot_id)| {
                 let agent = w.slot_agent_labels.get(idx).cloned().unwrap_or_default();
                 let running = running.iter().any(|(s, _, _)| *s == *slot_id);
+                let name = resolved_slot_name(&wb, workspace_id, *slot_id, &pool, &siblings)
+                    .unwrap_or_else(|| format!("#{slot_id}"));
                 serde_json::json!({
                     "slotId": slot_id,
+                    "name": name,
+                    "namingMode": mode.storage_value(),
                     "agentSlug": agent,
                     "running": running,
                 })
@@ -720,6 +1551,111 @@ fn handle_read_output(call_id: String, args: Option<serde_json::Value>, wb: Work
                     true,
                     Some(text),
                     Some(serde_json::json!({ "bytes": len, "sessionId": sid })),
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn handle_wait_output(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    let Some(workspace_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    let after_seq = args
+        .as_ref()
+        .and_then(|v| v.get("afterSeq"))
+        .and_then(|v| v.as_u64());
+    let timeout_ms = args
+        .as_ref()
+        .and_then(|v| v.get("timeoutMs"))
+        .and_then(|v| v.as_u64())
+        .map(|ms| ms.clamp(1, 120_000));
+    let idle_ms = args
+        .as_ref()
+        .and_then(|v| v.get("idleMs"))
+        .and_then(|v| v.as_u64())
+        .map(|ms| ms.min(30_000));
+    let max_bytes = args
+        .as_ref()
+        .and_then(|v| v.get("maxBytes"))
+        .and_then(|v| v.as_u64())
+        .map(|bytes| bytes.clamp(1, 65_536) as usize);
+    let contains = args
+        .as_ref()
+        .and_then(|v| v.get("contains"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_owned())
+        .filter(|s| !s.is_empty());
+
+    leptos::task::spawn_local(async move {
+        let (sid, _pane) = match wait_for_target_session(wb, workspace_id, &args).await {
+            Ok(t) => t,
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+                return;
+            }
+        };
+        match pty_wait_output(sid, after_seq, timeout_ms, idle_ms, max_bytes, contains).await {
+            Ok(snapshot) => {
+                let summary = if snapshot.timed_out {
+                    format!(
+                        "timed out waiting for terminal output at seq {} ({} byte(s))",
+                        snapshot.seq, snapshot.bytes
+                    )
+                } else {
+                    format!(
+                        "observed terminal output at seq {} ({} byte(s))",
+                        snapshot.seq, snapshot.bytes
+                    )
+                };
+                let data = serde_json::json!({
+                    "sessionId": snapshot.session_id,
+                    "seq": snapshot.seq,
+                    "bytes": snapshot.bytes,
+                    "text": snapshot.text,
+                    "timedOut": snapshot.timed_out,
+                    "lastOutputMs": snapshot.last_output_ms,
+                });
+                let _ = agent_submit_tool_result(call_id, true, Some(summary), Some(data)).await;
+            }
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+            }
+        }
+    });
+}
+
+fn handle_terminal_interrupt(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let Some(workspace_id) = wb.active_id().get_untracked() else {
+        submit_async(call_id, false, "no active workspace".into(), None);
+        return;
+    };
+    leptos::task::spawn_local(async move {
+        let (sid, _pane) = match wait_for_target_session(wb, workspace_id, &args).await {
+            Ok(t) => t,
+            Err(e) => {
+                let _ = agent_submit_tool_result(call_id, false, Some(e), None).await;
+                return;
+            }
+        };
+        use base64::Engine;
+        let ctrl_c = base64::engine::general_purpose::STANDARD.encode([0x03]);
+        match pty_write(sid, ctrl_c).await {
+            Ok(()) => {
+                let _ = agent_submit_tool_result(
+                    call_id,
+                    true,
+                    Some(format!("sent Ctrl+C to terminal session {sid}")),
+                    Some(serde_json::json!({ "sessionId": sid })),
                 )
                 .await;
             }

@@ -84,7 +84,7 @@ impl BrowserHost {
         // Webview für aktiven Tab anlegen falls noch nicht vorhanden.
         // Kein nativer Child für leere URLs (neuer Tab) — die Leptos-Komponente
         // zeigt in dem Fall die New-Tab-Seite ohne überlagernde Webview.
-        if !state.tabs.contains_key(&tab_id) {
+        if let std::collections::hash_map::Entry::Vacant(e) = state.tabs.entry(tab_id) {
             let start = match navigate_to.map(str::trim).filter(|s| !s.is_empty()) {
                 Some(url) => url,
                 None => return Ok(()),
@@ -101,7 +101,7 @@ impl BrowserHost {
                     LogicalSize::new(rect.w.max(2.), rect.h.max(2.)),
                 )
                 .map_err(|e| format!("webview add_child: {e}"))?;
-            state.tabs.insert(tab_id, Some(start.to_string()));
+            e.insert(Some(start.to_string()));
         }
 
         // Tab exists but still has no webview yet (URL was empty at creation time).

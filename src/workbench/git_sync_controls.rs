@@ -24,6 +24,7 @@ pub enum SyncOp {
 pub struct GitSyncControls {
     pub status: RwSignal<Option<SyncStatus>>,
     pub busy: RwSignal<Option<SyncOp>>,
+    refresh_key: RwSignal<Option<(String, Option<String>)>>,
 }
 
 impl Default for GitSyncControls {
@@ -37,15 +38,27 @@ impl GitSyncControls {
         Self {
             status: RwSignal::new(None),
             busy: RwSignal::new(None),
+            refresh_key: RwSignal::new(None),
         }
     }
 
     /// Re-read branch/upstream/ahead-behind/dirty state for `cwd`. `conn` is
     /// the SSH connection id for remote workspaces (`None` = local).
     pub fn refresh(&self, cwd: String, conn: Option<String>) {
+        let key = (cwd.clone(), conn.clone());
+        if self.refresh_key.get_untracked() == Some(key.clone()) {
+            return;
+        }
+        self.refresh_key.set(Some(key.clone()));
         let status = self.status;
+        let refresh_key = self.refresh_key;
         spawn_local(async move {
-            if let Ok(s) = git_sync_status(cwd, conn).await {
+            let res = git_sync_status(cwd, conn).await;
+            if refresh_key.get_untracked().as_ref() != Some(&key) {
+                return;
+            }
+            refresh_key.set(None);
+            if let Ok(s) = res {
                 status.set(Some(s));
             }
         });
@@ -53,6 +66,7 @@ impl GitSyncControls {
 
     /// Drop the cached status (e.g. when the active repo is gone).
     pub fn clear(&self) {
+        self.refresh_key.set(None);
         self.status.set(None);
     }
 

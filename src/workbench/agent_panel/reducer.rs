@@ -1,4 +1,7 @@
-use crate::agent_wire::{AgentEvent, EventEnvelope, TaskSnapshot, TurnMetrics, TurnUsageKind};
+use crate::agent_wire::{
+    AgentChatMode, AgentEvent, EventEnvelope, TaskSnapshot, ToolPermissionKind, TurnMetrics,
+    TurnUsageKind,
+};
 use crate::i18n::Locale;
 use crate::workbench::agent_panel::timeline::parse_ask_user_args;
 use crate::workbench::agent_timeline::{
@@ -108,6 +111,29 @@ fn apply_event_to_doc(
                     children: Vec::new(),
                     paths: activity.paths,
                     merged_count: 1,
+                },
+            );
+        }
+        AgentEvent::ToolPermissionRequest {
+            tool,
+            call_id,
+            kind,
+            summary,
+            ..
+        } => {
+            append_part(
+                doc,
+                env.parent_call_id.as_deref(),
+                None,
+                TurnPart::AskUser {
+                    id: call_id.clone(),
+                    call_id: call_id.clone(),
+                    question: summary.clone(),
+                    header: Some(format!("Approve {tool}")),
+                    options: permission_options(tool, kind),
+                    multi_select: false,
+                    allow_other: false,
+                    state: AskUserState::Open,
                 },
             );
         }
@@ -268,6 +294,8 @@ fn apply_event_to_doc(
             turn_generation,
             input_tokens,
             output_tokens,
+            cached_input_tokens,
+            cache_write_input_tokens,
             ttft_ms,
             elapsed_ms,
             cost_usd,
@@ -275,11 +303,22 @@ fn apply_event_to_doc(
             let metrics = TurnMetrics {
                 input_tokens: *input_tokens,
                 output_tokens: *output_tokens,
+                cached_input_tokens: *cached_input_tokens,
+                cache_write_input_tokens: *cache_write_input_tokens,
                 ttft_ms: *ttft_ms,
                 elapsed_ms: *elapsed_ms,
                 cost_usd: *cost_usd,
             };
             if let Some((wb, ws_id)) = persist {
+                // Context-window occupancy tracks only the main agent's
+                // provider rounds — subagent rounds (agent_id Some) live in
+                // their own windows, and tool-exec events carry no prompt.
+                let round_input_tokens =
+                    if matches!(kind, TurnUsageKind::ModelRound) && agent_id.is_none() {
+                        *input_tokens
+                    } else {
+                        None
+                    };
                 let _ = wb.record_chat_turn_usage(
                     ws_id,
                     *turn_generation,
@@ -287,6 +326,7 @@ fn apply_event_to_doc(
                     *output_tokens,
                     *elapsed_ms,
                     *cost_usd,
+                    round_input_tokens,
                 );
             }
             match kind {
@@ -364,6 +404,42 @@ fn apply_event_to_doc(
             remove_empty_pending_top_level_thinking(doc);
         }
     }
+}
+
+fn permission_options(
+    tool: &str,
+    kind: &ToolPermissionKind,
+) -> Vec<crate::workbench::agent_timeline::AskUserOption> {
+    if matches!(kind, ToolPermissionKind::MutatingEdit) && is_file_mutation_tool(tool) {
+        return vec![
+            crate::workbench::agent_timeline::AskUserOption {
+                label: "Approve once".to_owned(),
+                description: Some("Run this tool call and keep supervised mode.".to_owned()),
+                set_chat_mode_on_select: None,
+            },
+            crate::workbench::agent_timeline::AskUserOption {
+                label: "Auto-accept".to_owned(),
+                description: Some("Run this and switch this workspace to Full Access.".to_owned()),
+                set_chat_mode_on_select: Some(AgentChatMode::AllowAll),
+            },
+        ];
+    }
+    vec![crate::workbench::agent_timeline::AskUserOption {
+        label: "Approve".to_owned(),
+        description: Some("Run this tool call now.".to_owned()),
+        set_chat_mode_on_select: None,
+    }]
+}
+
+fn is_file_mutation_tool(tool: &str) -> bool {
+    matches!(
+        tool,
+        "workspace_file_write"
+            | "workspace_file_delete"
+            | "workspace_entry_rename"
+            | "workspace_dir_create"
+            | "git_apply_patch"
+    )
 }
 
 fn ensure_turn(doc: &mut TimelineDoc) {
@@ -739,6 +815,67 @@ mod tests {
     }
 
     #[test]
+    fn permission_request_adds_auto_accept_for_file_mutations_only() {
+        let mut doc = TimelineDoc::default();
+        doc.push_user_turn("edit".to_owned());
+        apply_event_to_doc(
+            &mut doc,
+            &env(
+                1,
+                None,
+                AgentEvent::ToolPermissionRequest {
+                    tool: "workspace_file_write".into(),
+                    call_id: "cid-write".into(),
+                    mode: AgentChatMode::AskEdits,
+                    kind: ToolPermissionKind::MutatingEdit,
+                    summary: "write file".into(),
+                    args: Some(json!({"path": "src/lib.rs"})),
+                },
+            ),
+            Locale::EnUs,
+            None,
+        );
+
+        let TurnPart::AskUser { options, .. } = &doc.turns[0].parts[0] else {
+            panic!("expected AskUser permission part");
+        };
+        assert_eq!(options.len(), 2);
+        assert_eq!(options[0].label, "Approve once");
+        assert_eq!(options[1].label, "Auto-accept");
+        assert_eq!(
+            options[1].set_chat_mode_on_select,
+            Some(AgentChatMode::AllowAll)
+        );
+
+        let mut doc = TimelineDoc::default();
+        doc.push_user_turn("command".to_owned());
+        apply_event_to_doc(
+            &mut doc,
+            &env(
+                2,
+                None,
+                AgentEvent::ToolPermissionRequest {
+                    tool: "shell_exec".into(),
+                    call_id: "cid-shell".into(),
+                    mode: AgentChatMode::AskEdits,
+                    kind: ToolPermissionKind::Command,
+                    summary: "run command".into(),
+                    args: Some(json!({"command": "cargo test"})),
+                },
+            ),
+            Locale::EnUs,
+            None,
+        );
+
+        let TurnPart::AskUser { options, .. } = &doc.turns[0].parts[0] else {
+            panic!("expected AskUser command permission part");
+        };
+        assert_eq!(options.len(), 1);
+        assert_eq!(options[0].label, "Approve");
+        assert_eq!(options[0].set_chat_mode_on_select, None);
+    }
+
+    #[test]
     fn reducer_new_text_part_after_tool() {
         let mut doc = TimelineDoc::default();
         doc.push_user_turn("hi".to_owned());
@@ -818,6 +955,8 @@ mod tests {
                     turn_generation: 0,
                     input_tokens: Some(90),
                     output_tokens: Some(4),
+                    cached_input_tokens: None,
+                    cache_write_input_tokens: None,
                     ttft_ms: Some(100),
                     elapsed_ms: 200,
                     cost_usd: Some(0.01),
@@ -898,6 +1037,8 @@ mod tests {
                     turn_generation: 0,
                     input_tokens: None,
                     output_tokens: None,
+                    cached_input_tokens: None,
+                    cache_write_input_tokens: None,
                     ttft_ms: None,
                     elapsed_ms: 12,
                     cost_usd: None,

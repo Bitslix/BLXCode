@@ -8,10 +8,9 @@ mod code_view;
 mod codemirror_glue;
 mod editor;
 mod header;
-mod hljs_glue;
 mod image_view;
 mod markdown_view;
-mod mermaid_glue;
+pub(crate) mod mermaid_glue;
 mod mermaid_view;
 mod util;
 mod video_view;
@@ -52,6 +51,11 @@ pub fn FilePreviewDock(workspace_id: u64, rel_path: String) -> impl IntoView {
         let _ = reload_tick.get();
         meta_sig.set(None);
         if !is_tauri_shell() {
+            crate::app_log::warn(
+                "file_preview",
+                "metadata_unavailable",
+                serde_json::json!({ "reason": "no_tauri", "path": rel_for_meta.clone() }),
+            );
             meta_sig.set(Some(Err(FilePreviewError::NoTauri)));
             return;
         }
@@ -60,14 +64,27 @@ pub fn FilePreviewDock(workspace_id: u64, rel_path: String) -> impl IntoView {
                 .find(|w| w.id == workspace_id)
                 .map(|w| (w.cwd.clone(), w.remote_connection_id.clone()))
         }) else {
+            crate::app_log::error(
+                "file_preview",
+                "workspace_not_found",
+                serde_json::json!({ "workspaceId": workspace_id, "path": rel_for_meta.clone() }),
+            );
             meta_sig.set(Some(Err(FilePreviewError::WorkspaceNotFound)));
             return;
         };
         let rel = rel_for_meta.clone();
+        let rel_for_log = rel.clone();
         spawn_local(async move {
             match stat_workspace_file(root, rel, conn).await {
                 Ok(m) => meta_sig.set(Some(Ok(m))),
-                Err(e) => meta_sig.set(Some(Err(FilePreviewError::Failed(e)))),
+                Err(e) => {
+                    crate::app_log::error(
+                        "file_preview",
+                        "metadata_failed",
+                        serde_json::json!({ "path": rel_for_log, "error": e.clone() }),
+                    );
+                    meta_sig.set(Some(Err(FilePreviewError::Failed(e))));
+                }
             }
         });
     });

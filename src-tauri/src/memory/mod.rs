@@ -13,6 +13,7 @@
 pub(crate) mod architecture;
 mod frontmatter;
 mod graph;
+pub mod indexer;
 pub mod paths;
 mod store;
 mod types;
@@ -33,10 +34,16 @@ use store::{
 // ── Bootstrap / status ────────────────────────────────────────────────────────
 
 #[tauri::command]
-pub fn workspace_ensure_agents(workspace_cwd: String) -> Result<(), String> {
-    ensure_agents_layout(&workspace_cwd)?;
-    maybe_rebuild_workspace_architecture(&workspace_cwd)?;
-    Ok(())
+pub async fn workspace_ensure_agents(workspace_cwd: String) -> Result<(), String> {
+    // The first-touch architecture rebuild walks the whole workspace tree, which
+    // can take seconds on a large codebase. Run it on the blocking pool so the
+    // UI thread keeps pumping events instead of freezing on workspace open.
+    crate::proc::run_blocking(move || {
+        ensure_agents_layout(&workspace_cwd)?;
+        maybe_rebuild_workspace_architecture(&workspace_cwd)?;
+        Ok(())
+    })
+    .await
 }
 
 fn maybe_rebuild_workspace_architecture(workspace_cwd: &str) -> Result<(), String> {
@@ -64,13 +71,16 @@ pub fn memory_bootstrap(workspace_cwd: String, target: String) -> Result<(), Str
 }
 
 #[tauri::command]
-pub fn memory_rebuild_architecture(workspace_cwd: String) -> Result<RebuildReport, String> {
-    architecture::rebuild_architecture_impl(&workspace_cwd)
+pub async fn memory_rebuild_architecture(workspace_cwd: String) -> Result<RebuildReport, String> {
+    // Whole-tree indexing is CPU/IO heavy — keep it off the main thread.
+    crate::proc::run_blocking(move || architecture::rebuild_architecture_impl(&workspace_cwd)).await
 }
 
 #[tauri::command]
-pub fn memory_lint_architecture(workspace_cwd: String) -> Result<ArchitectureLintReport, String> {
-    architecture::lint_architecture_impl(&workspace_cwd)
+pub async fn memory_lint_architecture(
+    workspace_cwd: String,
+) -> Result<ArchitectureLintReport, String> {
+    crate::proc::run_blocking(move || architecture::lint_architecture_impl(&workspace_cwd)).await
 }
 
 // ── List ──────────────────────────────────────────────────────────────────────

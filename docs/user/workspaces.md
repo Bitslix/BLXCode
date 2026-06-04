@@ -2,6 +2,19 @@
 
 A BLXCode workspace is a project folder plus the UI state needed to work inside it: terminal grid, split panes, assigned agent labels, agent timeline, embedded browser tabs, recent workspace data, and right-panel layout.
 
+## Custom Titlebar
+
+BLXCode uses a **token-themed, cross-platform custom titlebar** instead of the OS default window chrome. The bar reads the active theme and includes:
+
+- A persistent **brand cluster** on the left.
+- **Sidebar** and **right-panel** toggle buttons.
+- **Centered workspace breadcrumbs** with a live focused-terminal crumb that includes the slot marker plus the terminal title.
+- A compact **NAVIGATE** quick menu on the right with quick access to **Terminals**, **New terminal**, **Plans**, **Memory**, **Skills**, **Settings**, and fullscreen.
+- A future-ready **Notifications** popover.
+- Native window controls (minimize / maximize / close) on the trailing edge, themed where the platform allows.
+
+The old version badge was removed from the titlebar; the sidebar footer still shows the app version. Terminal-count badges in the sidebar are replaced by tiny **workspace-colored grid previews** that mirror each workspace's terminal layout. The **NAVIGATE** terminal actions show the active workspace name in small parentheses for context.
+
 ## Workspace Creation
 
 The workspace configurator lets you:
@@ -13,6 +26,10 @@ The workspace configurator lets you:
 - Assign terminal slots to a fleet of coding tools.
 - Skip agent assignment when you only want plain terminals.
 - **Recent directories** — when you have opened workspaces before, previously used folders appear below the working-directory field; click a row to fill the path in one step.
+- **Welcome-screen "Create Workspace" action** — the empty/welcome screen leads with a prominent, highlighted **Create Workspace** call-to-action (folder-plus icon + hint) above the Agent/Memory/Browser/Kanban destinations row. It is backed by a real, rebindable shortcut — `ShortcutAction::CreateWorkspace` (default **Ctrl+B then C**) — that appears in **Settings → Shortcuts** like every other binding and dispatches through the shared harness action path to open the inline Create-Workspace configurator. The welcome destination cards and utility links also **hide their keybinding hints when the workspace panel is narrow** (e.g. split view) via a container query, so the `kbd` chips no longer overlap or crowd the labels.
+- **Session role** — pick a BLXCode Agent harness *session mode* (e.g. Coordinator, Architect, Codewright, Security Reviewer) from the dropdown. The picker shows each role's title with a dimmed sub-line summarising its description, skills, tools, and recommended models. The selected role is loaded and handed to the BLXCode Agent as a trailing system-prompt block, so the agent adopts that working style for the session. The role ranks **below** the Security rules and the active Agent Chat mode and can never expand scope. The BLXCode Agent always runs on the **provider/model configured in Settings** — a role never changes its model; its `provider`/`models` are advisory metadata only. The role is saved with the workspace, so it is restored when you reload the workspace, and it appears as a **colored sub-line in the agent name badge** (the color comes from the role definition). The default session role is also seeded from the one-time onboarding dialog and editable in three places — the dialog, **Settings → BLXCode Agent**, and **Settings → Workspace** — with a cross-link explaining they share the same `defaultSessionRole` value.
+- **Per-agent model and effort (step 2)** — when you assign a CLI agent (claude/codex/gemini/opencode/cursor) to terminal slots, a small model dropdown appears for that agent with its built-in model options. Leaving it on **Default** uses the CLI's own default; otherwise the chosen model is passed to the launch command (`--model …`). CLIs that support a safe launch-time reasoning-effort override also show an **Effort** dropdown. Launch profiles map supported effort values into the correct CLI mechanism: **Claude** via `CLAUDE_CODE_EFFORT_LEVEL`, **Codex** via `-c model_reasoning_effort=...`, and **Gemini / OpenCode / Cursor** as model-only until their CLIs expose confirmed launch-time effort flags. Selections are persisted on workspaces and presets, kept aligned when terminal slots are reordered, swapped, transferred, added, or removed, and applied when launching/resuming terminal agents. Gemini, OpenCode, and Cursor currently keep effort in their own config/UI, so BLXCode does not pass an effort value at launch for them.
+- **Presets** — save a fleet configuration (terminal count, assigned agents, their models, their supported effort levels, per-slot names, and the session role) and relaunch it in one click. Presets are stored globally per installation in the application-data folder (not committed with any workspace). Use **+ New** to save the current configuration as a preset, the **✕** on a preset chip to delete it.
 
 The supported fleet labels are:
 
@@ -22,16 +39,18 @@ The supported fleet labels are:
 - `opencode`
 - `cursor`
 
+The available session roles come from the built-in specialized harness skills (`src-tauri/src/agent/harness_skills/specialized/*.md`): `architect`, `branch-steward`, `codewright`, `coordinator`, `doc-updater`, `harness-optimizer`, `pr-test-analyzer`, `refactor-cleaner`, and `security-reviewer`. Leaving the dropdown on **Default agent** runs the agent without a role.
+
 <p align="center">
-  <img src="../images/screenshot-2026-05-18_17-45-40.png" alt="Create workspace step 1: name, working directory, and terminal grid preset" />
+  <img src="../images/create-workspace-session-role-dropdown.png" alt="Create workspace step 1 with Local connection, recent directories, terminal layout presets, and the session role dropdown showing Default agent, Architect, Branch Steward, and Codewright" />
 </p>
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-18_17-45-53.png" alt="Create workspace step 2: assign coding agents to terminal slots" />
+  <img src="../images/create-workspace-step-2.png" alt="Create workspace step 2: assign coding agents to terminal slots" />
 </p>
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-18_17-46-07.png" alt="New workspace with a 2x2 terminal grid running Claude Code in each slot" />
+  <img src="../images/workspace-grid-2x2-claude.png" alt="New workspace with a 2x2 terminal grid running Claude Code in each slot" />
 </p>
 
 ## Center tabs
@@ -39,7 +58,7 @@ The supported fleet labels are:
 The workspace pane uses a VS Code–style **tab strip** above the terminal grid. Tabs share the same workspace context (sidebar, agent panel, right panel) and let you keep multiple views side-by-side without unmounting the live terminals.
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-23_00-40-23.png" alt="Workspace with multiple center tabs open: Terminals, LICENSE, README.md" />
+  <img src="../images/workspace-center-tabs.png" alt="Workspace with multiple center tabs open: Terminals, LICENSE, README.md" />
 </p>
 
 *Three center tabs open in the same workspace: the pinned **Terminals** tab, the **LICENSE** file preview with its policy-doc hero banner, and **README.md**. Switching tabs hides the inactive views — the running PTYs in the Terminals tab keep their state, scrollback, and agent sessions.*
@@ -49,6 +68,8 @@ The workspace pane uses a VS Code–style **tab strip** above the terminal grid.
 | Tab | Opened by | Closeable | Singleton |
 |---|---|---|---|
 | **Terminals** | Pinned by default; reopened via command palette **Terminals** or by opening a new terminal slot | ✅ — with a 3 s confirmation dialog | ✅ one per workspace |
+| **Canvas** | Switch the terminal view mode to **Canvas** | ✅ — shares the live terminal workspace view | ✅ one per workspace |
+| **Swarm** | Switch the terminal view mode to **Swarm** | ✅ — shares the live terminal workspace view | ✅ one per workspace |
 | **File preview** | Click a file row in the sidebar Project Files explorer | ✅ | ✅ shared — opening another file replaces the contents instead of stacking tabs (see [File Preview](file-preview.md)) |
 | **Settings** | Command palette **Open Settings**, or the configured shortcut | ✅ | ✅ one per workspace — reopening focuses the existing tab |
 
@@ -91,8 +112,41 @@ Each workspace has a top-level terminal grid. Preset counts map to balanced grid
 
 Individual terminal slots can also keep split-pane state. BLXCode persists pane IDs, split axis, and terminal layout so the workbench can restore the surface after restart.
 
+### Terminal view modes
+
+The **View mode** control switches the live terminal tab between three layouts without restarting PTYs:
+
+| Mode | Purpose |
+|---|---|
+| **Grid** | The standard terminal grid with balanced preset layouts and split panes. |
+| **Canvas** | A freeform workspace where terminal slots become draggable, resizable nodes with `stdin` / `stdout` ports. Connect edges to route output into another terminal as either raw text or a structured BLXCode Canvas context block. |
+| **Swarm** | A graph view for terminal-agent roles. It shows the BLXCode Agent control hub and terminal agents as nodes, with a side panel for the selected terminal agent. |
+
+Canvas layouts, user-created routing edges, the default raw/structured transfer mode, and Swarm node positions are saved with the workspace snapshot.
+
 <p align="center">
-  <img src="../images/screenshot-2026-05-18_18-10-48.png" alt="Workspace terminal grid after the agent opens two additional Claude terminal slots" />
+  <img src="../images/workspace-canvas-terminal-node.png" alt="Workspace Canvas mode showing a resizable terminal node with stdin and stdout ports and the BLXCode Agent stats panel beside it" />
+</p>
+
+<p align="center">
+  <img src="../images/workspace-swarm-agent-map.png" alt="Workspace Swarm mode showing the BLXCode Agent node connected to a running Claude terminal agent node and a prompt to select a terminal agent" />
+</p>
+
+<p align="center">
+  <img src="../images/workspace-terminal-system-monitor.png" alt="Single terminal workspace running a full-screen system monitor, with project files, file diff, Git commits, and BLXCode Agent panels visible" />
+</p>
+
+### Named terminals
+
+By default, the terminal titlebar shows `#1`, `#2`, `…` — the slot's grid number. Switching to **named** mode (under **Settings → Workspace → Terminal naming**) replaces those numbers with friendly **agent names** (Devon, Tom, Mia, …) drawn from an editable name pool.
+
+- **Deterministic, collision-free** — each name is derived from the terminal's stable `slot_id`, so a slot keeps its name as siblings come and go.
+- **Custom name per slot** — double-click the terminal header title or use the header right-click menu (**Rename** / **Reset name**) to override the auto-assigned name. The override persists per slot (`slot_name_overrides`, keyed by `slot_id`) and survives restarts.
+- **Backend identity is unchanged** — `slot_id` stays the technical handle used by PTY routing, `terminal_key`, and `sessions.json`. Names are a pure display/addressing layer resolved in the frontend.
+- **The agent knows the names** — `harness.list_terminals` returns the resolved `name` plus `namingMode` for every slot, and `harness.send_terminal_keys` / `send_agent_context` / `read_terminal_output` / `wait_terminal_output` / `terminal_interrupt` accept a `name` argument (case-insensitive) alongside `slotId` and `agentSlug`. You can therefore ask the BLXCode Agent *"ask Devon to run the tests"* and it will route the request to the right slot.
+
+<p align="center">
+  <img src="../images/workspace-grid-agent-extra-slots.png" alt="Workspace terminal grid after the agent opens two additional Claude terminal slots" />
 </p>
 
 ### Reordering terminals with drag & drop
@@ -174,6 +228,10 @@ Fetch, pull, and push share one busy state with File Diff so only one Git networ
 
 Explorer, File Diff, and Git section open/collapsed state restores per workspace after reload.
 
+### Sidebar typography
+
+The **File Diff** and **Git Commits** sidebar sections use the same compact font sizing as the **Project Files** tree, so the three inner panels read as a single consistent list when stacked. The tree rows, diff rows, and commit rows all share row height, label weight, and the same dim-secondary metadata text.
+
 ## Workspace settings
 
 **Settings** (center tab) → **Workspace**:
@@ -229,10 +287,10 @@ Unread counts clear when you **focus** the terminal cell (click or tab into it).
 Re-run **Install agent hooks** after upgrading blxcode so notify hooks are registered alongside title and session-capture hooks.
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-19_00-34-22.png" alt="BLXCode workspace with resumed agent sessions, terminal titles, and workspace notification badges showing active and total unread counts" />
+  <img src="../images/terminal-grid-claude-usage.png" alt="Four-terminal Claude Code workspace showing resumed sessions, focused terminal outline, Claude usage popover, and Claude usage percentages in the bottom status line" />
 </p>
 
-*Example: four resumed sessions in a 2×2 grid; the **Test** workspace shows **6** active and **18** total unread completions.*
+*Example: four resumed Claude sessions in a 2×2 grid; the focused terminal exposes captured 5-hour and 7-day Claude usage in the status line and popover.*
 
 ## Embedded Browser
 
@@ -259,6 +317,42 @@ Persisted state includes:
 
 If a saved snapshot has an unsupported schema version, BLXCode ignores it and starts with defaults rather than crashing.
 
+## App status line
+
+An always-visible **status bar** at the bottom of the workbench surfaces live, low-noise context for the active workspace:
+
+- **Rules / skills chip group** — enabled counts; clickable links to **Settings**.
+- **Memory scope** — Project vs. Global, with the loaded note path.
+- **Active editor** — file name + `line:col` for the focused CodeMirror tab.
+- **Git branch** — the workspace branch (with detached/upstream-aware states).
+- **Claude usage** — when the focused terminal session is Claude, the bar doubles as a passive Claude meter that captures 5-hour and 7-day usage from the CLI's status line (silently falls back when Claude isn't running).
+- **Plans / memory chips** — counts that jump to the corresponding center tab.
+- **Update indicator** — `Checking…` while a check runs, `Update available (vX.Y.Z)` when a new release is found, `Up to date` for manual checks.
+- **Process rotator** — every three seconds, the left slot rotates through active processes (Memory Indexer running or stalled, hook install outcomes, …).
+- **VIM indicator** — `VIM` shows in the left slot while a file editor/preview tab is focused and Vim mode is on.
+- **Help button** — opens the titlebar Help menu (product metadata, link grid, About, integrated *Check for updates*).
+
+All sections are theme-token styled, hide themselves when no relevant context exists (e.g. no rules), and respect the existing app font-size token.
+
+## Sidebar → Agent context drag-and-drop
+
+The agent drop-zone (the chat input area) now accepts four kinds of context, each with its own kind-specific icon, color, and cursor-following overlay:
+
+| Source | Kind | What's attached |
+|--------|------|-----------------|
+| Terminal cells | `TerminalSession` | Live terminal session, slot metadata, recent output tail. |
+| **Project Files** | `FileRef` | **File** or **Folder** rows — path-only; the agent reads content via its own tools. Folders land with a trailing `/` so the agent knows it is a directory. |
+| **File Diff** rows | `GitDiff` | The inline diff text (read via `git_file_diff`). |
+| **Git Commits** rows | `GitCommit` | The commit subject/body and changed files (read via `git_commit_details`). |
+
+All are **persistent** in the agent context list and removable with the existing `×` action. Backend prompt rendering and the terminal handoff `render_agent_context_block` both branch on the new kinds — `FileRef` collapses to a `files:` path list, `GitDiff` / `GitCommit` emit inline fenced blocks.
+
+## Hook installation dialog
+
+A themed `HookInstallDialog` prompts the user to install or refresh the missing **terminal CLI agent hooks** (Claude, Codex, Gemini, OpenCode, Cursor). The **Settings → App** pane's hook list uses a 3-column grid layout (collapsing to 2 / 1 below 900 / 600 px) with icon-only status pills (check / X) and full text in `title` + `aria-label`. A new in-app log shows the install/refresh outcome.
+
+`HookStatusService` tracks which hooks are installed for the active workspace, and the dialog is shown again whenever a hook is missing after a workspace switch or app upgrade.
+
 ## See also
 
 - [File Preview](file-preview.md) — image / video / Markdown / Mermaid renderers triggered from the sidebar
@@ -266,4 +360,3 @@ If a saved snapshot has an unsupported schema version, BLXCode ignores it and st
 - [Plans](plans.md) — plan files included in handoff
 - [Keyboard Shortcuts](keyboard-shortcuts.md) — tmux/legacy chords and notification settings
 - [Agent Providers](agent-providers.md) — `harness.send_agent_context`
-

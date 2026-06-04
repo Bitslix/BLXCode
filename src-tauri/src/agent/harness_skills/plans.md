@@ -1,8 +1,16 @@
+---
+name: plans
+description: Create, read, load, sync, rename, and manage durable Markdown implementation plans under .agents/plans.
+categorie: planning
+---
+
 # Workspace Plans
 
-Durable Markdown files that capture a multi-step implementation strategy. Lives at `<workspace>/.agents/plans/`. Plans are the long-lived counterpart to the task list and are checked into git.
+Durable Markdown files that capture a multi-step implementation strategy. Normal plans live at `<workspace>/.agents/plans/<slug>/plan.md`. Plans are the long-lived counterpart to the task list and are checked into git.
 
 `PLANS.md` is the protected index — never delete or rename it.
+
+Plan tools accept `slug`, legacy `slug.md`, and canonical `slug/plan.md`, but all returned/stored paths are canonical `slug/plan.md`.
 
 ## Tools (server-side)
 
@@ -10,10 +18,10 @@ Durable Markdown files that capture a multi-step implementation strategy. Lives 
 Overview of every plan with task summary counts. Call before guessing about existing plans.
 
 ### `plan_read { path }`
-Reads one plan's Markdown body. `path` is relative to `<workspace>/.agents/plans/` (e.g. `my-plan.md`).
+Reads one plan's Markdown body. Prefer canonical paths such as `my-plan/plan.md`.
 
 ### `plan_create { path, content? }`
-Creates a new plan. Path must end in `.md` and must not exist. Optionally seed with initial content.
+Creates a new plan at `<slug>/plan.md`. Passing `my-plan` or legacy `my-plan.md` is accepted and returns `my-plan/plan.md`.
 
 ### `plan_write { path, content }`
 Overwrites an existing plan. Use `plan_sync_from_tasks` instead when you only need to update the `## Tasks` section.
@@ -22,7 +30,7 @@ Overwrites an existing plan. Use `plan_sync_from_tasks` instead when you only ne
 Deletes a plan (cannot delete `PLANS.md`).
 
 ### `plan_rename { oldPath, newPath }`
-Renames within `.agents/plans/`. Task records pointing at the old path are rewritten automatically.
+Renames the plan folder within `.agents/plans/`. Task records pointing at the old path are rewritten automatically.
 
 ### `plan_load { path }`
 Syncs the plan's `## Tasks` (or `## Todos`) section into the task manager. Also attaches the plan to BLXCode Agent shared context (`PlanFile`) and sets `activePlanPath` on the snapshot.
@@ -31,6 +39,28 @@ Syncs the plan's `## Tasks` (or `## Todos`) section into the task manager. Also 
 
 ### `plan_sync_from_tasks { path }`
 Writes the current plan-linked task state back into the plan Markdown. Use after reordering or batch-status-changing plan tasks via `task_*` tools.
+
+## Workspace Multi-Kanban
+
+Kanban is a workspace center-tab view over the same durable plans. It stores only layout metadata under `.agents/kanban/`; plan and task content stays in `.agents/plans/<slug>/plan.md`.
+
+### `kanban_board_load`
+Loads the board: non-index plans, derived plan states, parsed plan tasks, runtime task links, and layout metadata.
+
+### `kanban_layout_save { layout }`
+Saves layout metadata only. Never use it to store plan bodies or task text.
+
+### `kanban_task_create { planPath, title, status? }`
+Appends a canonical task line to the plan's `## Tasks` section.
+
+### `kanban_task_update { planPath, taskId, title?, status? }`
+Updates one task line in plan Markdown. Status values are `pending`, `in_progress`, `blocked`, `completed`, `cancelled`.
+
+### `kanban_task_delete { planPath, taskId }`
+Removes one task line from the plan's task section.
+
+### `kanban_export_layout` / `kanban_import_layout { json }`
+Round-trip Kanban layout metadata. Exports/imports do not include plan Markdown contents.
 
 ## Agent context (client-side)
 

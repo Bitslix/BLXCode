@@ -2,7 +2,7 @@
 //! provider (real HTTP stream) or falls back to the mock engine when no
 //! key/model is available.
 use crate::agent::anthropic::run_chat_turn as run_anthropic_turn;
-use crate::agent::openrouter::{run_chat_turn, Endpoint};
+use crate::agent::openrouter::run_chat_turn;
 use crate::agent::project_docs;
 use crate::agent::protocol::{
     AgentContextItem, AgentContextKind, AgentEvent, AgentImageContextItem, UserTurn,
@@ -42,13 +42,16 @@ pub fn dispatch_user_turn(
         }
     };
 
-    // Every wired provider needs a key — bail early with a friendly UI message.
-    let api_key = match provider_key_pub(app, settings.provider) {
-        Ok(k) if !k.trim().is_empty() => k,
-        Ok(_) | Err(_) => {
-            spawn_chat_missing_key(Arc::clone(agent), settings.provider);
-            return Ok(());
+    let api_key = if crate::agent::provider::provider_requires_key(settings.provider) {
+        match provider_key_pub(app, settings.provider) {
+            Ok(k) if !k.trim().is_empty() => k,
+            Ok(_) | Err(_) => {
+                spawn_chat_missing_key(Arc::clone(agent), settings.provider);
+                return Ok(());
+            }
         }
+    } else {
+        String::new()
     };
 
     let state = Arc::clone(agent);
@@ -70,19 +73,24 @@ pub fn dispatch_user_turn(
         project_docs_block,
     );
     let workspace_root = turn.workspace_root.clone();
+    let session_role = turn.session_role.clone();
     crate::agent::environment::note_workspace_change(workspace_root.as_deref());
     crate::agent::web_settings::refresh_runtime_from_app(app);
     let image_context_items = turn.image_context_items;
     match settings.provider {
         AgentProviderKind::Anthropic => {
             async_runtime::spawn(async move {
+                // Connect/refresh MCP clients for this session before the turn.
+                crate::mcp::runtime::ensure_built(&app_handle).await;
                 run_anthropic_turn(
                     Arc::clone(&state),
                     api_key,
                     settings,
+                    turn.chat_mode,
                     prompt,
                     image_context_items,
                     workspace_root,
+                    session_role,
                 )
                 .await;
                 if voice_input {
@@ -90,18 +98,27 @@ pub fn dispatch_user_turn(
                 }
             });
         }
-        AgentProviderKind::Openrouter | AgentProviderKind::Openai => {
-            let endpoint = Endpoint::from_provider(settings.provider)
-                .expect("openrouter/openai endpoint mapping");
+        _ => {
+            let endpoint = match crate::agent::provider::compatible_endpoint(&settings) {
+                Ok(endpoint) => endpoint,
+                Err(err) => {
+                    spawn_settings_error(Arc::clone(agent), err);
+                    return Ok(());
+                }
+            };
             async_runtime::spawn(async move {
+                // Connect/refresh MCP clients for this session before the turn.
+                crate::mcp::runtime::ensure_built(&app_handle).await;
                 run_chat_turn(
                     Arc::clone(&state),
                     endpoint,
                     api_key,
                     settings,
+                    turn.chat_mode,
                     prompt,
                     image_context_items,
                     workspace_root,
+                    session_role,
                 )
                 .await;
                 if voice_input {
@@ -231,6 +248,8 @@ fn render_context_prompt(
     let mut plans: Vec<&AgentContextItem> = Vec::new();
     let mut snippets: Vec<&AgentContextItem> = Vec::new();
     let mut terminals: Vec<&AgentContextItem> = Vec::new();
+    let mut diffs: Vec<&AgentContextItem> = Vec::new();
+    let mut commits: Vec<&AgentContextItem> = Vec::new();
     let mut memory_like: Vec<&AgentContextItem> = Vec::new();
     for item in context_items {
         match item.kind {
@@ -239,6 +258,9 @@ fn render_context_prompt(
             | AgentContextKind::PlanTaskGroup => plans.push(item),
             AgentContextKind::FileSnippet => snippets.push(item),
             AgentContextKind::TerminalSession => terminals.push(item),
+            AgentContextKind::GitDiff => diffs.push(item),
+            AgentContextKind::GitCommit => commits.push(item),
+            // FileRef and memory/learning items render as path-only references.
             _ => memory_like.push(item),
         }
     }
@@ -289,6 +311,42 @@ fn render_context_prompt(
         }
         out.push_str("Attached file snippets (verbatim, line-numbered headers):\n");
         for item in &snippets {
+            out.push_str(&format!("- {}\n", item.label.trim()));
+            if let Some(body) = item.content.as_deref().filter(|s| !s.is_empty()) {
+                let trimmed = body.trim_end();
+                out.push_str(trimmed);
+                if !trimmed.ends_with('\n') {
+                    out.push('\n');
+                }
+            }
+        }
+        wrote_section = true;
+    }
+
+    if !diffs.is_empty() {
+        if wrote_section {
+            out.push('\n');
+        }
+        out.push_str("Attached git diffs (verbatim):\n");
+        for item in &diffs {
+            out.push_str(&format!("- {}\n", item.label.trim()));
+            if let Some(body) = item.content.as_deref().filter(|s| !s.is_empty()) {
+                let trimmed = body.trim_end();
+                out.push_str(trimmed);
+                if !trimmed.ends_with('\n') {
+                    out.push('\n');
+                }
+            }
+        }
+        wrote_section = true;
+    }
+
+    if !commits.is_empty() {
+        if wrote_section {
+            out.push('\n');
+        }
+        out.push_str("Attached git commits (use `git show <hash>` for the full patch):\n");
+        for item in &commits {
             out.push_str(&format!("- {}\n", item.label.trim()));
             if let Some(body) = item.content.as_deref().filter(|s| !s.is_empty()) {
                 let trimmed = body.trim_end();

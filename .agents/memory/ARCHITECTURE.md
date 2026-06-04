@@ -22,16 +22,19 @@ Add curated overview notes here. The generated block below is refreshed by `memo
 |---|---|---|---|
 | `blxcode` | rust | `src-tauri` | [[architecture/modules/rust-blxcode.md|rust-blxcode]] |
 | `blxcode-ui` | rust | . | [[architecture/modules/rust-blxcode-ui.md|rust-blxcode-ui]] |
+| `blxcode` | node | . | [[architecture/modules/node-blxcode.md|node-blxcode]] |
 | `blxcode-codemirror-bundle` | node | `scripts/codemirror-bundle` | [[architecture/modules/node-blxcode-codemirror-bundle.md|node-blxcode-codemirror-bundle]] |
 | `blxcode-frontend-js` | node | `frontend-js` | [[architecture/modules/node-blxcode-frontend-js.md|node-blxcode-frontend-js]] |
 
 ### Counts
 
-- Units: 4
+- Units: 5
 - Kinds: node, rust
-- Top-level modules: 46
-- Git revision: `a566eb2b99a004fef65b617dc739e506c922e257`
+- Top-level modules: 55
+- Git revision: `e51fca834604d2f680a1eebfb7fb918f8a4c5566`
 <!-- architecture:static:end -->
+
+
 
 
 

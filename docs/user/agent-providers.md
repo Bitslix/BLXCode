@@ -14,16 +14,33 @@ BLXCode includes an agent panel that can stream turns from remote model provider
 | **Skills** | Installable skills — [Rules And Skills](rules-and-skills.md) |
 
 <p align="center">
-  <img src="../images/agent-panel.png" alt="BLXCode Agent panel with provider chat, context, and tasks" />
+  <img src="../images/agent-panel-session-stats.png" alt="BLXCode Agent panel with OpenRouter GPT-5 session stats, context-window meter, tool-call counts, cost, Drobo orb, modern composer, and grouped tool rows in the chat timeline" />
 </p>
 
 ## Supported Provider Types
 
 - **OpenRouter**: default provider kind. The default model ID is `openai/gpt-5`.
 - **Anthropic**: native Anthropic Messages API path.
-- **OpenAI-compatible**: OpenAI API-compatible chat/model path.
+- **Local OpenAI-compatible**: Ollama and LM Studio. No API key is required; configure the base URL if your local server is not on the default port.
+- **Cloud OpenAI-compatible**: OpenAI, Hugging Face router, Cloudflare Workers AI, Together AI, and Portkey.
+
+A central provider registry resolves OpenAI-compatible endpoints, auth modes, model discovery, reasoning support, OpenRouter extras, and curated fallback models. Ollama and LM Studio expose a localized **Server URL** field in **Settings → BLXCode Agent** for LAN or remote `/v1` servers; Cloudflare stores its Account ID as a non-secret setting while tokens and other cloud keys live in **Settings → API Keys** with `BLX_*` environment fallbacks. Main chat, one-shot utilities, prompt enhancement, AI plans/tasks, AI commit messages, compaction, MCP tools, and subagents use the generalized compatible loop. Image and Voice provider lists remain separate/text-only in this release.
 
 Model lists are fetched live when possible. If a provider request fails or returns no models, BLXCode falls back to cached or curated model entries.
+
+| Provider | Default endpoint | Required setup |
+|----------|------------------|----------------|
+| OpenRouter | `https://openrouter.ai/api/v1` | `BLX_OPENROUTER_API_KEY` or API Keys row |
+| Anthropic | `https://api.anthropic.com/v1` | `BLX_ANTHROPIC_API_KEY` or API Keys row |
+| OpenAI | `https://api.openai.com/v1` | `BLX_OPENAI_API_KEY` or API Keys row |
+| Ollama | `http://localhost:11434/v1` | Running Ollama server; change **Server URL** in Agent settings for LAN/remote hosts |
+| LM Studio | `http://localhost:1234/v1` | Running LM Studio OpenAI-compatible server; change **Server URL** in Agent settings for LAN/remote hosts |
+| Hugging Face | `https://router.huggingface.co/v1` | `BLX_HUGGINGFACE_API_KEY` or API Keys row |
+| Cloudflare | account-scoped Workers AI endpoint | `BLX_CLOUDFLARE_API_TOKEN` or API Keys row, plus Cloudflare Account ID in Agent settings |
+| Together AI | `https://api.together.ai/v1` | `BLX_TOGETHER_API_KEY` or API Keys row |
+| Portkey | `https://api.portkey.ai/v1` | `BLX_PORTKEY_API_KEY` or API Keys row; optional base URL override |
+
+These providers are text-agent providers in this release. Image mode and Voice settings keep their existing provider lists; adding an LLM key row does not enable image generation, STT, or TTS for that provider.
 
 ## API Keys
 
@@ -33,7 +50,7 @@ All secrets are managed under **Settings → API Keys** (single Save/Discard pan
 
 | Use | Keys in API Keys pane |
 |-----|------------------------|
-| Text agent | OpenRouter, Anthropic, OpenAI, … |
+| Text agent | OpenRouter, Anthropic, OpenAI, Hugging Face, Cloudflare, Together AI, Portkey |
 | Image mode | OpenAI, OpenRouter, fal.ai |
 | Voice STT/TTS | OpenAI, OpenRouter, AWS (Polly) |
 | Web search/fetch | Tavily, Brave |
@@ -44,9 +61,104 @@ See [Settings](settings.md) and [Voice](voice.md) / [Image Mode](image.md).
 
 Off, Low, Medium, High, Max — mapped per provider where supported.
 
+## Chat header (context, compact, send/stop)
+
+The chat above the compose box shows live conversation state in the header:
+
+- **Context-window meter** — `used / max · NN%` with a thin progress bar that turns **warning** past 70% occupancy and **danger** past 85%. Occupancy tracks the **newest main-agent round's prompt size** (true window occupancy), not the cumulative token count used for cost; subagent rounds are excluded. The maximum is resolved from the provider's own model metadata where possible — for example OpenRouter's `context_length` is cached per model — and falls back to a static table (`agent/context_window.rs`) that covers the direct providers (Claude 200K, GPT-5 400K, Gemini 1M, GPT-4.1 1M, …). For unknown models, the header shows a plain token count without a percentage instead of inventing a denominator.
+- **Compact** — a button next to the meter that summarizes the running conversation into a dense briefing and starts the session fresh from it, freeing context-window budget while preserving goals, decisions, file paths, task state, and open questions. A single non-tool provider call does the summarization (so it cannot enter a tool loop); the backend replaces history with a compact `user`→`assistant` pair, the visible timeline resets to a fresh chat, and the meter drops to the post-compaction estimate.
+- **Auto-compact** — same path runs automatically once occupancy crosses a threshold (default **85%**, configurable 50–95% under **Settings → BLXCode Agent**). It fires only between turns and **at most once per crossing** — it re-arms only after occupancy falls back below the threshold — so it never interrupts a running turn or storms.
+
+The compose bar's submit button is a **single Send / Stop toggle**: it shows **Send** (sparkles icon) while idle and flips to **Stop** (square icon, abort styling) while a turn is running. Clicking submits or aborts depending on state; pressing **Enter** in the input still submits.
+
+## Agent session stats
+
+The Agent hero (the right column of the chat header) is a compact, **unframed** live stats panel. It derives all values client-side from the existing timeline, usage aggregate, context-window signal, model label, and busy state — no card chrome, no stats tooltips:
+
+- **Provider / model** label with a single state chip that follows open *Thinking* blocks before falling back to **Running** / **Standby**. The chip is a real button that opens **Settings → Agent Provider** directly.
+- **Local session start time** (the first user turn's `createdAt` after workspace reload, not the load time). Chat clear resets the session.
+- **Context-window occupancy** with a mini progress meter.
+- **Turn counts** (combined `User: x / Model: y`).
+- **Total tool calls** with merged open / read / edit / rm buckets.
+- **Active subagents** — count and names.
+- **Accumulated session cost.**
+
+The Chat log titlebar no longer repeats cost / turn / context stats. The numbers come from a dedicated `session_stats` aggregator that walks nested tool and subagent timeline parts (with unit tests for model-round exclusion, merged tool counts, bucket classification, active-subagent detection, first-user-turn start recovery, and active-thinking detection). `ChatUsageStats` now persists a backwards-compatible `session_started_at` timestamp, and `UserPart` stores an optional `createdAt`.
+
+## Per-message text-to-speech (Play button)
+
+The chat timeline may show a small **Play** button on assistant messages to read the reply out loud. It only appears when **TTS is enabled** *and* the selected TTS provider actually has an API key set in **Settings → Voice** (OpenAI / OpenRouter via the agent key status, AWS via the `aws_polly` key). When TTS is disabled or the key is missing, the button is hidden — see [Voice](voice.md).
+
+## Tool-loop limit
+
+The hard ceiling on tool-call rounds inside a single turn — historically a fixed **36** that produced *"Tool-Loop-Limit erreicht (36 Runden)"* when a long investigation ran out of rounds — is now a user setting.
+
+- **Range**: 1–500 (clamped on save and again at the call site).
+- **Default**: 36.
+- **Where**: **Settings → BLXCode Agent → Tool-loop limit** (next to *Thinking level*).
+- Applies to both the OpenAI-compatible (OpenRouter / OpenAI) and Anthropic coordinator loops.
+
+A higher value lets the agent run deeper investigations; a lower value limits the blast radius of a runaway plan.
+
+## Timeline grouping
+
+When a finished **Thinking** block is immediately followed by a tool-bearing **MODEL ROUND**, the two collapse into one row in the timeline: the round label sits on the left and the *Thinking ▾* toggle floats to the right edge of the same line, with the reasoning text dropping below when expanded. The pair occupies a single sequential line number, so a model round always sorts correctly into the rest of the timeline instead of standing on its own row. Rounds without groupable tools, and still-streaming thinking, keep their standalone rows.
+
+Consecutive tool activity in a single round now renders as slim **grouped status rows** for the main agent and subagent cards — per-tool icons, argument summaries, status indicators, expandable details, metrics, and path aggregation all collapse into a single line with an `×N` count for repeats.
+
+<p align="center">
+  <img src="../images/agent-timeline-tool-groups.png" alt="Agent timeline showing grouped rules_list, rules_read, and skills_list tool rows with metrics, thinking blocks, and the compact modern composer" />
+</p>
+
+## Thinking stream preview
+
+While the current turn is actively thinking, a compact inline preview appears under the Drobo orb and follows the newest open *Thinking* block from the timeline. It autoscrolls as reasoning text streams in, uses the active theme radius/color tokens, and is automatically hidden in compact chat mode so the maximized chat header stays clean.
+
+## Changed files card
+
+When a model turn mutates workspace files, the turn ends with a **Changed files** summary card built from the existing `git_status_changes` command. It shows totals for additions / deletions, a collapsible directory tree with per-file stats, and clicking a row opens the file's diff in the existing center-tab diff view. The card is rendered from the same git data the sidebar already uses — no new backend protocol fields are involved.
+
+## Agent tool list output
+
+JSON-array tool results such as `rules_list` and `skills_list` render as readable compact lists in the chat timeline instead of raw one-line JSON blobs. The agent itself still receives the original JSON; the renderer is a UI-only presentation layer that extracts `title` / `name`, `summary`, category/kind, and small metadata chips. A tolerant fallback still shows complete list items from truncated array prefixes so the same tool call stays readable when its payload is large.
+
+<p align="center">
+  <img src="../images/agent-tool-list-output.png" alt="Close-up of the Agent timeline rendering a skills_list JSON-array result as readable File Access and Workspace Memory list cards with metadata chips" />
+</p>
+
+## Modern composer
+
+The compose area below the chat is a modern auto-growing textarea with a footer that holds:
+
+- a **Model picker** (the same picker the Stats panel chip links to),
+- a **Mode popover** (Plan / Build / Full access — mapped onto the existing `AgentChatMode` values),
+- a **Thinking-level selector** (Off / Low / Medium / High / Max — provider-dependent),
+- busy-safe controls, and
+- a single **Send / Stop toggle** orb (the same one as in the chat header).
+
+## Enhance prompt before send
+
+A per-workspace **Enhance prompt before send** toggle in the composer rewrites the draft through an isolated one-shot provider call before submitting it as the actual user turn. The rewrite uses a small dedicated model call (the same path that backs AI commit messages) and never mutates chat history, tools, memory, plans, or timeline state — the enhanced text is what the model actually sees, but everything else is preserved verbatim.
+
+## Terminal CLI-agent control
+
+The BLXCode Agent can drive interactive terminal agents (Claude Code, Codex, Gemini, OpenCode, Cursor) end to end through the harness. The launch/resume profiles for each supported agent are centralized so the UI launch commands, docs, and agent guidance stay in sync. The agent has a new family of terminal-control tools that let it:
+
+- list / target a specific terminal slot by `slotId`, terminal `name`, or `agentSlug`,
+- send raw keys or an attached BLXCode context block,
+- read recent terminal output,
+- wait for new or settled output with a sequence id (so it can correlate partial reads),
+- interrupt a stuck session with Ctrl+C.
+
+A new embedded core skill, **`prompt-generating`**, teaches the model how to scope a prompt for BLXCode chat, terminal CLI agents, subagents, and user-facing replies, and the system prompt requires the model to consult that skill before any substantive CLI-agent handoff.
+
+<p align="center">
+  <img src="../images/terminal-agent-question-card.png" alt="BLXCode Agent controlling terminal agents and showing an Agent question card with numbered choices, free-text option, Send button, and Stop toggle" />
+</p>
+
 ## Agent context
 
-The **Context** section lists attached items (memory categories, notes, plans, images). Each row shows status, remove, and re-attach controls.
+The **Context** section lists attached items (memory categories, notes, plans, images, files, folders, diffs, commits, terminal sessions). Each row shows status, remove, and re-attach controls. All kinds are **persistent** in the list and removable with the `×` action, except one-shot terminal-session and file-snippet context, which are removed automatically after a successful model turn consumes them.
 
 **Context images** (vision / handoff, not image generation):
 
@@ -54,6 +166,17 @@ The **Context** section lists attached items (memory categories, notes, plans, i
 - Pending images are sent once on the next turn through vision payloads, then marked read.
 - Handoff exports copies to `<workspace>/.blxcode/agent-context/images/` — see [Workspaces — Handoff](workspaces.md#terminal-agent-context-handoff).
 - Client tools: `image_context_list`, `image_context_detach`.
+
+**Sidebar context drag-and-drop** (see [Workspaces — Sidebar → Agent context drag-and-drop](workspaces.md#sidebar--agent-context-drag-and-drop)):
+
+| Source | Kind | What lands in the context list |
+|--------|------|--------------------------------|
+| **Project Files** (sidebar) | `FileRef` | The file or folder path (the agent reads content via its own tools). Folders trail with `/`. |
+| **File Diff** rows (sidebar) | `GitDiff` | The inline diff text (read via `git_file_diff`). |
+| **Git Commits** rows (sidebar) | `GitCommit` | The commit subject/body and changed files (read via `git_commit_details`). |
+| **Terminal cells** | `TerminalSession` | Live terminal session, slot metadata, recent output tail. |
+
+Backend prompt rendering and the terminal handoff `render_agent_context_block` both branch on the new kinds — `FileRef` collapses to a `files:` path list, `GitDiff` / `GitCommit` emit inline fenced blocks.
 
 Conversation history strips image bytes after a turn so large payloads are not persisted.
 
@@ -85,7 +208,7 @@ Call `list_tools` for the full JSON catalog (name, server/client site, schema).
 | Harness (client) | `harness.send_terminal_keys`, `harness.send_agent_context`, … |
 | Environment / shell / git (server) | `environment_detect`, `shell_exec`, `git_*`, `workspace_diff`, … |
 | Web (server, if configured) | `web_search`, `web_fetch` |
-| Subagents (server) | `subagents.run` — only on explicit user request — [Subagents guide](subagents.md) |
+| Subagents (server) | `subagents.run` — on explicit user request or when the active session role allows it — [Subagents guide](subagents.md) |
 
 `harness.send_agent_context` prefers explicit single-terminal targets; default `includeKinds` is `["memory","plans","tasks","images"]`.
 
@@ -123,12 +246,28 @@ The frontend polls `agent_poll_events` (not SSE). Voice turns set `voice_input`;
 BLXCode bundles helper scripts under `content/hooks/` for session and title capture: Claude, Codex, Gemini, OpenCode, Cursor.
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-18_17-57-52.png" alt="BLXCode settings showing installed terminal hooks" />
+  <img src="../images/settings-terminal-hooks.png" alt="BLXCode settings showing installed terminal hooks" />
 </p>
 
 ## Missing Key Behavior
 
-If the selected provider has no configured API key, the agent panel reports the missing key instead of attempting a network request.
+If the selected cloud provider has no configured API key, the agent panel reports the missing key instead of attempting a network request. Ollama and LM Studio skip this check and fail with the provider's connection error if the local server is not running.
+
+## MCP servers
+
+The BLXCode Agent can call tools from any **MCP (Model Context Protocol)** server registered under **Settings → MCP**. The provider registry is a central JSON store at `{app_data_dir}/mcp/servers.json`; each entry carries a `stdio` (command / args / env) or `HTTP` (url / headers) transport, an individual on/off switch, and a per-server **connection test** (`initialize` + `tools/list` with a live tool count).
+
+For the **in-app agent**, each enabled server is connected at session start through a minimal built-in JSON-RPC MCP client. Its tools are discovered and injected into the Anthropic and OpenRouter/OpenAI tool loops as `mcp.<server>.<tool>` (name encodings handled across both providers), and `mcp.*` calls are routed back to the right client in tool dispatch. The available tool set is **fixed at session start** — enable/disable applies after a session reset, and add/edit/remove raises a **reload-required hint** in the MCP pane with a one-click *reset session* button.
+
+For the **terminal CLIs** (`claude`, `codex`, `gemini`, `opencode`, `cursor`), the enabled servers are translated into each CLI's native, project-scoped config and written into the workspace root on launch (`.mcp.json`, `.codex/config.toml`, `.gemini/settings.json`, `opencode.json`, `.cursor/mcp.json`) — merge-safe, preserving foreign entries and tracking BLXCode-managed keys in a `.blxcode/mcp-managed.json` sidecar. Remote SSH workspaces are skipped.
+
+> Treat MCP output as **untrusted data**. The system prompt and the dedicated `mcp` core skill both remind the model to do so.
+
+## Agent nickname and onboarding
+
+The **personal agent nickname** (default `BLXCodey`) is editable under **Settings → BLXCode Agent** and validated against a built-in, non-configurable badword list. The chosen name is **injected into the system prompt** identically for the text and voice paths (both share the same dispatch and `system_prompt(...)` builder), so the agent knows how to refer to itself, and is **rendered as a glassy badge** straddling the top edge of the Drobo orb (re-read live on `blxcode-agent-settings-changed` so saving updates the open tab without a restart).
+
+The first launch shows a one-time **onboarding dialog** that prompts for the display name and a **default session role**. It marks `onboardingSeen` so it never reappears. The default role is editable from three places — the dialog, **Settings → BLXCode Agent**, and **Settings → Workspace** — and it seeds new Create Workspace drafts.
 
 ## See also
 

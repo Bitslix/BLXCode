@@ -2,19 +2,38 @@
 # Semver bump and sync version files — source only.
 
 release_bump_version() {
-  local part="$1"
+  local part="${1:-}"
   local current new
   current="$(release_read_version)"
 
-  new="$(python3 - "$current" "$part" <<'PY'
+  local pre_id=""
+  if [[ "${RELEASE_PRE_RELEASE:-0}" == "1" ]]; then
+    pre_id="$(git rev-parse HEAD 2>/dev/null | cut -c1-5 | tr '[:upper:]' '[:lower:]')"
+    if [[ ! "$pre_id" =~ ^[0-9a-f]{5}$ ]]; then
+      release_die "could not resolve 5-character git hash for --pre-release"
+    fi
+  fi
+
+  new="$(python3 - "$current" "$part" "${RELEASE_PRE_RELEASE:-0}" "$pre_id" <<'PY'
 import sys, re
 
-def bump(v: str, spec: str) -> str:
-    m = v.split(".")
-    if len(m) != 3 or not all(x.isdigit() for x in m):
+def parse(v: str):
+    mo = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:-pre\.([0-9A-Za-z-]+))?", v)
+    if not mo:
         raise SystemExit(f"invalid semver: {v!r}")
-    major, minor, patch = (int(x) for x in m)
+    major, minor, patch = (int(mo.group(i)) for i in range(1, 4))
+    pre = mo.group(4)
+    return major, minor, patch, pre
 
+def bump(v: str, spec: str, pre_release: bool, pre_id: str) -> str:
+    major, minor, patch, pre = parse(v)
+    if pre_release and not spec:
+        if pre is not None:
+            return f"{major}.{minor}.{patch}-pre.{pre_id}"
+        return f"{major}.{minor}.{patch + 1}-pre.{pre_id}"
+
+    if not spec:
+        raise SystemExit("missing bump spec: use patch|minor|major[+N] or --pre-release")
     # Accept "patch", "minor", "major" (+1) or "patch+N", "minor+N", "major+N" (+N).
     mo = re.fullmatch(r"(patch|minor|major)(?:\+(\d+))?", spec)
     if not mo:
@@ -33,9 +52,11 @@ def bump(v: str, spec: str) -> str:
         major += step
         minor = 0
         patch = 0
+    if pre_release:
+        return f"{major}.{minor}.{patch}-pre.{pre_id}"
     return f"{major}.{minor}.{patch}"
 
-print(bump(sys.argv[1], sys.argv[2]))
+print(bump(sys.argv[1], sys.argv[2], sys.argv[3] == "1", sys.argv[4]))
 PY
 )"
 
@@ -73,10 +94,50 @@ for rel in ("Cargo.toml", "src-tauri/Cargo.toml"):
     if n != 1:
         raise SystemExit(f"{path}: could not update version = ...")
     open(path, "w", encoding="utf-8").write(text2)
+
+for rel in ("package.json", "package-lock.json"):
+    path = f"{root}/{rel}"
+    with open(path, encoding="utf-8") as f:
+        data = json.load(f)
+    data["version"] = new
+    if rel == "package-lock.json":
+        data.setdefault("packages", {}).setdefault("", {})["version"] = new
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
 PY
 
   release_info "Bumped $current -> $new ($part)"
   RELEASE_VERSION="$new"
+
+  if [[ "${RELEASE_PRE_RELEASE:-0}" == "1" ]]; then
+    python3 - "$RELEASE_ROOT" "$new" <<'PY'
+import os, re, sys
+
+root, version = sys.argv[1], sys.argv[2]
+mo = re.fullmatch(r"(\d+\.\d+\.\d+)-pre\.([0-9a-f]{5})", version)
+if not mo:
+    raise SystemExit(f"invalid prerelease version: {version!r}")
+base, build = mo.groups()
+path = os.path.join(root, "docs", "releases", f"v{version}.md")
+if not os.path.exists(path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(f"""---
+title: "BLXCode {version} beta"
+summary: "Beta snapshot for the {base} release line."
+---
+
+## Beta
+
+- **Preview build**: This prerelease contains the current development snapshot for `{build}`.
+
+## Good to know
+
+- Install this build from the Beta update channel. Stable users continue to receive final releases only.
+""")
+PY
+  fi
 
   if [[ "${RELEASE_NO_CHANGELOG:-0}" != "1" ]]; then
     release_changelog_finalize "$new"

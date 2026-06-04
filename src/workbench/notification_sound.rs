@@ -41,6 +41,28 @@ pub fn play_notification_beep() {
     );
 }
 
+pub fn send_native_notification_best_effort(title: &str, body: &str) {
+    let title = serde_json::to_string(title).unwrap_or_else(|_| "\"BLXCode\"".into());
+    let body = serde_json::to_string(body).unwrap_or_else(|_| "\"\"".into());
+    let script = format!(
+        r#"(() => {{
+          try {{
+            const n = window.__TAURI__ && window.__TAURI__.notification;
+            if (!n) return;
+            Promise.resolve(n.isPermissionGranted())
+              .then((granted) => granted ? "granted" : n.requestPermission())
+              .then((permission) => {{
+                if (permission === "granted" || permission === true) {{
+                  n.sendNotification({{ title: {title}, body: {body} }});
+                }}
+              }})
+              .catch(() => {{}});
+          }} catch (_) {{}}
+        }})()"#
+    );
+    let _ = js_sys::eval(&script);
+}
+
 /// Returns true when any terminal gained unread while not in the user's focus.
 pub fn maybe_play_for_notification_delta(
     wb: WorkbenchService,

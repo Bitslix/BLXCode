@@ -27,15 +27,16 @@ pub fn SkillCard(entry: SkillEntry) -> impl IntoView {
     let enabled = entry.enabled;
     let title = entry.title.clone();
     let summary = entry.summary.clone();
+    let category = entry.category.clone();
     let missing_skill_md = entry.missing_skill_md;
     let is_core = entry.source.kind == SkillSourceKind::Core;
 
-    let (source_label, source_icon) = match entry.source.kind {
-        SkillSourceKind::Core => ("core", icondata::LuBox),
-        SkillSourceKind::Git => ("git", icondata::LuGitBranch),
-        SkillSourceKind::Npm => ("npm", icondata::LuPackage),
-        SkillSourceKind::Local => ("local", icondata::LuFolder),
-        SkillSourceKind::AgentCreated => ("agent", icondata::LuBot),
+    let source_icon = match entry.source.kind {
+        SkillSourceKind::Core => icondata::LuBox,
+        SkillSourceKind::Git => icondata::LuGitBranch,
+        SkillSourceKind::Npm => icondata::LuPackage,
+        SkillSourceKind::Local => icondata::LuFolder,
+        SkillSourceKind::AgentCreated => icondata::LuBot,
     };
 
     let expanded = RwSignal::new(false);
@@ -78,7 +79,16 @@ pub fn SkillCard(entry: SkillEntry) -> impl IntoView {
                 <span class="blx-sr-card__main">
                     <span class="blx-sr-card__title-row">
                         <span class="blx-sr-card__title">{title}</span>
-                        <span class="blx-sr-card__badge" data-kind=source_label>{source_label}</span>
+                        {category.clone().map(|category| {
+                            view! {
+                                <span
+                                    class="blx-sr-card__category blx-sr-card__category--title"
+                                    aria-label="Skill category"
+                                >
+                                    {category}
+                                </span>
+                            }
+                        })}
                     </span>
                     <span class="blx-sr-card__summary">{summary}</span>
                 </span>
@@ -139,6 +149,7 @@ pub fn SkillCard(entry: SkillEntry) -> impl IntoView {
                                             on_confirm: Callback::new(move |_| {
                                                 svc.remove_skill(wb, n.clone());
                                             }),
+                                            on_cancel: None,
                                         });
                                     }
                                 >

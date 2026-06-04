@@ -22,6 +22,10 @@ pub enum HarnessShortcutAction {
     OpenFindFile,
     ToggleRightPanel,
     RightTab(RightPanelTab),
+    /// Open Memory as a centered workspace tab (not the right-panel tab).
+    OpenCenterMemory,
+    /// Create a new workspace via the inline Create-Workspace configurator.
+    CreateWorkspace,
     OpenNewTerminal,
     ToggleCommandPalette,
 }
@@ -44,6 +48,14 @@ pub fn dispatch_shortcut_action(
                 wb.toggle_right_panel();
             }
             wb.set_right_tab(tab);
+            defer_browser_bounds(wb, embed);
+        }
+        HarnessShortcutAction::OpenCenterMemory => {
+            wb.open_center_memory_tab();
+            defer_browser_bounds(wb, embed);
+        }
+        HarnessShortcutAction::CreateWorkspace => {
+            let _ = wb.start_inline_configure();
             defer_browser_bounds(wb, embed);
         }
         HarnessShortcutAction::OpenNewTerminal => open_new_terminal(wb),
@@ -141,7 +153,9 @@ fn handle_shortcut_keydown(
         }
         if let Some(action) = cfg.chord_match(ke) {
             ke.prevent_default();
-            dispatch_shortcut_action(action.to_harness_action(), ui, wb, embed);
+            if let Some(harness) = action.to_harness_action() {
+                dispatch_shortcut_action(harness, ui, wb, embed);
+            }
             return true;
         }
         return false;
@@ -157,7 +171,9 @@ fn handle_shortcut_keydown(
     // Direct combo bindings (classic style).
     if let Some(action) = cfg.combo_match(ke) {
         ke.prevent_default();
-        dispatch_shortcut_action(action.to_harness_action(), ui, wb, embed);
+        if let Some(harness) = action.to_harness_action() {
+            dispatch_shortcut_action(harness, ui, wb, embed);
+        }
         return true;
     }
 

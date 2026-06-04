@@ -12,18 +12,38 @@ use web_sys::KeyboardEvent;
 use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
 use crate::workbench::app_prefs::{AppPrefsService, ShortcutMode};
+use crate::workbench::editor_shortcut_config::EditorShortcutAction;
 use crate::workbench::shortcut_config::{Binding, KeyChord, ShortcutAction};
 use crate::workbench::state::HarnessUiService;
+use crate::workbench::{EditorSettingsService, SettingsPaneHeader};
 
 /// What a running key capture is targeting.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum CaptureTarget {
     Prefix,
     Action(ShortcutAction),
+    EditorAction(EditorShortcutAction),
+}
+
+fn editor_action_icon(action: EditorShortcutAction) -> icondata::Icon {
+    match action {
+        EditorShortcutAction::Save => icondata::LuSave,
+        EditorShortcutAction::Find => icondata::LuSearch,
+        EditorShortcutAction::Replace => icondata::LuReplace,
+        EditorShortcutAction::GoToLine => icondata::LuCornerDownRight,
+        EditorShortcutAction::ToggleComment => icondata::LuMessageSquare,
+        EditorShortcutAction::Fold => icondata::LuChevronsDownUp,
+        EditorShortcutAction::Unfold => icondata::LuChevronsUpDown,
+        EditorShortcutAction::MoveLineUp => icondata::LuArrowUp,
+        EditorShortcutAction::MoveLineDown => icondata::LuArrowDown,
+        EditorShortcutAction::DuplicateLine => icondata::LuCopy,
+        EditorShortcutAction::Format => icondata::LuAlignLeft,
+    }
 }
 
 fn action_icon(action: ShortcutAction) -> icondata::Icon {
     match action {
+        ShortcutAction::CreateWorkspace => icondata::LuFolderPlus,
         ShortcutAction::QuickOpen => icondata::LuFolderSearch,
         ShortcutAction::FindFile => icondata::LuFileSearch,
         ShortcutAction::SidePanel => icondata::LuPanelRight,
@@ -32,6 +52,7 @@ fn action_icon(action: ShortcutAction) -> icondata::Icon {
         ShortcutAction::Memory => icondata::LuLayers,
         ShortcutAction::Terminal => icondata::LuTerminal,
         ShortcutAction::CommandPalette => icondata::LuCommand,
+        ShortcutAction::PushToTalk => icondata::LuMic,
     }
 }
 
@@ -40,6 +61,8 @@ pub fn ShortcutsSettingsPane() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let prefs = expect_context::<AppPrefsService>();
     let ui = expect_context::<HarnessUiService>();
+    let editor_settings = expect_context::<EditorSettingsService>();
+    let vim_enabled = editor_settings.vim_enabled();
 
     let capturing: RwSignal<Option<CaptureTarget>> = RwSignal::new(None);
     let capture_ref = NodeRef::<html::Button>::new();
@@ -84,6 +107,10 @@ pub fn ShortcutsSettingsPane() -> impl IntoView {
                 };
                 prefs.set_shortcut_binding(action, binding);
             }
+            CaptureTarget::EditorAction(action) => {
+                // Editor shortcuts are always direct combos.
+                prefs.set_editor_shortcut_binding(action, chord);
+            }
         }
         ui.clear_prefix();
         capturing.set(None);
@@ -91,14 +118,11 @@ pub fn ShortcutsSettingsPane() -> impl IntoView {
 
     view! {
         <article class="harness-pane shortcuts-pane">
-            <h3 class="harness-pane-title">
-                <span class="harness-pane-title__icon" aria-hidden="true">
-                    <LxIcon icon=icondata::LuKeyboard width="1.02rem" height="1.02rem" />
-                </span>
-                <span class="harness-pane-title__text">
-                    {move || i18n.tr(I18nKey::ShortcutsHeading)()}
-                </span>
-            </h3>
+            <SettingsPaneHeader
+                icon=icondata::LuKeyboard
+                title=I18nKey::ShortcutsHeading
+                description=I18nKey::ShortcutsDescription
+            />
 
             // Preset selector (moved here from the App pane).
             <section class="harness-subpane">
@@ -141,11 +165,22 @@ pub fn ShortcutsSettingsPane() -> impl IntoView {
                 <p class="app-prefs-hint">{move || i18n.tr(I18nKey::ShortcutsHint)()}</p>
             </section>
 
-            // Prefix key.
+            // Per-action bindings.
             <section class="harness-subpane">
-                <div class="shortcuts-pane__row">
-                    <span class="shortcuts-pane__label">
-                        {move || i18n.tr(I18nKey::ShortcutsPrefixLabel)()}
+                <h4 class="harness-pane-subhead">
+                    <span class="harness-pane-subhead__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuKeyboard width="0.82rem" height="0.82rem" />
+                    </span>
+                    <span>{move || i18n.tr(I18nKey::ShortcutsBindingsHeading)()}</span>
+                </h4>
+                <div class="shortcuts-pane__row shortcuts-pane__row--prefix">
+                    <span class="shortcuts-pane__lead">
+                        <span class="shortcuts-pane__icon" aria-hidden="true">
+                            <LxIcon icon=icondata::LuCommand width="0.82rem" height="0.82rem" />
+                        </span>
+                        <span class="shortcuts-pane__label">
+                            {move || i18n.tr(I18nKey::ShortcutsPrefixLabel)()}
+                        </span>
                     </span>
                     <span class="shortcuts-pane__keys">
                         <kbd class="workbench-kbd">
@@ -161,16 +196,6 @@ pub fn ShortcutsSettingsPane() -> impl IntoView {
                         <span>{move || i18n.tr(I18nKey::ShortcutsRebind)()}</span>
                     </button>
                 </div>
-            </section>
-
-            // Per-action bindings.
-            <section class="harness-subpane">
-                <h4 class="harness-pane-subhead">
-                    <span class="harness-pane-subhead__icon" aria-hidden="true">
-                        <LxIcon icon=icondata::LuKeyboard width="0.82rem" height="0.82rem" />
-                    </span>
-                    <span>{move || i18n.tr(I18nKey::ShortcutsBindingsHeading)()}</span>
-                </h4>
                 <ul class="shortcuts-pane__list">
                     {ShortcutAction::ALL
                         .into_iter()
@@ -190,6 +215,47 @@ pub fn ShortcutsSettingsPane() -> impl IntoView {
                 </button>
             </section>
 
+            // File editor / preview shortcuts. Disabled while Vim mode is active
+            // (Vim owns the editor keymap) — shown dimmed with an inline hint.
+            <section
+                class="harness-subpane shortcuts-pane__editor"
+                class:shortcuts-pane__editor--disabled=move || vim_enabled.get()
+            >
+                <h4 class="harness-pane-subhead">
+                    <span class="harness-pane-subhead__icon" aria-hidden="true">
+                        <LxIcon icon=icondata::LuCode width="0.82rem" height="0.82rem" />
+                    </span>
+                    <span>{move || i18n.tr(I18nKey::ShortcutsEditorHeading)()}</span>
+                </h4>
+                <Show when=move || vim_enabled.get()>
+                    <p class="app-prefs-hint shortcuts-pane__vim-hint">
+                        <LxIcon icon=icondata::LuInfo width="0.82rem" height="0.82rem" />
+                        <span>{move || i18n.tr(I18nKey::ShortcutsEditorVimDisabledHint)()}</span>
+                    </p>
+                </Show>
+                <ul class="shortcuts-pane__list">
+                    {EditorShortcutAction::ALL
+                        .into_iter()
+                        .map(|action| view! {
+                            <EditorActionRow
+                                action=action
+                                capturing=capturing
+                                disabled=vim_enabled
+                            />
+                        })
+                        .collect_view()}
+                </ul>
+                <button
+                    type="button"
+                    class="shortcuts-pane__btn shortcuts-pane__btn--reset-all"
+                    prop:disabled=move || vim_enabled.get()
+                    on:click=move |_| prefs.reset_all_editor_shortcut_bindings()
+                >
+                    <LxIcon icon=icondata::LuRotateCcw width="0.78rem" height="0.78rem" />
+                    <span>{move || i18n.tr(I18nKey::ShortcutsResetAll)()}</span>
+                </button>
+            </section>
+
             // Capture catcher: always present, only visible while a capture is
             // running. Focused on demand; swallows the keystroke.
             <button
@@ -203,6 +269,79 @@ pub fn ShortcutsSettingsPane() -> impl IntoView {
                 {move || i18n.tr(I18nKey::ShortcutsCapturePrompt)()}
             </button>
         </article>
+    }
+}
+
+#[component]
+fn EditorActionRow(
+    action: EditorShortcutAction,
+    capturing: RwSignal<Option<CaptureTarget>>,
+    /// When set, the row is shown disabled (Vim mode owns the keymap).
+    disabled: RwSignal<bool>,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let prefs = expect_context::<AppPrefsService>();
+    let label = action.label_key();
+    let icon = editor_action_icon(action);
+
+    let keys_text = move || {
+        prefs
+            .editor_shortcut_config()
+            .get()
+            .binding(action)
+            .parts()
+            .join(" + ")
+    };
+    let has_conflict = move || {
+        !prefs
+            .editor_shortcut_config()
+            .get()
+            .conflicts(action)
+            .is_empty()
+    };
+
+    view! {
+        <li class="shortcuts-pane__row" class:shortcuts-pane__row--disabled=move || disabled.get()>
+            <span class="shortcuts-pane__lead">
+                <span class="shortcuts-pane__icon" aria-hidden="true">
+                    <LxIcon icon=icon width="0.82rem" height="0.82rem" />
+                </span>
+                <span class="shortcuts-pane__label">{move || i18n.tr(label)()}</span>
+            </span>
+            <span class="shortcuts-pane__keys">
+                <kbd class="workbench-kbd">{keys_text}</kbd>
+                <Show when=move || has_conflict() && !disabled.get()>
+                    <span
+                        class="shortcuts-pane__conflict"
+                        title=move || i18n.tr(I18nKey::ShortcutsConflict)()
+                        aria-label=move || i18n.tr(I18nKey::ShortcutsConflict)()
+                    >
+                        <LxIcon icon=icondata::LuTriangleAlert width="0.82rem" height="0.82rem" />
+                    </span>
+                </Show>
+            </span>
+            <span class="shortcuts-pane__actions">
+                <button
+                    type="button"
+                    class="shortcuts-pane__btn"
+                    prop:disabled=move || disabled.get()
+                    on:click=move |_| capturing.set(Some(CaptureTarget::EditorAction(action)))
+                >
+                    <LxIcon icon=icondata::LuPencil width="0.78rem" height="0.78rem" />
+                    <span>{move || i18n.tr(I18nKey::ShortcutsRebind)()}</span>
+                </button>
+                <button
+                    type="button"
+                    class="shortcuts-pane__btn shortcuts-pane__btn--icon"
+                    title=move || i18n.tr(I18nKey::ShortcutsResetOne)()
+                    aria-label=move || i18n.tr(I18nKey::ShortcutsResetOne)()
+                    prop:disabled=move || disabled.get()
+                    on:click=move |_| prefs.reset_editor_shortcut_binding(action)
+                >
+                    <LxIcon icon=icondata::LuRotateCcw width="0.78rem" height="0.78rem" />
+                </button>
+            </span>
+        </li>
     }
 }
 

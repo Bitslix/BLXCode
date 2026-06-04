@@ -115,7 +115,7 @@ pub fn list_memory_subcategories(memory_root: &Path) -> Vec<String> {
         }
         out.push(name);
     }
-    out.sort_unstable_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+    out.sort_unstable_by_key(|a| a.to_lowercase());
     out
 }
 

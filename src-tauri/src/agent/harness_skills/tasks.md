@@ -1,3 +1,9 @@
+---
+name: tasks
+description: Track live task execution state, plan-linked task progress, blockers, ordering, and completion status.
+categorie: planning
+---
+
 # Task Tracking
 
 Live task execution state stored at `{app_data_dir}/tasks/<workspace_hash>/index.json` — a global, per-installation location, with one subdirectory per workspace (hash derived from the canonicalised workspace cwd). Survives workspace reload, workspace move, and OS exit.
@@ -42,4 +48,4 @@ Notes support Obsidian-style `[[wikilinks]]` and `#tags` — both are indexed by
 - Call `task_list` early on complex work and keep state current via `task_update`.
 - Reuse and update existing tasks instead of duplicating when the user expands ongoing work.
 - Do not create throwaway tasks for trivial single-step answers.
-- Plan-linked tasks (non-null `planPath` + `planTaskId`) and free tasks are shown separately in the UI.
+- Plan-linked tasks use canonical `planPath` values such as `feature-slug/plan.md` plus `planTaskId`; free tasks have no `planPath`.

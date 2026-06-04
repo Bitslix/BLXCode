@@ -10,7 +10,8 @@
 
 use crate::agent_wire::{AgentContextItem, AgentContextKind};
 use crate::tauri_bridge::{
-    agent_export_context_images, pty_write, AgentContextExportReport, AgentContextImageInput,
+    agent_export_context_images, plan_load, pty_write, AgentContextExportReport,
+    AgentContextImageInput,
 };
 use crate::workbench::app_prefs::AppPrefsService;
 use crate::workbench::notification_sound::play_action_success_sound;
@@ -111,6 +112,9 @@ pub fn render_agent_context_block(input: &RenderInputs) -> String {
                         | AgentContextKind::PlanFile
                         | AgentContextKind::PlanTaskGroup
                         | AgentContextKind::FileSnippet
+                        | AgentContextKind::FileRef
+                        | AgentContextKind::GitDiff
+                        | AgentContextKind::GitCommit
                 )
             })
             .collect();
@@ -127,7 +131,10 @@ pub fn render_agent_context_block(input: &RenderInputs) -> String {
                     AgentContextKind::PlanIndex
                     | AgentContextKind::PlanFile
                     | AgentContextKind::PlanTaskGroup
-                    | AgentContextKind::FileSnippet => continue,
+                    | AgentContextKind::FileSnippet
+                    | AgentContextKind::FileRef
+                    | AgentContextKind::GitDiff
+                    | AgentContextKind::GitCommit => continue,
                 };
                 out.push_str(&format!("- [{kind}] {} — {}\n", item.label, item.source));
                 if !item.paths.is_empty() && item.paths.len() <= 12 {
@@ -152,6 +159,61 @@ pub fn render_agent_context_block(input: &RenderInputs) -> String {
     if !snippet_items.is_empty() {
         out.push_str("\n## Attached file snippets\n");
         for item in snippet_items {
+            out.push_str(&format!("- {}\n", item.label));
+            if let Some(body) = item.content.as_deref().filter(|s| !s.is_empty()) {
+                let trimmed = body.trim_end();
+                out.push_str(trimmed);
+                if !trimmed.ends_with('\n') {
+                    out.push('\n');
+                }
+            }
+        }
+    }
+
+    let file_ref_items: Vec<&AgentContextItem> = input
+        .context_items
+        .iter()
+        .filter(|item| matches!(item.kind, AgentContextKind::FileRef))
+        .collect();
+    if !file_ref_items.is_empty() {
+        out.push_str("\n## Attached files (paths only; read if needed)\n");
+        for item in file_ref_items {
+            let path = item
+                .paths
+                .first()
+                .cloned()
+                .unwrap_or_else(|| item.source.clone());
+            out.push_str(&format!("- {} — `{path}`\n", item.label));
+        }
+    }
+
+    let diff_items: Vec<&AgentContextItem> = input
+        .context_items
+        .iter()
+        .filter(|item| matches!(item.kind, AgentContextKind::GitDiff))
+        .collect();
+    if !diff_items.is_empty() {
+        out.push_str("\n## Attached git diffs\n");
+        for item in diff_items {
+            out.push_str(&format!("- {}\n", item.label));
+            if let Some(body) = item.content.as_deref().filter(|s| !s.is_empty()) {
+                let trimmed = body.trim_end();
+                out.push_str(trimmed);
+                if !trimmed.ends_with('\n') {
+                    out.push('\n');
+                }
+            }
+        }
+    }
+
+    let commit_items: Vec<&AgentContextItem> = input
+        .context_items
+        .iter()
+        .filter(|item| matches!(item.kind, AgentContextKind::GitCommit))
+        .collect();
+    if !commit_items.is_empty() {
+        out.push_str("\n## Attached git commits\n");
+        for item in commit_items {
             out.push_str(&format!("- {}\n", item.label));
             if let Some(body) = item.content.as_deref().filter(|s| !s.is_empty()) {
                 let trimmed = body.trim_end();
@@ -624,14 +686,21 @@ pub async fn perform_handoff(
                 | AgentContextKind::PlanFile
                 | AgentContextKind::PlanTaskGroup
         );
-        let is_snippet = matches!(item.kind, AgentContextKind::FileSnippet);
+        // File snippets, file refs, diffs and commits carry their own payload
+        // (inline content or a path) and are surfaced regardless of the
+        // include_memory toggle.
+        let is_self_contained = matches!(
+            item.kind,
+            AgentContextKind::FileSnippet
+                | AgentContextKind::FileRef
+                | AgentContextKind::GitDiff
+                | AgentContextKind::GitCommit
+        );
         if is_plan {
             if include_plans {
                 effective_items.push(item);
             }
-        } else if is_snippet {
-            // File snippets always carry their content inline; surface them
-            // in the rendered block regardless of include_memory.
+        } else if is_self_contained {
             effective_items.push(item);
         } else if include_memory {
             effective_items.push(item);
@@ -1193,6 +1262,182 @@ pub fn file_snippet_context_item(
     }
 }
 
+/// Build a whole-file reference `AgentContextItem` dragged from the project
+/// explorer. Carries only the workspace-relative path; the agent reads the
+/// file via its tools when needed (no inline content).
+#[must_use]
+pub fn file_ref_context_item(rel_path: &str) -> AgentContextItem {
+    let label = rel_path
+        .rsplit('/')
+        .next()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(rel_path)
+        .to_owned();
+    AgentContextItem {
+        id: format!("file-ref:{rel_path}"),
+        kind: AgentContextKind::FileRef,
+        label,
+        source: rel_path.to_owned(),
+        paths: vec![rel_path.to_owned()],
+        added_at: context_now_ms(),
+        content: None,
+    }
+}
+
+/// Build a folder reference `AgentContextItem` dragged from the project
+/// explorer. Like [`file_ref_context_item`] it carries only the path (kind
+/// `FileRef`); the trailing-slash source hints that the path is a directory.
+#[must_use]
+pub fn dir_ref_context_item(rel_path: &str) -> AgentContextItem {
+    let trimmed = rel_path.trim_end_matches('/');
+    let name = trimmed
+        .rsplit('/')
+        .next()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(trimmed);
+    AgentContextItem {
+        id: format!("dir-ref:{trimmed}"),
+        kind: AgentContextKind::FileRef,
+        label: format!("{name}/"),
+        source: format!("{trimmed}/"),
+        paths: vec![trimmed.to_owned()],
+        added_at: context_now_ms(),
+        content: None,
+    }
+}
+
+/// Build a `GitDiff` context item for a single file's diff dragged from the
+/// diff sidebar. `diff_text` is the raw unified diff; it is wrapped in a fenced
+/// ```diff block as inline `content`.
+#[must_use]
+pub fn git_diff_context_item(rel_path: &str, staged: bool, diff_text: &str) -> AgentContextItem {
+    let scope = if staged { "staged" } else { "working" };
+    let file = rel_path
+        .rsplit('/')
+        .next()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(rel_path);
+    let body = diff_text.trim_end();
+    let content = format!("**`{rel_path}`** ({scope} diff)\n```diff\n{body}\n```\n");
+    AgentContextItem {
+        id: format!("git-diff:{scope}:{rel_path}"),
+        kind: AgentContextKind::GitDiff,
+        label: format!("Diff · {file}"),
+        source: format!("{scope} diff · {rel_path}"),
+        paths: vec![rel_path.to_owned()],
+        added_at: context_now_ms(),
+        content: Some(content),
+    }
+}
+
+/// Build a `GitCommit` context item dragged from the commit graph. `subject`
+/// and `body` come from the commit; `changed_paths` lists files touched by the
+/// commit (used for both `paths` and the rendered summary).
+#[must_use]
+pub fn git_commit_context_item(
+    oid: &str,
+    short_oid: &str,
+    subject: &str,
+    body: &str,
+    changed_paths: &[String],
+) -> AgentContextItem {
+    let mut content = format!("**commit `{short_oid}`** — {subject}\n");
+    let body_trimmed = body.trim();
+    if !body_trimmed.is_empty() {
+        content.push('\n');
+        content.push_str(body_trimmed);
+        content.push('\n');
+    }
+    if !changed_paths.is_empty() {
+        content.push_str(&format!("\nChanged files ({}):\n", changed_paths.len()));
+        for p in changed_paths {
+            content.push_str(&format!("- `{p}`\n"));
+        }
+    }
+    let subject_trimmed = subject.trim();
+    let label = if subject_trimmed.is_empty() {
+        format!("Commit · {short_oid}")
+    } else {
+        format!("Commit · {short_oid} · {subject_trimmed}")
+    };
+    AgentContextItem {
+        id: format!("git-commit:{oid}"),
+        kind: AgentContextKind::GitCommit,
+        label,
+        source: format!("commit {short_oid}"),
+        paths: changed_paths.to_vec(),
+        added_at: context_now_ms(),
+        content: Some(content),
+    }
+}
+
+/// Build a `PlanFile` context item for a plan loaded into the agent. `summary`
+/// is the human-readable task-load result (e.g. `"3 task(s) - kept 1 free
+/// task(s)"`). Shared by the Plans panel and the Kanban→Agent drag.
+#[must_use]
+pub fn plan_file_context_item(plan_path: &str, label: &str, summary: &str) -> AgentContextItem {
+    AgentContextItem {
+        id: format!("plan-file:{plan_path}"),
+        kind: AgentContextKind::PlanFile,
+        label: label.to_owned(),
+        source: summary.to_owned(),
+        paths: vec![plan_path.to_owned()],
+        added_at: context_now_ms(),
+        content: None,
+    }
+}
+
+/// Build a `PlanTaskGroup` context item for a single Kanban task dragged into
+/// the agent. Carries the plan path and the stable task id in `source` so the
+/// agent can locate the task; no inline content.
+#[must_use]
+pub fn plan_task_context_item(plan_path: &str, task_id: &str, title: &str) -> AgentContextItem {
+    AgentContextItem {
+        id: format!("plan-task:{plan_path}#{task_id}"),
+        kind: AgentContextKind::PlanTaskGroup,
+        label: title.to_owned(),
+        source: format!("{plan_path}#{task_id}"),
+        paths: vec![plan_path.to_owned()],
+        added_at: context_now_ms(),
+        content: None,
+    }
+}
+
+/// Load a plan into the agent: apply the plan's tasks (`plan_load`), attach a
+/// `PlanFile` context item, and refresh the workspace task snapshot. Shared by
+/// the Plans panel "Load into agent" button and the Kanban→Agent drag.
+///
+/// `label_hint` is the plan title to show in the context list; the plan path is
+/// used as a fallback. `on_done` reports success (resolved plan path) or the
+/// error string so each caller can drive its own status/error surface.
+pub fn attach_plan_into_agent(
+    wb: WorkbenchService,
+    ws_id: u64,
+    ws_cwd: String,
+    plan_path: String,
+    label_hint: Option<String>,
+    on_done: impl Fn(Result<String, String>) + 'static,
+) {
+    spawn_local(async move {
+        match plan_load(&ws_cwd, &plan_path).await {
+            Ok(report) => {
+                let label = label_hint.unwrap_or_else(|| report.path.clone());
+                let summary = format!(
+                    "{} task(s) - kept {} free task(s)",
+                    report.tasks_added, report.free_tasks_kept
+                );
+                let item = plan_file_context_item(&report.path, &label, &summary);
+                wb.upsert_workspace_agent_context(ws_id, item);
+                if let Ok(snap) = tasks_list(ws_cwd.clone()).await {
+                    store_task_snapshot(ws_id, snap);
+                }
+                on_done(Ok(report.path));
+            }
+            Err(e) => on_done(Err(e)),
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1209,6 +1454,17 @@ mod tests {
         assert!(out.contains("Workspace: <not set>"));
         assert!(out.contains("## Attached memory"));
         assert!(out.contains("## Attached images"));
+    }
+
+    #[test]
+    fn plan_task_context_item_carries_plan_and_task() {
+        let item = plan_task_context_item(".agents/plans/foo/plan.md", "task-1", "Do the thing");
+        assert!(matches!(item.kind, AgentContextKind::PlanTaskGroup));
+        assert_eq!(item.label, "Do the thing");
+        assert_eq!(item.source, ".agents/plans/foo/plan.md#task-1");
+        assert_eq!(item.paths, vec![".agents/plans/foo/plan.md".to_string()]);
+        assert_eq!(item.id, "plan-task:.agents/plans/foo/plan.md#task-1");
+        assert!(item.content.is_none());
     }
 
     #[test]
@@ -1409,6 +1665,83 @@ mod tests {
     fn file_snippet_item_id_includes_workspace_when_provided() {
         let item = file_snippet_context_item("src/foo.rs", 1, 1, None, "S", "x", Some("Demo"));
         assert_eq!(item.id, "file-snippet:Demo:src/foo.rs:1-1");
+    }
+
+    #[test]
+    fn file_ref_item_is_path_only() {
+        let item = file_ref_context_item("src/workbench/mod.rs");
+        assert_eq!(item.kind, AgentContextKind::FileRef);
+        assert_eq!(item.id, "file-ref:src/workbench/mod.rs");
+        assert_eq!(item.label, "mod.rs");
+        assert_eq!(item.paths, vec!["src/workbench/mod.rs".to_string()]);
+        assert!(item.content.is_none());
+    }
+
+    #[test]
+    fn dir_ref_item_is_path_only_with_trailing_slash() {
+        let item = dir_ref_context_item("src/workbench");
+        assert_eq!(item.kind, AgentContextKind::FileRef);
+        assert_eq!(item.id, "dir-ref:src/workbench");
+        assert_eq!(item.label, "workbench/");
+        assert_eq!(item.source, "src/workbench/");
+        assert_eq!(item.paths, vec!["src/workbench".to_string()]);
+        assert!(item.content.is_none());
+    }
+
+    #[test]
+    fn git_diff_item_wraps_diff_in_fence() {
+        let item = git_diff_context_item("src/foo.rs", true, "@@ -1 +1 @@\n-a\n+b");
+        assert_eq!(item.kind, AgentContextKind::GitDiff);
+        assert_eq!(item.id, "git-diff:staged:src/foo.rs");
+        assert_eq!(item.label, "Diff · foo.rs");
+        assert!(item.source.contains("staged diff"));
+        let content = item.content.as_deref().unwrap();
+        assert!(content.contains("```diff"));
+        assert!(content.contains("+b"));
+    }
+
+    #[test]
+    fn render_block_emits_file_diff_and_commit_sections() {
+        let inputs = RenderInputs {
+            workspace_root: Some("/repo".into()),
+            include_memory: true,
+            context_items: vec![
+                file_ref_context_item("src/foo.rs"),
+                git_diff_context_item("src/foo.rs", false, "@@ -1 +1 @@\n-a\n+b"),
+                git_commit_context_item("deadbeef", "deadbee", "Fix bug", "", &[]),
+            ],
+            ..Default::default()
+        };
+        let out = render_agent_context_block(&inputs);
+        assert!(out.contains("## Attached files (paths only"));
+        assert!(out.contains("`src/foo.rs`"));
+        assert!(out.contains("## Attached git diffs"));
+        assert!(out.contains("```diff"));
+        assert!(out.contains("## Attached git commits"));
+        assert!(out.contains("commit `deadbee`"));
+        // New kinds must not leak into the memory section.
+        let memory_section = out
+            .split("## Attached memory")
+            .nth(1)
+            .and_then(|rest| rest.split("\n## ").next())
+            .unwrap_or("");
+        assert!(!memory_section.contains("Diff · foo.rs"));
+    }
+
+    #[test]
+    fn git_commit_item_lists_changed_files() {
+        let paths = vec!["a.rs".to_string(), "b.rs".to_string()];
+        let item = git_commit_context_item("deadbeef", "deadbee", "Fix bug", "Longer body", &paths);
+        assert_eq!(item.kind, AgentContextKind::GitCommit);
+        assert_eq!(item.id, "git-commit:deadbeef");
+        assert!(item.label.contains("deadbee"));
+        assert!(item.label.contains("Fix bug"));
+        assert_eq!(item.paths, paths);
+        let content = item.content.as_deref().unwrap();
+        assert!(content.contains("commit `deadbee`"));
+        assert!(content.contains("Longer body"));
+        assert!(content.contains("Changed files (2)"));
+        assert!(content.contains("`a.rs`"));
     }
 
     #[test]

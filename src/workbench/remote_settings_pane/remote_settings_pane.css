@@ -1,19 +1,211 @@
 /* Remote (SSH) settings pane. Colours/spacing come from theme tokens
    (themes/tokens.css) so every theme is honoured automatically. */
 
+/* Topbar: pane header on the left, "Add connection" on the top right. */
+.remote-pane__topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.remote-pane__topbar .harness-pane-header {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.remote-pane__add {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
 .remote-conn-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 12px;
+  align-items: stretch;
 }
 
 .remote-conn-row {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+/* --- List view: connection cards --- */
+.remote-conn-card-item {
+  display: flex;
+  min-width: 0;
+}
+
+.remote-conn-card {
+  width: 100%;
+  height: 100%;
+  text-align: left;
+  cursor: pointer;
+  gap: 0.55rem;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.remote-conn-card:hover,
+.remote-conn-card:focus-visible {
+  border-color: var(--border-strong);
+  background: var(--overlay-2);
+  outline: none;
+}
+
+/* Dashed "Add connection" placeholder tile filling empty grid cells. */
+.remote-conn-card--add {
+  width: 100%;
+  height: 100%;
+  min-height: 5.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.68rem 0.75rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.remote-conn-card--add:hover,
+.remote-conn-card--add:focus-visible {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--overlay-1);
+  outline: none;
+}
+
+.remote-conn-card__add-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.remote-conn-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.remote-conn-card__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.remote-conn-card__icon {
+  display: inline-flex;
+  color: var(--text-muted);
+}
+
+.remote-conn-card__name {
+  font-weight: 650;
+  font-size: 0.92rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remote-conn-card__head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+}
+
+.remote-conn-card__reveal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.remote-conn-card__reveal:hover,
+.remote-conn-card__reveal:focus-visible {
+  color: var(--text);
+  border-color: var(--border);
+  background: var(--overlay-2);
+  outline: none;
+}
+
+.remote-conn-card__chevron {
+  display: inline-flex;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+
+/* Masked values read as muted dots; revealed values use the mono styles. */
+.remote-conn-card__masked {
+  color: var(--text-muted);
+  letter-spacing: 0.12em;
+  user-select: none;
+}
+
+.remote-conn-card__endpoint,
+.remote-conn-card__dir {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remote-conn-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.remote-conn-card__badge {
+  font-size: 0.7rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--radius-pill);
+  background: var(--overlay-2);
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+
+.remote-conn-card__badge--muted {
+  background: var(--overlay-1);
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+/* --- Editor (detail) view --- */
+.remote-conn-editor {
+  gap: 0.75rem;
+}
+
+.remote-conn-editor__head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.remote-conn-editor__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+  color: var(--text);
 }
 
 .remote-conn-grid {
@@ -54,6 +246,161 @@
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 2px;
+}
+
+.remote-dir-input {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+
+.remote-dir-input__field {
+  width: 100%;
+  padding-right: 2.45rem;
+}
+
+.remote-dir-input__browse {
+  position: absolute;
+  top: 50%;
+  right: 0.38rem;
+  transform: translateY(-50%);
+  width: 1.75rem;
+  height: 1.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.remote-dir-input__browse:hover,
+.remote-dir-input__browse:focus-visible {
+  color: var(--text);
+  border-color: var(--border-strong);
+  background: var(--overlay-2);
+  outline: none;
+}
+
+.remote-dir-input__browse:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.remote-dir-dialog__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 9300;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: color-mix(in srgb, var(--scrim-bg) 68%, transparent);
+}
+
+.remote-dir-dialog {
+  width: min(38rem, calc(100vw - 3rem));
+  max-height: min(34rem, calc(100vh - 3rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  box-shadow: 0 18px 54px var(--scrim-bg);
+}
+
+.remote-dir-dialog__head,
+.remote-dir-dialog__path,
+.remote-dir-dialog__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.remote-dir-dialog__head {
+  justify-content: space-between;
+}
+
+.remote-dir-dialog__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 650;
+  color: var(--text);
+}
+
+.remote-dir-dialog__icon-btn {
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.remote-dir-dialog__path {
+  min-width: 0;
+}
+
+.remote-dir-dialog__path code {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+  color: var(--text-muted);
+}
+
+.remote-dir-dialog__message {
+  margin: 0;
+}
+
+.remote-dir-dialog__list {
+  min-height: 10rem;
+  overflow: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-app);
+}
+
+.remote-dir-dialog__item {
+  width: 100%;
+  min-height: 2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.42rem 0.55rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.remote-dir-dialog__item:hover,
+.remote-dir-dialog__item:focus-visible {
+  border-color: var(--border);
+  background: var(--overlay-2);
+  outline: none;
+}
+
+.remote-dir-dialog__actions {
+  justify-content: flex-end;
 }
 
 /* Sidebar remote marker */

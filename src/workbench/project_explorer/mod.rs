@@ -250,7 +250,7 @@ fn ProjectExplorerBody(
     let i18n = expect_context::<I18nService>();
 
     Effect::new(move |_| {
-        let _gen = load_gen.get();
+        let gen = load_gen.get();
         let Some((_, cwd, configuring, conn)) = active_workspace.get() else {
             return;
         };
@@ -267,11 +267,18 @@ fn ProjectExplorerBody(
         spawn_local(async move {
             match list_path_entries(root.clone(), root.clone(), conn).await {
                 Ok(entries) => {
+                    if load_gen.get_untracked() != gen {
+                        return;
+                    }
                     children_cache.update(|c| {
                         c.insert(root_key, entries);
                     });
                 }
-                Err(e) => error_msg.set(Some(e)),
+                Err(e) => {
+                    if load_gen.get_untracked() == gen {
+                        error_msg.set(Some(e));
+                    }
+                }
             }
         });
     });
@@ -595,6 +602,9 @@ fn ExplorerNode(
     let pad = format!("padding-left: {}rem", 0.65 + f64::from(depth) * 0.85);
 
     if !is_dir {
+        let ctx_dnd = expect_context::<crate::workbench::context_drag::ContextDragService>();
+        let name_for_drag = name.clone();
+        let rel_for_drag = rel_path.clone();
         return view! {
             <li class="project-explorer__node" role="none">
                 <div
@@ -605,6 +615,31 @@ fn ExplorerNode(
                     }
                     style=pad.clone()
                     role="treeitem"
+                    prop:draggable="true"
+                    on:dragstart={
+                        let name = name_for_drag.clone();
+                        let rel = rel_for_drag.clone();
+                        move |ev: web_sys::DragEvent| {
+                            let Some(ws_id) = wb.active_id().get_untracked() else { return; };
+                            let payload = crate::workbench::context_drag::ContextDragPayload {
+                                workspace_id: ws_id,
+                                kind: crate::workbench::context_drag::ContextDragKind::File,
+                                rel_path: Some(rel.clone()),
+                                staged: None,
+                                oid: None,
+                                short_oid: None,
+                                subject: None,
+                            };
+                            let meta = crate::workbench::context_drag::ContextDragMeta {
+                                kind: crate::workbench::context_drag::ContextDragKind::File,
+                                title: name.clone(),
+                                subtitle: rel.clone(),
+                            };
+                            crate::workbench::context_drag::start_context_drag(&ev, ctx_dnd, payload, meta);
+                        }
+                    }
+                    on:drag=move |ev: web_sys::DragEvent| ctx_dnd.set_overlay_pos_from_event(&ev)
+                    on:dragend=move |_| ctx_dnd.clear()
                     on:click={
                         let rel_path = rel_path.clone();
                         move |ev: web_sys::MouseEvent| {
@@ -636,6 +671,9 @@ fn ExplorerNode(
     let rel_for_click = rel_path.clone();
     let rel_for_newfile = rel_path.clone();
     let rel_for_newfolder = rel_path.clone();
+    let ctx_dnd = expect_context::<crate::workbench::context_drag::ContextDragService>();
+    let name_for_drag = name.clone();
+    let rel_for_drag = rel_path.clone();
 
     view! {
         <li class="project-explorer__node" role="none">
@@ -651,6 +689,31 @@ fn ExplorerNode(
                 style=pad
                 role="treeitem"
                 aria-expanded=move || (is_dir && is_open.get()).to_string()
+                prop:draggable="true"
+                on:dragstart={
+                    let name = name_for_drag.clone();
+                    let rel = rel_for_drag.clone();
+                    move |ev: web_sys::DragEvent| {
+                        let Some(ws_id) = wb.active_id().get_untracked() else { return; };
+                        let payload = crate::workbench::context_drag::ContextDragPayload {
+                            workspace_id: ws_id,
+                            kind: crate::workbench::context_drag::ContextDragKind::Folder,
+                            rel_path: Some(rel.clone()),
+                            staged: None,
+                            oid: None,
+                            short_oid: None,
+                            subject: None,
+                        };
+                        let meta = crate::workbench::context_drag::ContextDragMeta {
+                            kind: crate::workbench::context_drag::ContextDragKind::Folder,
+                            title: name.clone(),
+                            subtitle: rel.clone(),
+                        };
+                        crate::workbench::context_drag::start_context_drag(&ev, ctx_dnd, payload, meta);
+                    }
+                }
+                on:drag=move |ev: web_sys::DragEvent| ctx_dnd.set_overlay_pos_from_event(&ev)
+                on:dragend=move |_| ctx_dnd.clear()
                 on:click=move |ev| {
                     ev.stop_propagation();
                     selected_dir.set(Some(rel_for_click.clone()));

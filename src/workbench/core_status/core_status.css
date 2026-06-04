@@ -1,0 +1,87 @@
+/* Core workspace status in the centre slot of `.app-statusline`. Reuses the
+   statusline item layout, with compact icon+count segments. */
+
+.core-status-item {
+  gap: 0.5rem;
+}
+
+.core-status-item__memory,
+.core-status-item__seg {
+  display: inline-flex;
+  align-items: center;
+}
+
+.core-status-item__memory {
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.core-status-item__memory-scope,
+.core-status-item__memory-label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.core-status-item__memory-scope {
+  gap: 0.34rem;
+  min-width: 0;
+}
+
+.core-status-item__memory-label {
+  gap: 0.22rem;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.core-status-item__seg {
+  gap: 0.24rem;
+}
+
+.core-status-item__seg--file {
+  max-width: min(28vw, 18rem);
+  color: var(--text);
+}
+
+.core-status-item__seg--file span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.core-status-item__seg--cursor {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.core-status-item__seg--branch {
+  max-width: min(22vw, 14rem);
+  color: var(--text);
+}
+
+.core-status-item__seg--branch span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.core-status-item__seg + .core-status-item__seg,
+.core-status-item__divider {
+  padding-left: 0.5rem;
+  border-left: 1px solid var(--border);
+}
+
+.core-status-item__divider {
+  width: 0;
+  height: 14px;
+  padding-left: 0;
+  border-left-color: color-mix(in srgb, var(--border) 76%, var(--text-faint));
+}
+
+@media (max-width: 720px) {
+  .core-status-item__divider,
+  .core-status-item__memory {
+    display: none;
+  }
+}

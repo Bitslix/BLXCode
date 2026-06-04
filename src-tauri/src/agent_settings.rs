@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
 #[cfg(unix)]
@@ -10,12 +11,67 @@ const SETTINGS_FILE: &str = "agent_provider_settings.json";
 const SECRETS_DIR: &str = "secrets";
 const KEYRING_SERVICE: &str = "BLXCode";
 
+/// Hard upper bound on tool-call rounds per turn. Caps a runaway loop when
+/// the model keeps calling tools without finishing. User-configurable via
+/// Settings → Agent; the value is clamped to [`MIN_TOOL_LOOP_LIMIT`,
+/// `MAX_TOOL_LOOP_LIMIT`] on save and again at use time (settings on disk
+/// may have been hand-edited).
+pub const DEFAULT_TOOL_LOOP_LIMIT: u32 = 36;
+pub const MIN_TOOL_LOOP_LIMIT: u32 = 1;
+pub const MAX_TOOL_LOOP_LIMIT: u32 = 500;
+
+fn default_tool_loop_limit() -> u32 {
+    DEFAULT_TOOL_LOOP_LIMIT
+}
+
+/// Clamp a tool-loop limit into the supported range. Applied on save and at
+/// the call site so an out-of-range on-disk value can never produce a
+/// zero-round (or absurdly large) loop.
+pub fn clamp_tool_loop_limit(value: u32) -> u32 {
+    value.clamp(MIN_TOOL_LOOP_LIMIT, MAX_TOOL_LOOP_LIMIT)
+}
+
+/// Default auto-compaction trigger as a percent of the context window.
+pub const DEFAULT_AUTO_COMPACT_THRESHOLD_PCT: u8 = 85;
+pub const MIN_AUTO_COMPACT_THRESHOLD_PCT: u8 = 50;
+pub const MAX_AUTO_COMPACT_THRESHOLD_PCT: u8 = 95;
+
+fn default_auto_compact_enabled() -> bool {
+    true
+}
+
+fn default_auto_compact_threshold_pct() -> u8 {
+    DEFAULT_AUTO_COMPACT_THRESHOLD_PCT
+}
+
+fn default_orb_mode() -> AgentOrbMode {
+    AgentOrbMode::ThreeD
+}
+
+fn default_onboarding_seen() -> bool {
+    false
+}
+
+/// Clamp an auto-compact threshold percent into the supported range.
+pub fn clamp_auto_compact_threshold_pct(value: u8) -> u8 {
+    value.clamp(
+        MIN_AUTO_COMPACT_THRESHOLD_PCT,
+        MAX_AUTO_COMPACT_THRESHOLD_PCT,
+    )
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum AgentProviderKind {
     Openrouter,
     Anthropic,
     Openai,
+    Ollama,
+    LmStudio,
+    HuggingFace,
+    Cloudflare,
+    Together,
+    Portkey,
 }
 
 impl AgentProviderKind {
@@ -24,6 +80,12 @@ impl AgentProviderKind {
             Self::Openrouter => "openrouter",
             Self::Anthropic => "anthropic",
             Self::Openai => "openai",
+            Self::Ollama => "ollama",
+            Self::LmStudio => "lmStudio",
+            Self::HuggingFace => "huggingFace",
+            Self::Cloudflare => "cloudflare",
+            Self::Together => "together",
+            Self::Portkey => "portkey",
         }
     }
 
@@ -42,6 +104,14 @@ pub enum ThinkingLevel {
     Max,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AgentOrbMode {
+    #[serde(rename = "3d")]
+    ThreeD,
+    #[serde(rename = "2d")]
+    TwoD,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderModelEntry {
@@ -54,6 +124,11 @@ pub struct ProviderModelEntry {
     /// cost-lookup time via the static id-mapping table in `pricing.rs`).
     #[serde(default)]
     pub pricing: Option<ModelPricing>,
+    /// Max context window in tokens. Populated from OpenRouter's `/models`
+    /// `context_length`; `None` for direct providers (resolved via the
+    /// static fallback table in `agent/context_window.rs`).
+    #[serde(default)]
+    pub context_length: Option<u64>,
 }
 
 /// USD per-token pricing for one model. OpenRouter exposes both numbers
@@ -73,12 +148,40 @@ pub struct AgentProviderSettings {
     pub provider: AgentProviderKind,
     pub model_id: String,
     pub thinking_level: ThinkingLevel,
+    /// Max tool-call rounds per turn (see [`DEFAULT_TOOL_LOOP_LIMIT`]).
+    #[serde(default = "default_tool_loop_limit")]
+    pub tool_loop_limit: u32,
+    /// Auto-compact the session when it nears the context-window limit.
+    #[serde(default = "default_auto_compact_enabled")]
+    pub auto_compact_enabled: bool,
+    /// Context-window occupancy percent that triggers auto-compaction.
+    #[serde(default = "default_auto_compact_threshold_pct")]
+    pub auto_compact_threshold_pct: u8,
+    /// Visual style for the Agent panel voice orb.
+    #[serde(default = "default_orb_mode")]
+    pub orb_mode: AgentOrbMode,
+    /// User-chosen agent name. Empty = use [`DEFAULT_AGENT_NICKNAME`].
+    #[serde(default)]
+    pub agent_nickname: String,
+    /// Whether the one-time startup dialog for name + default role has been
+    /// completed. Defaults to false so existing installations see it once.
+    #[serde(default = "default_onboarding_seen")]
+    pub onboarding_seen: bool,
+    /// Default harness session-role slug for newly-created workspaces.
+    #[serde(default)]
+    pub default_session_role: Option<String>,
     #[serde(default)]
     pub model_cache_openrouter: Vec<ProviderModelEntry>,
     #[serde(default)]
     pub model_cache_anthropic: Vec<ProviderModelEntry>,
     #[serde(default)]
     pub model_cache_openai: Vec<ProviderModelEntry>,
+    #[serde(default)]
+    pub model_caches: BTreeMap<String, Vec<ProviderModelEntry>>,
+    #[serde(default)]
+    pub provider_base_urls: BTreeMap<String, String>,
+    #[serde(default)]
+    pub cloudflare_account_id: String,
 }
 
 impl Default for AgentProviderSettings {
@@ -87,10 +190,29 @@ impl Default for AgentProviderSettings {
             provider: AgentProviderKind::Openrouter,
             model_id: "openai/gpt-5".into(),
             thinking_level: ThinkingLevel::Medium,
+            tool_loop_limit: DEFAULT_TOOL_LOOP_LIMIT,
+            auto_compact_enabled: default_auto_compact_enabled(),
+            auto_compact_threshold_pct: DEFAULT_AUTO_COMPACT_THRESHOLD_PCT,
+            orb_mode: default_orb_mode(),
+            agent_nickname: String::new(),
+            onboarding_seen: default_onboarding_seen(),
+            default_session_role: None,
             model_cache_openrouter: curated_models(AgentProviderKind::Openrouter),
             model_cache_anthropic: curated_models(AgentProviderKind::Anthropic),
             model_cache_openai: curated_models(AgentProviderKind::Openai),
+            model_caches: default_model_caches(),
+            provider_base_urls: default_provider_base_urls(),
+            cloudflare_account_id: String::new(),
         }
+    }
+}
+
+impl AgentProviderSettings {
+    pub fn base_url_for_provider(&self, provider: AgentProviderKind) -> Option<String> {
+        self.provider_base_urls
+            .get(provider.as_str())
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
     }
 }
 
@@ -128,6 +250,22 @@ pub struct AgentProviderSettingsPatch {
     pub provider: AgentProviderKind,
     pub model_id: String,
     pub thinking_level: ThinkingLevel,
+    #[serde(default = "default_tool_loop_limit")]
+    pub tool_loop_limit: u32,
+    #[serde(default = "default_auto_compact_enabled")]
+    pub auto_compact_enabled: bool,
+    #[serde(default = "default_auto_compact_threshold_pct")]
+    pub auto_compact_threshold_pct: u8,
+    #[serde(default = "default_orb_mode")]
+    pub orb_mode: AgentOrbMode,
+    #[serde(default)]
+    pub agent_nickname: String,
+    #[serde(default)]
+    pub default_session_role: Option<String>,
+    #[serde(default)]
+    pub provider_base_urls: BTreeMap<String, String>,
+    #[serde(default)]
+    pub cloudflare_account_id: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -142,6 +280,17 @@ fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
         .app_config_dir()
         .map_err(|e| format!("app config dir unavailable: {e}"))?;
     Ok(base.join(SETTINGS_FILE))
+}
+
+fn normalize_session_role(raw: Option<String>) -> Option<String> {
+    raw.and_then(|value| {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
 }
 
 fn secrets_dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -198,6 +347,12 @@ pub(crate) fn provider_env_var(provider: AgentProviderKind) -> &'static str {
         AgentProviderKind::Openrouter => "BLX_OPENROUTER_API_KEY",
         AgentProviderKind::Anthropic => "BLX_ANTHROPIC_API_KEY",
         AgentProviderKind::Openai => "BLX_OPENAI_API_KEY",
+        AgentProviderKind::Ollama => "BLX_OLLAMA_API_KEY",
+        AgentProviderKind::LmStudio => "BLX_LM_STUDIO_API_KEY",
+        AgentProviderKind::HuggingFace => "BLX_HUGGINGFACE_API_KEY",
+        AgentProviderKind::Cloudflare => "BLX_CLOUDFLARE_API_TOKEN",
+        AgentProviderKind::Together => "BLX_TOGETHER_API_KEY",
+        AgentProviderKind::Portkey => "BLX_PORTKEY_API_KEY",
     }
 }
 
@@ -352,8 +507,22 @@ fn load_settings(app: &AppHandle) -> Result<AgentProviderSettings, String> {
     if envelope.is_empty() {
         return Ok(AgentProviderSettings::default());
     }
-    serde_json::from_value(serde_json::Value::Object(envelope.clone()))
-        .map_err(|e| format!("parse agent settings: {e}"))
+    let mut merged = match serde_json::to_value(AgentProviderSettings::default())
+        .map_err(|e| format!("serialize default agent settings: {e}"))?
+    {
+        serde_json::Value::Object(map) => map,
+        _ => return Err("default agent settings did not serialize to a JSON object".into()),
+    };
+    for (key, value) in envelope {
+        if !RESERVED_SIBLING_KEYS.contains(&key.as_str()) {
+            merged.insert(key, value);
+        }
+    }
+    let mut settings: AgentProviderSettings =
+        serde_json::from_value(serde_json::Value::Object(merged))
+            .map_err(|e| format!("parse agent settings: {e}"))?;
+    normalize_provider_settings(&mut settings);
+    Ok(settings)
 }
 
 fn save_settings(app: &AppHandle, settings: &AgentProviderSettings) -> Result<(), String> {
@@ -455,6 +624,9 @@ fn key_is_configured(app: &AppHandle, provider: AgentProviderKind) -> Result<boo
 }
 
 fn provider_key(app: &AppHandle, provider: AgentProviderKind) -> Result<String, String> {
+    if !crate::agent::provider::provider_requires_key(provider) {
+        return Ok(String::new());
+    }
     let entry = keyring_entry(provider)?;
     let from_fallback_or_env = || -> Result<String, String> {
         if let Some(secret) = read_fallback_secret(app, provider)? {
@@ -477,67 +649,88 @@ fn provider_key(app: &AppHandle, provider: AgentProviderKind) -> Result<String, 
 }
 
 fn curated_models(provider: AgentProviderKind) -> Vec<ProviderModelEntry> {
-    match provider {
-        AgentProviderKind::Openrouter => vec![
-            ProviderModelEntry {
-                id: "openai/gpt-5".into(),
-                label: "GPT-5".into(),
-                description: Some("Default via OpenRouter".into()),
-                pricing: None,
-            },
-            ProviderModelEntry {
-                id: "anthropic/claude-sonnet-4.5".into(),
-                label: "Claude Sonnet 4.5".into(),
-                description: Some("Anthropic via OpenRouter".into()),
-                pricing: None,
-            },
-            ProviderModelEntry {
-                id: "google/gemini-2.5-pro".into(),
-                label: "Gemini 2.5 Pro".into(),
-                description: Some("Google via OpenRouter".into()),
-                pricing: None,
-            },
-        ],
-        AgentProviderKind::Anthropic => vec![
-            ProviderModelEntry {
-                id: "claude-sonnet-4-5".into(),
-                label: "Claude Sonnet 4.5".into(),
-                description: Some("Balanced model".into()),
-                pricing: None,
-            },
-            ProviderModelEntry {
-                id: "claude-opus-4-1".into(),
-                label: "Claude Opus 4.1".into(),
-                description: Some("Highest capability".into()),
-                pricing: None,
-            },
-        ],
-        AgentProviderKind::Openai => vec![
-            ProviderModelEntry {
-                id: "gpt-5".into(),
-                label: "GPT-5".into(),
-                description: Some("Reasoning flagship".into()),
-                pricing: None,
-            },
-            ProviderModelEntry {
-                id: "gpt-5-mini".into(),
-                label: "GPT-5 Mini".into(),
-                description: Some("Faster/cost-lean variant".into()),
-                pricing: None,
-            },
-        ],
+    crate::agent::provider::curated_models(provider)
+}
+
+fn default_model_caches() -> BTreeMap<String, Vec<ProviderModelEntry>> {
+    crate::agent::provider::all_providers()
+        .iter()
+        .map(|spec| (spec.kind.as_str().to_string(), curated_models(spec.kind)))
+        .collect()
+}
+
+fn default_provider_base_urls() -> BTreeMap<String, String> {
+    crate::agent::provider::all_providers()
+        .iter()
+        .filter(|spec| {
+            matches!(
+                spec.kind,
+                AgentProviderKind::Ollama
+                    | AgentProviderKind::LmStudio
+                    | AgentProviderKind::Portkey
+            )
+        })
+        .map(|spec| {
+            (
+                spec.kind.as_str().to_string(),
+                spec.default_base_url.to_string(),
+            )
+        })
+        .collect()
+}
+
+fn normalize_provider_settings(settings: &mut AgentProviderSettings) {
+    if settings.model_caches.is_empty() {
+        settings.model_caches = default_model_caches();
     }
+    if !settings.model_cache_openrouter.is_empty() {
+        settings.model_caches.insert(
+            AgentProviderKind::Openrouter.as_str().into(),
+            settings.model_cache_openrouter.clone(),
+        );
+    }
+    if !settings.model_cache_anthropic.is_empty() {
+        settings.model_caches.insert(
+            AgentProviderKind::Anthropic.as_str().into(),
+            settings.model_cache_anthropic.clone(),
+        );
+    }
+    if !settings.model_cache_openai.is_empty() {
+        settings.model_caches.insert(
+            AgentProviderKind::Openai.as_str().into(),
+            settings.model_cache_openai.clone(),
+        );
+    }
+    for provider in crate::agent::provider::all_providers()
+        .iter()
+        .map(|spec| spec.kind)
+    {
+        settings
+            .model_caches
+            .entry(provider.as_str().into())
+            .or_insert_with(|| curated_models(provider));
+    }
+    sync_legacy_caches(settings);
+    for (key, value) in default_provider_base_urls() {
+        settings.provider_base_urls.entry(key).or_insert(value);
+    }
+}
+
+fn sync_legacy_caches(settings: &mut AgentProviderSettings) {
+    settings.model_cache_openrouter = cache_for_provider(settings, AgentProviderKind::Openrouter);
+    settings.model_cache_anthropic = cache_for_provider(settings, AgentProviderKind::Anthropic);
+    settings.model_cache_openai = cache_for_provider(settings, AgentProviderKind::Openai);
 }
 
 fn cache_for_provider(
     settings: &AgentProviderSettings,
     provider: AgentProviderKind,
 ) -> Vec<ProviderModelEntry> {
-    match provider {
-        AgentProviderKind::Openrouter => settings.model_cache_openrouter.clone(),
-        AgentProviderKind::Anthropic => settings.model_cache_anthropic.clone(),
-        AgentProviderKind::Openai => settings.model_cache_openai.clone(),
-    }
+    settings
+        .model_caches
+        .get(provider.as_str())
+        .cloned()
+        .unwrap_or_else(|| curated_models(provider))
 }
 
 fn set_cache_for_provider(
@@ -545,11 +738,50 @@ fn set_cache_for_provider(
     provider: AgentProviderKind,
     entries: Vec<ProviderModelEntry>,
 ) {
-    match provider {
-        AgentProviderKind::Openrouter => settings.model_cache_openrouter = entries,
-        AgentProviderKind::Anthropic => settings.model_cache_anthropic = entries,
-        AgentProviderKind::Openai => settings.model_cache_openai = entries,
+    settings
+        .model_caches
+        .insert(provider.as_str().into(), entries);
+    sync_legacy_caches(settings);
+}
+
+/// Resolve the active model's max context window in tokens. Prefers the
+/// cached provider entry's `context_length` (OpenRouter live data), falling
+/// back to the static table in `agent/context_window.rs`. `None` when the
+/// model is unknown — the UI then shows a raw token count without a percent.
+pub fn resolve_context_length(settings: &AgentProviderSettings) -> Option<u64> {
+    let provider = settings.provider;
+    let model_id = settings.model_id.trim();
+    if model_id.is_empty() {
+        return None;
     }
+    let cached = cache_for_provider(settings, provider)
+        .into_iter()
+        .find(|e| e.id == model_id)
+        .and_then(|e| e.context_length)
+        .filter(|&n| n > 0);
+    cached.or_else(|| crate::agent::context_window::fallback_context_length(provider, model_id))
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ActiveContextWindow {
+    pub provider: AgentProviderKind,
+    pub model_id: String,
+    /// Max context window in tokens, or `None` when unknown.
+    pub context_length: Option<u64>,
+}
+
+/// Report the active provider/model and its resolved context-window size.
+/// Polled by the chat header's occupancy meter.
+#[tauri::command]
+pub fn agent_active_context_window(app: AppHandle) -> Result<ActiveContextWindow, String> {
+    let settings = load_settings(&app)?;
+    let context_length = resolve_context_length(&settings);
+    Ok(ActiveContextWindow {
+        provider: settings.provider,
+        model_id: settings.model_id.clone(),
+        context_length,
+    })
 }
 
 fn settings_view(
@@ -560,6 +792,10 @@ fn settings_view(
         AgentProviderKind::Openrouter,
         AgentProviderKind::Anthropic,
         AgentProviderKind::Openai,
+        AgentProviderKind::HuggingFace,
+        AgentProviderKind::Cloudflare,
+        AgentProviderKind::Together,
+        AgentProviderKind::Portkey,
     ]
     .into_iter()
     .map(|provider| {
@@ -594,6 +830,9 @@ struct OpenrouterModel {
     /// treated as free (e.g. `request` or `image` for text-only models).
     #[serde(default)]
     pricing: Option<OpenrouterModelPricing>,
+    /// Max context window in tokens. Present for virtually every model.
+    #[serde(default)]
+    context_length: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -645,8 +884,11 @@ async fn fetch_models_live(
         .build()
         .map_err(|e| format!("http client: {e}"))?;
 
-    match provider {
-        AgentProviderKind::Openrouter => {
+    let settings = load_settings(app)?;
+    let spec = crate::agent::provider::spec(provider);
+
+    match spec.model_discovery {
+        crate::agent::provider::ModelDiscovery::OpenRouter => {
             let res = client
                 .get("https://openrouter.ai/api/v1/models")
                 .send()
@@ -667,39 +909,50 @@ async fn fetch_models_live(
                     id: entry.id,
                     description: entry.description,
                     pricing: parse_openrouter_pricing(entry.pricing),
+                    context_length: entry.context_length.filter(|&n| n > 0),
                 })
                 .collect::<Vec<_>>();
             items.sort_by(|a, b| a.label.cmp(&b.label));
             Ok(items)
         }
-        AgentProviderKind::Openai => {
-            let key = provider_key(app, provider)?;
-            let res = client
-                .get("https://api.openai.com/v1/models")
-                .bearer_auth(key)
+        crate::agent::provider::ModelDiscovery::OpenAiCompatible
+        | crate::agent::provider::ModelDiscovery::Cloudflare => {
+            let url = crate::agent::provider::models_url(&settings, provider)?;
+            let key = if crate::agent::provider::provider_requires_key(provider) {
+                Some(provider_key(app, provider)?)
+            } else {
+                None
+            };
+            let mut req = client.get(&url);
+            if let Some(key) = key {
+                req = req.bearer_auth(key);
+            }
+            let res = req
                 .send()
                 .await
-                .map_err(|e| format!("openai models: {e}"))?;
+                .map_err(|e| format!("{} models: {e}", provider.as_str()))?;
             let res = res
                 .error_for_status()
-                .map_err(|e| format!("openai models: {e}"))?;
-            let body: OpenaiModelsEnvelope =
-                res.json().await.map_err(|e| format!("openai parse: {e}"))?;
+                .map_err(|e| format!("{} models: {e}", provider.as_str()))?;
+            let body: OpenaiModelsEnvelope = res
+                .json()
+                .await
+                .map_err(|e| format!("{} parse: {e}", provider.as_str()))?;
             let mut items = body
                 .data
                 .into_iter()
-                .filter(|entry| entry.id.starts_with("gpt-") || entry.id.contains("o"))
                 .map(|entry| ProviderModelEntry {
                     label: entry.id.clone(),
                     id: entry.id,
                     description: None,
                     pricing: None,
+                    context_length: None,
                 })
                 .collect::<Vec<_>>();
             items.sort_by(|a, b| a.label.cmp(&b.label));
             Ok(items)
         }
-        AgentProviderKind::Anthropic => {
+        crate::agent::provider::ModelDiscovery::Anthropic => {
             let key = provider_key(app, provider)?;
             let res = client
                 .get("https://api.anthropic.com/v1/models")
@@ -726,6 +979,7 @@ async fn fetch_models_live(
                     id: entry.id,
                     description: None,
                     pricing: None,
+                    context_length: None,
                 })
                 .collect::<Vec<_>>();
             items.sort_by(|a, b| a.label.cmp(&b.label));
@@ -748,8 +1002,56 @@ pub fn agent_settings_save(
     settings.provider = patch.provider;
     settings.model_id = patch.model_id.trim().to_string();
     settings.thinking_level = patch.thinking_level;
+    settings.tool_loop_limit = clamp_tool_loop_limit(patch.tool_loop_limit);
+    settings.auto_compact_enabled = patch.auto_compact_enabled;
+    settings.auto_compact_threshold_pct =
+        clamp_auto_compact_threshold_pct(patch.auto_compact_threshold_pct);
+    settings.orb_mode = patch.orb_mode;
+    settings.agent_nickname = crate::agent::nickname::validate_nickname(&patch.agent_nickname)
+        .map_err(|e| {
+            // Surface the stable reason code; the UI maps it to a localized message.
+            format!("nickname:{}", e.reason_code())
+        })?;
+    settings.default_session_role = normalize_session_role(patch.default_session_role);
+    settings.provider_base_urls = patch.provider_base_urls;
+    settings.cloudflare_account_id = patch.cloudflare_account_id.trim().to_string();
+    normalize_provider_settings(&mut settings);
     save_settings(&app, &settings)?;
     settings_view(&app, settings)
+}
+
+#[tauri::command]
+pub fn agent_onboarding_complete(
+    app: AppHandle,
+    agent_nickname: String,
+    default_session_role: Option<String>,
+) -> Result<AgentProviderSettingsView, String> {
+    let mut settings = load_settings(&app)?;
+    settings.agent_nickname = crate::agent::nickname::validate_nickname(&agent_nickname)
+        .map_err(|e| format!("nickname:{}", e.reason_code()))?;
+    settings.default_session_role = normalize_session_role(default_session_role);
+    settings.onboarding_seen = true;
+    normalize_provider_settings(&mut settings);
+    save_settings(&app, &settings)?;
+    settings_view(&app, settings)
+}
+
+/// Validate a candidate agent nickname without persisting it. Returns `Ok(())`
+/// when acceptable (including blank = "use default"), or `Err(reason_code)`
+/// (`tooLong` / `invalidChars` / `badWord`) for live UI feedback.
+#[tauri::command]
+pub fn agent_validate_nickname(name: String) -> Result<(), String> {
+    crate::agent::nickname::validate_nickname(&name)
+        .map(|_| ())
+        .map_err(|e| e.reason_code().to_string())
+}
+
+/// Lists the built-in BLXCode harness session roles (specialized skills) for
+/// the Create-Workspace session-mode picker. Each entry carries the slug,
+/// title, description, declared skills/tools, accent color, and suggested model.
+#[tauri::command]
+pub fn agent_session_roles_list() -> Vec<crate::agent::session_roles::RoleMeta> {
+    crate::agent::session_roles::list_roles()
 }
 
 #[tauri::command]
@@ -810,19 +1112,19 @@ pub async fn agent_provider_models(
 }
 
 pub fn provider_status_json() -> serde_json::Value {
-    let key_statuses = [
-        AgentProviderKind::Openrouter,
-        AgentProviderKind::Anthropic,
-        AgentProviderKind::Openai,
-    ]
-    .into_iter()
-    .map(|provider| {
-        serde_json::json!({
-            "provider": provider.as_str(),
-            "configured": false,
+    let key_statuses = crate::agent::provider::all_providers()
+        .iter()
+        .map(|spec| {
+            serde_json::json!({
+                "id": spec.id,
+                "provider": spec.kind.as_str(),
+                "label": spec.label,
+                "class": crate::agent::provider::class_label(spec.class),
+                "configured": false,
+                "requiresKey": crate::agent::provider::provider_requires_key(spec.kind),
+            })
         })
-    })
-    .collect::<Vec<_>>();
+        .collect::<Vec<_>>();
 
     serde_json::json!({
         "phase": "mock_engine",

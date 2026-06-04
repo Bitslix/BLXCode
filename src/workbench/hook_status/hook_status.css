@@ -1,0 +1,34 @@
+/* Hook-check status-bar item — VSCode-style icon + text in the right slot
+   of `.app-statusline`. Reuses `.app-statusline__item` layout; only adds a
+   clickable affordance, a warn accent, and the spinner animation. */
+
+.app-statusline__item--button {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.app-statusline__item--button:disabled {
+  cursor: default;
+}
+
+.app-statusline__item--warn {
+  color: var(--warning);
+}
+
+.hook-status-item__spin {
+  display: inline-flex;
+  animation: hook-status-spin 0.9s linear infinite;
+}
+
+@keyframes hook-status-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

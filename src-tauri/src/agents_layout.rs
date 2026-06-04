@@ -1,5 +1,6 @@
 //! Workspace `.agents/` bootstrap and learnings wikilink upgrades.
 
+use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -7,18 +8,20 @@ pub const AGENTS_REL: &str = ".agents";
 pub const MEMORY_REL: &str = ".agents/memory";
 pub const LEARNINGS_REL: &str = ".agents/learnings";
 pub const PLANS_REL: &str = ".agents/plans";
+pub const KANBAN_REL: &str = ".agents/kanban";
 pub const LEARNINGS_API_PREFIX: &str = "learnings/";
 pub const PLANS_INDEX: &str = "PLANS.md";
 const TEMPLATES_DIRNAME: &str = "_templates";
 
 const LEARNINGS_INDEX: &str = "LEARNINGS.md";
 const LEARNINGS_INDEX_TYPO: &str = "LEARNIGS.md";
+const README: &str = "README.md";
 
 const PLANS_SEED: &str = r#"# Plans
 
 This directory holds durable Markdown plans for AI coding agents working on
-this repository. Each plan lives in its own Markdown file under
-`.agents/plans/`. Plans are the structured Markdown counterpart to the
+this repository. Each plan lives in its own folder as
+`.agents/plans/<slug>/plan.md`. Plans are the structured Markdown counterpart to the
 short-lived task list — they are checked into git and survive across
 sessions.
 
@@ -27,7 +30,7 @@ relative Markdown link, one line per plan.
 
 ## Index
 
-_(Add plans here as `[Short title](plan-filename.md)` — one line per plan.)_
+_(Add plans here as `[Short title](plan-slug/plan.md)` — one line per plan.)_
 "#;
 
 const LEARNINGS_SEED: &str = r#"# Learnings
@@ -44,9 +47,57 @@ Markdown files inside `.agents/learnings/`.
 _(Add learnings here as `[[learnings/topic-filename|Short title]]` — one line per topic.)_
 "#;
 
+const MEMORY_README_SEED: &str = r#"# Memory
+
+Persistent workspace memory for BLXCode agents.
+
+Use this folder for durable project context, decisions, conventions, and
+references that should be available across sessions.
+"#;
+
+const LEARNINGS_README_SEED: &str = r#"# Learnings
+
+Persistent workspace learnings for BLXCode agents.
+
+Use this folder for facts, mistakes, pitfalls, and discoveries that should be
+remembered when future agents work in this repository.
+"#;
+
+const PLANS_README_SEED: &str = r#"# Plans
+
+Durable Markdown plans for BLXCode agents.
+
+Use one folder per implementation plan: `<slug>/plan.md`. Additional files in
+the same folder can hold plan-specific attachments or notes.
+"#;
+
+const KANBAN_README_SEED: &str = r#"# Kanban
+
+Workspace Multi-Kanban layout metadata for BLXCode.
+
+Plan and task content stays in `.agents/plans/`. This folder stores only board
+layout state such as expanded sections, ordering, and filters.
+"#;
+
+const RULES_README_SEED: &str = r#"# Rules
+
+Project rules for BLXCode agents.
+
+Use this folder for repository-specific rules, conventions, and constraints
+that agents should read before editing code.
+"#;
+
 #[derive(Debug, Clone)]
 pub struct WorkspaceRoots {
     pub plans: PathBuf,
+    pub kanban: PathBuf,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentsLayoutStatus {
+    pub missing_dirs: Vec<String>,
+    pub missing_files: Vec<String>,
 }
 
 pub fn validate_workspace_cwd(ws: &str) -> Result<PathBuf, String> {
@@ -64,13 +115,53 @@ pub fn validate_workspace_cwd(ws: &str) -> Result<PathBuf, String> {
     Ok(p)
 }
 
-/// Creates `.agents/memory`, `.agents/learnings`, seeds index, upgrades wikilinks.
+/// Return the missing required `.agents` directories / README files without
+/// creating anything. This is used by the frontend before it asks the user for
+/// permission to bootstrap a first-touch workspace.
+pub fn agents_layout_status(ws: &str) -> Result<AgentsLayoutStatus, String> {
+    let ws_path = validate_workspace_cwd(ws)?;
+    let required_dirs = [
+        MEMORY_REL,
+        LEARNINGS_REL,
+        PLANS_REL,
+        KANBAN_REL,
+        crate::skills_rules::store::RULES_REL,
+    ];
+    let required_files = required_dirs.map(|dir| format!("{dir}/{README}"));
+
+    let missing_dirs = required_dirs
+        .iter()
+        .filter(|rel| !ws_path.join(rel).is_dir())
+        .map(|rel| (*rel).to_string())
+        .collect();
+    let missing_files = required_files
+        .iter()
+        .filter(|rel| !ws_path.join(rel).is_file())
+        .cloned()
+        .collect();
+
+    Ok(AgentsLayoutStatus {
+        missing_dirs,
+        missing_files,
+    })
+}
+
+#[tauri::command]
+pub async fn workspace_agents_layout_status(
+    workspace_cwd: String,
+) -> Result<AgentsLayoutStatus, String> {
+    crate::proc::run_blocking(move || agents_layout_status(&workspace_cwd)).await
+}
+
+/// Creates `.agents/memory`, `.agents/learnings`, `.agents/plans`, seeds
+/// README/index files, upgrades learnings wikilinks.
 pub fn ensure_agents_layout(ws: &str) -> Result<WorkspaceRoots, String> {
     let ws_path = validate_workspace_cwd(ws)?;
     let agents = ws_path.join(AGENTS_REL);
     let memory = ws_path.join(MEMORY_REL);
     let learnings = ws_path.join(LEARNINGS_REL);
     let plans = ws_path.join(PLANS_REL);
+    let kanban = ws_path.join(KANBAN_REL);
     let templates = memory.join(TEMPLATES_DIRNAME);
 
     fs::create_dir_all(&agents).map_err(|e| format!("create {AGENTS_REL}: {e}"))?;
@@ -78,13 +169,29 @@ pub fn ensure_agents_layout(ws: &str) -> Result<WorkspaceRoots, String> {
     fs::create_dir_all(&templates).map_err(|e| format!("create templates: {e}"))?;
     fs::create_dir_all(&learnings).map_err(|e| format!("create {LEARNINGS_REL}: {e}"))?;
     fs::create_dir_all(&plans).map_err(|e| format!("create {PLANS_REL}: {e}"))?;
+    fs::create_dir_all(&kanban).map_err(|e| format!("create {KANBAN_REL}: {e}"))?;
 
+    seed_file_if_missing(&memory.join(README), MEMORY_README_SEED)?;
+    seed_file_if_missing(&learnings.join(README), LEARNINGS_README_SEED)?;
+    seed_file_if_missing(&plans.join(README), PLANS_README_SEED)?;
+    seed_file_if_missing(&kanban.join(README), KANBAN_README_SEED)?;
     seed_learnings_index_if_empty(&learnings)?;
     fix_learnings_index_typo(&learnings)?;
     upgrade_learnings_graph_links(&learnings)?;
     seed_plans_index_if_missing(&plans)?;
 
-    Ok(WorkspaceRoots { plans })
+    Ok(WorkspaceRoots { plans, kanban })
+}
+
+pub fn seed_rules_readme_if_missing(rules: &Path) -> Result<(), String> {
+    seed_file_if_missing(&rules.join(README), RULES_README_SEED)
+}
+
+fn seed_file_if_missing(path: &Path, content: &str) -> Result<(), String> {
+    if path.exists() {
+        return Ok(());
+    }
+    fs::write(path, content.as_bytes()).map_err(|e| format!("write {}: {e}", path.display()))
 }
 
 fn seed_plans_index_if_missing(plans: &Path) -> Result<(), String> {

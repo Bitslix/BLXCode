@@ -1,0 +1,458 @@
+import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+
+const MODEL_URL = "/public/assets/Drobo.glb";
+const instances = new Map();
+let nextId = 1;
+
+const loader = new GLTFLoader();
+const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+const BASE_ROTATION = {
+  x: -0.05,
+  y: -Math.PI / 2 + 0.08,
+  z: -0.02,
+};
+const MODEL_Y_OFFSET = 0.28;
+
+function clamp(value, min = -1, max = 1) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function trackingRectFor(container) {
+  const root =
+    container.closest?.(".workbench-right") ||
+    container.closest?.(".workbench-right-slot") ||
+    container.closest?.(".workbench-agent-pane") ||
+    container;
+  return root.getBoundingClientRect();
+}
+
+function readCssVar(name, fallback = "") {
+  try {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function cssColor(name, fallback) {
+  const raw = readCssVar(name, fallback);
+  try {
+    return new THREE.Color(raw);
+  } catch (_) {
+    const rgba = raw.match(/rgba?\(([^)]+)\)/i);
+    if (rgba) {
+      const parts = rgba[1].split(",").map((part) => Number.parseFloat(part.trim()));
+      if (parts.length >= 3 && parts.every((part) => Number.isFinite(part))) {
+        return new THREE.Color(parts[0] / 255, parts[1] / 255, parts[2] / 255);
+      }
+    }
+    return new THREE.Color(fallback);
+  }
+}
+
+function mix(color, target, amount) {
+  return color.clone().lerp(target, amount);
+}
+
+function cycleColor(colors, phase) {
+  if (!colors?.length) return new THREE.Color("#ffffff");
+  const wrapped = ((phase % 1) + 1) % 1;
+  const scaled = wrapped * colors.length;
+  const index = Math.floor(scaled) % colors.length;
+  const next = (index + 1) % colors.length;
+  return colors[index].clone().lerp(colors[next], scaled - Math.floor(scaled));
+}
+
+function materialKind(material) {
+  switch (material?.name) {
+    case "mat8":
+      return "screen";
+    case "mat14":
+      return "screen-accent";
+    case "mat15":
+      return "chassis";
+    case "mat21":
+      return "body";
+    case "mat22":
+      return "joint";
+    case "mat23":
+      return "dark";
+    default:
+      return "body";
+  }
+}
+
+function applyTheme(rec) {
+  if (!rec?.materials) return;
+  const bgApp = cssColor("--bg-app", "#16161e");
+  const bgRaised = cssColor("--bg-raised", "#1a1b26");
+  const bgPanel = cssColor("--bg-panel", "#1f2030");
+  const bgPanelHeader = cssColor("--bg-panel-header", "#24263a");
+  const text = cssColor("--text", "#c8d3f5");
+  const textMuted = cssColor("--text-muted", "#a9b1d6");
+  const textBright = cssColor("--text-bright", "#f8f8f2");
+  const accent = cssColor("--accent", "#bd93f9");
+  const accentCool = cssColor("--accent-cool", "#7dcfff");
+  const keyword = cssColor("--syntax-keyword", "#ff79c6");
+  const success = cssColor("--success", "#50fa7b");
+  const warning = cssColor("--warning", "#ffb86c");
+  const palette = {
+    body: mix(bgPanelHeader, accentCool, 0.22).lerp(text, 0.1),
+    chassis: mix(bgRaised, textMuted, 0.38).lerp(accentCool, 0.16),
+    joint: mix(bgPanel, accentCool, 0.34).lerp(textBright, 0.06),
+    dark: mix(bgApp, new THREE.Color("#000000"), 0.48),
+    screen: mix(accent, textBright, 0.14),
+    screenAccent: mix(accentCool, textBright, 0.24),
+    thinkScreen: mix(accentCool, bgPanelHeader, 0.34),
+    thinkAccent: mix(accent, bgPanelHeader, 0.32),
+    thinkColors: [
+      mix(accentCool, bgPanelHeader, 0.34),
+      mix(accent, bgPanelHeader, 0.32),
+      mix(keyword, bgPanelHeader, 0.3),
+      mix(success, bgPanelHeader, 0.28),
+      mix(warning, bgPanelHeader, 0.28),
+    ],
+  };
+
+  for (const material of rec.materials) {
+    const kind = material.userData.droboKind;
+    const color =
+      kind === "screen"
+        ? palette.screen
+        : kind === "screen-accent"
+          ? palette.screenAccent
+          : kind === "chassis"
+            ? palette.chassis
+            : kind === "joint"
+              ? palette.joint
+              : kind === "dark"
+                ? palette.dark
+                : palette.body;
+    material.color.copy(color);
+    material.emissive.copy(kind === "screen" || kind === "screen-accent" ? color : palette.dark);
+    const baseEmissive =
+      kind === "screen" ? 0.42 : kind === "screen-accent" ? 0.52 : kind === "dark" ? 0.025 : 0.01;
+    material.userData.baseColor = color.clone();
+    material.userData.baseEmissiveColor = material.emissive.clone();
+    material.userData.thinkColor =
+      kind === "screen" ? palette.thinkScreen.clone() : kind === "screen-accent" ? palette.thinkAccent.clone() : null;
+    material.userData.baseEmissive = baseEmissive;
+    material.emissiveIntensity = baseEmissive;
+    material.needsUpdate = true;
+  }
+
+  rec.keyLight.color.copy(mix(accentCool, textBright, 0.18));
+  rec.fillLight.color.copy(mix(accent, bgPanel, 0.12));
+  rec.rimLight.color.copy(palette.body);
+  rec.thinkLight.color.copy(palette.thinkScreen);
+  rec.thinkColors = palette.thinkColors.map((color) => color.clone());
+}
+
+function fitModelToGroup(model, group) {
+  const box = new THREE.Box3().setFromObject(model);
+  const size = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  box.getSize(size);
+  box.getCenter(center);
+  const maxSide = Math.max(size.x, size.y, size.z) || 1;
+  model.position.sub(center);
+  model.scale.setScalar(2.68 / maxSide);
+  group.add(model);
+}
+
+function cloneAndPrepareMaterials(model) {
+  const materials = [];
+  model.traverse((obj) => {
+    if (!obj.isMesh) return;
+    obj.castShadow = false;
+    obj.receiveShadow = false;
+    const src = Array.isArray(obj.material) ? obj.material : [obj.material];
+    const cloned = src.map((material) => {
+      const next = material.clone();
+      next.userData.droboKind = materialKind(material);
+      next.metalness = 0.04;
+      next.roughness = 0.78;
+      materials.push(next);
+      return next;
+    });
+    obj.material = Array.isArray(obj.material) ? cloned : cloned[0];
+  });
+  return materials;
+}
+
+function create(container) {
+  const id = nextId++;
+  container.classList.remove("drobo-orb__stage--loaded", "drobo-orb__stage--failed");
+
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({
+      alpha: true,
+      antialias: true,
+      preserveDrawingBuffer: true,
+      powerPreference: "low-power",
+    });
+  } catch (_) {
+    container.classList.add("drobo-orb__stage--failed");
+    instances.set(id, { id, container, failed: true });
+    return id;
+  }
+  renderer.setClearColor(0x000000, 0);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.domElement.className = "drobo-orb__canvas";
+  renderer.domElement.setAttribute("aria-hidden", "true");
+  container.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 100);
+  camera.position.set(0, 0.12, 6.9);
+  camera.lookAt(0, 0, 0);
+
+  const group = new THREE.Group();
+  group.rotation.set(BASE_ROTATION.x, BASE_ROTATION.y, BASE_ROTATION.z);
+  scene.add(group);
+
+  const ambient = new THREE.HemisphereLight(0xffffff, 0x0d1018, 1.65);
+  scene.add(ambient);
+  const keyLight = new THREE.DirectionalLight(0x7dcfff, 1.65);
+  keyLight.position.set(2.2, 2.4, 3.4);
+  scene.add(keyLight);
+  const fillLight = new THREE.DirectionalLight(0xbd93f9, 0.74);
+  fillLight.position.set(-2.6, 1.3, 2.2);
+  scene.add(fillLight);
+  const rimLight = new THREE.DirectionalLight(0xffffff, 0.56);
+  rimLight.position.set(0, 2.5, -3.2);
+  scene.add(rimLight);
+  const thinkLight = new THREE.PointLight(0x7dcfff, 0, 4.8);
+  thinkLight.position.set(0.25, 0.28, 2.8);
+  scene.add(thinkLight);
+
+  const rec = {
+    id,
+    container,
+    renderer,
+    scene,
+    camera,
+    group,
+    keyLight,
+    fillLight,
+    rimLight,
+    thinkLight,
+    materials: [],
+    resizeObserver: null,
+    frame: 0,
+    createdAt: performance.now(),
+    pointer: { x: 0, y: 0 },
+    target: { x: 0, y: 0 },
+    rotation: { x: BASE_ROTATION.x, y: BASE_ROTATION.y, z: BASE_ROTATION.z },
+    state: { active: false, transcribing: false, thinking: false, compact: false },
+    thinkLevel: 0,
+    reducedMotion: Boolean(prefersReducedMotion?.matches),
+  };
+  instances.set(id, rec);
+
+  const onPointerMove = (event) => {
+    const trackRect = trackingRectFor(container);
+    if (
+      event.clientX < trackRect.left ||
+      event.clientX > trackRect.right ||
+      event.clientY < trackRect.top ||
+      event.clientY > trackRect.bottom
+    ) {
+      onPointerLeave();
+      return;
+    }
+
+    const orbRect = container.getBoundingClientRect();
+    const centerX = orbRect.left + orbRect.width / 2;
+    const centerY = orbRect.top + orbRect.height / 2;
+    const reachX = Math.max(orbRect.width * 1.45, trackRect.width * 0.42);
+    const reachY = Math.max(orbRect.height * 1.45, trackRect.height * 0.36);
+    rec.pointer.x = clamp((event.clientX - centerX) / reachX);
+    rec.pointer.y = clamp((event.clientY - centerY) / reachY);
+  };
+  const onPointerLeave = () => {
+    rec.pointer.x = 0;
+    rec.pointer.y = 0;
+  };
+  const onPointerOut = (event) => {
+    if (!event.relatedTarget) onPointerLeave();
+  };
+  rec.onPointerMove = onPointerMove;
+  rec.onPointerLeave = onPointerLeave;
+  rec.onPointerOut = onPointerOut;
+  window.addEventListener("pointermove", onPointerMove);
+  window.addEventListener("blur", onPointerLeave);
+  window.addEventListener("pointerout", onPointerOut);
+
+  rec.resizeObserver = new ResizeObserver(() => resize(id));
+  rec.resizeObserver.observe(container);
+
+  loader.load(
+    MODEL_URL,
+    (gltf) => {
+      if (!instances.has(id)) return;
+      rec.materials = cloneAndPrepareMaterials(gltf.scene);
+      fitModelToGroup(gltf.scene, group);
+      applyTheme(rec);
+      container.classList.add("drobo-orb__stage--loaded");
+      resize(id);
+    },
+    undefined,
+    () => {
+      container.classList.add("drobo-orb__stage--failed");
+    },
+  );
+
+  resize(id);
+  animate(id);
+  return id;
+}
+
+function animate(id) {
+  const rec = instances.get(id);
+  if (!rec) return;
+  const tick = () => {
+    if (!instances.has(id)) return;
+    const now = performance.now();
+    const activeBoost = rec.state.active ? 1.0 : 0.0;
+    const pulseBoost = rec.state.transcribing ? 1.0 : 0.0;
+    const compact = rec.state.compact || rec.container.clientWidth < 60;
+    const idleScale = rec.reducedMotion ? 0 : compact ? 0.055 : 0.09;
+    const cursorScale = rec.reducedMotion ? 0.11 : compact ? 0.22 : 0.34;
+    const idle = (now - rec.createdAt) / 1000;
+
+    rec.target.x = BASE_ROTATION.x + rec.pointer.y * cursorScale + Math.sin(idle * 1.4) * idleScale;
+    rec.target.y = BASE_ROTATION.y + rec.pointer.x * cursorScale + Math.sin(idle * 0.8) * idleScale;
+    rec.target.z = BASE_ROTATION.z + rec.pointer.x * 0.06 + Math.sin(idle * 1.1) * idleScale * 0.28;
+
+    const damp = rec.reducedMotion ? 0.1 : 0.075;
+    rec.rotation.x += (rec.target.x - rec.rotation.x) * damp;
+    rec.rotation.y += (rec.target.y - rec.rotation.y) * damp;
+    rec.rotation.z += (rec.target.z - rec.rotation.z) * damp;
+    rec.group.rotation.set(rec.rotation.x, rec.rotation.y, rec.rotation.z);
+
+    const bob = rec.reducedMotion ? 0 : Math.sin(idle * (rec.state.active ? 3.2 : 1.7)) * (compact ? 0.012 : 0.026);
+    rec.group.position.y = MODEL_Y_OFFSET + bob;
+    const thinkTarget = rec.state.thinking ? 1 : 0;
+    const thinkDamp = rec.state.thinking ? 0.12 : 0.075;
+    rec.thinkLevel += (thinkTarget - rec.thinkLevel) * thinkDamp;
+    rec.container.classList.toggle(
+      "drobo-orb__stage--thinking",
+      rec.state.thinking || rec.thinkLevel > 0.025,
+    );
+    const thinkWave =
+      (rec.reducedMotion ? 0.7 : 0.56 + 0.24 * Math.sin(idle * 5.4) + 0.14 * Math.sin(idle * 11.1)) *
+      rec.thinkLevel;
+    const thinkAmount = clamp(thinkWave, 0, 1);
+    rec.group.scale.setScalar(
+      1 +
+        activeBoost * 0.045 +
+        pulseBoost * (0.025 + Math.sin(idle * 8) * 0.012) +
+        thinkAmount * 0.05,
+    );
+    const thinkColor = cycleColor(rec.thinkColors, idle * 0.32);
+    const thinkColorAlt = cycleColor(rec.thinkColors, idle * 0.32 + 0.42);
+    rec.thinkLight.color.copy(thinkColor);
+    rec.thinkLight.intensity = rec.thinkLevel * (0.48 + thinkAmount * 1.05);
+    rec.keyLight.intensity = 1.65 + thinkAmount * 0.28;
+    rec.fillLight.intensity = 0.74 + thinkAmount * 0.22;
+
+    // Thinking needs to read at orb size, so it shifts the screen hue and
+    // throws a small front light instead of relying on subtle emissive only.
+    for (const material of rec.materials) {
+      const kind = material.userData.droboKind;
+      const baseColor = material.userData.baseColor;
+      const baseEmissiveColor = material.userData.baseEmissiveColor;
+      if (baseColor && kind !== "screen" && kind !== "screen-accent") {
+        material.color.copy(baseColor);
+      }
+      if (kind !== "screen" && kind !== "screen-accent") continue;
+      const base = material.userData.baseEmissive ?? material.emissiveIntensity;
+      const materialThinkColor =
+        kind === "screen-accent"
+          ? thinkColorAlt
+          : rec.thinkLevel > 0.01
+            ? thinkColor
+            : material.userData.thinkColor;
+      if (baseColor && materialThinkColor) {
+        material.color.copy(baseColor).lerp(materialThinkColor, thinkAmount * 0.62);
+      }
+      if (baseEmissiveColor && materialThinkColor) {
+        const emissiveMix = rec.thinkLevel * (0.1 + thinkAmount * 0.2);
+        material.emissive.copy(baseEmissiveColor).lerp(materialThinkColor, emissiveMix);
+      }
+      material.emissiveIntensity = base * (1 + thinkAmount * 0.95);
+    }
+
+    rec.renderer.render(rec.scene, rec.camera);
+    rec.frame = requestAnimationFrame(tick);
+  };
+  rec.frame = requestAnimationFrame(tick);
+}
+
+function setState(id, state = {}) {
+  const rec = instances.get(id);
+  if (!rec) return false;
+  if (rec.failed) return true;
+  rec.state.active = Boolean(state.active);
+  rec.state.transcribing = Boolean(state.transcribing);
+  rec.state.thinking = Boolean(state.thinking);
+  rec.state.compact = Boolean(state.compact);
+  rec.container.classList.toggle("drobo-orb__stage--thinking", rec.state.thinking || rec.thinkLevel > 0.025);
+  return true;
+}
+
+function resize(id) {
+  const rec = instances.get(id);
+  if (!rec) return false;
+  if (rec.failed) return true;
+  const rect = rec.container.getBoundingClientRect();
+  const width = Math.max(1, Math.floor(rect.width || rec.container.clientWidth || 1));
+  const height = Math.max(1, Math.floor(rect.height || rec.container.clientHeight || 1));
+  rec.renderer.setSize(width, height, false);
+  rec.camera.aspect = width / height;
+  rec.camera.position.z = width < 64 ? 7.1 : 6.9;
+  rec.camera.updateProjectionMatrix();
+  return true;
+}
+
+function dispose(id) {
+  const rec = instances.get(id);
+  if (!rec) return;
+  instances.delete(id);
+  if (rec.failed) return;
+  if (rec.frame) cancelAnimationFrame(rec.frame);
+  rec.resizeObserver?.disconnect();
+  window.removeEventListener("pointermove", rec.onPointerMove);
+  window.removeEventListener("blur", rec.onPointerLeave);
+  window.removeEventListener("pointerout", rec.onPointerOut);
+  rec.scene.traverse((obj) => {
+    if (!obj.isMesh) return;
+    obj.geometry?.dispose?.();
+    const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+    for (const material of materials) material?.dispose?.();
+  });
+  rec.renderer.dispose();
+  rec.renderer.domElement.remove();
+}
+
+window.addEventListener("blxcode-theme-changed", () => {
+  for (const rec of instances.values()) applyTheme(rec);
+});
+
+prefersReducedMotion?.addEventListener?.("change", (event) => {
+  for (const rec of instances.values()) rec.reducedMotion = Boolean(event.matches);
+});
+
+window.__blxcodeDroboOrb = {
+  create,
+  setState,
+  resize,
+  dispose,
+};
+
+window.dispatchEvent(new CustomEvent("blxcode-drobo-orb-api-ready"));

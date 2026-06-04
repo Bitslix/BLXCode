@@ -87,15 +87,39 @@ Before **shell** or **Git** tools run in a workspace session, the agent must cal
 
 Core skill **harness** documents terminal tools; **shell** documents `shell_exec` and allowlists.
 
+When terminals are in **named** mode (see [Workspaces → Named terminals](workspaces.md#named-terminals)), the harness terminal tools accept a `name` argument alongside the existing `slotId` and `agentSlug` targets. Matching is case-insensitive, so the agent can resolve a request like *"ask Devon to run the tests"* to the right slot. `harness.list_terminals` also returns the resolved display `name` and the current `namingMode` for every slot.
+
 ### Git and diff
 
-Read-only Git inspection is available via dedicated tools (`git_status`, `git_diff`, `git_log`, …) and workspace helpers (`workspace_git_status`, `workspace_diff`, `workspace_search`). Mutating Git (`git_add`, `git_commit`, `git_apply_patch`) is coordinator-only and requires explicit `git_write` permission in subagent runs (subagents do not get write by default).
+Read-only Git inspection is available via dedicated tools (`git_status`, `git_diff`, `git_log`, `git_conflicts`, …) and workspace helpers (`workspace_git_status`, `workspace_diff`, `workspace_search`). Mutating Git (`git_add`, `git_commit`, `git_apply_patch`) is coordinator-only and requires explicit `git_write` permission in subagent runs (subagents do not get write by default).
 
 Core skill **git** has full parameter notes.
 
 ## Conversation flow
 
 Poll-based: `agent_submit_turn` → `agent_poll_events` until `Done`. Client tools (harness terminals, context attach) round-trip via `agent_submit_tool_result`.
+
+## Agent Chat modes
+
+The toolbar above the Agent input selects a mode for the current Agent Chat session:
+
+| Mode | Behavior |
+|------|----------|
+| **Ask Edits** | Default. BLXCode asks before file/folder writes/deletes/renames, app/window/settings changes, and shell/terminal command execution. |
+| **Allow all** | Runs tool calls directly, including Bash/PowerShell/CMD commands. |
+| **Plan** | Read/search/analyze only. Mutating edits, window/settings changes, workspace switches, terminal submits, and write-capable commands are blocked. |
+
+The mode is stored per workspace chat session and resets to **Ask Edits** when the chat is cleared.
+
+When Ask Edits prompts for file or folder writes/deletes/renames, the permission card offers **Approve once** or **Auto-accept**. Auto-accept approves the current tool call and switches that workspace to **Allow all** immediately, so later file edits in the same turn do not repeatedly prompt.
+
+The composer also has an **Enhance prompt** toggle. When enabled, BLXCode sends the draft through a separate one-shot provider request, replaces it with the improved prompt, and then submits that improved text as the actual user turn. If enhancement fails, the original draft is restored and nothing is sent.
+
+## Workbench control tools
+
+The Agent can list and switch open workspaces, move to previous/next workspace, open right-panel views (Agent, Browser, Plans, Memory, Rules, Skills), open Settings categories, show sidebar sections, open file/diff tabs, and control the BLXCode main-window size/fullscreen state. These actions follow the active Agent Chat mode.
+
+For terminal CLI agents (`claude`, `codex`, `gemini`, `opencode`, `cursor`), the Agent uses PTY tools end to end: open/list terminals, send prompts or attached context, wait for new output with `harness.wait_terminal_output`, inspect tails with `harness.read_terminal_output`, and interrupt stuck sessions with `harness.terminal_interrupt`.
 
 ## See also
 

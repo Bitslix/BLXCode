@@ -12,7 +12,23 @@ use leptos::task::spawn_local;
 
 use crate::skills_rules_wire::{RuleEntry, SkillEntry, SkillSourceInput};
 use crate::tauri_bridge::{self, PointerResult};
-use crate::workbench::WorkbenchService;
+use crate::workbench::{CoreStatusService, WorkbenchService};
+
+/// Refreshes the status-bar core-config counts (enabled rules/skills) for the
+/// given (optional) service. Paired with [`capture_core_status`], which must
+/// be called from the synchronous mutator body so the reactive owner is still
+/// available; the result is then nudged from inside the async success branch.
+fn nudge_core_status(core: Option<CoreStatusService>, wb: WorkbenchService) {
+    if let Some(core) = core {
+        core.refresh(wb);
+    }
+}
+
+/// Reads `CoreStatusService` out of context synchronously. No-op-friendly:
+/// returns `None` in shells that don't provide it (e.g. tests).
+fn capture_core_status() -> Option<CoreStatusService> {
+    use_context::<CoreStatusService>()
+}
 
 #[derive(Clone, Copy)]
 pub struct SkillsRulesService {
@@ -234,9 +250,13 @@ impl SkillsRulesService {
         };
         let err = self.rules_error;
         let svc = self;
+        let core = capture_core_status();
         spawn_local(async move {
             match tauri_bridge::rules_set_enabled(cwd, name, enabled).await {
-                Ok(_) => svc.refresh_rules(wb),
+                Ok(_) => {
+                    svc.refresh_rules(wb);
+                    nudge_core_status(core, wb);
+                }
                 Err(e) => err.set(Some(e)),
             }
         });
@@ -248,9 +268,13 @@ impl SkillsRulesService {
         };
         let err = self.skills_error;
         let svc = self;
+        let core = capture_core_status();
         spawn_local(async move {
             match tauri_bridge::skills_set_enabled(cwd, name, enabled).await {
-                Ok(_) => svc.refresh_skills(wb),
+                Ok(_) => {
+                    svc.refresh_skills(wb);
+                    nudge_core_status(core, wb);
+                }
                 Err(e) => err.set(Some(e)),
             }
         });
@@ -262,9 +286,13 @@ impl SkillsRulesService {
         };
         let err = self.rules_error;
         let svc = self;
+        let core = capture_core_status();
         spawn_local(async move {
             match tauri_bridge::rules_remove(cwd, name).await {
-                Ok(()) => svc.refresh_rules(wb),
+                Ok(()) => {
+                    svc.refresh_rules(wb);
+                    nudge_core_status(core, wb);
+                }
                 Err(e) => err.set(Some(e)),
             }
         });
@@ -337,6 +365,7 @@ impl SkillsRulesService {
         saving.set(true);
         let err = self.rules_error;
         let svc = self;
+        let core = capture_core_status();
         spawn_local(async move {
             // `rules_write` writes the file and records/updates the rule in
             // `.agents/rules/index.json`, so creation stays index-aware.
@@ -346,6 +375,7 @@ impl SkillsRulesService {
                 Ok(_) => {
                     err.set(None);
                     svc.refresh_rules(wb);
+                    nudge_core_status(core, wb);
                     on_done(Ok(()));
                 }
                 Err(e) => {
@@ -386,9 +416,13 @@ impl SkillsRulesService {
         };
         let err = self.skills_error;
         let svc = self;
+        let core = capture_core_status();
         spawn_local(async move {
             match tauri_bridge::skills_remove(cwd, name).await {
-                Ok(()) => svc.refresh_skills(wb),
+                Ok(()) => {
+                    svc.refresh_skills(wb);
+                    nudge_core_status(core, wb);
+                }
                 Err(e) => err.set(Some(e)),
             }
         });
@@ -413,6 +447,7 @@ impl SkillsRulesService {
         let busy = self.install_busy;
         let err = self.install_error;
         let svc = self;
+        let core = capture_core_status();
         spawn_local(async move {
             let result = tauri_bridge::skills_install(cwd, name, source).await;
             busy.set(false);
@@ -420,6 +455,7 @@ impl SkillsRulesService {
                 Ok(_) => {
                     err.set(None);
                     svc.refresh_skills(wb);
+                    nudge_core_status(core, wb);
                     on_done(Ok(()));
                 }
                 Err(e) => {

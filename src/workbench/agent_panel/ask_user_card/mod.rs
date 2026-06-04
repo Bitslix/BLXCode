@@ -3,10 +3,12 @@
 //! `agent_submit_tool_result` and updates the matching `TurnPart::AskUser`
 //! row state so the bubble stays in the chat with disabled controls.
 
+use crate::agent_wire::AgentChatMode;
 use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
 use crate::tauri_bridge::agent_submit_tool_result;
 use crate::workbench::agent_timeline::{AskUserOption, AskUserState, TimelineDoc, TurnPart};
+use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use serde_json::json;
@@ -23,7 +25,11 @@ pub fn AskUserCard(
     multi_select: bool,
     allow_other: bool,
     state: AskUserState,
+    auto_collapse: Signal<bool>,
     timeline: RwSignal<TimelineDoc>,
+    wb: WorkbenchService,
+    workspace_id: Option<u64>,
+    chat_mode: RwSignal<AgentChatMode>,
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let loc = i18n.locale().get_untracked();
@@ -31,18 +37,37 @@ pub fn AskUserCard(
     let selected = RwSignal::new(HashSet::<String>::new());
     let other_text = RwSignal::new(String::new());
     let is_open = matches!(state, AskUserState::Open);
+    let can_collapse = !is_open;
+    let collapsed = RwSignal::new(false);
+    let user_toggled = RwSignal::new(false);
 
     let render_state = state.clone();
+    Effect::new(move |_| {
+        if can_collapse && auto_collapse.get() && !user_toggled.get_untracked() {
+            collapsed.set(true);
+        }
+    });
 
     let pick_single = {
         let call_id = call_id.clone();
-        move |label: String| {
+        move |option: AskUserOption| {
+            let label = option.label.clone();
             let cid = call_id.clone();
-            let payload = json!({
+            let next_mode = option.set_chat_mode_on_select;
+            if let Some(mode) = next_mode {
+                chat_mode.set(mode);
+                if let Some(workspace_id) = workspace_id {
+                    wb.set_workspace_agent_chat_mode(workspace_id, mode);
+                }
+            }
+            let mut payload = json!({
                 "selected": [label.clone()],
                 "other": "",
                 "cancelled": false,
             });
+            if matches!(next_mode, Some(AgentChatMode::AllowAll)) {
+                payload["chatModeChangedTo"] = json!("allow_all");
+            }
             mark_answered(timeline, &cid, vec![label.clone()], None);
             submit_async(cid, true, "user answered".into(), Some(payload));
         }
@@ -60,7 +85,7 @@ pub fn AskUserCard(
 
     let submit_multi = {
         let call_id = call_id.clone();
-        move || {
+        Callback::new(move |()| {
             let picked: Vec<String> = selected.get().into_iter().collect();
             let other = {
                 let s = other_text.get();
@@ -78,7 +103,7 @@ pub fn AskUserCard(
             });
             mark_answered(timeline, &cid, picked, other);
             submit_async(cid, true, "user answered".into(), Some(payload));
-        }
+        })
     };
 
     let cancel = {
@@ -108,17 +133,53 @@ pub fn AskUserCard(
 
     let cancelled = matches!(render_state, AskUserState::Cancelled);
     let answered = matches!(render_state, AskUserState::Answered { .. });
+    let status_summary = answered_summary.clone().filter(|s| !s.is_empty());
+    let answered_status_suffix = StoredValue::new(
+        answered_summary
+            .clone()
+            .filter(|s| !s.is_empty())
+            .map(|s| format!(" — {s}"))
+            .unwrap_or_default(),
+    );
+    let answered_has_summary = !answered_status_suffix.get_value().is_empty();
+    let head_status_text = if cancelled {
+        lookup(loc, I18nKey::AgAskUserCancelled).to_string()
+    } else if let Some(summary) = status_summary.as_ref() {
+        format!("{} — {}", lookup(loc, I18nKey::AgAskUserAnswered), summary)
+    } else {
+        lookup(loc, I18nKey::AgAskUserAnswered).to_string()
+    };
     let header_text = header.clone();
     let header_present = header.is_some();
     let show_send = is_open && (multi_select || allow_other);
 
     view! {
-        <div class="ask-user-card" data-open=move || if is_open { "true" } else { "false" }>
+        <div
+            class="ask-user-card"
+            data-open=move || if is_open { "true" } else { "false" }
+            data-collapsed=move || if collapsed.get() { "true" } else { "false" }
+        >
             <div class="ask-user-card__head">
                 <Show when=move || header_present>
                     <span class="ask-user-card__chip">{header_text.clone().unwrap_or_default()}</span>
                 </Show>
                 <span class="ask-user-card__title">{lookup(loc, I18nKey::AgAskUserTitle)}</span>
+                <Show when=move || can_collapse>
+                    <span class="ask-user-card__head-status">
+                        {head_status_text.clone()}
+                    </span>
+                    <button
+                        type="button"
+                        class="ask-user-card__toggle"
+                        aria-expanded=move || (!collapsed.get()).to_string()
+                        on:click=move |_| {
+                            user_toggled.set(true);
+                            collapsed.update(|v| *v = !*v);
+                        }
+                    >
+                        <LxIcon icon=icondata::LuChevronDown width="0.78rem" height="0.78rem" />
+                    </button>
+                </Show>
                 <Show when=move || is_open>
                     <button
                         type="button"
@@ -135,121 +196,117 @@ pub fn AskUserCard(
                 </Show>
             </div>
 
-            <p class="ask-user-card__question">{question}</p>
+            <Show when=move || !collapsed.get()>
+                <p class="ask-user-card__question">{question.clone()}</p>
 
-            <p class="ask-user-card__hint">{
-                if multi_select {
-                    lookup(loc, I18nKey::AgAskUserChooseMultiple)
-                } else {
-                    lookup(loc, I18nKey::AgAskUserChooseOne)
-                }
-            }</p>
+                <p class="ask-user-card__hint">{
+                    if multi_select {
+                        lookup(loc, I18nKey::AgAskUserChooseMultiple)
+                    } else {
+                        lookup(loc, I18nKey::AgAskUserChooseOne)
+                    }
+                }</p>
 
-            <ul class="ask-user-card__options">
-                {options.iter().enumerate().map(|(i, opt)| {
-                    let label = opt.label.clone();
-                    let label_for_pick = label.clone();
-                    let label_for_toggle = label.clone();
-                    let description = opt.description.clone();
-                    let desc_for_show = description.clone();
-                    let desc_present = description.is_some();
-                    let number = i + 1;
-                    let pick_single = pick_single.clone();
-                    let toggle_multi = toggle_multi.clone();
-                    let label_check = label.clone();
-                    let is_checked = move || selected.with(|s| s.contains(&label_check));
-                    let is_checked_for_class = is_checked.clone();
-                    view! {
-                        <li class="ask-user-card__option">
-                            <button
-                                type="button"
-                                class="ask-user-card__option-btn"
-                                class:is-selected=is_checked_for_class
-                                disabled=!is_open
-                                on:click=move |_| {
-                                    if multi_select {
-                                        toggle_multi(label_for_toggle.clone());
-                                    } else {
-                                        pick_single(label_for_pick.clone());
+                <ul class="ask-user-card__options">
+                    {options.iter().enumerate().map(|(i, opt)| {
+                        let label = opt.label.clone();
+                        let option_for_pick = opt.clone();
+                        let label_for_toggle = label.clone();
+                        let description = opt.description.clone();
+                        let desc_for_show = description.clone();
+                        let desc_present = description.is_some();
+                        let number = i + 1;
+                        let pick_single = pick_single.clone();
+                        let toggle_multi = toggle_multi.clone();
+                        let label_check = label.clone();
+                        let is_checked = move || selected.with(|s| s.contains(&label_check));
+                        let is_checked_for_class = is_checked.clone();
+                        view! {
+                            <li class="ask-user-card__option">
+                                <button
+                                    type="button"
+                                    class="ask-user-card__option-btn"
+                                    class:is-selected=is_checked_for_class
+                                    disabled=!is_open
+                                    on:click=move |_| {
+                                        if multi_select {
+                                            toggle_multi(label_for_toggle.clone());
+                                        } else {
+                                            pick_single(option_for_pick.clone());
+                                        }
                                     }
-                                }
-                            >
-                                <span class="ask-user-card__option-num">{number}</span>
-                                <span class="ask-user-card__option-body">
-                                    <span class="ask-user-card__option-label">{label}</span>
-                                    <Show when=move || desc_present>
-                                        <span class="ask-user-card__option-desc">
-                                            {desc_for_show.clone().unwrap_or_default()}
+                                >
+                                    <span class="ask-user-card__option-num">{number}</span>
+                                    <span class="ask-user-card__option-body">
+                                        <span class="ask-user-card__option-label">{label}</span>
+                                        <Show when=move || desc_present>
+                                            <span class="ask-user-card__option-desc">
+                                                {desc_for_show.clone().unwrap_or_default()}
+                                            </span>
+                                        </Show>
+                                    </span>
+                                    <Show when=move || multi_select>
+                                        <span class="ask-user-card__check" aria-hidden="true">
+                                            {
+                                                let is_checked = is_checked.clone();
+                                                move || if is_checked() { "✓" } else { "" }
+                                            }
                                         </span>
                                     </Show>
-                                </span>
-                                <Show when=move || multi_select>
-                                    <span class="ask-user-card__check" aria-hidden="true">
-                                        {
-                                            let is_checked = is_checked.clone();
-                                            move || if is_checked() { "✓" } else { "" }
-                                        }
-                                    </span>
-                                </Show>
-                            </button>
-                        </li>
-                    }
-                }).collect_view()}
-            </ul>
-
-            <Show when=move || allow_other && is_open>
-                <input
-                    type="text"
-                    class="ask-user-card__other"
-                    placeholder=lookup(loc, I18nKey::AgAskUserOtherPlaceholder)
-                    prop:value=move || other_text.get()
-                    on:input=move |ev| {
-                        if let Some(input) = ev.target()
-                            .and_then(|t| t.dyn_into::<HtmlInputElement>().ok())
-                        {
-                            other_text.set(input.value());
+                                </button>
+                            </li>
                         }
-                    }
-                    disabled=!is_open
-                />
-            </Show>
+                    }).collect_view()}
+                </ul>
 
-            <Show when=move || show_send>
-                <div class="ask-user-card__actions">
-                    <button
-                        type="button"
-                        class="ask-user-card__send"
+                <Show when=move || allow_other && is_open>
+                    <input
+                        type="text"
+                        class="ask-user-card__other"
+                        placeholder=lookup(loc, I18nKey::AgAskUserOtherPlaceholder)
+                        prop:value=move || other_text.get()
+                        on:input=move |ev| {
+                            if let Some(input) = ev.target()
+                                .and_then(|t| t.dyn_into::<HtmlInputElement>().ok())
+                            {
+                                other_text.set(input.value());
+                            }
+                        }
+                        disabled=!is_open
+                    />
+                </Show>
+
+                <Show when=move || show_send>
+                    <div class="ask-user-card__actions">
+                        <button
+                            type="button"
+                            class="ask-user-card__send"
                         on:click={
                             let submit_multi = submit_multi.clone();
-                            move |_| submit_multi()
+                            move |_| submit_multi.run(())
                         }
                     >
-                        {lookup(loc, I18nKey::AgAskUserSend)}
-                    </button>
-                </div>
-            </Show>
+                            {lookup(loc, I18nKey::AgAskUserSend)}
+                        </button>
+                    </div>
+                </Show>
 
-            <Show when=move || answered>
-                {
-                    let summary = answered_summary.clone();
-                    let has_summary = summary.as_ref().is_some_and(|s| !s.is_empty());
-                    view! {
-                        <p class="ask-user-card__status ask-user-card__status--answered">
-                            <span>{lookup(loc, I18nKey::AgAskUserAnswered)}</span>
-                            <Show when=move || has_summary>
-                                <span class="ask-user-card__status-summary">
-                                    {format!(" — {}", summary.clone().unwrap_or_default())}
-                                </span>
-                            </Show>
-                        </p>
-                    }
-                }
-            </Show>
+                <Show when=move || answered>
+                    <p class="ask-user-card__status ask-user-card__status--answered">
+                        <span>{lookup(loc, I18nKey::AgAskUserAnswered)}</span>
+                        <Show when=move || answered_has_summary>
+                            <span class="ask-user-card__status-summary">
+                                {move || answered_status_suffix.get_value()}
+                            </span>
+                        </Show>
+                    </p>
+                </Show>
 
-            <Show when=move || cancelled>
-                <p class="ask-user-card__status ask-user-card__status--cancelled">
-                    {lookup(loc, I18nKey::AgAskUserCancelled)}
-                </p>
+                <Show when=move || cancelled>
+                    <p class="ask-user-card__status ask-user-card__status--cancelled">
+                        {lookup(loc, I18nKey::AgAskUserCancelled)}
+                    </p>
+                </Show>
             </Show>
         </div>
     }

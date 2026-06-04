@@ -12,8 +12,8 @@ The preview picks a renderer based on the file extension:
 | **Video** | `mp4`, `webm`, `mov`, `m4v`, `mkv` | Native `<video controls>` with HTML5 playback |
 | **Markdown** | `md`, `markdown` | `pulldown-cmark` (GFM tables, strikethrough, task lists, footnotes, smart punctuation) with sanitized HTML and inline Mermaid blocks |
 | **Mermaid** | `mmd`, `mermaid` | Lazy-loaded [Mermaid 11](https://mermaid.js.org/) diagram via vendored bundle |
-| **Code** | `rs`, `ts`, `tsx`, `js`, `jsx`, `mjs`, `cjs`, `py`, `go`, `java`, `kt`, `scala`, `swift`, `c`, `cpp`, `cs`, `rb`, `php`, `lua`, `dart`, `r`, `clj`, `ex`, `hs`, `elm`, `zig`, `nim`, `html`, `vue`, `svelte`, `css`, `scss`, `less`, `json`, `toml`, `yaml`, `xml`, `sh`, `bash`, `ps1`, `sql`, `graphql`, `proto`, `tf`, `nix`, `dockerfile`, `makefile`, `diff`, … | Two-column code view: gutter with **line numbers** + syntax-highlighted code (highlight.js 11). Click any row to **toggle a selection highlight** for that line. |
-| **Text** | `txt`, `log`, `ini`, `conf`, `env`, `properties`, `csv`, `tsv`, `editorconfig`, … | Same gutter + row-selection layout as Code, but without syntax highlighting (plain monospaced text). |
+| **Code** | `rs`, `ts`, `tsx`, `js`, `jsx`, `mjs`, `cjs`, `py`, `go`, `java`, `kt`, `scala`, `swift`, `c`, `cpp`, `cs`, `rb`, `php`, `lua`, `dart`, `r`, `clj`, `ex`, `hs`, `elm`, `zig`, `nim`, `html`, `vue`, `svelte`, `css`, `scss`, `less`, `json`, `toml`, `yaml`, `xml`, `sh`, `bash`, `ps1`, `sql`, `graphql`, `proto`, `tf`, `nix`, `dockerfile`, `makefile`, `diff`, … | **CodeMirror 6** editor: line-number gutter, native syntax highlighting, code folding, and text selection. Preview is the editor in **read-only** mode; editable code/text opens straight in edit mode. |
+| **Text** | `txt`, `log`, `ini`, `conf`, `env`, `properties`, `csv`, `tsv`, `editorconfig`, … | Same CodeMirror editor as Code, rendered as plain monospaced text (no language grammar). |
 | **Binary** | everything else | "Preview not available for this file type" placeholder |
 
 > **Note** — Common repository "policy" documents (`LICENSE`, `LICENCE`, `COPYING`, `CONTRIBUTING`, `CONTRIBUTORS`, `CODE_OF_CONDUCT`, `SECURITY`, `AUTHORS` / `MAINTAINERS` / `OWNERS` / `CODEOWNERS`, `CHANGELOG`, `README`) are detected by their **filename stem**, not their extension. They render as Markdown **with or without** a `.md` / `.markdown` suffix and get a special hero banner — see [Repository policy documents](#repository-policy-documents) below.
@@ -31,7 +31,7 @@ Every renderer shares the same topbar:
 - **Refresh** — re-reads the file from disk (file content **and** metadata).
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-22_21-45-53.png" alt="File preview showing a PNG image centered on a dark stage, with file name, path, size, and modified date in the topbar" />
+  <img src="../images/file-preview-image-png.png" alt="File preview showing a PNG image centered on a dark stage, with file name, path, size, and modified date in the topbar" />
 </p>
 
 *Image preview: BLXCode logo (`public/blxcode.png`) rendered centered with a `drop-shadow` and the topbar showing `Size: 87.2 KiB · Modified: 5/15/2026, 12:44:29 AM`.*
@@ -61,7 +61,7 @@ The Markdown renderer uses [`pulldown-cmark`](https://docs.rs/pulldown-cmark) wi
 Headings, blockquotes, tables, inline code, and code blocks are styled to match the active BLXCode theme. Links keep their `href` but `javascript:` / `vbscript:` URIs are stripped on the way in.
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-22_21-45-59.png" alt="File preview rendering a Markdown EULA document with headings, paragraphs, and German umlauts" />
+  <img src="../images/file-preview-markdown-eula.png" alt="File preview rendering a Markdown EULA document with headings, paragraphs, and German umlauts" />
 </p>
 
 *Markdown preview: `content/eula/de-DE.md` rendered with headings, paragraphs, and proper UTF-8 (umlauts and special characters preserved end-to-end through the sanitizer).*
@@ -112,45 +112,38 @@ The match is performed on the **stem only** (the filename minus its extension), 
 Why this matters: previously a stand-alone `LICENSE` (no extension) would be classified as `Binary` and the preview would show "Preview not available for this file type." Now you get a properly rendered, theme-aware Markdown view with an obvious "License" banner — same for every other policy doc in the table above.
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-23_00-40-23.png" alt="LICENSE file preview with the License hero banner (Scale icon, success-green accent bar, 'Legal terms governing the use, distribution, and modification of this project.' subtitle), MIT License text rendered as Markdown" />
+  <img src="../images/workspace-center-tabs.png" alt="LICENSE file preview with the License hero banner (Scale icon, success-green accent bar, 'Legal terms governing the use, distribution, and modification of this project.' subtitle), MIT License text rendered as Markdown" />
 </p>
 
 *Bare `LICENSE` (no extension, 1.1 KiB) opens with the **License** hero banner — Scale icon, success-green left bar, translated title, and a one-line subtitle — followed by the MIT license text rendered as Markdown.*
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-23_00-40-09.png" alt="README.md file preview with the Readme hero banner (Book-open icon, accent-blue bar, 'Project overview, setup instructions, and quick reference.' subtitle) and the rendered BLXCode README" />
+  <img src="../images/file-preview-readme.png" alt="README.md file preview with the Readme hero banner (Book-open icon, accent-blue bar, 'Project overview, setup instructions, and quick reference.' subtitle) and the rendered BLXCode README" />
 </p>
 
 *`README.md` opens with the **Readme** hero banner (Book-open icon, accent-blue left bar) above the rendered README body — including badge rows, headings, and lists.*
 
 ## Source code & plain text
 
-Code files (Rust, TypeScript, JavaScript, Python, Go, Java, Kotlin, Swift, C/C++, C#, Ruby, PHP, Lua, Dart, R, Clojure, Elixir, Haskell, Elm, Zig, Nim, HTML, Vue, Svelte, CSS, SCSS, JSON, TOML, YAML, XML, shell scripts, SQL, GraphQL, Protobuf, Terraform/HCL, Nix, Dockerfile, Makefile, diff/patch, …) and plain-text files (txt, log, ini, conf, env, properties, csv, tsv, editorconfig) both render in a dedicated two-column **CodeView**:
+Code files (Rust, TypeScript, JavaScript, Python, Go, Java, Kotlin, Swift, C/C++, C#, Ruby, PHP, Lua, Dart, R, Clojure, Elixir, Haskell, Elm, Zig, Nim, HTML, Vue, Svelte, CSS, SCSS, JSON, TOML, YAML, XML, shell scripts, SQL, GraphQL, Protobuf, Terraform/HCL, Nix, Dockerfile, Makefile, diff/patch, …) and plain-text files (txt, log, ini, conf, env, properties, csv, tsv, editorconfig) both render in a **CodeMirror 6** surface. The preview is the **same editor used for editing**, mounted **read-only** (`EditorView.editable.of(false)`) — so syntax highlighting, the line-number gutter, code folding, and selection look and behave identically whether you are reading or editing. The standalone `highlight.js` viewer (and its heuristic Rust fold model) was removed; one highlighting engine and one fold implementation drive both modes.
 
-- **Line numbers gutter** on the left — right-aligned, tabular numerals, separated by a hairline divider. The gutter width auto-sizes to the largest line number (`--code-view-gutter-width`).
-- **Syntax highlighting** on the right via [highlight.js 11](https://highlightjs.org/) for every file whose extension maps to a known language. The bundle is vendored at `public/vendor/highlight/highlight.min.js` (~127 KiB, 38 common languages) and lazy-loaded on first use; subsequent code previews reuse `globalThis.hljs` without re-downloading.
-- **Plain text** (txt/log/ini/conf/env/csv/…) gets the **same gutter + selection layout** but without highlighting — useful for logs and config files where you still want to reference a line number.
+- **Line-number gutter** on the left, with a fold gutter for collapsible blocks.
+- **Native syntax highlighting** for every file whose extension maps to a bundled grammar. The CodeMirror bundle is vendored at `public/vendor/codemirror/codemirror.min.js` (built from `scripts/codemirror-bundle/`) and lazy-loaded on first use; subsequent previews reuse `globalThis.BlxCM` without re-downloading.
+- **Plain text** (and any extension without a bundled grammar) renders in the same editor with no language grammar — useful for logs and config files where you still want a gutter and line references.
 
-### Row and range selection
+### Selecting text
 
-- **Click** any line — either on the line number, the code, or the empty space at the end of the row — to **highlight that row**. The selection is shown as an accent-soft background with a bright accent-colored bar on the left and the line number switching to the accent color. Click the same row again to clear the selection.
-- **Drag** with the left mouse button to extend the selection across multiple lines. Press down on the first row, drag up or down to the last row, and release: every line in between stays highlighted. Releasing the button anywhere on the page ends the drag, even when the cursor leaves the gutter.
-
-The selection state survives **Refresh** because the preview only resets it when you open a different file. The selection is useful for:
-
-- Pointing the agent or a teammate at a specific line.
-- Keeping a visual marker while you scroll through a long file.
-- Combining with the right-click handoff menu below to send the highlighted lines anywhere in the workbench.
+Selection is CodeMirror's own: click to place the caret, drag to select a range, or use the keyboard. The current caret line (or the selected range) is what the right-click handoff menu below acts on, so you can send the exact lines you have highlighted to a terminal, an agent, or the clipboard — in both preview and edit mode.
 
 ### Right-click handoff menu
 
 <p align="center">
-  <img src="../images/screenshot-2026-05-23_00-22-11.png" alt="Right-click context menu in the code preview showing four sections: Snippet → Insert into terminal (per-workspace slot list), Full context block → Insert into terminal, Snippet → Attach to agent, and Clipboard (Copy snippet / range / raw text)" />
+  <img src="../images/file-preview-context-menu.png" alt="Right-click context menu in the code preview showing four sections: Snippet → Insert into terminal (per-workspace slot list), Full context block → Insert into terminal, Snippet → Attach to agent, and Clipboard (Copy snippet / range / raw text)" />
 </p>
 
 *Right-clicking on a selected line range in `Cargo.toml` opens the handoff menu — the selected lines are highlighted in the gutter, and the menu lists every terminal slot in the **Test** workspace (Slots 1–4 · shell) under both *Snippet → Insert into terminal* and *Full context block → Insert into terminal*, plus *Attach to agent in Test* and the *Clipboard* actions.*
 
-Right-clicking on any row inside the code view opens a contextual menu. If the click lands outside the current selection the menu first replaces the selection with that single line; otherwise the existing range stays. The menu groups four kinds of actions, all of which respect the highlighted line range:
+Right-clicking inside the editor (preview **or** edit mode) opens a contextual menu. It captures the current editor selection — the caret's line when nothing is selected, or the full selected range otherwise. The menu groups four kinds of actions, all of which respect that line range:
 
 | Section | What happens | Where it ends up |
 |---|---|---|
@@ -167,36 +160,35 @@ The menu is fully localized — all section headers, workspace group labels, slo
 
 ### Language detection
 
-The mapping from file extension to highlight.js language alias lives in `hljs_lang_for_ext` (`src/workbench/file_preview/util.rs`) — for example:
+The mapping from file extension to a CodeMirror grammar lives in `cm_lang_for_path` (`src/workbench/file_preview/code_view.rs`); the available grammars are wired up in `scripts/codemirror-bundle/cm-entry.js` (native CodeMirror 6 language packages where they exist, plus legacy stream modes to broaden coverage). For example:
 
-| Extension(s) | hljs language |
+| Extension(s) | CodeMirror language |
 |---|---|
 | `rs` | `rust` |
-| `ts`, `tsx` | `typescript` |
+| `ts` / `tsx` | `typescript` / `tsx` |
 | `js`, `jsx`, `mjs`, `cjs` | `javascript` |
 | `py`, `pyw`, `pyi` | `python` |
 | `cs` | `csharp` |
 | `kt`, `kts` | `kotlin` |
-| `html`, `htm`, `vue`, `svelte`, `xhtml` | `xml` |
-| `sh`, `bash`, `zsh`, `fish` | `bash` |
+| `html`, `htm`, `vue`, `svelte`, `xhtml` | `html` |
+| `sh`, `bash`, `zsh`, `fish` | `shell` |
 | `ps1` | `powershell` |
-| `toml` | `ini` |
-| `tf`, `tfvars`, `hcl` | `hcl` |
+| `toml` | `toml` |
+| `go` | `go` |
 | `dockerfile`, `containerfile` | `dockerfile` |
-| `makefile`, `mk`, `cmake` | `makefile` |
 | `diff`, `patch` | `diff` |
 
-If a file uses an extension that highlight.js does not support, the preview falls back to plain text but still shows line numbers and supports row selection. If highlight.js itself fails on a particular file, the renderer also falls back to plain text and logs a warning to the DevTools console — the file content is never lost.
+If a file uses an extension with no bundled grammar (e.g. `Makefile`), the preview renders it in the same editor as plain text — still with a gutter and line references. A separate `hljs_lang_for_ext` mapping survives in `util.rs` only to tag the language fence (```` ```rust ````) of snippets emitted by the right-click handoff menu; the highlight.js runtime bundle itself was removed when the read-only preview switched to CodeMirror.
 
 ### Theme integration
 
-The code-view chrome (gutter, hover, selection bar) is built with `color-mix` against the active BLXCode theme tokens (`--accent`, `--text`, `--text-muted`, `--surface`, `--border`), so switching themes from **Settings → Appearance** immediately re-tints both the layout and the syntax-highlighted tokens. Light themes (`blxcode-light`, `solarized-light`, `gruvbox-light`, `catppuccin-latte`) override a few of the brighter dark-theme colors (strings, numbers, types, attributes, tags) so the code stays legible on bright backgrounds.
+The CodeMirror chrome (gutter, active line, selection, cursor) is themed with `color-mix` against the active BLXCode tokens (`--accent`, `--text`, `--text-muted`, `--surface`, `--border`) and the `oneDark` token palette — see `blxChrome` in `cm-entry.js`. Switching themes from **Settings → Appearance** re-tints the editor immediately, and because preview and edit share the same editor, both update together.
 
 ## Editing files
 
 The preview doubles as a real editor. **Code and plain-text files open straight in edit mode**; **Markdown and policy docs (README/LICENSE/CONTRIBUTING/…) open preview-first** and the topbar **Edit** button switches them into the raw editor.
 
-- **Editor** — edit mode is powered by [CodeMirror 6](https://codemirror.net/), vendored locally at `public/vendor/codemirror/codemirror.min.js` (built from `scripts/codemirror-bundle/`, lazy-loaded on first use like the highlight.js bundle). It provides native syntax highlighting, **code folding**, multiple cursors, search, bracket matching, and selection, themed to follow the active BLXCode tokens. The read-only preview continues to use highlight.js.
+- **Editor** — both preview and edit are powered by [CodeMirror 6](https://codemirror.net/), vendored locally at `public/vendor/codemirror/codemirror.min.js` (built from `scripts/codemirror-bundle/`, lazy-loaded on first use). It provides native syntax highlighting, **code folding**, multiple cursors, search, bracket matching, and selection, themed to follow the active BLXCode tokens. Preview is the same editor with editing disabled (read-only), so reading and editing look identical.
 - **Save** — the **Save** button (or `Ctrl/Cmd+S`) writes the buffer to disk. Saves are **atomic** (written to a temp sibling and renamed over the target) so a partial write can never corrupt the file. A brief *Saved* toast confirms success.
 - **Revert** — restores the buffer to the last-saved content (prompts first if there are unsaved changes).
 - **View** — returns to the rendered/read-only view (prompts if there are unsaved changes).
@@ -219,10 +211,22 @@ When you open a file the editor records a content hash. On save, that hash is ch
 
 ### Folding
 
-- **Edit mode** — CodeMirror's own fold gutter folds language-aware blocks (functions, braces, etc.); click the gutter arrow to collapse/expand.
-- **View mode** — a custom fold chevron appears in the gutter on foldable lines — function/braced blocks, contiguous import groups, indented blocks (Python/YAML), `#region` markers, and Markdown heading sections / fenced code.
+Folding is CodeMirror's, in **both** preview and edit mode: the fold gutter folds language-aware blocks (functions, braces, etc.) — click the gutter arrow to collapse or expand a block.
 
 > Remote (SSH) workspaces support editing and saving over the connection's exec channel; the remote sandbox is enforced the same way as remote reads.
+
+## Vim mode
+
+The file editor and the read-only preview share a single CodeMirror surface, so **Vim mode** is available in both. Turn it on under **Settings → Code Editor → Vim key bindings** (default on).
+
+- **Engine** — `@replit/codemirror-vim`, configured in its own CodeMirror `Compartment` (`setVim`) so toggling reconfigures the live editor **without a remount** — you don't need to reopen the file.
+- **Preview** — Vim motions and search work for navigation in read-only mode; edits stay blocked.
+- **Status indicator** — while a file editor/preview tab is focused and Vim is on, the **status bar's left slot shows a `VIM` indicator** (gated on `active_editor_status`).
+- **Per-action editor shortcuts** — the **Save / Find / Find & Replace / Go to line / Toggle comment / Fold / Unfold / Move line / Duplicate line / Format** actions appear in **Settings → Shortcuts → Code Editor**. While Vim is active, this whole section is **disabled with an inline hint** because Vim owns the keymap.
+
+Cursor position (line + column, 1-indexed) is tracked in a shared signal so the [App status line](workspaces.md#app-status-line) renders `file.rs · 42:13` for the focused editor tab and updates on every selection change.
+
+All editor and preview settings persist under `blxcode_editor_settings_v1` in `localStorage`; shortcut bindings persist separately under `EDITOR_SHORTCUT_BINDINGS_KEY`.
 
 ## Mermaid files
 

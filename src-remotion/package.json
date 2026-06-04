@@ -1,0 +1,34 @@
+{
+  "name": "blxcode-remotion",
+  "version": "0.1.0",
+  "description": "Standalone Remotion project for blxcode video output. Lives outside the Tauri build (see repo root .gitignore).",
+  "private": true,
+  "scripts": {
+    "start": "remotion studio",
+    "build": "remotion render HelloWorld out/hello.mp4",
+    "build:image": "remotion still HelloWorld out/hello.png",
+    "build:trailer": "remotion render ReleaseTrailer out/release-trailer.mp4",
+    "build:trailer:image": "remotion still ReleaseTrailer out/release-trailer.png --frame=200",
+    "build:050": "remotion render BLXCode050Announcement out/blxcode-v0.5.0-announcement.mp4",
+    "build:050:image": "remotion still BLXCode050Announcement out/blxcode-v0.5.0-announcement.png --frame=400",
+    "build:sneak": "remotion render SneakPeekTrailer out/sneak-peek-trailer.mp4",
+    "build:sneak:image": "remotion still SneakPeekTrailer out/sneak-peek-trailer.png --frame=200",
+    "typecheck": "tsc --noEmit",
+    "upgrade": "remotion upgrade"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.1",
+    "@remotion/bundler": "4.0.469",
+    "@remotion/cli": "4.0.469",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "4.0.469",
+    "three": "^0.184.0"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.3",
+    "@types/react-dom": "19.2.3",
+    "typescript": "5.9.3"
+  }
+}

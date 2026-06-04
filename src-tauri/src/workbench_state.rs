@@ -24,6 +24,8 @@ use tauri::{AppHandle, Manager};
 const STATE_FILE: &str = "workbench.json";
 const SESSIONS_FILE: &str = "sessions.json";
 const NOTIFICATIONS_FILE: &str = "notifications.json";
+const USAGE_FILE: &str = "usage.json";
+const AGENT_NOTIFICATIONS_MAX: usize = 200;
 
 /// Serialises every `sessions.json` load / update from this process so
 /// overlapping Tauri commands cannot clobber each other's read-modify-write.
@@ -59,22 +61,52 @@ fn notifications_path_impl(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(base.join(NOTIFICATIONS_FILE))
 }
 
+fn usage_path_impl(app: &AppHandle) -> Result<PathBuf, String> {
+    let base = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("app config dir unavailable: {e}"))?;
+    Ok(base.join(USAGE_FILE))
+}
+
 fn load_notifications_document(target: &Path) -> Result<Value, String> {
     let raw = match fs::read_to_string(target) {
-        Ok(s) if s.trim().is_empty() => return Ok(json!({ "version": 1, "terminals": {} })),
+        Ok(s) if s.trim().is_empty() => {
+            return Ok(json!({ "version": 2, "terminals": {}, "agentNotifications": [] }));
+        }
         Ok(s) => s,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(json!({ "version": 1, "terminals": {} }));
+            return Ok(json!({ "version": 2, "terminals": {}, "agentNotifications": [] }));
         }
         Err(e) => return Err(format!("read {}: {e}", target.display())),
     };
     match serde_json::from_str::<Value>(&raw) {
-        Ok(v) => Ok(v),
+        Ok(v) => Ok(normalize_notifications_document(v)),
         Err(_) => {
-            atomic_write_json(target, &json!({ "version": 1, "terminals": {} }))?;
-            Ok(json!({ "version": 1, "terminals": {} }))
+            let empty = json!({ "version": 2, "terminals": {}, "agentNotifications": [] });
+            atomic_write_json(target, &empty)?;
+            Ok(empty)
         }
     }
+}
+
+fn normalize_notifications_document(mut v: Value) -> Value {
+    if !v.is_object() {
+        return json!({ "version": 2, "terminals": {}, "agentNotifications": [] });
+    }
+    let obj = v.as_object_mut().expect("checked object");
+    obj.insert("version".into(), json!(2));
+    if !obj.get("terminals").map(|t| t.is_object()).unwrap_or(false) {
+        obj.insert("terminals".into(), json!({}));
+    }
+    if !obj
+        .get("agentNotifications")
+        .map(|n| n.is_array())
+        .unwrap_or(false)
+    {
+        obj.insert("agentNotifications".into(), json!([]));
+    }
+    v
 }
 
 fn terminal_unread_count(v: &Value) -> u32 {
@@ -216,6 +248,50 @@ pub fn workbench_load_state(app: AppHandle) -> Result<Option<String>, String> {
 #[tauri::command]
 pub fn workbench_sessions_path(app: AppHandle) -> Result<String, String> {
     Ok(sessions_path_impl(&app)?.to_string_lossy().into_owned())
+}
+
+/// Returns the absolute path used by terminal-agent usage capture helpers.
+#[tauri::command]
+pub fn workbench_usage_path(app: AppHandle) -> Result<String, String> {
+    Ok(usage_path_impl(&app)?.to_string_lossy().into_owned())
+}
+
+/// Read the latest cached usage snapshot for one terminal, if a provider hook
+/// has written one. Currently used by Claude's status-line capture wrapper.
+#[tauri::command]
+pub fn workbench_load_usage_snapshot(
+    app: AppHandle,
+    terminal_key: String,
+) -> Result<Option<String>, String> {
+    let key = terminal_key.trim();
+    if key.is_empty()
+        || key.len() > 512
+        || key.contains('/')
+        || key.contains('\\')
+        || key.chars().any(char::is_control)
+    {
+        return Ok(None);
+    }
+    let target = usage_path_impl(&app)?;
+    let raw = match fs::read_to_string(&target) {
+        Ok(s) if s.trim().is_empty() => return Ok(None),
+        Ok(s) => s,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(format!("read {}: {e}", target.display())),
+    };
+    let parsed: Value = match serde_json::from_str(&raw) {
+        Ok(v) => v,
+        Err(_) => {
+            atomic_write_json(&target, &json!({ "version": 1, "terminals": {} }))?;
+            return Ok(None);
+        }
+    };
+    let Some(snapshot) = parsed.get("terminals").and_then(|t| t.get(key)) else {
+        return Ok(None);
+    };
+    serde_json::to_string(snapshot)
+        .map(Some)
+        .map_err(|e| format!("serialize usage snapshot: {e}"))
 }
 
 /// Read the SessionStart-hook output (terminal_key → agent/session_id
@@ -587,6 +663,178 @@ pub struct TerminalNotification {
     pub updated_at: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentNotification {
+    pub id: String,
+    pub kind: String,
+    pub severity: String,
+    pub title: String,
+    pub body: Option<String>,
+    pub source: Option<String>,
+    pub target: Option<Value>,
+    pub read: bool,
+    pub created_at: i64,
+    pub updated_at: i64,
+    pub sent_at: Option<i64>,
+    pub dedupe_key: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentNotificationInput {
+    #[serde(default)]
+    pub id: Option<String>,
+    pub title: String,
+    #[serde(default)]
+    pub body: Option<String>,
+    pub kind: String,
+    #[serde(default)]
+    pub severity: Option<String>,
+    #[serde(default)]
+    pub source: Option<String>,
+    #[serde(default)]
+    pub target: Option<Value>,
+    #[serde(default)]
+    pub dedupe_key: Option<String>,
+    #[serde(default)]
+    pub read: Option<bool>,
+    #[serde(default)]
+    pub sent: Option<bool>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentNotificationPatch {
+    pub id: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub body: Option<String>,
+    #[serde(default)]
+    pub kind: Option<String>,
+    #[serde(default)]
+    pub severity: Option<String>,
+    #[serde(default)]
+    pub source: Option<String>,
+    #[serde(default)]
+    pub target: Option<Value>,
+    #[serde(default)]
+    pub read: Option<bool>,
+    #[serde(default)]
+    pub sent: Option<bool>,
+}
+
+fn now_millis() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as i64)
+        .unwrap_or(0)
+}
+
+fn sanitize_notification_token(raw: &str, fallback: &str) -> String {
+    let s = raw.trim();
+    if s.is_empty()
+        || s.len() > 64
+        || !s
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.'))
+    {
+        fallback.to_string()
+    } else {
+        s.to_string()
+    }
+}
+
+fn sanitize_notification_text(raw: &str, max: usize) -> String {
+    raw.chars()
+        .filter(|c| !c.is_control() || *c == '\n' || *c == '\t')
+        .take(max)
+        .collect::<String>()
+        .trim()
+        .to_string()
+}
+
+fn agent_notifications_from_state(state: &Value) -> Vec<AgentNotification> {
+    let mut items: Vec<AgentNotification> = state
+        .get("agentNotifications")
+        .and_then(|v| v.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|v| serde_json::from_value(v.clone()).ok())
+        .collect();
+    items.sort_by_key(|item| std::cmp::Reverse(item.created_at));
+    items
+}
+
+fn store_agent_notifications(
+    state: &mut Value,
+    mut items: Vec<AgentNotification>,
+) -> Result<(), String> {
+    items.sort_by_key(|item| std::cmp::Reverse(item.created_at));
+    if items.len() > AGENT_NOTIFICATIONS_MAX {
+        let mut kept = Vec::with_capacity(AGENT_NOTIFICATIONS_MAX);
+        let mut unread_overflow = Vec::new();
+        for item in items {
+            if kept.len() < AGENT_NOTIFICATIONS_MAX {
+                kept.push(item);
+            } else if !item.read {
+                unread_overflow.push(item);
+            }
+        }
+        kept.extend(unread_overflow);
+        kept.sort_by_key(|item| std::cmp::Reverse(item.created_at));
+        kept.truncate(AGENT_NOTIFICATIONS_MAX);
+        items = kept;
+    }
+    let arr = serde_json::to_value(items).map_err(|e| format!("serialize notifications: {e}"))?;
+    let obj = state
+        .as_object_mut()
+        .ok_or_else(|| "notifications document is not an object".to_string())?;
+    obj.insert("version".into(), json!(2));
+    obj.insert("agentNotifications".into(), arr);
+    Ok(())
+}
+
+fn build_agent_notification(
+    input: AgentNotificationInput,
+    existing: Option<&AgentNotification>,
+) -> AgentNotification {
+    let now = now_millis();
+    let title = sanitize_notification_text(&input.title, 160);
+    AgentNotification {
+        id: input
+            .id
+            .filter(|s| !s.trim().is_empty())
+            .or_else(|| existing.map(|n| n.id.clone()))
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+        kind: sanitize_notification_token(&input.kind, "info"),
+        severity: sanitize_notification_token(input.severity.as_deref().unwrap_or("info"), "info"),
+        title: if title.is_empty() {
+            "BLXCode Agent".into()
+        } else {
+            title
+        },
+        body: input
+            .body
+            .map(|s| sanitize_notification_text(&s, 1000))
+            .filter(|s| !s.is_empty()),
+        source: input
+            .source
+            .map(|s| sanitize_notification_text(&s, 120))
+            .filter(|s| !s.is_empty()),
+        target: input.target,
+        read: input.read.unwrap_or(false),
+        created_at: existing.map(|n| n.created_at).unwrap_or(now),
+        updated_at: now,
+        sent_at: input.sent.unwrap_or(false).then_some(now),
+        dedupe_key: input
+            .dedupe_key
+            .map(|s| sanitize_notification_text(&s, 180))
+            .filter(|s| !s.is_empty()),
+    }
+}
+
 /// Per-terminal unread counts written by agent Stop/stop hooks.
 #[tauri::command]
 pub fn workbench_load_notifications(
@@ -648,6 +896,167 @@ pub fn workbench_clear_terminal_notifications(
         terminals.remove(key);
     }
     atomic_write_json(&target, &state)
+}
+
+#[tauri::command]
+pub fn workbench_list_agent_notifications(
+    app: AppHandle,
+    include_read: Option<bool>,
+    limit: Option<usize>,
+    lock: tauri::State<'_, WorkbenchSessionsFileLock>,
+) -> Result<Vec<AgentNotification>, String> {
+    let _guard = lock
+        .0
+        .lock()
+        .map_err(|e| format!("sessions file lock poisoned: {e}"))?;
+    let target = notifications_path_impl(&app)?;
+    let state = load_notifications_document(&target)?;
+    let mut items = agent_notifications_from_state(&state);
+    if !include_read.unwrap_or(true) {
+        items.retain(|n| !n.read);
+    }
+    items.truncate(
+        limit
+            .unwrap_or(AGENT_NOTIFICATIONS_MAX)
+            .clamp(1, AGENT_NOTIFICATIONS_MAX),
+    );
+    Ok(items)
+}
+
+#[tauri::command]
+pub fn workbench_upsert_agent_notification(
+    app: AppHandle,
+    input: AgentNotificationInput,
+    lock: tauri::State<'_, WorkbenchSessionsFileLock>,
+) -> Result<AgentNotification, String> {
+    let _guard = lock
+        .0
+        .lock()
+        .map_err(|e| format!("sessions file lock poisoned: {e}"))?;
+    let target = notifications_path_impl(&app)?;
+    let mut state = load_notifications_document(&target)?;
+    let mut items = agent_notifications_from_state(&state);
+    let existing_idx = input
+        .id
+        .as_ref()
+        .and_then(|id| items.iter().position(|n| &n.id == id))
+        .or_else(|| {
+            input.dedupe_key.as_ref().and_then(|key| {
+                items
+                    .iter()
+                    .position(|n| n.dedupe_key.as_ref() == Some(key))
+            })
+        });
+    let existing = existing_idx.and_then(|idx| items.get(idx));
+    let next = build_agent_notification(input, existing);
+    if let Some(idx) = existing_idx {
+        items[idx] = next.clone();
+    } else {
+        items.push(next.clone());
+    }
+    store_agent_notifications(&mut state, items)?;
+    atomic_write_json(&target, &state)?;
+    Ok(next)
+}
+
+#[tauri::command]
+pub fn workbench_update_agent_notification(
+    app: AppHandle,
+    patch: AgentNotificationPatch,
+    lock: tauri::State<'_, WorkbenchSessionsFileLock>,
+) -> Result<AgentNotification, String> {
+    let _guard = lock
+        .0
+        .lock()
+        .map_err(|e| format!("sessions file lock poisoned: {e}"))?;
+    let target = notifications_path_impl(&app)?;
+    let mut state = load_notifications_document(&target)?;
+    let mut items = agent_notifications_from_state(&state);
+    let Some(item) = items.iter_mut().find(|n| n.id == patch.id) else {
+        return Err(format!("notification not found: {}", patch.id));
+    };
+    if let Some(title) = patch.title {
+        let title = sanitize_notification_text(&title, 160);
+        if !title.is_empty() {
+            item.title = title;
+        }
+    }
+    if let Some(body) = patch.body {
+        item.body = Some(sanitize_notification_text(&body, 1000)).filter(|s| !s.is_empty());
+    }
+    if let Some(kind) = patch.kind {
+        item.kind = sanitize_notification_token(&kind, &item.kind);
+    }
+    if let Some(severity) = patch.severity {
+        item.severity = sanitize_notification_token(&severity, &item.severity);
+    }
+    if let Some(source) = patch.source {
+        item.source = Some(sanitize_notification_text(&source, 120)).filter(|s| !s.is_empty());
+    }
+    if patch.target.is_some() {
+        item.target = patch.target;
+    }
+    if let Some(read) = patch.read {
+        item.read = read;
+    }
+    if patch.sent.unwrap_or(false) {
+        item.sent_at = Some(now_millis());
+    }
+    item.updated_at = now_millis();
+    let out = item.clone();
+    store_agent_notifications(&mut state, items)?;
+    atomic_write_json(&target, &state)?;
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn workbench_remove_agent_notification(
+    app: AppHandle,
+    id: String,
+    lock: tauri::State<'_, WorkbenchSessionsFileLock>,
+) -> Result<(), String> {
+    let _guard = lock
+        .0
+        .lock()
+        .map_err(|e| format!("sessions file lock poisoned: {e}"))?;
+    let target = notifications_path_impl(&app)?;
+    let mut state = load_notifications_document(&target)?;
+    let mut items = agent_notifications_from_state(&state);
+    items.retain(|n| n.id != id);
+    store_agent_notifications(&mut state, items)?;
+    atomic_write_json(&target, &state)
+}
+
+#[tauri::command]
+pub fn workbench_mark_agent_notifications_read(
+    app: AppHandle,
+    id: Option<String>,
+    all: Option<bool>,
+    lock: tauri::State<'_, WorkbenchSessionsFileLock>,
+) -> Result<Vec<AgentNotification>, String> {
+    let _guard = lock
+        .0
+        .lock()
+        .map_err(|e| format!("sessions file lock poisoned: {e}"))?;
+    let target = notifications_path_impl(&app)?;
+    let mut state = load_notifications_document(&target)?;
+    let mut items = agent_notifications_from_state(&state);
+    let now = now_millis();
+    if all.unwrap_or(false) {
+        for item in &mut items {
+            item.read = true;
+            item.updated_at = now;
+        }
+    } else if let Some(id) = id {
+        let Some(item) = items.iter_mut().find(|n| n.id == id) else {
+            return Err(format!("notification not found: {id}"));
+        };
+        item.read = true;
+        item.updated_at = now;
+    }
+    store_agent_notifications(&mut state, items.clone())?;
+    atomic_write_json(&target, &state)?;
+    Ok(items)
 }
 
 /// Rewrite terminal-key entries in both `sessions.json` and
@@ -759,5 +1168,102 @@ pub fn workbench_prune_notifications(
         atomic_write_json(&target, &state)
     } else {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_json_path(label: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        std::env::temp_dir().join(format!("blxcode-notifications-{label}-{nanos}.json"))
+    }
+
+    #[test]
+    fn notification_v1_load_preserves_terminal_entries() {
+        let path = temp_json_path("v1");
+        fs::write(
+            &path,
+            r#"{"version":1,"terminals":{"ws:1:1":{"unread":2,"agent":"codex","updated_at":"now"}}}"#,
+        )
+        .unwrap();
+        let state = load_notifications_document(&path).unwrap();
+        assert_eq!(state.get("version").and_then(|v| v.as_u64()), Some(2));
+        assert_eq!(
+            state
+                .get("terminals")
+                .and_then(|t| t.get("ws:1:1"))
+                .and_then(terminal_unread_count_value),
+            Some(2)
+        );
+        assert!(state
+            .get("agentNotifications")
+            .and_then(|v| v.as_array())
+            .unwrap()
+            .is_empty());
+        let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn agent_notification_dedupe_update_mark_and_remove() {
+        let mut state = json!({ "version": 2, "terminals": {}, "agentNotifications": [] });
+        let first = build_agent_notification(
+            AgentNotificationInput {
+                id: None,
+                title: "Task done".into(),
+                body: Some("One task completed".into()),
+                kind: "task_completed".into(),
+                severity: Some("success".into()),
+                source: Some("agent".into()),
+                target: None,
+                dedupe_key: Some("task:one".into()),
+                read: Some(false),
+                sent: Some(true),
+            },
+            None,
+        );
+        store_agent_notifications(&mut state, vec![first.clone()]).unwrap();
+        let mut items = agent_notifications_from_state(&state);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].dedupe_key.as_deref(), Some("task:one"));
+        assert!(items[0].sent_at.is_some());
+
+        let updated = build_agent_notification(
+            AgentNotificationInput {
+                id: None,
+                title: "Task really done".into(),
+                body: None,
+                kind: "task_completed".into(),
+                severity: Some("success".into()),
+                source: None,
+                target: None,
+                dedupe_key: Some("task:one".into()),
+                read: Some(false),
+                sent: Some(false),
+            },
+            Some(&items[0]),
+        );
+        items[0] = updated.clone();
+        store_agent_notifications(&mut state, items).unwrap();
+        let mut items = agent_notifications_from_state(&state);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, first.id);
+        assert_eq!(items[0].title, "Task really done");
+
+        items[0].read = true;
+        store_agent_notifications(&mut state, items.clone()).unwrap();
+        assert!(agent_notifications_from_state(&state)[0].read);
+
+        items.clear();
+        store_agent_notifications(&mut state, items).unwrap();
+        assert!(agent_notifications_from_state(&state).is_empty());
+    }
+
+    fn terminal_unread_count_value(v: &Value) -> Option<u32> {
+        Some(terminal_unread_count(v))
     }
 }

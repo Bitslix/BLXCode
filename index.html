@@ -104,20 +104,33 @@
     </script>
     <link data-trunk rel="css" href="themes/tokens.css" />
     <link data-trunk rel="css" href="styles.css" />
+    <link data-trunk rel="css" href="src/workbench/app_titlebar/app-titlebar.css" />
     <link data-trunk rel="css" href="src/workbench/plans_panel/plans-panel.css" />
+    <link data-trunk rel="css" href="src/workbench/diagram_render/diagram-render.css" />
+    <link data-trunk rel="css" href="src/workbench/diagram_gallery/diagram-gallery.css" />
+    <link data-trunk rel="css" href="src/workbench/workspace_kanban/workspace-kanban.css" />
     <link data-trunk rel="css" href="src/workbench/update_dialog.css" />
+    <link data-trunk rel="css" href="src/workbench/hook_status/hook_status.css" />
+    <link data-trunk rel="css" href="src/workbench/core_status/core_status.css" />
+    <link data-trunk rel="css" href="src/workbench/hook_install_dialog/hook_install_dialog.css" />
     <link data-trunk rel="css" href="src/workbench/close_terminals_tab_dialog/close_terminals_tab_dialog.css" />
     <link data-trunk rel="css" href="src/workbench/confirm_dialog/confirm_dialog.css" />
     <link data-trunk rel="css" href="src/workbench/commit_dialog/commit_dialog.css" />
-    <link data-trunk rel="css" href="src/workbench/harness_image_pane/harness_image_pane.css" />
+    <link data-trunk rel="css" href="src/workbench/plans_panel/ai_generate_dialog/ai-generate-dialog.css" />
     <link data-trunk rel="css" href="src/workbench/api_keys_pane/api_keys_pane.css" />
     <link data-trunk rel="css" href="src/workbench/workspace_settings_pane/workspace_settings_pane.css" />
-    <link data-trunk rel="css" href="src/workbench/agent_provider_pane/agent_provider_pane.css" />
+    <link data-trunk rel="css" href="src/workbench/agent_settings_pane/agent_settings_pane.css" />
     <link data-trunk rel="css" href="src/workbench/agent_panel/ask_user_card/ask_user_card.css" />
     <link data-trunk rel="css" href="src/workbench/agent_panel/turn_metrics_bar/turn_metrics_bar.css" />
+    <link data-trunk rel="css" href="src/workbench/agent_panel/changed_files_card/changed-files-card.css" />
+    <link data-trunk rel="css" href="src/workbench/agent_panel/composer/composer.css" />
     <link data-trunk rel="css" href="src/workbench/appearance_settings_pane/appearance_settings_pane.css" />
     <link data-trunk rel="css" href="src/workbench/shortcuts_settings_pane/shortcuts_settings_pane.css" />
     <link data-trunk rel="css" href="src/workbench/remote_settings_pane/remote_settings_pane.css" />
+    <link data-trunk rel="css" href="src/workbench/mcp_settings_pane/mcp_settings_pane.css" />
+    <link data-trunk rel="css" href="src/workbench/ptt_runtime/ptt_runtime.css" />
+    <link data-trunk rel="css" href="src/workbench/harness_voice_pane/ptt_section/ptt_section.css" />
+    <link data-trunk rel="css" href="src/workbench/harness_voice_pane/model_manager/model_manager.css" />
     <link data-trunk rel="css" href="src/workbench/sidebar_resizer/sidebar-resizer.css" />
     <link data-trunk rel="css" href="src/workbench/file_diff_section/file-diff-section.css" />
     <link data-trunk rel="css" href="src/workbench/file_diff/file-diff.css" />
@@ -127,7 +140,7 @@
       href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.min.css"
     />
     <script type="module" src="/public/terminal_bootstrap.mjs"></script>
-    <link data-trunk rel="rust" data-wasm-opt="z" />
+    <link data-trunk rel="rust" data-wasm-opt="z" data-wasm-opt-params="--enable-bulk-memory --enable-nontrapping-float-to-int --enable-sign-ext --enable-mutable-globals --enable-multivalue --enable-reference-types" />
   </head>
   <body>
     <section

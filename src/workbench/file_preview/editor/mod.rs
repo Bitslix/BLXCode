@@ -3,18 +3,16 @@
 //!
 //! [`EditorSession`] is the shared state created once per open document by
 //! `FilePreviewDock` and threaded into the header (edit controls + chips) and
-//! the body renderer (`CodeView` / `MarkdownView`). The body owns highlighting
-//! and the textarea overlay; this module owns load / save / revert / conflict
-//! and the derived dirty flag. The pure sub-modules are unit-tested in
-//! isolation.
+//! the body renderer (`CodeView` / `MarkdownView`). The body mounts CodeMirror
+//! (which owns highlighting, gutter, folding and selection); this module owns
+//! load / save / revert / conflict and the derived dirty flag. The pure
+//! sub-modules are unit-tested in isolation.
 
 pub mod buffer;
 pub mod code_mirror;
-pub mod folding;
 pub mod policy;
 
 use buffer::Baseline;
-use folding::FoldState;
 use policy::Editability;
 
 use crate::i18n::I18nKey;
@@ -59,7 +57,6 @@ pub struct EditorSession {
     pub baseline: RwSignal<Option<Baseline>>,
     pub byte_len: RwSignal<u64>,
     pub status: RwSignal<DocStatus>,
-    pub folds: RwSignal<FoldState>,
     pub dirty: Memo<bool>,
 }
 
@@ -85,7 +82,6 @@ impl EditorSession {
             baseline,
             byte_len: RwSignal::new(0),
             status: RwSignal::new(DocStatus::Loading),
-            folds: RwSignal::new(FoldState::new(Vec::new())),
             dirty,
         }
     }
@@ -104,11 +100,9 @@ impl EditorSession {
             && !matches!(self.status.get(), DocStatus::Saving)
     }
 
-    /// Switch into edit mode when the document allows it. Editing always starts
-    /// with folds expanded (overlay editors can't hide lines — see the plan).
+    /// Switch into edit mode when the document allows it.
     pub fn enter_edit(&self) {
         if self.editability.get_untracked().is_editable_eventually() {
-            self.folds.update(|f| f.collapsed.clear());
             self.mode.set(EditMode::Edit);
         }
     }
@@ -227,6 +221,7 @@ impl EditorSession {
                         cancel_label: i18n.tr(I18nKey::FilePreviewEditorCancel)().to_string(),
                         danger: true,
                         on_confirm,
+                        on_cancel: None,
                     });
                 }
                 Err(e) => {
@@ -254,6 +249,7 @@ impl EditorSession {
             cancel_label: i18n.tr(I18nKey::FilePreviewEditorKeep)().to_string(),
             danger: true,
             on_confirm: on_discard,
+            on_cancel: None,
         });
     }
 }

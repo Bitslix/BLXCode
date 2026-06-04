@@ -1,0 +1,85 @@
+/* "Install hooks" startup prompt — mirrors the post-update sheet hero +
+   actions layout (see update_dialog.css) using shared theme tokens. */
+
+.harness-sheet--hook-install {
+  width: min(34rem, calc(100vw - 2rem));
+  max-height: min(34rem, calc(100vh - 2rem));
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+}
+
+.hook-install-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.9rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+  background:
+    linear-gradient(135deg, var(--accent-soft), transparent 48%),
+    var(--bg-panel-header);
+}
+
+.hook-install-hero__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--accent-soft);
+  border-radius: var(--radius-lg);
+  background: var(--bg-raised);
+  color: var(--accent);
+  box-shadow: 0 0 28px var(--accent-soft);
+}
+
+.hook-install-hero__copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.hook-install-hero h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.1rem;
+  line-height: 1.2;
+}
+
+.hook-install-hero p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.hook-install-error {
+  margin: 0;
+  padding: 0.7rem 1rem;
+  color: var(--danger, var(--warning));
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+
+.hook-install-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  padding: 0.85rem 1rem;
+  background: var(--bg-panel);
+}
+
+.hook-install-spin {
+  display: inline-flex;
+  animation: hook-install-spin 0.9s linear infinite;
+}
+
+@keyframes hook-install-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

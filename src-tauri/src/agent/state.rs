@@ -1,4 +1,4 @@
-use crate::agent::protocol::{AgentEvent, EventEnvelope};
+use crate::agent::protocol::{AgentChatMode, AgentEvent, EventEnvelope};
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -31,6 +31,10 @@ pub struct AgentEngineState {
     /// late events from a cancelled / cleared turn instead of polluting
     /// the next chat's running totals.
     turn_generation: std::sync::atomic::AtomicU64,
+    /// Optional mode change selected during the active turn. Used when the user
+    /// approves a permission prompt with "Auto-accept" so subsequent tool calls
+    /// in the same turn stop prompting immediately.
+    chat_mode_override: Mutex<Option<AgentChatMode>>,
 }
 
 impl AgentEngineState {
@@ -44,6 +48,7 @@ impl AgentEngineState {
             pending_client_tools: Mutex::new(HashMap::new()),
             conversation: Mutex::new(Vec::new()),
             turn_generation: std::sync::atomic::AtomicU64::new(0),
+            chat_mode_override: Mutex::new(None),
         })
     }
 
@@ -90,6 +95,25 @@ impl AgentEngineState {
             .lock()
             .expect("parent stack lock poisoned")
             .clear();
+        self.chat_mode_override
+            .lock()
+            .expect("chat mode override lock poisoned")
+            .take();
+    }
+
+    pub fn set_chat_mode_override(&self, mode: AgentChatMode) {
+        *self
+            .chat_mode_override
+            .lock()
+            .expect("chat mode override lock poisoned") = Some(mode);
+    }
+
+    #[must_use]
+    pub fn chat_mode_override(&self) -> Option<AgentChatMode> {
+        *self
+            .chat_mode_override
+            .lock()
+            .expect("chat mode override lock poisoned")
     }
 
     pub fn push_parent(&self, call_id: String) {
@@ -211,6 +235,9 @@ pub struct ProviderEnv {
 }
 
 impl ProviderEnv {
+    // Env-based key path (BLX_ANTHROPIC_API_KEY); the live path reads keys from
+    // agent settings instead (see CLAUDE.md). Kept as the documented env stub.
+    #[allow(dead_code)]
     pub fn from_environment() -> Self {
         Self {
             anthropic_api_key: std::env::var("BLX_ANTHROPIC_API_KEY")
@@ -239,7 +266,7 @@ impl ProviderEnv {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::agent::protocol::AgentEvent;
+    use crate::agent::protocol::{AgentChatMode, AgentEvent};
 
     #[test]
     fn seq_monotonic_per_turn() {
@@ -291,5 +318,15 @@ mod tests {
         assert_eq!(events[0].parent_call_id, None);
         assert_eq!(events[1].parent_call_id.as_deref(), Some("cid-outer"));
         assert_eq!(events[2].parent_call_id.as_deref(), Some("cid-outer"));
+    }
+
+    #[test]
+    fn chat_mode_override_resets_on_start_turn() {
+        let state = AgentEngineState::new();
+        state.set_chat_mode_override(AgentChatMode::AllowAll);
+        assert_eq!(state.chat_mode_override(), Some(AgentChatMode::AllowAll));
+
+        state.start_turn();
+        assert_eq!(state.chat_mode_override(), None);
     }
 }

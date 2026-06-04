@@ -23,13 +23,15 @@ Do not hand-edit `index.json` unless you know what you are doing; use the UI or 
 
 Open **Rules** from the right workbench rail (`LuShield` icon).
 
+The panel shares the same chrome as the Skills panel: a **category filter row** at the top (one chip per declared category, plus *All*), a themed separator, and a **live search** field. Together they filter entries by title, description, source/category metadata, and category selection.
+
 Each rule is an **expandable card** (same pattern as Skills):
 
 | Collapsed | Expanded |
 |-----------|----------|
-| Title, summary, **Enabled** / **Disabled** pill, enable toggle | Full rule body (Markdown), inline **edit** and save, remove |
+| Title, summary, category chip, **Enabled** / **Disabled** pill, enable toggle | Full rule body (Markdown), inline **edit** and save, remove |
 
-Use **Create rule** at the top of the tab to add a new `rule-*.md` file. The form validates name and body before writing to `.agents/rules/`.
+Use **Create rule** at the top of the tab to add a new `rule-*.md` file. The form validates name and body before writing to `.agents/rules/`. Rule summaries skip YAML frontmatter and use the paragraph below the **`## Ziel`** heading (so the heading itself never leaks into the card's preview text).
 
 <p align="center">
   <img src="../images/rules-panel.png" alt="Rules panel with create-rule form and expandable rule cards" />
@@ -39,9 +41,15 @@ Disabled rules are invisible to the agent — the system prompt treats them as i
 
 Active rules are **binding and non-negotiable**; they outrank skill guidance when both apply.
 
+### Categories
+
+Each rule can declare one optional **category** in its Markdown frontmatter (`category: my-category`) and in its `.agents/rules/index.json` entry. Multiple rules can share the same category, and legacy rule `tags` arrays are migrated at read time by taking the first tag as the category. Rule and skill cards show the category in a compact chip style in both collapsed and expanded states. The **Category** filter row at the top of the panel is driven by the same set.
+
 ## Skills panel
 
 Open **Skills** from the right workbench rail (`LuPuzzle` icon).
+
+The panel shares the same chrome as the Rules panel: a **category filter row** at the top (one chip per declared category, plus *All*), a themed separator, and a **live search** field. Together they filter entries by title, description, source/category metadata, and category selection.
 
 <p align="center">
   <img src="../images/skills-panel.png" alt="Skills panel with Core and User tabs and expandable skill cards" />
@@ -49,14 +57,14 @@ Open **Skills** from the right workbench rail (`LuPuzzle` icon).
 
 ### Core vs User tabs
 
-BLXCode ships **core harness skills** inside the app (Better Harness). They are not files on disk in your workspace — they are embedded Markdown the agent reads via `skills_read`.
+BLXCode ships **core harness skills** inside the app (Better Harness). They are not files on disk in your workspace — they are embedded Markdown the agent reads via `skills_read`. The **Skills** tab is now scoped to **user/workspace skills** under `.agents/skills` only, hiding BLXCode's internal core harness skills from the UI while keeping them available to the agent backend.
 
 | Tab | Contents |
 |-----|----------|
-| **Core** | Built-in guides: `file-access`, `memory`, `plans`, `tasks`, `rules-skills`, `harness`, `environment`, `shell`, `git`, `web`, `subagents` |
+| **Core** | Built-in guides: `file-access`, `memory`, `plans`, `tasks`, `rules-skills`, `harness`, `environment`, `shell`, `git`, `web`, `subagents` (hidden from this UI tab — see below) |
 | **User** | Skills under `<workspace>/.agents/skills/` that you install or author |
 
-Core skills show a **core** badge. You can enable or disable them per workspace, but you cannot remove them. **Install skill** appears only on the **User** tab.
+Core skills are still discoverable by the agent via `skills_list` / `skills_read`, but they no longer clutter the **Skills** UI tab. Core skills show a **core** badge in the system tooling. The Skills panel is reserved for skills you can enable / disable / remove per workspace; **Install skill** appears only on the **User** tab.
 
 The **web** core skill may show **disabled_no_key** when no Tavily/Brave API key is configured — configure keys under Harness settings → Agent → Web Tools ([Agent Harness](agent-harness.md)). The **subagents** core skill documents `subagents.run` — see [Subagents](subagents.md).
 
@@ -66,10 +74,14 @@ Each skill is an **expandable card**:
 
 | Collapsed | Expanded |
 |-----------|----------|
-| Name, summary, source badge (`core`, `git`, `npm`, `local`, `agent`), enable switch | Lazy-loaded `SKILL.md` body on first expand |
+| Name, summary, category chip, enable switch | Lazy-loaded `SKILL.md` body on first expand |
 
 - **SKILL.md missing** warning (user skills only) when the folder has no top-level `SKILL.md`
 - Enable/disable; **remove** only for non-core skills
+
+### Categories
+
+Each skill can declare one optional **category** in its Markdown frontmatter (`category: my-category`) and in its `.agents/skills/index.json` entry. Multiple skills can share the same category, and the chips are the same compact style as Rule categories — so the filter row, the cards, and the search experience line up across both panels.
 
 Use **Install skill** (User tab) to add a skill from:
 

@@ -11,7 +11,7 @@
 
 use super::system_prompt::system_prompt;
 use crate::agent::pricing;
-use crate::agent::protocol::{AgentEvent, AgentImageContextItem};
+use crate::agent::protocol::{AgentChatMode, AgentEvent, AgentImageContextItem};
 use crate::agent::state::AgentEngineState;
 use crate::agent::tool_dispatch::{dispatch_tool, DispatchContext};
 use crate::agent::tools::{self, WorkspaceRootGuard};
@@ -25,7 +25,6 @@ use tokio::io::AsyncBufReadExt;
 
 const ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/messages";
 const ANTHROPIC_VERSION: &str = "2023-06-01";
-const MAX_ROUNDS: u32 = 36;
 const DEFAULT_MAX_TOKENS: u64 = 8192;
 
 /// Anthropic restricts tool names to `^[a-zA-Z0-9_-]{1,64}$` — no dots.
@@ -73,15 +72,25 @@ struct RoundResult {
     input_tokens: Option<u64>,
     /// `usage.output_tokens` reported in `message_delta`.
     output_tokens: Option<u64>,
+    /// `usage.cache_read_input_tokens` reported by Anthropic.
+    cached_input_tokens: Option<u64>,
+    /// `usage.cache_creation_input_tokens` reported by Anthropic.
+    cache_write_input_tokens: Option<u64>,
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "Provider turn entrypoint mirrors dispatch context and avoids an extra allocation-only wrapper."
+)]
 pub async fn run_chat_turn(
     state: Arc<AgentEngineState>,
     api_key: String,
     settings: AgentProviderSettings,
+    chat_mode: AgentChatMode,
     prompt: String,
     image_context_items: Vec<AgentImageContextItem>,
     workspace_root: Option<String>,
+    session_role: Option<String>,
 ) {
     state.start_turn();
     state.clear_cancel();
@@ -108,12 +117,13 @@ pub async fn run_chat_turn(
             }
         },
     };
-    let workspace_string = workspace_root
-        .as_ref()
-        .map(|s| s.clone())
-        .filter(|s| !s.trim().is_empty());
+    let workspace_string = workspace_root.clone().filter(|s| !s.trim().is_empty());
 
-    let system = system_prompt(workspace_string.as_deref());
+    let system = system_prompt(
+        workspace_string.as_deref(),
+        &crate::agent::nickname::resolve_agent_name(&settings.agent_nickname),
+        session_role.as_deref(),
+    );
 
     // Anthropic stores `system` separately from `messages`. Persisted
     // history is `user` / `assistant` messages only.
@@ -136,12 +146,17 @@ pub async fn run_chat_turn(
             }
         }
     }
+    // Append live MCP-server tools (names already sanitised by the runtime).
+    if let Some(arr) = tools_json.as_array_mut() {
+        arr.extend(crate::mcp::runtime::anthropic_tool_specs().await);
+    }
     let thinking_cfg = thinking_budget(settings.thinking_level)
         .map(|budget| json!({ "type": "enabled", "budget_tokens": budget }));
 
     let dispatch_ctx = DispatchContext {
         settings: settings.clone(),
         api_key: api_key.clone(),
+        chat_mode,
     };
 
     let client = match reqwest::Client::builder()
@@ -159,7 +174,11 @@ pub async fn run_chat_turn(
         }
     };
 
-    for round in 0..MAX_ROUNDS {
+    // Configurable per-turn tool-call ceiling (Settings → Agent). Clamped
+    // again here in case the on-disk value was hand-edited out of range.
+    let max_rounds = crate::agent_settings::clamp_tool_loop_limit(settings.tool_loop_limit);
+
+    for round in 0..max_rounds {
         if state.cancelled() {
             emit_aborted(&state);
             return;
@@ -214,6 +233,8 @@ pub async fn run_chat_turn(
             turn_generation: state.turn_generation(),
             input_tokens: round_res.input_tokens,
             output_tokens: round_res.output_tokens,
+            cached_input_tokens: round_res.cached_input_tokens,
+            cache_write_input_tokens: round_res.cache_write_input_tokens,
             ttft_ms: round_res.ttft_ms,
             elapsed_ms: round_elapsed_ms,
             cost_usd: round_cost,
@@ -303,6 +324,8 @@ pub async fn run_chat_turn(
                 turn_generation: state.turn_generation(),
                 input_tokens: None,
                 output_tokens: None,
+                cached_input_tokens: None,
+                cache_write_input_tokens: None,
                 ttft_ms: None,
                 elapsed_ms: tool_elapsed_ms,
                 cost_usd: None,
@@ -325,9 +348,9 @@ pub async fn run_chat_turn(
             break;
         }
 
-        if round + 1 == MAX_ROUNDS {
+        if round + 1 == max_rounds {
             state.push(AgentEvent::Error {
-                message: format!("Tool-Loop-Limit erreicht ({MAX_ROUNDS} Runden)."),
+                message: format!("Tool-Loop-Limit erreicht ({max_rounds} Runden)."),
             });
             break;
         }
@@ -412,6 +435,10 @@ struct StreamUsage {
     input_tokens: Option<u64>,
     #[serde(default)]
     output_tokens: Option<u64>,
+    #[serde(default)]
+    cache_read_input_tokens: Option<u64>,
+    #[serde(default)]
+    cache_creation_input_tokens: Option<u64>,
 }
 
 #[derive(Deserialize)]
@@ -519,9 +546,8 @@ async fn run_one_round(
 
     let stream = resp.bytes_stream();
     use futures_util::TryStreamExt;
-    let reader = tokio_util::io::StreamReader::new(
-        stream.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string())),
-    );
+    let reader =
+        tokio_util::io::StreamReader::new(stream.map_err(|e| std::io::Error::other(e.to_string())));
     let mut lines = tokio::io::BufReader::new(reader).lines();
 
     let mut acc = RoundResult::default();
@@ -565,6 +591,12 @@ async fn run_one_round(
                     }
                     if let Some(c) = u.output_tokens {
                         acc.output_tokens = Some(c);
+                    }
+                    if let Some(cached) = u.cache_read_input_tokens {
+                        acc.cached_input_tokens = Some(cached);
+                    }
+                    if let Some(written) = u.cache_creation_input_tokens {
+                        acc.cache_write_input_tokens = Some(written);
                     }
                 }
             }
@@ -659,6 +691,12 @@ async fn run_one_round(
                         if acc.input_tokens.is_none() {
                             acc.input_tokens = Some(p);
                         }
+                    }
+                    if let Some(cached) = u.cache_read_input_tokens {
+                        acc.cached_input_tokens = Some(cached);
+                    }
+                    if let Some(written) = u.cache_creation_input_tokens {
+                        acc.cache_write_input_tokens = Some(written);
                     }
                 }
             }

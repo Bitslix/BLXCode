@@ -26,7 +26,7 @@
 
 .blx-close-terminals__actions .workbench-mini-btn--primary {
   background: var(--danger, var(--accent));
-  color: var(--text-on-accent, #fff);
+  color: var(--on-accent);
   border-color: transparent;
 }
 

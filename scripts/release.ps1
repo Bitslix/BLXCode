@@ -15,6 +15,7 @@ $script:RELEASE_DO_TAG = 0
 $script:RELEASE_DO_PUSH = 0
 $script:RELEASE_DO_COMMIT = 0
 $script:RELEASE_BUMP = ""
+$script:RELEASE_PRE_RELEASE = 0
 $script:RELEASE_BUNDLES = ""
 $script:RELEASE_PLATFORM_OVERRIDE = ""
 $script:RELEASE_LINUX_ARCH = if ($env:RELEASE_LINUX_ARCH) { $env:RELEASE_LINUX_ARCH } else { "all" }
@@ -40,6 +41,7 @@ Optionally bump version, rewrite CHANGELOG, tag, push, and upload to GitHub.
 
 Options:
   --bump patch|minor|major   Bump version in Cargo.toml + tauri.conf.json + CHANGELOG
+  --pre-release              Build the next prerelease version (X.Y.Z-pre.<hash5>)
   --no-changelog             Skip CHANGELOG rewrite on bump
   --build                    Run cargo tauri build (default when not --upload-only / --no-build)
   --no-build                 Skip build
@@ -75,6 +77,7 @@ while ($i -lt $args.Count) {
             continue
         }
         "--no-changelog" { $script:RELEASE_NO_CHANGELOG = 1; $i++; continue }
+        "--pre-release" { $script:RELEASE_PRE_RELEASE = 1; $i++; continue }
         "--build" { $script:RELEASE_DO_BUILD = 1; $i++; continue }
         "--no-build" { $script:RELEASE_DO_BUILD = 0; $script:RELEASE_NO_BUILD = 1; $i++; continue }
         "--bundles" {
@@ -117,7 +120,7 @@ if ($script:RELEASE_UPLOAD_ONLY -eq 1) {
     $script:RELEASE_DO_BUILD = 0
 } elseif ($script:RELEASE_NO_BUILD -ne 1 -and $script:RELEASE_DO_BUILD -eq 0 -and $script:RELEASE_DO_TAG -eq 0 -and -not $script:RELEASE_BUMP) {
     $script:RELEASE_DO_BUILD = 1
-} elseif ($script:RELEASE_BUMP -and $script:RELEASE_NO_BUILD -ne 1 -and $script:RELEASE_DO_BUILD -eq 0 -and $script:RELEASE_UPLOAD_ONLY -ne 1) {
+} elseif (($script:RELEASE_BUMP -or $script:RELEASE_PRE_RELEASE -eq 1) -and $script:RELEASE_NO_BUILD -ne 1 -and $script:RELEASE_DO_BUILD -eq 0 -and $script:RELEASE_UPLOAD_ONLY -ne 1) {
     $script:RELEASE_DO_BUILD = 1
 }
 
@@ -144,7 +147,7 @@ if ($script:RELEASE_UPLOAD_ONLY -eq 1) {
     $script:RELEASE_DO_BUILD = 0
 }
 
-if ($script:RELEASE_BUMP) {
+if ($script:RELEASE_BUMP -or $script:RELEASE_PRE_RELEASE -eq 1) {
     Invoke-ReleaseBumpVersion $script:RELEASE_BUMP
     $tagCurrent = "v$script:RELEASE_VERSION"
     if ((Test-ReleaseGhReleaseExists $tagCurrent) -or (Test-ReleaseRemoteTagExists $tagCurrent)) {
@@ -168,10 +171,10 @@ if ($script:RELEASE_DO_COMMIT -eq 1) {
     if ($script:RELEASE_DRY_RUN -eq 1) {
         Write-ReleaseInfo "Would: git commit version + CHANGELOG"
     } else {
-        & git add CHANGELOG.md Cargo.toml src-tauri/Cargo.toml src-tauri/tauri.conf.json
-        $releaseStatus = (& git status --porcelain scripts/release.sh scripts/release/ .gitignore docs/user/building.md scripts/release.ps1 scripts/release.cmd 2>$null)
+        & git add CHANGELOG.md Cargo.toml src-tauri/Cargo.toml src-tauri/tauri.conf.json package.json package-lock.json
+        $releaseStatus = (& git status --porcelain scripts/release.sh scripts/release/ .gitignore docs/user/building.md docs/releases scripts/release.ps1 scripts/release.cmd 2>$null)
         if ($releaseStatus) {
-            & git add scripts/release.sh scripts/release/ .gitignore docs/user/building.md scripts/release.ps1 scripts/release.cmd
+            & git add scripts/release.sh scripts/release/ .gitignore docs/user/building.md docs/releases scripts/release.ps1 scripts/release.cmd
         }
         & git commit -m "chore: release v$script:RELEASE_VERSION"
         if ($LASTEXITCODE -ne 0) { Stop-Release "git commit failed" }
@@ -215,4 +218,3 @@ if ($script:RELEASE_DO_UPLOAD -eq 1) {
 }
 
 Write-ReleaseInfo "Done."
-

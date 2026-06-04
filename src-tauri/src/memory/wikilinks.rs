@@ -124,7 +124,7 @@ pub fn build_note_lookup(api_paths: &[String]) -> NoteLookup {
         by_path.insert(api.to_lowercase(), api.clone());
         let no_ext = strip_md_ext(api).to_ascii_lowercase();
         by_path.insert(no_ext, api.clone());
-        if let Some(base) = api.split('/').last() {
+        if let Some(base) = api.split('/').next_back() {
             let stem = strip_md_ext(base).to_ascii_lowercase();
             by_basename.entry(stem).or_default().push(api.clone());
         }
@@ -160,7 +160,7 @@ pub fn resolve_link_target(
     if let Some(p) = lookup.by_path.get(&no_ext) {
         return Some((target_scope.clone(), p.clone()));
     }
-    if let Some(base) = raw.split('/').last() {
+    if let Some(base) = raw.split('/').next_back() {
         let stem = strip_md_ext(base).to_ascii_lowercase();
         if let Some(matches) = lookup.by_basename.get(&stem) {
             if matches.len() == 1 {

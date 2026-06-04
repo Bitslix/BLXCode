@@ -2,8 +2,9 @@ use crate::config::POST_UPDATE_NOTES_SEEN_VERSION_KEY;
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    app_version, is_tauri_shell, post_update_release_notes, PostUpdateReleaseNotesItem,
-    PostUpdateReleaseNotesResponse, PostUpdateReleaseNotesSection,
+    app_version, is_tauri_shell, post_update_release_notes, updater_settings_get,
+    PostUpdateReleaseNotesItem, PostUpdateReleaseNotesResponse, PostUpdateReleaseNotesSection,
+    UpdateChannel,
 };
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -56,9 +57,13 @@ impl PostUpdateNotesService {
             if read_seen_version().as_deref() == Some(version.as_str()) {
                 return;
             }
+            let channel = updater_settings_get()
+                .await
+                .map(|settings| settings.channel)
+                .unwrap_or(UpdateChannel::Stable);
             service.loading.set(true);
             service.open.set(true);
-            match post_update_release_notes(version).await {
+            match post_update_release_notes(version, channel).await {
                 Ok(notes) => service.notes.set(Some(notes)),
                 Err(err) => {
                     leptos::logging::warn!("post_update_release_notes: {err}");
@@ -93,7 +98,7 @@ pub fn PostUpdateNotesDialog() -> impl IntoView {
 
     view! {
         <Show when=move || notes.open().get()>
-            <div class="harness-overlay harness-overlay--modal" role="presentation">
+            <div class="harness-overlay harness-overlay--modal harness-overlay--centered" role="presentation">
                 <button
                     type="button"
                     class="harness-scrim"
@@ -115,23 +120,12 @@ pub fn PostUpdateNotesDialog() -> impl IntoView {
                     <Show
                         when=move || notes.notes().get().is_some()
                         fallback=move || view! {
-                            <div class="post-update-loading">
-                                <span class="post-update-loading__icon" aria-hidden="true">
-                                    <LxIcon icon=icondata::LuLoaderCircle width="1rem" height="1rem" />
-                                </span>
-                                <span>{move || {
-                                    if notes.loading().get() {
-                                        i18n.tr(I18nKey::PostUpdateLoading)()
-                                    } else {
-                                        i18n.tr(I18nKey::PostUpdateNoNotes)()
-                                    }
-                                }}</span>
-                            </div>
+                            <ReleaseNotesLoading loading=Signal::derive(move || notes.loading().get()) />
                         }
                     >
                         {move || {
                             notes.notes().get().map(|data| view! {
-                                <PostUpdateNotesContent data=data />
+                                <ReleaseNotesContent data=data />
                             })
                         }}
                     </Show>
@@ -154,7 +148,7 @@ pub fn PostUpdateNotesDialog() -> impl IntoView {
 }
 
 #[component]
-fn PostUpdateNotesContent(data: PostUpdateReleaseNotesResponse) -> impl IntoView {
+pub(crate) fn ReleaseNotesContent(data: PostUpdateReleaseNotesResponse) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let version = data.version.clone();
     let title = data.title.clone();
@@ -182,6 +176,26 @@ fn PostUpdateNotesContent(data: PostUpdateReleaseNotesResponse) -> impl IntoView
                 key=|section| section.title.clone()
                 children=move |section| view! { <PostUpdateSection section=section /> }
             />
+        </div>
+    }
+}
+
+#[component]
+pub(crate) fn ReleaseNotesLoading(loading: Signal<bool>) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+
+    view! {
+        <div class="post-update-loading">
+            <span class="post-update-loading__icon" aria-hidden="true">
+                <LxIcon icon=icondata::LuLoaderCircle width="1rem" height="1rem" />
+            </span>
+            <span>{move || {
+                if loading.get() {
+                    i18n.tr(I18nKey::PostUpdateLoading)()
+                } else {
+                    i18n.tr(I18nKey::PostUpdateNoNotes)()
+                }
+            }}</span>
         </div>
     }
 }

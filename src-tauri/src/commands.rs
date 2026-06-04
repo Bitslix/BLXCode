@@ -1,3 +1,4 @@
+use crate::agent::protocol::AgentChatMode;
 use crate::agent::{dispatch_user_turn, AgentEngineState, EventEnvelope, UserTurn};
 use crate::agent_settings::provider_status_json;
 use crate::browser_host::BrowserHost;
@@ -23,7 +24,7 @@ pub fn agent_poll_events(
     max: usize,
     agent: State<'_, Arc<AgentEngineState>>,
 ) -> Vec<EventEnvelope> {
-    agent.drain(max.max(1).min(512))
+    agent.drain(max.clamp(1, 512))
 }
 
 #[tauri::command]
@@ -37,6 +38,9 @@ pub fn agent_clear_conversation(agent: State<'_, Arc<AgentEngineState>>) -> Resu
         return Err("Agent ist noch beschäftigt. Bitte zuerst abbrechen oder warten.".into());
     }
     agent.clear_conversation();
+    // Drop live MCP clients so the next turn reconnects from the (possibly
+    // edited) registry. This is the contract surfaced in the MCP settings UI.
+    crate::mcp::runtime::reset_blocking();
     Ok(())
 }
 
@@ -434,6 +438,15 @@ pub fn agent_submit_tool_result(
     payload: ToolResultPayload,
     agent: State<'_, Arc<AgentEngineState>>,
 ) -> Result<(), String> {
+    if payload
+        .data
+        .as_ref()
+        .and_then(|data| data.get("chatModeChangedTo"))
+        .and_then(|value| value.as_str())
+        == Some("allow_all")
+    {
+        agent.set_chat_mode_override(AgentChatMode::AllowAll);
+    }
     agent.deliver_client_tool_result(&payload.call_id, payload.ok, payload.message, payload.data)
 }
 
@@ -653,10 +666,10 @@ pub fn list_directory(path: String) -> Result<Vec<DirEntryBrief>, String> {
     let mut out: Vec<DirEntryBrief> = read
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().map(|t| t.is_dir()).unwrap_or(false))
-        .filter_map(|e| {
+        .map(|e| {
             let name = e.file_name().to_string_lossy().into_owned();
             let hidden = name.starts_with('.');
-            Some(DirEntryBrief { name, hidden })
+            DirEntryBrief { name, hidden }
         })
         .collect();
     out.sort_by(|a, b| {
@@ -773,13 +786,69 @@ pub fn pty_peek_output(
 }
 
 #[tauri::command]
-pub fn git_branch(
+pub async fn pty_wait_output(
+    manager: State<'_, PtyManager>,
+    session_id: u64,
+    after_seq: Option<u64>,
+    timeout_ms: Option<u64>,
+    idle_ms: Option<u64>,
+    max_bytes: Option<usize>,
+    contains: Option<String>,
+) -> Result<crate::pty_host::PtyOutputSnapshot, String> {
+    let after_seq = after_seq.unwrap_or(0);
+    let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(10_000).clamp(1, 120_000));
+    let idle = std::time::Duration::from_millis(idle_ms.unwrap_or(250).min(30_000));
+    let max_bytes = max_bytes.unwrap_or(4096).clamp(1, 65_536);
+    let contains = contains.filter(|s| !s.is_empty());
+    let started = tokio::time::Instant::now();
+    let poll = std::time::Duration::from_millis(50);
+
+    loop {
+        let mut snapshot = manager.output_snapshot(session_id, max_bytes)?;
+        let seq_ok = snapshot.seq > after_seq;
+        let contains_ok = contains
+            .as_ref()
+            .map(|needle| snapshot.text.contains(needle))
+            .unwrap_or(true);
+
+        if seq_ok && contains_ok {
+            if idle.is_zero() {
+                snapshot.timed_out = false;
+                return Ok(snapshot);
+            }
+
+            let matched_seq = snapshot.seq;
+            let elapsed = started.elapsed();
+            if elapsed >= timeout {
+                snapshot.timed_out = true;
+                return Ok(snapshot);
+            }
+            tokio::time::sleep(idle.min(timeout - elapsed)).await;
+            let mut settled = manager.output_snapshot(session_id, max_bytes)?;
+            if settled.seq == matched_seq {
+                settled.timed_out = false;
+                return Ok(settled);
+            }
+            continue;
+        }
+
+        let elapsed = started.elapsed();
+        if elapsed >= timeout {
+            snapshot.timed_out = true;
+            return Ok(snapshot);
+        }
+        tokio::time::sleep(poll.min(timeout - elapsed)).await;
+    }
+}
+
+#[tauri::command]
+pub async fn git_branch(
     app: tauri::AppHandle,
     pty: State<'_, PtyManager>,
     exec: State<'_, crate::ssh_exec::RemoteExecManager>,
     cwd: String,
     connection_id: Option<String>,
-) -> Option<String> {
+) -> Result<Option<String>, String> {
     if let Some(cid) = connection_id.as_deref() {
         let branch = crate::git_remote::run_git_remote(
             &app,
@@ -788,10 +857,12 @@ pub fn git_branch(
             cid,
             cwd.trim(),
             &["rev-parse", "--abbrev-ref", "HEAD"],
-        )
-        .ok()?;
+        )?;
         let branch = branch.trim();
-        return (!branch.is_empty() && branch != "HEAD").then(|| branch.to_string());
+        return Ok((!branch.is_empty() && branch != "HEAD").then(|| branch.to_string()));
     }
-    crate::git_info::current_branch(std::path::Path::new(&cwd))
+    crate::proc::run_blocking(move || {
+        Ok(crate::git_info::current_branch(std::path::Path::new(&cwd)))
+    })
+    .await
 }

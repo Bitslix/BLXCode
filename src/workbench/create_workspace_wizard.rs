@@ -2,13 +2,18 @@ use crate::i18n::I18nKey;
 
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    create_directory, default_cwd, is_tauri_shell, list_directory, path_nav_invoke,
-    ssh_remotes_list, DirEntryBrief, PathNavResult, RemoteConnectionView,
+    agent_session_roles_list, create_directory, default_cwd, is_tauri_shell, list_directory,
+    path_nav_invoke, ssh_remotes_list, workspace_presets_delete, workspace_presets_list,
+    workspace_presets_save, DirEntryBrief, PathNavResult, RemoteConnectionView, SessionRoleView,
+    WorkspacePresetView,
 };
 use crate::workbench::path_nav::path_nav_wasm_string;
 use crate::workbench::state::{
     CreateWorkspaceDraft, HarnessSettingsCategory, HarnessUiService, WorkbenchService,
+    WORKSPACE_FLEET_AGENT_SLUGS,
 };
+use crate::workbench::terminal_agent_profiles::{terminal_agent_efforts, terminal_agent_models};
+use crate::workbench::SessionRolePicker;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -68,6 +73,13 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
     let refresh_token = RwSignal::new(0u64);
     // Saved SSH remote connections (for the Local/Remote selector).
     let remote_conns: RwSignal<Vec<RemoteConnectionView>> = RwSignal::new(Vec::new());
+    // Built-in harness session roles (specialized skills) for the mode picker.
+    let session_roles: RwSignal<Vec<SessionRoleView>> = RwSignal::new(Vec::new());
+    // Persisted workspace presets (app-data; one-click launch).
+    let presets: RwSignal<Vec<WorkspacePresetView>> = RwSignal::new(Vec::new());
+    // Inline "new preset" editor state.
+    let preset_new_open = RwSignal::new(false);
+    let preset_new_name = RwSignal::new(String::new());
 
     Effect::new(move |_| {
         if !is_tauri_shell() {
@@ -80,12 +92,54 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
         });
     });
 
+    // Load session roles + presets once on mount.
+    Effect::new(move |_| {
+        if !is_tauri_shell() {
+            return;
+        }
+        spawn_local(async move {
+            if let Ok(list) = agent_session_roles_list().await {
+                session_roles.set(list);
+            }
+            if let Ok(list) = workspace_presets_list().await {
+                presets.set(list);
+            }
+        });
+    });
+
+    // Save the current draft as a named preset, then refresh the list.
+    let save_preset = move || {
+        let name = preset_new_name.get_untracked().trim().to_string();
+        if name.is_empty() {
+            return;
+        }
+        let d = draft_memo.get_untracked();
+        let preset = WorkspacePresetView {
+            id: String::new(),
+            name,
+            terminal_count: d.terminal_count,
+            agent_counts: d.agent_counts,
+            agent_models: d.agent_models.clone(),
+            agent_efforts: d.agent_efforts.clone(),
+            slot_names: d.slot_names.clone(),
+            session_role: d.session_role.clone(),
+        };
+        spawn_local(async move {
+            if let Ok(list) = workspace_presets_save(preset).await {
+                presets.set(list);
+            }
+        });
+        preset_new_open.set(false);
+        preset_new_name.set(String::new());
+    };
+
     // True when the draft targets an SSH remote connection.
     let is_remote = move || draft_memo.get().remote_connection_id.is_some();
 
     let wrap_id = format!("wz-cwd-wrap-{workspace_id}");
     let wrap_id_for_measure = wrap_id.clone();
     let wrap_id_for_outside = wrap_id.clone();
+    let role_wrap_id = format!("wz-role-wrap-{workspace_id}");
 
     Effect::new(move |_| {
         let d = draft_memo.get();
@@ -99,8 +153,9 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
             if let Ok(p) = default_cwd().await {
                 if !p.trim().is_empty() {
                     // Bypass `set_workspace_cwd` so the auto-populated HOME
-                    // path doesn't derive a workspace name (would otherwise
-                    // turn into the username — we want "Workspace N").
+                    // path does not write into the optional name field. The
+                    // final commit still derives a title from the directory
+                    // when the user leaves the field blank.
                     wb.update_workspace_draft(workspace_id, |d| d.cwd_display = p);
                 }
             }
@@ -213,16 +268,16 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
     let create_folder = move || {
         let name = new_folder_name.get_untracked().trim().to_string();
         if name.is_empty() {
-            new_folder_err.set("Name darf nicht leer sein".into());
+            new_folder_err.set(i18n.tr(I18nKey::CreateWorkspaceNameRequired)().to_string());
             return;
         }
         let parent = draft_memo.get_untracked().cwd_display.trim().to_string();
         if parent.is_empty() {
-            new_folder_err.set("Kein Verzeichnis ausgewählt".into());
+            new_folder_err.set(i18n.tr(I18nKey::CreateWorkspaceDirectoryRequired)().to_string());
             return;
         }
         if !is_tauri_shell() {
-            new_folder_err.set("Nicht in Tauri-Shell".into());
+            new_folder_err.set(i18n.tr(I18nKey::CreateWorkspaceDesktopOnly)().to_string());
             return;
         }
         spawn_local(async move {
@@ -243,13 +298,12 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
 
     let cwd_val = move || draft_memo.get().cwd_display.clone();
     let name_val = move || draft_memo.get().name_input.clone();
-
     // Distinct working directories from previously opened workspaces, so the
     // user can refill the cwd field with one click instead of re-typing or
     // re-browsing. Deduplicated by normalized path, newest first.
     let recent_dirs = Memo::new(move |_| {
         let mut seen = std::collections::HashSet::new();
-        let mut out: Vec<(String, String)> = Vec::new();
+        let mut out: Vec<(String, String, u8)> = Vec::new();
         for it in wb.recent_workspaces().get() {
             if !crate::workbench::state::workspace_entry_has_folder(&it.workspace) {
                 continue;
@@ -259,7 +313,7 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
             if key.is_empty() || !seen.insert(key) {
                 continue;
             }
-            out.push((it.workspace.title.clone(), cwd));
+            out.push((it.workspace.title.clone(), cwd, it.workspace.terminal_count));
         }
         out
     });
@@ -285,7 +339,10 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
 
                 <Show when=step0.clone()>
                     <div class="ws-config__group">
-                        <label class="ws-config__label">{move || i18n.tr(I18nKey::WsConnectionType)()}</label>
+                        <label class="ws-config__label">
+                            <LxIcon icon=icondata::LuCable width="0.8rem" height="0.8rem" />
+                            <span>{move || i18n.tr(I18nKey::WsConnectionType)()}</span>
+                        </label>
                         <select
                             class="ws-config__field"
                             prop:value=move || draft_memo.get().remote_connection_id.unwrap_or_default()
@@ -329,7 +386,10 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                     </div>
 
                     <div class="ws-config__group">
-                        <label class="ws-config__label">{move || i18n.tr(I18nKey::WzNameLabel)()}</label>
+                        <label class="ws-config__label">
+                            <LxIcon icon=icondata::LuTag width="0.8rem" height="0.8rem" />
+                            <span>{move || i18n.tr(I18nKey::WzNameLabel)()}</span>
+                        </label>
                         <input
                             class="ws-config__field"
                             type="text"
@@ -343,13 +403,16 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                     </div>
 
                     <div class="ws-config__group">
-                        <label class="ws-config__label">{move || {
-                            if is_remote() {
-                                i18n.tr(I18nKey::WsRemoteDir)()
-                            } else {
-                                i18n.tr(I18nKey::WzCwdLabel)()
-                            }
-                        }}</label>
+                        <label class="ws-config__label">
+                            <LxIcon icon=icondata::LuFolderOpen width="0.8rem" height="0.8rem" />
+                            <span>{move || {
+                                if is_remote() {
+                                    i18n.tr(I18nKey::WsRemoteDir)()
+                                } else {
+                                    i18n.tr(I18nKey::WzCwdLabel)()
+                                }
+                            }}</span>
+                        </label>
                         <div id=wrap_id.clone() class="ws-config__cwd">
                             <span class="ws-config__cwd-icon" aria-hidden="true">
                                 <LxIcon icon=icondata::LuFolder width="1rem" height="1rem" />
@@ -516,15 +579,22 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                         </div>
                         <Show when=move || !recent_dirs.get().is_empty()>
                             <div class="ws-config__recent">
-                                <span class="ws-config__recent-label">
-                                    {move || i18n.tr(I18nKey::QkRecentHeading)()}
-                                </span>
-                                <ul class="harness-cmd-list ws-config__recent-list" role="list">
+                                <div class="ws-config__recent-head">
+                                    <span class="ws-config__recent-label">
+                                        <LxIcon icon=icondata::LuClock width="0.82rem" height="0.82rem" />
+                                        <span>{move || i18n.tr(I18nKey::QkRecentHeading)()}</span>
+                                        <span class="ws-config__recent-count">
+                                            {move || recent_dirs.get().len()}
+                                        </span>
+                                    </span>
+                                    <span class="ws-config__recent-note">"Last opened workspaces"</span>
+                                </div>
+                                <ul class="ws-config__recent-list" role="list">
                                     {move || {
                                         recent_dirs
                                             .get()
                                             .into_iter()
-                                            .map(|(title, cwd)| {
+                                            .map(|(title, cwd, terminal_count)| {
                                                 let cwd_set = cwd.clone();
                                                 let base = cwd
                                                     .trim_end_matches(['/', '\\'])
@@ -538,22 +608,23 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                                                     title
                                                 };
                                                 view! {
-                                                    <li class="harness-cmd-li">
+                                                    <li class="ws-config__recent-item">
                                                         <button
                                                             type="button"
-                                                            class="harness-cmd-btn"
+                                                            class="ws-config__recent-card"
                                                             title=cwd.clone()
                                                             on:click=move |_| {
                                                                 wb.set_workspace_cwd(workspace_id, cwd_set.clone());
                                                             }
                                                         >
-                                                            <span class="harness-cmd-btn__icon" aria-hidden="true">
+                                                            <span class="ws-config__recent-icon" aria-hidden="true">
                                                                 <LxIcon icon=icondata::LuFolderClock width="0.9rem" height="0.9rem" />
                                                             </span>
-                                                            <span class="harness-cmd-btn__text">
-                                                                <span class="harness-cmd-title">{label}</span>
-                                                                <span class="harness-cmd-sub">{cwd.clone()}</span>
+                                                            <span class="ws-config__recent-text">
+                                                                <span class="ws-config__recent-title">{label}</span>
+                                                                <span class="ws-config__recent-path">{cwd.clone()}</span>
                                                             </span>
+                                                            <span class="ws-config__recent-terminals">{terminal_count}</span>
                                                         </button>
                                                     </li>
                                                 }
@@ -569,7 +640,10 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                     </div>
 
                     <div class="ws-config__group">
-                        <label class="ws-config__label">{move || i18n.tr(I18nKey::WzTemplatesHeading)()}</label>
+                        <label class="ws-config__label">
+                            <LxIcon icon=icondata::LuLayoutGrid width="0.8rem" height="0.8rem" />
+                            <span>{move || i18n.tr(I18nKey::WzTemplatesHeading)()}</span>
+                        </label>
                         <div class="ws-config__layout-row">
                             {PRESETS
                                 .iter()
@@ -617,6 +691,148 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                             }}
                         </p>
                     </div>
+
+                    <div class="ws-config__group">
+                        <label class="ws-config__label">
+                            <LxIcon icon=icondata::LuBot width="0.8rem" height="0.8rem" />
+                            <span>{move || i18n.tr(I18nKey::WzSessionRoleLabel)()}</span>
+                        </label>
+                        <SessionRolePicker
+                            id=role_wrap_id.clone()
+                            roles=Signal::derive(move || session_roles.get())
+                            selected=Signal::derive(move || draft_memo.get().session_role)
+                            on_select=Callback::new(move |slug| {
+                                wb.set_workspace_session_role(workspace_id, slug);
+                            })
+                        />
+                    </div>
+
+                    <div class="ws-config__group">
+                        <div class="ws-config__presets-head">
+                            <label class="ws-config__label">
+                                <LxIcon icon=icondata::LuRocket width="0.8rem" height="0.8rem" />
+                                <span>{move || i18n.tr(I18nKey::WzPresetsHeading)()}</span>
+                            </label>
+                            <span class="ws-config__presets-sub">{move || i18n.tr(I18nKey::WzPresetsSubline)()}</span>
+                        </div>
+                        <div class="ws-config__presets-row">
+                            {move || {
+                                let items = presets.get();
+                                if items.is_empty() {
+                                    return view! {
+                                        <div class="ws-config__preset-empty">
+                                            <span class="ws-config__preset-empty-icon" aria-hidden="true">
+                                                <LxIcon icon=icondata::LuFolderPlus width="1rem" height="1rem" />
+                                            </span>
+                                            <span class="ws-config__preset-empty-title">
+                                                {i18n.tr(I18nKey::WzPresetEmpty)()}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                class="ws-config__preset-empty-btn"
+                                                on:click=move |_| preset_new_open.set(true)
+                                            >
+                                                {move || i18n.tr(I18nKey::WzPresetNew)()}
+                                            </button>
+                                        </div>
+                                    }.into_any();
+                                }
+                                items.into_iter().map(|p| {
+                                    let pid = p.id.clone();
+                                    let count = p.terminal_count;
+                                    let counts = p.agent_counts;
+                                    let amodels = p.agent_models.clone();
+                                    let aefforts = p.agent_efforts.clone();
+                                    let names = p.slot_names.clone();
+                                    let role = p.session_role.clone();
+                                    view! {
+                                        <span class="ws-config__preset">
+                                            <button
+                                                type="button"
+                                                class="ws-config__preset-launch"
+                                                title=format!("{count} terminals")
+                                                on:click=move |_| {
+                                                    wb.apply_preset_to_draft(
+                                                        workspace_id,
+                                                        count,
+                                                        counts,
+                                                        amodels.clone(),
+                                                        aefforts.clone(),
+                                                        names.clone(),
+                                                        role.clone(),
+                                                    );
+                                                    wb.commit_inline_configure(workspace_id);
+                                                }
+                                            >
+                                                <span class="ws-config__preset-name">{p.name.clone()}</span>
+                                                <span class="ws-config__preset-meta">{format!("{count}×")}</span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="ws-config__preset-del"
+                                                aria-label=move || i18n.tr(I18nKey::WzPresetDeleteAria)()
+                                                title=move || i18n.tr(I18nKey::WzPresetDeleteAria)()
+                                                on:click=move |_| {
+                                                    let pid = pid.clone();
+                                                    spawn_local(async move {
+                                                        if let Ok(list) = workspace_presets_delete(pid).await {
+                                                            presets.set(list);
+                                                        }
+                                                    });
+                                                }
+                                            >"✕"</button>
+                                        </span>
+                                    }
+                                }).collect_view().into_any()
+                            }}
+                            <Show when=move || !preset_new_open.get() && !presets.get().is_empty()>
+                                <button
+                                    type="button"
+                                    class="ws-config__preset ws-config__preset--new"
+                                    on:click=move |_| preset_new_open.set(true)
+                                >
+                                    {move || i18n.tr(I18nKey::WzPresetNew)()}
+                                </button>
+                            </Show>
+                        </div>
+                        <Show when=move || preset_new_open.get()>
+                            <div class="ws-config__preset-newrow">
+                                <input
+                                    class="ws-config__field ws-config__preset-newinput"
+                                    type="text"
+                                    placeholder=move || i18n.tr(I18nKey::WzPresetSavePrompt)()
+                                    prop:value=move || preset_new_name.get()
+                                    on:input=move |ev| preset_new_name.set(input_value(&ev))
+                                    on:keydown={
+                                        let save_preset = save_preset.clone();
+                                        move |ev: web_sys::KeyboardEvent| {
+                                            if ev.key() == "Enter" {
+                                                ev.prevent_default();
+                                                save_preset();
+                                            } else if ev.key() == "Escape" {
+                                                preset_new_open.set(false);
+                                            }
+                                        }
+                                    }
+                                />
+                                <button
+                                    type="button"
+                                    class="ws-config__btn ws-config__btn--primary"
+                                    on:click={
+                                        let save_preset = save_preset.clone();
+                                        move |_| save_preset()
+                                    }
+                                >
+                                    {move || i18n.tr(I18nKey::WzFolderCreate)()}
+                                </button>
+                                <button
+                                    type="button"
+                                    class="ws-config__btn ws-config__btn--ghost"
+                                    on:click=move |_| preset_new_open.set(false)
+                                >"✕"</button>
+                            </div>
+                        </Show>
+                    </div>
                 </Show>
 
                 <Show when=step1.clone()>
@@ -644,6 +860,36 @@ pub fn WorkspaceConfigurator(workspace_id: u64) -> impl IntoView {
                         <ul class="ws-config__agent-list">
                             {agent_rows(wb, i18n, workspace_id, draft_memo)}
                         </ul>
+                        <div class="ws-config__slot-names">
+                            <label class="ws-config__label">
+                                <LxIcon icon=icondata::LuTerminal width="0.8rem" height="0.8rem" />
+                                <span>{move || i18n.tr(I18nKey::WzSlotNamesLabel)()}</span>
+                            </label>
+                            <div class="ws-config__slot-names-grid">
+                                {move || {
+                                    let d = draft_memo.get();
+                                    let n = d.terminal_count as usize;
+                                    (0..n).map(|i| {
+                                        let ph = i18n.tr(I18nKey::WzSlotNamePh)().replace("{n}", &(i + 1).to_string());
+                                        let val = d.slot_names.get(i).cloned().unwrap_or_default();
+                                        view! {
+                                            <label class="ws-config__slot-name-card">
+                                                <span class="ws-config__slot-name-index">{format!("{:02}", i + 1)}</span>
+                                                <input
+                                                    class="ws-config__slot-name-input"
+                                                    type="text"
+                                                    placeholder=ph
+                                                    prop:value=val
+                                                    on:input=move |ev| {
+                                                        wb.set_workspace_slot_name(workspace_id, i, input_value(&ev));
+                                                    }
+                                                />
+                                            </label>
+                                        }
+                                    }).collect_view()
+                                }}
+                            </div>
+                        </div>
                         <p class="ws-config__hint">{move || {
                             let d = draft_memo.get();
                             let n = d.terminal_count;
@@ -751,6 +997,7 @@ fn agent_rows(
                 3 => (I18nKey::WzAgentOpencode, I18nKey::WzAgentSubOpencode),
                 _ => (I18nKey::WzAgentCursor, I18nKey::WzAgentSubCursor),
             };
+            let has_agents = move || draft.get().agent_counts[idx] != 0;
             view! {
                 <li class="ws-config__agent-row">
                     <div class="ws-config__agent-meta">
@@ -785,6 +1032,52 @@ fn agent_rows(
                                 wb.set_workspace_agent_count(workspace_id, idx, c.saturating_add(1));
                             }
                         >"+"</button>
+                        <Show when=has_agents>
+                            <select
+                                class="ws-config__field ws-config__agent-model"
+                                title=move || i18n.tr(I18nKey::WzAgentModelLabel)()
+                                aria-label=move || i18n.tr(I18nKey::WzAgentModelLabel)()
+                                prop:value=move || draft.get().agent_models[idx].clone()
+                                on:change=move |ev| {
+                                    wb.set_workspace_agent_model(workspace_id, idx, select_value(&ev));
+                                }
+                            >
+                                <option value="">{move || i18n.tr(I18nKey::WzAgentModelDefault)()}</option>
+                                {
+                                    let slug = WORKSPACE_FLEET_AGENT_SLUGS[idx];
+                                    terminal_agent_models(slug)
+                                        .iter()
+                                        .map(|m| {
+                                            let m = m.to_string();
+                                            view! { <option value=m.clone()>{m.clone()}</option> }
+                                        })
+                                    .collect_view()
+                                }
+                            </select>
+                            <Show when=move || !terminal_agent_efforts(WORKSPACE_FLEET_AGENT_SLUGS[idx]).is_empty()>
+                                <select
+                                    class="ws-config__field ws-config__agent-model"
+                                    title=move || i18n.tr(I18nKey::WzAgentEffortLabel)()
+                                    aria-label=move || i18n.tr(I18nKey::WzAgentEffortLabel)()
+                                    prop:value=move || draft.get().agent_efforts[idx].clone()
+                                    on:change=move |ev| {
+                                        wb.set_workspace_agent_effort(workspace_id, idx, select_value(&ev));
+                                    }
+                                >
+                                    <option value="">{move || i18n.tr(I18nKey::WzAgentEffortDefault)()}</option>
+                                    {
+                                        let slug = WORKSPACE_FLEET_AGENT_SLUGS[idx];
+                                        terminal_agent_efforts(slug)
+                                            .iter()
+                                            .map(|effort| {
+                                                let effort = effort.to_string();
+                                                view! { <option value=effort.clone()>{effort.clone()}</option> }
+                                            })
+                                            .collect_view()
+                                    }
+                                </select>
+                            </Show>
+                        </Show>
                     </div>
                 </li>
             }

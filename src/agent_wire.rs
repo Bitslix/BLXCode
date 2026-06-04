@@ -8,6 +8,11 @@ pub struct UserTurn {
     pub prompt: String,
     pub workspace_root: Option<String>,
     #[serde(default)]
+    pub chat_mode: AgentChatMode,
+    /// Active harness session-role slug for this workspace (e.g. `coordinator`).
+    #[serde(default)]
+    pub session_role: Option<String>,
+    #[serde(default)]
     pub voice_input: bool,
     #[serde(default)]
     pub image_generate: bool,
@@ -15,6 +20,15 @@ pub struct UserTurn {
     pub context_items: Vec<AgentContextItem>,
     #[serde(default)]
     pub image_context_items: Vec<AgentImageContextItem>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentChatMode {
+    #[default]
+    AskEdits,
+    AllowAll,
+    Plan,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -31,6 +45,15 @@ pub enum AgentContextKind {
     /// Inline file snippet (line range) attached from the file preview's
     /// right-click menu. `content` carries the fenced markdown block.
     FileSnippet,
+    /// Whole-file reference dragged from the project explorer. Carries only the
+    /// workspace-relative path in `paths` (no inline `content`).
+    FileRef,
+    /// Git diff of a single file dragged from the diff sidebar. `content`
+    /// carries the unified diff text; `paths` holds the file path.
+    GitDiff,
+    /// Git commit dragged from the commit graph. `content` carries a rendered
+    /// summary; `paths` holds the changed file paths.
+    GitCommit,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -127,6 +150,16 @@ pub enum AgentEvent {
         #[serde(default)]
         args: Option<Value>,
     },
+    #[serde(rename = "tool_permission_request")]
+    ToolPermissionRequest {
+        tool: String,
+        call_id: String,
+        mode: AgentChatMode,
+        kind: ToolPermissionKind,
+        summary: String,
+        #[serde(default)]
+        args: Option<Value>,
+    },
     #[serde(rename = "tool_result")]
     ToolResult {
         tool: String,
@@ -208,11 +241,23 @@ pub enum AgentEvent {
         #[serde(default)]
         output_tokens: Option<u64>,
         #[serde(default)]
+        cached_input_tokens: Option<u64>,
+        #[serde(default)]
+        cache_write_input_tokens: Option<u64>,
+        #[serde(default)]
         ttft_ms: Option<u64>,
         elapsed_ms: u64,
         #[serde(default)]
         cost_usd: Option<f64>,
     },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolPermissionKind {
+    MutatingEdit,
+    Command,
+    SettingsWindow,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -231,6 +276,10 @@ pub struct TurnMetrics {
     #[serde(default)]
     pub output_tokens: Option<u64>,
     #[serde(default)]
+    pub cached_input_tokens: Option<u64>,
+    #[serde(default)]
+    pub cache_write_input_tokens: Option<u64>,
+    #[serde(default)]
     pub ttft_ms: Option<u64>,
     #[serde(default)]
     pub elapsed_ms: u64,
@@ -243,6 +292,8 @@ impl TurnMetrics {
     pub fn is_empty(&self) -> bool {
         self.input_tokens.is_none()
             && self.output_tokens.is_none()
+            && self.cached_input_tokens.is_none()
+            && self.cache_write_input_tokens.is_none()
             && self.ttft_ms.is_none()
             && self.elapsed_ms == 0
             && self.cost_usd.is_none()
@@ -254,6 +305,14 @@ impl TurnMetrics {
         }
         if let Some(v) = other.output_tokens {
             self.output_tokens = Some(self.output_tokens.unwrap_or(0).saturating_add(v));
+        }
+        if let Some(v) = other.cached_input_tokens {
+            self.cached_input_tokens =
+                Some(self.cached_input_tokens.unwrap_or(0).saturating_add(v));
+        }
+        if let Some(v) = other.cache_write_input_tokens {
+            self.cache_write_input_tokens =
+                Some(self.cache_write_input_tokens.unwrap_or(0).saturating_add(v));
         }
         if let Some(v) = other.ttft_ms {
             self.ttft_ms.get_or_insert(v);

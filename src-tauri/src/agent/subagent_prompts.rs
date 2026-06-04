@@ -92,6 +92,7 @@ fn render_tool_inventory(groups: &[ToolGroup]) -> String {
                 "git_show",
                 "git_branch_info",
                 "git_ls_files",
+                "git_conflicts",
             ],
         ),
         ("Environment / shell", &["environment_detect", "shell_exec"]),

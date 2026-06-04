@@ -18,6 +18,13 @@ pub struct UserTurn {
     pub prompt: String,
     /// Sandbox root for read-only tools; must be canonical if set (caller responsibility).
     pub workspace_root: Option<String>,
+    #[serde(default)]
+    pub chat_mode: AgentChatMode,
+    /// Slug of the active BLXCode harness session role (specialized skill) for
+    /// this workspace, e.g. `"coordinator"`. Resolved to embedded role text and
+    /// appended to the system prompt for the turn. `None` = default agent.
+    #[serde(default)]
+    pub session_role: Option<String>,
     /// When true, the orchestrator runs the configured TTS engine on the
     /// final assistant text and emits an `AgentEvent::VoiceReady`.
     #[serde(default)]
@@ -31,6 +38,15 @@ pub struct UserTurn {
     pub context_items: Vec<AgentContextItem>,
     #[serde(default)]
     pub image_context_items: Vec<AgentImageContextItem>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentChatMode {
+    #[default]
+    AskEdits,
+    AllowAll,
+    Plan,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -51,6 +67,17 @@ pub enum AgentContextKind {
     /// right-click context menu. The `content` field carries the fenced
     /// markdown block; `paths` holds the workspace-relative file path.
     FileSnippet,
+    /// Whole-file reference dragged from the project explorer. Carries only the
+    /// workspace-relative path in `paths` (no inline `content`); the agent
+    /// reads the file via its tools if needed.
+    FileRef,
+    /// Git diff of a single file dragged from the diff sidebar. The `content`
+    /// field carries the unified diff text; `paths` holds the file path.
+    GitDiff,
+    /// Git commit dragged from the commit graph. The `content` field carries a
+    /// rendered summary (subject/body + changed files); `paths` holds the
+    /// changed file paths.
+    GitCommit,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -101,6 +128,16 @@ pub enum AgentEvent {
         /// Optional for legacy / mock events.
         #[serde(skip_serializing_if = "Option::is_none")]
         call_id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        args: Option<serde_json::Value>,
+    },
+    #[serde(rename = "tool_permission_request")]
+    ToolPermissionRequest {
+        tool: String,
+        call_id: String,
+        mode: AgentChatMode,
+        kind: ToolPermissionKind,
+        summary: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         args: Option<serde_json::Value>,
     },
@@ -214,6 +251,14 @@ pub enum AgentEvent {
         /// Completion / output tokens reported for this round.
         #[serde(skip_serializing_if = "Option::is_none")]
         output_tokens: Option<u64>,
+        /// Prompt/input tokens served from provider prompt-cache, when the
+        /// provider reports that breakdown (OpenAI/OpenRouter/Anthropic).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cached_input_tokens: Option<u64>,
+        /// Prompt/input tokens written into provider prompt-cache, when
+        /// reported separately by the provider (Anthropic).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_write_input_tokens: Option<u64>,
         /// Wall-clock ms from round start to first streamed delta.
         /// `None` for tool-only rounds or `ToolExec` events.
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -225,6 +270,14 @@ pub enum AgentEvent {
         #[serde(skip_serializing_if = "Option::is_none")]
         cost_usd: Option<f64>,
     },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolPermissionKind {
+    MutatingEdit,
+    Command,
+    SettingsWindow,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -250,6 +303,10 @@ pub struct TurnMetrics {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_tokens: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub cached_input_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_write_input_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ttft_ms: Option<u64>,
     pub elapsed_ms: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -264,6 +321,8 @@ impl TurnMetrics {
     pub fn is_empty(&self) -> bool {
         self.input_tokens.is_none()
             && self.output_tokens.is_none()
+            && self.cached_input_tokens.is_none()
+            && self.cache_write_input_tokens.is_none()
             && self.ttft_ms.is_none()
             && self.elapsed_ms == 0
             && self.cost_usd.is_none()
@@ -277,6 +336,14 @@ impl TurnMetrics {
         }
         if let Some(v) = other.output_tokens {
             self.output_tokens = Some(self.output_tokens.unwrap_or(0).saturating_add(v));
+        }
+        if let Some(v) = other.cached_input_tokens {
+            self.cached_input_tokens =
+                Some(self.cached_input_tokens.unwrap_or(0).saturating_add(v));
+        }
+        if let Some(v) = other.cache_write_input_tokens {
+            self.cache_write_input_tokens =
+                Some(self.cache_write_input_tokens.unwrap_or(0).saturating_add(v));
         }
         if let Some(v) = other.ttft_ms {
             // For aggregated metrics we keep the first TTFT sample —

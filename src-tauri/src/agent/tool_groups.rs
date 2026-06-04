@@ -10,6 +10,7 @@ use std::collections::HashSet;
 pub enum ToolGroup {
     EnvironmentRead,
     WorkspaceRead,
+    WorkspaceWrite,
     DiffRead,
     GitRead,
     GitWrite,
@@ -35,6 +36,7 @@ impl ToolGroup {
         match s {
             "environment_read" => Some(Self::EnvironmentRead),
             "workspace_read" => Some(Self::WorkspaceRead),
+            "workspace_write" => Some(Self::WorkspaceWrite),
             "diff_read" => Some(Self::DiffRead),
             "git_read" => Some(Self::GitRead),
             "git_write" => Some(Self::GitWrite),
@@ -61,12 +63,19 @@ impl ToolGroup {
                 "read_workspace_file",
                 "workspace_search",
             ],
+            Self::WorkspaceWrite => &[
+                "workspace_file_write",
+                "workspace_file_delete",
+                "workspace_dir_create",
+                "workspace_entry_rename",
+            ],
             Self::DiffRead => &[
                 "workspace_git_status",
                 "workspace_diff",
                 "git_status",
                 "git_diff",
                 "git_show",
+                "git_conflicts",
             ],
             Self::GitRead => &[
                 "git_status",
@@ -75,6 +84,7 @@ impl ToolGroup {
                 "git_show",
                 "git_branch_info",
                 "git_ls_files",
+                "git_conflicts",
             ],
             Self::GitWrite => &["git_apply_patch", "git_add", "git_commit"],
             Self::ShellRead => &["shell_exec"],
@@ -100,13 +110,27 @@ impl ToolGroup {
                 "memory_context_attach",
                 "memory_context_detach",
             ],
-            Self::PlansRead => &["plan_list", "plan_read", "plan_load", "plan_context_list"],
+            Self::PlansRead => &[
+                "plan_list",
+                "plan_read",
+                "plan_load",
+                "plan_context_list",
+                "kanban_board_load",
+                "kanban_export_layout",
+            ],
             Self::PlansWrite => &[
                 "plan_create",
                 "plan_write",
                 "plan_delete",
                 "plan_rename",
                 "plan_sync_from_tasks",
+                "mermaid_create",
+                "mermaid_create_many",
+                "kanban_layout_save",
+                "kanban_task_create",
+                "kanban_task_update",
+                "kanban_task_delete",
+                "kanban_import_layout",
                 "plan_context_attach",
                 "plan_context_detach",
             ],
@@ -124,12 +148,33 @@ impl ToolGroup {
             ],
             Self::CoordinatorHarness => &[
                 "harness.create_workspace",
+                "harness.workspace_list",
+                "harness.workspace_switch",
+                "harness.workspace_prev",
+                "harness.workspace_next",
+                "harness.view_show",
+                "harness.open_settings",
+                "harness.open_memory",
+                "harness.open_plan",
+                "harness.open_file",
+                "harness.open_diff",
+                "harness.window_get_state",
+                "harness.window_set_size",
+                "harness.window_set_fullscreen",
                 "harness.open_terminal",
                 "harness.list_terminals",
                 "harness.send_terminal_keys",
                 "harness.send_agent_context",
                 "harness.read_terminal_output",
+                "harness.wait_terminal_output",
+                "harness.terminal_interrupt",
                 "harness.ask_user",
+                "harness.notifications_list",
+                "harness.notifications_create",
+                "harness.notifications_send",
+                "harness.notifications_update",
+                "harness.notifications_remove",
+                "harness.notifications_mark_read",
             ],
             Self::CoordinatorMeta => &["list_tools"],
             Self::SubagentsRun => &["subagents.run"],
@@ -143,6 +188,7 @@ pub fn coordinator_groups(web_enabled: bool) -> Vec<ToolGroup> {
     let mut g = vec![
         ToolGroup::EnvironmentRead,
         ToolGroup::WorkspaceRead,
+        ToolGroup::WorkspaceWrite,
         ToolGroup::DiffRead,
         ToolGroup::GitRead,
         ToolGroup::GitWrite,
@@ -299,6 +345,13 @@ mod tests {
         let (ok, bad) = parse_allowed_groups_strict(&input);
         assert_eq!(ok, vec![ToolGroup::WorkspaceRead, ToolGroup::GitRead]);
         assert_eq!(bad, vec!["file_access".to_string(), "shell".to_string()]);
+    }
+
+    #[test]
+    fn git_conflicts_is_available_to_read_groups() {
+        assert!(ToolGroup::GitRead.tool_names().contains(&"git_conflicts"));
+        assert!(ToolGroup::DiffRead.tool_names().contains(&"git_conflicts"));
+        assert!(!ToolGroup::GitWrite.tool_names().contains(&"git_conflicts"));
     }
 
     #[test]

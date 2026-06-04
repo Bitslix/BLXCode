@@ -1,26 +1,31 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_latest_session_id, agent_remote_latest_session_id, agent_session_exists, git_branch,
-    is_tauri_shell, pty_drain_wait, pty_kill, pty_resize, pty_spawn_remote, pty_spawn_with_env,
-    pty_write, workbench_drop_sessions, workbench_load_sessions, workbench_notifications_path,
-    workbench_sessions_path,
+    agent_latest_session_id, agent_remote_latest_session_id, agent_session_exists, is_tauri_shell,
+    pty_drain_wait, pty_kill, pty_resize, pty_spawn_remote, pty_spawn_with_env, pty_write,
+    workbench_drop_sessions, workbench_load_sessions, workbench_notifications_path,
+    workbench_sessions_path, workbench_usage_path,
 };
 use crate::workbench::agent_accent::agent_accent_class;
 use crate::workbench::agent_context_handoff::TerminalSlotHandoffButton;
+use crate::workbench::app_prefs::AppPrefsService;
+use crate::workbench::terminal_agent_profiles::terminal_agent_launch_command;
 use crate::workbench::terminal_glue::{
     terminal_create, terminal_dispose, terminal_fit, terminal_request_fit,
     terminal_set_stdin_enabled, terminal_show_fallback, terminal_size_from_js,
     terminal_wait_api_ready, terminal_write_b64, TerminalSize,
 };
+use crate::workbench::terminal_naming;
 use crate::workbench::terminal_slot_dnd::{
     set_drag_payload, TerminalDragMeta, TerminalSlotDragPayload, TerminalSlotDragService,
 };
+use crate::workbench::terminal_usage::TerminalUsageButton;
 use gloo_timers::future::TimeoutFuture;
 use leptos::callback::{Callable, Callback};
 use leptos::html;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use wasm_bindgen::JsCast;
 use web_sys::{DragEvent, HtmlElement};
@@ -34,6 +39,12 @@ struct AgentLaunchPending {
     /// `Some` for remote (SSH) workspaces — resume discovery runs on the
     /// remote host instead of the local sessions.json/transcript files.
     remote_connection_id: Option<String>,
+    /// Selected CLI model id for this slot (passed as `--model`); `None` uses
+    /// the agent's own default.
+    model: Option<String>,
+    /// Selected CLI reasoning effort for this slot; `None` uses the CLI's own
+    /// default or config-file value.
+    effort: Option<String>,
 }
 
 #[derive(Clone, Default)]
@@ -109,19 +120,75 @@ pub fn WorkspaceTerminalCell(
         wb.terminal_unread_count(&terminal_key_unread) > 0
     });
     let state: Arc<Mutex<CellState>> = Arc::new(Mutex::new(CellState::default()));
-    let branch = RwSignal::new(None::<String>);
     let initial_title = title.clone();
     let dynamic_title = RwSignal::new(initial_title);
 
-    if is_tauri_shell() {
-        let cwd_for_branch = cwd.clone();
-        let conn_for_branch = wb.remote_connection_for_terminal_key(&terminal_key);
-        leptos::task::spawn_local(async move {
-            if let Ok(Some(name)) = git_branch(cwd_for_branch, conn_for_branch).await {
-                branch.set(Some(name));
-            }
+    // Terminal naming: the header shows either the native `#slot_id` or a
+    // friendly name (per-slot override > deterministic pool), depending on
+    // the app-wide naming mode. `slot_id` itself never changes.
+    let prefs = expect_context::<AppPrefsService>();
+    let naming_mode = prefs.terminal_naming_mode();
+    let name_pool = prefs.terminal_name_pool();
+    let slot_label = Memo::new(move |_| {
+        let mode = naming_mode.get();
+        let pool = name_pool.get();
+        let override_name = wb.slot_name_override(workspace_id, slot_id);
+        let siblings = wb.slot_ids_for_workspace(workspace_id);
+        terminal_naming::display_label(mode, slot_id, override_name.as_deref(), &pool, &siblings)
+    });
+
+    // Publish the live title info so the app title-bar breadcrumb can show the
+    // focused terminal: its OSC/auto title (prefixed with the slot number to
+    // disambiguate identical titles), or the resolved slot label as fallback.
+    {
+        let terminal_key_title = terminal_key.clone();
+        Effect::new(move |_| {
+            let auto = dynamic_title.get();
+            let label = slot_label.get();
+            wb.set_terminal_title(terminal_key_title.clone(), slot_id, auto, label);
         });
     }
+
+    // Inline rename state for the header name (double-click to edit).
+    let renaming = RwSignal::new(false);
+    let rename_draft = RwSignal::new(String::new());
+    let rename_input = NodeRef::<html::Input>::new();
+    // Lightweight header context menu (Rename / Reset name) — positioned at
+    // the cursor. `None` when closed.
+    let header_menu = RwSignal::new(None::<(i32, i32)>);
+    let header_menu_open = Arc::new(AtomicBool::new(false));
+    let header_menu_alive = Arc::new(AtomicBool::new(true));
+    let has_name_override =
+        Signal::derive(move || wb.slot_name_override(workspace_id, slot_id).is_some());
+    Effect::new(move |_| {
+        if renaming.get() {
+            if let Some(el) = rename_input.get() {
+                let _ = el.focus();
+                el.select();
+            }
+        }
+    });
+    let commit_rename = move || {
+        if !renaming.get_untracked() {
+            return;
+        }
+        let value = rename_draft.get_untracked();
+        wb.set_slot_name_override(workspace_id, slot_id, value);
+        renaming.set(false);
+    };
+    let begin_rename = move || {
+        // Seed the editor with the current friendly name (override or pool
+        // pick) — never the raw `#id`, so editing starts from the name even
+        // in slot-number mode.
+        let pool = name_pool.get_untracked();
+        let siblings = wb.slot_ids_for_workspace(workspace_id);
+        let override_name = wb.slot_name_override(workspace_id, slot_id);
+        let seed =
+            terminal_naming::resolve_slot_name(slot_id, override_name.as_deref(), &pool, &siblings)
+                .unwrap_or_default();
+        rename_draft.set(seed);
+        renaming.set(true);
+    };
 
     let agent_slug_memo = agent_slug.clone();
     let agent_slug_class = agent_slug.clone();
@@ -157,7 +224,7 @@ pub fn WorkspaceTerminalCell(
         let wb = wb;
         move |_| {
             let _ = wb.terminal_layout_tick().get();
-            if !(is_workspace_active.get() && !is_slot_hidden.get()) {
+            if !is_workspace_active.get() || is_slot_hidden.get() {
                 return;
             }
             let Some(el) = node_ref.get() else {
@@ -235,7 +302,8 @@ pub fn WorkspaceTerminalCell(
                         use base64::Engine;
                         let b64 = base64::engine::general_purpose::STANDARD.encode(data);
                         if let Err(err) = pty_write(sid, b64).await {
-                            if let Some(t) = state.lock().expect("cell").term_id {
+                            let term_id = state.lock().expect("cell").term_id;
+                            if let Some(t) = term_id {
                                 let msg =
                                     format!("{}\n{}", i18n.tr(I18nKey::WsPtySpawnFailed)(), err);
                                 terminal_show_fallback(t, &msg);
@@ -347,6 +415,34 @@ pub fn WorkspaceTerminalCell(
         }
     });
 
+    // Close the header context menu on any outside mousedown / Escape.
+    let header_menu_close_handle =
+        leptos::leptos_dom::helpers::window_event_listener_untyped("mousedown", {
+            let menu_open = header_menu_open.clone();
+            let alive = header_menu_alive.clone();
+            move |_| {
+                if alive.load(Ordering::Relaxed) && menu_open.swap(false, Ordering::Relaxed) {
+                    header_menu.set(None);
+                }
+            }
+        });
+    let header_menu_escape_handle =
+        leptos::leptos_dom::helpers::window_event_listener_untyped("keydown", {
+            let menu_open = header_menu_open.clone();
+            let alive = header_menu_alive.clone();
+            move |ev| {
+                let Some(kev) = ev.dyn_ref::<web_sys::KeyboardEvent>() else {
+                    return;
+                };
+                if kev.key() == "Escape"
+                    && alive.load(Ordering::Relaxed)
+                    && menu_open.swap(false, Ordering::Relaxed)
+                {
+                    header_menu.set(None);
+                }
+            }
+        });
+
     Effect::new({
         let state = state.clone();
         let agent_slug = agent_slug.clone();
@@ -369,13 +465,17 @@ pub fn WorkspaceTerminalCell(
     on_cleanup({
         let state = state.clone();
         let terminal_key_cleanup = terminal_key.clone();
+        let header_menu_alive = header_menu_alive.clone();
         // Move handles into cleanup so they live until component unmount
         move || {
+            header_menu_alive.store(false, Ordering::Relaxed);
             drop(pty_input_handle);
             drop(pty_title_handle);
             drop(pty_resize_handle);
             drop(grid_ready_handle);
             drop(resize_handle);
+            drop(header_menu_close_handle);
+            drop(header_menu_escape_handle);
             if let Ok(mut st) = state.lock() {
                 st.disposed = true;
             }
@@ -393,6 +493,7 @@ pub fn WorkspaceTerminalCell(
             if !moving {
                 wb.unregister_pty_session(&terminal_key_cleanup);
             }
+            wb.clear_terminal_title(&terminal_key_cleanup);
             if let Some(t) = t {
                 terminal_dispose(t);
             }
@@ -501,6 +602,12 @@ pub fn WorkspaceTerminalCell(
                         }
                     }
                 }
+                on:contextmenu=move |ev: web_sys::MouseEvent| {
+                    ev.prevent_default();
+                    ev.stop_propagation();
+                    header_menu_open.store(true, Ordering::Relaxed);
+                    header_menu.set(Some((ev.client_x(), ev.client_y())));
+                }
                 on:mousedown={
                     let terminal_key = terminal_key.clone();
                     let wb = wb;
@@ -512,13 +619,66 @@ pub fn WorkspaceTerminalCell(
                     move |_| wb.focus_terminal(terminal_key.clone())
                 }
             >
-                <span
-                    class="ws-term-cell__slot"
-                    title=move || format!("{} {}", i18n.tr(I18nKey::WsTermSlot)(), slot_id)
-                    aria-hidden="true"
+                <Show
+                    when=move || renaming.get()
+                    fallback=move || view! {
+                        <span
+                            class="ws-term-cell__slot"
+                            title=move || format!(
+                                "{} {} — {}",
+                                i18n.tr(I18nKey::WsTermSlot)(),
+                                slot_id,
+                                i18n.tr(I18nKey::WsTermRenameHint)(),
+                            )
+                            on:dblclick={
+                                let begin_rename = begin_rename;
+                                move |ev: web_sys::MouseEvent| {
+                                    ev.stop_propagation();
+                                    begin_rename();
+                                }
+                            }
+                        >
+                            {move || slot_label.get()}
+                        </span>
+                    }
                 >
-                    {format!("#{slot_id}")}
-                </span>
+                    <input
+                        node_ref=rename_input
+                        class="ws-term-cell__slot-edit"
+                        prop:value=move || rename_draft.get()
+                        prop:draggable=false
+                        placeholder=move || i18n.tr(I18nKey::WsTermRenamePlaceholder)()
+                        on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
+                        on:click=|ev: web_sys::MouseEvent| ev.stop_propagation()
+                        on:input=move |ev| {
+                            if let Some(t) = ev.target()
+                                .and_then(|t| t.dyn_into::<web_sys::HtmlInputElement>().ok())
+                            {
+                                rename_draft.set(t.value());
+                            }
+                        }
+                        on:blur={
+                            let commit_rename = commit_rename;
+                            move |_| commit_rename()
+                        }
+                        on:keydown={
+                            let commit_rename = commit_rename;
+                            move |ev: web_sys::KeyboardEvent| {
+                                match ev.key().as_str() {
+                                    "Enter" => {
+                                        ev.prevent_default();
+                                        commit_rename();
+                                    }
+                                    "Escape" => {
+                                        ev.prevent_default();
+                                        renaming.set(false);
+                                    }
+                                    _ => {}
+                                }
+                            }
+                        }
+                    />
+                </Show>
                 <Show when=move || slot_drag_enabled.get() && !is_full_size.get() && slot_dnd.is_some()>
                     <span
                         class="ws-term-cell__drag-handle"
@@ -529,12 +689,6 @@ pub fn WorkspaceTerminalCell(
                     </span>
                 </Show>
                 <span class="ws-term-cell__title">{move || dynamic_title.get()}</span>
-                <Show when=move || branch.with(|b| b.is_some())>
-                    <span class="ws-term-cell__branch">
-                        <LxIcon icon=icondata::LuGitBranch width="0.72rem" height="0.72rem" />
-                        <span>{move || branch.get().unwrap_or_default()}</span>
-                    </span>
-                </Show>
                 <Show when=move || !agent_label.get().is_empty()>
                     <span class="ws-term-cell__badge">{move || agent_label.get()}</span>
                 </Show>
@@ -544,6 +698,10 @@ pub fn WorkspaceTerminalCell(
                     agent_slug=agent_slug.clone()
                     workspace_id=workspace_id
                     terminal_title=Signal::derive(move || dynamic_title.get())
+                />
+                <TerminalUsageButton
+                    terminal_key=terminal_key.clone()
+                    agent_slug=agent_slug.clone()
                 />
                 <button
                     type="button"
@@ -564,7 +722,18 @@ pub fn WorkspaceTerminalCell(
                             i18n.tr(I18nKey::WsTermFullSize)()
                         }
                     }
-                    on:click=move |_| on_full_size.run(())
+                    on:click=move |_| {
+                        crate::app_log::info(
+                            "terminal",
+                            "size_toggle",
+                            serde_json::json!({
+                                "workspaceId": workspace_id,
+                                "slotId": slot_id,
+                                "fullSize": !is_full_size.get_untracked(),
+                            }),
+                        );
+                        on_full_size.run(());
+                    }
                 >
                     {move || {
                         if is_full_size.get() {
@@ -581,7 +750,18 @@ pub fn WorkspaceTerminalCell(
                     on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
                     title=move || i18n.tr(I18nKey::WsTermSplitVerticalAria)()
                     aria-label=move || i18n.tr(I18nKey::WsTermSplitVerticalAria)()
-                    on:click=move |_| on_split_vertical.run(())
+                    on:click=move |_| {
+                        crate::app_log::info(
+                            "terminal",
+                            "split_requested",
+                            serde_json::json!({
+                                "workspaceId": workspace_id,
+                                "slotId": slot_id,
+                                "direction": "vertical",
+                            }),
+                        );
+                        on_split_vertical.run(());
+                    }
                 >
                     <LxIcon icon=icondata::LuPanelRight width="0.82rem" height="0.82rem" />
                 </button>
@@ -592,7 +772,18 @@ pub fn WorkspaceTerminalCell(
                     on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
                     title=move || i18n.tr(I18nKey::WsTermSplitHorizontalAria)()
                     aria-label=move || i18n.tr(I18nKey::WsTermSplitHorizontalAria)()
-                    on:click=move |_| on_split_horizontal.run(())
+                    on:click=move |_| {
+                        crate::app_log::info(
+                            "terminal",
+                            "split_requested",
+                            serde_json::json!({
+                                "workspaceId": workspace_id,
+                                "slotId": slot_id,
+                                "direction": "horizontal",
+                            }),
+                        );
+                        on_split_horizontal.run(());
+                    }
                 >
                     <LxIcon icon=icondata::LuPanelBottom width="0.82rem" height="0.82rem" />
                 </button>
@@ -604,12 +795,71 @@ pub fn WorkspaceTerminalCell(
                         on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
                         title=move || i18n.tr(I18nKey::BtnClose)()
                         aria-label=move || i18n.tr(I18nKey::WsTermCloseAria)()
-                        on:click=move |_| on_close.run(())
+                        on:click=move |_| {
+                            crate::app_log::info(
+                                "terminal",
+                                "close_requested",
+                                serde_json::json!({
+                                    "workspaceId": workspace_id,
+                                    "slotId": slot_id,
+                                }),
+                            );
+                            on_close.run(());
+                        }
                     >
                         <LxIcon icon=icondata::LuX width="0.86rem" height="0.86rem" />
                     </button>
                 </Show>
             </div>
+            <Show when=move || header_menu.get().is_some()>
+                {move || {
+                    let Some((x, y)) = header_menu.get() else {
+                        return view! {}.into_any();
+                    };
+                    let style = format!("left: {x}px; top: {y}px;");
+                    view! {
+                        <div
+                            class="terminal-context-menu"
+                            role="menu"
+                            style=style
+                            on:mousedown=|ev: web_sys::MouseEvent| ev.stop_propagation()
+                            on:click=|ev: web_sys::MouseEvent| ev.stop_propagation()
+                            on:contextmenu=|ev: web_sys::MouseEvent| ev.prevent_default()
+                        >
+                            <button
+                                type="button"
+                                class="terminal-context-menu__item"
+                                role="menuitem"
+                                on:click={
+                                    let begin_rename = begin_rename;
+                                    move |_| {
+                                        header_menu.set(None);
+                                        begin_rename();
+                                    }
+                                }
+                            >
+                                {move || i18n.tr(I18nKey::WsTermMenuRename)()}
+                            </button>
+                            <button
+                                type="button"
+                                class="terminal-context-menu__item"
+                                role="menuitem"
+                                disabled=move || !has_name_override.get()
+                                on:click={
+                                    let wb = wb;
+                                    move |_| {
+                                        header_menu.set(None);
+                                        wb.clear_slot_name_override(workspace_id, slot_id);
+                                    }
+                                }
+                            >
+                                {move || i18n.tr(I18nKey::WsTermMenuResetName)()}
+                            </button>
+                        </div>
+                    }
+                    .into_any()
+                }}
+            </Show>
             <Show when=move || load_failed.get()>
                 <p class="ws-term-cell__boot-fail">{move || i18n.tr(I18nKey::WsTermBootstrapFailed)()}</p>
             </Show>
@@ -716,13 +966,19 @@ async fn bootstrap_terminal_cell(
                     }
                     match pty_drain_wait(sid, 65536, 250).await {
                         Ok(b64) if !b64.is_empty() => {
-                            if let Some(t) = state2.lock().expect("cell").term_id {
+                            // Read term_id and drop the lock before writing: the
+                            // synchronous xterm write can emit an OSC title that
+                            // re-enters the `blxcode-pty-title` listener and locks
+                            // this same mutex (recursive-lock panic otherwise).
+                            let term_id = state2.lock().expect("cell").term_id;
+                            if let Some(t) = term_id {
                                 terminal_write_b64(t, &b64);
                             }
                         }
                         Ok(_) => {}
                         Err(err) => {
-                            if let Some(t) = state2.lock().expect("cell").term_id {
+                            let term_id = state2.lock().expect("cell").term_id;
+                            if let Some(t) = term_id {
                                 let msg =
                                     format!("{}\n{}", i18n2.tr(I18nKey::WsPtySpawnFailed)(), err);
                                 terminal_show_fallback(t, &msg);
@@ -739,6 +995,7 @@ async fn bootstrap_terminal_cell(
         }
         let sessions_path = workbench_sessions_path().await.ok();
         let notifications_path = workbench_notifications_path().await.ok();
+        let usage_path = workbench_usage_path().await.ok();
         let mut env: Vec<(String, String)> = Vec::new();
         env.push(("BLX_TERMINAL_KEY".into(), terminal_key.clone()));
         if !agent_slug.trim().is_empty() {
@@ -749,6 +1006,9 @@ async fn bootstrap_terminal_cell(
         }
         if let Some(p) = notifications_path.as_ref() {
             env.push(("BLX_NOTIFICATIONS_PATH".into(), p.clone()));
+        }
+        if let Some(p) = usage_path.as_ref() {
+            env.push(("BLX_USAGE_PATH".into(), p.clone()));
         }
         let cwd_trimmed = cwd.trim().trim_end_matches(['/', '\\']);
         if !cwd_trimmed.is_empty() {
@@ -770,6 +1030,15 @@ async fn bootstrap_terminal_cell(
         };
         match spawn_result {
             Ok(sid) => {
+                crate::app_log::info(
+                    "terminal",
+                    "pty_spawned",
+                    serde_json::json!({
+                        "terminalKey": terminal_key.clone(),
+                        "remote": wb.remote_connection_for_terminal_key(&terminal_key).is_some(),
+                        "agent": !agent_slug.trim().is_empty(),
+                    }),
+                );
                 terminal_set_stdin_enabled(tid, true);
                 let pending = {
                     let mut st = state.lock().expect("cell");
@@ -793,13 +1062,18 @@ async fn bootstrap_terminal_cell(
                         }
                         match pty_drain_wait(sid, 65536, 250).await {
                             Ok(b64) if !b64.is_empty() => {
-                                if let Some(t) = state2.lock().expect("cell").term_id {
+                                // Drop the lock before writing (see the matching
+                                // note above): the write can re-enter the title
+                                // listener and lock this same mutex.
+                                let term_id = state2.lock().expect("cell").term_id;
+                                if let Some(t) = term_id {
                                     terminal_write_b64(t, &b64);
                                 }
                             }
                             Ok(_) => {}
                             Err(err) => {
-                                if let Some(t) = state2.lock().expect("cell").term_id {
+                                let term_id = state2.lock().expect("cell").term_id;
+                                if let Some(t) = term_id {
                                     let msg = format!(
                                         "{}\n{}",
                                         i18n2.tr(I18nKey::WsPtySpawnFailed)(),
@@ -822,12 +1096,24 @@ async fn bootstrap_terminal_cell(
                         terminal_key: terminal_key.clone(),
                         sid,
                         remote_connection_id: wb.remote_connection_for_terminal_key(&terminal_key),
+                        model: wb.agent_model_for_terminal_key(&terminal_key),
+                        effort: wb.agent_effort_for_terminal_key(&terminal_key),
                     });
                     schedule_agent_launch_retries(state.clone());
                 }
                 Some(sid)
             }
             Err(err) => {
+                crate::app_log::error(
+                    "terminal",
+                    "pty_spawn_failed",
+                    serde_json::json!({
+                        "terminalKey": terminal_key.clone(),
+                        "remote": wb.remote_connection_for_terminal_key(&terminal_key).is_some(),
+                        "agent": !agent_slug.trim().is_empty(),
+                        "error": err.clone(),
+                    }),
+                );
                 let msg = format!(
                     "{}\n{}\n{}",
                     i18n.tr(I18nKey::WsPtySpawnFailed)(),
@@ -949,7 +1235,19 @@ async fn spawn_agent_launch_when_ready(state: Arc<Mutex<CellState>>) {
     if state.lock().expect("cell").launch_sent || state.lock().expect("cell").disposed {
         return;
     }
-    let cmd = build_launch_command(&pending.slug, resume_id.as_deref());
+    // Write project-scoped MCP configs into the workspace so the launching CLI
+    // sees the same servers as the in-app agent. Local workspaces only (remote
+    // SSH cwds are not on this filesystem). Best-effort: failures never block
+    // the launch.
+    if pending.remote_connection_id.is_none() && !pending.cwd.trim().is_empty() {
+        let _ = crate::tauri_bridge::mcp_export_cli_configs(pending.cwd.clone()).await;
+    }
+    let cmd = build_launch_command(
+        &pending.slug,
+        resume_id.as_deref(),
+        pending.model.as_deref(),
+        pending.effort.as_deref(),
+    );
     use base64::Engine;
     let b64 = base64::engine::general_purpose::STANDARD.encode(cmd.as_bytes());
     if pty_write(pending.sid, b64).await.is_ok() {
@@ -1188,33 +1486,14 @@ async fn lookup_resume_session(
     }
 }
 
-/// Single-quote for POSIX shells: `'` → `'"'"''`.
-fn shell_single_quoted_arg(raw: &str) -> Option<String> {
-    let t = raw.trim();
-    if t.is_empty() || t.len() > 8192 || t.chars().any(|c| c.is_control()) {
-        return None;
-    }
-    Some(format!("'{}'", t.replace('\'', "'\"'\"'")))
-}
-
 /// Format the shell command that auto-launches the agent CLI. With a
 /// resume id we use the CLI's resume syntax (Claude: `--resume <id>`,
 /// Codex: `resume <id>`); without one we just run the binary.
-fn build_launch_command(slug: &str, resume_id: Option<&str>) -> String {
-    if let Some(raw) = resume_id {
-        if let Some(a) = shell_single_quoted_arg(raw) {
-            return match slug {
-                "claude" => format!("claude --resume {a}\r"),
-                "codex" => format!("codex resume {a}\r"),
-                "gemini" => format!("gemini --resume {a}\r"),
-                "opencode" => format!("opencode --session {a}\r"),
-                "cursor" => format!("cursor-agent --resume {a}\r"),
-                other => format!("{other}\r"),
-            };
-        }
-    }
-    match slug {
-        "cursor" => "cursor-agent\r".to_string(),
-        other => format!("{other}\r"),
-    }
+fn build_launch_command(
+    slug: &str,
+    resume_id: Option<&str>,
+    model: Option<&str>,
+    effort: Option<&str>,
+) -> String {
+    terminal_agent_launch_command(slug, resume_id, model, effort)
 }

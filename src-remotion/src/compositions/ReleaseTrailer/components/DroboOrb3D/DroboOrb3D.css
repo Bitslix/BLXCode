@@ -1,0 +1,12 @@
+.drobo-orb {
+  position: relative;
+  display: block;
+  pointer-events: none;
+  filter: drop-shadow(0 0 28px rgba(189, 147, 249, 0.28)) drop-shadow(0 0 60px rgba(125, 207, 255, 0.14));
+}
+
+.drobo-orb canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}

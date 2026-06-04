@@ -1,9 +1,10 @@
-//! Source-code view (read mode) + dispatch to the editor (edit mode).
+//! Source-code preview + editor, both backed by CodeMirror 6.
 //!
-//! View mode renders line numbers, highlight.js syntax highlighting, click/drag
-//! row selection, a context menu, and code folding. Edit mode mounts a
-//! CodeMirror 6 editor (`super::editor::code_mirror::CodeMirrorEditor`) which
-//! brings its own gutter, folding, selection, search and highlighting.
+//! Read (preview) and edit modes mount the *same* CodeMirror 6 editor
+//! (`super::editor::code_mirror::CodeMirrorEditor`); the only difference is the
+//! `read_only` flag. Syntax highlighting, gutter, folding, selection and the
+//! right-click handoff menu therefore look and behave identically in both
+//! modes — preview is just edit mode with writes disabled.
 //!
 //! All editor state lives in the shared [`EditorSession`] (created by
 //! `FilePreviewDock`), so the same handle drives the header controls.
@@ -12,39 +13,28 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{pty_write, FileKind, PolicyKind};
 use crate::workbench::agent_context_handoff::{
-    file_snippet_context_item, list_terminal_targets_all_workspaces, render_file_snippet_envelope,
+    file_snippet_context_item, render_file_snippet_envelope,
 };
 use crate::workbench::file_preview::code_context_menu::{
     CodeContextMenu, CodeContextMenuState, CodeMenuAction,
 };
 use crate::workbench::file_preview::editor::code_mirror::CodeMirrorEditor;
-use crate::workbench::file_preview::editor::folding::compute_folds;
 use crate::workbench::file_preview::editor::policy::Editability;
 use crate::workbench::file_preview::editor::{DocStatus, EditMode, EditorSession};
-use crate::workbench::file_preview::hljs_glue::highlight;
 use crate::workbench::file_preview::util::{
-    build_file_snippet_block, hljs_lang_for_ext, html_escape, render_load_error,
-    split_highlighted_into_lines, FilePreviewError,
+    build_file_snippet_block, hljs_lang_for_ext, render_load_error, FilePreviewError,
 };
 use crate::workbench::toast::ToastService;
 use crate::workbench::WorkbenchService;
 use base64::Engine;
-use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::sync::Arc;
 use wasm_bindgen::JsCast;
-use web_sys::MouseEvent;
 
-/// Debounce before re-highlighting while typing (ms).
-const HIGHLIGHT_DEBOUNCE_MS: u32 = 90;
-/// Above this buffer size we skip syntax highlighting (plain text) to keep
-/// keystrokes responsive.
-const MAX_HIGHLIGHT_BYTES: usize = 256 * 1024;
-
-/// Coarse render phase. Derived via a deduplicating `Memo` so the editing
-/// scaffold (and the textarea inside it) is *not* rebuilt as the buffer is
-/// highlighted or saved — only when we move between loading / error / content.
+/// Coarse render phase. Derived via a deduplicating `Memo` so the CodeMirror
+/// editor is only (re)mounted when we move between loading / error / content,
+/// not on every buffer change.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Phase {
     Loading,
@@ -52,21 +42,9 @@ enum Phase {
     Content,
 }
 
-/// Pre-rendered code data: one HTML fragment per source line plus a raw
-/// plaintext mirror used for snippet/clipboard handoff.
-#[derive(Clone)]
-struct PreparedCode {
-    /// Already-escaped (and possibly hljs-highlighted) HTML fragments, one per
-    /// line. Safe to embed via `inner_html`.
-    lines: Vec<String>,
-    /// Raw text per line (no HTML), mirrored 1:1 with `lines`.
-    plain_lines: Arc<Vec<String>>,
-    /// Language alias that was highlighted with, or `None` for plain text.
-    language: Option<&'static str>,
-}
-
-/// Resolves the language hint for `rel_path`'s extension. Returns `None` for
-/// extensions that have no reliable highlight.js mapping (plain text path).
+/// Resolves the highlight.js language alias for `rel_path`'s extension. Used to
+/// tag fenced snippets in the handoff menu; returns `None` for extensions with
+/// no reliable mapping (plain text).
 pub fn lang_for_path(rel_path: &str) -> Option<&'static str> {
     let ext = rel_path.rsplit('.').next()?.to_ascii_lowercase();
     let lower = rel_path.to_ascii_lowercase();
@@ -80,10 +58,8 @@ pub fn lang_for_path(rel_path: &str) -> Option<&'static str> {
 }
 
 /// Maps `rel_path`'s extension to a CodeMirror language name understood by the
-/// vendored bundle's `create({ language })` (see `cm-entry.js`). Aims to match
-/// the highlight.js viewer's coverage; returns `None` for the few extensions
-/// with no bundled grammar (edited as plain text, same as the viewer's
-/// plain-text fallback).
+/// vendored bundle's `create({ language })` (see `cm-entry.js`). Returns `None`
+/// for the few extensions with no bundled grammar (rendered as plain text).
 fn cm_lang_for_path(rel_path: &str) -> Option<&'static str> {
     let lower = rel_path.to_ascii_lowercase();
     if lower.ends_with("dockerfile") || lower.ends_with("containerfile") {
@@ -143,40 +119,7 @@ fn cm_lang_for_path(rel_path: &str) -> Option<&'static str> {
     })
 }
 
-/// Returns `(html_lines, raw_lines, used_language)`.
-async fn prepare_lines(
-    content: String,
-    language: Option<&'static str>,
-) -> (Vec<String>, Vec<String>, Option<&'static str>) {
-    let plain: Vec<String> = if content.is_empty() {
-        vec![String::new()]
-    } else {
-        content.split('\n').map(str::to_owned).collect()
-    };
-    if let Some(lang) = language {
-        match highlight(&content, lang).await {
-            Ok(html) => (split_highlighted_into_lines(&html), plain, Some(lang)),
-            Err(e) => {
-                web_sys::console::warn_1(
-                    &format!("hljs highlight {lang}: {e}; falling back to plain text").into(),
-                );
-                (escape_lines(&content), plain, None)
-            }
-        }
-    } else {
-        (escape_lines(&content), plain, None)
-    }
-}
-
-fn escape_lines(content: &str) -> Vec<String> {
-    let mut out: Vec<String> = content.split('\n').map(html_escape).collect();
-    if out.is_empty() {
-        out.push(String::new());
-    }
-    out
-}
-
-/// Code view/editor bound to a shared [`EditorSession`]. `kind`/`policy_kind`
+/// Code preview/editor bound to a shared [`EditorSession`]. `kind`/`policy_kind`
 /// set the editability policy; `reload_tick` forces a re-read from disk.
 #[component]
 pub fn CodeView(
@@ -189,22 +132,14 @@ pub fn CodeView(
     let i18n = expect_context::<I18nService>();
     let toast = expect_context::<ToastService>();
 
-    let prepared: RwSignal<Option<PreparedCode>> = RwSignal::new(None);
-    let selected: RwSignal<Option<(usize, usize)>> = RwSignal::new(None);
-    let drag_anchor: RwSignal<Option<usize>> = RwSignal::new(None);
-    let drag_moved: RwSignal<bool> = RwSignal::new(false);
     let menu_state: RwSignal<Option<CodeContextMenuState>> = RwSignal::new(None);
 
     let rel_path = session.rel_path();
     let language_hint = lang_for_path(&rel_path);
 
-    // (Re)load on reload tick. The editability policy is recomputed once the
-    // backend reports truncation; do it here so a too-large file is read-only.
+    // (Re)load on reload tick.
     Effect::new(move |_| {
         let _ = reload_tick.get();
-        selected.set(None);
-        drag_anchor.set(None);
-        drag_moved.set(false);
         menu_state.set(None);
         session.reload(wb);
     });
@@ -222,52 +157,7 @@ pub fn CodeView(
         }
     });
 
-    // Build the view-mode backdrop (highlight.js) + fold ranges from the live
-    // buffer. In edit mode CodeMirror does its own highlighting, so we skip the
-    // hljs pass and only keep the plain line mirror used by the handoff menu.
-    let highlight_gen = RwSignal::new(0u32);
-    Effect::new(move |_| {
-        let text = session.buffer.get();
-        let editing = matches!(session.mode.get(), EditMode::Edit);
-        let lang = language_hint;
-        let gen = highlight_gen.get_untracked().wrapping_add(1);
-        highlight_gen.set(gen);
-        spawn_local(async move {
-            if editing {
-                TimeoutFuture::new(HIGHLIGHT_DEBOUNCE_MS).await;
-                if highlight_gen.get_untracked() != gen {
-                    return; // superseded by a newer keystroke
-                }
-            }
-            let lang_use = if editing || text.len() > MAX_HIGHLIGHT_BYTES {
-                None
-            } else {
-                lang
-            };
-            let folds = compute_folds(&text, lang_use);
-            let (lines, plain, used) = prepare_lines(text, lang_use).await;
-            if highlight_gen.get_untracked() != gen {
-                return;
-            }
-            session.folds.update(|f| f.ranges = folds);
-            prepared.set(Some(PreparedCode {
-                lines,
-                plain_lines: Arc::new(plain),
-                language: used,
-            }));
-        });
-    });
-
-    // Window-level mouseup ends any in-progress drag (view mode only).
-    let mouseup_handle =
-        leptos::leptos_dom::helpers::window_event_listener_untyped("mouseup", move |_| {
-            if matches!(drag_anchor.try_get_untracked(), Some(Some(_))) {
-                drag_anchor.set(None);
-                drag_moved.set(false);
-            }
-        });
-    on_cleanup(move || drop(mouseup_handle));
-
+    // Close the handoff context menu on an outside click or Escape.
     let click_close_handle =
         leptos::leptos_dom::helpers::window_event_listener_untyped("mousedown", move |_| {
             if matches!(menu_state.try_get_untracked(), Some(Some(_))) {
@@ -292,13 +182,12 @@ pub fn CodeView(
             return;
         };
         menu_state.set(None);
-        let Some(prepared) = prepared.get_untracked() else {
-            return;
-        };
-        let plain = prepared.plain_lines.clone();
-        // Use the static language for the fenced snippet so it's correct even
-        // in edit mode, where the hljs pass (and thus `prepared.language`) is
-        // skipped in favor of CodeMirror's own highlighting.
+        // Snippet / clipboard text comes straight from the live buffer, so it is
+        // correct in both preview and edit mode (CodeMirror owns highlighting;
+        // there is no separate plain-text mirror to keep in sync).
+        let plain: Vec<String> = session
+            .buffer
+            .with_untracked(|b| b.split('\n').map(str::to_owned).collect());
         handle_menu_action(
             action,
             wb,
@@ -308,16 +197,10 @@ pub fn CodeView(
             &session.rel_path(),
             language_hint,
             menu.range,
-            plain,
+            Arc::new(plain),
         );
     });
 
-    // Gutter width tracks the live line count so the textarea indent stays
-    // aligned with the numbers even before a re-highlight lands.
-    let gutter_ch = Memo::new(move |_| {
-        let n = session.buffer.with(|b| b.split('\n').count()).max(1);
-        n.to_string().len().max(2) + 1
-    });
     let phase = Memo::new(move |_| match session.status.get() {
         DocStatus::Loading => Phase::Loading,
         DocStatus::Error(_) => Phase::Error,
@@ -343,27 +226,22 @@ pub fn CodeView(
                             FilePreviewError::Failed(msg),
                         )
                     }
-                    // Edit mode mounts CodeMirror (its own gutter, folding,
-                    // selection, highlighting); view mode keeps the highlight.js
-                    // backdrop with row selection + fold chevrons. This closure
-                    // only depends on `phase` + `mode`, so the CodeMirror editor
-                    // is created once per enter-edit, not on every keystroke.
-                    Phase::Content => if matches!(session.mode.get(), EditMode::Edit) {
+                    // Both preview and edit mount the same CodeMirror editor;
+                    // only `read_only` differs, so they share gutter, folding,
+                    // selection and the right-click handoff menu. Reading `mode`
+                    // here remounts the editor when toggling View/Edit, not on
+                    // every keystroke.
+                    Phase::Content => {
+                        let read_only = !matches!(session.mode.get(), EditMode::Edit);
                         view! {
                             <CodeMirrorEditor
                                 session=session
                                 language=cm_lang_for_path(&session.rel_path())
+                                read_only=read_only
                                 menu_state=menu_state
                             />
                         }.into_any()
-                    } else {
-                        view! {
-                            {move || prepared.get().map(|p| render_backdrop(
-                                p, session, selected, drag_anchor, drag_moved,
-                                menu_state, i18n, wb, false, gutter_ch.get_untracked(),
-                            ))}
-                        }.into_any()
-                    },
+                    }
                 }
             }}
             <CodeContextMenu state=menu_state on_action=on_action />
@@ -386,197 +264,6 @@ fn render_banner(session: EditorSession, i18n: I18nService) -> Option<AnyView> {
         _ => return None,
     };
     Some(view! { <div class="file-preview__notice">{i18n.tr(key)}</div> }.into_any())
-}
-
-/// Renders the highlighted, line-numbered `.code-view` backdrop. In view mode
-/// it carries selection + context-menu + fold interactions; in edit mode it is
-/// purely visual (the overlay textarea, mounted separately, owns input).
-#[allow(clippy::too_many_arguments)]
-fn render_backdrop(
-    prepared: PreparedCode,
-    session: EditorSession,
-    selected: RwSignal<Option<(usize, usize)>>,
-    drag_anchor: RwSignal<Option<usize>>,
-    drag_moved: RwSignal<bool>,
-    menu_state: RwSignal<Option<CodeContextMenuState>>,
-    i18n: I18nService,
-    wb: WorkbenchService,
-    editing: bool,
-    gutter_width_ch: usize,
-) -> impl IntoView {
-    let workspace_id = session.workspace_id;
-    let language = prepared.language;
-
-    let row_views: Vec<_> = prepared
-        .lines
-        .into_iter()
-        .enumerate()
-        .map(|(idx, html)| {
-            let line_no = idx + 1;
-            let has_fold = move || {
-                session
-                    .folds
-                    .with(|f| f.range_starting_at(line_no).is_some())
-            };
-            let collapsed = move || session.folds.with(|f| f.collapsed.contains(&line_no));
-            // View-mode folding hides rows inside a collapsed range.
-            let hidden = move || !editing && session.folds.with(|f| f.is_hidden(line_no));
-            view! {
-                <div
-                    class="code-view__row"
-                    class:code-view__row--selected=move || {
-                        selected
-                            .get()
-                            .map(|(s, e)| s <= line_no && line_no <= e)
-                            .unwrap_or(false)
-                    }
-                    class:code-view__row--hidden=hidden
-                    data-line=line_no.to_string()
-                >
-                    <span class="code-view__gutter">
-                        <Show when=move || !editing && has_fold()>
-                            <button
-                                type="button"
-                                class="code-view__fold-toggle"
-                                class:code-view__fold-toggle--collapsed=collapsed
-                                title=move || if collapsed() {
-                                    i18n.tr(I18nKey::FilePreviewEditorUnfold)().to_string()
-                                } else {
-                                    i18n.tr(I18nKey::FilePreviewEditorFold)().to_string()
-                                }
-                                aria-label=move || if collapsed() {
-                                    i18n.tr(I18nKey::FilePreviewEditorUnfold)().to_string()
-                                } else {
-                                    i18n.tr(I18nKey::FilePreviewEditorFold)().to_string()
-                                }
-                                on:mousedown=move |ev: MouseEvent| {
-                                    ev.stop_propagation();
-                                    ev.prevent_default();
-                                }
-                                on:click=move |ev: MouseEvent| {
-                                    ev.stop_propagation();
-                                    session.folds.update(|f| f.toggle(line_no));
-                                }
-                            >
-                                {move || if collapsed() { "▸" } else { "▾" }}
-                            </button>
-                        </Show>
-                        <span class="code-view__lineno" aria-hidden="true">{line_no}</span>
-                    </span>
-                    <span class="code-view__line" inner_html=html />
-                </div>
-            }
-        })
-        .collect();
-
-    let container_class = {
-        let mut c = String::from("code-view");
-        if language.is_some() {
-            c.push_str(" code-view--hljs hljs");
-        } else {
-            c.push_str(" code-view--plain");
-        }
-        if editing {
-            c.push_str(" code-view--editing");
-        }
-        c
-    };
-
-    // The backdrop carries selection/context-menu interactions only in view
-    // mode; in edit mode the textarea handles selection and the backdrop is
-    // purely visual (pointer-events disabled via CSS).
-    let backdrop = view! {
-        <div
-            class=container_class
-            style=format!("--code-view-gutter-width: {gutter_width_ch}ch;")
-            on:mousedown=move |ev: MouseEvent| {
-                if editing || ev.button() != 0 {
-                    return;
-                }
-                let Some(line_no) = closest_data_line(&ev) else {
-                    return;
-                };
-                drag_anchor.set(Some(line_no));
-                drag_moved.set(false);
-                selected.set(Some((line_no, line_no)));
-            }
-            on:mousemove=move |ev: MouseEvent| {
-                if editing {
-                    return;
-                }
-                let Some(anchor) = drag_anchor.get_untracked() else {
-                    return;
-                };
-                let Some(line_no) = closest_data_line(&ev) else {
-                    return;
-                };
-                if line_no != anchor {
-                    drag_moved.set(true);
-                }
-                let (s, e) = if anchor <= line_no {
-                    (anchor, line_no)
-                } else {
-                    (line_no, anchor)
-                };
-                selected.update(|cur| {
-                    if *cur != Some((s, e)) {
-                        *cur = Some((s, e));
-                    }
-                });
-            }
-            on:click=move |ev: MouseEvent| {
-                if editing || drag_moved.get_untracked() {
-                    return;
-                }
-                let Some(line_no) = closest_data_line(&ev) else {
-                    return;
-                };
-                selected.update(|cur| {
-                    if *cur == Some((line_no, line_no)) {
-                        *cur = None;
-                    } else {
-                        *cur = Some((line_no, line_no));
-                    }
-                });
-            }
-            on:contextmenu=move |ev: MouseEvent| {
-                if editing {
-                    return;
-                }
-                ev.prevent_default();
-                ev.stop_propagation();
-                let Some(line_no) = closest_data_line(&ev) else {
-                    return;
-                };
-                selected.update(|cur| match *cur {
-                    Some((s, e)) if s <= line_no && line_no <= e => {}
-                    _ => *cur = Some((line_no, line_no)),
-                });
-                let range = selected.get_untracked().unwrap_or((line_no, line_no));
-                let groups = list_terminal_targets_all_workspaces(&wb, Some(workspace_id));
-                menu_state.set(Some(CodeContextMenuState {
-                    anchor_x: ev.client_x(),
-                    anchor_y: ev.client_y(),
-                    range: (range.0 as u32, range.1 as u32),
-                    groups,
-                    preview_workspace_id: workspace_id,
-                }));
-            }
-        >
-            {row_views}
-        </div>
-    };
-
-    backdrop
-}
-
-fn closest_data_line(ev: &MouseEvent) -> Option<usize> {
-    let target = ev
-        .target()
-        .and_then(|t| t.dyn_into::<web_sys::Element>().ok())?;
-    let row = target.closest("[data-line]").ok().flatten()?;
-    row.get_attribute("data-line")
-        .and_then(|s| s.parse::<usize>().ok())
 }
 
 #[allow(clippy::too_many_arguments)]

@@ -1,0 +1,59 @@
+/* Push-to-talk floating indicator. Colour tokens only. */
+
+.ptt-indicator {
+    position: fixed;
+    bottom: 1.25rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9000;
+    max-width: min(36rem, 90vw);
+    padding: 0.6rem 0.85rem;
+    border-radius: 0.6rem;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--bg-app) 55%, transparent);
+    color: var(--text);
+    font-size: 0.85rem;
+    pointer-events: none;
+}
+
+.ptt-indicator__row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.ptt-indicator__dot {
+    width: 0.6rem;
+    height: 0.6rem;
+    border-radius: var(--radius-circle);
+    background: var(--danger);
+    animation: ptt-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes ptt-pulse {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.35;
+    }
+}
+
+.ptt-indicator__label {
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.ptt-indicator__partial {
+    margin: 0.4rem 0 0;
+    color: var(--text-muted);
+    line-height: 1.35;
+    white-space: pre-wrap;
+}
+
+.ptt-indicator__hint {
+    margin: 0.25rem 0 0;
+    color: var(--warning);
+}

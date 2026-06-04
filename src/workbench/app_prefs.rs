@@ -1,10 +1,13 @@
 //! App-wide UI preferences persisted in `localStorage`.
 
+use super::editor_shortcut_config::{EditorShortcutAction, EditorShortcutConfig};
 use super::shortcut_config::{Binding, KeyChord, ShortcutAction, ShortcutConfig};
+use super::terminal_naming::{self, TerminalNamingMode, NAME_POOL_KEY, NAMING_MODE_KEY};
 use crate::config::{
-    CONFIRM_CLOSE_WORKSPACE_KEY, SHORTCUT_BINDINGS_STORAGE_KEY, SHORTCUT_MODE_LEGACY,
-    SHORTCUT_MODE_STORAGE_KEY, SHORTCUT_MODE_TMUX, SUCCESS_SOUND_STORAGE_KEY,
-    SUCCESS_TOAST_STORAGE_KEY, UPDATE_AUTO_CHECK_KEY,
+    CONFIRM_CLOSE_WORKSPACE_KEY, EDITOR_SHORTCUT_BINDINGS_KEY, MEMORY_RIGHT_PANEL_ENABLED_KEY,
+    SHORTCUT_BINDINGS_STORAGE_KEY, SHORTCUT_MODE_LEGACY, SHORTCUT_MODE_STORAGE_KEY,
+    SHORTCUT_MODE_TMUX, SUCCESS_SOUND_STORAGE_KEY, SUCCESS_TOAST_STORAGE_KEY,
+    UPDATE_AUTO_CHECK_KEY,
 };
 use leptos::prelude::*;
 
@@ -38,8 +41,12 @@ pub struct AppPrefsService {
     success_sound: RwSignal<bool>,
     shortcut_mode: RwSignal<ShortcutMode>,
     shortcut_config: RwSignal<ShortcutConfig>,
+    editor_shortcut_config: RwSignal<EditorShortcutConfig>,
     update_auto_check: RwSignal<bool>,
     confirm_close_workspace: RwSignal<bool>,
+    memory_right_panel_enabled: RwSignal<bool>,
+    terminal_naming_mode: RwSignal<TerminalNamingMode>,
+    terminal_name_pool: RwSignal<Vec<String>>,
 }
 
 impl AppPrefsService {
@@ -53,15 +60,30 @@ impl AppPrefsService {
             .as_deref()
             .and_then(ShortcutConfig::from_json)
             .unwrap_or_else(|| ShortcutConfig::preset(shortcut_mode));
+        let editor_shortcut_config = read_string_storage(EDITOR_SHORTCUT_BINDINGS_KEY)
+            .as_deref()
+            .and_then(EditorShortcutConfig::from_json)
+            .unwrap_or_else(EditorShortcutConfig::preset);
         Self {
             success_toast: RwSignal::new(read_bool_storage(SUCCESS_TOAST_STORAGE_KEY, true)),
             success_sound: RwSignal::new(read_bool_storage(SUCCESS_SOUND_STORAGE_KEY, true)),
             shortcut_mode: RwSignal::new(shortcut_mode),
             shortcut_config: RwSignal::new(shortcut_config),
+            editor_shortcut_config: RwSignal::new(editor_shortcut_config),
             update_auto_check: RwSignal::new(read_bool_storage(UPDATE_AUTO_CHECK_KEY, true)),
             confirm_close_workspace: RwSignal::new(read_bool_storage(
                 CONFIRM_CLOSE_WORKSPACE_KEY,
                 true,
+            )),
+            memory_right_panel_enabled: RwSignal::new(read_bool_storage(
+                MEMORY_RIGHT_PANEL_ENABLED_KEY,
+                false,
+            )),
+            terminal_naming_mode: RwSignal::new(TerminalNamingMode::from_storage(
+                read_string_storage(NAMING_MODE_KEY).as_deref(),
+            )),
+            terminal_name_pool: RwSignal::new(terminal_naming::parse_pool(
+                read_string_storage(NAME_POOL_KEY).as_deref(),
             )),
         }
     }
@@ -84,6 +106,10 @@ impl AppPrefsService {
 
     pub fn confirm_close_workspace_enabled(&self) -> RwSignal<bool> {
         self.confirm_close_workspace
+    }
+
+    pub fn memory_right_panel_enabled(&self) -> RwSignal<bool> {
+        self.memory_right_panel_enabled
     }
 
     pub fn set_success_toast(&self, enabled: bool) {
@@ -143,6 +169,41 @@ impl AppPrefsService {
         self.persist_config();
     }
 
+    #[must_use]
+    pub fn editor_shortcut_config(&self) -> RwSignal<EditorShortcutConfig> {
+        self.editor_shortcut_config
+    }
+
+    fn persist_editor_config(&self) {
+        write_string_storage(
+            EDITOR_SHORTCUT_BINDINGS_KEY,
+            &self.editor_shortcut_config.get_untracked().to_json(),
+        );
+    }
+
+    /// Rebind a single editor action (always a direct combo).
+    pub fn set_editor_shortcut_binding(&self, action: EditorShortcutAction, chord: KeyChord) {
+        self.editor_shortcut_config.update(|cfg| {
+            cfg.bindings.insert(action, chord);
+        });
+        self.persist_editor_config();
+    }
+
+    /// Reset a single editor action to its default combo.
+    pub fn reset_editor_shortcut_binding(&self, action: EditorShortcutAction) {
+        self.editor_shortcut_config.update(|cfg| {
+            cfg.bindings.insert(action, action.default_combo());
+        });
+        self.persist_editor_config();
+    }
+
+    /// Reset every editor action to its default combo.
+    pub fn reset_all_editor_shortcut_bindings(&self) {
+        self.editor_shortcut_config
+            .set(EditorShortcutConfig::preset());
+        self.persist_editor_config();
+    }
+
     pub fn set_update_auto_check(&self, enabled: bool) {
         self.update_auto_check.set(enabled);
         write_bool_storage(UPDATE_AUTO_CHECK_KEY, enabled);
@@ -151,6 +212,48 @@ impl AppPrefsService {
     pub fn set_confirm_close_workspace(&self, enabled: bool) {
         self.confirm_close_workspace.set(enabled);
         write_bool_storage(CONFIRM_CLOSE_WORKSPACE_KEY, enabled);
+    }
+
+    pub fn set_memory_right_panel_enabled(&self, enabled: bool) {
+        self.memory_right_panel_enabled.set(enabled);
+        write_bool_storage(MEMORY_RIGHT_PANEL_ENABLED_KEY, enabled);
+    }
+
+    #[must_use]
+    pub fn terminal_naming_mode(&self) -> RwSignal<TerminalNamingMode> {
+        self.terminal_naming_mode
+    }
+
+    pub fn set_terminal_naming_mode(&self, mode: TerminalNamingMode) {
+        self.terminal_naming_mode.set(mode);
+        write_string_storage(NAMING_MODE_KEY, mode.storage_value());
+    }
+
+    #[must_use]
+    pub fn terminal_name_pool(&self) -> RwSignal<Vec<String>> {
+        self.terminal_name_pool
+    }
+
+    /// Replace the entire pool (trimmed, blanks dropped) and persist it.
+    /// An empty result resets to the built-in default pool.
+    pub fn set_terminal_name_pool(&self, pool: Vec<String>) {
+        let cleaned: Vec<String> = pool
+            .into_iter()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        let next = if cleaned.is_empty() {
+            terminal_naming::default_pool()
+        } else {
+            cleaned
+        };
+        write_string_storage(NAME_POOL_KEY, &terminal_naming::serialize_pool(&next));
+        self.terminal_name_pool.set(next);
+    }
+
+    /// Restore the built-in default name pool.
+    pub fn reset_terminal_name_pool(&self) {
+        self.set_terminal_name_pool(terminal_naming::default_pool());
     }
 }
 

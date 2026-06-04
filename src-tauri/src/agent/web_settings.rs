@@ -13,16 +13,12 @@ const WEB_KEY_BRAVE: &str = "agent:web:brave";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[derive(Default)]
 pub enum WebProviderKind {
+    #[default]
     None,
     Tavily,
     Brave,
-}
-
-impl Default for WebProviderKind {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

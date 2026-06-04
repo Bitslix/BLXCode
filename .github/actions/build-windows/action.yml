@@ -12,6 +12,10 @@ inputs:
     description: "Release tag (required for release-new and release-existing)"
     required: false
     default: ""
+  is-prerelease:
+    description: "Whether the GitHub release should be marked as prerelease"
+    required: false
+    default: "false"
   github-token:
     description: "GITHUB_TOKEN for tauri-action / gh CLI"
     required: false
@@ -126,7 +130,7 @@ runs:
         releaseName: "BLXCode ${{ inputs.tag-name }}"
         releaseBody: "See [CHANGELOG.md](https://github.com/${{ inputs.repository }}/blob/main/CHANGELOG.md) for details."
         releaseDraft: true
-        prerelease: false
+        prerelease: ${{ inputs.is-prerelease == 'true' }}
         args: ${{ env.TAURI_BUILD_ARGS }}
 
     # All file-listing / gh-release-upload steps below use `shell: powershell` (Windows PS 5.1).
@@ -229,4 +233,15 @@ runs:
         & python @pyArgs
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         & gh release upload $env:TAG_NAME -R $env:REPO --clobber 'target/latest.json'
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    - name: Mark GitHub prerelease metadata
+      if: inputs.is-prerelease == 'true' && (inputs.mode == 'release-new' || inputs.mode == 'release-existing')
+      shell: powershell
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        TAG_NAME: ${{ inputs.tag-name }}
+        REPO: ${{ inputs.repository }}
+      run: |
+        & gh release edit $env:TAG_NAME -R $env:REPO --prerelease --latest=false
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

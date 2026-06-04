@@ -10,6 +10,12 @@ release_apply_build_env() {
   release_info "Release build env: TRUNK_BUILD_RELEASE=true, CARGO_PROFILE_RELEASE_DEBUG=false"
 }
 
+release_unsigned_tauri_config_args() {
+  if [[ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]]; then
+    printf '%s\n' --config '{"bundle":{"createUpdaterArtifacts":false}}'
+  fi
+}
+
 release_prepare_deps() {
   release_require_cmd npm
   release_require_cmd cargo
@@ -41,7 +47,9 @@ release_macos_build() {
   release_info "macOS: universal binary (aarch64 + x86_64) for Apple Silicon and Intel Macs"
   release_apply_build_env
   release_check_signing
-  (cd "$RELEASE_ROOT/src-tauri" && cargo tauri build --target universal-apple-darwin)
+  local -a unsigned_config=()
+  mapfile -t unsigned_config < <(release_unsigned_tauri_config_args)
+  (cd "$RELEASE_ROOT/src-tauri" && cargo tauri build --target universal-apple-darwin "${unsigned_config[@]}")
 }
 
 release_windows_build() {
@@ -56,7 +64,9 @@ release_windows_build() {
   fi
   release_apply_build_env
   release_check_signing
-  (cd "$RELEASE_ROOT/src-tauri" && cargo tauri build "${args[@]}")
+  local -a unsigned_config=()
+  mapfile -t unsigned_config < <(release_unsigned_tauri_config_args)
+  (cd "$RELEASE_ROOT/src-tauri" && cargo tauri build "${args[@]}" "${unsigned_config[@]}")
 }
 
 release_build() {

@@ -1,3 +1,9 @@
+---
+name: memory-architecture
+description: Use the harness-maintained architecture map to orient in codebases, locate modules, and understand project structure before broad scans.
+categorie: memory
+---
+
 # Memory Architecture Map
 
 Use this skill when a task asks where code lives, how modules relate, how to start a refactor, or how to orient in an unfamiliar workspace.

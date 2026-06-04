@@ -37,13 +37,28 @@ fn spawn_refresh_embedded_browser_nav(wb: WorkbenchService, surface: BrowserEmbe
             let aid = wb.embedded_browser_active_id().get_untracked();
             let u = active_tab_url(wb);
             if !u.trim().is_empty() {
-                let _ = browser_navigate(aid, u.trim()).await;
+                browser_navigate_logged(aid, u.trim(), "refresh").await;
             }
         }
         sync_embedded_browser_layer(wb, surface).await;
     });
 }
 const RIGHT_PANEL_BODY_ID: &str = "blx-right-panel-body";
+
+async fn browser_navigate_logged(tab_id: u64, url: &str, reason: &'static str) {
+    match browser_navigate(tab_id, url).await {
+        Ok(()) => crate::app_log::info(
+            "browser",
+            "navigate",
+            serde_json::json!({ "tabId": tab_id, "reason": reason }),
+        ),
+        Err(error) => crate::app_log::error(
+            "browser",
+            "navigate_failed",
+            serde_json::json!({ "tabId": tab_id, "reason": reason, "error": error }),
+        ),
+    }
+}
 
 fn iframe_id_for(tab_id: u64) -> String {
     format!("blx-browser-iframe-{tab_id}")
@@ -199,7 +214,8 @@ fn BrowserNewTabPane(wb: WorkbenchService, surface: BrowserEmbedSurface) -> impl
                                             let url = active_tab_url(w);
                                             let aid = w.embedded_browser_active_id().get_untracked();
                                             if !url.trim().is_empty() {
-                                                let _ = browser_navigate(aid, url.trim()).await;
+                                                browser_navigate_logged(aid, url.trim(), "shortcut")
+                                                    .await;
                                             }
                                         }
                                         sync_embedded_browser_layer(w, embed).await;
@@ -414,7 +430,7 @@ pub fn BrowserTabDock() -> impl IntoView {
                         let aid = wb.embedded_browser_active_id().get_untracked();
                         spawn_local(async move {
                             if embed_is_native(embed) {
-                                let _ = browser_navigate(aid, target.trim()).await;
+                                browser_navigate_logged(aid, target.trim(), "back").await;
                             }
                             // iframe path: prop:src is bound to the tab url
                             // memo, which we just mutated, so the iframe
@@ -436,7 +452,7 @@ pub fn BrowserTabDock() -> impl IntoView {
                         let aid = wb.embedded_browser_active_id().get_untracked();
                         spawn_local(async move {
                             if embed_is_native(embed) {
-                                let _ = browser_navigate(aid, target.trim()).await;
+                                browser_navigate_logged(aid, target.trim(), "forward").await;
                             }
                             sync_embedded_browser_layer(wb, embed).await;
                         });
@@ -456,7 +472,7 @@ pub fn BrowserTabDock() -> impl IntoView {
                             if embed_is_native(embed) {
                                 let url = active_tab_url(w);
                                 if !url.trim().is_empty() {
-                                    let _ = browser_navigate(aid, url.trim()).await;
+                                    browser_navigate_logged(aid, url.trim(), "reload").await;
                                 }
                             } else {
                                 try_reload_iframe_for(aid);
@@ -489,7 +505,8 @@ pub fn BrowserTabDock() -> impl IntoView {
                                     let aid = w.embedded_browser_active_id().get_untracked();
                                     let u = active_tab_url(w);
                                     if !u.trim().is_empty() {
-                                        let _ = browser_navigate(aid, u.trim()).await;
+                                        browser_navigate_logged(aid, u.trim(), "address_bar")
+                                            .await;
                                     }
                                 }
                                 sync_embedded_browser_layer(w, embed).await;
@@ -511,7 +528,7 @@ pub fn BrowserTabDock() -> impl IntoView {
                                 let aid = w.embedded_browser_active_id().get_untracked();
                                 let u = active_tab_url(w);
                                 if !u.trim().is_empty() {
-                                    let _ = browser_navigate(aid, u.trim()).await;
+                                    browser_navigate_logged(aid, u.trim(), "go_button").await;
                                 }
                             }
                             sync_embedded_browser_layer(w, embed).await;
@@ -592,7 +609,7 @@ pub fn BrowserTabDock() -> impl IntoView {
                                                     view! {
                                                         <div class="workbench-browser-new-tab">
                                                             <p class="workbench-browser-new-tab-hint">
-                                                                "This page blocks iframe embedding in the app."
+                                                                {move || i18n.tr(I18nKey::BrowserThisPageBlocksIframeEmbeddingInTheApp)()}
                                                             </p>
                                                             <button
                                                                 type="button"
@@ -605,7 +622,7 @@ pub fn BrowserTabDock() -> impl IntoView {
                                                                     });
                                                                 }
                                                             >
-                                                                "Open In Browser"
+                                                                {move || i18n.tr(I18nKey::BrowserOpenInBrowser)()}
                                                             </button>
                                                         </div>
                                                     }.into_any()

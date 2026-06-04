@@ -174,7 +174,7 @@ render_for_anthropic_filtered(groups, web_enabled)  // names via to_anthropic_na
 
 ## System prompt contract
 
-`system_prompt.rs` lists `subagents.run` in the tool index and states explicit-user activation only. Full parameter docs: core skill `harness_skills/subagents.md` via `skills_read`.
+`system_prompt.rs` lists `subagents.run` in the tool index and allows activation when the user explicitly asks or when the active session role declares `Subagents` in frontmatter tools. Built-in role-authorized users are Architect, Codewright, and Coordinator. Full parameter docs: core skill `harness_skills/subagents.md` via `skills_read`.
 
 ## Adding a role
 
@@ -193,7 +193,7 @@ render_for_anthropic_filtered(groups, web_enabled)  // names via to_anthropic_na
 
 ## Plan reference
 
-`.agents/plans/coordinated-subagents.md` — original design decisions (German), including truncation limits and harness-vs-shell notes.
+`.agents/plans/coordinated-subagents/plan.md` — original design decisions (German), including truncation limits and harness-vs-shell notes.
 
 ## See also
 

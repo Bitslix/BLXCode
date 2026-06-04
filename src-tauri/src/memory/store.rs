@@ -282,7 +282,7 @@ pub fn collect_notes(scope: &MemoryScope, workspace_cwd: &str) -> Vec<NoteMeta> 
             }
         }
     }
-    out.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()));
+    out.sort_by_key(|a| a.path.to_lowercase());
     out
 }
 
@@ -427,7 +427,7 @@ fn collect_notes_global() -> Vec<NoteMeta> {
             }
         }
     }
-    out.sort_by(|a, b| a.path.to_lowercase().cmp(&b.path.to_lowercase()));
+    out.sort_by_key(|a| a.path.to_lowercase());
     out
 }
 
@@ -642,11 +642,9 @@ pub fn memory_rename_impl(
             };
             let (updated, n) =
                 rewrite_wikilinks(&content, &old_basename, &new_basename, old_path, new_path);
-            if n > 0 {
-                if fs::write(&f, updated.as_bytes()).is_ok() {
-                    total_rewrites += n;
-                    files_changed += 1;
-                }
+            if n > 0 && fs::write(&f, updated.as_bytes()).is_ok() {
+                total_rewrites += n;
+                files_changed += 1;
             }
         }
     }

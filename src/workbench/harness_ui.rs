@@ -11,13 +11,12 @@ use super::state::{
     RecentWorkspaceItem, RightPanelTab, WorkbenchService,
 };
 use super::update_service::{UpdateService, UpdateUiStatus};
-use super::voice_app_controls::{VoicePttControls, VoiceSttLanguageControls};
 use crate::i18n::{lookup, I18nKey, Locale, APP_LOCALES};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_hooks_status, install_agent_hooks, is_tauri_shell, list_workspace_files,
-    uninstall_agent_hooks, voice_settings_get, voice_settings_save, AgentHooksReport,
-    VoiceSettings,
+    agent_hooks_status, app_log_clear, app_log_delete, app_log_settings_get, app_log_settings_save,
+    install_agent_hooks, is_tauri_shell, list_workspace_files, uninstall_agent_hooks,
+    AgentHooksReport, AppLogSettingsView, UpdateChannel,
 };
 use gloo_timers::future::TimeoutFuture;
 use leptos::leptos_dom::helpers::window_event_listener_untyped;
@@ -170,7 +169,11 @@ fn PaletteChrome(
 
     view! {
         <div class="harness-overlay harness-overlay--modal" role="presentation">
-            <div class="harness-sheet harness-sheet--palette" role="dialog" aria-modal="true">
+            <div
+                class="harness-sheet harness-sheet--palette harness-sheet--command-palette"
+                role="dialog"
+                aria-modal="true"
+            >
                 <div class="harness-palette-filter-wrap">
                     <span class="harness-palette-filter__icon" aria-hidden="true">
                         <LxIcon icon=icondata::LuSearch width="0.92rem" height="0.92rem" />
@@ -888,10 +891,13 @@ fn harness_settings_cat_icon(cat: HarnessSettingsCategory) -> icondata::Icon {
         HarnessSettingsCategory::ApiKeys => icondata::LuKeyRound,
         HarnessSettingsCategory::Workspace => icondata::LuFolderOpen,
         HarnessSettingsCategory::AgentProvider => icondata::LuCpu,
+        HarnessSettingsCategory::Heartbeat => icondata::LuHeartPulse,
         HarnessSettingsCategory::Remote => icondata::LuServer,
-        HarnessSettingsCategory::Memory => icondata::LuPalette,
+        HarnessSettingsCategory::Memory => icondata::LuLayers,
+        HarnessSettingsCategory::Mcp => icondata::LuPlug,
         HarnessSettingsCategory::Voice => icondata::LuMic,
         HarnessSettingsCategory::Image => icondata::LuImage,
+        HarnessSettingsCategory::CodeEditor => icondata::LuCode,
     }
 }
 
@@ -903,16 +909,30 @@ pub fn SettingsDock(
 ) -> impl IntoView {
     let i18n = expect_context::<I18nService>();
 
+    Effect::new(move |_| {
+        let category = format!("{:?}", ui.settings_category().get());
+        crate::app_log::info(
+            "settings",
+            "category_opened",
+            serde_json::json!({ "category": category }),
+        );
+    });
+
     view! {
         <div class="harness-settings-grid harness-settings-grid--docked">
             <nav class="harness-settings-cats" aria-label=move || i18n.tr(I18nKey::HsAriaCats)()>
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::AgentProvider label=I18nKey::HsCatProvider />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::ApiKeys label=I18nKey::HsCatApiKeys />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::App label=I18nKey::HsCatApp />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Appearance label=I18nKey::HsCatAppearance />
-                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Shortcuts label=I18nKey::HsCatShortcuts />
-                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::ApiKeys label=I18nKey::HsCatApiKeys />
-                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Workspace label=I18nKey::HsCatWorkspace />
-                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::AgentProvider label=I18nKey::HsCatProvider />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::CodeEditor label=I18nKey::HsCatCodeEditor />
+                <HarnessCatBtnStatic ui=ui cat=HarnessSettingsCategory::Heartbeat label="HeartBeat" />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Memory label=I18nKey::TabMemory />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Mcp label=I18nKey::HsCatMcp />
                 <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Remote label=I18nKey::HsCatRemote />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Shortcuts label=I18nKey::HsCatShortcuts />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Voice label=I18nKey::HsCatVoice />
+                <HarnessCatBtn ui=ui cat=HarnessSettingsCategory::Workspace label=I18nKey::HsCatWorkspace />
             </nav>
 
             <div class="harness-settings-detail">
@@ -933,20 +953,29 @@ pub fn SettingsDock(
                         <crate::workbench::WorkspaceSettingsPane wb=wb embed=embed />
                     }.into_any(),
                     HarnessSettingsCategory::AgentProvider => view! {
-                        <crate::workbench::AgentProviderPane />
+                        <crate::workbench::AgentSettingsPane />
+                    }.into_any(),
+                    HarnessSettingsCategory::Heartbeat => view! {
+                        <crate::workbench::HeartbeatSettingsPane />
                     }.into_any(),
                     HarnessSettingsCategory::Remote => view! {
                         <crate::workbench::RemoteSettingsPane />
                     }.into_any(),
                     HarnessSettingsCategory::Memory => view! {
-                        <crate::workbench::WorkspaceSettingsPane wb=wb embed=embed />
-                    }.into_any(), // legacy category → Workspace
+                        <crate::workbench::MemorySettingsPane />
+                    }.into_any(),
+                    HarnessSettingsCategory::Mcp => view! {
+                        <crate::workbench::McpSettingsPane />
+                    }.into_any(),
                     HarnessSettingsCategory::Voice => view! {
-                        <crate::workbench::AgentProviderPane />
-                    }.into_any(), // legacy category → BLXCode Agent
+                        <crate::workbench::harness_voice_pane::VoiceSettingsPane />
+                    }.into_any(),
+                    HarnessSettingsCategory::CodeEditor => view! {
+                        <crate::workbench::CodeEditorSettingsPane />
+                    }.into_any(),
                     HarnessSettingsCategory::Image => view! {
-                        <crate::workbench::AgentProviderPane />
-                    }.into_any(), // legacy category → BLXCode Agent
+                        <crate::workbench::AgentSettingsPane />
+                    }.into_any(), // legacy category → Agent
                 }}
             </div>
         </div>
@@ -974,6 +1003,28 @@ fn HarnessCatBtn(
                 <LxIcon icon=icon width="0.92rem" height="0.92rem" />
             </span>
             <span class="harness-cat-btn__label">{move || i18n.tr(label)()}</span>
+        </button>
+    }
+}
+
+#[component]
+fn HarnessCatBtnStatic(
+    ui: HarnessUiService,
+    cat: HarnessSettingsCategory,
+    label: &'static str,
+) -> impl IntoView {
+    let icon = harness_settings_cat_icon(cat);
+    view! {
+        <button
+            type="button"
+            class:harness-cat-active=move || ui.settings_category().get() == cat
+            class="harness-cat-btn"
+            on:click=move |_| ui.settings_category().set(cat)
+        >
+            <span class="harness-cat-btn__icon" aria-hidden="true">
+                <LxIcon icon=icon width="0.92rem" height="0.92rem" />
+            </span>
+            <span class="harness-cat-btn__label">{label}</span>
         </button>
     }
 }
@@ -1081,7 +1132,7 @@ fn LocalePicker() -> impl IntoView {
             <Show when=move || open.get()>
                 <div class="harness-provider-menu" role="listbox">
                     <For
-                        each={move || APP_LOCALES.iter().copied().collect::<Vec<_>>()}
+                        each={move || APP_LOCALES.to_vec()}
                         key=|&(loc, _)| loc
                         children={move |(loc, label)| {
                             view! {
@@ -1139,37 +1190,14 @@ fn AppSettingsPane() -> impl IntoView {
     let i18n = expect_context::<I18nService>();
     let prefs = expect_context::<AppPrefsService>();
     let updates = expect_context::<UpdateService>();
-    let voice_settings = RwSignal::new(Option::<VoiceSettings>::None);
-    let ptt_recording = RwSignal::new(false);
-
-    if is_tauri_shell() {
-        leptos::task::spawn_local(async move {
-            if let Ok(v) = voice_settings_get().await {
-                voice_settings.set(Some(v));
-            }
-        });
-    }
-
-    let save_voice = move |patch: VoiceSettings| {
-        if !is_tauri_shell() {
-            voice_settings.set(Some(patch));
-            return;
-        }
-        leptos::task::spawn_local(async move {
-            if let Ok(v) = voice_settings_save(patch).await {
-                voice_settings.set(Some(v));
-            }
-        });
-    };
 
     view! {
         <article class="harness-pane app-settings-pane">
-            <h3 class="harness-pane-title">
-                <span class="harness-pane-title__icon" aria-hidden="true">
-                    <LxIcon icon=icondata::LuLayoutDashboard width="1.02rem" height="1.02rem" />
-                </span>
-                <span class="harness-pane-title__text">{move || i18n.tr(I18nKey::AppHeading)()}</span>
-            </h3>
+            <crate::workbench::SettingsPaneHeader
+                icon=icondata::LuLayoutDashboard
+                title=I18nKey::AppHeading
+                description=I18nKey::AppDescription
+            />
             <label class="harness-stack">
                 <span class="harness-field-label">
                     <span class="harness-field-label__icon" aria-hidden="true">
@@ -1178,21 +1206,7 @@ fn AppSettingsPane() -> impl IntoView {
                     <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AppLanguage)()}</span>
                 </span>
                 <LocalePicker />
-                <VoiceSttLanguageControls settings=voice_settings save=save_voice />
             </label>
-            <section class="harness-subpane">
-                <h4 class="harness-pane-subhead">
-                    <span class="harness-pane-subhead__icon" aria-hidden="true">
-                        <LxIcon icon=icondata::LuKeyboard width="0.82rem" height="0.82rem" />
-                    </span>
-                    <span>{move || i18n.tr(I18nKey::AppShortcutHeading)()}</span>
-                </h4>
-                <VoicePttControls
-                    settings=voice_settings
-                    recording=ptt_recording
-                    save=save_voice
-                />
-            </section>
             <section class="harness-subpane">
                 <h4 class="harness-pane-subhead">
                     <span class="harness-pane-subhead__icon" aria-hidden="true">
@@ -1237,6 +1251,9 @@ fn AppSettingsPane() -> impl IntoView {
                 <AgentHooksPanel />
             </section>
             <section class="harness-subpane">
+                <AppLoggingPanel />
+            </section>
+            <section class="harness-subpane">
                 <h4 class="harness-pane-subhead">
                     <span class="harness-pane-subhead__icon" aria-hidden="true">
                         <LxIcon icon=icondata::LuRefreshCw width="0.82rem" height="0.82rem" />
@@ -1256,7 +1273,53 @@ fn AppSettingsPane() -> impl IntoView {
                     <span>{move || i18n.tr(I18nKey::AppUpdateAutoCheck)()}</span>
                 </label>
                 <p class="app-prefs-hint">{move || i18n.tr(I18nKey::AppUpdateAutoCheckHint)()}</p>
+                <div class="app-prefs-toggle-grid">
+                    <div class="app-prefs-toggle-cell">
+                        <label class="app-prefs-radio">
+                            <input
+                                type="radio"
+                                name="app-update-channel"
+                                prop:checked=move || updates.channel().get() == UpdateChannel::Stable
+                                on:change=move |ev| {
+                                    if checkbox_checked(&ev).unwrap_or(false) {
+                                        updates.set_channel(UpdateChannel::Stable);
+                                    }
+                                }
+                            />
+                            <span>"Stable"</span>
+                        </label>
+                        <p class="app-prefs-hint">"Final GitHub Releases"</p>
+                    </div>
+                    <div class="app-prefs-toggle-cell">
+                        <label class="app-prefs-radio">
+                            <input
+                                type="radio"
+                                name="app-update-channel"
+                                prop:checked=move || updates.channel().get() == UpdateChannel::Beta
+                                on:change=move |ev| {
+                                    if checkbox_checked(&ev).unwrap_or(false) {
+                                        updates.set_channel(UpdateChannel::Beta);
+                                    }
+                                }
+                            />
+                            <span>"Beta"</span>
+                        </label>
+                        <p class="app-prefs-hint">"GitHub Prereleases plus newer finals"</p>
+                    </div>
+                </div>
                 <dl class="app-prefs-version">
+                    <div class="app-prefs-version__row">
+                        <dt>
+                            <span class="harness-field-label__icon" aria-hidden="true">
+                                <LxIcon icon=icondata::LuGitBranch width="0.82rem" height="0.82rem" />
+                            </span>
+                            <span>"Channel"</span>
+                        </dt>
+                        <dd>{move || match updates.channel().get() {
+                            UpdateChannel::Stable => "stable",
+                            UpdateChannel::Beta => "beta",
+                        }}</dd>
+                    </div>
                     <div class="app-prefs-version__row">
                         <dt>
                             <span class="harness-field-label__icon" aria-hidden="true">
@@ -1312,6 +1375,219 @@ fn AppSettingsPane() -> impl IntoView {
 }
 
 #[component]
+fn AppLoggingPanel() -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let view_state: RwSignal<Option<AppLogSettingsView>> = RwSignal::new(None);
+    let draft_path = RwSignal::new(String::new());
+    let busy = RwSignal::new(false);
+    let error: RwSignal<Option<String>> = RwSignal::new(None);
+    let status: RwSignal<Option<I18nKey>> = RwSignal::new(None);
+
+    let apply_view = move |view: AppLogSettingsView| {
+        draft_path.set(
+            view.log_path
+                .clone()
+                .unwrap_or_else(|| view.effective_log_path.clone()),
+        );
+        view_state.set(Some(view));
+    };
+
+    Effect::new(move |_| {
+        if !is_tauri_shell() {
+            error.set(Some(i18n.tr(I18nKey::AppLogUnavailable)().to_string()));
+            return;
+        }
+        leptos::task::spawn_local(async move {
+            match app_log_settings_get().await {
+                Ok(view) => {
+                    apply_view(view);
+                    error.set(None);
+                }
+                Err(e) => error.set(Some(e)),
+            }
+        });
+    });
+
+    let save = move |_| {
+        if busy.get_untracked() || !is_tauri_shell() {
+            return;
+        }
+        let raw = draft_path.get_untracked();
+        let default_path = view_state
+            .get_untracked()
+            .map(|v| v.default_log_path)
+            .unwrap_or_default();
+        let trimmed = raw.trim().to_string();
+        let next = if trimmed.is_empty() || trimmed == default_path {
+            None
+        } else {
+            Some(trimmed)
+        };
+        busy.set(true);
+        status.set(None);
+        error.set(None);
+        leptos::task::spawn_local(async move {
+            match app_log_settings_save(next).await {
+                Ok(view) => {
+                    apply_view(view);
+                    status.set(Some(I18nKey::AppLogSaved));
+                }
+                Err(e) => error.set(Some(e)),
+            }
+            busy.set(false);
+        });
+    };
+
+    let reset_default = move |_| {
+        if busy.get_untracked() || !is_tauri_shell() {
+            return;
+        }
+        busy.set(true);
+        status.set(None);
+        error.set(None);
+        leptos::task::spawn_local(async move {
+            match app_log_settings_save(None).await {
+                Ok(view) => {
+                    apply_view(view);
+                    status.set(Some(I18nKey::AppLogSaved));
+                }
+                Err(e) => error.set(Some(e)),
+            }
+            busy.set(false);
+        });
+    };
+
+    let clear_log = move |_| {
+        if busy.get_untracked() || !is_tauri_shell() {
+            return;
+        }
+        busy.set(true);
+        status.set(None);
+        error.set(None);
+        leptos::task::spawn_local(async move {
+            match app_log_clear().await {
+                Ok(()) => status.set(Some(I18nKey::AppLogCleared)),
+                Err(e) => error.set(Some(e)),
+            }
+            busy.set(false);
+        });
+    };
+
+    let delete_log = move |_| {
+        if busy.get_untracked() || !is_tauri_shell() {
+            return;
+        }
+        busy.set(true);
+        status.set(None);
+        error.set(None);
+        leptos::task::spawn_local(async move {
+            match app_log_delete().await {
+                Ok(()) => status.set(Some(I18nKey::AppLogDeleted)),
+                Err(e) => error.set(Some(e)),
+            }
+            busy.set(false);
+        });
+    };
+
+    view! {
+        <section class="app-log-panel">
+        <h4 class="harness-pane-subhead">
+            <span class="harness-pane-subhead__icon" aria-hidden="true">
+                <LxIcon icon=icondata::LuFileText width="0.82rem" height="0.82rem" />
+            </span>
+            <span>{move || i18n.tr(I18nKey::AppLogHeading)()}</span>
+        </h4>
+        <label class="harness-stack">
+            <span class="harness-field-label">
+                <span class="harness-field-label__icon" aria-hidden="true">
+                    <LxIcon icon=icondata::LuFileCog width="0.82rem" height="0.82rem" />
+                </span>
+                <span class="harness-field-label__text">{move || i18n.tr(I18nKey::AppLogPathLabel)()}</span>
+            </span>
+            <input
+                class="workbench-plain-input"
+                type="text"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder=move || i18n.tr(I18nKey::AppLogPathPlaceholder)()
+                prop:value=move || draft_path.get()
+                on:input=move |ev| {
+                    if let Some(value) = input_str(&ev) {
+                        draft_path.set(value);
+                    }
+                }
+            />
+        </label>
+        <p class="app-prefs-hint app-log-default-path">
+            {move || {
+                let default_path = view_state
+                    .get()
+                    .map(|v| v.default_log_path)
+                    .unwrap_or_default();
+                if default_path.is_empty() {
+                    i18n.tr(I18nKey::AppLogDefaultPathHint)().to_string()
+                } else {
+                    format!("{} {}", i18n.tr(I18nKey::AppLogDefaultPathHint)(), default_path)
+                }
+            }}
+        </p>
+        <div class="app-log-actions">
+            <button
+                type="button"
+                class="workbench-mini-btn workbench-mini-btn--primary"
+                on:click=save
+                prop:disabled=move || busy.get() || !is_tauri_shell()
+            >
+                <span class="harness-btn-inline">
+                    <LxIcon icon=icondata::LuSave width="0.82rem" height="0.82rem" />
+                    <span>{move || i18n.tr(I18nKey::AppLogSave)()}</span>
+                </span>
+            </button>
+            <button
+                type="button"
+                class="workbench-mini-btn"
+                on:click=reset_default
+                prop:disabled=move || busy.get() || !is_tauri_shell()
+            >
+                <span class="harness-btn-inline">
+                    <LxIcon icon=icondata::LuRotateCcw width="0.82rem" height="0.82rem" />
+                    <span>{move || i18n.tr(I18nKey::AppLogResetDefault)()}</span>
+                </span>
+            </button>
+            <button
+                type="button"
+                class="workbench-mini-btn"
+                on:click=clear_log
+                prop:disabled=move || busy.get() || !is_tauri_shell()
+            >
+                <span class="harness-btn-inline">
+                    <LxIcon icon=icondata::LuEraser width="0.82rem" height="0.82rem" />
+                    <span>{move || i18n.tr(I18nKey::AppLogClear)()}</span>
+                </span>
+            </button>
+            <button
+                type="button"
+                class="workbench-mini-btn"
+                on:click=delete_log
+                prop:disabled=move || busy.get() || !is_tauri_shell()
+            >
+                <span class="harness-btn-inline">
+                    <LxIcon icon=icondata::LuTrash2 width="0.82rem" height="0.82rem" />
+                    <span>{move || i18n.tr(I18nKey::AppLogDelete)()}</span>
+                </span>
+            </button>
+        </div>
+        <Show when=move || status.get().is_some()>
+            <p class="app-prefs-hint">{move || status.get().map(|k| i18n.tr(k)()).unwrap_or_default()}</p>
+        </Show>
+        <Show when=move || error.get().is_some()>
+            <p class="harness-error-text">{move || error.get().unwrap_or_default()}</p>
+        </Show>
+        </section>
+    }
+}
+
+#[component]
 fn ApiKeysSettingsPane() -> impl IntoView {
     view! { <crate::workbench::ApiKeysPane /> }
 }
@@ -1358,8 +1634,22 @@ fn AgentHooksPanel() -> impl IntoView {
         error.set(None);
         leptos::task::spawn_local(async move {
             match install_agent_hooks().await {
-                Ok(r) => report.set(Some(r)),
-                Err(e) => error.set(Some(e)),
+                Ok(r) => {
+                    crate::app_log::info(
+                        "settings",
+                        "agent_hooks_installed",
+                        serde_json::json!({ "entries": r.entries.len() }),
+                    );
+                    report.set(Some(r));
+                }
+                Err(e) => {
+                    crate::app_log::error(
+                        "settings",
+                        "agent_hooks_install_failed",
+                        serde_json::json!({ "error": e.clone() }),
+                    );
+                    error.set(Some(e));
+                }
             }
             busy.set(false);
         });
@@ -1373,8 +1663,22 @@ fn AgentHooksPanel() -> impl IntoView {
         error.set(None);
         leptos::task::spawn_local(async move {
             match uninstall_agent_hooks().await {
-                Ok(r) => report.set(Some(r)),
-                Err(e) => error.set(Some(e)),
+                Ok(r) => {
+                    crate::app_log::info(
+                        "settings",
+                        "agent_hooks_uninstalled",
+                        serde_json::json!({ "entries": r.entries.len() }),
+                    );
+                    report.set(Some(r));
+                }
+                Err(e) => {
+                    crate::app_log::error(
+                        "settings",
+                        "agent_hooks_uninstall_failed",
+                        serde_json::json!({ "error": e.clone() }),
+                    );
+                    error.set(Some(e));
+                }
             }
             busy.set(false);
         });

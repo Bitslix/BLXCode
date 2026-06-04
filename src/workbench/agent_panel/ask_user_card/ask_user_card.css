@@ -3,7 +3,7 @@
   flex-direction: column;
   gap: 0.55rem;
   padding: 0.7rem 0.85rem 0.8rem;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--accent-soft);
   background: linear-gradient(
     180deg,
@@ -17,10 +17,17 @@
   opacity: 0.78;
 }
 
+.ask-user-card[data-collapsed="true"] {
+  gap: 0;
+  padding: 0.46rem 0.62rem;
+  background: color-mix(in srgb, var(--accent-soft) 42%, transparent);
+}
+
 .ask-user-card__head {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  min-width: 0;
 }
 
 .ask-user-card__chip {
@@ -29,16 +36,27 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding: 0.12rem 0.42rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--accent-soft);
   color: var(--accent-cool);
 }
 
 .ask-user-card__title {
+  flex: 0 0 auto;
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--text-muted);
   letter-spacing: 0.02em;
+}
+
+.ask-user-card__head-status {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ask-user-card__cancel {
@@ -48,7 +66,7 @@
   justify-content: center;
   width: 1.4rem;
   height: 1.4rem;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   border: 1px solid transparent;
   background: transparent;
   color: var(--text-muted);
@@ -59,6 +77,32 @@
   background: var(--danger-soft);
   color: var(--danger);
   border-color: var(--danger);
+}
+
+.ask-user-card__toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  flex: 0 0 auto;
+  appearance: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, transform 0.12s ease;
+}
+
+.ask-user-card__toggle:hover,
+.ask-user-card__toggle:focus-visible {
+  background: var(--overlay-2);
+  color: var(--text-muted);
+  outline: none;
+}
+
+.ask-user-card[data-collapsed="true"] .ask-user-card__toggle {
+  transform: rotate(-90deg);
 }
 
 .ask-user-card__question {
@@ -93,7 +137,7 @@
   gap: 0.6rem;
   width: 100%;
   padding: 0.55rem 0.7rem;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border-strong);
   background: var(--bg-raised);
   color: var(--text);
@@ -124,7 +168,7 @@
   justify-content: center;
   min-width: 1.3rem;
   height: 1.3rem;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: var(--accent-soft);
   font-size: 0.72rem;
   font-weight: 600;
@@ -167,7 +211,7 @@
 .ask-user-card__other {
   width: 100%;
   padding: 0.45rem 0.6rem;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-strong);
   background: var(--bg-panel);
   color: var(--text);
@@ -192,7 +236,7 @@
 
 .ask-user-card__send {
   padding: 0.4rem 0.9rem;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--accent);
   background: var(--accent-soft);
   color: var(--text);

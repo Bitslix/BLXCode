@@ -1,9 +1,11 @@
 #![allow(dead_code)]
-use crate::agent_wire::{AgentEvent, TaskSnapshot, TurnMetrics, TurnUsageKind};
+use crate::agent_wire::{AgentChatMode, AgentEvent, TaskSnapshot, TurnMetrics, TurnUsageKind};
 use crate::i18n::{lookup, I18nKey, Locale};
 use crate::service::I18nService;
 use crate::tauri_bridge::{is_tauri_shell, voice_settings_get};
 use crate::workbench::agent_panel::ask_user_card::AskUserCard;
+use crate::workbench::agent_panel::changed_files_card::ChangedFilesCard;
+use crate::workbench::agent_panel::tool_group::ToolPill;
 use crate::workbench::agent_panel::turn_metrics_bar::{BarContext, TurnMetricsBar};
 use crate::workbench::agent_panel::voice_orb::{
     play_line_tts, tts_line_playback_available, VoiceOrbHandle,
@@ -19,6 +21,7 @@ use crate::workbench::WorkbenchService;
 use leptos::html;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
+use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -67,6 +70,24 @@ pub enum DisplayTimelineItem {
         allow_other: bool,
         state: AskUserState,
     },
+}
+
+#[derive(Clone, Copy)]
+pub(super) struct AgentTimelineName(pub RwSignal<String>);
+
+#[component]
+fn AgentNameLabel() -> impl IntoView {
+    let name = use_context::<AgentTimelineName>();
+    view! {
+        <strong>
+            {move || {
+                name
+                    .map(|ctx| ctx.0.get())
+                    .filter(|value| !value.trim().is_empty())
+                    .unwrap_or_else(|| "BLXCody".to_string())
+            }}
+        </strong>
+    }
 }
 
 #[inline]
@@ -157,7 +178,15 @@ pub(super) fn parse_ask_user_args(value: &serde_json::Value) -> Option<ParsedAsk
             .and_then(|v| v.as_str())
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty());
-        options.push(AskUserOption { label, description });
+        let set_chat_mode_on_select = o
+            .get("setChatModeOnSelect")
+            .and_then(|v| v.as_str())
+            .and_then(parse_ask_user_chat_mode);
+        options.push(AskUserOption {
+            label,
+            description,
+            set_chat_mode_on_select,
+        });
     }
     let multi_select = obj
         .get("multiSelect")
@@ -174,6 +203,13 @@ pub(super) fn parse_ask_user_args(value: &serde_json::Value) -> Option<ParsedAsk
         multi_select,
         allow_other,
     })
+}
+
+fn parse_ask_user_chat_mode(value: &str) -> Option<AgentChatMode> {
+    match value {
+        "allow_all" => Some(AgentChatMode::AllowAll),
+        _ => None,
+    }
 }
 
 fn find_subagent_card_mut<'a>(
@@ -331,6 +367,7 @@ pub fn apply_agent_event(
             timeline.update(|rows| rows.push(TimelineItem::Tool(entry)));
             persist_agent_timeline(persist, timeline);
         }
+        AgentEvent::ToolPermissionRequest { .. } => {}
         AgentEvent::ToolResult {
             tool,
             call_id,
@@ -472,6 +509,8 @@ pub fn apply_agent_event(
             turn_generation,
             input_tokens,
             output_tokens,
+            cached_input_tokens,
+            cache_write_input_tokens,
             ttft_ms,
             elapsed_ms,
             cost_usd,
@@ -488,6 +527,11 @@ pub fn apply_agent_event(
                     *output_tokens,
                     *elapsed_ms,
                     *cost_usd,
+                    if matches!(kind, TurnUsageKind::ModelRound) && agent_id.is_none() {
+                        *input_tokens
+                    } else {
+                        None
+                    },
                 ),
                 None => true,
             };
@@ -498,6 +542,8 @@ pub fn apply_agent_event(
             let metrics = TurnMetrics {
                 input_tokens: *input_tokens,
                 output_tokens: *output_tokens,
+                cached_input_tokens: *cached_input_tokens,
+                cache_write_input_tokens: *cache_write_input_tokens,
                 ttft_ms: *ttft_ms,
                 elapsed_ms: *elapsed_ms,
                 cost_usd: *cost_usd,
@@ -881,11 +927,11 @@ pub fn compact_timeline(items: Vec<TimelineItem>) -> Vec<DisplayTimelineItem> {
 }
 
 /// Returns the last path component of a workspace-relative path for display.
-fn path_tail(p: &str) -> String {
+pub(crate) fn path_tail(p: &str) -> String {
     p.rsplit(['/', '\\']).next().unwrap_or(p).to_owned()
 }
 
-fn tool_icon(tool: &str) -> icondata::Icon {
+pub(crate) fn tool_icon(tool: &str) -> icondata::Icon {
     match tool {
         "harness.create_workspace" => icondata::LuLayoutGrid,
         "list_workspace_files" => icondata::LuFolderTree,
@@ -904,6 +950,9 @@ fn tool_icon(tool: &str) -> icondata::Icon {
         "memory_context_list" => icondata::LuList,
         "memory_context_attach" => icondata::LuPaperclip,
         "memory_context_detach" => icondata::LuUnlink,
+        "plan_context_list" => icondata::LuList,
+        "plan_context_attach" => icondata::LuPaperclip,
+        "plan_context_detach" => icondata::LuUnlink,
         "list_tools" => icondata::LuWrench,
         "task_list" => icondata::LuListTodo,
         "task_get" => icondata::LuClipboardList,
@@ -916,6 +965,8 @@ fn tool_icon(tool: &str) -> icondata::Icon {
         "harness.send_terminal_keys" => icondata::LuSendHorizontal,
         "harness.send_agent_context" => icondata::LuShare2,
         "harness.read_terminal_output" => icondata::LuWrapText,
+        "harness.wait_terminal_output" => icondata::LuTimer,
+        "harness.terminal_interrupt" => icondata::LuOctagonX,
         _ => icondata::LuWrench,
     }
 }
@@ -926,9 +977,11 @@ pub fn ChatLineIndexColumn(
     tts_text: Option<String>,
     voice_handle: VoiceOrbHandle,
 ) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
     let play_text = StoredValue::new(tts_text.clone().unwrap_or_default());
     let show_play = move || {
         is_tauri_shell()
+            && voice_handle.tts_ready.get()
             && play_text.with_value(|t| !t.trim().is_empty())
             && tts_line_playback_available(voice_handle.settings.get().as_ref())
     };
@@ -940,8 +993,8 @@ pub fn ChatLineIndexColumn(
                 <button
                     type="button"
                     class="agent-chat-tts-btn"
-                    title="Play"
-                    aria-label="Play message audio"
+                    title=move || i18n.tr(I18nKey::AgentTimelinePlay)()
+                    aria-label=move || i18n.tr(I18nKey::AgentTimelinePlayMessageAudio)()
                     on:click=move |_| {
                         let text = play_text.get_value();
                         if text.trim().is_empty() {
@@ -979,8 +1032,16 @@ pub fn TimelineRow(
     timeline: RwSignal<TimelineDoc>,
     wb: WorkbenchService,
     workspace_id: Option<u64>,
+    chat_mode: RwSignal<AgentChatMode>,
+    /// Display line number for this row. Decoupled from `idx` (which is only a
+    /// stable key for detail/expand state), so model rounds show the correct
+    /// sequential number instead of a hash of their line string.
+    #[prop(optional, into)]
+    line_no: String,
+    /// Optional thinking block merged into a model-round header line.
+    #[prop(optional_no_strip)]
+    thinking: Option<InlineThinking>,
 ) -> impl IntoView {
-    let line_no = format!("{:02}", idx + 1);
     match entry {
         DisplayTimelineItem::User { text } => view! {
             <li class="agent-chat-line agent-chat-line--user">
@@ -1001,14 +1062,14 @@ pub fn TimelineRow(
             <li class="agent-chat-line agent-chat-line--agent">
                 <ChatLineIndexColumn line_no=line_no.clone() tts_text=Some(tts_text) voice_handle=voice_handle />
                 <div class="agent-chat-body">
-                    <strong>{move || i18n.tr(I18nKey::AgAssistant)()}</strong>
+                    <AgentNameLabel />
                     <div class="workbench-agent-markdown" inner_html=render_markdown_to_html(&text)></div>
                     <div class="agent-chat-actions">
                         <button
                             type="button"
                             class="agent-chat-action"
-                            title="Copy answer to clipboard"
-                            aria-label="Copy answer"
+                            title=move || i18n.tr(I18nKey::AgentTimelineCopyAnswerToClipboard)()
+                            aria-label=move || i18n.tr(I18nKey::AgentTimelineCopyAnswer)()
                             on:click=move |_| {
                                 let text = copy_text.clone();
                                 copied.set(true);
@@ -1036,8 +1097,8 @@ pub fn TimelineRow(
                             <button
                                 type="button"
                                 class="agent-chat-action"
-                                title="Redo this turn (resubmit the same prompt)"
-                                aria-label="Redo"
+                                title=move || i18n.tr(I18nKey::AgentTimelineRedoThisTurnResubmitTheSamePrompt)()
+                                aria-label=move || i18n.tr(I18nKey::AgentTimelineRedo)()
                                 on:click={
                                     let r = redo_text.clone();
                                     move |_| {
@@ -1066,6 +1127,8 @@ pub fn TimelineRow(
                     detail_key=detail_key
                     tool_detail_open=tool_detail_open
                     voice_handle=voice_handle
+                    wb=wb
+                    workspace_id=workspace_id
                 />
             }
             .into_any()
@@ -1073,116 +1136,77 @@ pub fn TimelineRow(
         DisplayTimelineItem::ModelRound { metrics, tools } => {
             let loc = i18n.locale().get_untracked();
             let label = lookup(loc, I18nKey::AgMetricsModelRound).to_string();
+            // Optional thinking block merged into this header line (floats right).
+            let has_think = thinking.is_some();
+            let think_key = thinking.as_ref().map(|t| t.key);
+            let think_done = thinking.as_ref().map(|t| t.done).unwrap_or(true);
+            let has_think_content = thinking.as_ref().is_some_and(|t| !t.text.trim().is_empty());
+            let think_body = StoredValue::new(thinking.map(|t| t.text).unwrap_or_default());
+            let think_open = Memo::new(move |_| {
+                think_key.is_some_and(|k| thinking_open.with(|m| m.get(&k).copied().unwrap_or(false)))
+            });
             view! {
                 <li class="agent-chat-line agent-chat-line--model-round">
                     <ChatLineIndexColumn line_no=line_no.clone() tts_text=None voice_handle=voice_handle />
                     <div class="agent-chat-body">
-                        <span class="agent-chat-decision-label">{label}</span>
+                        <div class="model-round-header">
+                            <span class="agent-chat-decision-label">{label}</span>
+                            <Show when=move || has_think>
+                                <button
+                                    type="button"
+                                    class="agent-thinking-title model-round-thinking__toggle"
+                                    class:agent-thinking-title--active=move || !think_done
+                                    aria-expanded=move || think_open.get().to_string()
+                                    prop:disabled=move || !has_think_content
+                                    on:click=move |_| {
+                                        if has_think_content {
+                                            if let Some(k) = think_key {
+                                                thinking_open.update(|m| {
+                                                    let cur = m.get(&k).copied().unwrap_or(false);
+                                                    m.insert(k, !cur);
+                                                });
+                                            }
+                                        }
+                                    }
+                                >
+                                    <Show when=move || !think_done>
+                                        <span class="agent-thinking__dots" aria-hidden="true">
+                                            <span></span><span></span><span></span>
+                                        </span>
+                                    </Show>
+                                    <strong class="agent-thinking-title__label">
+                                        {move || if think_done { "Thinking" } else { "Thinking…" }}
+                                    </strong>
+                                    <Show when=move || has_think_content>
+                                        <span class="agent-thinking-title__chevron" aria-hidden="true">
+                                            {move || if think_open.get() {
+                                                view! { <LxIcon icon=icondata::LuChevronUp width="0.85rem" height="0.85rem" /> }
+                                            } else {
+                                                view! { <LxIcon icon=icondata::LuChevronDown width="0.85rem" height="0.85rem" /> }
+                                            }}
+                                        </span>
+                                    </Show>
+                                </button>
+                            </Show>
+                        </div>
+                        {move || (think_open.get() && has_think_content).then(|| view! {
+                            <pre class="agent-thinking-card__body model-round-thinking__body">
+                                {think_body.get_value()}
+                            </pre>
+                        })}
                         <ul class="model-round-tools">
                             {tools.into_iter().enumerate().map(|(ti, tool)| {
-                                let status_class = match tool.status {
-                                    ActivityStatus::Ok => "agent-tool-row--ok",
-                                    ActivityStatus::Fail => "agent-tool-row--fail",
-                                    ActivityStatus::Pending => "agent-tool-row--pending",
-                                };
-                                let status_icon = match tool.status {
-                                    ActivityStatus::Ok => icondata::LuCheck,
-                                    ActivityStatus::Fail => icondata::LuTriangleAlert,
-                                    ActivityStatus::Pending => icondata::LuLoader,
-                                };
-                                let tool_icon_val = tool_icon(&tool.tool);
-                                let label = tool.label.clone();
-                                // For grouped calls: show "×N" count instead of single-arg summary
-                                let merged_count = tool.merged_count;
-                                let summary = if merged_count > 1 {
-                                    String::new()
-                                } else {
-                                    tool.args_summary.clone()
-                                };
-                                let count_badge = if merged_count > 1 {
-                                    format!("×{merged_count}")
-                                } else {
-                                    String::new()
-                                };
-                                let tool_name = tool.tool.clone();
-                                let has_paths = !tool.paths.is_empty();
-                                let has_detail = has_paths
-                                    || tool.detail.as_ref().is_some_and(|s| !s.is_empty());
-                                let detail_text = tool.detail.clone().unwrap_or_default();
-                                let paths_sv = StoredValue::new(tool.paths.clone());
                                 let detail_key =
-                                    tool_detail_key(idx, &tool_name, tool.call_id.as_deref(), Some(ti));
-                                let detail_key_memo = detail_key.clone();
-                                let detail_open = Memo::new(move |_| {
-                                    tool_detail_open
-                                        .with(|m| m.get(&detail_key_memo).copied().unwrap_or(false))
-                                });
+                                    tool_detail_key(idx, &tool.tool, tool.call_id.as_deref(), Some(ti));
                                 view! {
                                     <li class="model-round-tool-item">
-                                        <div class=format!("agent-tool-row {status_class}") title=tool_name>
-                                            <button
-                                                type="button"
-                                                class="agent-tool-row__head"
-                                                aria-expanded=move || detail_open.get().to_string()
-                                                prop:disabled=move || !has_detail
-                                                on:click=move |_| {
-                                                    if has_detail {
-                                                        tool_detail_open.update(|m| {
-                                                            let cur =
-                                                                m.get(&detail_key).copied().unwrap_or(false);
-                                                            m.insert(detail_key.clone(), !cur);
-                                                        });
-                                                    }
-                                                }
-                                            >
-                                                <span class="agent-tool-row__icon" aria-hidden="true">
-                                                    <LxIcon icon=tool_icon_val width="0.82rem" height="0.82rem" />
-                                                </span>
-                                                <span class="agent-tool-row__label">{label}</span>
-                                                <Show when={let s = summary.clone(); move || !s.is_empty()}>
-                                                    <span class="agent-tool-row__arg">{summary.clone()}</span>
-                                                </Show>
-                                                <Show when={let b = count_badge.clone(); move || !b.is_empty()}>
-                                                    <span class="agent-tool-row__count">{count_badge.clone()}</span>
-                                                </Show>
-                                                <span class="agent-tool-row__status" aria-hidden="true">
-                                                    <LxIcon icon=status_icon width="0.78rem" height="0.78rem" />
-                                                </span>
-                                            </button>
-                                            {move || {
-                                                if !has_detail || !detail_open.get() {
-                                                    return view! { <></> }.into_any();
-                                                }
-                                                if has_paths {
-                                                    view! {
-                                                        <ul class="tool-row-paths">
-                                                            {paths_sv.get_value().into_iter().map(|p| {
-                                                                let display = path_tail(&p);
-                                                                let p_open = p.clone();
-                                                                view! {
-                                                                    <li>
-                                                                        <button
-                                                                            type="button"
-                                                                            class="tool-row-path-btn"
-                                                                            title=p.clone()
-                                                                            on:click=move |_| {
-                                                                                if let Some(ws_id) = workspace_id {
-                                                                                    wb.open_center_file_tab(ws_id, p_open.clone());
-                                                                                }
-                                                                            }
-                                                                        >{display}</button>
-                                                                    </li>
-                                                                }
-                                                            }).collect_view()}
-                                                        </ul>
-                                                    }.into_any()
-                                                } else {
-                                                    view! {
-                                                        <pre class="agent-tool-row__detail">{detail_text.clone()}</pre>
-                                                    }.into_any()
-                                                }
-                                            }}
-                                        </div>
+                                        <ToolPill
+                                            tool=tool
+                                            detail_key=detail_key
+                                            tool_detail_open=tool_detail_open
+                                            wb=wb
+                                            workspace_id=workspace_id
+                                        />
                                     </li>
                                 }
                             }).collect_view()}
@@ -1236,7 +1260,7 @@ pub fn TimelineRow(
                                         };
                                         view! {
                                             <details class=class>
-                                                <summary>"Thinking"{(!thinking_done).then(|| "…")}</summary>
+                                                <summary>"Thinking"{(!thinking_done).then_some("…")}</summary>
                                                 <pre class="agent-subagent-card__thinking-body">{live_thinking}</pre>
                                             </details>
                                         }
@@ -1248,12 +1272,20 @@ pub fn TimelineRow(
                                         <p class="agent-subagent-card__summary-text">{summary}</p>
                                     })}
                                     <ul class="agent-subagent-card__tools">
-                                        {card.tools.into_iter().map(|tool| {
-                                            let label = tool.label.clone();
+                                        {card.tools.into_iter().enumerate().map(|(ti, tool)| {
                                             let metrics = tool.metrics;
+                                            let detail_key = tool_detail_key(
+                                                idx, &tool.tool, tool.call_id.as_deref(), Some(ti),
+                                            );
                                             view! {
                                                 <li>
-                                                    <span>{label}</span>
+                                                    <ToolPill
+                                                        tool=tool
+                                                        detail_key=detail_key
+                                                        tool_detail_open=tool_detail_open
+                                                        wb=wb
+                                                        workspace_id=workspace_id
+                                                    />
                                                     <TurnMetricsBar metrics=metrics context=BarContext::Subagent />
                                                 </li>
                                             }
@@ -1297,24 +1329,34 @@ pub fn TimelineRow(
             multi_select,
             allow_other,
             state,
-        } => view! {
-            <li class="agent-chat-line agent-chat-line--ask-user">
-                <ChatLineIndexColumn line_no=line_no.clone() tts_text=None voice_handle=voice_handle />
-                <div class="agent-chat-body">
-                    <AskUserCard
-                        call_id=call_id
-                        question=question
-                        header=header
-                        options=options
-                        multi_select=multi_select
-                        allow_other=allow_other
-                        state=state
-                        timeline=timeline
-                    />
-                </div>
-            </li>
+        } => {
+            let call_id_for_auto = call_id.clone();
+            let auto_collapse = Signal::derive(move || {
+                timeline.with(|doc| ask_user_has_later_timeline_part(doc, &call_id_for_auto))
+            });
+            view! {
+                <li class="agent-chat-line agent-chat-line--ask-user">
+                    <ChatLineIndexColumn line_no=line_no.clone() tts_text=None voice_handle=voice_handle />
+                    <div class="agent-chat-body">
+                        <AskUserCard
+                            call_id=call_id
+                            question=question
+                            header=header
+                            options=options
+                            multi_select=multi_select
+                            allow_other=allow_other
+                            state=state
+                            auto_collapse=auto_collapse
+                            timeline=timeline
+                            wb=wb
+                            workspace_id=workspace_id
+                            chat_mode=chat_mode
+                        />
+                    </div>
+                </li>
+            }
+            .into_any()
         }
-        .into_any(),
     }
 }
 
@@ -1330,6 +1372,7 @@ pub fn TurnNodeView(
     timeline: RwSignal<TimelineDoc>,
     wb: WorkbenchService,
     workspace_id: Option<u64>,
+    chat_mode: RwSignal<AgentChatMode>,
     on_redo: Callback<String>,
 ) -> impl IntoView {
     let user_line = format!("{:02}", idx.saturating_mul(10) + 1);
@@ -1359,12 +1402,15 @@ pub fn TurnNodeView(
                             timeline=timeline
                             wb=wb
                             workspace_id=workspace_id
+                            chat_mode=chat_mode
                             on_redo=on_redo
                         />
                     }.into_any(),
-                    TurnRenderItem::ModelRound { metrics, tools } => view! {
+                    TurnRenderItem::ModelRound { thinking, metrics, tools } => view! {
                         <TimelineRow
                             idx=stable_index(&line_no)
+                            line_no=line_no
+                            thinking=thinking
                             entry=DisplayTimelineItem::ModelRound { metrics, tools }
                             i18n=i18n
                             thinking_open=thinking_open
@@ -1374,6 +1420,7 @@ pub fn TurnNodeView(
                             timeline=timeline
                             wb=wb
                             workspace_id=workspace_id
+                            chat_mode=chat_mode
                         />
                     }.into_any(),
                 }
@@ -1382,9 +1429,20 @@ pub fn TurnNodeView(
     }
 }
 
+/// A finished `Thinking` block hoisted into the header of the model round that
+/// immediately followed it, so the toggle floats right into the same line.
+#[derive(Clone)]
+pub struct InlineThinking {
+    /// Key into `thinking_open` for the expand/collapse state.
+    key: usize,
+    text: String,
+    done: bool,
+}
+
 enum TurnRenderItem {
     Part(TurnPart),
     ModelRound {
+        thinking: Option<InlineThinking>,
         metrics: TurnMetrics,
         tools: Vec<ToolActivity>,
     },
@@ -1394,22 +1452,62 @@ fn grouped_turn_render_items(parts: Vec<TurnPart>) -> Vec<TurnRenderItem> {
     let mut out = Vec::new();
     let mut iter = parts.into_iter().peekable();
     while let Some(part) = iter.next() {
+        // A Thinking block immediately followed by a tool-bearing ModelRound is
+        // merged: the thinking toggle floats into the model-round header line.
+        if matches!(part, TurnPart::Thinking { .. })
+            && matches!(iter.peek(), Some(TurnPart::ModelRound { .. }))
+        {
+            let TurnPart::Thinking {
+                id: th_id,
+                text: th_text,
+                done: th_done,
+            } = part
+            else {
+                unreachable!("guarded by matches! above");
+            };
+            let Some(TurnPart::ModelRound { id: mr_id, metrics }) = iter.next() else {
+                unreachable!("peeked a ModelRound above");
+            };
+            let tools = drain_round_tools(&mut iter);
+            if tools.is_empty() {
+                // No tools to anchor the round — keep both rows standalone.
+                out.push(TurnRenderItem::Part(TurnPart::Thinking {
+                    id: th_id,
+                    text: th_text,
+                    done: th_done,
+                }));
+                out.push(TurnRenderItem::Part(TurnPart::ModelRound {
+                    id: mr_id,
+                    metrics,
+                }));
+            } else {
+                push_model_round_group(
+                    &mut out,
+                    TurnRenderItem::ModelRound {
+                        thinking: Some(InlineThinking {
+                            key: stable_index(&th_id),
+                            text: th_text,
+                            done: th_done,
+                        }),
+                        metrics,
+                        tools: group_consecutive_tools(tools),
+                    },
+                );
+            }
+            continue;
+        }
         let TurnPart::ModelRound { id, metrics } = part else {
             out.push(TurnRenderItem::Part(part));
             continue;
         };
-        let mut tools = Vec::new();
-        while iter.peek().is_some_and(is_groupable_tool_part) {
-            if let Some(tool) = iter.next().and_then(tool_activity_from_part) {
-                tools.push(tool);
-            }
-        }
+        let tools = drain_round_tools(&mut iter);
         if tools.is_empty() {
             out.push(TurnRenderItem::Part(TurnPart::ModelRound { id, metrics }));
         } else {
             push_model_round_group(
                 &mut out,
                 TurnRenderItem::ModelRound {
+                    thinking: None,
                     metrics,
                     tools: group_consecutive_tools(tools),
                 },
@@ -1419,15 +1517,34 @@ fn grouped_turn_render_items(parts: Vec<TurnPart>) -> Vec<TurnRenderItem> {
     out
 }
 
+/// Consume the run of groupable (childless) tool parts that belong to a model
+/// round, converting each into a [`ToolActivity`].
+fn drain_round_tools(
+    iter: &mut std::iter::Peekable<std::vec::IntoIter<TurnPart>>,
+) -> Vec<ToolActivity> {
+    let mut tools = Vec::new();
+    while iter.peek().is_some_and(is_groupable_tool_part) {
+        if let Some(tool) = iter.next().and_then(tool_activity_from_part) {
+            tools.push(tool);
+        }
+    }
+    tools
+}
+
 fn push_model_round_group(out: &mut Vec<TurnRenderItem>, next: TurnRenderItem) {
-    let (metrics, mut tools) = match next {
-        TurnRenderItem::ModelRound { metrics, tools } => (metrics, tools),
+    let (thinking, metrics, mut tools) = match next {
+        TurnRenderItem::ModelRound {
+            thinking,
+            metrics,
+            tools,
+        } => (thinking, metrics, tools),
         other => {
             out.push(other);
             return;
         }
     };
     if let Some(TurnRenderItem::ModelRound {
+        thinking: prev_thinking,
         metrics: prev_metrics,
         tools: prev_tools,
     }) = out.last_mut()
@@ -1445,10 +1562,18 @@ fn push_model_round_group(out: &mut Vec<TurnRenderItem>, next: TurnRenderItem) {
                 prev_tools[0].status = ActivityStatus::Pending;
             }
             prev_metrics.merge(&metrics);
+            // Preserve whichever of the two merged rounds carried a thinking block.
+            if prev_thinking.is_none() {
+                *prev_thinking = thinking;
+            }
             return;
         }
     }
-    out.push(TurnRenderItem::ModelRound { metrics, tools });
+    out.push(TurnRenderItem::ModelRound {
+        thinking,
+        metrics,
+        tools,
+    });
 }
 
 fn is_groupable_tool_part(part: &TurnPart) -> bool {
@@ -1497,6 +1622,7 @@ fn TurnPartView(
     timeline: RwSignal<TimelineDoc>,
     wb: WorkbenchService,
     workspace_id: Option<u64>,
+    chat_mode: RwSignal<AgentChatMode>,
     on_redo: Callback<String>,
 ) -> impl IntoView {
     let indent_style = format!("--timeline-depth: {depth}");
@@ -1509,6 +1635,7 @@ fn TurnPartView(
                 <li class="agent-chat-line agent-chat-line--agent timeline-tree" style=indent_style>
                     <ChatLineIndexColumn line_no=line_no tts_text=tts_text voice_handle=voice_handle />
                     <div class="agent-chat-body">
+                        <AgentNameLabel />
                         <div class="workbench-agent-markdown" data-part-id=id inner_html=move || html.get()></div>
                         <TurnMetricsBar metrics=metrics context=BarContext::Main />
                     </div>
@@ -1567,6 +1694,8 @@ fn TurnPartView(
                             detail_key=detail_key
                             tool_detail_open=tool_detail_open
                             voice_handle=voice_handle
+                            wb=wb
+                            workspace_id=workspace_id
                         />
                     </div>
                     <div class="timeline-tree__children">
@@ -1583,6 +1712,7 @@ fn TurnPartView(
                                     timeline=timeline
                                     wb=wb
                                     workspace_id=workspace_id
+                                    chat_mode=chat_mode
                                     on_redo=on_redo
                                 />
                             }
@@ -1650,6 +1780,7 @@ fn TurnPartView(
                                             timeline=timeline
                                             wb=wb
                                             workspace_id=workspace_id
+                                            chat_mode=chat_mode
                                             on_redo=on_redo
                                         />
                                     }
@@ -1674,6 +1805,15 @@ fn TurnPartView(
             }
             .into_any()
         }
+        TurnPart::ChangedFiles { files, .. } => view! {
+            <li class="agent-chat-line agent-chat-line--changed-files timeline-tree" style=indent_style>
+                <ChatLineIndexColumn line_no=line_no tts_text=None voice_handle=voice_handle />
+                <div class="agent-chat-body">
+                    <ChangedFilesCard files=files wb=wb workspace_id=workspace_id />
+                </div>
+            </li>
+        }
+        .into_any(),
         TurnPart::GeneratedImage {
             prompt,
             mime,
@@ -1702,25 +1842,70 @@ fn TurnPartView(
             allow_other,
             state,
             ..
-        } => view! {
-            <li class="agent-chat-line agent-chat-line--agent timeline-tree" style=indent_style>
-                <ChatLineIndexColumn line_no=line_no tts_text=None voice_handle=voice_handle />
-                <div class="agent-chat-body">
-                    <AskUserCard
-                        call_id=call_id
-                        question=question
-                        header=header
-                        options=options
-                        multi_select=multi_select
-                        allow_other=allow_other
-                        state=state
-                        timeline=timeline
-                    />
-                </div>
-            </li>
+        } => {
+            let call_id_for_auto = call_id.clone();
+            let auto_collapse = Signal::derive(move || {
+                timeline.with(|doc| ask_user_has_later_timeline_part(doc, &call_id_for_auto))
+            });
+            view! {
+                <li class="agent-chat-line agent-chat-line--agent timeline-tree" style=indent_style>
+                    <ChatLineIndexColumn line_no=line_no tts_text=None voice_handle=voice_handle />
+                    <div class="agent-chat-body">
+                        <AskUserCard
+                            call_id=call_id
+                            question=question
+                            header=header
+                            options=options
+                            multi_select=multi_select
+                            allow_other=allow_other
+                            state=state
+                            auto_collapse=auto_collapse
+                            timeline=timeline
+                            wb=wb
+                            workspace_id=workspace_id
+                            chat_mode=chat_mode
+                        />
+                    </div>
+                </li>
+            }
+            .into_any()
         }
-        .into_any(),
     }
+}
+
+fn ask_user_has_later_timeline_part(doc: &TimelineDoc, call_id: &str) -> bool {
+    let mut seen = false;
+    for turn in &doc.turns {
+        if ask_user_has_later_part(&turn.parts, call_id, &mut seen) {
+            return true;
+        }
+    }
+    false
+}
+
+fn ask_user_has_later_part(parts: &[TurnPart], call_id: &str, seen: &mut bool) -> bool {
+    for part in parts {
+        if *seen {
+            return true;
+        }
+        match part {
+            TurnPart::AskUser { call_id: cid, .. } if cid == call_id => {
+                *seen = true;
+            }
+            TurnPart::Tool { children, .. } => {
+                if ask_user_has_later_part(children, call_id, seen) {
+                    return true;
+                }
+            }
+            TurnPart::Subagent { parts, .. } => {
+                if ask_user_has_later_part(parts, call_id, seen) {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
 }
 
 fn activity_status_from_tool_state(state: &ToolState) -> ActivityStatus {
@@ -1936,69 +2121,277 @@ fn ToolActivityRow(
     detail_key: String,
     tool_detail_open: RwSignal<HashMap<String, bool>>,
     voice_handle: VoiceOrbHandle,
+    wb: WorkbenchService,
+    workspace_id: Option<u64>,
 ) -> impl IntoView {
-    let status_class = match tool.status {
-        ActivityStatus::Pending => "agent-tool-row--pending",
-        ActivityStatus::Ok => "agent-tool-row--ok",
-        ActivityStatus::Fail => "agent-tool-row--fail",
-    };
-    let status_icon = match tool.status {
-        ActivityStatus::Pending => icondata::LuLoader,
-        ActivityStatus::Ok => icondata::LuCheck,
-        ActivityStatus::Fail => icondata::LuTriangleAlert,
-    };
-
-    let detail_key_memo = detail_key.clone();
-    let detail_open = Memo::new(move |_| {
-        tool_detail_open.with(|m| m.get(&detail_key_memo).copied().unwrap_or(false))
-    });
-    let has_detail = tool.detail.as_ref().is_some_and(|s| !s.is_empty());
-    let detail_text = tool.detail.clone().unwrap_or_default();
-    let label = tool.label.clone();
-    let summary = tool.args_summary.clone();
-    let tool_name_for_title = tool.tool.clone();
     let metrics = tool.metrics;
-
     view! {
         <li class="agent-chat-line agent-chat-line--tool">
             <ChatLineIndexColumn line_no=line_no tts_text=None voice_handle=voice_handle />
             <div class="agent-chat-body">
-                <div class=format!("agent-tool-row {status_class}") title=tool_name_for_title>
-                    <button
-                        type="button"
-                        class="agent-tool-row__head"
-                        aria-expanded=move || detail_open.get().to_string()
-                        prop:disabled=move || !has_detail
-                        on:click=move |_| {
-                            if has_detail {
-                                let key = detail_key.clone();
-                                tool_detail_open.update(|m| {
-                                    let cur = m.get(&key).copied().unwrap_or(false);
-                                    m.insert(key, !cur);
-                                });
-                            }
-                        }
-                    >
-                        <span class="agent-tool-row__icon" aria-hidden="true">
-                            <LxIcon icon=tool_icon(&tool.tool) width="0.82rem" height="0.82rem" />
-                        </span>
-                        <span class="agent-tool-row__label">{label}</span>
-                        <Show when={
-                            let s = summary.clone();
-                            move || !s.is_empty()
-                        }>
-                            <span class="agent-tool-row__arg">{summary.clone()}</span>
-                        </Show>
-                        <span class="agent-tool-row__status" aria-hidden="true">
-                            <LxIcon icon=status_icon width="0.78rem" height="0.78rem" />
-                        </span>
-                    </button>
-                    <Show when=move || has_detail && detail_open.get()>
-                        <pre class="agent-tool-row__detail">{detail_text.clone()}</pre>
-                    </Show>
-                </div>
+                <ToolPill
+                    tool=tool
+                    detail_key=detail_key
+                    tool_detail_open=tool_detail_open
+                    wb=wb
+                    workspace_id=workspace_id
+                />
                 <TurnMetricsBar metrics=metrics context=BarContext::Main />
             </div>
         </li>
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ToolDetailListItem {
+    title: String,
+    kicker: Option<String>,
+    summary: Option<String>,
+    meta: Vec<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum ToolDetailFormat {
+    List {
+        items: Vec<ToolDetailListItem>,
+        truncated: bool,
+    },
+    Raw(String),
+}
+
+#[component]
+pub(crate) fn ToolDetailContent(detail: String) -> impl IntoView {
+    match format_tool_detail(&detail) {
+        ToolDetailFormat::List { items, truncated } => view! {
+            <div class="agent-tool-row__detail agent-tool-detail-list">
+                <ul>
+                    {items.into_iter().map(|item| {
+                        let title = item.title;
+                        let kicker_text = item.kicker.unwrap_or_default();
+                        let has_kicker = !kicker_text.is_empty();
+                        let summary_text = item.summary.unwrap_or_default();
+                        let has_summary = !summary_text.is_empty();
+                        let meta = item.meta;
+                        let meta_view = meta.into_iter().map(|meta| {
+                            view! { <span>{meta}</span> }
+                        }).collect_view();
+                        let has_meta = !meta_view.is_empty();
+                        view! {
+                            <li class="agent-tool-detail-list__item">
+                                <div class="agent-tool-detail-list__main">
+                                    <span class="agent-tool-detail-list__title">{title}</span>
+                                    <Show when=move || has_kicker>
+                                        <span class="agent-tool-detail-list__kicker">
+                                            {kicker_text.clone()}
+                                        </span>
+                                    </Show>
+                                </div>
+                                <Show when=move || has_summary>
+                                    <p>{summary_text.clone()}</p>
+                                </Show>
+                                <Show when=move || has_meta>
+                                    <div class="agent-tool-detail-list__meta">
+                                        {meta_view.clone()}
+                                    </div>
+                                </Show>
+                            </li>
+                        }
+                    }).collect_view()}
+                </ul>
+                <Show when=move || truncated>
+                    <span class="agent-tool-detail-list__truncated">"truncated"</span>
+                </Show>
+            </div>
+        }
+        .into_any(),
+        ToolDetailFormat::Raw(text) => view! {
+            <pre class="agent-tool-row__detail">{text}</pre>
+        }
+        .into_any(),
+    }
+}
+
+fn format_tool_detail(detail: &str) -> ToolDetailFormat {
+    parse_tool_detail_list(detail).unwrap_or_else(|| ToolDetailFormat::Raw(detail.to_string()))
+}
+
+fn parse_tool_detail_list(detail: &str) -> Option<ToolDetailFormat> {
+    let (body, had_marker) = strip_truncated_marker(detail.trim());
+    let parsed = serde_json::from_str::<Value>(body)
+        .ok()
+        .and_then(|value| value.as_array().cloned().map(|items| (items, had_marker)))
+        .or_else(|| {
+            let items = parse_complete_json_objects_from_array_prefix(body);
+            (!items.is_empty()).then_some((items, true))
+        })?;
+    let (values, truncated) = parsed;
+    let items: Vec<ToolDetailListItem> = values
+        .iter()
+        .filter_map(tool_list_item_from_value)
+        .collect();
+    (!items.is_empty()).then_some(ToolDetailFormat::List { items, truncated })
+}
+
+fn strip_truncated_marker(detail: &str) -> (&str, bool) {
+    for marker in ["… (truncated)", "…(truncated)"] {
+        if let Some(stripped) = detail.strip_suffix(marker) {
+            return (stripped.trim_end(), true);
+        }
+    }
+    (detail, false)
+}
+
+fn parse_complete_json_objects_from_array_prefix(detail: &str) -> Vec<Value> {
+    let s = detail.trim_start();
+    if !s.starts_with('[') {
+        return Vec::new();
+    }
+    let mut values = Vec::new();
+    let mut start = None;
+    let mut depth = 0i32;
+    let mut in_string = false;
+    let mut escape = false;
+    for (idx, ch) in s.char_indices().skip(1) {
+        if in_string {
+            if escape {
+                escape = false;
+            } else if ch == '\\' {
+                escape = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match ch {
+            '"' => in_string = true,
+            '{' => {
+                if depth == 0 {
+                    start = Some(idx);
+                }
+                depth += 1;
+            }
+            '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    if let Some(start_idx) = start.take() {
+                        if let Ok(value) = serde_json::from_str::<Value>(&s[start_idx..=idx]) {
+                            values.push(value);
+                        }
+                    }
+                }
+            }
+            ']' if depth == 0 => break,
+            _ => {}
+        }
+    }
+    values
+}
+
+fn tool_list_item_from_value(value: &Value) -> Option<ToolDetailListItem> {
+    let obj = value.as_object()?;
+    let title = first_string(obj, &["title", "name", "path", "id"])?;
+    let kicker = first_string(obj, &["category", "kind", "role", "source"]);
+    let summary = first_string(obj, &["summary", "description", "content", "text"]);
+    let mut meta = Vec::new();
+    for key in [
+        "enabled",
+        "installed",
+        "missingSkill",
+        "updatedAt",
+        "modified",
+    ] {
+        if let Some(label) = object_meta_value(obj, key) {
+            meta.push(label);
+        }
+    }
+    Some(ToolDetailListItem {
+        title,
+        kicker,
+        summary,
+        meta,
+    })
+}
+
+fn first_string(obj: &serde_json::Map<String, Value>, keys: &[&str]) -> Option<String> {
+    keys.iter()
+        .find_map(|key| obj.get(*key).and_then(Value::as_str))
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+}
+
+fn object_meta_value(obj: &serde_json::Map<String, Value>, key: &str) -> Option<String> {
+    let value = obj.get(key)?;
+    match value {
+        Value::Bool(v) => Some(format!("{key}: {v}")),
+        Value::Number(v) => Some(format!("{key}: {v}")),
+        Value::String(v) if !v.trim().is_empty() => Some(format!("{key}: {v}")),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn formats_json_object_arrays_as_tool_detail_lists() {
+        let detail = r#"[{"name":"rules_list","title":"Rules","summary":"Show active rules","category":"workflow","enabled":true}]"#;
+
+        let Some(ToolDetailFormat::List { items, truncated }) = parse_tool_detail_list(detail)
+        else {
+            panic!("expected formatted list");
+        };
+
+        assert!(!truncated);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].title, "Rules");
+        assert_eq!(items[0].kicker.as_deref(), Some("workflow"));
+        assert_eq!(items[0].summary.as_deref(), Some("Show active rules"));
+        assert!(items[0].meta.iter().any(|m| m == "enabled: true"));
+    }
+
+    #[test]
+    fn formats_complete_items_from_truncated_json_array_prefix() {
+        let detail =
+            r#"[{"name":"rules_list","summary":"Readable"},{"name":"skills_list","summary":"cut"#;
+
+        let Some(ToolDetailFormat::List { items, truncated }) = parse_tool_detail_list(detail)
+        else {
+            panic!("expected formatted list");
+        };
+
+        assert!(truncated);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].title, "rules_list");
+        assert_eq!(items[0].summary.as_deref(), Some("Readable"));
+    }
+
+    #[test]
+    fn leaves_non_json_tool_details_raw() {
+        assert!(parse_tool_detail_list("plain shell output").is_none());
+    }
+
+    #[test]
+    fn ask_user_parser_preserves_chat_mode_selection_metadata() {
+        let args = serde_json::json!({
+            "question": "Approve file edit?",
+            "options": [
+                { "label": "Approve once" },
+                {
+                    "label": "Auto-accept",
+                    "description": "Switch to Full Access.",
+                    "setChatModeOnSelect": "allow_all"
+                }
+            ],
+            "allowOther": false
+        });
+
+        let parsed = parse_ask_user_args(&args).expect("valid ask_user args");
+        assert_eq!(parsed.options.len(), 2);
+        assert_eq!(
+            parsed.options[1].set_chat_mode_on_select,
+            Some(AgentChatMode::AllowAll)
+        );
     }
 }

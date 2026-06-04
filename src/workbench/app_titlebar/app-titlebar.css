@@ -1,0 +1,813 @@
+/* Custom cross-platform application title bar (decorations:false).
+ * Tokens only — no literal colors (rule-theme-tokens). */
+
+:root {
+  --titlebar-h: 40px;
+}
+
+.app-titlebar {
+  flex: 0 0 var(--titlebar-h);
+  height: var(--titlebar-h);
+  display: flex;
+  align-items: stretch;
+  gap: 0.25rem;
+  padding-left: 0.5rem;
+  background: var(--bg-panel-header);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-mono);
+  user-select: none;
+  -webkit-user-select: none;
+  position: relative;
+  /* Above the EULA overlay (z-index 9000) so the window stays draggable and
+   * closable during the gate; the bar is window chrome and stays on top. */
+  z-index: 9500;
+}
+
+.app-titlebar__cluster {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.app-titlebar__cluster--left {
+  flex: 0 0 auto;
+}
+
+.app-titlebar__cluster--center {
+  flex: 1 1 auto;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.app-titlebar__cluster--right {
+  flex: 0 0 auto;
+  margin-left: auto;
+  gap: 0;
+}
+
+/* ---- Brand ---- */
+.app-titlebar__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.4rem;
+}
+
+.app-titlebar__brand-logo {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.app-titlebar__brand-name {
+  font-weight: 600;
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+  color: var(--text-bright);
+}
+
+/* ---- Breadcrumb ---- */
+.app-titlebar__breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.app-titlebar__crumb {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 18ch;
+}
+
+.app-titlebar__crumb--workspace {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.app-titlebar__crumb--context {
+  color: var(--text-muted);
+}
+
+/* Live focused-terminal title — emphasized over the static tab crumb. */
+.app-titlebar__crumb--terminal {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  color: var(--text);
+  font-weight: 500;
+  max-width: 26ch;
+  min-width: 0;
+}
+
+/* Decent slot-number prefix so identical auto-titles stay distinguishable. */
+.app-titlebar__crumb-slot {
+  color: var(--text-faint);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.app-titlebar__crumb-term-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.app-titlebar__crumb-sep {
+  display: inline-flex;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+
+/* ---- Generic icon buttons ---- */
+.app-titlebar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0 0.25rem;
+}
+
+.app-titlebar__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  position: relative;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.app-titlebar__icon-btn:hover {
+  background: var(--overlay-2);
+  color: var(--text-bright);
+}
+
+.app-titlebar__icon-btn:active {
+  background: var(--overlay-3);
+}
+
+.app-titlebar__icon-btn--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.app-titlebar__bell-dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  min-width: 12px;
+  height: 12px;
+  padding: 0 3px;
+  border-radius: var(--radius-circle);
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg-panel-header);
+  color: var(--on-accent);
+  font-size: 0.5rem;
+  line-height: 12px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.app-titlebar__divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 0.35rem;
+  background: var(--border-strong);
+}
+
+/* ---- Window controls ---- */
+.app-titlebar__window-controls {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+}
+
+.app-titlebar__win-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.app-titlebar__win-btn:hover {
+  background: var(--overlay-2);
+  color: var(--text-bright);
+}
+
+.app-titlebar__win-btn--close:hover {
+  background: var(--danger);
+  color: var(--on-accent);
+}
+
+.app-titlebar__win-glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* Minimize: a centered horizontal bar (avoids relying on an icon glyph). */
+.app-titlebar__win-glyph--min {
+  width: 11px;
+  height: 1px;
+  background: currentColor;
+}
+
+/* ---- Popovers (NAVIGATE + Notifications) ---- */
+.app-titlebar__menu-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.app-titlebar__popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 232px;
+  max-width: 320px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 18px 45px var(--scrim-bg);
+  padding: 0.35rem;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.app-titlebar__popover-head {
+  margin: 0;
+  padding: 0.25rem 0.5rem 0.35rem;
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.app-titlebar__popover-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.app-titlebar__notif-action,
+.app-titlebar__notif-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.app-titlebar__notif-action:hover,
+.app-titlebar__notif-remove:hover {
+  background: var(--overlay-2);
+  color: var(--text-bright);
+}
+
+.app-titlebar__menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  font-size: 0.8rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.app-titlebar__menu-item:hover:not(:disabled),
+.app-titlebar__submenu:focus-within > .app-titlebar__menu-item,
+.app-titlebar__submenu:hover > .app-titlebar__menu-item {
+  background: var(--accent-soft);
+  color: var(--text-bright);
+}
+
+.app-titlebar__menu-item:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.app-titlebar__menu-item-label {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.app-titlebar__menu-item-workspace {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 15ch;
+  color: var(--text-faint);
+  font-size: 0.68rem;
+}
+
+.app-titlebar__menu-item-caret {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--text-faint);
+}
+
+.app-titlebar__submenu {
+  position: relative;
+}
+
+.app-titlebar__submenu--disabled {
+  pointer-events: none;
+}
+
+.app-titlebar__submenu-panel {
+  position: absolute;
+  top: -0.35rem;
+  left: calc(100% + 0.45rem);
+  width: min(240px, calc(100vw - 1rem));
+  max-height: min(330px, calc(100vh - var(--titlebar-h) - 1rem));
+  overflow-y: auto;
+  display: none;
+  flex-direction: column;
+  gap: 0.1rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  box-shadow: 0 18px 45px var(--scrim-bg);
+  z-index: 61;
+}
+
+.app-titlebar__submenu-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 100%;
+  width: 0.45rem;
+  height: 100%;
+}
+
+.app-titlebar__submenu:hover > .app-titlebar__submenu-panel,
+.app-titlebar__submenu:focus-within > .app-titlebar__submenu-panel {
+  display: flex;
+}
+
+.app-titlebar__submenu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.42rem 0.52rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.76rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.app-titlebar__submenu-item:hover,
+.app-titlebar__submenu-item:focus-visible,
+.app-titlebar__submenu-item--active {
+  background: var(--accent-soft);
+  color: var(--text-bright);
+  outline: none;
+}
+
+.app-titlebar__submenu-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 0.9rem;
+  color: var(--accent);
+}
+
+.app-titlebar__submenu-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-titlebar__menu-sep {
+  height: 1px;
+  margin: 0.25rem 0.3rem;
+  background: var(--border);
+}
+
+.app-titlebar__popover--view-mode {
+  min-width: 176px;
+}
+
+.app-titlebar__view-mode-item--active {
+  background: var(--accent-soft);
+  color: var(--text-bright);
+}
+
+/* ---- Help / About ---- */
+.app-titlebar__popover--help {
+  min-width: 190px;
+}
+
+.app-titlebar__about-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.app-titlebar__about-scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: var(--scrim-bg);
+  cursor: default;
+}
+
+.app-titlebar__about-dialog {
+  position: relative;
+  width: min(560px, calc(100vw - 2rem));
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--accent) 18%, transparent), transparent 38%),
+    linear-gradient(180deg, color-mix(in srgb, var(--overlay-2) 68%, transparent), transparent 46%),
+    var(--bg-panel);
+  box-shadow:
+    0 26px 70px var(--scrim-bg),
+    inset 0 1px 0 color-mix(in srgb, var(--overlay-4) 42%, transparent);
+  color: var(--text);
+  overflow: hidden;
+}
+
+.app-titlebar__about-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 2.3rem;
+  padding: 0.45rem 0.5rem 0;
+}
+
+.app-titlebar__about-head h2 {
+  margin: 0;
+}
+
+.app-titlebar__about-body {
+  padding: 0 1.35rem 1.25rem;
+}
+
+.app-titlebar__about-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.42rem;
+}
+
+.app-titlebar__about-logo {
+  display: inline-flex;
+  flex: 0 0 auto;
+  padding: 0.45rem;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, transparent);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--overlay-4) 38%, transparent), transparent),
+    var(--bg-panel);
+  box-shadow:
+    0 16px 32px color-mix(in srgb, var(--accent) 22%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--overlay-4) 45%, transparent);
+}
+
+.app-titlebar__about-logo img {
+  width: 74px;
+  height: 74px;
+  border-radius: var(--radius-lg);
+  display: block;
+}
+
+.app-titlebar__about-kicker {
+  margin: 0.35rem 0 0;
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-titlebar__about-hero h2 {
+  margin: 0;
+  color: var(--text-bright);
+  font-size: 1.42rem;
+  font-weight: 760;
+  line-height: 1.1;
+}
+
+.app-titlebar__about-desc {
+  width: min(100%, 43rem);
+  margin: 0.1rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.app-titlebar__about-status {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.42rem;
+  margin: 1rem 0 0.78rem;
+}
+
+.app-titlebar__about-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 1.7rem;
+  padding: 0.28rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-panel) 78%, transparent);
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 650;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--overlay-4) 30%, transparent);
+}
+
+.app-titlebar__about-status-pill svg {
+  color: var(--accent);
+}
+
+.app-titlebar__about-status-pill--free {
+  border-color: color-mix(in srgb, var(--success, #3fb950) 42%, var(--border));
+  background: color-mix(in srgb, var(--success, #3fb950) 13%, var(--bg-panel));
+  color: var(--text-bright);
+}
+
+.app-titlebar__about-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.75rem 0;
+  border-block: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.app-titlebar__about-meta div {
+  display: grid;
+  gap: 0.16rem;
+  min-width: 0;
+  padding: 0.55rem 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--border) 58%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-panel) 72%, transparent);
+}
+
+.app-titlebar__about-meta dt {
+  color: var(--text-muted);
+  font-size: 0.64rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.app-titlebar__about-meta dd {
+  margin: 0;
+  color: var(--text-bright);
+  font-size: 0.78rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-titlebar__about-stack {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+  margin: 0.85rem 0 0;
+}
+
+.app-titlebar__about-stack span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.55rem;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--text);
+  font-size: 0.68rem;
+  font-weight: 620;
+}
+
+.app-titlebar__about-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.48rem;
+  margin-top: 1rem;
+}
+
+.app-titlebar__about-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+  min-width: 0;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.62rem;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, transparent);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.76rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    color 120ms ease,
+    transform 120ms ease;
+}
+
+.app-titlebar__about-link:hover,
+.app-titlebar__about-link:focus-visible {
+  border-color: var(--border-strong);
+  background: var(--overlay-1);
+  color: var(--text-bright);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.app-titlebar__about-link--primary {
+  grid-column: 1 / -1;
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent),
+    var(--bg-panel);
+  color: var(--text-bright);
+}
+
+.app-titlebar__about-link svg {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 520px) {
+  .app-titlebar__about-body {
+    padding-inline: 1rem;
+  }
+
+  .app-titlebar__about-meta,
+  .app-titlebar__about-links {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .app-titlebar__about-link--primary {
+    grid-column: auto;
+  }
+}
+
+/* ---- Notifications empty / list ---- */
+.app-titlebar__notif-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.3rem;
+  padding: 1.1rem 0.8rem 1.3rem;
+  color: var(--text-faint);
+}
+
+.app-titlebar__notif-empty-title {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.app-titlebar__notif-empty-body {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  max-width: 24ch;
+}
+
+.app-titlebar__notif-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.app-titlebar__notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border-radius: var(--radius-md);
+}
+
+.app-titlebar__notif-item:hover {
+  background: var(--overlay-1);
+}
+
+.app-titlebar__notif-item--unread {
+  background: var(--accent-soft);
+}
+
+.app-titlebar__notif-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  width: 100%;
+  padding: 0.32rem 0.35rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-titlebar__notif-icon {
+  flex: 0 0 auto;
+  color: var(--accent);
+  margin-top: 0.05rem;
+}
+
+.app-titlebar__notif-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.app-titlebar__notif-item-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-titlebar__notif-item-body {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
