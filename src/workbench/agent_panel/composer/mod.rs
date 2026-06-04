@@ -187,6 +187,35 @@ fn model_detail_line(model: &ProviderModelEntry) -> String {
     }
 }
 
+fn model_matches_filter(model: &ProviderModelEntry, filter: &str) -> bool {
+    filter.is_empty()
+        || model.id.to_lowercase().contains(filter)
+        || model.label.to_lowercase().contains(filter)
+}
+
+fn matching_provider_keys(
+    cache: &BTreeMap<String, Vec<ProviderModelEntry>>,
+    filter: &str,
+) -> Vec<String> {
+    COMPOSER_MODEL_PROVIDERS
+        .into_iter()
+        .filter_map(|provider| {
+            let key = provider_cache_key(provider);
+            if filter.is_empty()
+                || cache.get(&key).is_some_and(|models| {
+                    models
+                        .iter()
+                        .any(|model| model_matches_filter(model, filter))
+                })
+            {
+                Some(key)
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 fn read_model_favorites() -> HashSet<String> {
     web_sys::window()
         .and_then(|w| w.local_storage().ok().flatten())
@@ -335,6 +364,7 @@ pub fn Composer(
     let model_open = RwSignal::new(false);
     let think_open = RwSignal::new(false);
     let open_provider_group = RwSignal::new(provider_cache_key(AgentProviderKind::Openrouter));
+    let provider_group_manually_changed = RwSignal::new(false);
 
     let provider_models = RwSignal::new(BTreeMap::<String, Vec<ProviderModelEntry>>::new());
     let models_loading = RwSignal::new(HashSet::<String>::new());
@@ -376,6 +406,7 @@ pub fn Composer(
         leptos::task::spawn_local(async move {
             if let Ok(view) = agent_settings_get().await {
                 thinking.set(view.thinking_level);
+                provider_group_manually_changed.set(false);
                 open_provider_group.set(provider_cache_key(view.provider));
                 provider_models.set(initial_provider_model_cache(&view));
                 settings.set(Some(view));
@@ -423,11 +454,33 @@ pub fn Composer(
                     updated.model_id
                 ));
                 thinking.set(updated.thinking_level);
+                provider_group_manually_changed.set(false);
                 open_provider_group.set(provider_cache_key(updated.provider));
                 settings.set(Some(updated));
             }
         });
     };
+
+    Effect::new(move |_| {
+        let filter = model_filter.get().trim().to_ascii_lowercase();
+        let Some(active_provider) = settings.get().map(|view| view.provider) else {
+            return;
+        };
+        if filter.is_empty() {
+            if !provider_group_manually_changed.get() {
+                open_provider_group.set(provider_cache_key(active_provider));
+            }
+            return;
+        }
+        let cache = provider_models.get();
+        let matching = matching_provider_keys(&cache, &filter);
+        let current = open_provider_group.get();
+        if !matching.iter().any(|key| key == &current) {
+            if let Some(first) = matching.into_iter().next() {
+                open_provider_group.set(first);
+            }
+        }
+    });
 
     // Lazy-load each provider's model list the first time the picker opens.
     let load_models = move || {
@@ -542,6 +595,7 @@ pub fn Composer(
                             <div class="agent-composer__provider-groups">
                                 {move || {
                                     let filter = model_filter.get().to_lowercase();
+                                    let filter_is_empty = filter.trim().is_empty();
                                     let active_settings = settings.get();
                                     let active = active_settings
                                         .as_ref()
@@ -555,14 +609,9 @@ pub fn Composer(
                                     let favorites = model_favorites.get();
                                     let model_cache = provider_models.get();
                                     let loading_providers = models_loading.get();
-                                    let matches_filter = |m: &ProviderModelEntry| {
-                                        filter.is_empty()
-                                            || m.id.to_lowercase().contains(&filter)
-                                            || m.label.to_lowercase().contains(&filter)
-                                    };
                                     COMPOSER_MODEL_PROVIDERS
                                         .into_iter()
-                                        .map(|provider| {
+                                        .filter_map(|provider| {
                                             let provider_key = provider_cache_key(provider);
                                             let provider_label = provider_display_name(provider);
                                             let provider_icon = provider_icon_url(provider);
@@ -575,7 +624,10 @@ pub fn Composer(
                                                 .unwrap_or_default();
                                             let mut active_row = None::<ProviderModelEntry>;
                                             let mut rest = Vec::<ProviderModelEntry>::new();
-                                            for model in models.into_iter().filter(matches_filter) {
+                                            for model in models
+                                                .into_iter()
+                                                .filter(|model| model_matches_filter(model, &filter))
+                                            {
                                                 if is_active_provider && model.id == active && active_row.is_none() {
                                                     active_row = Some(model);
                                                 } else {
@@ -583,6 +635,9 @@ pub fn Composer(
                                                 }
                                             }
                                             let match_count = active_row.iter().count() + rest.len();
+                                            if !filter_is_empty && match_count == 0 && !is_loading {
+                                                return None;
+                                            }
                                             rest.sort_by_key(|m| (!favorites.contains(&m.id), m.label.to_lowercase(), m.id.clone()));
                                             let click_provider_key = provider_key.clone();
                                             let group_class = if is_open {
@@ -657,6 +712,7 @@ pub fn Composer(
                                                         class="agent-composer__provider-header"
                                                         aria-expanded=is_open.to_string()
                                                         on:click=move |_| {
+                                                            provider_group_manually_changed.set(true);
                                                             open_provider_group.set(click_provider_key.clone());
                                                         }
                                                     >
@@ -674,6 +730,7 @@ pub fn Composer(
                                                 </section>
                                             }
                                             .into_any()
+                                            .into()
                                         })
                                         .collect_view()
                                 }}
