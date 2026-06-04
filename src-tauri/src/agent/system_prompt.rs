@@ -454,6 +454,10 @@ fn base_system_prompt(root: &str, agent_name: &str) -> String {
          `respectFocus:true` by default and suppresses noise when the Agent \
          panel is active. Read the `notifications` core skill when you need \
          exact fields, kinds, targets, or management tools.\n\
+         When notifying for Agent chat work, include target \
+         `{{ \"view\":\"agent\", \"workspaceId\": <id>, \"sessionId\": \"<id>\" }}` \
+         whenever those ids are available so the UI can select the right \
+         workspace and chat tab.\n\
          - Send `kind:\"plan_completed\"` when a durable plan is genuinely \
            complete.\n\
          - Send `kind:\"task_completed\"` when a meaningful task is completed.\n\

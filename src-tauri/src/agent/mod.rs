@@ -39,4 +39,4 @@ pub use web_commands::{
 
 pub use protocol::{EventEnvelope, UserTurn};
 pub use session_orchestrator::dispatch_user_turn;
-pub use state::AgentEngineState;
+pub use state::AgentEngineRegistry;

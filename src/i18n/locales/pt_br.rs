@@ -150,26 +150,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TbViewModeGrid => "Grade",
         I18nKey::TbViewModeCanvas => "Tela",
         I18nKey::TbViewModeSwarm => "Enxame",
-        I18nKey::TbRunMenu => "Run",
-
-        I18nKey::TbRunRefresh => "Refresh run commands",
-
-        I18nKey::TbRunEmpty => "No run commands found.",
-
-        I18nKey::TbRunLoading => "Loading run commands…",
-
-        I18nKey::TbRunDev => "Dev",
-
-        I18nKey::TbRunRun => "Run",
-
-        I18nKey::TbRunDebug => "Debug",
-
-        I18nKey::TbRunTest => "Test",
-
-        I18nKey::TbRunBuild => "Build",
-
-        I18nKey::TbRunOther => "Other",
-
+        I18nKey::TbRunMenu => "Correr",
+        I18nKey::TbRunRefresh => "Atualizar comandos de execução",
+        I18nKey::TbRunEmpty => "Nenhum comando de execução encontrado.",
+        I18nKey::TbRunLoading => "Carregando comandos de execução…",
+        I18nKey::TbRunDev => "Desenvolvedor",
+        I18nKey::TbRunRun => "Correr",
+        I18nKey::TbRunDebug => "Depurar",
+        I18nKey::TbRunTest => "Teste",
+        I18nKey::TbRunBuild => "Construir",
+        I18nKey::TbRunOther => "Outro",
         I18nKey::CanvasSlotLabel => "Espaço {id}",
         I18nKey::CanvasResizeNode => "Redimensionar nó terminal",
         I18nKey::CanvasEdgeSend => "Enviar saída de borda",
@@ -457,6 +447,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgStateStandby => "Espera",
         I18nKey::AgTagline => "Assistente de espaço de trabalho",
         I18nKey::AgChatHeading => "Registro de bate-papo",
+        I18nKey::AgNewSession => "Nova sessão",
+        I18nKey::AgCloseSession => "Fechar sessão",
+        I18nKey::AgSessionTabsAria => "Sessões de chat do agente",
+        I18nKey::AgSessionRunning => "Correndo",
+        I18nKey::AgSessionIdle => "Parado",
+        I18nKey::AgSessionThinking => "Pensamento",
+        I18nKey::AgSessionNeedsInput => "Precisa de informações",
+        I18nKey::AgSessionErrored => "Erro",
+        I18nKey::AgSessionRestored => "Restaurado",
+        I18nKey::AgSessionUnread => "Atualizações em segundo plano não lidas",
+        I18nKey::AgCannotCloseRunningSession => "Não é possível fechar uma sessão em execução",
         I18nKey::AgBadgeReady => "Preparar",
         I18nKey::AgBadgeLive => "Ao vivo",
         I18nKey::AgWelcomeBody => {
@@ -673,49 +674,28 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatImage => "Imagem",
         I18nKey::HsCatRemote => "Remoto",
         I18nKey::HsCatMcp => "PCM",
-        I18nKey::HsCatPlugins => "Plugins",
-        I18nKey::PluginsDescription => "Manage BLXCode plugin packages and runtime command providers.",
-
-        I18nKey::PluginsHeading => "Plugin Packages",
-
-        I18nKey::PluginsInstall => "Install",
-
-        I18nKey::PluginsRefresh => "Refresh",
-
-        I18nKey::PluginsEmpty => "No plugins installed.",
-
-        I18nKey::PluginsBuiltIn => "Built-in",
-
-        I18nKey::PluginsInstalled => "Installed",
-
-        I18nKey::PluginsEnabled => "Enabled",
-
-        I18nKey::PluginsDisabled => "Disabled",
-
-        I18nKey::PluginsEnable => "Enable",
-
-        I18nKey::PluginsDisable => "Disable",
-
-        I18nKey::PluginsRemove => "Remove",
-
-        I18nKey::PluginsInstallTitle => "Install plugin",
-
-        I18nKey::PluginsGithubUrl => "GitHub URL",
-
+        I18nKey::HsCatPlugins => "Plug-ins",
+        I18nKey::PluginsDescription => "Gerencie pacotes de plug-ins BLXCode e provedores de comandos de tempo de execução.",
+        I18nKey::PluginsHeading => "Pacotes de plug-ins",
+        I18nKey::PluginsInstall => "Instalar",
+        I18nKey::PluginsRefresh => "Atualizar",
+        I18nKey::PluginsEmpty => "Nenhum plug-in instalado.",
+        I18nKey::PluginsBuiltIn => "Integrado",
+        I18nKey::PluginsInstalled => "Instalado",
+        I18nKey::PluginsEnabled => "Habilitado",
+        I18nKey::PluginsDisabled => "Desabilitado",
+        I18nKey::PluginsEnable => "Habilitar",
+        I18nKey::PluginsDisable => "Desativar",
+        I18nKey::PluginsRemove => "Remover",
+        I18nKey::PluginsInstallTitle => "Instalar plug-in",
+        I18nKey::PluginsGithubUrl => "URL do GitHub",
         I18nKey::PluginsGithubUrlPlaceholder => "https://github.com/owner/repo/tree/main/package",
-
-        I18nKey::PluginsGitRef => "Git ref",
-
-        I18nKey::PluginsPackageDir => "Package directory",
-
-        I18nKey::PluginsInstallProgress => "Installing plugin…",
-
-        I18nKey::PluginsInstallDone => "Plugin installed.",
-
-        I18nKey::PluginsCategoryRuntime => "Runtime",
-
-        I18nKey::PluginsCategoryOther => "Other",
-
+        I18nKey::PluginsGitRef => "Referência do Git",
+        I18nKey::PluginsPackageDir => "Diretório de pacotes",
+        I18nKey::PluginsInstallProgress => "Instalando plug-in…",
+        I18nKey::PluginsInstallDone => "Plug-in instalado.",
+        I18nKey::PluginsCategoryRuntime => "Tempo de execução",
+        I18nKey::PluginsCategoryOther => "Outro",
         I18nKey::McpDescription => "Registre servidores MCP que o agente no aplicativo e as CLIs de terminal agrupadas podem usar.",
         I18nKey::McpHeading => "Servidores MCP",
         I18nKey::McpResetHint => "As alterações entrarão em vigor no chat somente após a redefinição da sessão.",

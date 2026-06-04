@@ -152,26 +152,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TbViewModeGrid => "Сетка",
         I18nKey::TbViewModeCanvas => "Холст",
         I18nKey::TbViewModeSwarm => "Рой",
-        I18nKey::TbRunMenu => "Run",
-
-        I18nKey::TbRunRefresh => "Refresh run commands",
-
-        I18nKey::TbRunEmpty => "No run commands found.",
-
-        I18nKey::TbRunLoading => "Loading run commands…",
-
-        I18nKey::TbRunDev => "Dev",
-
-        I18nKey::TbRunRun => "Run",
-
-        I18nKey::TbRunDebug => "Debug",
-
-        I18nKey::TbRunTest => "Test",
-
-        I18nKey::TbRunBuild => "Build",
-
-        I18nKey::TbRunOther => "Other",
-
+        I18nKey::TbRunMenu => "Бегать",
+        I18nKey::TbRunRefresh => "Обновить команды запуска",
+        I18nKey::TbRunEmpty => "Команды запуска не найдены.",
+        I18nKey::TbRunLoading => "Загрузка команд запуска…",
+        I18nKey::TbRunDev => "Дев",
+        I18nKey::TbRunRun => "Бегать",
+        I18nKey::TbRunDebug => "Отлаживать",
+        I18nKey::TbRunTest => "Тест",
+        I18nKey::TbRunBuild => "Строить",
+        I18nKey::TbRunOther => "Другой",
         I18nKey::CanvasSlotLabel => "Слот {идентификатор}",
         I18nKey::CanvasResizeNode => "Изменение размера конечного узла",
         I18nKey::CanvasEdgeSend => "Отправить фронтальный выход",
@@ -457,6 +447,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgStateStandby => "Поддерживать",
         I18nKey::AgTagline => "Помощник по рабочему пространству",
         I18nKey::AgChatHeading => "Журнал чата",
+        I18nKey::AgNewSession => "Новая сессия",
+        I18nKey::AgCloseSession => "Закрыть сеанс",
+        I18nKey::AgSessionTabsAria => "Сеансы чата с агентами",
+        I18nKey::AgSessionRunning => "Бег",
+        I18nKey::AgSessionIdle => "Праздный",
+        I18nKey::AgSessionThinking => "мышление",
+        I18nKey::AgSessionNeedsInput => "Требуется ввод данных",
+        I18nKey::AgSessionErrored => "Ошибка",
+        I18nKey::AgSessionRestored => "Восстановлен",
+        I18nKey::AgSessionUnread => "Непрочитанные фоновые обновления",
+        I18nKey::AgCannotCloseRunningSession => "Невозможно закрыть текущий сеанс",
         I18nKey::AgBadgeReady => "Готовый",
         I18nKey::AgBadgeLive => "Жить",
         I18nKey::AgWelcomeBody => {
@@ -677,49 +678,28 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatImage => "Изображение",
         I18nKey::HsCatRemote => "Удаленный",
         I18nKey::HsCatMcp => "МКП",
-        I18nKey::HsCatPlugins => "Plugins",
-        I18nKey::PluginsDescription => "Manage BLXCode plugin packages and runtime command providers.",
-
-        I18nKey::PluginsHeading => "Plugin Packages",
-
-        I18nKey::PluginsInstall => "Install",
-
-        I18nKey::PluginsRefresh => "Refresh",
-
-        I18nKey::PluginsEmpty => "No plugins installed.",
-
-        I18nKey::PluginsBuiltIn => "Built-in",
-
-        I18nKey::PluginsInstalled => "Installed",
-
-        I18nKey::PluginsEnabled => "Enabled",
-
-        I18nKey::PluginsDisabled => "Disabled",
-
-        I18nKey::PluginsEnable => "Enable",
-
-        I18nKey::PluginsDisable => "Disable",
-
-        I18nKey::PluginsRemove => "Remove",
-
-        I18nKey::PluginsInstallTitle => "Install plugin",
-
-        I18nKey::PluginsGithubUrl => "GitHub URL",
-
+        I18nKey::HsCatPlugins => "Плагины",
+        I18nKey::PluginsDescription => "Управляйте пакетами плагинов BLXCode и поставщиками команд времени выполнения.",
+        I18nKey::PluginsHeading => "Пакеты плагинов",
+        I18nKey::PluginsInstall => "Установить",
+        I18nKey::PluginsRefresh => "Обновить",
+        I18nKey::PluginsEmpty => "Плагины не установлены.",
+        I18nKey::PluginsBuiltIn => "Встроенный",
+        I18nKey::PluginsInstalled => "Установлено",
+        I18nKey::PluginsEnabled => "Включено",
+        I18nKey::PluginsDisabled => "Неполноценный",
+        I18nKey::PluginsEnable => "Давать возможность",
+        I18nKey::PluginsDisable => "Запрещать",
+        I18nKey::PluginsRemove => "Удалять",
+        I18nKey::PluginsInstallTitle => "Установить плагин",
+        I18nKey::PluginsGithubUrl => "URL-адрес GitHub",
         I18nKey::PluginsGithubUrlPlaceholder => "https://github.com/owner/repo/tree/main/package",
-
-        I18nKey::PluginsGitRef => "Git ref",
-
-        I18nKey::PluginsPackageDir => "Package directory",
-
-        I18nKey::PluginsInstallProgress => "Installing plugin…",
-
-        I18nKey::PluginsInstallDone => "Plugin installed.",
-
-        I18nKey::PluginsCategoryRuntime => "Runtime",
-
-        I18nKey::PluginsCategoryOther => "Other",
-
+        I18nKey::PluginsGitRef => "Git-ссылка",
+        I18nKey::PluginsPackageDir => "Каталог пакетов",
+        I18nKey::PluginsInstallProgress => "Установка плагина…",
+        I18nKey::PluginsInstallDone => "Плагин установлен.",
+        I18nKey::PluginsCategoryRuntime => "Время выполнения",
+        I18nKey::PluginsCategoryOther => "Другой",
         I18nKey::McpDescription => {
             "Зарегистрируйте серверы MCP, которые могут использовать встроенный в приложение агент и встроенные интерфейсы командной строки терминала."
         }

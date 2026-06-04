@@ -106,8 +106,8 @@ pub use shortcuts_settings_pane::ShortcutsSettingsPane;
 pub use sidebar::Sidebar;
 pub use skills_rules_panel::SkillsRulesService;
 pub use state::{
-    AgentImageContextStatus, BrowserEmbedSurface, HarnessSettingsCategory, HarnessUiService,
-    LegacyStorageMigration, RightPanelTab, WorkbenchService, WorkbenchSnapshot,
+    AgentChatSessionStatus, AgentImageContextStatus, BrowserEmbedSurface, HarnessSettingsCategory,
+    HarnessUiService, LegacyStorageMigration, RightPanelTab, WorkbenchService, WorkbenchSnapshot,
     WorkspaceAgentImage,
 };
 pub use theme_service::ThemeService;

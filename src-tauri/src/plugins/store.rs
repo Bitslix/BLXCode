@@ -1,4 +1,6 @@
-use super::types::{PluginRegistry, PluginRegistryEntry};
+use super::types::PluginRegistry;
+#[cfg(test)]
+use super::types::PluginRegistryEntry;
 use crate::app_paths;
 use std::fs;
 use std::io::Write;
@@ -11,11 +13,6 @@ pub fn plugins_dir() -> Result<PathBuf, String> {
     let dir = app_paths::app_data_dir()?.join(PLUGINS_DIR);
     fs::create_dir_all(&dir).map_err(|e| format!("create plugins dir {}: {e}", dir.display()))?;
     Ok(dir)
-}
-
-pub fn installed_plugin_dir(plugin_id: &str) -> Result<PathBuf, String> {
-    let id = super::types::normalize_plugin_id(plugin_id)?;
-    Ok(plugins_dir()?.join(id))
 }
 
 pub fn registry_path() -> Result<PathBuf, String> {
@@ -73,6 +70,7 @@ pub fn save_registry(registry: &PluginRegistry) -> Result<(), String> {
     fs::rename(&tmp, &path).map_err(|e| format!("rename tmp -> final: {e}"))
 }
 
+#[cfg(test)]
 pub fn upsert_entry(entry: PluginRegistryEntry) -> Result<PluginRegistry, String> {
     let entry = entry.normalized()?;
     let mut registry = load_registry()?;

@@ -13,7 +13,7 @@
 //! message shapes both reduce to readable text).
 
 use crate::agent::provider::AuthMode;
-use crate::agent::state::AgentEngineState;
+use crate::agent::state::{AgentEngineRegistry, AgentEngineState};
 use crate::agent_settings::{
     load_settings_pub, provider_key_pub, AgentProviderKind, AgentProviderSettings,
 };
@@ -52,9 +52,11 @@ pub struct CompactionResult {
 #[tauri::command]
 pub async fn agent_compact_conversation(
     app: AppHandle,
+    session_id: Option<String>,
     current_tokens: Option<u64>,
-    agent: State<'_, Arc<AgentEngineState>>,
+    agent: State<'_, Arc<AgentEngineRegistry>>,
 ) -> Result<CompactionResult, String> {
+    let agent = agent.engine(session_id);
     if agent.busy() {
         return Err("Agent ist noch beschäftigt. Bitte zuerst abbrechen oder warten.".into());
     }
@@ -63,7 +65,7 @@ pub async fn agent_compact_conversation(
     if convo.len() < 2 {
         return Err("nothing-to-compact".into());
     }
-    let agent: Arc<AgentEngineState> = agent.inner().clone();
+    let agent: Arc<AgentEngineState> = agent;
 
     let settings = load_settings_pub(&app)?;
     let api_key = provider_key_pub(&app, settings.provider)?;

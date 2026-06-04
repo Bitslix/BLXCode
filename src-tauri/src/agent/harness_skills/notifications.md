@@ -46,10 +46,16 @@ Use `severity: "success"` for completed work, `"warning"` for blocked/question s
 ## Targets
 
 Optional `target` hints help the bell open the right place:
-- `{ "view": "agent" }`
+- `{ "view": "agent", "workspaceId": 1, "sessionId": "default" }`
 - `{ "view": "plans" }`
 - `{ "view": "memory" }`
 - `{ "view": "file", "path": "relative/path.rs" }`
 - `{ "view": "diff", "path": "relative/path.rs", "staged": false }`
+
+For Agent chat lifecycle notifications from a background BLXCode Agent chat
+session, include both `workspaceId` and `sessionId` so clicking the
+notification can reopen the Agent panel on the exact chat tab. Send
+`kind:"question"` before `harness.ask_user`, `kind:"error"` for failed turns,
+and a response/success kind when an inactive session completes useful work.
 
 Do not include secrets, private data, hidden prompts, or long tool output in notifications. Keep `title` short and put only the actionable summary in `body`.

@@ -150,26 +150,16 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TbViewModeGrid => "Rács",
         I18nKey::TbViewModeCanvas => "Vászon",
         I18nKey::TbViewModeSwarm => "Raj",
-        I18nKey::TbRunMenu => "Run",
-
-        I18nKey::TbRunRefresh => "Refresh run commands",
-
-        I18nKey::TbRunEmpty => "No run commands found.",
-
-        I18nKey::TbRunLoading => "Loading run commands…",
-
+        I18nKey::TbRunMenu => "Fut",
+        I18nKey::TbRunRefresh => "Frissítse a futtatási parancsokat",
+        I18nKey::TbRunEmpty => "Nem találhatók futtatási parancsok.",
+        I18nKey::TbRunLoading => "Futtatási parancsok betöltése…",
         I18nKey::TbRunDev => "Dev",
-
-        I18nKey::TbRunRun => "Run",
-
-        I18nKey::TbRunDebug => "Debug",
-
-        I18nKey::TbRunTest => "Test",
-
-        I18nKey::TbRunBuild => "Build",
-
-        I18nKey::TbRunOther => "Other",
-
+        I18nKey::TbRunRun => "Fut",
+        I18nKey::TbRunDebug => "Hibakeresés",
+        I18nKey::TbRunTest => "Teszt",
+        I18nKey::TbRunBuild => "Épít",
+        I18nKey::TbRunOther => "Más",
         I18nKey::CanvasSlotLabel => "{id}. hely",
         I18nKey::CanvasResizeNode => "A terminálcsomópont átméretezése",
         I18nKey::CanvasEdgeSend => "Élkimenet küldése",
@@ -457,6 +447,17 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::AgStateStandby => "Készenlétben lévő",
         I18nKey::AgTagline => "Munkaterületi asszisztens",
         I18nKey::AgChatHeading => "Csevegési napló",
+        I18nKey::AgNewSession => "Új munkamenet",
+        I18nKey::AgCloseSession => "Munkamenet bezárása",
+        I18nKey::AgSessionTabsAria => "Ügynöki csevegési munkamenetek",
+        I18nKey::AgSessionRunning => "Futás",
+        I18nKey::AgSessionIdle => "Tétlen",
+        I18nKey::AgSessionThinking => "Gondolkodás",
+        I18nKey::AgSessionNeedsInput => "Bemenet szükséges",
+        I18nKey::AgSessionErrored => "Hibás",
+        I18nKey::AgSessionRestored => "Helyreállítva",
+        I18nKey::AgSessionUnread => "Olvasatlan háttérfrissítések",
+        I18nKey::AgCannotCloseRunningSession => "Nem lehet bezárni egy futó munkamenetet",
         I18nKey::AgBadgeReady => "Kész",
         I18nKey::AgBadgeLive => "Élő",
         I18nKey::AgWelcomeBody => {
@@ -675,49 +676,28 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatImage => "Kép",
         I18nKey::HsCatRemote => "Távoli",
         I18nKey::HsCatMcp => "MCP",
-        I18nKey::HsCatPlugins => "Plugins",
-        I18nKey::PluginsDescription => "Manage BLXCode plugin packages and runtime command providers.",
-
-        I18nKey::PluginsHeading => "Plugin Packages",
-
-        I18nKey::PluginsInstall => "Install",
-
-        I18nKey::PluginsRefresh => "Refresh",
-
-        I18nKey::PluginsEmpty => "No plugins installed.",
-
-        I18nKey::PluginsBuiltIn => "Built-in",
-
-        I18nKey::PluginsInstalled => "Installed",
-
-        I18nKey::PluginsEnabled => "Enabled",
-
-        I18nKey::PluginsDisabled => "Disabled",
-
-        I18nKey::PluginsEnable => "Enable",
-
-        I18nKey::PluginsDisable => "Disable",
-
-        I18nKey::PluginsRemove => "Remove",
-
-        I18nKey::PluginsInstallTitle => "Install plugin",
-
+        I18nKey::HsCatPlugins => "Beépülő modulok",
+        I18nKey::PluginsDescription => "Kezelje a BLXCode bővítménycsomagokat és a futásidejű parancsszolgáltatókat.",
+        I18nKey::PluginsHeading => "Beépülő modulok",
+        I18nKey::PluginsInstall => "Telepítés",
+        I18nKey::PluginsRefresh => "Frissítés",
+        I18nKey::PluginsEmpty => "Nincs telepítve plugin.",
+        I18nKey::PluginsBuiltIn => "Beépített",
+        I18nKey::PluginsInstalled => "Telepítve",
+        I18nKey::PluginsEnabled => "Engedélyezve",
+        I18nKey::PluginsDisabled => "Letiltva",
+        I18nKey::PluginsEnable => "Engedélyezés",
+        I18nKey::PluginsDisable => "Letiltás",
+        I18nKey::PluginsRemove => "Távolítsa el",
+        I18nKey::PluginsInstallTitle => "Plugin telepítése",
         I18nKey::PluginsGithubUrl => "GitHub URL",
-
         I18nKey::PluginsGithubUrlPlaceholder => "https://github.com/owner/repo/tree/main/package",
-
         I18nKey::PluginsGitRef => "Git ref",
-
-        I18nKey::PluginsPackageDir => "Package directory",
-
-        I18nKey::PluginsInstallProgress => "Installing plugin…",
-
-        I18nKey::PluginsInstallDone => "Plugin installed.",
-
-        I18nKey::PluginsCategoryRuntime => "Runtime",
-
-        I18nKey::PluginsCategoryOther => "Other",
-
+        I18nKey::PluginsPackageDir => "Csomag könyvtár",
+        I18nKey::PluginsInstallProgress => "Beépülő modul telepítése…",
+        I18nKey::PluginsInstallDone => "Plugin telepítve.",
+        I18nKey::PluginsCategoryRuntime => "Futásidő",
+        I18nKey::PluginsCategoryOther => "Más",
         I18nKey::McpDescription => {
             "Regisztrálja azokat az MCP-kiszolgálókat, amelyeket az alkalmazáson belüli ügynök és a csomagban lévő terminál CLI-k használhatnak."
         }

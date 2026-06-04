@@ -5,6 +5,55 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::sync::oneshot;
 
+pub const DEFAULT_AGENT_SESSION_ID: &str = "default";
+
+#[derive(Debug, Default)]
+pub struct AgentEngineRegistry {
+    engines: Mutex<HashMap<String, Arc<AgentEngineState>>>,
+}
+
+impl AgentEngineRegistry {
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self {
+            engines: Mutex::new(HashMap::new()),
+        })
+    }
+
+    pub fn engine(&self, session_id: Option<String>) -> Arc<AgentEngineState> {
+        let id = normalize_session_id(session_id);
+        let mut engines = self.engines.lock().expect("agent registry lock poisoned");
+        engines
+            .entry(id)
+            .or_insert_with(AgentEngineState::new)
+            .clone()
+    }
+
+    pub fn engine_for_tool_result(
+        &self,
+        session_id: Option<String>,
+        call_id: &str,
+    ) -> Arc<AgentEngineState> {
+        if session_id.as_ref().is_some_and(|id| !id.trim().is_empty()) {
+            return self.engine(session_id);
+        }
+        let matched = {
+            let engines = self.engines.lock().expect("agent registry lock poisoned");
+            engines
+                .values()
+                .find(|engine| engine.has_pending_client_tool(call_id))
+                .cloned()
+        };
+        matched.unwrap_or_else(|| self.engine(None))
+    }
+}
+
+fn normalize_session_id(session_id: Option<String>) -> String {
+    session_id
+        .map(|id| id.trim().to_string())
+        .filter(|id| !id.is_empty())
+        .unwrap_or_else(|| DEFAULT_AGENT_SESSION_ID.to_string())
+}
+
 /// Result emitted by a UI-side tool back into the running turn.
 #[derive(Clone, Debug)]
 pub struct ClientToolResult {
@@ -225,6 +274,13 @@ impl AgentEngineState {
         tx.send(ClientToolResult { ok, message, data })
             .map_err(|_| "tool result receiver dropped".to_owned())
     }
+
+    pub fn has_pending_client_tool(&self, call_id: &str) -> bool {
+        self.pending_client_tools
+            .lock()
+            .expect("pending tools lock poisoned")
+            .contains_key(call_id)
+    }
 }
 
 /// Optional env-based provider config (no network in stub).
@@ -328,5 +384,54 @@ mod tests {
 
         state.start_turn();
         assert_eq!(state.chat_mode_override(), None);
+    }
+
+    #[test]
+    fn registry_keeps_session_events_isolated() {
+        let registry = AgentEngineRegistry::new();
+        let first = registry.engine(Some("one".to_owned()));
+        let second = registry.engine(Some("two".to_owned()));
+
+        first.push(AgentEvent::AssistantDelta {
+            delta: "first".to_owned(),
+        });
+        second.push(AgentEvent::AssistantDelta {
+            delta: "second".to_owned(),
+        });
+
+        let first_events = first.drain(10);
+        let second_events = second.drain(10);
+        assert_eq!(first_events.len(), 1);
+        assert_eq!(second_events.len(), 1);
+        assert!(matches!(
+            &first_events[0].event,
+            AgentEvent::AssistantDelta { delta } if delta == "first"
+        ));
+        assert!(matches!(
+            &second_events[0].event,
+            AgentEvent::AssistantDelta { delta } if delta == "second"
+        ));
+    }
+
+    #[test]
+    fn registry_routes_omitted_session_tool_result_to_pending_engine() {
+        let registry = AgentEngineRegistry::new();
+        let first = registry.engine(Some("one".to_owned()));
+        let second = registry.engine(Some("two".to_owned()));
+        let (_tx_first, mut rx_first) = oneshot::channel();
+        let (tx_second, mut rx_second) = oneshot::channel();
+        first.register_client_tool("call-one".to_owned(), _tx_first);
+        second.register_client_tool("call-two".to_owned(), tx_second);
+
+        let routed = registry.engine_for_tool_result(None, "call-two");
+        routed
+            .deliver_client_tool_result("call-two", true, Some("ok".to_owned()), None)
+            .expect("tool result delivered");
+
+        assert!(first.has_pending_client_tool("call-one"));
+        assert!(rx_first.try_recv().is_err());
+        let delivered = rx_second.try_recv().expect("second receiver gets result");
+        assert!(delivered.ok);
+        assert_eq!(delivered.message.as_deref(), Some("ok"));
     }
 }

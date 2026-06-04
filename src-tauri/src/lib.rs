@@ -41,7 +41,7 @@ mod workspace_presets;
 
 use agent::{
     agent_compact_conversation, agent_environment_invalidate, agent_web_settings_get,
-    agent_web_settings_save, AgentEngineState,
+    agent_web_settings_save, AgentEngineRegistry,
 };
 use agent_hooks::{agent_hooks_status, install_agent_hooks, uninstall_agent_hooks};
 use agent_settings::{
@@ -169,7 +169,7 @@ pub fn run() {
             heartbeat::ensure_scheduler_started(app.handle().clone());
             Ok(())
         })
-        .manage(AgentEngineState::new())
+        .manage(AgentEngineRegistry::new())
         .manage(BlxUpdaterState::default())
         .manage(PlanMigrationState::default())
         .manage(PluginInstallState::default())
