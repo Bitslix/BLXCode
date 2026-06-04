@@ -21,7 +21,7 @@ pub(crate) fn ModelsSection() -> impl IntoView {
         "curated" | "fallback" => i18n.tr(I18nKey::AgModelsSourceCurated)().to_string(),
         _ => String::new(),
     });
-    let empty_source = Signal::derive(|| String::new());
+    let empty_source = Signal::derive(String::new);
 
     view! {
         <section class="harness-subpane agent-settings-card">
