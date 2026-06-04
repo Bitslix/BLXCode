@@ -653,6 +653,49 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatImage => "Imagem",
         I18nKey::HsCatRemote => "Remoto",
         I18nKey::HsCatMcp => "PCM",
+        I18nKey::HsCatPlugins => "Plugins",
+        I18nKey::PluginsDescription => "Manage BLXCode plugin packages and runtime command providers.",
+
+        I18nKey::PluginsHeading => "Plugin Packages",
+
+        I18nKey::PluginsInstall => "Install",
+
+        I18nKey::PluginsRefresh => "Refresh",
+
+        I18nKey::PluginsEmpty => "No plugins installed.",
+
+        I18nKey::PluginsBuiltIn => "Built-in",
+
+        I18nKey::PluginsInstalled => "Installed",
+
+        I18nKey::PluginsEnabled => "Enabled",
+
+        I18nKey::PluginsDisabled => "Disabled",
+
+        I18nKey::PluginsEnable => "Enable",
+
+        I18nKey::PluginsDisable => "Disable",
+
+        I18nKey::PluginsRemove => "Remove",
+
+        I18nKey::PluginsInstallTitle => "Install plugin",
+
+        I18nKey::PluginsGithubUrl => "GitHub URL",
+
+        I18nKey::PluginsGithubUrlPlaceholder => "https://github.com/owner/repo/tree/main/package",
+
+        I18nKey::PluginsGitRef => "Git ref",
+
+        I18nKey::PluginsPackageDir => "Package directory",
+
+        I18nKey::PluginsInstallProgress => "Installing plugin…",
+
+        I18nKey::PluginsInstallDone => "Plugin installed.",
+
+        I18nKey::PluginsCategoryRuntime => "Runtime",
+
+        I18nKey::PluginsCategoryOther => "Other",
+
         I18nKey::McpDescription => "Registre servidores MCP que o agente no aplicativo e as CLIs de terminal agrupadas podem usar.",
         I18nKey::McpHeading => "Servidores MCP",
         I18nKey::McpResetHint => "As alterações entrarão em vigor no chat somente após a redefinição da sessão.",

@@ -1137,6 +1137,7 @@ pub enum HarnessSettingsCategory {
     Remote,
     Memory,
     Mcp,
+    Plugins,
     Voice,
     Image,
     CodeEditor,

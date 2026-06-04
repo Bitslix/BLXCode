@@ -1,0 +1,277 @@
+/* Plugins settings pane. All colour, radius, and elevation values use theme
+   tokens so installed themes keep control of the surface. */
+
+.plugins-list-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.7rem;
+}
+
+.plugins-list-head__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.plugins-empty,
+.plugins-status-error {
+  margin: 0.5rem 0 0;
+  font-size: 0.84rem;
+}
+
+.plugins-empty {
+  color: var(--text-muted);
+}
+
+.plugins-status-error {
+  color: var(--danger);
+}
+
+.plugins-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.plugins-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+  padding: 0.68rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-raised);
+}
+
+.plugins-row--off {
+  opacity: 0.58;
+}
+
+.plugins-row__main {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.62rem;
+  min-width: 0;
+}
+
+.plugins-row__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--accent);
+  background: var(--overlay-1);
+}
+
+.plugins-row__copy {
+  min-width: 0;
+}
+
+.plugins-row__titleline {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.plugins-row__name {
+  font-weight: 650;
+  color: var(--text);
+}
+
+.plugins-row__version {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.plugins-row__description {
+  margin: 0.2rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.plugins-row__meta {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.plugins-row__badge,
+.plugins-row__status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.25rem;
+  padding: 0.12rem 0.42rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  background: var(--overlay-1);
+  font-size: 0.72rem;
+}
+
+.plugins-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+}
+
+.plugins-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.plugins-danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 38%, var(--border));
+}
+
+.plugins-danger:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-surface);
+}
+
+.plugins-install-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.plugins-install-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  border: 0;
+  background: var(--scrim-bg);
+}
+
+.plugins-install {
+  position: relative;
+  z-index: 1;
+  width: min(620px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  box-shadow: var(--shadow-lg);
+}
+
+.plugins-install__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.plugins-install__head h4 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.plugins-install__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.65rem;
+}
+
+.plugins-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.32rem;
+}
+
+.plugins-field span {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.plugins-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  background: var(--overlay-1);
+  font-size: 0.8rem;
+}
+
+.plugins-progress__bar {
+  position: relative;
+  width: 6rem;
+  height: 0.35rem;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--overlay-2);
+}
+
+.plugins-progress__fill {
+  position: absolute;
+  inset-block: 0;
+  width: 42%;
+  border-radius: inherit;
+  background: var(--accent);
+  animation: plugins-progress-slide 1.1s ease-in-out infinite;
+}
+
+.plugins-install__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+@keyframes plugins-progress-slide {
+  0% {
+    transform: translateX(-115%);
+  }
+  100% {
+    transform: translateX(240%);
+  }
+}
+
+@media (max-width: 720px) {
+  .plugins-row,
+  .plugins-list-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .plugins-row__actions,
+  .plugins-list-head__actions {
+    justify-content: flex-start;
+  }
+
+  .plugins-install__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
