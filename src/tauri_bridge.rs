@@ -1831,6 +1831,8 @@ pub async fn ssh_remote_list_dirs(
 struct PtySpawnRemoteArgs {
     connection_id: String,
     terminal_key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    remote_dir: Option<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     env: Vec<(String, String)>,
 }
@@ -1850,6 +1852,7 @@ pub async fn remote_exec_close(connection_id: String) -> Result<(), String> {
 pub async fn pty_spawn_remote(
     connection_id: String,
     terminal_key: String,
+    remote_dir: Option<String>,
     env: Vec<(String, String)>,
 ) -> Result<u64, String> {
     invoke_typed(
@@ -1857,6 +1860,7 @@ pub async fn pty_spawn_remote(
         PtySpawnRemoteArgs {
             connection_id,
             terminal_key,
+            remote_dir,
             env,
         },
     )

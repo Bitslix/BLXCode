@@ -723,9 +723,13 @@ pub fn pty_spawn_remote(
     manager: State<'_, PtyManager>,
     connection_id: String,
     terminal_key: String,
+    remote_dir: Option<String>,
     env: Option<Vec<(String, String)>>,
 ) -> Result<u64, String> {
-    let spec = crate::ssh_remotes::resolve_spec(&app, &connection_id, terminal_key)?;
+    let mut spec = crate::ssh_remotes::resolve_spec(&app, &connection_id, terminal_key)?;
+    if let Some(remote_dir) = remote_dir.filter(|dir| !dir.trim().is_empty()) {
+        spec.remote_dir = Some(remote_dir);
+    }
     manager.spawn_remote_session(spec, env.unwrap_or_default())
 }
 
