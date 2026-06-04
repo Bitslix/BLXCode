@@ -119,13 +119,13 @@ New dir `src/workbench/agent_settings_pane/` (retire `agent_provider_pane/`):
 
 ## Tasks
 
-- [ ] `scaffold-module` - Create `agent_settings_pane/` module skeleton + CSS, wire into `harness_ui` and `mod.rs`, retire `agent_provider_pane`
-- [ ] `extract-pickers` - Move provider/level pickers into reusable `pickers/`, de-duplicate the three provider pickers
-- [ ] `personality-section` - Build Personality card (Name, 2D|3D, Role, Intelligence, Gender, Voice grid)
-- [ ] `providers-section` - Build Provider card with independent Chat/Image/STT/TTS pickers + conditional endpoint fields + key status
-- [ ] `models-section` - Build Models card with Chat/Image/STT/TTS model pickers + refresh/source
-- [ ] `configuration-section` - Build Configuration card: Images, Audio (record quality + TTS enabled), Misc (loop/compaction/after-translation), WebSearch (toggles + key status)
-- [ ] `autosave-wiring` - Replace global Save/dirty machinery with debounced per-section auto-save across the four stores; keep nickname validation
-- [ ] `i18n-keys` - Add new I18nKeys to en_us + all locales; replace hardcoded English strings; run locale render script
-- [ ] `css-tokens` - Style all cards/inputs with theme tokens + roundings, verify no hardcoded colors, light/dark check
-- [ ] `verify-decouple` - Manual + test pass: STT/TTS independent, PTT untouched, auto-save round-trips, layout matches mockup
+- [x] `scaffold-module` - Create `agent_settings_pane/` module skeleton + CSS, wire into `harness_ui` and `mod.rs`, retire `agent_provider_pane`
+- [x] `extract-pickers` - Move provider/level pickers into reusable `pickers/`, de-duplicate the three provider pickers
+- [x] `personality-section` - Build Personality card (Name, 2D|3D, Role, Intelligence, Gender, Voice grid)
+- [x] `providers-section` - Build Provider card with independent Chat/Image/STT/TTS pickers + conditional endpoint fields + key status
+- [x] `models-section` - Build Models card with Chat/Image/STT/TTS model pickers + refresh/source
+- [x] `configuration-section` - Build Configuration card: Images, Audio (record quality + TTS enabled), Misc (loop/compaction/after-translation), WebSearch (toggles + key status)
+- [x] `autosave-wiring` - Replace global Save/dirty machinery with debounced per-section auto-save across the four stores; keep nickname validation
+- [x] `i18n-keys` - Add new I18nKeys to en_us + all locales; replace hardcoded English strings; run locale render script
+- [x] `css-tokens` - Style all cards/inputs with theme tokens + roundings, verify no hardcoded colors, light/dark check
+- [x] `verify-decouple` - Manual + test pass: STT/TTS independent, PTT untouched, auto-save round-trips, layout matches mockup
