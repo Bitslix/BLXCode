@@ -182,7 +182,7 @@ fn render_for_kind(
         }
         .into_any(),
         FileKind::Mermaid => view! {
-            <MermaidView workspace_id=workspace_id rel_path=rel_path reload_tick=reload_tick />
+            <MermaidView session=session reload_tick=reload_tick />
         }
         .into_any(),
         FileKind::Code | FileKind::Text => view! {

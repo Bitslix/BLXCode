@@ -2,69 +2,75 @@
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::tauri_bridge::{is_tauri_shell, read_workspace_text_file};
+use crate::workbench::diagram_render::MermaidPreviewWithInspector;
+use crate::workbench::file_preview::editor::policy::Editability;
+use crate::workbench::file_preview::editor::{DocStatus, EditMode, EditorSession};
 use crate::workbench::file_preview::util::{render_load_error, FilePreviewError};
-use crate::workbench::diagram_render::InteractiveDiagramViewport;
-use crate::workbench::WorkbenchService;
+use crate::workbench::toast::ToastService;
+use crate::workbench::{HarnessUiService, WorkbenchService};
 use leptos::prelude::*;
-use leptos::task::spawn_local;
 use uuid::Uuid;
 
 #[component]
 pub fn MermaidView(
-    workspace_id: u64,
-    rel_path: String,
+    session: EditorSession,
     reload_tick: ReadSignal<u32>,
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
-    let source = RwSignal::new(None::<Result<String, FilePreviewError>>);
+    let toast = expect_context::<ToastService>();
+    let ui = expect_context::<HarnessUiService>();
     let dom_id = Uuid::new_v4().to_string().replace('-', "");
 
-    let rel_for_effect = rel_path.clone();
     Effect::new(move |_| {
-        // Only refetch on explicit reload. See FilePreviewDock for context.
         let _ = reload_tick.get();
-        source.set(None);
-        if !is_tauri_shell() {
-            source.set(Some(Err(FilePreviewError::NoTauri)));
-            return;
-        }
-        let Some((root, conn)) = wb.workspaces().with_untracked(|list| {
-            list.iter()
-                .find(|w| w.id == workspace_id)
-                .map(|w| (w.cwd.clone(), w.remote_connection_id.clone()))
-        }) else {
-            source.set(Some(Err(FilePreviewError::WorkspaceNotFound)));
-            return;
-        };
-        let rel = rel_for_effect.clone();
-        spawn_local(async move {
-            match read_workspace_text_file(root, rel, conn).await {
-                Ok(t) => source.set(Some(Ok(t.content))),
-                Err(e) => source.set(Some(Err(FilePreviewError::Failed(e)))),
-            }
-        });
+        session.reload(wb);
     });
-
-    let render_code = Signal::derive(move || {
-        source.with(|s| match s {
-            Some(Ok(text)) => text.clone(),
-            _ => String::new(),
-        })
+    Effect::new(move |_| {
+        if matches!(session.status.get(), DocStatus::TooLarge) {
+            session.editability.set(Editability::NeverEdit);
+            if matches!(session.mode.get_untracked(), EditMode::Edit) {
+                session.mode.set(EditMode::View);
+            }
+        }
     });
 
     view! {
         <div class="file-preview__stage file-preview__stage--mermaid">
-            {move || match source.get() {
-                None => view! {
+            {move || match session.status.get() {
+                DocStatus::Loading => view! {
                     <div class="file-preview__status">{i18n.tr(I18nKey::FilePreviewLoading)}</div>
                 }.into_any(),
-                Some(Err(err)) => render_load_error(i18n, I18nKey::FilePreviewLoadFailedMermaid, err),
-                Some(Ok(_)) => {
+                DocStatus::Error(e) => {
+                    render_load_error(
+                        i18n,
+                        I18nKey::FilePreviewLoadFailedMermaid,
+                        FilePreviewError::Failed(e),
+                    )
+                }
+                _ => {
                     let id_attr = dom_id.clone();
                     view! {
-                        <InteractiveDiagramViewport code=render_code dom_id=id_attr compact=true />
+                        <Show when=move || matches!(session.status.get(), DocStatus::TooLarge)>
+                            <div class="file-preview__notice">
+                                {i18n.tr(I18nKey::FilePreviewEditorTooLargeBanner)}
+                            </div>
+                        </Show>
+                        <MermaidPreviewWithInspector
+                            source=session.buffer
+                            dom_id=id_attr
+                            inspector_open=Signal::derive(move || {
+                                matches!(session.mode.get(), EditMode::Edit)
+                            })
+                            can_save=Signal::derive(move || session.can_save())
+                            can_revert=Signal::derive(move || session.dirty.get())
+                            on_save=Callback::new(move |()| {
+                                session.save(wb, toast, ui, i18n, false);
+                            })
+                            on_revert=Callback::new(move |()| session.revert())
+                            allow_save=true
+                            compact=true
+                        />
                     }.into_any()
                 }
             }}

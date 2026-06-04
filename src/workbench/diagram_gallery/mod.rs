@@ -12,10 +12,10 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     mermaid_delete_diagram, mermaid_export_markdown, mermaid_export_pdf, mermaid_list_diagrams,
-    DiagramRecord, TimelineDiagram,
+    mermaid_update_diagram, DiagramRecord, TimelineDiagram,
 };
 use crate::workbench::diagram_render::{
-    diagram_first_seen, rendered_svg_outer_html, InteractiveDiagramViewport,
+    diagram_first_seen, rendered_svg_outer_html, MermaidPreviewWithInspector,
 };
 use crate::workbench::toast::ToastService;
 use crate::workbench::WorkbenchService;
@@ -42,6 +42,7 @@ struct GalleryItem {
     title: String,
     kind: String,
     code: String,
+    saved_code: String,
     /// Generation time (epoch ms). Stored diagrams carry it; ephemeral ones fall
     /// back to the session first-seen registry (resolved at display time).
     created_ms: Option<f64>,
@@ -69,6 +70,7 @@ impl From<DiagramRecord> for GalleryItem {
             id: r.id,
             title: r.title,
             kind: r.kind,
+            saved_code: r.code.clone(),
             code: r.code,
             created_ms: Some(r.created_ms as f64),
             provider: r.provider,
@@ -83,6 +85,7 @@ impl From<TimelineDiagram> for GalleryItem {
             id: d.id,
             title: d.title,
             kind: d.kind,
+            saved_code: d.code.clone(),
             code: d.code,
             created_ms: None,
             provider: d.provider,
@@ -115,6 +118,8 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
     let diagrams = RwSignal::new(Vec::<GalleryItem>::new());
     let active = RwSignal::new(0usize);
     let loading = RwSignal::new(true);
+    let source = RwSignal::new(String::new());
+    let inspector_open = RwSignal::new(false);
 
     // The workspace cwd is captured up front so both the initial load (plan
     // scope) and the per-diagram delete action can reach the store.
@@ -130,6 +135,7 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
         GalleryScope::Ephemeral { .. } => None,
     };
     let allow_delete = plan_slug.is_some();
+    let allow_save = plan_slug.is_some();
 
     // Populate the diagram set.
     match scope {
@@ -137,7 +143,12 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
             if let Some(cwd) = cwd.clone() {
                 spawn_local(async move {
                     match mermaid_list_diagrams(&cwd, &slug).await {
-                        Ok(list) => diagrams.set(list.into_iter().map(GalleryItem::from).collect()),
+                        Ok(list) => {
+                            let items: Vec<GalleryItem> =
+                                list.into_iter().map(GalleryItem::from).collect();
+                            source.set(items.first().map(|d| d.code.clone()).unwrap_or_default());
+                            diagrams.set(items);
+                        }
                         Err(e) => web_sys::console::warn_1(&format!("load diagrams: {e}").into()),
                     }
                     loading.set(false);
@@ -147,18 +158,23 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
             }
         }
         GalleryScope::Ephemeral { diagrams: list, .. } => {
-            diagrams.set(list.into_iter().map(GalleryItem::from).collect());
+            let items: Vec<GalleryItem> = list.into_iter().map(GalleryItem::from).collect();
+            source.set(items.first().map(|d| d.code.clone()).unwrap_or_default());
+            diagrams.set(items);
             loading.set(false);
         }
     }
 
-    let active_code = Signal::derive(move || {
-        diagrams.with(|d| {
-            d.get(active.get())
-                .map(|r| r.code.clone())
-                .unwrap_or_default()
-        })
+    Effect::new(move |_| {
+        let text = source.get();
+        let idx = active.get_untracked();
+        diagrams.update(|d| {
+            if let Some(item) = d.get_mut(idx) {
+                item.code = text;
+            }
+        });
     });
+    let active_code = Signal::derive(move || source.get());
     let active_title = Signal::derive(move || {
         diagrams.with(|d| {
             d.get(active.get())
@@ -194,6 +210,14 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
     let active_model_label = Signal::derive(move || {
         diagrams.with(|d| d.get(active.get()).and_then(GalleryItem::model_label))
     });
+    let can_revert = Signal::derive(move || {
+        diagrams.with(|d| {
+            d.get(active.get())
+                .map(|r| r.code != r.saved_code)
+                .unwrap_or(false)
+        })
+    });
+    let can_save = Signal::derive(move || allow_save && can_revert.get());
 
     let toast_md = toast.clone();
     let on_export_md = move |_| {
@@ -259,7 +283,13 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
                         }
                     });
                     let len = diagrams.with_untracked(|d| d.len());
-                    active.set(if len == 0 { 0 } else { idx.min(len - 1) });
+                    let next_idx = if len == 0 { 0 } else { idx.min(len - 1) };
+                    active.set(next_idx);
+                    source.set(
+                        diagrams
+                            .with_untracked(|d| d.get(next_idx).map(|r| r.code.clone()))
+                            .unwrap_or_default(),
+                    );
                 }
                 Err(e) => toast.error(format!(
                     "{} {e}",
@@ -268,6 +298,48 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
             }
         });
     };
+    let toast_save = toast.clone();
+    let on_save = Callback::new(move |()| {
+        let (Some(cwd), Some(slug)) = (del_cwd.get_value(), del_slug.get_value()) else {
+            return;
+        };
+        let idx = active.get_untracked();
+        let Some((id, code)) =
+            diagrams.with_untracked(|d| d.get(idx).map(|r| (r.id.clone(), r.code.clone())))
+        else {
+            return;
+        };
+        let toast = toast_save.clone();
+        spawn_local(async move {
+            match mermaid_update_diagram(&cwd, &slug, &id, &code).await {
+                Ok(updated) => {
+                    diagrams.update(|items| {
+                        if let Some(item) = items.get_mut(idx) {
+                            item.title = updated.title;
+                            item.kind = updated.kind;
+                            item.code = updated.code.clone();
+                            item.saved_code = updated.code;
+                            item.created_ms = Some(updated.created_ms as f64);
+                            item.provider = updated.provider;
+                            item.model = updated.model;
+                        }
+                    });
+                    toast.success(i18n.tr(I18nKey::FilePreviewEditorSaved)().to_string());
+                }
+                Err(e) => toast.error(
+                    i18n.tr(I18nKey::FilePreviewEditorSaveError)()
+                        .replace("{detail}", &e),
+                ),
+            }
+        });
+    });
+    let on_revert = Callback::new(move |()| {
+        let idx = active.get_untracked();
+        let text = diagrams
+            .with_untracked(|d| d.get(idx).map(|r| r.saved_code.clone()))
+            .unwrap_or_default();
+        source.set(text);
+    });
 
     view! {
         <div class="diagram-gallery">
@@ -297,7 +369,16 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
                                     <button
                                         class="diagram-gallery__thumb"
                                         class:diagram-gallery__thumb--active=is_active
-                                        on:click=move |_| active.set(i)
+                                        on:click=move |_| {
+                                            active.set(i);
+                                            source.set(
+                                                diagrams
+                                                    .with_untracked(|items| {
+                                                        items.get(i).map(|r| r.code.clone())
+                                                    })
+                                                    .unwrap_or_default(),
+                                            );
+                                        }
                                         title=d.title.clone()
                                     >
                                         <span class="diagram-gallery__thumb-title">{title}</span>
@@ -311,6 +392,12 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
                 <div class="diagram-gallery__toolbar">
                     <span class="diagram-gallery__active-title">{move || active_title.get()}</span>
                     <span class="diagram-gallery__spacer" />
+                    <button
+                        class="diagram-gallery__export"
+                        on:click=move |_| inspector_open.update(|open| *open = !*open)
+                    >
+                        {move || i18n.tr(I18nKey::FilePreviewEditorEdit)}
+                    </button>
                     <button class="diagram-gallery__export" on:click=on_export_md>
                         {move || i18n.tr(I18nKey::DiagramExportMd)}
                     </button>
@@ -327,7 +414,16 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
                     </Show>
                 </div>
                 <div class="diagram-gallery__active">
-                    <InteractiveDiagramViewport code=active_code dom_id=STAGE_DOM_ID.to_string()>
+                    <MermaidPreviewWithInspector
+                        source=source
+                        dom_id=STAGE_DOM_ID.to_string()
+                        inspector_open=inspector_open
+                        can_save=can_save
+                        can_revert=can_revert
+                        on_save=on_save
+                        on_revert=on_revert
+                        allow_save=allow_save
+                    >
                         <div class="diagram-gallery__stats">
                             <div class="diagram-gallery__stat">
                                 <span class="diagram-gallery__stat-key">
@@ -366,7 +462,7 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
                                 </div>
                             </Show>
                         </div>
-                    </InteractiveDiagramViewport>
+                    </MermaidPreviewWithInspector>
                 </div>
             </Show>
         </div>
