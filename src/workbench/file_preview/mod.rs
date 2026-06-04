@@ -5,7 +5,7 @@
 
 mod code_context_menu;
 mod code_view;
-mod codemirror_glue;
+pub(crate) mod codemirror_glue;
 mod editor;
 mod header;
 mod image_view;

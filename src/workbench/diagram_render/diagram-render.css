@@ -123,6 +123,113 @@
   font-variant-numeric: tabular-nums;
 }
 
+.mermaid-workspace {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  gap: 10px;
+}
+
+.mermaid-workspace > .diagram-viewport {
+  flex: 1 1 0;
+}
+
+.mermaid-inspector {
+  flex: 0 0 min(34vw, 420px);
+  min-width: 280px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  overflow: hidden;
+}
+
+.mermaid-inspector__head,
+.mermaid-inspector__actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.mermaid-inspector__actions {
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+  border-bottom: 0;
+}
+
+.mermaid-inspector__title {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--text-bright);
+}
+
+.mermaid-inspector__dirty {
+  margin-left: auto;
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.mermaid-inspector__editor {
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.mermaid-inspector__editor .cm-editor {
+  height: 100%;
+}
+
+.mermaid-inspector__editor .cm-editor.cm-focused {
+  outline: none;
+}
+
+.mermaid-inspector__btn {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.mermaid-inspector__btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.mermaid-inspector__btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.mermaid-inspector__btn--primary {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
+  color: var(--accent);
+}
+
+@media (max-width: 860px) {
+  .mermaid-workspace {
+    flex-direction: column;
+  }
+
+  .mermaid-inspector {
+    flex: 0 0 min(42vh, 360px);
+    width: 100%;
+    min-width: 0;
+  }
+}
+
 /* Inline diagram cards rendered for mermaid_create* tool results in the
    agent timeline. */
 .diagram-result {

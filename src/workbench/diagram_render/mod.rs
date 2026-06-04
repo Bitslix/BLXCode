@@ -11,6 +11,9 @@
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
+use crate::workbench::file_preview::codemirror_glue as cm;
+use crate::workbench::file_preview::codemirror_glue::EditorKeyBinding;
+use gloo_timers::callback::Timeout;
 use crate::workbench::file_preview::mermaid_glue::render_mermaid_to_svg;
 use crate::workbench::theme_service::ThemeService;
 use leptos::html;
@@ -18,6 +21,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlElement, PointerEvent, WheelEvent};
 
@@ -25,6 +29,13 @@ use web_sys::{HtmlElement, PointerEvent, WheelEvent};
 const ZOOM_STEP: f64 = 1.2;
 const ZOOM_MIN: f64 = 0.25;
 const ZOOM_MAX: f64 = 4.0;
+const SOURCE_RENDER_DEBOUNCE_MS: u32 = 180;
+
+type SourceEditorClosures = (
+    Closure<dyn Fn(String)>,
+    Closure<dyn Fn()>,
+    Closure<dyn Fn(f64, f64)>,
+);
 
 // Process-wide counter for unique Mermaid render ids (the library requires a
 // unique element id per `render` call).
@@ -103,6 +114,201 @@ pub fn rendered_svg_outer_html(dom_id: &str) -> Option<String> {
         .ok()
         .flatten()?;
     svg.dyn_ref::<web_sys::Element>().map(|e| e.outer_html())
+}
+
+#[component]
+pub fn MermaidPreviewWithInspector(
+    #[prop(into)]
+    source: RwSignal<String>,
+    dom_id: String,
+    #[prop(into)]
+    inspector_open: Signal<bool>,
+    #[prop(into)]
+    can_save: Signal<bool>,
+    #[prop(into)]
+    can_revert: Signal<bool>,
+    on_save: Callback<()>,
+    on_revert: Callback<()>,
+    #[prop(default = true)]
+    allow_save: bool,
+    #[prop(default = false)]
+    compact: bool,
+    #[prop(optional)]
+    children: Option<Children>,
+) -> impl IntoView {
+    let preview_code = RwSignal::new(source.get_untracked());
+    let pending_debounce = StoredValue::new_local(None::<Timeout>);
+
+    Effect::new(move |_| {
+        let next = source.get();
+        pending_debounce.update_value(|slot| {
+            *slot = Some(Timeout::new(SOURCE_RENDER_DEBOUNCE_MS, move || {
+                preview_code.set(next);
+            }));
+        });
+    });
+
+    on_cleanup(move || {
+        pending_debounce.update_value(|slot| {
+            *slot = None;
+        });
+    });
+
+    view! {
+        <div
+            class="mermaid-workspace"
+            class:mermaid-workspace--inspector=move || inspector_open.get()
+        >
+            <InteractiveDiagramViewport code=preview_code dom_id=dom_id compact=compact>
+                {children.map(|children| children())}
+            </InteractiveDiagramViewport>
+            <Show when=move || inspector_open.get()>
+                <MermaidSourceInspector
+                    source=source
+                    can_save=can_save
+                    can_revert=can_revert
+                    on_save=on_save
+                    on_revert=on_revert
+                    allow_save=allow_save
+                />
+            </Show>
+        </div>
+    }
+}
+
+#[component]
+pub fn MermaidSourceInspector(
+    #[prop(into)]
+    source: RwSignal<String>,
+    #[prop(into)]
+    can_save: Signal<bool>,
+    #[prop(into)]
+    can_revert: Signal<bool>,
+    on_save: Callback<()>,
+    on_revert: Callback<()>,
+    #[prop(default = true)]
+    allow_save: bool,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    view! {
+        <aside class="mermaid-inspector">
+            <div class="mermaid-inspector__head">
+                <span class="mermaid-inspector__title">"Mermaid"</span>
+                <Show when=move || can_revert.get()>
+                    <span class="mermaid-inspector__dirty">
+                        {move || i18n.tr(I18nKey::FilePreviewEditorModified)}
+                    </span>
+                </Show>
+            </div>
+            <MermaidSourceEditor source=source on_save=on_save read_only=false />
+            <div class="mermaid-inspector__actions">
+                <button
+                    class="mermaid-inspector__btn"
+                    disabled=move || !can_revert.get()
+                    on:click=move |_| on_revert.run(())
+                >
+                    {move || i18n.tr(I18nKey::FilePreviewEditorRevert)}
+                </button>
+                <Show when=move || allow_save>
+                    <button
+                        class="mermaid-inspector__btn mermaid-inspector__btn--primary"
+                        disabled=move || !can_save.get()
+                        on:click=move |_| on_save.run(())
+                    >
+                        {move || i18n.tr(I18nKey::FilePreviewEditorSave)}
+                    </button>
+                </Show>
+            </div>
+        </aside>
+    }
+}
+
+#[component]
+fn MermaidSourceEditor(
+    #[prop(into)]
+    source: RwSignal<String>,
+    on_save: Callback<()>,
+    #[prop(default = false)]
+    read_only: bool,
+) -> impl IntoView {
+    let host_ref = NodeRef::<html::Div>::new();
+    let view_handle = StoredValue::new_local(None::<JsValue>);
+    let closures = StoredValue::new_local(None::<SourceEditorClosures>);
+
+    Effect::new(move |_| {
+        let Some(host) = host_ref.get() else {
+            return;
+        };
+        if view_handle.with_value(|v| v.is_some()) {
+            return;
+        }
+        let on_change = Closure::<dyn Fn(String)>::new(move |s: String| {
+            source.set(s);
+        });
+        let on_save_closure = Closure::<dyn Fn()>::new(move || {
+            if !read_only {
+                on_save.run(());
+            }
+        });
+        let on_cursor = Closure::<dyn Fn(f64, f64)>::new(move |_, _| {});
+        let on_change_fn: js_sys::Function = on_change
+            .as_ref()
+            .unchecked_ref::<js_sys::Function>()
+            .clone();
+        let on_save_fn: js_sys::Function = on_save_closure
+            .as_ref()
+            .unchecked_ref::<js_sys::Function>()
+            .clone();
+        let on_cursor_fn: js_sys::Function = on_cursor
+            .as_ref()
+            .unchecked_ref::<js_sys::Function>()
+            .clone();
+        closures.set_value(Some((on_change, on_save_closure, on_cursor)));
+
+        let host_el: web_sys::Element = host.unchecked_into();
+        let doc = source.get_untracked();
+        spawn_local(async move {
+            let keymap: Vec<EditorKeyBinding> = Vec::new();
+            match cm::create_editor(
+                &host_el,
+                &doc,
+                None,
+                read_only,
+                false,
+                &keymap,
+                &on_change_fn,
+                &on_save_fn,
+                &on_cursor_fn,
+            )
+            .await
+            {
+                Ok(view) => view_handle.set_value(Some(view)),
+                Err(e) => web_sys::console::error_1(&format!("codemirror init: {e}").into()),
+            }
+        });
+    });
+
+    Effect::new(move |_| {
+        let text = source.get();
+        view_handle.with_value(|v| {
+            if let Some(view) = v {
+                cm::set_doc(view, &text);
+            }
+        });
+    });
+
+    on_cleanup(move || {
+        view_handle.update_value(|v| {
+            if let Some(view) = v.take() {
+                cm::destroy(&view);
+            }
+        });
+        closures.update_value(|c| *c = None);
+    });
+
+    view! {
+        <div class="mermaid-inspector__editor" node_ref=host_ref />
+    }
 }
 
 #[component]
