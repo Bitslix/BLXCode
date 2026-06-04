@@ -29,6 +29,7 @@ Leptos UI
 - `src-tauri/src/workbench_state.rs`: persisted workbench snapshot/session storage.
 - `src-tauri/src/pty_host.rs`: terminal session lifecycle and PTY IO.
 - `src-tauri/src/git_worktree.rs`: local and remote Git worktree list/create/remove helpers used by workspace creation, the titlebar menu, and Agent client tools.
+- `src-tauri/src/plugins/`: BLXCode plugin package registry, built-in runtime plugins, GitHub install flow, and run-command detector execution for the titlebar Run menu.
 - `src-tauri/src/browser_host.rs`: native or iframe browser embedding support.
 - `src-tauri/src/voice/`: microphone recording, voice settings, STT, TTS, and voice catalog.
 
@@ -162,6 +163,21 @@ Frontend integration lives in `src/workbench/app_titlebar/worktree_menu.rs`, `sr
 Agent integration carries worktree scope through `UserTurn.workspace_scope` and `WorkspaceScope.worktree`. Provider loops call `system_prompt_with_scope`, which appends an active-worktree block with the root, base repository, branch, and local/remote connection. Client tools `harness.worktree_list` and `harness.create_worktree_workspace` live in the frontend harness tool layer; creation has a preview phase (`confirmed: false`) and a confirmed phase (`confirmed: true`) so the model must ask the user before creating/opening a worktree.
 
 Remote terminal cells pass the workspace cwd to `pty_spawn_remote` as `remote_dir`, so terminals launched in a remote worktree start in that worktree instead of the remote account default directory.
+
+## Plugins And Runtime Commands
+
+BLXCode plugins are declarative package directories stored under the app data plugin folder. The backend registry lives in `src-tauri/src/plugins/`:
+
+- `types.rs` defines manifests, categories, install source metadata, command contributions, and `RunCommand` wire types.
+- `store.rs` loads/saves the registry and merges built-in packages into it.
+- `builtins.rs` ships the default `runtime` packages for Node/package managers, Rust, Go, C/C++ build tools, shell scripts, and direct JavaScript/TypeScript entry points.
+- `install.rs` clones GitHub package sources into a staging directory, validates `blx-plugin.json`, copies the package directory into app data, and records it as removable.
+- `run_detectors.rs` scans local workspace files or a remote-provided file/text snapshot and emits stable run command records.
+- `commands.rs` exposes plugin registry management and `run_commands_discover`.
+
+The first supported category is `runtime`. Runtime plugins contribute `runCommands` detector JSON files; BLXCode reads them but does not execute plugin code. Built-in plugins use the same detector path as installed packages, so Settings -> Plugins can enable/disable them consistently.
+
+Frontend integration is split between `src/workbench/plugins_settings_pane/` and `src/workbench/app_titlebar/run_menu.rs`. The settings pane manages package lifecycle. The titlebar Run menu discovers commands for the active workspace and, on selection, appends a plain terminal slot, waits for PTY registration through `WorkbenchService::pty_sessions_signal`, then sends the command via `pty_write`.
 
 ## Memory And Tasks
 

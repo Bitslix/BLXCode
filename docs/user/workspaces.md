@@ -8,6 +8,7 @@ BLXCode uses a **token-themed, cross-platform custom titlebar** instead of the O
 
 - A persistent **brand cluster** on the left.
 - A left-aligned **Worktree Management** menu, bound to the active workspace when that workspace belongs to a Git repository.
+- A left-aligned **Run** menu after Worktree. It discovers runtime commands from enabled plugins in the active workspace and starts the selected command in a **new visible terminal slot**.
 - **Sidebar** and **right-panel** toggle buttons.
 - **Centered workspace breadcrumbs** with a live focused-terminal crumb that includes the slot marker plus the terminal title.
 - A compact **NAVIGATE** quick menu on the right with quick access to **Terminals**, **New terminal**, **Plans**, **Memory**, **Skills**, **Settings**, and fullscreen.
@@ -59,6 +60,20 @@ The **Worktree Management** menu in the titlebar is scoped to the active workspa
 Remote SSH workspaces use the same flow on the remote host. BLXCode runs the Git worktree commands through the active remote connection and starts remote terminals inside the selected worktree directory.
 
 The BLXCode Agent is worktree-aware. Its system prompt includes the active worktree root, branch, base repository, and local/remote scope, so file tools, shell tools, rules, skills, plans, memory, and terminal handoffs stay anchored to the selected worktree. You can ask the Agent to list or create worktree workspaces; for creation it previews the target, checks whether the branch/path already exists, and asks you to confirm before it creates or opens anything.
+
+## Titlebar Run Menu
+
+The titlebar **Run** menu is scoped to the active workspace. It scans the workspace through enabled **Runtime** plugins and groups common project commands such as package-manager scripts, Cargo, Go, CMake/Make, shell scripts, and direct JavaScript/TypeScript entry points.
+
+Typical commands include:
+
+- `npm run dev`, `pnpm build`, `bun run test`, or other `package.json` scripts.
+- `cargo run`, `cargo test`, and `cargo build`.
+- `go run .`, `go test ./...`, and `go build ./...`.
+- `cmake -S . -B build`, `cmake --build build`, `make`, `make test`, or `make run`.
+- `run.sh`, `dev.sh`, `test.ps1`, `.bat`, `.cmd`, and direct `node` / `bun` entry points.
+
+Selecting a command always opens the workspace's terminal grid, appends a plain terminal slot, waits for that terminal session to be ready, and writes the command into it. For commands detected in a subfolder, BLXCode changes into that relative folder first. Remote SSH workspaces use the same flow over the existing remote file/exec channel and run the terminal in the remote workspace.
 
 <p align="center">
   <img src="../images/create-workspace-session-role-dropdown.png" alt="Create workspace step 1 with Local connection, recent directories, terminal layout presets, and the session role dropdown showing Default agent, Architect, Branch Steward, and Codewright" />
