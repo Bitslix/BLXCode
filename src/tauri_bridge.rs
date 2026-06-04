@@ -3044,6 +3044,11 @@ pub struct DiagramRecord {
     pub task_id: Option<String>,
     pub created_ms: u64,
     pub code: String,
+    /// Provider/model that generated the diagram (absent for older files).
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
 }
 
 /// One diagram as returned inline by the `mermaid_create` / `mermaid_create_many`
@@ -3065,6 +3070,11 @@ pub struct TimelineDiagram {
     pub plan_slug: Option<String>,
     #[serde(default)]
     pub persisted: bool,
+    /// Provider/model that generated the diagram (when recorded by the backend).
+    #[serde(default)]
+    pub provider: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

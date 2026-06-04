@@ -233,10 +233,13 @@ pub struct ToolDef {
     pub site: ToolSite,
 }
 
-/// Options for server-tool execution (shell write mode, etc.).
-#[derive(Clone, Copy, Debug, Default)]
+/// Options for server-tool execution (shell write mode, generating model, etc.).
+#[derive(Clone, Debug, Default)]
 pub struct ToolExecOpts {
     pub shell_writes: bool,
+    /// Provider/model that issued the call, stamped onto created diagrams.
+    pub provider: Option<String>,
+    pub model: Option<String>,
 }
 
 /// Output of an in-process server-tool execution.
@@ -1650,7 +1653,12 @@ pub fn execute_server_tool(
     root: Option<&WorkspaceRootGuard>,
     opts: Option<ToolExecOpts>,
 ) -> ToolOutcome {
-    let shell_writes = opts.map(|o| o.shell_writes).unwrap_or(false);
+    let opts = opts.unwrap_or_default();
+    let shell_writes = opts.shell_writes;
+    let origin = crate::agent::mermaid::tool::DiagramOrigin {
+        provider: opts.provider.clone(),
+        model: opts.model.clone(),
+    };
     match name {
         "environment_detect" => crate::agent::environment::tool_environment_detect(root),
         "shell_exec" => crate::agent::shell_exec::tool_shell_exec(args, root, shell_writes),
@@ -1701,8 +1709,8 @@ pub fn execute_server_tool(
         "plan_rename" => tool_plan_rename(args, root),
         "plan_load" => tool_plan_load(args, root),
         "plan_sync_from_tasks" => tool_plan_sync_from_tasks(args, root),
-        "mermaid_create" => tool_mermaid_create(args, root),
-        "mermaid_create_many" => tool_mermaid_create_many(args, root),
+        "mermaid_create" => tool_mermaid_create(args, root, &origin),
+        "mermaid_create_many" => tool_mermaid_create_many(args, root, &origin),
         "kanban_board_load" => tool_kanban_board_load(root),
         "kanban_layout_save" => tool_kanban_layout_save(args, root),
         "kanban_task_create" => tool_kanban_task_create(args, root),
@@ -2901,23 +2909,31 @@ fn tool_plan_create(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutc
     }
 }
 
-fn tool_mermaid_create(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+fn tool_mermaid_create(
+    args: &Value,
+    root: Option<&WorkspaceRootGuard>,
+    origin: &crate::agent::mermaid::tool::DiagramOrigin,
+) -> ToolOutcome {
     let ws = match workspace_string(root) {
         Ok(s) => s,
         Err(out) => return out,
     };
-    match crate::agent::mermaid::tool::run_create(&ws, args) {
+    match crate::agent::mermaid::tool::run_create(&ws, args, origin) {
         Ok(content) => ToolOutcome { ok: true, content },
         Err(e) => err_outcome(e),
     }
 }
 
-fn tool_mermaid_create_many(args: &Value, root: Option<&WorkspaceRootGuard>) -> ToolOutcome {
+fn tool_mermaid_create_many(
+    args: &Value,
+    root: Option<&WorkspaceRootGuard>,
+    origin: &crate::agent::mermaid::tool::DiagramOrigin,
+) -> ToolOutcome {
     let ws = match workspace_string(root) {
         Ok(s) => s,
         Err(out) => return out,
     };
-    match crate::agent::mermaid::tool::run_create_many(&ws, args) {
+    match crate::agent::mermaid::tool::run_create_many(&ws, args, origin) {
         Ok(content) => ToolOutcome { ok: true, content },
         Err(e) => err_outcome(e),
     }

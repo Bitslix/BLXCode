@@ -51,7 +51,7 @@ pub async fn dispatch_tool(
             },
         }
     } else {
-        dispatch_regular_tool(state, call_id, name, args, root).await
+        dispatch_regular_tool(state, call_id, name, args, root, ctx).await
     };
     state.pop_parent();
     outcome
@@ -270,6 +270,7 @@ async fn dispatch_regular_tool(
     name: &str,
     args: &Value,
     root: Option<&WorkspaceRootGuard>,
+    ctx: Option<&DispatchContext>,
 ) -> tools::ToolOutcome {
     // MCP-server tools are not in the static registry; route them to the live
     // client runtime before the normal lookup.
@@ -291,7 +292,16 @@ async fn dispatch_regular_tool(
     };
 
     match def.site {
-        ToolSite::Server => tools::execute_server_tool(name, args, root, None),
+        ToolSite::Server => {
+            // Stamp the active provider/model so created diagrams record what
+            // generated them.
+            let opts = ctx.map(|c| tools::ToolExecOpts {
+                shell_writes: false,
+                provider: Some(c.settings.provider.as_str().to_string()),
+                model: Some(c.settings.model_id.clone()),
+            });
+            tools::execute_server_tool(name, args, root, opts)
+        }
         ToolSite::Client => wait_for_client_tool(state, call_id, name).await,
     }
 }

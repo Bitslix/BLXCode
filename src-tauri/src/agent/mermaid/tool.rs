@@ -31,6 +31,20 @@ struct DiagramOut {
     task_id: Option<String>,
     plan_slug: Option<String>,
     persisted: bool,
+    /// Provider/model that generated this diagram, when known. Stamped for both
+    /// persisted and ephemeral diagrams so the gallery can show it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    model: Option<String>,
+}
+
+/// Provider/model that issued a `mermaid_create*` call, threaded from the
+/// dispatch context so each diagram records what generated it.
+#[derive(Clone, Default)]
+pub struct DiagramOrigin {
+    pub provider: Option<String>,
+    pub model: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -40,13 +54,13 @@ struct DiagramsEnvelope {
 
 /// Result of building/persisting a set of diagrams: a JSON string ready for the
 /// tool `content`, or an error message.
-pub fn run_create(ws: &str, args: &Value) -> Result<String, String> {
+pub fn run_create(ws: &str, args: &Value, origin: &DiagramOrigin) -> Result<String, String> {
     let one = parse_one(args)?;
-    let out = build_one(ws, one)?;
+    let out = build_one(ws, one, origin)?;
     finish(vec![out])
 }
 
-pub fn run_create_many(ws: &str, args: &Value) -> Result<String, String> {
+pub fn run_create_many(ws: &str, args: &Value, origin: &DiagramOrigin) -> Result<String, String> {
     let plan_slug = opt_str(args, "plan_slug");
     let items = args
         .get("diagrams")
@@ -65,7 +79,7 @@ pub fn run_create_many(ws: &str, args: &Value) -> Result<String, String> {
         if spec.plan_slug.is_none() {
             spec.plan_slug = plan_slug.clone();
         }
-        out.push(build_one(ws, spec)?);
+        out.push(build_one(ws, spec, origin)?);
     }
     finish(out)
 }
@@ -98,7 +112,7 @@ fn parse_one(v: &Value) -> Result<Spec, String> {
     })
 }
 
-fn build_one(ws: &str, spec: Spec) -> Result<DiagramOut, String> {
+fn build_one(ws: &str, spec: Spec, origin: &DiagramOrigin) -> Result<DiagramOut, String> {
     match &spec.plan_slug {
         Some(slug) => {
             let rec = store::create_diagram(
@@ -109,6 +123,8 @@ fn build_one(ws: &str, spec: Spec) -> Result<DiagramOut, String> {
                 &spec.kind,
                 spec.task_id.clone(),
                 spec.id,
+                origin.provider.clone(),
+                origin.model.clone(),
             )?;
             Ok(DiagramOut {
                 id: rec.meta.id,
@@ -118,6 +134,8 @@ fn build_one(ws: &str, spec: Spec) -> Result<DiagramOut, String> {
                 task_id: rec.meta.task_id,
                 plan_slug: Some(slug.clone()),
                 persisted: true,
+                provider: rec.meta.provider,
+                model: rec.meta.model,
             })
         }
         None => Ok(DiagramOut {
@@ -128,6 +146,8 @@ fn build_one(ws: &str, spec: Spec) -> Result<DiagramOut, String> {
             task_id: spec.task_id,
             plan_slug: None,
             persisted: false,
+            provider: origin.provider.clone(),
+            model: origin.model.clone(),
         }),
     }
 }
@@ -174,25 +194,39 @@ mod tests {
 
     #[test]
     fn ephemeral_when_no_plan_slug() {
+        let origin = DiagramOrigin {
+            provider: Some("openrouter".into()),
+            model: Some("openai/gpt-5".into()),
+        };
         let out = run_create(
             "/nonexistent-ws-ignored",
             &json!({ "title": "Flow", "code": "flowchart TD\n A-->B" }),
+            &origin,
         )
         .unwrap();
         assert!(out.contains("\"persisted\":false"));
         assert!(out.contains("\"id\":\"flow\""));
+        // Origin is stamped onto ephemeral diagrams too.
+        assert!(out.contains("\"provider\":\"openrouter\""));
+        assert!(out.contains("\"model\":\"openai/gpt-5\""));
     }
 
     #[test]
     fn rejects_oversize_code() {
         let big = "x".repeat(MAX_CODE_BYTES + 1);
-        let err = run_create("/ws", &json!({ "title": "T", "code": big })).unwrap_err();
+        let err = run_create(
+            "/ws",
+            &json!({ "title": "T", "code": big }),
+            &DiagramOrigin::default(),
+        )
+        .unwrap_err();
         assert!(err.contains("byte limit"));
     }
 
     #[test]
     fn many_rejects_empty() {
-        let err = run_create_many("/ws", &json!({ "diagrams": [] })).unwrap_err();
+        let err = run_create_many("/ws", &json!({ "diagrams": [] }), &DiagramOrigin::default())
+            .unwrap_err();
         assert!(err.contains("empty"));
     }
 }

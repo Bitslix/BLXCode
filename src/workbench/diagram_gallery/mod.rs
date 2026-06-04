@@ -11,8 +11,8 @@
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
-    agent_settings_get, mermaid_delete_diagram, mermaid_export_markdown, mermaid_export_pdf,
-    mermaid_list_diagrams, DiagramRecord, TimelineDiagram,
+    mermaid_delete_diagram, mermaid_export_markdown, mermaid_export_pdf, mermaid_list_diagrams,
+    DiagramRecord, TimelineDiagram,
 };
 use crate::workbench::diagram_render::{diagram_first_seen, rendered_svg_outer_html, DiagramRender};
 use crate::workbench::toast::ToastService;
@@ -50,6 +50,22 @@ struct GalleryItem {
     /// Generation time (epoch ms). Stored diagrams carry it; ephemeral ones fall
     /// back to the session first-seen registry (resolved at display time).
     created_ms: Option<f64>,
+    /// Provider/model that generated the diagram (when recorded).
+    provider: Option<String>,
+    model: Option<String>,
+}
+
+impl GalleryItem {
+    /// `provider · model` label for the stats panel, or `None` when neither was
+    /// recorded (e.g. diagrams created before this was tracked).
+    fn model_label(&self) -> Option<String> {
+        match (self.provider.as_deref(), self.model.as_deref()) {
+            (Some(p), Some(m)) => Some(format!("{p} · {m}")),
+            (Some(p), None) => Some(p.to_string()),
+            (None, Some(m)) => Some(m.to_string()),
+            (None, None) => None,
+        }
+    }
 }
 
 impl From<DiagramRecord> for GalleryItem {
@@ -60,6 +76,8 @@ impl From<DiagramRecord> for GalleryItem {
             kind: r.kind,
             code: r.code,
             created_ms: Some(r.created_ms as f64),
+            provider: r.provider,
+            model: r.model,
         }
     }
 }
@@ -72,6 +90,8 @@ impl From<TimelineDiagram> for GalleryItem {
             kind: d.kind,
             code: d.code,
             created_ms: None,
+            provider: d.provider,
+            model: d.model,
         }
     }
 }
@@ -174,12 +194,10 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
     let diagram_count = Signal::derive(move || diagrams.with(Vec::len));
     let active_pos = Signal::derive(move || active.get() + 1);
 
-    // Current agent model/provider (proxy for what generated session diagrams).
-    let model_label = RwSignal::new(String::new());
-    spawn_local(async move {
-        if let Ok(s) = agent_settings_get().await {
-            model_label.set(format!("{} · {}", s.provider.as_str(), s.model_id));
-        }
+    // Provider/model recorded on the active diagram (None for ones generated
+    // before this was tracked).
+    let active_model_label = Signal::derive(move || {
+        diagrams.with(|d| d.get(active.get()).and_then(GalleryItem::model_label))
     });
 
     // --- Zoom / pan viewport ----------------------------------------------
@@ -366,10 +384,12 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
                                 </span>
                             </div>
                         </Show>
-                        <Show when=move || !model_label.get().is_empty()>
+                        <Show when=move || active_model_label.get().is_some()>
                             <div class="diagram-gallery__stat">
                                 <span class="diagram-gallery__stat-key">"Model"</span>
-                                <span class="diagram-gallery__stat-val">{move || model_label.get()}</span>
+                                <span class="diagram-gallery__stat-val">
+                                    {move || active_model_label.get().unwrap_or_default()}
+                                </span>
                             </div>
                         </Show>
                     </div>

@@ -357,6 +357,7 @@ pub async fn run_one_subagent(
                                 &args,
                                 groups,
                                 root_guard.as_ref(),
+                                ctx,
                             );
                             let tool_elapsed_ms =
                                 tool_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
@@ -501,8 +502,13 @@ pub async fn run_one_subagent(
                         ToolCallOutcome::NotSubmit => {
                             let args: Value = serde_json::from_str(&args_str).unwrap_or(json!({}));
                             let tool_start = Instant::now();
-                            let outcome =
-                                execute_subagent_tool(&name, &args, groups, root_guard.as_ref());
+                            let outcome = execute_subagent_tool(
+                                &name,
+                                &args,
+                                groups,
+                                root_guard.as_ref(),
+                                ctx,
+                            );
                             let tool_elapsed_ms =
                                 tool_start.elapsed().as_millis().min(u64::MAX as u128) as u64;
                             state.push(AgentEvent::TurnUsage {
@@ -615,20 +621,20 @@ fn execute_subagent_tool(
     args: &Value,
     groups: &[ToolGroup],
     root: Option<&WorkspaceRootGuard>,
+    ctx: &DispatchContext,
 ) -> tools::ToolOutcome {
-    let shell_write = groups.contains(&ToolGroup::ShellWrite);
-    if name == "shell_exec" {
-        tools::execute_server_tool(
-            name,
-            args,
-            root,
-            Some(tools::ToolExecOpts {
-                shell_writes: shell_write,
-            }),
-        )
-    } else {
-        tools::execute_server_tool(name, args, root, None)
-    }
+    let shell_write = name == "shell_exec" && groups.contains(&ToolGroup::ShellWrite);
+    // Stamp the subagent's own provider/model so diagrams it creates record it.
+    tools::execute_server_tool(
+        name,
+        args,
+        root,
+        Some(tools::ToolExecOpts {
+            shell_writes: shell_write,
+            provider: Some(ctx.settings.provider.as_str().to_string()),
+            model: Some(ctx.settings.model_id.clone()),
+        }),
+    )
 }
 
 fn finish_subagent(state: &Arc<AgentEngineState>, agent_id: &str, result: &Value) {

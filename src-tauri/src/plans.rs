@@ -1303,6 +1303,8 @@ mod tests {
             "flowchart",
             None,
             None,
+            None,
+            None,
         )
         .unwrap();
 

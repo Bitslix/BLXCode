@@ -41,6 +41,15 @@ pub struct DiagramMeta {
     pub task_id: Option<String>,
     /// Creation time, ms since UNIX epoch.
     pub created_ms: u64,
+    /// Provider that generated the diagram (e.g. `openrouter`), as
+    /// `AgentProviderKind::as_str`. Absent for diagrams created before this was
+    /// recorded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
+    /// Model id that generated the diagram (e.g. `openai/gpt-5`). Absent for
+    /// diagrams created before this was recorded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
 }
 
 /// A diagram with its source code loaded. Returned to the frontend gallery.
@@ -135,6 +144,7 @@ fn slugify_unique(title: &str, existing: &[DiagramMeta]) -> String {
 
 /// Persist a new diagram under the given plan. Returns the stored record
 /// (with a freshly-allocated id when `id` is `None`).
+#[allow(clippy::too_many_arguments)]
 pub fn create_diagram(
     ws: &str,
     slug: &str,
@@ -143,6 +153,8 @@ pub fn create_diagram(
     kind: &str,
     task_id: Option<String>,
     id: Option<String>,
+    provider: Option<String>,
+    model: Option<String>,
 ) -> Result<DiagramRecord, String> {
     let dir = diagrams_dir(ws, slug)?;
     let mut manifest = read_manifest(&dir);
@@ -163,6 +175,8 @@ pub fn create_diagram(
         kind: kind.trim().to_string(),
         task_id: task_id.filter(|t| !t.trim().is_empty()),
         created_ms: now_ms(),
+        provider: provider.filter(|p| !p.trim().is_empty()),
+        model: model.filter(|m| !m.trim().is_empty()),
     };
 
     fs::create_dir_all(&dir).map_err(|e| format!("create diagrams dir: {e}"))?;
@@ -230,10 +244,14 @@ mod tests {
             "flowchart",
             Some("setup-auth".into()),
             None,
+            Some("openrouter".into()),
+            Some("openai/gpt-5".into()),
         )
         .unwrap();
         assert_eq!(rec.meta.id, "auth-flow");
         assert_eq!(rec.meta.task_id.as_deref(), Some("setup-auth"));
+        assert_eq!(rec.meta.provider.as_deref(), Some("openrouter"));
+        assert_eq!(rec.meta.model.as_deref(), Some("openai/gpt-5"));
 
         let listed = list_diagrams(&ws, "my-plan").unwrap();
         assert_eq!(listed.len(), 1);
@@ -246,8 +264,8 @@ mod tests {
     #[test]
     fn id_collisions_get_suffixed() {
         let ws = tmp_ws();
-        let a = create_diagram(&ws, "p", "Flow", "a", "flowchart", None, None).unwrap();
-        let b = create_diagram(&ws, "p", "Flow", "b", "flowchart", None, None).unwrap();
+        let a = create_diagram(&ws, "p", "Flow", "a", "flowchart", None, None, None, None).unwrap();
+        let b = create_diagram(&ws, "p", "Flow", "b", "flowchart", None, None, None, None).unwrap();
         assert_eq!(a.meta.id, "flow");
         assert_eq!(b.meta.id, "flow-2");
     }
@@ -255,6 +273,9 @@ mod tests {
     #[test]
     fn rejects_path_traversal_id() {
         let ws = tmp_ws();
-        assert!(create_diagram(&ws, "p", "x", "c", "k", None, Some("../evil".into())).is_err());
+        assert!(
+            create_diagram(&ws, "p", "x", "c", "k", None, Some("../evil".into()), None, None)
+                .is_err()
+        );
     }
 }

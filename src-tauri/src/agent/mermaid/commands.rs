@@ -39,6 +39,9 @@ pub fn mermaid_create_diagram(
         kind.as_deref().unwrap_or(""),
         task_id,
         id,
+        // UI-triggered manual creation: no generating model to record.
+        None,
+        None,
     )
 }
 
