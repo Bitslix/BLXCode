@@ -143,6 +143,59 @@ pub struct PluginRegistry {
     pub plugins: Vec<PluginRegistryEntry>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RunCommandKind {
+    Dev,
+    Run,
+    Debug,
+    Test,
+    Build,
+    Other,
+}
+
+impl RunCommandKind {
+    pub fn from_label(label: &str) -> Self {
+        let lower = label.trim().to_ascii_lowercase();
+        if matches!(lower.as_str(), "dev" | "serve" | "watch" | "preview") {
+            Self::Dev
+        } else if lower.contains("debug") || lower.starts_with("inspect") {
+            Self::Debug
+        } else if lower == "test" || lower.starts_with("test:") || lower.contains(" test") {
+            Self::Test
+        } else if lower == "build" || lower.starts_with("build:") || lower.contains(" build") {
+            Self::Build
+        } else if matches!(lower.as_str(), "start" | "run") || lower.starts_with("start:") {
+            Self::Run
+        } else {
+            Self::Other
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunCommandSource {
+    pub plugin_id: String,
+    pub detector_id: String,
+    #[serde(default)]
+    pub manifest_path: Option<String>,
+    #[serde(default)]
+    pub package_path: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunCommand {
+    pub id: String,
+    pub label: String,
+    pub command: String,
+    #[serde(default)]
+    pub cwd_rel: String,
+    pub kind: RunCommandKind,
+    pub source: RunCommandSource,
+}
+
 impl PluginRegistry {
     pub fn normalized(mut self) -> Result<Self, String> {
         if self.version == 0 {

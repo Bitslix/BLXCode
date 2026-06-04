@@ -34,7 +34,7 @@ Add a real BLXCode plugin package system, a new **Settings -> Plugins** tab, and
 ## Tasks
 
 - [x] `plugin-types-store` - Add plugin manifest/category/registry types and app-data store. Commit after tests pass.
-- [ ] `builtin-runtime-plugins` - Add built-in declarative runtime plugin definitions and detector parser. Commit after detector tests pass.
+- [x] `builtin-runtime-plugins` - Add built-in declarative runtime plugin definitions and detector parser. Commit after detector tests pass.
 - [ ] `plugin-install-commands` - Add GitHub install, progress polling, enable/disable/remove commands. Commit after install/store tests pass.
 - [ ] `run-discovery-command` - Add `run_commands_discover` using enabled plugins and local/remote workspace scanning. Commit after discovery tests pass.
 - [ ] `tauri-bridge-wrappers` - Add frontend typed wrappers/listeners or polling models. Commit after typecheck/check passes.

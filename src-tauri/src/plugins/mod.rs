@@ -4,5 +4,7 @@
 //! runtime command detectors, but BLXCode does not execute plugin-provided
 //! code.
 
+pub mod builtins;
+pub mod run_detectors;
 pub mod store;
 pub mod types;
