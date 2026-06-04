@@ -953,7 +953,7 @@ pub fn SettingsDock(
                         <crate::workbench::WorkspaceSettingsPane wb=wb embed=embed />
                     }.into_any(),
                     HarnessSettingsCategory::AgentProvider => view! {
-                        <crate::workbench::AgentProviderPane />
+                        <crate::workbench::AgentSettingsPane />
                     }.into_any(),
                     HarnessSettingsCategory::Heartbeat => view! {
                         <crate::workbench::HeartbeatSettingsPane />
@@ -974,7 +974,7 @@ pub fn SettingsDock(
                         <crate::workbench::CodeEditorSettingsPane />
                     }.into_any(),
                     HarnessSettingsCategory::Image => view! {
-                        <crate::workbench::AgentProviderPane />
+                        <crate::workbench::AgentSettingsPane />
                     }.into_any(), // legacy category → Agent
                 }}
             </div>

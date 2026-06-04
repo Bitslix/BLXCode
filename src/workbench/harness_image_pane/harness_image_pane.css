@@ -1,8 +1,0 @@
-/* Image settings — layout shared with agent-provider-pane (globals in styles.css). */
-
-.image-pane__loading,
-.image-pane__status {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    margin: 0.4rem 0 0;
-}
