@@ -8,6 +8,11 @@ categorie: workflow
 
 Two customisation layers stored under `<workspace>/.agents/`, each with an `index.json` manifest.
 
+In a Git worktree workspace, `<workspace>` is the active worktree path. Read and
+write rules/skills from that worktree's checked-out `.agents` directory, not
+from the main worktree, unless the user explicitly asks for cross-worktree
+changes.
+
 ## Rules vs Skills
 
 | | Rules | Skills |

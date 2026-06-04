@@ -100,7 +100,7 @@ the BLXCode Agent get the same worktree creation/opening capability.
 - [x] `worktree-wizard` - Add Worktree mode to the Create Workspace wizard and reuse the backend worktree creation/open path.
 - [x] `worktree-agent-protocol` - Extend UserTurn/agent_wire/system_prompt with workspace scope and worktree metadata.
 - [x] `worktree-agent-tools` - Add harness.worktree_list and harness.create_worktree_workspace client tools with preview/confirmed behavior.
-- [ ] `worktree-agent-guidance` - Update core harness/git/environment/rules-skills skill docs with worktree preflight and confirmation rules.
+- [x] `worktree-agent-guidance` - Update core harness/git/environment/rules-skills skill docs with worktree preflight and confirmation rules.
 - [ ] `worktree-existing-open` - Open or switch to existing worktree workspaces when branch/path already exists instead of creating duplicates.
 - [ ] `worktree-remove-safe` - Implement clean-only worktree removal with clear dirty-state blocking.
 - [ ] `worktree-tests` - Add unit, integration, and manual coverage for local/remote worktree workspace flows.
