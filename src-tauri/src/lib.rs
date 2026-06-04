@@ -15,6 +15,7 @@ mod git_info;
 mod git_remote;
 mod git_status;
 mod git_sync;
+mod git_worktree;
 mod heartbeat;
 mod image;
 mod kanban;
@@ -273,6 +274,10 @@ pub fn run() {
             git_sync::git_fetch,
             git_sync::git_pull,
             git_sync::git_push,
+            git_worktree::git_worktree_list,
+            git_worktree::git_worktree_open_info,
+            git_worktree::git_worktree_create,
+            git_worktree::git_worktree_remove,
             fs_entries::list_path_entries,
             fs_entries::list_workspace_files,
             fs_entries::create_workspace_file,
