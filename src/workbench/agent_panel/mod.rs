@@ -23,9 +23,9 @@ use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     agent_abort, agent_active_context_window, agent_clear_conversation, agent_compact_conversation,
-    agent_drain_turn_opts, agent_enhance_prompt, agent_settings_get, agent_submit_turn,
-    git_is_repository, git_status_changes, is_tauri_shell, tasks_list as fetch_tasks_list,
-    workbench_upsert_agent_notification, AgentNotificationInput,
+    agent_drain_turn_opts, agent_enhance_prompt, agent_generate_chat_title, agent_settings_get,
+    agent_submit_turn, git_is_repository, git_status_changes, is_tauri_shell,
+    tasks_list as fetch_tasks_list, workbench_upsert_agent_notification, AgentNotificationInput,
 };
 use crate::workbench::agent_panel::client_tools::maybe_handle_client_tool;
 use crate::workbench::agent_panel::composer::Composer;
@@ -79,6 +79,28 @@ fn resolve_agent_timeline_name(raw: &str) -> String {
     } else {
         trimmed.to_string()
     }
+}
+
+fn fallback_chat_session_title(prompt: &str) -> String {
+    let first_line = prompt
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .unwrap_or(prompt);
+    let words = first_line
+        .split_whitespace()
+        .take(7)
+        .collect::<Vec<_>>()
+        .join(" ");
+    let candidate = if words.is_empty() {
+        prompt.trim().to_string()
+    } else {
+        words
+    };
+    truncate_title(candidate.trim_matches(['.', ':', '-', ' ']).trim(), 44)
+}
+
+fn truncate_title(value: &str, max_chars: usize) -> String {
+    value.chars().take(max_chars).collect::<String>()
 }
 
 fn agent_panel_visible_and_focused(wb: WorkbenchService) -> bool {
@@ -1439,6 +1461,28 @@ fn submit_turn(
     wb.set_workspace_agent_session_timeline(ws_id, &session_id, timeline.get_untracked());
     if starts_new_chat_session {
         wb.ensure_chat_session_started_for_session(ws_id, &session_id, session_turn_started_at);
+        let fallback_title = fallback_chat_session_title(&prompt);
+        if !fallback_title.is_empty() {
+            wb.set_agent_chat_session_title_if_auto(
+                ws_id,
+                &session_id,
+                fallback_title.clone(),
+                None,
+            );
+            let wb_title = wb;
+            let session_id_title = session_id.clone();
+            let prompt_for_title = prompt.clone();
+            leptos::task::spawn_local(async move {
+                if let Ok(generated) = agent_generate_chat_title(prompt_for_title).await {
+                    wb_title.set_agent_chat_session_title_if_auto(
+                        ws_id,
+                        &session_id_title,
+                        generated.title,
+                        Some(&fallback_title),
+                    );
+                }
+            });
+        }
     }
 
     status_line.set(None);

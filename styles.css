@@ -4666,16 +4666,17 @@ button.workbench-shortcut-row--action:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 0.26rem;
-  max-width: 9.5rem;
-  min-height: 1.42rem;
-  padding: 0 0.32rem;
+  min-width: 6.5rem;
+  max-width: 19rem;
+  min-height: 1.56rem;
+  padding: 0 0.42rem;
   border: 0;
   border-bottom: 1px solid transparent;
   border-radius: 0;
   color: var(--text-muted);
   background: transparent;
   font: inherit;
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   line-height: 1;
   cursor: pointer;
 }

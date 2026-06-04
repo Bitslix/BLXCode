@@ -74,6 +74,21 @@ pub async fn agent_submit_turn(session_id: Option<String>, turn: UserTurn) -> Re
     invoke_unit_js("agent_submit_turn", args_value(Args { session_id, turn })?).await
 }
 
+#[derive(Clone, Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeneratedChatTitle {
+    pub title: String,
+}
+
+pub async fn agent_generate_chat_title(prompt: String) -> Result<GeneratedChatTitle, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        prompt: String,
+    }
+    invoke_typed("agent_generate_chat_title", Args { prompt }).await
+}
+
 pub async fn agent_poll_events(
     session_id: Option<String>,
     max: usize,

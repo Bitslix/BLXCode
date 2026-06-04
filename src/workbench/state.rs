@@ -5034,6 +5034,40 @@ impl WorkbenchService {
         });
     }
 
+    pub fn set_agent_chat_session_title_if_auto(
+        &self,
+        workspace_id: u64,
+        session_id: &str,
+        title: String,
+        previous_auto_title: Option<&str>,
+    ) -> bool {
+        let mut updated = false;
+        let title = title.trim().to_string();
+        if title.is_empty() {
+            return false;
+        }
+        self.workspaces.update(|workspaces| {
+            let Some(ws) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            ws.ensure_agent_chat_sessions();
+            if let Some(session) = ws.agent_chat_session_mut(session_id) {
+                let current = session.title.trim();
+                let may_replace = is_default_agent_chat_title(current)
+                    || previous_auto_title
+                        .map(|expected| current == expected.trim())
+                        .unwrap_or(false);
+                if may_replace && current != title {
+                    session.title = title;
+                    session.updated_at = js_sys::Date::now();
+                    updated = true;
+                }
+            }
+            ws.sync_legacy_agent_chat_fields_from_active();
+        });
+        updated
+    }
+
     #[must_use]
     pub fn architecture_llm_prose_for_workspace_untracked(&self, workspace_id: u64) -> bool {
         self.workspaces.with_untracked(|workspaces| {
@@ -5474,6 +5508,13 @@ impl WorkbenchService {
         }
         true
     }
+}
+
+fn is_default_agent_chat_title(title: &str) -> bool {
+    let Some(rest) = title.trim().strip_prefix("Chat ") else {
+        return false;
+    };
+    !rest.is_empty() && rest.chars().all(|ch| ch.is_ascii_digit())
 }
 
 fn settings_tab_title(_cat: HarnessSettingsCategory) -> &'static str {

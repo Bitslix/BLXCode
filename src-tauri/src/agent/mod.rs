@@ -4,6 +4,7 @@ pub mod tools;
 
 mod anthropic;
 pub(crate) mod badwords;
+pub mod chat_title;
 pub(crate) mod compaction;
 pub(crate) mod context_window;
 mod environment;

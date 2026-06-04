@@ -386,6 +386,7 @@ pub fn run() {
             kanban::kanban_task_move,
             kanban::kanban_export_layout,
             kanban::kanban_import_layout,
+            agent::chat_title::agent_generate_chat_title,
             agent::plan_ai::plan_generate_ai,
             agent::prompt_enhance::agent_enhance_prompt,
             skills_rules::commands::rules_list,
