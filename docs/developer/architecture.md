@@ -132,7 +132,7 @@ On the frontend, `src/workbench/diagram_render/` owns the reusable Mermaid rende
 
 - `DiagramRender` lazy-renders source through `file_preview::mermaid_glue`, caches rendered SVG by `(theme, code)`, and re-renders when `ThemeService::active_theme_id` changes.
 - `InteractiveDiagramViewport` wraps `DiagramRender` with left-drag panning, normal mouse-wheel cursor-centered zoom, toolbar zoom/reset controls, and a child slot for overlays such as gallery stats.
-- `MermaidPreviewWithInspector` combines the viewport with a CodeMirror-backed `MermaidSourceInspector`; source edits update a debounced render signal, so invalid source stays editable while render errors remain visible.
+- `MermaidPreviewWithInspector` combines the viewport with a CodeMirror-backed `MermaidSourceInspector`; source edits update a debounced render signal, so invalid source stays editable while render errors remain visible. On wide panes it renders a draggable split resizer, stores the inspector width in component state, clamps it against the viewport width, and falls back to a bottom drawer on narrow panes.
 - The Diagram gallery stores one in-memory draft per active diagram. Plan-backed drafts show Save/Revert and call `mermaid_update_diagram`; ad-hoc timeline diagrams can be edited/exported in-memory but are not persisted.
 
 ## App Status Line

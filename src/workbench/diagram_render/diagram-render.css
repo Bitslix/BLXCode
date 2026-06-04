@@ -128,7 +128,8 @@
   min-width: 0;
   min-height: 0;
   display: flex;
-  gap: 10px;
+  gap: 0;
+  position: relative;
 }
 
 .mermaid-workspace > .diagram-viewport {
@@ -136,7 +137,7 @@
 }
 
 .mermaid-inspector {
-  flex: 0 0 min(34vw, 420px);
+  flex: 0 0 var(--mermaid-inspector-width, min(34vw, 420px));
   min-width: 280px;
   min-height: 0;
   display: flex;
@@ -145,6 +146,46 @@
   border-radius: var(--radius-md);
   background: var(--bg-panel);
   overflow: hidden;
+}
+
+.mermaid-inspector__resizer {
+  position: relative;
+  z-index: 3;
+  flex: 0 0 7px;
+  align-self: stretch;
+  margin: 0 -2px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.mermaid-inspector__resizer span {
+  position: absolute;
+  inset: 0 3px;
+  background: var(--border);
+  opacity: 0.45;
+  transition: background 120ms ease, opacity 120ms ease;
+}
+
+.mermaid-inspector__resizer:hover span,
+.mermaid-inspector__resizer--active span {
+  background: color-mix(in srgb, var(--border-strong) 78%, var(--accent) 18%);
+  opacity: 0.64;
+}
+
+.mermaid-inspector__resize-shield {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  cursor: col-resize;
+  background: transparent;
+}
+
+.mermaid-workspace--resizing,
+.mermaid-workspace--resizing * {
+  user-select: none;
 }
 
 .mermaid-inspector__head,
@@ -242,6 +283,10 @@
 @media (max-width: 860px) {
   .mermaid-workspace {
     flex-direction: column;
+  }
+
+  .mermaid-inspector__resizer {
+    display: none;
   }
 
   .mermaid-inspector {

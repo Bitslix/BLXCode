@@ -183,6 +183,8 @@ The gallery toolbar's **Edit** button opens a Mermaid source inspector; while it
 - A right-side split on wide panes.
 - A bottom drawer on narrow panes.
 
+On wide panes, drag the thin divider between the diagram and inspector to resize the source panel width. The divider uses the same grab-handle behavior as BLXCode's center split panels.
+
 Typing updates the rendered diagram after a short debounce. If the source is invalid, the render error remains visible while the edited source stays in the inspector.
 
 Persisted plan diagrams expose **Save** and **Revert changes** in the inspector:

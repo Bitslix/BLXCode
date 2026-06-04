@@ -238,7 +238,7 @@ The preview uses the same interactive viewport as the Diagram gallery:
 - A normal mouse wheel zooms around the cursor.
 - Toolbar controls in the lower-right corner zoom out, zoom in, and reset the view.
 
-Click **Edit** in the file-preview header to open the Mermaid source inspector. The inspector is CodeMirror-backed, follows the active theme, and appears as a right split on wide panes or a bottom drawer on narrow panes. Typing updates the rendered diagram after a short debounce.
+Click **Edit** in the file-preview header to open the Mermaid source inspector. The inspector is CodeMirror-backed, follows the active theme, and appears as a resizable right split on wide panes or a bottom drawer on narrow panes. Drag the thin divider between the diagram and inspector to resize the source panel width. Typing updates the rendered diagram after a short debounce.
 
 Saving and reverting Mermaid files uses the same `EditorSession` flow as code/text/Markdown editing:
 

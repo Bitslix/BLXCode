@@ -17,6 +17,7 @@ use crate::workbench::file_preview::mermaid_glue::render_mermaid_to_svg;
 use crate::workbench::theme_service::ThemeService;
 use gloo_timers::callback::Timeout;
 use leptos::html;
+use leptos::leptos_dom::helpers::window_event_listener_untyped;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use std::cell::{Cell, RefCell};
@@ -30,6 +31,10 @@ const ZOOM_STEP: f64 = 1.2;
 const ZOOM_MIN: f64 = 0.25;
 const ZOOM_MAX: f64 = 4.0;
 const SOURCE_RENDER_DEBOUNCE_MS: u32 = 180;
+const INSPECTOR_DEFAULT_WIDTH_PX: f64 = 420.0;
+const INSPECTOR_MIN_WIDTH_PX: f64 = 280.0;
+const INSPECTOR_MAX_WIDTH_PX: f64 = 760.0;
+const VIEWPORT_MIN_WIDTH_PX: f64 = 360.0;
 
 type SourceEditorClosures = (
     Closure<dyn Fn(String)>,
@@ -131,6 +136,10 @@ pub fn MermaidPreviewWithInspector(
 ) -> impl IntoView {
     let preview_code = RwSignal::new(source.get_untracked());
     let pending_debounce = StoredValue::new_local(None::<Timeout>);
+    let workspace_ref = NodeRef::<html::Div>::new();
+    let inspector_width = RwSignal::new(INSPECTOR_DEFAULT_WIDTH_PX);
+    let resizing_inspector = RwSignal::new(false);
+    let resize_start = RwSignal::new((0.0_f64, INSPECTOR_DEFAULT_WIDTH_PX));
 
     Effect::new(move |_| {
         let next = source.get();
@@ -141,21 +150,75 @@ pub fn MermaidPreviewWithInspector(
         });
     });
 
+    let on_resize_down = move |ev: PointerEvent| {
+        ev.prevent_default();
+        ev.stop_propagation();
+        resizing_inspector.set(true);
+        resize_start.set((ev.client_x() as f64, inspector_width.get_untracked()));
+        if let Some(target) = ev
+            .target()
+            .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+        {
+            let _ = target.set_pointer_capture(ev.pointer_id());
+        }
+    };
+
+    let move_listener = window_event_listener_untyped("pointermove", move |ev| {
+        if !resizing_inspector.get_untracked() {
+            return;
+        }
+        let Some(pe) = ev.dyn_ref::<PointerEvent>() else {
+            return;
+        };
+        let (start_x, start_width) = resize_start.get_untracked();
+        let raw = start_width - (pe.client_x() as f64 - start_x);
+        let max_width = workspace_ref
+            .get_untracked()
+            .map(|el| {
+                let rect = el.get_bounding_client_rect();
+                (rect.width() - VIEWPORT_MIN_WIDTH_PX)
+                    .max(INSPECTOR_MIN_WIDTH_PX)
+                    .min(INSPECTOR_MAX_WIDTH_PX)
+            })
+            .unwrap_or(INSPECTOR_MAX_WIDTH_PX);
+        inspector_width.set(raw.max(INSPECTOR_MIN_WIDTH_PX).min(max_width));
+    });
+
+    let up_listener = window_event_listener_untyped("pointerup", move |_| {
+        if resizing_inspector.get_untracked() {
+            resizing_inspector.set(false);
+        }
+    });
+
     on_cleanup(move || {
         pending_debounce.update_value(|slot| {
             *slot = None;
         });
+        move_listener.remove();
+        up_listener.remove();
     });
 
     view! {
         <div
+            node_ref=workspace_ref
             class="mermaid-workspace"
             class:mermaid-workspace--inspector=move || inspector_open.get()
+            class:mermaid-workspace--resizing=move || resizing_inspector.get()
+            style=move || format!("--mermaid-inspector-width: {:.0}px;", inspector_width.get())
         >
             <InteractiveDiagramViewport code=preview_code dom_id=dom_id compact=compact>
                 {children.map(|children| children())}
             </InteractiveDiagramViewport>
             <Show when=move || inspector_open.get()>
+                <button
+                    type="button"
+                    class="mermaid-inspector__resizer"
+                    class:mermaid-inspector__resizer--active=move || resizing_inspector.get()
+                    aria-label="Resize Mermaid source inspector"
+                    on:pointerdown=on_resize_down
+                >
+                    <span aria-hidden="true"></span>
+                </button>
                 <MermaidSourceInspector
                     source=source
                     can_save=can_save
@@ -164,6 +227,9 @@ pub fn MermaidPreviewWithInspector(
                     on_revert=on_revert
                     allow_save=allow_save
                 />
+            </Show>
+            <Show when=move || resizing_inspector.get()>
+                <div class="mermaid-inspector__resize-shield" aria-hidden="true"></div>
             </Show>
         </div>
     }
