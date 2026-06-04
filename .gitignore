@@ -29,3 +29,4 @@ src-remotion/bun.lock
 src-remotion/package-lock.json
 src-remotion/output/
 src-remotion/out/
+output/
