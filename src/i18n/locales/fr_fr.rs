@@ -152,6 +152,26 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TbViewModeGrid => "Grille",
         I18nKey::TbViewModeCanvas => "Toile",
         I18nKey::TbViewModeSwarm => "Essaim",
+        I18nKey::TbRunMenu => "Run",
+
+        I18nKey::TbRunRefresh => "Refresh run commands",
+
+        I18nKey::TbRunEmpty => "No run commands found.",
+
+        I18nKey::TbRunLoading => "Loading run commands…",
+
+        I18nKey::TbRunDev => "Dev",
+
+        I18nKey::TbRunRun => "Run",
+
+        I18nKey::TbRunDebug => "Debug",
+
+        I18nKey::TbRunTest => "Test",
+
+        I18nKey::TbRunBuild => "Build",
+
+        I18nKey::TbRunOther => "Other",
+
         I18nKey::CanvasSlotLabel => "Emplacement {id}",
         I18nKey::CanvasResizeNode => "Redimensionner le nœud terminal",
         I18nKey::CanvasEdgeSend => "Envoyer la sortie de bord",

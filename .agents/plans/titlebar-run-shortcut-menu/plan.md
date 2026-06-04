@@ -39,5 +39,5 @@ Add a real BLXCode plugin package system, a new **Settings -> Plugins** tab, and
 - [x] `run-discovery-command` - Add `run_commands_discover` using enabled plugins and local/remote workspace scanning. Commit after discovery tests pass.
 - [x] `tauri-bridge-wrappers` - Add frontend typed wrappers/listeners or polling models. Commit after typecheck/check passes.
 - [x] `plugins-settings-pane` - Add Settings -> Plugins UI, install dialog, filters, and theme-token CSS. Commit after UI build/typecheck passes.
-- [ ] `titlebar-run-menu` - Add Run menu after Worktree and terminal-slot execution flow. Commit after behavior tests/manual check pass.
+- [x] `titlebar-run-menu` - Add Run menu after Worktree and terminal-slot execution flow. Commit after behavior tests/manual check pass.
 - [ ] `i18n-docs-polish` - Complete locale keys, update developer/user docs where needed, and ensure no hardcoded new strings. Commit after final checks pass.

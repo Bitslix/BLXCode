@@ -152,6 +152,26 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TbViewModeGrid => "Сетка",
         I18nKey::TbViewModeCanvas => "Холст",
         I18nKey::TbViewModeSwarm => "Рой",
+        I18nKey::TbRunMenu => "Run",
+
+        I18nKey::TbRunRefresh => "Refresh run commands",
+
+        I18nKey::TbRunEmpty => "No run commands found.",
+
+        I18nKey::TbRunLoading => "Loading run commands…",
+
+        I18nKey::TbRunDev => "Dev",
+
+        I18nKey::TbRunRun => "Run",
+
+        I18nKey::TbRunDebug => "Debug",
+
+        I18nKey::TbRunTest => "Test",
+
+        I18nKey::TbRunBuild => "Build",
+
+        I18nKey::TbRunOther => "Other",
+
         I18nKey::CanvasSlotLabel => "Слот {идентификатор}",
         I18nKey::CanvasResizeNode => "Изменение размера конечного узла",
         I18nKey::CanvasEdgeSend => "Отправить фронтальный выход",

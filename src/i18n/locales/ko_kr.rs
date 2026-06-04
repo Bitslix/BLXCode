@@ -148,6 +148,26 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TbViewModeGrid => "그리드",
         I18nKey::TbViewModeCanvas => "캔버스",
         I18nKey::TbViewModeSwarm => "무리",
+        I18nKey::TbRunMenu => "Run",
+
+        I18nKey::TbRunRefresh => "Refresh run commands",
+
+        I18nKey::TbRunEmpty => "No run commands found.",
+
+        I18nKey::TbRunLoading => "Loading run commands…",
+
+        I18nKey::TbRunDev => "Dev",
+
+        I18nKey::TbRunRun => "Run",
+
+        I18nKey::TbRunDebug => "Debug",
+
+        I18nKey::TbRunTest => "Test",
+
+        I18nKey::TbRunBuild => "Build",
+
+        I18nKey::TbRunOther => "Other",
+
         I18nKey::CanvasSlotLabel => "슬롯 {id}",
         I18nKey::CanvasResizeNode => "터미널 노드 크기 조정",
         I18nKey::CanvasEdgeSend => "에지 출력 보내기",

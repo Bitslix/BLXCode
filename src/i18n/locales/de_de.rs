@@ -150,6 +150,26 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TbViewModeGrid => "Raster",
         I18nKey::TbViewModeCanvas => "Leinwand",
         I18nKey::TbViewModeSwarm => "Schwarm",
+        I18nKey::TbRunMenu => "Run",
+
+        I18nKey::TbRunRefresh => "Refresh run commands",
+
+        I18nKey::TbRunEmpty => "No run commands found.",
+
+        I18nKey::TbRunLoading => "Loading run commands…",
+
+        I18nKey::TbRunDev => "Dev",
+
+        I18nKey::TbRunRun => "Run",
+
+        I18nKey::TbRunDebug => "Debug",
+
+        I18nKey::TbRunTest => "Test",
+
+        I18nKey::TbRunBuild => "Build",
+
+        I18nKey::TbRunOther => "Other",
+
         I18nKey::CanvasSlotLabel => "Steckplatz {id}",
         I18nKey::CanvasResizeNode => "Terminal-Node skalieren",
         I18nKey::CanvasEdgeSend => "Kanten-Ausgabe senden",
