@@ -188,6 +188,27 @@
 
 .mermaid-inspector__editor .cm-editor {
   height: 100%;
+  color: var(--text);
+  background: var(--bg-panel) !important;
+}
+
+.mermaid-inspector__editor .cm-scroller,
+.mermaid-inspector__editor .cm-content {
+  background: var(--bg-panel) !important;
+}
+
+.mermaid-inspector__editor .cm-gutters {
+  background: var(--bg-panel-header) !important;
+  color: var(--text-muted) !important;
+  border-right: 1px solid var(--border) !important;
+}
+
+.mermaid-inspector__editor .cm-activeLine {
+  background: var(--overlay-1) !important;
+}
+
+.mermaid-inspector__editor .cm-activeLineGutter {
+  background: var(--overlay-1) !important;
 }
 
 .mermaid-inspector__editor .cm-editor.cm-focused {
