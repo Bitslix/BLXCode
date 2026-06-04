@@ -39,17 +39,6 @@ impl WhisperEngine {
     pub fn new() -> Self {
         Self::default()
     }
-
-    /// True when `path` is already loaded and warm.
-    #[cfg_attr(not(feature = "local-whisper"), allow(dead_code))]
-    pub fn is_loaded(&self, path: &str) -> bool {
-        self.inner
-            .lock()
-            .ok()
-            .and_then(|g| g.loaded_path.clone())
-            .as_deref()
-            == Some(path)
-    }
 }
 
 #[cfg(feature = "local-whisper")]
@@ -119,14 +108,16 @@ mod imp {
                 .full(params, pcm)
                 .map_err(|e| format!("whisper transcribe: {e}"))?;
 
-            let n = state
-                .full_n_segments()
-                .map_err(|e| format!("whisper segments: {e}"))?;
+            let n = state.full_n_segments();
             let mut out = String::new();
             for i in 0..n {
-                if let Ok(seg) = state.full_get_segment_text(i) {
-                    out.push_str(&seg);
-                }
+                let seg = state
+                    .get_segment(i)
+                    .ok_or_else(|| format!("whisper segment {i} missing"))?;
+                let text = seg
+                    .to_str_lossy()
+                    .map_err(|e| format!("whisper segment text: {e}"))?;
+                out.push_str(&text);
             }
             Ok(out.trim().to_string())
         }

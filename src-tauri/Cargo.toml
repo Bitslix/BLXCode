@@ -53,4 +53,4 @@ dirs = "5"
 sha2 = "0.10"
 # Optional: local whisper.cpp bindings (CPU build, no CUDA/Metal required).
 # Gated behind the `local-whisper` feature so default builds need no C toolchain.
-whisper-rs = { version = "0.12", optional = true, default-features = false }
+whisper-rs = { version = "0.16", optional = true, default-features = false }
