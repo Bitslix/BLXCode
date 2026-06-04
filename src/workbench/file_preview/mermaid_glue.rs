@@ -151,6 +151,36 @@ fn initialize_mermaid() -> Result<(), String> {
     Ok(())
 }
 
+/// Render Mermaid `source` to a standalone `<svg>` string via `mermaid.render`.
+///
+/// Unlike [`run_mermaid_on`], this does not depend on a caller-owned DOM node
+/// staying mounted: Mermaid performs measurement in its own offscreen container
+/// and returns the finished SVG markup. `id` must be a unique, valid element id.
+pub async fn render_mermaid_to_svg(id: &str, source: &str) -> Result<String, String> {
+    ensure_mermaid_loaded().await?;
+    // Re-initialize with current theme tokens so the SVG matches the live theme.
+    initialize_mermaid()?;
+    let mermaid = mermaid_global().ok_or("mermaid not available")?;
+    let render = Reflect::get(&mermaid, &JsValue::from_str("render")).map_err(|_| "no render")?;
+    let render: Function = render.dyn_into().map_err(|_| "render not callable")?;
+    let promise = render
+        .call2(
+            &mermaid,
+            &JsValue::from_str(id),
+            &JsValue::from_str(source),
+        )
+        .map_err(|e| format!("mermaid.render: {e:?}"))?;
+    let promise: js_sys::Promise = promise
+        .dyn_into()
+        .map_err(|_| "mermaid.render did not return a promise")?;
+    let result = wasm_bindgen_futures::JsFuture::from(promise)
+        .await
+        .map_err(|e| format!("mermaid.render awaited: {e:?}"))?;
+    let svg = Reflect::get(&result, &JsValue::from_str("svg"))
+        .map_err(|_| "render result has no svg")?;
+    svg.as_string().ok_or_else(|| "render svg not a string".into())
+}
+
 /// Runs Mermaid on the supplied nodes. Nodes must contain raw graph text as
 /// their `textContent` and have the `mermaid` class so the library can find
 /// them.

@@ -31,6 +31,31 @@ pub fn TurnMetricsBar(metrics: TurnMetrics, context: BarContext) -> impl IntoVie
         .unwrap_or_default();
     let dash = lookup(loc, I18nKey::AgMetricsCostUnknown).to_string();
 
+    // Local tool executions carry no model token/cost data — only wall-clock
+    // time. Showing five dashes there is noise; instead render a single
+    // duration cell so the row stays informative (and it's honest: the token
+    // cost of *producing* the tool call belongs to the preceding model round).
+    let has_model_data = metrics.input_tokens.is_some()
+        || metrics.output_tokens.is_some()
+        || metrics.ttft_ms.is_some()
+        || metrics.cost_usd.is_some();
+    if !has_model_data && metrics.elapsed_ms > 0 {
+        let wrap_class = match context {
+            BarContext::Main => "turn-metrics-bar turn-metrics-bar--main",
+            BarContext::Subagent => "turn-metrics-bar turn-metrics-bar--subagent",
+        };
+        let tt_speed = lookup(loc, I18nKey::AgMetricsTooltipSpeed);
+        let dur = fmt_ms(metrics.elapsed_ms);
+        return view! {
+            <div class=wrap_class>
+                <span class="turn-metrics-bar__cell" title=tt_speed>
+                    "⏱ " <strong>{dur}</strong>
+                </span>
+            </div>
+        }
+        .into_any();
+    }
+
     let in_tok = metrics
         .input_tokens
         .map(fmt_compact_int)

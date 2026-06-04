@@ -11,13 +11,56 @@
 
 use crate::i18n::I18nKey;
 use crate::service::I18nService;
-use crate::workbench::file_preview::mermaid_glue::run_mermaid_on;
+use crate::workbench::file_preview::mermaid_glue::render_mermaid_to_svg;
 use crate::workbench::theme_service::ThemeService;
 use leptos::html;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlElement;
+
+// Process-wide counter for unique Mermaid render ids (the library requires a
+// unique element id per `render` call).
+thread_local! {
+    static RENDER_SEQ: Cell<u64> = const { Cell::new(0) };
+}
+
+fn next_render_id() -> String {
+    RENDER_SEQ.with(|c| {
+        let n = c.get().wrapping_add(1);
+        c.set(n);
+        format!("mmd-render-{n}")
+    })
+}
+
+thread_local! {
+    /// Caches successfully rendered diagram markup keyed by `(theme, code)`.
+    ///
+    /// The timeline tree is rebuilt on every agent update (no keyed `<For>`),
+    /// so an inline `DiagramRender` re-mounts repeatedly. Mermaid renders
+    /// asynchronously, so without a cache each re-mount restarts the render and
+    /// the just-produced SVG is discarded before it is visible. Re-injecting the
+    /// cached SVG synchronously on mount makes inline diagrams appear instantly
+    /// and stay put. Keyed by theme so a theme switch forces a re-render.
+    static SVG_CACHE: RefCell<HashMap<(String, String), String>> = RefCell::new(HashMap::new());
+}
+
+fn cache_get(theme: &str, code: &str) -> Option<String> {
+    SVG_CACHE.with(|c| c.borrow().get(&(theme.to_owned(), code.to_owned())).cloned())
+}
+
+fn cache_put(theme: &str, code: &str, html: String) {
+    SVG_CACHE.with(|c| {
+        let mut map = c.borrow_mut();
+        // Bound the cache so long sessions don't grow it without limit.
+        if map.len() > 256 {
+            map.clear();
+        }
+        map.insert((theme.to_owned(), code.to_owned()), html);
+    });
+}
 
 /// Read back the rendered SVG markup from a diagram node by its `dom_id`.
 /// Returns `None` until Mermaid has finished rendering.
@@ -48,31 +91,41 @@ pub fn DiagramRender(
         let text = code.get();
         // Subscribe to theme changes so the diagram re-renders with the active
         // theme's tokens (multi-theme support, see rule-theme-tokens.md).
-        let _theme = theme.active_theme_id().get();
+        let theme_id = theme.active_theme_id().get();
         let Some(el) = node_ref.get() else {
             return;
         };
         let element: HtmlElement = el.unchecked_into();
-        element.set_inner_html("");
         render_err.set(false);
         if text.trim().is_empty() {
+            element.set_inner_html("");
             return;
         }
-        let Some(target) = web_sys::window()
-            .and_then(|w| w.document())
-            .and_then(|d| d.create_element("pre").ok())
-        else {
+        // Fast path: a previously rendered SVG for this theme+code is injected
+        // synchronously, so a re-mount shows the diagram immediately instead of
+        // racing an async render whose result could be discarded.
+        if let Some(svg) = cache_get(&theme_id, &text) {
+            element.set_inner_html(&svg);
             return;
-        };
-        let _ = target.set_attribute("class", "mermaid diagram-render__node");
-        target.set_text_content(Some(&text));
-        let _ = element.append_child(&target);
-        let target_el: HtmlElement = target.unchecked_into();
-        let nodes = vec![target_el];
+        }
+        element.set_inner_html("");
+        let id = next_render_id();
         spawn_local(async move {
-            if let Err(e) = run_mermaid_on(&nodes).await {
-                web_sys::console::warn_1(&format!("mermaid render: {e}").into());
-                render_err.set(true);
+            match render_mermaid_to_svg(&id, &text).await {
+                Ok(svg) => {
+                    // The SVG is fully self-contained (Mermaid measured it in its
+                    // own offscreen container), so caching it is always valid —
+                    // even if this node was discarded by a timeline rebuild.
+                    cache_put(&theme_id, &text, svg.clone());
+                    if let Some(el) = node_ref.get_untracked() {
+                        let el: HtmlElement = el.unchecked_into();
+                        el.set_inner_html(&svg);
+                    }
+                }
+                Err(e) => {
+                    web_sys::console::warn_1(&format!("mermaid render: {e}").into());
+                    render_err.set(true);
+                }
             }
         });
     });
