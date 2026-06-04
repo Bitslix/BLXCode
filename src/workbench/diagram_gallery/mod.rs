@@ -394,7 +394,13 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
                         class="diagram-gallery__export"
                         on:click=move |_| inspector_open.update(|open| *open = !*open)
                     >
-                        {move || i18n.tr(I18nKey::FilePreviewEditorEdit)}
+                        {move || {
+                            if inspector_open.get() {
+                                i18n.tr(I18nKey::BtnClose)()
+                            } else {
+                                i18n.tr(I18nKey::FilePreviewEditorEdit)()
+                            }
+                        }}
                     </button>
                     <button class="diagram-gallery__export" on:click=on_export_md>
                         {move || i18n.tr(I18nKey::DiagramExportMd)}
