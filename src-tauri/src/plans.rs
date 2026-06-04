@@ -1022,7 +1022,11 @@ fn migrate_legacy_plan_files(
     let legacy_files = discover_legacy_plan_files(root);
     let total = legacy_files.len() as u32;
     set_migration_progress(&state, workspace_cwd, |progress| {
-        progress.phase = if total == 0 { "done".into() } else { "migrating".into() };
+        progress.phase = if total == 0 {
+            "done".into()
+        } else {
+            "migrating".into()
+        };
         progress.busy = total > 0;
         progress.total = total;
         progress.processed = 0;
@@ -1414,7 +1418,9 @@ mod tests {
         let snap = tasks_snapshot(&cwd).unwrap();
         assert_eq!(snap.active_plan_path.as_deref(), Some("legacy/plan.md"));
         assert_eq!(
-            snap.tasks.first().and_then(|task| task.plan_path.as_deref()),
+            snap.tasks
+                .first()
+                .and_then(|task| task.plan_path.as_deref()),
             Some("legacy/plan.md")
         );
 

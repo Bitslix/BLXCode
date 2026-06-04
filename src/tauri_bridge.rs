@@ -1062,7 +1062,11 @@ pub async fn heartbeat_set_open_workspaces(workspaces: Vec<String>) -> Result<()
     struct Args {
         workspaces: Vec<String>,
     }
-    invoke_unit_js("heartbeat_set_open_workspaces", args_value(Args { workspaces })?).await
+    invoke_unit_js(
+        "heartbeat_set_open_workspaces",
+        args_value(Args { workspaces })?,
+    )
+    .await
 }
 
 pub async fn memory_index_settings_get() -> Result<MemoryIndexSettings, String> {
@@ -3114,9 +3118,7 @@ pub async fn mermaid_export_pdf(title: &str, svg: &str) -> Result<Option<String>
     invoke_typed("mermaid_export_pdf", Args { title, svg }).await
 }
 
-pub async fn plan_migration_ensure_started(
-    ws: &str,
-) -> Result<PlanMigrationProgress, String> {
+pub async fn plan_migration_ensure_started(ws: &str) -> Result<PlanMigrationProgress, String> {
     invoke_typed("plan_migration_ensure_started", WsArg { workspace_cwd: ws }).await
 }
 

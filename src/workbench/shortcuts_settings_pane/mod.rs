@@ -284,9 +284,21 @@ fn EditorActionRow(
     let label = action.label_key();
     let icon = editor_action_icon(action);
 
-    let keys_text = move || prefs.editor_shortcut_config().get().binding(action).parts().join(" + ");
-    let has_conflict =
-        move || !prefs.editor_shortcut_config().get().conflicts(action).is_empty();
+    let keys_text = move || {
+        prefs
+            .editor_shortcut_config()
+            .get()
+            .binding(action)
+            .parts()
+            .join(" + ")
+    };
+    let has_conflict = move || {
+        !prefs
+            .editor_shortcut_config()
+            .get()
+            .conflicts(action)
+            .is_empty()
+    };
 
     view! {
         <li class="shortcuts-pane__row" class:shortcuts-pane__row--disabled=move || disabled.get()>

@@ -13,6 +13,7 @@ mod brand;
 pub(crate) mod help_menu;
 mod navigate_menu;
 mod notifications_menu;
+mod view_mode_menu;
 mod window_controls;
 
 use crate::i18n::I18nKey;
@@ -25,6 +26,7 @@ use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use navigate_menu::NavigateMenu;
 use notifications_menu::NotificationsMenu;
+use view_mode_menu::ViewModeMenu;
 use window_controls::WindowControls;
 
 /// Shared, future-facing store backing the Notifications popover. Provided at
@@ -148,6 +150,7 @@ pub fn AppTitleBar(#[prop(into)] workbench_active: Signal<bool>) -> impl IntoVie
                 <Show when=move || workbench_active.get()>
                     <div class="app-titlebar__actions">
                         <NavigateMenu />
+                        <ViewModeMenu />
                         <NotificationsMenu />
                         <button
                             type="button"

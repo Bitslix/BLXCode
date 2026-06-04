@@ -150,6 +150,21 @@ pub struct WorkspaceEntry {
     /// the agent each turn via `UserTurn.session_role`.
     #[serde(default)]
     pub agent_session_role: Option<String>,
+    /// Active workspace view mode. Legacy snapshots default to Grid.
+    #[serde(default)]
+    pub view_mode: WorkspaceViewMode,
+    /// Canvas viewport, terminal positions, and display filters.
+    #[serde(default)]
+    pub canvas_view_state: CanvasViewState,
+    /// User-created Canvas routing edges.
+    #[serde(default)]
+    pub canvas_edges: Vec<CanvasEdge>,
+    /// Default transfer behavior for newly created Canvas edges.
+    #[serde(default)]
+    pub canvas_default_transfer_mode: CanvasTransferMode,
+    /// Swarm graph display state.
+    #[serde(default)]
+    pub swarm_view_state: SwarmViewState,
 }
 
 fn default_sidebar_section_open() -> bool {
@@ -201,6 +216,15 @@ impl CenterTab {
             kind: CenterTabKind::Terminals,
         }
     }
+
+    #[must_use]
+    pub fn mode(mode: WorkspaceViewMode) -> Self {
+        Self {
+            id: CENTER_TERMINALS_TAB_ID,
+            title: mode.title().into(),
+            kind: mode.tab_kind(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -208,6 +232,8 @@ impl CenterTab {
 pub enum CenterTabKind {
     Kanban,
     Terminals,
+    Canvas,
+    Swarm,
     Settings,
     Memory,
     FilePreview {
@@ -224,6 +250,158 @@ pub enum CenterTabKind {
         /// Plan slug whose `diagrams/` folder is shown.
         slug: String,
     },
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum WorkspaceViewMode {
+    #[default]
+    Grid,
+    Canvas,
+    Swarm,
+}
+
+impl WorkspaceViewMode {
+    #[must_use]
+    pub fn title(self) -> &'static str {
+        match self {
+            Self::Grid => "Terminals",
+            Self::Canvas => "Canvas",
+            Self::Swarm => "Swarm",
+        }
+    }
+
+    #[must_use]
+    pub fn tab_kind(self) -> CenterTabKind {
+        match self {
+            Self::Grid => CenterTabKind::Terminals,
+            Self::Canvas => CenterTabKind::Canvas,
+            Self::Swarm => CenterTabKind::Swarm,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CanvasTransferMode {
+    Raw,
+    #[default]
+    Structured,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasNodeLayout {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+impl CanvasNodeLayout {
+    #[must_use]
+    pub fn for_index(index: usize) -> Self {
+        let col = index % 2;
+        let row = index / 2;
+        Self {
+            x: 48.0 + col as f64 * 460.0,
+            y: 52.0 + row as f64 * 330.0,
+            width: 420.0,
+            height: 260.0,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasViewState {
+    pub pan_x: f64,
+    pub pan_y: f64,
+    pub zoom: f64,
+    #[serde(default)]
+    pub terminal_nodes: HashMap<u64, CanvasNodeLayout>,
+    #[serde(default)]
+    pub selected_node_ids: Vec<String>,
+    #[serde(default)]
+    pub selected_edge_ids: Vec<String>,
+    #[serde(default = "default_true")]
+    pub show_agent_links: bool,
+}
+
+impl Default for CanvasViewState {
+    fn default() -> Self {
+        Self {
+            pan_x: 0.0,
+            pan_y: 0.0,
+            zoom: 1.0,
+            terminal_nodes: HashMap::new(),
+            selected_node_ids: Vec::new(),
+            selected_edge_ids: Vec::new(),
+            show_agent_links: true,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasPortRef {
+    pub node_kind: CanvasNodeKind,
+    #[serde(default)]
+    pub slot_id: Option<u64>,
+    #[serde(default)]
+    pub pane_id: Option<u64>,
+    pub direction: CanvasPortDirection,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CanvasNodeKind {
+    Terminal,
+    AgentHub,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CanvasPortDirection {
+    Stdin,
+    Stdout,
+    AgentCommand,
+    AgentObserve,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CanvasEdge {
+    pub id: String,
+    pub source: CanvasPortRef,
+    pub target: CanvasPortRef,
+    #[serde(default)]
+    pub transfer_mode: CanvasTransferMode,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SwarmViewState {
+    #[serde(default)]
+    pub selected_node_id: Option<String>,
+    #[serde(default = "default_true")]
+    pub show_agent_links: bool,
+    #[serde(default = "default_true")]
+    pub show_idle: bool,
+}
+
+impl Default for SwarmViewState {
+    fn default() -> Self {
+        Self {
+            selected_node_id: None,
+            show_agent_links: true,
+            show_idle: true,
+        }
+    }
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// Aggregated token / cost stats for a workspace's agent chat. Each
@@ -512,6 +690,11 @@ impl WorkspaceEntry {
             remote_connection_id: None,
             slot_name_overrides: HashMap::new(),
             agent_session_role: None,
+            view_mode: WorkspaceViewMode::Grid,
+            canvas_view_state: CanvasViewState::default(),
+            canvas_edges: Vec::new(),
+            canvas_default_transfer_mode: CanvasTransferMode::Structured,
+            swarm_view_state: SwarmViewState::default(),
         }
     }
 
@@ -560,11 +743,15 @@ fn ensure_workspace_pinned_tabs(workspace: &mut WorkspaceEntry) {
     {
         workspace.center_tabs.insert(0, CenterTab::kanban());
     }
-    if !workspace
+    if let Some(tab) = workspace
         .center_tabs
-        .iter()
-        .any(|tab| matches!(tab.kind, CenterTabKind::Terminals))
+        .iter_mut()
+        .find(|tab| is_workspace_mode_tab_kind(&tab.kind) || tab.id == CENTER_TERMINALS_TAB_ID)
     {
+        tab.id = CENTER_TERMINALS_TAB_ID;
+        tab.title = workspace.view_mode.title().into();
+        tab.kind = workspace.view_mode.tab_kind();
+    } else {
         let insert_at = workspace
             .center_tabs
             .iter()
@@ -574,19 +761,46 @@ fn ensure_workspace_pinned_tabs(workspace: &mut WorkspaceEntry) {
             .min(workspace.center_tabs.len());
         workspace
             .center_tabs
-            .insert(insert_at, CenterTab::terminals());
+            .insert(insert_at, CenterTab::mode(workspace.view_mode));
     }
     workspace.center_tabs.sort_by_key(|tab| match tab.kind {
         CenterTabKind::Kanban => (0_u8, tab.id),
-        CenterTabKind::Terminals => (1_u8, tab.id),
+        CenterTabKind::Terminals | CenterTabKind::Canvas | CenterTabKind::Swarm => (1_u8, tab.id),
         _ => (2_u8, tab.id),
     });
 }
 
+fn is_workspace_mode_tab_kind(kind: &CenterTabKind) -> bool {
+    matches!(
+        kind,
+        CenterTabKind::Terminals | CenterTabKind::Canvas | CenterTabKind::Swarm
+    )
+}
+
+fn valid_canvas_edge(source: &CanvasPortRef, target: &CanvasPortRef) -> bool {
+    use CanvasNodeKind::{AgentHub, Terminal};
+    use CanvasPortDirection::{AgentCommand, AgentObserve, Stdin, Stdout};
+
+    if source == target {
+        return false;
+    }
+    matches!(
+        (
+            source.node_kind,
+            source.direction,
+            target.node_kind,
+            target.direction
+        ),
+        (Terminal, Stdout, Terminal, Stdin)
+            | (Terminal, Stdout, AgentHub, AgentObserve)
+            | (AgentHub, AgentCommand, Terminal, Stdin)
+    )
+}
+
 /// Repair `center_active_tab_id` / `center_next_tab_id` so they stay
 /// consistent with `center_tabs`. Real/configuring workspaces always get the
-/// pinned Kanban and Terminals tabs; ephemeral shell workspaces keep only the
-/// tabs the caller explicitly opens.
+/// pinned Kanban and current view-mode tabs; ephemeral shell workspaces keep
+/// only the tabs the caller explicitly opens.
 fn repair_center_tab_state(workspace: &mut WorkspaceEntry) {
     ensure_workspace_pinned_tabs(workspace);
     if workspace.center_tabs.is_empty() {
@@ -596,7 +810,13 @@ fn repair_center_tab_state(workspace: &mut WorkspaceEntry) {
         .iter()
         .any(|tab| tab.id == workspace.center_active_tab_id)
     {
-        workspace.center_active_tab_id = workspace.center_tabs[0].id;
+        workspace.center_active_tab_id = workspace
+            .center_tabs
+            .iter()
+            .find(|tab| tab.id == CENTER_TERMINALS_TAB_ID)
+            .or_else(|| workspace.center_tabs.first())
+            .map(|tab| tab.id)
+            .unwrap_or(0);
     }
     let max_id = workspace
         .center_tabs
@@ -2068,6 +2288,113 @@ impl WorkbenchService {
         })
     }
 
+    #[must_use]
+    pub fn view_mode_for_workspace(&self, workspace_id: u64) -> WorkspaceViewMode {
+        self.workspaces.with(|workspaces| {
+            workspaces
+                .iter()
+                .find(|w| w.id == workspace_id)
+                .map(|w| w.view_mode)
+                .unwrap_or_default()
+        })
+    }
+
+    #[must_use]
+    pub fn active_workspace_view_mode(&self) -> Option<WorkspaceViewMode> {
+        let id = self.active_id.get()?;
+        Some(self.view_mode_for_workspace(id))
+    }
+
+    pub fn set_workspace_view_mode(&self, workspace_id: u64, mode: WorkspaceViewMode) {
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            workspace.view_mode = mode;
+            if let Some(tab) = workspace.center_tabs.iter_mut().find(|tab| {
+                is_workspace_mode_tab_kind(&tab.kind) || tab.id == CENTER_TERMINALS_TAB_ID
+            }) {
+                tab.id = CENTER_TERMINALS_TAB_ID;
+                tab.title = mode.title().into();
+                tab.kind = mode.tab_kind();
+            }
+            workspace.center_active_tab_id = CENTER_TERMINALS_TAB_ID;
+            repair_center_tab_state(workspace);
+        });
+        self.bump_terminal_layout();
+    }
+
+    pub fn set_canvas_terminal_layout(
+        &self,
+        workspace_id: u64,
+        slot_id: u64,
+        layout: CanvasNodeLayout,
+    ) {
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            workspace
+                .canvas_view_state
+                .terminal_nodes
+                .insert(slot_id, layout);
+        });
+        self.bump_terminal_layout();
+    }
+
+    pub fn connect_canvas_ports(
+        &self,
+        workspace_id: u64,
+        source: CanvasPortRef,
+        target: CanvasPortRef,
+    ) -> Option<String> {
+        if !valid_canvas_edge(&source, &target) {
+            return None;
+        }
+        let id = uuid::Uuid::new_v4().simple().to_string();
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            let transfer_mode = workspace.canvas_default_transfer_mode;
+            workspace.canvas_edges.push(CanvasEdge {
+                id: id.clone(),
+                source,
+                target,
+                transfer_mode,
+            });
+        });
+        Some(id)
+    }
+
+    pub fn toggle_canvas_edge_transfer_mode(&self, workspace_id: u64, edge_id: String) {
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            let Some(edge) = workspace
+                .canvas_edges
+                .iter_mut()
+                .find(|edge| edge.id == edge_id)
+            else {
+                return;
+            };
+            edge.transfer_mode = match edge.transfer_mode {
+                CanvasTransferMode::Raw => CanvasTransferMode::Structured,
+                CanvasTransferMode::Structured => CanvasTransferMode::Raw,
+            };
+        });
+    }
+
+    pub fn remove_canvas_edge(&self, workspace_id: u64, edge_id: String) {
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            workspace.canvas_edges.retain(|edge| edge.id != edge_id);
+        });
+    }
+
     pub fn set_active_center_tab(&self, workspace_id: u64, tab_id: u64) {
         self.workspaces.update(|workspaces| {
             let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
@@ -2101,7 +2428,10 @@ impl WorkbenchService {
             };
             if matches!(
                 workspace.center_tabs[index].kind,
-                CenterTabKind::Kanban | CenterTabKind::Terminals
+                CenterTabKind::Kanban
+                    | CenterTabKind::Terminals
+                    | CenterTabKind::Canvas
+                    | CenterTabKind::Swarm
             ) {
                 return;
             }
@@ -2142,21 +2472,15 @@ impl WorkbenchService {
     /// make it the active tab. Used by the "new terminal" shortcut and
     /// the optional palette entry that reopens the terminal grid.
     pub fn open_center_terminals_tab(&self, workspace_id: u64) {
-        self.workspaces.update(|workspaces| {
-            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
-                return;
-            };
-            if !workspace
-                .center_tabs
-                .iter()
-                .any(|tab| matches!(tab.kind, CenterTabKind::Terminals))
-            {
-                workspace.center_tabs.insert(0, CenterTab::terminals());
-            }
-            workspace.center_active_tab_id = CENTER_TERMINALS_TAB_ID;
-            repair_center_tab_state(workspace);
-        });
-        self.bump_terminal_layout();
+        self.set_workspace_view_mode(workspace_id, WorkspaceViewMode::Grid);
+    }
+
+    pub fn open_center_canvas_tab(&self, workspace_id: u64) {
+        self.set_workspace_view_mode(workspace_id, WorkspaceViewMode::Canvas);
+    }
+
+    pub fn open_center_swarm_tab(&self, workspace_id: u64) {
+        self.set_workspace_view_mode(workspace_id, WorkspaceViewMode::Swarm);
     }
 
     pub fn open_center_kanban_tab(&self, workspace_id: u64) {
@@ -2377,6 +2701,11 @@ impl WorkbenchService {
             remote_connection_id: None,
             slot_name_overrides: std::collections::HashMap::new(),
             agent_session_role: None,
+            view_mode: WorkspaceViewMode::Grid,
+            canvas_view_state: CanvasViewState::default(),
+            canvas_edges: Vec::new(),
+            canvas_default_transfer_mode: CanvasTransferMode::Structured,
+            swarm_view_state: SwarmViewState::default(),
         };
         self.workspaces.update(|v| v.push(entry));
         self.active_id.set(Some(id));
@@ -2512,6 +2841,11 @@ impl WorkbenchService {
                 remote_connection_id: None,
                 slot_name_overrides: std::collections::HashMap::new(),
                 agent_session_role: None,
+                view_mode: WorkspaceViewMode::Grid,
+                canvas_view_state: CanvasViewState::default(),
+                canvas_edges: Vec::new(),
+                canvas_default_transfer_mode: CanvasTransferMode::Structured,
+                swarm_view_state: SwarmViewState::default(),
             });
         });
         Ok(id)
@@ -3048,6 +3382,11 @@ impl WorkbenchService {
                 remote_connection_id: None,
                 slot_name_overrides: std::collections::HashMap::new(),
                 agent_session_role: None,
+                view_mode: WorkspaceViewMode::Grid,
+                canvas_view_state: CanvasViewState::default(),
+                canvas_edges: Vec::new(),
+                canvas_default_transfer_mode: CanvasTransferMode::Structured,
+                swarm_view_state: SwarmViewState::default(),
             });
         });
         match self.transfer_terminal_slot(workspace_id, new_id, slot_id) {
@@ -3421,6 +3760,11 @@ impl WorkbenchService {
             remote_connection_id: None,
             slot_name_overrides: std::collections::HashMap::new(),
             agent_session_role: None,
+            view_mode: WorkspaceViewMode::Grid,
+            canvas_view_state: CanvasViewState::default(),
+            canvas_edges: Vec::new(),
+            canvas_default_transfer_mode: CanvasTransferMode::Structured,
+            swarm_view_state: SwarmViewState::default(),
         };
         self.active_id.set(Some(id));
         self.workspaces.update(|v| v.push(entry));
@@ -4817,11 +5161,38 @@ mod center_tab_tests {
             remote_connection_id: None,
             slot_name_overrides: std::collections::HashMap::new(),
             agent_session_role: None,
+            view_mode: WorkspaceViewMode::Grid,
+            canvas_view_state: CanvasViewState::default(),
+            canvas_edges: Vec::new(),
+            canvas_default_transfer_mode: CanvasTransferMode::Structured,
+            swarm_view_state: SwarmViewState::default(),
         }
     }
 
     #[test]
-    fn repair_does_not_reinsert_terminals() {
+    fn legacy_snapshot_defaults_to_grid_view_mode() {
+        let mut value = serde_json::to_value(mk_workspace(1, default_center_tabs())).unwrap();
+        let object = value.as_object_mut().unwrap();
+        object.remove("viewMode");
+        object.remove("canvasViewState");
+        object.remove("canvasEdges");
+        object.remove("canvasDefaultTransferMode");
+        object.remove("swarmViewState");
+
+        let ws: WorkspaceEntry = serde_json::from_value(value).unwrap();
+
+        assert_eq!(ws.view_mode, WorkspaceViewMode::Grid);
+        assert_eq!(ws.canvas_view_state, CanvasViewState::default());
+        assert!(ws.canvas_edges.is_empty());
+        assert_eq!(
+            ws.canvas_default_transfer_mode,
+            CanvasTransferMode::Structured
+        );
+        assert_eq!(ws.swarm_view_state, SwarmViewState::default());
+    }
+
+    #[test]
+    fn repair_syncs_single_mode_tab_to_canvas() {
         let mut ws = mk_workspace(
             1,
             vec![CenterTab {
@@ -4830,20 +5201,29 @@ mod center_tab_tests {
                 kind: CenterTabKind::Settings,
             }],
         );
+        ws.view_mode = WorkspaceViewMode::Canvas;
+
         repair_center_tab_state(&mut ws);
-        assert!(
-            !ws.center_tabs
-                .iter()
-                .any(|tab| matches!(tab.kind, CenterTabKind::Terminals)),
-            "repair_center_tab_state must not reinsert a Terminals tab"
-        );
+
+        let mode_tabs: Vec<_> = ws
+            .center_tabs
+            .iter()
+            .filter(|tab| is_workspace_mode_tab_kind(&tab.kind))
+            .collect();
+        assert_eq!(mode_tabs.len(), 1);
+        assert_eq!(mode_tabs[0].id, CENTER_TERMINALS_TAB_ID);
+        assert_eq!(mode_tabs[0].title, "Canvas");
+        assert!(matches!(mode_tabs[0].kind, CenterTabKind::Canvas));
         assert_eq!(ws.center_active_tab_id, 42);
     }
 
     #[test]
-    fn repair_handles_empty_tabs() {
+    fn repair_keeps_empty_shell_tabs_empty() {
         let mut ws = mk_workspace(1, vec![]);
+        ws.cwd = String::new();
+
         repair_center_tab_state(&mut ws);
+
         assert_eq!(ws.center_active_tab_id, 0);
         assert!(ws.center_tabs.is_empty());
     }
@@ -4916,6 +5296,11 @@ mod terminal_slot_tests {
             remote_connection_id: None,
             slot_name_overrides: std::collections::HashMap::new(),
             agent_session_role: None,
+            view_mode: WorkspaceViewMode::Grid,
+            canvas_view_state: CanvasViewState::default(),
+            canvas_edges: Vec::new(),
+            canvas_default_transfer_mode: CanvasTransferMode::Structured,
+            swarm_view_state: SwarmViewState::default(),
         }
     }
 

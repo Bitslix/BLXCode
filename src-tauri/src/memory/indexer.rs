@@ -115,12 +115,30 @@ pub fn run_memory_indexer_for_workspace(
     fs::create_dir_all(&roots.memory).map_err(|e| format!("create workspace memory: {e}"))?;
     fs::create_dir_all(&global.memory).map_err(|e| format!("create global memory: {e}"))?;
 
-    render_rules(&workspace_cwd, &workspace_name, &roots.memory, &rules, &mut warnings)
-        .map(|paths| record_paths(paths, &mut generated, &mut changed))?;
-    render_skills(&workspace_cwd, &workspace_name, &roots.memory, &skills, &mut warnings)
-        .map(|paths| record_paths(paths, &mut generated, &mut changed))?;
-    render_plans(&workspace_cwd, &workspace_name, &roots.memory, &plans, &mut warnings)
-        .map(|paths| record_paths(paths, &mut generated, &mut changed))?;
+    render_rules(
+        &workspace_cwd,
+        &workspace_name,
+        &roots.memory,
+        &rules,
+        &mut warnings,
+    )
+    .map(|paths| record_paths(paths, &mut generated, &mut changed))?;
+    render_skills(
+        &workspace_cwd,
+        &workspace_name,
+        &roots.memory,
+        &skills,
+        &mut warnings,
+    )
+    .map(|paths| record_paths(paths, &mut generated, &mut changed))?;
+    render_plans(
+        &workspace_cwd,
+        &workspace_name,
+        &roots.memory,
+        &plans,
+        &mut warnings,
+    )
+    .map(|paths| record_paths(paths, &mut generated, &mut changed))?;
 
     render_global_aggregate(&global.memory, "rules", &workspace_name, &rules.len())
         .map(|path| record_one(path, &mut generated, &mut changed))?;
@@ -217,8 +235,13 @@ fn render_skills(
         links.push(format!("- [[{path}|{}]]", skill.title));
     }
     let overview = category_overview("Skills", workspace_name, &links);
-    let changed =
-        write_managed_note(memory_root, "skills/README.md", "Skills", "skills", &overview)?;
+    let changed = write_managed_note(
+        memory_root,
+        "skills/README.md",
+        "Skills",
+        "skills",
+        &overview,
+    )?;
     out.push(("skills/README.md".into(), changed));
     Ok(out)
 }
@@ -402,7 +425,10 @@ fn load_settings(app: &AppHandle) -> Result<MemoryIndexSettings, String> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             Ok(MemoryIndexSettings::from_agent_settings(app))
         }
-        Err(e) => Err(format!("read memory index settings {}: {e}", path.display())),
+        Err(e) => Err(format!(
+            "read memory index settings {}: {e}",
+            path.display()
+        )),
     }
 }
 

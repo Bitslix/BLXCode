@@ -7660,6 +7660,429 @@ button {
   overflow: hidden;
 }
 
+.workspace-terminal-board--canvas {
+  overflow: auto;
+  background:
+    radial-gradient(circle at 50% 12%, var(--overlay-2), transparent 34%),
+    var(--bg-app);
+}
+
+.ws-term-grid--canvas {
+  min-width: 1280px;
+  min-height: 860px;
+  overflow: hidden;
+}
+
+.ws-term-slot--canvas-node {
+  z-index: 3;
+  padding-top: 26px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 72%, var(--accent) 18%);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-panel) 92%, var(--accent-soft));
+  box-shadow:
+    0 18px 48px var(--scrim-bg),
+    0 0 0 1px var(--overlay-1),
+    0 0 26px color-mix(in srgb, var(--accent-soft) 54%, transparent);
+}
+
+.ws-canvas-node__drag {
+  position: absolute;
+  inset: 0 2.4rem auto 0.55rem;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  cursor: grab;
+  z-index: 7;
+}
+
+.ws-canvas-node__drag:active {
+  cursor: grabbing;
+}
+
+.ws-canvas-node__resize {
+  position: absolute;
+  right: 0.28rem;
+  bottom: 0.28rem;
+  z-index: 9;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  cursor: nwse-resize;
+}
+
+.ws-canvas-node__resize:hover {
+  border-color: var(--accent);
+  color: var(--text-bright);
+  background: var(--accent-soft);
+}
+
+.ws-canvas-pane-wrap {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
+.ws-canvas-port {
+  position: absolute;
+  z-index: 8;
+  height: 18px;
+  min-width: 18px;
+  padding: 0 0.28rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1;
+  cursor: crosshair;
+  box-shadow: 0 0 0 2px var(--bg-panel);
+}
+
+.ws-canvas-port:hover,
+.ws-canvas-port--active {
+  color: var(--text-bright);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.ws-canvas-port--stdin {
+  left: -0.85rem;
+  top: calc(50% - 9px);
+}
+
+.ws-canvas-port--stdout {
+  right: -0.85rem;
+  top: calc(50% - 9px);
+}
+
+.ws-canvas-port--pane {
+  top: 1.8rem;
+}
+
+.ws-canvas-port--agent-command {
+  right: -1.15rem;
+  top: calc(50% - 9px);
+}
+
+.ws-canvas-port--agent-observe {
+  left: -1.15rem;
+  top: calc(50% - 9px);
+}
+
+.ws-canvas-edges,
+.workspace-swarm__edges {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+  z-index: 1;
+}
+
+.ws-canvas-edge,
+.workspace-swarm__edge {
+  fill: none;
+  stroke: color-mix(in srgb, var(--accent) 54%, var(--border-strong));
+  stroke-width: 2px;
+  stroke-linecap: round;
+  opacity: 0.64;
+}
+
+.ws-canvas-edge--auto,
+.workspace-swarm__edge {
+  stroke-dasharray: 8 10;
+  opacity: 0.42;
+}
+
+.ws-canvas-edge--raw {
+  stroke: color-mix(in srgb, var(--warning) 64%, var(--accent));
+}
+
+.ws-canvas-edge--structured {
+  stroke: color-mix(in srgb, var(--accent-cool) 72%, var(--accent));
+}
+
+.ws-canvas-edge-actions {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.ws-canvas-edge-chip {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.18rem;
+  padding: 0.18rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+  box-shadow: 0 12px 28px var(--scrim-bg);
+  pointer-events: auto;
+}
+
+.ws-canvas-edge-chip button,
+.workspace-swarm__inspector button {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--overlay-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.64rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ws-canvas-agent-hub {
+  --role-accent: var(--accent);
+  position: absolute;
+  left: 500px;
+  top: 54px;
+  z-index: 4;
+  width: 176px;
+  min-height: 128px;
+  display: grid;
+  place-items: center;
+  gap: 0.45rem;
+  padding: 1rem;
+  border: 1px solid color-mix(in srgb, var(--role-accent) 70%, var(--border));
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--bg-panel) 84%, var(--role-accent) 10%);
+  box-shadow:
+    0 22px 60px var(--scrim-bg),
+    0 0 42px color-mix(in srgb, var(--role-accent) 26%, transparent);
+  color: var(--text);
+}
+
+.ws-canvas-agent-hub__icon {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--role-accent) 18%, var(--bg-raised));
+  color: var(--role-accent);
+}
+
+.ws-canvas-agent-hub__text {
+  min-width: 0;
+  display: grid;
+  gap: 0.12rem;
+  text-align: center;
+}
+
+.ws-canvas-agent-hub__text strong,
+.workspace-swarm__hub strong,
+.workspace-swarm__node strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ws-canvas-agent-hub__text span,
+.workspace-swarm__hub span,
+.workspace-swarm__node span {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+}
+
+.ws-canvas-agent-hub__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.ws-canvas-agent-hub__actions button {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--overlay-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.62rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ws-canvas-agent-hub__actions button:hover {
+  border-color: var(--role-accent);
+  color: var(--text-bright);
+  background: color-mix(in srgb, var(--role-accent) 16%, var(--overlay-2));
+}
+
+.workspace-swarm-panel {
+  overflow: hidden;
+  background: var(--bg-app);
+}
+
+.workspace-swarm {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 44%, var(--overlay-3), transparent 28%),
+    var(--bg-app);
+}
+
+.workspace-swarm__hub {
+  --role-accent: var(--accent);
+  position: absolute;
+  left: 50%;
+  top: 43%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  color: var(--text);
+}
+
+.workspace-swarm__hub-core {
+  position: relative;
+  width: 104px;
+  height: 88px;
+  display: grid;
+  place-items: center;
+  border: 2px solid color-mix(in srgb, var(--role-accent) 76%, var(--border));
+  border-radius: var(--radius-xl);
+  background: color-mix(in srgb, var(--bg-panel) 86%, var(--role-accent) 10%);
+  color: var(--role-accent);
+  box-shadow:
+    0 20px 52px var(--scrim-bg),
+    0 0 48px color-mix(in srgb, var(--role-accent) 24%, transparent);
+}
+
+.workspace-swarm__node {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  width: 130px;
+  display: grid;
+  justify-items: center;
+  gap: 0.3rem;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.workspace-swarm__node-icon {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  box-shadow: 0 12px 32px var(--scrim-bg);
+}
+
+.workspace-swarm__node--running .workspace-swarm__node-icon,
+.workspace-swarm__node--selected .workspace-swarm__node-icon {
+  border-color: color-mix(in srgb, var(--success) 70%, var(--accent));
+  color: var(--success);
+  box-shadow:
+    0 14px 34px var(--scrim-bg),
+    0 0 28px color-mix(in srgb, var(--success) 24%, transparent);
+}
+
+.workspace-swarm__led {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-circle);
+  background: var(--success);
+  box-shadow: 0 0 0 2px var(--bg-panel), 0 0 16px var(--success);
+}
+
+.workspace-swarm__inspector {
+  position: absolute;
+  left: 50%;
+  bottom: 2rem;
+  transform: translateX(-50%);
+  z-index: 5;
+  width: min(560px, calc(100% - 2rem));
+  min-height: 156px;
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-panel);
+  box-shadow: 0 22px 60px var(--scrim-bg);
+}
+
+.workspace-swarm__inspector header,
+.workspace-swarm__inspector footer {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.workspace-swarm__inspector pre {
+  min-height: 58px;
+  max-height: 96px;
+  margin: 0;
+  overflow: auto;
+  padding: 0.55rem;
+  border-radius: var(--radius-md);
+  background: var(--bg-app);
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  white-space: pre-wrap;
+}
+
+.workspace-swarm__badge {
+  padding: 0.22rem 0.45rem;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.64rem;
+  font-weight: 900;
+}
+
+.workspace-swarm__danger {
+  color: var(--danger) !important;
+}
+
+.workspace-swarm__empty {
+  align-self: center;
+  justify-self: center;
+  color: var(--text-muted);
+}
+
 .harness-settings-grid--docked {
   flex: 1 1 0;
   min-height: 0;

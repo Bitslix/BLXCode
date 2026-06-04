@@ -55,6 +55,7 @@ use browser_host::BrowserHost;
 use clipboard::{clipboard_read_text, clipboard_write_text};
 use commands::*;
 use image::{image_curated_models, image_settings_get, image_settings_save};
+use plans::PlanMigrationState;
 use pty_host::PtyManager;
 use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
@@ -62,7 +63,6 @@ use updater::{
     app_relaunch, app_version, post_update_release_notes, updater_check, updater_install_start,
     updater_poll_progress, updater_settings_get, updater_settings_save, BlxUpdaterState,
 };
-use plans::PlanMigrationState;
 use voice::{
     ptt_cancel, ptt_finalize, ptt_partial, ptt_start, voice_agent_input_active,
     voice_cancel_recording, voice_settings_get, voice_settings_save, voice_start_recording,

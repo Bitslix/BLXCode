@@ -259,7 +259,8 @@ fn start_memory_indexer(app: AppHandle, manual: bool) -> Result<(), String> {
             runtime.last_response = Some("No open workspaces to index.".into());
         } else {
             runtime.status = HeartbeatServiceStatus::Running;
-            runtime.last_response = Some(format!("Indexing {} workspace(s).", workspace_list.len()));
+            runtime.last_response =
+                Some(format!("Indexing {} workspace(s).", workspace_list.len()));
         }
         workspace_list
     };
@@ -310,7 +311,9 @@ fn mark_workspace_run_started(app: &AppHandle, workspace: &str) -> Result<bool, 
             runtime.status = HeartbeatServiceStatus::Stalled;
             runtime.last_response = Some(format!("Memory Indexer stalled for `{workspace}`."));
         } else {
-            runtime.last_response = Some(format!("Skipped `{workspace}` because it is already indexing."));
+            runtime.last_response = Some(format!(
+                "Skipped `{workspace}` because it is already indexing."
+            ));
         }
         return Ok(false);
     }

@@ -1220,13 +1220,20 @@ fn load_plan_into_agent(state: PlansState, wb: WorkbenchService, path: String) {
         .find(|m| m.path == path)
         .map(|m| m.title);
     let ws_for_done = ws.clone();
-    attach_plan_into_agent(wb, ws_id, ws, path, label_hint, move |result| match result {
-        Ok(_) => {
-            state.error.set(None);
-            load_plans_list(state, ws_for_done.clone());
-        }
-        Err(e) => state.error.set(Some(e)),
-    });
+    attach_plan_into_agent(
+        wb,
+        ws_id,
+        ws,
+        path,
+        label_hint,
+        move |result| match result {
+            Ok(_) => {
+                state.error.set(None);
+                load_plans_list(state, ws_for_done.clone());
+            }
+            Err(e) => state.error.set(Some(e)),
+        },
+    );
 }
 
 #[component]

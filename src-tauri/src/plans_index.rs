@@ -172,8 +172,8 @@ fn parse_existing_rows(body: &str) -> HashMap<String, IndexRow> {
             continue;
         };
         let row = IndexRow {
-                status: status.to_owned(),
-                description: description.to_owned(),
+            status: status.to_owned(),
+            description: description.to_owned(),
         };
         if let Some(canonical) = legacy_path_to_canonical(&path) {
             map.entry(canonical).or_insert_with(|| row.clone());

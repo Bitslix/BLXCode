@@ -79,14 +79,28 @@ mod tests {
 
     #[test]
     fn orientation_from_dimensions() {
-        assert_eq!(Orientation::from_dimensions(800.0, 400.0), Orientation::Landscape);
-        assert_eq!(Orientation::from_dimensions(400.0, 800.0), Orientation::Portrait);
-        assert_eq!(Orientation::from_dimensions(500.0, 500.0), Orientation::Portrait);
+        assert_eq!(
+            Orientation::from_dimensions(800.0, 400.0),
+            Orientation::Landscape
+        );
+        assert_eq!(
+            Orientation::from_dimensions(400.0, 800.0),
+            Orientation::Portrait
+        );
+        assert_eq!(
+            Orientation::from_dimensions(500.0, 500.0),
+            Orientation::Portrait
+        );
     }
 
     #[test]
     fn markdown_has_frontmatter_and_fence() {
-        let md = build_markdown("Auth: Flow", "flowchart", Orientation::Landscape, "flowchart TD\n A-->B");
+        let md = build_markdown(
+            "Auth: Flow",
+            "flowchart",
+            Orientation::Landscape,
+            "flowchart TD\n A-->B",
+        );
         assert!(md.contains("orientation: landscape"));
         assert!(md.contains("title: \"Auth: Flow\"")); // colon forces quoting
         assert!(md.contains("```mermaid\nflowchart TD\n A-->B\n```"));

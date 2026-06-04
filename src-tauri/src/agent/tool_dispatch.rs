@@ -469,7 +469,10 @@ mod tests {
             chat_mode: AgentChatMode::AskEdits,
         };
 
-        assert_eq!(effective_chat_mode(&state, Some(&ctx)), AgentChatMode::AskEdits);
+        assert_eq!(
+            effective_chat_mode(&state, Some(&ctx)),
+            AgentChatMode::AskEdits
+        );
 
         state.set_chat_mode_override(AgentChatMode::AllowAll);
         assert_eq!(

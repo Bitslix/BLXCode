@@ -1,5 +1,6 @@
 use crate::i18n::{lookup, I18nKey};
 use crate::service::I18nService;
+use crate::tauri_bridge::{agent_session_roles_list, pty_peek_output, pty_write, SessionRoleView};
 use crate::workbench::app_prefs::AppPrefsService;
 use crate::workbench::browser_tab::sync_embedded_browser_layer;
 use crate::workbench::create_workspace_wizard::WorkspaceConfigurator;
@@ -11,8 +12,10 @@ use crate::workbench::harness_ui::SettingsDock;
 use crate::workbench::memory_panel::MemoryPanel;
 use crate::workbench::shortcut_config::ShortcutAction;
 use crate::workbench::state::{
-    workspace_entry_has_folder, BrowserEmbedSurface, CenterTab, CenterTabKind, HarnessUiService,
-    TerminalSplitAxis, WorkspaceEntry, CENTER_TERMINALS_TAB_ID,
+    workspace_entry_has_folder, BrowserEmbedSurface, CanvasNodeKind, CanvasNodeLayout,
+    CanvasPortDirection, CanvasPortRef, CanvasTransferMode, CenterTab, CenterTabKind,
+    HarnessUiService, TerminalSplitAxis, WorkspaceEntry, WorkspaceViewMode,
+    CENTER_TERMINALS_TAB_ID,
 };
 use crate::workbench::terminal_cell::WorkspaceTerminalCell;
 use crate::workbench::terminal_context_menu::{
@@ -28,10 +31,12 @@ use crate::workbench::terminal_slot_dnd::{
 };
 use crate::workbench::toast::ToastService;
 use crate::workbench::{WorkbenchService, WorkspaceKanban};
+use base64::Engine;
 use gloo_timers::future::TimeoutFuture;
 use leptos::callback::Callback;
 use leptos::html;
 use leptos::prelude::*;
+use leptos::task::spawn_local;
 use leptos_icons::Icon as LxIcon;
 use wasm_bindgen::JsCast;
 use web_sys::{DragEvent, HtmlElement, MouseEvent};
@@ -97,6 +102,15 @@ struct CenterSplitDragState {
     start_x: f64,
     start_fraction: f64,
     total_px: f64,
+}
+
+#[derive(Clone)]
+struct CanvasNodeDragState {
+    slot_id: u64,
+    start_x: f64,
+    start_y: f64,
+    layout: CanvasNodeLayout,
+    resizing: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -178,6 +192,8 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
     let col_fr = RwSignal::new(vec![1.0; initial.grid_cols as usize]);
     let full_size_terminal = RwSignal::new(None::<u64>);
     let drag_state = RwSignal::new(None::<GridDragState>);
+    let canvas_drag_state = RwSignal::new(None::<CanvasNodeDragState>);
+    let canvas_port_start = RwSignal::new(None::<CanvasPortRef>);
     let memory_split_fraction = RwSignal::new(0.5_f64);
     let memory_split_drag = RwSignal::new(None::<CenterSplitDragState>);
 
@@ -245,6 +261,22 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                 wb.bump_terminal_layout();
                 return;
             }
+            if let Some(drag) = canvas_drag_state.try_get_untracked().flatten() {
+                ev.prevent_default();
+                let mut next = drag.layout.clone();
+                let dx = ev.client_x() as f64 - drag.start_x;
+                let dy = ev.client_y() as f64 - drag.start_y;
+                if drag.resizing {
+                    next.width = (drag.layout.width + dx).max(320.0);
+                    next.height = (drag.layout.height + dy).max(210.0);
+                } else {
+                    next.x = (drag.layout.x + dx).max(12.0);
+                    next.y = (drag.layout.y + dy).max(12.0);
+                }
+                wb.set_canvas_terminal_layout(workspace_id, drag.slot_id, next);
+                force_workbench_terminal_layout();
+                return;
+            }
             let Some(drag) = drag_state.try_get_untracked().flatten() else {
                 return;
             };
@@ -277,6 +309,7 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
         let wb = wb;
         move |_| {
             drag_state.try_set(None);
+            canvas_drag_state.try_set(None);
             if memory_split_drag.try_get_untracked().flatten().is_some() {
                 memory_split_drag.try_set(None);
                 force_workbench_terminal_layout();
@@ -322,6 +355,7 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
 
     let active_center_tab_id =
         Memo::new(move |_| wb.active_center_tab_id_for_workspace(workspace_id));
+    let view_mode = Memo::new(move |_| wb.view_mode_for_workspace(workspace_id));
     let memory_split_view = RwSignal::new(false);
     let memory_split_active = Memo::new(move |_| {
         if !memory_split_view.get() {
@@ -331,6 +365,35 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
         wb.center_tabs_for_workspace(workspace_id)
             .into_iter()
             .any(|tab| tab.id == active_tab_id && matches!(tab.kind, CenterTabKind::Memory))
+    });
+    let is_mode_tab_active =
+        Memo::new(move |_| active_center_tab_id.get() == CENTER_TERMINALS_TAB_ID);
+    let canvas_active = Memo::new(move |_| {
+        is_mode_tab_active.get() && view_mode.get() == WorkspaceViewMode::Canvas
+    });
+    let grid_active =
+        Memo::new(move |_| is_mode_tab_active.get() && view_mode.get() == WorkspaceViewMode::Grid);
+    let swarm_active =
+        Memo::new(move |_| is_mode_tab_active.get() && view_mode.get() == WorkspaceViewMode::Swarm);
+    let on_canvas_port = Callback::new(move |port: CanvasPortRef| {
+        let can_start = matches!(
+            port.direction,
+            CanvasPortDirection::Stdout | CanvasPortDirection::AgentCommand
+        );
+        if let Some(start) = canvas_port_start.get_untracked() {
+            if wb
+                .connect_canvas_ports(workspace_id, start.clone(), port.clone())
+                .is_some()
+            {
+                canvas_port_start.set(None);
+            } else if can_start {
+                canvas_port_start.set(Some(port));
+            } else {
+                canvas_port_start.set(None);
+            }
+        } else if can_start {
+            canvas_port_start.set(Some(port));
+        }
     });
     Effect::new({
         let wb = wb;
@@ -396,9 +459,17 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                 </Show>
                 <Show when=move || grid_mounted.get()>
                     <div
-                        class="workspace-center-panel"
+                        class=move || {
+                            let mut class = String::from("workspace-center-panel workspace-terminal-board");
+                            match view_mode.get() {
+                                WorkspaceViewMode::Grid => class.push_str(" workspace-terminal-board--grid"),
+                                WorkspaceViewMode::Canvas => class.push_str(" workspace-terminal-board--canvas"),
+                                WorkspaceViewMode::Swarm => class.push_str(" workspace-terminal-board--swarm"),
+                            }
+                            class
+                        }
                         class:workspace-center-panel--hidden=move || {
-                            active_center_tab_id.get() != CENTER_TERMINALS_TAB_ID
+                            (!grid_active.get() && !canvas_active.get())
                                 && !memory_split_active.get()
                         }
                         style=move || {
@@ -415,6 +486,9 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                         <div
                             class=move || {
                                 let mut class = String::from("ws-term-grid");
+                                if canvas_active.get() {
+                                    class.push_str(" ws-term-grid--canvas");
+                                }
                                 if slot_dnd.active.get().is_some() {
                                     class.push_str(" ws-term-grid--drag-active");
                                 }
@@ -422,6 +496,9 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                             }
                             node_ref=term_grid_ref
                             style=move || {
+                                if canvas_active.get() {
+                                    return "display:block;position:relative;width:100%;height:100%;".to_string();
+                                }
                                 let full = full_size_terminal.get().is_some();
                                 // Derive the authoritative track count from the
                                 // workspace itself; row_fr/col_fr only carry user-driven
@@ -447,6 +524,16 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                                 )
                             }
                         >
+                            <Show when=move || canvas_active.get()>
+                                <CanvasEdgesOverlay workspace_id=workspace_id />
+                                <CanvasAgentHub
+                                    workspace_id=workspace_id
+                                    active_port=Signal::derive(move || {
+                                        canvas_port_start.get().map(|p| canvas_port_identity(&p))
+                                    })
+                                    on_port=on_canvas_port
+                                />
+                            </Show>
                             <For
                                 each=move || {
                                     workspace
@@ -490,11 +577,64 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                                                 full_size_terminal.get() == Some(terminal_id)
                                             })
                                             on_full_size=on_full_size
+                                            canvas_mode=Signal::derive(move || canvas_active.get())
+                                            canvas_style=Signal::derive(move || {
+                                                canvas_terminal_style(
+                                                    &wb.workspaces()
+                                                        .get()
+                                                        .into_iter()
+                                                        .find(|w| w.id == workspace_id),
+                                                    terminal_id,
+                                                    index,
+                                                )
+                                            })
+                                            canvas_port_active=Signal::derive(move || {
+                                                canvas_port_start.get().map(|p| canvas_port_identity(&p))
+                                            })
+                                            on_canvas_port=on_canvas_port
+                                            on_canvas_drag_start=Callback::new(move |ev: MouseEvent| {
+                                                ev.prevent_default();
+                                                ev.stop_propagation();
+                                                let layout = wb
+                                                    .workspaces()
+                                                    .with_untracked(|list| {
+                                                        list.iter()
+                                                            .find(|w| w.id == workspace_id)
+                                                            .and_then(|w| w.canvas_view_state.terminal_nodes.get(&terminal_id).cloned())
+                                                    })
+                                                    .unwrap_or_else(|| CanvasNodeLayout::for_index(index));
+                                                canvas_drag_state.set(Some(CanvasNodeDragState {
+                                                    slot_id: terminal_id,
+                                                    start_x: ev.client_x() as f64,
+                                                    start_y: ev.client_y() as f64,
+                                                    layout,
+                                                    resizing: false,
+                                                }));
+                                            })
+                                            on_canvas_resize_start=Callback::new(move |ev: MouseEvent| {
+                                                ev.prevent_default();
+                                                ev.stop_propagation();
+                                                let layout = wb
+                                                    .workspaces()
+                                                    .with_untracked(|list| {
+                                                        list.iter()
+                                                            .find(|w| w.id == workspace_id)
+                                                            .and_then(|w| w.canvas_view_state.terminal_nodes.get(&terminal_id).cloned())
+                                                    })
+                                                    .unwrap_or_else(|| CanvasNodeLayout::for_index(index));
+                                                canvas_drag_state.set(Some(CanvasNodeDragState {
+                                                    slot_id: terminal_id,
+                                                    start_x: ev.client_x() as f64,
+                                                    start_y: ev.client_y() as f64,
+                                                    layout,
+                                                    resizing: true,
+                                                }));
+                                            })
                                         />
                                     }
                                 }
                             />
-                            <Show when=move || full_size_terminal.get().is_none()>
+                            <Show when=move || full_size_terminal.get().is_none() && grid_active.get()>
                                 <For
                                     each=move || {
                                         let cols = workspace.get().map(|w| w.grid_cols).unwrap_or(1);
@@ -563,6 +703,11 @@ fn WorkspaceSurface(workspace_id: u64) -> impl IntoView {
                                 />
                             </Show>
                         </div>
+                    </div>
+                </Show>
+                <Show when=move || swarm_active.get()>
+                    <div class="workspace-center-panel workspace-swarm-panel">
+                        <WorkspaceSwarmView workspace_id=workspace_id />
                     </div>
                 </Show>
                 <Show when=move || memory_split_active.get()>
@@ -644,7 +789,10 @@ fn CenterTabButton(workspace_id: u64, tab: CenterTab, active_tab_id: Memo<u64>) 
     // dialog; every other tab type closes immediately. The Terminals close
     // button is always visible — closing it is what triggers the "close
     // workspace" flow.
-    let is_terminals = matches!(tab.kind, CenterTabKind::Terminals);
+    let is_terminals = matches!(
+        tab.kind,
+        CenterTabKind::Terminals | CenterTabKind::Canvas | CenterTabKind::Swarm
+    );
     let is_kanban = matches!(tab.kind, CenterTabKind::Kanban);
 
     view! {
@@ -714,7 +862,12 @@ fn DynamicCenterPanels(
             each=move || {
                 wb.center_tabs_for_workspace(workspace_id)
                     .into_iter()
-                    .filter(|tab| !matches!(tab.kind, CenterTabKind::Terminals))
+                    .filter(|tab| {
+                        !matches!(
+                            tab.kind,
+                            CenterTabKind::Terminals | CenterTabKind::Canvas | CenterTabKind::Swarm
+                        )
+                    })
                     .collect::<Vec<_>>()
             }
             key=|tab| tab.id
@@ -786,7 +939,9 @@ fn DynamicCenterPanels(
                             />
                         </div>
                     }.into_any(),
-                    CenterTabKind::Terminals => view! { <></> }.into_any(),
+                    CenterTabKind::Terminals | CenterTabKind::Canvas | CenterTabKind::Swarm => {
+                        view! { <></> }.into_any()
+                    }
                 }
             }
         />
@@ -797,6 +952,8 @@ fn center_tab_icon(kind: &CenterTabKind) -> icondata::Icon {
     match kind {
         CenterTabKind::Kanban => icondata::LuKanban,
         CenterTabKind::Terminals => icondata::LuTerminal,
+        CenterTabKind::Canvas => icondata::LuWorkflow,
+        CenterTabKind::Swarm => icondata::LuNetwork,
         CenterTabKind::Settings => icondata::LuSettings2,
         CenterTabKind::Memory => icondata::LuLayers,
         CenterTabKind::FilePreview { .. } => icondata::LuFileText,
@@ -1102,6 +1259,12 @@ fn TerminalSlotSurface(
     hidden: Signal<bool>,
     is_full_size: Signal<bool>,
     on_full_size: Callback<(), ()>,
+    canvas_mode: Signal<bool>,
+    canvas_style: Signal<String>,
+    canvas_port_active: Signal<Option<String>>,
+    on_canvas_port: Callback<CanvasPortRef>,
+    on_canvas_drag_start: Callback<MouseEvent>,
+    on_canvas_resize_start: Callback<MouseEvent>,
 ) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let i18n = expect_context::<I18nService>();
@@ -1173,7 +1336,17 @@ fn TerminalSlotSurface(
                 if is_drop_over.get() {
                     class.push_str(" ws-term-slot--drag-over");
                 }
+                if canvas_mode.get() {
+                    class.push_str(" ws-term-slot--canvas-node");
+                }
                 class
+            }
+            style=move || {
+                if canvas_mode.get() {
+                    canvas_style.get()
+                } else {
+                    String::new()
+                }
             }
             on:dragenter=move |ev| {
                 if !slot_drag_enabled.get_untracked() {
@@ -1257,6 +1430,45 @@ fn TerminalSlotSurface(
                 slot_dnd.clear();
             }
         >
+            <Show when=move || canvas_mode.get()>
+                <div class="ws-canvas-node__drag" on:mousedown=move |ev| on_canvas_drag_start.run(ev)>
+                    <LxIcon icon=icondata::LuGrip width="0.82rem" height="0.82rem" />
+                    <span>{move || i18n.tr(I18nKey::CanvasSlotLabel)().replace("{id}", &slot_id.to_string())}</span>
+                </div>
+                    <CanvasPortButton
+                    class_name="ws-canvas-port ws-canvas-port--stdin ws-canvas-port--slot"
+                    label_key=I18nKey::CanvasPortStdin
+                    active=canvas_port_active
+                    port=CanvasPortRef {
+                        node_kind: CanvasNodeKind::Terminal,
+                        slot_id: Some(slot_id),
+                        pane_id: None,
+                        direction: CanvasPortDirection::Stdin,
+                    }
+                    on_port=on_canvas_port
+                />
+                <CanvasPortButton
+                    class_name="ws-canvas-port ws-canvas-port--stdout ws-canvas-port--slot"
+                    label_key=I18nKey::CanvasPortStdout
+                    active=canvas_port_active
+                    port=CanvasPortRef {
+                        node_kind: CanvasNodeKind::Terminal,
+                        slot_id: Some(slot_id),
+                        pane_id: None,
+                        direction: CanvasPortDirection::Stdout,
+                    }
+                    on_port=on_canvas_port
+                />
+                <button
+                    type="button"
+                    class="ws-canvas-node__resize"
+                    aria-label=move || i18n.tr(I18nKey::CanvasResizeNode)()
+                    title=move || i18n.tr(I18nKey::CanvasResizeNode)()
+                    on:mousedown=move |ev| on_canvas_resize_start.run(ev)
+                >
+                    <LxIcon icon=icondata::LuGrip width="0.72rem" height="0.72rem" />
+                </button>
+            </Show>
             <div
                 class="ws-term-pane-grid"
                 style=move || pane_grid_style(split_axis.get(), pane_ids.get().len())
@@ -1340,25 +1552,53 @@ fn TerminalSlotSurface(
                         });
                         let terminal_key = format!("{storage_key}:{slot_id}:{pane_id}");
                         view! {
-                            <WorkspaceTerminalCell
-                                workspace_id=workspace_id
-                                slot_id=slot_id
-                                pane_id=pane_id
-                                cwd=cwd.clone()
-                                grid_index=index
-                                agent_slug=agent_slug.clone()
-                                title=title
-                                terminal_key=terminal_key
-                                is_workspace_active=is_workspace_active
-                                is_slot_hidden=hidden
-                                is_full_size=is_full_size
-                                on_full_size=on_full_size
-                                on_split_vertical=on_split_vertical
-                                on_split_horizontal=on_split_horizontal
-                                on_close=on_close
-                                can_close=can_close
-                                slot_drag_enabled=Signal::derive(move || can_drag_slot.get())
-                            />
+                            <div class="ws-canvas-pane-wrap">
+                                <Show when=move || canvas_mode.get() && pane_ids.with(|ids| ids.len() > 1)>
+                                    <CanvasPortButton
+                                        class_name="ws-canvas-port ws-canvas-port--stdin ws-canvas-port--pane"
+                                        label_key=I18nKey::CanvasPortStdin
+                                        active=canvas_port_active
+                                        port=CanvasPortRef {
+                                            node_kind: CanvasNodeKind::Terminal,
+                                            slot_id: Some(slot_id),
+                                            pane_id: Some(pane_id),
+                                            direction: CanvasPortDirection::Stdin,
+                                        }
+                                        on_port=on_canvas_port
+                                    />
+                                    <CanvasPortButton
+                                        class_name="ws-canvas-port ws-canvas-port--stdout ws-canvas-port--pane"
+                                        label_key=I18nKey::CanvasPortStdout
+                                        active=canvas_port_active
+                                        port=CanvasPortRef {
+                                            node_kind: CanvasNodeKind::Terminal,
+                                            slot_id: Some(slot_id),
+                                            pane_id: Some(pane_id),
+                                            direction: CanvasPortDirection::Stdout,
+                                        }
+                                        on_port=on_canvas_port
+                                    />
+                                </Show>
+                                <WorkspaceTerminalCell
+                                    workspace_id=workspace_id
+                                    slot_id=slot_id
+                                    pane_id=pane_id
+                                    cwd=cwd.clone()
+                                    grid_index=index
+                                    agent_slug=agent_slug.clone()
+                                    title=title
+                                    terminal_key=terminal_key
+                                    is_workspace_active=is_workspace_active
+                                    is_slot_hidden=hidden
+                                    is_full_size=is_full_size
+                                    on_full_size=on_full_size
+                                    on_split_vertical=on_split_vertical
+                                    on_split_horizontal=on_split_horizontal
+                                    on_close=on_close
+                                    can_close=can_close
+                                    slot_drag_enabled=Signal::derive(move || can_drag_slot.get())
+                                />
+                            </div>
                         }
                     }
                 />
@@ -1384,6 +1624,631 @@ fn insert_pane_after(pane_ids: RwSignal<Vec<u64>>, next_pane_id: RwSignal<u64>, 
             .unwrap_or(ids.len());
         ids.insert(insert_at, new_id);
     });
+}
+
+#[component]
+fn WorkspaceSwarmView(workspace_id: u64) -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+    let i18n = expect_context::<I18nService>();
+    let roles = RwSignal::new(Vec::<SessionRoleView>::new());
+    let selected_slot = RwSignal::new(None::<u64>);
+    Effect::new(move |_| {
+        spawn_local(async move {
+            if let Ok(list) = agent_session_roles_list().await {
+                roles.set(list);
+            }
+        });
+    });
+
+    let workspace = Signal::derive(move || {
+        wb.workspaces()
+            .get()
+            .into_iter()
+            .find(|workspace| workspace.id == workspace_id)
+    });
+    let hub_role = Signal::derive(move || {
+        let ws = workspace.get()?;
+        let slug = ws.agent_session_role?;
+        roles
+            .get()
+            .into_iter()
+            .find(|role| role.slug == slug && role.terminal_agent_swarm)
+    });
+
+    view! {
+        <section class="workspace-swarm">
+            <svg
+                class="workspace-swarm__edges"
+                viewBox="-640 -360 1280 720"
+                preserveAspectRatio="xMidYMid meet"
+                aria-hidden="true"
+            >
+                {move || {
+                    let Some(ws) = workspace.get() else {
+                        return Vec::<AnyView>::new();
+                    };
+                    ws.slot_ids
+                        .iter()
+                        .copied()
+                        .enumerate()
+                        .map(|(idx, _)| {
+                            let (tx, ty) = swarm_node_point(idx, ws.slot_ids.len());
+                            let d = curved_path(0.0, 0.0, tx, ty);
+                            view! { <path class="workspace-swarm__edge" d=d></path> }.into_any()
+                        })
+                        .collect::<Vec<_>>()
+                }}
+            </svg>
+            <div
+                class="workspace-swarm__hub"
+                style=move || {
+                    let color = hub_role
+                        .get()
+                        .map(|role| role.color)
+                        .filter(|color| !color.trim().is_empty())
+                        .unwrap_or_else(|| "var(--accent)".into());
+                    format!("--role-accent:{color};")
+                }
+            >
+                <div class="workspace-swarm__hub-core">
+                    <LxIcon icon=icondata::LuCrown width="1.55rem" height="1.55rem" />
+                    <span class="workspace-swarm__led"></span>
+                </div>
+                <strong>{move || {
+                    hub_role
+                        .get()
+                        .map(|r| r.title)
+                        .unwrap_or_else(|| i18n.tr(I18nKey::SwarmAgentFallbackTitle)().into())
+                }}</strong>
+                <span>{move || {
+                    if hub_role.get().is_some() {
+                        i18n.tr(I18nKey::SwarmAgentEnabled)()
+                    } else {
+                        i18n.tr(I18nKey::SwarmDefaultRole)()
+                    }
+                }}</span>
+            </div>
+            <div class="workspace-swarm__nodes">
+                {move || {
+                    let Some(ws) = workspace.get() else {
+                        return Vec::<AnyView>::new();
+                    };
+                    let running = wb.pty_sessions_for_workspace(workspace_id);
+                    ws.slot_ids
+                        .iter()
+                        .copied()
+                        .enumerate()
+                        .map(|(idx, slot_id)| {
+                            let agent = ws.slot_agent_labels.get(idx).cloned().unwrap_or_default();
+                            let running_now = running.iter().any(|(slot, _, _)| *slot == slot_id);
+                            let (x, y) = swarm_node_point(idx, ws.slot_ids.len());
+                            let label = if agent.trim().is_empty() {
+                                i18n.tr(I18nKey::SwarmTerminalLabel)().replace("{id}", &slot_id.to_string())
+                            } else {
+                                format!("{} {slot_id}", title_case_ascii(&agent))
+                            };
+                            let status_key = if running_now {
+                                I18nKey::SwarmStatusRunning
+                            } else {
+                                I18nKey::SwarmStatusIdle
+                            };
+                            view! {
+                                <button
+                                    type="button"
+                                    class="workspace-swarm__node"
+                                    class:workspace-swarm__node--running=move || running_now
+                                    class:workspace-swarm__node--selected=move || selected_slot.get() == Some(slot_id)
+                                    style=format!("left:calc(50% + {x:.1}px);top:calc(50% + {y:.1}px);")
+                                    on:click=move |_| selected_slot.set(Some(slot_id))
+                                >
+                                    <span class="workspace-swarm__node-icon">
+                                        <LxIcon icon=icondata::LuHammer width="1.2rem" height="1.2rem" />
+                                        <span class="workspace-swarm__led"></span>
+                                    </span>
+                                    <strong>{label}</strong>
+                                    <span>{move || i18n.tr(status_key)()}</span>
+                                </button>
+                            }.into_any()
+                        })
+                        .collect::<Vec<_>>()
+                }}
+            </div>
+            <SwarmNodePanel workspace_id=workspace_id selected_slot=selected_slot />
+        </section>
+    }
+}
+
+#[component]
+fn SwarmNodePanel(workspace_id: u64, selected_slot: RwSignal<Option<u64>>) -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+    let i18n = expect_context::<I18nService>();
+    let preview = RwSignal::new(String::new());
+    Effect::new(move |_| {
+        let Some(slot_id) = selected_slot.get() else {
+            preview.set(String::new());
+            return;
+        };
+        let session = terminal_session_for_port(wb, workspace_id, slot_id, None);
+        spawn_local(async move {
+            let text = match session {
+                Some(session) => pty_peek_output(session, 2048).await.unwrap_or_default(),
+                None => String::new(),
+            };
+            preview.set(text);
+        });
+    });
+
+    view! {
+        <aside class="workspace-swarm__inspector">
+            <Show
+                when=move || selected_slot.get().is_some()
+                fallback=move || view! {
+                    <span class="workspace-swarm__empty">{move || i18n.tr(I18nKey::SwarmSelectTerminalAgent)()}</span>
+                }
+            >
+                {move || {
+                    let slot_id = selected_slot.get().unwrap_or_default();
+                    view! {
+                        <header>
+                            <span class="workspace-swarm__badge">{move || i18n.tr(I18nKey::SwarmAgentBadge)()}</span>
+                            <strong>{move || i18n.tr(I18nKey::SwarmTerminalLabel)().replace("{id}", &slot_id.to_string())}</strong>
+                        </header>
+                        <pre>{move || preview.get()}</pre>
+                        <footer>
+                            <button type="button" on:click=move |_| wb.open_center_terminals_tab(workspace_id)>
+                                <LxIcon icon=icondata::LuTerminal width="0.8rem" height="0.8rem" />
+                                <span>{move || i18n.tr(I18nKey::SwarmOpenTerminal)()}</span>
+                            </button>
+                            <button
+                                type="button"
+                                class="workspace-swarm__danger"
+                                on:click=move |_| {
+                                    if let Some(session) = terminal_session_for_port(wb, workspace_id, slot_id, None) {
+                                        spawn_local(async move {
+                                            let b64 = base64::engine::general_purpose::STANDARD.encode([3_u8]);
+                                            let _ = pty_write(session, b64).await;
+                                        });
+                                    }
+                                }
+                            >
+                                <LxIcon icon=icondata::LuOctagonX width="0.8rem" height="0.8rem" />
+                                <span>{move || i18n.tr(I18nKey::SwarmStop)()}</span>
+                            </button>
+                        </footer>
+                    }
+                }}
+            </Show>
+        </aside>
+    }
+}
+
+fn swarm_node_point(index: usize, count: usize) -> (f64, f64) {
+    let count = count.max(1);
+    let angle =
+        -std::f64::consts::FRAC_PI_2 + (index as f64 / count as f64) * std::f64::consts::TAU;
+    let rx = 320.0;
+    let ry = 185.0;
+    (angle.cos() * rx, angle.sin() * ry)
+}
+
+fn title_case_ascii(value: &str) -> String {
+    let mut chars = value.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+        None => String::new(),
+    }
+}
+
+#[component]
+fn CanvasEdgesOverlay(workspace_id: u64) -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+    let i18n = expect_context::<I18nService>();
+    let roles = RwSignal::new(Vec::<SessionRoleView>::new());
+    Effect::new(move |_| {
+        spawn_local(async move {
+            if let Ok(list) = agent_session_roles_list().await {
+                roles.set(list);
+            }
+        });
+    });
+
+    let workspace = Signal::derive(move || {
+        wb.workspaces()
+            .get()
+            .into_iter()
+            .find(|workspace| workspace.id == workspace_id)
+    });
+
+    view! {
+        <svg class="ws-canvas-edges" aria-hidden="true">
+            {move || {
+                let Some(ws) = workspace.get() else {
+                    return Vec::<AnyView>::new();
+                };
+                let mut paths = Vec::<AnyView>::new();
+                if canvas_role_allows_swarm(&roles.get(), ws.agent_session_role.as_deref())
+                    && ws.canvas_view_state.show_agent_links
+                {
+                    for (idx, slot_id) in ws.slot_ids.iter().copied().enumerate() {
+                        let layout = ws.canvas_view_state.terminal_nodes
+                            .get(&slot_id)
+                            .cloned()
+                            .unwrap_or_else(|| CanvasNodeLayout::for_index(idx));
+                        let (sx, sy) = (610.0, 136.0);
+                        let (tx, ty) = (layout.x, layout.y + layout.height * 0.48);
+                        let d = curved_path(sx, sy, tx, ty);
+                        paths.push(view! {
+                            <path class="ws-canvas-edge ws-canvas-edge--auto" d=d></path>
+                        }.into_any());
+                    }
+                }
+                for edge in ws.canvas_edges.iter() {
+                    let Some((sx, sy)) = canvas_port_point(&ws, &edge.source) else {
+                        continue;
+                    };
+                    let Some((tx, ty)) = canvas_port_point(&ws, &edge.target) else {
+                        continue;
+                    };
+                    let class = match edge.transfer_mode {
+                        CanvasTransferMode::Raw => "ws-canvas-edge ws-canvas-edge--raw",
+                        CanvasTransferMode::Structured => "ws-canvas-edge ws-canvas-edge--structured",
+                    };
+                    let d = curved_path(sx, sy, tx, ty);
+                    paths.push(view! { <path class=class d=d></path> }.into_any());
+                }
+                paths
+            }}
+        </svg>
+        <div class="ws-canvas-edge-actions">
+            {move || {
+                workspace
+                    .get()
+                    .map(|ws| {
+                        let edges = ws.canvas_edges.clone();
+                        edges
+                            .into_iter()
+                            .filter_map(move |edge| {
+                                let (sx, sy) = canvas_port_point(&ws, &edge.source)?;
+                                let (tx, ty) = canvas_port_point(&ws, &edge.target)?;
+                                let left = (sx + tx) / 2.0;
+                                let top = (sy + ty) / 2.0;
+                                let edge_send = edge.clone();
+                                let edge_toggle = edge.id.clone();
+                                let edge_remove = edge.id.clone();
+                                let mode = match edge.transfer_mode {
+                                    CanvasTransferMode::Raw => I18nKey::CanvasTransferRawShort,
+                                    CanvasTransferMode::Structured => I18nKey::CanvasTransferStructuredShort,
+                                };
+                                Some(view! {
+                                    <div class="ws-canvas-edge-chip" style=format!("left:{left:.1}px;top:{top:.1}px;")>
+                                        <button
+                                            type="button"
+                                            title=move || i18n.tr(I18nKey::CanvasEdgeSend)()
+                                            on:click=move |_| send_canvas_edge(wb, workspace_id, edge_send.clone())
+                                        >
+                                            <LxIcon icon=icondata::LuSendHorizontal width="0.72rem" height="0.72rem" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            title=move || i18n.tr(I18nKey::CanvasEdgeToggleTransfer)()
+                                            on:click=move |_| wb.toggle_canvas_edge_transfer_mode(workspace_id, edge_toggle.clone())
+                                        >
+                                            {move || i18n.tr(mode)()}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            title=move || i18n.tr(I18nKey::CanvasEdgeRemove)()
+                                            on:click=move |_| wb.remove_canvas_edge(workspace_id, edge_remove.clone())
+                                        >
+                                            <LxIcon icon=icondata::LuX width="0.72rem" height="0.72rem" />
+                                        </button>
+                                    </div>
+                                }.into_any())
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default()
+            }}
+        </div>
+    }
+}
+
+#[component]
+fn CanvasAgentHub(
+    workspace_id: u64,
+    active_port: Signal<Option<String>>,
+    on_port: Callback<CanvasPortRef>,
+) -> impl IntoView {
+    let wb = expect_context::<WorkbenchService>();
+    let i18n = expect_context::<I18nService>();
+    let roles = RwSignal::new(Vec::<SessionRoleView>::new());
+    Effect::new(move |_| {
+        spawn_local(async move {
+            if let Ok(list) = agent_session_roles_list().await {
+                roles.set(list);
+            }
+        });
+    });
+
+    let role = Signal::derive(move || {
+        let slug = wb
+            .workspaces()
+            .get()
+            .into_iter()
+            .find(|workspace| workspace.id == workspace_id)
+            .and_then(|workspace| workspace.agent_session_role);
+        let slug = slug?;
+        roles
+            .get()
+            .into_iter()
+            .find(|role| role.slug == slug && role.terminal_agent_swarm)
+    });
+
+    view! {
+        <Show when=move || role.get().is_some()>
+            {move || {
+                let role = role.get().unwrap_or_else(|| SessionRoleView {
+                    slug: "agent".into(),
+                    title: i18n.tr(I18nKey::SwarmAgentFallbackTitle)().into(),
+                    description: String::new(),
+                    tools: Vec::new(),
+                    skills: Vec::new(),
+                    color: String::new(),
+                    provider: String::new(),
+                    models: Vec::new(),
+                    terminal_agent_swarm: true,
+                    enabled: true,
+                });
+                let color = if role.color.trim().is_empty() {
+                    "var(--accent)".to_string()
+                } else {
+                    role.color.clone()
+                };
+                view! {
+                    <section class="ws-canvas-agent-hub" style=format!("--role-accent:{color};")>
+                        <CanvasPortButton
+                            class_name="ws-canvas-port ws-canvas-port--agent-command"
+                            label_key=I18nKey::CanvasPortCommand
+                            active=active_port
+                            port=CanvasPortRef {
+                                node_kind: CanvasNodeKind::AgentHub,
+                                slot_id: None,
+                                pane_id: None,
+                                direction: CanvasPortDirection::AgentCommand,
+                            }
+                            on_port=on_port
+                        />
+                        <CanvasPortButton
+                            class_name="ws-canvas-port ws-canvas-port--agent-observe"
+                            label_key=I18nKey::CanvasPortObserve
+                            active=active_port
+                            port=CanvasPortRef {
+                                node_kind: CanvasNodeKind::AgentHub,
+                                slot_id: None,
+                                pane_id: None,
+                                direction: CanvasPortDirection::AgentObserve,
+                            }
+                            on_port=on_port
+                        />
+                        <div class="ws-canvas-agent-hub__icon">
+                            <LxIcon icon=icondata::LuCrown width="1.35rem" height="1.35rem" />
+                        </div>
+                        <div class="ws-canvas-agent-hub__text">
+                            <strong>{role.title}</strong>
+                            <span>{move || i18n.tr(I18nKey::CanvasAgentHubSubtitle)()}</span>
+                        </div>
+                        <div class="ws-canvas-agent-hub__actions">
+                            <button
+                                type="button"
+                                title=move || i18n.tr(I18nKey::CanvasAgentHubList)()
+                                on:click=move |_| wb.open_center_terminals_tab(workspace_id)
+                            >
+                                <LxIcon icon=icondata::LuList width="0.72rem" height="0.72rem" />
+                                <span>{move || i18n.tr(I18nKey::CanvasAgentHubList)()}</span>
+                            </button>
+                            <button
+                                type="button"
+                                title=move || i18n.tr(I18nKey::CanvasAgentHubOpen)()
+                                on:click=move |_| {
+                                    let _ = wb.append_terminal_slot(workspace_id, None);
+                                }
+                            >
+                                <LxIcon icon=icondata::LuPlus width="0.72rem" height="0.72rem" />
+                                <span>{move || i18n.tr(I18nKey::CanvasAgentHubOpen)()}</span>
+                            </button>
+                            <button
+                                type="button"
+                                title=move || i18n.tr(I18nKey::CanvasAgentHubObserve)()
+                                on:click=move |_| wb.open_center_swarm_tab(workspace_id)
+                            >
+                                <LxIcon icon=icondata::LuActivity width="0.72rem" height="0.72rem" />
+                                <span>{move || i18n.tr(I18nKey::CanvasAgentHubObserve)()}</span>
+                            </button>
+                        </div>
+                    </section>
+                }
+            }}
+        </Show>
+    }
+}
+
+#[component]
+fn CanvasPortButton(
+    class_name: &'static str,
+    label_key: I18nKey,
+    active: Signal<Option<String>>,
+    port: CanvasPortRef,
+    on_port: Callback<CanvasPortRef>,
+) -> impl IntoView {
+    let i18n = expect_context::<I18nService>();
+    let active_label = canvas_port_identity(&port);
+    view! {
+        <button
+            type="button"
+            class=class_name
+            class:ws-canvas-port--active=move || active.get().as_deref() == Some(active_label.as_str())
+            title=move || i18n.tr(label_key)()
+            aria-label=move || i18n.tr(label_key)()
+            on:mousedown=|ev: MouseEvent| ev.stop_propagation()
+            on:click=move |ev| {
+                ev.prevent_default();
+                ev.stop_propagation();
+                on_port.run(port.clone());
+            }
+        >
+            <span>{move || i18n.tr(label_key)()}</span>
+        </button>
+    }
+}
+
+fn canvas_terminal_style(workspace: &Option<WorkspaceEntry>, slot_id: u64, index: usize) -> String {
+    let layout = workspace
+        .as_ref()
+        .and_then(|w| w.canvas_view_state.terminal_nodes.get(&slot_id).cloned())
+        .unwrap_or_else(|| CanvasNodeLayout::for_index(index));
+    format!(
+        "position:absolute;left:{:.1}px;top:{:.1}px;width:{:.1}px;height:{:.1}px;",
+        layout.x, layout.y, layout.width, layout.height
+    )
+}
+
+fn canvas_port_identity(port: &CanvasPortRef) -> String {
+    let node = match port.node_kind {
+        CanvasNodeKind::Terminal => "terminal",
+        CanvasNodeKind::AgentHub => "agent",
+    };
+    let direction = match port.direction {
+        CanvasPortDirection::Stdin => "stdin",
+        CanvasPortDirection::Stdout => "stdout",
+        CanvasPortDirection::AgentCommand => "command",
+        CanvasPortDirection::AgentObserve => "observe",
+    };
+    match (port.slot_id, port.pane_id) {
+        (Some(slot), Some(pane)) => format!("{node}:{slot}:{pane}:{direction}"),
+        (Some(slot), None) => format!("{node}:{slot}:{direction}"),
+        _ => format!("{node}:{direction}"),
+    }
+}
+
+fn canvas_role_allows_swarm(roles: &[SessionRoleView], slug: Option<&str>) -> bool {
+    let Some(slug) = slug else {
+        return false;
+    };
+    roles
+        .iter()
+        .any(|role| role.slug == slug && role.terminal_agent_swarm)
+}
+
+fn canvas_port_point(workspace: &WorkspaceEntry, port: &CanvasPortRef) -> Option<(f64, f64)> {
+    match (port.node_kind, port.direction) {
+        (CanvasNodeKind::AgentHub, CanvasPortDirection::AgentCommand) => Some((650.0, 118.0)),
+        (CanvasNodeKind::AgentHub, CanvasPortDirection::AgentObserve) => Some((522.0, 118.0)),
+        (CanvasNodeKind::AgentHub, CanvasPortDirection::Stdin | CanvasPortDirection::Stdout) => {
+            None
+        }
+        (CanvasNodeKind::Terminal, direction) => {
+            let slot_id = port.slot_id?;
+            let index = workspace
+                .slot_ids
+                .iter()
+                .position(|id| *id == slot_id)
+                .unwrap_or_default();
+            let layout = workspace
+                .canvas_view_state
+                .terminal_nodes
+                .get(&slot_id)
+                .cloned()
+                .unwrap_or_else(|| CanvasNodeLayout::for_index(index));
+            match direction {
+                CanvasPortDirection::Stdin => Some((layout.x, layout.y + layout.height * 0.5)),
+                CanvasPortDirection::Stdout => {
+                    Some((layout.x + layout.width, layout.y + layout.height * 0.5))
+                }
+                CanvasPortDirection::AgentCommand | CanvasPortDirection::AgentObserve => None,
+            }
+        }
+    }
+}
+
+fn curved_path(sx: f64, sy: f64, tx: f64, ty: f64) -> String {
+    let dx = (tx - sx).abs().max(120.0) * 0.45;
+    let c1x = if tx >= sx { sx + dx } else { sx - dx };
+    let c2x = if tx >= sx { tx - dx } else { tx + dx };
+    format!("M {sx:.1} {sy:.1} C {c1x:.1} {sy:.1}, {c2x:.1} {ty:.1}, {tx:.1} {ty:.1}")
+}
+
+fn send_canvas_edge(
+    wb: WorkbenchService,
+    workspace_id: u64,
+    edge: crate::workbench::state::CanvasEdge,
+) {
+    let Some(source_slot) = edge.source.slot_id else {
+        return;
+    };
+    let Some(target_slot) = edge.target.slot_id else {
+        return;
+    };
+    let source_pane = edge.source.pane_id;
+    let target_pane = edge.target.pane_id;
+    let source_session = terminal_session_for_port(wb, workspace_id, source_slot, source_pane);
+    let target_session = terminal_session_for_port(wb, workspace_id, target_slot, target_pane);
+    let Some(source_session) = source_session else {
+        return;
+    };
+    let Some(target_session) = target_session else {
+        return;
+    };
+    spawn_local(async move {
+        let Ok(output) = pty_peek_output(source_session, 16 * 1024).await else {
+            return;
+        };
+        let payload = match edge.transfer_mode {
+            CanvasTransferMode::Raw => output,
+            CanvasTransferMode::Structured => structured_canvas_payload(
+                source_slot,
+                source_pane,
+                target_slot,
+                target_pane,
+                &output,
+            ),
+        };
+        let b64 = base64::engine::general_purpose::STANDARD.encode(payload.as_bytes());
+        let _ = pty_write(target_session, b64).await;
+    });
+}
+
+fn terminal_session_for_port(
+    wb: WorkbenchService,
+    workspace_id: u64,
+    slot_id: u64,
+    pane_id: Option<u64>,
+) -> Option<u64> {
+    wb.pty_sessions_for_workspace(workspace_id)
+        .into_iter()
+        .find(|(slot, pane, _)| *slot == slot_id && pane_id.map_or(true, |id| *pane == id))
+        .map(|(_, _, session)| session)
+}
+
+fn structured_canvas_payload(
+    source_slot: u64,
+    source_pane: Option<u64>,
+    target_slot: u64,
+    target_pane: Option<u64>,
+    output: &str,
+) -> String {
+    let timestamp = js_sys::Date::new_0()
+        .to_iso_string()
+        .as_string()
+        .unwrap_or_default();
+    format!(
+        "⟪ BLXCode Canvas routed terminal context ⟫\n\n## Route\n- Source: slot {source_slot}{source_pane_label}\n- Target: slot {target_slot}{target_pane_label}\n- Transfer: structured stdout -> stdin\n- Timestamp: {timestamp}\n\n## Source output\n```text\n{output}\n```\n",
+        source_pane_label = source_pane
+            .map(|pane| format!(", pane {pane}"))
+            .unwrap_or_default(),
+        target_pane_label = target_pane
+            .map(|pane| format!(", pane {pane}"))
+            .unwrap_or_default(),
+    )
 }
 
 fn pane_grid_style(axis: TerminalSplitAxis, count: usize) -> String {

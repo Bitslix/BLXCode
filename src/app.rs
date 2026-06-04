@@ -4,15 +4,19 @@ use crate::i18n::{localized_eula_html, I18nKey};
 use crate::open_http::dom_click_http_url_from_mouse_event;
 use crate::quit::request_app_quit;
 use crate::service::I18nService;
+use crate::tauri_bridge::{
+    heartbeat_services_list, heartbeat_set_open_workspaces, is_tauri_shell,
+    listen_heartbeat_services_changed, HeartbeatServiceStatus, HeartbeatServiceView,
+};
 use crate::workbench::AppTitleBar;
 use crate::workbench::EditorSettingsService;
+use crate::workbench::PlanMigrationService;
 use crate::workbench::ThemeService;
 use crate::workbench::UpdateCheckSource;
 use crate::workbench::UpdateService;
 use crate::workbench::UpdateUiStatus;
 use crate::workbench::WorkbenchService;
 use crate::workbench::WorkbenchShell;
-use crate::workbench::PlanMigrationService;
 use crate::workbench::{CoreStatusBarItem, CoreStatusService, VimStatusIndicator};
 use crate::workbench::{HookInstallDialogService, HookStatusBarItem, HookStatusService};
 use gloo_timers::future::TimeoutFuture;
@@ -22,10 +26,6 @@ use leptos_icons::Icon as LxIcon;
 use send_wrapper::SendWrapper;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::JsCast;
-use crate::tauri_bridge::{
-    heartbeat_services_list, heartbeat_set_open_workspaces, is_tauri_shell,
-    listen_heartbeat_services_changed, HeartbeatServiceStatus, HeartbeatServiceView,
-};
 
 #[component]
 pub fn App() -> impl IntoView {

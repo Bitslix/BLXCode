@@ -105,7 +105,11 @@ pub async fn create_editor(
     let _ = Reflect::set(&opts, &"language".into(), &lang);
     let _ = Reflect::set(&opts, &"readOnly".into(), &JsValue::from_bool(read_only));
     let _ = Reflect::set(&opts, &"vim".into(), &JsValue::from_bool(vim));
-    let _ = Reflect::set(&opts, &"editorKeymap".into(), &editor_keymap_array(editor_keymap));
+    let _ = Reflect::set(
+        &opts,
+        &"editorKeymap".into(),
+        &editor_keymap_array(editor_keymap),
+    );
     let _ = Reflect::set(&opts, &"onChange".into(), on_change);
     let _ = Reflect::set(&opts, &"onSave".into(), on_save);
     let _ = Reflect::set(&opts, &"onCursor".into(), on_cursor);

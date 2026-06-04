@@ -99,8 +99,8 @@ fn read_manifest(dir: &PathBuf) -> Manifest {
 fn write_manifest(dir: &PathBuf, manifest: &Manifest) -> Result<(), String> {
     fs::create_dir_all(dir).map_err(|e| format!("create diagrams dir: {e}"))?;
     let path = dir.join(MANIFEST_FILE);
-    let json = serde_json::to_string_pretty(manifest)
-        .map_err(|e| format!("serialize manifest: {e}"))?;
+    let json =
+        serde_json::to_string_pretty(manifest).map_err(|e| format!("serialize manifest: {e}"))?;
     fs::write(&path, json).map_err(|e| format!("write manifest: {e}"))
 }
 
@@ -114,7 +114,11 @@ fn slugify_unique(title: &str, existing: &[DiagramMeta]) -> String {
         .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
         .collect();
     let base = base.trim_matches('-').to_string();
-    let base = if base.is_empty() { "diagram".to_string() } else { base };
+    let base = if base.is_empty() {
+        "diagram".to_string()
+    } else {
+        base
+    };
     let taken = |id: &str| existing.iter().any(|d| d.id == id);
     if !taken(&base) {
         return base;

@@ -121,9 +121,7 @@ fn build_one(ws: &str, spec: Spec) -> Result<DiagramOut, String> {
             })
         }
         None => Ok(DiagramOut {
-            id: spec
-                .id
-                .unwrap_or_else(|| slugify(&spec.title)),
+            id: spec.id.unwrap_or_else(|| slugify(&spec.title)),
             title: spec.title,
             kind: spec.kind,
             code: spec.code,

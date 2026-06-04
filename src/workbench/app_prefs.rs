@@ -6,7 +6,8 @@ use super::terminal_naming::{self, TerminalNamingMode, NAME_POOL_KEY, NAMING_MOD
 use crate::config::{
     CONFIRM_CLOSE_WORKSPACE_KEY, EDITOR_SHORTCUT_BINDINGS_KEY, MEMORY_RIGHT_PANEL_ENABLED_KEY,
     SHORTCUT_BINDINGS_STORAGE_KEY, SHORTCUT_MODE_LEGACY, SHORTCUT_MODE_STORAGE_KEY,
-    SHORTCUT_MODE_TMUX, SUCCESS_SOUND_STORAGE_KEY, SUCCESS_TOAST_STORAGE_KEY, UPDATE_AUTO_CHECK_KEY,
+    SHORTCUT_MODE_TMUX, SUCCESS_SOUND_STORAGE_KEY, SUCCESS_TOAST_STORAGE_KEY,
+    UPDATE_AUTO_CHECK_KEY,
 };
 use leptos::prelude::*;
 
@@ -198,7 +199,8 @@ impl AppPrefsService {
 
     /// Reset every editor action to its default combo.
     pub fn reset_all_editor_shortcut_bindings(&self) {
-        self.editor_shortcut_config.set(EditorShortcutConfig::preset());
+        self.editor_shortcut_config
+            .set(EditorShortcutConfig::preset());
         self.persist_editor_config();
     }
 

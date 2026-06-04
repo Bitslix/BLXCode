@@ -436,6 +436,15 @@
   background: var(--border);
 }
 
+.app-titlebar__popover--view-mode {
+  min-width: 176px;
+}
+
+.app-titlebar__view-mode-item--active {
+  background: var(--accent-soft);
+  color: var(--text-bright);
+}
+
 /* ---- Help / About ---- */
 .app-titlebar__popover--help {
   min-width: 190px;

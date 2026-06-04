@@ -97,8 +97,8 @@ pub fn mermaid_export_pdf(
 
 fn svg_to_pdf(svg: &str) -> Result<Vec<u8>, String> {
     let options = svg2pdf::usvg::Options::default();
-    let tree = svg2pdf::usvg::Tree::from_str(svg, &options)
-        .map_err(|e| format!("parse svg: {e}"))?;
+    let tree =
+        svg2pdf::usvg::Tree::from_str(svg, &options).map_err(|e| format!("parse svg: {e}"))?;
     svg2pdf::to_pdf(
         &tree,
         svg2pdf::ConversionOptions::default(),

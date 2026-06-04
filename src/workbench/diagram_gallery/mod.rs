@@ -43,7 +43,9 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
     // load and the per-diagram delete action can reach the store.
     let GalleryScope::Plan { slug } = scope;
     let cwd = wb.workspaces().with_untracked(|list| {
-        list.iter().find(|w| w.id == workspace_id).map(|w| w.cwd.clone())
+        list.iter()
+            .find(|w| w.id == workspace_id)
+            .map(|w| w.cwd.clone())
     });
 
     // Populate the diagram set.
@@ -63,13 +65,25 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
     }
 
     let active_code = Signal::derive(move || {
-        diagrams.with(|d| d.get(active.get()).map(|r| r.code.clone()).unwrap_or_default())
+        diagrams.with(|d| {
+            d.get(active.get())
+                .map(|r| r.code.clone())
+                .unwrap_or_default()
+        })
     });
     let active_title = Signal::derive(move || {
-        diagrams.with(|d| d.get(active.get()).map(|r| r.title.clone()).unwrap_or_default())
+        diagrams.with(|d| {
+            d.get(active.get())
+                .map(|r| r.title.clone())
+                .unwrap_or_default()
+        })
     });
     let active_kind = Signal::derive(move || {
-        diagrams.with(|d| d.get(active.get()).map(|r| r.kind.clone()).unwrap_or_default())
+        diagrams.with(|d| {
+            d.get(active.get())
+                .map(|r| r.kind.clone())
+                .unwrap_or_default()
+        })
     });
 
     let toast_md = toast.clone();
@@ -113,7 +127,9 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
     let del_slug = StoredValue::new(slug.clone());
     let del_cwd = StoredValue::new(cwd.clone());
     let on_delete = move |_| {
-        let Some(cwd) = del_cwd.get_value() else { return };
+        let Some(cwd) = del_cwd.get_value() else {
+            return;
+        };
         let slug = del_slug.get_value();
         let idx = active.get_untracked();
         let Some(id) = diagrams.with_untracked(|d| d.get(idx).map(|r| r.id.clone())) else {

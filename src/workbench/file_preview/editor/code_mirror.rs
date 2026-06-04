@@ -7,10 +7,10 @@
 use super::EditorSession;
 use crate::service::I18nService;
 use crate::workbench::agent_context_handoff::list_terminal_targets_all_workspaces;
-use crate::workbench::file_preview::code_context_menu::CodeContextMenuState;
-use crate::workbench::file_preview::codemirror_glue as cm;
 use crate::workbench::app_prefs::AppPrefsService;
 use crate::workbench::editor_shortcut_config::EditorShortcutAction;
+use crate::workbench::file_preview::code_context_menu::CodeContextMenuState;
+use crate::workbench::file_preview::codemirror_glue as cm;
 use crate::workbench::file_preview::codemirror_glue::EditorKeyBinding;
 use crate::workbench::toast::ToastService;
 use crate::workbench::{
