@@ -158,6 +158,95 @@
   overflow-y: auto;
 }
 
+.agent-composer__provider-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  max-height: 20rem;
+  overflow-y: auto;
+}
+
+.agent-composer__provider-group {
+  border: 1px solid color-mix(in srgb, var(--border) 82%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-panel) 72%, transparent);
+  overflow: hidden;
+}
+
+.agent-composer__provider-group--open {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--bg-panel) 88%, var(--accent-soft));
+}
+
+.agent-composer__provider-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  padding: 0.42rem 0.48rem;
+  cursor: pointer;
+  text-align: left;
+}
+
+.agent-composer__provider-header:hover,
+.agent-composer__provider-header:focus-visible {
+  background: var(--overlay-1);
+  outline: none;
+}
+
+.agent-composer__provider-group--open .agent-composer__provider-header svg:last-child {
+  transform: rotate(180deg);
+}
+
+.agent-composer__provider-headline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.36rem;
+  min-width: 0;
+}
+
+.agent-composer__provider-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.74rem;
+  font-weight: 650;
+}
+
+.agent-composer__provider-active {
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+  border-radius: 999px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  padding: 0.03rem 0.28rem;
+  font-size: 0.58rem;
+  line-height: 1.35;
+}
+
+.agent-composer__provider-count {
+  min-width: 1.35rem;
+  color: var(--text-muted);
+  font-size: 0.64rem;
+  text-align: right;
+}
+
+.agent-composer__provider-panel {
+  border-top: 1px solid color-mix(in srgb, var(--border) 68%, transparent);
+  padding: 0.24rem;
+}
+
+.agent-composer__model-empty {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  padding: 0.5rem 0.54rem;
+}
+
 .agent-composer__model-item,
 .agent-composer__option {
   display: flex;

@@ -35,6 +35,15 @@ fn provider_cache_key(provider: AgentProviderKind) -> String {
     provider.as_str().to_string()
 }
 
+fn provider_display_name(provider: AgentProviderKind) -> &'static str {
+    match provider {
+        AgentProviderKind::Openrouter => "OpenRouter",
+        AgentProviderKind::Openai => "OpenAI",
+        AgentProviderKind::Anthropic => "Anthropic",
+        _ => "Provider",
+    }
+}
+
 fn initial_provider_model_cache(
     view: &AgentProviderSettingsView,
 ) -> BTreeMap<String, Vec<ProviderModelEntry>> {
@@ -266,6 +275,7 @@ pub fn Composer(
 
     let model_open = RwSignal::new(false);
     let think_open = RwSignal::new(false);
+    let open_provider_group = RwSignal::new(provider_cache_key(AgentProviderKind::Openrouter));
 
     let provider_models = RwSignal::new(BTreeMap::<String, Vec<ProviderModelEntry>>::new());
     let models_loading = RwSignal::new(HashSet::<String>::new());
@@ -307,6 +317,7 @@ pub fn Composer(
         leptos::task::spawn_local(async move {
             if let Ok(view) = agent_settings_get().await {
                 thinking.set(view.thinking_level);
+                open_provider_group.set(provider_cache_key(view.provider));
                 provider_models.set(initial_provider_model_cache(&view));
                 settings.set(Some(view));
             }
@@ -458,7 +469,7 @@ pub fn Composer(
                                     }
                                 }
                             />
-                            <ul class="agent-composer__model-list">
+                            <div class="agent-composer__provider-groups">
                                 {move || {
                                     let filter = model_filter.get().to_lowercase();
                                     let active_settings = settings.get();
@@ -472,52 +483,125 @@ pub fn Composer(
                                         .unwrap_or(AgentProviderKind::Openrouter);
                                     let active_provider_key = provider_cache_key(active_provider);
                                     let favorites = model_favorites.get();
+                                    let model_cache = provider_models.get();
+                                    let loading_providers = models_loading.get();
                                     let matches_filter = |m: &ProviderModelEntry| {
                                         filter.is_empty()
                                             || m.id.to_lowercase().contains(&filter)
                                             || m.label.to_lowercase().contains(&filter)
                                     };
-                                    let mut active_row = None::<ProviderModelEntry>;
-                                    let mut rest = Vec::<ProviderModelEntry>::new();
-                                    let models = provider_models
-                                        .get()
-                                        .remove(&active_provider_key)
-                                        .unwrap_or_default();
-                                    for model in models.into_iter().filter(matches_filter) {
-                                        if model.id == active && active_row.is_none() {
-                                            active_row = Some(model);
-                                        } else {
-                                            rest.push(model);
-                                        }
-                                    }
-                                    rest.sort_by_key(|m| (!favorites.contains(&m.id), m.label.to_lowercase(), m.id.clone()));
-                                    let mut rows = Vec::new();
-                                    if let Some(model) = active_row {
-                                        rows.push(model_row(
-                                            model,
-                                            active.clone(),
-                                            favorites.clone(),
-                                            model_favorites,
-                                            persist,
-                                            model_open,
-                                        ));
-                                        if !rest.is_empty() {
-                                            rows.push(view! { <li class="agent-composer__model-separator" aria-hidden="true"></li> }.into_any());
-                                        }
-                                    }
-                                    rows.extend(rest.into_iter().map(|model| {
-                                        model_row(
-                                            model,
-                                            active.clone(),
-                                            favorites.clone(),
-                                            model_favorites,
-                                            persist,
-                                            model_open,
-                                        )
-                                    }));
-                                    rows.into_iter().collect_view()
+                                    COMPOSER_MODEL_PROVIDERS
+                                        .into_iter()
+                                        .map(|provider| {
+                                            let provider_key = provider_cache_key(provider);
+                                            let provider_label = provider_display_name(provider);
+                                            let is_open = provider_key == open_provider_group.get();
+                                            let is_active_provider = provider_key == active_provider_key;
+                                            let is_loading = loading_providers.contains(&provider_key);
+                                            let models = model_cache
+                                                .get(&provider_key)
+                                                .cloned()
+                                                .unwrap_or_default();
+                                            let mut active_row = None::<ProviderModelEntry>;
+                                            let mut rest = Vec::<ProviderModelEntry>::new();
+                                            for model in models.into_iter().filter(matches_filter) {
+                                                if is_active_provider && model.id == active && active_row.is_none() {
+                                                    active_row = Some(model);
+                                                } else {
+                                                    rest.push(model);
+                                                }
+                                            }
+                                            let match_count = active_row.iter().count() + rest.len();
+                                            rest.sort_by_key(|m| (!favorites.contains(&m.id), m.label.to_lowercase(), m.id.clone()));
+                                            let click_provider_key = provider_key.clone();
+                                            let group_class = if is_open {
+                                                "agent-composer__provider-group agent-composer__provider-group--open"
+                                            } else {
+                                                "agent-composer__provider-group"
+                                            };
+                                            let count = if is_loading {
+                                                "...".to_string()
+                                            } else {
+                                                match_count.to_string()
+                                            };
+                                            let active_badge = if is_active_provider {
+                                                Either::Left(view! {
+                                                    <span class="agent-composer__provider-active">"Active"</span>
+                                                })
+                                            } else {
+                                                Either::Right(())
+                                            };
+                                            let panel = if is_open {
+                                                let content = if is_loading && match_count == 0 {
+                                                    Either::Left(view! {
+                                                        <div class="agent-composer__model-empty">"Loading models..."</div>
+                                                    })
+                                                } else if match_count == 0 {
+                                                    Either::Left(view! {
+                                                        <div class="agent-composer__model-empty">"No models"</div>
+                                                    })
+                                                } else {
+                                                    let mut rows = Vec::new();
+                                                    if let Some(model) = active_row {
+                                                        rows.push(model_row(
+                                                            model,
+                                                            active.clone(),
+                                                            favorites.clone(),
+                                                            model_favorites,
+                                                            persist,
+                                                            model_open,
+                                                        ));
+                                                        if !rest.is_empty() {
+                                                            rows.push(view! { <li class="agent-composer__model-separator" aria-hidden="true"></li> }.into_any());
+                                                        }
+                                                    }
+                                                    rows.extend(rest.into_iter().map(|model| {
+                                                        model_row(
+                                                            model,
+                                                            active.clone(),
+                                                            favorites.clone(),
+                                                            model_favorites,
+                                                            persist,
+                                                            model_open,
+                                                        )
+                                                    }));
+                                                    Either::Right(view! {
+                                                        <ul class="agent-composer__model-list">
+                                                            {rows.into_iter().collect_view()}
+                                                        </ul>
+                                                    })
+                                                };
+                                                Either::Left(view! {
+                                                    <div class="agent-composer__provider-panel">{content}</div>
+                                                })
+                                            } else {
+                                                Either::Right(())
+                                            };
+                                            view! {
+                                                <section class=group_class>
+                                                    <button
+                                                        type="button"
+                                                        class="agent-composer__provider-header"
+                                                        aria-expanded=is_open.to_string()
+                                                        on:click=move |_| {
+                                                            open_provider_group.set(click_provider_key.clone());
+                                                        }
+                                                    >
+                                                        <span class="agent-composer__provider-headline">
+                                                            <span class="agent-composer__provider-name">{provider_label}</span>
+                                                            {active_badge}
+                                                        </span>
+                                                        <span class="agent-composer__provider-count">{count}</span>
+                                                        <LxIcon icon=icondata::LuChevronDown width="0.78rem" height="0.78rem" />
+                                                    </button>
+                                                    {panel}
+                                                </section>
+                                            }
+                                            .into_any()
+                                        })
+                                        .collect_view()
                                 }}
-                            </ul>
+                            </div>
                         </div>
                     </Show>
                 </div>
