@@ -1,9 +1,13 @@
 use crate::git_info::{git_cli_available, resolve_work_tree};
+use crate::git_remote::{remote_work_tree, run_git_remote};
 use crate::git_status::GIT_MISSING_CODE;
 use crate::proc::command;
+use crate::pty_host::PtyManager;
+use crate::ssh_exec::RemoteExecManager;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::process::Output;
+use tauri::{AppHandle, State};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -38,22 +42,56 @@ pub struct GitWorktreeRemoveOutcome {
 }
 
 #[tauri::command]
-pub async fn git_worktree_list(cwd: String) -> Result<Vec<GitWorktreeEntry>, String> {
+pub async fn git_worktree_list(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<Vec<GitWorktreeEntry>, String> {
+    if let Some(cid) = connection_id {
+        return git_worktree_list_remote(&app, &pty, &exec, &cid, &cwd);
+    }
     crate::proc::run_blocking(move || git_worktree_list_impl(&cwd)).await
 }
 
 #[tauri::command]
-pub async fn git_worktree_open_info(cwd: String) -> Result<GitWorktreeEntry, String> {
+pub async fn git_worktree_open_info(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
+    cwd: String,
+    connection_id: Option<String>,
+) -> Result<GitWorktreeEntry, String> {
+    if let Some(cid) = connection_id {
+        return git_worktree_open_info_remote(&app, &pty, &exec, &cid, &cwd);
+    }
     crate::proc::run_blocking(move || git_worktree_open_info_impl(&cwd)).await
 }
 
 #[tauri::command]
 pub async fn git_worktree_create(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
     base_cwd: String,
     branch: String,
     start_point: Option<String>,
     path: String,
+    connection_id: Option<String>,
 ) -> Result<GitWorktreeCreateOutcome, String> {
+    if let Some(cid) = connection_id {
+        return git_worktree_create_remote(
+            &app,
+            &pty,
+            &exec,
+            &cid,
+            &base_cwd,
+            &branch,
+            start_point.as_deref(),
+            &path,
+        );
+    }
     crate::proc::run_blocking(move || {
         git_worktree_create_impl(&base_cwd, &branch, start_point.as_deref(), &path)
     })
@@ -62,10 +100,129 @@ pub async fn git_worktree_create(
 
 #[tauri::command]
 pub async fn git_worktree_remove(
+    app: AppHandle,
+    pty: State<'_, PtyManager>,
+    exec: State<'_, RemoteExecManager>,
     base_cwd: String,
     path: String,
+    connection_id: Option<String>,
 ) -> Result<GitWorktreeRemoveOutcome, String> {
+    if let Some(cid) = connection_id {
+        return git_worktree_remove_remote(&app, &pty, &exec, &cid, &base_cwd, &path);
+    }
     crate::proc::run_blocking(move || git_worktree_remove_impl(&base_cwd, &path)).await
+}
+
+fn git_worktree_list_remote(
+    app: &AppHandle,
+    pty: &PtyManager,
+    exec: &RemoteExecManager,
+    cid: &str,
+    cwd: &str,
+) -> Result<Vec<GitWorktreeEntry>, String> {
+    let base = remote_work_tree(app, pty, exec, cid, cwd)?;
+    let stdout = run_git_remote(
+        app,
+        pty,
+        exec,
+        cid,
+        &base,
+        &["worktree", "list", "--porcelain", "-z"],
+    )?;
+    let mut entries = parse_worktree_porcelain(&stdout);
+    enrich_remote_entries(app, pty, exec, cid, &mut entries);
+    Ok(entries)
+}
+
+fn git_worktree_open_info_remote(
+    app: &AppHandle,
+    pty: &PtyManager,
+    exec: &RemoteExecManager,
+    cid: &str,
+    cwd: &str,
+) -> Result<GitWorktreeEntry, String> {
+    let work_tree = remote_work_tree(app, pty, exec, cid, cwd)?;
+    let key = normalize_remote_path_key(&work_tree);
+    git_worktree_list_remote(app, pty, exec, cid, &work_tree)?
+        .into_iter()
+        .find(|entry| normalize_remote_path_key(&entry.path) == key)
+        .ok_or_else(|| "worktree not found in git worktree list".to_string())
+}
+
+fn git_worktree_create_remote(
+    app: &AppHandle,
+    pty: &PtyManager,
+    exec: &RemoteExecManager,
+    cid: &str,
+    base_cwd: &str,
+    branch: &str,
+    start_point: Option<&str>,
+    path: &str,
+) -> Result<GitWorktreeCreateOutcome, String> {
+    let base = remote_work_tree(app, pty, exec, cid, base_cwd)?;
+    let branch = validate_branch_name(branch)?;
+    let path = validate_worktree_path(path)?;
+
+    let before = git_worktree_list_remote(app, pty, exec, cid, &base)?;
+    if let Some(existing) = find_existing_worktree_remote(&before, Some(&branch), Some(&path)) {
+        return Ok(GitWorktreeCreateOutcome {
+            entry: existing,
+            created: false,
+            matched_existing: true,
+        });
+    }
+
+    let mut args = vec![
+        "worktree".to_string(),
+        "add".to_string(),
+        "-b".to_string(),
+        branch.clone(),
+        path.clone(),
+    ];
+    if let Some(start_point) = start_point.map(str::trim).filter(|value| !value.is_empty()) {
+        validate_start_point(start_point)?;
+        args.push(start_point.to_string());
+    }
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+    run_git_remote(app, pty, exec, cid, &base, &arg_refs)?;
+
+    let after = git_worktree_list_remote(app, pty, exec, cid, &base)?;
+    let entry = find_existing_worktree_remote(&after, Some(&branch), Some(&path))
+        .ok_or_else(|| "created worktree was not reported by git worktree list".to_string())?;
+    Ok(GitWorktreeCreateOutcome {
+        entry,
+        created: true,
+        matched_existing: false,
+    })
+}
+
+fn git_worktree_remove_remote(
+    app: &AppHandle,
+    pty: &PtyManager,
+    exec: &RemoteExecManager,
+    cid: &str,
+    base_cwd: &str,
+    path: &str,
+) -> Result<GitWorktreeRemoveOutcome, String> {
+    let base = remote_work_tree(app, pty, exec, cid, base_cwd)?;
+    let path = validate_worktree_path(path)?;
+    let worktree = remote_work_tree(app, pty, exec, cid, &path)?;
+    let status = run_git_remote(
+        app,
+        pty,
+        exec,
+        cid,
+        &worktree,
+        &["status", "--porcelain=v1", "-z"],
+    )?;
+    if !status.is_empty() {
+        return Err("worktree has uncommitted changes".into());
+    }
+    run_git_remote(app, pty, exec, cid, &base, &["worktree", "remove", &path])?;
+    Ok(GitWorktreeRemoveOutcome {
+        path,
+        removed: true,
+    })
 }
 
 fn git_worktree_list_impl(cwd: &str) -> Result<Vec<GitWorktreeEntry>, String> {
@@ -246,6 +403,20 @@ fn enrich_entries(entries: &mut [GitWorktreeEntry]) {
     }
 }
 
+fn enrich_remote_entries(
+    app: &AppHandle,
+    pty: &PtyManager,
+    exec: &RemoteExecManager,
+    cid: &str,
+    entries: &mut [GitWorktreeEntry],
+) {
+    let main = entries.first().map(|entry| entry.path.clone());
+    for entry in entries {
+        entry.main_worktree_cwd = main.clone();
+        entry.git_common_dir = git_common_dir_remote(app, pty, exec, cid, &entry.path);
+    }
+}
+
 fn git_common_dir(work_tree: &Path) -> Option<String> {
     let output = run_git(work_tree, &["rev-parse", "--git-common-dir"]).ok()?;
     if !output.status.success() {
@@ -265,6 +436,33 @@ fn git_common_dir(work_tree: &Path) -> Option<String> {
     Some(normalize_path_key(&path))
 }
 
+fn git_common_dir_remote(
+    app: &AppHandle,
+    pty: &PtyManager,
+    exec: &RemoteExecManager,
+    cid: &str,
+    work_tree: &str,
+) -> Option<String> {
+    let output = run_git_remote(
+        app,
+        pty,
+        exec,
+        cid,
+        work_tree,
+        &["rev-parse", "--git-common-dir"],
+    )
+    .ok()?;
+    let trimmed = output.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if trimmed.starts_with('/') {
+        Some(normalize_remote_path_key(trimmed))
+    } else {
+        Some(join_remote_path(work_tree, trimmed))
+    }
+}
+
 fn find_existing_worktree(
     entries: &[GitWorktreeEntry],
     branch: Option<&str>,
@@ -280,6 +478,29 @@ fn find_existing_worktree(
         let path_matches = path
             .as_deref()
             .is_some_and(|expected| expected == normalize_path_key(Path::new(&entry.path)));
+        if branch_matches || path_matches {
+            Some(entry.clone())
+        } else {
+            None
+        }
+    })
+}
+
+fn find_existing_worktree_remote(
+    entries: &[GitWorktreeEntry],
+    branch: Option<&str>,
+    path: Option<&str>,
+) -> Option<GitWorktreeEntry> {
+    let branch = branch.map(normalize_branch_ref);
+    let path = path.map(normalize_remote_path_key);
+    entries.iter().find_map(|entry| {
+        let branch_matches = branch
+            .as_deref()
+            .zip(entry.branch.as_deref())
+            .is_some_and(|(expected, actual)| expected == actual);
+        let path_matches = path
+            .as_deref()
+            .is_some_and(|expected| expected == normalize_remote_path_key(&entry.path));
         if branch_matches || path_matches {
             Some(entry.clone())
         } else {
@@ -346,6 +567,24 @@ fn normalize_path_key(path: &Path) -> String {
         .unwrap_or_else(|_| path.to_path_buf())
         .to_string_lossy()
         .to_string()
+}
+
+fn normalize_remote_path_key(path: &str) -> String {
+    let trimmed = path.trim();
+    if trimmed == "/" {
+        return "/".into();
+    }
+    trimmed.trim_end_matches('/').to_string()
+}
+
+fn join_remote_path(base: &str, rel: &str) -> String {
+    let base = normalize_remote_path_key(base);
+    let rel = rel.trim_start_matches('/');
+    if base == "/" {
+        format!("/{rel}")
+    } else {
+        format!("{base}/{rel}")
+    }
 }
 
 fn run_git(work_tree: &Path, args: &[&str]) -> Result<Output, String> {
@@ -420,6 +659,25 @@ mod tests {
         assert!(find_existing_worktree(&entries, Some("refs/heads/feature"), None).is_some());
         assert!(find_existing_worktree(&entries, None, Some("/repo-feature")).is_some());
         assert!(find_existing_worktree(&entries, Some("missing"), None).is_none());
+    }
+
+    #[test]
+    fn remote_existing_detection_normalizes_trailing_slashes() {
+        let entries = parse_worktree_porcelain(concat!(
+            "worktree /home/me/repo\n",
+            "branch refs/heads/main\n",
+            "\n",
+            "worktree /home/me/repo-feature\n",
+            "branch refs/heads/feature\n",
+        ));
+
+        assert!(
+            find_existing_worktree_remote(&entries, None, Some("/home/me/repo-feature/")).is_some()
+        );
+        assert_eq!(
+            join_remote_path("/home/me/repo/", ".git"),
+            "/home/me/repo/.git"
+        );
     }
 
     #[test]
