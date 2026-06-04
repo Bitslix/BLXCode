@@ -1,6 +1,7 @@
 use super::types::{RunCommand, RunCommandKind, RunCommandSource};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -36,6 +37,7 @@ pub enum DetectorKind {
 pub struct WorkspaceScan {
     root: PathBuf,
     files: BTreeSet<String>,
+    texts: BTreeMap<String, String>,
 }
 
 impl WorkspaceScan {
@@ -46,17 +48,37 @@ impl WorkspaceScan {
         }
         let mut files = BTreeSet::new();
         collect_files(&root, &root, &mut files, 5)?;
-        Ok(Self { root, files })
+        Ok(Self {
+            root,
+            files,
+            texts: BTreeMap::new(),
+        })
     }
 
     pub fn from_files(root: impl Into<PathBuf>, files: impl IntoIterator<Item = String>) -> Self {
         Self {
             root: root.into(),
             files: files.into_iter().collect(),
+            texts: BTreeMap::new(),
+        }
+    }
+
+    pub fn from_files_and_texts(
+        root: impl Into<PathBuf>,
+        files: impl IntoIterator<Item = String>,
+        texts: BTreeMap<String, String>,
+    ) -> Self {
+        Self {
+            root: root.into(),
+            files: files.into_iter().collect(),
+            texts,
         }
     }
 
     fn read_text(&self, rel: &str) -> Option<String> {
+        if let Some(text) = self.texts.get(rel) {
+            return Some(text.clone());
+        }
         fs::read_to_string(self.root.join(rel)).ok()
     }
 
