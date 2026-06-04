@@ -47,6 +47,28 @@ thread_local! {
     static SVG_CACHE: RefCell<HashMap<(String, String), String>> = RefCell::new(HashMap::new());
 }
 
+thread_local! {
+    /// Records the wall-clock time (epoch ms) a diagram id was first rendered.
+    /// Inline timeline cards render as soon as the `mermaid_create` tool result
+    /// arrives, so this is a good proxy for the diagram's generation time and is
+    /// shown in the centered gallery's stats. Session-scoped (not persisted).
+    static FIRST_SEEN: RefCell<HashMap<String, f64>> = RefCell::new(HashMap::new());
+}
+
+/// Stamp `id` as seen now if not already recorded; returns the recorded time.
+pub fn mark_diagram_seen(id: &str) -> f64 {
+    FIRST_SEEN.with(|c| {
+        *c.borrow_mut()
+            .entry(id.to_owned())
+            .or_insert_with(js_sys::Date::now)
+    })
+}
+
+/// The first-seen time (epoch ms) for `id`, if it has been rendered this session.
+pub fn diagram_first_seen(id: &str) -> Option<f64> {
+    FIRST_SEEN.with(|c| c.borrow().get(id).copied())
+}
+
 fn cache_get(theme: &str, code: &str) -> Option<String> {
     SVG_CACHE.with(|c| c.borrow().get(&(theme.to_owned(), code.to_owned())).cloned())
 }

@@ -12,7 +12,7 @@ use crate::service::I18nService;
 use crate::tauri_bridge::{
     mermaid_export_markdown, mermaid_export_pdf, parse_timeline_diagrams, TimelineDiagram,
 };
-use crate::workbench::diagram_render::{rendered_svg_outer_html, DiagramRender};
+use crate::workbench::diagram_render::{mark_diagram_seen, rendered_svg_outer_html, DiagramRender};
 use crate::workbench::toast::ToastService;
 use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
@@ -71,6 +71,9 @@ fn DiagramResultCards(
         .into_iter()
         .enumerate()
         .map(|(idx, d)| {
+            // Stamp generation time (first inline render ≈ tool-result arrival)
+            // so the centered gallery can show it in the stats panel.
+            mark_diagram_seen(&d.id);
             let dom_id = diagram_dom_id(&detail_key, idx);
             let code = RwSignal::new(d.code.clone());
             let title = d.title.clone();
