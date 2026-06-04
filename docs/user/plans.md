@@ -118,6 +118,10 @@ The generated plan is saved through the same tools as a hand-written one — the
 
 Switch the Plans toolbar to **Kanban** (alongside **Editor** and **Preview**).
 
+<p align="center">
+  <img src="../images/workspace-kanban-board.png" alt="Workspace Kanban board with one expanded plan, nested pending, in-progress, blocked, completed, and cancelled task lanes, quick task actions, and Agent panel beside it" />
+</p>
+
 - Aggregates tasks from all canonical plan files in the workspace (`PLANS.md` index is excluded).
 - **Free tasks** without `planPath` stay in the Agent task list only — not on the board.
 - Columns match task statuses: pending, in progress, blocked, completed, cancelled.
@@ -129,6 +133,10 @@ Quick-add and delete actions on cards keep the board and plan files in sync. Whe
 ## Workspace Multi-Kanban
 
 Every workspace also gets a pinned **center-tab `0` Kanban view** backed by `.agents/plans/` and persistent layout metadata under `.agents/kanban/index.json`. The Terminals tab remains the active default view, but the Multi-Kanban tab is always present as the first tab so plans and tasks stay one click away — without competing with the right-side Plans panel for screen real estate.
+
+<p align="center">
+  <img src="../images/workspace-kanban-plan-groups.png" alt="Workspace Kanban center tab showing searchable plan status groups, quick task creation, import and export controls, and the BLXCode Agent session stats panel" />
+</p>
 
 The Multi-Kanban groups plans by the same derived states as the right-side Plans panel and **nests task-state lanes for each plan**, with:
 
@@ -159,6 +167,10 @@ A new **centered diagram gallery** center tab (`CenterTabKind::DiagramGallery`) 
 
 - A horizontal **thumbnail slider** on top.
 - The **active diagram large below**, rendered through the existing vendored Mermaid renderer (`mermaid_glue`, `securityLevel: strict`) via a new shared `DiagramRender` component.
+
+<p align="center">
+  <img src="../images/mermaid-diagram-gallery.png" alt="Centered Mermaid diagram gallery with a Test-Flow flowchart, thumbnail rail, Export .md and Export .pdf buttons, zoom controls, and an inline diagram card in the Agent timeline" />
+</p>
 
 Each plan card in the right-side Plans panel gains a button that opens the gallery for that plan. Diagrams export to:
 

@@ -43,7 +43,7 @@ Open the Memory panel from the right workbench rail (legacy: `Ctrl+Shift+M`; tmu
 | **Search** | Full-text search with category filter badges; jump to a node in the graph. |
 
 <p align="center">
-  <img src="../images/memory-files.png" alt="Memory Files tab with category toolbar and grouped notes" />
+  <img src="../images/memory-center-architecture-files.png" alt="Memory center tab Files view showing the Architecture category, generated module notes, an Architecture index preview, agent memory pointer banner, and workspace sidebar" />
 </p>
 
 ### Memory as a center tab
@@ -128,7 +128,7 @@ The backend builds graph data from notes, backlinks, and tags. Nodes carry a `ca
 Selecting a node in **Graph** opens a preview popover with **Open in Files**, wikilink navigation, and handoff to terminals (see [Workspaces](workspaces.md#terminal-agent-context-handoff)).
 
 <p align="center">
-  <img src="../images/memory-graph.png" alt="Memory Graph with category-colored clustered nodes" />
+  <img src="../images/memory-graph-3d-architecture.png" alt="Memory Graph 3D view showing architecture and generated module nodes clustered in a dark canvas with graph toolbar controls" />
 </p>
 
 <p align="center">
@@ -187,7 +187,7 @@ Context tools: `memory_context_list`, `memory_context_attach`, `memory_context_d
 Use **Send to BLXCode Agent** in the Memory panel to attach notes or categories without pasting paths. For the full tool catalog, call `list_tools` or see [Agent Providers](agent-providers.md).
 
 <p align="center">
-  <img src="../images/agent-panel.png" alt="BLXCode Agent panel with context and task sections" />
+  <img src="../images/agent-panel-session-stats.png" alt="BLXCode Agent panel with session stats, context-window meter, tool-call counts, Drobo orb, and modern composer" />
 </p>
 
 ## See also

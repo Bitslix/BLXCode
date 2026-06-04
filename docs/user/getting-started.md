@@ -46,7 +46,7 @@ On first launch, BLXCode shows the EULA gate in your detected UI language. Accep
 After accepting, the workbench opens. In the desktop shell, BLXCode also creates a default sandbox folder under the app data directory so the agent always has a writable fallback workspace.
 
 <p align="center">
-  <img src="../images/welcome-screen.png" alt="BLXCode welcome screen with recent workspaces and keyboard shortcuts" />
+  <img src="../images/welcome-screen-create-workspace.png" alt="BLXCode welcome screen with recent workspaces, prominent Create Workspace action, Agent, Memory, Browser, and Kanban destination cards, and status bar" />
 </p>
 
 ## Create A Workspace
@@ -60,6 +60,10 @@ The empty/welcome screen leads with a prominent, highlighted **Create Workspace*
 5. Confirm the workspace to open the terminal grid.
 
 Workspace layout and recent workspace state are persisted by the Tauri backend and restored on the next launch. With [agent hooks](agent-providers.md) installed, terminal slots can **resume** prior Claude/Codex/Gemini/OpenCode/Cursor sessions and surface **completion badges** in the sidebar—see [Workspaces](workspaces.md#session-resume).
+
+<p align="center">
+  <img src="../images/create-workspace-recent-directories.png" alt="Create workspace wizard showing local connection, recent directories, terminal layout presets, and the session role dropdown" />
+</p>
 
 ## Configure settings
 

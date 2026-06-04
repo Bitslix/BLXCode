@@ -14,7 +14,7 @@ BLXCode includes an agent panel that can stream turns from remote model provider
 | **Skills** | Installable skills — [Rules And Skills](rules-and-skills.md) |
 
 <p align="center">
-  <img src="../images/agent-panel.png" alt="BLXCode Agent panel with provider chat, context, and tasks" />
+  <img src="../images/agent-panel-session-stats.png" alt="BLXCode Agent panel with OpenRouter GPT-5 session stats, context-window meter, tool-call counts, cost, Drobo orb, modern composer, and grouped tool rows in the chat timeline" />
 </p>
 
 ## Supported Provider Types
@@ -106,6 +106,10 @@ When a finished **Thinking** block is immediately followed by a tool-bearing **M
 
 Consecutive tool activity in a single round now renders as slim **grouped status rows** for the main agent and subagent cards — per-tool icons, argument summaries, status indicators, expandable details, metrics, and path aggregation all collapse into a single line with an `×N` count for repeats.
 
+<p align="center">
+  <img src="../images/agent-timeline-tool-groups.png" alt="Agent timeline showing grouped rules_list, rules_read, and skills_list tool rows with metrics, thinking blocks, and the compact modern composer" />
+</p>
+
 ## Thinking stream preview
 
 While the current turn is actively thinking, a compact inline preview appears under the Drobo orb and follows the newest open *Thinking* block from the timeline. It autoscrolls as reasoning text streams in, uses the active theme radius/color tokens, and is automatically hidden in compact chat mode so the maximized chat header stays clean.
@@ -117,6 +121,10 @@ When a model turn mutates workspace files, the turn ends with a **Changed files*
 ## Agent tool list output
 
 JSON-array tool results such as `rules_list` and `skills_list` render as readable compact lists in the chat timeline instead of raw one-line JSON blobs. The agent itself still receives the original JSON; the renderer is a UI-only presentation layer that extracts `title` / `name`, `summary`, category/kind, and small metadata chips. A tolerant fallback still shows complete list items from truncated array prefixes so the same tool call stays readable when its payload is large.
+
+<p align="center">
+  <img src="../images/agent-tool-list-output.png" alt="Close-up of the Agent timeline rendering a skills_list JSON-array result as readable File Access and Workspace Memory list cards with metadata chips" />
+</p>
 
 ## Modern composer
 
@@ -143,6 +151,10 @@ The BLXCode Agent can drive interactive terminal agents (Claude Code, Codex, Gem
 - interrupt a stuck session with Ctrl+C.
 
 A new embedded core skill, **`prompt-generating`**, teaches the model how to scope a prompt for BLXCode chat, terminal CLI agents, subagents, and user-facing replies, and the system prompt requires the model to consult that skill before any substantive CLI-agent handoff.
+
+<p align="center">
+  <img src="../images/terminal-agent-question-card.png" alt="BLXCode Agent controlling terminal agents and showing an Agent question card with numbered choices, free-text option, Send button, and Stop toggle" />
+</p>
 
 ## Agent context
 

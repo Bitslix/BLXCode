@@ -42,7 +42,7 @@ The supported fleet labels are:
 The available session roles come from the built-in specialized harness skills (`src-tauri/src/agent/harness_skills/specialized/*.md`): `architect`, `branch-steward`, `codewright`, `coordinator`, `doc-updater`, `harness-optimizer`, `pr-test-analyzer`, `refactor-cleaner`, and `security-reviewer`. Leaving the dropdown on **Default agent** runs the agent without a role.
 
 <p align="center">
-  <img src="../images/create-workspace-step-1.png" alt="Create workspace step 1: name, working directory, and terminal grid preset" />
+  <img src="../images/create-workspace-session-role-dropdown.png" alt="Create workspace step 1 with Local connection, recent directories, terminal layout presets, and the session role dropdown showing Default agent, Architect, Branch Steward, and Codewright" />
 </p>
 
 <p align="center">
@@ -68,6 +68,8 @@ The workspace pane uses a VS Code–style **tab strip** above the terminal grid.
 | Tab | Opened by | Closeable | Singleton |
 |---|---|---|---|
 | **Terminals** | Pinned by default; reopened via command palette **Terminals** or by opening a new terminal slot | ✅ — with a 3 s confirmation dialog | ✅ one per workspace |
+| **Canvas** | Switch the terminal view mode to **Canvas** | ✅ — shares the live terminal workspace view | ✅ one per workspace |
+| **Swarm** | Switch the terminal view mode to **Swarm** | ✅ — shares the live terminal workspace view | ✅ one per workspace |
 | **File preview** | Click a file row in the sidebar Project Files explorer | ✅ | ✅ shared — opening another file replaces the contents instead of stacking tabs (see [File Preview](file-preview.md)) |
 | **Settings** | Command palette **Open Settings**, or the configured shortcut | ✅ | ✅ one per workspace — reopening focuses the existing tab |
 
@@ -109,6 +111,30 @@ Each workspace has a top-level terminal grid. Preset counts map to balanced grid
 | 16 | 4 x 4 |
 
 Individual terminal slots can also keep split-pane state. BLXCode persists pane IDs, split axis, and terminal layout so the workbench can restore the surface after restart.
+
+### Terminal view modes
+
+The **View mode** control switches the live terminal tab between three layouts without restarting PTYs:
+
+| Mode | Purpose |
+|---|---|
+| **Grid** | The standard terminal grid with balanced preset layouts and split panes. |
+| **Canvas** | A freeform workspace where terminal slots become draggable, resizable nodes with `stdin` / `stdout` ports. Connect edges to route output into another terminal as either raw text or a structured BLXCode Canvas context block. |
+| **Swarm** | A graph view for terminal-agent roles. It shows the BLXCode Agent control hub and terminal agents as nodes, with a side panel for the selected terminal agent. |
+
+Canvas layouts, user-created routing edges, the default raw/structured transfer mode, and Swarm node positions are saved with the workspace snapshot.
+
+<p align="center">
+  <img src="../images/workspace-canvas-terminal-node.png" alt="Workspace Canvas mode showing a resizable terminal node with stdin and stdout ports and the BLXCode Agent stats panel beside it" />
+</p>
+
+<p align="center">
+  <img src="../images/workspace-swarm-agent-map.png" alt="Workspace Swarm mode showing the BLXCode Agent node connected to a running Claude terminal agent node and a prompt to select a terminal agent" />
+</p>
+
+<p align="center">
+  <img src="../images/workspace-terminal-system-monitor.png" alt="Single terminal workspace running a full-screen system monitor, with project files, file diff, Git commits, and BLXCode Agent panels visible" />
+</p>
 
 ### Named terminals
 
@@ -261,10 +287,10 @@ Unread counts clear when you **focus** the terminal cell (click or tab into it).
 Re-run **Install agent hooks** after upgrading blxcode so notify hooks are registered alongside title and session-capture hooks.
 
 <p align="center">
-  <img src="../images/workspace-resumed-agent-sessions.png" alt="BLXCode workspace with resumed agent sessions, terminal titles, and workspace notification badges showing active and total unread counts" />
+  <img src="../images/terminal-grid-claude-usage.png" alt="Four-terminal Claude Code workspace showing resumed sessions, focused terminal outline, Claude usage popover, and Claude usage percentages in the bottom status line" />
 </p>
 
-*Example: four resumed sessions in a 2×2 grid; the **Test** workspace shows **6** active and **18** total unread completions.*
+*Example: four resumed Claude sessions in a 2×2 grid; the focused terminal exposes captured 5-hour and 7-day Claude usage in the status line and popover.*
 
 ## Embedded Browser
 

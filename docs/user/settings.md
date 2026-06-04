@@ -38,7 +38,7 @@ When **Check for updates on startup** is enabled, BLXCode checks immediately aft
 The update dialog reuses the structured release-notes view from `post_update_release_notes(version, channel)` (hero summary, sections, loading state, fallback to the updater manifest body) instead of showing the manifest body as plain text — the update-specific controls (current → available version, install/download progress, retry, restart, **Later**) stay in place. Beta builds prefer `docs/releases/v{version}.md` for the exact prerelease tag and fall back to the stable base notes when needed.
 
 <p align="center">
-  <img src="../images/settings-app.png" alt="Settings → App pane with UI Language (English), Input language (Follow app language / Auto-detect / Manual), Keyboard shortcuts (Tmux style / Classic), push-to-talk toggle, Notifications (Show success toasts, Play success sound), Terminal hooks for claude/codex/gemini/cursor/opencode with Install hooks button, and App updates (Check for updates on startup, Current version 0.2.3)" />
+  <img src="../images/settings-app-hooks-updates-help.png" alt="Settings App pane with UI language, notification toggles, installed Claude, Codex, Gemini, Cursor, and OpenCode terminal hooks, app logging, Stable and Beta update channel controls, and the titlebar Help menu open" />
 </p>
 
 ## Appearance
@@ -54,6 +54,10 @@ The update dialog reuses the structured release-notes view from `post_update_rel
 - Instant preview on each card; choice persists across restarts.
 
 Themes affect sidebar, panels, terminals, graphs, and settings chrome. Embedded web pages, native webviews, and your Memory category color swatches are documented exceptions.
+
+<p align="center">
+  <img src="../images/settings-appearance-theme-grid.png" alt="Settings Appearance pane with Roundings, Font size, Font picker, active BLXCode theme preview, dark and light theme filters, and a grid of theme cards" />
+</p>
 
 Full guide: [Appearance & Themes](appearance-themes.md).
 

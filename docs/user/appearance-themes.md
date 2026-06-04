@@ -18,6 +18,10 @@ The pane shows:
 
 Click a card to apply the theme immediately. The active card shows an **ACTIVE** badge and accent border.
 
+<p align="center">
+  <img src="../images/settings-appearance-theme-grid.png" alt="Appearance settings with Roundings controls, Font size slider, monospace font picker, active BLXCode theme preview, and 32 theme cards filtered by All, Dark, and Light" />
+</p>
+
 ## Default theme
 
 **BLXCode** (`blxcode-dark`) is the default — the flagship Tokyo Night × Dracula dark look. First launch and a cleared `localStorage` always fall back to this theme. The previous GitHub-blue default lives on unchanged as **BLXCode Legacy / BLXCode Legacy Light** (ids `blxcode-legacy-dark` / `blxcode-legacy-light`), so anyone who preferred the old look can switch back.
