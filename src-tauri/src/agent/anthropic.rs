@@ -9,9 +9,9 @@
 //! Cancellation, multi-turn history, and tool dispatch follow the same
 //! contracts as the OpenAI-compatible path.
 
-use super::system_prompt::system_prompt;
+use super::system_prompt::system_prompt_with_scope;
 use crate::agent::pricing;
-use crate::agent::protocol::{AgentChatMode, AgentEvent, AgentImageContextItem};
+use crate::agent::protocol::{AgentChatMode, AgentEvent, AgentImageContextItem, WorkspaceScope};
 use crate::agent::state::AgentEngineState;
 use crate::agent::tool_dispatch::{dispatch_tool, DispatchContext};
 use crate::agent::tools::{self, WorkspaceRootGuard};
@@ -90,6 +90,7 @@ pub async fn run_chat_turn(
     prompt: String,
     image_context_items: Vec<AgentImageContextItem>,
     workspace_root: Option<String>,
+    workspace_scope: Option<WorkspaceScope>,
     session_role: Option<String>,
 ) {
     state.start_turn();
@@ -119,10 +120,11 @@ pub async fn run_chat_turn(
     };
     let workspace_string = workspace_root.clone().filter(|s| !s.trim().is_empty());
 
-    let system = system_prompt(
+    let system = system_prompt_with_scope(
         workspace_string.as_deref(),
         &crate::agent::nickname::resolve_agent_name(&settings.agent_nickname),
         session_role.as_deref(),
+        workspace_scope.as_ref(),
     );
 
     // Anthropic stores `system` separately from `messages`. Persisted

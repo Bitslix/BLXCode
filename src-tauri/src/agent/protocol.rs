@@ -18,6 +18,8 @@ pub struct UserTurn {
     pub prompt: String,
     /// Sandbox root for read-only tools; must be canonical if set (caller responsibility).
     pub workspace_root: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workspace_scope: Option<WorkspaceScope>,
     #[serde(default)]
     pub chat_mode: AgentChatMode,
     /// Slug of the active BLXCode harness session role (specialized skill) for
@@ -38,6 +40,32 @@ pub struct UserTurn {
     pub context_items: Vec<AgentContextItem>,
     #[serde(default)]
     pub image_context_items: Vec<AgentImageContextItem>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceScope {
+    pub root: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connection_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub worktree: Option<WorkspaceWorktreeMeta>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceWorktreeMeta {
+    pub base_cwd: String,
+    pub worktree_cwd: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub head: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub git_common_dir: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub main_worktree_cwd: Option<String>,
+    pub created_by_blxcode: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
