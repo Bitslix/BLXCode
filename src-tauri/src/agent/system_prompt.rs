@@ -412,7 +412,8 @@ fn base_system_prompt(root: &str, agent_name: &str) -> String {
          **Skills (server):** `skills_list`, `skills_read`, `skills_write`, \
          `skills_set_enabled`, `skills_remove`, `skills_install`\n\
          \n\
-         **Harness (client):** `harness.create_workspace`, `harness.open_terminal`, \
+         **Harness (client):** `harness.create_workspace`, `harness.worktree_list`, \
+         `harness.create_worktree_workspace`, `harness.open_terminal`, \
          `harness.workspace_list`, `harness.workspace_switch`, `harness.workspace_prev`, \
          `harness.workspace_next`, `harness.view_show`, `harness.open_settings`, \
          `harness.open_memory`, `harness.open_plan`, `harness.open_file`, \

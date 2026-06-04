@@ -1,15 +1,16 @@
 use crate::agent_wire::{AgentContextItem, AgentContextKind, AgentEvent};
 use crate::tauri_bridge::{
-    agent_submit_tool_result, memory_list, plan_read, pty_peek_output, pty_wait_output, pty_write,
-    window_set_fullscreen, window_set_size, window_state, workbench_list_agent_notifications,
-    workbench_mark_agent_notifications_read, workbench_remove_agent_notification,
-    workbench_update_agent_notification, workbench_upsert_agent_notification,
-    AgentNotificationInput, AgentNotificationPatch,
+    agent_submit_tool_result, git_worktree_create, git_worktree_list, memory_list, plan_read,
+    pty_peek_output, pty_wait_output, pty_write, window_set_fullscreen, window_set_size,
+    window_state, workbench_list_agent_notifications, workbench_mark_agent_notifications_read,
+    workbench_remove_agent_notification, workbench_update_agent_notification,
+    workbench_upsert_agent_notification, AgentNotificationInput, AgentNotificationPatch,
+    GitWorktreeEntry,
 };
 use crate::workbench::agent_context_handoff::{
     perform_handoff, HandoffRequest, WorkspaceTerminalTarget,
 };
-use crate::workbench::state::normalize_hex_color;
+use crate::workbench::state::{normalize_hex_color, WorkspaceWorktreeMeta};
 use crate::workbench::terminal_naming::{self, TerminalNamingMode, NAME_POOL_KEY, NAMING_MODE_KEY};
 use crate::workbench::{HarnessSettingsCategory, RightPanelTab, WorkbenchService};
 use gloo_timers::future::TimeoutFuture;
@@ -62,6 +63,10 @@ pub fn maybe_handle_client_tool(ev: &AgentEvent, wb: WorkbenchService) {
     let call_id = call_id.clone();
     match tool.as_str() {
         "harness.create_workspace" => handle_create_workspace(call_id, args.clone(), wb),
+        "harness.worktree_list" => handle_worktree_list(call_id, args.clone(), wb),
+        "harness.create_worktree_workspace" => {
+            handle_create_worktree_workspace(call_id, args.clone(), wb)
+        }
         "harness.workspace_list" => handle_workspace_list(call_id, wb),
         "harness.workspace_switch" => handle_workspace_switch(call_id, args.clone(), wb),
         "harness.workspace_prev" => handle_workspace_step(call_id, wb, -1),
@@ -1327,6 +1332,225 @@ fn handle_create_workspace(call_id: String, args: Option<serde_json::Value>, wb:
             );
         }
         Err(err) => submit_async(call_id, false, err, None),
+    }
+}
+
+fn handle_worktree_list(call_id: String, args: Option<serde_json::Value>, wb: WorkbenchService) {
+    let Some((base_cwd, connection_id)) = worktree_tool_scope(&wb, &args) else {
+        submit_async(call_id, false, "no active workspace cwd".into(), None);
+        return;
+    };
+    leptos::task::spawn_local(async move {
+        match git_worktree_list(base_cwd, connection_id).await {
+            Ok(entries) => {
+                let data = serde_json::to_value(&entries).ok();
+                submit_async(
+                    call_id,
+                    true,
+                    format!("{} worktree(s)", entries.len()),
+                    data,
+                );
+            }
+            Err(err) => submit_async(call_id, false, err, None),
+        }
+    });
+}
+
+fn handle_create_worktree_workspace(
+    call_id: String,
+    args: Option<serde_json::Value>,
+    wb: WorkbenchService,
+) {
+    let Some((base_cwd, connection_id)) = worktree_tool_scope(&wb, &args) else {
+        submit_async(call_id, false, "no active workspace cwd".into(), None);
+        return;
+    };
+    let Some(branch) = args
+        .as_ref()
+        .and_then(|value| value.get("branch"))
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+    else {
+        submit_async(call_id, false, "branch is required".into(), None);
+        return;
+    };
+    let start_point = args
+        .as_ref()
+        .and_then(|value| value.get("startPoint"))
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+    let path = args
+        .as_ref()
+        .and_then(|value| value.get("path"))
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| default_worktree_path(&base_cwd, &branch));
+    let confirmed = args
+        .as_ref()
+        .and_then(|value| value.get("confirmed"))
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+
+    leptos::task::spawn_local(async move {
+        let existing = match git_worktree_list(base_cwd.clone(), connection_id.clone()).await {
+            Ok(entries) => find_matching_worktree(&entries, &branch, &path),
+            Err(err) if !confirmed => {
+                submit_async(call_id, false, err, None);
+                return;
+            }
+            Err(_) => None,
+        };
+
+        if !confirmed {
+            submit_async(
+                call_id,
+                true,
+                "worktree creation requires user confirmation".into(),
+                Some(serde_json::json!({
+                    "requiresConfirmation": true,
+                    "baseCwd": base_cwd,
+                    "connectionId": connection_id,
+                    "branch": branch,
+                    "startPoint": start_point,
+                    "path": path,
+                    "existing": existing,
+                })),
+            );
+            return;
+        }
+
+        match git_worktree_create(base_cwd, branch, start_point, path, connection_id.clone()).await
+        {
+            Ok(outcome) => {
+                let meta = worktree_entry_to_meta(&outcome.entry, outcome.created);
+                match wb.open_or_create_worktree_workspace(meta, connection_id) {
+                    Ok(workspace_id) => submit_async(
+                        call_id,
+                        true,
+                        if outcome.matched_existing {
+                            format!("opened existing worktree workspace {workspace_id}")
+                        } else {
+                            format!("created worktree workspace {workspace_id}")
+                        },
+                        Some(serde_json::json!({
+                            "workspaceId": workspace_id,
+                            "created": outcome.created,
+                            "matchedExisting": outcome.matched_existing,
+                            "entry": outcome.entry,
+                        })),
+                    ),
+                    Err(err) => submit_async(call_id, false, err, None),
+                }
+            }
+            Err(err) => submit_async(call_id, false, err, None),
+        }
+    });
+}
+
+fn worktree_tool_scope(
+    wb: &WorkbenchService,
+    args: &Option<serde_json::Value>,
+) -> Option<(String, Option<String>)> {
+    let active = wb.active_id().get_untracked()?;
+    let active_ws = wb
+        .workspaces()
+        .with_untracked(|workspaces| workspaces.iter().find(|ws| ws.id == active).cloned())?;
+    let base_cwd = args
+        .as_ref()
+        .and_then(|value| value.get("baseCwd"))
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+        .or_else(|| active_ws.cwd.trim().to_string().into_non_empty())?;
+    Some((base_cwd, active_ws.remote_connection_id))
+}
+
+fn find_matching_worktree(
+    entries: &[GitWorktreeEntry],
+    branch: &str,
+    path: &str,
+) -> Option<serde_json::Value> {
+    let branch = branch
+        .trim()
+        .strip_prefix("refs/heads/")
+        .unwrap_or(branch.trim());
+    let path = normalize_remoteish_path(path);
+    entries.iter().find_map(|entry| {
+        let branch_matches = entry.branch.as_deref() == Some(branch);
+        let path_matches = normalize_remoteish_path(&entry.path) == path;
+        if branch_matches || path_matches {
+            serde_json::to_value(entry).ok()
+        } else {
+            None
+        }
+    })
+}
+
+fn worktree_entry_to_meta(
+    entry: &GitWorktreeEntry,
+    created_by_blxcode: bool,
+) -> WorkspaceWorktreeMeta {
+    WorkspaceWorktreeMeta {
+        base_cwd: entry
+            .main_worktree_cwd
+            .clone()
+            .unwrap_or_else(|| entry.path.clone()),
+        worktree_cwd: entry.path.clone(),
+        branch: entry.branch.clone(),
+        head: entry.head.clone(),
+        git_common_dir: entry.git_common_dir.clone(),
+        main_worktree_cwd: entry.main_worktree_cwd.clone(),
+        created_by_blxcode,
+    }
+}
+
+fn default_worktree_path(base: &str, branch: &str) -> String {
+    let clean_branch = branch
+        .trim()
+        .replace(['/', '\\', ':', ' '], "-")
+        .trim_matches('-')
+        .to_string();
+    let clean_branch = if clean_branch.is_empty() {
+        "worktree".into()
+    } else {
+        clean_branch
+    };
+    let base = base.trim().trim_end_matches(['/', '\\']);
+    let parent = base
+        .rsplit_once(['/', '\\'])
+        .map(|(parent, _)| parent)
+        .filter(|parent| !parent.is_empty())
+        .unwrap_or(base);
+    format!("{parent}/{clean_branch}")
+}
+
+fn normalize_remoteish_path(path: &str) -> String {
+    let trimmed = path.trim();
+    if trimmed == "/" {
+        "/".into()
+    } else {
+        trimmed.trim_end_matches(['/', '\\']).to_string()
+    }
+}
+
+trait IntoNonEmptyString {
+    fn into_non_empty(self) -> Option<String>;
+}
+
+impl IntoNonEmptyString for String {
+    fn into_non_empty(self) -> Option<String> {
+        if self.is_empty() {
+            None
+        } else {
+            Some(self)
+        }
     }
 }
 

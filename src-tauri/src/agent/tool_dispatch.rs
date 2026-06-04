@@ -216,6 +216,7 @@ fn classify_tool_call(name: &str, args: &Value) -> ToolPermissionClass {
         | "plan_context_detach"
         | "image_context_detach"
         | "harness.create_workspace"
+        | "harness.create_worktree_workspace"
         | "harness.open_terminal"
         | "harness.send_agent_context"
         | "harness.window_set_size"

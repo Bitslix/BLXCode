@@ -148,6 +148,8 @@ impl ToolGroup {
             ],
             Self::CoordinatorHarness => &[
                 "harness.create_workspace",
+                "harness.worktree_list",
+                "harness.create_worktree_workspace",
                 "harness.workspace_list",
                 "harness.workspace_switch",
                 "harness.workspace_prev",
