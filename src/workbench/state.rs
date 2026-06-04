@@ -973,10 +973,6 @@ pub struct CreateWorkspaceDraft {
 pub enum WorkspaceDraftKind {
     #[default]
     Normal,
-    #[expect(
-        dead_code,
-        reason = "constructed by worktree UI and agent tooling in later plan tasks"
-    )]
     Worktree,
 }
 
@@ -4009,6 +4005,13 @@ impl WorkbenchService {
 
     pub fn workspace_go_to_fleet_step(&self, id: u64) -> Result<(), ()> {
         let d = self.workspace_draft(id);
+        if d.workspace_kind == WorkspaceDraftKind::Worktree {
+            if d.cwd_display.trim().is_empty() || d.worktree_branch.trim().is_empty() {
+                return Err(());
+            }
+            self.set_workspace_config_step(id, 1);
+            return Ok(());
+        }
         // Remote workspaces may proceed without a local cwd (the remote start
         // directory is optional and comes from the connection preset).
         if d.remote_connection_id.is_none() && d.cwd_display.trim().is_empty() {
@@ -4181,6 +4184,7 @@ impl WorkbenchService {
         let draft = self.workspace_draft(id);
         let cwd = draft.cwd_display.trim().to_string();
         let remote_connection_id = draft.remote_connection_id.clone();
+        let worktree = worktree_meta_from_draft(&draft);
         // Local workspaces require a working directory; remote ones may omit it
         // (the remote start dir is resolved from the connection preset).
         if cwd.is_empty() && remote_connection_id.is_none() {
@@ -4244,6 +4248,7 @@ impl WorkbenchService {
             ws.slot_pane_states = slot_pane_states;
             ws.next_terminal_id = n as u64 + 1;
             ws.remote_connection_id = remote_connection_id.clone();
+            ws.worktree = worktree.clone();
             ws.agent_session_role = draft.session_role.clone();
             // Seed per-slot name overrides from the draft (index → slot_id).
             ws.slot_name_overrides.clear();
@@ -5103,6 +5108,39 @@ fn workspace_title_from_name_or_cwd(id: u64, name_input: &str, cwd: &str) -> Str
         return explicit.to_string();
     }
     derive_workspace_name(cwd).unwrap_or_else(|| format!("Workspace {id}"))
+}
+
+fn worktree_meta_from_draft(draft: &CreateWorkspaceDraft) -> Option<WorkspaceWorktreeMeta> {
+    if draft.workspace_kind != WorkspaceDraftKind::Worktree {
+        return None;
+    }
+    let worktree_cwd = draft.cwd_display.trim().to_string();
+    if worktree_cwd.is_empty() {
+        return None;
+    }
+    Some(WorkspaceWorktreeMeta {
+        base_cwd: draft.worktree_base_cwd.trim().to_string(),
+        worktree_cwd,
+        branch: draft.worktree_branch.trim().to_string().into_non_empty(),
+        head: None,
+        git_common_dir: None,
+        main_worktree_cwd: None,
+        created_by_blxcode: true,
+    })
+}
+
+trait IntoNonEmptyString {
+    fn into_non_empty(self) -> Option<String>;
+}
+
+impl IntoNonEmptyString for String {
+    fn into_non_empty(self) -> Option<String> {
+        if self.is_empty() {
+            None
+        } else {
+            Some(self)
+        }
+    }
 }
 
 #[cfg(test)]
