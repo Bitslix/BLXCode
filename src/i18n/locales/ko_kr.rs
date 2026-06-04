@@ -148,6 +148,26 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TbViewModeGrid => "그리드",
         I18nKey::TbViewModeCanvas => "캔버스",
         I18nKey::TbViewModeSwarm => "무리",
+        I18nKey::TbRunMenu => "Run",
+
+        I18nKey::TbRunRefresh => "Refresh run commands",
+
+        I18nKey::TbRunEmpty => "No run commands found.",
+
+        I18nKey::TbRunLoading => "Loading run commands…",
+
+        I18nKey::TbRunDev => "Dev",
+
+        I18nKey::TbRunRun => "Run",
+
+        I18nKey::TbRunDebug => "Debug",
+
+        I18nKey::TbRunTest => "Test",
+
+        I18nKey::TbRunBuild => "Build",
+
+        I18nKey::TbRunOther => "Other",
+
         I18nKey::CanvasSlotLabel => "슬롯 {id}",
         I18nKey::CanvasResizeNode => "터미널 노드 크기 조정",
         I18nKey::CanvasEdgeSend => "에지 출력 보내기",
@@ -639,6 +659,49 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatImage => "영상",
         I18nKey::HsCatRemote => "원격",
         I18nKey::HsCatMcp => "MCP",
+        I18nKey::HsCatPlugins => "Plugins",
+        I18nKey::PluginsDescription => "Manage BLXCode plugin packages and runtime command providers.",
+
+        I18nKey::PluginsHeading => "Plugin Packages",
+
+        I18nKey::PluginsInstall => "Install",
+
+        I18nKey::PluginsRefresh => "Refresh",
+
+        I18nKey::PluginsEmpty => "No plugins installed.",
+
+        I18nKey::PluginsBuiltIn => "Built-in",
+
+        I18nKey::PluginsInstalled => "Installed",
+
+        I18nKey::PluginsEnabled => "Enabled",
+
+        I18nKey::PluginsDisabled => "Disabled",
+
+        I18nKey::PluginsEnable => "Enable",
+
+        I18nKey::PluginsDisable => "Disable",
+
+        I18nKey::PluginsRemove => "Remove",
+
+        I18nKey::PluginsInstallTitle => "Install plugin",
+
+        I18nKey::PluginsGithubUrl => "GitHub URL",
+
+        I18nKey::PluginsGithubUrlPlaceholder => "https://github.com/owner/repo/tree/main/package",
+
+        I18nKey::PluginsGitRef => "Git ref",
+
+        I18nKey::PluginsPackageDir => "Package directory",
+
+        I18nKey::PluginsInstallProgress => "Installing plugin…",
+
+        I18nKey::PluginsInstallDone => "Plugin installed.",
+
+        I18nKey::PluginsCategoryRuntime => "Runtime",
+
+        I18nKey::PluginsCategoryOther => "Other",
+
         I18nKey::McpDescription => "인앱 에이전트와 번들 터미널 CLI가 사용할 수 있는 MCP 서버를 등록합니다.",
         I18nKey::McpHeading => "MCP 서버",
         I18nKey::McpResetHint => "변경 사항은 세션을 재설정한 후에만 채팅에 적용됩니다.",

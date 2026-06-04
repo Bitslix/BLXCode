@@ -886,3 +886,39 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* ---- Run menu ---- */
+.app-titlebar__popover--run {
+  left: 0;
+  right: auto;
+  width: min(360px, calc(100vw - 24px));
+  max-width: min(360px, calc(100vw - 24px));
+}
+
+.app-titlebar__run-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.app-titlebar__run-item {
+  justify-content: flex-start;
+  gap: 0.5rem;
+}
+
+.app-titlebar__run-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app-titlebar__run-kind {
+  flex: 0 0 auto;
+  padding: 0.1rem 0.38rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  background: var(--overlay-1);
+  font-size: 0.68rem;
+}

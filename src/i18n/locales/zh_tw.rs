@@ -148,6 +148,26 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TbViewModeGrid => "網格",
         I18nKey::TbViewModeCanvas => "帆布",
         I18nKey::TbViewModeSwarm => "蜂群",
+        I18nKey::TbRunMenu => "Run",
+
+        I18nKey::TbRunRefresh => "Refresh run commands",
+
+        I18nKey::TbRunEmpty => "No run commands found.",
+
+        I18nKey::TbRunLoading => "Loading run commands…",
+
+        I18nKey::TbRunDev => "Dev",
+
+        I18nKey::TbRunRun => "Run",
+
+        I18nKey::TbRunDebug => "Debug",
+
+        I18nKey::TbRunTest => "Test",
+
+        I18nKey::TbRunBuild => "Build",
+
+        I18nKey::TbRunOther => "Other",
+
         I18nKey::CanvasSlotLabel => "插槽 {id}",
         I18nKey::CanvasResizeNode => "調整終端節點的大小",
         I18nKey::CanvasEdgeSend => "發送邊緣輸出",
@@ -637,6 +657,49 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatImage => "影像",
         I18nKey::HsCatRemote => "偏僻的",
         I18nKey::HsCatMcp => "MCP",
+        I18nKey::HsCatPlugins => "Plugins",
+        I18nKey::PluginsDescription => "Manage BLXCode plugin packages and runtime command providers.",
+
+        I18nKey::PluginsHeading => "Plugin Packages",
+
+        I18nKey::PluginsInstall => "Install",
+
+        I18nKey::PluginsRefresh => "Refresh",
+
+        I18nKey::PluginsEmpty => "No plugins installed.",
+
+        I18nKey::PluginsBuiltIn => "Built-in",
+
+        I18nKey::PluginsInstalled => "Installed",
+
+        I18nKey::PluginsEnabled => "Enabled",
+
+        I18nKey::PluginsDisabled => "Disabled",
+
+        I18nKey::PluginsEnable => "Enable",
+
+        I18nKey::PluginsDisable => "Disable",
+
+        I18nKey::PluginsRemove => "Remove",
+
+        I18nKey::PluginsInstallTitle => "Install plugin",
+
+        I18nKey::PluginsGithubUrl => "GitHub URL",
+
+        I18nKey::PluginsGithubUrlPlaceholder => "https://github.com/owner/repo/tree/main/package",
+
+        I18nKey::PluginsGitRef => "Git ref",
+
+        I18nKey::PluginsPackageDir => "Package directory",
+
+        I18nKey::PluginsInstallProgress => "Installing plugin…",
+
+        I18nKey::PluginsInstallDone => "Plugin installed.",
+
+        I18nKey::PluginsCategoryRuntime => "Runtime",
+
+        I18nKey::PluginsCategoryOther => "Other",
+
         I18nKey::McpDescription => "註冊應用程式內代理程式和捆綁終端 CLI 可以使用的 MCP 伺服器。",
         I18nKey::McpHeading => "MCP伺服器",
         I18nKey::McpResetHint => "僅在會話重置後，更改才會在聊天中生效。",

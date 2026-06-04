@@ -42,9 +42,15 @@ OpenRouter model/provider APIs do not provide logo assets, so BLXCode should use
 
 ## Tasks
 
-- [ ] `provider-model-state` - Add per-provider model loading/cache state in the Composer picker.
-- [ ] `provider-accordion-ui` - Render provider groups as a one-open accordion with active-provider default.
-- [ ] `provider-logo-map` - Add local provider/model-owner logo mapping with fallback badges.
-- [ ] `cross-provider-select` - Persist provider and model when selecting from another provider group.
-- [ ] `search-favorites` - Keep search, active-row pinning, and favorites working across provider groups.
-- [ ] `tests-smoke` - Add helper tests and run manual Composer smoke checks.
+- [x] `provider-model-state` - Add per-provider model loading/cache state in the Composer picker.
+- [x] `provider-accordion-ui` - Render provider groups as a one-open accordion with active-provider default.
+- [x] `provider-logo-map` - Add local provider/model-owner logo mapping with fallback badges.
+- [x] `cross-provider-select` - Persist provider and model when selecting from another provider group.
+- [x] `search-favorites` - Keep search, active-row pinning, and favorites working across provider groups.
+- [x] `tests-smoke` - Add helper tests and run manual Composer smoke checks.
+
+## Verification
+
+- `cargo test` - passed 136 tests, including Composer provider logo/filter helper coverage.
+- `cargo check` - passed.
+- Live desktop Composer smoke checklist was not run in this terminal session.

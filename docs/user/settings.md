@@ -13,6 +13,7 @@ BLXCode opens settings in a **center workbench tab** (not a modal). The command 
 | **Memory** | Memory right-panel toggle, folder-grouping and split-view toggles, **Agent memory pointers** flow, architecture-rebuild controls, **Memory Indexer** settings/stats |
 | **HeartBeat** | HeartBeat interval, enable/disable, service listing, **Run now**, per-service status snapshots |
 | **MCP** | Model Context Protocol servers (stdio / HTTP transports), per-server on/off, **connection test**, reload-required hints; see [MCP Servers](#mcp-servers) |
+| **Plugins** | BLXCode plugin packages, built-in runtime command providers, GitHub package install, enable/disable/remove; see [Plugins](#plugins) |
 | **Workspace** | Default project directory, agent sandbox root, embedded browser URL, **category colors** for Memory, **terminal naming** mode and name pool, confirm-before-closing |
 | **Code Editor** | **Vim key bindings** (default on), in-editor shortcuts (Save / Find / Replace / Go to line / Toggle comment / Fold / Move line / Duplicate line / Format) |
 | **BLXCode Agent** | Text, image, and voice inference; **Auto-compact** threshold; **tool-loop limit**; **Agent orb** (3D / 2D); personal nickname; see below |
@@ -154,6 +155,27 @@ For terminal CLIs the enabled servers are translated into each CLI's native, pro
 The available tool set is fixed at session start, so the **MCP** pane shows a **mandatory session-reset reminder** (with a one-click *reset session* button) and raises a **reload-required hint** whenever a server is added, edited, removed, enabled, or disabled.
 
 See [Agent Providers — MCP servers](agent-providers.md#mcp-servers) for how the tools are wired into the agent.
+
+## Plugins
+
+**Settings → Plugins** manages BLXCode plugin packages. The first supported plugin category is **Runtime**: command providers that detect project run/dev/debug/test/build commands for the titlebar **Run** menu.
+
+The pane lists built-in and installed packages with their category, version, source, and enabled state.
+
+| Action | Behavior |
+|--------|----------|
+| **Enable / Disable** | Controls whether a plugin contributes runtime commands to the active workspace's Run menu. |
+| **Install** | Opens a dialog for a GitHub repository or package-directory URL, with optional Git ref and package directory fields. |
+| **Remove** | Deletes a GitHub-installed plugin package from the app data plugin folder. Built-in packages cannot be removed. |
+| **Refresh** | Reloads the plugin registry and built-in package list. |
+
+Install URLs can point to a repository root or a package folder, for example:
+
+```text
+https://github.com/owner/repo/tree/main/packages/runtime-example
+```
+
+Installed packages are validated before they are copied into BLXCode's app data plugin folder. Current plugins are declarative package directories; BLXCode reads manifests and detector JSON files, and does not execute plugin code.
 
 ## Code Editor
 

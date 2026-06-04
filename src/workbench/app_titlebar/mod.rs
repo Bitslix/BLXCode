@@ -13,6 +13,7 @@ mod brand;
 pub(crate) mod help_menu;
 mod navigate_menu;
 mod notifications_menu;
+mod run_menu;
 mod view_mode_menu;
 mod window_controls;
 mod worktree_menu;
@@ -27,6 +28,7 @@ use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 use navigate_menu::NavigateMenu;
 use notifications_menu::NotificationsMenu;
+use run_menu::RunMenu;
 use view_mode_menu::ViewModeMenu;
 use window_controls::WindowControls;
 use worktree_menu::WorktreeMenu;
@@ -116,6 +118,7 @@ pub fn AppTitleBar(#[prop(into)] workbench_active: Signal<bool>) -> impl IntoVie
                 <TitleBarBrand />
                 <Show when=move || workbench_active.get()>
                     <WorktreeMenu />
+                    <RunMenu />
                 </Show>
             </div>
 

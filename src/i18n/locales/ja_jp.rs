@@ -148,6 +148,26 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::TbViewModeGrid => "グリッド",
         I18nKey::TbViewModeCanvas => "キャンバス",
         I18nKey::TbViewModeSwarm => "群れ",
+        I18nKey::TbRunMenu => "Run",
+
+        I18nKey::TbRunRefresh => "Refresh run commands",
+
+        I18nKey::TbRunEmpty => "No run commands found.",
+
+        I18nKey::TbRunLoading => "Loading run commands…",
+
+        I18nKey::TbRunDev => "Dev",
+
+        I18nKey::TbRunRun => "Run",
+
+        I18nKey::TbRunDebug => "Debug",
+
+        I18nKey::TbRunTest => "Test",
+
+        I18nKey::TbRunBuild => "Build",
+
+        I18nKey::TbRunOther => "Other",
+
         I18nKey::CanvasSlotLabel => "スロット {id}",
         I18nKey::CanvasResizeNode => "終端ノードのサイズを変更する",
         I18nKey::CanvasEdgeSend => "送信エッジ出力",
@@ -641,6 +661,49 @@ pub fn msg(key: I18nKey) -> &'static str {
         I18nKey::HsCatImage => "画像",
         I18nKey::HsCatRemote => "リモート",
         I18nKey::HsCatMcp => "MCP",
+        I18nKey::HsCatPlugins => "Plugins",
+        I18nKey::PluginsDescription => "Manage BLXCode plugin packages and runtime command providers.",
+
+        I18nKey::PluginsHeading => "Plugin Packages",
+
+        I18nKey::PluginsInstall => "Install",
+
+        I18nKey::PluginsRefresh => "Refresh",
+
+        I18nKey::PluginsEmpty => "No plugins installed.",
+
+        I18nKey::PluginsBuiltIn => "Built-in",
+
+        I18nKey::PluginsInstalled => "Installed",
+
+        I18nKey::PluginsEnabled => "Enabled",
+
+        I18nKey::PluginsDisabled => "Disabled",
+
+        I18nKey::PluginsEnable => "Enable",
+
+        I18nKey::PluginsDisable => "Disable",
+
+        I18nKey::PluginsRemove => "Remove",
+
+        I18nKey::PluginsInstallTitle => "Install plugin",
+
+        I18nKey::PluginsGithubUrl => "GitHub URL",
+
+        I18nKey::PluginsGithubUrlPlaceholder => "https://github.com/owner/repo/tree/main/package",
+
+        I18nKey::PluginsGitRef => "Git ref",
+
+        I18nKey::PluginsPackageDir => "Package directory",
+
+        I18nKey::PluginsInstallProgress => "Installing plugin…",
+
+        I18nKey::PluginsInstallDone => "Plugin installed.",
+
+        I18nKey::PluginsCategoryRuntime => "Runtime",
+
+        I18nKey::PluginsCategoryOther => "Other",
+
         I18nKey::McpDescription => "アプリ内エージェントとバンドルされた端末 CLI が使用できる MCP サーバーを登録します。",
         I18nKey::McpHeading => "MCPサーバー",
         I18nKey::McpResetHint => "変更はセッションのリセット後にのみチャットに有効になります。",

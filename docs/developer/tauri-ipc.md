@@ -125,6 +125,15 @@ The agent can author Mermaid diagrams through two server tools (`mermaid_create`
 - `mcp_refresh_cli_configs` — re-scan the workspace CLI configs and update the union (preserves user edits through the `.blxcode/mcp-managed.json` sidecar)
 - `mcp_call_tool` — explicit `mcp.<server>.<tool>` invocation; the model loop usually calls inline, this is for the test harness and ad-hoc UI
 
+### Plugins
+
+- `plugins_list` — returns the plugin registry merged with built-in plugin packages.
+- `plugins_install_from_github` — installs a plugin package from a GitHub URL, optional Git ref, and optional package directory. The backend clones into staging, validates `blx-plugin.json`, copies the package into app data, and updates the registry.
+- `plugins_install_progress` — returns the current install phase for the Settings -> Plugins install dialog.
+- `plugins_set_enabled` — enables or disables a plugin without removing it from the registry.
+- `plugins_remove` — removes a GitHub-installed package and its app-data directory. Built-in packages are rejected.
+- `run_commands_discover` — scans the active local or SSH-remote workspace through enabled `runtime` plugins and returns grouped `RunCommand` records for the titlebar Run menu.
+
 ### HeartBeat
 
 - `heartbeat_status_get`, `heartbeat_settings_get`, `heartbeat_settings_save` — read/write the 10-min–24-h interval, the next-tick ETA, and the service-enabled flag
