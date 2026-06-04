@@ -882,3 +882,92 @@ pub fn Composer(
         </div>
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn model(id: &str, label: &str) -> ProviderModelEntry {
+        ProviderModelEntry {
+            id: id.to_string(),
+            label: label.to_string(),
+            description: None,
+            pricing: None,
+            context_length: None,
+        }
+    }
+
+    #[test]
+    fn openrouter_owner_slug_should_extract_prefix() {
+        assert_eq!(
+            openrouter_owner_slug("anthropic/claude-4-sonnet"),
+            Some("anthropic".to_string())
+        );
+        assert_eq!(openrouter_owner_slug("gpt-4.1"), None);
+    }
+
+    #[test]
+    fn owner_logo_url_should_map_common_owners() {
+        assert_eq!(
+            owner_logo_url("openai"),
+            Some("/public/brand-icons/openai.svg")
+        );
+        assert_eq!(owner_logo_url("x-ai"), Some("/public/brand-icons/grok.svg"));
+        assert_eq!(
+            owner_logo_url("amazon"),
+            Some("/public/brand-icons/aws.svg")
+        );
+        assert_eq!(owner_logo_url("unknown-lab"), None);
+    }
+
+    #[test]
+    fn owner_initials_should_fallback_from_owner_or_model() {
+        assert_eq!(
+            owner_initials(Some("unknown-lab"), "unknown-lab/model"),
+            "UL"
+        );
+        assert_eq!(owner_initials(None, "solo-model"), "SM");
+    }
+
+    #[test]
+    fn matching_provider_keys_should_hide_groups_without_search_hits() {
+        let mut cache = BTreeMap::new();
+        cache.insert(
+            provider_cache_key(AgentProviderKind::Openrouter),
+            vec![model("anthropic/claude-sonnet-4", "Claude Sonnet 4")],
+        );
+        cache.insert(
+            provider_cache_key(AgentProviderKind::Openai),
+            vec![model("gpt-4.1", "GPT-4.1")],
+        );
+        cache.insert(
+            provider_cache_key(AgentProviderKind::Anthropic),
+            vec![model("claude-opus-4", "Claude Opus 4")],
+        );
+
+        assert_eq!(
+            matching_provider_keys(&cache, "gpt"),
+            vec![provider_cache_key(AgentProviderKind::Openai)]
+        );
+        assert_eq!(
+            matching_provider_keys(&cache, "claude"),
+            vec![
+                provider_cache_key(AgentProviderKind::Openrouter),
+                provider_cache_key(AgentProviderKind::Anthropic),
+            ]
+        );
+    }
+
+    #[test]
+    fn matching_provider_keys_should_show_all_groups_without_filter() {
+        let cache = BTreeMap::new();
+        assert_eq!(
+            matching_provider_keys(&cache, ""),
+            vec![
+                provider_cache_key(AgentProviderKind::Openrouter),
+                provider_cache_key(AgentProviderKind::Openai),
+                provider_cache_key(AgentProviderKind::Anthropic),
+            ]
+        );
+    }
+}

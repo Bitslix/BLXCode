@@ -47,4 +47,10 @@ OpenRouter model/provider APIs do not provide logo assets, so BLXCode should use
 - [x] `provider-logo-map` - Add local provider/model-owner logo mapping with fallback badges.
 - [x] `cross-provider-select` - Persist provider and model when selecting from another provider group.
 - [x] `search-favorites` - Keep search, active-row pinning, and favorites working across provider groups.
-- [ ] `tests-smoke` - Add helper tests and run manual Composer smoke checks.
+- [x] `tests-smoke` - Add helper tests and run manual Composer smoke checks.
+
+## Verification
+
+- `cargo test` - passed 136 tests, including Composer provider logo/filter helper coverage.
+- `cargo check` - passed.
+- Live desktop Composer smoke checklist was not run in this terminal session.
