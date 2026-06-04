@@ -489,6 +489,7 @@ kanban_task_move
 # Mermaid diagrams
 mermaid_list_diagrams
 mermaid_create_diagram
+mermaid_update_diagram
 mermaid_delete_diagram
 mermaid_export_markdown
 mermaid_export_pdf

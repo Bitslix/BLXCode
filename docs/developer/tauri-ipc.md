@@ -106,10 +106,12 @@ Center tab `0` shows one or more kanban boards; each board lives at `<workspace>
 
 ### Mermaid diagrams
 
-The agent can author Mermaid diagrams through two server tools (`mermaid_create`, `mermaid_create_many`) and the user can browse them from the **Diagram gallery** center tab (`CenterTabKind::DiagramGallery`):
+The agent can author Mermaid diagrams through two server tools (`mermaid_create`, `mermaid_create_many`) and the user can browse/edit them from the **Diagram gallery** center tab (`CenterTabKind::DiagramGallery`):
 
-- `mermaid_list_diagrams`, `mermaid_create_diagram`, `mermaid_delete_diagram`
+- `mermaid_list_diagrams`, `mermaid_create_diagram`, `mermaid_update_diagram`, `mermaid_delete_diagram`
 - `mermaid_export_markdown`, `mermaid_export_pdf` — Save As (uses `tauri-plugin-dialog` for the picker; PDF uses Chromium headless via the same channel as the workbench's `app_relaunch`)
+
+`mermaid_update_diagram(workspace_cwd, slug, id, code)` updates only the persisted `.mmd` source for an existing plan-linked diagram under `.agents/plans/<slug>/diagrams/<id>.mmd`; it validates the diagram id, errors for missing diagrams, and preserves the manifest metadata (`title`, `kind`, task link, created timestamp, provider/model).
 
 ### Skills and rules
 
