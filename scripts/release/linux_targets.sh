@@ -76,7 +76,9 @@ release_linux_tauri_build() {
   fi
   release_apply_build_env
   release_check_signing
-  (cd "$RELEASE_ROOT/src-tauri" && cargo tauri build "${args[@]}")
+  local -a unsigned_config=()
+  mapfile -t unsigned_config < <(release_unsigned_tauri_config_args)
+  (cd "$RELEASE_ROOT/src-tauri" && cargo tauri build "${args[@]}" "${unsigned_config[@]}")
 }
 
 # Native build: deb + rpm + AppImage for the host CPU.
