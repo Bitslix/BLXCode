@@ -889,7 +889,10 @@
 
 /* ---- Run menu ---- */
 .app-titlebar__popover--run {
+  left: 0;
+  right: auto;
   width: min(360px, calc(100vw - 24px));
+  max-width: min(360px, calc(100vw - 24px));
 }
 
 .app-titlebar__run-list {
