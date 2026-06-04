@@ -951,6 +951,17 @@ fn DynamicCenterPanels(
                             />
                         </div>
                     }.into_any(),
+                    CenterTabKind::DiagramGroup { title, diagrams } => view! {
+                        <div
+                            class="workspace-center-panel"
+                            class:workspace-center-panel--hidden=move || active_tab_id.get() != tab_id
+                        >
+                            <DiagramGallery
+                                scope=GalleryScope::Ephemeral { title, diagrams }
+                                workspace_id=workspace_id
+                            />
+                        </div>
+                    }.into_any(),
                     CenterTabKind::Terminals | CenterTabKind::Canvas | CenterTabKind::Swarm => {
                         view! { <></> }.into_any()
                     }
@@ -971,6 +982,7 @@ fn center_tab_icon(kind: &CenterTabKind) -> icondata::Icon {
         CenterTabKind::FilePreview { .. } => icondata::LuFileText,
         CenterTabKind::FileDiff { .. } => icondata::LuFileDiff,
         CenterTabKind::DiagramGallery { .. } => icondata::LuWorkflow,
+        CenterTabKind::DiagramGroup { .. } => icondata::LuWorkflow,
     }
 }
 

@@ -10,9 +10,15 @@ use std::collections::HashMap;
 use leptos::prelude::*;
 use leptos_icons::Icon as LxIcon;
 
+use crate::workbench::agent_panel::diagram_result::diagram_result_view;
 use crate::workbench::agent_panel::timeline::{path_tail, tool_icon, ToolDetailContent};
 use crate::workbench::agent_timeline::{ActivityStatus, ToolActivity};
 use crate::workbench::WorkbenchService;
+
+/// Tools whose JSON result is a Mermaid diagrams envelope rendered inline.
+fn is_mermaid_tool(tool: &str) -> bool {
+    matches!(tool, "mermaid_create" | "mermaid_create_many")
+}
 
 /// One tool-call pill. Renders the inner `.agent-tool-row` block (the clickable
 /// head plus its optional expanded detail). Callers wrap it in whatever list
@@ -55,8 +61,18 @@ pub fn ToolPill(
     };
     let tool_name = tool.tool.clone();
     let has_paths = !tool.paths.is_empty();
-    let has_detail = has_paths || tool.detail.as_ref().is_some_and(|s| !s.is_empty());
     let detail_text = tool.detail.clone().unwrap_or_default();
+    // Mermaid tool results render their diagrams inline (always visible) rather
+    // than as expandable raw JSON. When parsing succeeds the pill has no
+    // expandable detail body.
+    let mermaid_view = if is_mermaid_tool(&tool.tool) && matches!(tool.status, ActivityStatus::Ok) {
+        diagram_result_view(&detail_text, &detail_key, wb.clone(), workspace_id)
+    } else {
+        None
+    };
+    let has_mermaid = mermaid_view.is_some();
+    let has_detail =
+        !has_mermaid && (has_paths || tool.detail.as_ref().is_some_and(|s| !s.is_empty()));
     let paths_sv = StoredValue::new(tool.paths.clone());
     let detail_key_memo = detail_key.clone();
     let detail_open = Memo::new(move |_| {
@@ -103,6 +119,7 @@ pub fn ToolPill(
                     </span>
                 </Show>
             </button>
+            {mermaid_view}
             {move || {
                 if !has_detail || !detail_open.get() {
                     return view! { <></> }.into_any();

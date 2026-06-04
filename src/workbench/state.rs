@@ -7,7 +7,7 @@ use crate::config::{
 use crate::tauri_bridge::{
     agent_environment_invalidate, is_tauri_shell, workbench_drop_sessions,
     workbench_extract_sessions_prefix, workbench_merge_sessions_workspace,
-    workbench_rewrite_terminal_keys, AgentNotification,
+    workbench_rewrite_terminal_keys, AgentNotification, TimelineDiagram,
 };
 use crate::workbench::agent_timeline::TimelineDoc;
 use crate::workbench::terminal_agent_profiles::{
@@ -249,6 +249,13 @@ pub enum CenterTabKind {
     DiagramGallery {
         /// Plan slug whose `diagrams/` folder is shown.
         slug: String,
+    },
+    /// Centered gallery for an ephemeral (non-persisted) diagram group opened
+    /// from the agent timeline. The diagrams are embedded directly since they
+    /// live only in the chat, not in any plan's `diagrams/` folder.
+    DiagramGroup {
+        title: String,
+        diagrams: Vec<TimelineDiagram>,
     },
 }
 
@@ -2623,6 +2630,47 @@ impl WorkbenchService {
                 id,
                 title: format!("◇ {slug}"),
                 kind: CenterTabKind::DiagramGallery { slug },
+            });
+            workspace.center_active_tab_id = id;
+            repair_center_tab_state(workspace);
+        });
+    }
+
+    /// Open (or focus) a center tab showing an ephemeral diagram group from the
+    /// agent timeline. Re-opening the same group (identical title + diagrams)
+    /// focuses the existing tab instead of duplicating it.
+    pub fn open_center_diagram_group(
+        &self,
+        workspace_id: u64,
+        title: String,
+        diagrams: Vec<TimelineDiagram>,
+    ) {
+        if diagrams.is_empty() {
+            return;
+        }
+        let group_title = title.trim().to_string();
+        let tab_title = if group_title.is_empty() {
+            "◇ Diagrams".to_string()
+        } else {
+            format!("◇ {group_title}")
+        };
+        self.workspaces.update(|workspaces| {
+            let Some(workspace) = workspaces.iter_mut().find(|w| w.id == workspace_id) else {
+                return;
+            };
+            if let Some(tab) = workspace.center_tabs.iter().find(|tab| {
+                matches!(&tab.kind, CenterTabKind::DiagramGroup { diagrams: existing, .. } if existing == &diagrams)
+            }) {
+                workspace.center_active_tab_id = tab.id;
+                repair_center_tab_state(workspace);
+                return;
+            }
+            let id = workspace.center_next_tab_id.max(default_center_next_tab_id());
+            workspace.center_next_tab_id = id.saturating_add(1);
+            workspace.center_tabs.push(CenterTab {
+                id,
+                title: tab_title,
+                kind: CenterTabKind::DiagramGroup { title: group_title, diagrams },
             });
             workspace.center_active_tab_id = id;
             repair_center_tab_state(workspace);

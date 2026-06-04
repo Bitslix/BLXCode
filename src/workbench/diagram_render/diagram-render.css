@@ -33,3 +33,62 @@
   border-radius: var(--radius-sm);
   font-size: 12px;
 }
+
+/* Inline diagram cards rendered for mermaid_create* tool results in the
+   agent timeline. */
+.diagram-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 6px 0 2px;
+}
+
+.diagram-result-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+}
+
+.diagram-result-card__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.diagram-result-card__title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.diagram-result-card__kind {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.diagram-result-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.diagram-result-card__btn {
+  padding: 3px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.diagram-result-card__btn:hover {
+  background: var(--bg-hover);
+}

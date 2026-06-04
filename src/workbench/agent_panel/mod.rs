@@ -5,6 +5,7 @@ mod client_tools;
 mod composer;
 mod context_list;
 mod context_meter;
+mod diagram_result;
 mod image_context;
 mod reducer;
 mod session_stats;

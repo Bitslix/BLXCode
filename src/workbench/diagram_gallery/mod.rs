@@ -12,7 +12,7 @@ use crate::i18n::I18nKey;
 use crate::service::I18nService;
 use crate::tauri_bridge::{
     mermaid_delete_diagram, mermaid_export_markdown, mermaid_export_pdf, mermaid_list_diagrams,
-    DiagramRecord,
+    DiagramRecord, TimelineDiagram,
 };
 use crate::workbench::diagram_render::{rendered_svg_outer_html, DiagramRender};
 use crate::workbench::toast::ToastService;
@@ -20,11 +20,48 @@ use crate::workbench::WorkbenchService;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
-/// What a gallery tab shows: diagrams persisted under a plan slug.
+/// What a gallery tab shows.
 #[derive(Debug, Clone, PartialEq)]
 pub enum GalleryScope {
-    /// Load diagrams from the store for this plan slug.
+    /// Load diagrams from the store for this plan slug (deletable).
     Plan { slug: String },
+    /// Render an ephemeral diagram group opened from the agent timeline. These
+    /// are not backed by the store, so they cannot be deleted from here.
+    Ephemeral {
+        title: String,
+        diagrams: Vec<TimelineDiagram>,
+    },
+}
+
+/// One diagram normalised for display, independent of its source scope.
+#[derive(Clone)]
+struct GalleryItem {
+    id: String,
+    title: String,
+    kind: String,
+    code: String,
+}
+
+impl From<DiagramRecord> for GalleryItem {
+    fn from(r: DiagramRecord) -> Self {
+        Self {
+            id: r.id,
+            title: r.title,
+            kind: r.kind,
+            code: r.code,
+        }
+    }
+}
+
+impl From<TimelineDiagram> for GalleryItem {
+    fn from(d: TimelineDiagram) -> Self {
+        Self {
+            id: d.id,
+            title: d.title,
+            kind: d.kind,
+            code: d.code,
+        }
+    }
 }
 
 const STAGE_DOM_ID: &str = "diagram-gallery-active";
@@ -35,31 +72,42 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
     let wb = expect_context::<WorkbenchService>();
     let toast = expect_context::<ToastService>();
 
-    let diagrams = RwSignal::new(Vec::<DiagramRecord>::new());
+    let diagrams = RwSignal::new(Vec::<GalleryItem>::new());
     let active = RwSignal::new(0usize);
     let loading = RwSignal::new(true);
 
-    // The plan slug and workspace cwd are captured up front so both the initial
-    // load and the per-diagram delete action can reach the store.
-    let GalleryScope::Plan { slug } = scope;
+    // The workspace cwd is captured up front so both the initial load (plan
+    // scope) and the per-diagram delete action can reach the store.
     let cwd = wb.workspaces().with_untracked(|list| {
         list.iter()
             .find(|w| w.id == workspace_id)
             .map(|w| w.cwd.clone())
     });
 
+    // Plan diagrams are deletable from the gallery; ephemeral ones are not.
+    let plan_slug: Option<String> = match &scope {
+        GalleryScope::Plan { slug } => Some(slug.clone()),
+        GalleryScope::Ephemeral { .. } => None,
+    };
+    let allow_delete = plan_slug.is_some();
+
     // Populate the diagram set.
-    {
-        let slug = slug.clone();
-        if let Some(cwd) = cwd.clone() {
-            spawn_local(async move {
-                match mermaid_list_diagrams(&cwd, &slug).await {
-                    Ok(list) => diagrams.set(list),
-                    Err(e) => web_sys::console::warn_1(&format!("load diagrams: {e}").into()),
-                }
+    match scope {
+        GalleryScope::Plan { slug } => {
+            if let Some(cwd) = cwd.clone() {
+                spawn_local(async move {
+                    match mermaid_list_diagrams(&cwd, &slug).await {
+                        Ok(list) => diagrams.set(list.into_iter().map(GalleryItem::from).collect()),
+                        Err(e) => web_sys::console::warn_1(&format!("load diagrams: {e}").into()),
+                    }
+                    loading.set(false);
+                });
+            } else {
                 loading.set(false);
-            });
-        } else {
+            }
+        }
+        GalleryScope::Ephemeral { diagrams: list, .. } => {
+            diagrams.set(list.into_iter().map(GalleryItem::from).collect());
             loading.set(false);
         }
     }
@@ -124,13 +172,12 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
     // `StoredValue` keeps these `Copy` so the handler stays `Fn` (the `<Show>`
     // children closure that hosts the button must be callable repeatedly).
     let toast_del = toast.clone();
-    let del_slug = StoredValue::new(slug.clone());
+    let del_slug = StoredValue::new(plan_slug.clone());
     let del_cwd = StoredValue::new(cwd.clone());
     let on_delete = move |_| {
-        let Some(cwd) = del_cwd.get_value() else {
+        let (Some(cwd), Some(slug)) = (del_cwd.get_value(), del_slug.get_value()) else {
             return;
         };
-        let slug = del_slug.get_value();
         let idx = active.get_untracked();
         let Some(id) = diagrams.with_untracked(|d| d.get(idx).map(|r| r.id.clone())) else {
             return;
@@ -200,12 +247,14 @@ pub fn DiagramGallery(scope: GalleryScope, workspace_id: u64) -> impl IntoView {
                     <button class="diagram-gallery__export" on:click=on_export_pdf>
                         {move || i18n.tr(I18nKey::DiagramExportPdf)}
                     </button>
-                    <button
-                        class="diagram-gallery__export diagram-gallery__delete"
-                        on:click=on_delete
-                    >
-                        {move || i18n.tr(I18nKey::MemDelete)}
-                    </button>
+                    <Show when=move || allow_delete>
+                        <button
+                            class="diagram-gallery__export diagram-gallery__delete"
+                            on:click=on_delete.clone()
+                        >
+                            {move || i18n.tr(I18nKey::MemDelete)}
+                        </button>
+                    </Show>
                 </div>
                 <div class="diagram-gallery__active">
                     <DiagramRender code=active_code dom_id=STAGE_DOM_ID.to_string() />

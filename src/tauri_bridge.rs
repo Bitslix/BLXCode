@@ -3046,6 +3046,44 @@ pub struct DiagramRecord {
     pub code: String,
 }
 
+/// One diagram as returned inline by the `mermaid_create` / `mermaid_create_many`
+/// agent tools. Mirrors the backend `DiagramOut` envelope
+/// (`src-tauri/src/agent/mermaid/tool.rs`). Unlike [`DiagramRecord`] these may be
+/// ephemeral (`persisted == false`, no `plan_slug`); they are embedded into an
+/// opened center tab, hence `Serialize`/`Deserialize`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TimelineDiagram {
+    pub id: String,
+    pub title: String,
+    #[serde(default)]
+    pub kind: String,
+    pub code: String,
+    #[serde(default)]
+    pub task_id: Option<String>,
+    #[serde(default)]
+    pub plan_slug: Option<String>,
+    #[serde(default)]
+    pub persisted: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct TimelineDiagramsEnvelope {
+    diagrams: Vec<TimelineDiagram>,
+}
+
+/// Parse the JSON `content` of a `mermaid_create*` tool result into its diagram
+/// list. Returns `None` when the text is not a diagrams envelope (e.g. an error
+/// string), so callers can fall back to the raw detail view.
+#[must_use]
+pub fn parse_timeline_diagrams(detail: &str) -> Option<Vec<TimelineDiagram>> {
+    let env: TimelineDiagramsEnvelope = serde_json::from_str(detail.trim()).ok()?;
+    if env.diagrams.is_empty() {
+        return None;
+    }
+    Some(env.diagrams)
+}
+
 pub async fn mermaid_list_diagrams(ws: &str, slug: &str) -> Result<Vec<DiagramRecord>, String> {
     #[derive(Serialize)]
     #[serde(rename_all = "camelCase")]
