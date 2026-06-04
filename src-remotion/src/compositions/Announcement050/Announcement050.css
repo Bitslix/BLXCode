@@ -109,6 +109,50 @@
   display: block;
 }
 
+.a050-agent-model {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(200, 211, 245, 0.16);
+  background: linear-gradient(145deg, rgba(22, 24, 38, 0.86), rgba(10, 12, 20, 0.68));
+  display: grid;
+  place-items: center;
+}
+
+.a050-agent-model__halo {
+  position: absolute;
+  inset: -18%;
+  filter: blur(24px);
+  opacity: 0.95;
+}
+
+.a050-agent-model__label {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 14px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: rgba(8, 10, 17, 0.68);
+  border: 1px solid rgba(200, 211, 245, 0.12);
+  color: var(--a-bright);
+  font-family: var(--a-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.a050-agent-model__label b {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  box-shadow: 0 0 14px currentColor;
+}
+
 .a050-crumb {
   font-family: var(--a-mono);
   font-size: 13px;

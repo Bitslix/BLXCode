@@ -311,7 +311,27 @@ Nodes werden aus dem Workspace herausgezogen und auf einer Canvas angeordnet. In
 
 ---
 
-## Sequence 15 - HeartBeat Services
+## Sequence 15 - Mermaid Diagram View
+
+**Description:**  
+Ersetze die bisherige Local-Providers-Sequenz vollstaendig durch eine Mermaid Diagram View als centered Tab.
+
+**Visuals:**  
+BLXCode Center Tab mit aktivem `Mermaid Diagram` Tab. Links Mermaid Source Editor, rechts gerenderte Diagramm-Preview, unten kleines Context-Handoff Panel fuer den BLXCode Agent.
+
+**Animation:**  
+Der centered Tab wird aktiv, Codezeilen erscheinen nacheinander, Diagramm-Kanten zeichnen sich als Pfeile, Nodes poppen in der Preview ein, danach wird das Diagramm als Agent-Kontext markiert.
+
+**On-screen text:**  
+`[NEW] Mermaid Diagram View`  
+`Mermaid diagrams in a centered tab.`
+
+**Voiceover:**  
+"Mermaid diagrams now live in a centered BLXCode tab with source, preview, split view, and direct agent context handoff."
+
+---
+
+## Sequence 16 - HeartBeat Services
 
 **Description:**  
 Zeige HeartBeat als neuen Mechanismus zum Registrieren und Ausfuehren von Hintergrundservices. Erster Service: Memory Indexer.
@@ -331,7 +351,7 @@ Ein pulsierender HeartBeat-Kreis triggert Service-Karten. Memory Files erscheine
 
 ---
 
-## Sequence 16 - Refactored App Settings
+## Sequence 17 - Refactored App Settings
 
 **Description:**  
 Zeige den vollstaendigen Refactor der App Settings Screens und Dialoge.
@@ -351,7 +371,7 @@ Settings-Navigation gleitet als Master/Detail Layout. Dialoge oeffnen mit einhei
 
 ---
 
-## Sequence 17 - Native Agent Control of Terminals
+## Sequence 18 - Native Agent Control of Terminals
 
 **Description:**  
 Zeige, dass der BLXCode Agent Terminal CLI Agents besser steuern kann: Claude Code, Codex, Gemini, OpenCode und Cursor. Fokus auf named terminals, raw keys, context handoff und output awareness.
@@ -371,7 +391,7 @@ Agent-Kontextpakete bewegen sich zu Terminal Slots. Output-Zeilen werden live ge
 
 ---
 
-## Sequence 18 - Many Fixes, Changes, and More
+## Sequence 19 - Many Fixes, Changes, and More
 
 **Description:**  
 Finale Montage mit vielen kleineren Verbesserungen: Notifications, Statusline, Git Commit Graph, Mermaid Diagrams, AI Plans/Tasks, App Logs, Help/About, performance and stability fixes.
