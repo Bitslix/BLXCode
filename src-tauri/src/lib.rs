@@ -58,6 +58,11 @@ use clipboard::{clipboard_read_text, clipboard_write_text};
 use commands::*;
 use image::{image_curated_models, image_settings_get, image_settings_save};
 use plans::PlanMigrationState;
+use plugins::commands::{
+    plugins_install_from_github, plugins_install_progress, plugins_list, plugins_remove,
+    plugins_set_enabled,
+};
+use plugins::install::PluginInstallState;
 use pty_host::PtyManager;
 use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
@@ -167,6 +172,7 @@ pub fn run() {
         .manage(AgentEngineState::new())
         .manage(BlxUpdaterState::default())
         .manage(PlanMigrationState::default())
+        .manage(PluginInstallState::default())
         .manage(BrowserHost::default())
         .manage(git_status::GitWatcherState::default())
         .manage(PtyManager::default())
@@ -227,6 +233,11 @@ pub fn run() {
             workspace_presets::workspace_presets_list,
             workspace_presets::workspace_presets_save,
             workspace_presets::workspace_presets_delete,
+            plugins_list,
+            plugins_install_from_github,
+            plugins_install_progress,
+            plugins_set_enabled,
+            plugins_remove,
             agent_active_context_window,
             agent_provider_models,
             api_keys_status,

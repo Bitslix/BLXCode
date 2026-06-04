@@ -34,6 +34,28 @@ pub fn load_registry() -> Result<PluginRegistry, String> {
     }
 }
 
+pub fn load_registry_with_builtins() -> Result<PluginRegistry, String> {
+    let mut registry = load_registry()?;
+    let mut changed = false;
+    for builtin in super::builtins::built_in_plugins() {
+        if !registry
+            .plugins
+            .iter()
+            .any(|entry| entry.manifest.id == builtin.manifest.id)
+        {
+            registry.plugins.push(builtin);
+            changed = true;
+        }
+    }
+    registry
+        .plugins
+        .sort_by(|a, b| a.manifest.id.cmp(&b.manifest.id));
+    if changed {
+        save_registry(&registry)?;
+    }
+    Ok(registry)
+}
+
 pub fn save_registry(registry: &PluginRegistry) -> Result<(), String> {
     let registry = registry.clone().normalized()?;
     let path = registry_path()?;
@@ -71,7 +93,7 @@ pub fn upsert_entry(entry: PluginRegistryEntry) -> Result<PluginRegistry, String
 
 pub fn set_enabled(plugin_id: &str, enabled: bool) -> Result<PluginRegistry, String> {
     let id = super::types::normalize_plugin_id(plugin_id)?;
-    let mut registry = load_registry()?;
+    let mut registry = load_registry_with_builtins()?;
     let Some(entry) = registry
         .plugins
         .iter_mut()
@@ -86,7 +108,7 @@ pub fn set_enabled(plugin_id: &str, enabled: bool) -> Result<PluginRegistry, Str
 
 pub fn remove_entry(plugin_id: &str) -> Result<PluginRegistry, String> {
     let id = super::types::normalize_plugin_id(plugin_id)?;
-    let mut registry = load_registry()?;
+    let mut registry = load_registry_with_builtins()?;
     let Some(entry) = registry
         .plugins
         .iter()
@@ -180,7 +202,12 @@ mod tests {
         let _guard = AppDataDirGuard::new(dir.clone());
         upsert_entry(entry("runtime-node", PluginInstallKind::GitHub)).unwrap();
         let updated = set_enabled("runtime-node", false).unwrap();
-        assert!(!updated.plugins[0].enabled);
+        let entry = updated
+            .plugins
+            .iter()
+            .find(|entry| entry.manifest.id == "runtime-node")
+            .unwrap();
+        assert!(!entry.enabled);
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -190,7 +217,11 @@ mod tests {
         let _guard = AppDataDirGuard::new(dir.clone());
         upsert_entry(entry("runtime-rust", PluginInstallKind::BuiltIn)).unwrap();
         assert!(remove_entry("runtime-rust").is_err());
-        assert_eq!(load_registry().unwrap().plugins.len(), 1);
+        assert!(load_registry()
+            .unwrap()
+            .plugins
+            .iter()
+            .any(|entry| entry.manifest.id == "runtime-rust"));
         let _ = fs::remove_dir_all(&dir);
     }
 }

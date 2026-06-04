@@ -5,6 +5,8 @@
 //! code.
 
 pub mod builtins;
+pub mod commands;
+pub mod install;
 pub mod run_detectors;
 pub mod store;
 pub mod types;
