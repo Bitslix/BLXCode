@@ -729,6 +729,13 @@ mod tests {
         let opened = git_worktree_open_info_impl(feature.to_str().unwrap()).unwrap();
         assert_eq!(opened.branch.as_deref(), Some("feature/worktree-backend"));
 
+        fs::write(feature.join("dirty.txt"), "dirty\n").unwrap();
+        let dirty_remove =
+            git_worktree_remove_impl(repo.to_str().unwrap(), feature.to_str().unwrap())
+                .expect_err("dirty worktree removal should be blocked");
+        assert!(dirty_remove.contains("uncommitted changes"));
+        fs::remove_file(feature.join("dirty.txt")).unwrap();
+
         let removed =
             git_worktree_remove_impl(repo.to_str().unwrap(), feature.to_str().unwrap()).unwrap();
         assert!(removed.removed);
