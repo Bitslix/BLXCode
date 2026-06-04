@@ -137,6 +137,10 @@ pub struct WorkspaceEntry {
     /// of a local shell. `None` (default, back-compat) means a local workspace.
     #[serde(default)]
     pub remote_connection_id: Option<String>,
+    /// Git worktree metadata when this workspace was opened from, or created
+    /// as, a Git worktree. `None` means a normal local/remote workspace.
+    #[serde(default)]
+    pub worktree: Option<WorkspaceWorktreeMeta>,
     /// Per-slot friendly-name overrides, keyed by `slot_id`. Empty by
     /// default; an entry takes precedence over the deterministic name pool
     /// when the terminal naming mode is `names`. Keyed by `slot_id` (not a
@@ -165,6 +169,17 @@ pub struct WorkspaceEntry {
     /// Swarm graph display state.
     #[serde(default)]
     pub swarm_view_state: SwarmViewState,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WorkspaceWorktreeMeta {
+    pub base_cwd: String,
+    pub worktree_cwd: String,
+    pub branch: Option<String>,
+    pub head: Option<String>,
+    pub git_common_dir: Option<String>,
+    pub main_worktree_cwd: Option<String>,
+    pub created_by_blxcode: bool,
 }
 
 fn default_sidebar_section_open() -> bool {
@@ -705,6 +720,7 @@ impl WorkspaceEntry {
             center_active_tab_id: default_center_active_tab_id(),
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
+            worktree: None,
             slot_name_overrides: HashMap::new(),
             agent_session_role: None,
             view_mode: WorkspaceViewMode::Grid,
@@ -933,6 +949,11 @@ pub struct CreateWorkspaceDraft {
     /// (default) keeps it local. For remote, `cwd_display` becomes the optional
     /// remote start directory rather than a validated local path.
     pub remote_connection_id: Option<String>,
+    pub workspace_kind: WorkspaceDraftKind,
+    pub worktree_base_cwd: String,
+    pub worktree_branch: String,
+    pub worktree_start_point: String,
+    pub worktree_path: String,
     /// Selected BLXCode harness session-role slug (specialized skill), or `None`
     /// for the default agent. Carried into the created `WorkspaceEntry`.
     pub session_role: Option<String>,
@@ -948,6 +969,17 @@ pub struct CreateWorkspaceDraft {
     pub agent_efforts: [String; 5],
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum WorkspaceDraftKind {
+    #[default]
+    Normal,
+    #[expect(
+        dead_code,
+        reason = "constructed by worktree UI and agent tooling in later plan tasks"
+    )]
+    Worktree,
+}
+
 impl Default for CreateWorkspaceDraft {
     fn default() -> Self {
         let (r, c) = WorkspaceEntry::grid_dims_for_count(1);
@@ -960,6 +992,11 @@ impl Default for CreateWorkspaceDraft {
             agent_counts: [0; 5],
             agents_skipped: false,
             remote_connection_id: None,
+            workspace_kind: WorkspaceDraftKind::Normal,
+            worktree_base_cwd: String::new(),
+            worktree_branch: String::new(),
+            worktree_start_point: String::new(),
+            worktree_path: String::new(),
             session_role: None,
             slot_names: Vec::new(),
             agent_models: Default::default(),
@@ -2785,6 +2822,7 @@ impl WorkbenchService {
             center_active_tab_id: 0,
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
+            worktree: None,
             slot_name_overrides: std::collections::HashMap::new(),
             agent_session_role: None,
             view_mode: WorkspaceViewMode::Grid,
@@ -2925,6 +2963,7 @@ impl WorkbenchService {
                 center_active_tab_id: default_center_active_tab_id(),
                 center_next_tab_id: default_center_next_tab_id(),
                 remote_connection_id: None,
+                worktree: None,
                 slot_name_overrides: std::collections::HashMap::new(),
                 agent_session_role: None,
                 view_mode: WorkspaceViewMode::Grid,
@@ -3466,6 +3505,7 @@ impl WorkbenchService {
                 center_active_tab_id: default_center_active_tab_id(),
                 center_next_tab_id: default_center_next_tab_id(),
                 remote_connection_id: None,
+                worktree: None,
                 slot_name_overrides: std::collections::HashMap::new(),
                 agent_session_role: None,
                 view_mode: WorkspaceViewMode::Grid,
@@ -3846,6 +3886,7 @@ impl WorkbenchService {
             center_active_tab_id: default_center_active_tab_id(),
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
+            worktree: None,
             slot_name_overrides: std::collections::HashMap::new(),
             agent_session_role: None,
             view_mode: WorkspaceViewMode::Grid,
@@ -5243,6 +5284,7 @@ mod center_tab_tests {
             center_active_tab_id: active,
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
+            worktree: None,
             slot_name_overrides: std::collections::HashMap::new(),
             agent_session_role: None,
             view_mode: WorkspaceViewMode::Grid,
@@ -5417,6 +5459,7 @@ mod terminal_slot_tests {
             center_active_tab_id: default_center_active_tab_id(),
             center_next_tab_id: default_center_next_tab_id(),
             remote_connection_id: None,
+            worktree: None,
             slot_name_overrides: std::collections::HashMap::new(),
             agent_session_role: None,
             view_mode: WorkspaceViewMode::Grid,
