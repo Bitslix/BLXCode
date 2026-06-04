@@ -24,6 +24,7 @@ mod media_keys;
 mod memory;
 mod plans;
 mod plans_index;
+mod plugins;
 mod pointers;
 mod proc;
 mod pty_host;
