@@ -37,6 +37,7 @@ const INSPECTOR_DEFAULT_WIDTH_PX: f64 = 420.0;
 const INSPECTOR_MIN_WIDTH_PX: f64 = 280.0;
 const INSPECTOR_MAX_WIDTH_PX: f64 = 760.0;
 const VIEWPORT_MIN_WIDTH_PX: f64 = 360.0;
+const INSPECTOR_BOTTOM_BREAKPOINT_PX: f64 = 900.0;
 
 type SourceEditorClosures = (
     Closure<dyn Fn(String)>,
@@ -56,6 +57,21 @@ fn next_render_id() -> String {
         c.set(n);
         format!("mmd-render-{n}")
     })
+}
+
+fn update_inspector_narrow_layout(
+    workspace_ref: NodeRef<html::Div>,
+    inspector_narrow: RwSignal<bool>,
+    resizing_inspector: RwSignal<bool>,
+) {
+    let Some(el) = workspace_ref.get_untracked() else {
+        return;
+    };
+    let narrow = el.get_bounding_client_rect().width() < INSPECTOR_BOTTOM_BREAKPOINT_PX;
+    inspector_narrow.set(narrow);
+    if narrow && resizing_inspector.get_untracked() {
+        resizing_inspector.set(false);
+    }
 }
 
 thread_local! {
@@ -140,8 +156,10 @@ pub fn MermaidPreviewWithInspector(
     let pending_debounce = StoredValue::new_local(None::<Timeout>);
     let workspace_ref = NodeRef::<html::Div>::new();
     let inspector_width = RwSignal::new(INSPECTOR_DEFAULT_WIDTH_PX);
+    let inspector_narrow = RwSignal::new(false);
     let resizing_inspector = RwSignal::new(false);
     let resize_start = RwSignal::new((0.0_f64, INSPECTOR_DEFAULT_WIDTH_PX));
+    let pending_layout_measure = StoredValue::new_local(None::<Timeout>);
 
     Effect::new(move |_| {
         let next = source.get();
@@ -153,6 +171,9 @@ pub fn MermaidPreviewWithInspector(
     });
 
     let on_resize_down = move |ev: PointerEvent| {
+        if inspector_narrow.get_untracked() {
+            return;
+        }
         ev.prevent_default();
         ev.stop_propagation();
         resizing_inspector.set(true);
@@ -192,12 +213,29 @@ pub fn MermaidPreviewWithInspector(
         }
     });
 
+    Effect::new(move |_| {
+        let _ = inspector_open.get();
+        pending_layout_measure.update_value(|slot| {
+            *slot = Some(Timeout::new(0, move || {
+                update_inspector_narrow_layout(workspace_ref, inspector_narrow, resizing_inspector);
+            }));
+        });
+    });
+
+    let window_resize_listener = window_event_listener_untyped("resize", move |_| {
+        update_inspector_narrow_layout(workspace_ref, inspector_narrow, resizing_inspector);
+    });
+
     on_cleanup(move || {
         pending_debounce.update_value(|slot| {
             *slot = None;
         });
+        pending_layout_measure.update_value(|slot| {
+            *slot = None;
+        });
         move_listener.remove();
         up_listener.remove();
+        window_resize_listener.remove();
     });
 
     view! {
@@ -205,6 +243,7 @@ pub fn MermaidPreviewWithInspector(
             node_ref=workspace_ref
             class="mermaid-workspace"
             class:mermaid-workspace--inspector=move || inspector_open.get()
+            class:mermaid-workspace--narrow=move || inspector_narrow.get()
             class:mermaid-workspace--resizing=move || resizing_inspector.get()
             style=move || format!("--mermaid-inspector-width: {:.0}px;", inspector_width.get())
         >

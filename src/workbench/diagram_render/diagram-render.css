@@ -136,6 +136,10 @@
   flex: 1 1 0;
 }
 
+.mermaid-workspace--narrow {
+  flex-direction: column;
+}
+
 .mermaid-inspector {
   flex: 0 0 var(--mermaid-inspector-width, min(34vw, 420px));
   min-width: 280px;
@@ -173,6 +177,10 @@
 .mermaid-inspector__resizer--active span {
   background: color-mix(in srgb, var(--border-strong) 78%, var(--accent) 18%);
   opacity: 0.64;
+}
+
+.mermaid-workspace--narrow .mermaid-inspector__resizer {
+  display: none;
 }
 
 .mermaid-inspector__resize-shield {
@@ -278,6 +286,12 @@
 .mermaid-inspector__btn--primary {
   border-color: color-mix(in srgb, var(--accent) 50%, var(--border));
   color: var(--accent);
+}
+
+.mermaid-workspace--narrow .mermaid-inspector {
+  flex: 0 0 min(42vh, 360px);
+  width: 100%;
+  min-width: 0;
 }
 
 @media (max-width: 860px) {
