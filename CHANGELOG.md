@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Git worktree workspaces**: BLXCode can now create, open, and manage Git worktrees as first-class workspaces for both local and Remote SSH repositories. Workspace entries persist worktree metadata, the Create Workspace flow supports branch/start-point/path worktree creation, and the left side of the custom titlebar now exposes an active-workspace-scoped **Worktree Management** menu for listing, opening, creating, refreshing, and safely removing worktrees. Backend commands resolve Git roots with `rev-parse`, parse `git worktree list --porcelain -z`, check for existing branch/path matches before creation, refuse dirty worktree removal, and run the same flow through the remote exec channel for SSH workspaces. Remote terminals now start in the selected worktree cwd. The BLXCode Agent receives active worktree scope in its system prompt and gains `harness.worktree_list` plus `harness.create_worktree_workspace`; creation requires a preview call, reports existing matches, asks the user to confirm, then creates or opens the worktree only after confirmation. User/developer docs and the implementation plan were updated. Verified with `cargo check`, `cargo check -p blxcode`, `cargo test -p blxcode git_worktree`, and `cargo test -p blxcode system_prompt`.
+
 ### Changed
 
 ### Fixed
