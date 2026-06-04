@@ -3718,6 +3718,215 @@ pub async fn skills_install(
 
 // ---------------------------------------------------------------------
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PluginCapability {
+    RunCommands,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PluginInstallKind {
+    BuiltIn,
+    GitHub,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginCommandContribution {
+    pub capability: PluginCapability,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginManifest {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub version: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub author: Option<String>,
+    #[serde(default)]
+    pub category: String,
+    #[serde(default)]
+    pub capabilities: Vec<PluginCapability>,
+    #[serde(default)]
+    pub commands: Vec<PluginCommandContribution>,
+    #[serde(default)]
+    pub metadata: std::collections::BTreeMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginInstallSource {
+    pub kind: PluginInstallKind,
+    #[serde(default)]
+    pub url: Option<String>,
+    #[serde(default)]
+    pub git_ref: Option<String>,
+    #[serde(default)]
+    pub package_dir: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginRegistryEntry {
+    pub manifest: PluginManifest,
+    #[serde(default)]
+    pub enabled: bool,
+    pub source: PluginInstallSource,
+    #[serde(default)]
+    pub installed_at: String,
+    #[serde(default)]
+    pub updated_at: String,
+    #[serde(default)]
+    pub path: Option<String>,
+}
+
+impl PluginRegistryEntry {
+    pub fn removable(&self) -> bool {
+        self.source.kind != PluginInstallKind::BuiltIn
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginRegistry {
+    #[serde(default)]
+    pub version: u32,
+    #[serde(default)]
+    pub plugins: Vec<PluginRegistryEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginInstallRequest {
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub git_ref: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub package_dir: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginInstallProgress {
+    pub busy: bool,
+    pub phase: String,
+    pub message: String,
+    pub downloaded_bytes: u64,
+    pub total_bytes: Option<u64>,
+    pub error: Option<String>,
+    pub plugin_id: Option<String>,
+    pub updated_at_ms: u128,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RunCommandKind {
+    Dev,
+    Run,
+    Debug,
+    Test,
+    Build,
+    Other,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunCommandSource {
+    pub plugin_id: String,
+    pub detector_id: String,
+    #[serde(default)]
+    pub manifest_path: Option<String>,
+    #[serde(default)]
+    pub package_path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunCommand {
+    pub id: String,
+    pub label: String,
+    pub command: String,
+    #[serde(default)]
+    pub cwd_rel: String,
+    pub kind: RunCommandKind,
+    pub source: RunCommandSource,
+}
+
+pub async fn plugins_list() -> Result<PluginRegistry, String> {
+    invoke_typed("plugins_list", serde_json::json!({})).await
+}
+
+pub async fn plugins_install_from_github(
+    request: PluginInstallRequest,
+) -> Result<PluginRegistry, String> {
+    #[derive(Serialize)]
+    struct Args {
+        request: PluginInstallRequest,
+    }
+    invoke_typed("plugins_install_from_github", Args { request }).await
+}
+
+pub async fn plugins_install_progress() -> Result<PluginInstallProgress, String> {
+    invoke_typed("plugins_install_progress", serde_json::json!({})).await
+}
+
+pub async fn plugins_set_enabled(
+    plugin_id: String,
+    enabled: bool,
+) -> Result<PluginRegistry, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        plugin_id: String,
+        enabled: bool,
+    }
+    invoke_typed("plugins_set_enabled", Args { plugin_id, enabled }).await
+}
+
+pub async fn plugins_remove(plugin_id: String) -> Result<PluginRegistry, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Args {
+        plugin_id: String,
+    }
+    invoke_typed("plugins_remove", Args { plugin_id }).await
+}
+
+pub async fn run_commands_discover(
+    workspace_root: String,
+    connection_id: Option<String>,
+) -> Result<Vec<RunCommand>, String> {
+    #[derive(Serialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Request {
+        workspace_root: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        connection_id: Option<String>,
+    }
+    #[derive(Serialize)]
+    struct Args {
+        request: Request,
+    }
+    invoke_typed(
+        "run_commands_discover",
+        Args {
+            request: Request {
+                workspace_root,
+                connection_id,
+            },
+        },
+    )
+    .await
+}
+
+// ---------------------------------------------------------------------
+
 pub async fn git_branch(
     cwd: String,
     connection_id: Option<String>,
